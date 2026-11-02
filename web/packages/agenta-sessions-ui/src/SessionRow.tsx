@@ -19,6 +19,7 @@ import {SessionAgentName} from "./SessionAgentName"
 import {SessionAutomationKind} from "./SessionAutomationKind"
 import {SessionPinButton} from "./SessionPinButton"
 import {SessionStatusIcon} from "./SessionStatusIcon"
+import {useDeferredMenuSelect, type MenuSelect} from "./useDeferredMenuSelect"
 import type {InlineRename} from "./useInlineRename"
 
 export interface SessionRowProps {
@@ -34,7 +35,8 @@ export interface SessionRowProps {
     renderAgent?: (agentId: string | null) => ReactNode
     /** The app's verbs for this row, in the neutral shape. No items → no kebab. */
     menuItems?: SessionMenuEntry[]
-    onMenuSelect?: (key: string) => void
+    /** Runs the verb; a returned function is deferred until the menu closes. */
+    onMenuSelect?: MenuSelect
     /**
      * The row's rename-in-place state, owned by the caller so the kebab and the right-click menu
      * that wraps the row drive the same edit. Absent, the title is never editable.
@@ -56,9 +58,13 @@ const SessionRowImpl = ({
     onTogglePin,
 }: SessionRowProps) => {
     const openable = Boolean(row.agentId && onOpen)
+    const menuHasPin = Boolean(menuItems?.some((entry) => "key" in entry && entry.key === "pin"))
     const handleOpen = () => {
         if (openable) onOpen?.()
     }
+    // The kebab honours the same close handoff the right-click menu does, so "Rename" opens the
+    // editor from either one.
+    const {handleSelect, handleCloseAutoFocus} = useDeferredMenuSelect(onMenuSelect)
 
     return (
         // A plain container, not an ARIA button: descendants of a button role are
@@ -134,8 +140,15 @@ const SessionRowImpl = ({
                     </span>
                 ) : null}
 
+                {/* Hidden below `sm`. These two reserved 160+96px out of a ~360px phone row, and
+                    the title is the only flexible thing in it, so it absorbed the whole deficit
+                    and rendered at ZERO width: every session with the same agent became an
+                    identical "Test agent · 7m ago" row. The title is the row's identity, so on a
+                    phone it gets the width and the agent column stands down; the timestamp keeps
+                    its slot but sizes to content. Fixed widths return at `sm`, where they buy the
+                    column alignment they exist for. */}
                 {showAgent ? (
-                    <span className="w-40 shrink-0 truncate">
+                    <span className="hidden shrink-0 truncate sm:inline sm:w-40">
                         {renderAgent ? (
                             renderAgent(row.agentId)
                         ) : (
@@ -144,15 +157,18 @@ const SessionRowImpl = ({
                     </span>
                 ) : null}
 
-                <span className="w-24 shrink-0 text-xs text-colorTextTertiary text-right">
+                <span className="shrink-0 text-right text-xs text-colorTextTertiary sm:w-24">
                     {row.activityAt ? timeAgo(Date.parse(row.activityAt)) : "—"}
                 </span>
 
+                {/* Phone-hidden because the "..." menu carries Pin/Unpin, but only where it
+                    actually does: `menuItems` is optional and need not include that entry. */}
                 {onTogglePin ? (
                     <SessionPinButton
                         pinned={row.isPinned}
                         onToggle={() => onTogglePin(row.id)}
                         revealOnHover={revealActionsOnHover}
+                        className={menuHasPin ? "hidden sm:block" : undefined}
                     />
                 ) : null}
 
@@ -163,7 +179,8 @@ const SessionRowImpl = ({
                                 variant="ghost"
                                 size="icon-sm"
                                 aria-label="Session actions"
-                                className="shrink-0"
+                                // The pin's hit extender: 24px is under the touch guideline.
+                                className="relative shrink-0 after:absolute after:inset-[-10px] after:content-[''] [@media(hover:hover)]:after:inset-[-4px]"
                                 onClick={(event) => event.stopPropagation()}
                             >
                                 <DotsThreeIcon size={14} />
@@ -172,6 +189,7 @@ const SessionRowImpl = ({
                         <DropdownMenuContent
                             align="end"
                             onClick={(event) => event.stopPropagation()}
+                            onCloseAutoFocus={handleCloseAutoFocus}
                         >
                             {menuItems.map((entry, index) =>
                                 isMenuDivider(entry) ? (
@@ -183,7 +201,7 @@ const SessionRowImpl = ({
                                         variant={entry.danger ? "destructive" : "default"}
                                         onSelect={(event) => {
                                             event.stopPropagation()
-                                            onMenuSelect?.(entry.key)
+                                            handleSelect(entry.key)
                                         }}
                                     >
                                         {entry.icon ? (

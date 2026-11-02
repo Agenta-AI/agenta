@@ -15,7 +15,6 @@ export {
     useTriggerConnectionsQuery,
     useTriggerIntegrationConnections,
 } from "./useTriggerConnections"
-export {useTriggerConnectionActions} from "./useTriggerConnectionActions"
 export {
     triggerConnectionSubscriptionsAtomFamily,
     triggerSubscriptionsQueryAtom,

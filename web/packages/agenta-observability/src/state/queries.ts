@@ -1,3 +1,4 @@
+import {canViewSpansAtom} from "@agenta/entities/access"
 import type {AnnotationDto} from "@agenta/entities/annotation/dto"
 import {
     attachAnnotationsToTraces,
@@ -12,8 +13,9 @@ import {formatCurrency, formatLatency, formatTokenUsage} from "@agenta/shared/ut
 import {formatDay} from "@agenta/shared/utils/dateTime"
 import deepEqual from "fast-deep-equal"
 import {atom} from "jotai"
-import {atomFamily, selectAtom} from "jotai/utils"
+import {selectAtom} from "jotai/utils"
 import {eagerAtom} from "jotai-eager"
+import {atomFamily} from "jotai-family"
 import {atomWithInfiniteQuery, atomWithQuery} from "jotai-tanstack-query"
 
 import {buildTraceQueryParams, executeTraceQuery, mergeConditions} from "../api/queryHelpers"
@@ -74,7 +76,12 @@ export const tracesQueryAtom = atomWithInfiniteQuery((get) => {
     // URL param to be sent. Gating on `!isResolving` skips that wasted
     // request — once ctx settles, the atom re-evaluates with the correct
     // `effectiveAppId` and queryFn fires.
-    const enabledFlag = sessionExists && Boolean(appId || projectId) && !workflowCtx.isResolving
+    // A reader without `view_spans` gets no trace list: the API would refuse every page.
+    const enabledFlag =
+        sessionExists &&
+        Boolean(appId || projectId) &&
+        !workflowCtx.isResolving &&
+        get(canViewSpansAtom)
 
     return {
         queryKey: ["traces", projectId, appId, params],
@@ -188,7 +195,7 @@ export const annotationsQueryAtom = atomWithQuery((get) => {
                 []
             )
         },
-        enabled: Array.isArray(links) && links.length > 0,
+        enabled: Array.isArray(links) && links.length > 0 && get(canViewSpansAtom),
         refetchOnWindowFocus: false,
     }
 })
@@ -350,7 +357,7 @@ export const sessionsQueryAtom = atomWithInfiniteQuery((get) => {
                 nextWindowing: response?.windowing,
             }
         },
-        enabled: sessionExists && Boolean(appId || projectId),
+        enabled: sessionExists && Boolean(appId || projectId) && get(canViewSpansAtom),
 
         getNextPageParam: (lastPageRaw) => {
             // Disable pagination in realtime mode (latest activity shows fixed LIMIT items)
@@ -436,6 +443,8 @@ export const sessionsSpansQueryAtom = atomWithInfiniteQuery((get) => {
                     },
                 ])
 
+                // The API returns one page per call (it has a default and a maximum
+                // limit). Read the whole session: follow the API's cursor to the end.
                 const result = await executeTraceQuery({
                     params: specificParams,
                     pageParam: pageParam as {newest?: string} | undefined,
@@ -444,6 +453,7 @@ export const sessionsSpansQueryAtom = atomWithInfiniteQuery((get) => {
                     isHasAnnotationSelected,
                     hasAnnotationConditions,
                     hasAnnotationOperator,
+                    readAllPages: true,
                 })
                 // Tag each trace with the session it was queried for. The grouping
                 // below relies on this instead of re-reading `attributes.ag.session.id`:
@@ -474,7 +484,11 @@ export const sessionsSpansQueryAtom = atomWithInfiniteQuery((get) => {
                 annotationPageSize: 0,
             }
         },
-        enabled: sessionExists && Boolean(appId || projectId) && sessionIds.length > 0,
+        enabled:
+            sessionExists &&
+            Boolean(appId || projectId) &&
+            sessionIds.length > 0 &&
+            get(canViewSpansAtom),
 
         getNextPageParam: (lastPage, _pages) => {
             const page = lastPage as {

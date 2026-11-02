@@ -11,10 +11,9 @@ import {
     useVaultSecret,
     CustomSecretFormat,
     type CustomSecretFormat as CustomSecretFormatType,
-    type CustomSecretContent,
     type NamedSecretRow,
 } from "@agenta/entities/secret"
-import {slugifyBase} from "@agenta/shared/utils"
+import {extractApiErrorMessage, slugifyBase} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 
 import {buildSecretContent, parseFlatJson} from "./content"
@@ -23,10 +22,12 @@ import {objectToRows, rowsToObject, type KvRow} from "./primitives"
 export type JsonView = "grid" | "json"
 
 export interface SavedSecret {
+    /** The vault row's id. */
+    id?: string
     name: string
     slug: string
     format: CustomSecretFormatType
-    content: CustomSecretContent
+    defaultEnvVar?: string
 }
 
 export interface UseSecretFormOptions {
@@ -36,6 +37,11 @@ export interface UseSecretFormOptions {
     initialSecret?: NamedSecretRow | null
     /** Create-mode seed for the name (e.g. derived from an MCP header name). */
     initialName?: string
+    /** Create-mode seed for a text value (e.g. the MCP Basic helper's encoded credential). */
+    initialValue?: string
+    initialDefaultEnvVar?: string
+    /** "user" creates the person's own secret; absent, the project's. */
+    ownerKind?: "user"
     /** Called after a successful save with the persisted row. */
     onSaved?: (row: SavedSecret) => void
 }
@@ -46,6 +52,7 @@ export interface SecretFormController {
     slug: string
     format: CustomSecretFormatType
     textValue: string
+    defaultEnvVar: string
     kvRows: KvRow[]
     jsonView: JsonView
     jsonText: string
@@ -53,6 +60,7 @@ export interface SecretFormController {
     duplicateKeys: Set<string>
     /** A duplicate key is visible and blocking in the JSON grid. */
     duplicateKeyError: boolean
+    defaultEnvError: boolean
     /** Editing a write-only secret: nothing is prefilled and blank keeps the stored value. */
     valueHidden: boolean
     /** Masked hint for the stored value, when the backend supplies one. */
@@ -63,6 +71,7 @@ export interface SecretFormController {
     onChangeSlug: (next: string) => void
     onChangeFormat: (next: CustomSecretFormatType) => void
     setTextValue: (next: string) => void
+    setDefaultEnvVar: (next: string) => void
     updateRow: (idx: number, patch: Partial<KvRow>) => void
     addRow: () => void
     removeRow: (idx: number) => void
@@ -76,6 +85,9 @@ export function useSecretForm({
     open,
     initialSecret,
     initialName,
+    initialValue,
+    initialDefaultEnvVar,
+    ownerKind,
     onSaved,
 }: UseSecretFormOptions): SecretFormController {
     // `handleModifyNamedSecret` already refetches the vault query, so no extra `mutate()`.
@@ -86,6 +98,7 @@ export function useSecretForm({
     const [slugTouched, setSlugTouched] = useState(false)
     const [format, setFormat] = useState<CustomSecretFormatType>(CustomSecretFormat.Text)
     const [textValue, setTextValue] = useState("")
+    const [defaultEnvVar, setDefaultEnvVar] = useState("")
     const [kvRows, setKvRows] = useState<KvRow[]>([{key: "", value: ""}])
     const [jsonView, setJsonView] = useState<JsonView>("grid")
     const [jsonText, setJsonText] = useState("{}")
@@ -98,7 +111,13 @@ export function useSecretForm({
     const valueHidden = isEditing && initialSecret?.writeOnly === true
 
     useEffect(() => {
-        if (!open) return
+        if (!open) {
+            setTextValue("")
+            setKvRows([{key: "", value: ""}])
+            setJsonText("{}")
+            setReplacementSupplied(false)
+            return
+        }
         setJsonView("grid")
         setJsonError(null)
         setJsonText("{}")
@@ -108,6 +127,7 @@ export function useSecretForm({
             setName(initialSecret.name ?? "")
             setSlug(initialSecret.slug ?? "")
             setFormat(initialSecret.format)
+            setDefaultEnvVar(initialSecret.defaultEnvVar ?? "")
             if (initialSecret.format === CustomSecretFormat.Json) {
                 setTextValue("")
                 setKvRows(
@@ -124,12 +144,12 @@ export function useSecretForm({
             setName(seededName)
             setSlug(slugifyBase(seededName))
             setFormat(CustomSecretFormat.Text)
-            setTextValue("")
+            setDefaultEnvVar(initialDefaultEnvVar ?? "")
+            setTextValue(initialValue ?? "")
             setKvRows([{key: "", value: ""}])
         }
-        // Keyed on the secret's identity, not its object identity: a re-created prop must
-        // not wipe what the user has typed while the form is open.
-    }, [open, initialSecret?.id, initialName])
+        // Key on the secret id so a re-created prop does not wipe what the user typed.
+    }, [open, initialSecret?.id, initialName, initialValue, initialDefaultEnvVar])
 
     // On create, the slug auto-follows the name until the user edits it directly.
     const onChangeName = (next: string) => {
@@ -243,23 +263,38 @@ export function useSecretForm({
             // Slug is immutable: only sent on create. Resolved up front so the value handed
             // back to `onSaved` is the one that was actually sent.
             const createSlug = slug.trim() || slugifyBase(trimmedName)
-            await handleModifyNamedSecret({
+            const savedDefaultEnvVar =
+                format === CustomSecretFormat.Text ? defaultEnvVar.trim() || undefined : undefined
+            const savedId = await handleModifyNamedSecret({
+                ...(ownerKind ? {ownerKind} : {}),
                 name: trimmedName,
                 slug: isEditing ? undefined : createSlug,
                 format,
                 content,
+                defaultEnvVar: savedDefaultEnvVar,
                 id: initialSecret?.id,
             })
+            // The vault owns the raw value now. Clear it before any attachment callback can run.
+            setTextValue("")
+            setKvRows([{key: "", value: ""}])
+            setJsonText("{}")
+            setReplacementSupplied(false)
             message.success("The secret is saved")
             onSaved?.({
+                id: savedId,
                 name: trimmedName,
                 slug: isEditing ? (initialSecret?.slug ?? "") : createSlug,
                 format,
-                content: content ?? "",
+                defaultEnvVar: savedDefaultEnvVar,
             })
         } catch (error) {
-            console.error(error)
-            message.error("Failed to save the secret")
+            const status = (error as {statusCode?: number})?.statusCode
+            console.error("Secret save failed", {status})
+            // A taken slug is the one refusal the person can fix in this form, so the API's
+            // reason is shown rather than a bare failure (#6928).
+            message.error(
+                status === 409 ? extractApiErrorMessage(error) : "Failed to save the secret",
+            )
         } finally {
             setSaving(false)
         }
@@ -282,7 +317,11 @@ export function useSecretForm({
     const duplicateKeyError =
         format === CustomSecretFormat.Json && jsonView === "grid" && duplicateKeys.size > 0
 
-    const okDisabled = duplicateKeyError
+    const defaultEnvError =
+        format === CustomSecretFormat.Text &&
+        defaultEnvVar.length > 0 &&
+        !/^[A-Za-z_][A-Za-z0-9_]*$/.test(defaultEnvVar)
+    const okDisabled = duplicateKeyError || defaultEnvError
 
     return {
         isEditing,
@@ -290,12 +329,14 @@ export function useSecretForm({
         slug,
         format,
         textValue,
+        defaultEnvVar,
         kvRows,
         jsonView,
         jsonText,
         jsonError,
         duplicateKeys,
         duplicateKeyError,
+        defaultEnvError,
         valueHidden,
         keyPreview: initialSecret?.keyPreview,
         saving,
@@ -304,6 +345,7 @@ export function useSecretForm({
         onChangeSlug,
         onChangeFormat,
         setTextValue: onChangeTextValue,
+        setDefaultEnvVar,
         updateRow,
         addRow,
         removeRow,

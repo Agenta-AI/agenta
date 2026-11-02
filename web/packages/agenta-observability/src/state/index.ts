@@ -1,9 +1,11 @@
+import {canViewSpansAtom} from "@agenta/entities/access"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {fetchDashboardAnalytics} from "../api/dashboard"
+import {dashboardErrorMessage, shouldRetryDashboard} from "../core/dashboardError"
 import {resolveRangePreset} from "../core/presets"
 import type {AnalyticsRange, DashboardData} from "../core/types"
 
@@ -26,9 +28,11 @@ export const observabilityDashboardQueryAtomFamily = atomFamily((appId: string |
                 if (!projectId) return null
                 return fetchDashboardAnalytics({projectId, appId, range, signal})
             },
-            enabled: Boolean(projectId),
+            enabled: Boolean(projectId) && get(canViewSpansAtom),
             staleTime: 1000 * 60,
             refetchOnWindowFocus: false,
+            // A timed-out range times out again; retrying only delays the error by minutes.
+            retry: shouldRetryDashboard,
         }
     }),
 )
@@ -38,6 +42,8 @@ export interface ObservabilityDashboardState {
     loading: boolean
     isFetching: boolean
     error: unknown
+    /** Set when the last fetch failed: the server's reason, or a generic one. */
+    errorMessage: string | null
     refetch: () => void
 }
 
@@ -58,6 +64,7 @@ export const useObservabilityDashboard = (
         loading: fetchStatus !== "idle",
         isFetching: Boolean(isFetching) || fetching,
         error,
+        errorMessage: error ? dashboardErrorMessage(error) : null,
         refetch,
     }
 }

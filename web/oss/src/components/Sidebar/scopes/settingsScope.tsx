@@ -17,6 +17,8 @@ import {useAtom} from "jotai"
 
 import {useSettingsAccess} from "@/oss/components/pages/settings/hooks/useSettingsAccess"
 import {useQueryParam} from "@/oss/hooks/useQuery"
+import {useOrgData} from "@/oss/state/org"
+import {useProfileData} from "@/oss/state/profile"
 import {settingsTabAtom} from "@/oss/state/settings"
 
 import ProjectOrgSwitcher from "../components/ProjectOrgSwitcher"
@@ -33,18 +35,25 @@ const useSettingsSidebarSelection = (): SidebarSelection => {
     const [tab, setTab] = useQueryParam("tab", undefined, "replace")
     const [settingsTab, setSettingsTab] = useAtom(settingsTabAtom)
     const access = useSettingsAccess()
+    // Owner-only tabs (Usage & Billing) read as hidden until the organization and the profile
+    // load. Rewriting the URL before then sent a full page load of `?tab=billing` (Stripe's
+    // return) to the Members tab.
+    const {selectedOrg} = useOrgData()
+    const {user} = useProfileData()
+    const accessReady = Boolean(selectedOrg && user)
 
     const requestedTab = tab ?? settingsTab
     const activeTab = resolveSettingsTab(requestedTab, access)
 
     useEffect(() => {
+        if (!accessReady) return
         if (settingsTab !== activeTab) {
             setSettingsTab(activeTab)
         }
         if (tab && tab !== activeTab) {
             setTab(activeTab)
         }
-    }, [activeTab, settingsTab, setSettingsTab, setTab, tab])
+    }, [accessReady, activeTab, settingsTab, setSettingsTab, setTab, tab])
 
     return {
         mode: "controlled",

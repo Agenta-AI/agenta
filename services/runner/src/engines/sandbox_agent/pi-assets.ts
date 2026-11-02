@@ -1,8 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
+  chmodSync,
   copyFileSync,
   cpSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -10,6 +12,7 @@ import {
   renameSync,
   rmSync,
   statSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -19,8 +22,14 @@ import type { AgentRunRequest, ResolvedToolSpec } from "../../protocol.ts";
 import { PI_TRACE_CONTROL_ENV } from "../../tracing/pi-spool-protocol.ts";
 import {
   encodePiModelProviderOverride,
+  GATEWAY_PLACEHOLDER_API_KEY,
   PI_MODEL_PROVIDER_OVERRIDE_ENV,
 } from "../../extensions/model-provider-override.ts";
+import {
+  PI_GATEWAY_MCP_SERVERS_ENV,
+  piGatewayMcpServersFromWire,
+  serializePiGatewayMcpConfig,
+} from "../../extensions/pi-mcp.ts";
 import {
   advertisedToolSpecs,
   type AdvertisedToolSpec,
@@ -28,6 +37,8 @@ import {
 import { PUBLIC_SPECS_FILE_ENV } from "../../tools/tool-mcp-env.ts";
 import type { MaterializedSkill } from "../skills.ts";
 import { PKG_ROOT } from "./daemon.ts";
+import { shellQuote } from "./mount.ts";
+import { sandboxFileText } from "./subscription-login/files.ts";
 import {
   describePiModelsJsonPlan,
   isPiModelConfigApplicable,
@@ -36,6 +47,8 @@ import {
   serializePiModelsJson,
   type PiModelsJsonPlan,
 } from "./pi-model-config.ts";
+import { materializeGatewayHeaders } from "./run-plan.ts";
+import { commandTimeoutSeconds, PI_COMMAND_TIMEOUT_ENV } from "./run-limits.ts";
 import type {
   RunPlan,
   RunPlanCredentials,
@@ -117,17 +130,8 @@ function hashPart(
   hash.update(bytes);
 }
 
-/** Resolve the immutable project-local snapshot selected for this Pi run. */
-export function resolvePiSkillSnapshot(
-  plan: Pick<RunPlan, "isPi"> & {
-    workspace: Pick<RunPlanWorkspace, "cwd" | "skillDirs">;
-  },
-): PiSkillSnapshot | undefined {
-  if (!plan.isPi || plan.workspace.skillDirs.length === 0) return undefined;
-
-  const skills = [...plan.workspace.skillDirs].sort((a, b) =>
-    a.name.localeCompare(b.name),
-  );
+/** The content digest of a skill set: names, relative paths, modes, and bytes. */
+function skillSetDigest(skills: readonly MaterializedSkill[]): string {
   const hash = createHash("sha256");
   hashPart(hash, "agenta-pi-skill-set-v1");
   for (const skill of skills) {
@@ -138,7 +142,47 @@ export function resolvePiSkillSnapshot(
       hashPart(hash, file.content);
     }
   }
-  const digest = hash.digest("hex");
+  return hash.digest("hex");
+}
+
+/**
+ * Where a LOCAL run keeps its Pi skill snapshots: one shared copy per digest on the runner's own
+ * disk, never in the session cwd.
+ *
+ * The session cwd is a fresh geesefs mount, so a snapshot there made Pi read every skill from
+ * cold object storage at startup: about 2 s for a 36-skill agent, against 0.03 s from local disk.
+ * A digest names exact content, so sessions with the same skills can share one copy.
+ */
+export function localPiSkillSnapshotRoot(): string {
+  return join(tmpdir(), "agenta-pi-skills");
+}
+
+/**
+ * How long a local snapshot may go unused before a later publish removes it. Each run that uses a
+ * snapshot touches it, so only skill sets no session has run for this long are removed.
+ */
+export const LOCAL_PI_SKILL_SNAPSHOT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+/** Staging and replaced dirs are never in use after their own publish; keep them an hour. */
+const LOCAL_PI_SKILL_STAGING_TTL_MS = 60 * 60 * 1000;
+const SNAPSHOT_DIGEST_NAME = /^[a-f0-9]{64}$/;
+
+/**
+ * Resolve the immutable snapshot selected for this Pi run. A `local` run, whose cwd is a geesefs
+ * mount on the runner, shares one copy per digest under `localPiSkillSnapshotRoot()`. Daytona and
+ * `inprocess` keep it under the cwd: the Daytona sandbox has its own disk, and `inprocess`
+ * publishes the snapshot from its cwd to the drive so its command sandbox can read it.
+ */
+export function resolvePiSkillSnapshot(
+  plan: Pick<RunPlan, "isPi" | "driveOnRunner"> & {
+    workspace: Pick<RunPlanWorkspace, "cwd" | "skillDirs">;
+  },
+): PiSkillSnapshot | undefined {
+  if (!plan.isPi || plan.workspace.skillDirs.length === 0) return undefined;
+
+  const skills = [...plan.workspace.skillDirs].sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
+  const digest = skillSetDigest(skills);
   const marker = `${JSON.stringify({
     version: 1,
     digest,
@@ -146,13 +190,15 @@ export function resolvePiSkillSnapshot(
   })}\n`;
   return {
     digest,
-    dir: join(plan.workspace.cwd, "agents", "skills", digest),
+    dir: plan.driveOnRunner
+      ? join(localPiSkillSnapshotRoot(), digest)
+      : join(plan.workspace.cwd, "agents", "skills", digest),
     marker,
     skills,
   };
 }
 
-/** Tell Pi to load only the explicitly selected project-local snapshot. */
+/** Tell Pi to load only the explicitly selected snapshot. */
 export function configurePiSkillSnapshot(
   snapshot: PiSkillSnapshot | undefined,
   env: Record<string, string>,
@@ -160,28 +206,118 @@ export function configurePiSkillSnapshot(
   if (snapshot) env.PI_CODING_AGENT_SKILL_DIR = snapshot.dir;
 }
 
-function validateLocalPiSkillSnapshot(snapshot: PiSkillSnapshot): boolean {
-  if (!existsSync(snapshot.dir)) return false;
-  const markerPath = join(snapshot.dir, PI_SKILL_SNAPSHOT_MARKER);
-  if (
-    !existsSync(markerPath) ||
-    readFileSync(markerPath, "utf-8") !== snapshot.marker
-  ) {
-    throw new Error(
-      `Pi skill snapshot ${snapshot.dir} exists without the expected completion marker`,
-    );
+/**
+ * True when the shared snapshot holds exactly the expected skill set. Every session with the
+ * same skills reads this copy, and the runner user can write to it, so the check covers the
+ * content (by digest) and the entries Pi would discover, not only the completion marker.
+ */
+function isIntactLocalPiSkillSnapshot(snapshot: PiSkillSnapshot): boolean {
+  try {
+    const markerPath = join(snapshot.dir, PI_SKILL_SNAPSHOT_MARKER);
+    if (readFileSync(markerPath, "utf-8") !== snapshot.marker) return false;
+    const expected = [
+      PI_SKILL_SNAPSHOT_MARKER,
+      ...snapshot.skills.map((skill) => skill.name),
+    ].sort();
+    const actual = readdirSync(snapshot.dir).sort();
+    if (expected.join("\0") !== actual.join("\0")) return false;
+    const copied = snapshot.skills.map((skill) => ({
+      name: skill.name,
+      dir: join(snapshot.dir, skill.name),
+    }));
+    return skillSetDigest(copied) === snapshot.digest;
+  } catch {
+    return false;
   }
-  return true;
 }
 
-/** Publish a local snapshot once; existing snapshots are only validated and reused. */
+/** Mark the snapshot used now, for the sweep. A concurrent repair may have moved it away. */
+function touchSnapshot(dir: string): void {
+  const now = new Date();
+  try {
+    utimesSync(dir, now, now);
+  } catch {
+    // The next run checks the snapshot again.
+  }
+}
+
+/** Create the shared root owner-only, and refuse one this user does not own (or a symlink). */
+function ensureLocalPiSkillSnapshotRoot(root: string): void {
+  mkdirSync(root, { recursive: true, mode: 0o700 });
+  const stat = lstatSync(root);
+  const uid = process.getuid?.();
+  if (!stat.isDirectory() || (uid !== undefined && stat.uid !== uid)) {
+    throw new Error(
+      `Pi skill snapshot root ${root} is not a directory owned by the runner user`,
+    );
+  }
+  if ((stat.mode & 0o777) !== 0o700) chmodSync(root, 0o700);
+}
+
+/** Remove snapshots unused for the TTL, and leftover staging or replaced dirs. */
+function sweepLocalPiSkillSnapshots(
+  root: string,
+  keep: string,
+  log: Log,
+): void {
+  const now = Date.now();
+  for (const name of readdirSync(root)) {
+    if (name === keep) continue;
+    const isSnapshot = SNAPSHOT_DIGEST_NAME.test(name);
+    if (!isSnapshot && !name.startsWith(".")) continue;
+    const path = join(root, name);
+    try {
+      const ttl = isSnapshot
+        ? LOCAL_PI_SKILL_SNAPSHOT_TTL_MS
+        : LOCAL_PI_SKILL_STAGING_TTL_MS;
+      if (now - statSync(path).mtimeMs < ttl) continue;
+      rmSync(path, { recursive: true, force: true });
+      log(`pi skill snapshot removed path=${path}`);
+    } catch (err) {
+      log(`pi skill snapshot sweep skipped ${path}: ${(err as Error).message}`);
+    }
+  }
+}
+
+/**
+ * Publish the shared local snapshot for this digest once, then reuse it.
+ *
+ * A hit is checked and touched, so the sweep sees when it was last used. A miss (or a copy that
+ * no longer matches its digest) is built in a staging dir and published with an atomic rename,
+ * so a concurrent publisher of the same digest either wins or finds the finished copy. A miss
+ * also removes snapshots no run has used for `LOCAL_PI_SKILL_SNAPSHOT_TTL_MS`.
+ */
 export function materializeLocalPiSkillSnapshot(
   snapshot: PiSkillSnapshot,
+  log: Log = () => {},
 ): void {
-  if (validateLocalPiSkillSnapshot(snapshot)) return;
-
+  // Check the root first, also on a hit: a root another user owns could change a copy after it
+  // passed the content check.
   const root = dirname(snapshot.dir);
-  mkdirSync(root, { recursive: true });
+  ensureLocalPiSkillSnapshotRoot(root);
+  if (isIntactLocalPiSkillSnapshot(snapshot)) {
+    touchSnapshot(snapshot.dir);
+    return;
+  }
+  if (existsSync(snapshot.dir)) {
+    // Another session may have published this digest since the check above.
+    if (isIntactLocalPiSkillSnapshot(snapshot)) {
+      touchSnapshot(snapshot.dir);
+      return;
+    }
+    // Move the damaged copy aside, never delete it here: a session that opened it still reads
+    // its files. The sweep removes it after the staging TTL. A concurrent repair may have moved
+    // it already.
+    try {
+      const replaced = join(root, `.${snapshot.digest}.replaced-${randomUUID()}`);
+      renameSync(snapshot.dir, replaced);
+      // The staging TTL counts from now, not from when the copy was made.
+      touchSnapshot(replaced);
+      log(`pi skill snapshot replaced path=${snapshot.dir}`);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+    }
+  }
   const staging = mkdtempSync(join(root, `.${snapshot.digest}.tmp-`));
   try {
     for (const skill of snapshot.skills) {
@@ -198,11 +334,12 @@ export function materializeLocalPiSkillSnapshot(
     try {
       renameSync(staging, snapshot.dir);
     } catch (err) {
-      if (!validateLocalPiSkillSnapshot(snapshot)) throw err;
+      if (!isIntactLocalPiSkillSnapshot(snapshot)) throw err;
     }
   } finally {
     rmSync(staging, { recursive: true, force: true });
   }
+  sweepLocalPiSkillSnapshots(root, snapshot.digest, log);
 }
 
 async function readDaytonaSnapshotMarker(
@@ -333,6 +470,18 @@ export const PI_AGENT_DIR_UNWRITABLE_MESSAGE =
   "Ask your deployment operator to make the mounted Pi agent directory writable by the runner's uid.";
 
 /**
+ * Thrown (via the engine's named-message pattern) when a local subscription run could not build
+ * its per-run Pi prompt channel (`preparePiPromptChannel`). Fail closed: the only other place to
+ * put a system prompt is the agent dir every session on that connection shares, so the run would
+ * either take another session's instructions or hand its own to the next one. Single line so
+ * `conciseError` surfaces it verbatim.
+ */
+export const PI_PROMPT_CHANNEL_UNAVAILABLE_MESSAGE =
+  "The agent could not set up its own system-prompt files for this run, so it was stopped rather " +
+  "than share them with the other sessions on this connection. Ask your deployment operator to " +
+  "check that the runner's temporary directory is writable.";
+
+/**
  * Write the Pi `models.json` into a local (throwaway) agent dir with mode `0600` via an atomic
  * temp-file-plus-rename. THROWS on failure so the caller can make materialization terminal — a
  * managed custom run must never fall through to a default provider (design Decision 6). The file
@@ -382,8 +531,8 @@ export const PI_TOOL_SPECS_UNAVAILABLE_MESSAGE =
  *
  * A SIBLING of the relay dir, like the OTLP auth file, because `prepareWorkspace` clears and
  * recreates the relay dir itself on every turn. It is keyed on the conversation (the relay dir
- * is), non-secret, and rewritten in place per run, so it is left behind at teardown exactly as
- * the relay dir is.
+ * is) and rewritten per run. On the runner host it is owner-only and goes with the relay dir at
+ * teardown (`environment.ts`).
  */
 export function piToolSpecsFilePath(relayDir: string): string {
   return `${relayDir}.tool-specs.json`;
@@ -428,7 +577,12 @@ export function writePiToolSpecsFileLocal(
 ): void {
   try {
     mkdirSync(dirname(delivery.path), { recursive: true });
-    writeFileSync(delivery.path, delivery.contents, "utf-8");
+    writeFileSync(delivery.path, delivery.contents, {
+      encoding: "utf-8",
+      mode: 0o600,
+    });
+    // `mode` applies only to a new file; one an older runner left behind keeps its own.
+    chmodSync(delivery.path, 0o600);
   } catch (err) {
     log(`pi tool specs write failed: ${(err as Error).message}`);
     throw new Error(PI_TOOL_SPECS_UNAVAILABLE_MESSAGE);
@@ -464,6 +618,19 @@ export async function uploadPiToolSpecsToSandbox(
 }
 
 /**
+ * Agenta's provider keys that Pi names differently. The override must name Pi's own provider,
+ * or it registers a provider Pi has no models for and nothing is selectable.
+ */
+const PI_PROVIDER_IDS: Record<string, string> = {
+  together_ai: "together",
+  gemini: "google",
+};
+
+export function piProviderId(provider: string | undefined): string | undefined {
+  return provider ? (PI_PROVIDER_IDS[provider] ?? provider) : provider;
+}
+
+/**
  * Env the Agenta Pi extension reads. Per-turn trace context, capture policy, and redaction values
  * ride the stable read-once control file; the endpoint and authorization stay in the runner.
  */
@@ -483,12 +650,20 @@ export function buildPiExtensionEnv(
   // Point Pi's built-in provider at the resolved custom base URL via the Agenta extension
   // (`model-provider-override.ts`). Skipped when the managed OpenAI-compatible custom path
   // already routes this run through its own `models.json` provider (`pi-model-config.ts`) —
-  // two competing registrations for the same run would race for the provider.
+  // two competing registrations for the same run would race for the provider. A gateway-routed
+  // non-custom connection goes through the same override, which is how Pi receives the gateway
+  // credential header.
   const modelBaseUrl = request.modelConnection?.endpoint?.baseUrl;
   if (modelBaseUrl !== undefined && !isPiModelConfigApplicable(request)) {
+    const gatewayHeaders = materializeGatewayHeaders(request);
+    const isGatewayRoute = Object.keys(gatewayHeaders).length > 0;
     env[PI_MODEL_PROVIDER_OVERRIDE_ENV] = encodePiModelProviderOverride({
-      provider: request.modelConnection?.provider,
+      provider: piProviderId(request.modelConnection?.provider),
       baseUrl: modelBaseUrl,
+      ...(isGatewayRoute ? { headers: gatewayHeaders } : {}),
+      // credentialMode "none" leaves no real key anywhere; without SOME apiKey Pi may treat the
+      // model as unavailable for selection (see PiModelProviderOverride.apiKey).
+      ...(isGatewayRoute ? { apiKey: GATEWAY_PLACEHOLDER_API_KEY } : {}),
     });
   }
 
@@ -510,6 +685,14 @@ export function buildPiExtensionEnv(
     if (responseWatch !== undefined)
       env.AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED = responseWatch;
   }
+  const mcpServers = piGatewayMcpServersFromWire(request.mcpServers);
+  if (mcpServers.length > 0) {
+    env[PI_GATEWAY_MCP_SERVERS_ENV] = serializePiGatewayMcpConfig(mcpServers);
+  }
+  // Pi's own shell tool runs in the sandbox, where the runner cannot stop it; the extension gives
+  // every call this timeout instead, so a command that runs too long is stopped by Pi and the
+  // model is told so, rather than the per-tool-call watchdog ending the whole turn.
+  env[PI_COMMAND_TIMEOUT_ENV] = String(commandTimeoutSeconds(undefined));
   // Only reached for a Pi run (environment-setup gates on `plan.isPi`), and every Pi run
   // activates all seven builtins.
   env.AGENTA_AGENT_BUILTIN_ACTIVATION = "1";
@@ -547,8 +730,10 @@ export function installPiExtensionLocal(
 }
 
 /**
- * Pi reads system-prompt files from the non-trust-gated agent dir. Only call this on a
- * throwaway per-run agent dir so prompts cannot leak into later runs.
+ * Pi reads `SYSTEM.md` and `APPEND_SYSTEM.md` from whichever directory it is given. Call this on
+ * a directory ONE session owns: a throwaway per-run agent dir, or the per-run prompt dir
+ * `preparePiPromptChannel` created. A directory shared by two sessions leaks one session's
+ * prompt into the other.
  */
 export function writeSystemPromptLocal(
   agentDir: string,
@@ -572,7 +757,105 @@ export function writeSystemPromptLocal(
   }
 }
 
-/** Upload the system/append-system prompts into a Daytona sandbox's Pi agent dir. */
+/** The two names Pi discovers in its agent dir. */
+const PI_PROMPT_FILES = ["SYSTEM.md", "APPEND_SYSTEM.md"] as const;
+
+/**
+ * Clear the prompt files out of a per-connection agent dir the RUNNER owns.
+ *
+ * Nothing writes them there any more, and the wrapper's empty flags already stop Pi reading them,
+ * so this is the second lock on the same door: it clears what an earlier runner build left behind
+ * and keeps the dir honest for anyone reading it. Best effort — the wrapper is the guarantee.
+ *
+ * Only for the runner-owned dir. An operator's own mounted agent dir may hold a `SYSTEM.md` that
+ * the operator put there on purpose, and deleting someone's configuration is not this function's
+ * business; the empty flags neutralize it without touching it.
+ */
+function clearSharedPiPrompts(agentDir: string, log: Log = () => {}): void {
+  for (const name of PI_PROMPT_FILES) {
+    try {
+      rmSync(join(agentDir, name), { force: true });
+    } catch (err) {
+      log(`stale pi prompt not removed: ${(err as Error).message}`);
+    }
+  }
+}
+
+/**
+ * The per-run dir that carries this run's Pi prompts, and the `pi` wrapper that delivers them.
+ *
+ * A hosted subscription run's agent dir belongs to the CONNECTION, not to the session, because
+ * Pi's `auth.json` and the lock that serializes its OAuth refresh both live there and both must
+ * be shared. Prompt files written into that dir are read by every other session on the same
+ * connection, and two sessions that start at once race on them. Pi has no per-session prompt
+ * file, but it does take `--system-prompt` and `--append-system-prompt`, and those suppress the
+ * agent-dir discovery. pi-acp spawns `pi` with a fixed argument list, so the flags ride a small
+ * wrapper that `PI_ACP_PI_COMMAND` points at. The wrapper is per run, so the prompts are per run.
+ *
+ * BOTH FLAGS ARE ALWAYS PASSED, empty when this run has no such prompt. An omitted flag is not
+ * neutral: pinned 0.80.6 resolves `systemPromptSource ?? discoverSystemPromptFile()`, so with no
+ * flag Pi falls back to the shared dir and reads whatever another writer left there. An empty
+ * value is not nullish, so the discovery is skipped, and `resolvePromptInput("")` then returns
+ * undefined, which is exactly the no-prompt case. An empty FILE would not do: the loader reads it
+ * and hands Pi an empty prompt instead of its default.
+ *
+ * The wrapper tests each file rather than baking the choice in: the agent-mount guidance rewrites
+ * the prompts after the wrapper exists and can add an append prompt that was not there before.
+ *
+ * `undefined` means the channel could not be built. The caller treats that as terminal: the only
+ * fallback is the shared agent dir, which is the leak this exists to close, and a run that
+ * silently drops its system prompt answers with the wrong persona.
+ */
+export function preparePiPromptChannel(
+  env: Record<string, string>,
+  log: Log = () => {},
+): string | undefined {
+  const piCommand = env.PI_ACP_PI_COMMAND;
+  if (!piCommand) {
+    log("pi prompt channel: the daemon environment names no pi command");
+    return undefined;
+  }
+  try {
+    const dir = mkdtempSync(join(tmpdir(), "agenta-pi-prompt-"));
+    const wrapper = join(dir, "pi");
+    const flags = [
+      ["SYSTEM.md", "--system-prompt"],
+      ["APPEND_SYSTEM.md", "--append-system-prompt"],
+    ] as const;
+    const lines = [
+      "#!/bin/sh",
+      "# Agenta: deliver this run's Pi prompts as arguments, never through the shared agent dir.",
+      "# The empty branches are load-bearing: they stop Pi discovering a prompt file in that dir.",
+      ...flags.flatMap(([file, flag]) => {
+        const path = shellQuote(join(dir, file));
+        return [
+          `if [ -f ${path} ]; then`,
+          `  set -- ${flag} ${path} "$@"`,
+          "else",
+          `  set -- ${flag} '' "$@"`,
+          "fi",
+        ];
+      }),
+      `exec ${shellQuote(piCommand)} "$@"`,
+      "",
+    ];
+    writeFileSync(wrapper, lines.join("\n"), { mode: 0o700 });
+    env.PI_ACP_PI_COMMAND = wrapper;
+    return dir;
+  } catch (err) {
+    log(`pi prompt channel write failed: ${(err as Error).message}`);
+    return undefined;
+  }
+}
+
+/**
+ * Upload the system/append-system prompts into a Daytona sandbox's Pi agent dir.
+ *
+ * A prompt the run does not have is REMOVED, not left alone. A subscription sandbox's agent dir
+ * is keyed by connection and survives a warm reuse, so a leftover `SYSTEM.md` would otherwise be
+ * loaded by the next session on that connection. One sandbox serves one session at a time, so
+ * there is no race here and no need for the local wrapper.
+ */
 export async function uploadSystemPromptToSandbox(
   sandbox: any,
   agentDir: string,
@@ -580,19 +863,27 @@ export async function uploadSystemPromptToSandbox(
   appendSystemPrompt: string | undefined,
   log: Log = () => {},
 ): Promise<void> {
+  const contents: Record<string, string | undefined> = {
+    "SYSTEM.md": systemPrompt,
+    "APPEND_SYSTEM.md": appendSystemPrompt,
+  };
   try {
     await sandbox.mkdirFs({ path: agentDir });
-    if (systemPrompt) {
-      await sandbox.writeFsFile(
-        { path: `${agentDir}/SYSTEM.md` },
-        systemPrompt,
-      );
+    const stale: string[] = [];
+    for (const name of PI_PROMPT_FILES) {
+      const content = contents[name];
+      if (content) {
+        await sandbox.writeFsFile({ path: `${agentDir}/${name}` }, content);
+      } else {
+        stale.push(`${agentDir}/${name}`);
+      }
     }
-    if (appendSystemPrompt) {
-      await sandbox.writeFsFile(
-        { path: `${agentDir}/APPEND_SYSTEM.md` },
-        appendSystemPrompt,
-      );
+    if (stale.length > 0 && typeof sandbox.runProcess === "function") {
+      await sandbox.runProcess({
+        command: "sh",
+        args: ["-lc", `rm -f ${stale.map(shellQuote).join(" ")}`],
+        timeoutMs: 15_000,
+      });
     }
   } catch (err) {
     log(`system prompt upload skipped: ${(err as Error).message}`);
@@ -625,6 +916,87 @@ export async function uploadPiExtensionToSandbox(
   } catch (err) {
     log(`pi extension upload skipped: ${(err as Error).message}`);
     return false;
+  }
+}
+
+/**
+ * Pi's retry setting for a run that reaches its model through the Agenta LLM gateway. The gateway
+ * already retries the provider's 408, 409, 429 and 5xx answers, so Pi keeps one retry, for a
+ * dropped connection to the gateway, instead of its default three on top of the gateway's. A run
+ * that goes straight to a provider keeps Pi's default: there Pi is the only layer that retries.
+ */
+export const GATEWAY_PI_RETRY = { maxRetries: 1 };
+const PI_SETTINGS_FILENAME = "settings.json";
+
+/**
+ * A Pi `settings.json` with the runner's settings merged over whatever the file already holds.
+ * `quietStartup` stops pi-acp from building its startup banner, which runs `pi --version` before
+ * it answers `session/new`. The runner strips that banner anyway (`isBannerLine` in
+ * tracing/otel.ts). A run through the gateway also gets `GATEWAY_PI_RETRY`.
+ */
+export function withRunnerPiSettings(
+  existing: string | undefined,
+  throughGateway: boolean | undefined,
+): string {
+  let settings: Record<string, unknown> = {};
+  try {
+    const parsed: unknown = existing ? JSON.parse(existing) : {};
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed))
+      settings = parsed as Record<string, unknown>;
+  } catch {
+    // An unreadable file configures nothing Pi could use; the runner's settings replace it.
+  }
+  settings = { ...settings, quietStartup: true };
+  if (throughGateway) {
+    const retry =
+      settings.retry && typeof settings.retry === "object"
+        ? settings.retry
+        : {};
+    settings.retry = { ...retry, ...GATEWAY_PI_RETRY };
+  }
+  return JSON.stringify(settings, null, 2);
+}
+
+/**
+ * Best-effort, like the Daytona upload below: a run whose write failed keeps Pi's default retries
+ * and pi-acp's banner, which is how every run behaved before, so it is not stopped for it.
+ */
+function writeRunnerPiSettingsLocal(
+  agentDir: string,
+  throughGateway: boolean | undefined,
+  log: Log,
+): void {
+  const file = join(agentDir, PI_SETTINGS_FILENAME);
+  try {
+    const existing = existsSync(file) ? readFileSync(file, "utf-8") : undefined;
+    writeFileSync(file, withRunnerPiSettings(existing, throughGateway));
+  } catch (err) {
+    log(`pi settings.json write skipped: ${(err as Error).message}`);
+  }
+}
+
+/** Merge the runner's settings into the `settings.json` of a Daytona sandbox's Pi agent dir. */
+export async function uploadRunnerPiSettingsToSandbox(
+  sandbox: any,
+  agentDir: string,
+  throughGateway: boolean | undefined,
+  log: Log = () => {},
+): Promise<void> {
+  const path = `${agentDir}/${PI_SETTINGS_FILENAME}`;
+  let existing: string | undefined;
+  try {
+    existing = sandboxFileText(await sandbox.readFsFile({ path }));
+  } catch {
+    // No settings file yet.
+  }
+  try {
+    // The extension upload before this one created the agent dir.
+    await sandbox.writeFsFile(
+      { path },
+      withRunnerPiSettings(existing, throughGateway),
+    );
+  } catch (err) {
+    log(`pi settings.json upload skipped: ${(err as Error).message}`);
   }
 }
 
@@ -671,7 +1043,10 @@ export function prepareLocalAgentDir(
 
 export interface PrepareLocalPiAssetsInput {
   plan: Pick<RunPlan, "isPi" | "isDaytona"> & {
-    credentials: Pick<RunPlanCredentials, "credentialMode">;
+    credentials: Pick<
+      RunPlanCredentials,
+      "credentialMode" | "subscriptionHome" | "throughGateway"
+    >;
     workspace: Pick<RunPlanWorkspace, "skillDirs" | "sourcePiAgentDir">;
     prompt: Pick<
       RunPlanPrompt,
@@ -700,6 +1075,16 @@ export interface PrepareLocalPiAssetsResult {
    * returned).
    */
   dir: string | undefined;
+  /**
+   * The throwaway per-run dir holding this run's Pi prompt files, for a `runtime_provided` run
+   * whose agent dir is shared with other sessions. The caller `rmSync`s it at teardown.
+   *
+   * Undefined on every other run, whose prompts already live in a per-run agent dir, and on a
+   * `runtime_provided` run whose channel could not be built — the caller fails THAT run closed
+   * (see `preparePiPromptChannel`), which is why the two cases are told apart by the run shape
+   * and not by this field alone.
+   */
+  promptDir: string | undefined;
   /**
    * False when the Agenta permission extension could not be installed for this run. The caller
    * fails the run closed when the policy could gate a Pi built-in tool (`builtinGatingActive`).
@@ -774,7 +1159,9 @@ export function probePiAgentDirWritable(
  *   user: the install no longer depends on that directory being writable.
  *
  * Tradeoff (interface.md section 6): concurrent local subscription runs share the one agent dir,
- * the same way two local `pi` sessions do. This path is single-trusted-operator only.
+ * the same way two local `pi` sessions do. That sharing is correct for the login and its lock, and
+ * wrong for the system prompts, so the subscription path delivers those through the per-run
+ * channel `preparePiPromptChannel` builds instead of through the shared dir.
  */
 export function prepareLocalPiAssets({
   plan,
@@ -786,15 +1173,25 @@ export function prepareLocalPiAssets({
   if (!plan.isPi || plan.isDaytona)
     return {
       dir: undefined,
+      promptDir: undefined,
       extensionInstalled: true,
       modelConfigWritten: true,
       agentDirWritable: true,
     };
 
-  // buildRunPlan already rejected a local runtime_provided run with no configured
-  // PI_CODING_AGENT_DIR, so `sourcePiAgentDir` here IS the operator's mount.
+  // Two subscription shapes reach here. A HOSTED connection brings its own per-connection agent
+  // dir (`subscriptionHome`), owned by the runner and holding only this connection's login. An
+  // OPERATOR-mount run has none, and `sourcePiAgentDir` IS the operator's mount — buildRunPlan
+  // already rejected that shape when PI_CODING_AGENT_DIR was unset.
   if (plan.credentials.credentialMode === "runtime_provided") {
-    const agentDir = plan.workspace.sourcePiAgentDir;
+    const subscriptionHome = plan.credentials.subscriptionHome;
+    const agentDir = subscriptionHome ?? plan.workspace.sourcePiAgentDir;
+    // Pi's own mode for an agent dir holding a login. Created here, before the probe, because the
+    // probe and the extension install both write into it.
+    if (subscriptionHome) {
+      mkdirSync(subscriptionHome, { recursive: true, mode: 0o700 });
+      clearSharedPiPrompts(subscriptionHome, log);
+    }
     // A custom-provider plan cannot reach here (it requires credentialMode "env"). A model
     // REGISTRATION plan can, and it is deliberately dropped: this dir is the operator's own Pi
     // login, shared by every subscription run and rewritten by Pi's own OAuth refresh, so a
@@ -810,18 +1207,24 @@ export function prepareLocalPiAssets({
     }
     const agentDirWritable = probePiAgentDirWritable(agentDir, log);
     const extensionInstalled = installPiExtensionLocal(agentDir, log);
-    if (plan.prompt.hasSystemPrompt) {
+    // The prompts go to this run's own dir, never to the shared agent dir. The channel is built
+    // even when the run has no prompt: with nothing written there, Pi's own default stands, and
+    // the flags a wrapper without prompt files adds are none.
+    const promptDir = preparePiPromptChannel(env, log);
+    if (promptDir && plan.prompt.hasSystemPrompt) {
       writeSystemPromptLocal(
-        agentDir,
+        promptDir,
         plan.prompt.systemPrompt,
         plan.prompt.appendSystemPrompt,
         log,
       );
     }
     env.PI_CODING_AGENT_DIR = agentDir;
-    // Deliberately NOT returned as a throwaway: this is the operator's login, not a temp dir.
+    // `dir` is deliberately NOT the agent dir: that is a real login, not a temp dir, and the
+    // caller deletes whatever `dir` names.
     return {
       dir: undefined,
+      promptDir,
       extensionInstalled,
       modelConfigWritten: true,
       agentDirWritable,
@@ -849,6 +1252,7 @@ export function prepareLocalPiAssets({
       log,
     );
   }
+  writeRunnerPiSettingsLocal(runAgentDir, plan.credentials.throughGateway, log);
   let modelConfigWritten = true;
   if (piModelConfig) {
     try {
@@ -863,6 +1267,7 @@ export function prepareLocalPiAssets({
   env.PI_CODING_AGENT_DIR = runAgentDir;
   return {
     dir: runAgentDir,
+    promptDir: undefined,
     extensionInstalled,
     modelConfigWritten,
     agentDirWritable: true,

@@ -1,8 +1,12 @@
-import {AGENT_TEMPLATES, type AgentStarterTemplate} from "@agenta/entities/workflow"
+import type {AgentStarterTemplate, AgentTemplateLookup} from "@agenta/entities/workflow"
 import {atom, getDefaultStore} from "jotai"
 
 // Capture / storage / TTL / validation / claim for a website template deep-link. Kept out of
 // auth.ts so that module does not become a registry of unrelated features; auth.ts only calls in.
+//
+// Capture, storage and claim never read the template catalog: it is served by the API and may not
+// have loaded yet (or may have failed) when the key arrives. Validation happens at consume time,
+// against `agentTemplateLookupAtomFamily(key)`, through `pendingTemplateDecision` below.
 
 const hasWindow = () => typeof window !== "undefined"
 
@@ -42,18 +46,27 @@ interface TemplateClaim extends PendingTemplate {
 
 export const activeTemplateAtom = atom<PendingTemplate | null>(null)
 
-const validTemplateKeys = new Set(AGENT_TEMPLATES.map((template) => template.key))
+export type PendingTemplateDecision =
+    | {action: "wait"; reason: "pending" | "error"}
+    | {action: "discard"}
+    | {action: "consume"; template: AgentStarterTemplate}
 
-/** Exact-match lookup against the app registry; an unknown or stale key resolves to undefined. */
-export const resolveTemplate = (
-    key: string | null | undefined,
-): AgentStarterTemplate | undefined => {
-    if (!key) return undefined
-    return AGENT_TEMPLATES.find((template) => template.key === key)
+/**
+ * What to do with a captured key, given its exact-match lookup in the catalog. The key is kept
+ * ("wait") while the catalog is loading or its read failed: neither says the key is unknown. Only
+ * a confirmed miss — the catalog loaded without it — discards it, and it never falls back to
+ * another template.
+ */
+export const pendingTemplateDecision = (lookup: AgentTemplateLookup): PendingTemplateDecision => {
+    switch (lookup.status) {
+        case "found":
+            return {action: "consume", template: lookup.template}
+        case "missing":
+            return {action: "discard"}
+        default:
+            return {action: "wait", reason: lookup.status}
+    }
 }
-
-export const isValidTemplateKey = (key: string | null | undefined): boolean =>
-    !!key && validTemplateKeys.has(key)
 
 export const parseTemplateFromUrl = (url: URL): string | null => {
     const key = url.searchParams.get(TEMPLATE_URL_PARAM)?.trim()
@@ -283,4 +296,27 @@ export const completeTemplateClaim = async (pending: PendingTemplate): Promise<v
         }
     }
     complete()
+}
+
+const MOBILE_PROJECT_RE = /^\/m\/w\/[^/]+\/p\/[^/]+/
+
+/**
+ * The Classic-mode hop to `/m` loads a separate app that cannot see this pending key, so hand it
+ * over in the URL (the template's create step there) and forget it here; left behind, a later
+ * desktop visit would consume it a second time. Targets `/m` cannot open a template on keep it.
+ */
+export const handPendingTemplateToMobile = (target: string): string => {
+    const pending = readTemplateFromStorage()
+    if (!pending) return target
+
+    const {pathname} = new URL(target, "http://localhost")
+    const query = `?${TEMPLATE_URL_PARAM}=${encodeURIComponent(pending.key)}`
+    const project = pathname.match(MOBILE_PROJECT_RE)?.[0]
+    let next: string
+    if (project) next = `${project}/agents/new${query}`
+    else if (pathname === "/m" || pathname === "/m/") next = `/m/${query}`
+    else return target
+
+    clearTemplate(pending)
+    return next
 }

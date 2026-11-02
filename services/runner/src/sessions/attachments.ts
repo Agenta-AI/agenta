@@ -109,7 +109,11 @@ export async function fetchAttachment(
       headers: { authorization: auth() },
       signal: AbortSignal.timeout(attachmentFetchTimeoutMs()),
     });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    // Prefixed so the run-turn classifier can tell a RUNNER-side 401 from the provider's.
+    // A bare `HTTP 401` here is indistinguishable from a model refusal, and the credential-race
+    // branch would then spend the session's one report on an attachment fetch.
+    if (!response.ok)
+      throw new Error(`attachment fetch failed: HTTP ${response.status}`);
 
     // Content-Type parameters (charset, boundary) are not part of the MIME identity the
     // capability gate and the allowlist compare on, so keep the bare type.
@@ -161,7 +165,8 @@ export async function claimAttachments(
       }),
       signal: AbortSignal.timeout(attachmentFetchTimeoutMs()),
     });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!response.ok)
+      throw new Error(`attachment claim failed: HTTP ${response.status}`);
     return true;
   } catch (error) {
     log(

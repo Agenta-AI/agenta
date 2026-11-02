@@ -1,12 +1,16 @@
 import {useMemo} from "react"
 
+import {SESSIONS_SIDEBAR_KEY} from "@agenta/navigation"
 import type {
     SidebarScope,
     SidebarSection,
     SidebarSelection,
     SidebarSlotContext,
 } from "@agenta/navigation"
-import {SidebarBanners, SidebarLogo, SidebarToggleButton} from "@agenta/navigation-ui"
+import {SidebarLogo, SidebarToggleButton} from "@agenta/navigation-ui"
+import {useRouter} from "next/router"
+
+import {CreditsRemainingWidget} from "../wallet/CreditsRemainingWidget"
 
 import {DrawerProjectSwitcher} from "./DrawerProjectSwitcher"
 import {MOBILE_NAV_SCOPE_ID, useMobileBottomNavItems, useMobileNavItems} from "./useMobileNavItems"
@@ -23,7 +27,23 @@ import {MOBILE_NAV_SCOPE_ID, useMobileBottomNavItems, useMobileNavItems} from ".
 const createMobileNavScope = (workspaceId: string, projectId: string): SidebarScope => {
     const projectURL = `/w/${workspaceId}/p/${projectId}`
 
-    const useSelection = (): SidebarSelection => ({mode: "route"})
+    // Pin the open session from the route, the same key its row carries. Its URL is unique
+    // (`/sessions/<id>`), so the route match highlights it on its own — but when its agent heading
+    // is collapsed, its row leaves the tree and the `/sessions` parent prefix-matches and grabs the
+    // highlight. Pinning routes through `resolveSelectedKey`, which selects nothing when the row is
+    // not rendered — so a collapse moves the highlight nowhere, as on desktop.
+    const useSelection = (): SidebarSelection => {
+        const router = useRouter()
+        const sessionId =
+            typeof router.query.session_id === "string" ? router.query.session_id : null
+        return useMemo(
+            () =>
+                sessionId
+                    ? {mode: "route", selectedKeyOverride: `${SESSIONS_SIDEBAR_KEY}-${sessionId}`}
+                    : {mode: "route"},
+            [sessionId],
+        )
+    }
 
     const useSections = (): SidebarSection[] => {
         const items = useMobileNavItems(projectURL)
@@ -50,18 +70,22 @@ const createMobileNavScope = (workspaceId: string, projectId: string): SidebarSc
         <SidebarLogo collapsed={collapsed} toggle={<SidebarToggleButton onDismiss={onDismiss} />} />
     )
 
-    const AfterBottom = () => (
-        <DrawerProjectSwitcher workspaceId={workspaceId} projectId={projectId} />
+    // Forwarded, or the switcher keeps its expanded padding inside the 48px rail.
+    const AfterBottom = ({collapsed}: {collapsed: boolean}) => (
+        <DrawerProjectSwitcher
+            workspaceId={workspaceId}
+            projectId={projectId}
+            collapsed={collapsed}
+        />
     )
 
-    // Same slot the desktop rail fills, and hidden while collapsed for the same reason: the
-    // card has no 48px form. The drawer is never collapsed, so it always shows there.
-    const Footer = ({collapsed}: {collapsed: boolean}) =>
-        collapsed ? null : (
-            <div className="w-full">
-                <SidebarBanners />
-            </div>
-        )
+    const Footer = ({collapsed}: SidebarSlotContext) => (
+        <CreditsRemainingWidget
+            projectId={projectId}
+            settingsURL={`${projectURL}/settings`}
+            collapsed={collapsed}
+        />
+    )
 
     return {
         id: MOBILE_NAV_SCOPE_ID,

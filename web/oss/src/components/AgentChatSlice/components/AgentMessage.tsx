@@ -1,48 +1,77 @@
 import {memo, useEffect, useMemo, useState} from "react"
 
 import {
+    displayMessage,
+    getDisplayContent,
     getMessageRunError,
     getMessageRunErrorCode,
+    isMessageRunErrorTransport,
     getMessageTraceId,
     getMessageUsage,
 } from "@agenta/chat/assets"
-import {attachmentIdForPart, fileKind, filePartName} from "@agenta/chat/assets"
+import {
+    attachmentIdForPart,
+    filePartName,
+    isPendingSendFailed,
+    isViewable,
+    PENDING_SEND_FAILED_NOTE,
+    stageWordAt,
+    stageWords,
+} from "@agenta/chat/assets"
 import {
     ClientToolPart,
     isClientToolPart,
     type ClientToolOutputHandler,
 } from "@agenta/chat/clientTools"
-import {AudioPlayer, StartupActivity, TurnFooter} from "@agenta/chat/components"
-import {isToolPart, toolIdentity} from "@agenta/chat/model"
+import {
+    AttachmentCard,
+    AttachmentCardGrid,
+    CollapsibleMessageBody,
+    McpServerNoticeCard,
+    StartupActivity,
+    TurnFooter,
+} from "@agenta/chat/components"
+import {useSessionTurnFooter} from "@agenta/chat/hooks"
+import {
+    buildTurnRenderItems,
+    deriveTurnStatus,
+    executedToolIdentities,
+    toolPartsSignature,
+} from "@agenta/chat/model"
 import {
     errorKey,
     expandedValueAtomFamily,
+    messageBodyKey,
     reasoningKey,
     setExpandedAtom,
-    useStartupPhase,
+    useTurnStage,
 } from "@agenta/chat/state"
 import {chatPanelMaximizedAtom} from "@agenta/chat/state"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
+import {isLocalDraftId} from "@agenta/entities/shared"
+import {AgentChatAvatar} from "@agenta/entity-ui/agent"
+import {useDriveArtifactId} from "@agenta/entity-ui/drive"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {buildRenderMap} from "@agenta/playground"
 import {openProviderDrawerRequestAtom} from "@agenta/shared/state"
 import {hasPriorElicitationDegradation} from "@agenta/shared/utils"
 import {
-    ChatAttachmentCard,
     ChatBubble,
     ChatBubbleAvatar,
     turnRowClass,
     turnToolbarClass,
     turnToolbarRevealClass,
+    userBubbleContentClass,
 } from "@agenta/ui/components/presentational"
-import {Button} from "@agenta/ui/ui"
-import {Brain, CaretRight, Robot, User, XCircle} from "@phosphor-icons/react"
-import type {FileUIPart, ReasoningUIPart, ToolUIPart, UIMessage} from "ai"
+import {Brain, CaretRight, Robot, User} from "@phosphor-icons/react"
+import type {FileUIPart, ReasoningUIPart, UIMessage} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAttachmentMediaSrc} from "../assets/attachmentMedia"
-import Markdown from "../assets/markdown"
 
+import AgentRunFailure from "./AgentRunFailure"
+import {viewingMessageAttachmentAtom} from "./MessageAttachmentViewer"
+import StreamingMarkdown from "./StreamingMarkdown"
 import ToolActivity from "./ToolActivity"
 
 interface AgentMessageProps {
@@ -62,9 +91,13 @@ interface AgentMessageProps {
     /** The previous turn was also an empty (content-less) assistant turn. Used to collapse a
      * run of "no response" bubbles down to the first one. */
     precededByEmptyAssistant?: boolean
-    /** The turn's trace id for a USER message (its paired assistant's trace) — lets the user turn
-     * borrow the run's real start time so it dates from the trace, not this browser's first-seen. */
+    /** The turn's trace id for a USER message (its paired assistant's trace): the user turn takes
+     * its session turn's start time, not this browser's first-seen. */
     turnTraceId?: string
+    /** Re-run this failed turn — the same regenerate wiring as the Stopped → Resend affordance.
+     * Stable across renders (the message to retry is passed in, not closed over); the parent
+     * passes it only on the last turn while a retry can actually run, so it gates position. */
+    onRetry?: (messageId: string) => void
 }
 
 /**
@@ -76,10 +109,13 @@ const ReasoningPart = ({
     text,
     streaming,
     stateKey,
+    urgent,
 }: {
     text: string
     streaming: boolean
     stateKey: string
+    /** Something already renders below this block, so it must not keep typing. */
+    urgent?: boolean
 }) => {
     // Auto-expand while the thought streams live, then collapse to the "Thought" toggle when done. A
     // manual toggle sticks. State is keyed + persisted (expandState) so it survives a Virtuoso unmount
@@ -114,7 +150,12 @@ const ReasoningPart = ({
             >
                 <div className="min-h-0 overflow-hidden">
                     <div className="mt-1 ml-5 text-colorTextTertiary">
-                        <Markdown content={text} className="!text-xs" streaming={streaming} />
+                        <StreamingMarkdown
+                            content={text}
+                            className="!text-xs"
+                            streaming={streaming}
+                            urgent={urgent}
+                        />
                     </div>
                 </div>
             </div>
@@ -122,99 +163,29 @@ const ReasoningPart = ({
     )
 }
 
-/** Failure classes the user can clear themselves by adding their own provider key. */
-const STARTER_CREDIT_CODES = new Set([
-    "starter_credits_exhausted",
-    "starter_credits_program_paused",
-])
+/** The bubble's avatar — the agent's own mark, or the Robot every turn had before. */
+const MessageAvatar = ({isUser = false}: {isUser?: boolean}) => {
+    const artifactId = useDriveArtifactId()
+    // A draft agent has no persisted id to key an icon by.
+    const workflowId = artifactId && !isLocalDraftId(artifactId) ? artifactId : null
 
-/** The ONE rule driving both the clamp and the toggle — they can't disagree and hide text (#5350). */
-const isBigError = (text: string) => text.length > 240 || text.split("\n").length > 4
-
-/**
- * Failed-run body: the icon + "The agent run failed" + the reason. An everyday reason shows in
- * full; a big one (stacktrace) clamps behind a "Show more" that opens a scrollable block, so it
- * can't drown the chat.
- */
-export const RunErrorBody = ({
-    text,
-    stateKey,
-    code,
-}: {
-    text: string
-    stateKey: string
-    /** The runner's failure class, when the turn carried one (`data-agent-error`'s `code`). */
-    code?: string
-}) => {
-    const stored = useAtomValue(expandedValueAtomFamily(stateKey))
-    const setExpanded = useSetAtom(setExpandedAtom)
-    const requestProviderDrawer = useSetAtom(openProviderDrawerRequestAtom)
-    const expanded = stored ?? false
-    const big = isBigError(text)
-    const offerOwnKey = code ? STARTER_CREDIT_CODES.has(code) : false
-
-    return (
-        <div className="flex items-start gap-2 rounded-xl bg-[var(--ant-color-error-bg)] px-4 py-3">
-            <XCircle size={16} weight="fill" className="mt-px shrink-0 text-colorError" />
-            <div className="flex min-w-0 flex-col items-start gap-0.5">
-                <span className="text-xs font-medium text-colorError">The agent run failed</span>
-                {big && expanded ? (
-                    <pre className="m-0 max-h-60 w-full overflow-auto whitespace-pre-wrap break-words bg-transparent p-0 font-mono text-xs !text-colorErrorText">
-                        {text}
-                    </pre>
-                ) : (
-                    <span
-                        className={`whitespace-pre-wrap break-words text-xs text-colorErrorText ${
-                            big ? "line-clamp-3" : ""
-                        }`}
-                        title={big ? text : undefined}
-                    >
-                        {text}
-                    </span>
-                )}
-                {big && (
-                    <button
-                        type="button"
-                        onClick={() => setExpanded({key: stateKey, value: !expanded})}
-                        aria-expanded={expanded}
-                        className="-ml-1 cursor-pointer rounded border-0 bg-transparent px-1 py-0.5 text-xs font-medium text-colorError transition-colors hover:bg-[var(--ant-color-error-bg)]"
-                    >
-                        {expanded ? "Show less" : "Show more"}
-                    </button>
-                )}
-                {offerOwnKey && (
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        className="mt-1"
-                        onClick={() => requestProviderDrawer(true)}
-                    >
-                        {/* TODO(copy: owner) */}
-                        Add your key
-                    </Button>
-                )}
-            </div>
-        </div>
-    )
+    if (isUser) return <ChatBubbleAvatar icon={<User size={16} />} />
+    return <AgentChatAvatar workflowId={workflowId} fallback={<Robot size={16} />} />
 }
-
-const avatarFor = (isUser: boolean) => (
-    <ChatBubbleAvatar icon={isUser ? <User size={16} /> : <Robot size={16} />} />
-)
 
 /** The started-but-empty assistant turn. Its own component so the startup tick mounts once per live
  * turn, not once per message in the transcript. */
 const PendingTurn = ({sessionId}: {sessionId: string}) => {
-    const startupPhase = useStartupPhase(sessionId)
-    return startupPhase ? (
+    const stage = useTurnStage(sessionId)
+    return stage ? (
         <ChatBubble
             placement="start"
             variant="borderless"
-            avatar={avatarFor(false)}
-            content={<StartupActivity label={startupPhase} />}
+            avatar={<MessageAvatar />}
+            content={<StartupActivity label={stageWordAt(stageWords(stage), 0)} />}
         />
     ) : (
-        <ChatBubble placement="start" variant="borderless" avatar={avatarFor(false)} loading />
+        <ChatBubble placement="start" variant="borderless" avatar={<MessageAvatar />} loading />
     )
 }
 
@@ -229,8 +200,8 @@ const triggerDownload = (href: string, name: string) => {
 }
 
 const AttachmentFilePart = ({file, sessionId}: {file: FileUIPart; sessionId: string}) => {
+    const setViewing = useSetAtom(viewingMessageAttachmentAtom)
     const attachmentId = attachmentIdForPart(file)
-    const kind = fileKind(file.mediaType)
     const source = useAttachmentMediaSrc(attachmentId ? sessionId : null, attachmentId)
     const src = attachmentId ? source.src : file.url
     const name = filePartName(file)
@@ -246,9 +217,13 @@ const AttachmentFilePart = ({file, sessionId}: {file: FileUIPart; sessionId: str
         }
     }, [fallbackDownloadPending, name, source.failed, source.src])
 
-    const handleDownload = async (event: React.MouseEvent<HTMLAnchorElement>) => {
-        if (!attachmentId || !src || src.startsWith("blob:")) return
-        event.preventDefault()
+    const handleDownload = async () => {
+        if (!src) return
+        // Already a local blob (the axios fallback resolved it) — save it straight off.
+        if (src.startsWith("blob:") || !attachmentId) {
+            triggerDownload(src, name)
+            return
+        }
         try {
             const response = await fetch(src, {credentials: "include"})
             if (!response.ok) throw new Error("Direct attachment download failed")
@@ -262,43 +237,23 @@ const AttachmentFilePart = ({file, sessionId}: {file: FileUIPart; sessionId: str
         }
     }
 
-    if (kind === "audio") {
-        return (
-            <AudioPlayer
-                src={src ?? ""}
-                name={name}
-                onError={attachmentId ? source.onError : undefined}
-                className="max-w-[320px] rounded-lg border border-solid border-colorBorderSecondary px-2 py-1.5"
-            />
-        )
-    }
-
     return (
-        <ChatAttachmentCard
+        <AttachmentCard
             name={name}
-            kind={kind}
+            mediaType={file.mediaType ?? ""}
             src={src ?? undefined}
             loading={attachmentId ? source.isPending : false}
-            className="max-w-full"
-            onImageError={kind === "image" && attachmentId ? source.onError : undefined}
-            onVideoError={kind === "video" && attachmentId ? source.onError : undefined}
-            description={
-                kind === "file" ? (
-                    src ? (
-                        <a
-                            href={src}
-                            download={name}
-                            onClick={handleDownload}
-                            className="truncate text-xs text-colorPrimary"
-                        >
-                            {file.mediaType}
-                        </a>
-                    ) : (
-                        <span className="truncate text-xs text-colorTextTertiary">
-                            {source.failed ? "Download unavailable" : file.mediaType}
-                        </span>
-                    )
-                ) : undefined
+            action={src && !source.failed ? "download" : "none"}
+            onDownload={() => void handleDownload()}
+            onView={
+                src && isViewable(file.mediaType ?? "")
+                    ? () =>
+                          setViewing({
+                              name,
+                              mediaType: file.mediaType ?? "",
+                              url: src,
+                          })
+                    : undefined
             }
         />
     )
@@ -311,7 +266,7 @@ const AttachmentFilePart = ({file, sessionId}: {file: FileUIPart; sessionId: str
  * footer. While an assistant message has no content yet, the bubble shows the loading state.
  */
 const AgentMessage = ({
-    message,
+    message: sourceMessage,
     sessionId,
     isStreaming = false,
     isLastMessage = false,
@@ -319,8 +274,13 @@ const AgentMessage = ({
     onClientToolOutput,
     precededByEmptyAssistant = false,
     turnTraceId,
+    onRetry,
 }: AgentMessageProps) => {
+    const message = useMemo(() => displayMessage(sourceMessage), [sourceMessage])
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
+    // Both recovery escapes on a failed run land on the AI providers page, which is what the
+    // provider drawer opens; the shared callout only draws them because this app has one.
+    const requestProviderDrawer = useSetAtom(openProviderDrawerRequestAtom)
     const isUser = message.role === "user"
     // Build vs Chat: Build (config panel open, not maximized) shows the full step log — per-tool
     // input/output/error + expanded reasoning; Chat keeps the calm collapsed summary.
@@ -328,6 +288,11 @@ const AgentMessage = ({
 
     const traceId = getMessageTraceId(message)
     const usage = getMessageUsage(message)
+    // A user turn has no trace of its own: it takes its time from the turn it started.
+    const sessionTurn = useSessionTurnFooter({
+        sessionId,
+        traceId: isUser ? turnTraceId : traceId,
+    })
     // A failed run (e.g. a quota error the runner swallowed into an empty turn) lands as an
     // error on the message's OWN trace; read it so the bubble can render as a failure.
     const ownSummary = useAtomValue(traceDataSummaryAtomFamily(traceId ?? null))
@@ -337,6 +302,7 @@ const AgentMessage = ({
     // we know whether the turn produced an answer.
     const runError = getMessageRunError(message)
     const runErrorCode = getMessageRunErrorCode(message)
+    const runErrorTransport = isMessageRunErrorTransport(message)
     const fullText = message.parts
         .filter((p) => p.type === "text")
         .map((p) => (p as {text: string}).text)
@@ -347,39 +313,16 @@ const AgentMessage = ({
         title?: string
     }[]
 
-    // "Answer" = anything the user is meant to read as a reply (text / tool / file / source).
-    // Reasoning alone is NOT an answer — a turn that only thought hasn't responded.
-    const hasAnswer = message.parts.some(
-        (p) =>
-            (p.type === "text" && (p as {text?: string}).text) ||
-            isToolPart(p.type) ||
-            p.type === "file" ||
-            p.type === "source-url",
-    )
-    const hasReasoning = message.parts.some(
-        (p) => p.type === "reasoning" && (p as {text?: string}).text,
-    )
-    const hasContent = hasAnswer || hasReasoning
-
-    // A settled assistant turn (NOT the one being generated) with no answer — only a thought,
-    // or nothing — means the model ended without responding. Surface it so the bubble doesn't
-    // read as frozen/broken. Keyed on `isStreaming`, not the conversation-level `busy`, so
-    // earlier answer-less turns don't all light up while a later turn streams.
-    const noResponse = !isUser && !isStreaming && !hasAnswer
-
-    // A trace-leaf error means a model/tool call failed. When the turn still produced an answer,
-    // the agent recovered from it — that failure belongs inline in ToolActivity ("· N failed"),
-    // NOT as a run failure. So trust `traceError` only on an answer-less turn (the swallowed
-    // quota/model error it was written for). A stream death (`runError`) is a real run failure
-    // even with partial output, so it always counts.
-    const errorText = noResponse ? traceError || runError : runError
-    // Surface a settled-turn error even when the model emitted partial output before the stream
-    // died. (`isError` stays answer-less-only so the *whole* bubble only turns red when there's
-    // nothing else to show.)
-    const showError = !isStreaming && !!errorText
-    // A settled no-answer turn whose trace recorded an error → render the bubble itself as a
-    // failure (red), with the message inline — not a nested alert box.
-    const isError = noResponse && showError
+    // The answer / no-response / error-surfacing rules, shared with every other chat surface.
+    // `errorText` is sanitized there, whichever source it came from; the failure class decides
+    // whether a trace's text may take the run error's place.
+    const {hasContent, noResponse, errorText, showError, isError} = deriveTurnStatus(message, {
+        isUser,
+        isStreaming,
+        traceError,
+        runError,
+        errorCode: runErrorCode,
+    })
 
     // Copy the answer; append the error on a failed turn (and copy it alone on an answer-less
     // failure) so the button isn't a no-op when the agent only returned an error.
@@ -389,24 +332,8 @@ const AgentMessage = ({
     // (id + state) that stays STABLE while text streams — so the tool-input JSON.stringify doesn't
     // re-run on every streamed token of a tool-heavy turn. Hoisted above the early returns below to
     // keep hook order stable.
-    const toolSignature = message.parts
-        .filter((p) => isToolPart(p.type))
-        .map((p) => `${(p as ToolUIPart).toolCallId ?? ""}:${(p as ToolUIPart).state ?? ""}`)
-        .join("|")
-    const executedToolIdentities = useMemo(
-        () =>
-            new Set(
-                message.parts
-                    .filter(
-                        (p) =>
-                            isToolPart(p.type) &&
-                            ((p as ToolUIPart).state === "output-available" ||
-                                (p as ToolUIPart).state === "output-error"),
-                    )
-                    .map((p) => toolIdentity(p as ToolUIPart)),
-            ),
-        [toolSignature],
-    )
+    const toolSignature = toolPartsSignature(message.parts)
+    const executed = useMemo(() => executedToolIdentities(message.parts), [toolSignature])
 
     // Message-scoped render hints (sibling `data-render` parts). Memoized so the stable reference
     // doesn't bust the memoized ClientToolPart on nowTick re-renders. Must sit with the other hooks
@@ -426,44 +353,18 @@ const AgentMessage = ({
         return <PendingTurn sessionId={sessionId} />
     }
 
-    // Tools can be interleaved with text / reasoning, so fold only *consecutive* tool parts
-    // into one ToolActivity group (a run of calls reads as a single "Used N tools" line).
-    type RenderItem =
-        | {kind: "part"; part: UIMessage["parts"][number]; index: number}
-        | {kind: "tools"; parts: ToolUIPart[]; index: number}
-        | {kind: "clientTool"; part: ToolUIPart; index: number}
-    // A HITL-approved tool's part LINGERS in `approval-responded` (a perpetual spinner, no output):
-    // the cold-replay runner re-issues the approved call under a FRESH id, so its execution output
-    // lands on a SEPARATE sibling part. Drop the answered gate once its executed sibling exists (same
-    // tool + same input), so the turn shows the single completed call with its output — not a stuck
-    // spinner beside a duplicate. Until the execution settles, the gate stays (it is genuinely
-    // in-flight).
-    const isSupersededGate = (p: ToolUIPart): boolean =>
-        p.state === "approval-responded" && executedToolIdentities.has(toolIdentity(p))
-
     // The elicitation retry cap: did an elicitation already degrade earlier this turn?
     const degradedEarlierInTurn = hasPriorElicitationDegradation(
         message.parts as {state?: string; errorText?: string}[],
     )
 
-    const renderItems: RenderItem[] = []
-    message.parts.forEach((part, i) => {
-        if (isToolPart(part.type)) {
-            // The answered gate whose execution already landed on a sibling part — drop it so the
-            // turn doesn't show a stuck approval spinner beside the real, completed call.
-            if (isSupersededGate(part as ToolUIPart)) return
-            // A browser-fulfilled client tool (#4920) renders as its own widget/chip, NOT folded
-            // into the "Used N tools" group — so it breaks any current tool run.
-            if (isClientToolPart(part as ToolUIPart, {isStreaming, isLastMessage}, renderMap)) {
-                renderItems.push({kind: "clientTool", part: part as ToolUIPart, index: i})
-                return
-            }
-            const last = renderItems[renderItems.length - 1]
-            if (last && last.kind === "tools") last.parts.push(part as ToolUIPart)
-            else renderItems.push({kind: "tools", parts: [part as ToolUIPart], index: i})
-            return
-        }
-        renderItems.push({kind: "part", part, index: i})
+    // The fold from parts to render items is `@agenta/chat`'s, which is also what `/m` renders
+    // from. It used to be copied into this file and kept in byte parity by hand, so a change to
+    // when the reconnect notice appears, or to which failed call it explains, could land on one
+    // app and not the other with nothing to catch it.
+    const renderItems = buildTurnRenderItems(message.parts, {
+        executed,
+        isClientToolPart: (part) => isClientToolPart(part, {isStreaming, isLastMessage}, renderMap),
     })
     const renderLeafPart = (part: UIMessage["parts"][number], i: number) => {
         // Stable, globally-unique key per rendered part. The part index alone collides
@@ -480,10 +381,12 @@ const AgentMessage = ({
                 -1,
             )
             return (
-                <Markdown
+                <StreamingMarkdown
                     key={partKey}
                     content={text}
                     streaming={isStreaming && i === lastTextIndex}
+                    // Something already renders below this part, so it must not keep typing.
+                    urgent={i !== message.parts.length - 1}
                 />
             )
         }
@@ -496,15 +399,8 @@ const AgentMessage = ({
                     stateKey={reasoningKey(message.id, i)}
                     text={reasoning.text}
                     streaming={reasoning.state === "streaming"}
+                    urgent={i !== message.parts.length - 1}
                 />
-            )
-        }
-        // Multi-modality: render attachments (sent by the user or returned by the
-        // agent) as X `FileCard`s — images preview inline, other kinds show a typed
-        // file chip with a download link.
-        if (part.type === "file") {
-            return (
-                <AttachmentFilePart key={partKey} file={part as FileUIPart} sessionId={sessionId} />
             )
         }
         return null
@@ -513,6 +409,15 @@ const AgentMessage = ({
     const defaultBody = (
         <div className="flex min-w-0 max-w-full flex-col gap-2">
             {renderItems.map((item) => {
+                if (item.kind === "files") return null
+                if (item.kind === "mcpNotice") {
+                    return (
+                        <McpServerNoticeCard
+                            key={`${message.id}-mcp-${item.index}`}
+                            notice={item.notice}
+                        />
+                    )
+                }
                 if (item.kind === "tools") {
                     return (
                         <ToolActivity
@@ -565,28 +470,92 @@ const AgentMessage = ({
     )
 
     // Failed run: the whole bubble reads as the error (red), message inline — no nested box.
-    // RunErrorBody shows an everyday reason in full; only a big one collapses behind "Show more".
+    // The callout shows an everyday reason in full; only a big one collapses behind "Show more".
     const errorBody = (
-        <RunErrorBody
+        <AgentRunFailure
             text={errorText || "The agent run failed."}
             stateKey={errorKey(message.id)}
             code={runErrorCode}
+            transport={runErrorTransport}
+            onRetry={onRetry ? () => onRetry(message.id) : undefined}
+            onAddKey={() => requestProviderDrawer(true)}
+            onSignIn={() => requestProviderDrawer(true)}
         />
     )
+
+    // A long pasted message clamps behind "Show more" so it can't bury the reply it belongs to.
+    // User turns only: an agent answer is the thing you came to read.
+    const contentBody = isUser ? (
+        <CollapsibleMessageBody stateKey={messageBodyKey(message.id)}>
+            {defaultBody}
+        </CollapsibleMessageBody>
+    ) : (
+        defaultBody
+    )
+
+    // A send the server refused after the composer had already cleared. The row keeps the text so
+    // it is not lost; this says why it is sitting there with no answer coming.
+    const pendingSendFailure = isPendingSendFailed(message) ? (
+        <div
+            data-pending-send-failed="true"
+            role="status"
+            className="mt-1 text-[11px] leading-4 opacity-80"
+        >
+            {PENDING_SEND_FAILED_NOTE}
+        </div>
+    ) : null
 
     // Partial output then failure: show the content AND the error. Answer-less failure: the
     // whole bubble is the error. Otherwise: just the content.
     const body =
         showError && !isError ? (
             <div className="flex min-w-0 max-w-full flex-col gap-2">
-                {defaultBody}
+                {contentBody}
                 {errorBody}
             </div>
         ) : isError ? (
             errorBody
+        ) : pendingSendFailure ? (
+            <div className="flex min-w-0 max-w-full flex-col">
+                {contentBody}
+                {pendingSendFailure}
+            </div>
         ) : (
-            defaultBody
+            contentBody
         )
+
+    // Attachments hang above the bubble rather than inside its fill, so a message reads as its
+    // files first and its words second.
+    const fileItems = renderItems.filter((item) => item.kind === "files")
+    const attachments = fileItems.length ? (
+        <div className="flex flex-col gap-2">
+            {fileItems.map((item) => (
+                <AttachmentCardGrid key={`${message.id}-files-${item.index}`}>
+                    {item.parts.map((file, n) => (
+                        <AttachmentFilePart
+                            key={`${message.id}-file-${item.index}-${n}`}
+                            file={file}
+                            sessionId={sessionId}
+                        />
+                    ))}
+                </AttachmentCardGrid>
+            ))}
+        </div>
+    ) : null
+    // Attachments with no words: there is no bubble to paint, only the cards. An empty text part
+    // counts as no words — a turn carrying only files still arrives with one.
+    const hasBubbleContent =
+        renderItems.some(
+            (item) =>
+                item.kind !== "files" &&
+                !(
+                    item.kind === "part" &&
+                    item.part.type === "text" &&
+                    !((item.part as {text?: string}).text ?? "").trim()
+                ),
+        ) ||
+        showError ||
+        isError
 
     // The turn's meta line, in a reserved lane BELOW the bubble (the `pb-8` on the row), so it
     // never overlays the last content line and never reaches the next turn. The lane is always
@@ -595,6 +564,7 @@ const AgentMessage = ({
     // keeps the invisible buttons unclickable. The buttons carry no `disabled`, so the busy guard
     // lives in the handlers: `onRewind` → `handleRewind` early-returns while a stream is in flight.
     const toolbarReveal = turnToolbarRevealClass
+    if (getDisplayContent(sourceMessage) === null) return null
 
     // `group relative` → the toolbar reveals on hover/focus of the whole message row and anchors
     // to the reserved lane (`pb-8`) at the row's bottom. The row is a flex that justifies the
@@ -608,20 +578,23 @@ const AgentMessage = ({
                 placement={isUser ? "end" : "start"}
                 // Borderless assistant turns: content sits on the panel bg with just the avatar and
                 // spacing, so tool cards aren't wrapped in an extra outline. User stays filled.
-                variant={isUser ? "filled" : "borderless"}
-                avatar={avatarFor(isUser)}
+                variant={isUser && hasBubbleContent ? "filled" : "borderless"}
+                avatar={<MessageAvatar isUser={isUser} />}
                 className="min-w-0 max-w-[85%]"
                 classNames={{
-                    // Error styling is a self-contained callout in RunErrorBody now, not painted on
+                    // Error styling is a self-contained callout of its own now, not painted on
                     // the (borderless) bubble content — otherwise it bleeds edge-to-edge with no pad.
                     // The user turn reads as "mine" via a soft accent-tinted card; the agent turn
                     // stays borderless on the canvas.
                     content: isUser
-                        ? "min-w-0 max-w-full overflow-hidden border border-solid border-[var(--ag-user-bubble-border)] bg-[var(--ag-user-bubble-bg)]"
+                        ? `${userBubbleContentClass} border border-solid border-[var(--ag-user-bubble-border)] bg-[var(--ag-user-bubble-bg)]`
                         : "min-w-0 max-w-full overflow-hidden",
                     body: "min-w-0 max-w-full overflow-hidden",
                 }}
-                content={body}
+                // A refused file-only send has no words to paint, but its failure still has to be
+                // said, or the cards sit there looking like an upload that worked.
+                content={hasBubbleContent ? body : pendingSendFailure}
+                header={attachments}
             />
             <div
                 className={`${turnToolbarClass} ${isUser ? "right-11" : "left-11"} ${toolbarReveal}`}
@@ -629,13 +602,15 @@ const AgentMessage = ({
                 <TurnFooter
                     messageId={message.id}
                     traceId={traceId}
-                    turnTraceId={turnTraceId}
                     isUser={isUser}
                     isStreaming={isStreaming}
                     usage={usage}
+                    sessionTurnFigures={sessionTurn.figures}
+                    sessionTurnStartedAt={sessionTurn.startedAt}
+                    sessionTurnsPending={sessionTurn.pending}
                     copyText={copyText}
                     // Rewinding the LAST turn just re-runs the turn that's already current, so hide it.
-                    onRewind={isLastMessage ? undefined : () => onRewind(message)}
+                    onRewind={isLastMessage ? undefined : () => onRewind(sourceMessage)}
                     onViewTrace={(id) => openTraceDrawer({traceId: id})}
                 />
             </div>

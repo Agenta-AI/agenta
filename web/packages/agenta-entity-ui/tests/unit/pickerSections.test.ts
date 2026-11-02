@@ -17,6 +17,7 @@ import {buildConnectionPickerRows} from "../../src/DrillInView/SchemaControls/co
 import type {HarnessCapabilitiesMap} from "../../src/DrillInView/SchemaControls/connectionUtils"
 import {
     buildPickerGroupsWithSections,
+    ORGANIZATION_TAG,
     harnessSections,
 } from "../../src/DrillInView/SchemaControls/pickerSections"
 
@@ -181,5 +182,31 @@ describe("buildPickerGroupsWithSections", () => {
             rowsFor([standard("1", "anthropic", {models: ["claude-fable-5"]})]),
         )
         expect(groups[0].tag).toBeUndefined()
+    })
+})
+
+describe("the organization tag", () => {
+    it("marks an organization connection in the tag slot, over the subscription tag", () => {
+        const [key, login] = buildPickerGroupsWithSections([
+            {
+                key: "org-key",
+                name: "OpenAI (Organization)",
+                iconKey: "openai",
+                kind: "connection",
+                organization: true,
+                models: [],
+            },
+            {
+                key: "org-login",
+                name: "ChatGPT (Organization)",
+                iconKey: "openai",
+                kind: "subscription",
+                organization: true,
+                models: [],
+            },
+        ])
+        expect(key.tag).toBe(ORGANIZATION_TAG)
+        expect(login.tag).toBe(ORGANIZATION_TAG)
+        expect(login.tagTone).toBeUndefined()
     })
 })

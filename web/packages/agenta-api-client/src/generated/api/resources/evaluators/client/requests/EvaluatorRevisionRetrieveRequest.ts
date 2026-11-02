@@ -23,4 +23,6 @@ export interface EvaluatorRevisionRetrieveRequest {
     key?: string | null;
     /** When true, resolve embedded references on the returned revision's `data`. */
     resolve?: boolean | null;
+    /** When false, an archived evaluator, variant, or revision resolves to nothing. */
+    include_archived?: boolean | null;
 }

@@ -1,8 +1,9 @@
 import {useEffect, useRef, useState} from "react"
 
+import type {TurnFigures} from "@agenta/entities/session"
 import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
 import {ChatActionIconButton, MetaSeparator} from "@agenta/ui/components/presentational"
-import {ArrowUUpLeft, Check, Copy, TreeStructure} from "@phosphor-icons/react"
+import {ArrowClockwise, Check, Copy, TreeStructure} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import type {MessageUsageMetrics} from "../assets"
@@ -18,7 +19,7 @@ import {TurnTimestamp} from "./TurnTimestamp"
  * appeared — so the footer lives here and each app only supplies the parts it derives differently.
  *
  * Each segment owns the separator BEFORE it, and only draws it when it renders something itself —
- * so a turn whose trace never resolved metrics, or one with no actions, leaves no dangling `·`.
+ * so a turn with no known figures, or one with no actions, leaves no dangling `·`.
  *
  * The trace button hides behind the Playground inspector preference — it is a debugging affordance,
  * not something every reader needs beside every answer. `onViewTrace` stays a prop because opening
@@ -27,29 +28,41 @@ import {TurnTimestamp} from "./TurnTimestamp"
 export const TurnFooter = ({
     messageId,
     traceId,
-    turnTraceId,
     isUser,
     isStreaming = false,
     usage,
+    sessionTurnFigures,
+    sessionTurnStartedAt,
+    sessionTurnsPending = false,
     copyText,
     onRewind,
     onViewTrace,
+    metrics,
+    onRetry,
 }: {
     messageId: string
-    /** The turn's own trace. Assistant turns have one; user turns do not. */
+    /** The turn's own trace, for the trace button only: the footer reads no trace. */
     traceId?: string | null
-    /** The trace of the turn this message belongs to — the user turn's only source of time. */
-    turnTraceId?: string | null
     isUser: boolean
     /** The answer is still arriving. Hides copy, which would take a half-written reply. */
     isStreaming?: boolean
     usage?: MessageUsageMetrics
+    /** The figures stored on the session turn; a settled turn shows only these. */
+    sessionTurnFigures?: TurnFigures
+    /** The start of the session turn (a user turn: the session turn it started). */
+    sessionTurnStartedAt?: string | null
+    /** The session's turns are still loading. */
+    sessionTurnsPending?: boolean
     /** What the copy button puts on the clipboard. Omitted (or empty) hides the button. */
     copyText?: string
     /** Re-run from this turn. Omitted hides the button. */
     onRewind?: () => void
     /** Open the trace drawer. Omitted hides the button, as does the inspector preference being off. */
     onViewTrace?: (traceId: string) => void
+    /** Which figures the meta line draws; all by default. See `TurnMetrics`. */
+    metrics?: ("latency" | "tokens" | "cost")[]
+    /** Send the failed turn again. Omitted hides the button. */
+    onRetry?: () => void
 }) => {
     const inspectorEnabled = useAtomValue(playgroundInspectorEnabledAtom)
     const [copied, setCopied] = useState(false)
@@ -77,12 +90,24 @@ export const TurnFooter = ({
 
     const showTrace = !!traceId && !!onViewTrace && inspectorEnabled
     const showCopy = !!copyText && !isStreaming
-    const hasActions = showCopy || !!onRewind || showTrace
+    const hasActions = showCopy || !!onRewind || showTrace || !!onRetry
 
     return (
         <>
-            <TurnTimestamp messageId={messageId} traceId={traceId} turnTraceId={turnTraceId} />
-            {isUser ? null : <TurnMetrics traceId={traceId} usage={usage} separator />}
+            <TurnTimestamp
+                messageId={messageId}
+                startedAt={sessionTurnStartedAt}
+                pending={sessionTurnsPending}
+            />
+            {isUser ? null : (
+                <TurnMetrics
+                    usage={usage}
+                    sessionTurnFigures={sessionTurnFigures}
+                    isStreaming={isStreaming}
+                    separator
+                    show={metrics}
+                />
+            )}
             {hasActions ? <MetaSeparator className="first:hidden" /> : null}
             {showCopy ? (
                 <ChatActionIconButton
@@ -93,10 +118,17 @@ export const TurnFooter = ({
                     tooltip={false}
                 />
             ) : null}
+            {onRetry ? (
+                <ChatActionIconButton
+                    label="Try again"
+                    icon={<ArrowClockwise size={12} />}
+                    onClick={onRetry}
+                />
+            ) : null}
             {onRewind ? (
                 <ChatActionIconButton
                     label={isUser ? "Edit and re-run" : "Re-run this turn"}
-                    icon={<ArrowUUpLeft size={12} />}
+                    icon={<ArrowClockwise size={12} />}
                     onClick={onRewind}
                 />
             ) : null}

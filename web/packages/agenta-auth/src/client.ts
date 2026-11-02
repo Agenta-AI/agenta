@@ -1,3 +1,4 @@
+import {isMcpRelayUrl} from "@agenta/shared/api"
 import {
     MOBILE_AUTH_CALLBACK_COOKIE,
     MOBILE_AUTH_CALLBACK_MAX_AGE,
@@ -8,13 +9,9 @@ import Passwordless from "supertokens-web-js/recipe/passwordless"
 import Session from "supertokens-web-js/recipe/session"
 import ThirdParty from "supertokens-web-js/recipe/thirdparty"
 
-import {
-    describeConsumeCode,
-    describeCreateCode,
-    describeResendCode,
-    type OtpOutcome,
-} from "./otpMachine"
+import {describeCreateCode, describeResendCode} from "./otpMachine"
 import {authApiUrl, authEnv} from "./runtime"
+import {readAuthRejection} from "./turnstile"
 
 /**
  * Headless SuperTokens client (supertokens-web-js — same 0.16.x the desktop's
@@ -37,37 +34,33 @@ export function ensureAuthInit(): void {
             apiDomain: authApiUrl(),
             apiBasePath: "/api/auth",
         },
-        recipeList: [Session.init(), EmailPassword.init(), Passwordless.init(), ThirdParty.init()],
+        recipeList: [
+            Session.init({
+                override: {
+                    functions: (original) => ({
+                        ...original,
+                        // The MCP relay is the one route under this domain where a 401 is not
+                        // ours. See `isMcpRelayUrl`: refreshing and retrying somebody else's
+                        // refused API key ten times is what stopped the rejected-key screen
+                        // from ever being reached (D175). Both apps render that sheet, so
+                        // both exclude the route.
+                        shouldDoInterceptionBasedOnUrl: (url, apiDomain, cookieDomain) =>
+                            isMcpRelayUrl(url)
+                                ? false
+                                : original.shouldDoInterceptionBasedOnUrl(
+                                      url,
+                                      apiDomain,
+                                      cookieDomain,
+                                  ),
+                    }),
+                },
+            }),
+            EmailPassword.init(),
+            Passwordless.init(),
+            ThirdParty.init(),
+        ],
     })
     initialized = true
-}
-
-export type SignInOutcome = {kind: "ok"} | {kind: "rejected"; message: string} | {kind: "error"}
-
-export async function signInWithEmailPassword(
-    email: string,
-    password: string,
-): Promise<SignInOutcome> {
-    ensureAuthInit()
-    try {
-        const result = await EmailPassword.signIn({
-            formFields: [
-                {id: "email", value: email},
-                {id: "password", value: password},
-            ],
-        })
-        if (result.status === "OK") return {kind: "ok"}
-        if (result.status === "WRONG_CREDENTIALS_ERROR")
-            return {kind: "rejected", message: "Incorrect email or password."}
-        if (result.status === "FIELD_ERROR")
-            return {
-                kind: "rejected",
-                message: result.formFields[0]?.error ?? "Invalid email or password.",
-            }
-        return {kind: "rejected", message: result.reason}
-    } catch {
-        return {kind: "error"}
-    }
 }
 
 /* ------------------------------- email OTP -------------------------------- */
@@ -98,30 +91,24 @@ export async function requestEmailCode(
         const outcome = describeCreateCode(await Passwordless.createCode({email}))
         if (outcome.kind === "ok") await tagAttemptWithHost()
         return outcome
-    } catch {
+    } catch (error) {
+        const rejection = await readAuthRejection(error)
+        if (rejection) return {kind: "failed", message: rejection}
         return describeCreateCode(null)
     }
 }
 
-/** Re-send the code for the open attempt. */
+/** Re-send the code for the open attempt. A rejection (too many requests) keeps the attempt open. */
 export async function resendEmailCode(): Promise<
-    {kind: "ok"} | {kind: "restart"; message: string}
+    {kind: "ok"} | {kind: "failed"; message: string} | {kind: "restart"; message: string}
 > {
     ensureAuthInit()
     try {
         return describeResendCode(await Passwordless.resendCode())
-    } catch {
+    } catch (error) {
+        const rejection = await readAuthRejection(error)
+        if (rejection) return {kind: "failed", message: rejection}
         return describeResendCode(null)
-    }
-}
-
-/** Exchange the typed code for a session. */
-export async function submitEmailCode(code: string): Promise<OtpOutcome> {
-    ensureAuthInit()
-    try {
-        return describeConsumeCode(await Passwordless.consumeCode({userInputCode: code}))
-    } catch {
-        return describeConsumeCode(null)
     }
 }
 
@@ -190,7 +177,9 @@ export async function startOidcSignIn(providerId: string): Promise<{kind: "error
     }
 }
 
-export type OidcCallbackOutcome = {kind: "ok"} | {kind: "failed"; message: string}
+export type OidcCallbackOutcome =
+    | {kind: "ok"; createdNewUser: boolean}
+    | {kind: "failed"; message: string}
 
 /** Finish the redirect flow: verify state, exchange the code, set the session. */
 export async function completeOidcSignIn(): Promise<OidcCallbackOutcome> {
@@ -198,15 +187,16 @@ export async function completeOidcSignIn(): Promise<OidcCallbackOutcome> {
     clearMobileAuthCallbackMark()
     try {
         const result = await ThirdParty.signInAndUp()
-        if (result.status === "OK") return {kind: "ok"}
+        if (result.status === "OK") return {kind: "ok", createdNewUser: result.createdNewRecipeUser}
         if (result.status === "SIGN_IN_UP_NOT_ALLOWED")
             return {kind: "failed", message: result.reason}
         return {
             kind: "failed",
             message: "That provider did not share an email. Try another sign-in method.",
         }
-    } catch {
-        return {kind: "failed", message: "Sign-in could not be completed. Try again."}
+    } catch (error) {
+        const rejection = await readAuthRejection(error)
+        return {kind: "failed", message: rejection ?? "Sign-in could not be completed. Try again."}
     }
 }
 
@@ -218,10 +208,9 @@ export async function completeOidcSignIn(): Promise<OidcCallbackOutcome> {
 /**
  * The signed-in session's access token, or `null` when there is no session.
  *
- * Callers that need to send an explicit `Authorization` header rather than rely on the cookie —
- * the playground's run requests are the case that matters, because the backend only honours the
- * `project_id` query param alongside an Authorization header, and without it a run resolves
- * against the caller's DEFAULT project instead of the one it belongs to.
+ * For callers that send an explicit `Authorization` header rather than rely on the cookie (the
+ * playground's run requests). The project rides the `project_id` query param either way: the API
+ * honours it for a cookie session too.
  */
 export async function getAccessToken(): Promise<string | null> {
     if (typeof window === "undefined") return null
@@ -297,7 +286,9 @@ export async function signInDetailed(
             kind: "not-allowed",
             message: "You need to be invited by the organization owner to gain access.",
         }
-    } catch {
+    } catch (error) {
+        const rejection = await readAuthRejection(error)
+        if (rejection) return {kind: "not-allowed", message: rejection}
         return {kind: "error"}
     }
 }
@@ -325,7 +316,9 @@ export async function signUpDetailed(
             kind: "not-allowed",
             message: "You need to be invited by the organization owner to gain access.",
         }
-    } catch {
+    } catch (error) {
+        const rejection = await readAuthRejection(error)
+        if (rejection) return {kind: "not-allowed", message: rejection}
         return {kind: "error"}
     }
 }

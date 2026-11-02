@@ -39,12 +39,18 @@ export interface ProviderGroup {
     key?: string
     /** Provider family the group's logo is looked up by, when the label is not one. */
     iconKey?: string
-    /** Muted second line under the group name (e.g. "Connected" on a stored connection). */
+    /** Muted second line under the group name, after `tag` (e.g. "Set up on the server"). */
     caption?: string
-    /** Neutral tag after the group name (the agent picker marks a subscription here). */
+    /** Tag on line two, before `caption` (the agent picker marks a subscription here). */
     tag?: string
     /** The tag's colour. Defaults to the neutral fill; a subscription takes the olive one. */
     tagTone?: "neutral" | "olive"
+    /**
+     * The group is shown but cannot be opened or picked. Use it for a row the user still needs to
+     * see — a subscription whose sign-in expired — with `caption` saying why. A disabled group
+     * keeps its place in the cascade even with no options, and the keyboard walks past it.
+     */
+    disabled?: boolean
     /**
      * The group's flyout, split into labelled runs. Absent leaves `options` a flat list; when
      * present the sections ARE the flyout and `options` only backs search and selection.

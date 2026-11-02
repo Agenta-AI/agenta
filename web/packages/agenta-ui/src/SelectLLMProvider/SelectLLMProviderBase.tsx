@@ -1,6 +1,6 @@
 import React, {useCallback, useEffect, useId, useMemo, useRef, useState} from "react"
 
-import {CaretRight, Check, X} from "@phosphor-icons/react"
+import {CaretLeft, CaretRight, Check, X} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {ChevronDown} from "lucide-react"
 
@@ -8,6 +8,7 @@ import {Input} from "../components/ui/input"
 import {Popover, PopoverAnchor, PopoverContent, PopoverTrigger} from "../components/ui/popover"
 import {selectTriggerVariants} from "../components/ui/select"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../components/ui/tooltip"
+import {useMediaQuery} from "../hooks/useMediaQuery"
 import {LLMIconMap} from "../LLMIcons"
 
 import type {
@@ -17,7 +18,7 @@ import type {
     ProviderSection,
     SelectSize,
 } from "./types"
-import {getHarnessIcon, getProviderIcon, getProviderDisplayName} from "./utils"
+import {getHarnessIcon, getProviderIcon, getProviderDisplayName, optionMatchesSearch} from "./utils"
 
 const DEFAULT_PROVIDER_DROPDOWN_WIDTH = 400
 
@@ -36,6 +37,13 @@ const ROW_CLASS =
 
 /** A group's hover/selection identity: its own `key` when it has one, else its display label. */
 const groupKeyOf = (group: ProviderGroup): string | null => group.key ?? group.label ?? null
+
+// A group naming itself (a connection) is shown verbatim; a provider family gets its display name.
+const groupDisplayName = (group: ProviderGroup): string =>
+    group.iconKey ? (group.label ?? "") : getProviderDisplayName(group.label || "")
+
+/** Tailwind's `sm`: below it the two-column cascade does not fit. */
+const SINGLE_COLUMN_QUERY = "(max-width: 639.98px)"
 
 /**
  * Base LLM provider select component.
@@ -139,6 +147,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
             // sections are authored by the caller and have no loose shapes to normalize.
             tag: group?.tag,
             tagTone: group?.tagTone,
+            disabled: group?.disabled,
             sections: group?.sections,
             options:
                 (group.options
@@ -184,23 +193,29 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
 
         const filterGroupOptions = (group: ProviderGroup): ProviderGroup => ({
             ...group,
-            options: group.options.filter(
-                (option) =>
-                    option.label.toLowerCase().includes(normalizedSearchTerm) ||
-                    option.value.toLowerCase().includes(normalizedSearchTerm) ||
-                    group.label?.toLowerCase().includes(normalizedSearchTerm),
+            options: group.options.filter((option) =>
+                optionMatchesSearch(option, group, normalizedSearchTerm),
             ),
         })
 
-        return normalizedGroups.map(filterGroupOptions).filter((group) => group.options.length)
+        // A disabled group is a status row, not a result: it survives the option filter so the
+        // cascade can still explain itself, but never appears in a search, which is about matches.
+        return normalizedGroups
+            .map(filterGroupOptions)
+            .filter((group) => (group.disabled ? !normalizedSearchTerm : group.options.length > 0))
     }, [normalizedGroups, searchTerm])
 
     const isSearching = searchTerm.trim().length > 0
+    // Phone width: one column at a time — providers, then the tapped provider's models.
+    const singleColumn = useMediaQuery(SINGLE_COLUMN_QUERY)
     const shouldUseProviderPanels = hasModelOptions && showGroup
     // The panel cascade only renders when there is nothing to search through.
     const showPanels = shouldUseProviderPanels && !isSearching
     const hoveredGroup = useMemo(
-        () => filteredProviders.find((group) => groupKeyOf(group) === hoveredProvider) ?? null,
+        () =>
+            filteredProviders.find(
+                (group) => !group.disabled && groupKeyOf(group) === hoveredProvider,
+            ) ?? null,
         [filteredProviders, hoveredProvider],
     )
     /** Where the provider cursor sits, so the search field can name that row to a screen reader. */
@@ -230,9 +245,12 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
               ? resolvedDropdownWidth / 2
               : "50%")
     const modelListWidthCss = toCssSize(resolvedModelListWidth)
-    const providerPanelWidth = hoveredGroup
-        ? (connectionColumnCss ?? `calc(100% - ${modelListWidthCss})`)
-        : "100%"
+    const providerPanelWidth =
+        hoveredGroup && !singleColumn
+            ? (connectionColumnCss ?? `calc(100% - ${modelListWidthCss})`)
+            : "100%"
+    // Single column: the models replace the providers once you step into them.
+    const showModelsOnly = singleColumn && !!hoveredGroup && activeModelIndex !== null
 
     /** Rows of the non-cascading list (search results, or the flat/ungrouped mode). */
     const flatItems = useMemo(
@@ -331,14 +349,17 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                 if (activeModelIndex !== null) {
                     setActiveModelIndex(move(models, activeModelIndex, dir))
                 } else {
-                    const next = move(
-                        filteredProviders,
-                        providerIndex < 0 ? -1 : providerIndex,
-                        dir,
-                    )
-                    setHoveredProvider(
-                        filteredProviders[next] ? groupKeyOf(filteredProviders[next]) : null,
-                    )
+                    // A disabled row is a note, not a destination: step over it, and give up after
+                    // one full lap so a list of nothing but notes cannot spin.
+                    let next = providerIndex < 0 ? -1 : providerIndex
+                    let remaining = filteredProviders.length
+                    while (remaining > 0) {
+                        next = move(filteredProviders, next, dir)
+                        if (!filteredProviders[next]?.disabled) break
+                        remaining -= 1
+                    }
+                    const target = filteredProviders[next]
+                    setHoveredProvider(target && !target.disabled ? groupKeyOf(target) : null)
                 }
             } else if (e.key === "ArrowRight" && models.length) {
                 e.preventDefault()
@@ -525,7 +546,8 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
             aria-selected={isSelected(option)}
             data-active={index === activeModelIndex}
             onMouseEnter={() => setActiveModelIndex(index)}
-            className={clsx(ROW_CLASS, "hover:bg-muted data-[active=true]:bg-muted")}
+            // `accent`, not `muted`: in dark `--muted` equals the popover background.
+            className={clsx(ROW_CLASS, "hover:bg-accent data-[active=true]:bg-accent")}
             onMouseDown={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
@@ -560,7 +582,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                 ROW_CLASS,
                 isSelected(option)
                     ? "bg-controlItemBgActive font-semibold"
-                    : "data-[active=true]:bg-muted",
+                    : "data-[active=true]:bg-accent",
             )}
         >
             {renderOption(option, "flat")}
@@ -600,7 +622,8 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                         data-placeholder={selectedOption || value ? undefined : ""}
                         className={clsx(
                             selectTriggerVariants({size: TRIGGER_SIZE[size]}),
-                            "text-left",
+                            // Border-only focus: the 3px ring crowds the popover opening right below.
+                            "text-left focus:!shadow-none data-[state=open]:!shadow-none [&:has(:focus)]:!shadow-none",
                             className,
                         )}
                         style={{width: "100%", ...style}}
@@ -627,6 +650,11 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                 onOpenAutoFocus={(e) => {
                     if (!showSearch) return
                     e.preventDefault()
+                    // Touch: focusing the search raises the keyboard over the list. Focus the panel.
+                    if (window.matchMedia("(pointer: coarse)").matches) {
+                        ;(e.currentTarget as HTMLElement | null)?.focus()
+                        return
+                    }
                     inputRef.current?.focus()
                 }}
                 // Anchored mode has no trigger to restore focus to, so Radix would drop it on
@@ -635,8 +663,10 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                 onCloseAutoFocus={anchorRef ? (e) => e.preventDefault() : undefined}
                 onPointerDownOutside={onDismissOutside ? () => onDismissOutside() : undefined}
                 onKeyDown={handleKeyDown}
+                collisionPadding={8}
                 className={clsx(
-                    "p-1",
+                    // The cascade asks for a fixed 400px, which overhangs both edges of a phone.
+                    "p-1 max-w-[var(--radix-popover-content-available-width)]",
                     // antd's `popupMatchSelectWidth`: the cascade sizes itself, everything else
                     // tracks the trigger.
                     shouldUseProviderPanels ? "w-auto" : "w-[var(--radix-popover-trigger-width)]",
@@ -650,7 +680,17 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                 <div
                     ref={panelRef}
                     className="flex flex-col gap-1"
-                    style={shouldUseProviderPanels ? {width: providerDropdownWidthCss} : undefined}
+                    style={
+                        shouldUseProviderPanels
+                            ? {
+                                  // One column fits the trigger; minus the content's own `p-1`.
+                                  width: singleColumn
+                                      ? "calc(var(--radix-popover-trigger-width) - 0.5rem)"
+                                      : providerDropdownWidthCss,
+                                  maxWidth: "100%",
+                              }
+                            : undefined
+                    }
                 >
                     {panelHeader ? (
                         <div className="-mx-1 -mt-1 mb-1 border-0 border-b border-solid border-border bg-muted/40 px-3 py-1.5">
@@ -689,7 +729,8 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 variant="ghost"
                                 className={clsx(
-                                    "rounded-none py-1.5",
+                                    // 13px on a phone, 14px from md up (Input defaults to 16px).
+                                    "rounded-none py-1.5 text-[13px] md:text-sm",
                                     searchSuffix ? "pr-20" : "pr-8",
                                 )}
                             />
@@ -702,7 +743,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                         inputRef.current?.focus()
                                     }}
                                     className={clsx(
-                                        "absolute top-1/2 -translate-y-1/2 cursor-pointer rounded border-none bg-transparent p-1 hover:bg-muted",
+                                        "absolute top-1/2 -translate-y-1/2 cursor-pointer rounded border-none bg-transparent p-1 hover:bg-accent",
                                         searchSuffix ? "right-14" : "right-2",
                                     )}
                                 >
@@ -733,6 +774,9 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                     </div>
                                 ) : (
                                     filteredProviders.map((group, idx) => {
+                                        // The flat list is options only, so a group with none —
+                                        // a disabled status row — has nothing to draw here.
+                                        if (!group.options.length) return null
                                         const GroupIcon = getProviderIcon(
                                             group.iconKey || group.label || "",
                                         )
@@ -770,126 +814,172 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
 
                     {/* When not searching and has model options with showGroup: provider/model panels */}
                     {showPanels && (
-                        <div className="relative flex min-h-[220px] min-w-0">
-                            <div
-                                className="flex min-w-0 flex-col"
-                                style={{width: providerPanelWidth}}
-                            >
+                        <>
+                            <div className="relative flex min-h-[220px] min-w-0">
                                 <div
-                                    className="py-1"
-                                    role="listbox"
-                                    id={providerListId}
-                                    aria-label="Providers"
+                                    className={clsx(
+                                        "flex min-w-0 flex-col",
+                                        showModelsOnly && "hidden",
+                                    )}
+                                    style={{width: providerPanelWidth}}
                                 >
-                                    {filteredProviders.map((group, idx) => {
-                                        const Icon = getProviderIcon(
-                                            group.iconKey || group.label || "",
-                                        )
-                                        const isHovered = hoveredProvider === groupKeyOf(group)
-                                        // A group naming itself (a connection) is shown verbatim;
-                                        // a provider-family label still gets its display name.
-                                        const displayName = group.iconKey
-                                            ? (group.label ?? "")
-                                            : getProviderDisplayName(group.label || "")
+                                    <div
+                                        className="py-1"
+                                        role="listbox"
+                                        id={providerListId}
+                                        aria-label="Providers"
+                                    >
+                                        {filteredProviders.map((group, idx) => {
+                                            const Icon = getProviderIcon(
+                                                group.iconKey || group.label || "",
+                                            )
+                                            const isDisabled = !!group.disabled
+                                            const isHovered =
+                                                !isDisabled && hoveredProvider === groupKeyOf(group)
+                                            const displayName = groupDisplayName(group)
 
-                                        return (
-                                            <div
-                                                key={`provider-${groupKeyOf(group)}-${idx}`}
-                                                id={providerOptionId(idx)}
-                                                role="option"
-                                                // The open column IS this listbox's chosen row —
-                                                // there is no other provider value to mark.
-                                                aria-selected={isHovered}
-                                                data-active={isHovered && activeModelIndex === null}
-                                                onMouseEnter={() => {
-                                                    setHoveredProvider(groupKeyOf(group))
-                                                    setActiveModelIndex(null)
-                                                }}
-                                                onClick={() => {
-                                                    setHoveredProvider(groupKeyOf(group))
-                                                    setActiveModelIndex(0)
-                                                }}
-                                                className={clsx(
-                                                    ROW_CLASS,
-                                                    "hover:bg-muted",
-                                                    isHovered && "bg-muted",
-                                                )}
-                                            >
-                                                {Icon && <Icon className="w-4 h-4 flex-shrink-0" />}
-                                                <span className="flex min-w-0 flex-1 flex-col">
-                                                    <span className="flex min-w-0 items-center gap-1.5">
-                                                        <span className="truncate text-xs">
+                                            return (
+                                                <div
+                                                    key={`provider-${groupKeyOf(group)}-${idx}`}
+                                                    id={providerOptionId(idx)}
+                                                    role="option"
+                                                    // The open column IS this listbox's chosen row —
+                                                    // there is no other provider value to mark.
+                                                    aria-selected={isHovered}
+                                                    aria-disabled={isDisabled || undefined}
+                                                    data-active={
+                                                        isHovered && activeModelIndex === null
+                                                    }
+                                                    onMouseEnter={() => {
+                                                        // One column has no flyout to preview into.
+                                                        if (isDisabled || singleColumn) return
+                                                        setHoveredProvider(groupKeyOf(group))
+                                                        setActiveModelIndex(null)
+                                                    }}
+                                                    onClick={() => {
+                                                        if (isDisabled) return
+                                                        setHoveredProvider(groupKeyOf(group))
+                                                        setActiveModelIndex(0)
+                                                    }}
+                                                    className={clsx(
+                                                        ROW_CLASS,
+                                                        // `!` beats ROW_CLASS: stylesheet order gives cursor-pointer the win.
+                                                        isDisabled
+                                                            ? "!cursor-default opacity-60"
+                                                            : "hover:bg-accent",
+                                                        isHovered && "bg-accent",
+                                                    )}
+                                                >
+                                                    {Icon && (
+                                                        <Icon className="w-4 h-4 flex-shrink-0" />
+                                                    )}
+                                                    <span className="flex min-w-0 flex-1 flex-col">
+                                                        <span
+                                                            className="truncate text-xs"
+                                                            title={displayName}
+                                                        >
                                                             {displayName}
                                                         </span>
-                                                        {group.tag ? (
-                                                            <span
-                                                                className={clsx(
-                                                                    "shrink-0 rounded-control-sm px-1.5 text-[11px]",
-                                                                    group.tagTone === "olive"
-                                                                        ? "bg-[var(--ag-ref-environment-bg)] text-[var(--ag-ref-environment-text)]"
-                                                                        : "bg-muted text-colorTextSecondary",
-                                                                )}
-                                                            >
-                                                                {group.tag}
+                                                        {/* Below the name so the tag never takes its width; wraps rather than clip the caption. */}
+                                                        {group.tag || group.caption ? (
+                                                            <span className="flex min-w-0 flex-wrap items-center gap-x-1.5">
+                                                                {group.tag ? (
+                                                                    <span
+                                                                        className={clsx(
+                                                                            "shrink-0 rounded-control-sm px-1.5 text-[11px]",
+                                                                            group.tagTone ===
+                                                                                "olive"
+                                                                                ? "bg-[var(--ag-ref-environment-bg)] text-[var(--ag-ref-environment-text)]"
+                                                                                : "bg-muted text-colorTextSecondary",
+                                                                        )}
+                                                                    >
+                                                                        {group.tag}
+                                                                    </span>
+                                                                ) : null}
+                                                                {group.caption ? (
+                                                                    <span className="min-w-0 break-words text-[11px] text-colorTextTertiary">
+                                                                        {group.caption}
+                                                                    </span>
+                                                                ) : null}
                                                             </span>
                                                         ) : null}
                                                     </span>
-                                                    {group.caption ? (
-                                                        <span className="truncate text-[11px] text-colorTextTertiary">
-                                                            {group.caption}
-                                                        </span>
-                                                    ) : null}
-                                                </span>
-                                                <span className="text-field-sm tabular-nums text-colorTextTertiary">
-                                                    {group.options.length}
-                                                </span>
-                                                <CaretRight
-                                                    size={12}
-                                                    className="flex-shrink-0 text-colorTextTertiary"
-                                                />
-                                            </div>
-                                        )
-                                    })}
+                                                    {isDisabled ? null : (
+                                                        <>
+                                                            <span className="text-field-sm tabular-nums text-colorTextTertiary">
+                                                                {group.options.length}
+                                                            </span>
+                                                            <CaretRight
+                                                                size={12}
+                                                                className="flex-shrink-0 text-colorTextTertiary"
+                                                            />
+                                                        </>
+                                                    )}
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
                                 </div>
 
-                                {footerContent && (
-                                    <div className="mt-auto w-full">{footerContent}</div>
+                                {hoveredGroup && (!singleColumn || showModelsOnly) && (
+                                    <div
+                                        role="listbox"
+                                        id={modelListId}
+                                        aria-label={hoveredGroup.label ?? "Models"}
+                                        className={clsx(
+                                            "overflow-y-auto py-1",
+                                            singleColumn
+                                                ? "max-h-[320px] w-full"
+                                                : "absolute inset-y-0 right-0 border-0 border-l border-solid border-border",
+                                        )}
+                                        style={
+                                            singleColumn ? undefined : {width: modelListWidthCss}
+                                        }
+                                        onWheel={handleWheelScroll}
+                                    >
+                                        {showModelsOnly ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => setActiveModelIndex(null)}
+                                                className={clsx(
+                                                    ROW_CLASS,
+                                                    "border-0 bg-transparent text-left text-colorTextSecondary hover:bg-accent",
+                                                )}
+                                            >
+                                                <CaretLeft size={12} className="flex-shrink-0" />
+                                                <span className="truncate text-xs">
+                                                    {groupDisplayName(hoveredGroup)}
+                                                </span>
+                                            </button>
+                                        ) : null}
+                                        {(() => {
+                                            // One running index across the sections: the keyboard walks
+                                            // the flyout as one list, so the rows must number as one.
+                                            let rowIndex = -1
+                                            const single = flyoutSections.length === 1
+                                            return flyoutSections.map((section) => (
+                                                <div
+                                                    key={section.key}
+                                                    role="group"
+                                                    aria-label={section.label || undefined}
+                                                >
+                                                    {section.label
+                                                        ? renderSectionLabel(section, single)
+                                                        : null}
+                                                    {section.options.map((option) => {
+                                                        rowIndex += 1
+                                                        return renderModelRow(option, rowIndex)
+                                                    })}
+                                                </div>
+                                            ))
+                                        })()}
+                                    </div>
                                 )}
                             </div>
-
-                            {hoveredGroup && (
-                                <div
-                                    role="listbox"
-                                    id={modelListId}
-                                    aria-label={hoveredGroup.label ?? "Models"}
-                                    className="absolute inset-y-0 right-0 overflow-y-auto border-0 border-l border-solid border-border py-1"
-                                    style={{width: modelListWidthCss}}
-                                    onWheel={handleWheelScroll}
-                                >
-                                    {(() => {
-                                        // One running index across the sections: the keyboard walks
-                                        // the flyout as one list, so the rows must number as one.
-                                        let rowIndex = -1
-                                        const single = flyoutSections.length === 1
-                                        return flyoutSections.map((section) => (
-                                            <div
-                                                key={section.key}
-                                                role="group"
-                                                aria-label={section.label || undefined}
-                                            >
-                                                {section.label
-                                                    ? renderSectionLabel(section, single)
-                                                    : null}
-                                                {section.options.map((option) => {
-                                                    rowIndex += 1
-                                                    return renderModelRow(option, rowIndex)
-                                                })}
-                                            </div>
-                                        ))
-                                    })()}
-                                </div>
-                            )}
-                        </div>
+                            {/* Spans the panel, not the 200px provider column it used to sit in:
+                                constrained to that width the label wrapped onto two lines. */}
+                            {footerContent ? <div className="w-full">{footerContent}</div> : null}
+                        </>
                     )}
 
                     {panelFooter ? (

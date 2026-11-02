@@ -14,6 +14,11 @@ const userSchema = z.object({
     uid: z.string(),
     username: z.string(),
     email: z.string(),
+    // Optional so a response without it still validates: this is the only field the schema
+    // lets through that nothing renders — `state/classicMode` reads it to tell whether an
+    // account predates the simplified experience, on any device rather than only the one it
+    // signed up on.
+    created_at: z.string().optional(),
 })
 
 /** Fern stashes the HTTP status on the thrown `AgentaApiError` as `statusCode`. */
@@ -24,6 +29,12 @@ const isUnauthorized = (error: unknown): boolean =>
 export const fetchProfile = async (): Promise<User | null> => {
     const data = await getUsersClient().fetchUserProfile()
     return safeParseWithLogging(userSchema, data, "[fetchProfile]") ?? null
+}
+
+/** Rename the signed-in user; resolves to the updated profile. */
+export const updateUsername = async (username: string): Promise<User | null> => {
+    const data = await getUsersClient().updateUserUsername({username})
+    return safeParseWithLogging(userSchema, data, "[updateUsername]") ?? null
 }
 
 /**

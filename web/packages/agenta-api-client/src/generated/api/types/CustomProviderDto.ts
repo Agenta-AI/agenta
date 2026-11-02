@@ -3,10 +3,11 @@
 import type * as AgentaApi from "../index.js";
 
 export interface CustomProviderDto {
-    kind: AgentaApi.CustomProviderKind;
+    kind: AgentaApi.LlmCustomProviderKind;
     provider: AgentaApi.CustomProviderSettingsDto;
     models: AgentaApi.CustomModelSettingsDto[];
     harnesses?: (string[] | null) | undefined;
+    protocol?: (AgentaApi.LlmEndpointProtocol | null) | undefined;
     provider_slug?: (string | null) | undefined;
     model_keys?: (string[] | null) | undefined;
 }

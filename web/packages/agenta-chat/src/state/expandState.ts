@@ -19,8 +19,14 @@ import {atomFamily} from "jotai-family"
 export const reasoningKey = (messageId: string, partIndex: number) =>
     `${messageId}::reason::${partIndex}`
 export const errorKey = (messageId: string) => `${messageId}::error`
+/** A long message body clamped behind "Show more" (see `CollapsibleMessageBody`). */
+export const messageBodyKey = (messageId: string) => `${messageId}::body`
 export const toolRowKey = (toolCallId: string) => `tool::row::${toolCallId}`
 export const toolGroupKey = (toolCallId: string) => `tool::group::${toolCallId}`
+/** A run, named by the user message that started it; the placeholder and the reply share it. */
+export const runKey = (userMessageId: string) => `run:${userMessageId}`
+/** The turn's activity fold, keyed by the run where the host knows it, else by the message. */
+export const activityFoldKey = (runOrMessageId: string) => `${runOrMessageId}::activity`
 
 /** The map IS the source of truth and the enumerable key set. `undefined` = follow the widget default. */
 const expandedMapAtom = atom<Record<string, boolean>>({})
@@ -46,6 +52,9 @@ export const expandedKeysForMessages = (messages: UIMessage[]): Set<string> => {
     const keys = new Set<string>()
     for (const m of messages) {
         keys.add(errorKey(m.id))
+        keys.add(messageBodyKey(m.id))
+        keys.add(activityFoldKey(m.id))
+        if (m.role === "user") keys.add(activityFoldKey(runKey(m.id)))
         m.parts.forEach((p, i) => {
             const type = (p as {type?: string}).type
             if (type === "reasoning") keys.add(reasoningKey(m.id, i))

@@ -1,4 +1,5 @@
-from typing import List
+import asyncio
+from typing import List, Optional
 from uuid import UUID
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlparse, urlunparse
@@ -29,7 +30,6 @@ from oss.src.core.secrets.dtos import (
     SSOProviderDTO,
     SSOProviderSettingsDTO,
 )
-from oss.src.core.secrets.redaction import redact_secret_response
 from oss.src.core.secrets.services import VaultService
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.core.shared.dtos import Header
@@ -50,6 +50,7 @@ from ee.src.core.organizations.types import (
     OrganizationProviderUpdate,
 )
 from ee.src.core.organizations.exceptions import OrganizationSlugConflictError
+from ee.src.core.fraud.types import FRAUD_FLAG_KEYS
 
 
 log = get_module_logger(__name__)
@@ -93,6 +94,12 @@ async def update_organization(
         if "flags" in payload_dict:
             new_flags = payload_dict["flags"]
             if new_flags is not None:
+                # The fraud check owns its keys: a client cannot set or clear them.
+                new_flags = {
+                    key: value
+                    for key, value in new_flags.items()
+                    if key not in FRAUD_FLAG_KEYS
+                }
                 existing_flags = organization.flags or {}
 
                 default_flags = {
@@ -639,7 +646,7 @@ class OrganizationProvidersService:
                         )
                     ),
                 ),
-                write_only=False,
+                write_only=True,
             )
 
             secret_dto = await self._vault_service().create_secret(
@@ -647,11 +654,10 @@ class OrganizationProvidersService:
                 create_secret_dto=secret_payload,
             )
 
-            flags = payload.flags or {}
-            if "is_valid" not in flags:
-                flags["is_valid"] = False
-            if "is_active" not in flags:
-                flags["is_active"] = False
+            # Only test_provider may mark a provider valid and turn it on.
+            flags = dict(payload.flags or {})
+            flags["is_valid"] = False
+            flags["is_active"] = False
 
             provider = await dao.create(
                 created_by_id=user_id,
@@ -693,13 +699,23 @@ class OrganizationProvidersService:
             settings_changed = False
 
             if payload.settings is not None:
-                settings.update(payload.settings)
+                # The client secret is never sent back to the browser, so an edit that
+                # leaves it blank means "keep the stored one".
+                incoming = dict(payload.settings)
+                if not incoming.get("client_secret"):
+                    incoming.pop("client_secret", None)
+                settings.update(incoming)
                 settings_changed = True
 
             flags = provider.flags.copy() if provider.flags else {}
 
             if payload.flags is not None:
-                flags.update(payload.flags)
+                incoming_flags = dict(payload.flags)
+                # is_valid is owned by test_provider; is_active needs a valid provider.
+                incoming_flags.pop("is_valid", None)
+                if incoming_flags.get("is_active") and not flags.get("is_valid"):
+                    incoming_flags["is_active"] = False
+                flags.update(incoming_flags)
 
             if settings_changed:
                 flags["is_valid"] = False
@@ -907,7 +923,7 @@ class OrganizationProvidersService:
     ) -> dict:
         """The provider's settings as a USER response may carry them.
 
-        Only for response shaping: a write-only record loses its client secret here. The
+        Only for response shaping: the client secret never leaves here. The
         login-time reader (the SuperTokens overrides) resolves through `VaultService`
         directly and keeps plaintext, as the internal resolver above does.
         """
@@ -918,15 +934,16 @@ class OrganizationProvidersService:
         if not secret:
             raise HTTPException(status_code=404, detail="Provider secret not found")
 
-        write_only = bool(getattr(secret, "write_only", False))
-        settings = self._provider_settings_of(redact_secret_response(secret))
+        settings = self._provider_settings_of(secret)
 
-        if write_only:
-            # The dict-shaped branch has no typed container for the redaction helper to
-            # reach into, so the field is dropped here instead.
-            settings = {
-                key: value for key, value in settings.items() if key != "client_secret"
-            }
+        # Always dropped, whatever `write_only` says: rows written before the secret was
+        # created write-only still hold a readable one. The flag tells the caller whether
+        # a secret is stored.
+        has_client_secret = bool(settings.get("client_secret"))
+        settings = {
+            key: value for key, value in settings.items() if key != "client_secret"
+        }
+        settings["has_client_secret"] = has_client_secret
 
         return settings
 
@@ -963,14 +980,147 @@ from ee.src.core.access.entitlements.service import (  # noqa: E402
     scope_from,
     Gauge,
 )
-from ee.src.core.starter_credits_bridge.service import (  # noqa: E402
-    seed_starter_credits_bridge_safely,
+from ee.src.core.wallets import signup_policy  # noqa: E402
+from ee.src.core.wallets.service import WalletsService  # noqa: E402
+from ee.src.core.fraud.service import (  # noqa: E402
+    owner_organization_blocks_grants,
+    signup_is_fraud,
+)
+from ee.src.core.accounts.service import (  # noqa: E402
+    email_variant_blocks_grant,
+    returning_account_blocks_grants,
 )
 
 
 _subscription_service = SubscriptionsService(
     subscriptions_dao=SubscriptionsDAO(),
 )
+
+_wallets_service: Optional[WalletsService] = None
+
+
+def register_wallets_service(*, wallets_service: WalletsService) -> None:
+    """Composition-root hook: the entrypoint wires the wallets service at startup."""
+    global _wallets_service
+    _wallets_service = wallets_service
+
+
+def _get_wallets_service() -> WalletsService:
+    if _wallets_service is None:
+        raise RuntimeError(
+            "Wallets service not registered. "
+            "Call register_wallets_service() from the composition root."
+        )
+    return _wallets_service
+
+
+# The floor given to a new organization that the mint policy refuses with one of
+# FLOOR_RAISING_REFUSALS: 100 credits, above the daily 75, so the daily free credits
+# can never be spent.
+REFUSED_EMAIL_FLOOR_MUSD = 1_000_000
+
+# Refusals that also raise the wallet floor. The email rules, and the per-domain cap:
+# one domain past its daily signup grants can still create many accounts, and each
+# would collect the daily credits. The global caps do not raise the floor, so a real
+# user who signs up in a busy hour still gets the daily credits.
+FLOOR_RAISING_REFUSALS = frozenset(
+    {
+        "disposable_domain",
+        "plus_local_part",
+        "digit_local_part",
+        "work_domain_daily",
+    }
+)
+
+
+async def _free_credits_check(organization_email: str) -> tuple[bool, bool]:
+    """Apply the mint policy to a new organization's owner email, and return
+    (award the signup grant, raise the wallet floor). A refusal in
+    FLOOR_RAISING_REFUSALS skips the grant and raises the floor. Any other refusal,
+    a missing policy or any error skips the grant and keeps the normal floor.
+
+    A Gmail address whose normalized form already belongs to another live user (a dot
+    or `+tag` variant of one inbox) is refused and raises the floor too. The per-domain
+    cap skips freemail domains, so it does not catch these. That lookup fails open."""
+    if await email_variant_blocks_grant(email=organization_email):
+        return False, True
+    try:
+        async with asyncio.timeout(5):
+            policy = await signup_policy.resolve_mint_policy()
+            if policy is None:
+                return False, False
+            refusal = await signup_policy.mint_policy_refusal(
+                organization_email, policy
+            )
+            if refusal is None:
+                return True, False
+            raise_floor = refusal in FLOOR_RAISING_REFUSALS
+            log.info(
+                "[wallets] signup grant refused",
+                rule=refusal,
+                raise_floor=raise_floor,
+                domain=organization_email.rpartition("@")[2].lower(),
+            )
+            return False, raise_floor
+    except Exception:
+        log.warning(
+            "[wallets] free credits check failed; no signup grant", exc_info=True
+        )
+        return False, False
+
+
+async def _email_rules_refuse(organization_email: str) -> bool:
+    """True when the mint policy's email rules refuse the owner email. A missing policy
+    or any error refuses nothing, as on the signup path."""
+    try:
+        async with asyncio.timeout(5):
+            policy = await signup_policy.resolve_mint_policy()
+            return policy is not None and not signup_policy.email_rules_allow(
+                organization_email, policy
+            )
+    except Exception:
+        log.warning("[wallets] email rules check failed; normal floor", exc_info=True)
+        return False
+
+
+async def _provision_wallet_general_balance(
+    *,
+    organization_id: UUID,
+    plan: str,
+    floor_musd: Optional[int] = None,
+) -> None:
+    """Idempotent. Runs after the organization and subscription have committed, in its
+    own transaction, so a failure here leaves them in place and can be retried alone."""
+    try:
+        await _get_wallets_service().provision_general_balance(
+            organization_id=organization_id,
+            plan=plan,
+            floor_musd=floor_musd,
+        )
+    except Exception as exc:
+        log.error(
+            "[wallets] Failed to provision general balance for organization [%s]: %s",
+            organization_id,
+            exc,
+        )
+        raise
+
+
+async def _award_signup_grant(*, organization_id: UUID) -> None:
+    """Idempotent. Signup path only: on explicit organization creation the grant would
+    be farmable (report.md §9.2)."""
+    try:
+        await _get_wallets_service().award(
+            organization_id=organization_id,
+            activity_code="signup",
+        )
+    except Exception as exc:
+        log.error(
+            "[wallets] Failed to award signup grant for organization [%s]: %s",
+            organization_id,
+            exc,
+        )
+        raise
 
 
 async def provision_signup_subscription(
@@ -980,12 +1130,12 @@ async def provision_signup_subscription(
 ) -> None:
     """Provision the signup subscription + seed the user gauge for a new org.
 
-    Cloud (Stripe enabled) gets a reverse trial; self-hosted gets the default
-    plan. Called from the OSS signup flow via the `is_ee()` seam.
+    Cloud (Stripe enabled) starts on the free plan, or on a reverse trial when the
+    pricing opts in; self-hosted gets the default plan. Called from the OSS signup flow via the `is_ee()` seam.
     """
 
     try:
-        await _subscription_service.provision_subscription(
+        subscription = await _subscription_service.provision_subscription(
             organization_id=str(organization.id),
             organization_name=organization.name,
             organization_email=organization_email,
@@ -1004,25 +1154,63 @@ async def provision_signup_subscription(
         scope=scope_from(organization_id=organization.id),
     )
 
-    # Bounded (10s) and swallow-all: a failure degrades to "no starter credits"
-    # and must never raise here — the signup path deletes the new user when
-    # setup fails. Nothing retries a failed seed.
-    await seed_starter_credits_bridge_safely(
-        organization_id=str(organization.id),
-        organization_email=organization_email,
+    # Never raises; bounded to a few seconds. A flagged organization is created as
+    # normal but gets no free credits of any kind: no signup grant and (through the
+    # marker) no daily grants.
+    flagged = await signup_is_fraud(
+        organization_id=organization.id, email=organization_email
+    )
+    # Never raises; a lookup failure grants as normal. An email that deleted its
+    # account inside the tombstone window gets no free credits either, and the
+    # raised floor keeps the daily credits unspendable. A flagged organization is
+    # already marked; checking it again would overwrite the Jev verdict.
+    returning = not flagged and await returning_account_blocks_grants(
+        organization_id=organization.id, email=organization_email
     )
 
+    # Both helpers re-raise, and the signup path deletes the new user when this
+    # coroutine fails, so an unfinished wallet must not run here.
+    if env.wallets.enabled:
+        if subscription is None:
+            # `provision_subscription` returns None when the organization already had a
+            # subscription — a retried signup. The stored row is then the only thing that
+            # knows the real plan: with Stripe on, the organization was onboarded on the
+            # trial or free plan, and `get_default_plan()` would size the wallet's floor
+            # from a plan it is not on. Fall back to the default only if nothing is stored.
+            subscription = await _subscription_service.read(
+                organization_id=str(organization.id)
+            )
+        plan = subscription.plan if subscription is not None else get_default_plan()
+        award_grant, raise_floor = await _free_credits_check(organization_email)
+        if flagged:
+            award_grant = False
+        if returning:
+            award_grant, raise_floor = False, True
+        await _provision_wallet_general_balance(
+            organization_id=organization.id,
+            plan=plan,
+            floor_musd=REFUSED_EMAIL_FLOOR_MUSD if raise_floor else None,
+        )
+        if award_grant:
+            await _award_signup_grant(organization_id=organization.id)
 
-async def provision_user_subscription(organization: OrganizationDB) -> None:
+
+async def provision_user_subscription(
+    organization: OrganizationDB,
+    *,
+    organization_email: str,
+) -> None:
     """Start the default plan + seed the user gauge for an explicitly-created org.
 
     Entry point for `POST /organizations/`. Called from OSS via the `is_ee()` seam.
     """
 
+    plan = get_default_plan()
+
     try:
         await _subscription_service.start_plan(
             organization_id=str(organization.id),
-            plan=get_default_plan(),
+            plan=plan,
         )
     except Exception as exc:
         log.error(
@@ -1037,3 +1225,26 @@ async def provision_user_subscription(organization: OrganizationDB) -> None:
         delta=1,
         scope=scope_from(organization_id=organization.id),
     )
+
+    if env.wallets.enabled:
+        # Without this, each extra organization of a refused email, of a returning
+        # deleted account, or of a flagged owner collects daily credits at a zero floor.
+        # The last two also inherit the no-grant marker. Each seam fails open.
+        refused = await _email_rules_refuse(organization_email)
+        returning = await returning_account_blocks_grants(
+            organization_id=organization.id, email=organization_email
+        )
+        # A returning account's organization already carries its marker; checking
+        # the owner would find that marker and overwrite its cause.
+        inherited = not returning and await owner_organization_blocks_grants(
+            organization_id=organization.id, owner_id=organization.owner_id
+        )
+        await _provision_wallet_general_balance(
+            organization_id=organization.id,
+            plan=plan,
+            floor_musd=(
+                REFUSED_EMAIL_FLOOR_MUSD
+                if (refused or returning or inherited)
+                else None
+            ),
+        )

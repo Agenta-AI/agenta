@@ -8,6 +8,7 @@ import {
   userTurnCarriesContent,
 } from "../../protocol.ts";
 import { approvalDecisionOf } from "../../responder.ts";
+import { headCut, tailCut } from "../../text-cut.ts";
 import { attachmentMention } from "./attachments.ts";
 import {
   APPROVED_EXECUTION_RESULT_UNKNOWN,
@@ -134,8 +135,8 @@ function safeJson(value: unknown): string {
 /** Truncate a rendered tool RESULT body with an explicit elision marker. */
 function capToolResultBody(body: string): string {
   if (body.length <= TOOL_RESULT_RENDER_MAX_CHARS) return body;
-  const omitted = body.length - TOOL_RESULT_RENDER_MAX_CHARS;
-  return `${body.slice(0, TOOL_RESULT_RENDER_MAX_CHARS)} [... ${omitted} chars omitted]`;
+  const kept = headCut(body, TOOL_RESULT_RENDER_MAX_CHARS);
+  return `${kept} [... ${body.length - kept.length} chars omitted]`;
 }
 
 /**
@@ -152,7 +153,7 @@ function pauseSentinelNudge(block: ContentBlock): string | undefined {
     return `[${toolName} was NOT run — the turn paused for another approval first, so it was skipped, not denied. Call ${toolName} again with the same arguments now to run it.]`;
   }
   if (block.output === APPROVED_EXECUTION_RESULT_UNKNOWN) {
-    return `[${toolName} was approved and may have already run; its result was not observed before the pause ended the turn. Do NOT assume it failed and do NOT retry a side-effecting call.]`;
+    return `[${toolName} may have already run; its result was not observed before the turn ended. Do NOT assume it failed and do NOT retry a side-effecting call.]`;
   }
   return undefined;
 }
@@ -342,9 +343,9 @@ export function buildTurnText(
   let transcript = full;
   let evicted = 0;
   if (full.length > maxChars) {
-    transcript = full.slice(-maxChars);
+    transcript = tailCut(full, maxChars);
     // Count messages the tail slice fully evicted (their rendered text ends before the cut).
-    const cut = full.length - maxChars;
+    const cut = full.length - transcript.length;
     let offset = 0;
     for (const line of lines) {
       if (offset + line.length <= cut) evicted++;

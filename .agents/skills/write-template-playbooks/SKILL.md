@@ -40,10 +40,10 @@ free-text asks that match no card.
   it as the field's `default` (prefilled, one-click acceptable); no default otherwise. [required]
 Only fields the agent genuinely cannot proceed without. One to four. Secrets never go here.
 
-## Researchable context (ask, defaulting to "figure it out")
-- <field>: the agent can discover this. Enum with a "Use your best judgment" or "Figure it
-  out from what's connected" option set as the `default`; the built-in Other… covers custom
-  values. Note the speed trade-off in the description.
+## Researchable context (do not ask; figure it out and state the assumption)
+- <field>: what the agent looks up, and what it assumes when the lookup is inconclusive. Never
+  a question and never an enum. The platform prompt forbids asking for a detail the agent can
+  look up or default, so this section names the lookup and the fallback assumption instead.
 
 ## Explore first (read before proposing)
 - Which read tools to discover_tools and wire.

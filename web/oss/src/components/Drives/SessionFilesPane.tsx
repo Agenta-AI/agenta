@@ -9,6 +9,21 @@ import {useChatScopeKey} from "@/oss/components/AgentChatSlice/state/scope"
 export const useSessionFilesPane = (sessionId: string) =>
     usePaneShared(useChatScopeKey(), sessionId)
 
-export function SessionFilesPane({sessionId}: {sessionId: string}) {
-    return <SessionFilesPaneView scope={useChatScopeKey()} sessionId={sessionId} />
+export function SessionFilesPane({
+    sessionId,
+    expanded,
+    onToggleExpand,
+}: {
+    sessionId: string
+    expanded?: boolean
+    onToggleExpand?: () => void
+}) {
+    return (
+        <SessionFilesPaneView
+            scope={useChatScopeKey()}
+            sessionId={sessionId}
+            expanded={expanded}
+            onToggleExpand={onToggleExpand}
+        />
+    )
 }

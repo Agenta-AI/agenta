@@ -6,14 +6,18 @@
  * permission plan; adapters decide how to express each verdict on their own wire.
  */
 
+import { createHash } from "node:crypto";
+
 import type { AgentRunRequest, ContentBlock } from "./protocol.ts";
 import {
   APPROVED_EXECUTION_RESULT_UNKNOWN,
   DEFERRED_NOT_EXECUTED_PREFIX,
 } from "./tracing/otel.ts";
 import {
+  clientToolPermission,
   decide,
   effectivePermission,
+  operatorDenyActive,
   storedDecisionKeyShape,
   type GateDescriptor,
   type PermissionPlan,
@@ -78,6 +82,40 @@ export function approvedCallKey(
   const hash = stableArgsHash(args);
   if (hash === undefined) return undefined;
   return `${shape.toolName}#${hash}`;
+}
+
+/**
+ * The log-safe stand-in for an approval key.
+ *
+ * `approvedCallKey` embeds the FULL canonical arguments, so logging it put message bodies,
+ * recipient addresses and anything else a caller passed into the runner log — content the
+ * run's own deny-set never touches, because that set holds credentials and not user data.
+ *
+ * A digest keeps the whole diagnostic the key was logged for: the question is only ever
+ * whether the gate's key equals a stored one, and two digests differ exactly when the keys
+ * do. Both sides MUST digest through this one helper — a second implementation that drifts
+ * would report a mismatch that is an artifact of the logging rather than a real one.
+ */
+export function approvalKeyDigest(key: string | undefined): string {
+  if (!key) return "none";
+  return createHash("sha256").update(key).digest("hex").slice(0, 12);
+}
+
+/**
+ * The top-level argument names of a gated call, sorted, with no values.
+ *
+ * Narrow on purpose. The failure this is here to separate is identity drift — a stored key
+ * built from the INNER arguments while the gate asks with the OUTER ones — which a bare
+ * digest cannot distinguish from an ordinary miss. `integration,tool,arguments` against
+ * `body,recipient_email,subject` says which world each side is in at a glance. It does NOT
+ * recurse: deeper names are provider parameters and carry no diagnostic value here.
+ */
+export function topLevelArgNames(input: unknown): string[] {
+  const shape = storedDecisionKeyShape(undefined, input);
+  const args = shape.args;
+  if (args === null || typeof args !== "object" || Array.isArray(args))
+    return [];
+  return Object.keys(args as Record<string, unknown>).sort();
 }
 
 /**
@@ -327,6 +365,12 @@ export class ApprovalResponder implements Responder {
     request: ClientToolGateRequest,
     opts: { consume?: boolean } = {},
   ): Promise<ClientToolVerdict> {
+    // The operator kill-switch, and ONLY it, before the stored-output peek. A stored output is
+    // work the browser already did, so policy does not retract it — but an incident switch is
+    // not policy, and must stop a replayed output too. The rest of the ladder runs after the
+    // peek, below, exactly as it did before.
+    if (operatorDenyActive()) return { kind: "deny" };
+
     const storedOutput = opts.consume
       ? this.decisions.takeClientOutput(request.gate)
       : this.decisions.peekClientOutput(request.gate);
@@ -334,9 +378,7 @@ export class ApprovalResponder implements Responder {
       return { kind: "fulfilled", output: storedOutput.output };
     }
 
-    const permission =
-      request.gate.specPermission ??
-      (this.plan.default === "deny" ? "deny" : "allow");
+    const permission = clientToolPermission(request.gate, this.plan);
     if (permission === "deny") return { kind: "deny" };
 
     if (permission === "ask") {
@@ -367,18 +409,48 @@ export class ApprovalResponder implements Responder {
  */
 export function extractApprovalDecisions(
   request: AgentRunRequest,
+  log?: (msg: string) => void,
 ): Map<string, unknown[]> {
   const decisions = new Map<string, unknown[]>();
   const callShapeById = buildCallShapeIndex(request);
+  // Diagnostics for one specific disagreement. The cold-replay transcript predicate
+  // (`approvalRenderHints`) and this function read the SAME blocks with the SAME
+  // `storedApprovalDecisionOf` test, so a turn that reports `resumeFrame=approval` while this
+  // map comes back empty is a contradiction — the envelope was recognized but produced no key.
+  // Live, that is exactly what a gateway approval did, and the old "log only when non-empty"
+  // line made the empty case invisible. Count both sides so one run tells you which it was.
+  let envelopes = 0;
+  let unkeyable = 0;
   for (const block of toolResultBlocks(request)) {
     const decision = storedApprovalDecisionOf(block);
     if (decision === undefined) continue;
+    envelopes += 1;
     const argsKey = coldReplayKey(block, callShapeById);
-    if (!argsKey) continue;
+    if (!argsKey) {
+      unkeyable += 1;
+      // The two inputs the key is built from, so an unkeyable envelope names its own cause:
+      // a missing tool name on both the result and its correlated call, or arguments that are
+      // not plain JSON.
+      log?.(
+        `[HITL] approval envelope unkeyable toolCallId=${JSON.stringify(
+          block.toolCallId,
+        )} blockToolName=${JSON.stringify(block.toolName)} ` +
+          `callShape=${JSON.stringify(
+            block.toolCallId ? callShapeById.get(block.toolCallId) : undefined,
+          )?.slice(0, 300)}`,
+      );
+      continue;
+    }
     const list = decisions.get(argsKey) ?? [];
     list.push(decision);
     decisions.set(argsKey, list);
   }
+  log?.(
+    `[HITL] approval extract envelopes=${envelopes} keyed=${decisions.size} ` +
+      `unkeyable=${unkeyable} keys=${JSON.stringify(
+        [...decisions.keys()].map(approvalKeyDigest),
+      )}`,
+  );
   return decisions;
 }
 
@@ -536,9 +608,7 @@ function isStoredPermissionDecision(
 ): value is PermissionDecision | StoredPermissionDecision {
   if (isPermissionDecision(value)) return true;
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  return isPermissionDecision(
-    (value as { decision?: unknown }).decision,
-  );
+  return isPermissionDecision((value as { decision?: unknown }).decision);
 }
 
 /**
@@ -573,7 +643,8 @@ function storedApprovalDecisionOf(
   if (typeof envelope.approved !== "boolean") return undefined;
   return {
     decision: envelope.approved ? "allow" : "deny",
-    ...(typeof envelope.interactionToken === "string" && envelope.interactionToken
+    ...(typeof envelope.interactionToken === "string" &&
+    envelope.interactionToken
       ? { interactionToken: envelope.interactionToken }
       : {}),
   };

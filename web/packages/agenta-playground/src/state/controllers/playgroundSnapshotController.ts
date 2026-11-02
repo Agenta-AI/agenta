@@ -849,14 +849,6 @@ export function applyPendingHydrationsForRevision(sourceRevisionId: string): num
     return applied
 }
 
-/**
- * Clear all pending hydrations.
- * Useful for manual cleanup when navigating away from a snapshot URL.
- */
-export function clearPendingHydrations(): void {
-    setPendingHydrations(new Map())
-}
-
 // ============================================================================
 // CONTROLLER EXPORT
 // ============================================================================

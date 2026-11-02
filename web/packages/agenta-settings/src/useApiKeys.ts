@@ -38,6 +38,11 @@ export interface UseApiKeysOptions {
     onCreated: (secret: string) => void
     /** The workspace has not loaded yet, so a key cannot be scoped. */
     onWorkspacePending?: () => void
+    /**
+     * A create or delete was refused or failed. Without this the failure only reaches the
+     * console, and a host whose edit gate is optimistic shows a button that silently does nothing.
+     */
+    onError?: (verb: "create" | "delete", error: unknown) => void
 }
 
 /**
@@ -54,6 +59,7 @@ export const useApiKeys = ({
     confirmDelete,
     onCreated,
     onWorkspacePending,
+    onError,
 }: UseApiKeysOptions) => {
     const [creating, setCreating] = useState(false)
     const [deleting, setDeleting] = useState(false)
@@ -86,11 +92,12 @@ export const useApiKeys = ({
                 list()
             } catch (error) {
                 console.error(error)
+                onError?.("delete", error)
             } finally {
                 setDeleting(false)
             }
         },
-        [canEdit, confirmDelete, list],
+        [canEdit, confirmDelete, list, onError],
     )
 
     const create = useCallback(async () => {
@@ -106,10 +113,11 @@ export const useApiKeys = ({
             onCreated(created)
         } catch (error) {
             console.error(error)
+            onError?.("create", error)
         } finally {
             setCreating(false)
         }
-    }, [canEdit, list, onCreated, onWorkspacePending, workspaceId])
+    }, [canEdit, list, onCreated, onError, onWorkspacePending, workspaceId])
 
     return {keys, listing, creating, deleting, list, create, remove}
 }

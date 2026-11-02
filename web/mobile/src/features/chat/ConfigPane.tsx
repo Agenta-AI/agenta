@@ -1,12 +1,20 @@
+import {useCallback} from "react"
+
+import {automationRunHistoryDrawerAtom} from "@agenta/automation-ui"
+import {ModelSetupBanner} from "@agenta/chat/components"
 import {configPanelCollapsedAtom} from "@agenta/chat/state"
+import type {TriggerOwnerRef} from "@agenta/entity-ui/drill-in"
 import {StorageFilesHeader, StorageSection} from "@agenta/entity-ui/drive"
 import {AgentBuildPanel} from "@agenta/playground-ui/agent-build"
 import {AgentConfigHeader} from "@agenta/playground-ui/agent-config-header"
+import {shortcutAria} from "@agenta/shared/utils"
+import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {Sidebar} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
-import {ChevronsLeft} from "lucide-react"
 
 import {DrillInBridgeProvider} from "./DrillInBridgeProvider"
+import {useOpenModelSetup} from "./useOpenModelSetup"
 
 /**
  * Build's left pane: the SHARED config panel under the SHARED "Configuration" header, with the
@@ -19,27 +27,61 @@ import {DrillInBridgeProvider} from "./DrillInBridgeProvider"
  * state on the desktop side, and the header takes them as slots precisely so a surface that
  * cannot offer them simply does not.
  */
-export const ConfigPane = ({entityId, sessionId}: {entityId: string; sessionId: string}) => {
+export const ConfigPane = ({
+    entityId,
+    sessionId,
+    filesScope,
+    projectId,
+}: {
+    entityId: string
+    sessionId: string
+    filesScope: string
+    projectId: string
+}) => {
     const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
+    const openModelSetup = useOpenModelSetup()
+    // A row's "Run history" opens in a drawer over the agent, like the automation editor does,
+    // rather than navigating away from the conversation.
+    const openDrawer = useSetAtom(automationRunHistoryDrawerAtom)
+    const openRunHistory = useCallback(
+        ({id, kind}: TriggerOwnerRef) => {
+            openDrawer({automationId: id, kind: kind === "schedule" ? "schedule" : "event"})
+        },
+        [openDrawer],
+    )
 
     return (
         <div className="ag-panel-raised ag-scroll-no-bar flex h-full min-h-0 w-full flex-col overflow-y-auto">
-            <DrillInBridgeProvider>
+            <DrillInBridgeProvider sessionId={sessionId} projectId={projectId}>
                 <AgentBuildPanel
                     revisionId={entityId}
                     stickyHeaderTop={48}
+                    banner={
+                        <div className="px-4">
+                            <ModelSetupBanner
+                                revisionId={entityId}
+                                layout="alert"
+                                onSetUp={openModelSetup}
+                            />
+                        </div>
+                    }
                     storage={
                         <StorageSection
                             revisionId={entityId}
                             sessionId={sessionId}
-                            // Mobile shows one conversation at a time, so the session IS the
-                            // pane scope (desktop keys it by chat panel, which has tabs).
-                            scope={sessionId}
+                            scope={filesScope}
                         />
                     }
                     storageHeader={
-                        <StorageFilesHeader revisionId={entityId} sessionId={sessionId} />
+                        <StorageFilesHeader
+                            revisionId={entityId}
+                            sessionId={sessionId}
+                            scope={filesScope}
+                        />
                     }
+                    // `SessionWorkspace` mounts the drawers: a linked one must open with this pane collapsed.
+                    automationDrawer={null}
+                    onOpenRunHistory={openRunHistory}
                     header={
                         <AgentConfigHeader
                             revisionId={entityId}
@@ -50,15 +92,23 @@ export const ConfigPane = ({entityId, sessionId}: {entityId: string; sessionId: 
                             // "»" that brings the panel back. Without a way OUT, the restore
                             // control in the bar could never be reached.
                             trailing={
-                                <SimpleTooltip title="Hide configuration">
+                                <SimpleTooltip
+                                    title={
+                                        <span className="flex items-center gap-1.5">
+                                            Hide configuration{" "}
+                                            <ShortcutKeys id="panel.config" tone="inverse" />
+                                        </span>
+                                    }
+                                >
                                     <Button
                                         variant="ghost"
                                         size="icon-sm"
                                         aria-label="Hide configuration"
+                                        aria-keyshortcuts={shortcutAria("panel.config")}
                                         onClick={() => setConfigCollapsed(true)}
                                         className="h-7 w-7 shrink-0 p-0"
                                     >
-                                        <ChevronsLeft size={14} />
+                                        <Sidebar size={16} weight="fill" mirrored />
                                     </Button>
                                 </SimpleTooltip>
                             }

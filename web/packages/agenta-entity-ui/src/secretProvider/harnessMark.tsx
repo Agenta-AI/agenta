@@ -9,6 +9,7 @@
 import type {ComponentType} from "react"
 
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
+import {cn} from "@agenta/ui/ui"
 
 /**
  * Interim pi.dev mark: an ink rounded square with a white italic π.
@@ -19,7 +20,10 @@ import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 const PiMark = ({className}: {className?: string}) => (
     <span
         aria-hidden
-        className={`inline-flex size-4 shrink-0 items-center justify-center rounded-[4px] bg-colorText font-serif text-[10px] italic leading-none text-colorBgContainer ${className ?? ""}`}
+        className={cn(
+            "inline-flex size-4 shrink-0 items-center justify-center rounded-[4px] bg-colorText font-serif text-[10px] italic leading-none text-colorBgContainer",
+            className,
+        )}
     >
         π
     </span>

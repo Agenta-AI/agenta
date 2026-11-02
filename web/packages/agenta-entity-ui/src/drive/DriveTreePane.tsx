@@ -15,6 +15,8 @@ export function DriveTreePane({
     onTreeKeyDown,
     treeDropProps,
     rows,
+    railHeader,
+    contentHeader,
     children,
     mirrored = false,
 }: {
@@ -25,6 +27,10 @@ export function DriveTreePane({
     treeDropProps?: ReturnType<DriveDrop["containerDropProps"]>
     /** The tree's virtualized rows (see DriveTreeList) — a slot, so this module stays pure geometry. */
     rows: ReactNode
+    /** The rail's header (the search field), at row 2's height so they share one hairline. */
+    railHeader?: ReactNode
+    /** Row 2, above the content pane. */
+    contentHeader?: ReactNode
     /** The content pane: the folder grid or the file preview. */
     children: ReactNode
     /** Dock the tree on the RIGHT and the content on the LEFT (row-reverse keeps DOM/focus order:
@@ -60,15 +66,20 @@ export function DriveTreePane({
                     reflowing as the pane narrows. `box-border` keeps `h-full`+padding inside the box
                     (preflight is off → content-box by default). */}
                 <motion.div
-                    className="box-border flex h-full min-h-0 flex-col overflow-hidden px-3 pb-3 pt-2"
+                    className="box-border flex h-full min-h-0 flex-col overflow-hidden bg-colorBgLayout"
                     style={{width: innerW}}
                 >
+                    {railHeader ? (
+                        <div className="flex h-9 shrink-0 items-center border-0 border-b border-solid border-colorBorderSecondary px-2">
+                            {railHeader}
+                        </div>
+                    ) : null}
                     <div
                         ref={treeScrollRef}
                         // Vertical scroll is native; horizontal is intercepted (treeScrollRef)
                         // and routed to the hovered row's FOLDER GROUP (transform), so siblings
                         // scroll together. `overscroll-contain` stops rubber-band chaining.
-                        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"
+                        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2 py-2"
                         onKeyDown={onTreeKeyDown}
                         {...(treeDropProps ?? {})}
                     >
@@ -94,7 +105,11 @@ export function DriveTreePane({
                     />
                 </div>
             ) : null}
-            <div className="flex min-w-0 flex-1 flex-col">{children}</div>
+            {/* The content column is the reading surface; the rail sits on the layout tone. */}
+            <div className="flex min-w-0 flex-1 flex-col bg-background">
+                {contentHeader}
+                {children}
+            </div>
         </div>
     )
 }

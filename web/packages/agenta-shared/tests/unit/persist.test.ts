@@ -303,6 +303,39 @@ describe("recordsPersister (session records)", () => {
         await vi.waitFor(() => expect(client.getQueryData(key)).toEqual(freshLog))
     })
 
+    it("a failed restore revalidation keeps the disk copy and never becomes an unhandled rejection", async () => {
+        const key: QueryKey = ["session", "records", "proj-1", "sess-fail"]
+        const diskLog = [{id: "r1"}]
+        await idbQueryStorage.setItem(
+            recStorageKey(key),
+            makePersisted(key, diskLog, Date.now() - 60_000),
+        )
+        const unhandled: unknown[] = []
+        const onUnhandled = (reason: unknown) => unhandled.push(reason)
+        process.on("unhandledRejection", onUnhandled)
+        try {
+            const client = newClient()
+            const spy = vi.fn(async (): Promise<typeof diskLog> => {
+                throw new Error("Session records are unavailable")
+            })
+            const restored = await client.fetchQuery({
+                queryKey: key,
+                queryFn: spy,
+                persister: asPersister<typeof diskLog>(recordsPersister.persisterFn),
+                staleTime: 15_000,
+            })
+            expect(restored).toEqual(diskLog)
+            await vi.waitFor(() => expect(spy).toHaveBeenCalledTimes(1))
+            await flushMacrotasks()
+            // The query records the failure for its observers; the disk copy stays readable.
+            expect(client.getQueryState(key)?.status).toBe("error")
+            expect(client.getQueryData(key)).toEqual(diskLog)
+            expect(unhandled).toEqual([])
+        } finally {
+            process.off("unhandledRejection", onUnhandled)
+        }
+    })
+
     it("revalidates even a restore fresher than staleTime — disk is never authoritative", async () => {
         const key: QueryKey = ["session", "records", "proj-1", "sess-2"]
         const diskLog = [{id: "r1"}]

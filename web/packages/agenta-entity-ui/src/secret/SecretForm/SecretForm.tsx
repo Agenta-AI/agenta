@@ -37,6 +37,13 @@ import {type SecretFormController} from "./useSecretForm"
 
 export interface SecretFormProps {
     controller: SecretFormController
+    /** Attachment flows accept readable text secrets only. */
+    textOnly?: boolean
+    /**
+     * Layer for the select popups. They portal to <body> at z-50, so a host drawer above that
+     * (the attach and create drawers sit at 1000 and 1100) hides them unless told the layer.
+     */
+    popupZIndex?: number
 }
 
 const formatOptions = [
@@ -50,33 +57,79 @@ const jsonViewOptions = [
 ]
 
 /** antd `Typography.Text` stand-ins — the token classes, no component needed. */
-const FieldLabel = ({children}: {children: React.ReactNode}) => (
-    <span className="font-medium text-colorText">{children}</span>
-)
+const FieldLabel = ({
+    htmlFor,
+    id,
+    children,
+}: {
+    htmlFor?: string
+    /** Set where something is named BY this label rather than associated with it. */
+    id?: string
+    children: React.ReactNode
+}) => {
+    // A `<span>` labels nothing. Given a control to name, this becomes a real label, which is
+    // what tells a screen reader which field it is reading.
+    const Tag = htmlFor ? "label" : "span"
+    return (
+        <Tag className="font-medium text-colorText" htmlFor={htmlFor} id={id}>
+            {children}
+        </Tag>
+    )
+}
+
+/**
+ * The control that takes the credential, named.
+ *
+ * Every other input on this form carries a placeholder, so assistive technology had something
+ * to read out; this one carries none, and its absence was in fact how a QA harness identified
+ * it. The one field in the flow that must not be typed into by mistake was the one a screen
+ * reader could not announce (round 6c, D-R6C-3).
+ *
+ * The name is the label already on screen, which changes with the format and with whether a
+ * value is being replaced, so there is one string rather than two that can drift.
+ */
+const SECRET_VALUE_ID = "secret-form-value"
+
+/** The visible label, for the formats whose control is named BY it rather than tied to it. */
+const SECRET_VALUE_LABEL_ID = "secret-form-value-label"
+
+/**
+ * The name one row's value control carries in the key-value grid.
+ *
+ * Named by its key, because "Value" repeated down a column tells a reader which column they
+ * are in and not which row. A row whose key is still empty falls back to its position, so
+ * every control has a name from the moment it appears.
+ */
+const rowValueLabel = (key: string, index: number): string =>
+    key.trim() ? `Value for ${key.trim()}` : `Value ${index + 1}`
 
 const HintText = ({children}: {children: React.ReactNode}) => (
     <span className="text-xs text-colorTextSecondary">{children}</span>
 )
 
-export function SecretForm({controller}: SecretFormProps) {
+export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFormProps) {
+    const popupStyle = popupZIndex != null ? {zIndex: popupZIndex} : undefined
     const {
         isEditing,
         name,
         slug,
         format,
         textValue,
+        defaultEnvVar,
         kvRows,
         jsonView,
         jsonText,
         jsonError,
         duplicateKeys,
         duplicateKeyError,
+        defaultEnvError,
         valueHidden,
         keyPreview,
         onChangeName,
         onChangeSlug,
         onChangeFormat,
         setTextValue,
+        setDefaultEnvVar,
         updateRow,
         addRow,
         removeRow,
@@ -84,6 +137,13 @@ export function SecretForm({controller}: SecretFormProps) {
         onSwitchToGrid,
         setJsonText,
     } = controller
+
+    /** The one string the label shows and the control is named by, so the two cannot drift. */
+    const valueLabel = valueHidden
+        ? "Replace content"
+        : format === CustomSecretFormat.Text
+          ? "Value"
+          : "Content"
 
     return (
         <div className="flex flex-col gap-4 ph-no-capture">
@@ -112,27 +172,36 @@ export function SecretForm({controller}: SecretFormProps) {
                 </HintText>
             </div>
 
-            <div className="flex flex-col gap-1">
-                <FieldLabel>Format</FieldLabel>
-                <div className="flex items-center gap-3">
-                    <Segmented
-                        className="w-fit"
-                        options={formatOptions}
-                        value={format}
-                        onChange={(v) => onChangeFormat(v as typeof format)}
-                    />
-                    <HintText>
-                        {format === CustomSecretFormat.Text
-                            ? "Any opaque string — stored verbatim as text"
-                            : "Key-value pairs — stored formatted as json"}
-                    </HintText>
+            {textOnly ? null : (
+                <div className="flex flex-col gap-1">
+                    <FieldLabel>Format</FieldLabel>
+                    <div className="flex items-center gap-3">
+                        <Segmented
+                            className="w-fit"
+                            options={formatOptions}
+                            value={format}
+                            onChange={(v) => onChangeFormat(v as typeof format)}
+                        />
+                        <HintText>
+                            {format === CustomSecretFormat.Text
+                                ? "Any opaque string — stored verbatim as text"
+                                : "Key-value pairs — stored formatted as json"}
+                        </HintText>
+                    </div>
                 </div>
-            </div>
+            )}
 
             <div className="flex flex-col gap-1">
                 <div className="flex items-center justify-between">
                     <div className="flex items-baseline gap-2">
-                        <FieldLabel>{valueHidden ? "Replace content" : "Content"}</FieldLabel>
+                        <FieldLabel
+                            id={SECRET_VALUE_LABEL_ID}
+                            htmlFor={
+                                format === CustomSecretFormat.Text ? SECRET_VALUE_ID : undefined
+                            }
+                        >
+                            {valueLabel}
+                        </FieldLabel>
                         {duplicateKeyError && (
                             <span className="text-xs text-error">
                                 Duplicate keys are not allowed.
@@ -158,14 +227,49 @@ export function SecretForm({controller}: SecretFormProps) {
                 ) : null}
 
                 {format === CustomSecretFormat.Text ? (
-                    <Textarea
-                        rows={4}
-                        className="font-mono"
-                        value={textValue}
-                        onChange={(e) => setTextValue(e.target.value)}
-                    />
+                    <div className="flex flex-col gap-4">
+                        <Textarea
+                            id={SECRET_VALUE_ID}
+                            rows={4}
+                            className="font-mono"
+                            aria-label={valueLabel}
+                            value={textValue}
+                            onChange={(e) => setTextValue(e.target.value)}
+                        />
+                        <div className="flex flex-col gap-1">
+                            <FieldLabel>Default environment variable</FieldLabel>
+                            <Input
+                                className="font-mono"
+                                placeholder="For example, GITHUB_TOKEN"
+                                value={defaultEnvVar}
+                                onChange={(e) => setDefaultEnvVar(e.target.value)}
+                                autoComplete="off"
+                                spellCheck={false}
+                                aria-invalid={defaultEnvError || undefined}
+                            />
+                            {defaultEnvError ? (
+                                <span className="text-xs text-error">
+                                    Use letters, digits, and underscores; do not start with a digit.
+                                </span>
+                            ) : (
+                                <HintText>
+                                    Optional. Suggested when you attach this secret to an agent.
+                                </HintText>
+                            )}
+                        </div>
+                    </div>
                 ) : jsonView === "json" ? (
-                    <div className="flex flex-col gap-1">
+                    // The editor is a contenteditable rather than a form control, so the group
+                    // around it is what carries the name. Named BY the label rather than with
+                    // a copy of its text: a copy is a second place for the wording to live,
+                    // and a name that has drifted from the label on screen is the mismatch
+                    // WCAG 2.5.3 is about (round 5). Before this the format announced nothing
+                    // at all, which is the gap the text format had (round 6c, D143).
+                    <div
+                        className="flex flex-col gap-1"
+                        role="group"
+                        aria-labelledby={SECRET_VALUE_LABEL_ID}
+                    >
                         <SharedEditor
                             initialValue={jsonText}
                             value={jsonText}
@@ -197,6 +301,7 @@ export function SecretForm({controller}: SecretFormProps) {
                                     <Input
                                         className="font-mono"
                                         placeholder="key"
+                                        aria-label={`Key ${idx + 1}`}
                                         aria-invalid={
                                             duplicateKeys.has(row.key.trim()) || undefined
                                         }
@@ -204,7 +309,12 @@ export function SecretForm({controller}: SecretFormProps) {
                                         onChange={(e) => updateRow(idx, {key: e.target.value})}
                                     />
                                     {type === "null" ? (
-                                        <Input disabled className="font-mono" value="null" />
+                                        <Input
+                                            disabled
+                                            className="font-mono"
+                                            aria-label={rowValueLabel(row.key, idx)}
+                                            value="null"
+                                        />
                                     ) : type === "boolean" ? (
                                         <Select
                                             value={String(row.value)}
@@ -212,10 +322,13 @@ export function SecretForm({controller}: SecretFormProps) {
                                                 updateRow(idx, {value: textToValue(v, "boolean")})
                                             }
                                         >
-                                            <SelectTrigger className="font-mono" aria-label="Value">
+                                            <SelectTrigger
+                                                className="font-mono"
+                                                aria-label={rowValueLabel(row.key, idx)}
+                                            >
                                                 <SelectValue />
                                             </SelectTrigger>
-                                            <SelectContent>
+                                            <SelectContent style={popupStyle}>
                                                 <SelectItem value="true">true</SelectItem>
                                                 <SelectItem value="false">false</SelectItem>
                                             </SelectContent>
@@ -224,6 +337,7 @@ export function SecretForm({controller}: SecretFormProps) {
                                         <Input
                                             className="font-mono"
                                             placeholder="value"
+                                            aria-label={rowValueLabel(row.key, idx)}
                                             type={type === "number" ? "number" : "text"}
                                             value={valueToText(row.value)}
                                             onChange={(e) =>
@@ -247,7 +361,7 @@ export function SecretForm({controller}: SecretFormProps) {
                                                 <TypeChip variant={type} />
                                             </SelectValue>
                                         </SelectTrigger>
-                                        <SelectContent>
+                                        <SelectContent style={popupStyle}>
                                             {PRIMITIVE_TYPES.map((t) => (
                                                 <SelectItem key={t} value={t}>
                                                     {t}

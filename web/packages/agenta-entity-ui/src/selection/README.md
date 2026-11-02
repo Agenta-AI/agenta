@@ -20,9 +20,8 @@ The Entity Selection System provides a **single `EntityPicker` component** with 
 │                                                                          │
 │  DATA LAYER (Entity Controllers - Source of Truth)                       │
 │  ┌─────────────────────────────────────────────────────────────────────┐│
-│  │ appRevision.selectors.apps / variantsByApp(id) / revisions(id)      ││
-│  │ evaluatorRevision.selectors.evaluators / variantsByEvaluator / ...  ││
-│  │ testset / revision (from @agenta/entities)                          ││
+│  │ workflow / workflowVariant / workflowRevision relations              ││
+│  │ testset / revision relations (from @agenta/entities)                ││
 │  └─────────────────────────────────────────────────────────────────────┘│
 │                                    │                                     │
 │                                    ▼                                     │
@@ -34,7 +33,7 @@ The Entity Selection System provides a **single `EntityPicker` component** with 
 │  │ - getLabel/getId: Display functions                                 ││
 │  │ - toSelection: Transform to selection result                        ││
 │  └─────────────────────────────────────────────────────────────────────┘│
-│  Pre-built: testsetAdapter, appRevisionAdapter, evaluatorRevisionAdapter│
+│  Pre-built: testsetAdapter, workflowRevisionAdapter, evaluatorAdapter   │
 │                                    │                                     │
 │                                    ▼                                     │
 │  UNIFIED HOOKS (Mode-Specific)                                          │
@@ -62,19 +61,19 @@ The Entity Selection System provides a **single `EntityPicker` component** with 
 ### Using EntityPicker (Unified Component)
 
 ```tsx
-import { EntityPicker, type AppRevisionSelectionResult } from '@agenta/entity-ui'
+import { EntityPicker, type WorkflowRevisionSelectionResult } from '@agenta/entity-ui'
 
 // Cascading dropdowns (App → Variant → Revision)
-<EntityPicker<AppRevisionSelectionResult>
+<EntityPicker<WorkflowRevisionSelectionResult>
   variant="cascading"
-  adapter="appRevision"
+  adapter="workflowRevision"
   onSelect={handleSelect}
 />
 
 // Breadcrumb navigation with drill-down list
-<EntityPicker<AppRevisionSelectionResult>
+<EntityPicker<WorkflowRevisionSelectionResult>
   variant="breadcrumb"
-  adapter="appRevision"
+  adapter="workflowRevision"
   onSelect={handleSelect}
   showSearch
   showBreadcrumb
@@ -108,14 +107,14 @@ import {useCascadingMode, useBreadcrumbMode, useListPopoverMode} from "@agenta/e
 
 // Cascading mode
 const {levels, isComplete} = useCascadingMode({
-    adapter: "appRevision",
+    adapter: "workflowRevision",
     instanceId: "my-cascading",
     onSelect: handleSelect,
 })
 
 // Breadcrumb mode
 const {breadcrumb, items, navigateDown, navigateUp, select} = useBreadcrumbMode({
-    adapter: "appRevision",
+    adapter: "workflowRevision",
     instanceId: "my-breadcrumb",
     onSelect: handleSelect,
 })
@@ -130,31 +129,23 @@ const {parents, handleParentHover, handleChildSelect} = useListPopoverMode({
 
 ## Initialization
 
-Before using the selection components, adapters must be initialized. This is done in `Providers.tsx`.
+Before using the selection components, call `initializeSelectionSystem` once at app startup.
 
-### Recommended Setup
-
-The testset and appRevision adapters are **auto-configured** from `EntityRelation` definitions in `@agenta/entities`. They no longer require runtime configuration. Only the evaluator adapter still needs runtime config:
+The testset and workflowRevision adapters are **auto-configured** from `EntityRelation` definitions in `@agenta/entities`. Only the evaluator adapter needs runtime config:
 
 ```typescript
 import {initializeSelectionSystem} from "@agenta/entity-ui"
 
-// Testset and appRevision adapters are auto-configured from entity relations.
-// Only evaluator needs runtime config (no evaluator relations defined yet).
 initializeSelectionSystem({
     user: {
         membersAtom: workspaceMembersAtom,
         currentUserAtom: userAtom,
     },
-    evaluatorRevision: {
-        evaluatorsAtom: evaluatorRevision.selectors.evaluators,
-        variantsByEvaluatorFamily: evaluatorRevision.selectors.variantsByEvaluator,
-        revisionsByVariantFamily: evaluatorRevision.selectors.revisions,
+    evaluator: {
+        evaluatorsAtom: nonArchivedEvaluatorsAtom,
     },
 })
 ```
-
-> **Migration Note:** The old `testset` and `appRevision` config keys are no longer needed. The adapters use atoms and relations defined directly in `@agenta/entities/testset` and `@agenta/entities/appRevision`.
 
 ## Directory Structure
 
@@ -171,9 +162,9 @@ selection/
 │   ├── createAdapterFromRelations.ts # Relation-based factory (preferred)
 │   ├── createLevelFromRelation.ts    # Level config from EntityRelation
 │   ├── revisionLevelFactory.ts       # Git-based revision levels
-│   ├── appRevisionRelationAdapter.ts # App → Variant → Revision (relation-based)
+│   ├── workflowRevisionRelationAdapter.ts # Workflow → Variant → Revision (relation-based)
 │   ├── testsetRelationAdapter.ts     # Testset → Revision (relation-based)
-│   └── evaluatorRevisionAdapter.ts   # Evaluator → Variant → Revision (legacy)
+│   └── evaluatorAdapter.ts           # Evaluator (flat list, runtime config)
 │
 ├── state/                    # Jotai state atoms
 │   ├── README.md
@@ -191,8 +182,9 @@ selection/
 │   │   ├── useBreadcrumbMode.ts
 │   │   └── useListPopoverMode.ts
 │   └── utilities/            # Helper hooks
-│       ├── useChildrenData.ts
-│       └── useAutoSelectLatestChild.ts
+│       ├── useAutoSelect.ts
+│       ├── useLevelData.ts
+│       └── usePathBuilder.ts
 │
 └── components/               # UI components
     ├── README.md
@@ -218,18 +210,18 @@ selection/
 
 | Adapter                    | Hierarchy                      | Selection Result                   | Source                  |
 | -------------------------- | ------------------------------ | ---------------------------------- | ----------------------- |
-| `appRevisionAdapter`       | App → Variant → Revision       | `AppRevisionSelectionResult`       | Relation-based          |
+| `workflowRevisionAdapter`  | Workflow → Variant → Revision  | `WorkflowRevisionSelectionResult`  | Relation-based          |
 | `testsetAdapter`           | Testset → Revision             | `TestsetSelectionResult`           | Relation-based          |
-| `evaluatorRevisionAdapter` | Evaluator → Variant → Revision | `EvaluatorRevisionSelectionResult` | Legacy (runtime config) |
+| `evaluatorAdapter`         | Evaluator (flat list)          | `EvaluatorSelectionResult`         | Runtime config          |
 
-The `appRevisionAdapter` and `testsetAdapter` are built using relation-based factories (`createThreeLevelAdapter` / `createTwoLevelAdapter`). They derive their hierarchy configuration from `EntityRelation` definitions in `@agenta/entities`, eliminating ~200 lines of boilerplate per adapter.
+The `workflowRevisionAdapter` and `testsetAdapter` are built using relation-based factories (`createThreeLevelAdapter` / `createTwoLevelAdapter`). They derive their hierarchy configuration from `EntityRelation` definitions in `@agenta/entities`, eliminating ~200 lines of boilerplate per adapter.
 
 ### Creating Custom Adapters (Relation-Based)
 
 For new entities with defined relations, use the factory functions:
 
 ```typescript
-import { createTwoLevelAdapter, createThreeLevelAdapter } from '@agenta/entity-ui'
+import { createTwoLevelAdapter, createThreeLevelAdapter } from './adapters'
 
 // 2-level: Parent → Child
 export const myAdapter = createTwoLevelAdapter({
@@ -315,9 +307,9 @@ The system is used in:
 Renders cascading `Select` dropdowns for each hierarchy level:
 
 ```tsx
-<EntityPicker<AppRevisionSelectionResult>
+<EntityPicker<WorkflowRevisionSelectionResult>
     variant="cascading"
-    adapter="appRevision"
+    adapter="workflowRevision"
     onSelect={handleSelect}
     showLabels // Show label above each select
     layout="horizontal" // or "vertical"
@@ -331,9 +323,9 @@ Renders cascading `Select` dropdowns for each hierarchy level:
 Shows one level at a time with breadcrumb navigation:
 
 ```tsx
-<EntityPicker<AppRevisionSelectionResult>
+<EntityPicker<WorkflowRevisionSelectionResult>
     variant="breadcrumb"
-    adapter="appRevision"
+    adapter="workflowRevision"
     onSelect={handleSelect}
     showSearch // Search input
     showBreadcrumb // Breadcrumb trail
@@ -379,7 +371,7 @@ function MyComponent() {
     const handleAdd = async () => {
         const selection = await open({
             title: "Select Entity",
-            allowedTypes: ["appRevision", "evaluatorRevision"],
+            allowedTypes: ["workflowRevision", "evaluator"],
         })
 
         if (selection) {
@@ -397,6 +389,6 @@ Components support `instanceId` for state isolation:
 
 ```tsx
 // Two pickers with independent state
-<EntityPicker adapter="appRevision" instanceId="picker-1" variant="cascading" />
-<EntityPicker adapter="appRevision" instanceId="picker-2" variant="cascading" />
+<EntityPicker adapter="workflowRevision" instanceId="picker-1" variant="cascading" />
+<EntityPicker adapter="workflowRevision" instanceId="picker-2" variant="cascading" />
 ```

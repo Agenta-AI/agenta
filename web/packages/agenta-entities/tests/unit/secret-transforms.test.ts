@@ -3,11 +3,14 @@ import {describe, expect, it} from "vitest"
 import {
     hasStoredKey,
     transformCustomProviderPayloadData,
+    transformCustomSecretPayloadData,
+    toUpdateSecretPayload,
     transformSecret,
     transformStandardProviderPayloadData,
 } from "../../src/secret/core/transforms"
 import {
     SecretKind,
+    McpStandardProviderKind,
     SecretManagementPolicy,
     StandardProviderKind,
     type SecretResponseDto,
@@ -51,6 +54,12 @@ describe("transformSecret", () => {
         const [row] = transformSecret([standardSecret({models: []})])
 
         expect(row.models).toEqual([])
+    })
+
+    it("maps a Composio project key to its vault name", () => {
+        const [row] = transformSecret([standardSecret({kind: McpStandardProviderKind.Composio})])
+
+        expect(row.name).toBe("COMPOSIO_API_KEY")
     })
 
     it("carries the harnesses of a custom-provider connection", () => {
@@ -158,6 +167,59 @@ describe("transformCustomProviderPayloadData", () => {
             transformCustomProviderPayloadData({...values, harnesses: ["claude"]}).secret.data,
         ).toMatchObject({harnesses: ["claude"]})
     })
+
+    // The second payload builder (the legacy custom-provider form) writes the same declaration as
+    // `buildConnectionPayload`, so a record saved from either card reads back the same way.
+    it("round-trips the declared protocol, and omits it when none was declared", () => {
+        const values = {
+            name: "my-gateway",
+            provider: "custom",
+            apiBaseUrl: "https://gw.example/v1",
+            apiKey: "sk-gw",
+            models: ["claude-fable-5"],
+        }
+
+        expect(transformCustomProviderPayloadData(values).secret.data).not.toHaveProperty(
+            "protocol",
+        )
+
+        const payload = transformCustomProviderPayloadData({
+            ...values,
+            protocol: "anthropic",
+        })
+        expect(payload.secret.data).toMatchObject({protocol: "anthropic"})
+
+        const [row] = transformSecret([
+            {
+                id: "id-3",
+                slug: "my-gateway-abcdef123456",
+                kind: SecretKind.CustomProvider,
+                header: {name: "my-gateway"},
+                data: payload.secret.data,
+                value_status: {configured: true, preview: null},
+            } as unknown as SecretResponseDto,
+        ])
+        expect(row.protocol).toBe("anthropic")
+    })
+
+    it("leaves a record written before the field declaring nothing", () => {
+        const [row] = transformSecret([
+            {
+                id: "id-4",
+                slug: "legacy-gateway-abcdef123456",
+                kind: SecretKind.CustomProvider,
+                header: {name: "legacy-gateway"},
+                data: {
+                    kind: "custom",
+                    provider: {url: "https://gw.example/v1", extras: {}},
+                    models: [],
+                },
+                value_status: {configured: true, preview: null},
+            } as unknown as SecretResponseDto,
+        ])
+
+        expect(row.protocol).toBeUndefined()
+    })
 })
 
 describe("write-only records", () => {
@@ -218,5 +280,76 @@ describe("update payloads", () => {
         const payload = transformStandardProviderPayloadData({}, StandardProviderKind.Openai)
 
         expect((payload.secret.data as {provider: {key?: string}}).provider).toEqual({})
+    })
+})
+
+describe("custom secret attachment metadata", () => {
+    it("round-trips the optional default environment variable", () => {
+        const payload = transformCustomSecretPayloadData({
+            name: "GitHub token",
+            slug: "github-token",
+            format: "text",
+            content: "secret-value",
+            defaultEnvVar: "GITHUB_TOKEN",
+        })
+
+        expect(payload.secret.data).toMatchObject({
+            secret: {format: "text", content: "secret-value", default_env_var: "GITHUB_TOKEN"},
+        })
+
+        const [row] = transformSecret([
+            {
+                id: "secret-1",
+                slug: "github-token",
+                kind: SecretKind.CustomSecret,
+                header: {name: "GitHub token"},
+                data: payload.secret.data,
+                value_status: {configured: true, preview: null},
+            } as unknown as SecretResponseDto,
+        ])
+        expect(row).toMatchObject({defaultEnvVar: "GITHUB_TOKEN"})
+    })
+
+    it("omits an unset default environment variable", () => {
+        const payload = transformCustomSecretPayloadData({
+            name: "Token",
+            format: "text",
+            content: "secret-value",
+        })
+
+        expect((payload.secret.data as {secret: object}).secret).not.toHaveProperty(
+            "default_env_var",
+        )
+    })
+})
+
+// Explicitly clearing the optional default must differ from an omitted rotation field.
+describe("clearing the environment default", () => {
+    it("sends null so the vault does not carry the previous default forward", () => {
+        const payload = transformCustomSecretPayloadData({
+            name: "Deployment",
+            format: "text",
+            defaultEnvVar: "",
+        })
+        expect(payload.secret.data).toMatchObject({secret: {default_env_var: null}})
+    })
+})
+
+// PUT /secrets/{id} forbids unknown fields, so an edit must never carry the immutable slug.
+describe("toUpdateSecretPayload", () => {
+    it("drops the slug from an edited custom secret", () => {
+        const payload = transformCustomSecretPayloadData({
+            id: "secret-1",
+            name: "GitHub token",
+            slug: "github-token",
+            format: "text",
+            content: "rotated-value",
+        })
+        expect(payload).toHaveProperty("slug", "github-token")
+
+        const update = toUpdateSecretPayload(payload)
+
+        expect(Object.keys(update).sort()).toEqual(["header", "secret"])
+        expect(update).toEqual({header: payload.header, secret: payload.secret})
     })
 })

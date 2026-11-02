@@ -10,16 +10,24 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import type {UIMessage} from "ai"
 
+import type {ApprovalSubmissionOutcome} from "../assets/serverOwnedApproval"
 import {getPendingApprovals, type PendingApproval} from "../model/approvals"
+
+type ApprovalResponse = void | ApprovalSubmissionOutcome
 
 export interface UseApprovalDockArgs {
     messages: UIMessage[]
     /** Answer one gate — the host's approval-response path (which marks the resume live). */
-    respond: (args: {id: string; approved: boolean}) => void
+    respond: (args: {id: string; approved: boolean}) => ApprovalResponse | Promise<ApprovalResponse>
+    /** Answer one paused turn's shown gates in a single server transaction. */
+    respondAll?: (args: {
+        ids: string[]
+        approved: boolean
+    }) => ApprovalResponse | Promise<ApprovalResponse>
 }
 
 export interface ApprovalDock {
-    /** The run is paused on at least one gate — the dock should be visible. */
+    /** A gate is still the user's to act on; hosts gate on this, not on their own pending set. */
     open: boolean
     /** The gate to act on now (index 0 of the latched shown set); null when nothing is pending. */
     current: PendingApproval | null
@@ -27,6 +35,13 @@ export interface ApprovalDock {
     count: number
     /** A fired decision hasn't settled yet — disable the action buttons. */
     responding: boolean
+    /** The server accepted the durable response; wait for records to replace the parked gate. */
+    answered: boolean
+    /** The answer is durable, but delivery needs the user's next Send to retry. */
+    recoverable: boolean
+    /** Gates answered here whose transcript rows have not arrived (restored on failure). */
+    settledIds: ReadonlySet<string>
+    errorText: string | null
     /** Answer the current gate. */
     respond: (approved: boolean) => void
     /** Approve every pending gate in one step (the shown set is frozen while they settle). */
@@ -42,9 +57,29 @@ export interface ApprovalDock {
 export const useApprovalDock = ({
     messages,
     respond: onRespond,
+    respondAll: onRespondAll,
 }: UseApprovalDockArgs): ApprovalDock => {
     const approvals = useMemo(() => getPendingApprovals(messages), [messages])
-    const open = approvals.length > 0
+    const hasPending = approvals.length > 0
+
+    // Answered gates, hidden until the transcript catches up; restored if the answer needs reading.
+    const [settledIds, setSettledIds] = useState<ReadonlySet<string>>(() => new Set())
+    const forgetSettled = useCallback((ids: readonly string[]) => {
+        setSettledIds((prev) => {
+            const next = new Set(prev)
+            for (const id of ids) next.delete(id)
+            return next
+        })
+    }, [])
+    // The transcript caught up, so the marker has nothing left to hide.
+    useEffect(() => {
+        setSettledIds((prev) => {
+            if (prev.size === 0) return prev
+            const live = approvals.filter((a) => prev.has(a.approvalId)).map((a) => a.approvalId)
+            return live.length === prev.size ? prev : new Set(live)
+        })
+    }, [approvals])
+    const open = approvals.some((a) => !settledIds.has(a.approvalId))
 
     // A resolve can answer SEVERAL gates at once ("Approve all"). Each response settles
     // asynchronously (the SDK's serial job queue), so the pending set shrinks across renders;
@@ -58,18 +93,65 @@ export const useApprovalDock = ({
     // Latch the last non-empty set so the card stays visible while the dock animates closed AND
     // so a multi-gate resolve doesn't step through the batch.
     const shownRef = useRef(approvals)
-    if (open && !resolving) shownRef.current = approvals
+    if (hasPending && !resolving) shownRef.current = approvals
     const shown = shownRef.current
     const current = shown[0] ?? null
     const count = shown.length
+    const currentIdRef = useRef(current?.approvalId)
+    currentIdRef.current = current?.approvalId
 
     const [responding, setResponding] = useState(false)
+    const [answered, setAnswered] = useState(false)
+    const [recoverable, setRecoverable] = useState(false)
+    const [errorText, setErrorText] = useState<string | null>(null)
 
     // The current gate changed (we answered one, the next slid in) — re-enable. Held during a
     // resolve (current is frozen), so it fires only on a real step or a new batch.
     useEffect(() => {
         setResponding(false)
+        setAnswered(false)
+        setRecoverable(false)
+        setErrorText(null)
     }, [current?.approvalId])
+
+    const settle = useCallback(
+        async (responses: (ApprovalResponse | Promise<ApprovalResponse>)[], ids: string[]) => {
+            const ownerId = ids[0]
+            const results = await Promise.allSettled(responses)
+            if (currentIdRef.current !== ownerId) return
+            // One outcome per id in a fan-out; a `respondAll` batch is one outcome for the whole set.
+            const matching = (keep: (result: (typeof results)[number]) => boolean) =>
+                results.length === ids.length ? ids.filter((_, index) => keep(results[index])) : ids
+            const failed = results.find(
+                (result): result is PromiseRejectedResult => result.status === "rejected",
+            )
+            if (!failed) {
+                const recoverable = results.some(
+                    (result) => result.status === "fulfilled" && result.value?.recoverable === true,
+                )
+                setRecoverable(recoverable)
+                setAnswered(true)
+                // Nothing resumes on its own — bring those cards back to say so.
+                if (recoverable)
+                    forgetSettled(
+                        matching(
+                            (result) =>
+                                result.status === "fulfilled" && result.value?.recoverable === true,
+                        ),
+                    )
+                return
+            }
+            setResponding(false)
+            setResolvingIds(null)
+            forgetSettled(matching((result) => result.status === "rejected"))
+            setErrorText(
+                failed.reason instanceof Error
+                    ? failed.reason.message
+                    : "Approval failed. Please try again.",
+            )
+        },
+        [forgetSettled],
+    )
 
     // Once every gate we fired has settled (left the pending set), drop the latch — the dock then
     // closes if nothing remains, or re-latches onto the uncovered gates (a mixed batch).
@@ -83,19 +165,46 @@ export const useApprovalDock = ({
         (approved: boolean) => {
             if (responding || !current) return
             setResponding(true)
-            onRespond({id: current.approvalId, approved})
+            setErrorText(null)
+            // Frozen so a failure lands back on the gate it answered.
+            setResolvingIds([current.approvalId])
+            setSettledIds((prev) => new Set(prev).add(current.approvalId))
+            void settle([onRespond({id: current.approvalId, approved})], [current.approvalId])
         },
-        [responding, current, onRespond],
+        [responding, current, onRespond, settle],
     )
 
     const approveAll = useCallback(() => {
         if (responding || shown.length === 0) return
         setResponding(true)
+        setErrorText(null)
         // Freeze the card so the dock doesn't step through the batch as each response settles —
         // it holds "1 of N" and closes once all are answered (see `resolvingIds`).
         setResolvingIds(shown.map((a) => a.approvalId))
-        shown.forEach((a) => onRespond({id: a.approvalId, approved: true}))
-    }, [responding, shown, onRespond])
+        const ids = shown.map((approval) => approval.approvalId)
+        setSettledIds((prev) => {
+            const next = new Set(prev)
+            for (const id of ids) next.add(id)
+            return next
+        })
+        void settle(
+            onRespondAll
+                ? [onRespondAll({ids, approved: true})]
+                : ids.map((id) => onRespond({id, approved: true})),
+            ids,
+        )
+    }, [responding, shown, onRespond, onRespondAll, settle])
 
-    return {open, current, count, responding, respond, approveAll}
+    return {
+        open,
+        current,
+        count,
+        responding,
+        answered,
+        recoverable,
+        settledIds,
+        errorText,
+        respond,
+        approveAll,
+    }
 }

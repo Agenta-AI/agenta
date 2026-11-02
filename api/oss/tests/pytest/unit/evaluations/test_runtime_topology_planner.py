@@ -57,11 +57,13 @@ from oss.src.core.tracing.dtos import Windowing
 from oss.src.core.evaluations.service import SimpleEvaluationsService
 from oss.src.core.evaluations.tasks import processor as source_slice_tasks
 from oss.src.core.evaluations.tasks import run as run_tasks
+from oss.tests.pytest.utils.principals import any_principal, make_envelope
 
 
 def _run(*, steps, flags=None, repeats=1):
     return EvaluationRun(
         id=uuid4(),
+        principal=any_principal(),
         flags=flags or EvaluationRunFlags(),
         data=EvaluationRunData(steps=list(steps), repeats=repeats),
     )
@@ -1036,13 +1038,14 @@ async def test_run_slice_empty_dimension_short_circuits_probe_and_process():
 
 @pytest.mark.asyncio
 async def test_backend_workflow_service_runner_adapts_sdk_runtime_request():
+    workflow_request = SimpleNamespace(flags={"stream": True})
     workflows_service = SimpleNamespace(
         invoke_workflow=AsyncMock(
             return_value=SimpleNamespace(
                 status=SimpleNamespace(code=200),
                 trace_id="trace-success",
                 span_id="span-success",
-                outputs={"score": 1},
+                data=SimpleNamespace(outputs={"score": 1}),
             )
         )
     )
@@ -1051,6 +1054,7 @@ async def test_backend_workflow_service_runner_adapts_sdk_runtime_request():
         request_builder=lambda request: {
             "project_id": "project",
             "step_key": request.step.key,
+            "request": workflow_request,
         },
     )
     request = WorkflowExecutionRequest(
@@ -1071,12 +1075,15 @@ async def test_backend_workflow_service_runner_adapts_sdk_runtime_request():
     result = await runner.execute(request)
 
     assert result.status == SDKEvaluationStatus.SUCCESS
+    assert result.outputs == {"score": 1}
     assert result.trace_id == "trace-success"
     assert result.span_id == "span-success"
     workflows_service.invoke_workflow.assert_awaited_once_with(
         project_id="project",
         step_key="evaluator-auto",
+        request=workflow_request,
     )
+    assert workflow_request.flags == {"stream": False}
 
 
 @pytest.mark.asyncio
@@ -1136,7 +1143,7 @@ async def test_backend_workflow_runner_invokes_application_through_workflow_serv
                 status=SimpleNamespace(code=200),
                 trace_id="app-trace",
                 span_id="app-span",
-                outputs={"answer": "world"},
+                data=SimpleNamespace(outputs={"answer": "world"}),
             )
         )
     )
@@ -1151,11 +1158,12 @@ async def test_backend_workflow_runner_invokes_application_through_workflow_serv
                 "inputs": {
                     "type": "object",
                     "properties": {"input": {"type": "string"}},
+                    "additionalProperties": False,
                 }
             },
             "parameters": {"temperature": 0.1},
         },
-        "flags": {"is_chat": True},
+        "flags": {"is_chat": True, "stream": True},
     }
     request = WorkflowExecutionRequest(
         step=SDKEvaluationStep(
@@ -1185,24 +1193,29 @@ async def test_backend_workflow_runner_invokes_application_through_workflow_serv
     )
 
     result = await runner.execute(
-        request=request, project_id=project_id, user_id=user_id
+        request=request,
+        project_id=project_id,
+        user_id=user_id,
+        envelope=make_envelope(),
     )
 
     assert result.status == SDKEvaluationStatus.SUCCESS
     assert result.trace_id == "app-trace"
+    assert result.outputs == {"answer": "world"}
     workflows_service.invoke_workflow.assert_awaited_once()
     kwargs = workflows_service.invoke_workflow.await_args.kwargs
     assert kwargs["project_id"] == project_id
     assert kwargs["user_id"] == user_id
     assert "annotate" not in kwargs
     workflow_request = kwargs["request"]
-    assert workflow_request.flags == {"is_chat": True}
+    assert workflow_request.flags == {"is_chat": True, "stream": False}
     assert workflow_request.data.revision == revision
     assert workflow_request.data.revision["data"]["uri"] == "http://application"
     assert workflow_request.data.revision["data"]["schemas"] == {
         "inputs": {
             "type": "object",
             "properties": {"input": {"type": "string"}},
+            "additionalProperties": False,
         }
     }
     assert workflow_request.data.parameters == {"temperature": 0.1}
@@ -1224,7 +1237,7 @@ async def test_backend_evaluator_runner_sends_normalized_workflow_request():
                 status=SimpleNamespace(code=200),
                 trace_id="eval-trace",
                 span_id="eval-span",
-                outputs={"score": 1},
+                data=SimpleNamespace(outputs={"score": 1}),
             )
         )
     )
@@ -1269,18 +1282,22 @@ async def test_backend_evaluator_runner_sends_normalized_workflow_request():
     )
 
     result = await runner.execute(
-        request=request, project_id=project_id, user_id=user_id
+        request=request,
+        project_id=project_id,
+        user_id=user_id,
+        envelope=make_envelope(),
     )
 
     assert result.status == SDKEvaluationStatus.SUCCESS
     assert result.trace_id == "eval-trace"
+    assert result.outputs == {"score": 1}
     workflows_service.invoke_workflow.assert_awaited_once()
     kwargs = workflows_service.invoke_workflow.await_args.kwargs
     assert kwargs["project_id"] == project_id
     assert kwargs["user_id"] == user_id
     assert "annotate" not in kwargs
     workflow_request = kwargs["request"]
-    assert workflow_request.flags == {"is_custom": True}
+    assert workflow_request.flags == {"is_custom": True, "stream": False}
     assert workflow_request.data.revision == {"id": str(workflow_revision_id)}
     assert workflow_request.data.parameters == {"threshold": 0.5}
     assert workflow_request.data.inputs == {"input": "hello"}
@@ -1300,7 +1317,7 @@ async def test_backend_evaluator_runner_preserves_dict_revision_data():
                 status=SimpleNamespace(code=200),
                 trace_id="eval-trace",
                 span_id="eval-span",
-                outputs={"score": 1},
+                data=SimpleNamespace(outputs={"score": 1}),
             )
         )
     )
@@ -1339,13 +1356,16 @@ async def test_backend_evaluator_runner_preserves_dict_revision_data():
     )
 
     result = await runner.execute(
-        request=request, project_id=project_id, user_id=user_id
+        request=request,
+        project_id=project_id,
+        user_id=user_id,
+        envelope=make_envelope(),
     )
 
     assert result.status == SDKEvaluationStatus.SUCCESS
     workflows_service.invoke_workflow.assert_awaited_once()
     workflow_request = workflows_service.invoke_workflow.await_args.kwargs["request"]
-    assert workflow_request.flags == {"is_custom": True}
+    assert workflow_request.flags == {"is_custom": True, "stream": False}
     assert workflow_request.data.revision["data"]["uri"] == "http://evaluator"
     assert workflow_request.data.revision["data"]["headers"] == {
         "authorization": "secret"
@@ -1372,7 +1392,13 @@ async def test_backend_cached_runner_preserves_partial_hit_order():
             self.requests = []
 
         async def execute_batch(
-            self, requests, semaphore=None, *, project_id=None, user_id=None
+            self,
+            requests,
+            semaphore=None,
+            *,
+            project_id=None,
+            user_id=None,
+            envelope=None,
         ):
             self.requests.append(requests)
             return [
@@ -1410,7 +1436,10 @@ async def test_backend_cached_runner_preserves_partial_hit_order():
     ]
 
     results = await runner.execute_batch(
-        requests=requests, project_id=project_id, user_id=user_id
+        requests=requests,
+        project_id=project_id,
+        user_id=user_id,
+        envelope=make_envelope(),
     )
 
     assert [result.trace_id for result in results] == ["cached-trace", "fresh-trace"]

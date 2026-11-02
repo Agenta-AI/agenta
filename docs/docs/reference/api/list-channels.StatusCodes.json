@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"channels":{"items":{"type":"string"},"type":"array","title":"Channels"}},"type":"object","title":"ChannelsCatalogResponse"}}}}}}

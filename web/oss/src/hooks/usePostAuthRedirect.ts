@@ -3,6 +3,7 @@ import {useCallback, useMemo} from "react"
 import {clearLastSsoOrgSlug, readLastSsoOrgSlug, writeLastAuthMethod} from "@agenta/auth"
 import {fetchAllOrgsList} from "@agenta/entities/organization"
 import {isEE} from "@agenta/shared/api"
+import {navSimplifiedDefaultAtom} from "@agenta/shared/state"
 import {getDefaultStore, useSetAtom, type Atom} from "jotai"
 import {useRouter} from "next/router"
 import Session, {signOut} from "supertokens-auth-react/recipe/session"
@@ -10,11 +11,8 @@ import {useLocalStorage} from "usehooks-ts"
 
 import {queryClient} from "@/oss/lib/api/queryClient"
 import {filterOrgsByAuthMethod} from "@/oss/lib/helpers/authMethodFilter"
-import {
-    isNewUserAtom,
-    navSimplifiedDefaultAtom,
-    onboardingStorageUserIdAtom,
-} from "@/oss/lib/onboarding/atoms"
+import {isNewUserAtom, onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
+import {migrateSessionPreferences} from "@/oss/lib/onboarding/storage"
 import {mergeSessionIdentities} from "@/oss/services/auth/api"
 import {orgsAtom, useOrgData} from "@/oss/state/org"
 import {resolvePreferredWorkspaceId, resolveWorkspaceIdForOrg} from "@/oss/state/org/selectors/org"
@@ -76,10 +74,27 @@ const usePostAuthRedirect = () => {
     const derivedIsInvitedUser = hasInviteFromQuery || hasInviteFromStorage
 
     const resetAuthState = useCallback(async () => {
-        await resetProfileData()
+        const profile = await resetProfileData()
+        const profileUid = profile.data?.uid
+        if (profileUid) {
+            try {
+                migrateSessionPreferences(await Session.getUserId(), profileUid)
+            } catch {
+                // Preference migration must not block sign-in.
+            }
+            setOnboardingStorageUserId(profileUid)
+        } else {
+            // Keep sign-up writes scoped; UserListener migrates them once the profile lands.
+            try {
+                const sessionUserId = await Session.getUserId()
+                setOnboardingStorageUserId((current) => current ?? sessionUserId)
+            } catch {
+                // ignore user id lookup failures
+            }
+        }
         await resetOrganizationData()
         await resetProjectData()
-    }, [resetProfileData, resetOrganizationData, resetProjectData])
+    }, [resetProfileData, resetOrganizationData, resetProjectData, setOnboardingStorageUserId])
 
     const handleAuthSuccess = useCallback(
         async (authResult: AuthUserLike, options?: HandleAuthSuccessOptions) => {
@@ -93,29 +108,12 @@ const usePostAuthRedirect = () => {
             // Read is_new_user from session payload (set by backend overrides)
             let isNewUser = false
             let payload: any = null
-            let sessionUserId: string | null = null
             try {
                 payload = await Session.getAccessTokenPayloadSecurely()
                 isNewUser = Boolean(payload?.is_new_user)
-                sessionUserId =
-                    typeof payload?.user_id === "string"
-                        ? payload.user_id
-                        : typeof payload?.sub === "string"
-                          ? payload.sub
-                          : null
             } catch {
                 // Fallback to createdNewRecipeUser if payload unavailable (EE only)
                 isNewUser = isEE() && Boolean(authResult?.createdNewRecipeUser)
-            }
-
-            try {
-                sessionUserId = sessionUserId || (await Session.getUserId())
-            } catch {
-                // ignore user id lookup failures
-            }
-
-            if (sessionUserId) {
-                setOnboardingStorageUserId(sessionUserId)
             }
 
             console.log("[post-auth] handleAuthSuccess", {

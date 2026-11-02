@@ -2,9 +2,13 @@ import type {ToolUIPart, UIMessage} from "ai"
 
 import {isToolPart, partToolName} from "./parts"
 
-// Copied verbatim from web/oss/src/components/AgentChatSlice/components/ApprovalDock.tsx
-// (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
-// PR deletes it. Keep byte-parity if either side changes.
+/** Approval history survives after the tool settles or its gate is hidden. */
+export const toolHadApproval = (part: ToolUIPart): boolean =>
+    part.state === "approval-requested" ||
+    part.state === "approval-responded" ||
+    part.state === "output-denied" ||
+    part.approval !== undefined
+
 export interface PendingApproval {
     approvalId: string
     toolName: string
@@ -13,16 +17,10 @@ export interface PendingApproval {
     manifest?: unknown
 }
 
-// Copied verbatim from web/oss/src/components/AgentChatSlice/components/ApprovalDock.tsx
-// (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
-// PR deletes it. Keep byte-parity if either side changes.
 interface ApprovalRef {
     id: string
 }
 
-// Copied verbatim from web/oss/src/components/AgentChatSlice/components/ApprovalDock.tsx
-// (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
-// PR deletes it. Keep byte-parity if either side changes.
 /** Manifests keyed by toolCallId, from the egress's `data-approval-manifest` sibling parts. */
 const manifestsByToolCallId = (parts: UIMessage["parts"] = []): Map<string, unknown> => {
     const found = new Map<string, unknown>()
@@ -48,11 +46,35 @@ export const getPendingApprovals = (messages: UIMessage[]): PendingApproval[] =>
     const out: PendingApproval[] = []
     for (const message of messages) {
         if (message.role !== "assistant") continue
+        const continuation = (
+            message.metadata as
+                | {
+                      approvalContinuation?: {
+                          state?: string
+                          approvalIds?: unknown
+                      }
+                  }
+                | undefined
+        )?.approvalContinuation
+        const terminalApprovalIds =
+            (continuation?.state === "done" || continuation?.state === "error") &&
+            Array.isArray(continuation.approvalIds)
+                ? new Set(
+                      continuation.approvalIds.filter(
+                          (id): id is string => typeof id === "string" && id.length > 0,
+                      ),
+                  )
+                : null
         const manifests = manifestsByToolCallId(message.parts)
         for (const part of message.parts ?? []) {
             const p = part as ToolUIPart
             const approval = (p as {approval?: ApprovalRef}).approval
-            if (isToolPart(p.type as string) && p.state === "approval-requested" && approval?.id) {
+            if (
+                isToolPart(p.type as string) &&
+                p.state === "approval-requested" &&
+                approval?.id &&
+                !terminalApprovalIds?.has(approval.id)
+            ) {
                 out.push({
                     approvalId: approval.id,
                     toolName: partToolName(p),
@@ -64,3 +86,9 @@ export const getPendingApprovals = (messages: UIMessage[]): PendingApproval[] =>
     }
     return out
 }
+
+/** Stopped turns expose no actionable approval gates. */
+export const getLivePendingApprovals = (
+    messages: UIMessage[],
+    options?: {stopped?: boolean},
+): PendingApproval[] => (options?.stopped ? [] : getPendingApprovals(messages))

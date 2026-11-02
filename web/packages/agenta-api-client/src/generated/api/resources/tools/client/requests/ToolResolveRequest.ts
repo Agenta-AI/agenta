@@ -8,4 +8,5 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface ToolResolveRequest {
     tools?: AgentaApi.ToolResolveRequestToolsItem[];
+    omit_unavailable?: boolean;
 }

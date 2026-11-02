@@ -24,6 +24,7 @@ export const AvatarTreeContent = ({value, className}: Props) => {
 
     return (
         <div
+            data-testid="span-type-avatar"
             className={cn(
                 "inline-grid place-items-center size-6 shrink-0 rounded bg-transparent",
                 className,

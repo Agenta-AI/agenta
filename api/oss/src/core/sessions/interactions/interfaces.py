@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import Any, List, Optional
 from uuid import UUID
 
 from oss.src.core.sessions.interactions.dtos import (
@@ -29,13 +29,27 @@ class SessionInteractionsDAOInterface(ABC):
         project_id: UUID,
         #
         interaction_id: UUID,
+        transaction: Optional[Any] = None,
+        for_update: bool = False,
     ) -> Optional[SessionInteraction]: ...
+
+    @abstractmethod
+    async def fetch_turn_interactions(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: str,
+        transaction: Optional[Any] = None,
+        for_update: bool = False,
+    ) -> List[SessionInteraction]: ...
 
     @abstractmethod
     async def transition_interaction(
         self,
         *,
         transition: SessionInteractionTransition,
+        transaction: Optional[Any] = None,
     ) -> Optional[SessionInteraction]: ...
 
     @abstractmethod
@@ -47,7 +61,8 @@ class SessionInteractionsDAOInterface(ABC):
         except_turn_id: Optional[str] = None,
         except_tokens: Optional[List[str]] = None,
         only_turn_id: Optional[str] = None,
-    ) -> int: ...
+        transaction: Optional[Any] = None,
+    ) -> List[SessionInteraction]: ...
 
     @abstractmethod
     async def query_interactions(

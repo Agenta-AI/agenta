@@ -1,5 +1,6 @@
 import {useCallback, useMemo, useRef, useState} from "react"
 
+import {AgentGlyph} from "@agenta/entity-ui/agent"
 import {RichChatInput, type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {RobotIcon} from "@phosphor-icons/react"
 import {Select} from "antd"
@@ -82,7 +83,13 @@ const HomeTaskComposer = () => {
                         options={options}
                         labelRender={({label}) => (
                             <span className="inline-flex items-center gap-1.5">
-                                <RobotIcon size={14} className="text-colorTextTertiary" />
+                                <AgentGlyph
+                                    workflowId={effectiveAgentId}
+                                    size={14}
+                                    fallback={
+                                        <RobotIcon size={14} className="text-colorTextTertiary" />
+                                    }
+                                />
                                 {label}
                             </span>
                         )}
@@ -91,12 +98,7 @@ const HomeTaskComposer = () => {
                         className="min-w-40"
                     />
                     {/* Beside the picker, not opposite send — same side as the playground's. */}
-                    {attachments.enabled ? (
-                        <SeedAttachButton
-                            files={attachments.files}
-                            onChange={attachments.setFiles}
-                        />
-                    ) : null}
+                    <SeedAttachButton files={attachments.files} onChange={attachments.setFiles} />
                 </div>
             }
         />

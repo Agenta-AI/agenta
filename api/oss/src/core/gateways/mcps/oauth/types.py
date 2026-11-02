@@ -1,0 +1,243 @@
+"""Domain exceptions for the MCP OAuth client."""
+
+from typing import Optional
+
+from oss.src.core.gateways.types import GatewaysError
+
+
+class MCPOAuthDiscoveryError(GatewaysError):
+    """No protected-resource or authorization-server metadata could be found."""
+
+    def __init__(self, *, server_url: str, detail: Optional[str] = None):
+        self.server_url = server_url
+        self.detail = detail
+        super().__init__(f"OAuth discovery failed for {server_url}: {detail}")
+
+
+class MCPOAuthRegistrationError(GatewaysError):
+    """RFC 7591 dynamic client registration failed."""
+
+    def __init__(self, *, authorization_server: str, detail: Optional[str] = None):
+        self.authorization_server = authorization_server
+        self.detail = detail
+        super().__init__(
+            f"Client registration failed at {authorization_server}: {detail}"
+        )
+
+
+class MCPOAuthRegistrationUnavailableError(MCPOAuthRegistrationError):
+    """The authorization server offers no way for this deployment to name itself.
+
+    It advertises no registration endpoint, and it does not accept a client ID metadata
+    document from this deployment. Nothing is wrong with the request; the person has to
+    register an OAuth app with the provider and enter its client ID.
+    """
+
+    def __init__(self, *, authorization_server: str):
+        super().__init__(
+            authorization_server=authorization_server,
+            detail=(
+                "this server needs an OAuth app you register yourself. Add its client "
+                "ID and secret under Advanced"
+            ),
+        )
+
+
+class MCPOAuthTokenExchangeError(GatewaysError):
+    """The token endpoint refused the authorization-code exchange.
+
+    `temporary` when it did not answer, or answered 429 or 5xx: that says nothing about
+    the grant, and the same request can succeed later.
+    """
+
+    def __init__(
+        self,
+        *,
+        token_endpoint: str,
+        detail: Optional[str] = None,
+        temporary: bool = False,
+    ):
+        self.token_endpoint = token_endpoint
+        self.detail = detail
+        self.temporary = temporary
+        super().__init__(f"Token exchange failed at {token_endpoint}: {detail}")
+
+
+class MCPOAuthRefreshUnavailableError(GatewaysError):
+    """The token endpoint could not be reached to renew a grant, or failed on its side.
+
+    Not a `MCPOAuthRefreshFailedError`: the grant may be fine, so the connection is not
+    marked invalid and nobody is asked to consent again. The call fails, and the next one
+    tries the refresh again.
+    """
+
+    def __init__(self, *, server_url: str, detail: Optional[str] = None):
+        self.server_url = server_url
+        self.detail = detail
+        super().__init__(
+            f"The authorization server for {server_url} did not renew the "
+            f"authorization: {detail}"
+        )
+
+
+class MCPOAuthRefreshFailedError(GatewaysError):
+    """The stored grant is expired and could not be renewed.
+
+    Raised when there is no refresh token to present, or when the authorization server
+    refused the one there is. Either way the grant is dead and only the person who
+    granted it can replace it, so the data plane turns this into a reconnect refusal
+    rather than relaying a call that would come back 401 forever.
+
+    `reconnect_message` is what that refusal tells the person, where a failure has
+    something to say they can act on. Most do not, and their detail stays internal.
+    """
+
+    reconnect_message: Optional[str] = None
+
+    def __init__(self, *, server_url: str, detail: Optional[str] = None):
+        self.server_url = server_url
+        self.detail = detail
+        super().__init__(
+            f"The stored authorization for {server_url} expired and could not be "
+            f"renewed: {detail}"
+            if detail
+            else f"The stored authorization for {server_url} expired and could not be renewed"
+        )
+
+
+class MCPOAuthNoRefreshTokenError(MCPOAuthRefreshFailedError):
+    """The grant expired, or its token was refused, and it carries no refresh token."""
+
+    reconnect_message = (
+        "No refresh token was issued for this connection. Reconnect to continue."
+    )
+
+    def __init__(self, *, server_url: str):
+        super().__init__(
+            server_url=server_url, detail="the stored grant carries no refresh token"
+        )
+
+
+class MCPOAuthRegistrationUnresolvablePinError(MCPOAuthRefreshFailedError):
+    """The grant names a client registration that is gone or no longer usable.
+
+    A grant records which client the authorization server issued it to, so a renewal can
+    present that one. When the row behind that reference cannot be read, there is nothing
+    to fall back to: any other client at the same issuer was never issued these tokens,
+    and the deployment's own identity document least of all, so presenting either gets
+    the refresh refused with an error about a client rather than about a credential.
+
+    A refresh failure rather than its own kind of problem, because the outcome for the
+    person is the one a refresh failure already produces: the connection needs consenting
+    to again, which mints a fresh registration along with fresh tokens (N3).
+    """
+
+    def __init__(self, *, server_url: str, registration_slug: Optional[str] = None):
+        self.registration_slug = registration_slug
+        super().__init__(
+            server_url=server_url,
+            detail=(
+                "the client registration this authorization was issued against is no "
+                "longer available, so it cannot be renewed; connect again"
+            ),
+        )
+
+
+class MCPOAuthIssuerChangedError(MCPOAuthRefreshFailedError):
+    """The MCP server now names an authorization server other than the one that issued
+    the stored grant, so the refresh token is not presented at all.
+
+    The protected-resource document is published by the MCP server itself, so a server
+    that was honest at connect time can later point at an authorization server it
+    controls; every discovery check still passes, because they only ask whether that
+    document is internally consistent. The grant records the issuer it was created
+    against, and a renewal must still meet it.
+
+    A `MCPOAuthRefreshFailedError` because that is exactly what it is for the caller:
+    the relay marks the endpoint invalid and offers the reconnect it offers any dead
+    grant. Reconnecting is also the legitimate way through a real issuer migration —
+    the person consents at the new authorization server, and the new grant pins it.
+    """
+
+    def __init__(
+        self,
+        *,
+        server_url: str,
+        stored_issuer: Optional[str],
+        named_issuer: Optional[str],
+    ):
+        self.stored_issuer = stored_issuer
+        self.named_issuer = named_issuer
+        detail = (
+            f"the stored grant was issued by {stored_issuer}, and {server_url} now "
+            f"names {named_issuer}"
+            if stored_issuer
+            else "the stored grant does not record which authorization server issued it"
+        )
+        super().__init__(server_url=server_url, detail=detail)
+
+
+class MCPOAuthStateInvalidError(GatewaysError):
+    """No authorization attempt answers the callback's `state` handle.
+
+    Either it was never issued, or it has already been used: a handle is consumed by
+    the first callback that presents it, so a replay lands here.
+    """
+
+    def __init__(self, message: Optional[str] = None):
+        super().__init__(message or "OAuth state is invalid or expired")
+
+
+class MCPOAuthAttemptCancelledError(MCPOAuthStateInvalidError):
+    """The attempt was cancelled, or the connection's mode or address changed under it.
+
+    Nothing is exchanged or written. A consent the person walked away from must not bind
+    a grant to a connection that has moved on.
+    """
+
+    def __init__(self):
+        super().__init__("This sign-in was cancelled.")
+
+
+class MCPOAuthStateExpiredError(MCPOAuthAttemptCancelledError):
+    """The attempt exists but its window has closed. Consumed all the same, so an
+    expired handle cannot be presented twice either. The browser gave up at the same
+    moment, so the person reads it as the cancel it was."""
+
+
+class MCPOAuthCallerMismatchError(GatewaysError):
+    """The callback was presented by someone other than the user who started the
+    attempt, or by nobody at all.
+
+    The authorization server sees `state`, so a single-use record narrows the window
+    but does not by itself prove who is at the other end of the redirect. The session
+    behind the callback does. The attempt is left intact: refusing costs the rightful
+    browser nothing, and nothing is written on this path.
+    """
+
+    def __init__(self):
+        super().__init__(
+            "This connection was started by a different Agenta user, or by a "
+            "browser with no Agenta session"
+        )
+
+
+class MCPOAuthClientNotRegisteredError(GatewaysError):
+    """The state verified, but no client registration is on file for its
+    authorization server — `begin()` always registers first, so this means the
+    registration was deleted between the redirect and the callback."""
+
+    def __init__(self, *, server_url: str):
+        self.server_url = server_url
+        super().__init__(f"No OAuth client registration on file for {server_url}")
+
+
+class MCPOAuthBindFailedError(GatewaysError):
+    """The consent succeeded and the tokens were issued, but the connection could not be
+    pointed at them, because its row is gone or the write failed. The tokens are removed
+    rather than left in the vault with nothing naming them."""
+
+    def __init__(self):
+        super().__init__(
+            "The sign-in worked, but the connection could not be saved. Connect again."
+        )

@@ -9,21 +9,21 @@
   </a>
   
 <div align="center">
-  <strong> <h1> 用于构建和运行智能体的开源工作空间 </h1></strong>
+  <strong> <h1> 为你的智能体和团队打造的开源工作空间 </h1></strong>
 
 
 <a href="https://youtu.be/7Wfvtv428Fs?si=bTBUoS9JJC2Crkxs">
   <img
     width="900"
-    alt="观看 Agenta 平台演示"
-    src="https://github.com/user-attachments/assets/b7d7ff89-2653-4883-9141-fe400d42d5ef"
+    alt="观看 2 分钟 Agenta 产品导览"
+    src="./.github/images/readme/agenta-product-tour.png"
   />
 </a>
 
   ---
 
 
-  通过对话构建能**自动完成工作**的智能体。把它们共享给**你的团队**，连接你日常使用的应用，并让它们在**后台**运行。
+  通过对话构建 AI 同事。把它们共享给你的团队。在 Slack、WhatsApp 或 Telegram 中与它们交流。
 
 </div>
 
@@ -92,41 +92,81 @@ Agenta 是一个开源工作空间，你可以在其中构建专门的智能体�
 
 你通过对话来构建智能体。你描述需要完成的工作，连接它们所需的应用，并通过反馈不断改进它们。
 
-你可以在对话中直接与智能体协作，也可以把它们共享给你的团队。
+你可以在 Web 应用中与智能体协作，也可以在你已经常用的地方与它们交流：**Slack**、**Telegram** 或 **WhatsApp Business**。
 
-对于重复性的工作，你可以构建后台智能体。这类智能体会定时运行，或在某个事件发生时触发运行。
+对于重复性的工作，你可以创建自动化任务。你的智能体会定时运行，或在已连接的应用中发生某个事件时触发运行，而且每次运行做了什么你都能看到。
+
+## 教程
+
+分步视频教程。每个视频都通过对话，从零开始构建一个真实的智能体。
+
+<table>
+  <tr>
+    <td width="33%" valign="top">
+      <a href="https://youtu.be/TFsEXgdNowY"><img src="./.github/images/readme/tutorial-first-ai-coworker.png" alt="教程：构建你的第一个 AI 同事" width="100%"></a>
+      <br><b><a href="https://youtu.be/TFsEXgdNowY">构建你的第一个 AI 同事</a></b> · 10 分钟
+      <br>连接工具，为智能体设定角色，保存技能，并自动完成销售电话准备。
+    </td>
+    <td width="33%" valign="top">
+      <a href="https://youtu.be/c3iVw0MBZTE"><img src="./.github/images/readme/tutorial-competitor-tracker.png" alt="教程：构建一个追踪竞争对手的智能体" width="100%"></a>
+      <br><b><a href="https://youtu.be/c3iVw0MBZTE">在你睡觉时追踪竞争对手</a></b> · 7 分钟
+      <br>为智能体添加网页搜索，设置每周一运行，并通过 Gmail 收到摘要。
+    </td>
+    <td width="33%" valign="top">
+      <a href="https://youtu.be/hk8TMNTCZvU"><img src="./.github/images/readme/tutorial-inbound-outreach.png" alt="教程：无代码构建入站外联智能体" width="100%"></a>
+      <br><b><a href="https://youtu.be/hk8TMNTCZvU">无代码构建入站外联智能体</a></b> · 17 分钟
+      <br>研究每个新线索，判断是否匹配，并发送个性化回复。
+    </td>
+  </tr>
+</table>
+
+更多教程请访问我们的 [YouTube 频道](https://www.youtube.com/@agentaAI)。
 
 ## 为什么选择 Agenta？
 
-### 使用你的 Claude 或 ChatGPT 订阅
+如果你在找以下工具，Agenta 并不适合你：
 
-当你自托管 Agenta 时，可以使用现有的 Claude 或 ChatGPT 订阅在本地运行智能体。你不必把所有任务都改为通过按量计费的 API 运行。
+- **用于写代码的智能体开发环境**，比如 ocra、Claude Code 或 OpenCode。
 
-### 自由选择运行框架和模型
+  *Agenta 面向代码周边以及代码之外的工作：IT 运维、市场增长（GTM）、人力资源、法务、财务、客户支持……*
+- **单用户的个人助理**，比如 openclaw 或 Hermes。
 
-无需重建智能体即可切换运行框架（harness）和模型。Agenta 已经支持几乎所有模型，无论是自托管的，还是通过 API 访问的。目前 Agenta 支持 Claude Code 和 Pi 两种运行框架，并且[计划支持更多](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme)。
+  *Agenta 为团队而生：智能体可共享、支持多用户，并在团队工作的地方运行（例如 Slack）。*
+- **低代码工作流构建工具**，比如 n8n 或 Zapier。
 
-### 基于开放的智能体标准来构建
+  *在 Agenta 中你不需要绘制工作流。你构建的是能自行规划步骤、独立解决问题的自主智能体。*
 
-使用 `AGENTS.md`、技能（skills）和 MCP 服务器来定义你的智能体。你可以把智能体生态中的技能和 MCP 服务器引入 Agenta。
+Agenta 从第一天起就为专业工作场景而设计。这意味着：
 
-### 让你的智能体随时间变得更可靠
-
-Agenta 会追踪每一次运行，并为每个智能体的配置保存版本历史。借助这些历史记录，你可以分析失败原因、对比改动，并持续改进你的智能体。
+1. **默认多人协作。** 给你的团队（或客户）开放访问权限，设置角色，共享智能体和聊天会话。
+2. **透明。** 你可以看到每个智能体的配置、版本以及每一次改动。
+3. **可控，由你把关。** 你可以为每个智能体设置精确的权限：它能使用哪些工具，以及能否用这些工具读取或写入。哪些事它可以自主完成、哪些需要先经过你，都由你决定。
+4. **安全。** 每个会话都在独立的沙箱中运行，彼此隔离。智能体永远接触不到模型凭据。
+5. **可审计。** 每次运行都有完整追踪，每笔成本都有记录。
+6. **属于你。** 开源、可自托管，使用你自己的模型，数据保存在你自己的服务器上。
+7. **技术和非技术成员都能用。** 智能体通过对话构建，团队里的任何人都能创建和使用它们，而不只是工程师。
 
 ## 功能特性
 
-**为你和你的智能体打造的工作空间。** 在共享工作空间中与智能体一起处理文件。你们可以一起撰写文档、整理研究资料，或维护一个 Wiki。
+**在 Slack、Telegram 或 WhatsApp 中与智能体交流。** 你的团队和客户可以直接在已有的聊天应用中使用智能体，无需学习新工具。Web 应用在手机上也能正常使用。
 
-**人工审批与权限控制。** 为每个工具单独设置权限。你可以决定后台智能体哪些操作能自动执行、哪些需要你批准、哪些被禁止。
+**使用你的 Claude 或 ChatGPT 订阅。** 用你已经付费的订阅运行智能体，而不是按量计费的 API。
 
-**后台智能体。** 让智能体定时运行，或在已连接的应用中发生某个事件时启动它们。
+**使用任意模型。** 通过 API 使用托管模型，或通过 Ollama 使用自托管模型。日常任务用便宜的模型，关键任务用强力模型，并查看每个智能体的花费。
 
-**追踪、用量与成本。** 检查每一次模型调用和工具调用。跟踪每个智能体的模型请求、token 用量以及预估成本。
+**会学习的智能体。** 纠正一次，它就会记住。智能体拥有记忆，会创建并完善自己的技能，还会更新自己的指令，因此需要的监督会越来越少。
 
-**团队访问权限。** 开源版本允许你把智能体共享给团队，并按角色控制访问权限。
+**自动化。** 让智能体定时运行，或在已连接的应用中发生事件时运行。查看每次运行的历史，并可以继续某次运行的会话来修正或改进它。
 
-**集成能力。** 通过 MCP 把智能体连接到你日常使用的应用，或通过 Composio 集成 1000 多个应用，包括 Gmail、Slack、Notion 和 GitHub。
+**每个智能体都有自己的计算机。** 配有浏览器和文件系统，因此智能体可以在任何网站和任何文件上工作，而不局限于有集成的应用。
+
+**集成能力。** 通过 MCP 连接你的智能体，或通过 Composio 连接 1000 多个应用，包括 Gmail、Slack、Notion 和 GitHub。还可以为需要凭据的工具添加你自己的密钥。
+
+**为你和你的智能体打造的工作空间。** 在共享工作空间中协作处理文件：文档、研究资料、Wiki，支持评论和预览。智能体还能为你的团队构建小型应用，比如看板或表单。
+
+**智能体团队。** 智能体可以调用其他智能体并相互移交工作，让一个"同事"协调多个"专家"。
+
+**技能与模板。** 从模板开始，引入智能体生态中的技能，并逐步积累你自己的技能库。
 
 ## 快速开始
 
@@ -155,62 +195,6 @@ Agenta 会追踪每一次运行，并为每个智能体的配置保存版本历�
 
 更多细节请阅读[自托管文档](https://agenta.ai/docs/self-host/quick-start?utm_source=github&utm_medium=referral&utm_campaign=readme)。
 
-## 路线图
-
-**运行框架**
-
-- [x] Claude Code
-- [x] Pi
-- [ ] Codex
-- [ ] Gemini
-- [ ] OpenCode
-- [ ] [创建 issue，申请优先支持你需要的功能](https://github.com/Agenta-AI/agenta/issues)
-
-**模型**
-
-- [x] OpenAI
-- [x] Anthropic
-- [x] OpenRouter
-- [x] Mistral AI
-- [x] Cohere
-- [x] Anyscale
-- [x] Perplexity AI
-- [x] DeepInfra
-- [x] Together AI
-- [x] Groq
-- [x] Google Gemini
-- [x] Azure
-- [x] AWS Bedrock
-- [x] MiniMax
-- [x] 兼容 OpenAI 的模型
-- [x] 自托管模型（Ollama）
-- [ ] [创建 issue，申请优先支持你需要的功能](https://github.com/Agenta-AI/agenta/issues)
-
-**智能体运行时**
-
-- [x] 本地运行时
-- [x] Daytona 沙箱
-- [x] Docker 沙箱
-- [ ] E2B 沙箱
-- [ ] AgentComputer
-- [ ] Vercel
-- [ ] Cloudflare
-- [ ] Modal
-- [ ] BoxLite
-- [ ] [创建 issue，申请优先支持你需要的功能](https://github.com/Agenta-AI/agenta/issues)
-
-**功能**
-
-- [x] 定时任务
-- [x] 来自已连接应用的事件
-- [x] MCP 服务器（API 密钥 + 免认证）
-- [ ] 通用 webhook 触发器
-- [ ] 更多 MCP 传输方式（OAuth）
-- [ ] 渠道（Slack、Telegram、Discord、Teams）
-- [ ] 移动版
-
-查看[完整路线图](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme)。想参与其中某一项吗？欢迎[发起讨论](https://github.com/Agenta-AI/agenta/discussions)或参与贡献。
-
 ## Agenta 有何不同
 
 ### n8n、Activepieces 和 Zapier
@@ -223,7 +207,11 @@ Claude Cowork 提供的是一个围绕 Claude 构建的工作空间。而 Agenta
 
 ### Claude Code、Codex、Pi 和 OpenCode
 
-这些编程智能体提供了执行层，负责规划工作并使用工具。Agenta 围绕这个执行层提供共享工作空间，并加入文件、团队访问权限、触发器、版本管理和运行追踪等能力。Agenta 目前支持 Claude Code 和 Pi，更多运行框架的支持已列入路线图。
+这些编程智能体提供了执行层，负责规划工作并使用工具。Agenta 围绕这个执行层提供共享工作空间，并加入文件、团队访问权限、触发器、版本管理和运行追踪等能力。Agenta 目前支持 Claude Code、Pi 和 Codex，更多运行框架的支持已列入路线图。
+
+## 路线图
+
+查看[完整路线图](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme)。想参与其中某一项吗？欢迎[发起讨论](https://github.com/Agenta-AI/agenta/discussions)或参与贡献。
 
 ## 社区与贡献
 
@@ -253,7 +241,7 @@ Agenta 是基于 MIT 许可证的开源项目。你可以查看代码、自行�
 ## 贡献者 ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-69-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-102-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 感谢这些了不起的贡献者（[emoji 说明](https://allcontributors.org/docs/en/emoji-key)）：
@@ -351,6 +339,49 @@ Agenta 是基于 MIT 许可证的开源项目。你可以查看代码、自行�
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/NamHT4Devlop"><img src="https://avatars.githubusercontent.com/u/122743792?v=4?s=100" width="100px;" alt="Hồ Trung Nam"/><br /><sub><b>Hồ Trung Nam</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=NamHT4Devlop" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Koushik-Salammagari"><img src="https://avatars.githubusercontent.com/u/138836560?v=4?s=100" width="100px;" alt="Koushik-Salammagari"/><br /><sub><b>Koushik-Salammagari</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/issues?q=author%3AKoushik-Salammagari" title="Bug reports">🐛</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/truecallerabreham"><img src="https://avatars.githubusercontent.com/u/180291642?v=4?s=100" width="100px;" alt="Abreham Melese"/><br /><sub><b>Abreham Melese</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/issues?q=author%3Atruecallerabreham" title="Bug reports">🐛</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://kunaal-portfolio.vercel.app"><img src="https://avatars.githubusercontent.com/u/126342173?v=4?s=100" width="100px;" alt="Boggavarapu Yuva Satya Kunaal"/><br /><sub><b>Boggavarapu Yuva Satya Kunaal</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=Yuvakunaal" title="Tests">⚠️</a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/MarceloAdan73"><img src="https://avatars.githubusercontent.com/u/112431764?v=4?s=100" width="100px;" alt="Marcelo-Palma"/><br /><sub><b>Marcelo-Palma</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=MarceloAdan73" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="http://adekolamanasseh-tech.vercel.app"><img src="https://avatars.githubusercontent.com/u/221562541?v=4?s=100" width="100px;" alt="MannieTech"/><br /><sub><b>MannieTech</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=mannietech15" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/moataz-hjaiji"><img src="https://avatars.githubusercontent.com/u/74058655?v=4?s=100" width="100px;" alt="moataz hjaiji"/><br /><sub><b>moataz hjaiji</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=moataz-hjaiji" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/iamhaseebn"><img src="https://avatars.githubusercontent.com/u/36381672?v=4?s=100" width="100px;" alt="Haseeb Nazir"/><br /><sub><b>Haseeb Nazir</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=iamhaseebn" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://cormid.xyz/"><img src="https://avatars.githubusercontent.com/u/107045341?v=4?s=100" width="100px;" alt="cormid"/><br /><sub><b>cormid</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=Kirtofu" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/mdsiddiqjuber"><img src="https://avatars.githubusercontent.com/u/234624433?v=4?s=100" width="100px;" alt="mdsiddiqjuber"/><br /><sub><b>mdsiddiqjuber</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=mdsiddiqjuber" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/SJY051"><img src="https://avatars.githubusercontent.com/u/68188784?v=4?s=100" width="100px;" alt="Seojin Yoon"/><br /><sub><b>Seojin Yoon</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=SJY051" title="Code">💻</a> <a href="https://github.com/Agenta-AI/agenta/commits?author=SJY051" title="Tests">⚠️</a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/shafeeq27edu-ai"><img src="https://avatars.githubusercontent.com/u/234775624?v=4?s=100" width="100px;" alt="Shafeeq"/><br /><sub><b>Shafeeq</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=shafeeq27edu-ai" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://www.abdelkader.work/"><img src="https://avatars.githubusercontent.com/u/108610803?v=4?s=100" width="100px;" alt="Abdelkaderbzz"/><br /><sub><b>Abdelkaderbzz</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/issues?q=author%3AAbdelkaderbzz" title="Bug reports">🐛</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/panshularora"><img src="https://avatars.githubusercontent.com/u/170356171?v=4?s=100" width="100px;" alt="panshularora"/><br /><sub><b>panshularora</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=panshularora" title="Tests">⚠️</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://neokit.app/"><img src="https://avatars.githubusercontent.com/u/185078340?v=4?s=100" width="100px;" alt="Ankit"/><br /><sub><b>Ankit</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/issues?q=author%3AWhoamiI00" title="Bug reports">🐛</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Aman-goel-04"><img src="https://avatars.githubusercontent.com/u/216227649?v=4?s=100" width="100px;" alt="Aman"/><br /><sub><b>Aman</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=aman-goel-04" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/AJ-ing"><img src="https://avatars.githubusercontent.com/u/226107146?v=4?s=100" width="100px;" alt="Aayush Jain"/><br /><sub><b>Aayush Jain</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=AJ-ing" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/MFA-G"><img src="https://avatars.githubusercontent.com/u/136257088?v=4?s=100" width="100px;" alt="Mochammad Fadhlan Al-Ghiffari"/><br /><sub><b>Mochammad Fadhlan Al-Ghiffari</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=MFA-G" title="Code">💻</a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://www.heysuraj.dev/"><img src="https://avatars.githubusercontent.com/u/46050946?v=4?s=100" width="100px;" alt="suraj ✨ "/><br /><sub><b>suraj ✨ </b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=uchiha-suraj" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://oforiwaasam.github.io/portfolio/"><img src="https://avatars.githubusercontent.com/u/41793292?v=4?s=100" width="100px;" alt="Lily Sam"/><br /><sub><b>Lily Sam</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=oforiwaasam" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://christiansidak.com"><img src="https://avatars.githubusercontent.com/u/61099993?v=4?s=100" width="100px;" alt="Christian Sidak"/><br /><sub><b>Christian Sidak</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=Christian-Sidak" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/XixianWasTaken"><img src="https://avatars.githubusercontent.com/u/74043034?v=4?s=100" width="100px;" alt="XixianWasTaken"/><br /><sub><b>XixianWasTaken</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=XixianWasTaken" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Sanchar127"><img src="https://avatars.githubusercontent.com/u/143952019?v=4?s=100" width="100px;" alt="Sanchar panthi"/><br /><sub><b>Sanchar panthi</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=Sanchar127" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/insuffer"><img src="https://avatars.githubusercontent.com/u/237025162?v=4?s=100" width="100px;" alt="Cabeza"/><br /><sub><b>Cabeza</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=insuffer" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/deepanshupal"><img src="https://avatars.githubusercontent.com/u/40927968?v=4?s=100" width="100px;" alt="Deepanshu Pal"/><br /><sub><b>Deepanshu Pal</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=deepanshupal" title="Code">💻</a> <a href="https://github.com/Agenta-AI/agenta/commits?author=deepanshupal" title="Tests">⚠️</a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Mahaboob-Ashraf"><img src="https://avatars.githubusercontent.com/u/200949257?v=4?s=100" width="100px;" alt="Mohammad Mahaboob Ashraf"/><br /><sub><b>Mohammad Mahaboob Ashraf</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=Mahaboob-Ashraf" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Twiink"><img src="https://avatars.githubusercontent.com/u/154496350?v=4?s=100" width="100px;" alt="Twiink"/><br /><sub><b>Twiink</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=Twiink" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/adityasingh345"><img src="https://avatars.githubusercontent.com/u/159435863?v=4?s=100" width="100px;" alt="Aditya Kumar singh"/><br /><sub><b>Aditya Kumar singh</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=adityasingh345" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/DerrickJc"><img src="https://avatars.githubusercontent.com/u/78075015?v=4?s=100" width="100px;" alt="derrickLzw"/><br /><sub><b>derrickLzw</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=DerrickJc" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/XonkelX"><img src="https://avatars.githubusercontent.com/u/197416079?v=4?s=100" width="100px;" alt="Oniel Alejo Feliz"/><br /><sub><b>Oniel Alejo Feliz</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=XonkelX" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/LykenL"><img src="https://avatars.githubusercontent.com/u/206323895?v=4?s=100" width="100px;" alt="Junxian Lyken Lin"/><br /><sub><b>Junxian Lyken Lin</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=LykenL" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/LinghaoLiOfficial"><img src="https://avatars.githubusercontent.com/u/231870551?v=4?s=100" width="100px;" alt="LeonLee"/><br /><sub><b>LeonLee</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=LinghaoLiOfficial" title="Code">💻</a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/demonroute1"><img src="https://avatars.githubusercontent.com/u/340640589?v=4?s=100" width="100px;" alt="Demon Route "/><br /><sub><b>Demon Route </b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=demonroute1" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/mosifu"><img src="https://avatars.githubusercontent.com/u/256577176?v=4?s=100" width="100px;" alt="mosifu"/><br /><sub><b>mosifu</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=mosifu" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/yunusarda-sudo"><img src="https://avatars.githubusercontent.com/u/64425746?v=4?s=100" width="100px;" alt="Yunus Arda Güney"/><br /><sub><b>Yunus Arda Güney</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=yunusarda-sudo" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/itsgintoki"><img src="https://avatars.githubusercontent.com/u/237295543?v=4?s=100" width="100px;" alt="Gin"/><br /><sub><b>Gin</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=itsgintoki" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>

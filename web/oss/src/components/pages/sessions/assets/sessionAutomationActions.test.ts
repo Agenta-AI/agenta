@@ -5,9 +5,10 @@ import {
     type SessionMenuEntry,
 } from "@agenta/sessions-ui"
 import {createSessionAutomationActions} from "@agenta/sessions-ui"
+import {mergeSessionMenuEntries} from "@agenta/sessions-ui"
 import {describe, expect, it, vi} from "vitest"
 
-import {mergeSessionMenuEntries, selectSessionContextMenuItem} from "./menuEntries"
+import {selectSessionContextMenuItem} from "./menuEntries"
 
 function row({
     kind = "schedule",

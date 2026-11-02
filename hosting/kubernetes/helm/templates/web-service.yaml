@@ -6,6 +6,12 @@ metadata:
   labels:
     {{- include "agenta.labels" . | nindent 4 }}
     app.kubernetes.io/component: web
+  {{- /* Annotation hook for the ingress controller. GKE reads
+         cloud.google.com/backend-config and cloud.google.com/neg here. */}}
+  {{- with (default dict (default dict .Values.web).service).annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   type: ClusterIP
   ports:

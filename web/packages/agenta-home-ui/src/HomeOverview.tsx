@@ -18,6 +18,8 @@ export interface HomeOverviewProps {
     onOpenSession: (vm: SessionRowVm) => void
     sessionMenuFor?: (vm: SessionRowVm) => SessionMenuEntry[]
     onSessionMenuSelect?: (vm: SessionRowVm, key: string) => void
+    /** Persists a session rename; given it, a row renames in place from its menu. */
+    onSessionRenameRow?: (vm: SessionRowVm, name: string) => Promise<boolean>
     /** Touch has no hover, so the pin must stay visible there. */
     alwaysShowPin?: boolean
     /** The rail, top to bottom: agents, next triggers, usage. Apps pass what they can render. */
@@ -60,6 +62,7 @@ export const HomeOverview = ({
     onOpenSession,
     sessionMenuFor,
     onSessionMenuSelect,
+    onSessionRenameRow,
     alwaysShowPin,
     agentsPanel,
     triggersPanel,
@@ -78,18 +81,14 @@ export const HomeOverview = ({
                     everything it cost a full band of empty width and pushed the question it
                     belongs beside downward. */}
                 <div className="flex items-center justify-between gap-4">
-                    {/* The page-title rung (antd heading 3, 24px/1.3333 — the same tokens
-                        `PageLayout` sizes every other page title from), not a hardcoded size: a
-                        20px hero read a rung below every page it sits next to. The literals are
-                        the fallback for a host without antd (mobile), which generates no
-                        `--ant-*` vars at all. */}
-                    <h1
-                        className="m-0 font-semibold text-colorText"
-                        style={{
-                            fontSize: "var(--ant-font-size-heading-3, 24px)",
-                            lineHeight: "var(--ant-line-height-heading-3, 1.3333333333333333)",
-                        }}
-                    >
+                    {/* From `sm`, the page-title rung (antd heading 3, 24px/1.3333 — the same
+                        tokens `PageLayout` sizes every other page title from), not a hardcoded
+                        size: a 20px hero read a rung below every page it sits next to. The
+                        literals are the fallback for a host without antd (mobile), which
+                        generates no `--ant-*` vars at all. Below `sm` it drops to the 16px body
+                        ramp, like every other page title on a phone — classes rather than the
+                        old inline style, which no breakpoint can override. */}
+                    <h1 className="m-0 font-semibold text-colorText text-[16px] leading-[1.5] sm:text-[length:var(--ant-font-size-heading-3,24px)] sm:leading-[var(--ant-line-height-heading-3,1.3333333333333333)]">
                         {title}
                     </h1>
                     {action}
@@ -113,6 +112,7 @@ export const HomeOverview = ({
                     onOpenRow={onOpenSession}
                     menuFor={sessionMenuFor}
                     onMenuSelect={onSessionMenuSelect}
+                    onRenameRow={onSessionRenameRow}
                     alwaysShowPin={alwaysShowPin}
                 />
                 {/*
@@ -136,6 +136,7 @@ export const HomeOverview = ({
                     onOpenRow={onOpenSession}
                     menuFor={sessionMenuFor}
                     onMenuSelect={onSessionMenuSelect}
+                    onRenameRow={onSessionRenameRow}
                     alwaysShowPin={alwaysShowPin}
                 />
             </div>

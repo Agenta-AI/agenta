@@ -16,16 +16,9 @@ import {Button} from "@agenta/ui/ui"
 import {ArrowClockwise, Hourglass, Spinner} from "@phosphor-icons/react"
 
 import {useConnectFocus} from "./connectFocus"
+import {DEFERRED_SENTINEL, isDeferredByRunner} from "./deferred"
 import {IntegrationTile} from "./IntegrationTile"
 import {GENERIC_CONNECT_ERROR, useConnectFlow, type ConnectOutput} from "./useConnectFlow"
-
-/**
- * The runner parks only ONE interaction per turn; a second `request_connection` in the same step is
- * force-settled with this sentinel and RE-REQUESTED next turn (services/runner otel.ts
- * `TOOL_NOT_EXECUTED_PAUSED`). It is a deferral, not a failure — render it quietly with no Retry, so
- * the user waits for the agent's re-ask instead of starting a flow that races it.
- */
-const DEFERRED_SENTINEL = "DEFERRED_NOT_EXECUTED"
 
 /** Non-error terminal reasons (see `ConnectOutput.reason`): render generic wording for
  * these; any other `reason` is a real failure message and must be shown verbatim — a
@@ -38,7 +31,7 @@ const KNOWN_CONNECT_REASONS = new Set(["declined", "cancelled", "timeout"])
 const realFailureDetail = (text: unknown): string | undefined =>
     typeof text === "string" && text && text !== GENERIC_CONNECT_ERROR ? text : undefined
 
-const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
+const ConnectToolWidget = ({meta, settle, bare = false}: ClientToolHandlerProps) => {
     const {
         label,
         logo,
@@ -56,15 +49,16 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
     // A runner-deferred sibling settles as an error carrying the deferral sentinel (not a real
     // connection failure); see DEFERRED_SENTINEL.
     const partErrorText = (meta.part as {errorText?: unknown}).errorText
-    const deferredByRunner =
-        meta.state === "output-error" &&
-        typeof partErrorText === "string" &&
-        partErrorText.startsWith(DEFERRED_SENTINEL)
+    const deferredByRunner = isDeferredByRunner(meta.part as {state?: unknown; errorText?: unknown})
 
     // ── Connecting: a post-settle manual retry's popup is open ───────────────────────────────────
     if (phase === "connecting") {
         return (
-            <ChipRow icon={<Spinner size={13} className="animate-spin text-colorPrimary" />}>
+            <ChipRow
+                icon={
+                    bare ? null : <Spinner size={13} className="animate-spin text-colorPrimary" />
+                }
+            >
                 <span className="text-xs text-colorText">Connecting {label}…</span>
                 <Button variant="ghost" size="sm" onClick={cancel} className="px-2">
                     Cancel
@@ -78,7 +72,9 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
         const output = (meta.output ?? {}) as ConnectOutput
         if (manuallyConnected || output.connected === true || outcome?.connected === true) {
             return (
-                <ChipRow icon={<IntegrationTile label={label} logo={logo} size={16} />}>
+                <ChipRow
+                    icon={bare ? null : <IntegrationTile label={label} logo={logo} size={16} />}
+                >
                     <span className="truncate text-xs text-colorText">{label} connected</span>
                 </ChipRow>
             )
@@ -87,7 +83,9 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
         // re-asks next turn, so show a quiet note with NO Retry — a Retry here races that re-ask.
         if (deferredByRunner) {
             return (
-                <ChipRow icon={<Hourglass size={13} className="text-colorTextTertiary" />}>
+                <ChipRow
+                    icon={bare ? null : <Hourglass size={13} className="text-colorTextTertiary" />}
+                >
                     <span className="text-xs text-colorTextTertiary">Connecting {label} next…</span>
                 </ChipRow>
             )
@@ -111,7 +109,7 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
                 ? undefined
                 : realFailureDetail(reason)
         return (
-            <ChipRow icon={<IntegrationTile label={label} logo={logo} size={16} />}>
+            <ChipRow icon={bare ? null : <IntegrationTile label={label} logo={logo} size={16} />}>
                 <span className="shrink-0 text-xs text-colorText">{label}</span>
                 <span className="truncate text-xs text-colorText" title={failureDetail}>
                     {failureDetail ??
@@ -126,7 +124,7 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
     if (phase === "error") {
         const errorDetail = realFailureDetail(errorText)
         return (
-            <ChipRow icon={<IntegrationTile label={label} logo={logo} size={16} />}>
+            <ChipRow icon={bare ? null : <IntegrationTile label={label} logo={logo} size={16} />}>
                 <span className="shrink-0 text-xs text-colorText">{label}</span>
                 <span className="truncate text-xs text-colorText" title={errorDetail}>
                     {errorDetail ?? "connection failed"}
@@ -144,7 +142,7 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
     // The pointer is also the link: clicking it brings that tool's card to the front of the dock,
     // so a turn that parked several connections doesn't make the user hunt for the right one.
     return (
-        <ChipRow icon={<IntegrationTile label={label} logo={logo} size={16} />}>
+        <ChipRow icon={bare ? null : <IntegrationTile label={label} logo={logo} size={16} />}>
             {jumpToDock ? (
                 <button
                     type="button"
@@ -160,10 +158,13 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
     )
 }
 
-/** A compact tool-activity row, matching ToolActivity's visual language. */
+/** A compact tool-activity row, matching ToolActivity's visual language. Without an icon (the
+ * host's `bare` mode) it takes the host's row type instead of the chip's. */
 const ChipRow = ({icon, children}: {icon: React.ReactNode; children: React.ReactNode}) => (
-    <div className="flex min-w-0 items-center gap-2 py-1">
-        <span className="shrink-0">{icon}</span>
+    <div
+        className={`flex min-w-0 items-center gap-2 ${icon ? "py-1" : "py-0.5 [&_.text-xs]:text-sm"}`}
+    >
+        {icon ? <span className="shrink-0">{icon}</span> : null}
         {children}
     </div>
 )

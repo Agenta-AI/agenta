@@ -236,7 +236,6 @@ const PlaygroundFocusDrawerAdapter = () => {
             testcaseId={rowId}
             isNewRow={false}
             editMode="autoApply"
-            closeOnLayoutClick
             initialWidth={INITIAL_WIDTH}
             onPrevious={handlePrevious}
             onNext={handleNext}

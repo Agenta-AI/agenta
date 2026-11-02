@@ -1,13 +1,13 @@
-import {useMemo, useState, type ButtonHTMLAttributes, type ReactNode} from "react"
+import {useMemo, useState} from "react"
 
 import {
-    AGENT_TEMPLATES,
     ALL_TEMPLATES_CATEGORY,
     templateCategories,
     type AgentStarterTemplate,
 } from "@agenta/entities/workflow"
 import {HeightCollapse} from "@agenta/ui"
 import {PANEL_ACTION_CLASS, PanelSection} from "@agenta/ui/components/presentational"
+import {Button, type ButtonProps} from "@agenta/ui/ui"
 import {CaretDown, DotsThree, EyeSlash} from "@phosphor-icons/react"
 import {Dropdown} from "antd"
 import {useAtom} from "jotai"
@@ -17,6 +17,8 @@ import {STRIP_COPY} from "./assets/constants"
 import {PAGE_SIZE} from "./assets/pagerMath"
 import StripCard from "./components/StripCard"
 import StripRow from "./components/StripRow"
+import TemplateCatalogStatus from "./components/TemplateCatalogStatus"
+import {useAgentTemplateCatalog} from "./hooks/useAgentTemplateCatalog"
 import {useStripPager} from "./hooks/useStripPager"
 import {stripHiddenAtom} from "./state"
 
@@ -24,7 +26,7 @@ import {stripHiddenAtom} from "./state"
 const LIST_SIZE = 5
 
 export interface TemplateStripProps {
-    /** Template registry (defaults to AGENT_TEMPLATES). */
+    /** Template list (defaults to the API catalog, with its loading and error states). */
     templates?: AgentStarterTemplate[]
     /** Controlled provenance selection (highlights the picked card). */
     selectedTemplateKey: string | null
@@ -48,31 +50,20 @@ export interface TemplateStripProps {
     className?: string
 }
 
-/** 32px square header button (arrows + menu) — plain button so the spec's disabled colors apply.
- * Spreads rest props so antd Dropdown can inject its trigger handlers via cloneElement. */
-const HeaderButton = ({
-    label,
-    disabled,
-    children,
-    className,
-    ...rest
-}: {
-    label: string
-    disabled?: boolean
-    children: ReactNode
-    className?: string
-} & ButtonHTMLAttributes<HTMLButtonElement>) => (
-    <button
+/** The pager chevrons, matching /m's `TemplatePagerButton`: a flat, transparent square with a
+ * strong NEUTRAL border. The primary colour is reserved for what the user is choosing. */
+const PAGER_BUTTON_CLASS = "border-foreground bg-transparent shadow-none disabled:bg-transparent"
+
+/** Icon-only header control (arrows + menu); spreads rest props for antd Dropdown's trigger. */
+const HeaderButton = ({label, className, ...rest}: {label: string} & ButtonProps) => (
+    <Button
         type="button"
+        variant="outline"
+        size="icon-sm"
         aria-label={label}
-        disabled={disabled}
         {...rest}
-        className={`flex size-8 items-center justify-center rounded-lg border border-solid bg-[var(--ag-colorBgContainer)] p-0 ${
-            disabled ? "" : "cursor-pointer"
-        } ${className ?? ""}`}
-    >
-        {children}
-    </button>
+        className={`flex-none ${className ?? ""}`}
+    />
 )
 
 /**
@@ -82,7 +73,7 @@ const HeaderButton = ({
  * (shared localStorage atom); home always shows it.
  */
 const TemplateStrip = ({
-    templates = AGENT_TEMPLATES,
+    templates: templatesProp,
     selectedTemplateKey,
     surface,
     onPick,
@@ -92,6 +83,10 @@ const TemplateStrip = ({
     pendingTemplateKey = null,
     className,
 }: TemplateStripProps) => {
+    const catalog = useAgentTemplateCatalog()
+    const templates = templatesProp ?? catalog.templates
+    // A caller-supplied list is already loaded; the catalog is not until its read succeeds.
+    const catalogReady = templatesProp !== undefined || catalog.status === "success"
     const hideable = surface !== "home"
     const [hidden, setHidden] = useAtom(stripHiddenAtom)
     const [activeCategory, setActiveCategory] = useState<string>(ALL_TEMPLATES_CATEGORY)
@@ -99,9 +94,8 @@ const TemplateStrip = ({
     const [showAllRows, setShowAllRows] = useState(false)
 
     const categories = useMemo(
-        () => [ALL_TEMPLATES_CATEGORY, ...templateCategories()],
-        // templateCategories reads the static registry; recompute only for a custom list.
-        [],
+        () => [ALL_TEMPLATES_CATEGORY, ...templateCategories(templates)],
+        [templates],
     )
     const countFor = (category: string) =>
         category === ALL_TEMPLATES_CATEGORY
@@ -151,6 +145,23 @@ const TemplateStrip = ({
                 >
                     {STRIP_COPY.showAgain}
                 </button>
+            </div>
+        )
+    }
+
+    if (!catalogReady) {
+        // Loading or failed: keep the section's label so the surface does not jump, and show why
+        // there are no cards rather than an empty row that reads as "no templates".
+        return isList ? (
+            <PanelSection sticky title={STRIP_COPY.label} bodyClassName="px-2 pb-3">
+                <TemplateCatalogStatus rows={3} />
+            </PanelSection>
+        ) : (
+            <div className={className}>
+                <span className="font-semibold text-base text-[var(--ag-colorText)]">
+                    {STRIP_COPY.label}
+                </span>
+                <TemplateCatalogStatus rows={3} className="mt-3" />
             </div>
         )
     }
@@ -230,16 +241,17 @@ const TemplateStrip = ({
     return (
         <div className={className}>
             {/* Header: label + tabs + right cluster (counter, arrows, optional hide menu). */}
-            <div className="flex items-center gap-[14px]">
+            <div className="flex min-w-0 items-center gap-[14px]">
                 <span
-                    className={`font-semibold text-[var(--ag-colorText)] ${
+                    className={`shrink-0 font-semibold text-[var(--ag-colorText)] ${
                         isList ? "text-[13px]" : "text-base"
                     }`}
                 >
                     {STRIP_COPY.label}
                 </span>
                 {isList ? null : (
-                    <div className="flex items-center">
+                    /* Tabs scroll in the leftover width instead of squeezing the pager; mask fades the cut. */
+                    <div className="flex min-w-0 flex-1 items-center overflow-x-auto [mask-image:linear-gradient(to_right,black_calc(100%_-_24px),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                         {categories.map((category) => {
                             const active = category === activeCategory
                             return (
@@ -252,7 +264,7 @@ const TemplateStrip = ({
                                         setGridPage(0)
                                         resetScroll()
                                     }}
-                                    className={`cursor-pointer rounded-t-md border-0 border-b-2 border-solid bg-transparent px-[11px] py-[5px] text-[13px] hover:bg-[var(--ag-colorFillTertiary)] ${
+                                    className={`shrink-0 cursor-pointer whitespace-nowrap rounded-t-md border-0 border-b-2 border-solid bg-transparent px-[11px] py-[5px] text-[13px] hover:bg-[var(--ag-colorFillTertiary)] ${
                                         active
                                             ? "border-b-[var(--ag-colorPrimary)] font-semibold text-[var(--ag-colorText)]"
                                             : "border-b-transparent font-normal text-[var(--ag-colorTextTertiary)]"
@@ -267,21 +279,17 @@ const TemplateStrip = ({
                         })}
                     </div>
                 )}
-                <div className="ml-auto flex items-center gap-[7px]">
+                <div className="ml-auto flex shrink-0 items-center gap-[7px]">
                     {showPager ? (
                         <>
-                            <span className="mr-0.5 text-xs text-[var(--ag-colorTextTertiary)]">
+                            <span className="mr-0.5 whitespace-nowrap text-xs text-[var(--ag-colorTextTertiary)]">
                                 {counterLabel}
                             </span>
                             <HeaderButton
                                 label="Previous templates"
                                 disabled={atStart}
                                 onClick={() => pageBy(-1)}
-                                className={
-                                    atStart
-                                        ? "border-[var(--ag-colorBorderSecondary)] text-[var(--ag-colorTextQuaternary)]"
-                                        : "border-[var(--ag-colorPrimary)] text-[var(--ag-colorPrimary)]"
-                                }
+                                className={PAGER_BUTTON_CLASS}
                             >
                                 <ChevronLeft size={14} strokeWidth={2} />
                             </HeaderButton>
@@ -289,11 +297,7 @@ const TemplateStrip = ({
                                 label="Next templates"
                                 disabled={atEnd}
                                 onClick={() => pageBy(1)}
-                                className={
-                                    atEnd
-                                        ? "border-[var(--ag-colorBorderSecondary)] text-[var(--ag-colorTextQuaternary)]"
-                                        : "border-[var(--ag-colorPrimary)] text-[var(--ag-colorPrimary)]"
-                                }
+                                className={PAGER_BUTTON_CLASS}
                             >
                                 <ChevronRight size={14} strokeWidth={2} />
                             </HeaderButton>
@@ -318,7 +322,8 @@ const TemplateStrip = ({
                         >
                             <HeaderButton
                                 label="Strip options"
-                                className="border-transparent text-[var(--ag-colorTextTertiary)] hover:bg-[var(--ag-colorFillTertiary)]"
+                                variant="ghost"
+                                className="text-[var(--ag-colorTextTertiary)]"
                             >
                                 <DotsThree size={16} weight="bold" />
                             </HeaderButton>

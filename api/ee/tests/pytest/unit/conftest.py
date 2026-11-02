@@ -4,6 +4,8 @@ import pytest
 
 from oss.src.utils.env import env
 
+from ee.tests.pytest.utils.wallets.switch import set_wallets_enabled
+
 
 def pytest_collection_modifyitems(config, items):
     """Auto-mark unit tests under an `events/` dir as `real_events`.
@@ -69,3 +71,11 @@ def _stub_event_publishing(request, monkeypatch):
         _noop_publish,
         raising=False,
     )
+
+
+@pytest.fixture(autouse=True)
+def _wallet_enforces(monkeypatch):
+    """Run the wallet's admission points and producers with the wallet on, as the cloud does.
+
+    `AGENTA_WALLETS_ENABLED` is off in the unit env."""
+    set_wallets_enabled(monkeypatch, True)

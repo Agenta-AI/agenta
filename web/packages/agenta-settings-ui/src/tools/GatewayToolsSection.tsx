@@ -1,66 +1,240 @@
-import {useCallback, useMemo, useState} from "react"
+import {type ReactNode, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
-    fetchToolConnection,
-    toolCatalogDrawerOpenAtom,
+    invalidateToolConnections,
+    isConnectionActive,
+    isConnectionValid,
+    isConnectionDefault,
+    makeDefaultToolConnection,
     toolExecutionDrawerAtom,
+    toolIntegrationsSearchAtom,
+    useToolCatalogCategories,
     useToolConnectionActions,
     useToolConnectionsQuery,
+    useToolIntegrationDetail,
+    usePersonalToolConnections,
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
+import {personalAccountsAccessAtom} from "@agenta/entities/secret"
 import {
-    CatalogDrawer,
-    ConnectionStatusBadge,
+    ConnectDrawer,
+    FinishConnectionDialog,
     ToolExecutionDrawer,
+    useRefreshToolConnection,
 } from "@agenta/entity-ui/gatewayTool"
-import {getAgentaApiUrl, getAgentaWebUrl} from "@agenta/shared/api"
-import {formatDay} from "@agenta/shared/utils/dateTime"
+import {getSettingsSidebarIcon} from "@agenta/settings"
+import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
+import {connectionDisplayName} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
-import {InitialsAvatar, Tag} from "@agenta/ui/components/presentational"
-import {Button, DataTable, EmptyState, type DataTableColumn} from "@agenta/ui/ui"
-import {ArrowClockwise, Play, Plus, Trash, XCircle} from "@phosphor-icons/react"
-import {useSetAtom} from "jotai"
+import {Button} from "@agenta/ui/ui"
+import {ArrowClockwise, MagnifyingGlass, Play, Star, Trash, XCircle} from "@phosphor-icons/react"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {atomWithStorage} from "jotai/utils"
 
 import type {ConfirmDestructive} from "../confirm"
+import {addAccountOwners, showsYours} from "../shared/accountOwners"
+import {LoadFailed} from "../shared/LoadFailed"
+import {findScrollRoot} from "../shared/scrollRoot"
+import {
+    SettingsCatalog,
+    type SettingsCatalogGroup,
+    type SettingsCatalogItem,
+} from "../shared/SettingsCatalog"
+import {SettingsEmpty} from "../shared/SettingsEmpty"
+import {SettingsRowMenu} from "../shared/SettingsRowMenu"
+import {YoursEmpty} from "../shared/YoursEmpty"
 
-import {useToolsIntegrations} from "./hooks/useToolsIntegrations"
+import {CategoryChips} from "./CategoryChips"
+import {categoryLabel} from "./categoryLabel"
+import {useToolsIntegrations, type CatalogIntegrationItem} from "./hooks/useToolsIntegrations"
+import {IntegrationCatalog, IntegrationLogo} from "./IntegrationCatalog"
 
 const AUTH_SCHEME_LABELS: Record<string, string> = {
     oauth: "OAuth",
     api_key: "API Key",
 }
 
+/** Nouns for the page; a host that calls them something else passes its own. */
+export interface GatewayToolsSectionCopy {
+    run: string
+    searchPlaceholder: string
+    emptyTitle: string
+    emptyBody: string
+    noMatch: (term: string) => string
+}
+
+const DEFAULT_COPY: GatewayToolsSectionCopy = {
+    run: "Run tool",
+    searchPlaceholder: "Search tools",
+    emptyTitle: "No tools connected yet",
+    emptyBody: "Connect a tool to let your agents call it.",
+    noMatch: (term) => `No tools match “${term}”`,
+}
+
+/** The same reading as ConnectionStatusBadge. */
+const connectionStatus = (
+    connection: ToolConnection,
+): Pick<SettingsCatalogItem, "status" | "statusLabel"> => {
+    if (!isConnectionActive(connection)) return {status: "attention", statusLabel: "Inactive"}
+    if (!isConnectionValid(connection)) return {status: "attention", statusLabel: "Pending"}
+    return {status: "connected", statusLabel: "Connected"}
+}
+
+const authLabel = (connection: ToolConnection): string | undefined => {
+    const scheme = connection.data?.auth_scheme
+    return typeof scheme === "string" ? (AUTH_SCHEME_LABELS[scheme] ?? scheme) : undefined
+}
+
+/** A connection's catalog entry: from the first page when there, else its cached detail. */
+const useCatalogEntry = (integrationKey: string, known?: CatalogIntegrationItem) => {
+    const {integration} = useToolIntegrationDetail(known ? "" : integrationKey)
+    return known ?? integration
+}
+
+const ConnectionLogo = ({
+    integrationKey,
+    known,
+    name,
+}: {
+    integrationKey: string
+    known?: CatalogIntegrationItem
+    name: string
+}) => {
+    const entry = useCatalogEntry(integrationKey, known)
+    return <IntegrationLogo src={entry?.logo} name={name} />
+}
+
+/** The app's display name ("Google Maps"), falling back to the connection's own name. */
+const AppName = ({
+    connection,
+    known,
+}: {
+    connection: ToolConnection
+    known?: CatalogIntegrationItem
+}) => {
+    const entry = useCatalogEntry(connection.integration_key ?? "", known)
+    return <>{entry?.name ?? connection.name ?? connection.slug}</>
+}
+
+/** The connection's name; one stored only as its slug reads as the app ("YouTube (main)"). */
+const ConnectionName = ({
+    connection,
+    known,
+}: {
+    connection: ToolConnection
+    known?: CatalogIntegrationItem
+}) => {
+    const entry = useCatalogEntry(connection.integration_key ?? "", known)
+    return <>{connectionDisplayName(connection, entry?.name) || "—"}</>
+}
+
+const ConnectionDescription = ({
+    integrationKey,
+    known,
+    auth,
+    isDefault,
+}: {
+    integrationKey: string
+    known?: CatalogIntegrationItem
+    auth?: string
+    /** The person's default for this app: "Gmail · OAuth · Default". */
+    isDefault?: boolean
+}) => {
+    const entry = useCatalogEntry(integrationKey, known)
+    return (
+        <>
+            {[entry?.name ?? integrationKey, auth, isDefault ? "Default" : null]
+                .filter(Boolean)
+                .join(" · ")}
+        </>
+    )
+}
+
+/** Per viewer: a long Connected list folds away and stays folded. */
+const connectedCollapsedAtom = atomWithStorage(
+    "agenta:settings:integrations-connected-collapsed",
+    false,
+)
+
+/** Per viewer, like Connected: the person's own accounts fold away and stay folded. */
+const yoursCollapsedAtom = atomWithStorage("agenta:settings:integrations-yours-collapsed", false)
+
 export interface GatewayToolsSectionProps {
     /** Destructive confirmation — the desktop's AlertPopup, a sheet elsewhere. */
     confirm?: ConfirmDestructive
-    /** Hides connect/run and skips the catalog drawer, whose schema form is still antd-backed. */
+    /** Hides connect, run and the Available catalog: the connect form is still antd-backed. */
     readOnly?: boolean
+    /** Overrides the nouns; defaults to the "tool" wording oss/ee use. */
+    copy?: Partial<GatewayToolsSectionCopy>
+    /**
+     * The project group's heading: the project switch. Given, the group is the project's and
+     * does not fold; absent, it stays today's "Connected".
+     */
+    projectSwitch?: ReactNode
+    /** The current project's name, for "Everyone in {project}" in the connect dialog. */
+    projectName?: string
+    /** How many projects the person has in the organization, for the empty "Yours" note. */
+    projectCount?: number
+    /**
+     * Whether the person may add the project's accounts (`edit_tools`). Without it, and with
+     * personal accounts on, the connect dialog adds the person's own account without asking.
+     */
+    canEdit?: boolean
 }
 
-export default function GatewayToolsSection({confirm, readOnly}: GatewayToolsSectionProps) {
+export default function GatewayToolsSection({
+    confirm,
+    readOnly,
+    copy: copyOverrides,
+    projectSwitch,
+    projectName,
+    projectCount,
+    canEdit = true,
+}: GatewayToolsSectionProps) {
+    const copy = useMemo<GatewayToolsSectionCopy>(
+        () => ({...DEFAULT_COPY, ...copyOverrides}),
+        [copyOverrides],
+    )
     const {connections, isLoading, refetch} = useToolConnectionsQuery()
-    const {handleDelete, handleRefresh, handleRevoke, invalidateConnections} =
-        useToolConnectionActions()
-    const setCatalogOpen = useSetAtom(toolCatalogDrawerOpenAtom)
+    const access = useAtomValue(personalAccountsAccessAtom)
+    const {
+        connections: personalConnections,
+        error: personalError,
+        refetch: refetchPersonal,
+    } = usePersonalToolConnections()
+    const yours = showsYours(access) && (personalConnections !== null || !!personalError)
+    // The switch alone decides the owners, so a pending list read never defaults to the project.
+    const connectOwners = addAccountOwners(access, canEdit)
+    const {handleDelete, handleRevoke} = useToolConnectionActions()
+    // The catalog's first page: the logos, and the Popular rows.
+    const {integrations, isLoading: integrationsLoading} = useToolsIntegrations()
     const setExecutionDrawer = useSetAtom(toolExecutionDrawerAtom)
-    const [reloading, setReloading] = useState(false)
-    const [searchTerm, setSearchTerm] = useState("")
-
-    const reloadAll = useCallback(async () => {
-        setReloading(true)
-        try {
-            // Poll each connection individually to trigger Composio status sync
-            await Promise.allSettled(
-                connections
-                    .map((c) => c.id)
-                    .filter((id): id is string => typeof id === "string")
-                    .map((id) => fetchToolConnection(id)),
-            )
-            invalidateConnections()
-        } finally {
-            setReloading(false)
-        }
-    }, [connections, invalidateConnections])
+    // One search for the page: it filters the connected rows here and the catalog on the server.
+    const setServerSearch = useSetAtom(toolIntegrationsSearchAtom)
+    const search = useDebouncedAtomSearch(
+        useCallback((value: string) => setServerSearch(value.trim()), [setServerSearch]),
+    )
+    const searchTerm = search.value
+    // The search atom is module-level; leaving the page must not leave the catalog filtered.
+    useEffect(() => () => setServerSearch(""), [setServerSearch])
+    const [connectTarget, setConnectTarget] = useState<CatalogIntegrationItem | null>(null)
+    // A pending connection opens to finishing its sign-in, not to its tools.
+    const [finishing, setFinishing] = useState<{
+        connection: ToolConnection
+        name: string
+        integration?: CatalogIntegrationItem
+    } | null>(null)
+    const [connectedCollapsed, setConnectedCollapsed] = useAtom(connectedCollapsedAtom)
+    const [yoursCollapsed, setYoursCollapsed] = useAtom(yoursCollapsedAtom)
+    // The category chip; `null` is All. A category shows only its own list.
+    const [category, setCategory] = useState<string | null>(null)
+    const sectionRef = useRef<HTMLElement>(null)
+    const {categories} = useToolCatalogCategories()
+    const categoryName = categories.find((entry) => entry.id === category)?.name
+    const selectCategory = useCallback((next: string | null) => {
+        setCategory(next)
+        findScrollRoot(sectionRef.current)?.scrollTo({top: 0})
+    }, [])
 
     const openExecution = useCallback(
         (record: ToolConnection) => {
@@ -74,75 +248,7 @@ export default function GatewayToolsSection({confirm, readOnly}: GatewayToolsSec
         [setExecutionDrawer],
     )
 
-    const onRefresh = useCallback(
-        async (connection: ToolConnection) => {
-            if (!connection.id) return
-            const connectionId = connection.id
-            try {
-                const result = await handleRefresh(connectionId)
-
-                const redirectUrl = (result.connection?.data as Record<string, unknown> | undefined)
-                    ?.redirect_url
-
-                if (typeof redirectUrl === "string" && redirectUrl) {
-                    // OAuth re-auth: open popup and wait for completion
-                    const popup = window.open(
-                        redirectUrl,
-                        "tools_oauth",
-                        "width=600,height=700,popup=yes",
-                    )
-
-                    const cleanup = async () => {
-                        window.focus()
-                        // Poll the individual connection endpoint which checks
-                        // Composio for status and updates is_valid in the DB.
-                        try {
-                            await fetchToolConnection(connectionId)
-                        } catch {
-                            /* best-effort */
-                        }
-                        invalidateConnections()
-                        message.success("Connection refreshed")
-                    }
-
-                    const trustedOrigins = new Set<string>([window.location.origin])
-                    for (const url of [getAgentaApiUrl(), getAgentaWebUrl()]) {
-                        if (!url) continue
-                        try {
-                            trustedOrigins.add(new URL(url).origin)
-                        } catch {
-                            // ignore invalid env URLs
-                        }
-                    }
-
-                    const handler = (event: MessageEvent) => {
-                        if (
-                            event.data?.type === "tools:oauth:complete" &&
-                            trustedOrigins.has(event.origin)
-                        ) {
-                            window.removeEventListener("message", handler)
-                            void cleanup()
-                        }
-                    }
-                    window.addEventListener("message", handler)
-
-                    // Fallback: detect popup closed
-                    const pollTimer = setInterval(() => {
-                        if (popup && popup.closed) {
-                            clearInterval(pollTimer)
-                            window.removeEventListener("message", handler)
-                            void cleanup()
-                        }
-                    }, 1000)
-                } else {
-                    message.success("Connection refreshed")
-                }
-            } catch {
-                message.error("Failed to refresh connection")
-            }
-        },
-        [handleRefresh, invalidateConnections],
-    )
+    const onRefresh = useRefreshToolConnection()
 
     const confirmDelete = useCallback(
         (connection: ToolConnection) => {
@@ -184,197 +290,269 @@ export default function GatewayToolsSection({confirm, readOnly}: GatewayToolsSec
         [confirm, handleRevoke],
     )
 
-    interface ToolRow extends ToolConnection {
-        key: string
-        [extra: string]: unknown
-    }
+    // A person's default is what an agent that uses each person's own account picks for them.
+    const makeDefault = useCallback(async (connection: ToolConnection) => {
+        if (!connection.id) return
+        try {
+            await makeDefaultToolConnection(connection.id)
+            invalidateToolConnections()
+        } catch {
+            message.error("Could not make it your default. Try again.")
+        }
+    }, [])
 
-    const rows = useMemo<ToolRow[]>(() => {
-        const all = (connections ?? []).map((connection, index) => ({
-            ...connection,
-            key: connection.id ?? connection.slug ?? connection.integration_key ?? `tool-${index}`,
-        }))
-        const term = searchTerm.trim().toLowerCase()
-        if (!term) return all
-        return all.filter((connection) =>
-            [connection.name, connection.slug, connection.integration_key].some((value) =>
-                value?.toLowerCase().includes(term),
-            ),
-        )
-    }, [connections, searchTerm])
+    const term = searchTerm.trim().toLowerCase()
+    const groups = useMemo<SettingsCatalogGroup[]>(() => {
+        if (category) return []
+        const matches = (texts: (string | null | undefined)[]) =>
+            !term || texts.some((text) => text?.toLowerCase().includes(term))
+        const catalog = new Map(integrations.map((integration) => [integration.key, integration]))
 
-    // The catalog is already cached for the Connect drawer, so this is a lookup, not a fetch.
-    const {integrations} = useToolsIntegrations()
-    const logoFor = useCallback(
-        (key?: string | null) =>
-            (key && integrations.find((integration) => integration.key === key)?.logo) || undefined,
-        [integrations],
-    )
+        /**
+         * One row per connection. A person's own row keeps the verbs its by-id routes allow
+         * (refresh, revoke, delete), adds "Make default", and has no "Run": a run goes through
+         * the project's connection.
+         */
+        const toItems = (rows: ToolConnection[], personal: boolean) =>
+            rows.flatMap((connection, index): SettingsCatalogItem[] => {
+                if (!matches([connection.name, connection.slug, connection.integration_key])) {
+                    return []
+                }
+                const integration = catalog.get(connection.integration_key ?? "")
+                const name = connection.name || connection.slug || "—"
+                const pending = isConnectionActive(connection) && !isConnectionValid(connection)
+                const isDefault = personal && isConnectionDefault(connection)
+                return [
+                    {
+                        key:
+                            connection.id ??
+                            connection.slug ??
+                            connection.integration_key ??
+                            `tool-${index}`,
+                        logo: (
+                            <ConnectionLogo
+                                integrationKey={connection.integration_key ?? ""}
+                                known={integration}
+                                name={name}
+                            />
+                        ),
+                        name: <ConnectionName connection={connection} known={integration} />,
+                        description: (
+                            <ConnectionDescription
+                                integrationKey={connection.integration_key ?? ""}
+                                known={integration}
+                                auth={authLabel(connection)}
+                                isDefault={isDefault}
+                            />
+                        ),
+                        ...connectionStatus(connection),
+                        onOpen: readOnly
+                            ? undefined
+                            : pending
+                              ? () => setFinishing({connection, name, integration})
+                              : personal
+                                ? undefined
+                                : () => openExecution(connection),
+                        menu: (
+                            <SettingsRowMenu
+                                items={[
+                                    {
+                                        key: "run",
+                                        hidden: readOnly || personal,
+                                        label: copy.run,
+                                        icon: <Play size={14} />,
+                                        onClick: () => openExecution(connection),
+                                    },
+                                    {
+                                        key: "make-default",
+                                        hidden:
+                                            !personal ||
+                                            isDefault ||
+                                            !isConnectionActive(connection) ||
+                                            !isConnectionValid(connection),
+                                        label: "Make default",
+                                        icon: <Star size={14} />,
+                                        onClick: () => void makeDefault(connection),
+                                    },
+                                    {
+                                        key: "refresh",
+                                        hidden: readOnly,
+                                        label: "Refresh",
+                                        icon: <ArrowClockwise size={14} />,
+                                        onClick: () => onRefresh(connection),
+                                    },
+                                    {
+                                        key: "revoke",
+                                        label: "Revoke",
+                                        icon: <XCircle size={14} />,
+                                        hidden: !confirm,
+                                        onClick: () => confirmRevoke(connection),
+                                    },
+                                    {type: "divider"},
+                                    {
+                                        key: "delete",
+                                        label: "Delete",
+                                        icon: <Trash size={14} />,
+                                        danger: true,
+                                        hidden: !confirm,
+                                        onClick: () => confirmDelete(connection),
+                                    },
+                                ]}
+                            />
+                        ),
+                    },
+                ]
+            })
 
-    const columns = useMemo<DataTableColumn<ToolRow>[]>(
-        () => [
+        const yoursItems = yours ? toItems(personalConnections ?? [], true) : []
+        const projectGroup: SettingsCatalogGroup = {
+            key: "connected",
+            label: projectSwitch ?? "Connected",
+            items: toItems(connections ?? [], false),
+            // Under the project switch the group never folds and stays when empty, except in a search.
+            ...(projectSwitch
+                ? {keepWhenEmpty: !term}
+                : {
+                      // A search always shows what it matched.
+                      collapsed: !term && connectedCollapsed,
+                      onToggle: term ? undefined : () => setConnectedCollapsed((value) => !value),
+                  }),
+        }
+        if (!yours) return [projectGroup]
+        return [
             {
-                key: "name",
-                title: "Name",
-                width: 200,
-                render: (record) => {
-                    const label = record.name || record.slug || "—"
-                    const logo = logoFor(record.integration_key)
-                    return (
-                        <div className="flex min-w-0 items-center gap-2">
-                            {/* The catalog's own artwork, so a connection reads as the app it
-                                is. Initials stand in when the catalog has no logo, which keeps
-                                every row's text on the same left edge. */}
-                            {logo ? (
-                                <img
-                                    src={logo}
-                                    alt=""
-                                    aria-hidden
-                                    className="size-6 shrink-0 rounded object-contain"
-                                />
-                            ) : (
-                                <InitialsAvatar size="small" name={label} />
-                            )}
-                            <span className="truncate" title={label}>
-                                {label}
-                            </span>
-                        </div>
-                    )
-                },
+                key: "yours",
+                label: "Yours",
+                items: yoursItems,
+                collapsed: !term && yoursCollapsed,
+                onToggle: term ? undefined : () => setYoursCollapsed((value) => !value),
+                // Empty, "Yours" says what it is for; a search with no match says nothing here.
+                footer: personalError ? (
+                    <LoadFailed
+                        message="Couldn't load your connections."
+                        onRetry={() => void refetchPersonal()}
+                    />
+                ) : !term && yoursItems.length === 0 ? (
+                    <YoursEmpty projectCount={projectCount} />
+                ) : undefined,
             },
-            {
-                key: "integration_key",
-                title: "Tool",
-                width: 180,
-                render: (record) => <Tag>{record.integration_key}</Tag>,
-            },
-            {key: "slug", title: "Slug", width: 250, mono: true, render: (r) => r.slug},
-            {
-                key: "auth_scheme",
-                title: "Auth",
-                width: 120,
-                render: (record) => {
-                    const scheme =
-                        typeof record.data?.auth_scheme === "string"
-                            ? record.data.auth_scheme
-                            : undefined
-                    if (!scheme) return <span className="text-colorTextSecondary">—</span>
-                    return <Tag>{AUTH_SCHEME_LABELS[scheme] ?? scheme}</Tag>
-                },
-            },
-            {
-                key: "status",
-                title: "Status",
-                width: 150,
-                render: (record) => <ConnectionStatusBadge connection={record} />,
-            },
-            {
-                key: "created_at",
-                title: "Connected",
-                width: 160,
-                render: (record) =>
-                    record.created_at
-                        ? formatDay({date: record.created_at, outputFormat: "YYYY-MM-DD HH:mm"})
-                        : "-",
-            },
-        ],
-        [logoFor],
-    )
+            projectGroup,
+        ]
+    }, [
+        category,
+        term,
+        connectedCollapsed,
+        setConnectedCollapsed,
+        yoursCollapsed,
+        setYoursCollapsed,
+        yours,
+        personalConnections,
+        personalError,
+        refetchPersonal,
+        projectSwitch,
+        projectCount,
+        makeDefault,
+        integrations,
+        connections,
+        readOnly,
+        copy,
+        confirm,
+        openExecution,
+        onRefresh,
+        confirmRevoke,
+        confirmDelete,
+    ])
+
     return (
         <>
-            <section className="flex flex-col">
-                <DataTable<ToolRow>
-                    className="ph-no-capture"
-                    // No section title: Tools is a single-section page, so the page header
-                    // already says what this is.
-                    columns={columns}
-                    rows={rows}
-                    rowKey={(record) => record.key}
-                    loading={isLoading}
-                    onRowClick={readOnly ? undefined : openExecution}
-                    actions={(record) => [
-                        {
-                            key: "run",
-                            hidden: readOnly,
-                            label: "Run tool",
-                            icon: <Play size={16} />,
-                            onClick: () => openExecution(record),
-                        },
-                        {
-                            key: "refresh",
-                            hidden: readOnly,
-                            label: "Refresh",
-                            icon: <ArrowClockwise size={16} />,
-                            onClick: () => onRefresh(record),
-                        },
-                        {
-                            key: "revoke",
-                            label: "Revoke",
-                            icon: <XCircle size={16} />,
-                            hidden: !confirm,
-                            onClick: () => confirmRevoke(record),
-                        },
-                        {type: "divider"},
-                        {
-                            key: "delete",
-                            label: "Delete",
-                            icon: <Trash size={16} />,
-                            danger: true,
-                            hidden: !confirm,
-                            onClick: () => confirmDelete(record),
-                        },
-                    ]}
+            <section ref={sectionRef} className="ph-no-capture">
+                <SettingsCatalog
                     search={{
-                        placeholder: "Search tools",
                         value: searchTerm,
-                        onChange: setSearchTerm,
-                        disabled: isLoading,
+                        onChange: search.onChange,
+                        placeholder: categoryName
+                            ? `Search ${categoryLabel(categoryName)}`
+                            : copy.searchPlaceholder,
                     }}
-                    onReload={reloadAll}
-                    reloading={reloading}
-                    reloadLabel="Reload all connections"
-                    primaryActions={
-                        <>
-                            {readOnly ? null : (
-                                <Button disabled={isLoading} onClick={() => setCatalogOpen(true)}>
-                                    <Plus size={14} />
-                                    Connect tool
-                                </Button>
-                            )}
-                        </>
+                    toolbar={
+                        readOnly ? undefined : (
+                            <CategoryChips selected={category} onSelect={selectCategory} />
+                        )
+                    }
+                    groups={groups}
+                    loading={isLoading || integrationsLoading}
+                    after={
+                        readOnly ? undefined : (
+                            <IntegrationCatalog
+                                term={term}
+                                category={category}
+                                onSelectCategory={selectCategory}
+                                connectedMatches={groups.reduce(
+                                    (total, group) => total + group.items.length,
+                                    0,
+                                )}
+                                onConnect={setConnectTarget}
+                                onClearSearch={() => search.onChange("")}
+                                noMatch={copy.noMatch}
+                            />
+                        )
                     }
                     empty={
-                        searchTerm.trim() ? (
-                            <EmptyState
-                                image="simple"
-                                description={`No tools match “${searchTerm.trim()}”`}
+                        term ? (
+                            <SettingsEmpty
+                                plain
+                                icon={<MagnifyingGlass size={18} />}
+                                title={copy.noMatch(searchTerm.trim())}
+                                action={
+                                    <Button variant="outline" onClick={() => search.onChange("")}>
+                                        Clear search
+                                    </Button>
+                                }
                             />
                         ) : (
-                            <EmptyState
-                                image="simple"
-                                description={
-                                    <div className="flex flex-col gap-1">
-                                        <span className="text-xs font-medium text-colorText">
-                                            No tools connected yet
-                                        </span>
-                                        <span>Connect a tool to let your agents call it.</span>
-                                    </div>
-                                }
-                            >
-                                {readOnly ? null : (
-                                    <Button variant="outline" onClick={() => setCatalogOpen(true)}>
-                                        <Plus size={14} />
-                                        Connect tool
-                                    </Button>
-                                )}
-                            </EmptyState>
+                            <SettingsEmpty
+                                icon={getSettingsSidebarIcon("tools")}
+                                title={copy.emptyTitle}
+                                description={copy.emptyBody}
+                            />
                         )
                     }
                 />
             </section>
 
-            {readOnly ? null : <CatalogDrawer onConnectionCreated={refetch} />}
             {readOnly ? null : <ToolExecutionDrawer />}
+            {finishing ? (
+                <FinishConnectionDialog
+                    open
+                    name={
+                        <AppName connection={finishing.connection} known={finishing.integration} />
+                    }
+                    logo={
+                        <ConnectionLogo
+                            integrationKey={finishing.connection.integration_key ?? ""}
+                            known={finishing.integration}
+                            name={finishing.name}
+                        />
+                    }
+                    onAuthorize={() => onRefresh(finishing.connection)}
+                    onDelete={confirm ? () => confirmDelete(finishing.connection) : undefined}
+                    onClose={() => setFinishing(null)}
+                />
+            ) : null}
+            {readOnly || !connectTarget ? null : (
+                <ConnectDrawer
+                    open
+                    integrationKey={connectTarget.key}
+                    integrationName={connectTarget.name}
+                    integrationLogo={connectTarget.logo ?? undefined}
+                    integrationDescription={connectTarget.description ?? undefined}
+                    authSchemes={connectTarget.auth_schemes ?? []}
+                    onClose={() => setConnectTarget(null)}
+                    onSuccess={() => void refetch()}
+                    owners={connectOwners}
+                    projectName={projectName}
+                />
+            )}
         </>
     )
 }

@@ -10,12 +10,71 @@
  * The drawer's own writer is `useModelHarness`; these mirror its two writes (`llm` via
  * `composeModelValue`, `harness.kind` via a section replace) without its React state.
  */
-import {composeModelValue, connectionFromConfig, type ConnectionMode} from "./connectionUtils"
+import type {AgentConnectionNamespace, SecretOwnerScope} from "@agenta/entities/secret"
+import deepEqual from "fast-deep-equal"
+
+import {
+    composeModelValue,
+    connectionFromConfig,
+    type ConnectionFields,
+    type ConnectionMode,
+} from "./connectionUtils"
 import {isPermissionPolicy, type PermissionPolicy} from "./permissionPolicy"
 import {locateTemplate} from "./toolPermission"
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
     Boolean(v && typeof v === "object" && !Array.isArray(v))
+
+/** Apply only buffered edits; untouched fields keep their latest live values. */
+export function mergeAgentConfigDraft(
+    live: Record<string, unknown>,
+    baseline: Record<string, unknown>,
+    draft: Record<string, unknown>,
+    section?: "model-harness" | "advanced",
+): Record<string, unknown> {
+    const next = {...live}
+    for (const key of new Set([...Object.keys(baseline), ...Object.keys(draft)])) {
+        if (deepEqual(baseline[key], draft[key]) && key in baseline === key in draft) continue
+        if (!(key in draft)) {
+            if (isRecord(baseline[key]) && isRecord(live[key])) {
+                const remaining = mergeAgentConfigDraft(live[key], baseline[key], {})
+                if (Object.keys(remaining).length) next[key] = remaining
+                else delete next[key]
+            } else delete next[key]
+        } else if (isRecord(draft[key]) && (isRecord(baseline[key]) || !(key in baseline))) {
+            next[key] = mergeAgentConfigDraft(
+                isRecord(live[key]) ? live[key] : {},
+                isRecord(baseline[key]) ? baseline[key] : {},
+                draft[key],
+            )
+        } else next[key] = draft[key]
+    }
+    // A picker selection owns the complete route, not just its changed scalar fields.
+    if (
+        section === "model-harness" &&
+        (!deepEqual(baseline.llm, draft.llm) ||
+            !deepEqual(
+                isRecord(baseline.harness) ? baseline.harness.kind : undefined,
+                isRecord(draft.harness) ? draft.harness.kind : undefined,
+            ))
+    ) {
+        for (const [key, fields] of [
+            ["llm", ["model", "provider", "connection"]],
+            ["harness", ["kind"]],
+        ] as const) {
+            const selected = isRecord(draft[key]) ? draft[key] : {}
+            const merged = isRecord(next[key]) ? {...next[key]} : {}
+            for (const field of fields) {
+                if (field in selected) merged[field] = selected[field]
+                else delete merged[field]
+            }
+            if (key === "llm" && typeof draft.llm === "string") next.llm = draft.llm
+            else if (Object.keys(merged).length) next[key] = merged
+            else delete next[key]
+        }
+    }
+    return next
+}
 
 export interface ModelPatch {
     modelId: string
@@ -27,6 +86,10 @@ export interface ModelPatch {
      * `withModel`. Pass it only when the picked option supplies matching connection metadata.
      */
     slug?: string | null
+    /** The namespace the slug was picked from; dropped with the slug, like it. */
+    namespace?: AgentConnectionNamespace | null
+    /** Whose connection the slug names; dropped with the slug, like it. */
+    scope?: SecretOwnerScope | null
 }
 
 /**
@@ -50,6 +113,8 @@ export function withModel(parameters: unknown, patch: ModelPatch): Record<string
             provider: patch.provider,
             mode: patch.mode ?? stored.mode,
             slug: patch.slug ?? null,
+            namespace: patch.namespace ?? null,
+            scope: patch.scope ?? null,
             existing,
         }),
     })
@@ -69,7 +134,7 @@ export function withHarnessKind(parameters: unknown, kind: string): Record<strin
 
 /**
  * Set `agent.runner.permissions.default`. The rules list beside it rides through untouched — the
- * palette picks a policy, rule editing stays in the config drawer.
+ * palette picks a policy without changing stored rules.
  */
 export function withRunnerPermission(
     parameters: unknown,
@@ -99,6 +164,12 @@ export function readRunnerPermission(parameters: unknown): PermissionPolicy | nu
 export function readModelConnectionSlug(parameters: unknown): string | null {
     if (!isRecord(parameters)) return null
     return connectionFromConfig(locateTemplate(parameters).template.llm).slug || null
+}
+
+/** The stored connection fields (mode, slug, namespace), as the picker reads them. */
+export function readModelConnection(parameters: unknown): ConnectionFields | null {
+    if (!isRecord(parameters)) return null
+    return connectionFromConfig(locateTemplate(parameters).template.llm)
 }
 
 /** The stored model id, or null. Reads the ModelRef the same way the picker does. */

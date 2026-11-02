@@ -22,11 +22,35 @@ from oss.src.core.tools.dtos import (
 )
 from oss.src.core.tools.exceptions import AdapterError
 
+# The connect flow owns the question "can this toolkit be connected at all", so the
+# catalog asks it there rather than keeping a second list of schemes that would drift.
+from oss.src.core.gateway.connections.providers.composio.adapter import (
+    can_connect_toolkit,
+)
+
 
 log = get_module_logger(__name__)
 
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 1000
+
+# Public catalog browsing and the legacy per-tool path default to latest. A
+# ``gateway_connection`` run resolves this alias once through ``GET /toolkits/{slug}``,
+# then passes the concrete result into listing, detail, and execution. The API base's
+# v3.1 is an independent protocol version.
+#
+# The parameter NAME differs per endpoint, verified live 2026-08-27:
+#   listing  GET  /tools                 -> `toolkit_versions` (a `version` param is
+#                                           accepted and silently ignored: still 18)
+#   detail   GET  /tools/{slug}          -> `version` (without it, latest-only slugs 404)
+#   execute  POST /tools/execute/{slug}  -> `version`, in the BODY (the query form is
+#                                           ignored and still 404s)
+COMPOSIO_TOOLKIT_VERSION = "latest"
+# Composio clamps larger page limits to 50, so ask for exactly that.
+ALL_ACTIONS_PAGE_SIZE = 50
+# Runaway-cursor guard for the full-catalog crawl. 50 pages covers every toolkit
+# Composio publishes today by a wide margin.
+ALL_ACTIONS_MAX_PAGES = 50
 
 
 # ---------------------------------------------------------------------------
@@ -45,6 +69,47 @@ class ComposioCatalogClient:
     api_key: str
     api_url: str
     _client: httpx.AsyncClient
+
+    # -----------------------------------------------------------------------
+    # Toolkit version resolution
+    # -----------------------------------------------------------------------
+
+    async def resolve_toolkit_version(
+        self,
+        *,
+        integration_key: str,
+        version: str = COMPOSIO_TOOLKIT_VERSION,
+    ) -> str:
+        """Resolve an alias through Composio's documented ``meta.version`` field."""
+        try:
+            resp = await self._client.get(
+                f"{self.api_url}/toolkits/{integration_key}",
+                headers={"x-api-key": self.api_key, "Content-Type": "application/json"},
+                params={"version": version},
+                timeout=15.0,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except httpx.HTTPError as e:
+            raise AdapterError(
+                provider_key="composio",
+                operation="resolve_toolkit_version",
+                detail=str(e),
+            ) from e
+
+        meta = data.get("meta") if isinstance(data, dict) else None
+        resolved = meta.get("version") if isinstance(meta, dict) else None
+        if (
+            not isinstance(resolved, str)
+            or not resolved.strip()
+            or resolved.strip().lower() == "latest"
+        ):
+            raise AdapterError(
+                provider_key="composio",
+                operation="resolve_toolkit_version",
+                detail=f"{integration_key} returned no concrete toolkit version",
+            )
+        return resolved.strip()
 
     # -----------------------------------------------------------------------
     # Integration count
@@ -167,12 +232,17 @@ class ComposioCatalogClient:
             else len(items_raw)
         )
 
-        items = [_parse_integration(item) for item in items_raw]
+        # Fail closed: a toolkit our connect flow can build no auth config for is one a
+        # person can start connecting and never finish, so it is not offered at all.
+        connectable = [item for item in items_raw if can_connect_toolkit(item)]
+        dropped = len(items_raw) - len(connectable)
+        items = [_parse_integration(item) for item in connectable]
 
         log.debug(
-            "[composio] list_integrations cursor=%s items=%d total=%d next=%s",
+            "[composio] list_integrations cursor=%s items=%d dropped=%d total=%d next=%s",
             cursor,
             len(items),
+            dropped,
             total_items,
             next_cursor,
         )
@@ -180,6 +250,9 @@ class ComposioCatalogClient:
         return ToolCatalogIntegrationsPage(
             integrations=items,
             next_cursor=next_cursor,
+            # Composio's own count, so it still counts the few dropped above. Left as-is
+            # rather than adjusted: the drop is per page, and subtracting this page's
+            # would make the total disagree with itself as the caller pages through.
             total=total_items,
         )
 
@@ -196,6 +269,7 @@ class ComposioCatalogClient:
         important: Optional[bool] = None,  # reserved; not forwarded to Composio
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
+        toolkit_version: Optional[str] = None,
     ) -> ToolCatalogActionsPage:
         """Fetch one page of actions for an integration from Composio.
 
@@ -209,13 +283,15 @@ class ComposioCatalogClient:
         """
         page_limit = min(limit, MAX_PAGE_SIZE) if limit else DEFAULT_PAGE_SIZE
 
-        # The shared Composio base URL pins every adapter to v3.1. Do not add a
-        # per-call version override here: list, search, get, and execute must use
-        # the same scope or discovery can return slugs that resolution rejects.
+        # The shared Composio base URL pins the API to v3.1, which is a different axis from
+        # the TOOLKIT version and does not settle it. List, detail, and execute must resolve
+        # the same toolkit version or discovery returns slugs that resolution rejects — so
+        # all three pin `COMPOSIO_TOOLKIT_VERSION`, under the name each endpoint accepts.
         params: Dict[str, Any] = {
             "toolkit_slug": integration_key,
             "include_deprecated": False,
             "limit": page_limit,
+            "toolkit_versions": toolkit_version or COMPOSIO_TOOLKIT_VERSION,
         }
         if query:
             params["query"] = query
@@ -273,6 +349,54 @@ class ComposioCatalogClient:
             next_cursor=next_cursor,
             total=total_items,
         )
+
+    async def list_all_actions(
+        self,
+        *,
+        integration_key: str,
+        toolkit_version: Optional[str] = None,
+    ) -> List[ToolCatalogAction]:
+        """Fetch one integration's whole catalog, following ``next_cursor`` to exhaustion.
+
+        A crawl that stops early would drop tools, and the caller caches what it gets,
+        so a cursor that repeats or never ends raises instead of returning a partial
+        catalog.
+        """
+        actions: List[ToolCatalogAction] = []
+        cursor: Optional[str] = None
+        seen_cursors: set = set()
+
+        for _ in range(ALL_ACTIONS_MAX_PAGES):
+            page = await self.list_actions(
+                integration_key=integration_key,
+                limit=ALL_ACTIONS_PAGE_SIZE,
+                cursor=cursor,
+                toolkit_version=toolkit_version,
+            )
+            actions.extend(page.actions)
+            cursor = page.next_cursor
+            if not cursor:
+                break
+            if cursor in seen_cursors:
+                raise AdapterError(
+                    provider_key="composio",
+                    operation="list_all_actions",
+                    detail=f"{integration_key} catalog repeated a cursor",
+                )
+            seen_cursors.add(cursor)
+        else:
+            raise AdapterError(
+                provider_key="composio",
+                operation="list_all_actions",
+                detail=f"{integration_key} catalog did not end within {ALL_ACTIONS_MAX_PAGES} pages",
+            )
+
+        log.debug(
+            "[composio] list_all_actions(%s) items=%d",
+            integration_key,
+            len(actions),
+        )
+        return actions
 
 
 # ---------------------------------------------------------------------------
@@ -401,5 +525,11 @@ def _parse_action(item: Dict[str, Any], integration_key: str) -> ToolCatalogActi
         name=item.get("name", ""),
         description=item.get("description"),
         categories=categories,
+        provider_action_id=composio_slug,
         read_only=_derive_read_only(raw_tags),
+        input_schema=(
+            item.get("input_parameters")
+            if isinstance(item.get("input_parameters"), dict)
+            else None
+        ),
     )

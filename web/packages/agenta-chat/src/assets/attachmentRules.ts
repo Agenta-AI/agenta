@@ -98,7 +98,7 @@ export const formatBytes = (n: number): string => {
 export interface AttachmentRejection {
     /** The file's name, for the inline message. */
     name: string
-    /** Why it was rejected (verb phrase): "is too large (8.2 MB) · max 10 MB for images". */
+    /** Why it was rejected (verb phrase): "is too large, max 10.0 MB supported". */
     reason: string
 }
 
@@ -116,6 +116,12 @@ export const validateIncoming = (
     incoming: File[],
     currentCount: number,
     limits: AttachmentLimits = DEFAULT_ATTACHMENT_LIMITS,
+    {
+        allowOversized = false,
+    }: {
+        /** Accept files over the per-kind cap. The host uploads them to the session drive. */
+        allowOversized?: boolean
+    } = {},
 ): AttachmentValidation => {
     const accepted: File[] = []
     const rejections: AttachmentRejection[] = []
@@ -130,10 +136,10 @@ export const validateIncoming = (
             continue
         }
         const maxBytes = limits.maxBytes[kind]
-        if (file.size > maxBytes) {
+        if (file.size > maxBytes && !allowOversized) {
             rejections.push({
                 name: file.name,
-                reason: `is too large (${formatBytes(file.size)}) · max ${formatBytes(maxBytes)} for ${KIND_NOUN[kind]}`,
+                reason: `is too large, max ${formatBytes(maxBytes)} supported`,
             })
             continue
         }
@@ -148,9 +154,16 @@ export const validateIncoming = (
     return {accepted, rejections}
 }
 
-/** A file kind an attachment viewer can preview; audio plays inline in the tray instead. */
+/** Whether a file is over its kind's attachment cap, so it goes to the session drive instead. */
+export const exceedsAttachmentLimit = (
+    file: Pick<File, "size" | "type">,
+    limits: AttachmentLimits = DEFAULT_ATTACHMENT_LIMITS,
+): boolean => file.size > limits.maxBytes[kindForType(file.type || "application/octet-stream")]
+
+/** A file kind the Files drawer can preview; audio is excluded because it plays in its card. */
 export const isViewable = (mediaType: string): boolean =>
     mediaType.startsWith("image/") ||
+    mediaType.startsWith("video/") ||
     mediaType === "application/pdf" ||
     mediaType.startsWith("text/") ||
     mediaType === "application/json"

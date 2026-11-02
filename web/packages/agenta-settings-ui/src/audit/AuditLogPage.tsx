@@ -13,8 +13,10 @@
  * Both gates are the host's to resolve — this page only takes their answers.
  */
 
-import {useState, type ReactNode} from "react"
+import {useMemo, useState, type ReactNode} from "react"
 
+import type {WorkspaceMember} from "@agenta/entities/organization"
+import {getSettingsSidebarIcon} from "@agenta/settings"
 import {Spinner} from "@agenta/ui/ui"
 
 import {UpgradeNotice} from "../access/UpgradeNotice"
@@ -35,6 +37,10 @@ export interface AuditLogPageProps {
     renderDateRange?: AuditLogFiltersProps["renderDateRange"]
     /** The upgrade link on the locked state — routing and billing availability are the host's. */
     upgradeAction?: ReactNode
+    /** The roster that names each event's user. */
+    members?: WorkspaceMember[]
+    /** Marks your own events "(you)". */
+    currentUserId?: string | null
 }
 
 /**
@@ -48,7 +54,21 @@ export const AuditLogPage = ({
     entitlementsLoading = false,
     renderDateRange,
     upgradeAction,
+    members,
+    currentUserId,
 }: AuditLogPageProps) => {
+    const names = useMemo(
+        () =>
+            new Map(
+                (members ?? [])
+                    .filter((member) => member.user?.id)
+                    .map((member) => [
+                        member.user.id,
+                        member.user.username || member.user.email || member.user.id,
+                    ]),
+            ),
+        [members],
+    )
     const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
     const [drawerOpen, setDrawerOpen] = useState(false)
 
@@ -63,6 +83,7 @@ export const AuditLogPage = ({
     if (!hasAudit) {
         return (
             <UpgradeNotice
+                icon={getSettingsSidebarIcon("auditLog")}
                 title="Audit Log is not available on your plan"
                 description="Query the full history of platform events — who did what, and when — across your organization."
                 action={upgradeAction}
@@ -74,6 +95,8 @@ export const AuditLogPage = ({
         <div className="flex min-h-0 flex-1 flex-col">
             <AuditLogTable
                 renderDateRange={renderDateRange}
+                names={names}
+                currentUserId={currentUserId}
                 onSelectEvent={(eventId) => {
                     setSelectedEventId(eventId)
                     setDrawerOpen(true)
@@ -83,6 +106,8 @@ export const AuditLogPage = ({
                 eventId={selectedEventId}
                 open={drawerOpen}
                 onOpenChange={setDrawerOpen}
+                names={names}
+                currentUserId={currentUserId}
             />
         </div>
     )

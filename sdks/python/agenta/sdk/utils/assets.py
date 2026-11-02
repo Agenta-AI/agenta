@@ -14,7 +14,10 @@ from litellm import cost_calculator
 # unknown price is more useful than a missing one.
 supported_llm_models = {
     "anthropic": [
+        "anthropic/claude-opus-5-5",
+        "anthropic/claude-fable-5-1",
         "anthropic/claude-fable-5",
+        "anthropic/claude-sonnet-5-5",
         "anthropic/claude-sonnet-5",
         "anthropic/claude-opus-5",
         "anthropic/claude-opus-4-8",
@@ -23,6 +26,7 @@ supported_llm_models = {
         "anthropic/claude-sonnet-4-6",
         "anthropic/claude-opus-4-5",
         "anthropic/claude-sonnet-4-5",
+        "anthropic/claude-haiku-5-5",
         "anthropic/claude-haiku-4-5",
     ],
     "cohere": [
@@ -51,6 +55,7 @@ supported_llm_models = {
         "gemini/gemini-pro-latest",
         "gemini/gemini-flash-latest",
         "gemini/gemini-flash-lite-latest",
+        "gemini/gemini-4-argon",
         "gemini/gemini-3.7-flash",
         "gemini/gemini-3.6-flash",
         "gemini/gemini-3.5-flash",
@@ -90,6 +95,10 @@ supported_llm_models = {
         # umbrella that routes to one of them, so offering it would ask the user to pick a model
         # and then pick nothing in particular. A guard test pins this (see
         # test_pi_publishes_concrete_gpt_5_6_models_for_both_openai_providers).
+        "gpt-6-astra",
+        "gpt-6.1-sol",
+        "gpt-6-sol",
+        "gpt-6-luna",
         "gpt-5.6-sol",
         "gpt-5.6-terra",
         "gpt-5.6-luna",
@@ -125,46 +134,24 @@ supported_llm_models = {
         "gpt-3.5-turbo-1106",
         "gpt-3.5-turbo",
     ],
-    # OpenRouter's ~20 most-used models as of 2026-07-01, from the public usage
-    # rankings (openrouter.ai/rankings and third-party token/spend leaderboards).
+    # OpenRouter's 10 most-used tool-capable text models as of 2026-09-10, from
+    # GET /api/v1/models?sort=most-popular&supported_parameters=tools&output_modalities=text.
     # Every id below is also a valid key in Pi's vendored OpenRouter catalog
-    # (drop the "openrouter/" prefix), so it is settable by the Pi harness picker.
+    # (drop the "openrouter/" prefix), so it is settable by the Pi harness picker. GPT-6 Sol and
+    # Luna (released 2026-09-22) are added by hand ahead of the next popularity refresh.
     "openrouter": [
-        # Anthropic via OpenRouter
-        "openrouter/anthropic/claude-opus-4.8",
-        "openrouter/anthropic/claude-opus-4.7",
-        "openrouter/anthropic/claude-sonnet-4.6",
-        "openrouter/anthropic/claude-sonnet-4.5",
-        # DeepSeek via OpenRouter
-        "openrouter/deepseek/deepseek-v4-flash",
-        "openrouter/deepseek/deepseek-v4-pro",
-        "openrouter/deepseek/deepseek-v3.2",
-        # Google via OpenRouter
-        "openrouter/google/gemini-3.5-flash",
-        "openrouter/google/gemini-3-flash-preview",
-        "openrouter/google/gemini-3.1-pro-preview",
-        # MiniMax via OpenRouter
-        "openrouter/minimax/minimax-m3",
-        # MoonshotAI via OpenRouter
-        "openrouter/moonshotai/kimi-k2.6",
-        # Nvidia via OpenRouter
-        "openrouter/nvidia/nemotron-3-super-120b-a12b",
-        # OpenAI via OpenRouter
+        "openrouter/tencent/hy4-preview",
+        "openrouter/openai/gpt-6-sol",
+        "openrouter/openai/gpt-6-luna",
         "openrouter/openai/gpt-5.6-luna",
-        "openrouter/openai/gpt-5.5",
-        "openrouter/openai/gpt-5.4",
-        # Qwen via OpenRouter
-        "openrouter/qwen/qwen3.7-max",
-        # Tencent via OpenRouter
-        "openrouter/tencent/hy3-preview",
-        # Xiaomi via OpenRouter
-        "openrouter/xiaomi/mimo-v2.5-pro",
+        "openrouter/deepseek/deepseek-v4-flash-0731",
+        "openrouter/z-ai/glm-5.3-flash",
+        "openrouter/deepseek/deepseek-v4-flash",
         "openrouter/xiaomi/mimo-v2.5",
-        # xAI via OpenRouter
-        "openrouter/x-ai/grok-4.3",
-        # Z.ai via OpenRouter
-        "openrouter/z-ai/glm-5.2",
-        "openrouter/z-ai/glm-5",
+        "openrouter/tencent/hy3",
+        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
+        "openrouter/z-ai/glm-5.3",
+        "openrouter/google/gemini-3.8-flash",
     ],
     # NOTE: provider kind must match Secrets API enums ("perplexityai").
     # Models remain "perplexity/..." but the provider key is used to match secrets.
@@ -184,8 +171,7 @@ supported_llm_models = {
         "together_ai/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
         "together_ai/meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
         "together_ai/meta-llama/Llama-3.2-3B-Instruct-Turbo",
-        "together_ai/moonshotai/Kimi-K2.7-Code",
-        "together_ai/moonshotai/Kimi-K2.6",
+        "together_ai/moonshotai/Kimi-K3",
         "together_ai/mistralai/Mistral-Small-24B-Instruct-2501",
         "together_ai/mistralai/Mistral-7B-Instruct-v0.1",
         "together_ai/mistralai/Mixtral-8x7B-Instruct-v0.1",
@@ -201,6 +187,19 @@ supported_llm_models = {
         "minimax/MiniMax-M2.1",
         "minimax/MiniMax-M2.1-lightning",
         "minimax/MiniMax-M2",
+    ],
+    # The 4-series, checked against xAI's own /v1/models rather than taken from litellm's
+    # table. litellm still carries `grok-4`, `grok-4-fast-*` and `grok-4-1-fast-*`, and spells
+    # the 4.20 pair without its date; xAI serves none of those, so listing them would only buy
+    # the user a 404. `grok-4.20-multi-agent-0309` is served but is a responses-only model, and
+    # the image and video `grok-imagine-*` models are not chat, so neither belongs here.
+    "xai": [
+        "xai/grok-4.7",
+        "xai/grok-4.6",
+        "xai/grok-4.5",
+        "xai/grok-4.3",
+        "xai/grok-4.20-0309-reasoning",
+        "xai/grok-4.20-0309-non-reasoning",
     ],
 }
 
@@ -236,6 +235,7 @@ litellm_provider_prefixes: Dict[str, Optional[str]] = {
     # the model prefix "perplexity" — see the ids under "perplexityai" above.
     "perplexityai": "perplexity",
     "together_ai": "together_ai",
+    "xai": "xai",
     # Stored vault kinds with no catalog models and no litellm provider: litellm 1.92.0 knows
     # neither service (both wound down, and litellm dropped them), so no prefix routes them.
     # `aleph_alpha/luminous-base` fails with the same "LLM Provider NOT provided" as the bare id,

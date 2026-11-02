@@ -41,6 +41,9 @@ export interface MaterializedSkill {
  */
 export interface MaterializedSkills {
   skills: MaterializedSkill[];
+  /** Skills that did NOT materialize, as "name: reason" lines — the platform-visible
+   * counterpart of the stderr log (stamped as `ag.meta.skills.dropped` on the agent span). */
+  dropped: string[];
   cleanup: () => void;
 }
 
@@ -142,7 +145,8 @@ export function resolveSkillDirs(
   log: (message: string) => void = () => {},
   execPolicy: SkillExecPolicy = "deny",
 ): MaterializedSkills {
-  if (!skills || skills.length === 0) return { skills: [], cleanup: () => {} };
+  if (!skills || skills.length === 0)
+    return { skills: [], dropped: [], cleanup: () => {} };
 
   const root = mkdtempSync(join(tmpdir(), "agenta-skills-"));
   const cleanup = () => {
@@ -153,11 +157,13 @@ export function resolveSkillDirs(
     }
   };
   const out: MaterializedSkill[] = [];
+  const dropped: string[] = [];
   const seenNames = new Set<string>();
 
   for (const skill of skills) {
     if (!isSafeSkillName(skill?.name)) {
       log(`skipping skill with unsafe name ${JSON.stringify(skill?.name)}`);
+      dropped.push(`${JSON.stringify(skill?.name)}: unsafe name`);
       continue;
     }
     if (!isSafeSkillSize(skill)) {
@@ -165,12 +171,14 @@ export function resolveSkillDirs(
         `skipping skill "${skill.name}": description/body exceeds the wire cap ` +
           `(description<=${SKILL_DESCRIPTION_MAX}, body<=${SKILL_BODY_MAX})`,
       );
+      dropped.push(`${skill.name}: exceeds wire cap`);
       continue;
     }
     // `dir` is keyed only by `skill.name`; a duplicate would overwrite the earlier skill's
     // SKILL.md while leaving its bundled files behind, so skip the later entry.
     if (seenNames.has(skill.name)) {
       log(`skipping duplicate skill "${skill.name}"`);
+      dropped.push(`${skill.name}: duplicate name`);
       continue;
     }
     seenNames.add(skill.name);
@@ -211,8 +219,9 @@ export function resolveSkillDirs(
       out.push({ name: skill.name, dir });
     } catch (err) {
       log(`skipping skill "${skill.name}": ${(err as Error).message}`);
+      dropped.push(`${skill.name}: ${(err as Error).message}`);
     }
   }
 
-  return { skills: out, cleanup };
+  return { skills: out, dropped, cleanup };
 }

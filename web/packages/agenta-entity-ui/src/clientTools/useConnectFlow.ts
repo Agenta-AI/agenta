@@ -27,9 +27,23 @@
  */
 import {useCallback, useEffect, useRef, useState} from "react"
 
-import {useToolIntegrationDetail, useToolsConnections} from "@agenta/entities/gatewayTool"
+import {
+    isConnectionValid,
+    queryToolConnections,
+    useToolIntegrationDetail,
+    useToolsConnections,
+    type ToolConnection,
+} from "@agenta/entities/gatewayTool"
 import {getAgentaApiUrl} from "@agenta/shared/api"
-import type {ClientToolMeta, SettleClientTool} from "@agenta/shared/clientTools"
+import {
+    connectRequestRefs,
+    declinedConnectOutput,
+    type ClientToolMeta,
+    type ConnectOutput,
+    type SettleClientTool,
+} from "@agenta/shared/clientTools"
+
+import {consentPopupFeatures} from "../shared/consentPopupFeatures"
 
 import {prettyIntegration} from "./useIntegrationIdentity"
 
@@ -41,23 +55,13 @@ import {prettyIntegration} from "./useIntegrationIdentity"
 const CONNECT_TIMEOUT_MS = 180_000
 /** Popup-closed poll cadence, matching the existing ConnectModal. */
 const POPUP_POLL_MS = 1000
+const DEFAULT_PROVIDER = "composio"
 /** Ceiling on how long Connect/Retry stays disabled waiting for the toolkit's real auth mode —
  * see `modeResolving` below. Generous for a normal catalog fetch, short enough that a genuinely
  * stuck lookup doesn't read as a dead button. */
 const MODE_RESOLVE_TIMEOUT_MS = 8_000
 
-/** The settled call's reference shape (what the runner re-resolves against). */
-export interface ConnectOutput {
-    connected?: boolean
-    integration?: string
-    slug?: string
-    /**
-     * `"declined" | "cancelled" | "timeout"` for the three expected non-error terminal
-     * states, or the actual failure message when the create call itself errored (see
-     * `KNOWN_CONNECT_REASONS` in ConnectToolWidget, which renders the latter verbatim).
-     */
-    reason?: string
-}
+export type {ConnectOutput}
 
 export type ConnectPhase = "idle" | "connecting" | "error"
 
@@ -111,6 +115,21 @@ export const extractConnectErrorMessage = (err: unknown): string => {
     return GENERIC_CONNECT_ERROR
 }
 
+/**
+ * The row an earlier attempt left under this fixed slug. Retry must reuse it: creating again is a
+ * guaranteed 409. Fetched fresh — Retry lands inside the cached list's stale window.
+ */
+const findExistingConnection = async (
+    integration: string,
+    slug: string,
+): Promise<ToolConnection | null> => {
+    const {connections} = await queryToolConnections({
+        provider_key: DEFAULT_PROVIDER,
+        integration_key: integration,
+    })
+    return connections?.find((connection) => connection.slug === slug) ?? null
+}
+
 /** Read the API origin the OAuth callback page posts from; null if it can't be resolved. */
 const agentaApiOrigin = (): string | null => {
     try {
@@ -146,11 +165,8 @@ export const isConnectModeResolving = ({
 
 export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, active = true) => {
     const input = (meta.input ?? {}) as Record<string, unknown>
-    const integration = typeof input.integration === "string" ? input.integration : ""
-    // Connection slug: the call may pin one; default to the integration key. The output carries it
-    // back as the reference the runner re-resolves.
-    const slug =
-        typeof input.slug === "string" && input.slug ? input.slug : integration || "default"
+    // The output carries these back as the reference the runner re-resolves.
+    const {integration, slug} = connectRequestRefs(input)
     const hintedMode = input.mode === "api_key" ? "api_key" : "oauth"
     // The toolkit's real supported schemes override a hint the toolkit doesn't actually
     // support (see `resolveConnectMode`). While the catalog lookup is still in flight,
@@ -192,7 +208,7 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
     // as cancelled — "connected but shows failed". The tool-call id is unique per parked call.
     const oauthWindowName = `tools_oauth_${meta.toolCallId}`
 
-    const {handleCreate, invalidate} = useToolsConnections(integration)
+    const {handleCreate, handleRefresh, invalidate} = useToolsConnections(integration)
 
     const [phase, setPhase] = useState<ConnectPhase>("idle")
     const [errorText, setErrorText] = useState<string | null>(null)
@@ -209,6 +225,7 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
     // One-shot guard so THIS instance settles the parked call at most once, plus shared cleanup for
     // the running popup's listener/poll/timeout. `meta.settled` covers the OTHER instance's settle.
     const settledRef = useRef(false)
+    const pendingAnswerRef = useRef<ConnectOutput | {errorText: string} | null>(null)
     const activeRef = useRef(active)
     activeRef.current = active
     const popupRef = useRef<Window | null>(null)
@@ -228,12 +245,40 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
             teardown()
             // Leave "connecting" and record the terminal result so the chip paints now.
             setPhase("idle")
-            if ("errorText" in result) {
-                setOutcome({connected: false, reason: result.errorText})
-                settle({errorText: result.errorText})
-            } else {
-                setOutcome({connected: result.connected === true, reason: result.reason})
-                settle({output: result as Record<string, unknown>})
+            setErrorText(null)
+            const onSubmissionError = (error: unknown) => {
+                // Retry the same answer without creating the connection again.
+                pendingAnswerRef.current = result
+                settledRef.current = false
+                setOutcome(null)
+                setErrorText(
+                    error instanceof Error
+                        ? error.message
+                        : "Could not save the answer. Try again.",
+                )
+            }
+            try {
+                const submission =
+                    "errorText" in result
+                        ? settle({errorText: result.errorText})
+                        : settle({output: result as Record<string, unknown>})
+                setOutcome(
+                    "errorText" in result
+                        ? {connected: false, reason: result.errorText}
+                        : {connected: result.connected === true, reason: result.reason},
+                )
+                void Promise.resolve(submission).then((landed) => {
+                    // A host that reports the failure itself still RESOLVES, with `false` — read
+                    // as success, the card paints a settled outcome over a gate that is still
+                    // open and disarms the retry (see `SettleClientTool`).
+                    if (landed === false) {
+                        onSubmissionError(new Error("Could not save the answer. Try again."))
+                        return
+                    }
+                    pendingAnswerRef.current = null
+                }, onSubmissionError)
+            } catch (error) {
+                onSubmissionError(error)
             }
         },
         [settle, teardown],
@@ -262,6 +307,10 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
             if (phase === "connecting") return
             if (settleParkedCall && (!activeRef.current || settledRef.current || meta.settled))
                 return
+            if (settleParkedCall && pendingAnswerRef.current) {
+                finish(pendingAnswerRef.current)
+                return
+            }
             // The integration-detail lookup that picks the real auth mode hasn't resolved yet —
             // proceeding here would send the agent's raw (possibly wrong, e.g. "oauth" for a
             // toolkit that only supports api_key) hint. The button is disabled for this same
@@ -269,14 +318,16 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
             if (modeResolvingRef.current) return
             setErrorText(null)
             setPhase("connecting")
+            // Opened inside the tap: WebKit blocks `window.open` after an await, so /m never got a popup.
+            const popup = window.open("", oauthWindowName, consentPopupFeatures(window))
+            const closePopup = () => {
+                try {
+                    popup?.close()
+                } catch {
+                    // best effort
+                }
+            }
             try {
-                const result = await handleCreate({slug, name: slug, mode})
-                if (settleParkedCall && !activeRef.current) return
-                const redirectUrl =
-                    typeof result.connection?.data?.redirect_url === "string"
-                        ? result.connection.data.redirect_url
-                        : undefined
-
                 const onSuccess = () => {
                     if (settleParkedCall && !activeRef.current) return
                     invalidate()
@@ -287,22 +338,48 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
                     }
                 }
 
-                if (!redirectUrl) {
-                    // No OAuth step (e.g. api_key created inline): the connection already exists.
+                const existing = await findExistingConnection(integration, slug)
+                if (settleParkedCall && !activeRef.current) {
+                    closePopup()
+                    return
+                }
+                if (existing?.id && isConnectionValid(existing)) {
+                    // Authorized on an earlier attempt: nothing left to do.
+                    closePopup()
                     onSuccess()
                     return
                 }
 
-                const popup = window.open(
-                    redirectUrl,
-                    oauthWindowName,
-                    "width=600,height=700,popup=yes",
-                )
-                if (!popup) {
-                    setPhase("error")
-                    setErrorText("Couldn’t open the connection window. Allow popups and retry.")
+                // A pending row is re-initiated in place (fresh redirect_url, same row).
+                const result = existing?.id
+                    ? await handleRefresh(existing.id)
+                    : await handleCreate({slug, name: slug, mode})
+                if (settleParkedCall && !activeRef.current) {
+                    closePopup()
                     return
                 }
+                const redirectUrl =
+                    typeof result.connection?.data?.redirect_url === "string"
+                        ? result.connection.data.redirect_url
+                        : undefined
+
+                if (!redirectUrl) {
+                    // No OAuth step (e.g. api_key created inline): the connection already exists.
+                    closePopup()
+                    onSuccess()
+                    return
+                }
+
+                if (!popup) {
+                    // Terminal like a create failure: settle so the run resumes, not park it.
+                    const message = "Couldn’t open the connection window. Allow popups and retry."
+                    setPhase("error")
+                    setErrorText(message)
+                    if (settleParkedCall)
+                        finish({connected: false, integration, slug, reason: message})
+                    return
+                }
+                popup.location.href = redirectUrl
                 popupRef.current = popup
 
                 const apiOrigin = agentaApiOrigin()
@@ -365,6 +442,7 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
                     }
                 }
             } catch (err) {
+                closePopup()
                 if (settleParkedCall && !activeRef.current) return
                 const message = extractConnectErrorMessage(err)
                 // A create failure is terminal for the parked call: settle so the run resumes; for a
@@ -378,6 +456,7 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
             phase,
             meta.settled,
             handleCreate,
+            handleRefresh,
             slug,
             mode,
             invalidate,
@@ -391,19 +470,18 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
     // Explicit cancel while the popup is open: settle the parked call as cancelled (or, when the
     // call is already settled — a manual retry — just stop).
     const cancel = useCallback(() => {
+        if (pendingAnswerRef.current) return
         teardown()
         if (!settledRef.current && !meta.settled)
             finish({connected: false, integration, slug, reason: "cancelled"})
         else setPhase("idle")
     }, [finish, teardown, integration, slug, meta.settled])
 
-    // The user's "Not now": a structured refusal (NOT an error), so the run resumes and the agent
-    // can respond gracefully / offer an alternative. Distinct from "cancelled" (abandoned popup) so
-    // the agent can tell an explicit decline from a mishap.
+    // The user's "Not now" — see `declinedConnectOutput`.
     const decline = useCallback(() => {
-        if (settledRef.current || meta.settled) return
-        finish({connected: false, integration, slug, reason: "declined"})
-    }, [finish, integration, slug, meta.settled])
+        if (settledRef.current || meta.settled || pendingAnswerRef.current) return
+        finish(declinedConnectOutput(meta.input))
+    }, [finish, meta.input, meta.settled])
 
     return {
         integration,

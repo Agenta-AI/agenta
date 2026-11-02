@@ -27,5 +27,6 @@
   },
   "sessionId": "sess-42",
   "model": "gpt-5.5",
-  "traceId": "trace-abc"
+  "traceId": "trace-abc",
+  "sandbox": "inprocess"
 }

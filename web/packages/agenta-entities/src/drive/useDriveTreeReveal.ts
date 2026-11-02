@@ -44,21 +44,13 @@ export function useDriveTreeReveal({
         })
     }, [selectedPath, selectedIsFolder])
 
-    // …then scroll the revealed row into view. Read the LIVE index via a ref (not deps) so this fires
-    // only on a selection change, not on every unrelated expand; retry across a few frames because the
-    // row appears only after the expand above re-flattens the tree.
-    const indexByPathRef = useRef(indexByPath)
-    indexByPathRef.current = indexByPath
+    // …then scroll the revealed row into view, once per selection, whenever its row first exists —
+    // that can be several fetches later when the ancestors load lazily or a filter has to flip.
+    const scrolledFor = useRef<string | null>(null)
+    const index = selectedPath ? indexByPath.get(selectedPath) : undefined
     useEffect(() => {
-        if (!selectedPath) return
-        let raf = 0
-        let tries = 0
-        const scroll = () => {
-            const idx = indexByPathRef.current.get(selectedPath)
-            if (idx != null) treeVirtualizer.scrollToIndex(idx, {align: "auto"})
-            else if (tries++ < 5) raf = requestAnimationFrame(scroll)
-        }
-        raf = requestAnimationFrame(scroll)
-        return () => cancelAnimationFrame(raf)
-    }, [selectedPath, treeVirtualizer])
+        if (!selectedPath || index == null || scrolledFor.current === selectedPath) return
+        scrolledFor.current = selectedPath
+        treeVirtualizer.scrollToIndex(index, {align: "auto"})
+    }, [selectedPath, index, treeVirtualizer])
 }

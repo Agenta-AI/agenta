@@ -6,39 +6,41 @@ import {
     categorySlug,
     type AgentStarterTemplate,
 } from "@agenta/entities/workflow"
-import {TemplateGallery} from "@agenta/home-ui"
+import {TEMPLATE_GALLERY_COPY, TemplateGallery} from "@agenta/home-ui"
 import {PageLayout} from "@agenta/ui"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
-import {App} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
+import {useAgentTemplateCatalog} from "@/oss/components/TemplateStrip/hooks/useAgentTemplateCatalog"
 import {urlAtom} from "@/oss/state/url"
 
-import {BROWSE_RAIL_MODE, TEMPLATES_GALLERY} from "../../assets/constants"
-import TemplateSetupDrawer, {type TemplateSetupResult} from "../TemplateSetupDrawer"
+import {BROWSE_RAIL_MODE} from "../../assets/constants"
 
 /**
  * The templates gallery route: the SHARED gallery (categories + search + card sections) under this
  * app's page chrome. What stays here is this app's — the `?category=` deep link, the
- * detail-page navigation a card click opens, and the setup drawer.
+ * detail-page navigation a card click opens.
  *
  * `BROWSE_RAIL_MODE` picks the shell: by default the page owns the title and gutters and the
  * gallery renders inside that column (#5846); opt in and it goes back to the bled-to-the-edge rail.
  */
 const TemplatesGalleryPage = () => {
     const router = useRouter()
-    const {message} = App.useApp()
     const {baseAppURL} = useAtomValue(urlAtom)
     const [active, setActive] = useState(ALL_TEMPLATES_CATEGORY)
+    // The shared gallery shows the catalog's loading and error states itself; the page only needs
+    // the list to resolve the category deep link.
+    const {templates} = useAgentTemplateCatalog()
 
-    // Deep link: `?category=engineering` opens with that rail item active.
+    // Deep link: `?category=engineering` opens with that rail item active. The slug resolves
+    // against the categories the catalog has, so it re-resolves once the catalog loads.
     useEffect(() => {
         if (!router.isReady) return
         const slug = router.query.category
-        setActive(categoryFromSlug(Array.isArray(slug) ? slug[0] : slug))
-    }, [router.isReady, router.query.category])
+        setActive(categoryFromSlug(Array.isArray(slug) ? slug[0] : slug, templates))
+    }, [router.isReady, router.query.category, templates])
 
     const handleCategoryChange = useCallback(
         (category: string) => {
@@ -67,33 +69,14 @@ const TemplatesGalleryPage = () => {
         [router, baseAppURL],
     )
 
-    // TODO(Phase B): create the ephemeral draft from the template + open the playground.
-    const [setupTemplate, setSetupTemplate] = useState<AgentStarterTemplate | null>(null)
-    const handleTemplateCreate = useCallback(
-        ({template, name}: TemplateSetupResult) => {
-            setSetupTemplate(null)
-            message.info(`Create "${name}" from ${template.name} — wiring in the next phase`)
-        },
-        [message],
-    )
-
-    const setupDrawer = (
-        <TemplateSetupDrawer
-            template={setupTemplate}
-            open={!!setupTemplate}
-            onClose={() => setSetupTemplate(null)}
-            onCreate={handleTemplateCreate}
-        />
-    )
-
     if (!BROWSE_RAIL_MODE)
         return (
             // The page's own title, description and gutters (#5846), so the gallery shares one
             // column width with the rest of the app; the categories and search sit inside it.
             <PageLayout
                 className={clsx(pageContentWidthClass, "grow min-h-0")}
-                title={TEMPLATES_GALLERY.title}
-                description={TEMPLATES_GALLERY.subtitle}
+                title={TEMPLATE_GALLERY_COPY.title}
+                description={TEMPLATE_GALLERY_COPY.subtitle}
             >
                 {/* No `title`/`subtitle` here — `PageLayout` carries them in the toolbar layout. */}
                 <TemplateGallery
@@ -101,10 +84,8 @@ const TemplatesGalleryPage = () => {
                     category={active}
                     onCategoryChange={handleCategoryChange}
                     onSelectTemplate={handleSelectTemplate}
-                    searchPlaceholder={TEMPLATES_GALLERY.searchPlaceholder}
+                    searchPlaceholder={TEMPLATE_GALLERY_COPY.searchPlaceholder}
                 />
-
-                {setupDrawer}
             </PageLayout>
         )
 
@@ -115,12 +96,10 @@ const TemplatesGalleryPage = () => {
                 category={active}
                 onCategoryChange={handleCategoryChange}
                 onSelectTemplate={handleSelectTemplate}
-                title={TEMPLATES_GALLERY.title}
-                subtitle={TEMPLATES_GALLERY.subtitle}
-                searchPlaceholder={TEMPLATES_GALLERY.searchPlaceholder}
+                title={TEMPLATE_GALLERY_COPY.title}
+                subtitle={TEMPLATE_GALLERY_COPY.subtitle}
+                searchPlaceholder={TEMPLATE_GALLERY_COPY.searchPlaceholder}
             />
-
-            {setupDrawer}
         </PageLayout>
     )
 }

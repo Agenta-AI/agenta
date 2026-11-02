@@ -6,8 +6,8 @@ projects may legitimately hold the same one. Before the fix every lock key was
 could kill, steal, or read project B's live turn by supplying B's session_id.
 
 These tests pin the boundary at the lock layer: identical session_ids in different projects must
-never touch each other's keys. Uses the hand-rolled fake from test_owner_claim.py's rationale
-(this env's fakeredis has no `lupa`, so no real EVAL).
+never touch each other's keys. Uses a hand-rolled fake because this env's fakeredis has no
+`lupa`, so no real EVAL.
 """
 
 from unittest.mock import patch
@@ -19,17 +19,20 @@ from oss.src.dbs.redis.sessions.contract import (
     alive_key,
     attached_key,
     displaced_channel,
-    owner_key,
     running_key,
+    turn_bound_key,
 )
 from oss.src.dbs.redis.sessions.locks import (
     acquire_alive,
-    claim_owner,
+    acquire_running,
+    bind_turn,
     force_cancel_alive,
-    force_clear_owner,
     get_alive_owner,
-    get_owner,
+    get_running_owner,
     get_session_liveness,
+    get_turn_binding,
+    is_turn_superseded,
+    reconcile_stopped_turn,
 )
 
 
@@ -39,11 +42,12 @@ _TENANT_B = "proj-bbbb"
 
 
 class _FakeRedis:
-    """GET/SET/DELETE/EXPIRE/TTL + CLAIM_OWNER_LUA / RELEASE_IF_OWNER_LUA semantics."""
+    """GET/SET/DELETE/EXPIRE/TTL + the session Lua scripts the lock layer runs."""
 
     def __init__(self):
         self._values: dict[str, bytes] = {}
         self._ttl: dict[str, int] = {}
+        self.now_ms = 1_000_000
 
     @staticmethod
     def _norm(key) -> str:
@@ -65,12 +69,20 @@ class _FakeRedis:
             self._ttl[k] = ex
         return True
 
-    async def delete(self, key):
+    async def getex(self, key, ex=None):
         k = self._norm(key)
-        existed = k in self._values
-        self._values.pop(k, None)
-        self._ttl.pop(k, None)
-        return 1 if existed else 0
+        if ex and k in self._values:
+            self._ttl[k] = ex
+        return self._values.get(k)
+
+    async def delete(self, *keys):
+        deleted = 0
+        for key in keys:
+            k = self._norm(key)
+            deleted += 1 if k in self._values else 0
+            self._values.pop(k, None)
+            self._ttl.pop(k, None)
+        return deleted
 
     async def expire(self, key, ttl):
         k = self._norm(key)
@@ -82,25 +94,114 @@ class _FakeRedis:
     async def ttl(self, key):
         return self._ttl.get(self._norm(key), -2)
 
+    async def time(self):
+        return divmod(self.now_ms * 1000, 1_000_000)
+
     async def publish(self, channel, payload):
         return 0
 
     async def eval(self, script, numkeys, *keys_and_args):
-        key = self._norm(keys_and_args[0])
+        keys = [self._norm(key) for key in keys_and_args[:numkeys]]
         argv = [self._norm(a) for a in keys_and_args[numkeys:]]
-        current = self._values.get(key)
-        current_s = current.decode() if current else None
-        if "DEL" in script:  # RELEASE_IF_OWNER_LUA
-            if current_s == argv[0]:
-                del self._values[key]
+        if "AGENTA_ACQUIRE_ALIVE_WITH_START" in script:
+            if keys[0] in self._values:
+                return 0
+            self._values[keys[0]] = argv[0].encode()
+            self._ttl[keys[0]] = int(argv[1])
+            if keys[1] not in self._values:
+                self._values[keys[1]] = str(self.now_ms).encode()
+            self._ttl[keys[1]] = int(argv[2])
+            return 1
+        if "AGENTA_DISPLACE_TURNS" in script:
+            alive = self._values.get(keys[0], b"").decode()
+            running = self._values.get(keys[1], b"").decode()
+            expected = argv[0]
+            arrived_at_ms = int(argv[1]) if argv[1] else None
+            running_only = argv[5] == "1"
+
+            def mismatches(owner: str) -> bool:
+                if not owner:
+                    return False
+                if expected:
+                    return owner != expected
+                started = self._values.get(f"{argv[3]}{owner}")
+                return bool(
+                    arrived_at_ms is not None
+                    and started is not None
+                    and int(started.decode()) > arrived_at_ms
+                )
+
+            if not running_only and mismatches(alive):
+                return [0, alive.encode()]
+            if (running_only or running != alive) and mismatches(running):
+                return [0, running.encode()]
+            seen = set()
+            displaced = (
+                (running, expected) if running_only else (alive, running, expected)
+            )
+            for turn_id in displaced:
+                if turn_id and turn_id not in seen:
+                    key = f"{argv[2]}{turn_id}"
+                    self._values[key] = b"1"
+                    self._ttl[key] = int(argv[4])
+                    seen.add(turn_id)
+            if not running_only or (alive and alive == running):
+                self._values.pop(keys[0], None)
+                self._ttl.pop(keys[0], None)
+            self._values.pop(keys[1], None)
+            self._ttl.pop(keys[1], None)
+            returned_alive = "" if running_only else alive
+            return [1, returned_alive.encode(), running.encode(), expected.encode()]
+        if "AGENTA_BEAT_BIND_TURN" in script:
+            if keys[0] in self._values:
+                self._ttl[keys[0]] = int(argv[3])
+                return [-1, None]
+            current = self._values.get(keys[1])
+            written, mine = 0, False
+            if current is None:
+                self._values[keys[1]] = argv[0].encode()
+                self._ttl[keys[1]] = int(argv[2])
+                current, written, mine = argv[0].encode(), 1, True
+            elif current.decode().startswith(argv[1]):
+                self._ttl[keys[1]] = int(argv[2])
+                mine = True
+            if mine and argv[4]:
+                self._values[keys[2]] = argv[4].encode()
+                self._ttl[keys[2]] = int(argv[5])
+            return [written, current]
+        if "AGENTA_BIND_TURN" in script:
+            current = self._values.get(keys[0])
+            if current is None:
+                self._values[keys[0]] = argv[0].encode()
+                self._ttl[keys[0]] = int(argv[2])
+                return [1, argv[0].encode()]
+            if current.decode().startswith(argv[1]):
+                self._ttl[keys[0]] = int(argv[2])
+            return [0, current]
+        if "AGENTA_CURRENT_TURN_ADMISSION" in script:
+            if self._values.get(keys[0], b"").decode() != argv[0]:
+                return None
+            admitted = self._values.get(keys[1])
+            if admitted is not None:
+                self._ttl[keys[1]] = int(argv[1])
+            return admitted
+        if "AGENTA_RECONCILE_STOPPED_TURN" in script:
+            self._values[keys[1]] = b"1"
+            self._ttl[keys[1]] = int(argv[1])
+            if self._values.get(keys[0], b"").decode() == argv[0]:
+                self._values.pop(keys[0], None)
+                self._ttl.pop(keys[0], None)
                 return 1
             return 0
-        # CLAIM_OWNER_LUA
-        if current_s is None or current_s == argv[0]:
-            self._values[key] = argv[0].encode()
-            self._ttl[key] = int(argv[1])
-            return argv[0]
-        return current_s
+
+        key = keys[0]
+        current = self._values.get(key)
+        current_s = current.decode() if current else None
+        assert "DEL" in script, "unexpected script"  # RELEASE_IF_OWNER_LUA
+        if current_s == argv[0]:
+            del self._values[key]
+            return 1
+        return 0
 
     async def aclose(self):
         return None
@@ -122,7 +223,13 @@ async def engine():
 
 @pytest.mark.parametrize(
     "builder",
-    [alive_key, running_key, attached_key, owner_key, displaced_channel],
+    [
+        alive_key,
+        running_key,
+        attached_key,
+        displaced_channel,
+        lambda project_id, session_id: turn_bound_key(project_id, session_id, "turn"),
+    ],
 )
 def test_same_session_in_two_projects_yields_distinct_keys(builder):
     assert builder(_TENANT_A, _SESSION) != builder(_TENANT_B, _SESSION)
@@ -166,58 +273,60 @@ async def test_tenant_cannot_read_another_tenants_liveness(engine):
 
 
 @pytest.mark.asyncio
-async def test_tenant_cannot_steal_another_tenants_owner_affinity(engine):
-    await claim_owner(
-        engine, project_id=_TENANT_B, session_id=_SESSION, replica_id="replica-b"
+async def test_tenant_cannot_take_or_read_another_tenants_turn_binding(engine):
+    await bind_turn(
+        engine,
+        project_id=_TENANT_B,
+        session_id=_SESSION,
+        turn_id="turn-1",
+        replica_id="replica-b",
+        replica_address="http://10.0.0.2:8765",
     )
 
-    # A claims the same session_id: it wins in ITS OWN namespace, not B's.
-    won_by_a = await claim_owner(
-        engine, project_id=_TENANT_A, session_id=_SESSION, replica_id="replica-a"
+    # A binds the same session and turn id: it wins in ITS OWN namespace, not B's.
+    binding, bound_now = await bind_turn(
+        engine,
+        project_id=_TENANT_A,
+        session_id=_SESSION,
+        turn_id="turn-1",
+        replica_id="replica-a",
+        replica_address="http://10.0.0.1:8765",
     )
-    assert won_by_a == "replica-a"
-    assert (
-        await get_owner(engine, project_id=_TENANT_B, session_id=_SESSION)
-    ) == "replica-b"
+    assert bound_now is True
+    assert binding.replica_id == "replica-a"
+    seen_by_b = await get_turn_binding(
+        engine, project_id=_TENANT_B, session_id=_SESSION, turn_id="turn-1"
+    )
+    assert seen_by_b is not None
+    assert seen_by_b.replica_id == "replica-b"
+    assert seen_by_b.replica_address == "http://10.0.0.2:8765"
 
 
 @pytest.mark.asyncio
-async def test_tenant_cannot_clear_another_tenants_owner(engine):
-    await claim_owner(
-        engine, project_id=_TENANT_B, session_id=_SESSION, replica_id="replica-b"
+async def test_durable_stop_reconciliation_preserves_alive_and_a_new_running_turn(
+    engine,
+):
+    await acquire_alive(
+        engine, project_id=_TENANT_A, session_id=_SESSION, turn_id="turn-old"
     )
-    await force_clear_owner(engine, project_id=_TENANT_A, session_id=_SESSION)
-
-    assert (
-        await get_owner(engine, project_id=_TENANT_B, session_id=_SESSION)
-    ) == "replica-b"
-
-
-# --------------------------------------------------------------------------- #
-# kill's owner drop (the 120s lockout)
-# --------------------------------------------------------------------------- #
-
-
-@pytest.mark.asyncio
-async def test_force_clear_owner_frees_affinity_for_any_replica(engine):
-    await claim_owner(
-        engine, project_id=_TENANT_A, session_id=_SESSION, replica_id="replica-a"
+    await acquire_running(
+        engine, project_id=_TENANT_A, session_id=_SESSION, turn_id="turn-new"
     )
-    # A non-stealing claim by another replica loses while the key survives.
-    assert (
-        await claim_owner(
-            engine, project_id=_TENANT_A, session_id=_SESSION, replica_id="replica-b"
-        )
-    ) == "replica-a"
 
-    previous = await force_clear_owner(
-        engine, project_id=_TENANT_A, session_id=_SESSION
+    released = await reconcile_stopped_turn(
+        engine,
+        project_id=_TENANT_A,
+        session_id=_SESSION,
+        turn_id="turn-old",
     )
-    assert previous == "replica-a"
 
-    # After a kill, the next replica may take it immediately (no OWNER_TTL wait).
+    assert released is False
     assert (
-        await claim_owner(
-            engine, project_id=_TENANT_A, session_id=_SESSION, replica_id="replica-b"
-        )
-    ) == "replica-b"
+        await get_alive_owner(engine, project_id=_TENANT_A, session_id=_SESSION)
+    ) == "turn-old"
+    assert (
+        await get_running_owner(engine, project_id=_TENANT_A, session_id=_SESSION)
+    ) == "turn-new"
+    assert await is_turn_superseded(
+        engine, project_id=_TENANT_A, session_id=_SESSION, turn_id="turn-old"
+    )

@@ -19,6 +19,11 @@ declare global {
 const buildEnv: Record<string, string | undefined> = {
     NEXT_PUBLIC_AGENTA_API_URL: process.env.NEXT_PUBLIC_AGENTA_API_URL,
     NEXT_PUBLIC_AGENTA_LICENSE: process.env.NEXT_PUBLIC_AGENTA_LICENSE,
+    NEXT_PUBLIC_AGENT_OVERVIEW: process.env.NEXT_PUBLIC_AGENT_OVERVIEW,
+    NEXT_PUBLIC_POSTHOG_API_KEY: process.env.NEXT_PUBLIC_POSTHOG_API_KEY,
+    NEXT_PUBLIC_CRISP_WEBSITE_ID: process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID,
+    NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY:
+        process.env.NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY,
     NEXT_PUBLIC_AGENTA_TOOLS_ENABLED: process.env.NEXT_PUBLIC_AGENTA_TOOLS_ENABLED,
     NEXT_PUBLIC_AGENTA_BILLING_ENABLED: process.env.NEXT_PUBLIC_AGENTA_BILLING_ENABLED,
     NEXT_PUBLIC_AGENT_CHAT_STEER: process.env.NEXT_PUBLIC_AGENT_CHAT_STEER,
@@ -27,7 +32,7 @@ const buildEnv: Record<string, string | undefined> = {
 }
 
 export function getEnv(key: string): string {
-    if (typeof window !== "undefined" && window.__env?.[key]) {
+    if (typeof window !== "undefined" && window.__env?.[key] !== undefined) {
         return window.__env[key] ?? ""
     }
     // `__env.js` first (runtime config wins), then the build-time value.

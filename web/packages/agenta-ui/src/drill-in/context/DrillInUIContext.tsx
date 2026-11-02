@@ -107,35 +107,43 @@ export interface WorkflowReferenceUI {
     typeLabel?: string
 }
 
-/** A selectable revision of a referenced workflow, for the variant-axis "pin a version" picker. */
-export interface WorkflowRevisionUI {
-    /** The version identifier emitted as `ReferenceToolConfig.version` (e.g. "3"). */
-    version: string
-    /** Optional label (commit message / name) shown next to the version. */
-    label?: string
+/** One workflow, resolved far enough for the picker to display it and bind to it. Both come from
+ *  the same revision: splitting them let a row show one revision while the reference bound another. */
+export interface WorkflowReferenceCatalogEntry {
+    /** Agent, chat, completion, custom or evaluator. Only agents belong in the Subagents section. */
+    type?: WorkflowReferenceType
+    /** The workflow this slug belongs to. A row's icon is keyed by workflow id. */
+    workflowId?: string
+    /** The model the agent runs on, for the row's meta line. */
+    model?: string
+    /** Provider display name, for the model's mark. */
+    provider?: string
+    /** Integration keys this agent has connected. */
+    integrations: string[]
 }
 
-/** A deployment environment a workflow can be referenced through (the environment axis). */
-export interface WorkflowEnvironmentUI {
-    slug: string
-    name?: string
+/** One subagent's configuration for the detail panel. Read-only there: it is managed on the
+ *  agent itself, and the calling agent only chooses to call it. */
+export interface SubagentDetail {
+    /** The workflow, so the detail can link to the agent's own page. */
+    workflowId?: string
+    /** The agent's own description, used as the seed for the calling agent's copy. */
+    description?: string
+    model?: string
+    /** Provider display key for the model's mark. */
+    provider?: string
+    /** One row per connected app, with the permission the agent granted it. */
+    integrations: {key: string; name?: string; logo?: string | null; permission?: string}[]
+    /** Skill names, shown as pills. */
+    skills: string[]
+    /** The agent's instruction file, when it has one. */
+    instructions?: {fileName: string; text: string; wordCount: number}
 }
 
-/**
- * What the WorkflowReferenceSelector emits when the author confirms a reference. Mirrors the
- * backend `ReferenceToolConfig`: an axis, the workflow slug, then either a pinned version
- * (variant axis) or an environment (environment axis).
- */
+/** What the picker emits when the author adds a subagent. The reference always follows the
+ *  target's latest revision, so the payload carries no version and no environment. */
 export interface WorkflowReferencePayload {
     slug: string
-    refBy: "variant" | "environment"
-    /** Selected variant id; variant axis only. Kept so "follow a variant's latest" (no pinned
-     * version) still identifies which variant to follow — without it the reference is ambiguous. */
-    variant?: string
-    /** Pinned workflow revision version; variant axis only, omitted = follow the variant's latest. */
-    version?: string
-    /** Environment slug; environment axis only. */
-    environment?: string
     /** Tool description the model sees (defaults to the workflow's own description). */
     description?: string
 }
@@ -191,28 +199,57 @@ export interface WorkflowReferenceBridge {
     /** Resolve the workflow's type-specific configuration (code / prompt / agent) for the
      * Configuration section. Optional; when absent or resolving null, the section is hidden. */
     resolveConfigPayload?: (workflow: WorkflowReferenceUI) => Promise<WorkflowConfigPayload | null>
-    /** List a workflow's revisions for the variant-axis "pin a version" picker. */
-    useWorkflowRevisions: (workflow: WorkflowReferenceUI | null) => {
-        revisions: WorkflowRevisionUI[]
-        isLoading: boolean
-    }
-    /** List a workflow's deployment environments for the environment axis. */
-    useWorkflowEnvironments: (workflow: WorkflowReferenceUI | null) => {
-        environments: WorkflowEnvironmentUI[]
-        isLoading: boolean
-    }
-    /**
-     * Resolve the reference type (agent/chat/completion/custom) for a batch of workflows.
-     * List items carry only role flags — the capability flags that determine type live on the
-     * revision URI — so type can't be derived synchronously from a list item. This reads each
-     * workflow's latest-revision URI (cached) and returns a slug→type map + a loading flag.
-     */
-    useWorkflowTypes: (workflows: WorkflowReferenceUI[]) => {
-        typeBySlug: Record<string, WorkflowReferenceType | undefined>
-        /** Finer-grained badge text per slug (e.g. an evaluator's kind), overriding the type label. */
-        labelBySlug?: Record<string, string | undefined>
+    /** Everything a reference surface needs for a batch of SLUGS, in one cached pass. Slugs, not
+     *  workflows: the project-wide list is lazily activated and stays empty until the picker opens. */
+    useWorkflowReferenceCatalog: (slugs: string[]) => {
+        bySlug: Record<string, WorkflowReferenceCatalogEntry | undefined>
+        /** Slugs whose revision fetch failed, so a caller can say so instead of showing nothing. */
+        failedSlugs: string[]
         loading: boolean
+        retry: () => void
     }
+    /** One subagent's configuration for the detail panel, cached so the header and the body share it.
+     *  Required, not optional: a hook that may be absent cannot be called without breaking hook order. */
+    useSubagentDetail: (slug: string) => {detail: SubagentDetail | null; loading: boolean}
+    /** A link to an agent's own page. Only the host knows its routes; without it the button hides. */
+    agentHref?: (workflowId: string) => string | null
+}
+
+/** Props the agent-config panel hands the injected skills picker (artboard 4b). */
+export interface SkillsPickerHostProps {
+    open: boolean
+    onClose: () => void
+    /** Skills already referenced by the agent: their embed slugs, with the pin when pinned. */
+    added: {slug: string; pinnedVersion?: string}[]
+    /** Append fully-built `@ag.embed` entries to the agent's skills list. */
+    onAdd: (entries: Record<string, unknown>[]) => void
+    /** Remove the embed entries whose referenced slug matches. */
+    onRemove: (slugs: string[]) => void
+}
+
+/**
+ * Bridge for the registry-backed "Add skill" flow. Injected as a COMPONENT so this package
+ * stays dependency-free: the implementation (registry list, create/upload/import drawers)
+ * lives in @agenta/skills-ui and is wired by each host's DrillInUIProvider. Parallels
+ * {@link GatewayToolsBridge}. Absent → the panel falls back to the inline-skill editor.
+ */
+export interface SkillsBridge {
+    enabled: boolean
+    PickerHost: ComponentType<SkillsPickerHostProps>
+    /** Registry head versions by embed slug (no "v" prefix) — the panel's pinned rows use
+     * it for the "vN available" nudge. A hook (required, not optional: hook order) that
+     * may answer {} while the registry list loads. */
+    useHeadVersions: () => Record<string, string>
+    /** Publish an INLINE skill package to the registry. Resolves with the `@ag.embed`
+     * entry that replaces the inline entry in place, or an error the caller surfaces.
+     * The migration path for pre-registry configs; runtime keeps accepting inline. */
+    publishInlineSkill: (
+        skill: Record<string, unknown>,
+    ) => Promise<{entry: Record<string, unknown>} | {error: string}>
+    /** Registry detail drawer for one skill, addressed by its embed slug. The panel opens
+     * it for project-owned embed refs instead of the raw JSON editor; absent (or an
+     * unresolvable slug) falls back to the JSON round-trip. */
+    DetailHost?: ComponentType<{open: boolean; onClose: () => void; slug: string | null}>
 }
 
 /**
@@ -335,11 +372,20 @@ export interface DrillInUIComponents {
         selfHostingGuideUrl?: string
     }
 
+    /** Host-owned permissions for package surfaces. Missing capabilities fail closed. */
+    permissions?: {canEditSecrets: boolean}
+
+    /** Adopt a workflow revision created by a package-owned configuration action. */
+    onWorkflowRevisionCommitted?: (revisionId: string) => void
+
     /** Gateway tools integration for the tool selector */
     gatewayTools?: GatewayToolsBridge
 
     /** Workflow-as-tool reference integration for the tool selector (#4860) */
     workflowReference?: WorkflowReferenceBridge
+
+    /** Registry-backed skills picker for the agent config's Skills section */
+    skills?: SkillsBridge
 
     /** Open a trace in the host application. */
     openTrace?: (params: {traceId: string; spanId?: string | null}) => void

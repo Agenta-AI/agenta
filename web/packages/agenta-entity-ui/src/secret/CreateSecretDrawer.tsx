@@ -20,8 +20,12 @@ export interface CreateSecretDrawerProps {
     onClose: () => void
     /** Raw header name the secret is for; seeds the Name when there is no server name. */
     headerName?: string
-    /** Server name; seeds the Name as `<SERVER>_API_KEY`. */
+    /** Server name; seeds the Name as `<SERVER>_<nameSuffix>`. */
     serverName?: string
+    /** What the secret is to the server. @default "API_KEY" */
+    nameSuffix?: string
+    /** Seeds the value, for a caller that built it (the MCP Basic helper). */
+    initialValue?: string
     /** Called with the persisted secret after a successful save. */
     onCreated: (row: SavedSecret) => void
     /** Stacks above the host drawer. @default 1100 */
@@ -36,16 +40,19 @@ export function CreateSecretDrawer({
     onClose,
     headerName,
     serverName,
+    nameSuffix = "API_KEY",
+    initialValue,
     onCreated,
     zIndex = 1100,
 }: CreateSecretDrawerProps) {
-    // Default to the server's API-key env var, falling back to the header name.
+    // Default to the server's env var for this secret, falling back to the header name.
     const serverEnv = toEnvVarName(serverName ?? "")
-    const suggestedName = serverEnv ? `${serverEnv}_API_KEY` : toEnvVarName(headerName ?? "")
+    const suggestedName = serverEnv ? `${serverEnv}_${nameSuffix}` : toEnvVarName(headerName ?? "")
 
     const controller = useSecretForm({
         open,
         initialName: suggestedName,
+        initialValue,
         onSaved: (row) => {
             onCreated(row)
             onClose()
@@ -60,7 +67,6 @@ export function CreateSecretDrawer({
             placement="right"
             width={600}
             zIndex={zIndex}
-            closeOnLayoutClick={false}
             // The header carries its own Back arrow — the built-in close would duplicate it.
             closable={false}
             destroyOnClose
@@ -99,7 +105,7 @@ export function CreateSecretDrawer({
             }
             styles={{body: {padding: 16}, footer: FOOTER_STYLE}}
         >
-            <SecretForm controller={controller} />
+            <SecretForm controller={controller} popupZIndex={zIndex + 1} />
         </EnhancedDrawer>
     )
 }

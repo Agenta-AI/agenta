@@ -3,15 +3,16 @@
  *
  * Settings has a table beside the drawer that already lists every connection, so there the drawer
  * is the catalog and nothing else. A playground has no such table: Connected sits above the
- * catalog and Subscriptions below it, and both stay pinned while the catalog scrolls between them.
+ * catalog and subscription cards below it, and both stay pinned while the catalog scrolls between
+ * them.
  *
- * Connected is one row per stored connection, folded into a single subtitle. Subscriptions is one
- * row per subscription × HARNESS pair — the unit models are configured for — because the same
- * ChatGPT plan read by Codex and by Pi runs two different model lists.
+ * Connected is one row per stored connection, folded into a single subtitle. The lower section
+ * holds the project's hosted ChatGPT and Claude cards, then one row per DEPLOYMENT-mounted
+ * subscription and harness pair.
  *
  * Design: providers-drawer-final/README.md §3 ("Connected"), §5 ("Subscriptions").
  */
-import {useMemo} from "react"
+import {useMemo, type ReactNode} from "react"
 
 import {
     connectedRowSubtitle,
@@ -26,7 +27,7 @@ import {
     SUBSCRIPTION_STATUS_QUERY_HARNESS,
     subscriptionStatusQueryAtomFamily,
 } from "@agenta/entities/workflow"
-import {ArrowSquareOut, CaretRight} from "@phosphor-icons/react"
+import {CaretRight} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {harnessMetaFor} from "../DrillInView/SchemaControls/harnessMeta"
@@ -105,48 +106,37 @@ const SubscriptionRow = ({pair, onSelect}: {pair: SubscriptionPair; onSelect: ()
 )
 
 /**
- * The row that closes the section: how a subscription gets set up at all.
- *
- * Overlapped Anthropic and OpenAI marks, because it stands for both. The whole row is the target —
- * there is nothing to configure here, only a guide to follow.
+ * An organization connection on a surface that cannot use it: shown so the user knows it exists,
+ * and disabled, because a prompt, an app or an evaluator runs on the project's connections only.
  */
-const SetupRow = ({docsUrl}: {docsUrl: string}) => (
-    <a
-        href={docsUrl}
-        target="_blank"
-        rel="noreferrer"
-        // box-border is load-bearing: preflight is off, and an <a> gets no UA border-box the way a
-        // <button> does, so `w-full` + `px-6` would measure 100% PLUS 48px and push docs off the edge.
-        className="box-border flex w-full items-center gap-3 px-6 py-2 no-underline hover:bg-colorFillQuaternary"
+const AgentsOnlyRow = ({connection}: {connection: ProviderConnection}) => (
+    <div
+        aria-disabled
+        className="box-border flex w-full cursor-not-allowed items-center gap-3 px-6 py-2 opacity-60"
     >
-        <span className="flex shrink-0 items-center">
-            {providerLogo("anthropic", "size-5 shrink-0 opacity-60")}
-            {providerLogo("openai", "-ml-2 size-5 shrink-0")}
-        </span>
-        <span className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate text-xs text-colorText">
-                Set up a Claude or ChatGPT subscription
-            </span>
-            <span className="truncate text-[11px] text-colorTextTertiary">
-                Self-hosted deployments only, for now
+        {providerLogo(connection.kind, "size-5 shrink-0")}
+        <span className="flex min-w-0 flex-1 items-center gap-2">
+            <span className="truncate text-xs text-colorText">{connection.name}</span>
+            <span className="shrink-0 rounded-control-sm bg-colorFillTertiary px-1.5 py-0.5 text-[11px] text-colorTextSecondary">
+                Organization
             </span>
         </span>
-        <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-field-sm text-btn-link hover:text-btn-link-hover">
-            docs
-            <ArrowSquareOut size={12} />
-        </span>
-    </a>
+        <span className="shrink-0 text-[11px] text-colorTextTertiary">Agents only</span>
+    </div>
 )
 
 export interface PlaygroundConnectedSectionProps {
     connections: ProviderConnection[]
     onSelect: (connection: ProviderConnection) => void
+    /** Organization connections this surface cannot use; listed disabled after the project's. */
+    organizationConnections?: ProviderConnection[]
 }
 
 /** What the project already has. Above the catalog: connected before connectable. */
 export const PlaygroundConnectedSection = ({
     connections,
     onSelect,
+    organizationConnections = [],
 }: PlaygroundConnectedSectionProps) => {
     const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(HARNESS_CATALOG_KEY))
 
@@ -167,7 +157,7 @@ export const PlaygroundConnectedSection = ({
         [connections, capabilities],
     )
 
-    if (!connections.length) return null
+    if (!connections.length && !organizationConnections.length) return null
 
     return (
         <div className="shrink-0">
@@ -180,50 +170,77 @@ export const PlaygroundConnectedSection = ({
                     onSelect={onSelect}
                 />
             ))}
+            {organizationConnections.length ? (
+                <>
+                    {organizationConnections.map((connection) => (
+                        <AgentsOnlyRow key={connection.id} connection={connection} />
+                    ))}
+                    <p className="m-0 px-6 pb-2 pt-1 text-[11px] text-colorTextTertiary">
+                        Organization connections work in agents only. Here, use a connection of this
+                        project.
+                    </p>
+                </>
+            ) : null}
         </div>
     )
 }
 
-export interface PlaygroundSubscriptionsSectionProps {
-    subscriptionDocsUrl: string
-    onSelectPair: (pair: SubscriptionPair) => void
-}
-
 /**
- * Below the catalog: nothing here is added from the drawer, so it closes the list.
+ * The logins this DEPLOYMENT mounts, as one row per subscription and harness pair.
  *
- * No status prose in the rows. A pair that is not `ready` produces no row at all — a green dot on
- * an openable row means it works, and everything short of that is what the setup row is for.
+ * Its own component so its poll only runs on a deployment that can mount a login at all. No status
+ * prose in the rows: a pair that is not `ready` produces no row, and a green dot means it works.
  */
-export const PlaygroundSubscriptionsSection = ({
-    subscriptionDocsUrl,
+const MountedSubscriptionRows = ({
     onSelectPair,
-}: PlaygroundSubscriptionsSectionProps) => {
+    hostedFamilies,
+}: {
+    onSelectPair: (pair: SubscriptionPair) => void
+    hostedFamilies?: ReadonlySet<string>
+}) => {
     // One poll for the whole deployment: the runner answers for EVERY harness in a single call, and
     // the shared key keeps this surface and the pickers on one TanStack query rather than three.
     const query = useAtomValue(subscriptionStatusQueryAtomFamily(SUBSCRIPTION_STATUS_QUERY_HARNESS))
     const pairs = useMemo(
-        () => subscriptionPairsFrom(query.data?.harnesses),
-        [query.data?.harnesses],
+        () => subscriptionPairsFrom(query.data?.harnesses, hostedFamilies),
+        [query.data?.harnesses, hostedFamilies],
     )
 
-    return (
-        <div className="shrink-0 border-0 border-t border-solid border-colorSplit">
-            <SectionLabel>Subscriptions</SectionLabel>
-            {pairs?.length ? (
-                pairs.map((pair) => (
-                    <SubscriptionRow
-                        key={pair.key}
-                        pair={pair}
-                        onSelect={() => onSelectPair(pair)}
-                    />
-                ))
-            ) : (
-                <p className="m-0 px-6 pb-1 text-field-sm text-colorTextSecondary">
-                    Use your Claude or ChatGPT plan in the playground — no API key needed.
-                </p>
-            )}
-            <SetupRow docsUrl={subscriptionDocsUrl} />
-        </div>
-    )
+    if (!pairs?.length) return null
+
+    return pairs.map((pair) => (
+        <SubscriptionRow key={pair.key} pair={pair} onSelect={() => onSelectPair(pair)} />
+    ))
 }
+
+export interface PlaygroundSubscriptionsSectionProps {
+    onSelectPair: (pair: SubscriptionPair) => void
+    /**
+     * The hosted subscription cards. Both sources are subscriptions, so they share one section;
+     * only these are connected from the drawer, so they come first. Required: they keep the
+     * section from rendering a border over nothing when nothing is mounted.
+     */
+    hostedCards: ReactNode
+    /** Whether this deployment can mount an operator login at all. */
+    showMounted?: boolean
+    /**
+     * The provider families the project holds a hosted subscription for. A mounted row of one of
+     * them says where it comes from in its name; every other mounted row is the plan name alone.
+     */
+    hostedFamilies?: ReadonlySet<string>
+}
+
+/** Below the catalog: nothing here is added from the drawer, so it closes the list. */
+export const PlaygroundSubscriptionsSection = ({
+    onSelectPair,
+    hostedCards,
+    showMounted = true,
+    hostedFamilies,
+}: PlaygroundSubscriptionsSectionProps) => (
+    <div className="shrink-0 border-0 border-t border-solid border-colorSplit">
+        <div className="flex flex-col gap-3 px-6 py-4">{hostedCards}</div>
+        {showMounted ? (
+            <MountedSubscriptionRows onSelectPair={onSelectPair} hostedFamilies={hostedFamilies} />
+        ) : null}
+    </div>
+)

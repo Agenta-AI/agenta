@@ -9,11 +9,63 @@ from typing import Optional, Dict, Any
 from uuid import UUID
 
 from oss.src.utils.logging import get_module_logger
+from oss.src.core.access.context import get_request_access
+from oss.src.core.access.dtos import ResourceKind, ResourceRef
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.service import get_access_service
 from oss.src.core.embeds.utils import resolve_embeds, create_universal_resolver
 from oss.src.core.embeds.dtos import ErrorPolicy, ResolutionInfo
 
 
 log = get_module_logger(__name__)
+
+EMBED_BOUNDARY = "embed"
+
+
+def _artifact_id_of(entity: Any) -> Optional[UUID]:
+    """The agent (artifact) id of a fetched workflow, application or evaluator
+    revision."""
+    for name in ("workflow_id", "application_id", "evaluator_id", "artifact_id"):
+        value = getattr(entity, name, None)
+        if value is not None:
+            return value
+    return None
+
+
+async def embedded_agent_visible(*, project_id: UUID, artifact_id: UUID) -> bool:
+    """Rules A1 and A2 for the current request's principal on an embedded agent.
+
+    Embeds resolve only inside a request (the resolve and retrieve routes, which the
+    SDK also calls at invoke with the run credential). The capability was checked by
+    the route, so only the resource rule runs: one cached read (`sharing_agent_access`),
+    no Postgres when warm. Without a request principal the agent is hidden (fail
+    closed)."""
+
+    access = get_request_access()
+    if access is None:
+        return False
+    resource = ResourceRef(kind=ResourceKind.AGENT, id=str(artifact_id))
+    denial = await get_access_service().resource_policy.evaluate(
+        principal=access.principal,
+        action=Permission.VIEW_WORKFLOWS,
+        project_id=project_id,
+        resource=resource,
+    )
+    if denial is None:
+        return True
+    log.info(
+        "[sharing] resource denied",
+        principal_kind=access.principal.kind.value,
+        principal_id=str(access.principal.id),
+        acting_user_id=str(access.acting_user_id),
+        project_id=str(project_id),
+        action=Permission.VIEW_WORKFLOWS.value,
+        resource_kind=resource.kind.value,
+        resource_id=resource.id,
+        reason=denial.value,
+        boundary=EMBED_BOUNDARY,
+    )
+    return False
 
 
 class EmbedsService:
@@ -52,6 +104,8 @@ class EmbedsService:
         Resolve embedded references in a configuration.
 
         Can handle ANY entity type - workflow, environment, application, evaluator.
+        An embedded agent (workflow, application or evaluator revision) the request's
+        principal may not read fails exactly like an unknown reference.
 
         Args:
             project_id: Project context
@@ -64,10 +118,20 @@ class EmbedsService:
         Returns:
             Tuple of (resolved configuration dict, ResolutionInfo metadata)
         """
+
+        async def entity_visible(entity: Any) -> bool:
+            artifact_id = _artifact_id_of(entity)
+            if artifact_id is None:
+                return True
+            return await embedded_agent_visible(
+                project_id=project_id, artifact_id=artifact_id
+            )
+
         # Create universal resolver with all available services
         resolver_callback = create_universal_resolver(
             project_id=project_id,
             include_archived=include_archived,
+            entity_visible=entity_visible,
             #
             workflows_service=self.workflows_service,
             environments_service=self.environments_service,

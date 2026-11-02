@@ -1,11 +1,19 @@
 import * as React from "react"
 
-import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "./tooltip"
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    type TooltipShortcut,
+    TooltipTrigger,
+} from "./tooltip"
 
 export interface SimpleTooltipProps {
     /** Tooltip body. Empty/undefined renders the child bare — antd `Tooltip title` semantics. */
     title?: React.ReactNode
     side?: React.ComponentProps<typeof TooltipContent>["side"]
+    /** Keyboard shortcut printed after `title` as `Kbd` caps, e.g. `["⌘", "K"]`. */
+    shortcut?: TooltipShortcut
     className?: string
     /** Must accept a forwarded ref (the trigger renders asChild). */
     children: React.ReactElement
@@ -31,13 +39,13 @@ export interface SimpleTooltipProps {
  *   (`dispatchSetState ← setRef ← … ← safelyDetachRef ← commitDeletionEffectsOnFiber`).
  *   Unresolved — do not assume the un-nesting above closed it.
  */
-export function SimpleTooltip({title, side, className, children}: SimpleTooltipProps) {
+export function SimpleTooltip({title, side, shortcut, className, children}: SimpleTooltipProps) {
     if (title == null || title === "") return children
     return (
         <TooltipProvider delayDuration={300}>
             <Tooltip>
                 <TooltipTrigger asChild>{children}</TooltipTrigger>
-                <TooltipContent side={side} className={className}>
+                <TooltipContent side={side} shortcut={shortcut} className={className}>
                     {title}
                 </TooltipContent>
             </Tooltip>

@@ -62,12 +62,16 @@ const metricField = (metrics: BucketMetrics, path: string, field: string): numbe
  * Map the spec-based analytics response onto the dashboard shape (AGE-3788). The old
  * `/tracing/spans/analytics` endpoint returned a success/error split per bucket
  * (`total` vs `errors`); the new endpoint returns per-metric aggregates keyed by
- * dotted spec path, so we reconstruct the dashboard figures:
- *   - total count   = `type.trace` count (root-span count per bucket)
- *   - failure count = `errors.cumulative` sum
+ * dotted spec path, so we reconstruct the dashboard figures. With trace focus the
+ * endpoint reads root spans only, and each root carries its trace's cumulative metrics:
+ *   - total count   = `type.trace` count (one root span per trace)
+ *   - failure count = `errors.cumulative` count: the traces that have at least one error.
+ *                     Not its sum: one exception is recorded again at every instrumented
+ *                     level it passes through, so the sum counts events, not traces.
  *   - success count = total − failures
- *   - cost / tokens = `costs|tokens.cumulative.total` sum (over all spans)
- *   - latency       = `duration.cumulative` sum / count (avg over all spans)
+ *   - cost / tokens = `costs|tokens.cumulative.total` sum over the root spans
+ *   - latency       = `duration.cumulative` sum / count (avg over the root spans)
+ *   - without cost  = total − `costs.cumulative.total` count: traces whose root has no cost
  */
 export function analyticsToDashboard(analytics: AnalyticsResponse, range: string): DashboardData {
     const buckets = analytics.buckets ?? []
@@ -78,19 +82,23 @@ export function analyticsToDashboard(analytics: AnalyticsResponse, range: string
     let totalTokens = 0
     let totalDurationMs = 0
     let totalDurationCount = 0
+    let withoutCostCount = 0
 
     const data = buckets.map((b) => {
         const m = b.metrics as BucketMetrics
 
         const cost = metricField(m, COST_PATH, "sum")
         const tokens = metricField(m, TOKENS_PATH, "sum")
-        const failure = metricField(m, ERRORS_PATH, "sum")
 
         const durationCount = metricField(m, DURATION_PATH, "count")
         // Prefer the trace-type root count; fall back to the duration sample
-        // count when the categorical metric is absent (e.g. span focus).
+        // count when the categorical metric is absent (e.g. older spans).
         const total = metricField(m, TRACE_TYPE_PATH, "count") || durationCount
+        // `errors.cumulative` is only written when it is not 0, so its count is the
+        // number of failed traces. Clamp in case the fallback total is smaller.
+        const failure = Math.min(total, metricField(m, ERRORS_PATH, "count"))
         const success = Math.max(0, total - failure)
+        const withoutCost = Math.max(0, total - metricField(m, COST_PATH, "count"))
 
         // `ag.metrics.duration.cumulative` is stored in MILLISECONDS, and the dashboard renders
         // latency with an "ms" suffix — so keep it in ms. (The legacy transform divided by 1000
@@ -103,6 +111,7 @@ export function analyticsToDashboard(analytics: AnalyticsResponse, range: string
         totalTokens += tokens
         totalDurationMs += durationMs
         totalDurationCount += durationCount
+        withoutCostCount += withoutCost
 
         return {
             timestamp: formatTick(b.timestamp, range),
@@ -119,10 +128,11 @@ export function analyticsToDashboard(analytics: AnalyticsResponse, range: string
     return {
         data,
         total_count: totalCount,
-        // Percentage, not a fraction — every render site formats it with a % suffix (#6019).
-        failure_rate: totalCount ? (errorCount / totalCount) * 100 : 0,
+        // A 0..1 fraction: every renderer (`formatPercent`) multiplies by 100 itself.
+        failure_rate: totalCount ? errorCount / totalCount : 0,
         total_cost: totalCost,
         avg_cost: totalCount ? totalCost / totalCount : 0,
+        without_cost_count: withoutCostCount,
         avg_latency: totalDurationCount ? totalDurationMs / totalDurationCount : 0, // ms
         total_tokens: totalTokens,
         avg_tokens: totalCount ? totalTokens / totalCount : 0,

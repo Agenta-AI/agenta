@@ -8,9 +8,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .errors import ToolConfigurationError
 from .models import (
+    AgentaToolsConfig,
     BuiltinToolConfig,
     ClientToolConfig,
     CodeToolConfig,
+    GatewayConnectionToolConfig,
     GatewayToolConfig,
     PlatformToolConfig,
     ReferenceToolConfig,
@@ -59,6 +61,32 @@ def _copy_tool_metadata(
     return result
 
 
+def _action_key_from_provider_action(
+    provider_action: Any, integration: Any
+) -> Optional[str]:
+    """The catalog tool key a legacy ``provider_action`` names, or ``None``.
+
+    ``provider_action`` holds the PROVIDER action id, which carries the integration as a
+    prefix (``GITHUB_GET_AN_ISSUE``). The ``action`` field holds the catalog key, which does
+    not (``GET_AN_ISSUE``), and the backend resolves a legacy reference by that key alone.
+    Copying the id across verbatim would name a tool no catalog carries, so strip the prefix
+    exactly as the catalog does when it derives the key.
+
+    "Exactly" includes the case rule. The catalog upper-cases the INTEGRATION to build the
+    prefix and then matches the raw provider id against it, so a lower-case prefix on the id
+    is not a prefix at all and stays part of the key. Matching case-insensitively here would
+    strip a prefix the catalog keeps, and turn a key that was already correct into one no
+    catalog holds.
+    """
+    if not isinstance(provider_action, str) or not provider_action:
+        return None
+    if isinstance(integration, str) and integration:
+        prefix = f"{integration.upper()}_"
+        if provider_action.startswith(prefix):
+            return provider_action[len(prefix) :]
+    return provider_action
+
+
 def coerce_tool_config(value: Any) -> ToolConfig:
     """Convert one supported legacy shape into canonical tool configuration."""
     if isinstance(
@@ -66,10 +94,12 @@ def coerce_tool_config(value: Any) -> ToolConfig:
         (
             BuiltinToolConfig,
             GatewayToolConfig,
+            GatewayConnectionToolConfig,
             CodeToolConfig,
             ClientToolConfig,
             ReferenceToolConfig,
             PlatformToolConfig,
+            AgentaToolsConfig,
         ),
     ):
         return value
@@ -86,13 +116,28 @@ def coerce_tool_config(value: Any) -> ToolConfig:
         data["type"] = "gateway"
         data.setdefault("provider", "composio")
 
+    # Pre-2026-08-27 ``gateway`` entries spelled the action ``provider_action``, the field
+    # name the discovery response uses. No migration ever rewrote them, so translate on
+    # read. The key is dropped either way: the arm forbids extras, so leaving it beside a
+    # canonical ``action`` would refuse the entry for the field it no longer needs.
+    if data.get("type") == "gateway":
+        provider_action = data.pop("provider_action", None)
+        if not data.get("action"):
+            action = _action_key_from_provider_action(
+                provider_action, data.get("integration")
+            )
+            if action:
+                data["action"] = action
+
     if data.get("type") in {
         "builtin",
         "gateway",
+        "gateway_connection",
         "code",
         "client",
         "reference",
         "platform",
+        "agenta_tools",
     }:
         return parse_tool_config(data)
 
@@ -107,17 +152,48 @@ def coerce_tool_config(value: Any) -> ToolConfig:
     raise ToolConfigurationError("Unsupported tool configuration shape", value=value)
 
 
+def _check_single_entries(tool_config: ToolConfig, seen: set[tuple[str, str]]) -> None:
+    if isinstance(tool_config, AgentaToolsConfig):
+        # Two maps would need a rule to combine them, and an empty one would stop meaning "off".
+        if ("agenta_tools", "") in seen:
+            raise ToolConfigurationError(
+                "Duplicate agenta_tools entry: an agent revision holds at most one"
+            )
+        seen.add(("agenta_tools", ""))
+        return
+    """One revision holds at most one connection entry per provider and integration.
+
+    Two entries for one integration would give the same tool key two policies with no rule
+    to choose between them. ``TOOL_CONFIG_ADAPTER`` cannot enforce it: that adapter
+    validates one entry at a time and never sees the list.
+    """
+    if not isinstance(tool_config, GatewayConnectionToolConfig):
+        return
+    key = (tool_config.connection.provider, tool_config.connection.integration)
+    if key in seen:
+        raise ToolConfigurationError(
+            f"Duplicate gateway connection entry for provider '{key[0]}' and "
+            f"integration '{key[1]}': an agent revision holds at most one"
+        )
+    seen.add(key)
+
+
 def coerce_tool_configs(
     values: Optional[Sequence[Any]],
     *,
     on_error: Literal["raise", "collect"] = "raise",
 ) -> ToolConfigParseResult:
-    """Convert legacy values, either raising or returning structured diagnostics."""
+    """Convert legacy values, either raising or returning structured diagnostics.
+
+    It is also the one entry point that sees a whole revision's list, so a rule that spans
+    entries is enforced here: see :func:`_check_single_entries`.
+    """
     if on_error not in {"raise", "collect"}:
         raise ValueError("on_error must be 'raise' or 'collect'")
 
     tool_configs: list[ToolConfig] = []
     diagnostics: list[ToolConfigDiagnostic] = []
+    seen_connections: set[tuple[str, str]] = set()
     for index, value in enumerate(values or []):
         if value is None:
             error = ToolConfigurationError(
@@ -127,7 +203,9 @@ def coerce_tool_configs(
             )
         else:
             try:
-                tool_configs.append(coerce_tool_config(value))
+                tool_config = coerce_tool_config(value)
+                _check_single_entries(tool_config, seen_connections)
+                tool_configs.append(tool_config)
                 continue
             except ToolConfigurationError as exc:
                 error = ToolConfigurationError(

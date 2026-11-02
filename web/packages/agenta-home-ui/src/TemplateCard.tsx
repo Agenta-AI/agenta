@@ -20,7 +20,9 @@ export const TemplateCard = ({template, onSelect}: TemplateCardProps) => {
         <button
             type="button"
             onClick={() => onSelect(template)}
-            className="group relative box-border flex h-full cursor-pointer flex-col gap-2.5 rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated p-5 pt-8 text-left transition-colors hover:border-colorBorder"
+            // `w-full min-w-0`: a flex container defaults to min-width:auto, so the card's own
+            // min-content width beat its grid track and cards overlapped their neighbours.
+            className="group relative box-border flex h-full w-full min-w-0 cursor-pointer flex-col gap-2.5 rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated p-5 pt-8 text-left transition-colors hover:border-colorBorder"
         >
             <span
                 aria-hidden

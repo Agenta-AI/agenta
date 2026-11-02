@@ -17,7 +17,11 @@
 import {useCallback, useMemo, useRef, useState} from "react"
 
 import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/state"
-import {subscriptionPairModelsAtom, type ProviderConnection} from "@agenta/entities/secret"
+import {
+    connectionNamespaceFrom,
+    subscriptionPairModelsAtom,
+    type ProviderConnection,
+} from "@agenta/entities/secret"
 import {
     agentModelCandidatesAtomFamily,
     loadAgentModelCandidates,
@@ -141,6 +145,10 @@ export function useOnboardingProviderSetup(
                               typeof currentConnection?.slug === "string"
                                   ? currentConnection.slug
                                   : null,
+                          namespace:
+                              currentConnection?.mode === "self_managed"
+                                  ? null
+                                  : connectionNamespaceFrom(currentConnection?.namespace),
                           harness: currentHarness,
                       }
                     : null
@@ -178,6 +186,7 @@ export function useOnboardingProviderSetup(
                     providerForModel(fresh.capabilities, harness, selection.modelId),
                 mode: selection.mode,
                 slug: selection.slug,
+                namespace: selection.namespace,
             })
             if (!next) return
             setConfiguration(entityId, next)

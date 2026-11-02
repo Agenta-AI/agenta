@@ -189,6 +189,9 @@ Consumer rules:
 - Delete on pickup and keep bytes in memory for the bounded export attempt.
 - Remember accepted sequence numbers so a repeated listing cannot forward one file twice.
 - Collect all bounded files available in the drain window before starting network sends.
+- Stop collecting early at the first listing that shows `<channelId>.done`, once every listed file
+  of the channel was read. Pi writes the marker after its final flush. Without the marker, collect
+  until the drain timeout.
 - Count a non-empty canonical file within the size limit as structurally accepted after pickup. The
   runner does not decode its protobuf body.
 - Count a batch as exported only after the collector returns success.

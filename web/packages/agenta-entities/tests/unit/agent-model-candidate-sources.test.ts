@@ -36,6 +36,19 @@ describe("resolveAgentModelCandidateSources", () => {
         expect(state.status).toBe("loading")
     })
 
+    it("waits for built-in endpoints so a credits-only project is not called keyless", () => {
+        const state = resolveAgentModelCandidateSources({
+            vaultRows: [],
+            capabilities,
+            subscriptionStatus: null,
+            subscriptionSettled: true,
+            showSubscriptions: true,
+            builtinSettled: false,
+        })
+
+        expect(state).toMatchObject({status: "loading", candidates: []})
+    })
+
     it("treats terminal runner status without harnesses as resolved and empty", () => {
         const state = resolveAgentModelCandidateSources({
             vaultRows,
@@ -72,5 +85,138 @@ describe("resolveAgentModelCandidateSources", () => {
         })
 
         expect(state).toMatchObject({status: "error", error})
+    })
+
+    it("reports a subscription check it could not make, rather than answering 'no models'", () => {
+        const error = new Error("Failed to fetch")
+        const state = resolveAgentModelCandidateSources({
+            // The shape behind the wrong banner: nothing in the vault, so every candidate would
+            // have to come from a subscription pair, and the check for those failed.
+            vaultRows: [],
+            capabilities,
+            subscriptionStatus: undefined,
+            subscriptionSettled: false,
+            subscriptionError: error,
+            showSubscriptions: true,
+        })
+
+        expect(state).toMatchObject({status: "error", error, candidates: []})
+        // `ready` here is what activated the connect-a-model gate and told the user to add a
+        // provider key when the real fault was that Agenta could not reach the runner.
+        expect(state.status).not.toBe("ready")
+    })
+
+    it("answers from the vault when the subscription check fails but is not needed", () => {
+        // The failure only changes the answer when nothing else is runnable. A project with a
+        // stored key has its answer already, and the pairs we could not read would have added
+        // more routes, never removed one.
+        const state = resolveAgentModelCandidateSources({
+            vaultRows,
+            capabilities,
+            subscriptionStatus: undefined,
+            subscriptionSettled: false,
+            subscriptionError: new Error("Failed to fetch"),
+            showSubscriptions: true,
+        })
+
+        expect(state.status).toBe("ready")
+        expect(state.candidates.length).toBeGreaterThan(0)
+    })
+
+    it("still answers 'no candidates' when the runner genuinely reports none", () => {
+        const state = resolveAgentModelCandidateSources({
+            vaultRows: [],
+            capabilities,
+            subscriptionStatus: null,
+            subscriptionSettled: true,
+            subscriptionError: undefined,
+            showSubscriptions: true,
+        })
+
+        expect(state).toMatchObject({status: "ready", candidates: []})
+    })
+
+    it("ignores a subscription failure once an answer is already in hand", () => {
+        // A background refetch that fails must not retract an answer the app already has.
+        const state = resolveAgentModelCandidateSources({
+            vaultRows,
+            capabilities,
+            subscriptionStatus: {runner: "unavailable", checked_at: null},
+            subscriptionSettled: true,
+            subscriptionError: new Error("Failed to fetch"),
+            showSubscriptions: true,
+        })
+
+        expect(state.status).toBe("ready")
+        expect(state.candidates).toHaveLength(1)
+    })
+
+    it("does not treat a subscription failure as fatal when subscriptions are off", () => {
+        const state = resolveAgentModelCandidateSources({
+            vaultRows,
+            capabilities,
+            subscriptionError: new Error("Failed to fetch"),
+            subscriptionSettled: true,
+            showSubscriptions: false,
+        })
+
+        expect(state.status).toBe("ready")
+    })
+})
+
+describe("a Claude subscription login", () => {
+    const claudeCapabilities = {
+        claude: {
+            providers: ["anthropic"],
+            deployments: ["direct"],
+            connection_modes: ["self_managed"],
+            model_selection: "id",
+            models: {anthropic: ["claude-sonnet-4-5"]},
+            default_models: {anthropic: ["claude-sonnet-4-5"]},
+        },
+    }
+    const claudeLogin = (id: string, loginState: string) => ({
+        id,
+        slug: id,
+        type: "subscription_provider",
+        title: "claude",
+        name: "Claude",
+        provider: "claude",
+        models: ["claude-sonnet-4-5"],
+        hasKey: false,
+        subscription: {provider: "claude", loginState},
+    })
+    const resolve = (rows: unknown[]) =>
+        resolveAgentModelCandidateSources({
+            vaultRows: rows as never,
+            capabilities: claudeCapabilities,
+            subscriptionStatus: null,
+            subscriptionSettled: true,
+            showSubscriptions: true,
+        })
+
+    it("is a runnable route with no provider key, so the add-a-key gate stays off", () => {
+        const state = resolve([claudeLogin("claude-main", "ready")])
+        expect(state.status).toBe("ready")
+        expect(state.candidates).toHaveLength(1)
+        expect(state.candidates[0]).toMatchObject({
+            source: "subscription",
+            mode: "self_managed",
+            harness: "claude",
+            slug: "claude-main",
+        })
+    })
+
+    it("still counts when a second login for the same provider is not signed in", () => {
+        // The accounts package allows more than one login per provider (contract 3.2, spec 2.4).
+        const state = resolve([
+            claudeLogin("claude-pending", "pending_login"),
+            claudeLogin("claude-main", "ready"),
+        ])
+        expect(state.candidates.map((candidate) => candidate.slug)).toEqual(["claude-main"])
+    })
+
+    it("is not a route until it is signed in", () => {
+        expect(resolve([claudeLogin("claude-main", "needs_login")]).candidates).toEqual([])
     })
 })

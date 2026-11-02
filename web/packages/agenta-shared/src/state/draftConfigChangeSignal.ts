@@ -26,8 +26,8 @@ export interface DraftConfigChangeSignal {
     summary?: string
     /** Friendly label for the config-pane banner, e.g. "Send email". */
     label?: string
-    /** The tool the change targeted, so the banner's Undo can revert it. */
-    toolName?: string
+    /** The tools the change targeted, so the banner's Undo can revert every one of them. */
+    toolNames?: string[]
     at: number
 }
 

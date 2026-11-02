@@ -10,18 +10,48 @@ metadata:
     app.kubernetes.io/component: supertokens
 spec:
   replicas: {{ include "agenta.supertokens.replicas" . }}
+  {{- with $supertokens.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- else }}
+  {{- /* Default: never take a pod down before its replacement is ready. The
+         Kubernetes default of 25% unavailable rounds to "the only pod" when a
+         workload runs one replica, which is a deliberate outage on every
+         rollout. */}}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  {{- end }}
   selector:
     matchLabels:
       {{- include "agenta.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: supertokens
   template:
     metadata:
+      {{- /* A single-replica pod that holds state: the cluster autoscaler consolidating its node
+             takes the whole component down. On GKE it evicted redis-volatile and supertokens
+             mid-traffic and every agent turn was refused until the replacement pod was ready.
+             The annotation makes the autoscaler skip that node for scale-down. It does not
+             block an operator drain. On GKE Autopilot it also DELAYS automatic node upgrades
+             for that node, and GKE may evict the pod anyway after about seven days, so it is a
+             strong preference, not a guarantee. It is inert where no autoscaler runs. Set
+             `$supertokens.safeToEvict: true` to opt out, or override the key through
+             `$supertokens.podAnnotations`. */}}
+      {{- $annotations := dict "cluster-autoscaler.kubernetes.io/safe-to-evict" (ternary "true" "false" (default false $supertokens.safeToEvict)) -}}
+      {{- $annotations = merge (deepCopy (default dict $supertokens.podAnnotations)) $annotations }}
+      annotations:
+        {{- toYaml $annotations | nindent 8 }}
       labels:
         {{- include "agenta.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: supertokens
     spec:
       {{- include "agenta.imagePullSecrets" . | nindent 6 }}
       serviceAccountName: {{ include "agenta.serviceAccountName" . }}
+      {{- if hasKey $supertokens "terminationGracePeriodSeconds" }}
+      terminationGracePeriodSeconds: {{ $supertokens.terminationGracePeriodSeconds }}
+      {{- end }}
       {{- with $supertokens.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -60,6 +90,16 @@ spec:
             - name: {{ $key }}
               value: {{ $val | quote }}
             {{- end }}
+            {{- /* extraEnv is a raw list of explicit Kubernetes env entries, so valueFrom works
+                   and names here override earlier chart entries. envFrom pulls whole Secrets or
+                   ConfigMaps, but Kubernetes uses those values only for names absent from env. */}}
+            {{- with $supertokens.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with $supertokens.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           startupProbe:
             httpGet:
               path: /hello
@@ -82,10 +122,17 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
+          {{- with $supertokens.lifecycle }}
+          lifecycle:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with $supertokens.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+      {{- with $supertokens.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
       {{- with $supertokens.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -97,5 +144,10 @@ spec:
       {{- with $supertokens.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- $spread := include "agenta.topologySpreadConstraints" (dict "root" $ "component" "supertokens" "key" "supertokens" "replicas" (include "agenta.supertokens.replicas" .)) }}
+      {{- if $spread }}
+      topologySpreadConstraints:
+        {{- $spread | nindent 8 }}
       {{- end }}
 {{- end }}

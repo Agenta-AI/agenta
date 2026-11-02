@@ -1,11 +1,12 @@
-import {useCallback, useEffect} from "react"
+import {useCallback} from "react"
 
+import {revealConfigPaneAtom} from "@agenta/chat/state"
 import {AgentOverviewBody} from "@agenta/entity-ui/agent"
+import {sessionRouteModes} from "@agenta/sessions/state"
 import {RichChatInput} from "@agenta/ui/rich-chat-input"
 import {useSetAtom} from "jotai"
 
 import {useStartAgentSession} from "@/oss/components/AgentChatSlice/hooks/useStartAgentSession"
-import {sessionRouteModes} from "@/oss/components/pages/sessions/assets/sessionRouteScope"
 import {useSessionCardVerbs} from "@/oss/components/pages/sessions/components/useSessionCardVerbs"
 import {
     SeedAttachButton,
@@ -15,12 +16,15 @@ import {
 import UsageSummary from "@/oss/components/UsageSummary"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import useURL from "@/oss/hooks/useURL"
-import {layoutFullHeightRequestAtom} from "@/oss/state/layout/fullHeight"
+
+import AgentChannelsCard from "./AgentChannelsCard"
 
 interface Props {
     appId: string
     /** Used only in the composer's placeholder, so a null name degrades to a generic prompt. */
     agentName?: string
+    /** Seeds the description of a new Slack app. */
+    agentDescription?: string | null
 }
 
 /**
@@ -35,21 +39,12 @@ interface Props {
  * it in the main column a waiting session sat below six rows of settings. The rail is also the
  * width the config rows were designed for — they come from the playground's panel, which is narrow.
  *
- * Columns scroll independently, as Home's do. They did not when this page held one list; with
- * Sessions and Automation runs both in the main column it outgrew the rail, and a whole-page
- * scroll meant losing the configuration while reading the sessions. The full-height frame is
- * requested rather than matched on the path, because this route also serves the prompt and
- * evaluator overviews, which still flow.
+ * The page scrolls as one. The columns used to scroll independently inside a bounded frame,
+ * which put two scrollbars on one page and left the rail and the reading column disagreeing
+ * about where the top was.
  */
-const AgentOverview = ({appId, agentName}: Props) => {
+const AgentOverview = ({appId, agentName, agentDescription}: Props) => {
     const startSession = useStartAgentSession()
-    // The layout can't tell an agent overview from a prompt one by its path, so this branch asks
-    // for the bounded frame and releases it on the way out.
-    const requestFullHeight = useSetAtom(layoutFullHeightRequestAtom)
-    useEffect(() => {
-        requestFullHeight(true)
-        return () => requestFullHeight(false)
-    }, [requestFullHeight])
 
     // "View all" stays on this agent's rail rather than dropping you on the project list with a
     // filter you then have to trust.
@@ -61,10 +56,12 @@ const AgentOverview = ({appId, agentName}: Props) => {
 
     const verbs = useSessionCardVerbs()
     const {goToPlayground} = usePlaygroundNavigation()
-    const openConfig = useCallback(
-        () => goToPlayground(undefined, {appId}),
-        [goToPlayground, appId],
-    )
+    const revealConfigPane = useSetAtom(revealConfigPaneAtom)
+    // Edit asks for the configuration, so it clears what hides it before navigating (#6381).
+    const openConfig = useCallback(() => {
+        revealConfigPane()
+        goToPlayground(undefined, {appId})
+    }, [goToPlayground, appId, revealConfigPane])
 
     const attachments = useSeedAttachments()
 
@@ -80,6 +77,13 @@ const AgentOverview = ({appId, agentName}: Props) => {
     return (
         <AgentOverviewBody
             agentId={appId}
+            channels={
+                <AgentChannelsCard
+                    appId={appId}
+                    agentName={agentName ?? undefined}
+                    agentDescription={agentDescription}
+                />
+            }
             sessionsHref={sessionsHref ?? ""}
             automationSessionsHref={automationSessionsHref}
             onEditConfig={openConfig}
@@ -100,12 +104,10 @@ const AgentOverview = ({appId, agentName}: Props) => {
                     }
                     // Leading, like the playground's — the footer's right edge belongs to send.
                     prefix={
-                        attachments.enabled ? (
-                            <SeedAttachButton
-                                files={attachments.files}
-                                onChange={attachments.setFiles}
-                            />
-                        ) : null
+                        <SeedAttachButton
+                            files={attachments.files}
+                            onChange={attachments.setFiles}
+                        />
                     }
                     size="comfortable"
                     minHeightClassName="min-h-20"

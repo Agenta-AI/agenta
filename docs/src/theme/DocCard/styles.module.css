@@ -1,17 +1,27 @@
+/* A doc card: bordered panel, title + one-line description. The Infima
+   .card/.padding--lg classes stay on the element for the theme's sake; the
+   values below override them. */
 .cardContainer {
-  --ifm-link-color: var(--ifm-color-emphasis-800);
-  --ifm-link-hover-color: var(--ifm-color-emphasis-700);
+  --ifm-link-color: var(--contentprimary);
+  --ifm-link-hover-color: var(--contentprimary);
   --ifm-link-hover-decoration: none;
-
-  box-shadow: 0 1.5px 3px 0 rgb(0 0 0 / 15%);
-  border: 1px solid var(--ifm-color-emphasis-200);
-  transition: all var(--ifm-transition-fast) ease;
-  transition-property: border, box-shadow;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px !important;
+  border: 1px solid var(--borderdefault);
+  border-radius: var(--radius-lg);
+  background-color: var(--bgdefault);
+  box-shadow: none;
+  transition:
+    border-color var(--ifm-transition-fast) ease,
+    background-color var(--ifm-transition-fast) ease;
 }
 
 .cardContainer:hover {
-  border-color: var(--ifm-color-primary);
-  box-shadow: 0 3px 6px 0 rgb(0 0 0 / 20%);
+  border-color: var(--borderdark);
+  background-color: var(--bgelevated1);
+  box-shadow: none;
 }
 
 .cardContainer *:last-child {
@@ -19,18 +29,17 @@
 }
 
 .cardTitle {
-  font-size: 15px !important;
-  font-weight: 500 !important;
-  line-height: 1.4 !important;
-}
-
-h2.cardTitle {
-  font-size: 15px !important;
-  font-weight: 500 !important;
-  line-height: 1.4 !important;
+  margin: 0;
+  font-size: 14px !important;
+  line-height: 20px !important;
+  font-weight: var(--ifm-font-weight-semibold) !important;
+  color: var(--contentprimary);
+  font-variant-emoji: no-emoji;
 }
 
 .cardDescription {
+  margin: 0;
   font-size: 13px !important;
-  color: var(--ifm-color-emphasis-700);
+  line-height: 18px;
+  color: var(--contentsecondary);
 }

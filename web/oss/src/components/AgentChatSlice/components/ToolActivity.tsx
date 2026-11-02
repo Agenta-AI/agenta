@@ -1,6 +1,6 @@
 import {memo, useMemo} from "react"
 
-import {formatToolValue, stripFence} from "@agenta/chat/assets"
+import {formatToolValue, unwrapToolUseError} from "@agenta/chat/assets"
 import {partToolName} from "@agenta/chat/model"
 import {
     expandedValueAtomFamily,
@@ -27,6 +27,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {extractCallDescription, resolveToolDisplay, type ToolDisplay} from "../assets/toolDisplay"
 import {
+    approvalVerdictText,
     groupLabelText,
     hasFailed,
     isNonFinalRunnerError,
@@ -53,10 +54,13 @@ const StatusIcon = ({part}: {part: ToolUIPart}) => {
         return <Prohibit size={13} className="shrink-0 text-colorTextTertiary" />
     if (state === "approval-requested")
         return <Wrench size={13} className="shrink-0 text-colorWarning" />
-    // An answered gate whose execution landed on a sibling part (cold-replay fresh id). Usually
-    // deduped away in AgentMessage; if it slips through, show it as approved — never a stuck spinner.
+    // An answered gate whose execution landed on a sibling part; the glyph must follow the verdict.
     if (state === "approval-responded")
-        return <CheckCircle size={13} className="shrink-0 text-colorTextTertiary" />
+        return approvalVerdictText(part) === "denied" ? (
+            <Prohibit size={13} className="shrink-0 text-colorTextTertiary" />
+        ) : (
+            <CheckCircle size={13} className="shrink-0 text-colorTextTertiary" />
+        )
     return <Spinner size={13} className="shrink-0 animate-spin text-colorPrimary" />
 }
 
@@ -142,9 +146,9 @@ const ToolRowView = memo(
             state === "approval-requested"
                 ? "Awaiting approval"
                 : state === "approval-responded"
-                  ? (part as {approval?: {approved?: boolean}}).approval?.approved === false
-                      ? "denied"
-                      : "approved"
+                  ? // Never claim an approval nobody can evidence: a replayed gate whose verdict is
+                    // unknown reads "responded", not "approved". This is a permission surface.
+                    approvalVerdictText(part)
                   : live && running
                     ? "running…"
                     : rowSummary(part, display)
@@ -241,7 +245,7 @@ const ToolRowView = memo(
                             {hasError ? (
                                 <IOBlock
                                     label={nonFinalError ? "note" : "error"}
-                                    value={stripFence(errorText)}
+                                    value={unwrapToolUseError(errorText)}
                                     danger={!nonFinalError}
                                 />
                             ) : hasOutput ? (
@@ -344,7 +348,15 @@ const ToolActivity = ({parts, isStreaming = false, detailed = false}: ToolActivi
 
     // ---- Settled: the quiet "Used N tools" line + expandable list ----
     const failed = parts.filter(hasFailed).length
-    const SummaryIcon = failed > 0 ? Warning : CheckCircle
+    // A denied call never ran, so the group must not read as a success either.
+    const denied = parts.filter(
+        (p) =>
+            (p.state as string) === "output-denied" ||
+            ((p.state as string) === "approval-responded" && approvalVerdictText(p) === "denied"),
+    ).length
+    const SummaryIcon = failed > 0 ? Warning : denied > 0 ? Prohibit : CheckCircle
+    const summaryTone =
+        failed > 0 ? "text-colorError" : denied > 0 ? "text-colorTextTertiary" : "text-colorSuccess"
 
     return (
         <div className="flex min-w-0 flex-col gap-1.5">
@@ -370,8 +382,8 @@ const ToolActivity = ({parts, isStreaming = false, detailed = false}: ToolActivi
                 />
                 <SummaryIcon
                     size={13}
-                    weight="fill"
-                    className={`shrink-0 ${failed > 0 ? "text-colorError" : "text-colorSuccess"}`}
+                    weight={denied > 0 && failed === 0 ? "regular" : "fill"}
+                    className={`shrink-0 ${summaryTone}`}
                 />
                 <span className="text-xs text-colorTextSecondary">
                     <GroupLabel parts={parts} />

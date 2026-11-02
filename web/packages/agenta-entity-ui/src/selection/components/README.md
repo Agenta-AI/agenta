@@ -26,19 +26,19 @@ The unified picker component that renders differently based on the `variant` pro
 ### Basic Usage
 
 ```tsx
-import { EntityPicker, type AppRevisionSelectionResult } from '@agenta/entity-ui'
+import { EntityPicker, type WorkflowRevisionSelectionResult } from '@agenta/entity-ui'
 
 // Cascading dropdowns
-<EntityPicker<AppRevisionSelectionResult>
+<EntityPicker<WorkflowRevisionSelectionResult>
   variant="cascading"
-  adapter="appRevision"
+  adapter="workflowRevision"
   onSelect={handleSelect}
 />
 
 // Breadcrumb navigation
-<EntityPicker<AppRevisionSelectionResult>
+<EntityPicker<WorkflowRevisionSelectionResult>
   variant="breadcrumb"
-  adapter="appRevision"
+  adapter="workflowRevision"
   onSelect={handleSelect}
   showSearch
   showBreadcrumb
@@ -209,7 +209,7 @@ function MyComponent() {
     const handleAdd = async () => {
         const selection = await open({
             title: "Select Entity",
-            allowedTypes: ["appRevision", "evaluatorRevision"],
+            allowedTypes: ["workflowRevision", "evaluator"],
         })
 
         if (selection) {
@@ -231,7 +231,7 @@ function MyModal({open, onClose}) {
         <EntitySelectorModal
             open={open}
             title="Select an App Revision"
-            allowedTypes={["appRevision"]}
+            allowedTypes={["workflowRevision"]}
             onSelect={(selection) => {
                 console.log("Selected:", selection)
                 onClose()
@@ -287,7 +287,6 @@ Displays the current navigation path with clickable items.
 
 ```tsx
 import {EntityBreadcrumb} from "@agenta/entity-ui"
-
 ;<EntityBreadcrumb
     path={[
         {id: "1", label: "My App"},
@@ -304,7 +303,6 @@ A single selectable item with optional children indicator.
 
 ```tsx
 import {EntityListItem} from "@agenta/entity-ui"
-
 ;<EntityListItem
     label="My App"
     labelNode={<CustomLabel />} // Optional rich label
@@ -323,7 +321,6 @@ Debounced search input.
 
 ```tsx
 import {SearchInput} from "@agenta/entity-ui"
-
 ;<SearchInput
     value={searchTerm}
     onChange={setSearchTerm}
@@ -382,7 +379,6 @@ Renders a single level as an Ant Design `Select`:
 
 ```tsx
 import {LevelSelect} from "@agenta/entity-ui"
-
 ;<LevelSelect level={levelState} onChange={handleChange} showLabel size="middle" />
 ```
 
@@ -392,7 +388,6 @@ Renders children in a popover:
 
 ```tsx
 import {ChildPopoverContent} from "@agenta/entity-ui"
-
 ;<ChildPopoverContent
     parentId={parent.id}
     parentLabel={parent.label}
@@ -438,8 +433,8 @@ Components support `instanceId` for state isolation:
 
 ```tsx
 // Two pickers with independent state
-<EntityPicker adapter="appRevision" variant="cascading" instanceId="picker-1" />
-<EntityPicker adapter="appRevision" variant="cascading" instanceId="picker-2" />
+<EntityPicker adapter="workflowRevision" variant="cascading" instanceId="picker-1" />
+<EntityPicker adapter="workflowRevision" variant="cascading" instanceId="picker-2" />
 ```
 
 ## Files

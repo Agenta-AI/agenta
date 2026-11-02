@@ -10,6 +10,7 @@
  * one place means a change to the /tools/call contract is a one-line edit, not several.
  */
 export type { ResolvedToolSpec, ToolCallbackContext } from "../protocol.ts";
+import type { GatewayCallContext } from "./gateway-policy.ts";
 
 /** Per-tool budget (ms) for the /tools/call round-trip. Surfaced as a tool error on timeout. */
 export const TOOL_CALL_TIMEOUT_MS = Number(
@@ -184,15 +185,26 @@ export interface CallAgentaToolOptions {
   signal?: AbortSignal;
   timeoutMs?: number;
   runKind?: string;
+  /**
+   * Private routing sent beside `data` for the two gateway call references (contracts section
+   * 6): the provider, the integration, the selected connection, and the tool key. The runner
+   * read every field from its resolved policy, so none of it is model input, and the API
+   * refuses a gateway call whose context is missing or incomplete.
+   */
+  context?: GatewayCallContext;
+  /**
+   * Rewrite the agent-error envelope carried by a business-level failure before it becomes the
+   * thrown reason. ONE caller uses it: the gateway seam, to drop close-key suggestions the
+   * agent may not run. Deliberately not a general result hook — it never sees a success body.
+   */
+  sanitizeErrorContent?: (content: string) => string;
 }
 
 function callbackFetchTimeoutMs(timeoutMs: number | undefined): number {
   // A positive spec timeout caps the server-side child run. The host fetch gets
   // a short grace window so digest/span work produced after the child ceiling
   // is not lost to an abort at the same deadline.
-  return timeoutMs && timeoutMs > 0
-    ? timeoutMs + 10_000
-    : TOOL_CALL_TIMEOUT_MS;
+  return timeoutMs && timeoutMs > 0 ? timeoutMs + 10_000 : TOOL_CALL_TIMEOUT_MS;
 }
 
 /**
@@ -208,7 +220,9 @@ export async function callAgentaTool(
   args: unknown,
   options: CallAgentaToolOptions = {},
 ): Promise<string> {
-  const headers: Record<string, string> = { "content-type": "application/json" };
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+  };
   if (authorization) headers["authorization"] = authorization;
   if (options.runKind) headers["x-agenta-run-kind"] = options.runKind;
 
@@ -222,7 +236,9 @@ export async function callAgentaTool(
       : timeoutSignal;
 
   const dbg = process.env.AGENTA_RUNNER_DEBUG_TOOLS ? console.error : undefined;
-  dbg?.(`[tool-call] -> ${callRef} POST ${endpoint} auth=${authorization ? "yes" : "no"}`);
+  dbg?.(
+    `[tool-call] -> ${callRef} POST ${endpoint} auth=${authorization ? "yes" : "no"}`,
+  );
 
   let response: Response;
   try {
@@ -236,18 +252,23 @@ export async function callAgentaTool(
           // Arguments as an object (not a JSON string) to avoid double-encoding.
           function: { name: callRef, arguments: args ?? {} },
         },
+        ...(options.context ? { context: options.context } : {}),
       }),
       signal: combined,
     });
   } catch (err) {
-    dbg?.(`[tool-call] !! ${callRef} transport error: ${err instanceof Error ? err.message : err}`);
+    dbg?.(
+      `[tool-call] !! ${callRef} transport error: ${err instanceof Error ? err.message : err}`,
+    );
     throw new Error(
       `tool call ${callRef} failed: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
 
   const { text: bodyText } = await readBoundedResponseText(response);
-  dbg?.(`[tool-call] <- ${callRef} HTTP ${response.status} body=${bodyText.slice(0, 300)}`);
+  dbg?.(
+    `[tool-call] <- ${callRef} HTTP ${response.status} body=${bodyText.slice(0, 300)}`,
+  );
   if (!response.ok) {
     // Keep the upstream response body server-side; the model gets only the status code
     // (mirrors tools/direct.ts). A non-2xx here is an infrastructure/config fault — a
@@ -269,7 +290,11 @@ export async function callAgentaTool(
   try {
     parsed = JSON.parse(bodyText);
   } catch {
-    return capToolResultText(bodyText, MAX_GATEWAY_RESULT_BYTES, GATEWAY_RESULT_STEERING_MESSAGE);
+    return capToolResultText(
+      bodyText,
+      MAX_GATEWAY_RESULT_BYTES,
+      GATEWAY_RESULT_STEERING_MESSAGE,
+    );
   }
 
   const content = parsed?.call?.data?.content;
@@ -321,9 +346,15 @@ export async function callAgentaTool(
       typeof status?.message === "string" && status.message
         ? `tool call ${callRef} failed: ${status.message}`
         : `tool call ${callRef} failed`;
+    // The only rewrite of a result body in this transport, and it edits one field of an error
+    // envelope. See `sanitizeErrorContent`.
+    const safeDetail =
+      detail && options.sanitizeErrorContent
+        ? options.sanitizeErrorContent(detail)
+        : detail;
     throw new Error(
       capToolResultText(
-        detail ? `${reason}\n${detail}` : reason,
+        safeDetail ? `${reason}\n${safeDetail}` : reason,
         MAX_GATEWAY_RESULT_BYTES,
         GATEWAY_RESULT_STEERING_MESSAGE,
       ),
@@ -331,10 +362,22 @@ export async function callAgentaTool(
   }
 
   if (typeof content === "string") {
-    return capToolResultText(content, MAX_GATEWAY_RESULT_BYTES, GATEWAY_RESULT_STEERING_MESSAGE);
+    return capToolResultText(
+      content,
+      MAX_GATEWAY_RESULT_BYTES,
+      GATEWAY_RESULT_STEERING_MESSAGE,
+    );
   }
   if (content != null) {
-    return capToolResultText(detail, MAX_GATEWAY_RESULT_BYTES, GATEWAY_RESULT_STEERING_MESSAGE);
+    return capToolResultText(
+      detail,
+      MAX_GATEWAY_RESULT_BYTES,
+      GATEWAY_RESULT_STEERING_MESSAGE,
+    );
   }
-  return capToolResultText(bodyText, MAX_GATEWAY_RESULT_BYTES, GATEWAY_RESULT_STEERING_MESSAGE);
+  return capToolResultText(
+    bodyText,
+    MAX_GATEWAY_RESULT_BYTES,
+    GATEWAY_RESULT_STEERING_MESSAGE,
+  );
 }

@@ -18,9 +18,13 @@ export interface SessionTurn {
     harness_kind: AgentaApi.HarnessKind;
     agent_session_id?: (string | null) | undefined;
     sandbox_id?: (string | null) | undefined;
-    references?: (AgentaApi.Reference[] | null) | undefined;
+    references?: (AgentaApi.SessionReference[] | null) | undefined;
     trace_id?: (string | null) | undefined;
     span_id?: (string | null) | undefined;
     start_time?: (string | null) | undefined;
     end_time?: (string | null) | undefined;
+    principal?: (AgentaApi.PrincipalRef | null) | undefined;
+    sender?: (AgentaApi.RunSender | null) | undefined;
+    context?: (AgentaApi.RunContext | null) | undefined;
+    approved_by?: (AgentaApi.RunApproval | null) | undefined;
 }

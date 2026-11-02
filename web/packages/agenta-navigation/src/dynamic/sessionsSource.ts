@@ -1,26 +1,41 @@
-import {queryInteractions, querySessions, type SessionStream} from "@agenta/entities/session"
+import {
+    livenessPollInterval,
+    querySessions,
+    querySessionsFlatPage,
+    type SessionStream,
+} from "@agenta/entities/session"
 import {
     agentWorkflowsListQueryStateAtom,
     appWorkflowsListQueryAtom,
     workflowMolecule,
 } from "@agenta/entities/workflow"
-import {sessionOpenTarget} from "@agenta/sessions/row"
-import {pinnedSessionIdsAtom} from "@agenta/sessions/state"
+import {isAutomationSession, sessionOpenTarget} from "@agenta/sessions/row"
+import {actionableInteractionsQueryOptions, pinnedSessionIdsAtom} from "@agenta/sessions/state"
 import {idleReadyAtom, projectIdAtom} from "@agenta/shared/state"
-import {atom} from "jotai"
+import {atom, type Getter} from "jotai"
 import {atomFamily} from "jotai-family"
-import {atomWithQuery} from "jotai-tanstack-query"
+import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
 import {MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "../constants"
 import {
+    applyManualOrder,
+    applyManualOrderByActivity,
+    SIDEBAR_AGENT_GROUP_ZONE,
+    SIDEBAR_STATUS_GROUP_ZONE,
+    sidebarManualOrderAtomFamily,
+    sidebarManualOrdersAtom,
+    sidebarReorderActiveAtom,
+    sidebarSessionZone,
+} from "../reorder"
+import {
     sidebarAlwaysOpenGroupsAtomFamily,
+    sidebarOpenFilterMenusAtomFamily,
     sidebarOpenGroupsAtomFamily,
     sidebarPopupGroupsAtomFamily,
 } from "../state"
 
 import {
     PINNED_GROUP_KEY,
-    groupingStartsFolded,
     sidebarSessionToggledGroupsAtomFamily,
     ACTIVITY_WINDOW_HOURS,
     sidebarSessionFiltersAtomFamily,
@@ -28,7 +43,7 @@ import {
     sidebarSessionFiltersDirtyAtomFamily,
     type SidebarSessionFilters,
 } from "./sessionFilters"
-import type {SidebarEntityGroup, SidebarEntityRef} from "./types"
+import type {SidebarEntityGroup, SidebarEntityRef, SidebarEntityReorder} from "./types"
 
 /** A session row as the sidebar needs it: enough to label it, dot it, and open it. */
 export interface SessionSidebarRef extends SidebarEntityRef {
@@ -42,16 +57,22 @@ export interface SessionSidebarRef extends SidebarEntityRef {
     agentName?: string | null
     /** A turn is in flight — the row spins. Resolved for rendered rows only. */
     running: boolean
+    /** A trigger-originated run, not a human chat — the row carries the automation glyph. */
+    isAutomation: boolean
     /** A human gate is open on this session. Resolved for grouped scopes only. */
     waiting?: boolean
     /** Deliberately hidden. The row fades and its menu drops the verbs that make no sense. */
     archived: boolean
+    /** Sharing (M3): the owner (null = ownerless). */
+    ownerUserId?: string | null
     /** Last activity, for the date buckets. */
     activityAt?: string | null
     /** Which heading this row sits under, resolved against the active `groupBy`. */
     groupKey?: string
     /** That heading's text. Carried here so the headings atom needs no second derivation. */
     groupLabel?: string
+    /** Where that heading sorts, ascending. Resolved with the bucket — see `sidebarSessionGroup`. */
+    groupRank?: number
 }
 
 /** Deliberately small — the sidebar shows the top of the list, and the sessions page owns
@@ -68,10 +89,6 @@ const SCOPE_SESSION_LIMIT: Record<string, number> = {
 }
 
 const scopeLimit = (scopeId: string) => SCOPE_SESSION_LIMIT[scopeId] ?? SIDEBAR_SESSION_LIMIT
-
-/** The fetched window, for a rail that renders all of it — so the two numbers cannot drift and
- * leave rows silently dropped between the request and the render. */
-export const sidebarSessionScopeLimit = scopeLimit
 
 /** Scopes whose rail groups and filters. Everything below is gated on this so a scope that does
  * neither issues exactly the request, and takes exactly the subscriptions, it always did. */
@@ -94,23 +111,20 @@ const requestFilters = (filters: SidebarSessionFilters) => {
         flags: Object.keys(flags).length ? flags : undefined,
         // The rail never lists archived sessions; the sessions page owns the archive.
         includeArchived: false,
-        // A SWAP, not a widening — the same contract the sessions page's toggle has: off lists
-        // what you started, on lists what your triggers ran. Mixing the two would bury the
-        // conversations you are having under a schedule that runs hourly. Both directions are the
-        // server's own `origin` predicate, so neither narrows a page after fetching it.
-        origin: filters.showAutomations ? ("trigger" as const) : undefined,
-        excludeOrigin: filters.showAutomations ? undefined : ("trigger" as const),
+        // Chat and automation SWAP the list; `all` mixes them. Every direction is the server's
+        // own `origin` predicate, so none of them narrows a page after fetching it.
+        origin: filters.type === "automation" ? ("trigger" as const) : undefined,
+        excludeOrigin: filters.type === "chat" ? ("trigger" as const) : undefined,
         oldest: hours ? new Date(Date.now() - hours * 3_600_000).toISOString() : undefined,
     }
 }
 
-/**
- * Poll only while something can still change: a row's dot is driven by `is_alive`, which the
- * server flips when the stream ends — with no request, the dot stays filled until you reload.
- * Stops once every row is idle, so a quiet rail costs nothing.
- */
-const livePollInterval = (rows: SessionStream[] | null | undefined) =>
-    (rows ?? []).some((row) => row.flags?.is_alive || row.flags?.is_running) ? 15_000 : false
+/** Slow enough to be background noise, quick enough to notice a run you did not start. */
+const IDLE_POLL_MS = 60_000
+
+/** Poll fast for running work and keep a slow baseline for cross-client discovery. */
+export const livePollInterval = (rows: SessionStream[] | null | undefined) =>
+    livenessPollInterval(rows, {idle: IDLE_POLL_MS})
 
 /**
  * One request per selected agent, merged — see `requestFilters` on why they cannot be one.
@@ -132,6 +146,109 @@ const queryByAgents = async (
     return [...byId.values()].sort((a, b) => activity(b) - activity(a))
 }
 
+/** `queryByAgents` over tail reads: any agent with more below it means the rail has more. */
+const walkByAgents = async (
+    agentIds: readonly string[],
+    run: (references: {id: string}[] | undefined) => Promise<SessionPageWalk>,
+): Promise<SessionPageWalk> => {
+    let more = false
+    const rows = await queryByAgents(agentIds, async (references) => {
+        const walk = await run(references)
+        more = more || walk.more
+        return walk.rows
+    })
+    return {rows: rows ?? [], more}
+}
+
+/**
+ * The largest `windowing.limit` the sessions query accepts. Above it the server answers 422, so a
+ * request that widens past this returns nothing at all rather than a truncated page.
+ */
+const MAX_SESSION_QUERY_LIMIT = 200
+
+/**
+ * The longest `session_ids` list the sessions query accepts. Above it the server answers 422 and
+ * the request returns nothing, so the id push-down has to stay inside it.
+ */
+const MAX_SESSION_IDS_PER_QUERY = 500
+
+/**
+ * A tail read: the rows, and whether the server has more below the last one.
+ *
+ * `more` cannot be inferred from `rows.length`. Row validation drops a row the frontend schema
+ * does not know yet, so a full page can arrive short, and a length test would close paging one
+ * page early on the same unknown enum value that used to end the walk.
+ */
+interface SessionPageWalk {
+    rows: SessionStream[]
+    more: boolean
+}
+
+interface SessionPageWalkParams {
+    projectId: string
+    references: {id: string}[] | undefined
+    flags: {is_alive?: boolean; is_running?: boolean; is_attached?: boolean} | undefined
+    includeArchived: boolean | undefined
+    origin: Parameters<typeof querySessionsFlatPage>[0]["origin"]
+    excludeOrigin: Parameters<typeof querySessionsFlatPage>[0]["excludeOrigin"]
+    oldest: string | undefined
+    newest: string | undefined
+    sessionIds: string[] | undefined
+    pages: number
+    pageSize: number
+    abortSignal: AbortSignal | undefined
+}
+
+/**
+ * Read `pages` windows below `newest`, one fixed-size request at a time.
+ *
+ * The tail used to ask for `pageSize * pages` rows in a single request. Past the cap that is a
+ * 422, so the fifth page at size 50 came back empty, the rail collapsed to its head window, and
+ * no project with more than 250 sessions could reach an older one. Walking the server's own
+ * cursor (`windowing.next` with the boundary it belongs to) keeps every request inside the cap.
+ *
+ * Still one read of the WHOLE tail per load, not an appended page, because that is what lets a
+ * row archived elsewhere disappear from it. A short page means the list ended, so stop there
+ * rather than spending the remaining round trips on nothing.
+ */
+const walkSessionPages = async ({
+    pages,
+    pageSize,
+    newest,
+    ...rest
+}: SessionPageWalkParams): Promise<SessionPageWalk> => {
+    const limit = Math.min(pageSize, MAX_SESSION_QUERY_LIMIT)
+    const rows: SessionStream[] = []
+    let cursor: {newest?: string; next?: string} = {newest}
+    let more = false
+
+    for (let page = 0; page < pages; page++) {
+        const result = await querySessionsFlatPage({
+            ...rest,
+            newest: cursor.newest,
+            next: cursor.next,
+            limit,
+            order: "descending",
+            lowPriority: true,
+        })
+        // Throwing rather than returning what was read so far: a partial tail returned as a
+        // success is stored as the whole list and never retried, which silently loses every row
+        // below the page that failed.
+        if (!result) throw new Error(`Session page ${page + 1} of ${pages} failed`)
+        rows.push(...result.sessions)
+
+        const nextCursor = result.windowing
+        // `count` is what the server returned; `sessions` is what survived row validation, which
+        // drops a row the frontend schema does not know yet. Reading the survivors here would
+        // read one dropped row in a full page as the end of the list.
+        more = result.count >= limit && Boolean(nextCursor?.next)
+        if (!more) break
+        cursor = {newest: nextCursor!.newest ?? undefined, next: nextCursor!.next!}
+    }
+
+    return {rows, more}
+}
+
 /**
  * Carry the previous rows through a key change, but only inside the same project.
  *
@@ -139,12 +256,10 @@ const queryByAgents = async (
  * group does not blink empty mid-interaction; the second must not, because those rows belong to a
  * project you just left.
  */
-const keepPreviousDataWithinProject = (scopeId: string, projectId: string | null) =>
+const keepPreviousDataWithinProject = <T>(scopeId: string, projectId: string | null) =>
     scopeGroups(scopeId)
-        ? (
-              previous: SessionStream[] | null | undefined,
-              previousQuery?: {queryKey: readonly unknown[]},
-          ) => (previousQuery?.queryKey[1] === projectId ? previous : undefined)
+        ? (previous: T | undefined, previousQuery?: {queryKey: readonly unknown[]}) =>
+              previousQuery?.queryKey[1] === projectId ? previous : undefined
         : undefined
 
 /**
@@ -161,15 +276,28 @@ const sidebarWaitingIdsQueryAtomFamily = atomFamily((scopeId: string) =>
         const status = get(sidebarSessionFiltersAtomFamily(scopeId)).status
         // "Idle" needs the set too — to SUBTRACT it. A gated session is waiting, not idle.
         const needed = status === "waiting" || status === "idle"
+        // Read here: the jotai getter is not valid inside a `queryFn` TanStack runs later.
+        const queryClient = get(queryClientAtom)
         return {
             queryKey: ["sidebar-sessions-waiting", projectId],
-            queryFn: async ({signal}) => {
-                const rows = await queryInteractions({
-                    projectId: projectId ?? "",
-                    actionableOnly: true,
-                    abortSignal: signal,
-                })
+            queryFn: async () => {
+                // The shared gates flight, without this query's signal: aborting it would abort theirs.
+                const rows = await queryClient.fetchQuery(
+                    actionableInteractionsQueryOptions(projectId ?? ""),
+                )
+                // The interactions query applies no ORDER BY, so row order is not stable between
+                // executions. Both session queries put this array in their cache key, and a pure
+                // reorder would re-key them on every poll and re-fetch the whole tail. The server
+                // sorts the id list anyway, so ordering it here costs nothing.
+                //
+                // Truncated because the id push-down is the filter: a longer list is a 422 and the
+                // rail would show nothing at all rather than a subset. Sorting first makes which
+                // ids survive stable across polls. Paging closes on its own once the capped set
+                // runs out, since a short page ends the walk. Past 500 sessions gated at once the
+                // rail lists 500 of them; there is no server predicate to narrow it further.
                 return [...new Set((rows ?? []).map((row) => row.session_id))]
+                    .sort()
+                    .slice(0, MAX_SESSION_IDS_PER_QUERY)
             },
             enabled: Boolean(projectId) && (needed || scopeGroups(scopeId)),
             staleTime: 10_000,
@@ -197,7 +325,7 @@ const sidebarSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
                 filters.agentIds,
                 filters.status,
                 filters.activity,
-                filters.showAutomations,
+                filters.type,
                 waiting ? waitingIds : null,
             ],
             queryFn: ({signal}) =>
@@ -222,11 +350,198 @@ const sidebarSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
             // Without this every facet click is a cache miss that empties the group
             // mid-interaction. Held ONLY within a project: the key carries the project id too, so
             // an unconditional carry-over shows the previous project's sessions in a new one.
-            placeholderData: keepPreviousDataWithinProject(scopeId, projectId),
+            placeholderData: keepPreviousDataWithinProject<SessionStream[] | null>(
+                scopeId,
+                projectId,
+            ),
             staleTime: 30_000,
             refetchInterval: (query) => livePollInterval(query.state.data),
             refetchOnWindowFocus: true,
         }
+    }),
+)
+
+/** Each page is one more round trip on every tail read — stop before it hurts. */
+const MAX_SESSION_PAGES = 12
+
+/**
+ * What a page count and its frozen boundary belong to — change it and both are meaningless.
+ *
+ * The project is part of it. A count kept across a project switch renders the new project's whole
+ * list at once, and a boundary kept across one freezes the tail at a timestamp from a list you are
+ * no longer looking at. Both readers and the writer take it as a parameter rather than reading a
+ * project atom of their own, so a site left behind fails to compile instead of drifting.
+ */
+const filtersKey = (filters: SidebarSessionFilters, projectId: string | null) =>
+    [
+        projectId ?? "",
+        filters.agentIds.join(","),
+        filters.status,
+        filters.activity,
+        filters.type,
+    ].join("|")
+
+const sessionPageCountStateAtomFamily = atomFamily((_scopeId: string) =>
+    atom<{key: string; pages: number; boundary?: string}>({key: "", pages: 0}),
+)
+
+/**
+ * How many pages BEYOND the polling head the rail has asked for.
+ *
+ * Self-resetting: a stored count from another predicate reads as 0, so switching a facet drops
+ * you back to one page rather than firing a several-hundred-row request for a list you have not
+ * scrolled yet.
+ */
+export const sidebarSessionPageCountAtomFamily = atomFamily((scopeId: string) =>
+    atom(
+        (get) => {
+            const state = get(sessionPageCountStateAtomFamily(scopeId))
+            const key = filtersKey(
+                get(sidebarSessionFiltersAtomFamily(scopeId)),
+                get(projectIdAtom),
+            )
+            return state.key === key ? state.pages : 0
+        },
+        (get, set, next: {pages: number; boundary?: string}) => {
+            const key = filtersKey(
+                get(sidebarSessionFiltersAtomFamily(scopeId)),
+                get(projectIdAtom),
+            )
+            set(sessionPageCountStateAtomFamily(scopeId), {key, ...next})
+        },
+    ),
+)
+
+/**
+ * Where the tail starts, frozen when the first page is asked for.
+ *
+ * NOT re-read from the head: the head polls, so any new session shifts its oldest row, and a
+ * boundary taken live would re-key the tail query and refetch every loaded page on that tick.
+ * Frozen, the tail is fetched once per page and the head's churn stays the head's problem.
+ */
+const sidebarSessionBoundaryAtomFamily = atomFamily((scopeId: string) =>
+    atom((get) => {
+        const state = get(sessionPageCountStateAtomFamily(scopeId))
+        const key = filtersKey(get(sidebarSessionFiltersAtomFamily(scopeId)), get(projectIdAtom))
+        return state.key === key ? state.boundary : undefined
+    }),
+)
+
+/** Oldest activity in the head window — where the next page starts. */
+const oldestActivity = (rows: readonly SessionStream[]): string | undefined => {
+    let oldest: string | undefined
+    for (const row of rows) {
+        const at = row.updated_at ?? row.created_at
+        if (!at) continue
+        if (!oldest || at < oldest) oldest = at
+    }
+    return oldest
+}
+
+/**
+ * Sessions older than the polling head, one page per request.
+ *
+ * Deliberately NOT polled: a refetch interval on an accumulating list costs one request per page
+ * per tick. Liveness stays on the head, which every changed row re-enters — activity ordering
+ * means a session that just did something IS newest — so a stale copy down here always loses the
+ * dedupe to the fresh one above.
+ */
+const sidebarSessionsOlderQueryAtomFamily = atomFamily((scopeId: string) =>
+    atomWithQuery<SessionPageWalk>((get) => {
+        const projectId = get(projectIdAtom)
+        const filters = get(sidebarSessionFiltersAtomFamily(scopeId))
+        const pages = get(sidebarSessionPageCountAtomFamily(scopeId))
+        const {agentIds, flags, includeArchived, origin, excludeOrigin, oldest} =
+            requestFilters(filters)
+        const boundary = get(sidebarSessionBoundaryAtomFamily(scopeId))
+        const waiting = filters.status === "waiting"
+        const waitingQuery = get(sidebarWaitingIdsQueryAtomFamily(scopeId))
+        const waitingIds = waitingQuery.data ?? null
+        return {
+            // `projectId` stays at index 1: `keepPreviousDataWithinProject` reads that slot to
+            // tell a facet change from a project switch.
+            queryKey: [
+                "sidebar-sessions",
+                projectId,
+                "older",
+                filters.agentIds,
+                filters.status,
+                filters.activity,
+                filters.type,
+                boundary ?? null,
+                pages,
+                waiting ? waitingIds : null,
+            ],
+            queryFn: ({signal}) =>
+                walkByAgents(agentIds, (references) =>
+                    walkSessionPages({
+                        projectId: projectId ?? "",
+                        references,
+                        flags,
+                        includeArchived,
+                        origin,
+                        excludeOrigin,
+                        // The activity floor still applies; the boundary only narrows it further.
+                        oldest,
+                        newest: boundary,
+                        // The same id push-down the head does. Without it the tail asks for every
+                        // session older than the boundary, and the filter leaks on the second page.
+                        sessionIds: waiting ? (waitingIds ?? []) : undefined,
+                        pages,
+                        pageSize: scopeLimit(scopeId),
+                        abortSignal: signal,
+                    }),
+                ),
+            // Nothing to page until the head has landed, and no pages asked for yet.
+            enabled:
+                Boolean(projectId) &&
+                pages > 0 &&
+                Boolean(boundary) &&
+                (!waiting || waitingIds !== null),
+            placeholderData: keepPreviousDataWithinProject<SessionPageWalk>(scopeId, projectId),
+            staleTime: 30_000,
+            refetchOnWindowFocus: false,
+        }
+    }),
+)
+
+/**
+ * What the rail needs to page: whether more exist, whether a page is in flight, and how to ask.
+ *
+ * `loadMore` asks for one more page rather than appending a cursor page to the rows already held,
+ * so every reload re-reads the whole tail. That is what lets a row archived elsewhere disappear
+ * from it. `walkSessionPages` does the re-read as one fixed-size request per page.
+ */
+export const sidebarSessionPagingAtomFamily = atomFamily((scopeId: string) =>
+    atom((get) => {
+        const pages = get(sidebarSessionPageCountAtomFamily(scopeId))
+        const head = get(sidebarSessionsQueryAtomFamily(scopeId))
+        const older = get(sidebarSessionsOlderQueryAtomFamily(scopeId))
+        const pageSize = scopeLimit(scopeId)
+        const headFull = (head.data?.length ?? 0) >= pageSize
+        return {
+            hasMore:
+                pages < MAX_SESSION_PAGES && (pages === 0 ? headFull : Boolean(older.data?.more)),
+            isLoadingMore: older.isFetching,
+            isError: older.isError,
+        }
+    }),
+)
+
+/** Ask for one more page. No-op mid-drag: the engine caches every row's rect at dragstart. */
+export const loadMoreSidebarSessionsAtomFamily = atomFamily((scopeId: string) =>
+    atom(null, (get, set) => {
+        if (get(sidebarReorderActiveAtom)) return
+        const paging = get(sidebarSessionPagingAtomFamily(scopeId))
+        if (!paging.hasMore || paging.isLoadingMore) return
+        const pages = get(sidebarSessionPageCountAtomFamily(scopeId))
+        // The first page fixes the boundary off the head as it stands right now; later pages keep
+        // it, so the tail is not re-fetched every time the head polls.
+        const boundary =
+            get(sidebarSessionBoundaryAtomFamily(scopeId)) ??
+            oldestActivity(get(sidebarSessionsQueryAtomFamily(scopeId)).data ?? [])
+        if (!boundary) return
+        set(sidebarSessionPageCountAtomFamily(scopeId), {pages: pages + 1, boundary})
     }),
 )
 
@@ -252,7 +567,7 @@ const sidebarPinnedSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
                 pinnedIds,
                 filters.agentIds,
                 filters.status,
-                filters.showAutomations,
+                filters.type,
             ],
             // A pin is not exempt from the filters: filtering to one agent must not leave another
             // agent's pinned rows on top of the result.
@@ -272,7 +587,10 @@ const sidebarPinnedSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
                 ),
             enabled:
                 Boolean(projectId) && pinnedIds.length > 0 && (!waiting || waitingIds !== null),
-            placeholderData: keepPreviousDataWithinProject(scopeId, projectId),
+            placeholderData: keepPreviousDataWithinProject<SessionStream[] | null>(
+                scopeId,
+                projectId,
+            ),
             staleTime: 30_000,
             refetchInterval: (query) => livePollInterval(query.state.data),
             refetchOnWindowFocus: true,
@@ -295,7 +613,9 @@ const toSidebarRef = (row: SessionStream, pinned: Set<string>): SessionSidebarRe
         pinned: pinned.has(row.session_id),
         alive: Boolean(row.flags?.is_alive),
         archived: Boolean(row.archived_at),
+        ownerUserId: row.owner_user_id ?? null,
         running: Boolean(row.flags?.is_running),
+        isAutomation: isAutomationSession(row),
         activityAt: row.updated_at ?? row.created_at ?? null,
     }
 }
@@ -315,36 +635,53 @@ const toSidebarRef = (row: SessionStream, pinned: Set<string>): SessionSidebarRe
 export const localSessionRefsAtom = atom<SessionSidebarRef[]>([])
 
 /**
- * The agents that have been archived, or `null` while the catalog is still loading.
- *
- * Archiving is `deleted_at` on the workflow ref, the same field every other "is this agent gone"
- * read uses. `null` rather than an empty set while pending: an empty set would claim NOTHING is
- * archived and let the rows render before being pulled back out.
+ * Every agent the catalog still lists, or `null` while it loads. It excludes archived agents, so
+ * "absent here" IS "archived". Requires an UNPAGED catalog: a limit on `appWorkflowsListQueryAtom`
+ * would make every agent past the cap read as archived and lose its sessions.
  */
-const archivedAgentIdsAtom = atom<ReadonlySet<string> | null>((get) => {
+const liveAgentIdsAtom = atom<ReadonlySet<string> | null>((get) => {
     const query = get(appWorkflowsListQueryAtom)
     if (!query.data) return null
-    return new Set(
-        (query.data.refs ?? [])
-            .filter((ref: {deleted_at?: string | null}) => Boolean(ref.deleted_at))
-            .map((ref: {id: string}) => ref.id),
-    )
+    return new Set((query.data.refs ?? []).map((ref: {id: string}) => ref.id))
 })
 
 /**
- * Drop sessions whose agent has been archived (#5944) — an archived agent's conversations should
- * not keep occupying the rail. A PIN is an explicit user request and is exempt, the same exemption
+ * Drop sessions whose agent is no longer listed (#5944, #6457). A PIN is exempt, the same exemption
  * it gets from every other list rule.
  */
-export const dropArchivedAgentSessions = (
+export const dropMissingAgentSessions = (
     refs: readonly SessionSidebarRef[],
-    // `null` = the archived-agents answer has not arrived; keep everything rather than blink rows
-    // out and back in once it does.
-    archivedAgentIds: ReadonlySet<string> | null,
+    // `null` = catalog unanswered; an empty set would read as "all gone" and blank the rail.
+    liveAgentIds: ReadonlySet<string> | null,
 ): SessionSidebarRef[] =>
-    archivedAgentIds === null
+    liveAgentIds === null
         ? [...refs]
-        : refs.filter((ref) => ref.pinned || !ref.appId || !archivedAgentIds.has(ref.appId))
+        : refs.filter((ref) => ref.pinned || !ref.appId || liveAgentIds.has(ref.appId))
+
+/**
+ * The rail's filters, applied to the rows the HOST contributes.
+ *
+ * Every filter is a server predicate, and a local row never went through the query — so without
+ * this a chat stayed listed, and selected, under Automation or under another agent's filter. The
+ * activity window is the one exemption: a session you have open is current by definition.
+ */
+export const localSessionRefsMatching = (
+    local: readonly SessionSidebarRef[],
+    filters: SidebarSessionFilters,
+    waitingIds: ReadonlySet<string>,
+): SessionSidebarRef[] =>
+    local.filter((ref) => {
+        // A client-created chat is never a trigger run.
+        if (filters.type === "automation") return false
+        if (filters.agentIds.length > 0) {
+            if (!ref.agentId || !filters.agentIds.includes(ref.agentId)) return false
+        }
+        const waiting = waitingIds.has(ref.sessionId) || Boolean(ref.waiting)
+        if (filters.status === "running") return ref.running
+        if (filters.status === "waiting") return waiting
+        if (filters.status === "idle") return !ref.running && !waiting && !ref.alive
+        return true
+    })
 
 /**
  * Host-local rows lead the RECENT rows but never displace pins: pins are pulled to the top because
@@ -358,10 +695,55 @@ export const withLocalSessions = (
 ): SessionSidebarRef[] => {
     const known = new Set(server.map((ref) => ref.sessionId))
     const fresh = local.filter((ref) => !known.has(ref.sessionId))
-    const pinned = server.filter((ref) => ref.pinned)
-    const rest = server.filter((ref) => !ref.pinned)
-    return [...pinned, ...fresh, ...rest]
+    const hosted = new Map(local.map((ref) => [ref.sessionId, ref]))
+    // The server row wins on identity and LOSES on liveness: `is_running` is mirrored onto a row
+    // this rail polls, so a turn running in this very browser read as idle until the poll caught
+    // up — which is why only one session ever appeared to be running.
+    const live = server.map((ref) => {
+        const host = hosted.get(ref.sessionId)
+        if (!host) return ref
+        return {
+            ...ref,
+            running: ref.running || host.running,
+            waiting: ref.waiting || host.waiting,
+        }
+    })
+    const pinned = live.filter((ref) => ref.pinned)
+    const rest = live.filter((ref) => !ref.pinned)
+    // Deduped: a row key is its session id, so a session reaching this twice renders two rows that
+    // BOTH match the selected key — the rail's white pill landing on rows nobody selected.
+    return uniqueBySession([...pinned, ...fresh, ...rest])
 }
+
+/** First occurrence wins — the merge above already put every row in the order it should hold. */
+const uniqueBySession = (refs: readonly SessionSidebarRef[]): SessionSidebarRef[] => {
+    const seen = new Set<string>()
+    const unique: SessionSidebarRef[] = []
+    for (const ref of refs) {
+        if (seen.has(ref.sessionId)) continue
+        seen.add(ref.sessionId)
+        unique.push(ref)
+    }
+    return unique
+}
+
+/**
+ * The ids the SERVER lists for this scope, pins and pages included. A host reconciles its local
+ * rows against it: a session the server carries no longer needs the local seam, and a local row
+ * that outlived its server twin would resurface the session whenever it aged out of the window.
+ */
+export const sidebarServerSessionIdsAtomFamily = atomFamily((scopeId: string) =>
+    atom<ReadonlySet<string>>((get) => {
+        const ids = new Set<string>()
+        for (const row of get(sidebarPinnedSessionsQueryAtomFamily(scopeId)).data ?? [])
+            ids.add(row.session_id)
+        for (const row of get(sidebarSessionsQueryAtomFamily(scopeId)).data ?? [])
+            ids.add(row.session_id)
+        for (const row of get(sidebarSessionsOlderQueryAtomFamily(scopeId)).data?.rows ?? [])
+            ids.add(row.session_id)
+        return ids
+    }),
+)
 
 /**
  * Pinned sessions first, then the rest by activity.
@@ -375,18 +757,33 @@ const sidebarSessionRefsAtomFamily = atomFamily((scopeId: string) =>
         const filters = get(sidebarSessionFiltersAtomFamily(scopeId))
         const pinned = new Set(get(pinnedSessionIdsAtom))
         const waitingIds = new Set(get(sidebarWaitingIdsQueryAtomFamily(scopeId)).data ?? [])
-        const pinnedRows = get(sidebarPinnedSessionsQueryAtomFamily(scopeId)).data ?? []
+        // Filtered by the CURRENT pin set, not taken as the query left it: unpinning mints a new
+        // query key, and the placeholder hands back the previous rows (forever, once the last pin
+        // goes and the query disables) — rows the recent window now returns too.
+        const pinnedRows = (get(sidebarPinnedSessionsQueryAtomFamily(scopeId)).data ?? []).filter(
+            (row) => pinned.has(row.session_id),
+        )
         // Pins come from their own by-id query; the recent window drops them so nothing shows twice.
         const recentRows = (get(sidebarSessionsQueryAtomFamily(scopeId)).data ?? []).filter(
             (row) => !pinned.has(row.session_id),
         )
 
+        // Pages past the head. They trail it, and `uniqueBySession` keeps the head's copy of any
+        // row that has since climbed back into it.
+        const olderRows = (
+            get(sidebarSessionsOlderQueryAtomFamily(scopeId)).data?.rows ?? []
+        ).filter((row) => !pinned.has(row.session_id))
+
         const isRef = (ref: SessionSidebarRef | null): ref is SessionSidebarRef => ref !== null
         const server = [
             ...pinnedRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
             ...recentRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
+            ...olderRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
         ]
-        const all = withLocalSessions(server, get(localSessionRefsAtom))
+        const all = withLocalSessions(
+            server,
+            localSessionRefsMatching(get(localSessionRefsAtom), filters, waitingIds),
+        )
         // "Idle" is `is_alive: false` on the server, which also matches a session whose turn ended
         // with a gate still open. That session is WAITING — the shared status rule ranks a gate
         // above liveness — so it is subtracted here. The only client-side narrowing in this file,
@@ -396,7 +793,7 @@ const sidebarSessionRefsAtomFamily = atomFamily((scopeId: string) =>
         // Archiving an agent has to take its conversations off the rail with it (#5944). Applied
         // to every scope, grouped or not: an archived agent's sessions are stale everywhere the
         // rail renders, not only where headings group them by agent.
-        const merged = dropArchivedAgentSessions(narrowed, get(archivedAgentIdsAtom))
+        const merged = dropMissingAgentSessions(narrowed, get(liveAgentIdsAtom))
 
         // An ungrouped scope needs neither, and the artifactName read would subscribe it to the
         // workflow catalog it never asked for.
@@ -408,21 +805,82 @@ const sidebarSessionRefsAtomFamily = atomFamily((scopeId: string) =>
         // session surface uses, so a heading and a row can never disagree about an agent's name.
         // The heading is resolved HERE, not in the entity's `getGroupKey`: that closure is not
         // reactive, so a `groupBy` change would not re-bucket the rows.
-        return merged.map((ref) => {
+        const grouped = merged.map((ref) => {
             const named = {
                 ...ref,
-                waiting: waitingIds.has(ref.sessionId),
+                // OR, not a replacement: a gate the host already knows about is open before the
+                // interactions query has a row for it.
+                waiting: waitingIds.has(ref.sessionId) || Boolean(ref.waiting),
                 agentName: ref.agentId
                     ? (get(workflowMolecule.selectors.artifactName(ref.agentId)) ?? null)
                     : null,
             }
             const group = sidebarSessionGroup(named, groupBy, now)
-            return {...named, groupKey: group.key, groupLabel: group.label}
+            return {
+                ...named,
+                groupKey: group.key,
+                groupLabel: group.label,
+                groupRank: group.rank,
+            }
         })
+
+        const orderFor = get(sidebarManualOrdersAtom)
+        return applyManualSessionOrder(grouped, orderFor)
     }),
 )
 
+/**
+ * Applies each heading's hand-arranged row order, heading by heading.
+ *
+ * Buckets keep their first-seen order — `groupedChildren` re-buckets anyway, and holding it steady
+ * avoids gratuitous identity churn. A bucket with no saved zone (Pinned, Recent, any date heading)
+ * passes through untouched, which is how "pins lead" survives.
+ */
+const applyManualSessionOrder = (
+    rows: SessionSidebarRef[],
+    orderFor: (zone: string) => string[],
+): SessionSidebarRef[] => {
+    const buckets = new Map<string, SessionSidebarRef[]>()
+    for (const row of rows) {
+        const key = row.groupKey ?? PINNED_GROUP_KEY
+        const bucket = buckets.get(key)
+        if (bucket) bucket.push(row)
+        else buckets.set(key, [row])
+    }
+    let changed = false
+    const out: SessionSidebarRef[] = []
+    for (const [key, bucket] of buckets) {
+        const order = orderFor(sidebarSessionZone(key))
+        // Unseen rows place by activity: a newer one is a session you just started and leads; the
+        // older ones a later page brings in trail, instead of hoisting over the arrangement.
+        const sorted = order.length
+            ? applyManualOrderByActivity(
+                  bucket,
+                  (row) => row.sessionId,
+                  (row) => row.activityAt,
+                  order,
+              )
+            : bucket
+        if (sorted.some((row, index) => row !== bucket[index])) changed = true
+        out.push(...sorted)
+    }
+    return changed ? out : rows
+}
+
 const UNASSIGNED_GROUP_KEY = "agent:none"
+
+/** Below every other rank: pins lead under every grouping. Finite, so ranks subtract cleanly. */
+const PINNED_GROUP_RANK = Number.MIN_SAFE_INTEGER
+
+/** Above every other rank, for a bucket with no date to sort on. */
+const UNDATED_GROUP_RANK = Number.MAX_SAFE_INTEGER
+
+/** A heading, plus where it sorts — ascending, ties broken by label. */
+interface SessionGroupBucket {
+    key: string
+    label: string
+    rank: number
+}
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -442,18 +900,21 @@ const startOfDay = (time: number) => {
  * supposed to settle. Only today and yesterday keep words, because those are the two dates people
  * read faster as names. The year is added once it is not the current one.
  */
-const dateBucket = (activityAt: string | null | undefined, now: number) => {
-    if (!activityAt) return {key: "date:unknown", label: "No activity"}
+const dateBucket = (activityAt: string | null | undefined, now: number): SessionGroupBucket => {
+    if (!activityAt) return {key: "date:unknown", label: "No activity", rank: UNDATED_GROUP_RANK}
     const at = new Date(activityAt)
-    const days = Math.round((startOfDay(now) - startOfDay(at.getTime())) / DAY)
-    if (days <= 0) return {key: "date:today", label: "Today"}
-    if (days === 1) return {key: "date:yesterday", label: "Yesterday"}
+    const day = startOfDay(at.getTime())
+    // NEGATED so the newest day sorts first, in the one ascending order every grouping shares.
+    const rank = -day
+    const days = Math.round((startOfDay(now) - day) / DAY)
+    if (days <= 0) return {key: "date:today", label: "Today", rank}
+    if (days === 1) return {key: "date:yesterday", label: "Yesterday", rank}
     const year = at.getFullYear()
     const label = `${MONTHS[at.getMonth()]} ${at.getDate()}${
         year === new Date(now).getFullYear() ? "" : `, ${year}`
     }`
     // Keyed by the calendar day, not the label: two Augusts a year apart must not share a heading.
-    return {key: `date:${year}-${at.getMonth() + 1}-${at.getDate()}`, label}
+    return {key: `date:${year}-${at.getMonth() + 1}-${at.getDate()}`, label, rank}
 }
 
 /**
@@ -466,38 +927,124 @@ export const sidebarSessionGroup = (
     ref: SessionSidebarRef,
     groupBy: SidebarSessionGroupBy,
     now: number,
-): {key: string; label: string} => {
-    if (ref.pinned) return {key: PINNED_GROUP_KEY, label: "Pinned"}
-    if (groupBy === "none") return {key: "recent", label: "Recent"}
+): SessionGroupBucket => {
+    if (ref.pinned) return {key: PINNED_GROUP_KEY, label: "Pinned", rank: PINNED_GROUP_RANK}
+    if (groupBy === "none") return {key: "recent", label: "Recent", rank: 1}
     if (groupBy === "date") return dateBucket(ref.activityAt, now)
     if (groupBy === "status") {
-        if (ref.running) return {key: "status:running", label: "Running"}
-        return ref.alive ? {key: "status:live", label: "Live"} : {key: "status:idle", label: "Idle"}
+        // A gate ranks above liveness, the same rule the status FILTER applies — without its own
+        // bucket a session waiting on you fell into Idle (or Live), where the amber dot contradicts
+        // the heading. Order mirrors the filter: Running, Awaiting input, Live, Idle.
+        if (ref.running) return {key: "status:running", label: "Running", rank: 0}
+        if (ref.waiting) return {key: "status:waiting", label: "Awaiting input", rank: 1}
+        return ref.alive
+            ? {key: "status:live", label: "Live", rank: 2}
+            : {key: "status:idle", label: "Idle", rank: 3}
     }
-    if (!ref.agentId) return {key: UNASSIGNED_GROUP_KEY, label: "No agent yet"}
+    // Agents share a rank and sort by name; only "No agent yet" is pushed past them.
+    if (!ref.agentId) return {key: UNASSIGNED_GROUP_KEY, label: "No agent yet", rank: 1}
     // `||`, not `??`: an artifact whose name resolves to "" must still get a heading you can read.
-    return {key: `agent:${ref.agentId}`, label: ref.agentName?.trim() || "Agent"}
+    return {key: `agent:${ref.agentId}`, label: ref.agentName?.trim() || "Agent", rank: 0}
 }
+
+/** The agent a heading stands for, or nothing: Pinned and "No agent yet" are not agents. */
+export const sidebarSessionGroupAgentId = (
+    key: string,
+    groupBy: SidebarSessionGroupBy,
+): string | undefined =>
+    groupBy === "agent" && key.startsWith("agent:") && key !== UNASSIGNED_GROUP_KEY
+        ? key.slice("agent:".length)
+        : undefined
+
+/** Ascending by rank, ties broken by label. */
+const compareGroups = (a: {label: string; rank: number}, b: {label: string; rank: number}) =>
+    a.rank - b.rank || a.label.localeCompare(b.label)
 
 /** The entity reads the bucket off the row — resolved upstream, so a `groupBy` change flows. */
 export const sidebarSessionGroupKey = (ref: SessionSidebarRef): string =>
     ref.groupKey ?? PINNED_GROUP_KEY
 
 /**
- * The group headings the Sessions rows sit under: Pinned first, then each agent in order of its
- * most recent session. Ordering only — `resolveChildren` owns the row cap, so a group whose rows
+ * Which zones each grouping offers.
+ *
+ * Module-level constants, NOT built inline: `withEntityGroups` spreads this object into the source
+ * and `useMobileNavItems` memoizes on its identity, so a fresh closure per evaluation would defeat
+ * that memo. Date and flat groupings offer nothing — their order MEANS something (a calendar, an
+ * activity run), and overriding it would make the heading lie.
+ */
+export const SESSION_REORDER_ZONES: Partial<Record<SidebarSessionGroupBy, SidebarEntityReorder>> = {
+    agent: {
+        // The headings' own zone — nothing else arranges agents in the rail.
+        groupZone: SIDEBAR_AGENT_GROUP_ZONE,
+        // Keyed as the heading is, like the status headings. Nothing else writes this zone, so
+        // there is no id shape to agree with.
+        groupId: (key) =>
+            key.startsWith("agent:") && key !== UNASSIGNED_GROUP_KEY ? key : undefined,
+        rowZone: (key) =>
+            key.startsWith("agent:") && key !== UNASSIGNED_GROUP_KEY
+                ? sidebarSessionZone(key)
+                : undefined,
+    },
+    status: {
+        groupZone: SIDEBAR_STATUS_GROUP_ZONE,
+        // Pinned leads under every grouping and is not a status; it is not the user's to move.
+        groupId: (key) => (key.startsWith("status:") ? key : undefined),
+        rowZone: (key) => (key.startsWith("status:") ? sidebarSessionZone(key) : undefined),
+    },
+}
+
+/**
+ * The group headings the Sessions rows sit under, in a fixed order: Pinned first, then whatever
+ * the grouping ranks. Ordering only — `resolveChildren` owns the row cap, so a group whose rows
  * all fall outside it is dropped there rather than here.
  */
 export const sidebarSessionGroupsAtomFamily = atomFamily((scopeId: string) =>
     atom((get) => {
         const refs = get(sidebarSessionRefsAtomFamily(scopeId))
-        const labels = new Map<string, string>()
+        const labels = new Map<string, {label: string; rank: number}>()
         for (const ref of refs) {
             const key = sidebarSessionGroupKey(ref)
-            if (!labels.has(key)) labels.set(key, ref.groupLabel ?? "Other")
+            if (!labels.has(key)) {
+                labels.set(key, {label: ref.groupLabel ?? "Other", rank: ref.groupRank ?? 0})
+            }
         }
         const groupBy = get(sidebarSessionFiltersAtomFamily(scopeId)).groupBy
-        const all: SidebarEntityGroup[] = [...labels].map(([key, label]) => ({key, label}))
+        // Under AGENT grouping, order the headings by chat-session count, so the busiest agent
+        // leads rather than the alphabetical first. Frozen per page load, so headings do not
+        // reshuffle as you work. Pinned still leads and "No agent yet" still trails (their
+        // ranks are untouched).
+        if (groupBy === "agent") {
+            const ranks = get(sidebarAgentCountsAtomFamily(scopeId))
+            for (const [key, bucket] of labels) {
+                if (!key.startsWith("agent:") || key === UNASSIGNED_GROUP_KEY) continue
+                // NEGATED so more sessions sorts first, in the one ascending order compareGroups uses.
+                bucket.rank = -(ranks.get(key.slice("agent:".length)) ?? 0)
+            }
+        }
+        // SORTED, not first-seen: the rows arrive in activity order, so taking their order made the
+        // headings reshuffle every time you worked in a session. Only the rows under a heading move.
+        const sorted: SidebarEntityGroup[] = [...labels]
+            .sort(([, a], [, b]) => compareGroups(a, b))
+            .map(([key, {label}]) => ({
+                key,
+                label,
+                agentId: sidebarSessionGroupAgentId(key, groupBy),
+            }))
+        // Only the status headings are hand-arrangeable. Pinned is not a status and never moves;
+        // agent headings arrange through the shared agent rank instead, so they are already sorted.
+        const headingZone = SESSION_REORDER_ZONES[groupBy]?.groupZone
+        const all = headingZone
+            ? [
+                  // Pinned leads under every grouping and is not the user's to move.
+                  ...sorted.filter((group) => group.key === PINNED_GROUP_KEY),
+                  ...applyManualOrder(
+                      sorted.filter((group) => group.key !== PINNED_GROUP_KEY),
+                      (group) => group.key,
+                      get(sidebarManualOrderAtomFamily(headingZone)),
+                      "trail",
+                  ),
+              ]
+            : sorted
         // "None" still separates the pins — a pinned conversation is one you keep coming back to,
         // and burying it in the run of recent rows is what the heading exists to prevent. With no
         // pins there is nothing to separate, so the list goes fully flat.
@@ -509,17 +1056,15 @@ export const sidebarSessionGroupsAtomFamily = atomFamily((scopeId: string) =>
         const groups: SidebarEntityGroup[] =
             groupBy === "none" && !labels.has(PINNED_GROUP_KEY) ? [] : all
         const dirty = get(sidebarSessionFiltersDirtyAtomFamily(scopeId))
-        // The stored set flips a heading away from its grouping's default, so a regrouping keeps
-        // whatever you chose without carrying the previous grouping's keys.
-        const folded = groupingStartsFolded(groupBy)
+        // Headings open by default; the stored set is what you folded, and it survives a
+        // regrouping because it holds no grouping's keys of its own.
         const toggled = new Set(get(sidebarSessionToggledGroupsAtomFamily(scopeId)))
         return {
             groups,
-            collapsedKeys: groups
-                .filter((group) => folded !== toggled.has(group.key))
-                .map((group) => group.key),
+            collapsedKeys: groups.filter((g) => toggled.has(g.key)).map((g) => g.key),
             // Say WHY the group is empty: with a filter on, "No sessions" reads as "you have none".
             emptyLabel: dirty ? "No sessions match these filters" : undefined,
+            reorder: SESSION_REORDER_ZONES[groupBy],
         }
     }),
 )
@@ -546,51 +1091,110 @@ export const sidebarSessionsListAtomFamily = atomFamily((scopeId: string) =>
 )
 
 /**
- * `agentId -> when it was last used`, in ms, off the sessions the rail already holds.
+ * Is the Sessions group open enough to read its list from outside it?
  *
- * "Used" means a session ran, which is the product's own definition of agent activity (the home
- * roster reads the agent's most recent session). Derived rather than fetched: a timestamp per
- * agent would otherwise be one request each, and the rail has the sessions in hand.
- *
- * The catch, accepted deliberately: these sessions carry the rail's FILTERS and its activity
- * window, so narrowing to one agent or one status leaves the others without a timestamp and they
- * fall back to catalog order. The alternative is a second unfiltered query per project.
+ * `alwaysOpen` HAS to be in this test: Sessions is rendered always-open on desktop, so its key is
+ * never written to the persisted open set — reading only that set left the Agent facet with no
+ * options to offer. `idleReadyAtom` holds every such read until after first paint.
  */
-export const sidebarAgentLastUsedAtomFamily = atomFamily((scopeId: string) =>
-    atom((get) => {
-        const lastUsed = new Map<string, number>()
-        for (const ref of get(sidebarSessionRefsAtomFamily(scopeId))) {
-            if (!ref.agentId || !ref.activityAt) continue
-            const at = new Date(ref.activityAt).getTime()
-            if (!Number.isFinite(at)) continue
-            const current = lastUsed.get(ref.agentId)
-            if (current === undefined || at > current) lastUsed.set(ref.agentId, at)
+const sessionsGroupOpen = (get: Getter, scopeId: string): boolean => {
+    const alwaysOpen = get(sidebarAlwaysOpenGroupsAtomFamily(scopeId)).includes(
+        SESSIONS_SIDEBAR_KEY,
+    )
+    const inlineOpen = (get(sidebarOpenGroupsAtomFamily(scopeId)) ?? []).includes(
+        SESSIONS_SIDEBAR_KEY,
+    )
+    const popupOpen = get(sidebarPopupGroupsAtomFamily(scopeId)).includes(SESSIONS_SIDEBAR_KEY)
+    return (alwaysOpen || inlineOpen || popupOpen) && get(idleReadyAtom)
+}
+
+/**
+ * Is the Sessions filter menu open? The Agent facet's catalog hangs off this rather than off the
+ * group, because the Sessions group is always open and so gates nothing.
+ */
+const sessionFilterMenuOpen = (get: Getter, scopeId: string): boolean =>
+    get(sidebarOpenFilterMenusAtomFamily(scopeId)).includes(SESSIONS_SIDEBAR_KEY) &&
+    get(idleReadyAtom)
+
+/** The window the agent ranking counts over. The server caps a page at 200; a project with more
+ * sessions than this ranks its long tail by catalog order, which is stable and good enough. */
+const AGENT_RANK_WINDOW = 200
+
+/**
+ * Every agent's sessions, UNFILTERED — the query that ranks the agent headings.
+ *
+ * Its own request, not the rail's rows: the rail's list carries the session filters, so ranking
+ * off it let a filter (one agent, one status, a narrower window) reorder the headings — a filter
+ * is not a use. Project-scoped, origin-agnostic, no activity floor.
+ *
+ * FROZEN per page load — `staleTime`/`gcTime: Infinity`, no focus refetch, no interval — so the
+ * order an agent lives at does not shift while you work: a new session bumps nothing until you
+ * reload. Agents are spatial memory, and a list that reshuffles under you loses that. Gated like
+ * the facet, so a closed Sessions group fetches nothing.
+ */
+const sidebarAgentActivityQueryAtomFamily = atomFamily((scopeId: string) =>
+    atomWithQuery<SessionStream[] | null>((get) => {
+        const projectId = get(projectIdAtom)
+        return {
+            queryKey: ["sidebar-agent-activity", projectId],
+            queryFn: ({signal}) =>
+                querySessions({
+                    projectId: projectId ?? "",
+                    includeArchived: false,
+                    // CHATS only, not trigger runs: an agent that fires on a schedule would
+                    // otherwise rank on runs you never created, mismatching the handful of
+                    // conversations you actually had with it.
+                    excludeOrigin: "trigger",
+                    limit: AGENT_RANK_WINDOW,
+                    order: "descending",
+                    abortSignal: signal,
+                    lowPriority: true,
+                }),
+            enabled: Boolean(projectId) && sessionsGroupOpen(get, scopeId),
+            staleTime: Infinity,
+            gcTime: Infinity,
+            refetchOnWindowFocus: false,
         }
-        return lastUsed
     }),
 )
 
 /**
- * Agents the filter can narrow to, from the same catalog the Agents group lists.
+ * `agentId -> chat-session count`, ranking the agent headings by how much you actually work
+ * with each agent.
  *
- * Gated on the Sessions group being open, exactly like the session query itself: the filter is
- * only reachable from an open group, and an ungated read would pull the agent catalog on every
- * sidebar mount. Derived from the catalog rather than from the loaded sessions on purpose —
- * options taken from the current rows would collapse to one entry as soon as a filter applied.
+ * CHATS only — the query above excludes trigger runs — so an automation-heavy agent ranks on the
+ * conversations you had, not the runs a schedule fired. A busy agent leads, the count barely moves
+ * session to session (stable, unlike recency), and an agent with no chat keeps catalog order at
+ * the bottom — a new one appends rather than jumping in. Counted over the frozen window above.
+ */
+export const agentSessionCounts = (rows: readonly SessionStream[]): ReadonlyMap<string, number> => {
+    const counts = new Map<string, number>()
+    for (const row of rows) {
+        const agentId = sessionOpenTarget(row)?.appId
+        if (!agentId) continue
+        counts.set(agentId, (counts.get(agentId) ?? 0) + 1)
+    }
+    return counts
+}
+
+/** Chat-session counts alone — the DEFAULT order, before anyone has arranged anything. */
+const sidebarAgentCountsAtomFamily = atomFamily((scopeId: string) =>
+    atom((get) => agentSessionCounts(get(sidebarAgentActivityQueryAtomFamily(scopeId)).data ?? [])),
+)
+
+/**
+ * Agents the filter can narrow to, from the project's agent catalog.
+ *
+ * Gated on the FILTER MENU being open, not on the Sessions group. The group is `alwaysOpen`, so a
+ * group-level gate is always true and this pulled the whole agent catalog on every sidebar mount,
+ * on every page — the catalog costs a revision fetch per workflow, and nothing on screen needed it
+ * until someone opened the menu. Derived from the catalog rather than from the loaded sessions on
+ * purpose — options taken from the current rows would collapse to one entry as soon as a filter
+ * applied.
  */
 export const sidebarSessionAgentOptionsAtomFamily = atomFamily((scopeId: string) =>
     atom<{value: string; label: string}[]>((get) => {
-        // `alwaysOpen` HAS to be in this test: Sessions is rendered always-open, so its key is
-        // never written to the persisted open set — reading only that set left this empty, and
-        // the Agent facet had no options to offer.
-        const alwaysOpen = get(sidebarAlwaysOpenGroupsAtomFamily(scopeId)).includes(
-            SESSIONS_SIDEBAR_KEY,
-        )
-        const inlineOpen = (get(sidebarOpenGroupsAtomFamily(scopeId)) ?? []).includes(
-            SESSIONS_SIDEBAR_KEY,
-        )
-        const popupOpen = get(sidebarPopupGroupsAtomFamily(scopeId)).includes(SESSIONS_SIDEBAR_KEY)
-        if ((!alwaysOpen && !inlineOpen && !popupOpen) || !get(idleReadyAtom)) return []
+        if (!sessionFilterMenuOpen(get, scopeId)) return []
 
         const agents = get(agentWorkflowsListQueryStateAtom)
         return agents.data.map((agent) => ({
@@ -599,3 +1203,136 @@ export const sidebarSessionAgentOptionsAtomFamily = atomFamily((scopeId: string)
         }))
     }),
 )
+
+/**
+ * Is the Agent facet's catalog still resolving?
+ *
+ * Deferring the fetch to menu-open means the facet is briefly empty, and an empty facet reads as
+ * "this project has no agents". The menu renders a placeholder off this instead. Gated the same
+ * way, so reading it never starts the fetch either.
+ */
+export const sidebarSessionAgentOptionsPendingAtomFamily = atomFamily((scopeId: string) =>
+    atom<boolean>((get) => {
+        if (!sessionFilterMenuOpen(get, scopeId)) return false
+        return get(agentWorkflowsListQueryStateAtom).isPending
+    }),
+)
+
+/**
+ * Does this project hold any session at all, BEFORE the rail's filters?
+ *
+ * The defaults are themselves filters (`activity: "7d"`, `type: "chat"`), so an empty rail with
+ * clean filters does not mean an empty project. Answered off the unfiltered ranking query, which
+ * a rendered Sessions group already subscribes.
+ */
+export const sidebarHasAnySessionAtomFamily = atomFamily((scopeId: string) =>
+    atom((get) => {
+        const query = get(sidebarAgentActivityQueryAtomFamily(scopeId))
+        return {
+            any: (query.data?.length ?? 0) > 0,
+            // Unknown yet: a control must not disappear on a question we have not answered.
+            pending: query.isPending,
+        }
+    }),
+)
+
+/** Open state for the rail's session search. One rail per app, so one atom rather than a family. */
+export const sidebarSessionSearchOpenAtom = atom(false)
+
+/** A palette lists what you can pick at a glance, not a page you scroll. */
+const SEARCH_RESULT_LIMIT = 8
+
+/** Long enough to swallow a typed word, short enough that a pause feels answered. */
+const SEARCH_DEBOUNCE_MS = 250
+
+/** What is in the box right now — the input renders this, and it changes on every keystroke. */
+const searchInputAtom = atom("")
+
+/** What the request asks for. Trails the box by `SEARCH_DEBOUNCE_MS` so typing a word costs
+ * one search rather than one per character. */
+const searchTermAtom = atom("")
+
+// One rail per app, so one timer. Cleared before each reschedule, so only the last keystroke fires.
+let searchDebounce: ReturnType<typeof setTimeout> | undefined
+
+/** What is typed into it. Cleared with the overlay, so a reopen starts empty. */
+export const sidebarSessionSearchQueryAtom = atom(
+    (get) => get(searchInputAtom),
+    (_get, set, next: string) => {
+        set(searchInputAtom, next)
+        if (searchDebounce) clearTimeout(searchDebounce)
+        // An emptied box answers immediately: there is no request to wait for.
+        if (!next.trim()) {
+            set(searchTermAtom, "")
+            return
+        }
+        searchDebounce = setTimeout(() => set(searchTermAtom, next), SEARCH_DEBOUNCE_MS)
+    },
+)
+
+/**
+ * Search over the project's sessions, answered by the SERVER.
+ *
+ * Filtering the rail's own window would search the last fifty rows and call the rest missing —
+ * which is exactly the case a search exists for. `enabled` keeps a closed (or empty) palette from
+ * issuing anything.
+ */
+const sessionSearchQueryAtom = atomWithQuery((get) => {
+    const projectId = get(projectIdAtom)
+    const search = get(searchTermAtom).trim()
+    return {
+        queryKey: ["sidebar-session-search", projectId, search],
+        queryFn: ({signal}: {signal: AbortSignal}) =>
+            querySessions({
+                projectId: projectId as string,
+                search,
+                // The rail never lists archived sessions; neither does its search.
+                includeArchived: false,
+                limit: SEARCH_RESULT_LIMIT,
+                abortSignal: signal,
+            }),
+        enabled: Boolean(projectId) && search.length > 0,
+        staleTime: 30_000,
+        // Hold the previous rows while the next keystroke resolves, so the list does not blink.
+        // Within the SAME project only: the key carries the project, and across a switch this
+        // would paint the previous project's sessions into the palette.
+        placeholderData: (
+            previous: SessionStream[] | null | undefined,
+            previousQuery?: {queryKey: readonly unknown[]},
+        ) => (previousQuery?.queryKey[1] === projectId ? previous : undefined),
+    }
+})
+
+const NO_PINS: ReadonlySet<string> = new Set()
+
+/** Search hits as rail rows: same glyph rules, same "archived agent takes its sessions" rule. */
+export const sidebarSessionSearchResultsAtom = atom<SessionSidebarRef[]>((get) => {
+    const rows = get(sessionSearchQueryAtom).data ?? []
+    // Before the reads below, not after: `liveAgentIdsAtom` mounts the UNPAGED agent catalog, and
+    // a closed palette must not pull it — the grouped source above skips it for the same reason.
+    if (rows.length === 0) return []
+    const refs = rows
+        .map((row) => toSidebarRef(row, NO_PINS as Set<string>))
+        .filter((ref): ref is SessionSidebarRef => ref !== null)
+    return dropMissingAgentSessions(refs, get(liveAgentIdsAtom)).map((ref) => ({
+        ...ref,
+        agentName: ref.agentId
+            ? (get(workflowMolecule.selectors.artifactName(ref.agentId)) ?? null)
+            : null,
+    }))
+})
+
+/**
+ * Whether the palette is still working towards an answer for what is in the box.
+ *
+ * The debounce counts: between a keystroke and the request the query is idle on the PREVIOUS
+ * term, and without this the palette would announce "No sessions match" for a search it has not
+ * run yet.
+ */
+export const sidebarSessionSearchLoadingAtom = atom((get) => {
+    const typed = get(searchInputAtom).trim()
+    if (!typed) return false
+    if (typed !== get(searchTermAtom).trim()) return true
+    const query = get(sessionSearchQueryAtom)
+    return query.isFetching && query.data == null
+})

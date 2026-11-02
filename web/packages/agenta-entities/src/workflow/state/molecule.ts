@@ -86,7 +86,6 @@ import {
     workflowQueryAtomFamily,
     workflowInspectAtomFamily,
     workflowAppSchemaAtomFamily,
-    workflowInterfaceSchemasAtomFamily,
     workflowDraftAtomFamily,
     workflowArtifactQueryAtomFamily,
     workflowVariantsQueryAtomFamily,
@@ -464,6 +463,20 @@ const artifactNameAtomFamily = atomFamily((entityId: string) =>
         const artifactId = entity?.workflow_id ?? entityId
         const artifactQuery = get(workflowArtifactQueryAtomFamily(artifactId))
         return artifactQuery.data?.name ?? entity?.name ?? null
+    }),
+)
+
+/**
+ * Entity slug resolved from the workflow ARTIFACT (a revision's slug is an opaque hex id).
+ * Accepts a revision id or a workflow id; null until the artifact loads, with no fallback.
+ */
+const artifactSlugAtomFamily = atomFamily((entityId: string) =>
+    atom<string | null>((get) => {
+        if (!entityId) return null
+        const entity = get(workflowBaseEntityAtomFamily(entityId))
+        const artifactId = entity?.workflow_id ?? entityId
+        const artifactQuery = get(workflowArtifactQueryAtomFamily(artifactId))
+        return artifactQuery.data?.slug ?? null
     }),
 )
 
@@ -1380,6 +1393,8 @@ export const workflowMolecule = {
         name: nameAtomFamily,
         /** Entity display name from the workflow artifact (revision names carry the variant name) */
         artifactName: artifactNameAtomFamily,
+        /** Entity slug from the workflow artifact (a revision's slug is an opaque hex id) */
+        artifactSlug: artifactSlugAtomFamily,
         /** Variant label from the variant entity (name, then slug) */
         variantLabel: variantLabelAtomFamily,
         /** Workflow slug */
@@ -1483,8 +1498,6 @@ export const workflowMolecule = {
         inspect: workflowInspectAtomFamily,
         /** Per-entity app schema query (app workflows — resolves schema via OpenAPI) */
         appSchema: workflowAppSchemaAtomFamily,
-        /** Per-entity interface schemas query (builtin workflows — resolves schema via URI) */
-        interfaceSchemas: workflowInterfaceSchemasAtomFamily,
         /** Per-entity draft */
         draft: workflowDraftAtomFamily,
         /** Per-entity base data (no inspect/OpenAPI subscriptions) */
@@ -1531,6 +1544,8 @@ export const workflowMolecule = {
             getStore(options).get(nameAtomFamily(workflowId)),
         artifactName: (entityId: string, options?: StoreOptions) =>
             getStore(options).get(artifactNameAtomFamily(entityId)),
+        artifactSlug: (entityId: string, options?: StoreOptions) =>
+            getStore(options).get(artifactSlugAtomFamily(entityId)),
         variantLabel: (entityId: string, options?: StoreOptions) =>
             getStore(options).get(variantLabelAtomFamily(entityId)),
         // Raw flags

@@ -136,3 +136,17 @@ export const rowSummary = (part: ToolUIPart, display?: ToolDisplay): string | nu
     if (part.state === "output-denied") return "denied"
     return null
 }
+
+/**
+ * What an answered gate says it was answered WITH.
+ *
+ * `approved` is asserted only when the part carries the verdict. A replay can settle a gate to
+ * `approval-responded` knowing only THAT it was answered — from a resumed turn, or a row with no
+ * stored verdict — and on a permission surface an unevidenced "approved" is the one wrong answer.
+ */
+export const approvalVerdictText = (part: ToolUIPart): string => {
+    const approved = (part as {approval?: {approved?: boolean}}).approval?.approved
+    if (approved === true) return "approved"
+    if (approved === false) return "denied"
+    return "responded"
+}

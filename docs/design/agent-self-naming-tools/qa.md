@@ -62,7 +62,7 @@ Land each with the step it covers, listed in [plan.md](plan.md).
 
 ## One-shot benchmark
 
-`benchmarks/agent-config-editing/` measures whether a small model completes a configuration action
+`docs/design/agent-config-editing/benchmark/` measures whether a small model completes a configuration action
 one-shot, against a 95% target. Both tools belong in it, because both are exactly the shape it
 measures: a user types in prose, the model must reach for the right tool with the right arguments on
 the first try, and the verdict is read from a stored row.

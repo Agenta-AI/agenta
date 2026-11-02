@@ -6,7 +6,7 @@
 
 import type {LlmProvider} from "@agenta/shared/types"
 
-import {STANDARD_PROVIDER_KINDS} from "./types"
+import {LlmEndpointProtocol, STANDARD_PROVIDER_KINDS} from "./types"
 
 /**
  * Render metadata attached to a `PROVIDER_FIELDS` item, e.g.
@@ -148,6 +148,42 @@ export const PROVIDER_FIELDS: ProviderFieldConfig[] = [
         attributes: {kind: "text", type: "password"},
     },
 ]
+
+/** One option of a declarative choice control. */
+export interface ProviderChoiceOption {
+    value: string
+    label: string
+}
+
+/** A choice the card asks for that is not a credential — today, the endpoint's protocol. */
+export interface ProviderChoiceFieldConfig {
+    key: string
+    label: string
+    options: ProviderChoiceOption[]
+}
+
+/**
+ * The protocol an endpoint speaks.
+ *
+ * Two options, because a third would change nothing: the relay serves all three route suffixes on
+ * any custom endpoint, and only the OpenAI-vs-Anthropic family changes behaviour.
+ */
+/**
+ * What the protocol control starts on. The form always writes a protocol, so a record saved through
+ * the card declares one even when the user never touched the control — which is what narrows it.
+ * A record that predates the field declares nothing, and nothing here supplies a value for it.
+ */
+export const DEFAULT_ENDPOINT_PROTOCOL: LlmEndpointProtocol = LlmEndpointProtocol.Openai
+
+// TODO(copy: owner)
+export const ENDPOINT_PROTOCOL_FIELD: ProviderChoiceFieldConfig = {
+    key: "protocol",
+    label: "Protocol",
+    options: [
+        {value: LlmEndpointProtocol.Openai, label: "OpenAI-compatible"},
+        {value: LlmEndpointProtocol.Anthropic, label: "Anthropic Messages"},
+    ],
+}
 
 /**
  * Per-provider credential requirement, declared as alternative sets: a config is valid when at

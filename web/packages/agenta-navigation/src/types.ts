@@ -2,6 +2,17 @@ import type {ComponentType, MouseEvent, ReactElement, ReactNode} from "react"
 
 import type {PrimitiveAtom, WritableAtom} from "jotai"
 
+/**
+ * Identity of a hand-arrangeable row or heading. Items sharing a `zone` reorder against each
+ * other and nothing else — which is what makes a cross-heading drop impossible by construction.
+ */
+export interface SidebarDragItem {
+    kind: "row" | "group"
+    /** The persisted id: an agent id, a session id, or a heading key. */
+    id: string
+    zone: string
+}
+
 export interface SidebarConfig {
     key: string
     title: string
@@ -28,6 +39,8 @@ export interface SidebarConfig {
     isGroupLabel?: boolean
     /** Collapsible heading only: whether its rows are folded away. Drives the caret. */
     isCollapsed?: boolean
+    /** Collapsible heading only: a trailing "+" that links somewhere (an agent's new session). */
+    groupAdd?: {link: string; label: string; onClick?: (event: MouseEvent) => void}
     /** Render the item normally but suppress its navigation — clicking it is a no-op (current location). */
     inert?: boolean
     /** Route prefixes that select this row; empty opts it out of matching. Defaults to `[link]`. */
@@ -37,6 +50,8 @@ export interface SidebarConfig {
     /** Extra classes on the row itself — for state the label cannot carry, e.g. an archived
      * session rendering faded. Opt-in: a row that sets none renders exactly as before. */
     rowClassName?: string
+    /** Set on rows and headings the user may hand-arrange. Absent = fixed in place. */
+    dragItem?: SidebarDragItem
     /** A group with no collapse control: it renders no caret and stays expanded. Its own row
      * chrome (a filter, say) is the affordance instead. Also keeps its key in the shell's open
      * set, so a gated dynamic source stays subscribed. */
@@ -44,12 +59,19 @@ export interface SidebarConfig {
     /** Rendered beside a group's expand caret — a filter control, say. Interactive, so it sits
      * outside the row's stretched link anchor. Groups only; hidden when the rail is collapsed. */
     groupAction?: ReactNode
+    /** A leaf row's trailing control, revealed on hover or focus. Hidden when the rail is collapsed. */
+    rowAction?: ReactNode
+    /** Collapsed rail: a leaf's hover flyout in place of its tooltip. The icon still navigates.
+     * `close` always closes; `hold(true)` keeps it open against hover-out and outside clicks. */
+    hoverFlyout?: (close: () => void, hold: (held: boolean) => void) => ReactNode
     /** Collapsed rail: render this group as a plain icon link instead of a children flyout. */
     hideChildrenWhenCollapsed?: boolean
     /** This group's ROWS scroll, not the whole rail: the group shrinks to the space left over
      * and scrolls inside itself, so the entries after it stay on screen however long it grows.
      * Opt-in — a rail with no such group keeps scrolling as a whole. */
     scrollChildren?: boolean
+    /** Scrolled near the end of a `scrollChildren` group — load the next page. */
+    onReachEnd?: () => void
     /** Workflow categories that support this item. Omit to support every category. */
     workflowCategories?: readonly SidebarWorkflowCategory[]
 }
@@ -57,15 +79,6 @@ export interface SidebarConfig {
 export type SidebarWorkflowCategory = "app" | "agent" | "evaluator"
 
 export type SidebarMenuMode = "horizontal" | "vertical" | "inline"
-
-export interface SidebarMenuProps {
-    items: SidebarConfig[]
-    collapsed: boolean
-    mode?: SidebarMenuMode
-    openKeys?: string[]
-    onToggleOpenKey?: (key: string) => void
-    onPopupOpenChange?: (key: string, open: boolean) => void
-}
 
 export type SidebarSelection =
     | {mode: "route"; selectedKeyOverride?: string}

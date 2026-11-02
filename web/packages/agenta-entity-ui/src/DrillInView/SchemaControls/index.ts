@@ -93,6 +93,7 @@ export {
     withRunnerPermission,
     readModelId,
     readModelConnectionSlug,
+    readModelConnection,
     readHarnessKind,
     readRunnerPermission,
     readAgentItems,
@@ -125,6 +126,7 @@ export type {ModelOptionGroup, VaultModelSource} from "./connectionUtils"
 export {
     buildConnectionPickerRows,
     connectionModelIds,
+    displayedModelRow,
     effectiveHarnesses,
     firstPickerSelectionForConnection,
     modelRowKey,
@@ -147,6 +149,7 @@ export {
     describeMcp,
     describeSkill,
     describeTool,
+    skillCommandName,
     staticEmbedSlug,
     toolName,
 } from "./agentTemplate/itemDescriptors"
@@ -175,7 +178,7 @@ export type {AgentTemplateControlProps} from "./AgentTemplateControl"
 export {HarnessSelectControl} from "./HarnessSelectControl"
 export type {HarnessSelectControlProps} from "./HarnessSelectControl"
 export {ConfigItemDrawer} from "./ConfigItemDrawer"
-export type {ConfigItemDrawerProps, ConfigItemView} from "./ConfigItemDrawer"
+export type {ConfigItemDrawerProps} from "./ConfigItemDrawer"
 export {JsonObjectEditor} from "./JsonObjectEditor"
 export type {JsonObjectEditorProps} from "./JsonObjectEditor"
 export {MarkdownEditor} from "./MarkdownEditor"

@@ -1,14 +1,42 @@
 import {describe, expect, it} from "vitest"
 
 import {
-    AGENT_TEMPLATES,
+    agentTemplateByKey,
+    categoryFromSlug,
+    connectionNeedLabel,
+    templateConnections,
+    templatePrimaryProvider,
+    templateProviderSlugs,
     PROVIDERS,
+    SAVE_AS_TEMPLATE_MESSAGE,
+    SHARE_TEMPLATE_IN_MARKETPLACE_MESSAGE,
     TEMPLATE_CATEGORY_ORDER,
+    templateCategories,
 } from "../../src/workflow/agentTemplates"
 
-describe("AGENT_TEMPLATES", () => {
-    it("has exactly 28 entries", () => {
-        expect(AGENT_TEMPLATES).toHaveLength(28)
+import {FIXTURE_TEMPLATES, FROZEN_GALLERY} from "./agentTemplateFixtures"
+
+const AGENT_TEMPLATES = FIXTURE_TEMPLATES
+
+describe("catalog API parity", () => {
+    it("maps every API entry to the pre-migration card, in order", () => {
+        expect(FIXTURE_TEMPLATES).toEqual(FROZEN_GALLERY)
+    })
+
+    it("keeps deep-link category and key lookups on the fetched list", () => {
+        expect(templateCategories(FIXTURE_TEMPLATES)).toEqual([...TEMPLATE_CATEGORY_ORDER])
+        expect(templateCategories([])).toEqual([])
+        expect(categoryFromSlug("engineering", FIXTURE_TEMPLATES)).toBe("Engineering")
+        expect(categoryFromSlug("engineering", [])).toBe("All")
+        expect(agentTemplateByKey(FIXTURE_TEMPLATES, "pr-reviewer")?.name).toBe("PR reviewer")
+        expect(agentTemplateByKey(FIXTURE_TEMPLATES, "missing")).toBeUndefined()
+        expect(agentTemplateByKey(FIXTURE_TEMPLATES, undefined)).toBeUndefined()
+    })
+})
+
+describe("catalog templates", () => {
+    it("has exactly 30 entries", () => {
+        expect(AGENT_TEMPLATES).toHaveLength(30)
     })
 
     it("has unique keys", () => {
@@ -22,12 +50,47 @@ describe("AGENT_TEMPLATES", () => {
         }
     })
 
-    it("every logoSlugs and requiredIntegrations slug exists in PROVIDERS", () => {
+    it("derives a migrated template's card marks from its connection slots", () => {
+        // The point of the slots: a mark can only name a provider some slot accepts, so the card
+        // and the connect step cannot disagree the way a hand-kept logo list allowed.
         for (const template of AGENT_TEMPLATES) {
-            for (const slug of template.logoSlugs ?? []) {
+            const fromSlots = new Set(
+                templateConnections(template).flatMap((connection) => [
+                    connection.primary.slug,
+                    ...(connection.alternatives ?? []),
+                ]),
+            )
+            expect(new Set(templateProviderSlugs(template))).toEqual(fromSlots)
+        }
+    })
+
+    it("leads with the preferred provider, so a truncated card keeps it", () => {
+        // Order in `options` is the preference. A card that overlaps or truncates its marks shows
+        // this one; the PR reviewer reading as GitLab was that rule going unenforced.
+        for (const template of AGENT_TEMPLATES) {
+            const slots = templateConnections(template)
+            if (!slots.length) continue
+            expect(templatePrimaryProvider(template)).toBe(slots[0].primary.slug)
+            expect(templateProviderSlugs(template)[0]).toBe(templatePrimaryProvider(template))
+        }
+    })
+
+    it("offers GitLab as an alternative to GitHub on the PR reviewer", () => {
+        // The playbook says "GitHub (or GitLab)"; before the slots, GitLab could only appear as a
+        // decorative logo, so the setup step demanded GitHub of a GitLab user.
+        const prReviewer = AGENT_TEMPLATES.find((template) => template.key === "pr-reviewer")
+        const slot = templateConnections(prReviewer!)[0]
+        expect(slot.required).toBe(true)
+        expect(slot.primary.slug).toBe("github")
+        expect(slot.alternatives).toEqual(["gitlab"])
+    })
+
+    it("every slot slug exists in PROVIDERS", () => {
+        for (const template of AGENT_TEMPLATES) {
+            for (const slug of templateProviderSlugs(template)) {
                 expect(PROVIDERS[slug], `${template.key}: logo slug "${slug}"`).toBeDefined()
             }
-            for (const integration of template.requiredIntegrations) {
+            for (const integration of templateConnections(template).map((slot) => slot.primary)) {
                 expect(
                     PROVIDERS[integration.slug],
                     `${template.key}: required integration slug "${integration.slug}"`,
@@ -55,5 +118,49 @@ describe("AGENT_TEMPLATES", () => {
         for (const template of AGENT_TEMPLATES) {
             expect(template.seedMessage, template.key).toBe(template.builderMessage)
         }
+    })
+})
+
+describe("connectionNeedLabel", () => {
+    it("names a same-category choice by the category", () => {
+        expect(connectionNeedLabel(["hubspot", "salesforce", "attio"])).toBe("CRM")
+        expect(connectionNeedLabel(["github", "gitlab"])).toBe("Source control")
+    })
+
+    it("declines a mixed-category choice — the primary's own name is honest there", () => {
+        expect(connectionNeedLabel(["linear", "jira", "github"])).toBeUndefined()
+    })
+
+    it("declines when an option has no category", () => {
+        expect(connectionNeedLabel(["github", "somethingnew"])).toBeUndefined()
+    })
+
+    it("covers every choice slot in the catalogue or declines it deliberately", () => {
+        // Every alternatives-bearing slot either resolves to a category name or falls back to
+        // the primary's label — no slot may THROW or resolve to an empty string.
+        for (const template of AGENT_TEMPLATES) {
+            for (const slot of templateConnections(template)) {
+                if (!slot.alternatives?.length) continue
+                const label = connectionNeedLabel([slot.primary.slug, ...slot.alternatives])
+                expect(label === undefined || label.length > 0, template.key).toBe(true)
+            }
+        }
+    })
+})
+
+describe("template menu requests", () => {
+    it("both name the create-template skill", () => {
+        expect(SAVE_AS_TEMPLATE_MESSAGE).toContain("create-template skill")
+        expect(SHARE_TEMPLATE_IN_MARKETPLACE_MESSAGE).toContain("create-template skill")
+    })
+
+    it("asks for a submitted PR through the skill's steps, with no URL to hunt", () => {
+        expect(SHARE_TEMPLATE_IN_MARKETPLACE_MESSAGE).toBe(
+            "Save this agent as a general-audience template and submit it to the Agenta " +
+                "marketplace for me. Use the create-template skill, then follow its marketplace " +
+                "submission steps and open the pull request yourself. If you need GitHub access, " +
+                "ask me with request_secret.",
+        )
+        expect(SHARE_TEMPLATE_IN_MARKETPLACE_MESSAGE).not.toMatch(/https?:\/\//)
     })
 })

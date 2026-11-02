@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from "react"
+import {useCallback, useEffect, type SetStateAction} from "react"
 
 import {useObservability} from "@agenta/observability"
 import {useTraceDrawer} from "@agenta/observability/traceDrawer"
@@ -6,10 +6,11 @@ import {traceDrawerSetQueryParam} from "@agenta/observability/traceDrawer"
 import {
     setTraceDrawerActiveSpanAtom,
     setTraceDrawerTraceAtom,
+    traceDrawerActiveSpanIdAtom,
 } from "@agenta/observability/traceDrawer"
 import {EnhancedButton} from "@agenta/ui/components/presentational"
 import {ArrowsIn, ArrowsOut, X} from "@phosphor-icons/react"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {SkeletonBlock} from "../primitives/SkeletonBlock"
@@ -18,14 +19,22 @@ const TraceContent = dynamic(() => import("./TraceContent"))
 const TraceHeader = dynamic(() => import("./TraceHeader"))
 const TraceTree = dynamic(() => import("./TraceTree"))
 
+export type TraceDrawerLayout = "split" | "stacked"
+
 interface TraceDrawerContentProps {
     onClose: () => void
     onToggleWidth: () => void
     isExpanded: boolean
+    layout?: TraceDrawerLayout
 }
 
-const TraceDrawerContent = ({onClose, onToggleWidth, isExpanded}: TraceDrawerContentProps) => {
-    const [selected, setSelected] = useState("")
+const TraceDrawerContent = ({
+    onClose,
+    onToggleWidth,
+    isExpanded,
+    layout = "split",
+}: TraceDrawerContentProps) => {
+    const stacked = layout === "stacked"
     const {traces, activeSpanId, getTraceById, traceResponse, error, isLoading, traceId} =
         useTraceDrawer()
     const {
@@ -36,68 +45,52 @@ const TraceDrawerContent = ({onClose, onToggleWidth, isExpanded}: TraceDrawerCon
         setSelectedTraceId: setGlobalSelectedTraceId,
         setSelectedNode: setGlobalSelectedNode,
     } = useObservability()
+    const rawActiveSpanId = useAtomValue(traceDrawerActiveSpanIdAtom)
     const setActiveSpan = useSetAtom(setTraceDrawerActiveSpanAtom)
     const setTraceDrawerTrace = useSetAtom(setTraceDrawerTraceAtom)
-    const setTraceQueryParam = (value: string | null | undefined) =>
-        traceDrawerSetQueryParam("trace", value)
-    const setSpanQueryParam = (value: string | null | undefined) =>
-        traceDrawerSetQueryParam("span", value)
+    const setTraceQueryParam = useCallback(
+        (value: string | null | undefined) => traceDrawerSetQueryParam("trace", value),
+        [],
+    )
+    const setSpanQueryParam = useCallback(
+        (value: string | null | undefined) => traceDrawerSetQueryParam("span", value),
+        [],
+    )
 
-    // Initialize selection when drawer payload changes
-    const lastPayloadActiveIdRef = useRef<string | undefined>(undefined)
+    const activeId = activeSpanId || ""
+
+    // Write the stored id only when it is not a loaded span.
+    useEffect(() => {
+        if (!traces.length || !activeId) return
+        if (rawActiveSpanId === activeId) return
+        setActiveSpan(activeId)
+    }, [traces.length, activeId, rawActiveSpanId, setActiveSpan])
 
     useEffect(() => {
-        const incomingId = activeSpanId || traces[0]?.span_id || ""
-        if (!incomingId) {
-            setSelected("")
-            lastPayloadActiveIdRef.current = undefined
-            return
-        }
+        setSpanQueryParam(activeId || null)
+    }, [activeId, setSpanQueryParam])
 
-        const hasChanged = lastPayloadActiveIdRef.current !== incomingId
-        lastPayloadActiveIdRef.current = incomingId
+    const setSelected = useCallback(
+        (value: SetStateAction<string>) => {
+            const next = typeof value === "function" ? value(activeId) : value
+            setActiveSpan(next || null)
+        },
+        [activeId, setActiveSpan],
+    )
 
-        if (hasChanged || !selected) {
-            setSelected(incomingId)
-        }
-    }, [activeSpanId, traces, selected])
-
-    // If current selection is not found in the latest traces (e.g., user clicked a different row), re-anchor
-    useEffect(() => {
-        if (selected && traces.length > 0) {
-            const exists = getTraceById(selected)
-            if (!exists) {
-                setSelected(activeSpanId || traces[0]?.span_id || "")
-            }
-        }
-    }, [selected, traces, activeSpanId, getTraceById])
-
-    useEffect(() => {
-        if (selected) {
-            setActiveSpan(selected)
-            setSpanQueryParam(selected)
-        } else {
-            setSpanQueryParam(null)
-        }
-    }, [selected, setActiveSpan, setSpanQueryParam])
-
-    const activeId = selected || traces[0]?.span_id || ""
     const activeTrace = getTraceById(activeId)
 
     return (
         <div className="h-full w-full flex flex-col" data-tour="trace-drawer">
             <div className="flex items-center gap-3 px-4 py-3 border-0 border-b border-solid border-colorSplit">
-                <EnhancedButton
-                    onClick={onClose}
-                    type="text"
-                    icon={<X size={14} />}
-                    data-tour="trace-drawer-close"
-                />
-                <EnhancedButton
-                    onClick={onToggleWidth}
-                    type="text"
-                    icon={isExpanded ? <ArrowsIn size={14} /> : <ArrowsOut size={14} />}
-                />
+                {/* The panel is already as wide as the screen when stacked; widening does nothing. */}
+                {stacked ? null : (
+                    <EnhancedButton
+                        onClick={onToggleWidth}
+                        type="text"
+                        icon={isExpanded ? <ArrowsIn size={14} /> : <ArrowsOut size={14} />}
+                    />
+                )}
                 <div className="flex-1 min-w-0">
                     <TraceHeader
                         activeTrace={activeTrace as never}
@@ -117,22 +110,39 @@ const TraceDrawerContent = ({onClose, onToggleWidth, isExpanded}: TraceDrawerCon
                         setSelected={setSelected}
                     />
                 </div>
+                {/* Close sits last, at the right edge, where the shared SheetHeader puts it. */}
+                <EnhancedButton
+                    onClick={onClose}
+                    type="text"
+                    icon={<X size={14} />}
+                    aria-label="Close"
+                    data-tour="trace-drawer-close"
+                />
             </div>
             {/* antd `Spin` wrapped the body and dimmed it; the tree/content render their own
                 skeletons, so a loading pass just shows a block above them. */}
             <div className="flex-1 min-h-0">
                 {isLoading ? <SkeletonBlock className="m-3" /> : null}
                 <div className="h-full">
-                    {/* antd Splitter: a 320px tree column beside the content. */}
-                    <div className="flex h-full">
-                        <div className="w-[320px] min-w-[320px] shrink-0">
+                    {/* antd Splitter: a 320px tree column beside the content. Stacked, the tree
+                        takes the top of the panel and the content the rest, both full width. */}
+                    <div className={stacked ? "flex h-full flex-col" : "flex h-full"}>
+                        <div
+                            className={
+                                stacked
+                                    ? "h-[35%] w-full shrink-0 border-0 border-b border-solid border-colorSplit"
+                                    : "w-[320px] min-w-[320px] shrink-0 border-0 border-r border-solid border-colorSplit"
+                            }
+                        >
                             <TraceTree
                                 activeTraceId={activeId}
                                 selected={activeId}
                                 setSelected={setSelected}
                             />
                         </div>
-                        <div className="flex-1 min-w-[400px]">
+                        <div
+                            className={stacked ? "flex-1 min-h-0 min-w-0" : "flex-1 min-w-[400px]"}
+                        >
                             <TraceContent
                                 activeTrace={activeTrace as never}
                                 traceResponse={traceResponse}
@@ -141,6 +151,7 @@ const TraceDrawerContent = ({onClose, onToggleWidth, isExpanded}: TraceDrawerCon
                                 setSelectedTraceId={setGlobalSelectedTraceId}
                                 traces={traces as never}
                                 activeId={activeId}
+                                layout={layout}
                             />
                         </div>
                     </div>

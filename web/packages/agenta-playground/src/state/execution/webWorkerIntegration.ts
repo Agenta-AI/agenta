@@ -680,12 +680,6 @@ export const triggerExecutionAtom = atom(
     },
 )
 
-/** Reset the shared concurrency limiter (e.g. when concurrency setting changes) */
-export function resetSharedConcurrencyLimiter(): void {
-    _sharedLimiter = null
-    _sharedLimiterConcurrency = 0
-}
-
 // ============================================================================
 // RESULT HANDLER ATOM
 // ============================================================================

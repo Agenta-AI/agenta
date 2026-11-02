@@ -56,18 +56,28 @@ export function getJunitPath(): string {
 }
 
 export function getChromiumLaunchOptions(): {args?: string[]} {
+    const args: string[] = []
+
+    // A flow that hands the browser a URL naming a container host — the MCP mock's OAuth
+    // issuer publishes itself as the address the API dials — needs that name to resolve on
+    // this side too. Set e.g. `MAP mock-mcp-gateway 127.0.0.1`.
+    // It belongs here rather than in the config's `use.launchOptions`, because globalSetup
+    // launches its own browser from this same function; splitting them would authenticate
+    // against a different host than the tests then drive.
+    const hostResolverRules = process.env.PLAYWRIGHT_HOST_RESOLVER_RULES
+    if (hostResolverRules) {
+        args.push(`--host-resolver-rules=${hostResolverRules}`)
+    }
+
     try {
-        const url = new URL(getBaseURL())
-        const port = url.port
-
-        if (!port) {
-            return {}
-        }
-
-        return {
-            args: [`--explicitly-allowed-ports=${port}`],
+        const port = new URL(getBaseURL()).port
+        if (port) {
+            args.push(`--explicitly-allowed-ports=${port}`)
         }
     } catch {
-        return {}
+        // A malformed base URL is the config's problem, not this function's; whatever args
+        // are already here still apply.
     }
+
+    return args.length ? {args} : {}
 }

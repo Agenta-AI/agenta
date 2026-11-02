@@ -175,7 +175,10 @@ export function logExportProblem(problem: {
     problem.outcome === "threw" && problem.error instanceof Error
       ? problem.error.stack
       : undefined;
-  console.error(
+  // A skip is a missing credential, not a failed export: it reports at WARN so it does not
+  // read as an error in the log.
+  const log = problem.outcome === "skipped" ? console.warn : console.error;
+  log(
     OUTCOME_MESSAGES[problem.outcome],
     JSON.stringify({
       traceId: problem.traceId,

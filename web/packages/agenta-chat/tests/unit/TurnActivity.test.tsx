@@ -23,7 +23,7 @@ describe("StartupActivity", () => {
     })
 
     it("announces phase changes to assistive tech", () => {
-        const status = render(<StartupActivity label="Starting the agent" />).querySelector(
+        const status = render(<StartupActivity label="Getting things ready" />).querySelector(
             "[role='status']",
         )
         expect(status).not.toBeNull()

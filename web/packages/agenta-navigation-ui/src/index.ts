@@ -6,9 +6,18 @@
 export {NavMenu, type NavItem, type NavMenuMode, type NavMenuProps} from "./NavMenu"
 export {default as SidebarShell} from "./SidebarShell"
 export {SidebarLogo} from "./SidebarLogo"
+export {default as SidebarIconMenu} from "./SidebarIconMenu"
+export {buildReleaseNavItems} from "./releaseItems"
+export {default as SessionSearchButton} from "./SessionSearchButton"
+export {default as SessionSearchPalette} from "./SessionSearchPalette"
+export {
+    default as CommandPalette,
+    type CommandPaletteEntry,
+    type CommandPaletteGroup,
+    type CommandPaletteProps,
+} from "./CommandPalette"
 export {SidebarSelectionButton, type SidebarSelectionButtonProps} from "./SidebarSelectionButton"
 export {SidebarBackButton, type SidebarBackButtonProps} from "./SidebarBackButton"
-export {SidebarSkeletonLoader} from "./SidebarSkeletonLoader"
 export {NamePromptModal, type NamePromptModalProps} from "./NamePromptModal"
 export {
     ProjectOrgSwitcherView,
@@ -17,12 +26,12 @@ export {
     type SwitcherThemeControl,
     type SwitcherThemeOption,
 } from "./ProjectOrgSwitcher"
+export {ProjectSwitch, type ProjectSwitchProps} from "./ProjectSwitch"
 export {
     WorkflowPickerView,
     type WorkflowPickerEntry,
     type WorkflowPickerViewProps,
 } from "./WorkflowPickerView"
 export {SidebarToggleButton, type SidebarToggleButtonProps} from "./SidebarToggleButton"
-export {default as SidebarBanners} from "./SidebarBanners"
-export {default as SidebarBanner} from "./SidebarBanner"
 export {SessionFilterMenu} from "./SessionFilterMenu"
+export {SidebarReorderLayer} from "./reorder"

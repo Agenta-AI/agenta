@@ -12,9 +12,18 @@
  * `.zip`, or `.skill` (parsed into the fields) or editing inline. `@ag.embed` reference entries are
  * NOT edited here — the host renders the drawer JSON-only for those so their markers round-trip.
  */
-import {useEffect, useRef, useState} from "react"
+import {
+    useCallback,
+    useEffect,
+    useRef,
+    useState,
+    type CSSProperties,
+    type PointerEvent as ReactPointerEvent,
+    type ReactNode,
+} from "react"
 
 import {message} from "@agenta/ui/app-message"
+import {HeightCollapse} from "@agenta/ui/height-collapse"
 import {cn} from "@agenta/ui/styles"
 import {
     AutosizeTextarea,
@@ -26,7 +35,16 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@agenta/ui/ui"
-import {File as FileIcon, Info, Plus, Trash} from "@phosphor-icons/react"
+import {
+    ArrowLeft,
+    CaretDown,
+    File as FileIcon,
+    Info,
+    Plus,
+    SlidersHorizontal,
+    Trash,
+} from "@phosphor-icons/react"
+import {motion, useMotionValue, useTransform} from "motion/react"
 
 import {CodeEditor, codeLanguageFromPath} from "./CodeEditor"
 import {MarkdownEditor} from "./MarkdownEditor"
@@ -45,6 +63,20 @@ export interface SkillFormViewProps {
     value: Record<string, unknown>
     onChange: (next: Record<string, unknown>) => void
     disabled?: boolean
+    /** Replaces the upload drop zone at the rail bottom (e.g. a versions card in detail mode). */
+    railBottomSlot?: ReactNode
+    /**
+     * The Name field takes the caret on mount — a frame late, so a drawer's own focus on its
+     * wrapper has already landed. For a form that opens empty, where the name is the first thing
+     * to type.
+     */
+    autoFocusName?: boolean
+    /**
+     * Paint the empty required fields red. Off until the host's Create or Save is pressed:
+     * a field that reddens the moment the caret leaves it scolds a reader who has not tried
+     * to submit anything yet.
+     */
+    showMissing?: boolean
 }
 
 /** Which file the right pane is editing: the pinned SKILL.md body, or a `files[]` entry by index. */
@@ -77,7 +109,7 @@ function ToggleRow({
                                 <Info size={13} className="shrink-0 text-[var(--ag-zinc-5)]" />
                             </span>
                         </TooltipTrigger>
-                        <TooltipContent>{description}</TooltipContent>
+                        <TooltipContent side="right">{description}</TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
             </div>
@@ -151,19 +183,55 @@ function FileRow({
     )
 }
 
-export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
+const RAIL_MIN = 140
+const RAIL_MAX = 420
+const RAIL_DEFAULT = 176 // the old fixed w-44
+const RAIL_WIDTH_KEY = "agenta:skill-form:rail-width"
+
+function readRailWidth(): number {
+    try {
+        const stored = Number(window.localStorage.getItem(RAIL_WIDTH_KEY))
+        if (Number.isFinite(stored) && stored >= RAIL_MIN && stored <= RAIL_MAX) return stored
+    } catch {
+        // SSR or blocked storage — fall through to the default.
+    }
+    return RAIL_DEFAULT
+}
+
+export function SkillFormView({
+    value,
+    onChange,
+    disabled,
+    railBottomSlot,
+    autoFocusName = false,
+    showMissing = false,
+}: SkillFormViewProps) {
     const skill = (value ?? {}) as Record<string, unknown>
+    const nameInput = useRef<HTMLInputElement>(null)
+    useEffect(() => {
+        if (!autoFocusName) return
+        const frame = requestAnimationFrame(() => nameInput.current?.focus())
+        return () => cancelAnimationFrame(frame)
+    }, [autoFocusName])
     const files: SkillFileEntry[] = Array.isArray(skill.files)
         ? (skill.files as SkillFileEntry[])
         : []
 
     const [selected, setSelected] = useState<Selection>("skill")
-    // Quiet on a pristine draft; on once the user or an upload touches the field.
+    // Phone: one pane at a time, as the version-history drawer does. Opens on the editor for the
+    // pinned SKILL.md — the reason to open a skill — with a back link to the file list.
+    const [mobileView, setMobileView] = useState<"list" | "detail">("detail")
+    const openEntry = (next: Selection) => {
+        setSelected(next)
+        setMobileView("detail")
+    }
+    // The name's format check is quiet on a pristine draft; on once the user or an upload
+    // touches the field. Empty-field chrome is the host's call (`showMissing`), not the caret's.
     const [nameTouched, setNameTouched] = useState(() => Boolean(String(skill.name ?? "").trim()))
-    const [descriptionTouched, setDescriptionTouched] = useState(() =>
-        Boolean(String(skill.description ?? "").trim()),
+    // Open when a flag is already off-default, so an existing skill never hides a set toggle.
+    const [advancedOpen, setAdvancedOpen] = useState(
+        () => Boolean(skill.disable_model_invocation) || Boolean(skill.allow_executable_files),
     )
-    const [bodyTouched, setBodyTouched] = useState(() => Boolean(String(skill.body ?? "").trim()))
 
     // The JSON view can put any type here, and a cast alone would let `.trim()` / spread throw.
     const asText = (value: unknown) => (typeof value === "string" ? value : "")
@@ -171,23 +239,29 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
     const name = asText(skill.name)
     const description = asText(skill.description)
     const body = asText(skill.body)
-    const nameError = skillNameError(skill.name, {touched: nameTouched})
+    // An empty value reads as red chrome (label + input border) rather than a "Required." line,
+    // and only once a submit was attempted. A non-string value is NOT missing — it has its own
+    // NOT_TEXT message, which must still show.
+    const missing = (raw: unknown, text: string) => !notText(raw) && showMissing && !text.trim()
+
+    const rawNameError = skillNameError(skill.name, {touched: nameTouched})
+    const nameMissing = missing(skill.name, name)
+    const nameError = nameMissing ? undefined : rawNameError
     const nameSuggestion = nameError && name.trim() ? slugifySkillName(name) : ""
     const showNameSuggestion = Boolean(nameSuggestion) && nameSuggestion !== name
+    const descriptionMissing = missing(skill.description, description)
     const descriptionError = notText(skill.description)
         ? NOT_TEXT
-        : descriptionTouched && !description.trim()
-          ? "Required."
-          : [...description].length > SKILL_DESCRIPTION_MAX
-            ? `Max ${SKILL_DESCRIPTION_MAX} characters.`
-            : undefined
+        : [...description].length > SKILL_DESCRIPTION_MAX
+          ? `Max ${SKILL_DESCRIPTION_MAX} characters.`
+          : undefined
+    // Body gets the same treatment: without it an empty SKILL.md disables Create with no cue.
+    const bodyMissing = missing(skill.body, body)
     const bodyError = notText(skill.body)
         ? NOT_TEXT
-        : bodyTouched && !body.trim()
-          ? "Required."
-          : [...body].length > SKILL_BODY_MAX
-            ? `Max ${SKILL_BODY_MAX} characters.`
-            : undefined
+        : [...body].length > SKILL_BODY_MAX
+          ? `Max ${SKILL_BODY_MAX} characters.`
+          : undefined
 
     const set = (key: string, fieldValue: unknown) => {
         const next = {...skill}
@@ -214,7 +288,7 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
         setFiles(files.map((f, i) => (i === index ? {...f, ...patch} : f)))
     const addFile = () => {
         setFiles([...files, {path: "", content: ""}])
-        setSelected(files.length) // the new entry's index
+        openEntry(files.length) // the new entry's index
     }
     const removeFile = (index: number) => {
         setFiles(files.filter((_, i) => i !== index))
@@ -230,18 +304,16 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
         const next = {...skill}
         if (parsed.name) next.name = parsed.name
         if (parsed.description) next.description = parsed.description
-        // Touched regardless of what the upload carried, so a package missing a name or
-        // description shows "Required." instead of only a dead Save button.
+        // Touched regardless of what the upload carried, so a package with a badly formed name
+        // says so at once.
         setNameTouched(true)
-        setDescriptionTouched(true)
         // body/files are always present on a parsed upload; assign unconditionally so a
         // replacement with an empty body or no bundled files clears the previous draft.
         next.body = parsed.body
-        setBodyTouched(true)
         if (parsed.files.length) next.files = parsed.files
         else delete next.files
         onChange(next)
-        setSelected("skill")
+        openEntry("skill")
     }
 
     // Drawer-wide SKILL.md paste: refs keep the once-registered listener reading the latest draft.
@@ -266,7 +338,7 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
             if (!/^\uFEFF?---\r?\n/.test(text)) return
             e.preventDefault()
             onChangeRef.current(mergePastedSkill(skillRef.current, text))
-            setSelected("skill")
+            openEntry("skill")
             message.success("Filled from the pasted skill")
         }
         document.addEventListener("paste", onPaste)
@@ -277,10 +349,65 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
     const activeFile = typeof selected === "number" ? files[selected] : undefined
     const showSkill = selected === "skill" || !activeFile
 
+    // Draggable rail width, mirroring the drive tree pane: the live width is a MotionValue driven
+    // straight from the pointer (a drag re-renders nothing per move); the rest width persists to
+    // localStorage once at drag end.
+    const railW = useMotionValue(readRailWidth())
+    // The rail's width reaches CSS as a variable, so the phone layout can ignore it.
+    const railWidthVar = useTransform(railW, (width) => `${Math.round(width)}px`)
+    const railDrag = useRef<{startX: number; startW: number} | null>(null)
+    const [railDragging, setRailDragging] = useState(false)
+    const onRailHandleDown = useCallback(
+        (e: ReactPointerEvent<HTMLDivElement>) => {
+            e.preventDefault()
+            e.currentTarget.setPointerCapture(e.pointerId)
+            railDrag.current = {startX: e.clientX, startW: railW.get()}
+            setRailDragging(true)
+        },
+        [railW],
+    )
+    const onRailHandleMove = useCallback(
+        (e: ReactPointerEvent<HTMLDivElement>) => {
+            const st = railDrag.current
+            if (!st) return
+            railW.set(Math.min(RAIL_MAX, Math.max(RAIL_MIN, st.startW + e.clientX - st.startX)))
+        },
+        [railW],
+    )
+    const onRailHandleUp = useCallback(
+        (e: ReactPointerEvent<HTMLDivElement>) => {
+            if (!railDrag.current) return
+            railDrag.current = null
+            setRailDragging(false)
+            e.currentTarget.releasePointerCapture?.(e.pointerId)
+            try {
+                window.localStorage.setItem(RAIL_WIDTH_KEY, String(Math.round(railW.get())))
+            } catch {
+                // Blocked storage — the width still holds for this mount.
+            }
+        },
+        [railW],
+    )
+
     return (
-        <div className="flex h-full gap-3">
+        <div className="flex h-full">
             {/* Left: full-height file list (SKILL.md pinned) with the drop zone pinned to the bottom. */}
-            <div className="ag-drawer-rail flex h-full w-44 shrink-0 flex-col gap-2 border-0 border-r border-solid border-[var(--ag-c-EAEFF5)] pr-3">
+            <motion.div
+                style={{"--ag-skill-rail-w": railWidthVar} as CSSProperties}
+                className={cn(
+                    // -my/py pair: bleeds the divider through the drawer body's vertical padding so
+                    // it meets the header and footer rules, without moving the rail's content.
+                    // No `ag-drawer-rail`: that class paints a recessed band in dark, which shows
+                    // through around the Files panel. The panel is this rail's surface, as in light.
+                    // Phone: one pane at a time, full width. Tablet and up: the
+                    // resizable rail, whose dragged width rides a CSS variable so the
+                    // breakpoint stays pure CSS (an inline width would beat the phone
+                    // layout at every viewport).
+                    "-my-4 box-border flex flex-col gap-2 py-4 sm:w-[var(--ag-skill-rail-w)] sm:shrink-0 sm:pr-3",
+                    "sm:border-0 sm:border-r sm:border-solid sm:border-colorBorderSecondary",
+                    mobileView === "list" ? "w-full" : "hidden sm:flex",
+                )}
+            >
                 <div className="flex shrink-0 items-center justify-between gap-1">
                     <span className="text-xs font-medium">Files</span>
                     {!disabled ? (
@@ -308,7 +435,7 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
                     <FileRow
                         label="SKILL.md"
                         active={showSkill}
-                        onSelect={() => setSelected("skill")}
+                        onSelect={() => openEntry("skill")}
                         disabled={disabled}
                     />
                     {files.map((file, index) => (
@@ -316,29 +443,58 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
                             key={index}
                             label={file.path || "untitled"}
                             active={selected === index}
-                            onSelect={() => setSelected(index)}
+                            onSelect={() => openEntry(index)}
                             onRemove={() => removeFile(index)}
                             disabled={disabled}
                         />
                     ))}
                 </div>
 
-                {!disabled ? (
-                    <div className="flex shrink-0 flex-col gap-1.5">
+                {railBottomSlot ? (
+                    <div className="shrink-0">{railBottomSlot}</div>
+                ) : !disabled ? (
+                    <div className="shrink-0">
                         <SkillUploadZone onParsed={applyParsed} disabled={disabled} />
-                        <span className="text-xs leading-snug text-colorTextDescription">
-                            …or paste a SKILL.md anywhere here to fill the fields
-                        </span>
                     </div>
                 ) : null}
+            </motion.div>
+
+            {/* Resize handle — a wide invisible hit target straddling the rail's right edge (the
+                rail's own border is the resting divider); the 1px line lights up on hover/drag. */}
+            <div
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Resize file rail"
+                onPointerDown={onRailHandleDown}
+                onPointerMove={onRailHandleMove}
+                onPointerUp={onRailHandleUp}
+                className="group relative z-10 -mx-1 -my-4 hidden w-2 shrink-0 cursor-col-resize touch-none sm:block"
+            >
+                <div
+                    className={`absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors ${railDragging ? "bg-colorPrimary" : "bg-transparent group-hover:bg-colorPrimary"}`}
+                />
             </div>
 
             {/* Right: skill-level fields + the selected file's editor + behaviour toggles. */}
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
+            <div
+                className={cn(
+                    "min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden sm:pl-3",
+                    mobileView === "detail" ? "flex" : "hidden sm:flex",
+                )}
+            >
+                <button
+                    type="button"
+                    onClick={() => setMobileView("list")}
+                    className="flex shrink-0 cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-xs text-colorTextSecondary sm:hidden"
+                >
+                    <ArrowLeft />
+                    Files
+                </button>
                 <Field
+                    className="shrink-0"
+                    invalid={nameMissing}
                     label="Name"
-                    required
-                    tooltip="Lowercase letters, digits and single hyphens — this becomes the skill's directory name and its /skill:name handle, so the harness rejects anything else"
+                    tooltip="A short name like weather-report. Lowercase letters, numbers and hyphens only."
                     error={
                         nameError ? (
                             <span>
@@ -364,34 +520,31 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
                     }
                 >
                     <Input
+                        ref={nameInput}
                         value={name}
                         onChange={(e) => {
                             setNameTouched(true)
                             set("name", e.target.value)
                         }}
-                        onBlur={() => setNameTouched(true)}
                         maxLength={SKILL_NAME_MAX}
-                        aria-invalid={nameError ? true : undefined}
+                        aria-invalid={nameMissing || nameError ? true : undefined}
                         placeholder="my-skill"
                         disabled={disabled}
                     />
                 </Field>
 
                 <Field
+                    className="shrink-0"
+                    invalid={descriptionMissing}
                     label="Description"
-                    required
-                    tooltip="The trigger the model matches when deciding to use this skill"
+                    tooltip="Tells the agent when to use this skill."
                     error={descriptionError}
                 >
                     <AutosizeTextarea
                         value={description}
-                        onChange={(e) => {
-                            setDescriptionTouched(true)
-                            set("description", e.target.value)
-                        }}
-                        onBlur={() => setDescriptionTouched(true)}
+                        onChange={(e) => set("description", e.target.value)}
                         autoSize={{minRows: 2, maxRows: 4}}
-                        aria-invalid={descriptionError ? true : undefined}
+                        aria-invalid={descriptionMissing || descriptionError ? true : undefined}
                         placeholder="When the agent should reach for this skill"
                         disabled={disabled}
                     />
@@ -399,33 +552,29 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
 
                 {showSkill ? (
                     <Field
+                        className="min-h-0 flex-1"
+                        invalid={bodyMissing}
                         label="SKILL.md"
-                        required
-                        tooltip="The Markdown body the harness reads, written after the composed frontmatter"
+                        tooltip="The instructions the agent follows when it uses this skill."
                         error={bodyError}
                     >
                         <MarkdownEditor
                             value={body}
-                            onChange={(v) => {
-                                setBodyTouched(true)
-                                set("body", v)
-                            }}
+                            onChange={(v) => set("body", v)}
                             placeholder={
                                 "# My skill\n\nStep-by-step instructions the agent follows…"
                             }
                             disabled={disabled}
                             showToolbar
                             defaultView="rendered"
-                            // Viewport-relative, not a fixed 360px: the SKILL.md body is the point of
-                            // this form, so let it use most of the drawer height (scrolls internally
-                            // past that). Full parent-fill for consistency with the instructions
-                            // editor is a larger cross-package layout change (LabeledField in @agenta/ui).
-                            maxHeight="60vh"
+                            // Takes the drawer height left over after the other fields, so the body
+                            // scrolls inside the editor and the drawer itself never does.
+                            grow
                         />
                     </Field>
                 ) : (
-                    <div className="flex flex-col gap-2">
-                        <div className="flex items-center gap-2">
+                    <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
+                        <div className="flex shrink-0 items-center gap-2">
                             <Input
                                 value={activeFile?.path ?? ""}
                                 onChange={(e) =>
@@ -456,7 +605,8 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
                                         </span>
                                     </TooltipTrigger>
                                     <TooltipContent>
-                                        Mark executable (sandbox policy must also allow it)
+                                        Let this file run as a program. Your sandbox settings must
+                                        allow it too.
                                     </TooltipContent>
                                 </Tooltip>
                             </TooltipProvider>
@@ -470,25 +620,57 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
                             placeholder="File content"
                             disabled={disabled}
                             disableDebounce
+                            grow
                         />
                     </div>
                 )}
 
-                <ToggleRow
-                    label="Hide from prompt"
-                    description="Don't list this skill in the prompt — invoke only via /skill:name (Pi / Claude)"
-                    checked={Boolean(skill.disable_model_invocation)}
-                    onChange={(v) => set("disable_model_invocation", v)}
-                    disabled={disabled}
-                />
+                <div className="flex shrink-0 flex-col">
+                    <button
+                        type="button"
+                        onClick={() => setAdvancedOpen((prev) => !prev)}
+                        // Not disabled in read-only mode: the flags stay readable, just not editable.
+                        aria-expanded={advancedOpen}
+                        // px-0/font-[inherit]: preflight is off, so a bare button keeps the
+                        // UA's 6px inline padding (misaligning it from the fields) and Arial.
+                        className="flex cursor-pointer items-center justify-between border-0 bg-transparent px-0 py-1.5 font-[inherit]"
+                    >
+                        <span className="flex items-center gap-2">
+                            <SlidersHorizontal
+                                size={15}
+                                className="text-[var(--ag-colorTextSecondary)]"
+                            />
+                            <span className="text-xs font-medium text-[var(--ag-colorText)]">
+                                Advanced
+                            </span>
+                        </span>
+                        <CaretDown
+                            size={14}
+                            className={`text-[var(--ag-colorIcon)] transition-transform ${
+                                advancedOpen ? "" : "-rotate-90"
+                            }`}
+                        />
+                    </button>
+                    <HeightCollapse open={advancedOpen}>
+                        <div className="flex flex-col gap-3 pb-2 pt-1">
+                            <ToggleRow
+                                label="Hide from prompt"
+                                description="The agent won't pick this skill on its own. You run it yourself with /skill:name."
+                                checked={Boolean(skill.disable_model_invocation)}
+                                onChange={(v) => set("disable_model_invocation", v)}
+                                disabled={disabled}
+                            />
 
-                <ToggleRow
-                    label="Allow executable files"
-                    description="Permit executable bundled files (the sandbox policy must also allow execution)"
-                    checked={Boolean(skill.allow_executable_files)}
-                    onChange={(v) => set("allow_executable_files", v)}
-                    disabled={disabled}
-                />
+                            <ToggleRow
+                                label="Allow executable files"
+                                description="Let the files in this skill run as programs. Your sandbox settings must allow it too."
+                                checked={Boolean(skill.allow_executable_files)}
+                                onChange={(v) => set("allow_executable_files", v)}
+                                disabled={disabled}
+                            />
+                        </div>
+                    </HeightCollapse>
+                </div>
             </div>
         </div>
     )

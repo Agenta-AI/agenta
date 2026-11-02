@@ -1,0 +1,658 @@
+"""Relay LLM requests while preserving provider request and response bodies."""
+
+import json
+from collections import OrderedDict
+from typing import Any, AsyncIterator, Dict, Optional, Tuple
+from urllib.parse import urlparse
+
+import httpx
+
+from oss.src.core.gateways.cleanup import run_shielded
+from oss.src.core.gateways.dtos import (
+    CredentialEchoDetected,
+    CredentialEchoRelay,
+    CredentialEchoScanner,
+    credential_echo_envelope,
+    injected_credential_values,
+    secret_credential_values,
+    outbound_headers,
+)
+from oss.src.core.gateways.egress import (
+    EgressRefusedError,
+    EgressTarget,
+    classify_transport_error,
+    harden_pooled_client,
+    open_egress,
+)
+from oss.src.core.gateways.llms.catalog import AGENTA_PROVIDER, BUILTIN_LLM_PROVIDERS
+from oss.src.core.gateways.llms.dtos import (
+    LLMCallContext,
+    LLMDeploymentKind,
+    LLMProtocol,
+    LLMResolvedRoute,
+)
+from oss.src.core.gateways.llms.interfaces import LLMRelayResult, LLMUpstreamInterface
+from oss.src.core.gateways.llms.providers.passthrough.auth import build_auth_headers
+from oss.src.core.gateways.llms.providers.passthrough.routing import (
+    build_url,
+    vertex_gemini_native_url,
+)
+from oss.src.core.gateways.llms.providers.passthrough.upstream_errors import (
+    relay_upstream_errors,
+)
+from oss.src.core.gateways.llms.providers.passthrough.static_fields import (
+    apply_static_fields,
+    encode_thought_signatures,
+    is_gemini_chat,
+    default_gemini_thinking,
+    move_gemini_thoughts,
+    normalize_gemini_thinking,
+    nudge_stalled_chat,
+    nudge_stalled_gemini,
+    stream_gemini_thoughts,
+)
+from oss.src.core.gateways.llms.types import LLMUpstreamError, LLMUpstreamTimeoutError
+from oss.src.core.gateways.policy.dtos import (
+    GatewayUsage,
+    ResolvedSecret,
+    SecretOwnerKind,
+)
+
+# LiteLLM's defaults: a route's `timeout_seconds`, else 600 s, bounds each read (the wait for
+# the headers, and every gap between two chunks of a stream), not the length of the answer. A
+# provider that does not accept a connection in 5 s is down, not slow.
+_DEFAULT_TIMEOUT_SECONDS = 600.0
+_CONNECT_TIMEOUT_SECONDS = 5.0
+
+
+class LLMUpstreamCredentialEchoError(LLMUpstreamError):
+    """The upstream returned the credential the gateway sent it.
+
+    An upstream that echoes the `Authorization` it received, which several providers do in
+    an error body, hands Agenta's provider key to the sandbox. The decision is to refuse the
+    response rather than redact it: a body that already contains the key cannot be trusted
+    to contain it only once, and a caller reading a doctored body is worse off than a caller
+    reading a refusal. The same refusal covers a credential returned in a response *header*,
+    which the proxy copies onto Agenta's own response verbatim.
+
+    An `LLMUpstreamError` so the existing boundary mapping still catches it; `envelope`
+    carries the shared `{code, message, retryable, next_step, details}` refusal, with a
+    `code` of its own so a harness can tell this apart from a plain upstream failure.
+    """
+
+    def __init__(self, *, provider_key: Optional[str], status_code: Optional[int]):
+        self.envelope = credential_echo_envelope(target=provider_key)
+        super().__init__(
+            provider_key=provider_key,
+            status_code=status_code,
+            detail=self.envelope["message"],
+        )
+
+
+async def _outbound_target(
+    *,
+    url: str,
+    headers: Dict[str, str],
+    route: LLMResolvedRoute,
+    secret: Optional[ResolvedSecret],
+) -> Tuple[EgressTarget, Tuple[bytes, ...]]:
+    """The checked, pinned target and the credential values its headers carry.
+
+    Layered caller, then endpoint, then authentication, so what the gateway injects wins
+    over anything the caller sent under the same name in any casing. The whole assembly
+    goes through the shared egress boundary, which admits only the allowlisted caller
+    headers and pins the connection to an address it checked (OD26).
+    """
+    auth_headers = await build_auth_headers(route, secret)
+    target = await open_egress(
+        url,
+        caller_headers=headers,
+        above_caller=outbound_headers(route.headers, auth_headers),
+    )
+    scanned = injected_credential_values(auth_headers)
+    if (
+        secret is not None
+        and secret.owner is not None
+        and secret.owner.kind == SecretOwnerKind.ORGANIZATION
+    ):
+        # An organization credential is scanned for whole, not only as the headers
+        # carry it: none of its values may come back to the sandbox (M5).
+        scanned = tuple(
+            dict.fromkeys(scanned + secret_credential_values(secret.secret))
+        )
+    return target, scanned
+
+
+# Usage fields differ by protocol but are read without rewriting the response.
+def _usage_from_payload(payload: Any, protocol: LLMProtocol) -> Optional[GatewayUsage]:
+    if not isinstance(payload, dict):
+        return None
+
+    if protocol == LLMProtocol.GEMINI:
+        return _gemini_usage(payload.get("usageMetadata"))
+
+    usage = payload.get("usage")
+    if usage is None and protocol == LLMProtocol.RESPONSES:
+        # A Responses stream's usage rides the terminal `response.completed` event,
+        # nested under `response` rather than at the frame's top level.
+        response = payload.get("response")
+        usage = response.get("usage") if isinstance(response, dict) else None
+    if usage is None and protocol == LLMProtocol.MESSAGES:
+        # A Messages stream splits its usage in two: `message_start`, the FIRST frame,
+        # carries the input tokens inside the message object, and `message_delta`, near
+        # the end, carries the output tokens at the frame's top level. Neither frame on
+        # its own is the call's usage (OR49).
+        message = payload.get("message")
+        usage = message.get("usage") if isinstance(message, dict) else None
+
+    if not isinstance(usage, dict):
+        return None
+
+    if protocol == LLMProtocol.MESSAGES:
+        # Anthropic reports fresh input already apart from both cached slices.
+        return GatewayUsage(
+            calls=1,
+            input_tokens=usage.get("input_tokens"),
+            cache_read_tokens=usage.get("cache_read_input_tokens"),
+            cache_write_tokens=usage.get("cache_creation_input_tokens"),
+            output_tokens=usage.get("output_tokens"),
+        )
+
+    # OpenAI's two protocols count the cached slice INSIDE the prompt total, so fresh input
+    # is the difference; left as is, cached tokens would be priced as fresh input.
+    if protocol == LLMProtocol.CHAT_COMPLETIONS:
+        prompt = usage.get("prompt_tokens")
+        details = usage.get("prompt_tokens_details")
+        output = usage.get("completion_tokens")
+    else:
+        prompt = usage.get("input_tokens")
+        details = usage.get("input_tokens_details")
+        output = usage.get("output_tokens")
+    cached = details.get("cached_tokens") if isinstance(details, dict) else None
+    # OpenAI counts reasoning inside the output total; Vertex's OpenAI-compatible endpoint
+    # leaves Gemini's reasoning out of it and counts it only in `total_tokens`. Reasoning is
+    # billed as output, so the output is whatever of the total is not prompt. Vertex omits
+    # `completion_tokens` altogether when the answer is empty, as when reasoning used the
+    # whole token limit; the reasoning is still billed.
+    total = usage.get("total_tokens")
+    if (
+        isinstance(total, int)
+        and isinstance(prompt, int)
+        and total - prompt > (output if isinstance(output, int) else 0)
+    ):
+        output = total - prompt
+    if isinstance(prompt, int) and isinstance(cached, int):
+        # Never below zero: a negative input would offset the output in the charge.
+        prompt = max(prompt - cached, 0)
+    return GatewayUsage(
+        calls=1,
+        input_tokens=prompt,
+        cache_read_tokens=cached,
+        output_tokens=output,
+    )
+
+
+def _gemini_usage(metadata: Any) -> Optional[GatewayUsage]:
+    """A native Gemini call's usage from its `usageMetadata`, which only the last event of a
+    stream carries in full.
+
+    Explicit counters only. The prompt count includes the cached slice, so fresh input is the
+    rest, plus any tool-use prompt; thoughts are billed as output beside the answer.
+    `totalTokenCount` is not used: it would count tool-use input as output.
+    """
+    if not isinstance(metadata, dict) or "promptTokenCount" not in metadata:
+        return None
+
+    def count(field: str) -> int:
+        value = metadata.get(field)
+        return value if isinstance(value, int) else 0
+
+    cached = count("cachedContentTokenCount")
+    return GatewayUsage(
+        calls=1,
+        input_tokens=max(
+            count("promptTokenCount") + count("toolUsePromptTokenCount") - cached, 0
+        ),
+        cache_read_tokens=cached or None,
+        output_tokens=count("candidatesTokenCount") + count("thoughtsTokenCount"),
+    )
+
+
+def _merge_usage(
+    base: Optional[GatewayUsage], later: Optional[GatewayUsage]
+) -> Optional[GatewayUsage]:
+    """One call's usage, assembled from however many frames carried a piece of it.
+
+    Field by field, the later value wins where it has one. That is what turns Anthropic's
+    head-and-tail split into a single record, and it leaves a protocol that sends its usage
+    whole, in one frame, with exactly that frame's numbers.
+    """
+    if later is None:
+        return base
+    if base is None:
+        return later
+    return GatewayUsage(
+        calls=1,
+        **{
+            field: getattr(later, field)
+            if getattr(later, field) is not None
+            else getattr(base, field)
+            for field in _MERGED_USAGE_FIELDS
+        },
+    )
+
+
+# Every measured field, derived so that a field added to `GatewayUsage` cannot be dropped
+# by a stream that splits its usage across frames.
+_MERGED_USAGE_FIELDS = tuple(
+    field for field in GatewayUsage.model_fields if field != "calls"
+)
+
+
+def _body_payload(content: bytes) -> Any:
+    try:
+        return json.loads(content) if content else None
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+
+def _usage_from_body(content: bytes, protocol: LLMProtocol) -> Optional[GatewayUsage]:
+    return _usage_from_payload(_body_payload(content), protocol)
+
+
+# How much of a single SSE frame the reader will hold while it waits for the newline that
+# ends it. A Responses `response.completed` frame carries the whole response object, so it
+# is generous. Past it, a frame is relayed and left unread, but a Gemini route fails: the
+# frame could carry a thought signature the caller would never get back.
+_MAX_FRAME_BYTES = 1_048_576
+
+
+def _frame_payload(line: bytes) -> Any:
+    """The JSON object an SSE `data:` line carries, or None when it carries none."""
+    stripped = line.strip()
+    if not stripped.startswith(b"data:"):
+        return None
+    chunk = stripped[len(b"data:") :].strip()
+    if not chunk or chunk == b"[DONE]":
+        return None
+    try:
+        return json.loads(chunk)
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+
+class _StreamReader:
+    """Read usage out of a relayed SSE stream, and on a Gemini route encode thought
+    signatures into tool call ids.
+
+    Frames are read forward, as they pass, rather than out of a buffered tail. A tail never
+    held the whole story: Anthropic's input-token count arrives in `message_start`, the
+    first frame of the stream, and a Responses `response.completed` frame can be larger on
+    its own than any tail worth keeping (OR49).
+
+    Without `sign` the caller relays the upstream's own bytes, in the upstream's own
+    chunks, and this reads a copy of them on the way past. With `sign` the caller relays
+    what `feed` and `flush` return: whole lines, and a line that carried a signed tool
+    call re-serialized. A stream that reports no usage leaves `usage` as None, which is
+    not the same record as a call that reported zero.
+    """
+
+    def __init__(
+        self,
+        protocol: LLMProtocol,
+        *,
+        sign: bool = False,
+        thoughts: Optional[bool] = None,
+        provider_key: Optional[str] = None,
+    ) -> None:
+        self._protocol = protocol
+        self._sign = sign
+        self._thoughts = thoughts
+        self._provider_key = provider_key
+        self._buffer = b""
+        self.usage: Optional[GatewayUsage] = None
+
+    def feed(self, chunk: bytes) -> bytes:
+        """Read `chunk` and return the bytes to relay for it."""
+        self._buffer += chunk
+        lines = []
+        while (end := self._buffer.find(b"\n")) >= 0:
+            line, self._buffer = self._buffer[: end + 1], self._buffer[end + 1 :]
+            lines.append(self._read(line))
+        if len(self._buffer) > _MAX_FRAME_BYTES:
+            if self._sign:
+                raise LLMUpstreamError(
+                    provider_key=self._provider_key,
+                    status_code=None,
+                    detail="A Gemini stream frame exceeded the gateway's size limit.",
+                )
+            self._buffer = b""
+        return b"".join(lines) if self._sign else chunk
+
+    def flush(self) -> bytes:
+        """Read the last line of a stream that ended without a newline."""
+        line, self._buffer = self._buffer, b""
+        tail = self._read(line) if line else b""
+        return tail if self._sign else b""
+
+    def _read(self, line: bytes) -> bytes:
+        payload = _frame_payload(line)
+        usage = _usage_from_payload(payload, self._protocol)
+        if usage is not None:
+            self.usage = _merge_usage(self.usage, usage)
+        if not self._sign:
+            return line
+        signed = encode_thought_signatures(payload)
+        moved = self._thoughts is not None and move_gemini_thoughts(
+            payload, relay=self._thoughts
+        )
+        if signed or moved:
+            return b"data: " + json.dumps(payload).encode() + b"\n"
+        return line
+
+
+# How many per-origin clients the adapter keeps. Origins come from tenant-registered URLs,
+# so the map cannot be unbounded; past this the least recently used entry is dropped.
+_MAX_POOLED_CLIENTS = 64
+
+
+def _pool_origin(url: str) -> str:
+    """The identity a connection may be reused under: scheme, host and port, lowercased."""
+    parsed = urlparse(url)
+    scheme = (parsed.scheme or "").lower()
+    host = (parsed.hostname or "").lower()
+    port = parsed.port or (443 if scheme == "https" else 80)
+    return f"{scheme}://{host}:{port}"
+
+
+class RelayLLMAdapter(LLMUpstreamInterface):
+    """Relay requests with routing and authentication while preserving bodies.
+
+    Clients are pooled rather than opened per call: a streaming response keeps its client
+    alive past this method's return, so a client opened and closed around one call would cut
+    the stream. They are pooled **one per registered origin**, not one for the adapter.
+
+    One client for everything was wrong once the egress guard began pinning (OD26). Pinning
+    rewrites the URL's host to the literal address it checked, and httpcore keys connection
+    reuse on that rewritten origin (`AsyncConnectionPool._assign_requests_to_connections` ->
+    `AsyncHTTPConnection.can_handle_request`, which compares only scheme/host/port).
+    `sni_hostname` rides in the request extensions and is read at handshake time only, so it
+    never reaches the pool key. Two tenants whose hostnames resolve to one address therefore
+    shared a single TLS connection, and the second tenant's provider key travelled over a
+    connection opened, and certificate-checked, for the first tenant's hostname.
+
+    Keying the map on the ORIGINAL origin restores that identity: connection reuse is a
+    per-origin concept to begin with, so nothing is lost by partitioning on it. An evicted
+    entry is dropped, never closed, because a response streaming from it is still being read;
+    its connections retire on their own once the last reader is finished.
+    """
+
+    def __init__(self, *, client: Optional[httpx.AsyncClient] = None) -> None:
+        # A caller (every test) passes a client to install its transport. Only the transport
+        # is adopted: the adapter has to own its clients to key them by origin.
+        self._transport: Optional[httpx.AsyncBaseTransport] = getattr(
+            client, "_transport", None
+        )
+        self._clients: "OrderedDict[str, httpx.AsyncClient]" = OrderedDict()
+
+    def _client_for(self, origin: str) -> httpx.AsyncClient:
+        existing = self._clients.get(origin)
+        if existing is not None:
+            self._clients.move_to_end(origin)
+            return existing
+
+        # Each pooled client is shared by every tenant reaching this origin, so it must hold
+        # no cookie jar (an upstream `Set-Cookie` would otherwise be stored here and replayed
+        # on the next tenant's call) and must not follow a redirect to a host nothing checked.
+        client = harden_pooled_client(httpx.AsyncClient(transport=self._transport))
+        self._clients[origin] = client
+        while len(self._clients) > _MAX_POOLED_CLIENTS:
+            self._clients.popitem(last=False)
+        return client
+
+    async def relay_chat_completion(
+        self,
+        *,
+        route: LLMResolvedRoute,
+        secret: Optional[ResolvedSecret],
+        #
+        context: LLMCallContext,
+        body: bytes,
+        headers: Dict[str, str],
+    ) -> LLMRelayResult:
+        if context.protocol == LLMProtocol.GEMINI:
+            # The built-in Gemini endpoint's native door (`docs/design/gemini-native-door`):
+            # the body is Vertex's own request, relayed with a thinking level its model
+            # accepts, and varied after a stall like the chat door's.
+            url = vertex_gemini_native_url(route)
+            body = normalize_gemini_thinking(body)
+            if context.stalled_attempts:
+                body = nudge_stalled_gemini(body, attempts=context.stalled_attempts)
+        else:
+            url = build_url(route, context.protocol, stream=context.stream)
+            body = apply_static_fields(
+                provider_key=route.provider_key,
+                deployment_kind=route.deployment_kind,
+                protocol=context.protocol,
+                body=body,
+            )
+        sign = is_gemini_chat(
+            route.deployment_kind, context.protocol, route.provider_key
+        )
+        # The platform's own Gemini thinks at "low" unless asked otherwise, streams its
+        # thoughts so its headers limit (`response_headers_timeout_seconds`) catches stalls
+        # rather than a model that thinks, and varies a request that stalled.
+        thoughts = None
+        if (
+            sign
+            and route.provider_key == AGENTA_PROVIDER
+            and route.deployment_kind == LLMDeploymentKind.VERTEX
+        ):
+            if context.stream:
+                body, thoughts = stream_gemini_thoughts(body)
+            else:
+                body = default_gemini_thinking(body)
+            if context.stalled_attempts:
+                body = nudge_stalled_chat(body, attempts=context.stalled_attempts)
+        try:
+            target, injected_secrets = await _outbound_target(
+                url=url, headers=headers, route=route, secret=secret
+            )
+        except EgressRefusedError as exc:
+            raise LLMUpstreamError(
+                provider_key=route.provider_key,
+                status_code=None,
+                detail=exc.relay_detail,
+            ) from exc
+        scanner = CredentialEchoScanner(injected_secrets)
+        timeout = httpx.Timeout(
+            route.settings.timeout_seconds
+            if route.settings.timeout_seconds is not None
+            else _DEFAULT_TIMEOUT_SECONDS,
+            connect=_CONNECT_TIMEOUT_SECONDS,
+        )
+
+        client = self._client_for(_pool_origin(target.original_url or url))
+        request = client.build_request(
+            "POST",
+            target.url,
+            content=body,
+            headers=target.headers,
+            timeout=timeout,
+            extensions=target.extensions,
+        )
+
+        try:
+            response = await client.send(request, stream=True)
+        except httpx.TimeoutException as exc:
+            raise LLMUpstreamTimeoutError(provider_key=route.provider_key) from exc
+        except httpx.RequestError as exc:
+            # The provider key is in these headers, and a refusal raised while building
+            # the request quotes them (OR86).
+            failure = classify_transport_error(exc)
+            raise LLMUpstreamError(
+                provider_key=route.provider_key,
+                status_code=None,
+                detail=failure.detail,
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise LLMUpstreamError(
+                provider_key=route.provider_key,
+                status_code=None,
+                detail="The gateway could not complete the request to the upstream.",
+            ) from exc
+
+        # Before either response shape is built, and before the error path reads a body: the
+        # header block is relayed too (`apis/fastapi/gateways/utils.py::response_headers`
+        # strips only hop-by-hop names and `set-cookie`), so an upstream answering 200 with
+        # the key in a header of its own discloses it without the body ever carrying it.
+        if scanner.detects_headers(response.headers):
+            await response.aclose()
+            raise LLMUpstreamCredentialEchoError(
+                provider_key=route.provider_key,
+                status_code=response.status_code,
+            )
+
+        result = LLMRelayResult(
+            # Every upstream 5xx reaches the caller as 502, as before: harnesses retry on 502
+            # but not on every 5xx (Pi does not retry 501, 505 or 507).
+            status_code=502 if response.status_code >= 500 else response.status_code,
+            headers=dict(response.headers),
+            body=_empty_body(),
+        )
+        result.body = (
+            self._stream_body(
+                response=response,
+                result=result,
+                protocol=context.protocol,
+                scanner=scanner,
+                provider_key=route.provider_key,
+                sign=sign,
+                thoughts=thoughts,
+            )
+            if context.stream
+            else self._single_chunk_body(
+                response=response,
+                result=result,
+                protocol=context.protocol,
+                scanner=scanner,
+                provider_key=route.provider_key,
+                sign=sign,
+            )
+        )
+        if response.status_code >= 400:
+            # Whatever the upstream sent, the body becomes the protocol's JSON error.
+            result.headers["content-type"] = "application/json"
+        result.body = relay_upstream_errors(
+            result.body,
+            status_code=response.status_code,
+            stream=context.stream,
+            protocol=context.protocol,
+            scanner=scanner,
+            echo_refusal=LLMUpstreamCredentialEchoError(
+                provider_key=route.provider_key, status_code=response.status_code
+            ),
+            # The platform's own account: its errors name the cloud project and region.
+            quote_upstream=route.provider_key not in BUILTIN_LLM_PROVIDERS,
+        )
+        return result
+
+    @staticmethod
+    async def _single_chunk_body(
+        *,
+        response: httpx.Response,
+        result: LLMRelayResult,
+        protocol: LLMProtocol,
+        scanner: CredentialEchoScanner,
+        provider_key: Optional[str],
+        sign: bool,
+    ) -> AsyncIterator[bytes]:
+        try:
+            try:
+                content = await response.aread()
+            except httpx.TimeoutException as exc:
+                # The headers came in time and the body did not.
+                raise LLMUpstreamTimeoutError(provider_key=provider_key) from exc
+            if scanner.detects(content):
+                raise LLMUpstreamCredentialEchoError(
+                    provider_key=provider_key, status_code=response.status_code
+                )
+            payload = _body_payload(content) if sign else None
+            yield (
+                json.dumps(payload).encode()
+                if encode_thought_signatures(payload)
+                else content
+            )
+            result.usage = _usage_from_body(content, protocol)
+        finally:
+            # Shielded for the reason given on `_stream_body` (OR48).
+            await run_shielded(response.aclose())
+
+    @staticmethod
+    async def _stream_body(
+        *,
+        response: httpx.Response,
+        result: LLMRelayResult,
+        protocol: LLMProtocol,
+        scanner: CredentialEchoScanner,
+        provider_key: Optional[str],
+        sign: bool,
+        thoughts: Optional[bool] = None,
+    ) -> AsyncIterator[bytes]:
+        # Off a Gemini route, preserve upstream SSE chunk boundaries while reading usage
+        # out of the frames as they pass. Bytes reach the caller only once they cannot
+        # still begin the credential (`CredentialEchoRelay`), so a value split across two
+        # chunks is withheld rather than yielded and regretted: noticing the split after
+        # the first half has left the generator leaves the caller holding all but the last
+        # byte of the key.
+        relay = CredentialEchoRelay(scanner.secrets)
+        reader = _StreamReader(
+            protocol, sign=sign, thoughts=thoughts, provider_key=provider_key
+        )
+        # An error body that stalls is the gateway's own timeout. A 2xx stream that stalls after
+        # it started stays an `httpx` error, so `relay_upstream_errors` ends it with the
+        # connection-lost event.
+        chunks = (
+            _timed_bytes(response, provider_key)
+            if response.status_code >= 400
+            else response.aiter_bytes()
+        )
+        try:
+            async for chunk in chunks:
+                try:
+                    safe = relay.release(chunk)
+                except CredentialEchoDetected as exc:
+                    raise LLMUpstreamCredentialEchoError(
+                        provider_key=provider_key, status_code=response.status_code
+                    ) from exc
+                relayed = reader.feed(safe)
+                if relayed:
+                    yield relayed
+            # A prefix that reached the end of the body never completed into the credential,
+            # and a stream whose last frame ended without a newline still carries usage.
+            tail = reader.feed(relay.flush()) + reader.flush()
+            if tail:
+                yield tail
+        finally:
+            result.usage = reader.usage or result.usage
+            # A client that disconnects mid-stream cancels this task, and a bare `await`
+            # in a `finally` under cancellation raises before it runs: the upstream
+            # response stayed open and its connection leaked until the pool timed it out
+            # (OR48). Shielded, the close completes; the cancellation still propagates.
+            await run_shielded(response.aclose())
+
+
+async def _timed_bytes(
+    response: httpx.Response, provider_key: Optional[str]
+) -> AsyncIterator[bytes]:
+    """The response's bytes, with a read that outlasts the timeout raised as the gateway's own."""
+    try:
+        async for chunk in response.aiter_bytes():
+            yield chunk
+    except httpx.TimeoutException as exc:
+        raise LLMUpstreamTimeoutError(provider_key=provider_key) from exc
+
+
+async def _empty_body() -> AsyncIterator[bytes]:
+    return
+    yield b""  # pragma: no cover — placeholder, makes this an async generator

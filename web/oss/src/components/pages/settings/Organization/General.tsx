@@ -38,17 +38,14 @@ const OrganizationGeneral = () => {
     const {user} = useProfileData()
     const {members: workspaceMembers} = useWorkspaceMembers()
 
-    const [searchTerm, setSearchTerm] = useState("")
     const [activeOrg, setActiveOrg] = useState<Org | null>(null)
     const [isCreateModalOpen, setCreateModalOpen] = useState(false)
-    const [isRenameModalOpen, setRenameModalOpen] = useState(false)
     const [isTransferModalOpen, setTransferModalOpen] = useState(false)
     const [isDeleteModalOpen, setDeleteModalOpen] = useState(false)
     const [newOwnerId, setNewOwnerId] = useState<string | null>(null)
     const [deleteConfirmInput, setDeleteConfirmInput] = useState("")
 
     const [createForm] = Form.useForm<{name: string}>()
-    const [renameForm] = Form.useForm<{name: string}>()
 
     const isDeleteNameMatch =
         Boolean(activeOrg?.name) && deleteConfirmInput === (activeOrg?.name ?? "")
@@ -94,20 +91,6 @@ const OrganizationGeneral = () => {
         onError: (error: any) => {
             const detail = error?.response?.data?.detail || error?.message
             message.error(formatErrorMessage(detail, "Unable to create organization"))
-        },
-    })
-
-    const renameMutation = useMutation({
-        mutationFn: ({id, name}: {id: string; name: string}) => updateOrganization(id, {name}),
-        onSuccess: async () => {
-            message.success("Organization renamed")
-            setRenameModalOpen(false)
-            setActiveOrg(null)
-            await refetch()
-        },
-        onError: (error: any) => {
-            const detail = error?.response?.data?.detail || error?.message
-            message.error(formatErrorMessage(detail, "Unable to rename organization"))
         },
     })
 
@@ -184,16 +167,18 @@ const OrganizationGeneral = () => {
         <OrganizationsPage
             organizations={orgs ?? []}
             loading={loading}
-            searchTerm={searchTerm}
-            onSearchChange={setSearchTerm}
             selectedOrgId={selectedOrg?.id}
             currentUserId={user?.id}
             onSwitch={(org) => changeSelectedOrg(org.id)}
             onCreate={() => setCreateModalOpen(true)}
-            onRename={(org) => {
-                setActiveOrg(org)
-                renameForm.setFieldsValue({name: org.name ?? ""})
-                setRenameModalOpen(true)
+            onRename={async (org, name) => {
+                try {
+                    await updateOrganization(org.id, {name})
+                } catch (error: any) {
+                    const detail = error?.response?.data?.detail || error?.message
+                    throw new Error(formatErrorMessage(detail, "Unable to rename organization"))
+                }
+                await refetch()
             }}
             onTransferOwnership={(org) => {
                 setActiveOrg(org)
@@ -229,36 +214,6 @@ const OrganizationGeneral = () => {
                         rules={[{required: true, message: "Please enter an organization name"}]}
                     >
                         <Input placeholder="e.g. Acme AI" autoFocus />
-                    </Form.Item>
-                </Form>
-            </EnhancedModal>
-
-            <EnhancedModal
-                title="Rename organization"
-                open={isRenameModalOpen}
-                okText="Save"
-                onCancel={() => {
-                    setRenameModalOpen(false)
-                    setActiveOrg(null)
-                    renameForm.resetFields()
-                }}
-                onOk={() => renameForm.submit()}
-                confirmLoading={renameMutation.isPending}
-            >
-                <Form
-                    form={renameForm}
-                    layout="vertical"
-                    onFinish={({name}) => {
-                        if (!activeOrg) return
-                        renameMutation.mutate({id: activeOrg.id, name: name.trim()})
-                    }}
-                >
-                    <Form.Item
-                        label="Organization name"
-                        name="name"
-                        rules={[{required: true, message: "Please enter an organization name"}]}
-                    >
-                        <Input placeholder="Organization name" />
                     </Form.Item>
                 </Form>
             </EnhancedModal>

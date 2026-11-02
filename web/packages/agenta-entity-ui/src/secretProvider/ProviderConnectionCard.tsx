@@ -18,18 +18,23 @@
  */
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {organizationLabel} from "@agenta/entities/organization"
 import {
     buildModelOptions,
     connectionPolicyForSave,
     credentialFieldsForKind,
     credentialStatusLine,
     credentialValuesFor,
+    DEFAULT_ENDPOINT_PROTOCOL,
     defaultNamePreview,
     doneState,
+    endpointProtocolFieldForKind,
     harnessSupportsProviderKind,
     hasRequiredCredential,
+    initialEndpointProtocol,
     manualModelPlaceholderForKind,
     modelDisplayOrder,
+    nextConnectionName,
     probeProviderMutationAtom,
     probeFailureMessage,
     probeRequestFor,
@@ -41,22 +46,43 @@ import {
     SecretKind,
     storedCredentialFields,
     type CredentialValues,
+    type LlmEndpointProtocol,
+    type OrganizationSecretProjects,
     type ProbeProviderResponse,
     type ProviderConnection,
 } from "@agenta/entities/secret"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
-import {InputAffix, LoadingButton, PasswordInput, Textarea} from "@agenta/ui/ui"
+import type {OwnerKind} from "@agenta/shared/types"
+import {message} from "@agenta/ui/app-message"
+import {
+    InputAffix,
+    LoadingButton,
+    PasswordInput,
+    Segmented,
+    Textarea,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {harnessMetaFor, selectableHarnesses} from "../DrillInView/SchemaControls/harnessMeta"
+import {OwnerRadioGroup} from "../secret/OwnerRadioGroup"
 
 import ActiveModelsSection from "./ActiveModelsSection"
 import HarnessesSection, {type HarnessChoice} from "./HarnessesSection"
-
-/** The harness the card checks by default for an API key, when the provider can reach it. */
-const DEFAULT_HARNESS = "pi_core"
+import OrganizationProjectsSection, {
+    type OrganizationConnectionScope,
+} from "./OrganizationProjectsSection"
+import {
+    organizationSavedToast,
+    organizationSaveError,
+    sameProjects,
+} from "./useOrganizationProjectsDraft"
+import {DEFAULT_KEY_HARNESS as DEFAULT_HARNESS} from "./useSaveProviderKey"
 
 /** The capability map is global; the key only records which surface asked for it. */
 const HARNESS_CATALOG_KEY = "agenta:settings:ai-providers"
@@ -104,7 +130,42 @@ export interface ProviderConnectionCardProps {
      * Cancel is the drawer's own — it is the step that opened the card that gets undone.
      */
     onSaveStateChange?: (state: ProviderCardSaveState) => void
+    /**
+     * Set for an organization connection: it saves to the organization, names itself
+     * "{provider} (Organization)", and ends with "Projects that can use it". Read-only for a
+     * member, who can still Test it.
+     */
+    organization?: OrganizationConnectionScope
+    /**
+     * A new connection in Settings, for someone who may manage the organization's connections:
+     * "Who can use it" after the credential, the project (the default) or the organization.
+     * Choosing the organization saves as `organization` would.
+     */
+    ownerChoice?: ProviderOwnerChoice
 }
+
+/** The two owners a new Settings connection can have. */
+export interface ProviderOwnerChoice {
+    /** For "Everyone in {project}". */
+    projectName: string
+    /** The organization's scope, as the organization's own connections get it. */
+    organization: OrganizationConnectionScope
+    /** The organization's connections, for the default-name preview. */
+    connections: ProviderConnection[]
+}
+
+type ProviderOwner = Exclude<OwnerKind, "user">
+
+/** Who a saved organization connection reaches, or null for a project connection. */
+const savedProjectsOf = (
+    connection: ProviderConnection | null | undefined,
+): OrganizationSecretProjects | null =>
+    connection?.availability
+        ? {
+              availability: connection.availability,
+              projectIds: connection.selectedProjectIds ?? [],
+          }
+        : null
 
 const ProviderConnectionCard = ({
     kind,
@@ -112,7 +173,15 @@ const ProviderConnectionCard = ({
     connections,
     onSaved,
     onSaveStateChange,
+    organization: organizationScope,
+    ownerChoice: ownerChoiceProp,
 }: ProviderConnectionCardProps) => {
+    // Only a new connection asks; a saved one keeps its owner.
+    const ownerChoice = connection ? undefined : ownerChoiceProp
+    const [owner, setOwner] = useState<ProviderOwner>("project")
+    const organization =
+        ownerChoice && owner === "organization" ? ownerChoice.organization : organizationScope
+    const readOnly = !!organization?.readOnly
     const projectId = useAtomValue(projectIdAtom)
     const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(HARNESS_CATALOG_KEY))
     const probeMutation = useAtomValue(probeProviderMutationAtom)
@@ -146,6 +215,18 @@ const ProviderConnectionCard = ({
     // `null` means "not chosen yet" — the defaults apply until the user touches the list.
     const [checkedModels, setCheckedModels] = useState<string[] | null>(connection?.models ?? null)
     const [harnesses, setHarnesses] = useState<string[] | null>(connection?.harnesses ?? null)
+    // Only the kinds that declare one carry it. `null` is "this record declares none", which a
+    // save leaves alone: a new connection declares the default, an existing one declares what it
+    // already did, and nothing but the control itself turns silence into a declaration.
+    const protocolField = useMemo(() => endpointProtocolFieldForKind(kind), [kind])
+    const [protocol, setProtocol] = useState<LlmEndpointProtocol | null>(
+        initialEndpointProtocol(connection),
+    )
+    // A new organization connection starts with every project.
+    const savedProjects = useMemo(() => savedProjectsOf(connection), [connection])
+    const [projects, setProjects] = useState<OrganizationSecretProjects>(
+        savedProjects ?? {availability: "all_projects", projectIds: []},
+    )
 
     // The card is remounted per provider by its key in the drawer, but a Settings row click can
     // swap the connection under a mounted card; reseed rather than show the previous one's state.
@@ -162,11 +243,15 @@ const ProviderConnectionCard = ({
         setManualModels([])
         setCheckedModels(connection?.models ?? null)
         setHarnesses(connection?.harnesses ?? null)
+        setProtocol(initialEndpointProtocol(connection))
+        setProjects(savedProjectsOf(connection) ?? {availability: "all_projects", projectIds: []})
     }, [connection, storedCredential])
 
     // A saved write-only record returns no values, so its secret fields arrive empty every time.
     // They still count as filled — otherwise editing only the model list would demand the key again.
     const storedFields = useMemo(() => storedCredentialFields(connection), [connection])
+    // A saved key's status replaces the Test explainer under the fields.
+    const keyStored = storedFields.includes("apiKey")
     // Typed OR already in the vault. Test used to demand typed material, because an empty form had
     // no credential to spend; the probe now takes a `secret_id` and resolves the stored one itself,
     // so a write-only connection is testable without retyping a key it can never read back.
@@ -195,6 +280,11 @@ const ProviderConnectionCard = ({
         [discovered, probe, catalog.models],
     )
 
+    const availableNames = useMemo(
+        () => ({...(connection?.modelNames ?? {}), ...(probe?.discovery.model_names ?? {})}),
+        [connection?.modelNames, probe?.discovery.model_names],
+    )
+
     const effectiveChecked = useMemo(() => {
         if (checkedModels) return checkedModels
         // Untouched: Agenta's defaults, narrowed to what a live fetch actually offered.
@@ -210,10 +300,12 @@ const ProviderConnectionCard = ({
         () =>
             modelDisplayOrder({
                 available,
-                prioritized: [...(connection?.models ?? []), ...catalog.defaults],
+                // Defaults first: they carry Agenta's own ranking (newest tier first), and
+                // `modelDisplayOrder` now leads with this array's order.
+                prioritized: [...catalog.defaults, ...(connection?.models ?? [])],
                 manual: manualModels,
             }),
-        [available, connection?.models, catalog.defaults, manualModels],
+        [available, catalog.defaults, connection?.models, manualModels],
     )
 
     const modelOptions = useMemo(
@@ -225,8 +317,17 @@ const ProviderConnectionCard = ({
                 defaults: catalog.defaults,
                 discovered,
                 order: modelOrder,
+                names: availableNames,
             }),
-        [available, effectiveChecked, manualModels, catalog.defaults, discovered, modelOrder],
+        [
+            available,
+            effectiveChecked,
+            manualModels,
+            catalog.defaults,
+            discovered,
+            modelOrder,
+            availableNames,
+        ],
     )
 
     const harnessChoices = useMemo<HarnessChoice[]>(
@@ -234,10 +335,10 @@ const ProviderConnectionCard = ({
             selectableHarnesses(Object.keys(capabilities ?? {})).map((id) => ({
                 id,
                 label: harnessMetaFor(id).label,
-                supported: harnessSupportsProviderKind(capabilities, id, kind),
+                supported: harnessSupportsProviderKind(capabilities, id, kind, protocol),
                 domain: HARNESS_DOMAINS[id],
             })),
-        [capabilities, kind],
+        [capabilities, kind, protocol],
     )
 
     // Null when no harness declares this deployment: the card checks nothing, and the save leaves
@@ -269,22 +370,47 @@ const ProviderConnectionCard = ({
 
     // What an empty name would become. A connection being edited keeps its own name out of the
     // count, so clearing the field previews the name it already has rather than the next one.
-    const namePreview = defaultNamePreview(
-        kind,
-        connections.filter((candidate) => candidate.id !== connection?.id),
+    const previewPool =
+        ownerChoice && owner === "organization" ? ownerChoice.connections : connections
+    const otherConnections = previewPool.filter((candidate) => candidate.id !== connection?.id)
+    // An organization connection's default name says it is the organization's, as the API's does.
+    const namePreview = organization
+        ? nextConnectionName(
+              `${title} (Organization)`,
+              otherConnections.map((candidate) => candidate.name),
+          )
+        : defaultNamePreview(kind, otherConnections)
+
+    // A member tests the organization connection exactly as saved: any field sent would be an
+    // edit, which only an owner or admin may make.
+    const probeRequest = useMemo(
+        () =>
+            readOnly && connection
+                ? {kind: undefined, provider: {}, secret_id: connection.id}
+                : probeRequestFor(kind, credential, connection),
+        [readOnly, connection, kind, credential],
     )
+    // A member's probe of the stored organization row runs through the current project, so only
+    // where the project may use it. An owner or admin reads the row from any project, and a
+    // typed key is tested on its own.
+    const readsOrganizationSecret = !!organization && !!probeRequest.secret_id
+    const testableHere =
+        !readsOrganizationSecret ||
+        !readOnly ||
+        connection?.availability !== "selected_projects" ||
+        (!!projectId && (connection.selectedProjectIds ?? []).includes(projectId))
 
     const runProbe = useCallback(async () => {
         if (!projectId) return
         setProbeFailure(null)
         setSaveError(null)
-        const request = probeRequestFor(kind, credential, connection)
         try {
             const result = await probeMutation.mutateAsync({
                 projectId,
-                kind: request.kind,
-                provider: request.provider,
-                secretId: request.secret_id,
+                kind: probeRequest.kind,
+                provider: probeRequest.provider,
+                secretId: probeRequest.secret_id,
+                ...(readsOrganizationSecret ? {secretScope: "organization" as const} : {}),
             })
             setProbe(result)
             if (!result) setProbeFailure(`Agenta could not read ${title}'s answer.`)
@@ -292,7 +418,7 @@ const ProviderConnectionCard = ({
             setProbe(null)
             setProbeFailure(probeFailureMessage(error, title))
         }
-    }, [projectId, probeMutation, kind, credential, connection, title])
+    }, [projectId, probeMutation, probeRequest, readsOrganizationSecret, title])
 
     const setField = (key: string, value: string) => {
         setCredential((previous) => ({...previous, [key]: value}))
@@ -300,6 +426,18 @@ const ProviderConnectionCard = ({
         // store an untested key under a stale "accepted".
         setProbe(null)
         setProbeFailure(null)
+    }
+
+    // A harness the new protocol cannot reach leaves the saved list rather than staying in it as
+    // policy no run can honour. Only the chosen set is pruned; an untouched card has chosen none.
+    const changeProtocol = (next: LlmEndpointProtocol) => {
+        setProtocol(next)
+        setHarnesses(
+            (previous) =>
+                previous?.filter((id) =>
+                    harnessSupportsProviderKind(capabilities, id, kind, next),
+                ) ?? null,
+        )
     }
 
     const toggleModel = (id: string, checked: boolean) =>
@@ -312,27 +450,51 @@ const ProviderConnectionCard = ({
     const onSave = async () => {
         setSaving(true)
         setSaveError(null)
+        const draft = {
+            kind,
+            name,
+            credential,
+            // Omitted for a record that declares no protocol, which keeps it undeclared:
+            // sending the control's displayed default would narrow a gateway nobody
+            // described, and an Anthropic-compatible one would lose every Claude Code row.
+            ...(protocolField && protocol ? {protocol} : {}),
+            modelNames: Object.fromEntries(
+                modelOptions.flatMap((option) =>
+                    option.checked && option.name ? [[option.id, option.name]] : [],
+                ),
+            ),
+            ...connectionPolicyForSave({
+                checkedModels,
+                modelIds: modelOptions
+                    .filter((option) => option.checked)
+                    .map((option) => option.id),
+                harnesses,
+                defaultHarness,
+            }),
+        }
+        const savedName = name.trim() || connection?.name || namePreview
         try {
             const savedConnectionId = await saveConnection({
-                draft: {
-                    kind,
-                    name,
-                    credential,
-                    ...connectionPolicyForSave({
-                        checkedModels,
-                        modelIds: modelOptions
-                            .filter((option) => option.checked)
-                            .map((option) => option.id),
-                        harnesses,
-                        defaultHarness,
-                    }),
-                },
+                draft,
                 fallbackName: namePreview,
                 connectionId: connection?.id,
+                ...(organization
+                    ? {
+                          organization: {
+                              projects,
+                              projectsChanged:
+                                  !savedProjects || !sameProjects(savedProjects, projects),
+                          },
+                      }
+                    : {}),
             })
+            if (organization) message.success(organizationSavedToast(savedName, projects))
             onSaved(savedConnectionId ?? undefined)
-        } catch {
-            setSaveError(`Agenta could not save this ${title} connection. Try again.`)
+        } catch (error) {
+            setSaveError(
+                (organization && organizationSaveError(error, organization.name, savedName)) ||
+                    `Agenta could not save this ${title} connection. Try again.`,
+            )
         } finally {
             setSaving(false)
         }
@@ -360,22 +522,33 @@ const ProviderConnectionCard = ({
           )
         : null
 
+    // The span carries the tooltip, since a disabled button takes no pointer events.
     const testButton = (
-        <LoadingButton
-            variant="outline"
-            className="shrink-0"
-            loading={probeMutation.isPending}
-            disabled={!credentialFilled || !projectId}
-            onClick={() => void runProbe()}
-        >
-            {credentialFailed ? "Retry" : "Test"}
-        </LoadingButton>
+        <TooltipProvider delayDuration={300}>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <span className="inline-flex shrink-0">
+                        <LoadingButton
+                            variant="outline"
+                            loading={probeMutation.isPending}
+                            disabled={!credentialFilled || !projectId || !testableHere}
+                            onClick={() => void runProbe()}
+                        >
+                            {credentialFailed ? "Retry" : "Test"}
+                        </LoadingButton>
+                    </span>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-64">
+                    {secretNoteForKind(kind, title)}
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
     )
 
     return (
         <div className="flex min-h-full flex-1 flex-col gap-4 text-xs">
             <section className="flex shrink-0 flex-col gap-3">
-                {fields.map((field) => {
+                {fields.map((field, index) => {
                     const value = credential[field.key] ?? ""
                     const block =
                         field.attributes?.kind === "json" || field.attributes?.kind === "textarea"
@@ -391,28 +564,33 @@ const ProviderConnectionCard = ({
 
                     return (
                         <div key={field.key} className="flex flex-col gap-1">
-                            <span className="font-medium text-colorText">
-                                {/* TODO(copy: owner) */}
-                                {replaceOnly
-                                    ? field.key === "apiKey"
-                                        ? "Replace key"
-                                        : `Replace ${field.label}`
-                                    : field.label}
-                            </span>
-                            {replaceOnly ? (
+                            <div className="flex items-baseline justify-between gap-3">
+                                <span className="font-medium text-colorText">
+                                    {/* TODO(copy: owner) */}
+                                    {replaceOnly
+                                        ? field.key === "apiKey"
+                                            ? "Replace key"
+                                            : `Replace ${field.label}`
+                                        : field.label}
+                                </span>
+                                {/* The card's one encryption disclaimer, on the first credential. */}
+                                {index === 0 ? (
+                                    <span className="shrink-0 text-[11px] text-colorTextTertiary">
+                                        Encrypted at rest
+                                    </span>
+                                ) : null}
+                            </div>
+                            {replaceOnly && field.key !== "apiKey" ? (
                                 <span className="text-[11px] text-colorTextTertiary">
                                     {/* TODO(copy: owner) */}
-                                    {field.key === "apiKey"
-                                        ? connection?.keyPreview
-                                            ? `Key configured (${connection.keyPreview}). Leave blank to keep it.`
-                                            : "Key configured. Leave blank to keep it."
-                                        : "Saved value. Leave blank to keep it."}
+                                    Saved value. Leave blank to keep it.
                                 </span>
                             ) : null}
                             <div className="flex items-start gap-2">
                                 <div className="min-w-0 flex-1">
                                     {block ? (
                                         <Textarea
+                                            disabled={readOnly}
                                             placeholder={field.placeholder}
                                             rows={block.rows ?? 8}
                                             className="font-mono !text-xs"
@@ -426,6 +604,8 @@ const ProviderConnectionCard = ({
                                         />
                                     ) : secret ? (
                                         <PasswordInput
+                                            disabled={readOnly}
+                                            autoFocus={!connection && index === 0}
                                             placeholder={field.placeholder}
                                             className={FIELD_TYPE_SCALE}
                                             autoComplete="new-password"
@@ -435,6 +615,8 @@ const ProviderConnectionCard = ({
                                         />
                                     ) : (
                                         <InputAffix
+                                            disabled={readOnly}
+                                            autoFocus={!connection && index === 0}
                                             placeholder={field.placeholder}
                                             className={FIELD_TYPE_SCALE}
                                             autoComplete="off"
@@ -455,63 +637,100 @@ const ProviderConnectionCard = ({
                     )
                 })}
 
+                {protocolField ? (
+                    <div className="flex flex-col gap-1">
+                        <span className="font-medium text-colorText">{protocolField.label}</span>
+                        <Segmented
+                            size="sm"
+                            disabled={readOnly}
+                            options={protocolField.options}
+                            // An undeclared record shows the default without having declared it;
+                            // pressing an option is what makes the statement.
+                            value={protocol ?? DEFAULT_ENDPOINT_PROTOCOL}
+                            onChange={(next) => changeProtocol(next as LlmEndpointProtocol)}
+                        />
+                    </div>
+                ) : null}
+
                 {testedField === null ? <div>{testButton}</div> : null}
 
-                {/* The credential's verdict left, the one encryption disclaimer right. */}
-                <div className="flex items-start justify-between gap-3">
-                    {statusLine ? (
-                        <span
-                            className={
-                                credentialFailed
-                                    ? "flex min-w-0 items-start gap-1 text-colorError"
-                                    : "flex min-w-0 items-start gap-1.5 text-colorSuccess"
-                            }
-                        >
-                            {credentialFailed ? (
-                                <WarningCircle size={14} className="mt-0.5 shrink-0" />
-                            ) : (
-                                <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-colorSuccess" />
-                            )}
-                            <span>
-                                {statusLine}
-                                {credentialFailed ? " Nothing has been saved." : null}
-                            </span>
+                {statusLine ? (
+                    <span
+                        className={
+                            credentialFailed
+                                ? "flex min-w-0 items-start gap-1 text-colorError"
+                                : "flex min-w-0 items-start gap-1.5 text-colorSuccess"
+                        }
+                    >
+                        {credentialFailed ? (
+                            <WarningCircle size={14} className="mt-0.5 shrink-0" />
+                        ) : (
+                            <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-colorSuccess" />
+                        )}
+                        <span>
+                            {statusLine}
+                            {credentialFailed ? " Nothing has been saved." : null}
                         </span>
-                    ) : (
-                        <span />
-                    )}
-                    <span className="shrink-0 text-[11px] text-colorTextTertiary">
-                        Encrypted at rest
                     </span>
-                </div>
+                ) : null}
 
-                <span className="text-[11px] text-colorTextTertiary">
-                    {secretNoteForKind(kind, title)}
-                </span>
+                {keyStored ? (
+                    <span className="text-[11px] text-colorTextTertiary">
+                        {connection?.keyPreview
+                            ? `Key configured (${connection.keyPreview}). Leave blank to keep it.`
+                            : "Key configured. Leave blank to keep it."}
+                    </span>
+                ) : null}
 
                 {/* Why the footer's Done is disabled (or what saving now would mean), stated where
                     the credential that decides it is. */}
-                {done.note ? (
+                {done.note && !readOnly ? (
                     <span className="text-[11px] text-colorTextTertiary">{done.note}</span>
                 ) : null}
             </section>
 
-            <div className="flex shrink-0 flex-col gap-1">
-                <span className="font-medium text-colorText">
-                    Name <span className="font-normal text-colorTextTertiary">— optional</span>
-                </span>
-                <InputAffix
-                    placeholder={namePreview}
-                    className={FIELD_TYPE_SCALE}
-                    autoComplete="off"
-                    {...PASSWORD_MANAGER_OPT_OUT}
-                    value={name}
-                    onValueChange={setName}
-                />
-            </div>
+            {ownerChoice ? (
+                <div className="flex shrink-0 flex-col gap-1.5">
+                    <span className="font-medium text-colorText">Who can use it</span>
+                    <OwnerRadioGroup<ProviderOwner>
+                        value={owner}
+                        onChange={setOwner}
+                        options={[
+                            {
+                                value: "project",
+                                label: `Everyone in ${ownerChoice.projectName}`,
+                                note: "Stored in this project.",
+                            },
+                            {
+                                value: "organization",
+                                label: `The ${organizationLabel(ownerChoice.organization.name)}`,
+                                note: "Stored once. You choose which projects can use it.",
+                            },
+                        ]}
+                    />
+                </div>
+            ) : null}
+
+            {/* A member cannot rename an organization connection, so the field is not offered. */}
+            {readOnly ? null : (
+                <div className="flex shrink-0 flex-col gap-1">
+                    <span className="font-medium text-colorText">
+                        Name <span className="font-normal text-colorTextTertiary">— optional</span>
+                    </span>
+                    <InputAffix
+                        placeholder={namePreview}
+                        className={FIELD_TYPE_SCALE}
+                        autoComplete="off"
+                        {...PASSWORD_MANAGER_OPT_OUT}
+                        value={name}
+                        onValueChange={setName}
+                    />
+                </div>
+            )}
 
             {showModels ? (
                 <ActiveModelsSection
+                    readOnly={readOnly}
                     options={modelOptions}
                     manualPlaceholder={manualModelPlaceholderForKind(kind)}
                     onToggle={toggleModel}
@@ -527,22 +746,40 @@ const ProviderConnectionCard = ({
                     onRefetch={() => void runProbe()}
                     refetching={probeMutation.isPending}
                 />
+            ) : (
+                // Says where the model list comes from instead of leaving the card blank.
+                <section className="flex shrink-0 flex-col gap-2">
+                    <span className="font-medium text-colorText">Active models</span>
+                    <p className="m-0 rounded-md border border-dashed border-colorBorderSecondary px-3 py-4 text-center text-colorTextTertiary">
+                        Enter the credential above to choose which {title} models this connection
+                        offers.
+                    </p>
+                </section>
+            )}
+
+            {readOnly ? null : (
+                <HarnessesSection
+                    choices={harnessChoices}
+                    selected={effectiveHarnesses}
+                    unrestricted={!harnesses && !defaultHarness}
+                    onToggle={(id, checked) =>
+                        setHarnesses(
+                            checked
+                                ? [...effectiveHarnesses.filter((harness) => harness !== id), id]
+                                : effectiveHarnesses.filter((harness) => harness !== id),
+                        )
+                    }
+                />
+            )}
+
+            {organization && !readOnly ? (
+                <OrganizationProjectsSection
+                    scope={organization}
+                    value={projects}
+                    onChange={setProjects}
+                    saved={savedProjects}
+                />
             ) : null}
-
-            <div className="shrink-0 border-0 border-t border-solid border-colorSplit" />
-
-            <HarnessesSection
-                choices={harnessChoices}
-                selected={effectiveHarnesses}
-                unrestricted={!harnesses && !defaultHarness}
-                onToggle={(id, checked) =>
-                    setHarnesses(
-                        checked
-                            ? [...effectiveHarnesses.filter((harness) => harness !== id), id]
-                            : effectiveHarnesses.filter((harness) => harness !== id),
-                    )
-                }
-            />
         </div>
     )
 }

@@ -142,9 +142,9 @@ const describeOperation = (operation: RevisionOperationPreview): ApprovalPreview
 }
 
 /**
- * Legacy `{set, remove}` deltas — still reachable (the SDK keeps them behind
- * `ORDERED_OPERATIONS_ENV`). There are no ordered operations to read, so each changed top-level
- * path becomes one generic row.
+ * Legacy `{set, remove}` deltas — still reachable (the API accepts them, and older sessions
+ * carry them). There are no ordered operations to read, so each changed top-level path becomes
+ * one generic row.
  */
 const describeLegacyDelta = (delta: unknown): ApprovalPreviewItem[] => {
     if (!isRecord(delta)) return []

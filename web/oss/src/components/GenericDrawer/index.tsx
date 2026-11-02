@@ -22,13 +22,6 @@ const GenericDrawer = ({
             width={drawerWidth}
             title={
                 <Flex gap={12} justify="space-between" align="center">
-                    <Button
-                        onClick={() => props.onClose?.({} as any)}
-                        type="text"
-                        icon={<CloseOutlined />}
-                        {...props.closeButtonProps}
-                    />
-
                     {props.expandable && (
                         <Button
                             onClick={() => {
@@ -51,6 +44,15 @@ const GenericDrawer = ({
                     )}
 
                     <div className="flex-1">{props.headerExtra}</div>
+
+                    {/* Close sits last, at the right edge, where the shared SheetHeader puts it. */}
+                    <Button
+                        onClick={() => props.onClose?.({} as any)}
+                        type="text"
+                        icon={<CloseOutlined />}
+                        aria-label="Close"
+                        {...props.closeButtonProps}
+                    />
                 </Flex>
             }
             {...props}

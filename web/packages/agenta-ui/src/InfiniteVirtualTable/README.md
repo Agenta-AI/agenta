@@ -37,38 +37,6 @@ InfiniteVirtualTable/
 
 ## Quick Start
 
-### Basic Table
-
-```tsx
-import {InfiniteVirtualTable, useTableManager, createTableColumns} from "@agenta/ui"
-
-function MyTable() {
-    const columns = useMemo(
-        () =>
-            createTableColumns<MyRow>([
-                {key: "name", title: "Name", width: 200},
-                {key: "status", title: "Status", width: 100},
-            ]),
-        [],
-    )
-
-    const tableManager = useTableManager({
-        tableKey: "my-table",
-        columns,
-        fetchData: async ({cursor, limit}) => {
-            const data = await fetchMyData({cursor, limit})
-            return {
-                rows: data.items,
-                nextCursor: data.nextCursor,
-                hasMore: data.hasMore,
-            }
-        },
-    })
-
-    return <InfiniteVirtualTable manager={tableManager} />
-}
-```
-
 ### Paginated Entity Store
 
 For entity controllers that need paginated data:
@@ -134,11 +102,7 @@ export const myEntityPaginatedStore = createPaginatedEntityStore({
 
 ### Cell Factories
 
-- `createTextCell` - Text cell renderer
 - `createComponentCell` - Custom component cell
-- `createStatusCell` - Status cell renderer
-- `createActionsCell` - Actions cell renderer
-- `createViewportAwareCell` - Viewport-aware cell (lazy rendering)
 - `createColumnVisibilityAwareCell` - Column visibility-aware cell
 
 ### Types

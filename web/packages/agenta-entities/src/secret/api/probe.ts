@@ -16,6 +16,7 @@ import {AgentaApi} from "@agentaai/api-client"
 import {z} from "zod"
 
 import {safeParseWithLogging} from "../../shared"
+import type {SecretOwnerScope} from "../core/types"
 
 import {getSecretsClient, projectScopedRequest} from "./client"
 
@@ -43,6 +44,7 @@ const probeResponseSchema: z.ZodType<AgentaApi.ProbeProviderResponse> = z.object
     discovery: z.object({
         status: z.enum(DISCOVERY_STATUSES),
         models: z.array(z.string()).default([]),
+        model_names: z.record(z.string(), z.string()).default({}),
     }),
     fetched_at: z.string(),
 })
@@ -68,18 +70,22 @@ export const probeProvider = async ({
     kind,
     provider,
     secretId,
+    secretScope,
 }: {
     projectId: string
     /** Omitted when `secretId` is given: the stored row names its own kind. */
     kind?: string
     provider: ProbeProviderCredentials
     secretId?: string
+    /** `organization` tests a stored organization connection this project may use. */
+    secretScope?: SecretOwnerScope
 }): Promise<ProbeProviderResponse | null> => {
     const response = await getSecretsClient().probeProvider(
         {
             ...(kind ? {kind} : {}),
             provider,
             ...(secretId ? {secret_id: secretId} : {}),
+            ...(secretId && secretScope ? {secret_scope: secretScope} : {}),
         },
         projectScopedRequest(projectId),
     )

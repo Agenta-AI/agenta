@@ -224,7 +224,7 @@ no trigger query is invalidated anywhere.
 
 ## The one-shot benchmark
 
-`benchmarks/agent-config-editing/` measures whether a small model completes a configuration action
+`docs/design/agent-config-editing/benchmark/` measures whether a small model completes a configuration action
 one-shot, with a 95% target. It is wire-level: every trial drives `/services/agent/v0/invoke`, the
 endpoint the playground drives, and every verdict is read from a stored row, never from the reply.
 

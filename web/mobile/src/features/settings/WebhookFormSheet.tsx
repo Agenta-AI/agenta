@@ -8,19 +8,22 @@ import {
     updateWebhookAtom,
     type WebhookEventType,
 } from "@agenta/entities/webhook"
-import {useAtom, useSetAtom} from "jotai"
-
-import {Button} from "@/components/ui/button"
-import {Input} from "@/components/ui/input"
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select"
 import {
+    Button,
+    Input,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
     Sheet,
     SheetContent,
     SheetDescription,
     SheetFooter,
     SheetHeader,
     SheetTitle,
-} from "@/components/ui/sheet"
+} from "@agenta/ui/ui"
+import {useAtom, useSetAtom} from "jotai"
 
 import {Field} from "./Field"
 
@@ -136,7 +139,7 @@ export const WebhookFormSheet = ({onSuccess}: {onSuccess: () => void}) => {
                 if (!next && !saving) close()
             }}
         >
-            <SheetContent side="responsive">
+            <SheetContent side="responsive" className="gap-4 overflow-y-auto">
                 <SheetHeader>
                     <SheetTitle>{isEdit ? "Edit subscription" : "Subscribe"}</SheetTitle>
                     <SheetDescription>
@@ -231,7 +234,7 @@ export const WebhookFormSheet = ({onSuccess}: {onSuccess: () => void}) => {
                     {error ? <p className="m-0 text-sm text-colorError">{error}</p> : null}
                 </div>
 
-                <SheetFooter>
+                <SheetFooter className="sm:flex-row-reverse sm:justify-start">
                     <Button disabled={!canSubmit} onClick={submit}>
                         {saving ? "Saving…" : isEdit ? "Save" : "Subscribe"}
                     </Button>

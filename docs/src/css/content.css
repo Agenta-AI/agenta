@@ -1,0 +1,523 @@
+/* The reading column: page frame, admonitions, cards, pagination, details. */
+
+/* ---- Frame: main column beside the sidebar ---- */
+@media (min-width: 997px) {
+  /* !important: the doc container carries Infima's padding-top--md /
+     padding-bottom--lg utilities, which are !important themselves. */
+  [class*="docMainContainer"] > .container,
+  .sidebarShellMain > .container {
+    max-width: none;
+    margin: 0;
+    padding: var(--doc-main-padding-top) var(--doc-main-padding-x) var(--doc-main-padding-bottom) !important;
+  }
+
+  /* Wide screens: the sidebar stays on the left edge and the TOC on the
+     right; the reading column is centred in the space between them. Pages
+     without a TOC (changelog, roadmap, 404) centre their list column the
+     same way. Below the frame width the auto margins are 0 and nothing
+     moves. */
+  .sidebarShellMain > .container {
+    max-width: calc(var(--doc-list-width) + 2 * var(--doc-main-padding-x));
+    margin: 0 auto;
+  }
+
+  /* Reading column grows; the TOC column is a fixed 240px on the right.
+     The OpenAPI theme caps its column at 75%; the frame sets the widths instead. */
+  [class*="docMainContainer"] > .container > .row > .col:first-child {
+    flex: 1 1 0%;
+    min-width: 0;
+    max-width: none !important;
+  }
+
+  [class*="docMainContainer"] > .container > .row > .col.col--3 {
+    flex: 0 0 var(--doc-toc-width);
+    max-width: var(--doc-toc-width);
+    padding-left: 24px;
+  }
+}
+
+/* Wide screens (the threshold matches --doc-frame-offset in tokens.css): the
+   frame (sidebar + reading column + TOC) is capped and centred as one block.
+   The docs plugin's root and SidebarShell's root get the same treatment; the
+   fixed sidebar, the header row and the footer shift by the same offset
+   (sidebar.css, navbar.css, footer.css). */
+@media (min-width: 1600px) {
+  [class*="docRoot_"],
+  .sidebarShell {
+    max-width: var(--doc-frame-max);
+    margin-left: var(--doc-frame-offset);
+  }
+}
+
+/* Below the sidebar breakpoint the shell keeps the stock container gutters
+   and only needs vertical room under the header. */
+@media (max-width: 996px) {
+  .sidebarShellMain > .container {
+    padding-top: 24px;
+    padding-bottom: 48px;
+  }
+}
+
+/* Tablets: wider gutters than a phone. */
+@media (min-width: 600px) and (max-width: 996px) {
+  [class*="docMainContainer"] > .container,
+  .sidebarShellMain > .container {
+    padding-left: 32px !important;
+    padding-right: 32px !important;
+  }
+}
+
+/* Prose is capped at the reading width. OpenAPI operation pages lay out
+   request and response side by side and keep the full width. */
+.theme-doc-markdown:not(:has(.theme-api-markdown)),
+.pagination-nav,
+.theme-doc-footer {
+  max-width: var(--doc-content-width);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.theme-doc-markdown h1:first-child,
+.theme-doc-markdown header > h1 {
+  margin-top: 0;
+}
+
+/* The OpenAPI doc item wraps plain pages in a row/col pair, which would
+   indent the body 15px past the title. */
+.theme-doc-markdown > .row:not(.theme-api-markdown) {
+  margin: 0;
+}
+
+.theme-doc-markdown > .row:not(.theme-api-markdown) > .col--12 {
+  padding: 0;
+}
+
+/* Generated index page title - match regular h1 size */
+h1[class*="title_"] {
+  font-size: var(--ifm-heading-h1-font-size);
+  --ifm-h1-font-size: var(--ifm-heading-h1-font-size);
+}
+
+/* The version selector next to the logo already says which version this is. */
+.theme-doc-version-badge {
+  display: none;
+}
+
+/* ---- Admonitions ---- */
+/* Callouts carry a faint semantic tint (surface + hairline border + title)
+   so they read apart from the neutral grey code and table panels. Note and
+   info are blue, tip green, warning amber, danger red; the alpha keeps the
+   page calm. Infima's alert colours are overridden through its own vars. */
+.theme-admonition {
+  --admonition-accent: #2f5fd8;
+  --admonition-tint: rgb(47 95 216 / 0.06);
+  --admonition-line: rgb(47 95 216 / 0.22);
+  --ifm-alert-background-color: var(--admonition-tint);
+  --ifm-alert-border-color: var(--admonition-line);
+  --ifm-alert-foreground-color: var(--contentprimary);
+  --ifm-alert-shadow: none;
+  margin: 0 0 24px;
+  padding: 14px 16px;
+  border: 1px solid var(--admonition-line);
+  border-radius: var(--radius-lg);
+  box-shadow: none;
+  background-color: var(--admonition-tint);
+  color: var(--contentprimary);
+}
+
+/* Docusaurus emits the default label lowercase and Infima shouts it. Title
+   case via ::first-letter instead; that only applies to a block whose first
+   inline content is text, so the icon sits out of flow on the left. */
+.theme-admonition [class*="admonitionHeading"] {
+  display: block;
+  position: relative;
+  margin-bottom: 6px;
+  padding-left: 23px;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: var(--ifm-font-weight-bold);
+  text-transform: none;
+  color: var(--admonition-accent);
+}
+
+.theme-admonition [class*="admonitionHeading"]::first-letter {
+  text-transform: uppercase;
+}
+
+.theme-admonition [class*="admonitionIcon"] {
+  position: absolute;
+  left: 0;
+  top: 1.5px;
+  display: inline-flex;
+  margin: 0;
+}
+
+.theme-admonition [class*="admonitionIcon"] svg {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
+}
+
+.theme-admonition [class*="admonitionContent"] {
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--contentprimary);
+}
+
+.theme-admonition [class*="admonitionContent"] > :last-child {
+  margin-bottom: 0;
+}
+
+.theme-admonition [class*="admonitionContent"] > p {
+  margin-bottom: 10px;
+}
+
+.theme-admonition code:not(pre code) {
+  background-color: var(--bgelevated1);
+}
+
+/* A code block inside the panel sits on the page surface so it stays visible. */
+.theme-admonition .theme-code-block {
+  background-color: var(--bgdefault) !important;
+  margin-bottom: 10px;
+}
+
+.theme-admonition-tip {
+  --admonition-accent: #0f8a5f;
+  --admonition-tint: rgb(15 138 95 / 0.06);
+  --admonition-line: rgb(15 138 95 / 0.22);
+}
+
+.theme-admonition-warning,
+.theme-admonition-caution {
+  --admonition-accent: #b45309;
+  --admonition-tint: rgb(180 83 9 / 0.06);
+  --admonition-line: rgb(180 83 9 / 0.24);
+}
+
+.theme-admonition-danger {
+  --admonition-accent: #c2410c;
+  --admonition-tint: rgb(194 65 12 / 0.06);
+  --admonition-line: rgb(194 65 12 / 0.24);
+}
+
+[data-theme="dark"] .theme-admonition {
+  --admonition-accent: #8fb0ff;
+  --admonition-tint: rgb(143 176 255 / 0.08);
+  --admonition-line: rgb(143 176 255 / 0.24);
+}
+
+[data-theme="dark"] .theme-admonition-tip {
+  --admonition-accent: #4ade80;
+  --admonition-tint: rgb(74 222 128 / 0.08);
+  --admonition-line: rgb(74 222 128 / 0.24);
+}
+
+[data-theme="dark"] .theme-admonition-warning,
+[data-theme="dark"] .theme-admonition-caution {
+  --admonition-accent: #fbbf24;
+  --admonition-tint: rgb(251 191 36 / 0.08);
+  --admonition-line: rgb(251 191 36 / 0.24);
+}
+
+[data-theme="dark"] .theme-admonition-danger {
+  --admonition-accent: #f87171;
+  --admonition-tint: rgb(248 113 113 / 0.08);
+  --admonition-line: rgb(248 113 113 / 0.26);
+}
+
+/* ---- Details ---- */
+details:not([class*="openapi"]) {
+  background-color: var(--bgdefault) !important;
+  border: 1px solid var(--borderdefault) !important;
+  border-radius: var(--radius-lg);
+  --docusaurus-details-decoration-color: var(--contenttertiary) !important;
+}
+
+/* ---- Prev / next pagination: two compact secondary buttons ---- */
+/* Flex instead of the stock grid so a lone "Next" stays on the right. */
+.pagination-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 48px;
+  gap: 8px;
+}
+
+.pagination-nav__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  max-width: 48%;
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background-color: var(--bgelevated1);
+  color: var(--contentprimary);
+  transition: background-color var(--ifm-transition-fast) ease;
+}
+
+.pagination-nav__link--next {
+  margin-left: auto;
+}
+
+.pagination-nav__link:hover {
+  background-color: var(--bgelevated2);
+  color: var(--contentprimary);
+}
+
+.pagination-nav__sublabel {
+  display: none;
+}
+
+.pagination-nav__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: var(--ifm-font-weight-semibold);
+  color: var(--contentprimary);
+  letter-spacing: 0;
+}
+
+/* Arrows: the same outlined glyph as the copy icon, in the text colour. */
+.pagination-nav__link::before,
+.pagination-nav__link::after {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M5 12h14'/><path d='M13 18l6-6'/><path d='M13 6l6 6'/></svg>")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M5 12h14'/><path d='M13 18l6-6'/><path d='M13 6l6 6'/></svg>")
+    center / contain no-repeat;
+}
+
+.pagination-nav__link--prev::before {
+  content: "";
+  transform: scaleX(-1);
+}
+
+.pagination-nav__link--next::after {
+  content: "";
+}
+
+/* Infima puts « » on the labels; the arrows above replace them. */
+.pagination-nav__link--prev .pagination-nav__label::before,
+.pagination-nav__link--next .pagination-nav__label::after {
+  content: none;
+}
+
+/* ---- Tabs ---- */
+/* A row of quiet labels on a baseline; the active one is the text colour
+   with a 2px underline, the same idiom as the sidebar and TOC. The theme's
+   container margin stays. Scoped to the reading column so the OpenAPI
+   panels keep their own tabs. */
+.markdown .tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 0;
+  border-bottom: 1px solid var(--borderdefault);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.markdown .tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.markdown .tabs__item {
+  position: relative;
+  flex: 0 0 auto;
+  margin: 0 0 -1px;
+  padding: 8px 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: var(--ifm-font-weight-normal);
+  color: var(--contentsecondary);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color var(--ifm-transition-fast) ease,
+    border-color var(--ifm-transition-fast) ease;
+}
+
+.markdown .tabs__item:hover {
+  color: var(--contentprimary);
+  background: none;
+}
+
+.markdown .tabs__item--active {
+  color: var(--contentprimary);
+  font-weight: var(--ifm-font-weight-semibold);
+  border-bottom-color: var(--contentprimary);
+}
+
+.markdown [role="tabpanel"] > :last-child {
+  margin-bottom: 0;
+}
+
+/* ---- Blockquotes ---- */
+/* Infima's hardcoded greys swapped for tokens so dark mode follows. */
+.markdown blockquote {
+  margin: 0 0 14px;
+  padding: 2px 0 2px 16px;
+  border: 0;
+  border-left: 2px solid var(--borderdark);
+  color: var(--contentsecondary);
+}
+
+.markdown blockquote > p:last-child {
+  margin-bottom: 0;
+}
+
+/* ---- Tables ---- */
+/* Flat: a quiet header strip, one hairline between rows, no zebra stripes
+   or column rules. MDXComponents wraps every table in .tableScroll; the
+   table spans the column and a wide one scrolls inside the wrapper. */
+.tableScroll {
+  overflow-x: auto;
+  margin: 0 0 24px;
+}
+
+.markdown table {
+  display: table;
+  width: 100%;
+  margin: 0;
+  border: 0;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.markdown table thead tr,
+.markdown table tr:nth-child(2n) {
+  background-color: transparent;
+}
+
+.markdown table th,
+.markdown table td {
+  /* Room for short values ("1,200 / 1,200") on one line; a table that
+     needs more than the column scrolls in .tableScroll. */
+  min-width: 136px;
+  padding: 10px 14px;
+  border: 0;
+  text-align: left;
+  vertical-align: top;
+}
+
+.markdown table th,
+.markdown table code {
+  white-space: nowrap;
+}
+
+.markdown table th {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: var(--ifm-font-weight-semibold);
+  color: var(--contentsecondary);
+  background-color: var(--bgelevated1);
+}
+
+.markdown table th:first-child {
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+
+.markdown table th:last-child {
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+.markdown table td {
+  color: var(--contentprimary);
+  border-bottom: 1px solid var(--borderdefault);
+}
+
+/* ---- Doc cards ---- */
+/* The card and its grid live in src/theme/DocCard and DocCardList. */
+/* Hide the default emoji icon the theme prepends to card titles. */
+[class*="cardTitle"]::before {
+  display: none !important;
+}
+
+/* Generated category index pages: the header reads as a page header. */
+[class*="generatedIndexPage"] header {
+  margin-bottom: 20px;
+}
+
+[class*="generatedIndexPage"] header h1 {
+  margin-bottom: 8px;
+}
+
+[class*="generatedIndexPage"] header p {
+  margin: 0;
+  font-size: 16px;
+  line-height: 26px;
+  color: var(--contentsecondary);
+}
+
+/* The OpenAPI plugin's generated index lists its own info page first; that
+   card is hidden by its link. (The old rule hid the first card and the lead
+   on every generated index, which took the first FAQ entry with it.) */
+[class*="docCardListItem"]:has(> a[href="/reference/api/agenta-backend"]),
+[href="/reference/api/agenta-backend"] {
+  display: none;
+}
+
+/* ---- FAQ index (docs/misc/faq/index.mdx) ---- */
+/* Hand-written cards on the same metrics as DocCard. */
+.faq-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.faq-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--borderdefault);
+  border-radius: var(--radius-lg);
+  background-color: var(--bgdefault);
+  text-decoration: none !important;
+  transition:
+    border-color var(--ifm-transition-fast) ease,
+    background-color var(--ifm-transition-fast) ease;
+}
+
+.faq-card:hover {
+  border-color: var(--borderdark);
+  background-color: var(--bgelevated1);
+}
+
+.faq-card-title {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: var(--ifm-font-weight-semibold);
+  color: var(--contentprimary);
+}
+
+.faq-card-desc {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--contentsecondary);
+}
+
+.faq-tip-spacer {
+  height: 2rem;
+}
+
+@media (max-width: 600px) {
+  .faq-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

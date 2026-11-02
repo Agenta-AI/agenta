@@ -1,0 +1,67 @@
+from datetime import datetime
+from enum import Enum
+from typing import Any, Dict, List, Literal, Optional
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from oss.src.core.access.dtos import RunEnvelope
+from oss.src.core.shared.dtos import Identifier, Lifecycle
+
+
+class PendingInputState(str, Enum):
+    pending = "pending"
+    promoted = "promoted"
+    removed = "removed"
+
+
+class PendingInput(Identifier, Lifecycle):
+    project_id: UUID
+    session_id: str
+    content: Dict[str, Any]
+    position: int
+    state: PendingInputState
+    policy: Literal["queue", "steer"]
+    idempotency_key: str
+    request_fingerprint: str
+    promoted_execution_id: Optional[str] = None
+    # The run envelope this work continues under (M2). Internal: never in a response
+    # (`exclude=True`), and copied, never dumped, between services.
+    run_envelope: Optional[RunEnvelope] = Field(default=None, exclude=True)
+
+
+class PendingInputCreate(BaseModel):
+    project_id: UUID
+    session_id: str
+    content: Dict[str, Any]
+    policy: Literal["queue", "steer"]
+    idempotency_key: str
+    request_fingerprint: str
+    # The admitting request's run envelope; the delivery of this input runs under it.
+    run_envelope: Optional[RunEnvelope] = None
+
+
+class PendingInputAdmission(BaseModel):
+    action: Literal["execute", "pending"]
+    input: Optional[PendingInput] = None
+    execution_id: Optional[str] = None
+
+
+class PendingInputPromotion(BaseModel):
+    input: PendingInput
+    execution_id: str
+    created_at: datetime
+
+
+class PendingInputAttachment(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    uri: str = Field(min_length=1)
+    mime_type: str = Field(min_length=1)
+    filename: Optional[str] = None
+    attachment_id: Optional[str] = Field(default=None, min_length=1)
+
+
+class PendingInputUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    text: str
+    attachments: List[PendingInputAttachment] = Field(default_factory=list)

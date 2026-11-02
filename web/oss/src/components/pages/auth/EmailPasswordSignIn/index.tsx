@@ -1,9 +1,8 @@
-import {EmailPasswordForm} from "@agenta/auth-ui"
+import {EmailPasswordForm, useTurnstileSecurity} from "@agenta/auth-ui"
 
 import usePostAuthRedirect from "@/oss/hooks/usePostAuthRedirect"
 
 import {EmailPasswordAuthProps} from "../assets/types"
-import {useTurnstileSecurity} from "../assets/useTurnstileSecurity"
 
 /** OSS binding: sign-in with the sign-up fallback, Turnstile seam, app-side redirect. */
 const EmailPasswordSignIn = ({

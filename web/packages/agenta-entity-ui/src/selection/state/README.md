@@ -115,7 +115,7 @@ const config = useAtomValue(entitySelectorController.selectors.config())
 const openSelector = useSetAtom(entitySelectorController.actions.open)
 const selection = await openSelector({
     title: "Select Entity",
-    allowedTypes: ["appRevision", "evaluatorRevision"],
+    allowedTypes: ["workflowRevision", "evaluator"],
 })
 
 // Close with selection
@@ -192,14 +192,14 @@ import {useBreadcrumbMode, useCascadingMode} from "@agenta/entity-ui"
 
 // For breadcrumb navigation
 const {breadcrumb, items, navigateDown, select} = useBreadcrumbMode({
-    adapter: "appRevision",
+    adapter: "workflowRevision",
     instanceId: "my-picker",
     onSelect: handleSelect,
 })
 
 // For cascading dropdowns
 const {levels, isComplete, selection} = useCascadingMode({
-    adapter: "appRevision",
+    adapter: "workflowRevision",
     instanceId: "my-cascading",
     onSelect: handleSelect,
 })

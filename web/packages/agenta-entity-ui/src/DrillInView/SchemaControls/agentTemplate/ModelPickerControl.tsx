@@ -15,8 +15,12 @@
  */
 import {useCallback, useMemo, useRef, useState, type ReactNode} from "react"
 
-import {subscriptionPairModelsAtom} from "@agenta/entities/secret"
-import {agentModelCandidatesAtomFamily, loadAgentModelCandidates} from "@agenta/entities/workflow"
+import {subscriptionPairModelsAtom, type AgentConnectionNamespace} from "@agenta/entities/secret"
+import {
+    agentModelCandidatesAtomFamily,
+    invalidateAgentRequirements,
+    loadAgentModelCandidates,
+} from "@agenta/entities/workflow"
 import {projectIdAtom, userAtom} from "@agenta/shared/state"
 import {
     HarnessTooltip,
@@ -29,14 +33,16 @@ import {useAtomValue} from "jotai"
 import ProviderDrawer from "../../../secretProvider/ProviderDrawer"
 import {
     buildConnectionPickerRows,
+    displayedModelRow,
     pickerSelectionAfterProviderSave,
     pickerSelectionIsRunnable,
     pickerSelectionFrom,
-    selectedModelRowKey,
     type PickerSelection,
 } from "../connectionPicker"
 import type {ConnectionMode, HarnessCapabilitiesMap} from "../connectionUtils"
 import {buildPickerGroupsWithSections} from "../pickerSections"
+
+import {rowsOfConnection} from "./rowsOfConnection"
 
 export interface ModelPickerControlProps {
     capabilities: HarnessCapabilitiesMap | null | undefined
@@ -50,6 +56,8 @@ export interface ModelPickerControlProps {
     mode: ConnectionMode
     /** The stored connection slug, so the right connection's row shows as selected. */
     slug: string | null
+    /** The stored slug's namespace: a built-in and a custom endpoint may share one slug. */
+    namespace: AgentConnectionNamespace | null
     /** Only an uncommitted local agent may replace its automatic template placeholder. */
     replaceable: boolean
     disabled?: boolean
@@ -58,6 +66,8 @@ export interface ModelPickerControlProps {
      * mounted into the deployment.
      */
     showSubscriptions?: boolean
+    /** List only the stored connection's models: the needs-setup fix for a model it no longer offers. */
+    onlyCurrentConnection?: boolean
     /** Writes model + provider + connection + harness in ONE config update. */
     onSelect: (selection: PickerSelection) => void
     /** Rendered when the project has connections but the catalog offers no rows (older backend). */
@@ -72,9 +82,11 @@ const ModelPickerControl = ({
     provider,
     mode,
     slug,
+    namespace,
     replaceable,
     disabled,
     showSubscriptions = true,
+    onlyCurrentConnection = false,
     onSelect,
     fallback,
 }: ModelPickerControlProps) => {
@@ -98,22 +110,33 @@ const ModelPickerControl = ({
                 candidates,
                 connections,
                 capabilities,
+                // The candidates above were narrowed to these, so the sign-in-needed row has to
+                // know them too, or it speaks for a subscription this agent cannot drive.
+                harnessIds,
             }),
-        [candidates, connections, capabilities],
+        [candidates, connections, capabilities, harnessIds],
     )
 
     // The exact row the config points at. `value` alone selects by model id, which lights up every
     // connection offering that id; the stored connection and harness resolve it to one.
-    const selectedKey = useMemo(
-        () => selectedModelRowKey(rows, {modelId, slug, mode, harness}),
-        [rows, modelId, slug, mode, harness],
+    const vaultSlugs = useMemo(
+        () => connections.map((connection) => connection.slug),
+        [connections],
     )
-    const groups = useMemo(() => buildPickerGroupsWithSections(rows), [rows])
+    const displayed = useMemo(
+        () => displayedModelRow(rows, {modelId, slug, namespace, mode, harness}, vaultSlugs),
+        [rows, modelId, slug, namespace, mode, harness, vaultSlugs],
+    )
+    const shownRows = useMemo(
+        () => (onlyCurrentConnection ? rowsOfConnection(rows, {mode, slug, namespace}) : rows),
+        [onlyCurrentConnection, rows, mode, slug, namespace],
+    )
+    const groups = useMemo(() => buildPickerGroupsWithSections(shownRows), [shownRows])
     const allSourcesResolved = candidateState.status === "ready"
 
     const currentSelection = useMemo<PickerSelection | null>(
-        () => (modelId && harness ? {modelId, provider, mode, slug, harness} : null),
-        [modelId, provider, mode, slug, harness],
+        () => (modelId && harness ? {modelId, provider, mode, slug, namespace, harness} : null),
+        [modelId, provider, mode, slug, namespace, harness],
     )
     const openProviderDrawer = useCallback(() => {
         drawerConnectionKeysRef.current = connections.map((connection) => connection.id)
@@ -123,6 +146,8 @@ const ModelPickerControl = ({
         async (savedConnectionId?: string) => {
             const previousConnectionKeys = drawerConnectionKeysRef.current
             const currentWasRunnable = pickerSelectionIsRunnable(rows, currentSelection)
+            // A new key can fix the agent without a new revision.
+            void invalidateAgentRequirements()
             if (!projectId || !userId) return
 
             const fresh = await loadAgentModelCandidates({
@@ -139,6 +164,7 @@ const ModelPickerControl = ({
                 ),
                 connections: fresh.connections,
                 capabilities: fresh.capabilities,
+                harnessIds,
             })
             const selection = pickerSelectionAfterProviderSave({
                 rows: freshRows,
@@ -215,8 +241,8 @@ const ModelPickerControl = ({
                 searchPlaceholder="Search models"
                 sectionTooltip={<HarnessTooltip />}
                 options={groups}
-                value={modelId ?? undefined}
-                selectedKey={selectedKey}
+                value={displayed.modelId ?? undefined}
+                selectedKey={displayed.key}
                 onChange={(value, option) => {
                     const picked = Array.isArray(option) ? option[0] : option
                     const metadata = (picked as {metadata?: Record<string, unknown>} | undefined)

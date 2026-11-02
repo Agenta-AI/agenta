@@ -23,6 +23,7 @@ import {PlaygroundModeSwitch} from "@agenta/playground-ui/mode-switch"
 import {textColors} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {VersionBadge} from "@agenta/ui/components/presentational"
+import {ShortcutsHelpButton} from "@agenta/ui/shortcuts"
 import {
     Button,
     DropdownMenu,
@@ -54,6 +55,7 @@ import {
     agentChatVirtualizeAtom,
     isAgentChatVirtualizationAvailable,
 } from "@/oss/components/AgentChatSlice/state/virtualization"
+import {AgentIconTrigger} from "@/oss/components/AgentIconChip"
 import {AgentNameInline} from "@/oss/components/EntityIdentity"
 import EvaluatorTemplateDropdown from "@/oss/components/Evaluators/components/EvaluatorTemplateDropdown"
 import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
@@ -73,6 +75,16 @@ import type {BaseContainerProps} from "../types"
 
 import RunEvaluationButton from "./RunEvaluationButton"
 
+// Lazy: the Publish menu pulls the channels UI, which the playground's first paint does not need.
+const AgentPublishButton = dynamic(
+    () => import("@/oss/components/AgentPublish/AgentPublishButton"),
+    {ssr: false},
+)
+// Lazy: agent-only chrome.
+const SaveAsTemplateButton = dynamic(
+    () => import("@/oss/components/AgentPublish/SaveAsTemplateButton"),
+    {ssr: false},
+)
 const SelectVariant = dynamic(() => import("../Menus/SelectVariant"), {
     ssr: false,
     loading: () => (
@@ -269,6 +281,9 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className}) => {
         currentWorkflow?.id ??
         (rootWorkflowId && !isLocalDraftId(rootWorkflowId) ? rootWorkflowId : null)
     const agentName = displayAgentName || rootArtifactName || ""
+    // Same entity MainLayout keys the agent chat panel by.
+    const selectedEntityIds = useAtomValue(playgroundController.selectors.entityIds())
+    const chatEntityId = selectedEntityIds[0] ?? displayedEntities[0] ?? rootEntityId
     // Early app-id signal resolves agent-ness before the heavy node graph loads, so
     // the layout commits to the right chrome up front instead of defaulting to the
     // non-agent stack and unmounting it on reload.
@@ -661,6 +676,9 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className}) => {
             <AgentPageHeader
                 className={className}
                 leading={leading}
+                icon={
+                    isAgentWorkflow ? <AgentIconTrigger workflowId={renameWorkflowId} /> : undefined
+                }
                 title={isAgentWorkflow ? undefined : "Playground"}
                 name={
                     isAgentWorkflow ? (
@@ -846,6 +864,17 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className}) => {
                                         </DropdownMenuContent>
                                     </DropdownMenu>
                                 )}
+                                <ShortcutsHelpButton className="h-8 w-8 shrink-0 p-0" />
+                                {renameWorkflowId ? (
+                                    <SaveAsTemplateButton entityId={chatEntityId} />
+                                ) : null}
+                                {renameWorkflowId ? (
+                                    <AgentPublishButton
+                                        agentId={renameWorkflowId}
+                                        agentName={agentName || undefined}
+                                        agentDescription={currentWorkflow?.description}
+                                    />
+                                ) : null}
                             </>
                         )}
                     </>

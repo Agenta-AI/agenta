@@ -1,4 +1,3 @@
-import type { AgentEvent } from "../../protocol.ts";
 import {
   effectivePermission,
   type GateDescriptor,
@@ -14,25 +13,18 @@ import type {
   ExecutableToolGateRequest,
 } from "../../tools/executable-tool-gate.ts";
 import type { ToolCallCorrelationIndex } from "./client-tools.ts";
-
-type EmitRun = { emitEvent: (event: AgentEvent) => void };
-
-interface PauseLike {
-  markPausedToolCall(toolCallId: string): void;
-  pause(): void;
-}
+import {
+  raiseApproval,
+  type EmitRun,
+  type PauseLike,
+  type RecordPendingInteraction,
+} from "./seam-approval.ts";
 
 export interface BuildExecutableToolGateInput {
   responder: Responder;
   run: EmitRun;
   pause: PauseLike;
-  recordPendingInteraction: (
-    token: string,
-    toolName: string | undefined,
-    toolArgs: unknown,
-    kind: "user_approval" | "client_tool",
-    toolCallId?: string,
-  ) => void;
+  recordPendingInteraction: RecordPendingInteraction;
   toolCallIndex?: ToolCallCorrelationIndex;
   /**
    * The run's permission plan, used ONLY to word a refusal.
@@ -105,37 +97,16 @@ export function buildExecutableToolGate({
         };
       }
 
-      const correlatedId =
-        toolCallIndex?.lookup(request.toolName, request.input) ??
-        request.toolCallId;
-      pause.markPausedToolCall(correlatedId);
-      run.emitEvent({
-        type: "interaction_request",
+      raiseApproval({
+        run,
+        pause,
+        recordPendingInteraction,
+        toolCallIndex,
         id: request.id,
-        kind: "user_approval",
-        payload: {
-          toolCallId: correlatedId,
-          toolCall: {
-            id: correlatedId,
-            toolCallId: correlatedId,
-            name: request.toolName,
-            resolvedName: request.toolName,
-            rawInput: request.input,
-            input: request.input,
-            kind: "execute",
-          },
-          availableReplies: ["once", "reject"],
-        },
+        toolCallId: request.toolCallId,
+        toolName: request.toolName,
+        args: request.input,
       });
-      // The 5th argument keys the durable interaction row by the harness's tool-call id, so
-      // server.ts can match an out-of-band approval reply by tool_call_id.
-      recordPendingInteraction(
-        request.id,
-        request.toolName,
-        request.input,
-        "user_approval",
-        correlatedId,
-      );
       return { kind: "pendingApproval" };
     },
     onPause: () => pause.pause(),

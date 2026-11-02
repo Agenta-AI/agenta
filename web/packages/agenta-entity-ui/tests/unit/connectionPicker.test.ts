@@ -8,6 +8,7 @@
  */
 import {
     buildAgentModelCandidates,
+    LlmEndpointProtocol,
     SecretKind,
     SecretManagementPolicy,
     type BuildAgentModelCandidatesArgs,
@@ -19,6 +20,7 @@ import {describe, expect, it} from "vitest"
 import {
     buildConnectionPickerRows as presentConnectionPickerRows,
     connectionModelIds,
+    displayedModelRow,
     effectiveHarnesses,
     modelRowKey,
     pickerSelectionFrom,
@@ -118,6 +120,322 @@ describe("effectiveHarnesses", () => {
     it("drops a saved harness the provider cannot be reached from", () => {
         const connection = standard("4", "openai", {harnesses: ["claude"]})
         expect(effectiveHarnesses(connection, CAPABILITIES, HARNESS_IDS)).toEqual([])
+    })
+})
+
+/**
+ * #6692: an OpenAI-compatible (`custom`) connection appeared under BOTH Pi and Claude Code, and
+ * picking the Claude Code entry committed a revision the server refuses.
+ *
+ * `custom` is an endpoint address, not a protocol declaration, and Claude Code publishes it among
+ * its deployments for its own Anthropic gateway. So consuming the surface was never enough. Each
+ * MODEL is admitted on the family its own id names, after its connection's storage namespace is
+ * stripped, and falls back to `openai` when it names none. An admitted route carries the provider
+ * the SDK needs to resolve it.
+ *
+ * A saved harness policy skips the family check. It is the one place a user can state what the
+ * record cannot, and the only route left for a gateway whose ids name nothing.
+ */
+describe("an OpenAI-compatible connection under a harness that cannot reach openai", () => {
+    // Matched to GET /workflows/catalog/harnesses/ as served on oss.preview: Pi reaches nine
+    // families over direct and custom, Claude Code reaches anthropic alone over four surfaces.
+    const SHIPPED: HarnessCapabilitiesMap = {
+        pi_core: {
+            ...CAPABILITIES.pi_core,
+            providers: [
+                "openai",
+                "anthropic",
+                "gemini",
+                "mistral",
+                "groq",
+                "minimax",
+                "together_ai",
+                "openrouter",
+                "openai-codex",
+            ],
+            deployments: ["direct", "custom"],
+        },
+        claude: {...CAPABILITIES.claude, deployments: ["direct", "custom", "bedrock", "vertex_ai"]},
+    }
+
+    /** The (harness, model, provider) tuples the picker would offer, in order. */
+    const routes = (connection: ProviderConnection, capabilities = SHIPPED, ids = HARNESS_IDS) =>
+        buildAgentModelCandidates({
+            connections: [connection],
+            capabilities: capabilities as never,
+            harnessIds: ids,
+            subscriptionPairs: [],
+        }).map((candidate) => [candidate.harness, candidate.modelId, candidate.provider])
+
+    it("offers the reported connection under Pi only", () => {
+        // The live oss.preview record, with the namespacing the API applies.
+        const qaCustom = custom(
+            "1",
+            "custom",
+            ["qa-custom/custom/openai/gpt-4o-mini", "qa-custom/custom/deepseek/deepseek-v4-flash"],
+            {name: "qa-custom", slug: "qa-custom"},
+        )
+
+        expect(routes(qaCustom)).toEqual([
+            ["pi_core", "qa-custom/custom/openai/gpt-4o-mini", null],
+            ["pi_core", "qa-custom/custom/deepseek/deepseek-v4-flash", null],
+        ])
+    })
+
+    it("gives an Anthropic route only the models that name anthropic", () => {
+        // A mixed gateway. Claude Code gets the anthropic model and nothing else. Pi keeps all
+        // three: OpenAI-compatible is a wire format, not a vendor. Order follows the saved list.
+        const mixed = custom(
+            "2",
+            "custom",
+            [
+                "gw/custom/openai/gpt-4o-mini",
+                "gw/custom/anthropic/claude-fable-5",
+                "gw/custom/some-opaque-id",
+            ],
+            {name: "gw", slug: "gw"},
+        )
+
+        expect(routes(mixed)).toEqual([
+            ["pi_core", "gw/custom/openai/gpt-4o-mini", null],
+            ["pi_core", "gw/custom/anthropic/claude-fable-5", null],
+            ["pi_core", "gw/custom/some-opaque-id", null],
+            ["claude", "gw/custom/anthropic/claude-fable-5", "anthropic"],
+        ])
+    })
+
+    it("keeps another vendor's models on the OpenAI-compatible route", () => {
+        // An OpenAI-compatible endpoint commonly serves many vendors, and the runner drives them
+        // with openai-completions. Dropping these would remove a route that runs today.
+        const gateway = custom(
+            "9",
+            "custom",
+            ["gw/custom/mistral/mistral-small-latest", "gw/custom/gemini/gemini-3-flash"],
+            {name: "gw", slug: "gw"},
+        )
+
+        expect(routes(gateway)).toEqual([
+            ["pi_core", "gw/custom/mistral/mistral-small-latest", null],
+            ["pi_core", "gw/custom/gemini/gemini-3-flash", null],
+        ])
+    })
+
+    it("strips the stored namespace even when it is not the record's stable slug", () => {
+        // The API namespaces a key with the header NAME; the record's own slug is a different,
+        // suffixed string. Matching on the identity would leave the name in the model id.
+        const named = custom("10", "custom", ["anthropic/custom/openai/gpt-4o-mini"], {
+            name: "anthropic",
+            slug: "anthropic-01a082ad18dd",
+        })
+
+        expect(routes(named)).toEqual([["pi_core", "anthropic/custom/openai/gpt-4o-mini", null]])
+    })
+
+    it("reads the model past its own connection's namespace", () => {
+        // The first token is the CONNECTION name and means nothing about the model. A connection
+        // named "openai" holding an anthropic model must still reach Claude Code.
+        const named = custom("3", "custom", ["openai/custom/anthropic/claude-fable-5"], {
+            name: "openai",
+            slug: "openai",
+        })
+
+        expect(routes(named)).toEqual([
+            ["pi_core", "openai/custom/anthropic/claude-fable-5", null],
+            ["claude", "openai/custom/anthropic/claude-fable-5", "anthropic"],
+        ])
+    })
+
+    it("does not let a connection's name lend a model its family", () => {
+        const named = custom("4", "custom", ["anthropic/custom/openai/gpt-4o-mini"], {
+            name: "anthropic",
+            slug: "anthropic",
+        })
+
+        expect(routes(named)).toEqual([["pi_core", "anthropic/custom/openai/gpt-4o-mini", null]])
+    })
+
+    it("finds the model in a key whose namespace contains a slash", () => {
+        // A connection name is free text. Counting segments would leave "team/custom/anthropic" in
+        // the model id and hide the Claude route, so the saved model slugs decide instead.
+        const named = custom("11", "custom", ["openai/team/custom/anthropic/claude-fable-5"], {
+            name: "openai/team",
+            slug: "openai-team-01a082ad",
+            models: ["anthropic/claude-fable-5"],
+        })
+
+        expect(routes(named)).toEqual([
+            ["pi_core", "openai/team/custom/anthropic/claude-fable-5", null],
+            ["claude", "openai/team/custom/anthropic/claude-fable-5", "anthropic"],
+        ])
+    })
+
+    it("does not lend a slashed connection name its family either", () => {
+        const named = custom("12", "custom", ["anthropic/team/custom/openai/gpt-4o-mini"], {
+            name: "anthropic/team",
+            slug: "anthropic-team-01a082ad",
+            models: ["openai/gpt-4o-mini"],
+        })
+
+        expect(routes(named)).toEqual([
+            ["pi_core", "anthropic/team/custom/openai/gpt-4o-mini", null],
+        ])
+    })
+
+    it("keeps another vendor's real id on the OpenAI-compatible route", () => {
+        // OpenRouter spells Mistral as "mistralai/...", which the catalog's family vocabulary does
+        // not carry. It reads as no family, and the OpenAI-compatible route takes it regardless.
+        const gw = custom("5b", "custom", ["gw/custom/mistralai/mistral-small-2603"], {
+            name: "gw",
+            slug: "gw",
+        })
+
+        expect(routes(gw)).toEqual([["pi_core", "gw/custom/mistralai/mistral-small-2603", null]])
+    })
+
+    it("picks the longest saved slug, whichever order the list is in", () => {
+        // Two slugs where one ends with the other. Matching the shorter one would strip "anthropic/"
+        // off the longer key along with the namespace, and the family would be read as none.
+        const overlapping = (models: string[]) =>
+            custom("14", "custom", ["gw/custom/sonnet", "gw/custom/anthropic/sonnet"], {
+                name: "gw",
+                slug: "gw",
+                models,
+            })
+
+        for (const order of [
+            ["sonnet", "anthropic/sonnet"],
+            ["anthropic/sonnet", "sonnet"],
+        ]) {
+            expect(routes(overlapping(order))).toEqual([
+                ["pi_core", "gw/custom/sonnet", null],
+                ["pi_core", "gw/custom/anthropic/sonnet", null],
+                ["claude", "gw/custom/anthropic/sonnet", "anthropic"],
+            ])
+        }
+    })
+
+    it("takes a saved harness policy at its word, and writes the provider it needs", () => {
+        // The user's tick is a statement about the ENDPOINT, which the record cannot carry, so it
+        // skips the family check. A LiteLLM gateway serves OpenAI-named models over the Anthropic
+        // Messages endpoint for Claude Code, so the model's vendor is not evidence against it.
+        // The written `anthropic` is what makes the SDK resolve the pair Claude Code accepts.
+        const gateway = custom(
+            "5",
+            "custom",
+            ["bare-gw/custom/sonnet", "bare-gw/custom/openai/gpt-4o-mini"],
+            {name: "bare-gw", slug: "bare-gw", harnesses: ["claude"]},
+        )
+
+        expect(routes(gateway)).toEqual([
+            ["claude", "bare-gw/custom/sonnet", "anthropic"],
+            ["claude", "bare-gw/custom/openai/gpt-4o-mini", "anthropic"],
+        ])
+    })
+
+    // The cases above are the LEGACY path: a record that declares no protocol, judged model by
+    // model. The cases below are the DECLARED path, and they sit here so the two read side by
+    // side. A declaration is the operator's own statement about the wire format, so it decides
+    // which harnesses the endpoint is offered under and the per-model vendor guess never runs.
+    // Codex reaches openai and consumes `custom` here, so the openai side has two harnesses.
+    const WITH_CODEX: HarnessCapabilitiesMap = {
+        ...SHIPPED,
+        codex: {
+            providers: ["openai"],
+            deployments: ["direct", "custom"],
+            connection_modes: ["agenta", "self_managed"],
+            model_selection: "provider/id",
+            models: {openai: ["gpt-5.5"]},
+        },
+    }
+    const CODEX_IDS = [...HARNESS_IDS, "codex"]
+
+    it("offers a declared anthropic endpoint under Claude Code, and under neither Pi nor Codex", () => {
+        // The same key with no declaration is offered under Pi as well, because an OpenAI-compatible
+        // route takes every model. The declaration is what removes the routes that cannot run.
+        const declared = custom("d1", "custom", ["gw/custom/anthropic/claude-fable-5"], {
+            name: "gw",
+            slug: "gw",
+            protocol: LlmEndpointProtocol.Anthropic,
+        })
+
+        expect(routes(declared, WITH_CODEX, CODEX_IDS)).toEqual([
+            ["claude", "gw/custom/anthropic/claude-fable-5", "anthropic"],
+        ])
+    })
+
+    it("keeps a declared openai endpoint on Pi and Codex even when its models are Anthropic-named", () => {
+        // The case the legacy vendor guess gets wrong, and the whole point of declaring: a gateway
+        // that serves `claude-fable-5` over the OpenAI wire format is not an Anthropic endpoint,
+        // so Claude Code must not be offered however the model is spelled.
+        const declared = custom("d2", "custom", ["gw/custom/anthropic/claude-fable-5"], {
+            name: "gw",
+            slug: "gw",
+            protocol: LlmEndpointProtocol.Openai,
+        })
+
+        expect(routes(declared, WITH_CODEX, CODEX_IDS)).toEqual([
+            ["pi_core", "gw/custom/anthropic/claude-fable-5", null],
+            ["codex", "gw/custom/anthropic/claude-fable-5", null],
+        ])
+    })
+
+    it("lets a declared anthropic endpoint hand Claude Code its OpenAI-named models too", () => {
+        // A mixed gateway, where the legacy path gives Claude Code the anthropic id alone. The
+        // declaration replaces the per-model guess outright rather than filtering after it.
+        const mixed = custom(
+            "d3",
+            "custom",
+            ["gw/custom/openai/gpt-4o-mini", "gw/custom/anthropic/claude-fable-5"],
+            {name: "gw", slug: "gw", protocol: LlmEndpointProtocol.Anthropic},
+        )
+
+        expect(routes(mixed, WITH_CODEX, CODEX_IDS)).toEqual([
+            ["claude", "gw/custom/openai/gpt-4o-mini", "anthropic"],
+            ["claude", "gw/custom/anthropic/claude-fable-5", "anthropic"],
+        ])
+    })
+
+    it("reads an empty saved policy as no harness, not as an absent policy", () => {
+        const none = custom("6", "custom", ["off/custom/openai/gpt-4o-mini"], {
+            name: "off",
+            slug: "off",
+            harnesses: [],
+        })
+
+        expect(routes(none)).toEqual([])
+    })
+
+    it("never lets a saved policy beat the hard technical limit", () => {
+        // Codex reaches openai but consumes `direct` only, so it cannot speak to a custom endpoint
+        // at all. That is a capability, and a tick does not change it.
+        const withCodex: HarnessCapabilitiesMap = {
+            ...SHIPPED,
+            codex: {
+                providers: ["openai"],
+                deployments: ["direct"],
+                connection_modes: ["agenta", "self_managed"],
+                model_selection: "provider/id",
+                models: {openai: ["gpt-5.5"]},
+            },
+        }
+        const ticked = custom("7", "custom", ["qa/custom/openai/gpt-4o-mini"], {
+            name: "qa",
+            slug: "qa",
+            harnesses: ["codex"],
+        })
+
+        expect(routes(ticked, withCodex, [...HARNESS_IDS, "codex"])).toEqual([])
+    })
+
+    it("leaves a deployment surface that names no family to the deployment list", () => {
+        // Not a blanket rule for credential sets. Bedrock is not the OpenAI-compatible surface, so
+        // the deployment list decides alone: Pi does not consume it, Claude Code does.
+        const bedrock = custom("8", "bedrock", ["claude-3-sonnet-20240229-v1:0"], {
+            name: "aws",
+            slug: "aws",
+        })
+
+        expect(effectiveHarnesses(bedrock, SHIPPED, HARNESS_IDS)).toEqual(["claude"])
     })
 })
 
@@ -297,13 +615,18 @@ describe("buildConnectionPickerRows", () => {
             capabilities: CAPABILITIES,
             harnessIds: HARNESS_IDS,
             subscriptionPairs: [
-                {key: "anthropic:claude", provider: "anthropic", name: "Claude", harness: "claude"},
+                {
+                    key: "anthropic:claude",
+                    provider: "anthropic",
+                    name: "Claude",
+                    harness: "claude",
+                },
             ],
         })
 
-        // The plan's consumer name, never "Claude subscription" — the picker's olive tag is what
-        // says it is a subscription, so the name must not say it a second time.
-        expect(rows.map((row) => row.name)).toEqual(["Claude"])
+        // The plan's consumer name. Nothing else in the picker carries the plan, so no source line.
+        expect(rows.map((row) => [row.name, row.source])).toEqual([["Claude", undefined]])
+        expect(rows[0].models.every((model) => model.connectionName === "Claude")).toBe(true)
         const subscription = rows[0]
         expect(subscription.kind).toBe("subscription")
         expect(subscription.iconKey).toBe("anthropic")
@@ -328,8 +651,18 @@ describe("buildConnectionPickerRows", () => {
             },
             harnessIds: [...HARNESS_IDS, "codex"],
             subscriptionPairs: [
-                {key: "anthropic:claude", provider: "anthropic", name: "Claude", harness: "claude"},
-                {key: "openai:codex", provider: "openai", name: "ChatGPT", harness: "codex"},
+                {
+                    key: "anthropic:claude",
+                    provider: "anthropic",
+                    name: "Claude",
+                    harness: "claude",
+                },
+                {
+                    key: "openai:codex",
+                    provider: "openai",
+                    name: "ChatGPT",
+                    harness: "codex",
+                },
             ],
         })
 
@@ -351,7 +684,12 @@ describe("buildConnectionPickerRows", () => {
             capabilities: CAPABILITIES,
             harnessIds: HARNESS_IDS,
             subscriptionPairs: [
-                {key: "anthropic:claude", provider: "anthropic", name: "Claude", harness: "claude"},
+                {
+                    key: "anthropic:claude",
+                    provider: "anthropic",
+                    name: "Claude",
+                    harness: "claude",
+                },
             ],
         }
 
@@ -403,7 +741,12 @@ describe("buildConnectionPickerRows", () => {
             capabilities: CAPABILITIES,
             harnessIds: HARNESS_IDS,
             subscriptionPairs: [
-                {key: "anthropic:claude", provider: "anthropic", name: "Claude", harness: "claude"},
+                {
+                    key: "anthropic:claude",
+                    provider: "anthropic",
+                    name: "Claude",
+                    harness: "claude",
+                },
             ],
         })
 
@@ -415,6 +758,102 @@ describe("buildConnectionPickerRows", () => {
         expect(subscription.models.find((model) => model.modelId === "claude-fable-5")!.mode).toBe(
             "self_managed",
         )
+    })
+})
+
+describe("a mounted subscription beside a hosted one of the same plan", () => {
+    // A hosted Claude subscription (a pasted setup-token) runs only on Claude Code. Its candidates
+    // are built here by hand, so the test does not depend on which run providers the entity layer
+    // maps for it.
+    const hostedClaude = (loginState: string): ProviderConnection => ({
+        id: "claude-1",
+        slug: "claude",
+        name: "Claude",
+        kind: "anthropic",
+        title: "Claude",
+        secretKind: "subscription_provider" as SecretKind,
+        models: ["sonnet"],
+        harnesses: ["claude"],
+        hasStoredCredential: true,
+        subscription: {provider: "claude", loginState},
+        source: {name: "Claude", provider: "claude"} as ProviderConnection["source"],
+    })
+    const mountedClaude: SubscriptionPair = {
+        key: "anthropic:claude",
+        provider: "anthropic",
+        name: "Claude (set up on the server)",
+        harness: "claude",
+    }
+    const mountedCandidates = buildAgentModelCandidates({
+        connections: [],
+        capabilities: CAPABILITIES,
+        harnessIds: HARNESS_IDS,
+        subscriptionPairs: [mountedClaude],
+    })
+    const hostedCandidate = {
+        modelId: "sonnet",
+        provider: "anthropic",
+        mode: "self_managed" as const,
+        slug: "claude",
+        harness: "claude",
+        source: "subscription" as const,
+        connectionKey: "claude-1",
+        managed: false,
+    }
+
+    it("says where the mounted row comes from, and leaves the hosted row plain", () => {
+        const connection = hostedClaude("ready")
+        const rows = presentConnectionPickerRows({
+            candidates: [hostedCandidate, ...mountedCandidates],
+            connections: [connection],
+            capabilities: CAPABILITIES,
+        })
+
+        expect(rows.map((row) => [row.key, row.name, row.source])).toEqual([
+            ["claude-1", "Claude", undefined],
+            ["subscription:anthropic", "Claude", "Set up on the server"],
+        ])
+        const mounted = rows.find((row) => row.key === "subscription:anthropic")!
+        expect(
+            mounted.models.every(
+                (model) => model.connectionName === "Claude (set up on the server)",
+            ),
+        ).toBe(true)
+        expect(rows[0].models[0].connectionName).toBe("Claude")
+    })
+
+    it("counts a hosted row that still needs a sign-in, because it is in the picker too", () => {
+        const rows = presentConnectionPickerRows({
+            candidates: mountedCandidates,
+            connections: [hostedClaude("needs_login")],
+            capabilities: CAPABILITIES,
+            harnessIds: HARNESS_IDS,
+        })
+
+        expect(rows.map((row) => [row.key, row.source, row.disabled])).toEqual([
+            ["subscription:anthropic", "Set up on the server", undefined],
+            ["claude-1", undefined, true],
+        ])
+    })
+
+    it("stays plain when the hosted subscription is for another plan", () => {
+        const chatgpt: ProviderConnection = {
+            ...hostedClaude("needs_login"),
+            id: "chatgpt-1",
+            kind: "openai",
+            harnesses: ["pi_core"],
+            subscription: {provider: "chatgpt", loginState: "needs_login"},
+        }
+        const rows = presentConnectionPickerRows({
+            candidates: mountedCandidates,
+            connections: [chatgpt],
+            capabilities: CAPABILITIES,
+            harnessIds: HARNESS_IDS,
+        })
+
+        const mounted = rows.find((row) => row.key === "subscription:anthropic")!
+        expect(mounted.source).toBeUndefined()
+        expect(mounted.models.every((model) => model.connectionName === "Claude")).toBe(true)
     })
 })
 
@@ -433,6 +872,7 @@ describe("selectionFromModelRow", () => {
             provider: "anthropic",
             mode: "agenta",
             slug: "anthropic",
+            namespace: null,
             harness: "claude",
         })
     })
@@ -448,7 +888,12 @@ describe("selectedModelRowKey", () => {
             capabilities: CAPABILITIES,
             harnessIds: HARNESS_IDS,
             subscriptionPairs: [
-                {key: "anthropic:claude", provider: "anthropic", name: "Claude", harness: "claude"},
+                {
+                    key: "anthropic:claude",
+                    provider: "anthropic",
+                    name: "Claude",
+                    harness: "claude",
+                },
             ],
         })
 
@@ -548,14 +993,26 @@ describe("pickerSelectionFrom", () => {
             provider: "openai",
             mode: "agenta",
             slug: "openai-2",
+            namespace: null,
             harness: "pi_core",
         })
     })
 
-    it("clears the slug for a subscription pick", () => {
+    it("keeps the slug on a hosted subscription pick", () => {
+        // A hosted subscription IS a stored record, and the slug is what names its sign-in.
+        // Dropping it here sent the run to whatever login the deployment happened to mount.
+        expect(
+            pickerSelectionFrom("gpt-5.6-sol", {
+                connectionSlug: "chatgpt",
+                connectionMode: "self_managed",
+                harness: "pi_core",
+            }),
+        ).toMatchObject({mode: "self_managed", slug: "chatgpt"})
+    })
+
+    it("leaves a mounted subscription pick slugless, because it names no record", () => {
         expect(
             pickerSelectionFrom("claude-fable-5", {
-                connectionSlug: "anthropic",
                 connectionMode: "self_managed",
                 harness: "claude",
             }),
@@ -568,8 +1025,67 @@ describe("pickerSelectionFrom", () => {
             provider: null,
             mode: "agenta",
             slug: null,
+            namespace: null,
             harness: null,
         })
+    })
+})
+
+describe("a built-in pick beside a custom endpoint of the same slug", () => {
+    it("keeps the namespace through the option metadata", () => {
+        expect(
+            pickerSelectionFrom("gpt-5.5", {
+                connectionSlug: "agenta",
+                connectionNamespace: "builtin",
+                connectionMode: "agenta",
+                harness: "pi_core",
+                provider: "openai",
+            }),
+        ).toMatchObject({slug: "agenta", namespace: "builtin"})
+    })
+
+    it("marks the row the namespace names, not the first row with the slug", () => {
+        const model = (namespace: "builtin" | null) => ({
+            modelId: "gpt-5.5",
+            label: "GPT-5.5",
+            harness: "pi_core",
+            harnessLabel: "Pi",
+            mode: "agenta" as const,
+            slug: "agenta",
+            namespace,
+            provider: "openai",
+            connectionKey: namespace ? "builtin:agenta" : "custom-1",
+            connectionName: "agenta",
+        })
+        const rows = [
+            {
+                key: "custom-1",
+                name: "agenta",
+                iconKey: "openai",
+                kind: "connection" as const,
+                models: [model(null)],
+            },
+            {
+                key: "builtin:agenta",
+                name: "Built-in: agenta",
+                iconKey: "agenta",
+                kind: "connection" as const,
+                models: [model("builtin")],
+            },
+        ]
+        const current = {
+            modelId: "gpt-5.5",
+            slug: "agenta",
+            mode: "agenta" as const,
+            harness: "pi_core",
+        }
+
+        expect(selectedModelRowKey(rows, {...current, namespace: "builtin"})).toBe(
+            "builtin:agenta:pi_core:gpt-5.5",
+        )
+        expect(selectedModelRowKey(rows, {...current, namespace: null})).toBe(
+            "custom-1:pi_core:gpt-5.5",
+        )
     })
 })
 
@@ -649,6 +1165,7 @@ describe("a deployment-hosted connection's provider family", () => {
             provider: "anthropic",
             mode: "agenta",
             slug: "aws-bedrock-52e8f59f0d07",
+            namespace: null,
             harness: "claude",
         })
     })
@@ -728,5 +1245,285 @@ describe("buildConnectionPickerRows: a provisioned connection wears Agenta's mar
         const own = custom("c1", "bedrock", ["my-bedrock/custom/anthropic/claude-fable-5"])
         const [row] = buildConnectionPickerRows(args(own))
         expect(row.iconKey).toBe("bedrock")
+    })
+})
+
+describe("displayedModelRow", () => {
+    // What production agents saved on the seeded "Agenta" connection before the transfer job
+    // retired it. The gateway runs them on `builtin/agenta`; the picker shows that row.
+    const saved = {
+        modelId: "Agenta/custom/vertex_ai/gemini-3.7-flash",
+        slug: "starter-credits",
+        mode: "agenta" as const,
+        harness: "pi_core",
+    }
+    const rows = (connections: ProviderConnection[] = []) =>
+        buildConnectionPickerRows({
+            connections,
+            capabilities: {
+                ...CAPABILITIES,
+                pi_core: {...CAPABILITIES.pi_core, deployments: ["direct", "custom"]},
+            },
+            harnessIds: HARNESS_IDS,
+            showSubscriptions: false,
+            builtinEndpoints: [
+                {
+                    slug: "agenta",
+                    models: ["google/gemini-3.7-flash", "google/gemini-3.8-flash"],
+                    deploymentKind: "vertex_ai",
+                },
+            ],
+        })
+
+    it("shows a retired starter-credits model as the built-in model it runs on", () => {
+        const shown = displayedModelRow(rows(), saved, [])
+
+        expect(shown.modelId).toBe("google/gemini-3.7-flash")
+        expect(shown.key).toBe("builtin:agenta:pi_core:google/gemini-3.7-flash")
+    })
+
+    it("keeps the stored id while the vault still holds a starter-credits connection", () => {
+        const shown = displayedModelRow(rows(), saved, ["openai", "starter-credits"])
+
+        expect(shown).toEqual({key: undefined, modelId: saved.modelId})
+    })
+
+    it("shows the built-in row even when another connection offers the same stored id", () => {
+        const other = custom("9", "custom", [saved.modelId], {slug: "my-vertex"})
+        const withOther = rows([other])
+        // The fallback alone would light up the other connection's row.
+        expect(selectedModelRowKey(withOther, saved)).toBe(`9:pi_core:${saved.modelId}`)
+
+        const shown = displayedModelRow(withOther, saved, ["my-vertex"])
+
+        expect(shown.key).toBe("builtin:agenta:pi_core:google/gemini-3.7-flash")
+    })
+
+    it.each([
+        ["another slug", {slug: "acme"}],
+        ["an explicit standard namespace", {namespace: "standard" as const}],
+        ["a self-managed pick", {mode: "self_managed" as const}],
+    ])("keeps %s as the stored id", (_label, change) => {
+        const shown = displayedModelRow(rows(), {...saved, ...change}, [])
+
+        expect(shown).toEqual({key: undefined, modelId: saved.modelId})
+    })
+
+    it("never shows another connection's copy of the built-in model", () => {
+        const withoutBuiltin = presentConnectionPickerRows({
+            candidates: buildAgentModelCandidates({
+                connections: [custom("9", "openai", ["google/gemini-3.7-flash"])],
+                capabilities: {
+                    ...CAPABILITIES,
+                    pi_core: {...CAPABILITIES.pi_core, deployments: ["direct", "custom"]},
+                },
+                harnessIds: HARNESS_IDS,
+                showSubscriptions: false,
+                subscriptionPairs: [],
+            }),
+            connections: [custom("9", "openai", ["google/gemini-3.7-flash"])],
+            capabilities: CAPABILITIES,
+        })
+
+        expect(displayedModelRow(withoutBuiltin, saved, [])).toEqual({
+            key: undefined,
+            modelId: saved.modelId,
+        })
+    })
+})
+
+describe("organization connections in the picker", () => {
+    const projectKey = standard("project-openai", "openai", {slug: "openai-project"})
+    const organizationKey = standard("org-openai", "openai", {
+        slug: "openai-org",
+        name: "OpenAI (Organization)",
+        scope: "organization",
+    })
+
+    it("lists the project's connections first, then the organization's, marked as such", () => {
+        const rows = buildConnectionPickerRows({
+            connections: [organizationKey, projectKey],
+            capabilities: CAPABILITIES,
+            harnessIds: HARNESS_IDS,
+        })
+
+        expect(rows.map((row) => [row.key, !!row.organization])).toEqual([
+            ["project-openai", false],
+            ["org-openai", true],
+        ])
+        const organizationModel = rows[1].models[0]
+        expect(organizationModel.slug).toBe("openai-org")
+        expect(organizationModel.namespace).toBe("organization")
+    })
+
+    it("saves the exact organization connection a pick names", () => {
+        const [row] = buildConnectionPickerRows({
+            connections: [organizationKey],
+            capabilities: CAPABILITIES,
+            harnessIds: HARNESS_IDS,
+        })
+        const selection = selectionFromModelRow(row.models[0])
+        const llm = composeModelValue({
+            modelId: selection.modelId,
+            provider: selection.provider,
+            mode: selection.mode,
+            slug: selection.slug,
+            namespace: selection.namespace,
+            existing: undefined,
+        })
+
+        expect(llm.connection).toEqual({
+            mode: "agenta",
+            slug: "openai-org",
+            scope: "organization",
+            namespace: "organization",
+        })
+    })
+
+    it("keeps the organization namespace of a self_managed pick", () => {
+        expect(
+            pickerSelectionFrom("gpt-5.5", {
+                connectionMode: "self_managed",
+                connectionSlug: "chatgpt",
+                connectionNamespace: "organization",
+                harness: "pi_core",
+            }).namespace,
+        ).toBe("organization")
+        expect(
+            pickerSelectionFrom("gpt-5.5", {
+                connectionMode: "self_managed",
+                connectionSlug: "chatgpt",
+                connectionNamespace: "custom",
+                harness: "pi_core",
+            }).namespace,
+        ).toBeNull()
+    })
+})
+
+describe("a stored organization connection that is gone", () => {
+    it("marks no other connection that offers the same model", () => {
+        const rows = buildConnectionPickerRows({
+            connections: [standard("project-openai", "openai", {slug: "openai-project"})],
+            capabilities: CAPABILITIES,
+            harnessIds: HARNESS_IDS,
+        })
+        const model = rows[0].models[0]
+        expect(
+            selectedModelRowKey(rows, {
+                modelId: model.modelId,
+                slug: "openai-org-gone",
+                namespace: "organization",
+                mode: "agenta",
+                harness: model.harness,
+            }),
+        ).toBeUndefined()
+        // A project slug that is gone still falls back as before.
+        expect(
+            selectedModelRowKey(rows, {
+                modelId: model.modelId,
+                slug: "gone",
+                namespace: null,
+                mode: "agenta",
+                harness: model.harness,
+            }),
+        ).toBe(modelRowKey(rows[0].key, model))
+    })
+
+    it("shows no row and no model for it in the menu", () => {
+        const rows = buildConnectionPickerRows({
+            connections: [standard("project-openai", "openai", {slug: "openai-project"})],
+            capabilities: CAPABILITIES,
+            harnessIds: HARNESS_IDS,
+        })
+        const model = rows[0].models[0]
+        expect(
+            displayedModelRow(
+                rows,
+                {
+                    modelId: model.modelId,
+                    slug: "openai-org-gone",
+                    namespace: "organization",
+                    mode: "agenta",
+                    harness: model.harness,
+                },
+                ["openai-project"],
+            ),
+        ).toEqual({key: undefined, modelId: null})
+    })
+
+    it("never lights an organization row for a project connection that is gone", () => {
+        const rows = buildConnectionPickerRows({
+            connections: [
+                standard("org-openai", "openai", {slug: "openai-org", scope: "organization"}),
+            ],
+            capabilities: CAPABILITIES,
+            harnessIds: HARNESS_IDS,
+        })
+        const model = rows[0].models[0]
+        expect(
+            displayedModelRow(
+                rows,
+                {
+                    modelId: model.modelId,
+                    slug: "openai-project-gone",
+                    namespace: null,
+                    mode: "agenta",
+                    harness: model.harness,
+                },
+                [],
+            ),
+        ).toEqual({key: undefined, modelId: null})
+    })
+})
+
+describe("a saved model id without its provider prefix", () => {
+    const projectKey = standard("project-openai", "openai", {slug: "openai-project"})
+    const organizationKey = standard("org-openai", "openai", {
+        slug: "openai-org",
+        scope: "organization",
+    })
+    const rows = buildConnectionPickerRows({
+        connections: [projectKey, organizationKey],
+        capabilities: CAPABILITIES,
+        harnessIds: HARNESS_IDS,
+    })
+    const rowModel = (key: string) => {
+        const row = rows.find((r) => r.key === key)!
+        const model = row.models.find(
+            (m) => m.harness === "pi_core" && m.modelId === "openai/gpt-5.5",
+        )!
+        return modelRowKey(row.key, model)
+    }
+
+    it("marks the organization connection it names", () => {
+        expect(
+            displayedModelRow(
+                rows,
+                {
+                    modelId: "gpt-5.5",
+                    slug: "openai-org",
+                    namespace: "organization",
+                    mode: "agenta",
+                    harness: "pi_core",
+                },
+                ["openai-project"],
+            ).key,
+        ).toBe(rowModel("org-openai"))
+    })
+
+    it("marks the project connection it names", () => {
+        expect(
+            displayedModelRow(
+                rows,
+                {
+                    modelId: "gpt-5.5",
+                    slug: "openai-project",
+                    namespace: null,
+                    mode: "agenta",
+                    harness: "pi_core",
+                },
+                ["openai-project"],
+            ).key,
+        ).toBe(rowModel("project-openai"))
     })
 })

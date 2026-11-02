@@ -13,6 +13,48 @@ export interface AgentActionTarget {
     slug?: string | null
 }
 
+/** The rename write on its own, so an inline editor can commit without the confirm modal. */
+export const useRenameAgent = () => {
+    const queryClient = useQueryClient()
+    const projectId = useAtomValue(projectIdAtom) ?? ""
+
+    return useCallback(
+        async (id: string, name: string): Promise<boolean> => {
+            try {
+                await updateWorkflow(projectId, {id, name})
+            } catch {
+                message.error("Couldn't rename this agent")
+                return false
+            }
+            void queryClient.invalidateQueries({queryKey: ["workflows"]})
+            void queryClient.invalidateQueries({queryKey: ["agent-workflows"]})
+            return true
+        },
+        [projectId, queryClient],
+    )
+}
+
+/** The description write on its own, for an inline editor. An empty string clears it. */
+export const useUpdateAgentDescription = () => {
+    const queryClient = useQueryClient()
+    const projectId = useAtomValue(projectIdAtom) ?? ""
+
+    return useCallback(
+        async (id: string, description: string): Promise<boolean> => {
+            try {
+                await updateWorkflow(projectId, {id, description})
+            } catch {
+                message.error("Couldn't update this agent's description")
+                return false
+            }
+            void queryClient.invalidateQueries({queryKey: ["workflows"]})
+            void queryClient.invalidateQueries({queryKey: ["agent-workflows"]})
+            return true
+        },
+        [projectId, queryClient],
+    )
+}
+
 /**
  * Everything you can do to an agent from its own surfaces, defined once — the same shape
  * [[useSessionActions]] gives sessions.
@@ -23,6 +65,7 @@ export interface AgentActionTarget {
 export const useAgentActions = () => {
     const queryClient = useQueryClient()
     const projectId = useAtomValue(projectIdAtom) ?? ""
+    const renameAgent = useRenameAgent()
 
     const revalidate = useCallback(() => {
         void queryClient.invalidateQueries({queryKey: ["workflows"]})
@@ -57,32 +100,25 @@ export const useAgentActions = () => {
                 okText: "Rename",
                 onOk: async () => {
                     const name = next.trim()
-                    if (!name) return
-                    try {
-                        await updateWorkflow(projectId, {id: target.id, name})
-                    } catch {
-                        message.error("Couldn't rename this agent")
-                        return
-                    }
-                    revalidate()
+                    if (name) await renameAgent(target.id, name)
                 },
             })
         },
-        [projectId, revalidate],
+        [renameAgent],
     )
 
     const remove = useCallback(
         (target: AgentActionTarget) => {
             modal.confirm({
-                title: "Delete agent",
+                title: "Archive agent",
                 content: `"${target.name?.trim() || "This agent"}" will be archived along with its variants and revisions. Its past sessions stay readable.`,
-                okText: "Delete",
+                okText: "Archive",
                 okButtonProps: {danger: true},
                 onOk: async () => {
                     try {
                         await archiveWorkflow(projectId, target.id)
                     } catch {
-                        message.error("Couldn't delete this agent")
+                        message.error("Couldn't archive this agent")
                         return
                     }
                     revalidate()

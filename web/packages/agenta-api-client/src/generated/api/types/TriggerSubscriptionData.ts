@@ -6,6 +6,7 @@ export interface TriggerSubscriptionData {
     event_key: string;
     trigger_config?: (Record<string, unknown> | null) | undefined;
     inputs_fields?: (TriggerSubscriptionData.InputsFields | null) | undefined;
+    include_event?: boolean | undefined;
     references?: (Record<string, AgentaApi.Reference | null> | null) | undefined;
     selector?: (AgentaApi.Selector | null) | undefined;
 }

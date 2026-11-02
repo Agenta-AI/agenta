@@ -6,7 +6,7 @@
  * those improvements. `DriveExplorer` renders its own header (with this close button); the drawer
  * chrome stays out of the way.
  *
- * The heavy body is `next/dynamic`-imported so the tree/renderer/pdfjs graph loads only when the
+ * The heavy body is `next/dynamic`-imported so the tree/renderer graph loads only when the
  * drawer opens (`destroyOnClose` unmounts it again).
  */
 import {useEffect, useRef, useState} from "react"
@@ -101,7 +101,6 @@ export function FilesDrawer({
             // Two-pane (tree + preview) needs the room; expand for near-full width.
             width={expanded ? EXPANDED_WIDTH : NORMAL_WIDTH}
             destroyOnClose
-            closeOnLayoutClick={false}
             // Headerless: DriveExplorer renders the one header (with its own close button).
             closable={false}
             title={null}

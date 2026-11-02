@@ -10,4 +10,5 @@ export interface ApplicationCreate {
     name?: (string | null) | undefined;
     description?: (string | null) | undefined;
     slug?: (string | null) | undefined;
+    visibility?: (AgentaApi.Visibility | null) | undefined;
 }

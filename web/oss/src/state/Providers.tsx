@@ -16,6 +16,7 @@ import {registerTraceDrawerReferenceSlots} from "../components/SharedDrawers/Tra
 import AgSWRConfig from "../lib/api/SWRConfig"
 
 import {bindObservabilityHostAtoms} from "./observability"
+import ClassicModeGate from "./onboarding/ClassicModeGate"
 import UserListener from "./profile/UserListener"
 import {SessionListener} from "./session"
 
@@ -87,6 +88,7 @@ const GlobalStateProvider = ({children}: PropsWithChildren) => {
                 <HydrateAtoms>
                     <SessionListener />
                     <UserListener />
+                    <ClassicModeGate />
                     <DeferredAppBoot />
                     {children}
                 </HydrateAtoms>

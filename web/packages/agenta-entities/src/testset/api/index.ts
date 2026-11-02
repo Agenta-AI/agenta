@@ -32,15 +32,11 @@ export {
     patchRevision,
     commitRevision,
     archiveRevision,
-    // File upload
-    uploadTestsetFile,
-    uploadRevisionFile,
     // File download
     downloadTestset,
     downloadRevision,
     // Simple API
     fetchSimpleTestset,
-    queryPreviewTestsets,
     // Types
     type ExportFileType,
 } from "./mutations"

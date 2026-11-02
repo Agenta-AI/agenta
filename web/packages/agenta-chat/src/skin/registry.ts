@@ -12,9 +12,12 @@
  * platform special cases; nothing here is load-bearing for unknown tools, and raw names stay
  * reachable via tooltips and Build mode.
  */
+import {PATH_KEYS} from "@agenta/entities/session"
 import {parseGatewayToolName} from "@agenta/entities/workflow/commitDiff"
+import {canonicalClientToolName} from "@agenta/shared/clientTools"
 
 import type {
+    ActivityIcon,
     ApprovalDescriber,
     ChatSkinRegistration,
     ClientToolMeta,
@@ -32,12 +35,14 @@ interface RegistrationStore {
     }
     approvals: Record<string, ApprovalDescriber>
     toolDisplay: Record<string, ToolDisplayEntry>
+    appHints: Set<string>
 }
 
 const store: RegistrationStore = {
     clientTools: {byRenderKind: {}, byToolName: {}},
     approvals: {},
     toolDisplay: {},
+    appHints: new Set(),
 }
 
 /**
@@ -46,7 +51,20 @@ const store: RegistrationStore = {
  * keys the new registration doesn't mention are left untouched. Registering `{}` or omitting a
  * sub-map is a no-op for that sub-map.
  */
+/** Bumped on every registration, so a row resolved before a skin arrived can resolve again. */
+let skinVersion = 0
+const skinListeners = new Set<() => void>()
+
+export const subscribeChatSkin = (listener: () => void): (() => void) => {
+    skinListeners.add(listener)
+    return () => skinListeners.delete(listener)
+}
+
+export const getChatSkinVersion = (): number => skinVersion
+
 export const registerChatSkin = (skin: ChatSkinRegistration): void => {
+    skinVersion += 1
+    skinListeners.forEach((listener) => listener())
     if (skin.clientTools?.byRenderKind) {
         Object.assign(store.clientTools.byRenderKind, skin.clientTools.byRenderKind)
     }
@@ -59,7 +77,15 @@ export const registerChatSkin = (skin: ChatSkinRegistration): void => {
             store.toolDisplay[name.toLowerCase()] = entry
         }
     }
+    for (const slug of skin.appHints ?? []) store.appHints.add(slug.toLowerCase())
 }
+
+/** The connected app a bare name carries as one of its words, if any. */
+const hintedApp = (canonical: string): string | undefined =>
+    canonical
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .find((word) => word && store.appHints.has(word))
 
 /**
  * Resolve the widget for a client tool, or `undefined` when none is registered. Same precedence as
@@ -79,7 +105,12 @@ export const resolveClientToolWidget = (
             store.clientTools.byRenderKind[meta.renderKind] ??
             fallback?.byRenderKind?.[meta.renderKind]
         )
-    return store.clientTools.byToolName[meta.toolName] ?? fallback?.byToolName?.[meta.toolName]
+    // Canonicalized: the wire name is `__ag__request_input` (or the harness's `mcp__…` wrapping)
+    // while the registry is keyed on the bare `request_input`. Matching raw made this whole axis
+    // dead, so a transcript persisted before the sibling `data-render` part existed resolved to
+    // `UnhandledClientTool` and auto-settled "not handled by this client".
+    const name = canonicalToolName(meta.toolName)
+    return store.clientTools.byToolName[name] ?? fallback?.byToolName?.[name]
 }
 
 /** Whether this client tool has a dedicated widget registered (used to route known tools in every
@@ -123,6 +154,25 @@ const firstCapability = (output: unknown): Record<string, unknown> | undefined =
     ) as Record<string, unknown> | undefined
 }
 
+/** A tool output as a record: the runtime pair returns its JSON as a string. */
+const outputRecord = (output: unknown): Record<string, unknown> | undefined => {
+    if (isRecord(output)) return output
+    if (typeof output !== "string" || !output.startsWith("{")) return undefined
+    try {
+        const parsed: unknown = JSON.parse(output)
+        return isRecord(parsed) ? parsed : undefined
+    } catch {
+        return undefined
+    }
+}
+
+/** The first hit of a `search_tools` call: `{results: [{integration, tool}]}`, best match first. */
+const firstResult = (output: unknown): {slug?: string; action?: string} => {
+    const results = outputRecord(output)?.results
+    const hit = Array.isArray(results) ? results.find(isRecord) : undefined
+    return hit ? {slug: stringAt(hit.integration), action: stringAt(hit.tool)} : {}
+}
+
 /** The matched app and its tool's ACTION token — the same token a gateway wire name carries, so
  * both rows word it alike. One read: the result is large and both halves share a capability. */
 const matchedTool = (output: unknown): {slug?: string; action?: string} => {
@@ -135,27 +185,23 @@ const matchedTool = (output: unknown): {slug?: string; action?: string} => {
     }
 }
 
-/** Our in-sandbox MCP server (runner: `INTERNAL_TOOL_MCP_SERVER_NAME`). */
-const INTERNAL_MCP_SERVER = "agenta-tools"
-
-/** How each harness wraps a tool of that server: Claude `mcp__<server>__`, Codex `mcp.<server>.`
- * (runner `client-tools.ts` strips the same two). */
-const INTERNAL_MCP_PREFIXES = [`mcp__${INTERNAL_MCP_SERVER}__`, `mcp.${INTERNAL_MCP_SERVER}.`]
-
-/** Our slug namespace. Unstripped, `__ag__request_input` derives "Requested an Ag input". */
-const INTERNAL_SLUG_PREFIX = "__ag__"
-
 /** Ops we ship, mirroring the SDK's `platform/op_catalog.py` plus the two client tools. A bare name
  * is ours only if listed: a reference tool carries the user's own workflow name, and the glossary
  * would rename THEIR nouns. A missing op still conjugates, so it costs plain wording, not wrong. */
 const PLATFORM_OPS = new Set([
     "annotate_trace",
+    "list_channel_destinations",
+    "read_channel_messages",
+    "search_channel_messages",
+    "send_channel_message",
     "commit_revision",
     "create_schedule",
     "create_subscription",
     "discover_tools",
     "discover_triggers",
     "list_connections",
+    "run_tool",
+    "search_tools",
     "list_deliveries",
     "list_schedules",
     "list_subscriptions",
@@ -170,28 +216,24 @@ const PLATFORM_OPS = new Set([
     "rename_session",
     "request_connection",
     "request_input",
+    "request_secret",
     "resume_schedule",
     "resume_subscription",
     "test_run",
     "test_subscription",
 ])
 
-/**
- * The platform tool name behind a harness wrapper.
- *
- * Pi sends `commit_revision`; Claude exposes the same tool over MCP and sends
- * `mcp__agenta-tools__commit_revision`, Codex `mcp.agenta-tools.commit_revision`. Anything keyed
- * BY tool name must key on this, or one call behaves differently depending on the harness.
- *
- * Only OUR server is unwrapped. A third-party MCP tool keeps its full name, so it can never
- * collide with a platform tool of the same bare name. NOT for permission rules: those must match
- * the wire name verbatim (see `useAlwaysAllowTool`).
- */
-export const canonicalToolName = (raw: string): string => {
-    for (const prefix of [...INTERNAL_MCP_PREFIXES, INTERNAL_SLUG_PREFIX]) {
-        if (raw.startsWith(prefix)) return raw.slice(prefix.length) || raw
-    }
-    return raw
+/** The platform tool name behind a harness wrapper. Re-exported from @agenta/shared so
+ * @agenta/playground can key on the same rule without importing this package (that direction closes
+ * a workspace cycle). See `canonicalClientToolName` for the full contract. */
+export const canonicalToolName = canonicalClientToolName
+
+/** One shell entry for every harness's name for it. */
+const SHELL: ToolDisplayEntry = {
+    kind: "shell",
+    icon: "terminal",
+    activity: {running: "Running a command", done: "Ran a command"},
+    verb: {running: "Running", done: "Ran"},
 }
 
 /** Special cases, keyed by lowercased canonical wire name. Platform ops are `verb_noun`, so the
@@ -208,13 +250,31 @@ const DEFAULT_TOOL_DISPLAY: Record<string, ToolDisplayEntry> = {
         },
     },
     // "Tested a run" misses the point — the run IS the agent under test.
-    test_run: {activity: {running: "Testing the agent", done: "Tested the agent"}},
+    test_run: {
+        activity: {running: "Testing the agent", done: "Tested the agent"},
+        verb: {running: "Testing", done: "Tested"},
+    },
     // A tool search reports which tool it landed on. That name is worth far more than the keywords
     // it searched with, which are model-written and shapeless.
     discover_tools: {app: (_input, output) => matchedTool(output)},
+    // The runtime pair every connected agent gets (SDK `platform/gateway.py`).
+    search_tools: {
+        icon: "tool-search",
+        app: (_input, output) => firstResult(output),
+        activity: (app) =>
+            app ? undefined : {running: "Searching for tools", done: "Searched for tools"},
+    },
+    run_tool: {
+        kind: "gateway",
+        app: (input) =>
+            isRecord(input)
+                ? {slug: stringAt(input.integration), action: stringAt(input.tool), ran: true}
+                : {},
+    },
     // These two prompt the user, so they are written from the reader's side, not the agent's. The
     // running form says the run is blocked on the reader, which "Asking" left implicit.
     request_connection: {
+        icon: "connect",
         app: (input) => ({slug: isRecord(input) ? stringAt(input.integration) : undefined}),
         activity: (app) => ({
             running: `Waiting for you to connect ${app ?? "an app"}`,
@@ -223,21 +283,118 @@ const DEFAULT_TOOL_DISPLAY: Record<string, ToolDisplayEntry> = {
     },
     request_input: {
         activity: {running: "Waiting for your answers", done: "Asked you some questions"},
+        icon: "ask",
+    },
+    request_secret: {
+        activity: {running: "Waiting for you to add a secret", done: "Asked you for a secret"},
+        icon: "secret",
     },
 
     // Harness builtins. Claude title-cases them, Pi lowercases them; the key is lowercased.
-    bash: {kind: "shell", activity: {running: "Running a command", done: "Ran a command"}},
-    edit: {kind: "file", activity: {running: "Editing a file", done: "Edited a file"}},
-    find: {kind: "file", activity: {running: "Looking for files", done: "Looked for files"}},
-    glob: {kind: "file", activity: {running: "Looking for files", done: "Looked for files"}},
-    grep: {kind: "file", activity: {running: "Searching files", done: "Searched files"}},
-    ls: {kind: "file", activity: {running: "Listing files", done: "Listed files"}},
-    read: {kind: "file", activity: {running: "Reading a file", done: "Read a file"}},
-    task: {activity: {running: "Running a sub-task", done: "Ran a sub-task"}},
-    todowrite: {activity: {running: "Updating its task list", done: "Updated its task list"}},
-    webfetch: {activity: {running: "Fetching a web page", done: "Fetched a web page"}},
-    websearch: {activity: {running: "Searching the web", done: "Searched the web"}},
-    write: {kind: "file", activity: {running: "Writing a file", done: "Wrote a file"}},
+    bash: SHELL,
+    // The sandbox agent's shell goes by "Terminal".
+    terminal: SHELL,
+    shell: SHELL,
+    edit: {
+        kind: "file",
+        icon: "file-write",
+        activity: {running: "Editing a file", done: "Edited a file"},
+        verb: {running: "Editing", done: "Edited"},
+    },
+    find: {
+        kind: "file",
+        icon: "file-list",
+        activity: {running: "Looking for files", done: "Looked for files"},
+        verb: {running: "Looking for", done: "Looked for"},
+    },
+    glob: {
+        kind: "file",
+        icon: "file-list",
+        activity: {running: "Looking for files", done: "Looked for files"},
+        verb: {running: "Looking for", done: "Looked for"},
+    },
+    grep: {
+        kind: "file",
+        icon: "file-search",
+        activity: {running: "Searching files", done: "Searched files"},
+        verb: {running: "Searching for", done: "Searched for"},
+    },
+    ls: {
+        kind: "file",
+        icon: "file-list",
+        activity: {running: "Listing files", done: "Listed files"},
+        verb: {running: "Listing", done: "Listed"},
+    },
+    read: {
+        kind: "file",
+        icon: "file-read",
+        activity: {running: "Reading a file", done: "Read a file"},
+        verb: {running: "Reading", done: "Read"},
+    },
+    task: {
+        icon: "subtask",
+        activity: {running: "Running a sub-task", done: "Ran a sub-task"},
+        verb: {running: "Running", done: "Ran"},
+    },
+    todowrite: {
+        icon: "task-list",
+        activity: {running: "Updating its task list", done: "Updated its task list"},
+        verb: {running: "Updating its", done: "Updated its"},
+    },
+    webfetch: {
+        icon: "web-fetch",
+        activity: {running: "Fetching a web page", done: "Fetched a web page"},
+        verb: {running: "Fetching", done: "Fetched"},
+    },
+    websearch: {
+        icon: "web-search",
+        activity: {running: "Searching the web", done: "Searched the web"},
+        verb: {running: "Searching", done: "Searched"},
+    },
+    write: {
+        kind: "file",
+        icon: "file-write",
+        activity: {running: "Writing a file", done: "Wrote a file"},
+        verb: {running: "Writing", done: "Wrote"},
+    },
+}
+
+/** Platform-op glyphs by canonical name; a family (`*_schedule`) shares one. Closed set. */
+const PLATFORM_ICONS: Record<string, ActivityIcon> = {
+    annotate_trace: "annotation",
+    commit_revision: "commit",
+    discover_tools: "tool-search",
+    search_tools: "tool-search",
+    discover_triggers: "trigger",
+    list_connections: "connections",
+    list_deliveries: "deliveries",
+    query_spans: "runs",
+    query_workflows: "runs",
+    read_config: "config",
+    rename_agent: "rename",
+    rename_session: "rename",
+    test_run: "test",
+    test_subscription: "test",
+}
+
+const ICON_FAMILIES: [RegExp, ActivityIcon][] = [
+    [/_schedules?$/, "schedule"],
+    [/_subscriptions?$/, "trigger"],
+]
+
+const KIND_ICONS: Record<ToolKind, ActivityIcon> = {
+    gateway: "gateway",
+    mcp: "mcp",
+    platform: "platform",
+    shell: "terminal",
+    file: "file-read",
+}
+
+/** Kind first, name second: only the ops and families listed above refine their kind's glyph. */
+export const resolveActivityIcon = (kind: ToolKind, canonical: string): ActivityIcon => {
+    const key = canonical.toLowerCase()
+    const named = PLATFORM_ICONS[key] ?? ICON_FAMILIES.find(([test]) => test.test(key))?.[1]
+    return named ?? KIND_ICONS[kind]
 }
 
 /** Verb forms for `verb noun` tool names. Closed on purpose: an unknown verb keeps its plain
@@ -320,6 +477,8 @@ interface BuiltActivity {
     activity: ToolActivity
     /** Whether the app name ended up inside the sentence. When it did not, the chip must show it. */
     namedApp: boolean
+    /** The verb forms the sentence opens with, so a row can set the rest apart. */
+    verb?: ToolActivity
 }
 
 const ARTICLES = new Set(["a", "an", "the"])
@@ -420,22 +579,23 @@ const conjugate = (
         return {
             activity: {running: `${verb.running} ${phrase}`, done: `${verb.done} ${phrase}`},
             namedApp: Boolean(appName),
+            verb,
         }
     }
     if (!object) {
         return appName
-            ? {activity: say(appName), namedApp: true}
+            ? {activity: say(appName), namedApp: true, verb: forms}
             : {activity: forms, namedApp: false}
     }
     // A glossary term brings its own article and never takes an app name: it is ours.
     const term = ours ? PLATFORM_TERMS[object.toLowerCase()] : undefined
-    if (term) return {activity: say(term), namedApp: false}
+    if (term) return {activity: say(term), namedApp: false, verb: forms}
     // An article the action name already carries ("Create an issue") has to come off before the app
     // goes in front of the noun, or it lands mid-phrase ("Created GitHub an issue").
     const words = object.split(" ")
     const carried = ARTICLES.has(words[0]?.toLowerCase() ?? "")
     const noun = (carried ? words.slice(1) : words).join(" ")
-    if (!noun) return {activity: say(object), namedApp: false}
+    if (!noun) return {activity: say(object), namedApp: false, verb: forms}
     const app = appName && !echoesApp(noun, appName) ? appName : undefined
     // The app modifies the noun, so the article is chosen for whichever word now comes first.
     const phrase = app ? `${app} ${noun}` : noun
@@ -443,6 +603,7 @@ const conjugate = (
     return {
         activity: say(single ? `${article(app ?? noun)} ${phrase}` : phrase),
         namedApp: Boolean(app),
+        verb: forms,
     }
 }
 
@@ -530,6 +691,7 @@ const parseShape = (raw: string, input: unknown, ours: boolean, appName?: string
             activity: {
                 activity: {running: "Running a command", done: "Ran a command"},
                 namedApp: false,
+                verb: {running: "Running", done: "Ran"},
             },
         }
     }
@@ -537,14 +699,22 @@ const parseShape = (raw: string, input: unknown, ours: boolean, appName?: string
         return {
             label: "File",
             kind: "file",
-            activity: {activity: {running: "Reading a file", done: "Read a file"}, namedApp: false},
+            activity: {
+                activity: {running: "Reading a file", done: "Read a file"},
+                namedApp: false,
+                verb: {running: "Reading", done: "Read"},
+            },
         }
     }
     if (CODEX_LIST_TITLE.test(raw)) {
         return {
             label: "Files",
             kind: "file",
-            activity: {activity: {running: "Listing files", done: "Listed files"}, namedApp: false},
+            activity: {
+                activity: {running: "Listing files", done: "Listed files"},
+                namedApp: false,
+                verb: {running: "Listing", done: "Listed"},
+            },
         }
     }
     if (!token) return {label: clamp(raw, 60), kind: "platform"}
@@ -555,8 +725,14 @@ const parseShape = (raw: string, input: unknown, ours: boolean, appName?: string
 }
 
 /** The sandbox root every path in a session sits under. Machine-generated and identical on every
- * row, so it is pure noise; id-looking segments (8+ chars with a digit) go with it. */
-const SANDBOX_ROOT = /\/tmp\/agenta[\w-]*\/(?:mounts\/)?(?:(?=[\w-]*\d)[\w-]{8,}\/)*/g
+ * row, so it is pure noise; id-looking segments (8+ chars with a digit) go with it.
+ *
+ * Three parents, because the runner builds three roots: `/var/lib` is the local durable one,
+ * `/home/sandbox` the Daytona one, and `/tmp` both the local ephemeral cwd and the durable root
+ * used before the 2026-09 move — sessions recorded then keep those paths forever, so dropping it
+ * would un-shorten every historical row. */
+const SANDBOX_ROOT =
+    /(?:\/var\/lib|\/home\/sandbox|\/tmp)\/agenta[\w-]*\/(?:mounts\/)?(?:(?=[\w-]*\d)[\w-]{8,}\/)*/g
 
 /** Drop the `/bin/bash -lc "…"` wrapper Codex adds, and only then its quotes: an unwrapped
  * command may legitimately end in one (`-name '*.md'`). */
@@ -569,14 +745,38 @@ const unwrapShell = (command: string): string => {
 }
 
 /** A shell command as the agent ran it, minus the login-shell wrapper and the sandbox root. */
+/** A leading `cd <somewhere> &&` only positions the real command; the row names the real one. */
+const LEADING_CD = /^cd\s+\S+\s*&&\s*/
+
 const shortCommand = (command: string): string =>
-    clamp(unwrapShell(command).replace(SANDBOX_ROOT, ""), 48)
+    clamp(unwrapShell(command).replace(LEADING_CD, "").replace(SANDBOX_ROOT, ""), 48)
 
 const basename = (path: string): string => path.split("/").filter(Boolean).pop() ?? path
 
-/** Path-ish argument keys. Kept in step with `PATH_KEYS` in `@agenta/entities`'
- * `session/core/fileActivity.ts`, which reads the same argument for the file cards on this row. */
-const PATH_KEYS = ["path", "file_path", "filePath", "notebook_path", "filename", "target_file"]
+/** An id-shaped path segment, which names nothing a reader can recognise. */
+const ID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f-]{20,}$/i
+
+/** The one entry a listing came back with, when it is a plain short line. */
+const singleEntry = (output: unknown): string | undefined => {
+    const text = typeof output === "string" ? stripFenceLine(output) : undefined
+    return text && !text.includes("\n") && text.length <= 60 ? text : undefined
+}
+
+const stripFenceLine = (text: string): string => text.replace(/^```\w*\n?|\n?```$/g, "").trim()
+
+/** What a path is called: a skill by its folder, an attachment by the file its listing found. */
+const fileLabel = (path: string, output?: unknown): string => {
+    const parts = path.split("/").filter(Boolean)
+    const name = parts.pop() ?? path
+    const folder = parts.pop()
+    if (name === "SKILL.md" && folder) return `${folder} skill`
+    if (folder === "attachments" && ID_SEGMENT.test(name))
+        return singleEntry(output) ?? "an attachment"
+    // The mount roots are named by id too: the session's workspace and the agent's own files.
+    if (ID_SEGMENT.test(name)) return "the workspace"
+    if (name.endsWith("-agent") && ID_SEGMENT.test(name.slice(0, -6))) return "the agent's files"
+    return name
+}
 
 /** Arguments naming what the call was looking for. */
 const QUERY_KEYS = ["use_cases", "query", "keywords", "search"]
@@ -599,13 +799,13 @@ const queryText = (value: unknown): string => {
 }
 
 /** The short technical string beside the sentence: a command, or a filename. */
-const toolDetail = (raw: string, input?: unknown): string | undefined => {
+const toolDetail = (raw: string, input?: unknown, output?: unknown): string | undefined => {
     if (isRecord(input)) {
         const command = input.command
         if (typeof command === "string" && command) return shortCommand(command)
         for (const key of PATH_KEYS) {
             const value = input[key]
-            if (typeof value === "string" && value) return clamp(basename(value), 48)
+            if (typeof value === "string" && value) return clamp(fileLabel(value, output), 48)
         }
         // A regex is not prose, so it stays in the detail slot where monospace reads right.
         const pattern = input.pattern
@@ -625,16 +825,17 @@ const overrideActivity = (
 ): BuiltActivity | null => {
     const activity = override?.activity
     if (!activity) return null
-    if (typeof activity !== "function") return {activity, namedApp: false}
-    return {activity: activity(ownApp), namedApp: Boolean(ownApp)}
+    if (typeof activity !== "function") return {activity, namedApp: false, verb: override.verb}
+    const built = activity(ownApp)
+    // A function may decline (undefined) and let the reported tool's own wording speak.
+    return built ? {activity: built, namedApp: Boolean(ownApp), verb: override.verb} : null
 }
 
-/** How a tool another call merely *reported* reads. Read-only verbs only: the call found the
- * tool, it did not run it, so "Sent a Gmail email" would be a false claim. */
-const reportedActivity = (action: string, appName: string): BuiltActivity | null => {
+/** How a reported tool reads: read-only verbs unless the call actually ran it. */
+const reportedActivity = (action: string, appName: string, ran: boolean): BuiltActivity | null => {
     const label = parseGatewayToolName(action).label
     const split = splitVerb(label, appName)
-    if (!split || !QUERY_VERBS.has(split.verb)) return null
+    if (!split || (!ran && !QUERY_VERBS.has(split.verb))) return null
     return conjugate(label, false, appName)
 }
 
@@ -671,28 +872,36 @@ export const resolveToolDisplay = (
     // Wrapped names are ours by construction; a bare name only if we ship it under that name.
     const ours = wrapped || PLATFORM_OPS.has(canonical.toLowerCase())
     // Until the catalog answers, the slug title-cased reads as a gateway name does ("Googlecalendar").
-    const own = override?.app?.(input, output)
+    const bare = !ours && isTokenName(raw) && !raw.includes("__") && !/^mcp(__|\.)/.test(raw)
+    const hinted = bare ? hintedApp(canonical) : undefined
+    const own: {slug?: string; action?: string; ran?: boolean} | undefined =
+        override?.app?.(input, output) ?? (hinted ? {slug: hinted} : undefined)
     const ownApp = own?.slug ? (appName ?? parseGatewayToolName(own.slug).label) : undefined
-    const parsed = parseShape(raw, input, ours, appName)
+    // A bare name that already carries its app shows it as the logo, not spliced into the sentence.
+    const parsed = parseShape(raw, input, ours, bare && own ? undefined : appName)
     // A registered label/source overrides the parsed shape piecewise — the skin contract. The
     // built-in defaults never set either; they word a call through `activity` instead.
     const label = override?.label ?? parsed.label
     // Whichever sentence wins answers "is the app already in it?", which decides the chip.
     const built =
         overrideActivity(override, ownApp) ??
-        (own?.action && appName ? reportedActivity(own.action, appName) : null) ??
+        (own?.action && ownApp ? reportedActivity(own.action, ownApp, !!own.ran) : null) ??
         parsed.activity
+    const kind =
+        override?.kind ?? (own?.slug && parsed.kind === "platform" ? "gateway" : parsed.kind)
     return {
         raw,
-        kind: override?.kind ?? parsed.kind,
+        kind,
         label,
         source:
             override?.source ??
             (wrapped || built?.namedApp ? undefined : (appName ?? parsed.source)),
         sourceKey: own?.slug ?? (wrapped ? undefined : parsed.sourceKey),
         activity: built?.activity ?? {running: label, done: label},
-        detail: toolDetail(raw, input),
+        detail: toolDetail(raw, input, output),
         summary: override?.summary,
+        verb: built?.verb,
+        icon: override?.icon ?? resolveActivityIcon(kind, canonical),
     }
 }
 

@@ -74,6 +74,45 @@ class ActionNotFoundError(ToolsError):
         )
 
 
+class ToolKeyNotFoundError(ToolsError):
+    """Raised when a requested tool key is absent from its integration's catalog.
+
+    ``suggestions`` holds the closest keys from that same integration, so the model can
+    correct a typo or a key the catalog dropped since the agent was configured.
+    """
+
+    def __init__(
+        self,
+        *,
+        integration_key: str,
+        tool_key: str,
+        suggestions: Optional[List[str]] = None,
+    ):
+        self.integration_key = integration_key
+        self.tool_key = tool_key
+        self.suggestions = suggestions or []
+        super().__init__(f"Unknown tool for {integration_key}: {tool_key}")
+
+
+class ToolNotInIntegrationError(ToolsError):
+    """Raised when a key resembles a tool of some other integration than the named one.
+
+    Distinct from :class:`ToolKeyNotFoundError`: the key is not a near miss of anything
+    in this catalog, so the thing to correct is the integration, not a typo, and there
+    is no useful key to suggest.
+    """
+
+    def __init__(
+        self,
+        *,
+        integration_key: str,
+        tool_key: str,
+    ):
+        self.integration_key = integration_key
+        self.tool_key = tool_key
+        super().__init__(f"{tool_key} is not a tool of {integration_key}")
+
+
 class ConnectionSlugConflictError(ToolsError):
     """Raised when a connection slug already exists for the integration."""
 

@@ -34,9 +34,16 @@ export interface SessionRowTarget {
     appId: string | null
     name?: string | null
     archived: boolean
+    /** Sharing: the owner (null = ownerless). */
+    ownerUserId?: string | null
 }
 
 const RENAME = "rename"
+
+// [font-family:inherit]: preflight is off, so a bare <button> renders Arial, not Inter.
+// Themed focus ring, not the UA blue: Radix returns focus to the trigger on close.
+const KEBAB_CLASS =
+    "flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-colorTextTertiary opacity-0 outline-none transition-opacity [font-family:inherit] hover:bg-colorFillTertiary hover:text-colorText focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring group-hover/row:opacity-100 data-[open]:opacity-100 pointer-coarse:opacity-100"
 
 /**
  * Per-row session verbs in the nav rail — rename, pin, archive, delete.
@@ -46,9 +53,8 @@ const RENAME = "rename"
  * shared modal, because a rail row is already the thing you are naming. Every other surface keeps
  * the modal — this intercepts the action here instead of changing the shared verb.
  *
- * Two ways into the menu: long-press (Radix ContextMenu opens on a 700ms touch hold) and a kebab.
- * The kebab hides until hover ON A POINTER DEVICE only — `hover` never fires on touch, so
- * `pointer-coarse` keeps it visible there.
+ * Two ways in, one set of verbs: the kebab, which shows on hover on a pointer device and stays
+ * visible on touch (`pointer-coarse`), and a right-click (long-press on touch) anywhere on the row.
  */
 const SessionRowActions = ({
     session,
@@ -63,6 +69,12 @@ const SessionRowActions = ({
     const {menuItems, onMenuClick, renameSession} = chrome
     const router = useRouter()
     const [open, setOpen] = useState(false)
+    // Radix's menu costs a Popper and a Presence per row; mount it on first use, not on mount.
+    const [armed, setArmed] = useState(false)
+    const arm = useCallback(() => {
+        setArmed(true)
+        setOpen(true)
+    }, [])
     // Navigation is held for one double-click window so a rename doesn't also open the session.
     const navTimerRef = useRef<number | null>(null)
     const inputRef = useRef<HTMLInputElement | null>(null)
@@ -75,14 +87,26 @@ const SessionRowActions = ({
 
     useEffect(() => cancelPendingNav, [cancelPendingNav])
 
+    // A touch long-press opens the context menu, and some browsers still click on release.
+    const contextMenuPressRef = useRef(false)
+    const onContextMenuOpenChange = useCallback(
+        (next: boolean) => {
+            if (!next) return
+            contextMenuPressRef.current = true
+            cancelPendingNav()
+        },
+        [cancelPendingNav],
+    )
+
     const target = useMemo(
         () => ({
             sessionId: session.sessionId,
             appId: session.appId,
             name: session.name ?? null,
             archived: session.archived,
+            ownerUserId: session.ownerUserId,
         }),
-        [session.sessionId, session.appId, session.name, session.archived],
+        [session.sessionId, session.appId, session.name, session.archived, session.ownerUserId],
     )
 
     const rename = useInlineRename({
@@ -105,9 +129,20 @@ const SessionRowActions = ({
         return () => window.clearTimeout(timer)
     }, [rename.renaming])
 
-    // The row IS a link — offering "Open" in its own menu restates the click.
-    const entries = useMemo(() => menuItems(target), [menuItems, target])
-    const runAction = useMemo(() => onMenuClick(target), [onMenuClick, target])
+    // The approved session row menu starts with "Open" on every surface (M3 UI design; QA D7):
+    // it opens the row's own link.
+    const rowHref = isValidElement(children)
+        ? (children as ReactElement<{href?: string}>).props.href
+        : undefined
+    const openOptions = useMemo(
+        () => (rowHref ? {onOpen: () => void router.push(rowHref)} : undefined),
+        [rowHref, router],
+    )
+    const entries = useMemo(() => menuItems(target, openOptions), [menuItems, target, openOptions])
+    const runAction = useMemo(
+        () => onMenuClick(target, openOptions),
+        [onMenuClick, target, openOptions],
+    )
 
     const onSelect = useCallback(
         (key: string) => {
@@ -116,6 +151,16 @@ const SessionRowActions = ({
                 rename.start()
                 return
             }
+            runAction({key})
+        },
+        [rename, runAction],
+    )
+
+    // The right-click menu's select. Rename is handed back as a function so it runs once the
+    // menu has closed — see `useDeferredMenuSelect`; the kebab's own close is handled above.
+    const onContextSelect = useCallback(
+        (key: string) => {
+            if (key === RENAME) return () => rename.start()
             runAction({key})
         },
         [rename, runAction],
@@ -148,6 +193,11 @@ const SessionRowActions = ({
             onClick: (event: ReactMouseEvent<HTMLAnchorElement>) => {
                 onClick?.(event)
                 if (event.defaultPrevented) return
+                // `detail > 0`: a pointer click. Keyboard Enter never follows a long-press.
+                if (contextMenuPressRef.current && event.detail > 0) {
+                    event.preventDefault()
+                    return
+                }
                 // Let the browser own modifier- and middle-clicks (new tab, new window).
                 if (
                     event.button !== 0 ||
@@ -176,63 +226,94 @@ const SessionRowActions = ({
         )
 
     return (
-        <SessionRowContextMenu entries={entries} onSelect={onSelect}>
+        <SessionRowContextMenu
+            entries={entries}
+            onSelect={onContextSelect}
+            onOpenChange={onContextMenuOpenChange}
+        >
             <span
                 className="group/row flex w-full min-w-0 items-center"
+                onPointerDown={() => {
+                    contextMenuPressRef.current = false
+                }}
                 onDoubleClick={(event) => {
                     event.preventDefault()
                     cancelPendingNav()
                     // Archived rows cannot be renamed — the menu drops the verb, so the
-                    // double-click shortcut into it has to go too.
-                    if (!session.archived) rename.start()
+                    // double-click shortcut into it has to go too. Nor can someone else's chat.
+                    if (!session.archived && entries.some((e) => "key" in e && e.key === "rename"))
+                        rename.start()
                 }}
             >
-                {/* font-normal: the selected row's `font-medium` is a NavMenu-wide style, and
-                    overriding it here keeps every other rail untouched. */}
+                {/* font-normal overrides NavMenu's selected-row `font-medium`, this rail only. */}
                 <span className="min-w-0 flex-1 truncate font-normal">
                     {linkWithHeldNavigation}
                 </span>
                 <span
                     // -mr-2 pulls the kebab out past ROW_BASE's px-3 so it sits at the row's
                     // right edge. Only session rows are wrapped, so no other nav row shifts.
-                    className="relative z-[1] -mr-2 flex h-5 w-7 shrink-0 items-center justify-center"
+                    // w-6, not w-7: at 28 the 20px button sat 2px left of the group carets and the
+                    // filter trigger above it, and the rail's right-hand controls read as a column.
+                    className="relative z-[1] -mr-2 flex h-5 w-6 shrink-0 items-center justify-center"
                     onClick={swallow}
                 >
-                    <DropdownMenu open={open} onOpenChange={setOpen}>
-                        <DropdownMenuTrigger asChild>
-                            <button
-                                type="button"
-                                aria-label={`Actions for ${session.name || "Untitled session"}`}
-                                data-open={open || undefined}
-                                // [font-family:inherit]: preflight is off, so a bare <button>
-                                // renders Arial while the rows around it render Inter.
-                                className="flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-colorTextTertiary opacity-0 transition-opacity [font-family:inherit] hover:bg-colorFillTertiary hover:text-colorText focus-visible:opacity-100 group-hover/row:opacity-100 data-[open]:opacity-100 pointer-coarse:opacity-100"
+                    {armed ? (
+                        <DropdownMenu open={open} onOpenChange={setOpen}>
+                            <DropdownMenuTrigger asChild>
+                                <button
+                                    type="button"
+                                    aria-label={`Actions for ${session.name || "Untitled session"}`}
+                                    data-open={open || undefined}
+                                    className={KEBAB_CLASS}
+                                >
+                                    <DotsThreeVerticalIcon size={16} weight="bold" />
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                                align="end"
+                                side="bottom"
+                                className="min-w-[168px]"
                             >
-                                <DotsThreeVerticalIcon size={16} weight="bold" />
-                            </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" side="bottom" className="min-w-[168px]">
-                            {entries.map((entry, index) =>
-                                isMenuDivider(entry) ? (
-                                    <DropdownMenuSeparator key={`divider-${index}`} />
-                                ) : (
-                                    <DropdownMenuItem
-                                        key={entry.key}
-                                        disabled={entry.disabled}
-                                        variant={entry.danger ? "destructive" : undefined}
-                                        onSelect={() => onSelect(entry.key)}
-                                    >
-                                        {entry.icon ? (
-                                            <span className="flex shrink-0 items-center">
-                                                {entry.icon}
-                                            </span>
-                                        ) : null}
-                                        {entry.label}
-                                    </DropdownMenuItem>
-                                ),
-                            )}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                                {entries.map((entry, index) =>
+                                    isMenuDivider(entry) ? (
+                                        <DropdownMenuSeparator key={`divider-${index}`} />
+                                    ) : (
+                                        <DropdownMenuItem
+                                            key={entry.key}
+                                            disabled={entry.disabled}
+                                            variant={entry.danger ? "destructive" : undefined}
+                                            onSelect={() => onSelect(entry.key)}
+                                        >
+                                            {entry.icon ? (
+                                                <span className="flex shrink-0 items-center">
+                                                    {entry.icon}
+                                                </span>
+                                            ) : null}
+                                            {entry.label}
+                                        </DropdownMenuItem>
+                                    ),
+                                )}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    ) : (
+                        <button
+                            type="button"
+                            aria-label={`Actions for ${session.name || "Untitled session"}`}
+                            aria-haspopup="menu"
+                            aria-expanded={false}
+                            className={KEBAB_CLASS}
+                            onPointerDown={(event) => {
+                                // Radix's trigger opens on pointer-down; the first press matches it.
+                                if (event.button !== 0 || event.ctrlKey) return
+                                arm()
+                            }}
+                            onKeyDown={(event) => {
+                                if (event.key === "Enter" || event.key === " ") arm()
+                            }}
+                        >
+                            <DotsThreeVerticalIcon size={16} weight="bold" />
+                        </button>
+                    )}
                 </span>
             </span>
         </SessionRowContextMenu>

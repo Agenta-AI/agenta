@@ -1,0 +1,67 @@
+/* Section visual tokens measured from the supplied Agenta Landing v3 design. */
+:root {
+  --ag-d-bg-2: #1c1a16;
+  --hiw-body: var(--app-text-body);
+  --hiw-bub-bg: var(--paper-100);
+  --hiw-bub-ring: var(--paper-150);
+  --hiw-bub-text: var(--ink-900);
+  --hiw-card-bg: #ffffff;
+  --hiw-tool-bg: var(--paper-50);
+  --hiw-tool-label: var(--ink-600);
+  --hiw-tool-ring: var(--paper-200);
+  --ios-card-bg: var(--paper-0);
+  --ios-card-shadow: 0 0 0 1px var(--th-border);
+  --ios-label: var(--ink-300);
+  --ios-row-rule: var(--paper-150);
+  --logo-grey: #b9b8b6;
+  --st-title: var(--th-text-hi);
+  --tplx-chip-bg: #ffffff;
+  --tplx-chip-shadow: var(--shadow-ring);
+  --tplx-panel-shadow: var(--shadow-frame);
+  --tplx-rule: var(--paper-150);
+  --tplx-rule-soft: var(--paper-150);
+  --tplx-soon-bg: var(--paper-150);
+  --tplx-soon-text: var(--ink-500);
+  --tplx-trig-bg: rgba(242, 242, 92, 0.35);
+  --tplx-trig-ring: rgba(36, 36, 36, 0.12);
+}
+[data-theme="dark"] {
+  --hiw-body: rgba(255, 255, 255, 0.82);
+  --hiw-bub-bg: rgba(255, 255, 255, 0.06);
+  --hiw-bub-ring: rgba(255, 255, 255, 0.07);
+  --hiw-bub-text: #f0eff2;
+  --hiw-card-bg: #161519;
+  --hiw-tool-bg: rgba(255, 255, 255, 0.03);
+  --hiw-tool-label: rgba(255, 255, 255, 0.78);
+  --hiw-tool-ring: rgba(255, 255, 255, 0.07);
+  --ios-card-bg: var(--ag-d-bg-2);
+  --ios-card-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.07);
+  --ios-label: rgba(255, 255, 255, 0.36);
+  --ios-row-rule: rgba(255, 255, 255, 0.06);
+  --st-title: var(--text-on-dark);
+  --tplx-chip-bg: rgba(255, 255, 255, 0.05);
+  --tplx-chip-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  --tplx-panel-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.07);
+  --tplx-rule: rgba(255, 255, 255, 0.07);
+  --tplx-rule-soft: rgba(255, 255, 255, 0.05);
+  --tplx-soon-bg: rgba(255, 255, 255, 0.08);
+  --tplx-soon-text: rgba(255, 255, 255, 0.55);
+  --tplx-trig-bg: rgba(242, 242, 92, 0.1);
+  --tplx-trig-ring: rgba(242, 242, 92, 0.25);
+}
+
+@media (max-width: 860px) {
+  .ag-v2-grid2 > div {
+    height: 500px !important;
+  }
+  .ag-v2-grid2 > div > div:first-child {
+    left: 24px !important;
+    right: 24px !important;
+  }
+  .ag-v2-grid2 > div > div:nth-child(2) {
+    top: 220px !important;
+    left: 24px !important;
+  }
+}

@@ -4,6 +4,7 @@ import {
     type AttachmentLimits,
     DEFAULT_ATTACHMENT_LIMITS,
     describeAccepted,
+    exceedsAttachmentLimit,
     formatBytes,
     isAcceptedType,
     validateIncoming,
@@ -77,9 +78,7 @@ describe("validateIncoming", () => {
         const file = makeFile("big.png", "image/png", 200)
         const {accepted, rejections} = validateIncoming([file], 0, limits)
         expect(accepted).toEqual([])
-        expect(rejections).toEqual([
-            {name: "big.png", reason: "is too large (200 B) · max 100 B for images"},
-        ])
+        expect(rejections).toEqual([{name: "big.png", reason: "is too large, max 100 B supported"}])
     })
 
     it("rejects files once the remaining slot count is exhausted, keeping earlier ones in order", () => {
@@ -132,5 +131,42 @@ describe("describeAccepted", () => {
 
     it("says so when nothing is accepted", () => {
         expect(describeAccepted(withKinds([]))).toBe("No attachments")
+    })
+})
+
+describe("oversized files bound for the session drive", () => {
+    const limits: AttachmentLimits = {
+        ...DEFAULT_ATTACHMENT_LIMITS,
+        maxBytes: {...DEFAULT_ATTACHMENT_LIMITS.maxBytes, document: 100},
+    }
+
+    it("accepts a file over its cap when the host allows oversized files", () => {
+        const big = makeFile("big.pdf", "application/pdf", 101)
+        const {accepted, rejections} = validateIncoming([big], 0, limits, {allowOversized: true})
+        expect(accepted).toEqual([big])
+        expect(rejections).toEqual([])
+    })
+
+    it("still enforces the count limit and the type check", () => {
+        const narrow: AttachmentLimits = {...limits, maxCount: 1, kinds: ["document"]}
+        const {accepted, rejections} = validateIncoming(
+            [
+                makeFile("a.pdf", "application/pdf", 101),
+                makeFile("b.pdf", "application/pdf", 101),
+                makeFile("c.png", "image/png", 1),
+            ],
+            0,
+            narrow,
+            {allowOversized: true},
+        )
+        expect(accepted.map((f) => f.name)).toEqual(["a.pdf"])
+        expect(rejections.map((r) => r.name)).toEqual(["b.pdf", "c.png"])
+    })
+
+    it("tells which files are over their kind's cap", () => {
+        expect(exceedsAttachmentLimit(makeFile("a.pdf", "application/pdf", 101), limits)).toBe(true)
+        expect(exceedsAttachmentLimit(makeFile("a.pdf", "application/pdf", 100), limits)).toBe(
+            false,
+        )
     })
 })

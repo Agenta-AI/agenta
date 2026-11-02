@@ -6,6 +6,7 @@
 import { afterEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
 import {
+  statSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -102,6 +103,27 @@ describe("prepareWorkspace", () => {
 
     await workspace.cleanup();
     assert.equal(existsSync(cwd), false);
+  });
+
+  it("makes the runner-host relay folder private to the runner's user (flag-safety round)", async () => {
+    const root = tempDir();
+    const cwd = join(root, "cwd");
+    const relayDir = join(root, "relay-base", "conv-1");
+
+    const workspace = await prepareWorkspace({
+      sandbox: {},
+      plan: {
+        isDaytona: false,
+        acpAgent: "pi",
+        isPi: true,
+        workspace: { cwd, relayDir, telemetryDir: join(root, "telemetry"), skillDirs: [] },
+        tools: { useToolRelay: true },
+        prompt: {},
+      },
+    });
+
+    assert.equal(statSync(relayDir).mode & 0o777, 0o700);
+    await workspace.cleanup();
   });
 
   it("creates Pi telemetry without creating an unused local tool relay", async () => {

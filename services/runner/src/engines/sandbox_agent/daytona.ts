@@ -1,8 +1,13 @@
 import { join } from "node:path";
 
-import { createAcpFetch } from "./acp-fetch.ts";
+import {
+  createAcpFetch,
+  withSandboxGoneReport,
+  type AcpFetchOptions,
+} from "./acp-fetch.ts";
 import {
   resolvePiToolSpecsDelivery,
+  uploadRunnerPiSettingsToSandbox,
   uploadPiExtensionToSandbox,
   uploadPiToolSpecsToSandbox,
   uploadSkillsToSandbox,
@@ -16,10 +21,20 @@ import {
 } from "./pi-model-config.ts";
 import {
   type RunPlan,
+  type RunPlanCredentials,
   type RunPlanPrompt,
   type RunPlanTools,
   type RunPlanWorkspace,
 } from "./run-plan.ts";
+import {
+  materializeSubscriptionLoginForRun,
+  type SubscriptionSandboxFs,
+} from "./subscription-login/files.ts";
+import {
+  applyPiProviderCostPatch,
+  PI_CLI_ANCHOR,
+  PI_CLI_PROVIDER_COST_BUNDLE_PATH,
+} from "../../tools/pi-provider-cost-patch.ts";
 
 type Log = (message: string) => void;
 
@@ -31,9 +46,45 @@ export const DAYTONA_PI_DIR =
 // runner pins the Pi version, probes the expected executable in the sandbox, and installs the
 // pinned version when a custom image or snapshot lacks it. There is no "installed" env flag.
 export const DAYTONA_PI_INSTALL_DIR = "/home/sandbox/.agenta-pi";
-export const PINNED_PI_VERSION = "0.80.6";
+export const PINNED_PI_VERSION = "0.99.1";
 /** The expected Pi executable path the runner probes and points `PI_ACP_PI_COMMAND` at. */
 export const DAYTONA_PI_COMMAND = `${DAYTONA_PI_INSTALL_DIR}/node_modules/.bin/pi`;
+
+/** The slice that says whether this Daytona run brings its own subscription agent dir. */
+type DaytonaSubscriptionPlan = Pick<RunPlan, "isPi" | "isDaytona"> & {
+  credentials: Pick<RunPlanCredentials, "subscriptionHome">;
+};
+
+/**
+ * The in-sandbox Pi agent dir for a run.
+ *
+ * A HOSTED subscription run gets its own per-connection dir on in-VM disk, because that dir holds
+ * a credential and must not be shared with the next connection that lands on a warm sandbox. Every
+ * other run keeps the image's shared `~/.pi/agent`.
+ *
+ * The whole agent dir moves, not just the login file: Pi reads its extension, skills, models.json,
+ * and system prompt out of `PI_CODING_AGENT_DIR`, so uploading assets to one dir and pointing Pi at
+ * another would start a session with no Agenta extension and therefore no permission gating.
+ */
+export function daytonaPiAgentDir(plan: DaytonaSubscriptionPlan): string {
+  return plan.credentials.subscriptionHome ?? DAYTONA_PI_DIR;
+}
+
+/**
+ * Point a Daytona daemon at this run's subscription agent dir. A no-op for every other run.
+ *
+ * Called from `buildRuntimeEnvironment`, into the env object that becomes the sandbox's `envVars`:
+ * the Daytona daemon environment is fixed at sandbox creation, so a value decided later never
+ * reaches the harness.
+ */
+export function configureDaytonaSubscriptionEnv(
+  plan: DaytonaSubscriptionPlan,
+  daytonaEnv: Record<string, string>,
+): void {
+  if (!plan.isDaytona || !plan.isPi || !plan.credentials.subscriptionHome)
+    return;
+  daytonaEnv.PI_CODING_AGENT_DIR = plan.credentials.subscriptionHome;
+}
 
 /**
  * In-sandbox env for the Daytona daemon: where Pi reads its login, any provider keys,
@@ -56,15 +107,24 @@ export function daytonaEnvVars(
   };
 }
 
-/** True when the pinned Pi executable is already present at the expected path in the sandbox. */
-async function probePiInstalled(sandbox: any): Promise<boolean> {
+/**
+ * True when the pinned Pi version answers at the expected path in the sandbox. A reused sandbox or
+ * snapshot can hold an older Pi, whose model catalog and prices the runner no longer matches.
+ */
+async function probePinnedPi(sandbox: any): Promise<boolean> {
   try {
     const res = await sandbox.runProcess({
-      command: "test",
-      args: ["-x", DAYTONA_PI_COMMAND],
+      command: DAYTONA_PI_COMMAND,
+      args: ["--version"],
       timeoutMs: 15_000,
     });
-    return res?.exitCode === 0;
+    return (
+      res?.exitCode === 0 &&
+      String(res?.stdout ?? "")
+        .trim()
+        .split(/\s+/)
+        .includes(PINNED_PI_VERSION)
+    );
   } catch {
     return false;
   }
@@ -118,11 +178,12 @@ async function installPiInSandbox(
 }
 
 /**
- * Probe for the pinned Pi executable and repair when a custom image or snapshot lacks it
- * (interface.md section 7). Repair ladder, cheapest first:
- *  1. the pinned path already exists (baked or repaired earlier) — done;
- *  2. a `pi` is on PATH (the snapshot recipe installs it globally) — link it to the pinned path;
- *  3. install the pinned version.
+ * Probe for the pinned Pi version and repair when a custom image or snapshot lacks it or holds
+ * another version (interface.md section 7). Repair ladder, cheapest first:
+ *  1. the pinned path runs the pinned version (baked or repaired earlier) — done;
+ *  2. a `pi` of the pinned version is on PATH (the snapshot recipe installs it globally) — link it
+ *     to the pinned path;
+ *  3. install the pinned version, replacing whatever the pinned path held.
  * If Pi is still missing after that, the run fails with the missing executable and the attempted
  * version — harness availability is an image/runtime contract, never a silent skip.
  */
@@ -130,15 +191,34 @@ export async function ensurePiInSandbox(
   sandbox: any,
   log: Log = () => {},
 ): Promise<void> {
-  if (await probePiInstalled(sandbox)) return;
-  if ((await linkGlobalPi(sandbox)) && (await probePiInstalled(sandbox))) {
+  // The patch is idempotent, so a reused Pi (a custom image's stock install, or one an earlier
+  // session installed) gets it too. A Pi this runner did not install may be laid out differently;
+  // failing to patch it costs the billed cost figure, not the run.
+  const patchReusedPi = () =>
+    patchInstalledPiProviderCost(sandbox, log).catch((err) =>
+      log(
+        `[pi-repair] ${(err as Error).message}; Pi keeps its own cost estimate`,
+      ),
+    );
+  if (await probePinnedPi(sandbox)) {
+    await patchReusedPi();
+    return;
+  }
+  if ((await linkGlobalPi(sandbox)) && (await probePinnedPi(sandbox))) {
     log(`[pi-repair] linked snapshot-baked pi to ${DAYTONA_PI_COMMAND}`);
+    await patchReusedPi();
     return;
   }
   log(
     `[pi-repair] pinned pi ${PINNED_PI_VERSION} missing at ${DAYTONA_PI_COMMAND}; installing`,
   );
   try {
+    // A link to another Pi version would block npm from writing its own bin link.
+    await sandbox.runProcess({
+      command: "rm",
+      args: ["-f", DAYTONA_PI_COMMAND],
+      timeoutMs: 15_000,
+    });
     await installPiInSandbox(sandbox, log);
   } catch (err) {
     throw new Error(
@@ -146,11 +226,66 @@ export async function ensurePiInSandbox(
         `${(err as Error).message}`,
     );
   }
-  if (!(await probePiInstalled(sandbox))) {
+  if (!(await probePinnedPi(sandbox))) {
     throw new Error(
       `pi ${PINNED_PI_VERSION} is not available at ${DAYTONA_PI_COMMAND} after install.`,
     );
   }
+  await patchInstalledPiProviderCost(sandbox, log);
+}
+
+/**
+ * Apply the pi-ai provider-cost patch to the Pi the pinned path runs, from the same spec the
+ * runner image and the snapshot build use, so a custom image's Pi keeps OpenRouter's billed cost.
+ * The pi CLI runs its own bundled copy of pi-ai, inside the harness package.
+ */
+async function patchInstalledPiProviderCost(
+  sandbox: any,
+  log: Log,
+): Promise<void> {
+  const path = `${await resolvePiPackageDir(sandbox)}/${PI_CLI_PROVIDER_COST_BUNDLE_PATH}`;
+  let source: string;
+  try {
+    const bytes = await sandbox.readFsFile({ path });
+    source =
+      typeof bytes === "string" ? bytes : new TextDecoder().decode(bytes);
+  } catch {
+    throw new Error(`pi-ai provider-cost patch: no ${path}`);
+  }
+  const outcome = applyPiProviderCostPatch(source, PI_CLI_ANCHOR);
+  if (outcome.kind === "anchor-missing") {
+    throw new Error(
+      `pi-ai provider-cost patch: the parseChunkUsage anchor is missing in ${path}`,
+    );
+  }
+  if (outcome.kind === "patched") {
+    await sandbox.writeFsFile({ path }, outcome.source);
+  }
+  log(`[pi-repair] pi-ai provider-cost patch ${outcome.kind} in ${path}`);
+}
+
+/**
+ * The pi-coding-agent package directory behind the pinned path: this runner's npm install, or the
+ * global install a snapshot's link points to.
+ */
+async function resolvePiPackageDir(sandbox: any): Promise<string> {
+  const res = await sandbox.runProcess({
+    command: "sh",
+    args: [
+      "-c",
+      `p=$(readlink -f ${DAYTONA_PI_COMMAND}) && ` +
+        `while [ -n "$p" ] && [ "\${p##*/}" != pi-coding-agent ]; do p="\${p%/*}"; done && ` +
+        `[ -n "$p" ] && echo "$p"`,
+    ],
+    timeoutMs: 15_000,
+  });
+  const dir = String(res?.stdout ?? "").trim();
+  if (res?.exitCode !== 0 || !dir) {
+    throw new Error(
+      `pi-ai provider-cost patch: cannot resolve the pi-coding-agent package behind ${DAYTONA_PI_COMMAND}`,
+    );
+  }
+  return dir;
 }
 
 /**
@@ -196,7 +331,11 @@ export async function removePiModelsConfigFromSandbox(
 
 export interface PrepareDaytonaPiAssetsInput {
   sandbox: any;
-  plan: Pick<RunPlan, "isPi"> & {
+  plan: Pick<RunPlan, "isPi" | "isDaytona"> & {
+    credentials: Pick<
+      RunPlanCredentials,
+      "subscription" | "subscriptionHome" | "throughGateway"
+    >;
     workspace: Pick<RunPlanWorkspace, "skillDirs" | "relayDir">;
     tools: Pick<RunPlanTools, "toolSpecs">;
     prompt: Pick<
@@ -227,13 +366,29 @@ export async function prepareDaytonaPiAssets({
 }: PrepareDaytonaPiAssetsInput): Promise<boolean> {
   if (!plan.isPi) return true;
 
-  // A Daytona run never receives the runner's own Pi login: subscription (runtime_provided) auth
-  // is rejected for Daytona in buildRunPlan, and a managed run authenticates from the vault keys
-  // in `daytonaEnvVars`. The runner therefore uploads only the inert Agenta extension, forced
-  // skills, and system prompts — never a personal `auth.json` (interface.md section 6).
+  // Every asset goes into THIS run's agent dir, which is the shared image dir for an ordinary run
+  // and a per-connection dir for a hosted subscription run. Splitting them would leave Pi without
+  // the Agenta extension.
+  const agentDir = daytonaPiAgentDir(plan);
+
+  // The runner's OWN Pi login is still never uploaded: an operator-mount subscription stays
+  // rejected on Daytona in buildRunPlan, and a managed run authenticates from the vault keys in
+  // `daytonaEnvVars`. What CAN be delivered is a hosted subscription login, which belongs to the
+  // project rather than to this box — written before the harness starts, on in-VM disk, never on
+  // the geesefs cwd.
+  const subscription = plan.credentials.subscription;
+  if (subscription && plan.credentials.subscriptionHome) {
+    await materializeSubscriptionLoginForRun({
+      home: plan.credentials.subscriptionHome,
+      isDaytona: true,
+      sandbox: sandbox as SubscriptionSandboxFs,
+      subscription,
+      log,
+    });
+  }
   const extensionInstalled = await uploadPiExtensionToSandbox(
     sandbox,
-    DAYTONA_PI_DIR,
+    agentDir,
     log,
   );
   // The run's tool specs. The sandbox env map was fixed at creation with the in-sandbox PATH of
@@ -247,24 +402,25 @@ export async function prepareDaytonaPiAssets({
     plan.workspace.relayDir,
   );
   if (toolSpecs) await uploadPiToolSpecsToSandbox(sandbox, toolSpecs, log);
+  await uploadRunnerPiSettingsToSandbox(
+    sandbox,
+    agentDir,
+    plan.credentials.throughGateway,
+    log,
+  );
   // A models.json plan (a custom provider, or a hand-entered model merged into a built-in one):
   // upload the exact file (overwriting stale) before the session starts. No plan: remove any stale
   // file so a reused sandbox keeps no earlier configuration. Upload failure THROWS here and is
   // terminal in the engine's acquire try.
   if (piModelConfig) {
-    await uploadPiModelsConfigToSandbox(
-      sandbox,
-      DAYTONA_PI_DIR,
-      piModelConfig,
-      log,
-    );
+    await uploadPiModelsConfigToSandbox(sandbox, agentDir, piModelConfig, log);
   } else {
-    await removePiModelsConfigFromSandbox(sandbox, DAYTONA_PI_DIR, log);
+    await removePiModelsConfigFromSandbox(sandbox, agentDir, log);
   }
   if (plan.workspace.skillDirs.length > 0) {
     await uploadSkillsToSandbox(
       sandbox,
-      DAYTONA_PI_DIR,
+      agentDir,
       plan.workspace.skillDirs,
       log,
     );
@@ -272,7 +428,7 @@ export async function prepareDaytonaPiAssets({
   if (plan.prompt.hasSystemPrompt) {
     await uploadSystemPromptToSandbox(
       sandbox,
-      DAYTONA_PI_DIR,
+      agentDir,
       plan.prompt.systemPrompt,
       plan.prompt.appendSystemPrompt,
       log,
@@ -293,11 +449,17 @@ export async function prepareDaytonaPiAssets({
  * required" / 502. The sandbox-agent SDK accepts a custom fetch, so we hand it this one.
  *
  * It layers on {@link createAcpFetch} (the long-timeout ACP dispatcher) so a paused HITL turn
- * over Daytona is not reaped by undici's default `headersTimeout` either.
+ * over Daytona is not reaped by undici's default `headersTimeout` either, and so `options` (the
+ * sandbox-gone report) reaches the one place that inspects every ACP response. Daytona is the
+ * provider whose proxy answers for a deleted sandbox, so this is the path that needs it most.
  */
 export function createCookieFetch(
-  inner: typeof fetch = createAcpFetch(),
+  inner?: typeof fetch,
+  options: AcpFetchOptions = {},
 ): typeof fetch {
+  const base = inner
+    ? withSandboxGoneReport(inner, options)
+    : createAcpFetch(undefined, options);
   const jar = new Map<string, Map<string, string>>(); // host -> (name -> "name=value")
   return async (input: any, init?: any) => {
     const url = new URL(typeof input === "string" ? input : input.url);
@@ -312,7 +474,7 @@ export function createCookieFetch(
       if (existing) merged.unshift(existing);
       headers.set("cookie", merged.join("; "));
     }
-    const response = await inner(input, { ...init, headers });
+    const response = await base(input, { ...init, headers });
     const setCookies =
       typeof (response.headers as any).getSetCookie === "function"
         ? (response.headers as any).getSetCookie()

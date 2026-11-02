@@ -8,32 +8,37 @@
  * const events = await querySessionRecords({sessionId, projectId})
  * ```
  */
-import type {AgentaApi} from "@agentaai/api-client"
 import {z} from "zod"
 
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
+import type {Visibility} from "../../sharing/core/schema"
 import {
     mountFileContentResponseSchema,
+    pendingInputAdmissionResponseSchema,
+    pendingInputResponseSchema,
     mountFileListResponseSchema,
     sessionInteractionResponseSchema,
     sessionInteractionsResponseSchema,
     sessionRecordsQueryResponseSchema,
+    sessionCancelExecutionResponseSchema,
+    sessionSnapshotSchema,
     sessionsQueryResponseSchema,
-    sessionStreamCommandResponseSchema,
     sessionStreamSchema,
     sessionMountsResponseSchema,
     sessionStreamResponseSchema,
     sessionStreamsResponseSchema,
+    sessionTurnsResponseSchema,
     type MountFile,
     type Mount,
     type SessionInteraction,
     type SessionInteractionKind,
     type SessionInteractionStatusCode,
     type SessionRecord,
+    type SessionSnapshot,
     type SessionExpansion,
     type SessionOrigin,
     type SessionStream,
-    type SessionStreamCommandResponse,
+    type SessionTurn,
     type SessionsQueryResponse,
     type SessionWindowing,
 } from "../core/schema"
@@ -44,6 +49,8 @@ import {
     getLowPrioritySessionsClient,
     getMountsClient,
     getSessionsClient,
+    isAbortError,
+    isConflictError,
     projectScopedRequest,
 } from "./client"
 
@@ -88,11 +95,196 @@ export async function querySessionRecords({
     return validated?.records ?? null
 }
 
+export interface QuerySessionTranscriptParams extends QueryRecordsParams {
+    /** Snapshot watermark. Rows committed later are replayed over SSE, never mixed into paging. */
+    throughSequence: number
+    pageSize?: number
+}
+
+/** Load the transcript fixed at a snapshot watermark, following bounded backend pages. */
+export async function querySessionTranscript({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+    lowPriority,
+    throughSequence,
+    pageSize = 100,
+}: QuerySessionTranscriptParams): Promise<SessionRecord[] | null> {
+    if (!projectId || !sessionId) return null
+
+    const client = lowPriority ? getLowPrioritySessionsClient() : getSessionsClient()
+    const records: SessionRecord[] = []
+    const visitedOffsets = new Set<number>()
+    let offset = 0
+
+    while (!visitedOffsets.has(offset)) {
+        visitedOffsets.add(offset)
+        const data = await callFern("[querySessionTranscript]", () =>
+            client.queryRecords(
+                {
+                    session_id: sessionId,
+                    windowing: {
+                        offset,
+                        limit: Math.max(1, Math.min(200, pageSize)),
+                        through_sequence: throughSequence,
+                    },
+                },
+                projectScopedRequest(projectId, appId, abortSignal),
+            ),
+        )
+        if (!data) return null
+
+        const validated = safeParseWithLogging(
+            sessionRecordsQueryResponseSchema,
+            data,
+            "[querySessionTranscript]",
+        )
+        if (!validated) return null
+        records.push(...validated.records)
+        if (!validated.windowing) return records
+        offset = validated.windowing.offset
+    }
+
+    return null
+}
+
 export interface SessionScopedParams {
     sessionId: string
     projectId: string
     appId?: string
     abortSignal?: AbortSignal
+}
+
+/**
+ * The one snapshot read. It carries the reconnect half (the stream row, the last turn, the
+ * durable watermark) and the queue half (the current lifecycle, the pending inputs, the feature
+ * capabilities), so the live preview and the durable queue never ask two endpoints that can
+ * disagree.
+ */
+export async function fetchSessionSnapshot({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+}: SessionScopedParams): Promise<SessionSnapshot | null> {
+    if (!projectId || !sessionId) return null
+
+    const data = await callFern("[fetchSessionSnapshot]", () =>
+        getSessionsClient().getSessionSnapshot(
+            {session_id: sessionId},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    if (!data) return null
+
+    return safeParseWithLogging(sessionSnapshotSchema, data, "[fetchSessionSnapshot]") ?? null
+}
+
+/** `busy` is a 409 `session_busy`: another input already rides the pending stop. */
+export type PendingInputWriteOutcome = "applied" | "not_found" | "conflict" | "busy" | "failed"
+
+const refusalOf = (error: unknown): PendingInputWriteOutcome | null => {
+    if (typeof error !== "object" || error === null) return null
+    const {statusCode, body} = error as {statusCode?: unknown; body?: unknown}
+    if (statusCode === 404) return "not_found"
+    if (statusCode !== 409) return null
+    const detail = (body as {detail?: {code?: unknown}} | undefined)?.detail
+    return detail?.code === "session_busy" ? "busy" : "conflict"
+}
+
+/** Run a pending-input write, keeping the refusal status `callFern` would otherwise swallow. */
+async function writePendingInput<T>(
+    label: string,
+    fn: () => Promise<T>,
+): Promise<{data: T | null; refusal: PendingInputWriteOutcome | null}> {
+    let refusal: PendingInputWriteOutcome | null = null
+    const data = await callFern(label, fn, (error) => {
+        refusal = refusalOf(error)
+        return refusal !== null
+    })
+    return {data, refusal}
+}
+
+export async function removePendingSessionInput({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+    inputId,
+}: SessionScopedParams & {inputId: string}): Promise<PendingInputWriteOutcome> {
+    if (!projectId || !sessionId || !inputId) return "failed"
+
+    const {data, refusal} = await writePendingInput("[removePendingSessionInput]", () =>
+        getSessionsClient().removePendingSessionInput(
+            {session_id: sessionId, input_id: inputId},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    return refusal ?? (data ? "applied" : "failed")
+}
+
+export async function updatePendingSessionInput({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+    inputId,
+    text,
+    attachments,
+}: SessionScopedParams & {
+    inputId: string
+    text: string
+    attachments?: {
+        uri: string
+        mime_type: string
+        filename?: string
+        attachment_id?: string
+    }[]
+}): Promise<PendingInputWriteOutcome> {
+    if (!projectId || !sessionId || !inputId) return "failed"
+    const {data, refusal} = await writePendingInput("[updatePendingSessionInput]", () =>
+        getSessionsClient().updatePendingSessionInput(
+            {session_id: sessionId, input_id: inputId, text, attachments},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    if (refusal) return refusal
+    return data &&
+        safeParseWithLogging(pendingInputResponseSchema, data, "[updatePendingSessionInput]") !==
+            null
+        ? "applied"
+        : "failed"
+}
+
+export type PendingInputAdmission = z.infer<typeof pendingInputAdmissionResponseSchema>
+
+export async function sendPendingSessionInputNow({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+    inputId,
+}: SessionScopedParams & {inputId: string}): Promise<{
+    outcome: PendingInputWriteOutcome
+    admission: PendingInputAdmission | null
+}> {
+    if (!projectId || !sessionId || !inputId) return {outcome: "failed", admission: null}
+    const {data, refusal} = await writePendingInput("[sendPendingSessionInputNow]", () =>
+        getSessionsClient().sendPendingSessionInputNow(
+            {session_id: sessionId, input_id: inputId},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    if (refusal) return {outcome: refusal, admission: null}
+    const admission = data
+        ? safeParseWithLogging(
+              pendingInputAdmissionResponseSchema,
+              data,
+              "[sendPendingSessionInputNow]",
+          )
+        : null
+    return admission ? {outcome: "applied", admission} : {outcome: "failed", admission: null}
 }
 
 export interface QueryInteractionsParams extends Omit<SessionScopedParams, "sessionId"> {
@@ -172,13 +364,61 @@ export async function fetchInteraction({
 
 export interface RespondInteractionParams extends InteractionScopedParams {
     /** The answer payload (e.g. an approval decision). Shape is interaction-kind specific. */
-    answer: Record<string, unknown>
+    answer?: Record<string, unknown>
+    /** Atomic same-turn answers used by Approve all. */
+    answers?: {interactionId: string; answer: Record<string, unknown>}[]
+    /** The execution the approval belongs to. Durable mode serializes this against Stop. */
+    expectedExecutionId?: string
+    /** Stable retry identity. Reusing it with a different answer is a conflict. */
+    idempotencyKey?: string
+}
+
+export interface RespondInteractionResult {
+    interaction: SessionInteraction | null
+    /** True only when the durable continuation transaction was accepted with HTTP 202. */
+    accepted: boolean
+    command?: {id?: string; state?: string}
+    execution?: {id?: string; state?: string}
 }
 
 /** True for the backend's `409 Interaction is no longer pending` (someone already answered).
  * Fern stashes the HTTP status on the thrown `AgentaApiError` as `statusCode`. */
 export const isInteractionConflict = (error: unknown): boolean =>
-    (error as {statusCode?: number} | null)?.statusCode === 409
+    (error as {statusCode?: number; response?: {status?: number}} | null)?.statusCode === 409 ||
+    (error as {response?: {status?: number}} | null)?.response?.status === 409
+
+/**
+ * The `code` the respond route puts on a conflict body, which is what says WHICH conflict it is.
+ *
+ * The route answers several different conditions with one status, so 409 alone is not an answer:
+ * `execution_terminal` is the interaction or its execution already settled, `execution_mismatch`
+ * is the interaction belonging to a different execution, and `idempotency_key_reused` is the same
+ * key carrying a different answer. Only the first is something a reader has nothing to do about.
+ * Fern keeps the parsed body on the thrown error.
+ */
+export const interactionConflictCode = (error: unknown): string | undefined => {
+    const body = (error as {body?: unknown} | null)?.body
+    if (!body || typeof body !== "object") return undefined
+    const code = (body as {code?: unknown}).code
+    return typeof code === "string" ? code : undefined
+}
+
+/**
+ * A conflict that means the answer is already in and there is nothing left to do about it.
+ *
+ * Narrower than it looks from the outside. The route accepts a repeat of the SAME answer under
+ * the same idempotency key, and accepts an interaction already answered with the same resolution,
+ * so a plain replay does not conflict at all; this fires for a row that moved on underneath a
+ * decision. The two 409s it deliberately does not cover, `execution_mismatch` and
+ * `idempotency_key_reused`, both mean the reader's decision did not land where they thought, and
+ * they have to be told.
+ */
+export const isSettledInteractionConflict = (error: unknown): boolean =>
+    isInteractionConflict(error) && interactionConflictCode(error) === "execution_terminal"
+
+/** True for the backend's `404 No such file or folder`. */
+const isNotFound = (error: unknown): boolean =>
+    (error as {statusCode?: number} | null)?.statusCode === 404
 
 export interface TransitionInteractionParams extends SessionScopedParams {
     token: string
@@ -206,8 +446,7 @@ export async function transitionInteraction({
             session_id: sessionId,
             token,
             status,
-            // The generated type predates the widened resolution payload.
-            resolution: resolution as AgentaApi.SessionInteractionResolution | undefined,
+            resolution,
         },
         projectScopedRequest(projectId, appId, abortSignal),
     )
@@ -238,20 +477,50 @@ export async function respondInteraction({
     appId,
     abortSignal,
     answer,
-}: RespondInteractionParams): Promise<SessionInteraction | null> {
+    answers,
+    expectedExecutionId,
+    idempotencyKey,
+}: RespondInteractionParams): Promise<RespondInteractionResult | null> {
     if (!projectId || !interactionId) return null
 
-    const data = await getSessionsClient().respondInteraction(
-        {interaction_id: interactionId, answer},
-        projectScopedRequest(projectId, appId, abortSignal),
-    )
+    // Fern preserves the status through `withRawResponse`: 200 is the flag-off dispatcher and
+    // 202 is durable command acceptance. Both are server-owned continuations; callers must never
+    // also release the local AI SDK gate.
+    const request = {
+        interaction_id: interactionId,
+        ...(answers
+            ? {
+                  answers: answers.map((item) => ({
+                      interaction_id: item.interactionId,
+                      answer: item.answer,
+                  })),
+              }
+            : {answer}),
+        ...(expectedExecutionId ? {expected_execution_id: expectedExecutionId} : {}),
+    }
+    const {data, rawResponse} = await getSessionsClient()
+        .respondInteraction(request, {
+            ...projectScopedRequest(projectId, appId, abortSignal),
+            headers: idempotencyKey ? {"Idempotency-Key": idempotencyKey} : undefined,
+        })
+        .withRawResponse()
 
+    const responseData = data as {
+        interaction?: unknown
+        command?: {id?: string; state?: string}
+        execution?: {id?: string; state?: string}
+    }
     const validated = safeParseWithLogging(
         sessionInteractionResponseSchema,
-        data,
+        responseData,
         "[respondInteraction]",
     )
-    return validated?.interaction ?? null
+    return {
+        interaction: validated?.interaction ?? null,
+        accepted: rawResponse.status === 202,
+        ...(responseData.command ? {command: responseData.command} : {}),
+        ...(responseData.execution ? {execution: responseData.execution} : {}),
+    }
 }
 
 /**
@@ -290,6 +559,25 @@ export async function querySessionStreams({
         "[querySessionStreams]",
     )
     return validated?.streams ?? null
+}
+
+/**
+ * The project's alive streams for a liveness poll. A failed read throws instead of resolving
+ * `null`: cached as success, `null` read as "nothing alive", which stopped the poll and tore down
+ * the live reader of a turn running elsewhere until a reload.
+ */
+export async function readAliveStreams(
+    projectId: string,
+    signal?: AbortSignal,
+): Promise<SessionStream[]> {
+    const streams = await querySessionStreams({
+        projectId,
+        isAlive: true,
+        abortSignal: signal,
+        lowPriority: true,
+    })
+    if (streams === null) throw new Error("Session liveness is unavailable")
+    return streams
 }
 
 interface SessionPredicatesParams {
@@ -433,8 +721,12 @@ export async function querySessionsPage({
     return parseSessionsQueryResponse(data, "[querySessionsPage]")
 }
 
-/** Temporary list-only adapter for callers that have not migrated to the page envelope. */
-export async function querySessions({
+/**
+ * The flat params above against the page envelope, so a caller that pages can read the
+ * server's cursor (`windowing.next` plus the boundary it belongs with) off the response.
+ * `querySessions` is this function with the envelope thrown away.
+ */
+export async function querySessionsFlatPage({
     projectId,
     references,
     includeEnded = true,
@@ -454,8 +746,8 @@ export async function querySessions({
     newest,
     oldest,
     order,
-}: QuerySessionsParams): Promise<SessionStream[] | null> {
-    const page = await querySessionsPage({
+}: QuerySessionsParams): Promise<SessionsQueryResponse | null> {
+    return querySessionsPage({
         projectId,
         session:
             search !== undefined || flags !== undefined || origin !== undefined
@@ -485,8 +777,16 @@ export async function querySessions({
         abortSignal,
         lowPriority,
     })
+}
+
+/** Temporary list-only adapter for callers that have not migrated to the page envelope. */
+export async function querySessions(params: QuerySessionsParams): Promise<SessionStream[] | null> {
+    const page = await querySessionsFlatPage(params)
     return page?.sessions ?? null
 }
+
+/** Where the name came from: a person typing one, or a program proposing one. */
+export type SessionNameSource = "manual" | "automatic"
 
 export interface SetSessionHeaderParams {
     sessionId: string
@@ -495,6 +795,25 @@ export interface SetSessionHeaderParams {
     description?: string
     appId?: string
     abortSignal?: AbortSignal
+    /**
+     * Say it on every call rather than leaning on the default. `"manual"` is a person
+     * typing a name and is remembered as theirs. `"automatic"` is a name a program
+     * proposed, such as the auto-title from a first message, and the server refuses one
+     * that would replace a name a person controls.
+     */
+    nameSource?: SessionNameSource
+    /**
+     * Called only when the server REFUSED the write, never when it merely failed. The
+     * distinction matters to a caller that shows a name optimistically: a refusal means the
+     * server has a different name and the optimistic one is wrong, while a network failure
+     * means nobody knows yet and dropping it would lose a name for no reason.
+     */
+    onRefused?: () => void
+    /**
+     * The visibility a header call that CREATES the session asks for. The server ignores it
+     * on an existing session and drops a `private` it cannot give an owner.
+     */
+    visibility?: Visibility
 }
 
 /**
@@ -509,6 +828,9 @@ export async function setSessionHeader({
     description,
     appId,
     abortSignal,
+    nameSource,
+    onRefused,
+    visibility,
 }: SetSessionHeaderParams): Promise<boolean> {
     if (!projectId || !sessionId) return false
 
@@ -516,12 +838,27 @@ export async function setSessionHeader({
     if (name !== undefined) body.name = name
     if (description !== undefined) body.description = description
 
-    const data = await callFern("[setSessionHeader]", () =>
-        getSessionsClient().setSessionStreamHeader(
-            {session_id: sessionId, body},
-            projectScopedRequest(projectId, appId, abortSignal),
-        ),
+    // `name_source` rides in the query string because that is where the endpoint reads it:
+    // the agent's rename tool has it fixed in its own path, so a model cannot put it in a
+    // body.
+    const request = projectScopedRequest(projectId, appId, abortSignal)
+    if (nameSource) request.queryParams.name_source = nameSource
+    // `visibility` is a query parameter of the header route too (the body is the header).
+    if (visibility) request.queryParams.visibility = visibility
+
+    // A 409 is the documented answer when an automatic name would replace one a person
+    // controls. It is an expected outcome rather than a fault, so it is not logged as one.
+    let refused = false
+    const data = await callFern(
+        "[setSessionHeader]",
+        () => getSessionsClient().setSessionStreamHeader({session_id: sessionId, body}, request),
+        (error) => {
+            if (!isConflictError(error)) return false
+            refused = true
+            return true
+        },
     )
+    if (refused) onRefused?.()
     return data !== null
 }
 
@@ -550,49 +887,6 @@ export async function fetchSessionStream({
         "[fetchSessionStream]",
     )
     return validated?.stream ?? null
-}
-
-export interface CommandSessionStreamParams extends SessionScopedParams {
-    /** Steal the run lock from whoever holds it. */
-    force?: boolean
-    /** Fire-and-forget: start the run without holding a connection. */
-    detached?: boolean
-}
-
-/**
- * CONTROL-PLANE call to start/resume/steer/cancel a run (the prompt × force matrix). Returns
- * a handle (`{mode, turn_id, watcher_id, …}`), NOT the token stream — the v6 chunk stream is
- * delivered out-of-band (see the agent-chat transport). Use `force` to steal the lock,
- * `detached` for fire-and-forget.
- *
- * FOLLOWUP(sessions,lifecycle): steer/attach remain unwired in the user-facing desktop chat;
- * cancel IS consumed by the mobile StopButton (cooperative ≤30s; clean "cancelled" settle
- * arrives with the agent-cancel-steer runner work). There's still no live-turn re-watch.
- * See docs/designs/sessions/frontend-integration.md.
- */
-export async function commandSessionStream({
-    sessionId,
-    projectId,
-    appId,
-    abortSignal,
-    force,
-    detached,
-}: CommandSessionStreamParams): Promise<SessionStreamCommandResponse | null> {
-    if (!projectId || !sessionId) return null
-
-    // The prompt→request.data (inputs) mapping is defined by the sessions feature owner when the send path gets wired (see PR #5375 body).
-    const data = await callFern("[commandSessionStream]", () =>
-        getSessionsClient().setSessionStream(
-            {session_id: sessionId, force, detached},
-            projectScopedRequest(projectId, appId, abortSignal),
-        ),
-    )
-    if (!data) return null
-
-    return (
-        safeParseWithLogging(sessionStreamCommandResponseSchema, data, "[commandSessionStream]") ??
-        null
-    )
 }
 
 /**
@@ -908,6 +1202,33 @@ export async function queryMountDir({
     return validated?.files ?? null
 }
 
+/** One raw folder level (no git pruning, no counts). A missing folder (404) is `null`; any other
+ * failure throws, so the query retries it instead of caching "no file here" for every mention. */
+export async function listMountFolder({
+    mountId,
+    projectId,
+    appId,
+    abortSignal,
+    path,
+}: Omit<MountFilesParams, "lowPriority">): Promise<MountFile[] | null> {
+    if (!projectId || !mountId) return null
+
+    let data
+    try {
+        // maxRetries 0: the query owns the retries.
+        data = await getLowPriorityMountsClient().getMountFiles(
+            {mount_id: mountId, path: path || undefined, depth: 1},
+            projectScopedRequest(projectId, appId, abortSignal, 0),
+        )
+    } catch (error) {
+        if (isNotFound(error)) return null
+        throw error
+    }
+
+    const validated = safeParseWithLogging(mountFileListResponseSchema, data, "[listMountFolder]")
+    return validated?.files ?? null
+}
+
 /** Read one mount file's text content (`?read=<path>`). Returns `null` on failure/missing scope. */
 export async function readMountFile({
     mountId,
@@ -920,14 +1241,148 @@ export async function readMountFile({
 
     // maxRetries 1: a single small file read; one transient-recovery, no pit. Also keeps the git
     // repo probe (`.git/HEAD` on a non-repo folder → 404) from retrying — 404 isn't retryable anyway.
-    const data = await callFern("[readMountFile]", () =>
-        getMountsClient().getMountFiles(
-            {mount_id: mountId, read: path},
-            projectScopedRequest(projectId, appId, abortSignal, 1),
-        ),
+    // 404 is silent: "not there" is this call's answer, not a failure (#6349).
+    const data = await callFern(
+        "[readMountFile]",
+        () =>
+            getMountsClient().getMountFiles(
+                {mount_id: mountId, read: path},
+                projectScopedRequest(projectId, appId, abortSignal, 1),
+            ),
+        isNotFound,
     )
     if (!data) return null
 
     const validated = safeParseWithLogging(mountFileContentResponseSchema, data, "[readMountFile]")
     return validated?.content ?? null
+}
+
+export interface CancelSessionExecutionParams extends SessionScopedParams {
+    /** Fence Stop to the execution the caller observed. */
+    expectedExecutionId?: string
+    /** Retry identity for this request. Two sends of the same key are one command. */
+    idempotencyKey?: string
+}
+
+export interface CancelSessionExecutionResult {
+    /** The durable command's id and DELIVERY state — never the execution's state. */
+    command: {id: string; state: string}
+    /** What to render: the execution being stopped, or nothing. */
+    execution: {id: string | null; state: "stopping" | "idle"}
+    /** True when the active API path accepted or completed the Stop. */
+    accepted: boolean
+    /** True when the API refused because another execution is running (409). */
+    conflict: boolean
+}
+
+export interface ResumeSessionContinuationParams extends SessionScopedParams {}
+
+/**
+ * Ask the API to redeliver an already-durable approval continuation before a direct invoke.
+ *
+ * This mutation fails open: continuation recovery is an additive capability and can never make
+ * an ordinary Send depend on a new route being available.
+ */
+export async function resumeSessionContinuation({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+}: ResumeSessionContinuationParams): Promise<boolean> {
+    if (!projectId || !sessionId) return false
+
+    try {
+        const data = await getSessionsClient().resumeSessionContinuation(
+            {session_id: sessionId},
+            projectScopedRequest(projectId, appId, abortSignal),
+        )
+        const parsed = z.object({resumed: z.boolean()}).safeParse(data)
+        if (!parsed.success) {
+            console.warn("[resumeSessionContinuation] invalid response; continuing Send")
+            return false
+        }
+        return parsed.data.resumed
+    } catch (error) {
+        console.warn("[resumeSessionContinuation] preflight failed; continuing Send", error)
+        return false
+    }
+}
+
+/** Cancel current work through Fern while keeping the session warm. */
+export async function cancelSessionExecution({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+    expectedExecutionId,
+    idempotencyKey,
+}: CancelSessionExecutionParams): Promise<CancelSessionExecutionResult | null> {
+    if (!projectId || !sessionId) return null
+
+    try {
+        const requestOptions = {
+            ...projectScopedRequest(projectId, appId, abortSignal),
+            ...(idempotencyKey ? {headers: {"Idempotency-Key": idempotencyKey}} : {}),
+        }
+        const {data, rawResponse} = await getSessionsClient()
+            .cancelSessionExecution(
+                {
+                    session_id: sessionId,
+                    body: expectedExecutionId ? {expected_execution_id: expectedExecutionId} : null,
+                },
+                requestOptions,
+            )
+            .withRawResponse()
+        const validated = safeParseWithLogging(
+            sessionCancelExecutionResponseSchema,
+            data,
+            "[cancelSessionExecution]",
+        )
+        if (!validated) return null
+        return {
+            command: validated.command,
+            execution: {...validated.execution, id: validated.execution.id ?? null},
+            accepted: rawResponse.status === 202,
+            conflict: false,
+        }
+    } catch (error) {
+        if (isAbortError(error)) throw error
+        if ((error as {statusCode?: number} | null)?.statusCode === 409) {
+            return {
+                command: {id: "", state: "obsolete"},
+                execution: {id: null, state: "idle"},
+                accepted: false,
+                conflict: true,
+            }
+        }
+        console.error(
+            "[cancelSessionExecution] failed:",
+            error instanceof Error ? error.message : String(error),
+        )
+        return null
+    }
+}
+
+/**
+ * A session's turns, with their usage. One read per session: the chat takes each turn's
+ * tokens, cost and latency from these rows instead of reading the trace. `null` on failure.
+ */
+export async function querySessionTurns({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+}: SessionScopedParams): Promise<SessionTurn[] | null> {
+    if (!projectId || !sessionId) return null
+
+    const data = await callFern("[querySessionTurns]", () =>
+        getSessionsClient().queryTurns(
+            {query: {session_id: sessionId}},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    if (!data) return null
+
+    const parsed = safeParseWithLogging(sessionTurnsResponseSchema, data, "[querySessionTurns]")
+    return parsed ? (parsed.turns ?? []) : null
 }

@@ -24,13 +24,13 @@ import {
     Badge,
     Button,
     EmptyState,
+    Skeleton,
     Tooltip,
     TooltipContent,
     TooltipProvider,
     TooltipTrigger,
 } from "@agenta/ui/ui"
 import {Code, Play, TreeView} from "@phosphor-icons/react"
-import {Skeleton} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 

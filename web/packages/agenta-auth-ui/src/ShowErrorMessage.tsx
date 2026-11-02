@@ -1,5 +1,6 @@
-import clsx from "clsx"
+import {cn} from "@agenta/ui/ui"
 
+import {ERROR_TEXT_CLASS} from "./classes"
 import type {AuthMessage} from "./types"
 
 export const ShowErrorMessage = ({
@@ -9,8 +10,8 @@ export const ShowErrorMessage = ({
     info: Partial<AuthMessage>
     className?: string
 }) => (
-    <div className={clsx("mb-4 text-center", className)}>
-        <span className="font-medium text-colorError">{info.message}</span>
-        <div className="text-colorTextSecondary">{info.sub}</div>
+    <div className={cn(ERROR_TEXT_CLASS, "text-start", className)} role="alert">
+        <span>{info.message}</span>
+        {info.sub ? <div className="text-muted-foreground">{info.sub}</div> : null}
     </div>
 )

@@ -22,7 +22,20 @@ export interface SessionListFilters {
     /** Agent workflow id — matched against the turns' references. */
     agentId?: string | null
     includeArchived?: boolean
+    /**
+     * ONLY archived sessions, rather than archived ones alongside the rest. A different question
+     * from `includeArchived`, which widens the set — this narrows it to the archive. Wins over
+     * `includeArchived` server-side.
+     */
+    archivedOnly?: boolean
     includeEnded?: boolean
+    /**
+     * Lower bound on last activity, ISO. The DAO reads `windowing.oldest` as
+     * `coalesce(updated_at, created_at) >= oldest`, so this is a server predicate and not a pass
+     * over a page. A descending cursor never sets `oldest` (it pages on `newest`), so the floor
+     * survives every page after the first.
+     */
+    activityFloor?: string
     /** Liveness, matched against the row's mirrored flags. */
     flags?: {is_alive?: boolean; is_running?: boolean; is_attached?: boolean}
     /** Restrict to an explicit id set — the pushdown for predicates that live outside the stream
@@ -63,7 +76,9 @@ export const sessionListQueryOptions = (filters: SessionListFilters) => {
         search = "",
         agentId = null,
         includeArchived = false,
+        archivedOnly,
         includeEnded = true,
+        activityFloor,
         flags,
         sessionIds,
         excludeSessionIds,
@@ -96,6 +111,8 @@ export const sessionListQueryOptions = (filters: SessionListFilters) => {
             normalizedSearch,
             agentId,
             includeArchived,
+            archivedOnly ?? false,
+            activityFloor ?? null,
             includeEnded,
             normalizedFlags ?? null,
             normalizedSessionIds ?? null,
@@ -123,6 +140,7 @@ export const sessionListQueryOptions = (filters: SessionListFilters) => {
                 },
                 turnReferences: agentId ? [{id: agentId}] : undefined,
                 includeArchived,
+                archivedOnly,
                 includeEnded,
                 includeTotal,
                 expand: normalizedExpand,
@@ -138,7 +156,7 @@ export const sessionListQueryOptions = (filters: SessionListFilters) => {
                     limit,
                     next: pageParam?.next,
                     newest: pageParam?.newest,
-                    oldest: pageParam?.oldest,
+                    oldest: pageParam?.oldest ?? activityFloor,
                     order,
                 },
                 abortSignal: signal,

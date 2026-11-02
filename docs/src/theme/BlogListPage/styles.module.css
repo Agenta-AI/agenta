@@ -1,9 +1,16 @@
 .header {
-  text-align: center;
-  margin: 1rem 0 1.5rem;
+  max-width: var(--doc-content-width);
+  margin: 0 0 36px;
+}
+
+.header h1 {
+  margin: 0;
 }
 
 .header p {
-  color: var(--ifm-color-emphasis-700);
-  margin-bottom: 0;
+  margin: 10px 0 0;
+  font-size: 17px;
+  line-height: 28px;
+  color: var(--contentsecondary);
+  text-wrap: pretty;
 }

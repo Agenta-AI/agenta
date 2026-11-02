@@ -7,6 +7,10 @@ export interface InlineRenameOptions {
     current: string | null | undefined
     /** Persists the new name. `false` surfaces an error and leaves the row alone. */
     onCommit: (name: string) => Promise<boolean>
+    /** What a failed commit says. Defaults to the session wording this started as. */
+    errorText?: string
+    /** Let a blank draft commit — for a field that can be cleared, like a description. */
+    allowEmpty?: boolean
 }
 
 export interface InlineRename {
@@ -29,7 +33,12 @@ export interface InlineRename {
  * guarded by a ref, not by state: blur fires before keydown, so Enter would otherwise save a
  * second time against a row that has already left the editing state.
  */
-export const useInlineRename = ({current, onCommit}: InlineRenameOptions): InlineRename => {
+export const useInlineRename = ({
+    current,
+    onCommit,
+    errorText = "Couldn't rename this session",
+    allowEmpty = false,
+}: InlineRenameOptions): InlineRename => {
     const [renaming, setRenaming] = useState(false)
     const [draft, setDraft] = useState("")
     const committedRef = useRef(false)
@@ -50,9 +59,9 @@ export const useInlineRename = ({current, onCommit}: InlineRenameOptions): Inlin
         committedRef.current = true
         const name = draft.trim()
         setRenaming(false)
-        if (!name || name === (current ?? "")) return
-        if (!(await onCommit(name))) message.error("Couldn't rename this session")
-    }, [current, draft, onCommit])
+        if ((!name && !allowEmpty) || name === (current ?? "")) return
+        if (!(await onCommit(name))) message.error(errorText)
+    }, [allowEmpty, current, draft, errorText, onCommit])
 
     return {renaming, draft, setDraft, start, commit, cancel}
 }

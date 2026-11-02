@@ -102,6 +102,48 @@ async def test_schedule_task_skips_schedule_disabled_after_enqueue():
     dispatcher.dispatch_schedule.assert_not_awaited()
 
 
+async def test_schedule_task_skips_when_no_schedule_or_schedule_id_provided():
+    worker, dao, dispatcher = _worker(resolved=None)
+
+    await worker.dispatch_schedule(
+        project_id=str(uuid4()),
+        event_id="event-1",
+        event={},
+    )
+
+    dao.fetch_schedule.assert_not_awaited()
+    dispatcher.dispatch_schedule.assert_not_awaited()
+
+
+async def test_schedule_task_skips_malformed_project_id():
+    schedule = _schedule()
+    worker, dao, dispatcher = _worker(resolved=schedule)
+
+    await worker.dispatch_schedule(
+        project_id="not-a-uuid",
+        schedule_id=str(schedule.id),
+        event_id="event-1",
+        event={},
+    )
+
+    dao.fetch_schedule.assert_not_awaited()
+    dispatcher.dispatch_schedule.assert_not_awaited()
+
+
+async def test_schedule_task_skips_malformed_schedule_id():
+    worker, dao, dispatcher = _worker(resolved=None)
+
+    await worker.dispatch_schedule(
+        project_id=str(uuid4()),
+        schedule_id="not-a-uuid",
+        event_id="event-1",
+        event={},
+    )
+
+    dao.fetch_schedule.assert_not_awaited()
+    dispatcher.dispatch_schedule.assert_not_awaited()
+
+
 async def test_subscription_task_skips_deleted_subscription_lookup():
     worker, dao, dispatcher = _worker(resolved=None)
     dao.get_project_and_subscription_by_trigger_id = AsyncMock(return_value=None)

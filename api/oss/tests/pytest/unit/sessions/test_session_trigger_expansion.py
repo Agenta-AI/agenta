@@ -18,6 +18,7 @@ from oss.src.core.sessions.streams.dtos import (
 from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.core.sessions.types import SessionTrigger
 from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
+from oss.tests.pytest.utils.sharing import PROJECT_SESSION_SCOPE
 
 
 def _compiled_query(*, include_trigger_details: bool) -> str:
@@ -105,6 +106,7 @@ async def test_trigger_expansion_executes_one_joined_stream_statement():
     session = _CountingSession()
 
     result = await _dao_with_session(session).query(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=uuid4(),
         filter=SessionStreamQuery(),
         read_options=SessionStreamReadOptions(include_trigger_details=True),
@@ -123,6 +125,7 @@ async def test_joined_stream_failure_propagates_without_fallback_query():
 
     with pytest.raises(RuntimeError, match="stream database unavailable"):
         await _dao_with_session(session).query(
+            read_scope=PROJECT_SESSION_SCOPE,
             project_id=uuid4(),
             filter=SessionStreamQuery(),
             read_options=SessionStreamReadOptions(include_trigger_details=True),
@@ -159,6 +162,7 @@ async def test_stream_service_hydrates_name_without_changing_stream_query_shape(
     service = SessionStreamsService(streams_dao=dao, lock_engine=object())
 
     result = await service.query_streams(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=stream.project_id,
         filter=SessionStreamQuery(),
         read_options=SessionStreamReadOptions(include_trigger_details=True),
@@ -192,6 +196,7 @@ async def test_missing_trigger_name_preserves_typed_id_and_kind():
     )
 
     result = await service.query_streams(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=stream.project_id,
         filter=SessionStreamQuery(),
         read_options=SessionStreamReadOptions(include_trigger_details=True),
@@ -229,6 +234,7 @@ async def test_root_trigger_expansion_requests_trigger_details_from_stream_read(
     )
 
     await service.query_sessions(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=stream.project_id,
         options=SessionQueryOptions(expand=[SessionExpansion.trigger]),
     )

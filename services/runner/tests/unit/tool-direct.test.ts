@@ -47,6 +47,7 @@ import {
   type RelayResponse,
 } from "../../src/tools/relay.ts";
 import type { ResolvedToolSpec, RunContext } from "../../src/protocol.ts";
+import { isWellFormed } from "../utils/well-formed.ts";
 
 // A fake run context (direct-call tools, Phase 3a). The keys are the snake_case binding namespace
 // a `call.context` value (`"$ctx.<dotted.path>"`) addresses.
@@ -453,6 +454,24 @@ describe("directCallUrl", () => {
       url,
       "https://agenta.example/api/tools/catalog/integrations?search=github",
     );
+  });
+
+  it("keeps a catalog-fixed query flag out of the model's reach", () => {
+    // rename_session pins `name_source=automatic` in its own path so the endpoint can
+    // refuse a rename over a name a person controls. The model fills the body, never the
+    // path, and a bound id that tries to smuggle its own `name_source` is percent-encoded
+    // into one value.
+    const call: DirectCall = {
+      method: "POST",
+      path: "/api/sessions/streams/header?session_id={session_id}&name_source=automatic",
+    };
+    const url = directCallUrl(ENDPOINT, call, {
+      session_id: "session-1&name_source=manual",
+    });
+
+    const params = new URL(url).searchParams;
+    assert.deepEqual(params.getAll("name_source"), ["automatic"]);
+    assert.equal(params.get("session_id"), "session-1&name_source=manual");
   });
 
   it("substitutes rename_session's bound id without weakening URL confinement", () => {
@@ -927,6 +946,15 @@ describe("agentaErrorDetail", () => {
       detail.length < MAX_ERROR_DETAIL_CHARS + 40,
       "a huge upstream body cannot flood the tool result",
     );
+    assert.match(detail, /\(truncated\)$/);
+  });
+
+  it("does not split a character that straddles the cap", () => {
+    const detail = agentaErrorDetail(
+      JSON.stringify({ detail: `${"x".repeat(MAX_ERROR_DETAIL_CHARS - 1)}𝗰tail` }),
+    );
+    assert.ok(detail);
+    assert.ok(isWellFormed(detail));
     assert.match(detail, /\(truncated\)$/);
   });
 });

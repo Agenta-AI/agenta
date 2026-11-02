@@ -20,11 +20,25 @@ describe("selectApprovalTargets", () => {
     })
 
     it("returns every pending approval for approve-all", () => {
-        const rows = [row(), row({id: "int-2", token: "appr-2"})]
+        const rows = [
+            row({turn_id: "turn-1"}),
+            row({id: "int-2", token: "appr-2", turn_id: "turn-1"}),
+        ]
         expect(selectApprovalTargets(rows, {all: true}).map((r) => r.id)).toEqual([
             "int-1",
             "int-2",
         ])
+    })
+
+    it("rejects approve-all across executions before posting", () => {
+        const rows = [
+            row({turn_id: "turn-1"}),
+            row({id: "int-2", token: "appr-2", turn_id: "turn-2"}),
+        ]
+
+        expect(() => selectApprovalTargets(rows, {all: true})).toThrow(
+            "Approve all can only answer approvals from one execution.",
+        )
     })
 
     it("drops non-approval kinds", () => {

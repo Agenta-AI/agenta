@@ -16,6 +16,7 @@ actually builds — including `@>` containment semantics on absent keys and NULL
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
 from typing import Optional
+from uuid import UUID
 
 import pytest
 from sqlalchemy.sql import operators
@@ -30,6 +31,7 @@ from sqlalchemy.sql.elements import (
     UnaryExpression,
 )
 from sqlalchemy.sql.functions import Function
+from sqlalchemy.sql.dml import Update
 
 from oss.src.tasks.asyncio.sessions.orphan_sweep import (
     IDLE_THRESHOLD_SECONDS,
@@ -80,8 +82,16 @@ def _evaluate(node, row) -> Optional[bool]:
         left, right = _value(node.left, row), _value(node.right, row)
         if node.operator is operators.is_:
             return left is right
+        if node.operator is operators.is_not:
+            # `turn_id IS NOT NULL`, from the ending-only selection. Postgres `IS NOT` is a
+            # total predicate: it never returns NULL, so neither does this.
+            return left is not right
         if node.operator is operators.lt:
             return None if left is None or right is None else left < right
+        if node.operator is operators.eq:
+            return None if left is None or right is None else left == right
+        if node.operator is operators.in_op:
+            return None if left is None else left in right
         if getattr(node.operator, "opstring", None) == "@>":
             return _contains(left, right)
     raise AssertionError(
@@ -113,14 +123,25 @@ def _value(node, row):
 
 
 class _FakeRow:
-    def __init__(self, *, session_id: str, flags: Optional[dict], age_seconds: int):
+    def __init__(
+        self,
+        *,
+        session_id: str,
+        flags: Optional[dict],
+        age_seconds: int,
+        turn_id: Optional[str] = None,
+    ):
         self.session_id = session_id
         self.project_id = _PROJECT_ID
         self.id = session_id
+        self.turn_id = turn_id
         self.deleted_at = None
         self.flags = flags
         self.created_at = datetime.now(timezone.utc) - timedelta(days=1)
         self.updated_at = datetime.now(timezone.utc) - timedelta(seconds=age_seconds)
+        self.terminal_outcome = None
+        self.ending_written_at = None
+        self.settled_at = None
 
 
 class _FakeScalars:
@@ -132,34 +153,55 @@ class _FakeScalars:
 
 
 class _FakeResult:
-    def __init__(self, rows):
+    def __init__(self, rows, *, rowcount=0):
         self._rows = rows
+        self.rowcount = rowcount
 
     def scalars(self):
         return _FakeScalars(self._rows)
 
 
 class _FakePgSession:
-    def __init__(self, rows):
+    def __init__(self, rows, before_update=None, on_commit=None):
         self._rows = rows
+        self._before_update = before_update
+        self._on_commit = on_commit
 
     async def execute(self, stmt):
+        if isinstance(stmt, Update):
+            if self._before_update is not None:
+                self._before_update()
+                self._before_update = None
+            matched = [
+                row for row in self._rows if _evaluate(stmt.whereclause, row) is True
+            ]
+            for row in matched:
+                for column, value in stmt._values.items():
+                    key = column if isinstance(column, str) else column.key
+                    setattr(row, key, _value(value, row))
+            return _FakeResult([], rowcount=len(matched))
         matched = [
             row for row in self._rows if _evaluate(stmt.whereclause, row) is True
         ]
         return _FakeResult(matched)
 
     async def commit(self):
-        pass
+        if self._on_commit is not None:
+            self._on_commit()
 
 
 class _FakeTransactionsEngine:
-    def __init__(self, rows):
+    def __init__(self, rows, before_update=None):
         self._rows = rows
+        self._before_update = before_update
+        self.committed = False
+
+    def _mark_committed(self):
+        self.committed = True
 
     @asynccontextmanager
     async def session(self):
-        yield _FakePgSession(self._rows)
+        yield _FakePgSession(self._rows, self._before_update, self._mark_committed)
 
 
 class _FakeRedis:
@@ -182,6 +224,41 @@ class _FakeRedis:
     async def expire(self, key, ttl):
         return True
 
+    async def eval(self, script, numkeys, *keys_and_args):
+        def decode(value):
+            return value.decode() if isinstance(value, bytes) else str(value)
+
+        keys = [decode(value) for value in keys_and_args[:numkeys]]
+        argv = [decode(value) for value in keys_and_args[numkeys:]]
+        assert "AGENTA_WATCHDOG_RELEASE_TURN" in script
+        alive, running, superseded = keys
+        expected_turn, _ttl = argv
+        alive_value = decode(self._store[alive]) if alive in self._store else ""
+        running_value = decode(self._store[running]) if running in self._store else ""
+        released_alive = int(bool(expected_turn) and alive_value == expected_turn)
+        released_running = int(bool(expected_turn) and running_value == expected_turn)
+        if released_alive:
+            self._store.pop(alive, None)
+        if released_running:
+            self._store.pop(running, None)
+        if expected_turn:
+            self._store[superseded] = b"1"
+        return [released_alive, released_running]
+
+
+class _CommitObservingRedis(_FakeRedis):
+    def __init__(self, engine: _FakeTransactionsEngine):
+        super().__init__()
+        self.engine = engine
+
+    async def eval(self, script, numkeys, key, expected, *args):
+        normalized = key.decode() if isinstance(key, bytes) else key
+        if normalized.startswith(("alive:", "running:")):
+            assert self.engine.committed, (
+                "watchdog released Redis before the row commit"
+            )
+        return await super().eval(script, numkeys, key, expected, *args)
+
 
 def _swept(row: _FakeRow) -> bool:
     return row.flags == {"is_alive": False, "is_running": False, "is_attached": False}
@@ -190,6 +267,63 @@ def _swept(row: _FakeRow) -> bool:
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
+
+
+class _OrderedCommandsService:
+    def __init__(self) -> None:
+        self.calls = []
+
+    async def settle_abandoned_commands(self, *, now):
+        self.calls.append("settle")
+        return 0
+
+    async def repair_terminal_redis(self):
+        self.calls.append("repair")
+        return 0
+
+
+class _CompletedRecords:
+    async def settled_turns(self, *, project_id, keys):
+        return set(keys)
+
+    async def runner_ended_turns(self, *, project_id, keys):
+        return {key: "completed" for key in keys}
+
+
+class _NoCompletedRecords(_CompletedRecords):
+    async def settled_turns(self, *, project_id, keys):
+        return set()
+
+    async def runner_ended_turns(self, *, project_id, keys):
+        return {}
+
+
+class _CompletionLookupFailure(_CompletedRecords):
+    async def runner_ended_turns(self, *, project_id, keys):
+        raise RuntimeError("records database unavailable")
+
+
+class _CompletionCommands(_OrderedCommandsService):
+    def __init__(self, *, succeeds: bool) -> None:
+        super().__init__()
+        self.succeeds = succeeds
+
+    async def settle_execution_ended(self, **kwargs):
+        self.calls.append((kwargs["terminal_outcome"], kwargs["execution_id"]))
+        return self.succeeds
+
+
+@pytest.mark.anyio
+async def test_redis_repair_runs_after_the_sweeps_main_work(anyio_backend):
+    commands = _OrderedCommandsService()
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([]),
+        _FakeRedis(),
+        commands_service=commands,
+    )
+
+    assert commands.calls == ["settle", "repair"]
 
 
 @pytest.mark.anyio
@@ -205,6 +339,177 @@ async def test_running_row_is_swept_at_the_short_threshold(anyio_backend):
     assert _swept(row), (
         "6 minutes of silence from a turn that beats every 30s means the runner died"
     )
+
+
+@pytest.mark.anyio
+async def test_heartbeat_during_lost_settlement_prevents_collapse(
+    anyio_backend,
+    monkeypatch,
+):
+    row = _FakeRow(
+        session_id="sess-settled-during-sweep",
+        flags={"is_alive": True, "is_running": True, "is_attached": False},
+        age_seconds=360,
+        turn_id="turn-lost",
+    )
+    row.project_id = UUID("00000000-0000-4000-8000-000000000001")
+
+    def advance_timestamp_only():
+        row.updated_at = datetime.now(timezone.utc)
+
+    async def publish(**_kwargs):
+        return False
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([row], before_update=advance_timestamp_only),
+        _FakeRedis(),
+        records_service=_NoCompletedRecords(),
+        publish=publish,
+    )
+
+    assert not _swept(row)
+
+
+@pytest.mark.anyio
+async def test_redis_release_happens_only_after_stream_collapse_commits(
+    anyio_backend,
+    monkeypatch,
+):
+    row = _FakeRow(
+        session_id="sess-commit-before-redis",
+        flags={"is_alive": True, "is_running": True, "is_attached": False},
+        age_seconds=360,
+        turn_id="turn-old",
+    )
+    engine = _FakeTransactionsEngine([row])
+    redis = _CommitObservingRedis(engine)
+    for prefix, value in (
+        ("alive", b"turn-old"),
+        ("running", b"turn-old"),
+    ):
+        await redis.set(f"{prefix}:{_PROJECT_ID}:session:{row.session_id}", value)
+
+    await run_orphan_sweep(engine, redis)
+
+    assert engine.committed is True
+    assert _swept(row)
+
+
+@pytest.mark.anyio
+async def test_durable_sweep_collapses_a_row_whose_alive_already_expired(
+    anyio_backend,
+    monkeypatch,
+):
+    row = _FakeRow(
+        session_id="sess-dead-affinity",
+        flags={"is_alive": True, "is_running": True, "is_attached": False},
+        age_seconds=360,
+        turn_id="turn-dead",
+    )
+
+    await run_orphan_sweep(_FakeTransactionsEngine([row]), _FakeRedis())
+
+    assert _swept(row)
+
+
+@pytest.mark.anyio
+async def test_persisted_done_is_terminalized_before_stale_ownership_is_cleared(
+    anyio_backend,
+    monkeypatch,
+):
+    row = _FakeRow(
+        session_id="sess-completed-continuation",
+        flags={"is_alive": True, "is_running": True, "is_attached": False},
+        age_seconds=360,
+        turn_id="continuation-1",
+    )
+    commands = _CompletionCommands(succeeds=True)
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([row]),
+        _FakeRedis(),
+        records_service=_CompletedRecords(),
+        commands_service=commands,
+    )
+
+    assert ("completed", "continuation-1") in commands.calls
+    assert _swept(row)
+
+
+class _ErroredRecords(_CompletedRecords):
+    async def runner_ended_turns(self, *, project_id, keys):
+        return {key: "failed" for key in keys}
+
+
+@pytest.mark.anyio
+async def test_persisted_error_ending_settles_the_continuation_as_failed(
+    anyio_backend,
+    monkeypatch,
+):
+    row = _FakeRow(
+        session_id="sess-errored-continuation",
+        flags={"is_alive": True, "is_running": True, "is_attached": False},
+        age_seconds=360,
+        turn_id="continuation-1",
+    )
+    commands = _CompletionCommands(succeeds=True)
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([row]),
+        _FakeRedis(),
+        records_service=_ErroredRecords(),
+        commands_service=commands,
+    )
+
+    assert ("failed", "continuation-1") in commands.calls
+    assert _swept(row)
+    # A reconciled ending does not hold back the abandoned-command settlement or the Redis repair.
+    assert "settle" in commands.calls
+    assert "repair" in commands.calls
+
+
+@pytest.mark.anyio
+async def test_completion_settlement_failure_keeps_ownership_blocking_replay(
+    anyio_backend,
+    monkeypatch,
+):
+    row = _FakeRow(
+        session_id="sess-completion-race",
+        flags={"is_alive": True, "is_running": True, "is_attached": False},
+        age_seconds=360,
+        turn_id="continuation-1",
+    )
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([row]),
+        _FakeRedis(),
+        records_service=_CompletedRecords(),
+        commands_service=_CompletionCommands(succeeds=False),
+    )
+
+    assert not _swept(row)
+
+
+@pytest.mark.anyio
+async def test_completion_lookup_failure_keeps_ownership_blocking_replay(
+    anyio_backend,
+    monkeypatch,
+):
+    row = _FakeRow(
+        session_id="sess-completion-lookup-race",
+        flags={"is_alive": True, "is_running": True, "is_attached": False},
+        age_seconds=360,
+        turn_id="continuation-1",
+    )
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([row]),
+        _FakeRedis(),
+        records_service=_CompletionLookupFailure(),
+        commands_service=_CompletionCommands(succeeds=True),
+    )
+
+    assert not _swept(row)
 
 
 @pytest.mark.anyio
@@ -241,8 +546,12 @@ async def test_idle_row_is_swept_at_the_long_threshold(anyio_backend):
 
 
 @pytest.mark.anyio
-async def test_thresholds_are_five_and_thirty_minutes(anyio_backend):
-    assert (ORPHAN_THRESHOLD_SECONDS, IDLE_THRESHOLD_SECONDS) == (300, 1800)
+async def test_default_running_threshold_uses_durable_stop(anyio_backend):
+    """Three missed 30-second heartbeats settle a running turn by default.
+
+    Idle sessions retain the 30-minute approval TTL.
+    """
+    assert (ORPHAN_THRESHOLD_SECONDS, IDLE_THRESHOLD_SECONDS) == (90, 1800)
 
 
 @pytest.mark.anyio
@@ -290,14 +599,62 @@ async def test_sweep_clears_redis_for_the_long_threshold_branch(anyio_backend):
     session_id = "sess-idle-dead-redis"
     redis = _FakeRedis()
     await redis.set(f"alive:{_PROJECT_ID}:session:{session_id}", b"turn-1", ex=3600)
-    await redis.set(f"owner:{_PROJECT_ID}:session:{session_id}", b"replica-1", ex=3600)
     row = _FakeRow(
         session_id=session_id,
         flags={"is_alive": True, "is_running": False, "is_attached": False},
         age_seconds=IDLE_THRESHOLD_SECONDS + 60,
+        turn_id="turn-1",
     )
 
     await run_orphan_sweep(_FakeTransactionsEngine([row]), redis)
 
     assert await redis.get(f"alive:{_PROJECT_ID}:session:{session_id}") is None
-    assert await redis.get(f"owner:{_PROJECT_ID}:session:{session_id}") is None
+
+
+@pytest.mark.anyio
+async def test_turn_advance_during_sweep_prevents_collapse_and_redis_cleanup(
+    anyio_backend,
+):
+    session_id = "sess-advanced-during-sweep"
+    row = _FakeRow(
+        session_id=session_id,
+        flags={"is_alive": True, "is_running": True, "is_attached": False},
+        age_seconds=360,
+        turn_id="turn-old",
+    )
+    redis = _FakeRedis()
+    await redis.set(f"alive:{_PROJECT_ID}:session:{session_id}", b"turn-new")
+    await redis.set(f"running:{_PROJECT_ID}:session:{session_id}", b"turn-new")
+
+    def advance_row():
+        row.turn_id = "turn-new"
+        row.updated_at = datetime.now(timezone.utc)
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([row], before_update=advance_row), redis
+    )
+
+    assert row.flags["is_alive"] is True
+    assert row.flags["is_running"] is True
+    assert await redis.get(f"alive:{_PROJECT_ID}:session:{session_id}") == b"turn-new"
+    assert await redis.get(f"running:{_PROJECT_ID}:session:{session_id}") == b"turn-new"
+
+
+@pytest.mark.anyio
+async def test_heartbeat_during_sweep_prevents_collapse(anyio_backend):
+    row = _FakeRow(
+        session_id="sess-heartbeat-during-sweep",
+        flags={"is_alive": True, "is_running": True, "is_attached": False},
+        age_seconds=360,
+        turn_id="turn-current",
+    )
+
+    def heartbeat():
+        row.updated_at = datetime.now(timezone.utc)
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([row], before_update=heartbeat), _FakeRedis()
+    )
+
+    assert row.flags["is_alive"] is True
+    assert row.flags["is_running"] is True

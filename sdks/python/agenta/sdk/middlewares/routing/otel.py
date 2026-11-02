@@ -28,9 +28,6 @@ class OTelMiddleware(BaseHTTPMiddleware):
 
         headers: dict = dict(request.headers)
 
-        if "newrelic" in headers:
-            headers["traceparent"] = None
-
         with suppress():
             _, traceparent, baggage = extract(headers)
 

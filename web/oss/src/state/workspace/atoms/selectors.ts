@@ -1,6 +1,6 @@
 import type {WorkspaceMember} from "@agenta/entities/organization"
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 import {selectedOrgAtom} from "../../org/selectors/org"
 

@@ -130,27 +130,6 @@ export function getSchemaAtPath(
     return tail.length === 0 ? nextSchema : getSchemaAtPath(nextSchema, tail)
 }
 
-/**
- * Get all property keys at a schema level
- */
-export function getSchemaKeys(schema: SchemaProperty | undefined): string[] {
-    if (!schema || schema.type !== "object" || !schema.properties) {
-        return []
-    }
-    return Object.keys(schema.properties)
-}
-
-/**
- * Check if a path points to an array in the schema
- */
-export function isArrayPath(
-    schema: SchemaProperty | undefined,
-    path: (string | number)[],
-): boolean {
-    const targetSchema = getSchemaAtPath(schema, path)
-    return targetSchema?.type === "array"
-}
-
 // ============================================================================
 // DEFAULT VALUES
 // ============================================================================
@@ -192,16 +171,6 @@ export function getDefaultValue(schema: SchemaProperty | undefined): unknown {
         default:
             return undefined
     }
-}
-
-/**
- * Create a new array item with default values based on schema
- */
-export function createDefaultArrayItem(schema: SchemaProperty | undefined): unknown {
-    if (!schema || schema.type !== "array" || !schema.items) {
-        return {}
-    }
-    return getDefaultValue(schema.items)
 }
 
 // ============================================================================
@@ -267,79 +236,6 @@ export function evaluatorFieldToSchema(field: EvaluatorField): SchemaProperty {
         case "regex":
         default:
             return base
-    }
-}
-
-/**
- * Convert array of evaluator fields to entity schema
- */
-export function evaluatorFieldsToSchema(fields: EvaluatorField[]): EntitySchema {
-    const properties: Record<string, SchemaProperty> = {}
-    const required: string[] = []
-
-    for (const field of fields) {
-        properties[field.key] = evaluatorFieldToSchema(field)
-        if (field.required !== false) {
-            required.push(field.key)
-        }
-    }
-
-    return {
-        type: "object",
-        properties,
-        required,
-    }
-}
-
-// ============================================================================
-// OPENAPI SCHEMA EXTRACTION
-// ============================================================================
-
-/**
- * Extract prompt schema from openapi ag_config
- */
-export function extractPromptSchema(
-    agConfigProperties: Record<string, SchemaProperty>,
-): EntitySchema | null {
-    const promptKeys = Object.keys(agConfigProperties).filter((key) => {
-        const prop = agConfigProperties[key]
-        return prop?.["x-parameters"]?.prompt === true
-    })
-
-    if (promptKeys.length === 0) return null
-
-    const properties: Record<string, SchemaProperty> = {}
-    for (const key of promptKeys) {
-        properties[key] = agConfigProperties[key]
-    }
-
-    return {
-        type: "object",
-        properties,
-    }
-}
-
-/**
- * Extract custom properties (non-prompt) from openapi ag_config
- */
-export function extractCustomPropertiesSchema(
-    agConfigProperties: Record<string, SchemaProperty>,
-): EntitySchema | null {
-    const customKeys = Object.keys(agConfigProperties).filter((key) => {
-        const prop = agConfigProperties[key]
-        return prop?.["x-parameters"]?.prompt !== true
-    })
-
-    if (customKeys.length === 0) return null
-
-    const properties: Record<string, SchemaProperty> = {}
-    for (const key of customKeys) {
-        properties[key] = agConfigProperties[key]
-    }
-
-    return {
-        type: "object",
-        properties,
     }
 }
 

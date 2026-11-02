@@ -1,4 +1,4 @@
-from typing import Any, Type, Optional, Union
+from typing import Any, Iterable, List, Optional, Sequence, Type, Union
 from random import random
 from asyncio import sleep
 
@@ -55,9 +55,9 @@ def _pack(
 
     if user_id:
         user_id = user_id[-12:] if len(user_id) > 12 else user_id
+        user_id = user_id + "-" * (12 - len(user_id))
     else:
-        user_id = ""
-    user_id = user_id + "-" * (12 - len(user_id))
+        user_id = "*" if pattern else "-" * 12
 
     namespace = namespace or ("" if not pattern else "*")
 
@@ -73,6 +73,86 @@ def _pack(
         raise TypeError("Cache key must be str or dict")
 
     return f"cache:p:{project_id}:u:{user_id}:{namespace}:{key}"
+
+
+def user_keys_to_clear(
+    keys: Iterable[Union[str, bytes]],
+    *,
+    project_ids: Sequence[str],
+    namespaces: Sequence[str],
+    projectless_namespaces: Sequence[str] = (),
+) -> List[Union[str, bytes]]:
+    """From one user's keys (`cache:p:<project>:u:<user>:<namespace>:<key>`), the ones
+    that `invalidate_cache(namespace=n, project_id=p, user_id=u)` would clear for every
+    (n, p) of `namespaces` x `project_ids`, plus the project-less keys of
+    `projectless_namespaces` (the padded `------------` project part)."""
+
+    projects = {_pack(project_id=p).split(":")[2] for p in project_ids}
+    names = set(namespaces)
+    projectless = set(projectless_namespaces)
+    empty_project = "-" * 12
+    selected = []
+    for key in keys:
+        text = key.decode() if isinstance(key, bytes) else key
+        parts = text.split(":", 6)
+        if len(parts) < 6 or parts[0] != "cache" or parts[1] != "p":
+            continue
+        project, namespace = parts[2], parts[5]
+        if (project in projects and namespace in names) or (
+            project == empty_project and namespace in projectless
+        ):
+            selected.append(key)
+    return selected
+
+
+async def invalidate_user_cache(
+    *,
+    user_id: str,
+    project_ids: Sequence[str],
+    namespaces: Sequence[str],
+    projectless_namespaces: Sequence[str] = (),
+) -> Optional[bool]:
+    """Clear one user's entries in many projects with ONE scan of the user's keys,
+    instead of one pattern scan per (project, namespace). Clears the same keys as
+    the per-pair `invalidate_cache` calls (see `user_keys_to_clear`). Returns None
+    on a Redis failure, like `invalidate_cache`."""
+
+    if not env.agenta.api.caching.enabled:
+        return None
+
+    try:
+        # Every project of this user: `_pack` pads a missing project, so the
+        # project part is a glob here.
+        user_part = _pack(user_id=user_id).split(":")[4]
+        pattern = f"cache:p:*:u:{user_part}:*"
+        cursor = 0
+        keys: list = []
+        while True:
+            cursor, batch = await _cache_engine.scan(
+                cursor=cursor, match=pattern, count=AGENTA_CACHE_SCAN_BATCH_SIZE
+            )
+            keys.extend(batch)
+            if cursor == 0:
+                break
+
+        selected = user_keys_to_clear(
+            keys,
+            project_ids=project_ids,
+            namespaces=namespaces,
+            projectless_namespaces=projectless_namespaces,
+        )
+        for i in range(0, len(selected), AGENTA_CACHE_DELETE_BATCH_SIZE):
+            await _cache_engine.delete(
+                *selected[i : i + AGENTA_CACHE_DELETE_BATCH_SIZE]
+            )
+
+        return True
+
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        log.warn("[cache] FLUSH USER", user_id=user_id, project_count=len(project_ids))
+        log.warn(e)
+
+        return None
 
 
 def pack(
@@ -272,9 +352,9 @@ async def _maybe_retry_get(
 
     if retry:
         lock_name = f"lock::{cache_name}"
-        lock_ex = int(lock_ttl * 1000)  # convert seconds to milliseconds
+        lock_px = int(lock_ttl * 1000)  # seconds to milliseconds, for `px`
 
-        got_lock = await _cache_engine.set(lock_name, "1", nx=True, ex=lock_ex)
+        got_lock = await _cache_engine.set(lock_name, "1", nx=True, px=lock_px)
 
         if got_lock:
             if CACHE_DEBUG:
@@ -328,7 +408,13 @@ async def set_cache(
     key: Optional[Union[str, dict]] = None,
     value: Optional[Any] = None,
     ttl: Optional[int] = AGENTA_CACHE_TTL,
+    *,
+    nx: bool = False,
+    release_lock: bool = True,
 ) -> Optional[bool]:
+    """`nx`: write only when no value is stored (False when one was). `release_lock`:
+    delete the stampede lock a `get_cache(retry=True)` reader may hold; a caller that
+    never reads with the lock passes False and saves that round trip."""
     # Noop if caching is disabled
     if not env.agenta.api.caching.enabled:
         return None
@@ -347,7 +433,9 @@ async def set_cache(
         #
         # Original L1 write path:
         # local_cache[cache_name] = cache_value
-        await _cache_engine.set(cache_name, cache_value, px=cache_px)
+        written = await _cache_engine.set(cache_name, cache_value, px=cache_px, nx=nx)
+        if nx and not written:
+            return False
 
         if CACHE_DEBUG:
             log.debug(
@@ -357,6 +445,9 @@ async def set_cache(
                 if CACHE_DEBUG_VALUE
                 else "***",
             )
+
+        if not release_lock:
+            return True
 
         lock_name = f"lock::{cache_name}"
 
@@ -556,4 +647,82 @@ async def invalidate_cache(
         )
         log.warn(e)
 
+        return None
+
+
+async def get_cache_many(entries: list) -> list:
+    """Read several cache entries in ONE Redis round trip (`MGET`).
+
+    `entries` are dicts with the `get_cache` naming arguments (`namespace`,
+    `project_id`, `user_id`, `key`) and an optional `model`. Returns one value per
+    entry, `None` for a miss. No lock and no retry: a caller falls back to `get_cache`
+    for an entry that missed. Caching disabled, or a Redis error: all `None`.
+
+    An entry `{"raw": <key>}` names a plain key of the same Redis (a session lock key)
+    and returns its bytes as stored, also when caching is disabled: the read it saves
+    is not a cache read.
+    """
+
+    if not entries:
+        return []
+    caching = env.agenta.api.caching.enabled
+    read = [
+        i for i, entry in enumerate(entries) if caching or entry.get("raw") is not None
+    ]
+    values: list = [None] * len(entries)
+    if not read:
+        return values
+    try:
+        names = [
+            entries[i]["raw"]
+            if entries[i].get("raw") is not None
+            else _pack(
+                namespace=entries[i].get("namespace"),
+                key=entries[i].get("key"),
+                project_id=entries[i].get("project_id"),
+                user_id=entries[i].get("user_id"),
+            )
+            for i in read
+        ]
+        raws = await _cache_engine.mget(names)
+        for i, raw in zip(read, raws):
+            entry = entries[i]
+            if raw is None:
+                continue
+            values[i] = (
+                raw
+                if entry.get("raw") is not None
+                else _deserialize(raw, model=entry.get("model"), is_list=False)
+            )
+        return values
+    except Exception as e:  # pylint: disable=broad-except
+        log.warn("[cache] MGET ", count=len(entries))
+        log.warn(e)
+        return [None] * len(entries)
+
+
+async def invalidate_cache_entries(entries: list) -> Optional[bool]:
+    """Delete several exact entries, in batches of `AGENTA_CACHE_DELETE_BATCH_SIZE` keys
+    per `DEL` (no SCAN). `entries` are dicts with the `get_cache` naming arguments
+    (`namespace`, `project_id`, `user_id`, `key`). Caching disabled: no-op. A Redis
+    error is logged and returns None, like `invalidate_cache`."""
+
+    if not env.agenta.api.caching.enabled or not entries:
+        return None
+    try:
+        names = [
+            _pack(
+                namespace=entry.get("namespace"),
+                key=entry.get("key"),
+                project_id=entry.get("project_id"),
+                user_id=entry.get("user_id"),
+            )
+            for entry in entries
+        ]
+        for i in range(0, len(names), AGENTA_CACHE_DELETE_BATCH_SIZE):
+            await _cache_engine.delete(*names[i : i + AGENTA_CACHE_DELETE_BATCH_SIZE])
+        return True
+    except Exception as e:  # pylint: disable=broad-except
+        log.warn("[cache] DEL MANY", count=len(entries))
+        log.warn(e)
         return None

@@ -7,9 +7,11 @@
     "types": "./src/index.ts",
     "scripts": {
         "build": "tsc --noEmit",
+        "generate:releases": "node scripts/build-releases.mjs",
+        "check:releases": "node scripts/build-releases.mjs --check",
         "types:check": "tsc --noEmit",
         "lint": "eslint --config ./eslint.config.mjs src/",
-        "check": "pnpm run types:check && pnpm run lint",
+        "check": "pnpm run types:check && pnpm run lint && pnpm run check:releases",
         "test": "pnpm run test:unit",
         "test:unit": "vitest run",
         "test:watch": "vitest",
@@ -35,11 +37,11 @@
         "@tanstack/react-query": "5.100.9",
         "@types/node": "^20.19.20",
         "@types/react": "^19.0.10",
-        "@vitest/coverage-v8": "^4.1.4",
+        "@vitest/coverage-v8": "^4.1.11",
         "jotai": "^2.15.0",
         "jotai-family": "^1.0.1",
         "react": "^19.0.0",
         "typescript": "^5.9.3",
-        "vitest": "^4.1.4"
+        "vitest": "^4.1.11"
     }
 }

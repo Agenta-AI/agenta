@@ -6,5 +6,5 @@ export interface SessionTurnQuery {
     session_id?: (string | null) | undefined;
     stream_id?: (string | null) | undefined;
     harness_kind?: (AgentaApi.HarnessKind | null) | undefined;
-    references?: (AgentaApi.Reference[] | null) | undefined;
+    references?: (AgentaApi.SessionReference[] | null) | undefined;
 }

@@ -65,6 +65,13 @@ export const registerAgentAutoCommitHandler = (
 
 type Store = ReturnType<typeof getDefaultStore>
 
+/** Check before staging a revert so a busy writer's draft and timer remain untouched. */
+export const isAgentAutoCommitBusy = (revisionId: string): boolean => {
+    if (inFlight.has(revisionId)) return true
+    const selfCommit = getDefaultStore().get(agentSelfCommitSignalAtom)
+    return !!selfCommit && Date.now() - selfCommit.at < SELF_COMMIT_QUIET_MS
+}
+
 /**
  * `skip` not ours · `clean` nothing to save · `busy` transient, try again shortly.
  *
@@ -81,10 +88,7 @@ const flushBlocker = (store: Store, revisionId: string): "skip" | "clean" | "bus
     if (isLocalDraftId(revisionId)) return "skip"
     if (!store.get(workflowMolecule.selectors.isDirty(revisionId))) return "clean"
 
-    if (inFlight.has(revisionId)) return "busy"
-
-    const selfCommit = store.get(agentSelfCommitSignalAtom)
-    if (selfCommit && Date.now() - selfCommit.at < SELF_COMMIT_QUIET_MS) return "busy"
+    if (isAgentAutoCommitBusy(revisionId)) return "busy"
 
     return null
 }
@@ -114,14 +118,22 @@ const clearTimer = (store: Store, revisionId: string) => {
     setScheduled(store, revisionId, false)
 }
 
-const schedule = (store: Store, revisionId: string, delay: number, isRetry: boolean) => {
+const schedule = (
+    store: Store,
+    revisionId: string,
+    delay: number,
+    isRetry: boolean,
+    messageOverride?: string,
+) => {
     clearTimer(store, revisionId)
     timers.set(
         revisionId,
         setTimeout(() => {
             timers.delete(revisionId)
             setScheduled(store, revisionId, false)
-            void runFlush(store, revisionId, isRetry)
+            // The override rides the timer: a deferred revert must still commit under its own
+            // message, not the generated summary.
+            void runFlush(store, revisionId, isRetry, messageOverride)
         }, delay),
     )
     setScheduled(store, revisionId, true)
@@ -156,24 +168,30 @@ const forgetRevision = (store: Store, revisionId: string) => {
     agentAutoCommitScheduledAtomFamily.remove(revisionId)
 }
 
-const runFlush = async (store: Store, revisionId: string, isRetry: boolean) => {
+const runFlush = async (
+    store: Store,
+    revisionId: string,
+    isRetry: boolean,
+    messageOverride?: string,
+): Promise<boolean> => {
     const blocker = flushBlocker(store, revisionId)
 
     if (blocker === "skip" || blocker === "clean") {
         settleIdle(store, revisionId, blocker)
-        return
+        return false
     }
 
     if (blocker === "busy") {
-        schedule(store, revisionId, DEBOUNCE_MS, isRetry)
-        return
+        // Reverts roll their draft back on false; never leave a timer holding their message.
+        if (messageOverride === undefined) schedule(store, revisionId, DEBOUNCE_MS, isRetry)
+        return false
     }
 
     inFlight.add(revisionId)
     store.set(agentAutoCommitStatusAtomFamily(revisionId), "saving")
 
     try {
-        const commitMessage = buildMessage(store, revisionId)
+        const commitMessage = messageOverride ?? buildMessage(store, revisionId)
         const result = await store.set(commitWorkflowRevisionAtom, {revisionId, commitMessage})
 
         if (result.success) {
@@ -189,14 +207,14 @@ const runFlush = async (store: Store, revisionId: string, isRetry: boolean) => {
                 // finish first. Safe: it is superseded.
                 setTimeout(() => forgetRevision(store, revisionId), 0)
             }
-            return
+            return true
         }
 
         if (!isRetry) {
             // Still working, so the header keeps saying so rather than flashing a failure the
             // retry is about to clear.
-            schedule(store, revisionId, RETRY_MS, true)
-            return
+            schedule(store, revisionId, RETRY_MS, true, messageOverride)
+            return false
         }
 
         store.set(agentAutoCommitStatusAtomFamily(revisionId), "error")
@@ -204,6 +222,7 @@ const runFlush = async (store: Store, revisionId: string, isRetry: boolean) => {
             agentAutoCommitErrorAtomFamily(revisionId),
             result.error?.message ?? "Couldn't save changes",
         )
+        return false
     } finally {
         inFlight.delete(revisionId)
     }
@@ -228,13 +247,20 @@ const scheduleAgentAutoCommit = (revisionId: string) => {
 /**
  * Save now, skipping the debounce. The header's failure notice uses it to retry; the timer path
  * needs nothing else.
+ *
+ * `commitMessage` overrides the generated summary — a revert names what it did. Returns whether
+ * the commit landed, so a caller that shows its own outcome (the version-history drawer) can.
  */
 export const flushAgentAutoCommitAtom = atom(
     null,
-    async (_get, _set, {revisionId}: {revisionId: string}) => {
+    async (
+        _get,
+        _set,
+        {revisionId, commitMessage}: {revisionId: string; commitMessage?: string},
+    ): Promise<boolean> => {
         clearTimer(getDefaultStore(), revisionId)
         // A manual retry is the user's second attempt; don't spend the automatic one on it.
-        await runFlush(getDefaultStore(), revisionId, true)
+        return runFlush(getDefaultStore(), revisionId, true, commitMessage)
     },
 )
 

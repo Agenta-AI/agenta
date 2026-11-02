@@ -1,5 +1,7 @@
 import {chatPanelMaximizedAtom} from "@agenta/chat/state"
-import {AgentIntroCard} from "@agenta/entity-ui/agent"
+import {isLocalDraftId} from "@agenta/entities/shared"
+import {workflowMolecule} from "@agenta/entities/workflow"
+import {AgentIntroCard, useAgentIconChrome} from "@agenta/entity-ui/agent"
 import {Tag} from "@agenta/ui/components/presentational"
 import {Button} from "@agenta/ui/ui"
 import {ArrowRight, Play, Robot} from "@phosphor-icons/react"
@@ -38,14 +40,23 @@ const BUILD_STARTERS = [
 
 /** Read the agent config shape (same layout as ContextTab / buildAgentRequest). */
 
-const Bot = ({size = 44}: {size?: number}) => (
-    <div
-        className="flex shrink-0 items-center justify-center rounded-full bg-colorFillTertiary"
-        style={{width: size, height: size}}
-    >
-        <Robot size={Math.round(size * 0.5)} className="text-colorTextSecondary" />
-    </div>
-)
+const Bot = ({size = 44, workflowId}: {size?: number; workflowId?: string | null}) => {
+    const glyph = Math.round(size * 0.5)
+    const chrome = useAgentIconChrome(workflowId, {
+        size: glyph,
+        fallbackGlyph: <Robot size={glyph} className="text-colorTextSecondary" />,
+        fallbackClassName: "bg-colorFillTertiary",
+    })
+
+    return (
+        <div
+            className={`flex shrink-0 items-center justify-center rounded-full ${chrome.className}`}
+            style={{width: size, height: size, ...chrome.style}}
+        >
+            {chrome.glyph}
+        </div>
+    )
+}
 
 /**
  * The agent chat empty state, adapting to the playground mode:
@@ -86,6 +97,10 @@ const AgentChatEmptyState = ({
     /** Prefill the composer with a quick-start prompt (onboarding "Try" chips). */
     onPrefill?: (text: string) => void
 }) => {
+    const rawWorkflowId = useAtomValue(workflowMolecule.selectors.workflowId(entityId))
+    // A draft agent has no persisted id to key an icon by.
+    const workflowId = rawWorkflowId && !isLocalDraftId(rawWorkflowId) ? rawWorkflowId : null
+
     const buildMode = !useAtomValue(chatPanelMaximizedAtom)
 
     if (onboarding && TEMPLATE_STRIP_MODE) {
@@ -185,7 +200,7 @@ const AgentChatEmptyState = ({
     if (!buildMode) {
         return (
             <div className="m-auto flex max-w-sm flex-col items-center gap-2.5 text-center">
-                <Bot />
+                <Bot workflowId={workflowId} />
                 <span className="text-base font-medium text-colorText">
                     What can I help you with?
                 </span>

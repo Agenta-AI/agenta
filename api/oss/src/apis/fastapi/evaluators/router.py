@@ -98,6 +98,23 @@ from oss.src.resources.workflows.catalog import (
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
+from oss.src.apis.fastapi.sharing.utils import (
+    agent_owner_for_request,
+    agent_read_scope_for_request,
+    allow_agent,
+    artifact_id_of,
+    visible_by_agent,
+)
+from oss.src.core.git.types import VariantForkError, VariantNotFound
+from oss.src.core.shared.exceptions import EntityCreationConflict
+
+
+def _variant_id_of(entity) -> Optional[UUID]:
+    return (
+        getattr(entity, "evaluator_variant_id", None)
+        or getattr(entity, "workflow_variant_id", None)
+        or getattr(entity, "variant_id", None)
+    )
 
 
 log = get_module_logger(__name__)
@@ -440,6 +457,42 @@ class EvaluatorsRouter:
 
     # EVALUATOR CATALOG --------------------------------------------------------
 
+    async def _allow_variant_agent(
+        self,
+        request: Request,
+        *,
+        action: Permission,
+        evaluator_variant_id: UUID,
+        unknown_allowed: bool = True,
+    ) -> bool:
+        """The policy of the agent a variant belongs to, read from the variant. An
+        unknown variant is allowed (the route's own not-found path answers), unless
+        `unknown_allowed` is False: a commit then answers `VariantNotFound` for an
+        unknown and a hidden variant alike."""
+        variant = await self.evaluators_service.fetch_evaluator_variant(
+            project_id=UUID(request.state.project_id),
+            evaluator_variant_ref=Reference(id=evaluator_variant_id),
+        )
+        if variant is None:
+            return unknown_allowed
+        return await allow_agent(
+            request, action=action, artifact_id=artifact_id_of(variant)
+        )
+
+    async def _allow_revision_agent(
+        self, request: Request, *, action: Permission, evaluator_revision_id: UUID
+    ) -> bool:
+        """The policy of the agent a revision belongs to, read from the revision."""
+        revision = await self.evaluators_service.fetch_evaluator_revision(
+            project_id=UUID(request.state.project_id),
+            evaluator_revision_ref=Reference(id=evaluator_revision_id),
+        )
+        if revision is None:
+            return True
+        return await allow_agent(
+            request, action=action, artifact_id=artifact_id_of(revision)
+        )
+
     @intercept_exceptions()
     async def list_evaluator_catalog_types(
         self,
@@ -641,6 +694,10 @@ class EvaluatorsRouter:
             #
             evaluator_ref=Reference(id=evaluator_id),
         )
+        if evaluator and not await allow_agent(
+            request, action=Permission.VIEW_EVALUATORS, artifact_id=evaluator.id
+        ):
+            evaluator = None
 
         return EvaluatorResponse(
             count=1 if evaluator else 0,
@@ -671,6 +728,11 @@ class EvaluatorsRouter:
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if str(evaluator_id) != str(evaluator_edit_request.evaluator.id):
+            return EvaluatorResponse()
+
+        if not await allow_agent(
+            request, action=Permission.EDIT_EVALUATORS, artifact_id=evaluator_id
+        ):
             return EvaluatorResponse()
 
         # TEMPORARY: Disabling name editing
@@ -726,6 +788,10 @@ class EvaluatorsRouter:
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        if not await allow_agent(
+            request, action=Permission.EDIT_EVALUATORS, artifact_id=evaluator_id
+        ):
+            return EvaluatorResponse(count=0, evaluator=None)
         evaluator = await self.evaluators_service.archive_evaluator(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -757,6 +823,10 @@ class EvaluatorsRouter:
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        if not await allow_agent(
+            request, action=Permission.EDIT_EVALUATORS, artifact_id=evaluator_id
+        ):
+            return EvaluatorResponse(count=0, evaluator=None)
         evaluator = await self.evaluators_service.unarchive_evaluator(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -793,6 +863,7 @@ class EvaluatorsRouter:
 
         evaluators = await self.evaluators_service.query_evaluators(
             project_id=UUID(request.state.project_id),
+            read_scope=await agent_read_scope_for_request(request),
             #
             evaluator_query=evaluator_query_request.evaluator,
             #
@@ -832,6 +903,12 @@ class EvaluatorsRouter:
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        artifact_id = artifact_id_of(evaluator_variant_create_request.evaluator_variant)
+        if not await allow_agent(
+            request, action=Permission.EDIT_EVALUATORS, artifact_id=artifact_id
+        ):
+            # What a variant of an unknown evaluator answers.
+            raise EntityCreationConflict(conflict={"artifact_id": str(artifact_id)})
         evaluator_variant = await self.evaluators_service.create_evaluator_variant(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -871,6 +948,12 @@ class EvaluatorsRouter:
             #
             evaluator_variant_ref=Reference(id=evaluator_variant_id),
         )
+        if evaluator_variant and not await allow_agent(
+            request,
+            action=Permission.VIEW_EVALUATORS,
+            artifact_id=artifact_id_of(evaluator_variant),
+        ):
+            evaluator_variant = None
 
         evaluator_variant_response = EvaluatorVariantResponse(
             count=1 if evaluator_variant else 0,
@@ -906,6 +989,12 @@ class EvaluatorsRouter:
         ):
             return EvaluatorVariantResponse()
 
+        if not await self._allow_variant_agent(
+            request,
+            action=Permission.EDIT_EVALUATORS,
+            evaluator_variant_id=evaluator_variant_id,
+        ):
+            return EvaluatorVariantResponse(count=0, evaluator_variant=None)
         evaluator_variant = await self.evaluators_service.edit_evaluator_variant(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -940,6 +1029,12 @@ class EvaluatorsRouter:
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        if not await self._allow_variant_agent(
+            request,
+            action=Permission.EDIT_EVALUATORS,
+            evaluator_variant_id=evaluator_variant_id,
+        ):
+            return EvaluatorVariantResponse(count=0, evaluator_variant=None)
         evaluator_variant = await self.evaluators_service.archive_evaluator_variant(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -969,6 +1064,12 @@ class EvaluatorsRouter:
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        if not await self._allow_variant_agent(
+            request,
+            action=Permission.EDIT_EVALUATORS,
+            evaluator_variant_id=evaluator_variant_id,
+        ):
+            return EvaluatorVariantResponse(count=0, evaluator_variant=None)
         evaluator_variant = await self.evaluators_service.unarchive_evaluator_variant(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -1026,6 +1127,7 @@ class EvaluatorsRouter:
 
         evaluator_variants = await self.evaluators_service.query_evaluator_variants(
             project_id=UUID(request.state.project_id),
+            read_scope=await agent_read_scope_for_request(request),
             #
             evaluator_variant_query=workflow_variant_query_request.evaluator_variant,
             #
@@ -1081,6 +1183,18 @@ class EvaluatorsRouter:
             if not evaluator_variant_ref.id:
                 evaluator_variant_ref = Reference(id=evaluator_variant_id)
 
+        source = await self.evaluators_service.fetch_evaluator_revision(
+            project_id=UUID(request.state.project_id),
+            evaluator_variant_ref=evaluator_variant_ref,
+            evaluator_revision_ref=evaluator_variant_fork_request.evaluator_revision_ref,
+        )
+        if source and not await allow_agent(
+            request,
+            action=Permission.EDIT_EVALUATORS,
+            artifact_id=artifact_id_of(source),
+        ):
+            # What a fork of an unknown source answers.
+            raise VariantForkError("Fork source variant could not be resolved.")
         evaluator_variant = await self.evaluators_service.fork_evaluator_variant(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -1160,6 +1274,12 @@ class EvaluatorsRouter:
             evaluator_variant_ref=evaluator_deploy_request.evaluator_variant_ref,
             evaluator_revision_ref=evaluator_deploy_request.evaluator_revision_ref,
         )
+        if evaluator_revision and not await allow_agent(
+            request,
+            action=Permission.EDIT_EVALUATORS,
+            artifact_id=artifact_id_of(evaluator_revision),
+        ):
+            evaluator_revision = None
 
         if not evaluator_revision:
             raise HTTPException(
@@ -1370,7 +1490,20 @@ class EvaluatorsRouter:
             evaluator_revision_ref=evaluator_revision_ref,
             #
             resolve=evaluator_revision_retrieve_request.resolve or False,
+            #
+            include_archived=(
+                evaluator_revision_retrieve_request.include_archived
+                if evaluator_revision_retrieve_request.include_archived is not None
+                else True
+            ),
         )
+        if evaluator_revision and not await allow_agent(
+            request,
+            action=Permission.VIEW_EVALUATORS,
+            artifact_id=artifact_id_of(evaluator_revision),
+        ):
+            # What a retrieve of an unknown reference answers.
+            evaluator_revision, resolution_info, retrieval_info = None, None, None
 
         if environment_lookup_requested and not evaluator_revision:
             raise HTTPException(
@@ -1416,6 +1549,16 @@ class EvaluatorsRouter:
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        create_variant_id = _variant_id_of(
+            evaluator_revision_create_request.evaluator_revision
+        )
+        if create_variant_id and not await self._allow_variant_agent(
+            request,
+            action=Permission.EDIT_EVALUATORS,
+            evaluator_variant_id=create_variant_id,
+            unknown_allowed=False,
+        ):
+            raise VariantNotFound(variant_id=create_variant_id)
         evaluator_revision = await self.evaluators_service.commit_evaluator_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -1429,6 +1572,8 @@ class EvaluatorsRouter:
             ),
             #
             initial=True,
+            #
+            first_agent_owner_user_id=agent_owner_for_request(request),
         )
 
         return EvaluatorRevisionResponse(
@@ -1463,6 +1608,12 @@ class EvaluatorsRouter:
             #
             evaluator_revision_ref=Reference(id=evaluator_revision_id),
         )
+        if evaluator_revision and not await allow_agent(
+            request,
+            action=Permission.VIEW_EVALUATORS,
+            artifact_id=artifact_id_of(evaluator_revision),
+        ):
+            evaluator_revision = None
 
         response = EvaluatorRevisionResponse(
             count=1 if evaluator_revision else 0,
@@ -1506,6 +1657,12 @@ class EvaluatorsRouter:
         ):
             return EvaluatorRevisionResponse()
 
+        if not await self._allow_revision_agent(
+            request,
+            action=Permission.EDIT_EVALUATORS,
+            evaluator_revision_id=evaluator_revision_id,
+        ):
+            return EvaluatorRevisionResponse(count=0, evaluator_revision=None)
         evaluator_revision = await self.evaluators_service.edit_evaluator_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -1537,6 +1694,12 @@ class EvaluatorsRouter:
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        if not await self._allow_revision_agent(
+            request,
+            action=Permission.EDIT_EVALUATORS,
+            evaluator_revision_id=evaluator_revision_id,
+        ):
+            return EvaluatorRevisionResponse(count=0, evaluator_revision=None)
         evaluator_revision = await self.evaluators_service.archive_evaluator_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -1564,6 +1727,12 @@ class EvaluatorsRouter:
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        if not await self._allow_revision_agent(
+            request,
+            action=Permission.EDIT_EVALUATORS,
+            evaluator_revision_id=evaluator_revision_id,
+        ):
+            return EvaluatorRevisionResponse(count=0, evaluator_revision=None)
         evaluator_revision = await self.evaluators_service.unarchive_evaluator_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -1599,6 +1768,7 @@ class EvaluatorsRouter:
 
         evaluator_revisions = await self.evaluators_service.query_evaluator_revisions(
             project_id=UUID(request.state.project_id),
+            read_scope=await agent_read_scope_for_request(request),
             #
             evaluator_revision_query=evaluator_revision_query_request.evaluator_revision,
             #
@@ -1607,6 +1777,8 @@ class EvaluatorsRouter:
             evaluator_revision_refs=evaluator_revision_query_request.evaluator_revision_refs,
             #
             include_archived=evaluator_revision_query_request.include_archived,
+            #
+            grouping=evaluator_revision_query_request.grouping,
             #
             windowing=evaluator_revision_query_request.windowing,
         )
@@ -1646,11 +1818,24 @@ class EvaluatorsRouter:
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        commit_variant_id = _variant_id_of(
+            evaluator_revision_commit_request.evaluator_revision
+        )
+        # The agent comes from the variant, never from the body's own evaluator id.
+        if commit_variant_id and not await self._allow_variant_agent(
+            request,
+            action=Permission.EDIT_EVALUATORS,
+            evaluator_variant_id=commit_variant_id,
+            unknown_allowed=False,
+        ):
+            raise VariantNotFound(variant_id=commit_variant_id)
         evaluator_revision = await self.evaluators_service.commit_evaluator_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
             evaluator_revision_commit=evaluator_revision_commit_request.evaluator_revision,
+            #
+            first_agent_owner_user_id=agent_owner_for_request(request),
         )
 
         response = EvaluatorRevisionResponse(
@@ -1686,6 +1871,9 @@ class EvaluatorsRouter:
             project_id=UUID(request.state.project_id),
             #
             evaluator_revisions_log=evaluator_revisions_log_request.evaluator_revisions,
+        )
+        evaluator_revisions = await visible_by_agent(
+            request, evaluator_revisions, action=Permission.VIEW_EVALUATORS
         )
 
         revisions_response = EvaluatorRevisionsResponse(
@@ -1740,6 +1928,12 @@ class EvaluatorsRouter:
             if evaluator_revision_resolve_request.error_policy
             else "exception",
         )
+        if result and not await allow_agent(
+            request,
+            action=Permission.VIEW_EVALUATORS,
+            artifact_id=artifact_id_of(result[0]),
+        ):
+            return EvaluatorRevisionResolveResponse()
 
         if not result:
             return EvaluatorRevisionResolveResponse()
@@ -1879,6 +2073,8 @@ class SimpleEvaluatorsRouter:
             evaluator_id=evaluator_id,
             #
             simple_evaluator_create=simple_evaluator_create_request.evaluator,
+            #
+            first_agent_owner_user_id=agent_owner_for_request(request),
         )
 
         simple_evaluator_response = SimpleEvaluatorResponse(
@@ -1913,6 +2109,10 @@ class SimpleEvaluatorsRouter:
             #
             evaluator_id=evaluator_id,
         )
+        if simple_evaluator and not await allow_agent(
+            request, action=Permission.VIEW_EVALUATORS, artifact_id=evaluator_id
+        ):
+            simple_evaluator = None
 
         simple_evaluator_response = SimpleEvaluatorResponse(
             count=1 if simple_evaluator else 0,
@@ -1946,6 +2146,11 @@ class SimpleEvaluatorsRouter:
         if str(evaluator_id) != str(simple_evaluator_edit_request.evaluator.id):
             return SimpleEvaluatorResponse()
 
+        if not await allow_agent(
+            request, action=Permission.EDIT_EVALUATORS, artifact_id=evaluator_id
+        ):
+            return SimpleEvaluatorResponse()
+
         # TEMPORARY: Disabling name editing
         existing_simple_evaluator = await self.simple_evaluators_service.fetch(
             project_id=UUID(request.state.project_id),
@@ -1972,6 +2177,8 @@ class SimpleEvaluatorsRouter:
             user_id=UUID(request.state.user_id),
             #
             simple_evaluator_edit=simple_evaluator_edit_request.evaluator,
+            #
+            first_agent_owner_user_id=agent_owner_for_request(request),
         )
 
         simple_evaluator_response = SimpleEvaluatorResponse(
@@ -2000,6 +2207,10 @@ class SimpleEvaluatorsRouter:
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        if not await allow_agent(
+            request, action=Permission.EDIT_EVALUATORS, artifact_id=evaluator_id
+        ):
+            return SimpleEvaluatorResponse(count=0, evaluator=None)
         simple_evaluator = await self.simple_evaluators_service.archive(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -2029,6 +2240,10 @@ class SimpleEvaluatorsRouter:
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        if not await allow_agent(
+            request, action=Permission.EDIT_EVALUATORS, artifact_id=evaluator_id
+        ):
+            return SimpleEvaluatorResponse(count=0, evaluator=None)
         simple_evaluator = await self.simple_evaluators_service.unarchive(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -2093,6 +2308,7 @@ class SimpleEvaluatorsRouter:
 
         simple_evaluators = await self.simple_evaluators_service.query(
             project_id=UUID(request.state.project_id),
+            read_scope=await agent_read_scope_for_request(request),
             #
             simple_evaluator_query=simple_evaluator_query_request.evaluator,
             simple_evaluator_refs=simple_evaluator_query_request.evaluator_refs,

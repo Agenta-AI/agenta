@@ -6,60 +6,46 @@ Adapters define how to navigate and select entities within specific hierarchies.
 
 An adapter is the bridge between:
 
-- **Data Layer**: Jotai atoms from entity molecules (e.g., `appRevision.selectors.apps`)
+- **Data Layer**: Jotai atoms from entity molecules and relations
 - **Selection UI**: The `EntityPicker` component with its variants (`cascading`, `breadcrumb`, `list-popover`)
 
 ## Pre-built Adapters
 
-### appRevisionAdapter
+### workflowRevisionAdapter
 
-Navigates the App → Variant → Revision hierarchy.
+Navigates the Workflow → Variant → Revision hierarchy.
 
 ```typescript
-import { EntityPicker, type AppRevisionSelectionResult } from '@agenta/entity-ui'
+import { EntityPicker, type WorkflowRevisionSelectionResult } from '@agenta/entity-ui'
 
-// Cascading dropdowns
-<EntityPicker<AppRevisionSelectionResult>
+<EntityPicker<WorkflowRevisionSelectionResult>
   variant="cascading"
-  adapter="appRevision"
+  adapter="workflowRevision"
   onSelect={(selection) => {
-    // selection.metadata.appId
-    // selection.metadata.appName
+    // selection.metadata.workflowId
+    // selection.metadata.workflowName
     // selection.metadata.variantId
     // selection.metadata.variantName
     // selection.metadata.revision
   }}
 />
-
-// Or breadcrumb navigation
-<EntityPicker<AppRevisionSelectionResult>
-  variant="breadcrumb"
-  adapter="appRevision"
-  onSelect={handleSelect}
-  showSearch
-  showBreadcrumb
-/>
 ```
 
-### evaluatorRevisionAdapter
+### evaluatorAdapter
 
-Navigates the Evaluator → Variant → Revision hierarchy.
+A flat evaluator list (1 level).
 
 ```typescript
-import { EntityPicker, type EvaluatorRevisionSelectionResult } from '@agenta/entity-ui'
+import { EntityPicker, type EvaluatorSelectionResult } from '@agenta/entity-ui'
 
-<EntityPicker<EvaluatorRevisionSelectionResult>
+<EntityPicker<EvaluatorSelectionResult>
   variant="breadcrumb"
-  adapter="evaluatorRevision"
+  adapter="evaluator"
   onSelect={(selection) => {
     // selection.metadata.evaluatorId
     // selection.metadata.evaluatorName
-    // selection.metadata.variantId
-    // selection.metadata.variantName
   }}
   showSearch
-  showBreadcrumb
-  rootLabel="All Evaluators"
 />
 ```
 
@@ -88,34 +74,14 @@ import { EntityPicker, type TestsetSelectionResult } from '@agenta/entity-ui'
 
 ## Initializing Adapters
 
-Adapters must be initialized with actual atoms during app startup. This is done via setter functions:
+The workflowRevision and testset adapters are derived from entity relations and need no runtime
+configuration. The evaluator adapter takes its list atom via `initializeSelectionSystem`:
 
 ```typescript
-// In Providers.tsx or app initialization
-import {setAppRevisionAtoms, setEvaluatorRevisionAtoms, setTestsetAtoms} from "@agenta/entity-ui"
-import {appRevisionMolecule} from "@agenta/entities/appRevision"
-import {evaluatorRevisionMolecule} from "@agenta/entities/evaluatorRevision"
-import {testsetMolecule, revisionMolecule} from "@agenta/entities/testset"
+import {initializeSelectionSystem} from "@agenta/entity-ui"
 
-// Configure app revision adapter
-setAppRevisionAtoms({
-    appsAtom: appRevisionMolecule.selectors.apps,
-    variantsByAppFamily: (appId) => appRevisionMolecule.selectors.variantsByApp(appId),
-    revisionsByVariantFamily: (variantId) => appRevisionMolecule.selectors.revisions(variantId),
-})
-
-// Configure evaluator revision adapter
-setEvaluatorRevisionAtoms({
-    evaluatorsAtom: evaluatorRevisionMolecule.selectors.evaluators,
-    variantsAtomFamily: (evaluatorId) =>
-        evaluatorRevisionMolecule.selectors.variantsByEvaluator(evaluatorId),
-    revisionsAtomFamily: (variantId) => evaluatorRevisionMolecule.selectors.revisions(variantId),
-})
-
-// Configure testset adapter
-setTestsetAtoms({
-    testsetsListAtom: testsetMolecule.atoms.list(null),
-    revisionsListFamily: (testsetId) => revisionMolecule.atoms.list(testsetId),
+initializeSelectionSystem({
+    evaluator: {evaluatorsAtom: nonArchivedEvaluatorsAtom},
 })
 ```
 
@@ -124,7 +90,7 @@ setTestsetAtoms({
 Use `createAdapter` to define new entity hierarchies:
 
 ```typescript
-import {createAdapter, type SelectionPathItem} from "@agenta/entity-ui"
+import {createAdapter, type SelectionPathItem} from "@agenta/entity-ui/selection"
 
 interface MySelectionResult {
     type: "myEntity"
@@ -211,7 +177,8 @@ Each level in the hierarchy supports:
 ## Files
 
 - `createAdapter.ts` - Factory function and registry
+- `createAdapterFromRelations.ts` - Relation-based factories (`createTwoLevelAdapter`, `createThreeLevelAdapter`)
 - `types.ts` - Adapter interface types
-- `appRevisionAdapter.ts` - App → Variant → Revision
-- `evaluatorRevisionAdapter.ts` - Evaluator → Variant → Revision
-- `testsetAdapter.ts` - Testset → Revision
+- `workflowRevisionRelationAdapter.ts` - Workflow → Variant → Revision
+- `evaluatorAdapter.ts` - Evaluator (flat list)
+- `testsetRelationAdapter.ts` - Testset → Revision

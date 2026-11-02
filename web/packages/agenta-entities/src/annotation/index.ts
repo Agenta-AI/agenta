@@ -37,22 +37,14 @@ export {annotationMolecule, type AnnotationMolecule} from "./state/molecule"
 export {
     // Enums
     annotationChannelSchema,
-    type AnnotationChannel,
     annotationKindSchema,
-    type AnnotationKind,
     annotationOriginSchema,
-    type AnnotationOrigin,
     // Sub-schemas
     annotationLinkSchema,
-    type AnnotationLink,
     annotationReferenceSchema,
-    type AnnotationReference,
     annotationReferencesSchema,
-    type AnnotationReferences,
     annotationMetaSchema,
-    type AnnotationMeta,
     annotationDataSchema,
-    type AnnotationData,
     // Entity
     annotationSchema,
     type Annotation,

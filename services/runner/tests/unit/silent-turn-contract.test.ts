@@ -94,6 +94,79 @@ describe("a turn whose model call failed", () => {
     assert.equal(store.get(SESSION_ID, "pi_core"), undefined);
   });
 
+  it("reports a terminal failure after partial text and tool work", async () => {
+    const cwd = localRunCwd();
+    const { result, events, store } = await runSilentTurn(
+      { harness: "pi_core" },
+      {
+        cwd,
+        localTranscript: piTranscriptWithError(cwd, "WebSocket error"),
+        promptEvents: [
+          textChunk("I updated the file."),
+          toolCallChunk("tool-1"),
+        ],
+      },
+    );
+    assert.equal(result.ok, false);
+    assert.match(result.error ?? "", /lost its connection while working/);
+    assert.ok(
+      events.some(
+        (e) => e.type === "message_delta" && e.delta === "I updated the file.",
+      ),
+      "partial work stays in history",
+    );
+    assert.ok(types(events).includes("tool_call"));
+    assert.ok(
+      types(events).indexOf("error") < types(events).lastIndexOf("done"),
+    );
+    assert.equal(store.get(SESSION_ID, "pi_core"), undefined);
+    assert.equal(events.at(-1)?.type, "done");
+    assert.equal((events.at(-1) as any).stopReason, "error");
+  });
+
+  it("does not resurrect a recovered error after successful partial work", async () => {
+    const cwd = localRunCwd();
+    const transcript =
+      piTranscriptWithError(cwd, "WebSocket error") +
+      "\n" +
+      JSON.stringify({
+        type: "message",
+        message: {
+          role: "assistant",
+          stopReason: "stop",
+          content: [{ type: "text", text: "Finished." }],
+        },
+      });
+    const { result, events } = await runSilentTurn(
+      { harness: "pi_core" },
+      {
+        cwd,
+        localTranscript: transcript,
+        promptEvents: [toolCallChunk("tool-1"), textChunk("Finished.")],
+      },
+    );
+    assert.equal(result.ok, true);
+    assert.ok(!types(events).includes("error"));
+  });
+
+  it("records an error ending when the adapter rejects after partial work", async () => {
+    const { result, events } = await runSilentTurn(
+      { harness: "pi_core" },
+      {
+        promptEvents: [textChunk("Partial work."), toolCallChunk("tool-1")],
+        promptError: new Error("WebSocket error"),
+      },
+    );
+    assert.equal(result.ok, false);
+    assert.match(result.error ?? "", /lost its connection while working/);
+    assert.ok(types(events).includes("message_delta"));
+    assert.ok(types(events).includes("tool_call"));
+    assert.ok(
+      types(events).indexOf("error") < types(events).lastIndexOf("done"),
+    );
+    assert.equal((events.at(-1) as any).stopReason, "error");
+  });
+
   it("returns no output and no messages when the harness itself throws", async () => {
     const { result } = await runSilentTurn(
       { harness: "pi_core" },
@@ -172,8 +245,7 @@ describe("paths where an empty turn is still silent", () => {
   });
 
   it("puts a tool call in the stream", async () => {
-    // The swallowed-error probe is skipped whenever a turn emitted a tool call, so several
-    // behaviors here hinge on the fixture really putting one in the stream.
+    // Verify the fixture really produces a tool call in the persisted stream.
     const { events } = await runSilentTurn(
       { harness: "pi_core" },
       { promptEvents: [toolCallChunk("tool-1")] },

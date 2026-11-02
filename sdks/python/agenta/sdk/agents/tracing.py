@@ -17,6 +17,7 @@ from opentelemetry import trace as otel_trace
 
 from agenta.sdk.contexts.tracing import TracingContext
 from agenta.sdk.engines.tracing.propagation import inject
+from agenta.sdk.engines.tracing.server import current_product_span
 from agenta.sdk.utils.logging import get_module_logger
 
 from agenta.sdk.agents.dtos import (
@@ -172,7 +173,7 @@ def _run_context_trace() -> Optional[RunContextTrace]:
 
     These are the ids a self-targeting tool binds (``$ctx.trace.trace_id`` for "annotate my
     trace"). Best-effort: a missing/invalid span context returns ``None``."""
-    span_context = otel_trace.get_current_span().get_span_context()
+    span_context = current_product_span().get_span_context()
     if not span_context or not span_context.is_valid:
         return None
     return RunContextTrace(
@@ -217,11 +218,15 @@ def record_usage(usage: Optional[Dict[str, Any]]) -> None:
     Agenta's per-batch cumulative roll-up cannot bridge the totals onto the workflow span.
     Setting ``gen_ai.usage.*`` here records them directly on that span (the root of its
     batch), so the trace shows the run's tokens and cost. Best-effort.
+
+    ``ag.flags.aggregate_usage`` tells the roll-up that these totals cover the harness spans
+    below, so it does not add them to the children's usage.
     """
     if not usage:
         return
     try:
-        span = otel_trace.get_current_span()
+        span = current_product_span()
+        span.set_attribute("ag.flags.aggregate_usage", True)
         input_tokens = usage.get("input")
         output_tokens = usage.get("output")
         total_tokens = usage.get("total")
@@ -247,3 +252,20 @@ def record_usage(usage: Optional[Dict[str, Any]]) -> None:
             span.set_attribute("gen_ai.usage.cost", float(cost))
     except Exception:  # pylint: disable=broad-except
         log.warning("agent: failed to record usage on workflow span", exc_info=True)
+
+
+def record_sandbox(sandbox: Optional[str]) -> None:
+    """Stamp the sandbox provider the run executed on onto the active workflow span.
+
+    The runner routes by harness (Pi chosen on ``daytona`` runs ``inprocess``), so the saved
+    ``sandbox.kind`` in the span's parameters can differ from the provider that ran. The runner
+    reports the provider that ran in its result; ``ag.meta.agent.sandbox`` shows it. Best-effort.
+    """
+    if not sandbox:
+        return
+    try:
+        current_product_span().set_attribute("ag.meta.agent.sandbox", sandbox)
+    except Exception:  # pylint: disable=broad-except
+        log.warning(
+            "agent: failed to record the sandbox on workflow span", exc_info=True
+        )

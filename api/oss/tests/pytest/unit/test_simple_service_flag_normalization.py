@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from oss.src.core.sharing.dtos import AgentReadScope
 from oss.src.core.applications.dtos import (
     Application,
     ApplicationArtifactFlags,
@@ -193,8 +194,10 @@ async def test_simple_workflow_query_passes_workflow_refs():
 
     workflow_ref = Reference(slug="target-workflow")
 
+    read_scope = AgentReadScope(owner_user_id=uuid4())
     simple_workflows = await service.query(
         project_id=uuid4(),
+        read_scope=read_scope,
         workflow_refs=[workflow_ref],
     )
 
@@ -202,3 +205,6 @@ async def test_simple_workflow_query_passes_workflow_refs():
     assert workflows_service.query_workflows.await_args.kwargs["workflow_refs"] == [
         workflow_ref
     ]
+    assert workflows_service.query_workflows.await_args.kwargs["read_scope"] == (
+        read_scope
+    )

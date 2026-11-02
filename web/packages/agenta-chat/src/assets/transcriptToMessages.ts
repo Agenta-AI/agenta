@@ -16,7 +16,9 @@ import type {
 } from "@agenta/entities/session"
 import {getAgentaApiUrl} from "@agenta/shared/api"
 import {CLIENT_TOOL_INTERACTION_ENDED_OUTPUT} from "@agenta/shared/clientTools"
+import {projectIdAtom} from "@agenta/shared/state"
 import type {UIMessage} from "ai"
+import {getDefaultStore} from "jotai"
 
 /**
  * Replay adapter — durable session-record `AgentEvent`s → v6 `UIMessage[]`.
@@ -36,8 +38,14 @@ import type {UIMessage} from "ai"
 type Part = Record<string, unknown>
 
 /** Content URL for one durable attachment. Mirrors the OSS original's `attachmentMedia.ts`. */
-export function attachmentContentUrl(sessionId: string, attachmentId: string): string {
+export function attachmentContentUrl(
+    sessionId: string,
+    attachmentId: string,
+    projectId: string | null = getDefaultStore().get(projectIdAtom),
+): string {
     const params = new URLSearchParams({session_id: sessionId})
+    // Replay supplies the record's project so navigation cannot change the content scope.
+    if (projectId) params.set("project_id", projectId)
     return `${getAgentaApiUrl()}/sessions/attachments/${encodeURIComponent(attachmentId)}/content?${params.toString()}`
 }
 
@@ -50,7 +58,25 @@ export const APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX = APPROVED_EXECUTION_RESUL
     APPROVED_EXECUTION_RESULT_UNKNOWN.indexOf(":"),
 )
 
+/**
+ * The fields a `mcp_server_failed` record contributes to its replayed part.
+ *
+ * Deliberately the same allow-list the live egress applies (`_mcp_server_failed_part`,
+ * sdks/python/agenta/sdk/agents/adapters/vercel/stream.py), so a replayed turn and a streamed
+ * one hand `readMcpServerNotice` the identical payload. A field added on one side and not the
+ * other is silent, which is how `detail` — and with it the reconnect endpoint — was lost the
+ * first time (OR85).
+ */
+const MCP_SERVER_FAILED_FIELDS = [
+    "serverName",
+    "reasonCode",
+    "status",
+    "message",
+    "detail",
+] as const
+
 interface DraftMessage {
+    displayContent?: string | null
     id: string
     role: "user" | "assistant"
     parts: Part[]
@@ -66,16 +92,83 @@ interface DraftMessage {
     paused?: boolean
     /** The turn paused for approval and then RESUMED to completion (a second, non-paused `done`). */
     resumed?: boolean
+    /** A non-paused durable `done` closed this turn. */
+    recordTerminal?: boolean
+    /** The durable approval resumed under a separate execution; queue release follows this one. */
+    approvalContinuation?: {
+        sourceExecutionId: string
+        executionId: string
+        state: "running" | "done" | "error"
+        approvalIds: string[]
+    }
+    /** Execution id of the paused approval turn, kept internal while replay associates its resume. */
+    pausedExecutionId?: string
+    /** The record's `turn_id`. Emitted on USER rows only, so a client can recognise its own send. */
+    executionId?: string
+    /** When the server saved a user row: the run it opens started then, before any agent output. */
+    createdAt?: number
     /** The turn's persisted `error` event — replayed through the same `metadata.runError` channel
      *  the live stream stamps, so a failure renders as the error bubble, not as body text. */
     runError?: string
     /** That error's stable failure class (`error.code`), so a reload keeps the callout's action. */
     runErrorCode?: string
+    /** The terminal `done` carried `stopReason:"cancelled"` — a user Stop, not a failure. */
+    runStopped?: boolean
 }
 
 interface TranscriptIndex {
     tools: Map<string, Part>
     approvals: Map<string, Part>
+    /**
+     * `tool_result` payloads whose `tool_call` has not been seen yet, by tool call id. Two record
+     * writers can commit concurrently, so the durable log can store a result before its call. The
+     * result waits here and settles the part when the call arrives.
+     */
+    pendingResults: Map<string, Record<string, unknown>>
+    /** Tool calls a parked client tool or elicitation owns; their row state settles them. */
+    interactive: Set<string>
+}
+
+const newTranscriptIndex = (): TranscriptIndex => ({
+    tools: new Map(),
+    approvals: new Map(),
+    pendingResults: new Map(),
+    interactive: new Set(),
+})
+
+/** Settle a tool part from its `tool_result` payload. */
+function applyToolResult(part: Part, payload: Record<string, unknown>): void {
+    if (payload.denied) {
+        part.state = "output-denied"
+    } else if (payload.isError) {
+        part.state = "output-error"
+        part.errorText =
+            typeof payload.output === "string"
+                ? payload.output
+                : payload.output == null
+                  ? ""
+                  : String(payload.output)
+    } else {
+        part.state = "output-available"
+        part.output = payload.data !== undefined ? payload.data : payload.output
+    }
+}
+
+const OPEN_TOOL_STATES = new Set(["input-available", "input-streaming"])
+
+/**
+ * Close the tool parts a finished turn left open. A turn that ended (done or cancelled) runs no
+ * more tools, so a part still waiting for input there lost its result and would show as running
+ * forever. Parked client tools and elicitations are left alone: their interaction rows own them.
+ */
+function settleOpenToolParts(draft: DraftMessage, index: TranscriptIndex): void {
+    for (const part of draft.parts) {
+        const toolCallId = part.toolCallId
+        if (typeof toolCallId !== "string" || !toolCallId) continue
+        if (!OPEN_TOOL_STATES.has(part.state as string)) continue
+        if (index.interactive.has(toolCallId)) continue
+        part.state = "output-available"
+    }
 }
 
 const roleOf = (sender?: string | null): "user" | "assistant" =>
@@ -120,6 +213,14 @@ const newDraft = (id: string, role: "user" | "assistant"): DraftMessage => ({
     text: new Map(),
     reasoning: new Map(),
 })
+
+const pendingApprovalIds = (draft: DraftMessage): string[] =>
+    draft.parts.flatMap((part) => {
+        const approval = part.approval as {id?: unknown} | undefined
+        return part.state === "approval-requested" && typeof approval?.id === "string"
+            ? [approval.id]
+            : []
+    })
 
 const toolPartType = (name?: string | null): string => (name ? `tool-${name}` : "dynamic-tool")
 
@@ -194,8 +295,8 @@ const isRunnerSentinelError = (part: Part): boolean => {
     )
 }
 
-function settleClientToolPart(part: Part, row: SessionInteractionRowState): void {
-    if (part.state !== "input-available") return
+function settleClientToolPart(part: Part, row: SessionInteractionRowState): boolean {
+    if (part.state !== "input-available") return false
 
     if (row.resolution) {
         if (row.resolution.outcome === "error") {
@@ -211,13 +312,15 @@ function settleClientToolPart(part: Part, row: SessionInteractionRowState): void
                     ? output
                     : {...CLIENT_TOOL_INTERACTION_ENDED_OUTPUT}
         }
-        return
+        return true
     }
 
     if (row.status === "cancelled" || row.status === "responded" || row.status === "resolved") {
         part.state = "output-available"
         part.output = {...CLIENT_TOOL_INTERACTION_ENDED_OUTPUT}
+        return true
     }
+    return false
 }
 
 /**
@@ -228,27 +331,32 @@ function settleClientToolPart(part: Part, row: SessionInteractionRowState): void
  * a dead gate left `approval-requested` holds the message queue forever once the scans that read
  * it cover the whole transcript.
  */
-function settleApprovalPart(part: Part, row: SessionInteractionRowState): void {
-    if (part.state !== "approval-requested") return
+function settleApprovalPart(part: Part, row: SessionInteractionRowState): boolean {
+    if (part.state !== "approval-requested") return false
 
     const verdict = row.resolution?.verdict
     if (verdict === "approved" || verdict === "denied") {
         part.state = "approval-responded"
         part.approval = {id: row.token, approved: verdict === "approved"}
-        return
+        return true
     }
     if (row.status === "cancelled") {
         part.state = "output-denied"
-        return
+        return true
     }
-    if (row.status === "responded" || row.status === "resolved") part.state = "approval-responded"
+    if (row.status === "responded" || row.status === "resolved") {
+        part.state = "approval-responded"
+        return true
+    }
+    return false
 }
 
 function applyInteractionRowStates(
     index: TranscriptIndex,
     interactionRowStates: SessionInteractionRowStates | undefined,
-): void {
-    if (!interactionRowStates || interactionRowStates.size === 0) return
+): boolean {
+    if (!interactionRowStates || interactionRowStates.size === 0) return false
+    let changed = false
     for (const row of interactionRowStates.values()) {
         // Token equality supports rows written before the runner stamped the tool-call id; an
         // approval gate is also indexed under its interaction id, which IS the row token.
@@ -256,10 +364,38 @@ function applyInteractionRowStates(
         const part = index.tools.get(toolCallId) ?? index.approvals.get(row.token)
         if (!part) continue
 
-        if (row.kind === "user_approval") settleApprovalPart(part, row)
+        if (row.kind === "user_approval") changed = settleApprovalPart(part, row) || changed
         else if (row.kind === "client_tool" || row.kind === "user_input")
-            settleClientToolPart(part, row)
+            changed = settleClientToolPart(part, row) || changed
     }
+    return changed
+}
+
+/** Apply row lifecycle changes to an already-rendered transcript without waiting for a record. */
+export function reconcileInteractionRowStates(
+    messages: UIMessage[],
+    interactionRowStates: SessionInteractionRowStates | undefined,
+): UIMessage[] {
+    if (!interactionRowStates || interactionRowStates.size === 0) return messages
+
+    const cloned = messages.map((message) => ({
+        ...message,
+        parts: message.parts.map((part) => ({...part})) as UIMessage["parts"],
+    }))
+    const index = newTranscriptIndex()
+    for (const message of cloned) {
+        for (const rawPart of message.parts) {
+            const part = rawPart as Part
+            const toolCallId = part.toolCallId
+            if (typeof toolCallId === "string" && toolCallId) index.tools.set(toolCallId, part)
+            const approval = part.approval as {id?: unknown} | undefined
+            if (typeof approval?.id === "string" && approval.id) {
+                index.approvals.set(approval.id, part)
+            }
+        }
+    }
+
+    return applyInteractionRowStates(index, interactionRowStates) ? cloned : messages
 }
 
 /**
@@ -281,6 +417,7 @@ function replayClientTool(
         reqPayload.toolCallId ?? toolCall.id ?? toolCall.toolCallId ?? payload.id,
     )
     if (!toolCallId) return
+    index.interactive.add(toolCallId)
     const toolName = str(reqPayload.toolName ?? toolCall.name ?? toolCall.title)
     const input = unwrapToolArguments(reqPayload.input ?? toolCall.rawInput ?? toolCall.input)
     let part = index.tools.get(toolCallId)
@@ -313,12 +450,16 @@ function applyEvent(
     payload: Record<string, unknown>,
     index: TranscriptIndex,
     sessionId: string,
+    projectId: string,
 ): void {
     const type = payload.type as string | undefined
     const str = (v: unknown): string => (typeof v === "string" ? v : v == null ? "" : String(v))
 
     switch (type) {
         case "message": {
+            if (payload.display_content === null || typeof payload.display_content === "string") {
+                draft.displayContent = payload.display_content
+            }
             draft.parts.push({type: "text", text: str(payload.text)})
             const attachments = Array.isArray(payload.attachments) ? payload.attachments : []
             for (const raw of attachments) {
@@ -328,7 +469,7 @@ function applyEvent(
                 if (!attachmentId) continue
                 draft.parts.push({
                     type: "file",
-                    url: attachmentContentUrl(sessionId, attachmentId),
+                    url: attachmentContentUrl(sessionId, attachmentId, projectId),
                     mediaType: str(attachment.mediaType) || "application/octet-stream",
                     filename: str(attachment.filename) || undefined,
                     providerMetadata: {
@@ -385,20 +526,23 @@ function applyEvent(
             }
             draft.parts.push(part)
             index.tools.set(toolCallId, part)
+            // Its result was stored first: settle the part with it now.
+            const earlyResult = index.pendingResults.get(toolCallId)
+            if (earlyResult) {
+                index.pendingResults.delete(toolCallId)
+                applyToolResult(part, earlyResult)
+            }
             return
         }
         case "tool_result": {
-            const part = index.tools.get(str(payload.id))
-            if (!part) return
-            if (payload.denied) {
-                part.state = "output-denied"
-            } else if (payload.isError) {
-                part.state = "output-error"
-                part.errorText = str(payload.output)
-            } else {
-                part.state = "output-available"
-                part.output = payload.data !== undefined ? payload.data : payload.output
+            const toolCallId = str(payload.id)
+            const part = index.tools.get(toolCallId)
+            if (!part) {
+                // The log stored this result before its call. Keep it for the call.
+                if (toolCallId) index.pendingResults.set(toolCallId, payload)
+                return
             }
+            applyToolResult(part, payload)
             return
         }
         case "interaction_request": {
@@ -406,6 +550,15 @@ function applyEvent(
             // (a parked browser-fulfilled call). `user_input` is left to its tool_call/result parts.
             if (payload.kind === "client_tool") {
                 replayClientTool(draft, payload, index, str)
+                return
+            }
+            if (payload.kind === "user_input") {
+                const reqPayload = (payload.payload ?? {}) as Record<string, unknown>
+                const toolCall = (reqPayload.toolCall ?? {}) as Record<string, unknown>
+                const toolCallId = str(
+                    reqPayload.toolCallId ?? toolCall.id ?? toolCall.toolCallId ?? payload.id,
+                )
+                if (toolCallId) index.interactive.add(toolCallId)
                 return
             }
             if (payload.kind !== "user_approval") return
@@ -499,6 +652,27 @@ function applyEvent(
             })
             return
         }
+        case "mcp_server_failed": {
+            // A configured MCP server that failed its handshake. The live stream projects the
+            // same runner event as a `data-mcp-server-failed` part
+            // (`_mcp_server_failed_part`, sdks/python/agenta/sdk/agents/adapters/vercel/stream.py)
+            // and the chat reads it from there (`model/mcpServerNotice.ts`). Replay must rebuild
+            // that part or the notice survives only until the durable log overtakes the live
+            // messages: `adoptServerTranscript` (hooks/useAgentConversation.ts) replaces the
+            // streamed transcript with this one as soon as the record watermark moves, which on a
+            // settled turn is seconds. Dropping it there also un-suppresses the harness's own
+            // "No such tool available" card, so the reader of a disconnected connection's turn is
+            // left with the one wording that says nothing about authorization and offers nothing
+            // to do (UI QA round 4, D2).
+            const notice: Part = {}
+            for (const key of MCP_SERVER_FAILED_FIELDS) {
+                if (payload[key] !== undefined && payload[key] !== null) notice[key] = payload[key]
+            }
+            if (typeof notice.serverName === "string" && notice.serverName.trim()) {
+                draft.parts.push({type: "data-mcp-server-failed", data: notice})
+            }
+            return
+        }
         case "error": {
             // Stamp the run failure, don't push it as text: a replayed error must render through
             // the same red bubble as a live one. First non-empty wins — a cascading later error
@@ -551,13 +725,19 @@ export function transcriptToMessages(
 ): UIMessage[] | null {
     const drafts: DraftMessage[] = []
     let current: DraftMessage | null = null
+    let latestPaused: DraftMessage | null = null
+    const draftsByExecution = new Map<
+        string,
+        {user?: DraftMessage; assistant?: DraftMessage; hasUser: boolean}
+    >()
     // Paused resumes close the draft, but later answers and results still target its tool part.
-    const index: TranscriptIndex = {tools: new Map(), approvals: new Map()}
+    const index = newTranscriptIndex()
 
     for (const row of records) {
         const payload = row.payload
         if (!payload || typeof payload !== "object") continue
         const p = payload as Record<string, unknown>
+        const executionId = row.turn_id ?? undefined
         // Speculative trace link (no-op until the backend stamps one) — the id can ride the `done`
         // row too, so read it before the turn closes.
         const traceId = extractTraceId(row, p)
@@ -565,61 +745,168 @@ export function transcriptToMessages(
         // this every turn folds into one assistant bubble; closing the draft here starts a
         // fresh message per turn.
         if (row.session_update === "done" || p.type === "done") {
+            const target: DraftMessage | null =
+                (executionId ? draftsByExecution.get(executionId)?.assistant : undefined) ?? current
             // Last-wins: a paused turn folds into its resume (below), and that turn has two `done`s
             // with two traceIds — prefer the RESUME trace, where the approved tool actually executed.
             // A normal turn has a single `done`, so this is unchanged for it.
-            if (current && traceId) current.traceId = traceId
-            if (current && p.stopReason === "paused") {
+            if (target && traceId) target.traceId = traceId
+            if (target && p.stopReason === "paused") {
                 // Paused mid-approval: the resume turn's records (the re-emitted call, its result,
                 // the follow-up text) belong to the SAME assistant turn the user saw live, so keep
                 // the draft OPEN and let them fold into it instead of splitting into a dangling
                 // "awaiting approval" bubble + a resumed bubble. A paused turn blocks the session,
                 // so it's always followed by its own resume or is the last (abandoned) turn. Mark it
                 // paused for the adoption heuristic; the normal `done` below clears it on resume.
-                current.paused = true
+                target.paused = true
+                target.pausedExecutionId = executionId
+                latestPaused = target
+                continue
+            }
+            if (p.stopReason === "cancelled") {
+                // A cancelled continuation is still a TERMINAL record for that execution. Settle it
+                // here too, or the durable-continuation hold waits for a `done` that never comes.
+                if (
+                    target?.approvalContinuation &&
+                    target.approvalContinuation.executionId === executionId
+                ) {
+                    target.approvalContinuation.state = "done"
+                }
+                // A Steer's own cancel is the user's reply replacing the run, not a Stop: no label,
+                // and no empty carrier row to hold one.
+                const steered = p.cancelledBy === "steer"
+                if (steered && current?.role !== "assistant") {
+                    current = null
+                    continue
+                }
+                // Keep a carrier so a content-free cancellation can still render Stopped.
+                if (!current || current.role !== "assistant") {
+                    current = newDraft(row.id, "assistant")
+                    drafts.push(current)
+                }
+                if (!steered) current.runStopped = true
+                current.paused = false
+                for (const part of current.parts) {
+                    if (part.state === "approval-requested") part.state = "output-denied"
+                }
+                current = null
                 continue
             }
             // A resumed-then-completed turn is no longer paused.
-            if (current?.paused) current.resumed = true
-            if (current) current.paused = false
-            current = null
+            if (
+                target?.approvalContinuation &&
+                target.approvalContinuation.executionId === executionId
+            ) {
+                target.approvalContinuation.state = "done"
+            }
+            if (target?.paused) target.resumed = true
+            if (target) {
+                target.paused = false
+                target.recordTerminal = true
+            }
+            if (latestPaused === target) latestPaused = null
+            if (current === target) current = null
             continue
         }
         const role = roleOf(row.sender)
-        if (!current || current.role !== role) {
+        if (executionId) {
+            let execution = draftsByExecution.get(executionId)
+            if (!execution) {
+                execution = {hasUser: false}
+                draftsByExecution.set(executionId, execution)
+            }
+            if (role === "user") execution.hasUser = true
+            current = execution[role] ?? null
+            if (!current && role === "assistant" && latestPaused && !execution.hasUser) {
+                current = latestPaused
+                execution.assistant = current
+                if (
+                    latestPaused.pausedExecutionId &&
+                    latestPaused.pausedExecutionId !== executionId
+                ) {
+                    latestPaused.approvalContinuation = {
+                        sourceExecutionId: latestPaused.pausedExecutionId,
+                        executionId,
+                        state: "running",
+                        approvalIds: pendingApprovalIds(latestPaused),
+                    }
+                }
+            }
+            if (!current) {
+                current = newDraft(row.id, role)
+                current.executionId = executionId
+                execution[role] = current
+                drafts.push(current)
+            }
+        } else if (!current || current.role !== role) {
             current = newDraft(row.id, role)
             drafts.push(current)
         }
+        if (role === "user" && current.createdAt === undefined && row.created_at) {
+            const at = Date.parse(row.created_at)
+            if (Number.isFinite(at)) current.createdAt = at
+        }
         if (traceId && !current.traceId) current.traceId = traceId
-        applyEvent(current, p, index, row.session_id)
-    }
-
-    // A RESUMED turn's gate was answered by definition — the runner only emits post-pause records
-    // once the user responded (a deny settles its own part via `tool_result denied`). The durable
-    // log doesn't always persist the `interaction_response`, so settle whatever is left awaiting:
-    // otherwise a completed turn replays as still parked and the reload keeps the approval dock up.
-    for (const d of drafts) {
-        if (!d.resumed) continue
-        for (const part of d.parts) {
-            if (part.state === "approval-requested") part.state = "approval-responded"
+        applyEvent(current, p, index, row.session_id, row.project_id)
+        if (
+            p.type === "error" &&
+            current.approvalContinuation &&
+            current.approvalContinuation.executionId === executionId
+        ) {
+            current.approvalContinuation.state = "error"
         }
     }
 
     // Recorded results win; otherwise saved answers, neutral terminal state, then pending.
     applyInteractionRowStates(index, options?.interactionRowStates)
 
+    // A finished turn (done, not paused, or cancelled) runs no more tools.
+    for (const d of drafts) {
+        if (d.paused || !(d.recordTerminal || d.runStopped)) continue
+        settleOpenToolParts(d, index)
+    }
+
+    // A resumed turn's remaining approval gate was answered even when its response row is absent.
+    // A continuation turn proves the same thing: the runner emits no records under its new
+    // execution before the durable answer owns it, so an observer retires the card on the first
+    // continuation frame instead of waiting for that optional event or `done`.
+    for (const d of drafts) {
+        if (!d.resumed && !d.approvalContinuation) continue
+        const continuationApprovalIds = d.approvalContinuation
+            ? new Set(d.approvalContinuation.approvalIds)
+            : null
+        for (const part of d.parts) {
+            const approval = part.approval as {id?: unknown} | undefined
+            if (
+                part.state === "approval-requested" &&
+                (!continuationApprovalIds ||
+                    (typeof approval?.id === "string" && continuationApprovalIds.has(approval.id)))
+            ) {
+                part.state = "approval-responded"
+            }
+        }
+    }
+
     const messages = drafts
         // A turn whose only content was the failure has no parts — keep it, or the error vanishes.
-        .filter((d) => d.parts.length > 0 || d.runError)
+        .filter((d) => d.parts.length > 0 || d.runError || d.runStopped)
         .map((d) => {
             // `getMessageTraceId`/`getMessageUsage` read exactly these, so the hover trace actions
             // and metrics bar light up on reload. traceId stays absent until the backend stamps one;
             // usage is present whenever the turn persisted a `usage` event.
             const metadata: Record<string, unknown> = {}
+            if (d.displayContent !== undefined) metadata.display_content = d.displayContent
             if (d.traceId) metadata.traceId = d.traceId
             if (d.usage) metadata.usage = d.usage
             if (d.paused) metadata.paused = true
-            if (d.runError)
+            if (d.runStopped) metadata.runStopped = true
+            if (d.recordTerminal) metadata.recordTerminal = true
+            if (d.approvalContinuation) metadata.approvalContinuation = d.approvalContinuation
+            // User rows only: an assistant `turnId` is the live stream's Stop guard, and minting
+            // one here from records would change what `latestTurnId` reports.
+            if (d.role === "user" && d.executionId) metadata.turnId = d.executionId
+            if (d.role === "user" && d.createdAt !== undefined) metadata.createdAt = d.createdAt
+            if (d.runError && !d.runStopped)
                 metadata.runError = {
                     message: d.runError,
                     ...(d.runErrorCode ? {code: d.runErrorCode} : {}),

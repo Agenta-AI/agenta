@@ -1,5 +1,5 @@
-import {renderHook} from "@testing-library/react"
-import {describe, expect, it} from "vitest"
+import {act, renderHook} from "@testing-library/react"
+import {describe, expect, it, vi} from "vitest"
 
 import {useConnectionDock} from "../../src/hooks/useConnectionDock"
 
@@ -46,5 +46,85 @@ describe("useConnectionDock group scoping", () => {
         expect(result.current.total).toBe(3)
         expect(result.current.position).toBe(2)
         expect(result.current.batch.map((m) => m.toolCallId)).toEqual(["a", "b", "c"])
+    })
+})
+
+describe("useConnectionDock host-driven dismiss", () => {
+    // A chat message sent over the dock replaces the requests. The host settles every parked card
+    // through this, exactly as each card's own "Not now" would, before steering the message in.
+    it("declines every parked connection once, and closes the dock while the writes are out", async () => {
+        const onOutput = vi.fn(() => Promise.resolve(true))
+        const parts = [part("github-1", false), part("gmail-1", false)]
+        const {result} = renderHook(() => useConnectionDock({messages: turn(parts), onOutput}))
+        expect(result.current.open).toBe(true)
+
+        await act(async () => {
+            await Promise.all([result.current.dismiss(), result.current.dismiss()])
+        })
+
+        expect(onOutput).toHaveBeenCalledTimes(2)
+        expect(onOutput.mock.calls.map((call) => call[0])).toEqual([
+            expect.objectContaining({
+                toolCallId: "github-1",
+                output: {
+                    connected: false,
+                    integration: "github",
+                    slug: "github",
+                    reason: "declined",
+                },
+            }),
+            expect.objectContaining({
+                toolCallId: "gmail-1",
+                output: {connected: false, integration: "gmail", slug: "gmail", reason: "declined"},
+            }),
+        ])
+        // Shut, but still holding the cards so the host can animate the collapse.
+        expect(result.current.open).toBe(false)
+        expect(result.current.stack).toHaveLength(2)
+    })
+
+    it("re-opens the dock and lets the failure through when a write does not land", async () => {
+        const onOutput = vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(false)
+        const parts = [part("github-1", false), part("gmail-1", false)]
+        const {result} = renderHook(() => useConnectionDock({messages: turn(parts), onOutput}))
+
+        await act(async () => {
+            await expect(result.current.dismiss()).rejects.toThrow("couldn't be dismissed")
+        })
+
+        expect(result.current.open).toBe(true)
+        // The latch let go too: the next attempt goes out again.
+        await act(async () => {
+            await result.current.dismiss().catch(() => undefined)
+        })
+        expect(onOutput).toHaveBeenCalledTimes(4)
+    })
+
+    it("does nothing at all without a settle channel, leaving the dock open", async () => {
+        // `onOutput` is optional, and its absence is a no-op — not a silent success that closes
+        // the dock over requests the run is still waiting on.
+        const {result} = renderHook(() =>
+            useConnectionDock({messages: turn([part("github-1", false)])}),
+        )
+
+        await act(async () => {
+            await result.current.dismiss()
+        })
+
+        expect(result.current.open).toBe(true)
+    })
+
+    it("does nothing when nothing is parked", async () => {
+        const onOutput = vi.fn()
+        const {result} = renderHook(() =>
+            useConnectionDock({messages: turn([part("github-1", true)]), onOutput}),
+        )
+
+        await act(async () => {
+            await result.current.dismiss()
+        })
+
+        expect(onOutput).not.toHaveBeenCalled()
+        expect(result.current.open).toBe(false)
     })
 })

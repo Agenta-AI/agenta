@@ -2,16 +2,19 @@ import {useCallback} from "react"
 
 import {getHostQueryClient} from "@agenta/shared/api"
 
+import {invalidatePersonalAccountReads} from "../../accountChoice/state"
 import {deleteToolConnection, refreshToolConnection, revokeToolConnection} from "../api"
 
 // Tools and triggers are independent surfaces over the SAME shared
 // `gateway_connections` rows, so a write here must also invalidate the triggers
 // list — otherwise a connection removed from tools would read as stale there.
+// A connection can be the account an agent uses, so the run accounts and Needs setup refresh too.
 export const invalidateToolConnections = () => {
     const queryClient = getHostQueryClient()
     queryClient.invalidateQueries({queryKey: ["tools", "connections"]})
     queryClient.invalidateQueries({queryKey: ["tools", "catalog"]})
     queryClient.invalidateQueries({queryKey: ["triggers", "connections"]})
+    void invalidatePersonalAccountReads()
 }
 
 export const useToolConnectionActions = () => {

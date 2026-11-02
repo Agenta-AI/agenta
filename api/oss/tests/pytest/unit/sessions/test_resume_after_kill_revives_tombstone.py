@@ -31,6 +31,7 @@ from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.core.sessions.streams.types import SessionStreamAlreadyExists
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
 
 
 _PROJECT = uuid4()
@@ -94,6 +95,7 @@ async def test_resume_after_kill_revives_the_tombstone_row(lock_engine):
             data=WorkflowServiceRequestData(inputs={"messages": ["resume me"]}),
             force=False,
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert result.mode == CommandMode.send
@@ -160,6 +162,7 @@ async def test_new_activity_on_archived_session_clears_archived_at(lock_engine):
             data=WorkflowServiceRequestData(inputs={"messages": ["back to it"]}),
             force=False,
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert result.mode == CommandMode.send

@@ -1,7 +1,7 @@
 import {useMemo} from "react"
 
 import type {SettingsAccess} from "@agenta/settings"
-import {isBillingEnabled, isEE, isToolsEnabled} from "@agenta/shared/api"
+import {isBillingEnabled, isEE, isMcpGatewayEnabled, isToolsEnabled} from "@agenta/shared/api"
 
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import {useOrgData} from "@/oss/state/org"
@@ -14,17 +14,18 @@ export const useSettingsAccess = (): SettingsAccess => {
     const {canViewApiKeys, canViewEvents} = useProjectPermissions()
     const isOwner = !!selectedOrg?.owner_id && selectedOrg.owner_id === user?.id
     const billingEnabled = isBillingEnabled()
+    const mcpGatewayEnabled = isMcpGatewayEnabled()
 
     return useMemo(
         () => ({
             billingEnabled,
+            canShowMcpEndpoints: mcpGatewayEnabled,
             canShowTools: isToolsEnabled(),
-            canShowTriggers: isToolsEnabled(),
             canViewApiKeys,
             canViewEvents,
             isEE: isEE(),
             isOwner,
         }),
-        [billingEnabled, canViewApiKeys, canViewEvents, isOwner],
+        [billingEnabled, mcpGatewayEnabled, canViewApiKeys, canViewEvents, isOwner],
     )
 }

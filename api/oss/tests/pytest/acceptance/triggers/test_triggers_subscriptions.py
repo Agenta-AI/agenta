@@ -34,7 +34,7 @@ _requires_connected_account = pytest.mark.skipif(
 
 
 def _create_workflow(authed_api):
-    """Build a workflow + variant + committed revision; return its slug."""
+    """Build a workflow + variant + committed revision; return (slug, id)."""
     slug = f"sub-wf-{uuid4().hex[:8]}"
 
     wf = authed_api(
@@ -70,7 +70,7 @@ def _create_workflow(authed_api):
         },
     )
     assert commit.status_code == 200, commit.text
-    return slug
+    return slug, workflow_id
 
 
 # ---------------------------------------------------------------------------
@@ -128,6 +128,36 @@ class TestTriggerDeliveriesReads:
         assert response.status_code == 404
 
 
+class TestTriggerSubscriptionsValidation:
+    def test_slug_that_disagrees_with_the_id_is_rejected(self, authed_api):
+        """The bound references are checked before the connection is loaded, so
+        a mismatched slug answers 422 without Composio credentials."""
+        workflow_slug, workflow_id = _create_workflow(authed_api)
+        wrong_slug = uuid4().hex[-12:]
+
+        response = authed_api(
+            "POST",
+            "/triggers/subscriptions/",
+            json={
+                "subscription": {
+                    "name": f"sub-{uuid4().hex[:8]}",
+                    "connection_id": str(uuid4()),
+                    "data": {
+                        "event_key": "GITHUB_STAR_ADDED_EVENT",
+                        "references": {
+                            "application": {"id": workflow_id, "slug": wrong_slug}
+                        },
+                    },
+                }
+            },
+        )
+
+        assert response.status_code == 422, response.text
+        detail = response.json()["detail"]
+        assert wrong_slug in detail, detail
+        assert workflow_slug in detail, detail
+
+
 # ---------------------------------------------------------------------------
 # Full lifecycle (needs Composio) — create on a shared connection bound to a
 # workflow, list/disable/delete it, and prove the connection survives (C7).
@@ -156,7 +186,7 @@ class TestTriggerSubscriptionsLifecycle:
 
     def test_create_list_disable_delete_keeps_connection(self, authed_api):
         connection_id = self._create_connection(authed_api)
-        workflow_slug = _create_workflow(authed_api)
+        workflow_slug, _ = _create_workflow(authed_api)
 
         try:
             # CREATE — binds the event to a workflow reference on the shared connection

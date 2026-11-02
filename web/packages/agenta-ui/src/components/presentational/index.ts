@@ -60,6 +60,9 @@ export {
     ConfigBlock,
     SectionSkeleton,
     ConfigAccordionSection,
+    CONFIG_REGION_BAR,
+    ConfigRowCaret,
+    ConfigRowTrailing,
     sectionIndicatorColor,
     useAccordionSectionOpen,
     useRecentFlag,
@@ -69,6 +72,7 @@ export {
     type ConfigBlockProps,
     type SectionSkeletonProps,
     type ConfigAccordionSectionProps,
+    type ConfigRowTrailingProps,
     type SectionIndicatorTone,
 } from "./section"
 
@@ -85,6 +89,7 @@ export {CopyButton, type CopyButtonProps} from "./CopyButton"
 export {default as EnhancedButton, type EnhancedButtonProps} from "./EnhancedButton"
 export {default as EmptyPlaceholder, type EmptyPlaceholderProps} from "./EmptyPlaceholder"
 export {default as EmptyState, type EmptyStateProps} from "./EmptyState"
+export {LogoMarks, type LogoMark, type LogoMarksProps} from "./logo-marks"
 
 // ============================================================================
 // SELECT COMPONENTS
@@ -148,6 +153,12 @@ export {Tag, type TagProps, type SyncState} from "./tag"
 // ============================================================================
 // STATUS COMPONENTS
 // ============================================================================
+
+export {
+    AgentActivityDots,
+    type AgentActivityDotsProps,
+    type AgentActivityFormat,
+} from "./activity-dots"
 
 export {
     environmentColors,
@@ -230,12 +241,19 @@ export {
 } from "./table-states"
 
 // ============================================================================
+// SCREEN STATE COMPONENTS
+// ============================================================================
+
+export {LoadError, type LoadErrorProps} from "./states"
+
+// ============================================================================
 // METRICS COMPONENTS
 // ============================================================================
 
 export {
     ExecutionMetricsDisplay,
     MetaSeparator,
+    TokenBreakdownList,
     type ExecutionMetricsDisplayProps,
     type ExecutionMetricsData,
 } from "./metrics"
@@ -280,7 +298,6 @@ export {
 export {HeightCollapse} from "../HeightCollapse"
 export {
     ChatActionIconButton,
-    ChatAttachmentCard,
     ChatBubble,
     ChatBubbleAvatar,
     ChatJumpToLatest,
@@ -288,16 +305,6 @@ export {
     turnRowClass,
     turnToolbarClass,
     turnToolbarRevealClass,
-    type ChatAttachmentCardProps,
+    userBubbleContentClass,
     type ChatBubbleProps,
 } from "./chat"
-
-export {
-    FilterMenu,
-    FILTER_MENU_MIN_WIDTH,
-    FILTER_MENU_FLIP_WIDTH,
-    type FilterMenuProps,
-    type FilterMenuFacet,
-    type FilterMenuToggle,
-    type FilterMenuOption,
-} from "./filter"

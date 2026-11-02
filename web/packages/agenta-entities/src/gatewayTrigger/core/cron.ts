@@ -6,7 +6,11 @@
  * croniter). The web has no cron dependency, so this is a tiny, dependency-free
  * parser/validator used purely for client-side validation, a human-readable
  * description, and a "next runs" preview hint. The backend remains the source of
- * truth; this never blocks a value the backend would accept beyond field bounds.
+ * truth throughout.
+ *
+ * `validateCron` checks field shape only and blocks nothing the backend accepts.
+ * `validateSchedule` adds the cadence floor, which mirrors a backend default that a
+ * deployment can override — see MIN_CRON_INTERVAL_MINUTES for what that implies.
  */
 
 const FIELD_BOUNDS: {min: number; max: number}[] = [
@@ -178,6 +182,73 @@ export function nextCronRuns(expression: string, count = 3, from: Date = new Dat
     }
 
     return runs
+}
+
+const GAP_SAMPLE_COUNT = 64
+
+/**
+ * Smallest gap, in minutes, between two consecutive fires. Returns null when the
+ * expression is invalid or fires at most once inside the sample, which means it is
+ * far sparser than any floor we enforce.
+ *
+ * Sampling from the first fire rather than from "now" is what catches a
+ * day-restricted expression like `0,1 0 31 1 *`, whose only fires sit a month out;
+ * `nextCronRuns` already does that. 64 samples covers every realistic minute/hour
+ * list: a dense expression reveals its gap in the first two fires, and a listy one
+ * (`0,59 * * * *`, whose tight gap is the *second* gap) within a handful.
+ */
+export function smallestCronGapMinutes(expression: string): number | null {
+    const runs = nextCronRuns(expression, GAP_SAMPLE_COUNT)
+    if (runs.length < 2) return null
+
+    let smallest = Infinity
+    for (let i = 1; i < runs.length; i++) {
+        smallest = Math.min(smallest, (runs[i].getTime() - runs[i - 1].getTime()) / 60_000)
+    }
+    return Number.isFinite(smallest) ? smallest : null
+}
+
+/**
+ * The smallest cadence a schedule may run at. Mirrors the backend default
+ * (`AGENTA_TRIGGERS_SCHEDULE_MIN_INTERVAL_MINUTES`, see `TriggersConfig` in
+ * api/oss/src/utils/env.py), which stays the source of truth: this only spares the
+ * user a round-trip for the common case. A deployment that *lowers* the backend
+ * floor has to lower this too, or the drawer will refuse a value the API accepts.
+ */
+export const MIN_CRON_INTERVAL_MINUTES = 15
+
+/** Render a gap for an error message: "1 minute", "5 minutes", "2 hours". */
+function humanizeGap(minutes: number): string {
+    if (minutes >= 60 && minutes % 60 === 0) {
+        const hours = minutes / 60
+        return `${hours} ${hours === 1 ? "hour" : "hours"}`
+    }
+    const rounded = Number.isInteger(minutes) ? minutes : Math.round(minutes * 10) / 10
+    return `${rounded} ${rounded === 1 ? "minute" : "minutes"}`
+}
+
+/**
+ * Full pre-submit check for a schedule's cron: field shape *and* cadence.
+ *
+ * Every fire starts an agent run in its own sandbox, so `* * * * *` bills 1440 runs
+ * a day and overlaps itself whenever a run outlives a minute. Use this wherever a
+ * user sets a schedule; `validateCron` alone only checks field bounds.
+ */
+export function validateSchedule(
+    expression: string,
+    floorMinutes: number = MIN_CRON_INTERVAL_MINUTES,
+): CronValidationResult {
+    const shape = validateCron(expression)
+    if (!shape.valid) return shape
+
+    const gap = smallestCronGapMinutes(expression)
+    if (gap !== null && gap < floorMinutes) {
+        return {
+            valid: false,
+            error: `A schedule may run at most once every ${floorMinutes} minutes. This one runs every ${humanizeGap(gap)}.`,
+        }
+    }
+    return {valid: true}
 }
 
 /** Does `value` satisfy a single cron field (star, step, range, list, plain)? */

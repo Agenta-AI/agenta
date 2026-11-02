@@ -84,6 +84,9 @@ export function createAcquireContext(
     get runAgentDir() {
       return environment.runAgentDir;
     },
+    get piPromptDir() {
+      return environment.piPromptDir;
+    },
     get durableCwdSafeToDelete() {
       return environment.durableCwdSafeToDelete;
     },

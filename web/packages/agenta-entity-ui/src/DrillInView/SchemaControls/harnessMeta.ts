@@ -3,6 +3,7 @@
  * select and rail, and the chat composer's model palette. One home so a harness can't be
  * hidden in one picker and offered in another.
  */
+import {selectableAgentHarnesses} from "@agenta/entities/secret"
 import {formatEnumLabel} from "@agenta/shared/utils"
 
 export interface HarnessMeta {
@@ -16,17 +17,13 @@ export interface HarnessMeta {
 /**
  * Avatar identity (brand colour + monogram) per harness id. Labels come from the schema `oneOf`
  * title when present; these defaults only supply the avatar and a label fallback. Keyed by the real
- * enum values `pi_core` / `pi_agenta` / `claude`.
+ * enum values `pi_core` / `claude` / `codex`.
  */
 export const HARNESS_META: Record<string, HarnessMeta> = {
     pi_core: {label: "Pi", short: "Pi", color: "#6b5bd6"},
-    pi_agenta: {label: "Pi (Agenta)", short: "Ag", color: "#1c2c3d"},
     claude: {label: "Claude Code", short: "CC", color: "#d97757"},
     codex: {label: "Codex", short: "Cx", color: "#10a37f"},
 }
-
-/** Harnesses never offered in a picker. */
-export const HIDDEN_HARNESSES = new Set(["pi_agenta"])
 
 /** Resolve display identity, deriving a sensible fallback for unknown harness ids. */
 export function harnessMetaFor(value: string): HarnessMeta {
@@ -41,7 +38,7 @@ export function harnessMetaFor(value: string): HarnessMeta {
     return {label, short, color: "#586673"}
 }
 
-/** The harness ids a picker may offer, from the capability catalog. */
+/** The harness ids a picker may offer, from the capability catalog (drops `HIDDEN_AGENT_HARNESSES`). */
 export function selectableHarnesses(harnessIds: string[]): string[] {
-    return harnessIds.filter((id) => !HIDDEN_HARNESSES.has(id))
+    return selectableAgentHarnesses(harnessIds)
 }

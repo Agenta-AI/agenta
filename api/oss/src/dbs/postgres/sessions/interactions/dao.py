@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional
+from typing import Any, List, Optional
 from uuid import UUID
 
 from sqlalchemy import cast, delete as sa_delete, func, select, update as sa_update
@@ -77,24 +77,61 @@ class SessionInteractionsDAO(SessionInteractionsDAOInterface):
         project_id: UUID,
         #
         interaction_id: UUID,
+        transaction: Optional[Any] = None,
+        for_update: bool = False,
     ) -> Optional[SessionInteraction]:
-        async with self.engine.session() as session:
+        async def execute(session: Any) -> Optional[SessionInteraction]:
             stmt = select(SessionInteractionDBE).where(
                 SessionInteractionDBE.project_id == project_id,
                 SessionInteractionDBE.id == interaction_id,
             )
+            if for_update:
+                stmt = stmt.with_for_update()
             result = await session.execute(stmt)
             dbe = result.scalar_one_or_none()
-            if dbe is None:
-                return None
-            return map_interaction_dbe_to_dto(dbe)
+            return map_interaction_dbe_to_dto(dbe) if dbe is not None else None
+
+        if transaction is not None:
+            return await execute(transaction)
+        async with self.engine.session() as session:
+            return await execute(session)
+
+    async def fetch_turn_interactions(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: str,
+        transaction: Optional[Any] = None,
+        for_update: bool = False,
+    ) -> List[SessionInteraction]:
+        async def execute(session: Any) -> List[SessionInteraction]:
+            stmt = (
+                select(SessionInteractionDBE)
+                .where(
+                    SessionInteractionDBE.project_id == project_id,
+                    SessionInteractionDBE.session_id == session_id,
+                    SessionInteractionDBE.turn_id == turn_id,
+                )
+                .order_by(SessionInteractionDBE.id)
+            )
+            if for_update:
+                stmt = stmt.with_for_update()
+            rows = (await session.execute(stmt)).scalars().all()
+            return [map_interaction_dbe_to_dto(row) for row in rows]
+
+        if transaction is not None:
+            return await execute(transaction)
+        async with self.engine.session() as session:
+            return await execute(session)
 
     async def transition_interaction(
         self,
         *,
         transition: SessionInteractionTransition,
+        transaction: Optional[Any] = None,
     ) -> Optional[SessionInteraction]:
-        async with self.engine.session() as session:
+        async def execute(session: Any) -> Optional[SessionInteraction]:
             # Only non-terminal interactions transition: pending (responded|resolved|
             # cancelled) and responded (resolved, when the runner consumes an API-plane
             # answer). resolved/cancelled are terminal.
@@ -129,10 +166,14 @@ class SessionInteractionsDAO(SessionInteractionsDAOInterface):
             )
             result = await session.execute(stmt)
             dbe = result.scalar_one_or_none()
-            await session.commit()
             if dbe is None:
                 return None
             return map_interaction_dbe_to_dto(dbe)
+
+        if transaction is not None:
+            return await execute(transaction)
+        async with self.engine.session() as session:
+            return await execute(session)
 
     async def cancel_session_pending(
         self,
@@ -142,13 +183,15 @@ class SessionInteractionsDAO(SessionInteractionsDAOInterface):
         except_turn_id: Optional[str] = None,
         except_tokens: Optional[List[str]] = None,
         only_turn_id: Optional[str] = None,
-    ) -> int:
+        transaction: Optional[Any] = None,
+    ) -> List[SessionInteraction]:
         """Cancel still-pending interactions for a session. With `except_turn_id`, spare the
         current turn's own gates (used at turn start to cancel prior turns' unanswered gates;
         without it, cancel all of them, e.g. on kill). `except_tokens` spares prior-turn gates
         the current turn answers in-band, so the resume can resolve them instead. With
-        `only_turn_id`, touch nothing but that one turn's gates. Returns the count cancelled."""
-        async with self.engine.session() as session:
+        `only_turn_id`, touch nothing but that one turn's gates. Returns the rows cancelled."""
+
+        async def execute(session: Any) -> List[SessionInteraction]:
             stmt = (
                 sa_update(SessionInteractionDBE)
                 .where(
@@ -160,6 +203,7 @@ class SessionInteractionsDAO(SessionInteractionsDAOInterface):
                     status="cancelled",
                     updated_at=datetime.now(timezone.utc),
                 )
+                .returning(SessionInteractionDBE)
             )
             if only_turn_id is not None:
                 stmt = stmt.where(SessionInteractionDBE.turn_id == only_turn_id)
@@ -168,8 +212,14 @@ class SessionInteractionsDAO(SessionInteractionsDAOInterface):
             if except_tokens:
                 stmt = stmt.where(SessionInteractionDBE.token.notin_(except_tokens))
             result = await session.execute(stmt)
+            return [map_interaction_dbe_to_dto(dbe) for dbe in result.scalars().all()]
+
+        if transaction is not None:
+            return await execute(transaction)
+        async with self.engine.session() as session:
+            cancelled = await execute(session)
             await session.commit()
-            return result.rowcount or 0
+            return cancelled
 
     async def query_interactions(
         self,

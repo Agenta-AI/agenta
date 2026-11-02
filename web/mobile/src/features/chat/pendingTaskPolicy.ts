@@ -8,8 +8,10 @@
  * - it was already sent for THIS session (the chat survives a session switch, so the guard holds
  *   the session id, never a bare flag);
  * - the transcript is still hydrating, and a send now would race the fill;
- * - the project vault has not answered yet, so we do not know whether the gate applies;
- * - the project vault holds no provider key, so the run would come back "no usable credential".
+ * - the project vault or the server's needs-setup check has not answered yet, so we do not know
+ *   whether a gate applies;
+ * - the project vault holds no provider key, or the agent's model needs setup, so the run would
+ *   come back refused.
  *
  * The last one is the parity rule: desktop parks its first-run seed while the connect-model gate
  * is active and sends it the moment a key lands (`useFirstRunSeed`). Mobile holds the same way, so
@@ -35,10 +37,6 @@ export type PendingTaskDecision =
 /** How long the parked task waits for the project vault before it gives up. */
 export const MODEL_KEY_WAIT_LIMIT_MS = 10_000
 
-/** Shown when the vault never answered — the desktop's "not sent, try again" wording family. */
-export const PENDING_TASK_NOT_SENT_MESSAGE =
-    "Couldn't check this project's provider keys — the message was not sent. Please try again."
-
 export interface PendingTaskGate {
     /** The session the chat screen is mounted for. */
     sessionId: string
@@ -47,16 +45,22 @@ export interface PendingTaskGate {
     /** The engine is still filling the transcript from the record log. */
     hydrating: boolean
     /**
-     * The vault query has not resolved (`useAgentModelKeyStatus().loading`). `modelBlocked` is
-     * deliberately FALSE while this is true, so the task must wait on this flag instead — on a
-     * cold first run hydration can settle first, and the send would go out before the vault
-     * says the project is keyless.
+     * The vault query or the needs-setup check has not resolved (`useAgentModelKeyStatus().loading`,
+     * `useAgentModelSetup().loading`). `modelBlocked` is deliberately FALSE while this is true, so
+     * the task must wait on this flag instead — on a cold first run hydration can settle first, and
+     * the send would go out before either answer says the run would be refused.
      */
     modelKeyLoading: boolean
-    /** How long the vault has been unresolved. Only read while `modelKeyLoading` is true. */
+    /** How long the vault or the check has been unresolved. Only read while `modelKeyLoading` is true. */
     modelKeyWaitedMs: number
-    /** The connect-model gate is up (`useAgentModelKeyStatus().gateActive`). */
+    /** The connect-model gate or the needs-setup gate is up (`useAgentModelSetup().blocked`). */
     modelBlocked: boolean
+    /**
+     * The template's connect step is up, or still deciding whether to be
+     * (`useSessionSetupStep().blocking`). Visible and user-released once the card is showing,
+     * and bounded by the hook while it is still deciding.
+     */
+    setupBlocking: boolean
 }
 
 export const pendingTaskDecision = ({
@@ -66,9 +70,14 @@ export const pendingTaskDecision = ({
     modelKeyLoading,
     modelKeyWaitedMs,
     modelBlocked,
+    setupBlocking,
 }: PendingTaskGate): PendingTaskDecision => {
     if (sentFor === sessionId) return "hold"
     if (hydrating) return "hold"
+    // Before the vault: a template's accounts are asked for on arrival, and the card is what the
+    // user is looking at. Checking the key gate first would park the same message behind an
+    // invisible wait while a visible card sat on top of it saying something else.
+    if (setupBlocking) return "hold"
     if (modelKeyLoading) {
         return modelKeyWaitedMs >= MODEL_KEY_WAIT_LIMIT_MS ? "abandon" : "hold"
     }

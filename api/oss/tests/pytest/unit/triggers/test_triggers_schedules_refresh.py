@@ -15,6 +15,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from oss.tests.pytest.utils.principals import any_principal
+
 from oss.src.core.triggers.dtos import (
     TriggerSchedule,
     TriggerScheduleData,
@@ -32,6 +34,7 @@ def _make_schedule(*, expr="* * * * *", is_active=True, start_time=None, end_tim
     return TriggerSchedule(
         id=uuid4(),
         created_by_id=uuid4(),
+        principal=any_principal(),
         flags=TriggerScheduleFlags(is_active=is_active),
         data=TriggerScheduleData(
             event_key="report.daily",
@@ -62,7 +65,9 @@ def _service(*, schedules=None, seen=False, with_task=True):
 
 class TestValidateSchedule:
     def test_accepts_valid_five_field_cron(self):
-        TriggersService._validate_schedule("*/5 * * * *")
+        # Above the frequency floor; the floor itself is pinned in
+        # test_triggers_schedule_frequency_floor.py.
+        TriggersService._validate_schedule("*/30 * * * *")
 
     @pytest.mark.parametrize("expr", ["* * * *", "* * * * * *", "", "daily"])
     def test_rejects_wrong_field_count(self, expr):

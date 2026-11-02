@@ -13,13 +13,15 @@ import type {ApprovalActions} from "./useApprovalActions"
  * (the engine for plain approve/deny + Approve all; the detached resume for a steer note). It
  * sits outside the transcript scroller so a paused run can never scroll out of reach.
  *
- * No `onDenyAll`: the engine has no batch deny, so Deny answers the current gate and steps.
+ * Batch deny rides the detached dispatcher; where a host supplies none, Deny steps gate by gate.
  */
 export const ApprovalDock = ({
     approvals,
     actions,
     entityId,
     bottomMost = true,
+    readOnly = false,
+    readOnlyNote,
 }: {
     /** Pending gates for the paused turn (index 0 is acted on first). */
     approvals: PendingApproval[]
@@ -28,8 +30,15 @@ export const ApprovalDock = ({
     entityId?: string
     /** False when the composer renders below — only the bottom-most element pads the safe area. */
     bottomMost?: boolean
+    /** The reader cannot answer (no `can_send`, or not known yet): the card shows, but answers
+     *  nothing, and no shortcut or tap reaches `actions`. */
+    readOnly?: boolean
+    /** Shown in place of the actions while read-only (it names who can answer). */
+    readOnlyNote?: string | null
 }) => {
+    const locked = readOnly || Boolean(readOnlyNote)
     const busy = actions.phase === "resuming"
+    const answered = actions.phase === "answered" || actions.phase === "recoverable"
 
     if (approvals.length === 0) return null
     return (
@@ -44,14 +53,21 @@ export const ApprovalDock = ({
                 <ApprovalCard
                     approvals={approvals}
                     responding={busy}
+                    answered={answered}
+                    recoverable={actions.phase === "recoverable"}
                     entityId={entityId}
                     steerEnabled={isSteerEnabled()}
                     touch
+                    readOnly={locked}
+                    readOnlyNote={readOnlyNote}
                     errorText={actions.phase === "error" ? actions.errorText : null}
-                    onRespond={({approvalId, approved, message}) =>
-                        actions.respond({approvalId, approved, message})
-                    }
-                    onApproveAll={() => actions.approveAll()}
+                    onRespond={({approvalId, approved, message}) => {
+                        if (!locked) actions.respond({approvalId, approved, message})
+                    }}
+                    onApproveAll={() => {
+                        if (!locked) actions.approveAll()
+                    }}
+                    onDenyAll={actions.denyAll && !locked ? () => actions.denyAll?.() : undefined}
                 />
             </ContentRail>
         </div>

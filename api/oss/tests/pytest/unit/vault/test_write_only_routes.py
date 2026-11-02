@@ -20,20 +20,50 @@ from oss.src.apis.fastapi.vault import router as vault_router_module
 from oss.src.apis.fastapi.vault.router import VaultRouter
 from oss.src.core.secrets.dtos import SecretResponseDTO
 from oss.src.core.secrets.services import VaultService
+from oss.src.core.secrets.claude_token import ClaudeTokenClient
+from oss.src.core.secrets.subscription_login import SubscriptionLoginRunnerClient
+from oss.src.core.secrets.subscription_service import SubscriptionLoginService
 from oss.src.middlewares.auth import SECRET_RESOLVE_GRANT
+from oss.tests.pytest.utils.principals import envelope_for_claims
+from oss.tests.pytest.utils.organization_secrets import (
+    load_effective_from_list,
+    owner_scope,
+)
+
+
+def _vault_router(vault_service: VaultService) -> VaultRouter:
+    """The router as the entrypoint wires it, with a runner client nothing here calls."""
+    return VaultRouter(
+        vault_service=vault_service,
+        subscription_login_service=SubscriptionLoginService(
+            vault_service=vault_service,
+            runner_client=SubscriptionLoginRunnerClient(base_url="", token=""),
+            claude_token_client=ClaudeTokenClient(),
+        ),
+    )
 
 
 PROJECT_ID = str(uuid4())
 USER_ID = str(uuid4())
+ORGANIZATION_ID = str(uuid4())
 
 KEY = "sk-test-openai-secret"
 
 
 class _FakeSecretsDAO:
+    load_effective = load_effective_from_list
+
     def __init__(self):
         self.records: dict = {}
 
-    async def create(self, project_id, organization_id, create_secret_dto):
+    async def create(
+        self,
+        *,
+        owner,
+        create_secret_dto,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         record = SecretResponseDTO(
             id=uuid4(),
             slug=create_secret_dto.slug,
@@ -45,13 +75,33 @@ class _FakeSecretsDAO:
         self.records[str(record.id)] = record
         return record
 
-    async def list(self, project_id, organization_id):
+    async def list(
+        self,
+        *,
+        owner,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         return list(self.records.values())
 
-    async def get_by_id(self, secret_id, project_id, organization_id):
+    async def get_by_id(
+        self,
+        *,
+        owner,
+        secret_id,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         return self.records.get(str(secret_id))
 
-    async def get_by_slug(self, secret_slug, project_id, organization_id):
+    async def get_by_slug(
+        self,
+        *,
+        owner,
+        secret_slug,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         return next(
             (r for r in self.records.values() if r.slug == secret_slug),
             None,
@@ -59,13 +109,15 @@ class _FakeSecretsDAO:
 
     async def update(
         self,
+        *,
+        owner,
         secret_id,
         update_secret_dto,
-        project_id,
-        organization_id,
         user_id=None,
         resolve_update=None,
+        **_kwargs,
     ):
+        project_id, organization_id = owner_scope(owner)
         stored = self.records.get(str(secret_id))
         if stored is None:
             return None
@@ -88,8 +140,14 @@ class _FakeSecretsDAO:
         return updated
 
     async def delete(
-        self, secret_id, project_id, organization_id, authorize_delete=None
+        self,
+        *,
+        owner,
+        secret_id,
+        authorize_delete=None,
+        **_kwargs,
     ):
+        project_id, organization_id = owner_scope(owner)
         stored = self.records.get(str(secret_id))
         if stored is not None and authorize_delete is not None:
             authorize_delete(stored)
@@ -115,7 +173,7 @@ def _harness(monkeypatch):
             request.state.token_grants = (SECRET_RESOLVE_GRANT,)
         return await call_next(request)
 
-    app.include_router(VaultRouter(vault_service=VaultService(dao)).router)
+    app.include_router(_vault_router(VaultService(dao)).router)
 
     return TestClient(app)
 
@@ -346,7 +404,7 @@ def _token_client(monkeypatch):
             return JSONResponse({"detail": "Unauthorized"}, status_code=exc.status_code)
         return await call_next(request)
 
-    app.include_router(VaultRouter(vault_service=VaultService(dao)).router)
+    app.include_router(_vault_router(VaultService(dao)).router)
 
     return TestClient(app)
 
@@ -357,11 +415,22 @@ def _auth(token):
 
 @pytest.mark.asyncio
 async def test_real_tokens_grant_and_deny_plaintext(token_client):
-    plain = await auth_module.sign_secret_token(user_id=USER_ID, project_id=PROJECT_ID)
+    plain = await auth_module.sign_secret_token(
+        user_id=USER_ID,
+        project_id=PROJECT_ID,
+        organization_id=ORGANIZATION_ID,
+        envelope=envelope_for_claims(
+            user_id=USER_ID, project_id=PROJECT_ID, organization_id=ORGANIZATION_ID
+        ),
+    )
     granted = await auth_module.sign_secret_token(
         user_id=USER_ID,
         project_id=PROJECT_ID,
         grants=[SECRET_RESOLVE_GRANT],
+        organization_id=ORGANIZATION_ID,
+        envelope=envelope_for_claims(
+            user_id=USER_ID, project_id=PROJECT_ID, organization_id=ORGANIZATION_ID
+        ),
     )
 
     created = token_client.post(
@@ -448,3 +517,60 @@ def test_malformed_create_never_echoes_the_submitted_key(harness):
 
     assert response.status_code == 422
     assert CANARY not in response.text
+
+
+def test_write_only_custom_secret_keeps_default_environment_metadata(harness):
+    response = harness.post(
+        "/secrets/",
+        json={
+            "header": {"name": "GitHub token"},
+            "slug": "github-token",
+            "write_only": True,
+            "secret": {
+                "kind": "custom_secret",
+                "data": {
+                    "secret": {
+                        "format": "text",
+                        "content": "github-secret-value",
+                        "default_env_var": "GITHUB_TOKEN",
+                    }
+                },
+            },
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["data"]["secret"]["default_env_var"] == "GITHUB_TOKEN"
+    assert "content" not in body["data"]["secret"]
+
+
+def test_custom_secret_update_keeps_omitted_default_environment_metadata(harness):
+    created = harness.post(
+        "/secrets/",
+        json={
+            "header": {"name": "GitHub token"},
+            "slug": "github-token-update",
+            "write_only": True,
+            "secret": {
+                "kind": "custom_secret",
+                "data": {
+                    "secret": {
+                        "format": "text",
+                        "content": "old",
+                        "default_env_var": "GITHUB_TOKEN",
+                    }
+                },
+            },
+        },
+    ).json()
+    updated = harness.put(
+        f"/secrets/{created['id']}",
+        json={
+            "secret": {
+                "kind": "custom_secret",
+                "data": {"secret": {"format": "text", "content": "new"}},
+            }
+        },
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["data"]["secret"]["default_env_var"] == "GITHUB_TOKEN"

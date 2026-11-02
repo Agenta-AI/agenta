@@ -8,6 +8,7 @@ not hide a value, it reports a working provider as broken and deactivates it. Th
 login-time reader (SuperTokens overrides) resolves through `VaultService` directly.
 """
 
+from datetime import datetime
 from uuid import uuid4
 
 import pytest
@@ -94,7 +95,7 @@ def _with_secret(monkeypatch, secret) -> OrganizationProvidersService:
 
 
 @pytest.mark.asyncio
-async def test_sso_secret_creation_is_explicitly_readable(monkeypatch):
+async def test_sso_secret_is_created_write_only(monkeypatch):
     captured = []
     monkeypatch.setattr(
         organization_service_module,
@@ -128,7 +129,7 @@ async def test_sso_secret_creation_is_explicitly_readable(monkeypatch):
             str(ORGANIZATION_ID), payload, user_id=str(uuid4())
         )
 
-    assert captured[0].write_only is False
+    assert captured[0].write_only is True
 
 
 @pytest.mark.asyncio
@@ -139,20 +140,23 @@ async def test_write_only_sso_secret_drops_client_secret_from_responses(monkeypa
         str(ORGANIZATION_ID), str(SECRET_ID)
     )
 
-    assert settings.get("client_secret") is None
+    assert "client_secret" not in settings
+    assert settings["has_client_secret"] is True
     assert settings["client_id"] == "client-1"
     assert settings["issuer_url"] == "https://issuer.example.com"
 
 
 @pytest.mark.asyncio
-async def test_readable_sso_secret_keeps_todays_responses(monkeypatch):
+async def test_readable_legacy_sso_secret_is_also_dropped_from_responses(monkeypatch):
     service = _with_secret(monkeypatch, _sso_secret(write_only=False))
 
     settings = await service._get_outward_provider_settings(
         str(ORGANIZATION_ID), str(SECRET_ID)
     )
 
-    assert settings["client_secret"] == "super-secret-value-123"
+    assert "client_secret" not in settings
+    assert "super-secret-value-123" not in str(settings)
+    assert settings["has_client_secret"] is True
 
 
 @pytest.mark.asyncio
@@ -195,3 +199,81 @@ async def test_testing_a_write_only_provider_uses_the_stored_secret(monkeypatch)
     )
 
     assert seen["client_secret"] == "super-secret-value-123"
+
+
+@pytest.mark.asyncio
+async def test_update_without_a_client_secret_keeps_the_stored_one(monkeypatch):
+    from ee.src.core.organizations.types import OrganizationProviderUpdate
+
+    provider_id = uuid4()
+    saved = []
+
+    class _Provider:
+        id = provider_id
+        secret_id = SECRET_ID
+        slug = "okta"
+        name = "Okta"
+        description = None
+        flags = {}
+        organization_id = ORGANIZATION_ID
+        created_at = datetime(2026, 1, 1)
+        updated_at = datetime(2026, 1, 1)
+
+    class _DAO:
+        def __init__(self, session):
+            pass
+
+        async def get_by_id(self, *, provider_id, organization_id):
+            return _Provider()
+
+        async def update(self, *, updated_by_id, provider_id, flags):
+            return _Provider()
+
+    class _Session2(_Session):
+        async def commit(self):
+            return None
+
+        async def refresh(self, _):
+            return None
+
+    class _Engine2:
+        def session(self):
+            return _Session2()
+
+    class _Vault(_StubVaultService):
+        async def update_secret(self, *, secret_id, organization_id, update_secret_dto):
+            saved.append(update_secret_dto)
+
+    monkeypatch.setattr(
+        organization_service_module, "get_transactions_engine", lambda: _Engine2()
+    )
+    monkeypatch.setattr(organization_service_module, "OrganizationProvidersDAO", _DAO)
+    vault = _Vault(_sso_secret(write_only=True))
+    monkeypatch.setattr(
+        OrganizationProvidersService, "_vault_service", staticmethod(lambda: vault)
+    )
+
+    for blank in ({}, {"client_secret": ""}, {"client_secret": None}):
+        saved.clear()
+        result = await OrganizationProvidersService().update_provider(
+            str(ORGANIZATION_ID),
+            str(provider_id),
+            OrganizationProviderUpdate(
+                settings={"issuer_url": "https://other.example.com", **blank}
+            ),
+            user_id=str(uuid4()),
+        )
+        stored = saved[0].secret.data.provider
+        assert stored.client_secret == "super-secret-value-123"
+        assert stored.issuer_url == "https://other.example.com"
+        assert "client_secret" not in result.settings
+        assert result.settings["has_client_secret"] is True
+
+    saved.clear()
+    await OrganizationProvidersService().update_provider(
+        str(ORGANIZATION_ID),
+        str(provider_id),
+        OrganizationProviderUpdate(settings={"client_secret": "rotated-value-456"}),
+        user_id=str(uuid4()),
+    )
+    assert saved[0].secret.data.provider.client_secret == "rotated-value-456"

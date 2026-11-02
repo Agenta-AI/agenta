@@ -6,11 +6,13 @@ import {
     connectionPolicyForSave,
     credentialSummary,
     credentialValuesFor,
+    declaredEndpointProtocol,
     defaultModelsFor,
     defaultNamePreview,
     doneState,
     harnessSupportsProviderKind,
     hasRequiredCredential,
+    initialEndpointProtocol,
     modelDisplayOrder,
     nextConnectionName,
     probeFailureMessage,
@@ -28,6 +30,7 @@ import {
     credentialFieldsForKind,
     secretKindForProviderKind,
 } from "../../src/secret/core/providerCatalog"
+import {transformSecret} from "../../src/secret/core/transforms"
 import {
     SecretKind,
     SecretManagementPolicy,
@@ -55,11 +58,12 @@ const connection = (overrides: Partial<ProviderConnection> = {}): ProviderConnec
 })
 
 describe("provider catalog", () => {
-    it("offers every provider once: 12 standard keys plus the 4 credential-set kinds", () => {
+    it("offers every provider once: 13 standard keys plus the 4 credential-set kinds", () => {
         const kinds = PROVIDER_CATALOG.map((entry) => entry.kind)
 
         expect(kinds).toContain("openai")
-        expect(kinds).toHaveLength(16)
+        expect(kinds).toContain("xai")
+        expect(kinds).toHaveLength(17)
         expect(new Set(kinds).size).toBe(kinds.length)
     })
 
@@ -222,6 +226,25 @@ describe("toProviderConnections", () => {
         expect(rows).toHaveLength(1)
         expect(rows[0].title).toBe("Azure OpenAI")
     })
+
+    it("ignores an MCP plane credential, which names no LLM provider", () => {
+        // Driven from the wire shape, because the vault row is what both halves of this share: the
+        // MCP settings surface finds its record by env name, so the row must stay a row, and only
+        // the connection derived from it may drop.
+        const composioSecret = {
+            id: "mcp-1",
+            slug: "composio",
+            kind: SecretKind.ProviderKey,
+            header: {name: "Composio"},
+            value_status: {configured: true},
+            data: {kind: "composio", provider: {key: "comp-abcdef"}},
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any
+        const vaultRows = transformSecret([composioSecret])
+
+        expect(vaultRows.map((row) => row.name)).toEqual(["COMPOSIO_API_KEY"])
+        expect(toProviderConnections(vaultRows)).toEqual([])
+    })
 })
 
 describe("credentialValuesFor", () => {
@@ -301,6 +324,24 @@ describe("providerModelCatalog", () => {
 })
 
 describe("buildModelOptions", () => {
+    it("carries a provider display name without changing the saved id", () => {
+        expect(
+            buildModelOptions({
+                available: ["z-ai/glm-5.2"],
+                checked: ["z-ai/glm-5.2"],
+                names: {"z-ai/glm-5.2": "Z.ai: GLM 5.2"},
+            }),
+        ).toEqual([
+            {
+                id: "z-ai/glm-5.2",
+                name: "Z.ai: GLM 5.2",
+                checked: true,
+                isDefault: false,
+                unavailable: false,
+            },
+        ])
+    })
+
     it("keeps a saved model the fetch no longer offers, checked and flagged unavailable", () => {
         const options = buildModelOptions({
             available: ["gpt-5.6-luna", "gpt-5.5"],
@@ -348,10 +389,13 @@ describe("model list order", () => {
     // A fetch returns dozens of models with the interesting ones scattered through it.
     const available = ["gpt-4.1", "gpt-5.5", "o3", "gpt-5.4", "gpt-3.5"]
 
-    it("leads with the saved selection and Agenta's defaults, then keeps provider order", () => {
+    it("leads with the prioritized ids in their own order, then keeps provider order", () => {
+        // The leading rows follow the caller's ranking, NOT the fetch's. The card passes Agenta's
+        // defaults first, so a provider that answers oldest-first (xAI) no longer pushes its
+        // stalest model to the top of the card the moment a key is tested.
         const order = modelDisplayOrder({available, prioritized: ["gpt-5.4", "gpt-5.5"]})
 
-        expect(order).toEqual(["gpt-5.5", "gpt-5.4", "gpt-4.1", "o3", "gpt-3.5"])
+        expect(order).toEqual(["gpt-5.4", "gpt-5.5", "gpt-4.1", "o3", "gpt-3.5"])
         expect(
             buildModelOptions({
                 available,
@@ -446,7 +490,7 @@ describe("model list order", () => {
             prioritized: ["gpt-4o-retired", "gpt-5.5"],
         })
 
-        expect(order.slice(0, 2)).toEqual(["gpt-5.5", "gpt-4o-retired"])
+        expect(order.slice(0, 2)).toEqual(["gpt-4o-retired", "gpt-5.5"])
     })
 })
 
@@ -465,6 +509,186 @@ describe("harnessSupportsProviderKind", () => {
         expect(harnessSupportsProviderKind(capabilities, "pi_core", "custom")).toBe(true)
         expect(harnessSupportsProviderKind(capabilities, "claude", "bedrock")).toBe(true)
         expect(harnessSupportsProviderKind(capabilities, "pi_core", "bedrock")).toBe(false)
+    })
+
+    // OR31a: this assertion used to read `true`. Consuming the `custom` surface was never enough —
+    // Claude Code publishes it for its own Anthropic gateway, so it was offered on an
+    // OpenAI-compatible endpoint and the run failed with a 422 the user never saw. The endpoint's
+    // DECLARED protocol is the missing fact; every other surface stays as coarse as it was.
+    it("judges the custom surface on the declared protocol, and no other surface", () => {
+        const shipped: HarnessCapabilityMap = {
+            claude: {
+                providers: ["anthropic"],
+                deployments: ["direct", "custom", "bedrock", "vertex_ai"],
+            },
+        }
+
+        expect(harnessSupportsProviderKind(shipped, "claude", "custom", "anthropic")).toBe(true)
+        expect(harnessSupportsProviderKind(shipped, "claude", "custom", "openai")).toBe(false)
+        expect(harnessSupportsProviderKind(shipped, "claude", "vertex_ai")).toBe(true)
+        expect(harnessSupportsProviderKind(shipped, "claude", "vertex_ai", "openai")).toBe(true)
+    })
+
+    // An absent protocol is not a declaration of `openai`. Reading one into it would take Claude
+    // Code away from every Anthropic gateway saved before the field shipped — a bigger regression
+    // than the 422 this gating exists to prevent. Those records are judged per model in the picker.
+    it("narrows nothing on a custom endpoint that declares no protocol", () => {
+        const shipped: HarnessCapabilityMap = {
+            pi_core: {providers: ["openai", "anthropic"], deployments: ["direct", "custom"]},
+            claude: {providers: ["anthropic"], deployments: ["direct", "custom"]},
+        }
+
+        expect(harnessSupportsProviderKind(shipped, "claude", "custom")).toBe(true)
+        expect(harnessSupportsProviderKind(shipped, "claude", "custom", null)).toBe(true)
+        expect(harnessSupportsProviderKind(shipped, "claude", "custom", "")).toBe(true)
+        expect(harnessSupportsProviderKind(shipped, "pi_core", "custom")).toBe(true)
+        // The surface itself is still required: an undeclared protocol does not invent one.
+        expect(
+            harnessSupportsProviderKind(
+                {claude: {providers: ["anthropic"], deployments: ["direct"]}},
+                "claude",
+                "custom",
+            ),
+        ).toBe(false)
+    })
+
+    // The SDK's HARNESS_CUSTOM_DEPLOYMENT_PROVIDERS: pi_core -> openai, claude -> anthropic,
+    // codex -> openai. A custom endpoint is offerable exactly where the two agree.
+    it("matches each harness's custom family against the endpoint's protocol", () => {
+        const shipped: HarnessCapabilityMap = {
+            pi_core: {providers: ["openai", "anthropic"], deployments: ["direct", "custom"]},
+            claude: {providers: ["anthropic"], deployments: ["direct", "custom"]},
+            codex: {providers: ["openai"], deployments: ["direct", "custom"]},
+        }
+
+        expect(harnessSupportsProviderKind(shipped, "claude", "custom", "openai")).toBe(false)
+        expect(harnessSupportsProviderKind(shipped, "claude", "custom", "anthropic")).toBe(true)
+        expect(harnessSupportsProviderKind(shipped, "pi_core", "custom", "openai")).toBe(true)
+        expect(harnessSupportsProviderKind(shipped, "pi_core", "custom", "anthropic")).toBe(false)
+        expect(harnessSupportsProviderKind(shipped, "codex", "custom", "openai")).toBe(true)
+    })
+
+    // The protocol is a custom-endpoint fact. Passing one must not move any other kind, or a
+    // connection card that always sends its draft protocol would change Bedrock's answer.
+    it("ignores the protocol on every kind but custom", () => {
+        const shipped: HarnessCapabilityMap = {
+            pi_core: {providers: ["openai"], deployments: ["direct", "custom"]},
+            claude: {
+                providers: ["anthropic"],
+                deployments: ["direct", "bedrock", "vertex_ai", "sagemaker"],
+            },
+        }
+
+        for (const protocol of ["openai", "anthropic", undefined] as const) {
+            expect(harnessSupportsProviderKind(shipped, "pi_core", "openai", protocol)).toBe(true)
+            expect(harnessSupportsProviderKind(shipped, "claude", "openai", protocol)).toBe(false)
+            expect(harnessSupportsProviderKind(shipped, "claude", "anthropic", protocol)).toBe(true)
+            expect(harnessSupportsProviderKind(shipped, "claude", "bedrock", protocol)).toBe(true)
+            expect(harnessSupportsProviderKind(shipped, "claude", "vertex_ai", protocol)).toBe(true)
+            expect(harnessSupportsProviderKind(shipped, "claude", "sagemaker", protocol)).toBe(true)
+            expect(harnessSupportsProviderKind(shipped, "claude", "azure", protocol)).toBe(false)
+            expect(harnessSupportsProviderKind(shipped, "pi_core", "bedrock", protocol)).toBe(false)
+        }
+    })
+})
+
+describe("declaredEndpointProtocol", () => {
+    it("reports a record that declares none as declaring none", () => {
+        expect(declaredEndpointProtocol(undefined)).toBeNull()
+        expect(declaredEndpointProtocol(null)).toBeNull()
+        expect(declaredEndpointProtocol("")).toBeNull()
+        // Anything outside the two known protocols is no declaration either.
+        expect(declaredEndpointProtocol("grpc")).toBeNull()
+    })
+
+    it("reports a declared protocol as itself", () => {
+        expect(declaredEndpointProtocol("openai")).toBe("openai")
+        expect(declaredEndpointProtocol("anthropic")).toBe("anthropic")
+    })
+})
+
+describe("initialEndpointProtocol", () => {
+    it("declares the default for a connection being created", () => {
+        // The person is describing an endpoint as they create it, so the control they see is
+        // the statement they are making.
+        expect(initialEndpointProtocol(null)).toBe("openai")
+        expect(initialEndpointProtocol(undefined)).toBe("openai")
+    })
+
+    it("keeps what an existing record declared", () => {
+        expect(initialEndpointProtocol({protocol: "anthropic"})).toBe("anthropic")
+        expect(initialEndpointProtocol({protocol: "openai"})).toBe("openai")
+    })
+
+    it("leaves a record that declared nothing declaring nothing", () => {
+        // A record written before the field existed made no statement about its wire format.
+        // Opening it on the default is what used to turn a name-only edit into a declaration,
+        // and a declared `openai` takes an Anthropic-compatible gateway out of Claude's models.
+        expect(initialEndpointProtocol({})).toBeNull()
+        expect(initialEndpointProtocol({protocol: null})).toBeNull()
+        expect(initialEndpointProtocol({protocol: "grpc"})).toBeNull()
+    })
+})
+
+describe("custom endpoint protocol", () => {
+    const draft = {
+        kind: "custom",
+        name: "Gateway",
+        credential: {apiKey: "sk-test", apiBaseUrl: "https://gw.example.com/v1"},
+    }
+
+    const dataOf = (payload: ReturnType<typeof buildConnectionPayload>) =>
+        payload.secret.data as {protocol?: string}
+
+    it("writes the declared protocol into the custom-provider payload", () => {
+        expect(
+            dataOf(buildConnectionPayload({...draft, protocol: "anthropic"}, "Gateway")),
+        ).toEqual(expect.objectContaining({protocol: "anthropic"}))
+        expect(dataOf(buildConnectionPayload({...draft, protocol: "openai"}, "Gateway"))).toEqual(
+            expect.objectContaining({protocol: "openai"}),
+        )
+    })
+
+    it("leaves the field out when the card declared none", () => {
+        expect(dataOf(buildConnectionPayload(draft, "Gateway"))).not.toHaveProperty("protocol")
+        expect(
+            buildConnectionPayload({kind: "openai", name: "", credential: {apiKey: "sk"}}, "OpenAI")
+                .secret.data,
+        ).not.toHaveProperty("protocol")
+    })
+
+    it("round-trips build -> transform -> connection", () => {
+        const payload = buildConnectionPayload({...draft, protocol: "anthropic"}, "Gateway")
+        const [row] = transformSecret([
+            {
+                id: "conn-9",
+                slug: "gateway",
+                kind: SecretKind.CustomProvider,
+                header: {name: "Gateway"},
+                data: payload.secret.data,
+                value_status: {configured: true},
+            } as unknown as Parameters<typeof transformSecret>[0][number],
+        ])
+
+        expect(row.protocol).toBe("anthropic")
+        expect(toProviderConnections([row])[0].protocol).toBe("anthropic")
+    })
+
+    it("reads a record written before the field as declaring nothing", () => {
+        const [row] = transformSecret([
+            {
+                id: "conn-10",
+                slug: "legacy",
+                kind: SecretKind.CustomProvider,
+                header: {name: "Legacy"},
+                data: {kind: "custom", provider: {url: "https://gw.example.com/v1"}, models: []},
+                value_status: {configured: true},
+            } as unknown as Parameters<typeof transformSecret>[0][number],
+        ])
+
+        expect(row.protocol).toBeUndefined()
+        expect(toProviderConnections([row])[0].protocol).toBeUndefined()
+        expect(declaredEndpointProtocol(toProviderConnections([row])[0].protocol)).toBeNull()
     })
 })
 
@@ -606,6 +830,23 @@ describe("one effective model set across all three surfaces", () => {
 })
 
 describe("buildConnectionPayload", () => {
+    it("persists provider display names beside model ids", () => {
+        const payload = buildConnectionPayload(
+            {
+                kind: "openrouter",
+                name: "",
+                credential: {apiKey: "sk-or"},
+                models: ["z-ai/glm-5.2"],
+                modelNames: {"z-ai/glm-5.2": "Z.ai: GLM 5.2"},
+            },
+            "OpenRouter",
+        )
+
+        expect(payload.secret.data).toMatchObject({
+            models: [{slug: "z-ai/glm-5.2", extras: {name: "Z.ai: GLM 5.2"}}],
+        })
+    })
+
     it("sends a provider_key header-less when the name is empty, so the API names it", () => {
         const payload = buildConnectionPayload(
             {
@@ -744,7 +985,11 @@ describe("probeProvider", () => {
     it("posts the credential and returns the two statuses", async () => {
         fernProbeProvider.mockResolvedValueOnce({
             credential: {status: "valid", message: "OpenAI accepted this key."},
-            discovery: {status: "fetched", models: ["gpt-5.5"]},
+            discovery: {
+                status: "fetched",
+                models: ["gpt-5.5"],
+                model_names: {"gpt-5.5": "GPT-5.5"},
+            },
             fetched_at: "2026-08-12T10:00:00Z",
         })
 
@@ -760,6 +1005,7 @@ describe("probeProvider", () => {
         )
         expect(result?.credential.status).toBe("valid")
         expect(result?.discovery.models).toEqual(["gpt-5.5"])
+        expect(result?.discovery.model_names).toEqual({"gpt-5.5": "GPT-5.5"})
     })
 
     it("puts the stored row on the wire as `secret_id`, and omits the field otherwise", async () => {

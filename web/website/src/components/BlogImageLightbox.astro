@@ -1,0 +1,124 @@
+---
+/**
+ * BlogImageLightbox.astro
+ *
+ * One lightbox for every blog post. Body images come through BlogImage.
+ * The hero is a plain img in the post template. Both opt in with
+ * the ag-zoomable class. Click opens the image at its natural size. Escape,
+ * the backdrop, or the close button dismisses it.
+ */
+---
+
+<div id="ag-lightbox" hidden>
+  <button type="button" class="ag-lightbox-backdrop" aria-label="Close image"></button>
+  <figure>
+    <img alt="" />
+    <figcaption></figcaption>
+  </figure>
+  <button type="button" class="ag-lightbox-close" aria-label="Close">Close</button>
+</div>
+
+<style is:global>
+  .ag-zoomable {
+    cursor: zoom-in;
+  }
+  #ag-lightbox[hidden] {
+    display: none;
+  }
+  #ag-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+  }
+  #ag-lightbox .ag-lightbox-backdrop {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    background: rgba(10, 10, 11, 0.88);
+    cursor: zoom-out;
+  }
+  #ag-lightbox figure {
+    position: relative;
+    margin: 0;
+    max-width: min(1200px, 100%);
+    max-height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  #ag-lightbox img {
+    display: block;
+    max-width: 100%;
+    max-height: calc(100vh - 140px);
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    border-radius: 8px;
+    background: #fff;
+  }
+  #ag-lightbox figcaption {
+    color: #f6f5f3;
+    font: 400 15px/1.4 var(--font-sans, Inter, sans-serif);
+    text-align: center;
+  }
+  #ag-lightbox figcaption:empty {
+    display: none;
+  }
+  #ag-lightbox .ag-lightbox-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    border: 1px solid rgba(246, 245, 243, 0.35);
+    background: transparent;
+    color: #f6f5f3;
+    font: 500 14px/1 var(--font-sans, Inter, sans-serif);
+    letter-spacing: 0.04em;
+    padding: 10px 14px;
+    cursor: pointer;
+  }
+</style>
+
+<script>
+  const root = document.getElementById("ag-lightbox");
+  const image = root?.querySelector("img");
+  const caption = root?.querySelector("figcaption");
+  let lastFocus: HTMLElement | null = null;
+
+  function open(source: HTMLImageElement) {
+    if (!root || !image || !caption) return;
+    lastFocus = document.activeElement as HTMLElement;
+    image.src = source.currentSrc || source.src;
+    image.alt = source.alt;
+    caption.textContent = source.alt;
+    root.hidden = false;
+    document.body.style.overflow = "hidden";
+    root.querySelector<HTMLButtonElement>(".ag-lightbox-close")?.focus();
+  }
+
+  function close() {
+    if (!root || !image) return;
+    root.hidden = true;
+    image.removeAttribute("src");
+    document.body.style.overflow = "";
+    lastFocus?.focus();
+  }
+
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (target.closest("#ag-lightbox .ag-lightbox-close, #ag-lightbox .ag-lightbox-backdrop")) {
+      close();
+      return;
+    }
+    const source = target.closest("img.ag-zoomable, img.ag-hero-img");
+    if (source instanceof HTMLImageElement) open(source);
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && root && !root.hidden) close();
+  });
+</script>

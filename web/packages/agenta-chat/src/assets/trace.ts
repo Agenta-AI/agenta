@@ -64,6 +64,11 @@ export const getMessageRunErrorCode = (message: UIMessage): string | undefined =
     return typeof partCode === "string" && partCode.trim() ? partCode : undefined
 }
 
+/** A request that never reached Agenta: retryable as-is, and it carries no failure code. */
+export const isMessageRunErrorTransport = (message: UIMessage): boolean =>
+    (message.metadata as {runError?: {transport?: unknown}} | undefined)?.runError?.transport ===
+    true
+
 /** Token/cost fields in `ExecutionMetricsDisplay`'s shape. */
 export interface MessageUsageMetrics {
     promptTokens?: number
@@ -75,8 +80,7 @@ export interface MessageUsageMetrics {
 /**
  * Usage (tokens + cost) the service stamps onto `message.metadata.usage` via the
  * `finish` part's messageMetadata (`{input, output, total, cost}`), mapped to the
- * metrics-display field names. The trace supplies latency; this supplies tokens/cost
- * (the agent-run trace summary doesn't surface them on the Pi/local path).
+ * metrics-display field names. The footer shows it while the turn runs.
  */
 export const getMessageUsage = (message: UIMessage): MessageUsageMetrics | undefined => {
     const usage = (message.metadata as {usage?: Record<string, unknown>} | undefined)?.usage

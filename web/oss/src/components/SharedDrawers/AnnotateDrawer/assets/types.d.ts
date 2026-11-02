@@ -30,7 +30,6 @@ export interface AnnotateDrawerProps extends DrawerProps {
     evalSlugs?: string[]
     initialStep?: AnnotateDrawerStepsType
     createEvaluatorProps?: Partial<CreateEvaluatorProps>
-    closeOnLayoutClick?: boolean
     queryKey?: string
 }
 

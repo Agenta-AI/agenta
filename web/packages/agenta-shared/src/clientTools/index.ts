@@ -16,6 +16,7 @@ import type {ComponentType} from "react"
 import type {ToolUIPart} from "ai"
 
 export const CLIENT_TOOL_DESCRIPTORS = {
+    secret: {toolName: "request_secret", renderKind: "secret"},
     connection: {toolName: "request_connection", renderKind: "connect"},
     elicitation: {toolName: "request_input", renderKind: "elicitation"},
 } as const
@@ -23,6 +24,38 @@ export const CLIENT_TOOL_DESCRIPTORS = {
 export const CLIENT_TOOL_NAMES: ReadonlySet<string> = new Set(
     Object.values(CLIENT_TOOL_DESCRIPTORS).map(({toolName}) => toolName),
 )
+
+/** The MCP server we expose our own platform tools through. */
+export const INTERNAL_MCP_SERVER = "agenta-tools"
+
+/** How each harness wraps a tool of that server: Claude `mcp__<server>__`, Codex `mcp.<server>.`
+ * (runner `client-tools.ts` strips the same two). */
+const INTERNAL_MCP_PREFIXES = [`mcp__${INTERNAL_MCP_SERVER}__`, `mcp.${INTERNAL_MCP_SERVER}.`]
+
+/** Our slug namespace. Unstripped, `__ag__request_input` never matches a `byToolName` registry. */
+export const INTERNAL_SLUG_PREFIX = "__ag__"
+
+/**
+ * The platform tool name behind a harness wrapper.
+ *
+ * Pi sends `request_input`; Claude exposes the same tool over MCP and sends
+ * `mcp__agenta-tools__request_input`, Codex `mcp.agenta-tools.request_input`, and our own catalog
+ * slugs it `__ag__request_input`. Anything keyed BY tool name must key on this, or one call behaves
+ * differently depending on the harness.
+ *
+ * Lives in this leaf package so `@agenta/playground` and `@agenta/chat` can both key on it without
+ * either importing the other. @agenta/chat re-exports it as `canonicalToolName`.
+ *
+ * Only OUR server is unwrapped, so a third-party MCP tool keeps its full name and can never collide
+ * with a platform tool of the same bare name. NOT for permission rules: those must match the wire
+ * name verbatim (see `useAlwaysAllowTool`).
+ */
+export const canonicalClientToolName = (raw: string): string => {
+    for (const prefix of [...INTERNAL_MCP_PREFIXES, INTERNAL_SLUG_PREFIX]) {
+        if (raw.startsWith(prefix)) return raw.slice(prefix.length) || raw
+    }
+    return raw
+}
 
 const CLIENT_TOOL_INTERACTION_ENDED_KEY = "agenta_interaction_ended"
 
@@ -60,11 +93,48 @@ export interface ClientToolMeta {
     part: ToolUIPart
 }
 
-/** Settle the parked part. Mirrors OSS `SettleClientTool`: exactly one of `output`/`errorText`. */
+/**
+ * Settle the parked part. Mirrors OSS `SettleClientTool`: exactly one of `output`/`errorText`.
+ * A host may resolve `false` when the write did not land and the part is still parked.
+ */
 export interface SettleClientTool {
-    (args: {output: Record<string, unknown>}): void
-    (args: {errorText: string}): void
+    (args: {output: Record<string, unknown>}): void | boolean | Promise<void | boolean>
+    (args: {errorText: string}): void | boolean | Promise<void | boolean>
 }
+
+/** The settled connect call's reference shape (what the runner re-resolves against). */
+export interface ConnectOutput {
+    connected?: boolean
+    integration?: string
+    slug?: string
+    /**
+     * `"declined" | "cancelled" | "timeout"` for the three expected non-error terminal states, or
+     * the actual failure message when the create call itself errored.
+     */
+    reason?: string
+}
+
+/** The parked call's integration key and connection slug, read the one way every surface reads
+ * them: the call may pin a slug; otherwise it defaults to the integration key. */
+export const connectRequestRefs = (input: unknown): {integration: string; slug: string} => {
+    const record = (input ?? {}) as Record<string, unknown>
+    const integration = typeof record.integration === "string" ? record.integration : ""
+    const slug =
+        typeof record.slug === "string" && record.slug ? record.slug : integration || "default"
+    return {integration, slug}
+}
+
+/**
+ * The "Not now" output: a structured refusal (NOT an error), so the run resumes and the agent can
+ * respond gracefully or offer an alternative. Distinct from "cancelled" (abandoned popup) so the
+ * agent can tell an explicit decline from a mishap. Shared by the card's own button and the dock's
+ * host-driven dismiss (a chat message sent over the request), so both settle identically.
+ */
+export const declinedConnectOutput = (input: unknown): ConnectOutput => ({
+    connected: false,
+    ...connectRequestRefs(input),
+    reason: "declined",
+})
 
 /** Props every client-tool widget receives — mirrors OSS `ClientToolHandlerProps`. */
 export interface ClientToolWidgetProps {
@@ -82,6 +152,9 @@ export interface ClientToolWidgetProps {
     /** An earlier part in this turn already auto-settled as a degradation; the widget should park
      * (visible notice, no auto-settle) instead of looping. */
     degradedEarlierInTurn?: boolean
+    /** The host draws the tool's own mark beside the row (a timeline node), so the widget renders
+     * its sentence without an icon of its own, in the host's row type. */
+    bare?: boolean
 }
 
 /**

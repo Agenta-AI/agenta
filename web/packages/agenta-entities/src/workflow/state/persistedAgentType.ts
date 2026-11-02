@@ -9,6 +9,8 @@
  * care whether it is `"agent"`.
  */
 
+import {writeBounded} from "./boundedMap"
+
 const STORAGE_KEY = "agenta:agent-type-by-app:1"
 const MAX_ENTRIES = 500
 
@@ -36,16 +38,10 @@ export function writePersistedAgentType(workflowId: string, type: string | null 
     try {
         const map = readMap()
         if (map[workflowId] === type) return
-        map[workflowId] = type
-        // FIFO trim: JSON preserves string-key insertion order, so keep the most-recently-inserted.
-        const keys = Object.keys(map)
-        const bounded =
-            keys.length > MAX_ENTRIES
-                ? Object.fromEntries(
-                      keys.slice(keys.length - MAX_ENTRIES).map((k) => [k, map[k]] as const),
-                  )
-                : map
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(bounded))
+        window.localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify(writeBounded(map, workflowId, type, MAX_ENTRIES)),
+        )
     } catch {
         // quota / serialization — best-effort, ignore.
     }

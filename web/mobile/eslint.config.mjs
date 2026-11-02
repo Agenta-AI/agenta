@@ -41,7 +41,7 @@ const config = [
                         {
                             group: ["lexical", "lexical/*", "@lexical/*"],
                             message:
-                                "Lexical is banned in web/mobile. The mobile composer uses AI Elements PromptInput (WP3b).",
+                                "Lexical is banned in web/mobile. Use the shared composer input from @agenta/ui/rich-chat-input.",
                         },
                         {
                             group: [

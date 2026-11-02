@@ -10,6 +10,7 @@ from .discovery_status import DiscoveryStatus
 class DiscoveryResult(UniversalBaseModel):
     status: DiscoveryStatus
     models: typing.Optional[typing.List[str]] = None
+    model_names: typing.Optional[typing.Dict[str, str]] = None
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(

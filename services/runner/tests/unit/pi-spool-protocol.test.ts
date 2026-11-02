@@ -4,6 +4,7 @@ import { describe, it } from "vitest";
 import {
   isPiTraceSpoolFileName,
   parsePiTurnTraceControl,
+  piTraceDoneFileName,
   piTraceFileName,
 } from "../../src/tracing/pi-spool-protocol.ts";
 
@@ -20,6 +21,7 @@ describe("Pi trace spool protocol", () => {
         propagation: { traceparent: "00-a-b-01", baggage: "tenant=x" },
         capture: { content: false },
         skills: ["one", 2, "two"],
+        skillsDropped: ["gone: duplicate name", 3],
         redaction: { knownValues: ["secret-value", null] },
       }),
       {
@@ -30,9 +32,26 @@ describe("Pi trace spool protocol", () => {
         propagation: { traceparent: "00-a-b-01", baggage: "tenant=x" },
         capture: { content: false },
         skills: ["one", "two"],
+        skillsDropped: ["gone: duplicate name"],
         redaction: { knownValues: ["secret-value"] },
       },
     );
+  });
+
+  it("carries the custom connection flag only when it is true", () => {
+    const base = { version: 1, channelId: CHANNEL };
+    assert.equal(
+      parsePiTurnTraceControl({ ...base, customConnection: true })
+        .customConnection,
+      true,
+    );
+    for (const value of [false, "true", 1, undefined]) {
+      assert.equal(
+        "customConnection" in
+          parsePiTurnTraceControl({ ...base, customConnection: value }),
+        false,
+      );
+    }
   });
 
   it("rejects unknown versions and malformed channel ids", () => {
@@ -52,6 +71,8 @@ describe("Pi trace spool protocol", () => {
     assert.equal(isPiTraceSpoolFileName("current.control.json"), true);
     assert.equal(isPiTraceSpoolFileName(final), true);
     assert.equal(isPiTraceSpoolFileName(`${final}.tmp.nonce`), true);
+    assert.equal(isPiTraceSpoolFileName(piTraceDoneFileName(CHANNEL)), true);
+    assert.equal(isPiTraceSpoolFileName(`${CHANNEL}.done.x`), false);
     assert.equal(isPiTraceSpoolFileName("unrelated.txt"), false);
     assert.equal(isPiTraceSpoolFileName("../escape.0.otlp.pb"), false);
   });

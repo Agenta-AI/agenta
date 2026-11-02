@@ -39,6 +39,7 @@ import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 import {queryClientAtom} from "jotai-tanstack-query"
 
+import {canViewSpansAtom, canViewSpansPendingAtom} from "../access"
 import {loadableColumnsFromRunnableAtomFamily} from "../runnable/bridge"
 import {SYSTEM_FIELDS, type Testcase} from "../testcase/core"
 import {testcaseMolecule} from "../testcase/state/molecule"
@@ -1670,6 +1671,8 @@ export interface TraceMetrics {
     totalTokens?: number
     promptTokens?: number
     completionTokens?: number
+    cacheReadTokens?: number
+    cacheWriteTokens?: number
     totalCost?: number
 }
 
@@ -1759,6 +1762,11 @@ export const traceDataSummaryAtomFamily = atomFamily((traceId: string | null) =>
         }
 
         if (!traceId) return emptyResult
+        // A reader without `view_spans` never reads a trace: the summary stays empty and every
+        // display built on it falls back to what the turn itself carries. While the check is in
+        // flight the summary is pending, so no "no answer" text shows before the trace loads.
+        if (get(canViewSpansPendingAtom)) return {...emptyResult, isPending: true}
+        if (!get(canViewSpansAtom)) return emptyResult
 
         // Lightweight fetch: root span + errored spans only (cached by TanStack Query).
         // Everything below derives from the root span, so the full tree is never needed here.
@@ -1824,6 +1832,18 @@ export const traceDataSummaryAtomFamily = atomFamily((traceId: string | null) =>
                 "metrics.tokens.cumulative.completion",
                 "metrics.acc.tokens.completion",
                 "ag.metrics.tokens.cumulative.completion",
+            ),
+            cacheReadTokens: extractMetricValue(
+                agData,
+                rootSpan,
+                "metrics.tokens.cumulative.cache_read",
+                "ag.metrics.tokens.cumulative.cache_read",
+            ),
+            cacheWriteTokens: extractMetricValue(
+                agData,
+                rootSpan,
+                "metrics.tokens.cumulative.cache_creation",
+                "ag.metrics.tokens.cumulative.cache_creation",
             ),
             totalCost: extractMetricValue(
                 agData,

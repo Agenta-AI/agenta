@@ -26,6 +26,7 @@ from oss.src.core.workflows.service import WorkflowsService
 from oss.src.dbs.redis.sessions.contract import project_watch_channel, watch_channel
 from oss.src.dbs.redis.sessions.watch import SessionsWatchPublisher
 from oss.src.tasks.asyncio.sessions.records_worker import RecordsWorker
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
 
 
 def _payload(*, project_id, session_id, record_index=0):
@@ -136,11 +137,11 @@ async def test_worker_skips_publish_when_append_fails():
 
     assert total_appended == 0
     assert publisher.calls == []
-    # `process_batch` acknowledges at parse time, before the append, so a failed append is still
-    # acked and dropped by the shared consumer loop. That predates this change and is shared by
-    # every worker on `BaseStreamConsumer`; the relay tee neither causes it nor repairs it. This
-    # assertion pins the tee's scope, not an endorsement of the acknowledgement rule.
-    assert len(processed_ids) == 1
+    # A failed append acknowledges nothing, so the record stays in the Redis pending list and
+    # the reclaim pass writes it later. `process_batch` used to acknowledge at parse time,
+    # before the append, which made every Postgres failure permanent record loss (#5496).
+    # `test_records_worker_durability.py` pins that rule; this line pins the tee's scope.
+    assert processed_ids == []
 
 
 @pytest.mark.asyncio
@@ -179,6 +180,44 @@ async def test_publisher_publishes_on_watch_channel():
     assert json.loads(message["data"]) == {
         "type": "records-changed",
         "session_id": "sess-1",
+    }
+
+
+@pytest.mark.asyncio
+async def test_publisher_carries_committed_interaction_resolution():
+    import fakeredis
+
+    redis = fakeredis.FakeAsyncRedis()
+    pubsub = redis.pubsub()
+    project_id = str(uuid4())
+    channel = watch_channel(project_id, "sess-1")
+    await pubsub.subscribe(channel)
+    await pubsub.get_message(timeout=1)
+
+    publisher = SessionsWatchPublisher(redis_client=redis)
+    interaction = {
+        "id": str(uuid4()),
+        "session_id": "sess-1",
+        "turn_id": "turn-1",
+        "token": "approval-1",
+        "kind": "user_approval",
+        "status": "responded",
+        "data": {"resolution": {"verdict": "approved"}},
+    }
+    await publisher.interaction(
+        project_id=project_id,
+        session_id="sess-1",
+        status="resolved",
+        interactions=[interaction],
+    )
+
+    message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1)
+    assert message is not None
+    assert json.loads(message["data"]) == {
+        "type": "interaction",
+        "session_id": "sess-1",
+        "status": "resolved",
+        "interactions": [interaction],
     }
 
 
@@ -256,6 +295,7 @@ async def test_set_header_publishes_session_change_with_explicit_project_id():
         user_id=uuid4(),
         session_id="session-1",
         header=SessionStreamHeaderEdit(name="Renamed"),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert result is updated
@@ -315,6 +355,7 @@ async def test_change_publisher_failure_does_not_fail_either_write(monkeypatch):
         user_id=uuid4(),
         session_id="session-1",
         header=SessionStreamHeaderEdit(name="Renamed"),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     workflow_id = uuid4()

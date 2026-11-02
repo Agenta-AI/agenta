@@ -41,12 +41,7 @@ export type SubscriptionState =
   /** This runner version cannot check this harness. */
   | "unsupported";
 
-export const SUBSCRIPTION_HARNESSES = [
-  "codex",
-  "claude",
-  "pi_core",
-  "pi_agenta",
-] as const;
+export const SUBSCRIPTION_HARNESSES = ["codex", "claude", "pi_core"] as const;
 export type SubscriptionHarness = (typeof SUBSCRIPTION_HARNESSES)[number];
 
 export interface HarnessSubscriptionStatus {
@@ -139,10 +134,7 @@ const PROBES: Record<SubscriptionHarness, LoginProbe> = {
     file: ".credentials.json",
     provider: "anthropic",
   },
-  // `pi_core` and `pi_agenta` both drive the ACP agent "pi" (see run-plan.ts), so they read the
-  // same login on the same mount: one probe, reported once per harness.
   pi_core: PI_PROBE,
-  pi_agenta: PI_PROBE,
 };
 
 /**

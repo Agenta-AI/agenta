@@ -6,7 +6,6 @@ import {resetPassword} from "@agenta/entities/profile"
 import {MembersPage} from "@agenta/settings-ui"
 import {isEE, isEmailInvitationsEnabled} from "@agenta/shared/api"
 import {message} from "@agenta/ui/app-message"
-import {Input, Modal} from "antd"
 import dynamic from "next/dynamic"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
@@ -33,7 +32,7 @@ const InviteUsersModal = dynamic(() => import("./Modals/InviteUsersModal"), {ssr
 const WorkspaceManage: FC = () => {
     const {user: signedInUser, refetch: refetchProfile} = useProfileData()
     const {selectedOrg, loading, refetch} = useOrgData()
-    const {members, searchTerm, setSearchTerm} = useWorkspaceMembers()
+    const {members} = useWorkspaceMembers()
     const {hasRBAC} = useEntitlements()
     const {canInviteMembers, canRemoveMembers, canModifyRoles} = useWorkspacePermissions()
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
@@ -43,8 +42,6 @@ const WorkspaceManage: FC = () => {
         uri: "",
     })
     const [queryInviteModalOpen, setQueryInviteModalOpen] = useQueryParam("inviteModal")
-    const [renameOpen, setRenameOpen] = useState(false)
-    const [renameValue, setRenameValue] = useState("")
     const [resendingEmail, setResendingEmail] = useState<string | null>(null)
     const [resetTarget, setResetTarget] = useState<{id: string; username?: string} | null>(null)
     const [generateResetLinkOpen, setGenerateResetLinkOpen] = useState(false)
@@ -97,25 +94,21 @@ const WorkspaceManage: FC = () => {
         [organizationId, workspaceId, refetch],
     )
 
-    const handleRename = useCallback(async () => {
-        const nextValue = renameValue.trim()
-        if (!nextValue) {
-            message.error("Username is required.")
-            return
-        }
-        try {
-            await updateUsername(nextValue)
+    const handleRename = useCallback(
+        async (_member: WorkspaceMember, name: string) => {
+            try {
+                await updateUsername(name)
+            } catch (error) {
+                const detail = (error as {response?: {data?: {detail?: string}}})?.response?.data
+                    ?.detail
+                throw new Error(
+                    detail || (error as {message?: string})?.message || "Unable to update username",
+                )
+            }
             await Promise.all([refetchProfile(), refetch()])
-            message.success("Username updated")
-            setRenameOpen(false)
-        } catch (error) {
-            const detail = (error as {response?: {data?: {detail?: string}}; message?: string})
-                ?.response?.data?.detail
-            message.error(
-                detail || (error as {message?: string})?.message || "Unable to update username",
-            )
-        }
-    }, [renameValue, refetchProfile, refetch])
+        },
+        [refetchProfile, refetch],
+    )
 
     const handleResetPassword = useCallback(async () => {
         if (!resetTarget) return
@@ -142,8 +135,6 @@ const WorkspaceManage: FC = () => {
         <MembersPage
             members={members}
             loading={loading}
-            searchTerm={searchTerm}
-            onSearchChange={setSearchTerm}
             signedInUser={signedInUser}
             ownerId={selectedOrg?.owner_id}
             canInviteMembers={canInviteMembers}
@@ -166,32 +157,12 @@ const WorkspaceManage: FC = () => {
             onInvite={() => setIsInviteModalOpen(true)}
             onResendInvite={handleResendInvite}
             onRemove={handleRemove}
-            onRenameSelf={(member) => {
-                setRenameValue(member.user.username || "")
-                setRenameOpen(true)
-            }}
+            onRenameSelf={handleRename}
             onResetPassword={(member) => {
                 setResetTarget({id: member.user.id, username: member.user.username})
                 setGenerateResetLinkOpen(true)
             }}
         >
-            <Modal
-                title="Rename your username"
-                open={renameOpen}
-                okText="Save"
-                onCancel={() => setRenameOpen(false)}
-                onOk={handleRename}
-                destroyOnHidden
-                centered
-            >
-                <Input
-                    autoFocus
-                    value={renameValue}
-                    onChange={(event) => setRenameValue(event.target.value)}
-                    placeholder="New username"
-                />
-            </Modal>
-
             <GenerateResetLinkModal
                 open={generateResetLinkOpen}
                 username={resetTarget?.username}

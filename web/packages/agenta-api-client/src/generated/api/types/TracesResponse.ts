@@ -7,4 +7,6 @@ export interface TracesResponse {
     count?: number | undefined;
     /** List of traces in the canonical `Traces` shape. For the map-shaped payload keyed by `trace_id`, call `POST /tracing/spans/query` with `focus="trace"`. */
     traces?: (AgentaApi.TraceOutput[] | null) | undefined;
+    /** Windowing of the next page. Present when this page is full (it holds `windowing.limit` traces); send it as `windowing` in the next request. When the last page is full, the page after it is empty. */
+    windowing?: (AgentaApi.Windowing | null) | undefined;
 }

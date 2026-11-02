@@ -27,6 +27,7 @@ import {commitWorkflowRevisionAtom} from "../../src/workflow/state/commit"
 import {
     updateWorkflowDraftAtom,
     workflowDraftAtomFamily,
+    workflowDraftConsumedAtomFamily,
     workflowLocalServerDataAtomFamily,
 } from "../../src/workflow/state/store"
 
@@ -98,5 +99,26 @@ describe("an edit made while the commit is in flight", () => {
         expect(result.success).toBe(true)
         // Committed and clean — a leftover draft here would show as a permanent phantom edit.
         expect(store.get(workflowDraftAtomFamily(SOURCE))).toBeNull()
+    })
+
+    it("records that a COMMIT emptied the draft, not the person", async () => {
+        // The clearing above and a discard are the same write, and a surface that resets itself
+        // on a discard cannot tell them apart from the value. It has to, because the reset tears
+        // down whatever is open over it: on a host that switches to the new revision after the
+        // commit rather than during it, the clearing lands while the old revision is still on
+        // screen, and a drawer nobody had touched closed itself seconds later (D94).
+        store.set(updateWorkflowDraftAtom, SOURCE, {
+            data: {parameters: {agent: {instructions: "only edit"}}},
+        } as never)
+        commitApi.mockResolvedValue({
+            id: NEW_REVISION,
+            workflow_id: "wf-1",
+            data: {parameters: {}},
+        })
+
+        expect(store.get(workflowDraftConsumedAtomFamily(SOURCE))).toBe(0)
+        await store.set(commitWorkflowRevisionAtom, {revisionId: SOURCE})
+
+        expect(store.get(workflowDraftConsumedAtomFamily(SOURCE))).toBe(1)
     })
 })

@@ -490,7 +490,7 @@ per-project credential access, environmental).
 
 ## Live run results — SDK / API surface re-run (2026-06-25, second pass)
 
-Run against `localhost:8280` via the box IP (`http://144.76.237.122:8280`), compose project
+Run against `localhost:8280` via the box IP (`http://<dev-host>:8280`), compose project
 `agenta-ee-dev-wp-b2-rendering`, commit `2389401ac3` (the `f8cfee3908` sidecar-uri commit on top).
 E2 sandbox-agent local. Key: the hotel-agent `.env` API key (OpenAI-only vault, project
 `019e8df5-635d-…`). Model `openai/gpt-4o-mini` (cheap). Both entrypoints exercised. Captures:

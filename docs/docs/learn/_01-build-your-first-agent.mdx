@@ -200,7 +200,7 @@ Your agent can now read from GitHub and write files. Permissions decide which of
 
 1. In the `Configuration` column, click `Advanced`.
 2. Open the `Permissions` section.
-3. Set `Policy` to `Allow reads`. It is the default, so it may already be selected.
+3. Set `Policy` to `Allow reads`. A new agent starts on `Allow all`, so this is a change.
 4. Click `Save`.
 
 <Stream controls autoplay muted loop src="043728b716bd954b6084a6fb8d247b1b" height="400px" />
@@ -210,8 +210,8 @@ The four policies are:
 
 | Policy | What it does |
 |---|---|
-| `Allow reads` | Reads run, writes ask. This is the default. |
-| `Allow all` | Every tool runs without asking. |
+| `Allow reads` | Reads run, writes ask. |
+| `Allow all` | Every tool runs without asking. A new agent starts here. |
 | `Ask` | A human approves every tool call. |
 | `Deny all` | Every tool call is refused. |
 

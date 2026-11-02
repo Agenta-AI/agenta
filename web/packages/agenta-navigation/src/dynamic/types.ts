@@ -1,4 +1,4 @@
-import type {ReactElement, ReactNode} from "react"
+import type {MouseEvent, ReactElement, ReactNode} from "react"
 
 import type {ListQueryState} from "@agenta/entities/shared"
 import type {Atom, WritableAtom} from "jotai"
@@ -39,12 +39,40 @@ export interface SidebarEntitySource<TRef extends SidebarEntityRef = SidebarEnti
     collapsedKeys?: string[]
     /** Overrides the entity's static `emptyLabel` — e.g. "nothing matches these filters". */
     emptyLabel?: string
+    /** Which of this source's rows and headings the user may hand-arrange. Absent = none. */
+    reorder?: SidebarEntityReorder
+}
+
+/**
+ * The manual-order zones a grouped source offers, resolved WITH the groups because it depends on
+ * the active grouping. Items sharing a zone reorder against each other and nothing else.
+ */
+export interface SidebarEntityReorder {
+    /** Zone the HEADINGS arrange in; absent leaves them fixed. */
+    groupZone?: string
+    /** The id a heading is SAVED under, or `undefined` to leave that heading fixed. Defaults to
+     * the group key; headings that are not agents opt out entirely. */
+    groupId?: (groupKey: string) => string | undefined
+    /** Zone a heading's rows arrange in; `undefined` leaves that heading's rows fixed. */
+    rowZone?: (groupKey: string) => string | undefined
 }
 
 /** One heading in a grouped entity list. */
 export interface SidebarEntityGroup {
     key: string
     label: string
+    /** Set when the heading IS an agent (agent grouping) — what its "+" starts a session with. */
+    agentId?: string
+}
+
+/** A heading's "+": where it goes, what it reads as, and any extra click work. */
+export interface SidebarGroupAdd {
+    /** Followed on a plain click unless `onClick` prevents it; a modified click opens it as is. */
+    link: string
+    /** Accessible name, e.g. "New session with Demo shoot". */
+    label: string
+    /** Extra click work, outside React — it may `preventDefault` and navigate on its own. */
+    onClick?: (event: MouseEvent) => void
 }
 
 /**
@@ -66,8 +94,14 @@ export interface SidebarEntityConfig<TRef extends SidebarEntityRef = SidebarEnti
     childMatchPaths?: (ref: TRef) => string[]
     /** Shown (muted, disabled) when the group is open but has no items. */
     emptyLabel?: string
-    /** Cap on rendered rows; overflow adds a "Show all" row. Defaults to 3. */
+    /** Render NOTHING once the source is READY with no rows AND names no empty label of its own
+     * (a filter that matched nothing names one). Only safe for a group with no collapse control.
+     * Idle, loading and error still show a row. */
+    hideWhenEmpty?: boolean
+    /** Cap on rendered rows; overflow adds a "Show all" row. Defaults to 5. */
     maxItems?: number
+    /** Zone this entity's rows arrange in, for an UNGROUPED list. Absent leaves them fixed. */
+    dragZone?: string
     /** Project-relative path for the "Show all" overflow row. */
     showAllPath?: string
     /** Per-row icon, overriding the shared kind icon — for rows whose state differs from each
@@ -90,9 +124,15 @@ export interface SidebarEntityConfig<TRef extends SidebarEntityRef = SidebarEnti
         groups: SidebarEntityGroup[]
         collapsedKeys: string[]
         emptyLabel?: string
+        reorder?: SidebarEntityReorder
     }>
     /** Toggles a heading's collapse state. */
     toggleGroupAtom?: WritableAtom<string[], [string], void>
+    /** A heading's "+", or nothing for a heading that gets none. Given the project URL, since
+     * the add's own click may need to build a route. */
+    groupAdd?: (group: SidebarEntityGroup, projectURL: string) => SidebarGroupAdd | undefined
+    /** `ref.id -> last used, in ms`. Ranked rows lead newest-first; the rest keep source order. */
+    ranksAtom?: Atom<ReadonlyMap<string, number>>
 }
 
 /**
@@ -109,7 +149,9 @@ export interface SidebarEntity {
     childLink: (ref: SidebarEntityRef, projectURL: string) => string
     childMatchLinks?: (ref: SidebarEntityRef, projectURL: string) => string[]
     emptyLabel?: string
+    hideWhenEmpty?: boolean
     maxItems: number
+    dragZone?: string
     showAllLink?: (projectURL: string) => string
     getIcon?: (ref: SidebarEntityRef) => ReactElement
     getTooltip?: (ref: SidebarEntityRef) => string | undefined
@@ -117,10 +159,13 @@ export interface SidebarEntity {
     getOnClick?: (ref: SidebarEntityRef) => () => void
     wrapRow?: (ref: SidebarEntityRef, node: ReactNode) => ReactElement
     getGroupKey?: (ref: SidebarEntityRef) => string
+    ranksAtom?: Atom<ReadonlyMap<string, number>>
     groupsAtom?: Atom<{
         groups: SidebarEntityGroup[]
         collapsedKeys: string[]
         emptyLabel?: string
+        reorder?: SidebarEntityReorder
     }>
     toggleGroupAtom?: WritableAtom<string[], [string], void>
+    groupAddLink?: (group: SidebarEntityGroup, projectURL: string) => SidebarGroupAdd | undefined
 }

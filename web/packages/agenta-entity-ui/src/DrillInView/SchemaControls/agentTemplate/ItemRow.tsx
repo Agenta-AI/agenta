@@ -19,8 +19,16 @@ import {describeInstruction, type ItemDescriptor} from "./itemDescriptors"
 export type ItemRowStatusTone = "new" | "edited" | "invalid" | "incomplete"
 export interface ItemRowStatus {
     tone: ItemRowStatusTone
-    label: string
+    /**
+     * Omit it to tint the row's border and draw no tag. A row that states the problem in
+     * its own body — an MCP server's "Login expired" — would otherwise say it twice.
+     */
+    label?: string
     tooltip?: ReactNode
+    /** A second line under the name that says why (the needs-setup reason). Replaces the description. */
+    reason?: string
+    /** The row is tagged by the server's needs-setup check (its tap opens the fix). */
+    needsSetup?: boolean
 }
 
 const STATUS_BORDER: Record<ItemRowStatusTone, string> = {
@@ -49,6 +57,8 @@ const STATUS_ACCENT: Record<ItemRowStatusTone, string> = {
 }
 
 export function StatusTag({status}: {status: ItemRowStatus}) {
+    // A status with no label tints the row's border and draws nothing here.
+    if (!status.label) return null
     const tag = (
         <Tag tone={STATUS_TAG_TONE[status.tone]} className={TAG_CLS}>
             {status.label}
@@ -69,12 +79,38 @@ export function StatusTag({status}: {status: ItemRowStatus}) {
     )
 }
 
+/** The line under a row's name: the status reason when there is one, else the description. */
+function RowSubtitle({
+    status,
+    description,
+    className,
+}: {
+    status?: ItemRowStatus
+    description?: ReactNode
+    className: string
+}) {
+    if (status?.reason) {
+        return (
+            <span className={cn(className, "text-[var(--ag-colorWarningText)]")}>
+                {status.reason}
+            </span>
+        )
+    }
+    if (!description) return null
+    return <span className={className}>{description}</span>
+}
+
 /** Colored avatar square (icon or monogram) at the start of a config-item row. */
 export function ItemAvatar({descriptor}: {descriptor: ItemDescriptor}) {
+    // `chip` wins when the item paints itself; everything else keeps the solid type square.
+    const chipped = Boolean(descriptor.avatarClassName)
     return (
         <span
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-[12px] font-semibold leading-none text-white"
-            style={{background: descriptor.color}}
+            className={cn(
+                "flex h-7 w-7 shrink-0 items-center justify-center rounded text-[12px] font-semibold leading-none",
+                chipped ? descriptor.avatarClassName : "text-white",
+            )}
+            style={chipped ? descriptor.avatarStyle : {background: descriptor.color}}
         >
             {descriptor.icon ?? descriptor.mono}
         </span>
@@ -111,26 +147,28 @@ export function ItemRow({
     extra?: ReactNode
     status?: ItemRowStatus
 }) {
-    const interactive = Boolean(onEdit) && !locked
+    // `disabled` counts: a disabled row that still reads as a button invokes a handler that no-ops.
+    const interactive = Boolean(onEdit) && !locked && !disabled
     return (
         <div
             style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
+            // The whole row opens it; the chevron and tags used to be a dead target.
+            onClick={interactive ? onEdit : undefined}
             className={cn(
-                "group flex items-center gap-2.5 rounded border border-solid border-[var(--ag-c-EAEFF5)] px-3 py-2 transition-colors",
+                "group flex items-center gap-2.5 rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] py-2.5 pl-3 pr-2 transition-colors",
                 // Item cards read as white sheets sitting ON the expanded section's band.
                 !locked && "bg-[var(--ag-surface-section-content)]",
-                interactive && !status && "cursor-pointer hover:border-[var(--ag-zinc-5)]",
+                interactive && !status && "cursor-pointer hover:bg-[var(--ag-colorFillQuaternary)]",
                 interactive && status && "cursor-pointer",
                 locked && "bg-[var(--ant-color-fill-quaternary)] opacity-70",
             )}
         >
             {/* The `role="button"` region is a SIBLING of the remove button, never its ancestor
-                (axe nested-interactive) — same split as SubscriptionChildRow. The outer flex
-                still supplies the gap between the two groups, so geometry is unchanged. */}
+                (axe nested-interactive) — same split as SubscriptionChildRow. It carries the
+                keyboard affordance only; the click is handled once, on the row. */}
             <div
                 role={interactive ? "button" : undefined}
                 tabIndex={interactive ? 0 : undefined}
-                onClick={interactive ? onEdit : undefined}
                 onKeyDown={
                     interactive
                         ? (e) => {
@@ -149,26 +187,30 @@ export function ItemRow({
                 <ItemAvatar descriptor={descriptor} />
                 <div className="min-w-0 flex-1">
                     <div
-                        className={`truncate text-xs font-medium ${
+                        className={`truncate text-[13px] font-normal ${
                             descriptor.monoName === false ? "" : "font-mono"
                         }`}
                     >
                         {descriptor.name}
                     </div>
-                    {descriptor.description ? (
-                        <span className="block truncate text-xs leading-tight text-colorTextDescription">
-                            {descriptor.description}
-                        </span>
-                    ) : null}
+                    <RowSubtitle
+                        status={status}
+                        description={descriptor.description}
+                        className="block truncate text-xs leading-tight text-[var(--ag-colorTextTertiary)]"
+                    />
                 </div>
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
                 {status ? <StatusTag status={status} /> : null}
-                {descriptor.tags.map((tag) => (
-                    <Tag key={tag} className={TAG_CLS}>
-                        {tag}
-                    </Tag>
-                ))}
+                {descriptor.tags.map((tag) => {
+                    const label = typeof tag === "string" ? tag : tag.label
+                    const tone = typeof tag === "string" ? undefined : tag.tone
+                    return (
+                        <Tag key={label} tone={tone} className={TAG_CLS}>
+                            {label}
+                        </Tag>
+                    )
+                })}
                 {locked ? <Tag className={TAG_CLS}>Locked</Tag> : null}
                 {extra}
                 {onRemove && !disabled && !locked ? (
@@ -179,12 +221,15 @@ export function ItemRow({
                             e.stopPropagation()
                             onRemove()
                         }}
-                        className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-zinc-5)] opacity-0 transition-opacity hover:text-colorError group-hover:opacity-100"
+                        // A 24px ghost target, not a bare glyph: a hover-only icon is hard to hit.
+                        className="flex size-6 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-[var(--ag-colorTextTertiary)] opacity-0 transition-opacity hover:bg-[var(--ag-colorErrorBg)] hover:text-[var(--ag-colorErrorText)] focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--ag-colorPrimary)] group-hover:opacity-100"
                     >
                         <Trash size={14} />
                     </button>
                 ) : null}
-                {interactive ? <CaretRight size={14} className="text-[var(--ag-zinc-5)]" /> : null}
+                {interactive ? (
+                    <CaretRight size={13} className="text-[var(--ag-colorTextQuaternary)]" />
+                ) : null}
             </div>
         </div>
     )
@@ -236,11 +281,11 @@ export function ItemChildRow({
                 >
                     {descriptor.name}
                 </div>
-                {descriptor.description ? (
-                    <span className="block truncate text-xs leading-snug text-colorTextDescription">
-                        {descriptor.description}
-                    </span>
-                ) : null}
+                <RowSubtitle
+                    status={status}
+                    description={descriptor.description}
+                    className="block truncate text-xs leading-snug text-colorTextDescription"
+                />
             </div>
             <div
                 className="flex shrink-0 items-center gap-1.5"
@@ -285,10 +330,7 @@ export function InstructionsFileRow({
 }) {
     const descriptor = describeInstruction(filename, content)
     const wordCount = content.trim().split(/\s+/).filter(Boolean).length
-    const meta =
-        wordCount > 0
-            ? `Markdown · ${wordCount} word${wordCount === 1 ? "" : "s"}`
-            : "Markdown · empty"
+    const meta = wordCount > 0 ? `${wordCount} word${wordCount === 1 ? "" : "s"}` : "empty"
     return (
         <div
             role="button"
@@ -301,8 +343,10 @@ export function InstructionsFileRow({
                 }
             }}
             style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
+            // Same border and ground as the integration and subagent rows above: --ag-c-EAEFF5 is
+            // a fixed light hex, so this row's edge vanished against a dark section.
             className={cn(
-                "group flex cursor-pointer items-start gap-3 rounded-lg border border-solid border-[var(--ag-c-EAEFF5)] px-3 py-2.5 transition-colors",
+                "group flex cursor-pointer items-start gap-3 rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-surface-section-content)] px-3 py-2.5 transition-colors",
                 !status && "hover:border-[var(--ag-zinc-5)]",
             )}
         >

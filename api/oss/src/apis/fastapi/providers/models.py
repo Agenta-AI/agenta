@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
@@ -40,6 +40,10 @@ class ProbeProviderRequest(BaseModel):
             "Fields sent in `provider` override the stored ones."
         ),
     )
+    # Whose row `secret_id` names (M5): the project's (the default) or an organization
+    # connection available to the project. Any project member may test an organization
+    # connection; only an organization owner or admin may test it with changed fields.
+    secret_scope: Optional[Literal["project", "organization"]] = None
 
     @model_validator(mode="after")
     def require_something_to_probe(self):

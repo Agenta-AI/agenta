@@ -1,15 +1,26 @@
 import {createElement} from "react"
 
+import {atom} from "jotai"
 import {describe, expect, it} from "vitest"
 
 import {
+    AGENTS_SIDEBAR_KEY,
+    PROMPTS_SIDEBAR_KEY,
+    SIDEBAR_ENTITIES,
+    SESSIONS_SIDEBAR_KEY,
+    SIDEBAR_UNBOUNDED,
     defineSidebarEntity,
-    groupingStartsFolded,
+    livePollInterval,
+    agentSessionCounts,
+    localSessionRefsMatching,
     resolveChildren,
     sidebarSessionGroup,
+    sidebarSessionGroupAgentId,
     withRefsByRecency,
     type SessionSidebarRef,
     type SidebarEntity,
+    type SidebarSessionFilters,
+    type SidebarSessionGroupBy,
     type SidebarEntityRef,
     type SidebarEntitySource,
 } from "../../src"
@@ -63,6 +74,23 @@ describe("resolveChildren", () => {
 
         expect(children).toHaveLength(15)
         expect(children.at(-1)?.title).toBe("Show all")
+    })
+
+    // Sessions renders every page it has loaded, so its cap is lifted rather than raised — and an
+    // uncapped entity has nothing left over to put behind a Show all.
+    it("renders every ref and no Show all when the entity is unbounded", () => {
+        const refs = Array.from({length: 120}, (_, index) => ref(`s${index}`, `Session ${index}`))
+        const children = resolveChildren(
+            entity({
+                maxItems: SIDEBAR_UNBOUNDED,
+                showAllLink: (projectURL) => `${projectURL}/sessions`,
+            }),
+            ready(refs),
+            "/w/w1/p/p1",
+        )
+
+        expect(children).toHaveLength(120)
+        expect(children.some((child) => child.title === "Show all")).toBe(false)
     })
 })
 
@@ -124,6 +152,73 @@ describe("resolveChildren grouping", () => {
             "Docs audit",
         ])
         expect(children.some((child) => child.isGroupLabel)).toBe(false)
+    })
+
+    const reorder = {
+        groupZone: "agents",
+        rowZone: (key: string) => (key.startsWith("agent:") ? `sessions:${key}` : undefined),
+    }
+
+    it("marks headings and their rows with the zone they arrange in", () => {
+        const children = resolveChildren(grouped, ready(refs, {groups, reorder}), "/w/w1/p/p1")
+
+        expect(children.map((child) => [child.title, child.dragItem?.zone])).toEqual([
+            ["Pinned", "agents"],
+            // Pinned rows have no row zone: pin order is its own concept.
+            ["Morning poem", undefined],
+            ["Ops Assistant", "agents"],
+            ["Daily update", "sessions:agent:a1"],
+            ["Docs audit", "sessions:agent:a1"],
+        ])
+    })
+
+    it("leaves a heading that resolves to no id undraggable", () => {
+        const opted = {
+            ...reorder,
+            groupId: (key: string) => (key.startsWith("agent:") ? key.slice(6) : undefined),
+        }
+        const children = resolveChildren(
+            grouped,
+            ready(refs, {groups, reorder: opted}),
+            "/w/w1/p/p1",
+        )
+
+        const pinnedHeading = children.find((child) => child.title === "Pinned")
+        const agentHeading = children.find((child) => child.title === "Ops Assistant")
+        expect(pinnedHeading?.dragItem).toBeUndefined()
+        expect(agentHeading?.dragItem?.id).toBe("a1")
+    })
+
+    it("marks nothing when the source offers no zones", () => {
+        const children = resolveChildren(grouped, ready(refs, {groups}), "/w/w1/p/p1")
+
+        expect(children.every((child) => child.dragItem === undefined)).toBe(true)
+    })
+
+    it("marks no rows under a collapsed heading, since none are rendered", () => {
+        const children = resolveChildren(
+            grouped,
+            ready(refs, {groups, reorder, collapsedKeys: ["agent:a1"]}),
+            "/w/w1/p/p1",
+        )
+
+        expect(children.map((child) => child.title)).toEqual([
+            "Pinned",
+            "Morning poem",
+            "Ops Assistant",
+        ])
+    })
+
+    it("arranges an ungrouped entity's rows in the entity's own zone", () => {
+        const flat = {...entity({}), dragZone: "agents"}
+        const children = resolveChildren(flat, ready(refs), "/w/w1/p/p1")
+
+        expect(children.map((child) => child.dragItem?.zone)).toEqual([
+            "agents",
+            "agents",
+            "agents",
+        ])
+        expect(children[0].dragItem?.kind).toBe("row")
     })
 
     it("drops rows whose group the source never declared", () => {
@@ -204,12 +299,13 @@ describe("sidebarSessionGroup", () => {
         pinned: false,
         alive: false,
         running: false,
+        isAutomation: false,
         archived: false,
         ...over,
     })
 
     it("buckets by the owning agent's name", () => {
-        expect(sidebarSessionGroup(row(), "agent", NOW)).toEqual({
+        expect(sidebarSessionGroup(row(), "agent", NOW)).toMatchObject({
             key: "agent:a1",
             label: "Ops Assistant",
         })
@@ -220,7 +316,7 @@ describe("sidebarSessionGroup", () => {
     })
 
     it("labels a session with no agent yet", () => {
-        expect(sidebarSessionGroup(row({agentId: null}), "agent", NOW)).toEqual({
+        expect(sidebarSessionGroup(row({agentId: null}), "agent", NOW)).toMatchObject({
             key: "agent:none",
             label: "No agent yet",
         })
@@ -228,7 +324,7 @@ describe("sidebarSessionGroup", () => {
 
     it("puts pins in their own heading whichever grouping is active", () => {
         for (const groupBy of ["agent", "date", "status", "pinned"] as const) {
-            expect(sidebarSessionGroup(row({pinned: true}), groupBy, NOW)).toEqual({
+            expect(sidebarSessionGroup(row({pinned: true}), groupBy, NOW)).toMatchObject({
                 key: "pinned",
                 label: "Pinned",
             })
@@ -256,28 +352,75 @@ describe("sidebarSessionGroup", () => {
         expect(key(noon(2026, 3, 4))).not.toBe(key(noon(2025, 3, 4)))
     })
 
-    it("buckets by liveness", () => {
+    it("buckets by liveness, with a gate ranked above it", () => {
         const label = (over: Partial<SessionSidebarRef>) =>
             sidebarSessionGroup(row(over), "status", NOW).label
         expect(label({running: true})).toBe("Running")
+        // A gate outranks liveness: an alive-and-waiting row is Awaiting, not Live.
+        expect(label({waiting: true, alive: true})).toBe("Awaiting input")
+        expect(label({waiting: true})).toBe("Awaiting input")
         expect(label({alive: true})).toBe("Live")
         expect(label({})).toBe("Idle")
     })
 
+    it("ranks the status buckets Running, Awaiting, Live, Idle", () => {
+        const rank = (over: Partial<SessionSidebarRef>) =>
+            sidebarSessionGroup(row(over), "status", NOW).rank
+        expect(rank({running: true})).toBeLessThan(rank({waiting: true}))
+        expect(rank({waiting: true})).toBeLessThan(rank({alive: true}))
+        expect(rank({alive: true})).toBeLessThan(rank({}))
+    })
+
     it("puts every unpinned row under Recent when nothing groups them", () => {
-        expect(sidebarSessionGroup(row(), "none", NOW)).toEqual({key: "recent", label: "Recent"})
+        expect(sidebarSessionGroup(row(), "none", NOW)).toMatchObject({
+            key: "recent",
+            label: "Recent",
+        })
     })
 
     // "Pinned first" was retired: pins lead under every grouping, so it grouped by nothing. A
     // stored value from before that is not a grouping the menu can show OR the grouper knows.
     it("pins lead whichever grouping is active", () => {
-        expect(sidebarSessionGroup(row({pinned: true}), "none", NOW)).toEqual({
+        expect(sidebarSessionGroup(row({pinned: true}), "none", NOW)).toMatchObject({
             key: "pinned",
             label: "Pinned",
         })
-        expect(sidebarSessionGroup(row({pinned: true, agentId: "a1"}), "agent", NOW)).toEqual({
-            key: "pinned",
-            label: "Pinned",
+        expect(sidebarSessionGroup(row({pinned: true, agentId: "a1"}), "agent", NOW)).toMatchObject(
+            {
+                key: "pinned",
+                label: "Pinned",
+            },
+        )
+    })
+
+    // The headings are sorted on this rank. Working in a session reorders the ROWS, and used to
+    // reorder the sections with them, because the headings followed the rows' own order.
+    describe("rank", () => {
+        const rank = (over: Partial<SessionSidebarRef>, groupBy: SidebarSessionGroupBy) =>
+            sidebarSessionGroup(row(over), groupBy, NOW).rank
+
+        it("sorts pins below everything, under every grouping", () => {
+            for (const groupBy of ["none", "agent", "date", "status"] as const) {
+                expect(rank({pinned: true}, groupBy)).toBeLessThan(rank({}, groupBy))
+            }
+        })
+
+        it("sorts the newest day first and no-activity last", () => {
+            const at = (iso?: string) => rank({activityAt: iso}, "date")
+            expect(at(noon(2026, 8, 21))).toBeLessThan(at(noon(2026, 8, 20)))
+            expect(at(noon(2026, 8, 20))).toBeLessThan(at(noon(2025, 12, 24)))
+            expect(at()).toBeGreaterThan(at(noon(2026, 8, 21)))
+        })
+
+        it("sorts liveness Running, Live, Idle", () => {
+            expect(rank({running: true}, "status")).toBeLessThan(rank({alive: true}, "status"))
+            expect(rank({alive: true}, "status")).toBeLessThan(rank({}, "status"))
+        })
+
+        // Agents tie on rank and are separated by name; only the unassigned heading is pushed past.
+        it("sorts named agents together, ahead of No agent yet", () => {
+            expect(rank({agentId: "a2"}, "agent")).toBe(rank({agentId: "a1"}, "agent"))
+            expect(rank({agentId: "a1"}, "agent")).toBeLessThan(rank({agentId: null}, "agent"))
         })
     })
 })
@@ -328,12 +471,283 @@ describe("withRefsByRecency", () => {
     })
 })
 
-// A grouping change must not read as "everything collapsed": the stored set flips a heading away
-// from its default rather than listing open ones, so its keys survive a regrouping.
-describe("groupingStartsFolded", () => {
-    it("starts every grouping open", () => {
-        for (const groupBy of ["agent", "date", "status", "pinned"] as const) {
-            expect(groupingStartsFolded(groupBy)).toBe(false)
+// The rail's filters are server predicates, and a host-contributed row never went through the
+// query — so each one has to be re-applied here or the row survives a filter that hid its peers.
+describe("localSessionRefsMatching", () => {
+    const local = (over: Partial<SessionSidebarRef> = {}): SessionSidebarRef => ({
+        id: over.id ?? "local",
+        sessionId: over.id ?? "local",
+        appId: "a1",
+        agentId: "a1",
+        pinned: false,
+        alive: false,
+        running: false,
+        isAutomation: false,
+        archived: false,
+        ...over,
+    })
+
+    const filters = (over: Partial<SidebarSessionFilters> = {}): SidebarSessionFilters => ({
+        groupBy: "none",
+        agentIds: [],
+        status: "all",
+        activity: "7d",
+        type: "chat",
+        ...over,
+    })
+
+    const ids = (rows: SessionSidebarRef[]) => rows.map((row) => row.id)
+    const NONE: ReadonlySet<string> = new Set()
+
+    it("keeps every row when nothing is filtered", () => {
+        expect(ids(localSessionRefsMatching([local()], filters(), NONE))).toEqual(["local"])
+    })
+
+    // A client-created chat is never a trigger run, so Automation must not list one.
+    it("drops every local row under Automation", () => {
+        expect(localSessionRefsMatching([local()], filters({type: "automation"}), NONE)).toEqual([])
+    })
+
+    it("keeps local rows when both types are listed", () => {
+        expect(ids(localSessionRefsMatching([local()], filters({type: "all"}), NONE))).toEqual([
+            "local",
+        ])
+    })
+
+    it("drops a row belonging to an agent the filter excludes", () => {
+        const rows = [local({id: "mine"}), local({id: "theirs", agentId: "a2"})]
+
+        expect(ids(localSessionRefsMatching(rows, filters({agentIds: ["a1"]}), NONE))).toEqual([
+            "mine",
+        ])
+    })
+
+    it("applies the liveness facet", () => {
+        const running = local({id: "running", running: true})
+        const idle = local({id: "idle"})
+        const rows = [running, idle]
+
+        expect(ids(localSessionRefsMatching(rows, filters({status: "running"}), NONE))).toEqual([
+            "running",
+        ])
+        expect(ids(localSessionRefsMatching(rows, filters({status: "idle"}), NONE))).toEqual([
+            "idle",
+        ])
+    })
+
+    // The host knows a gate is open before the interactions query has a row for it.
+    it("honours a gate the row reports itself", () => {
+        const rows = [local({id: "gated", waiting: true})]
+
+        expect(ids(localSessionRefsMatching(rows, filters({status: "waiting"}), NONE))).toEqual([
+            "gated",
+        ])
+        expect(localSessionRefsMatching(rows, filters({status: "idle"}), NONE)).toEqual([])
+    })
+
+    // A gate ranks above liveness, the same rule the server rows follow.
+    it("counts a gated row as awaiting input, not idle", () => {
+        const rows = [local({id: "gated"})]
+        const gated: ReadonlySet<string> = new Set(["gated"])
+
+        expect(ids(localSessionRefsMatching(rows, filters({status: "waiting"}), gated))).toEqual([
+            "gated",
+        ])
+        expect(localSessionRefsMatching(rows, filters({status: "idle"}), gated)).toEqual([])
+    })
+})
+
+// The baseline discovers runs started by another client.
+describe("livePollInterval", () => {
+    // Only `flags` is read; the rest of a SessionStream is irrelevant here.
+    const rows = (...flags: {is_alive?: boolean; is_running?: boolean}[]) =>
+        flags.map((f) => ({session_id: "s1", flags: f})) as Parameters<typeof livePollInterval>[0] &
+            object[]
+
+    it("polls fast only while a session is RUNNING", () => {
+        expect(livePollInterval(rows({is_alive: true, is_running: true}))).toBe(15_000)
+        expect(livePollInterval(rows({}, {is_running: true}))).toBe(15_000)
+    })
+
+    // Warm but idle sessions use the slow cadence.
+    it("drops to the slow baseline for a session that is alive but not running", () => {
+        expect(livePollInterval(rows({is_alive: true}))).toBe(60_000)
+    })
+
+    it("keeps a slow baseline when every row looks idle", () => {
+        expect(livePollInterval(rows({}))).toBe(60_000)
+        expect(livePollInterval([])).toBe(60_000)
+        expect(livePollInterval(null)).toBe(60_000)
+    })
+})
+
+// The seam the Agents group is ordered through: ranks live in an atom the entity names, so the
+// registry can reorder any catalog without knowing what it holds.
+describe("defineSidebarEntity ranksAtom", () => {
+    const listAtom = atom({data: [], isPending: false, isError: false, error: null})
+    const config = {
+        kind: "app" as const,
+        listAtom,
+        getLabel: (r: SidebarEntityRef) => r.name ?? r.id,
+        childPath: (r: SidebarEntityRef) => `/apps/${r.id}`,
+    }
+
+    it("carries the ranks atom onto the resolved entity", () => {
+        const ranks = atom<ReadonlyMap<string, number>>(new Map([["a1", 10]]))
+
+        expect(defineSidebarEntity("main", "agents", {...config, ranksAtom: ranks}).ranksAtom).toBe(
+            ranks,
+        )
+    })
+
+    it("leaves it undefined for an entity that does not rank", () => {
+        expect(defineSidebarEntity("main", "prompts", config).ranksAtom).toBeUndefined()
+    })
+})
+
+// Agents rank by session COUNT off an unfiltered, frozen query, so a filter cannot reorder them
+// and the order barely moves session to session.
+describe("agentSessionCounts", () => {
+    const row = (id: string, agent: string) =>
+        ({
+            session_id: id,
+            references: [{id: agent, key: "workflow"}],
+        }) as unknown as Parameters<typeof agentSessionCounts>[0][number]
+
+    // Real UUIDs: `sessionOpenTarget` rejects a non-UUID reference id.
+    const A1 = "01a03ed2-c322-7493-b2a2-29b8ae273530"
+    const A2 = "01a03ed2-c322-7493-b2a2-29b8ae273531"
+
+    it("counts each agent's sessions", () => {
+        const counts = agentSessionCounts([row("s1", A1), row("s2", A2), row("s3", A1)])
+
+        expect(counts.get(A1)).toBe(2)
+        expect(counts.get(A2)).toBe(1)
+        expect(counts.size).toBe(2)
+    })
+
+    it("ignores a row that names no agent", () => {
+        const orphan = {session_id: "x", references: []} as unknown as Parameters<
+            typeof agentSessionCounts
+        >[0][number]
+
+        expect(agentSessionCounts([orphan]).size).toBe(0)
+    })
+})
+
+// The registry is the single source for where a row opens, so assert the destinations here.
+describe("registered entity destinations", () => {
+    const workflow = ref("01a03ed2-c322-7493-b2a2-29b8ae273530", "Ops Assistant")
+
+    it("registers no list under Agents — the rail draws it as a plain row", () => {
+        expect(SIDEBAR_ENTITIES[AGENTS_SIDEBAR_KEY]).toBeUndefined()
+    })
+
+    it("still opens a prompt on the playground", () => {
+        expect(SIDEBAR_ENTITIES[PROMPTS_SIDEBAR_KEY].childLink(workflow, "/w/w1/p/p1")).toBe(
+            "/w/w1/p/p1/apps/01a03ed2-c322-7493-b2a2-29b8ae273530/playground",
+        )
+    })
+})
+
+// The "+" on an agent heading: it starts a session with THAT agent, and no other heading gets one.
+describe("sidebarSessionGroupAgentId", () => {
+    it("names the agent behind an agent heading under agent grouping", () => {
+        expect(sidebarSessionGroupAgentId("agent:a1", "agent")).toBe("a1")
+    })
+
+    it("gives Pinned and No-agent-yet nothing under agent grouping", () => {
+        expect(sidebarSessionGroupAgentId("pinned", "agent")).toBeUndefined()
+        expect(sidebarSessionGroupAgentId("agent:none", "agent")).toBeUndefined()
+    })
+
+    it("gives nothing under every other grouping, whatever the key says", () => {
+        for (const groupBy of ["none", "date", "status"] as const) {
+            expect(sidebarSessionGroupAgentId("agent:a1", groupBy)).toBeUndefined()
+            expect(sidebarSessionGroupAgentId("status:live", groupBy)).toBeUndefined()
+            expect(sidebarSessionGroupAgentId("recent", groupBy)).toBeUndefined()
         }
+    })
+})
+
+describe("heading add (+)", () => {
+    const agentGroup = {key: "agent:a1", label: "Demo shoot", agentId: "a1"}
+    const clicks: string[] = []
+    // A host's seam, the way the mobile rail writes it: an agent heading gets one, no other does.
+    const withAdd = defineSidebarEntity("m", "project-sessions-link", {
+        kind: "app",
+        listAtom: null as never,
+        getLabel: (r: SidebarEntityRef) => r.name ?? r.id,
+        childPath: (r: SidebarEntityRef) => `/sessions/${r.id}`,
+        groupAdd: (group, projectURL) =>
+            group.agentId
+                ? {
+                      link: `${projectURL}/agents/${group.agentId}`,
+                      label: `New session with ${group.label}`,
+                      onClick: () => clicks.push(`${projectURL}:${group.agentId}`),
+                  }
+                : undefined,
+    })
+
+    it("forwards the seam onto the resolved entity, project URL and all", () => {
+        const add = withAdd.groupAddLink?.(agentGroup, "/w/w1/p/p1")
+
+        expect(add?.link).toBe("/w/w1/p/p1/agents/a1")
+        expect(add?.label).toBe("New session with Demo shoot")
+        add?.onClick?.({} as never)
+        expect(clicks).toEqual(["/w/w1/p/p1:a1"])
+    })
+
+    it("gives a heading that is not an agent no add at all", () => {
+        expect(
+            withAdd.groupAddLink?.({key: "pinned", label: "Pinned"}, "/w/w1/p/p1"),
+        ).toBeUndefined()
+        expect(
+            withAdd.groupAddLink?.({key: "agent:none", label: "No agent yet"}, "/w/w1/p/p1"),
+        ).toBeUndefined()
+    })
+
+    it("puts the add on the agent heading and on no other row", () => {
+        const grouped = entity({
+            getGroupKey: (r) => (r.id === "s1" ? "pinned" : "agent:a1"),
+            groupAddLink: withAdd.groupAddLink,
+        })
+        const refs = [ref("s1", "Morning poem"), ref("s2", "Daily update")]
+        const groups = [{key: "pinned", label: "Pinned"}, agentGroup]
+
+        const children = resolveChildren(grouped, ready(refs, {groups}), "/w/w1/p/p1")
+
+        expect(children.map((child) => [child.title, child.groupAdd?.link])).toEqual([
+            ["Pinned", undefined],
+            ["Morning poem", undefined],
+            ["Demo shoot", "/w/w1/p/p1/agents/a1"],
+            ["Daily update", undefined],
+        ])
+    })
+
+    it("keeps the add on a collapsed agent heading, so you can start a session without unfolding", () => {
+        const grouped = entity({getGroupKey: () => "agent:a1", groupAddLink: withAdd.groupAddLink})
+
+        const children = resolveChildren(
+            grouped,
+            ready([ref("s2", "Daily update")], {groups: [agentGroup], collapsedKeys: ["agent:a1"]}),
+            "/w/w1/p/p1",
+        )
+
+        expect(children).toHaveLength(1)
+        expect(children[0].groupAdd?.link).toBe("/w/w1/p/p1/agents/a1")
+    })
+
+    // The desktop rail registers no seam: its headings stay bare, whatever the grouping says.
+    it("gives an entity without the seam no add on any heading", () => {
+        expect(SIDEBAR_ENTITIES[SESSIONS_SIDEBAR_KEY].groupAddLink).toBeUndefined()
+
+        const children = resolveChildren(
+            entity({getGroupKey: () => "agent:a1"}),
+            ready([ref("s2", "Daily update")], {groups: [agentGroup]}),
+            "/w/w1/p/p1",
+        )
+
+        expect(children[0].groupAdd).toBeUndefined()
     })
 })

@@ -38,6 +38,34 @@ export const BOTTOM_FADE_OVERLAY_STYLE = {
  * the short transition keeps the change from reading as a flicker on pointer entry. */
 export const BOTTOM_FADE_HOVER_HIDE =
     "transition-opacity duration-150 [.ag-canvas:has(.ag-turn:hover)_&]:opacity-0 [.ag-canvas:has(.ag-turn:focus-within)_&]:opacity-0"
+/** How far content dissolves at a scrolled-past edge — the Home agents list's lengths, so every
+ * scroller that fades reads the same: a shorter lead-in at the top, a longer run-out at the bottom
+ * (that one doubles as the "there is more below" signal). */
+export const SCROLL_FADE_TOP_PX = 26
+export const SCROLL_FADE_BOTTOM_PX = 34
+/**
+ * A vertical edge mask that fades ONLY the edges content is clipped at: nothing while the whole
+ * thing fits, a top fade once scrolled down, a bottom fade while more waits below. A fade at an
+ * edge with nothing past it dims what is simply the first (or last) message.
+ */
+export const scrollEdgeMask = (top: boolean, bottom: boolean): string => {
+    if (!top && !bottom) return "none"
+    const start = top ? `transparent 0, #000 ${SCROLL_FADE_TOP_PX}px` : "#000 0"
+    const end = bottom
+        ? `#000 calc(100% - ${SCROLL_FADE_BOTTOM_PX}px), transparent 100%`
+        : "#000 100%"
+    return `linear-gradient(to bottom, ${start}, ${end})`
+}
+/** Which edges of `el` are clipped right now, with a small threshold so a sub-pixel offset does
+ * not flicker a fade in. */
+export const clippedEdges = (el: {
+    scrollTop: number
+    scrollHeight: number
+    clientHeight: number
+}): {top: boolean; bottom: boolean} => {
+    const max = el.scrollHeight - el.clientHeight
+    return {top: el.scrollTop > 4, bottom: max > 4 && el.scrollTop < max - 4}
+}
 /** Centered reading column for the chat body. Caps line length / bubble width so a wide (maximized)
  * panel doesn't sprawl into oversized bubbles and over-spaced turns; freed side space is whitespace. */
 export const CHAT_COLUMN = "mx-auto w-full max-w-[880px]"

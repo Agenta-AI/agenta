@@ -21,6 +21,7 @@ import {
 import { join } from "node:path";
 
 import type { AgentEvent, AgentRunRequest } from "../../src/protocol.ts";
+import { SUPERSEDED_TURN_NOTE } from "../../src/engines/sandbox_agent/superseded-turn.ts";
 import {
   createSandboxAgentOtel,
   TOOL_NOT_EXECUTED_PAUSED,
@@ -36,15 +37,33 @@ import {
   shouldSuppressPausedToolCallUpdate,
 } from "../../src/engines/sandbox_agent/runtime-policy.ts";
 import { mountStorage } from "../../src/engines/sandbox_agent/mount.ts";
+import { withSandboxGoneReport } from "../../src/engines/sandbox_agent/acp-fetch.ts";
+import { SANDBOX_GONE_MESSAGE } from "../../src/engines/sandbox_agent/errors.ts";
 import { buildPiGateEnvelope } from "../../src/engines/sandbox_agent/pi-gate-envelope.ts";
 import { appendPlatformGuidance } from "../../src/engines/sandbox_agent/system-prompt-appendix.ts";
 import { platformGuidanceAppendix } from "../../src/engines/sandbox_agent/platform-guidance.ts";
 import type { PermissionDecision } from "../../src/responder.ts";
 import {
+  acquireEnvironment,
+  runTurn,
   runSandboxAgent,
   type SandboxAgentDeps,
 } from "../../src/engines/sandbox_agent.ts";
 import { resetRunnerConfigCache } from "../../src/config/runner-config.ts";
+import { USER_STOP_ABORT_REASON } from "../../src/sessions/stop-signal.ts";
+import {
+  fakeHarness,
+  flushPromises,
+  type FakeOptions,
+} from "../utils/sandbox-agent-harness.ts";
+import {
+  findExecution,
+  unregisterExecution,
+  registerExecution,
+  resetExecutionsForTest,
+} from "../../src/sessions/execution-registry.ts";
+import { applyCommand } from "../../src/sessions/control-channel.ts";
+import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from "../../src/engines/sandbox_agent/run-limits.ts";
 
 // Orchestration cases include Daytona runs: enable it (with a provisioning credential) on top of
 // the hermetic scrub, then drop the memoized config so the run plan reads the enabled set.
@@ -55,287 +74,9 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  resetExecutionsForTest();
   vi.unstubAllGlobals();
 });
-
-function flushPromises(): Promise<void> {
-  return new Promise((resolve) => setImmediate(resolve));
-}
-
-interface FakeOptions {
-  request?: Partial<AgentRunRequest>;
-  cwd?: string;
-  capabilities?: Record<string, unknown>;
-  promptResult?: Record<string, unknown>;
-  promptEvent?: Record<string, unknown>;
-  promptEvents?: Array<Record<string, unknown>>;
-  afterPromptEvents?: () => Promise<void> | void;
-  postPermissionEvents?: Array<Record<string, unknown>>;
-  streamUsage?: Record<string, number>;
-  output?: string;
-  promptError?: Error;
-  permissionDecision?: PermissionDecision | "pendingApproval";
-  emitPermission?: boolean;
-  permissionToolCallId?: string;
-  permissionToolName?: string;
-  permissionRawInput?: unknown;
-  permissionRequests?: Array<Record<string, unknown>>;
-  // Model Claude-over-ACP: the prompt NEVER resolves on its own after a permission gate. The
-  // runner must end the turn another way (the park -> destroySession -> cancel path, F-040).
-  hangPrompt?: boolean;
-  // Make the managed cancel reject (and NOT resolve the hung prompt), so the only thing that
-  // ends the turn is the local park signal — proves the run still terminates if cancel fails.
-  destroySessionError?: Error;
-  // Mirrors what the real sandbox-agent package does when the caller's AbortSignal fires mid-
-  // prompt: resolve the in-flight prompt with a cancelled stop reason. Lets a hung-prompt fixture
-  // stand in for a wedged harness that a run-limits deadline (which aborts `startOptions.signal`)
-  // must be able to unstick.
-  abortSignalCancelsHungPrompt?: boolean;
-  afterDestroySession?: () => Promise<void> | void;
-}
-
-function fakeHarness(options: FakeOptions = {}) {
-  const calls = {
-    daemonAgent: "",
-    daemonOptions: undefined as
-      | { clearProviderEnv?: boolean; provider?: string; deployment?: string }
-      | undefined,
-    providerArgs: [] as unknown[],
-    mkdirFsPaths: [] as string[],
-    startOptions: undefined as any,
-    createSessionOptions: undefined as any,
-    promptBlocks: undefined as any,
-    runStart: undefined as any,
-    otelOptions: undefined as any,
-    workspacePlan: undefined as any,
-    workspacePiSkillSnapshot: undefined as any,
-    workspaceCleanup: 0,
-    sandboxDestroyed: 0,
-    sandboxDisposed: 0,
-    sessionDestroyed: 0,
-    toolRelayArgs: undefined as unknown[] | undefined,
-    toolRelayStops: 0,
-    permissionReplies: [] as Array<{ id: string; reply: string }>,
-    applyModelArgs: [] as Array<{
-      model: string | undefined;
-      options: { strict?: boolean } | undefined;
-    }>,
-    runFinished: 0,
-    runFlushed: 0,
-    recordedErrors: [] as Array<{ message: string; provider?: string }>,
-    handledUpdates: [] as unknown[],
-  };
-  const events: AgentEvent[] = [];
-  const logs: string[] = [];
-  let eventHandler: ((event: any) => void) | undefined;
-  let permissionHandler: ((request: any) => void) | undefined;
-  // The in-flight prompt resolver, so a `destroySession` (the managed cancel) can resolve a
-  // hung prompt with a cancelled stop reason — mirroring the real sandbox-agent package.
-  let resolveHungPrompt: ((value: any) => void) | undefined;
-
-  const session = {
-    id: "session-1",
-    onEvent(handler: (event: any) => void) {
-      eventHandler = handler;
-    },
-    onPermissionRequest(handler: (request: any) => void) {
-      permissionHandler = handler;
-    },
-    async respondPermission(id: string, reply: string) {
-      calls.permissionReplies.push({ id, reply });
-    },
-    async prompt(blocks: any) {
-      calls.promptBlocks = blocks;
-      const promptEvents = options.promptEvents ?? [
-        options.promptEvent ?? { payload: { update: { kind: "noop" } } },
-      ];
-      for (const event of promptEvents) eventHandler?.(event);
-      await options.afterPromptEvents?.();
-      if (options.emitPermission) {
-        const permissionRequests = options.permissionRequests ?? [
-          {
-            id: "perm-1",
-            availableReplies: ["once", "always", "reject"],
-            toolCall: {
-              toolCallId: options.permissionToolCallId ?? "tool-1",
-              name: options.permissionToolName ?? "edit",
-              title: options.permissionToolName ?? "edit",
-              rawInput: options.permissionRawInput,
-              input: options.permissionRawInput,
-            },
-          },
-        ];
-        for (const request of permissionRequests) permissionHandler?.(request);
-      }
-      if (options.postPermissionEvents?.length) {
-        if (options.emitPermission) await flushPromises();
-        for (const event of options.postPermissionEvents) eventHandler?.(event);
-      }
-      if (options.promptError) throw options.promptError;
-      if (options.hangPrompt) {
-        // Claude does not end a turn on an unanswered gate: the prompt hangs until the
-        // managed cancel (destroySession) resolves it with a cancelled stop reason.
-        return new Promise((resolve) => {
-          resolveHungPrompt = resolve;
-        });
-      }
-      return (
-        options.promptResult ?? {
-          stopReason: "complete",
-          usage: { inputTokens: 6, outputTokens: 4 },
-        }
-      );
-    },
-  };
-
-  const sandbox = {
-    async mkdirFs({ path }: { path: string }) {
-      calls.mkdirFsPaths.push(path);
-    },
-    async createSession(opts: any) {
-      calls.createSessionOptions = opts;
-      return session;
-    },
-    async destroySession(id: string) {
-      calls.sessionDestroyed += 1;
-      void id;
-      if (options.destroySessionError) throw options.destroySessionError;
-      await options.afterDestroySession?.();
-      // Managed cancel: resolve any in-flight prompt with a cancelled stop reason (the runner
-      // races this against the park signal, so the turn ends either way). Mirrors the package.
-      resolveHungPrompt?.({ stopReason: "cancelled" });
-    },
-    async destroySandbox() {
-      calls.sandboxDestroyed += 1;
-    },
-    async dispose() {
-      calls.sandboxDisposed += 1;
-    },
-  };
-
-  const run = {
-    start(input: any) {
-      calls.runStart = input;
-    },
-    handleUpdate(update: any) {
-      calls.handledUpdates.push(update);
-    },
-    emitEvent(event: AgentEvent) {
-      events.push(event);
-    },
-    usage() {
-      return (
-        options.streamUsage ?? { input: 0, output: 0, total: 0, cost: 0.25 }
-      );
-    },
-    setUsage(usage: unknown) {
-      events.push({ type: "usage", ...(usage as any) });
-    },
-    finish() {
-      calls.runFinished += 1;
-      return options.output ?? "assistant output";
-    },
-    recordError(message: string, provider?: string) {
-      calls.recordedErrors.push({ message, provider });
-    },
-    output() {
-      return options.output ?? "assistant output";
-    },
-    async flush() {
-      calls.runFlushed += 1;
-    },
-    events() {
-      return events;
-    },
-    settleOpenToolCalls(
-      _isExcluded: (id: string) => boolean,
-      _message: string,
-    ) {},
-    openToolCallIds() {
-      return [];
-    },
-    traceId() {
-      return "trace-1";
-    },
-  };
-
-  const deps: SandboxAgentDeps = {
-    log: (message) => logs.push(message),
-    createLocalCwd: (durable?: string) =>
-      durable ?? options.cwd ?? "/tmp/agenta-fake-cwd",
-    createDaytonaCwd: (durable?: string) =>
-      durable ?? "/home/sandbox/agenta-fake-cwd",
-    resolveSkillDirs: () => ({ skills: [], cleanup: () => {} }),
-    buildDaemonEnv: (agent, daemonOptions) => {
-      calls.daemonAgent = agent;
-      calls.daemonOptions = daemonOptions;
-      return {};
-    },
-    resolveDaemonBinary: () => "/bin/sandbox-agent",
-    buildSandboxProvider: (...args: unknown[]) => {
-      calls.providerArgs = args;
-      return { provider: true } as any;
-    },
-    createPersist: () => ({}) as any,
-    startSandboxAgent: (async (opts: any) => {
-      calls.startOptions = opts;
-      if (options.abortSignalCancelsHungPrompt && opts.signal) {
-        opts.signal.addEventListener("abort", () => {
-          resolveHungPrompt?.({ stopReason: "cancelled" });
-        });
-      }
-      return sandbox;
-    }) as any,
-    prepareWorkspace: (async ({ plan, piSkillSnapshot }: any) => {
-      calls.workspacePlan = plan;
-      calls.workspacePiSkillSnapshot = piSkillSnapshot;
-      return {
-        cleanup: async () => {
-          calls.workspaceCleanup += 1;
-        },
-      };
-    }) as any,
-    probeCapabilities: async () =>
-      ({
-        source: "probed",
-        capabilities: {
-          mcpTools: true,
-          toolCalls: true,
-          usage: true,
-          streamingDeltas: true,
-          ...(options.capabilities ?? {}),
-        },
-      }) as any,
-    applyModel: async (_session, model, _log, options) => {
-      calls.applyModelArgs.push({ model, options });
-      return model ?? "resolved-model";
-    },
-    createOtel: ((otelOptions: any) => {
-      calls.otelOptions = otelOptions;
-      return run;
-    }) as any,
-    startToolRelay: ((...args: unknown[]) => {
-      calls.toolRelayArgs = args;
-      return {
-        stop: async () => {
-          calls.toolRelayStops += 1;
-        },
-      };
-    }) as any,
-    localRelayHost: (() => "local-relay-host") as any,
-    sandboxRelayHost: (() => "sandbox-relay-host") as any,
-    responderFactory: () => ({
-      async onPermission() {
-        return { kind: options.permissionDecision ?? "allow" } as const;
-      },
-      async onClientTool() {
-        return { kind: "deny" } as const;
-      },
-    }),
-  };
-
-  return { calls, deps, events, logs };
-}
 
 describe("PendingApprovalPauseController", () => {
   it("tracks paused tool-call ids", () => {
@@ -370,6 +111,79 @@ describe("PendingApprovalPauseController", () => {
 });
 
 describe("runSandboxAgent orchestration", () => {
+  for (const providerName of ["local", "daytona"] as const) {
+    it(`a Stop preempts slow ${providerName} acquisition and cleans a late sandbox`, async () => {
+      const { deps } = fakeHarness();
+      const delegateStart = deps.startSandboxAgent!;
+      let releaseCreate!: (sandboxId: string) => void;
+      const slowCreate = new Promise<string>((resolve) => {
+        releaseCreate = resolve;
+      });
+      let markCreateStarted!: () => void;
+      const createStarted = new Promise<void>((resolve) => {
+        markCreateStarted = resolve;
+      });
+      let markCleaned!: () => void;
+      const cleaned = new Promise<void>((resolve) => {
+        markCleaned = resolve;
+      });
+      let destroys = 0;
+      deps.buildSandboxProvider = (() => ({
+        name: providerName,
+        create: () => {
+          markCreateStarted();
+          return slowCreate;
+        },
+        async destroy() {
+          destroys += 1;
+          markCleaned();
+        },
+        async getUrl() {
+          return "http://sandbox.invalid";
+        },
+      })) as any;
+      deps.startSandboxAgent = (async (options: any) => {
+        await options.sandbox.create();
+        return delegateStart(options);
+      }) as any;
+
+      const controller = new AbortController();
+      const acquire = acquireEnvironment(
+        {
+          harness: "claude",
+          sandbox: providerName,
+          messages: [{ role: "user", content: "start slowly" }],
+        },
+        deps,
+        controller.signal,
+      );
+      await createStarted;
+      controller.abort(USER_STOP_ABORT_REASON);
+
+      const result = await Promise.race([
+        acquire,
+        new Promise<never>((_resolve, reject) =>
+          setTimeout(
+            () => reject(new Error("Stop exceeded the delivery timeout")),
+            4_000,
+          ),
+        ),
+      ]);
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.match(result.error, /acquisition was aborted/);
+
+      releaseCreate(`${providerName}-late-id`);
+      await Promise.race([
+        cleaned,
+        new Promise<never>((_resolve, reject) =>
+          setTimeout(() => reject(new Error("late sandbox leaked")), 4_000),
+        ),
+      ]);
+      assert.equal(destroys, 1);
+    });
+  }
+
   // NOTE: in-band redaction of the LIVE event stream / result / trace-start input was a
   // daytona-secret-materialization concept that was not adopted. Redaction happens at the
   // durable/exported sinks (persisted transcript + exported spans; see redaction-sinks.test.ts),
@@ -418,6 +232,212 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(calls.sandboxDestroyed, 1);
     assert.equal(calls.sandboxDisposed, 1);
     assert.equal(calls.workspaceCleanup, 1);
+  });
+
+  for (const harness of ["pi_core", "claude", "codex"] as const) {
+    it(`${harness}: refreshes context on the same warm session without storing it as user input`, async () => {
+      const { calls, deps } = fakeHarness();
+      const request: AgentRunRequest = {
+        harness,
+        messages: [{ role: "user", content: "hello" }],
+        turnContext: "This session has no name yet. This is the first turn.",
+      };
+      const acquired = await acquireEnvironment(request, deps);
+      assert.equal(acquired.ok, true);
+      if (!acquired.ok) return;
+      const session = acquired.env.session;
+      try {
+        const first = await runTurn(acquired.env, request);
+        assert.equal(first.ok, true);
+        assert.deepEqual(calls.promptBlocks, [
+          { type: "text", text: `${request.turnContext}\n\n` },
+          { type: "text", text: "hello" },
+        ]);
+
+        const next: AgentRunRequest = {
+          ...request,
+          turnContext:
+            'This session is named "Q3 notes". This is not the first turn.',
+          messages: [
+            ...request.messages!,
+            { role: "assistant", content: "Named the session." },
+            { role: "user", content: "continue" },
+          ],
+        };
+        const second = await runTurn(acquired.env, next, undefined, undefined, {
+          continuation: true,
+        });
+        assert.equal(second.ok, true);
+        assert.equal(acquired.env.session, session);
+        assert.equal(calls.sandboxDestroyed, 0);
+        assert.deepEqual(calls.promptBlocks, [
+          { type: "text", text: `${next.turnContext}\n\n` },
+          { type: "text", text: "continue" },
+        ]);
+        assert.deepEqual(calls.runStart.messages.at(-1), {
+          role: "user",
+          content: "continue",
+        });
+        assert.equal(
+          JSON.stringify(next.messages).includes("first turn"),
+          false,
+        );
+      } finally {
+        await acquired.env.destroy();
+      }
+    });
+  }
+
+  it("claude: frames a message that follows an unanswered one as replacing it", async () => {
+    const { calls, deps } = fakeHarness();
+    const request: AgentRunRequest = {
+      harness: "claude",
+      turnContext: "This is not the first turn.",
+      messages: [
+        { role: "user", content: "run sleep 20" },
+        { role: "user", content: "Reply with exactly: STEERED" },
+      ],
+    };
+    const acquired = await acquireEnvironment(request, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    try {
+      const result = await runTurn(acquired.env, request, undefined, undefined, {
+        continuation: true,
+      });
+      assert.equal(result.ok, true);
+      assert.deepEqual(calls.promptBlocks, [
+        { type: "text", text: `${request.turnContext}\n\n` },
+        { type: "text", text: SUPERSEDED_TURN_NOTE },
+        { type: "text", text: "Reply with exactly: STEERED" },
+      ]);
+      assert.equal(JSON.stringify(calls.runStart.messages).includes("no reply"), false);
+    } finally {
+      await acquired.env.destroy();
+    }
+  });
+
+  it("claude: leaves a slash command that follows an unanswered message unframed", async () => {
+    const { calls, deps } = fakeHarness();
+    const request: AgentRunRequest = {
+      harness: "claude",
+      messages: [
+        { role: "user", content: "run sleep 20" },
+        { role: "user", content: "/context" },
+      ],
+    };
+    const acquired = await acquireEnvironment(request, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    try {
+      const result = await runTurn(acquired.env, request, undefined, undefined, {
+        continuation: true,
+      });
+      assert.equal(result.ok, true);
+      assert.deepEqual(calls.promptBlocks, [{ type: "text", text: "/context" }]);
+    } finally {
+      await acquired.env.destroy();
+    }
+  });
+
+  for (const harness of ["pi_core", "codex"] as const) {
+    it(`${harness}: leaves a message that follows an unanswered one unframed`, async () => {
+      const { calls, deps } = fakeHarness();
+      const request: AgentRunRequest = {
+        harness,
+        messages: [
+          { role: "user", content: "run sleep 20" },
+          { role: "user", content: "Reply with exactly: STEERED" },
+        ],
+      };
+      const acquired = await acquireEnvironment(request, deps);
+      assert.equal(acquired.ok, true);
+      if (!acquired.ok) return;
+      try {
+        const result = await runTurn(acquired.env, request, undefined, undefined, {
+          continuation: true,
+        });
+        assert.equal(result.ok, true);
+        assert.deepEqual(calls.promptBlocks, [
+          { type: "text", text: "Reply with exactly: STEERED" },
+        ]);
+      } finally {
+        await acquired.env.destroy();
+      }
+    });
+  }
+
+  it("replays rebuilt history after an evicted local Pi load cannot verify native turns", async () => {
+    const request: AgentRunRequest = {
+      harness: "pi_core",
+      sandbox: "local",
+      turnContext: 'This session is named "Q3 notes".',
+      messages: [
+        { role: "user", content: "Remember the codeword KIWI-9" },
+        { role: "assistant", content: "I will remember it." },
+        { role: "user", content: "What was the codeword?" },
+      ],
+    };
+    const { calls, deps } = fakeHarness();
+    const acquired = await acquireEnvironment(request, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+
+    try {
+      const result = await runTurn(
+        acquired.env,
+        request,
+        undefined,
+        undefined,
+        { loaded: true, nativeHistoryVerified: false },
+      );
+
+      assert.equal(result.ok, true);
+      assert.deepEqual(calls.promptBlocks[0], {
+        type: "text",
+        text: `${request.turnContext}\n\n`,
+      });
+      const prompt = calls.promptBlocks?.[1]?.text ?? "";
+      assert.match(prompt, /^Conversation so far:/);
+      assert.match(prompt, /KIWI-9/);
+      assert.match(prompt, /The user now says:\nWhat was the codeword\?$/);
+    } finally {
+      await acquired.env.destroy();
+    }
+  });
+
+  it("keeps the last-message-only path for a verified Daytona native load", async () => {
+    const request: AgentRunRequest = {
+      harness: "pi_core",
+      sandbox: "daytona",
+      messages: [
+        { role: "user", content: "Remember the codeword KIWI-9" },
+        { role: "assistant", content: "I will remember it." },
+        { role: "user", content: "What was the codeword?" },
+      ],
+    };
+    const { calls, deps } = fakeHarness();
+    deps.prepareDaytonaPiAssets = (async () => true) as any;
+    const acquired = await acquireEnvironment(request, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+
+    try {
+      const result = await runTurn(
+        acquired.env,
+        request,
+        undefined,
+        undefined,
+        { loaded: true, nativeHistoryVerified: true },
+      );
+
+      assert.equal(result.ok, true);
+      assert.deepEqual(calls.promptBlocks, [
+        { type: "text", text: "What was the codeword?" },
+      ]);
+    } finally {
+      await acquired.env.destroy();
+    }
   });
 
   it("passes the live turn credential provider to the trace exporter", async () => {
@@ -488,10 +508,14 @@ describe("runSandboxAgent orchestration", () => {
 
       const result = await runSandboxAgent(request, undefined, undefined, deps);
 
-      assert.equal(result.ok, true, JSON.stringify(result));
+      assert.equal(result.ok, true);
       assert.equal(platformCredentialForRequest(request), "Secret initial");
       assert.equal(calls.otelOptions.authorization(), "Secret refreshed");
       assert.deepEqual(refreshRequests, [
+        {
+          url: "https://api.agenta.test/api/sessions/interactions/query",
+          authorization: "Secret initial",
+        },
         {
           url: "https://api.agenta.test/api/access/permissions/check?action=run_service&resource_type=service",
           authorization: "Secret initial",
@@ -518,6 +542,35 @@ describe("runSandboxAgent orchestration", () => {
       }),
       "",
     );
+  });
+
+  it("recognizes the Docker host alias of the configured local API", () => {
+    const previous = process.env.AGENTA_API_URL;
+    process.env.AGENTA_API_URL = "http://localhost:18080/api";
+    try {
+      const request: AgentRunRequest = {
+        harness: "claude",
+        messages: [{ role: "user", content: "hello" }],
+        telemetry: {
+          exporters: {
+            otlp: {
+              endpoint: "http://host.docker.internal:18080/api/otlp/v1/traces",
+              headers: { authorization: "Secret caller" },
+            },
+          },
+        },
+      };
+
+      assert.equal(platformCredentialForRequest(request), "Secret caller");
+      assert.equal(
+        resolveRunOtlpTarget(request, () => "Secret refreshed")
+          .authorizationSource,
+        "platform",
+      );
+    } finally {
+      if (previous === undefined) delete process.env.AGENTA_API_URL;
+      else process.env.AGENTA_API_URL = previous;
+    }
   });
 
   it("keeps platform rotation away from third-party collector credentials", () => {
@@ -885,6 +938,55 @@ describe("runSandboxAgent orchestration", () => {
     rmSync(cwd, { recursive: true, force: true });
   });
 
+  it("backs the local Pi transcript directory with the active durable cwd mount", async () => {
+    // The durable cwd is derived from the sign prefix and then really created. Under the local
+    // root that is `/var/lib/agenta/...`, which a test process cannot mkdir, so the cwd is stubbed
+    // the way the sibling tests above stub it. What this test is about is unchanged: the Pi
+    // transcript directory must sit under whatever the ACTIVE durable cwd is.
+    const durableCwd = mkdtempSync(join(tmpdir(), "agenta-pi-transcript-"));
+    const { calls, deps } = fakeHarness();
+    deps.createLocalCwd = (() => durableCwd) as never;
+    deps.signSessionMountCredentials = async () => ({
+      region: "us-east-1",
+      bucket: "bucket",
+      prefix: "mounts/project/session",
+      accessKey: "test-access-key",
+      secretKey: "test-secret-key",
+      projectId: "project",
+    });
+    deps.mountStorage = async () => true;
+    deps.unmountStorage = async () => true;
+    deps.hydrateHarnessSessionFromDurable = async () => {};
+
+    const request: AgentRunRequest = {
+      harness: "pi_core",
+      sandbox: "local",
+      sessionId: "session-local-rebuild",
+      runContext: { project: { id: "project" } },
+      telemetry: {
+        exporters: {
+          otlp: { headers: { authorization: "ApiKey test" } },
+        },
+      },
+      messages: [{ role: "user", content: "continue" }],
+    };
+    const acquired = await acquireEnvironment(request, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+
+    try {
+      assert.equal(acquired.env.nativeHistoryDurable, true);
+      assert.equal(
+        (calls.providerArgs[1] as Record<string, string>)
+          .PI_CODING_AGENT_SESSION_DIR,
+        `${durableCwd}/agents/sessions/pi`,
+      );
+    } finally {
+      await acquired.env.destroy();
+      rmSync(durableCwd, { recursive: true, force: true });
+    }
+  });
+
   it("creates the configured Pi transcript directory inside a Daytona cwd", async () => {
     const { calls, deps } = fakeHarness();
     deps.prepareDaytonaPiAssets = (async () => true) as any;
@@ -970,6 +1072,7 @@ describe("runSandboxAgent orchestration", () => {
     const { calls, deps } = fakeHarness({ cwd });
     deps.resolveSkillDirs = () => ({
       skills: [{ name: "release-notes", dir: skill }],
+      dropped: [],
       cleanup: () => {},
     });
 
@@ -983,9 +1086,16 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(result.ok, true);
     const selected = calls.workspacePiSkillSnapshot;
     assert.ok(selected);
+    // A local snapshot lives on the runner's disk, not on the (geesefs) session cwd, and the
+    // model is told that same path.
     assert.match(
       selected.dir,
-      new RegExp(`${cwd}/agents/skills/[a-f0-9]{64}$`),
+      new RegExp(`^${tmpdir()}/agenta-pi-skills/[a-f0-9]{64}$`),
+    );
+    assert.ok(
+      (calls.workspacePlan.prompt.agentsMd as string).includes(
+        `Your rendered skill files live at \`${selected.dir}\``,
+      ),
     );
     assert.equal(
       (calls.providerArgs[1] as Record<string, string>)
@@ -1011,6 +1121,7 @@ describe("runSandboxAgent orchestration", () => {
     const { calls, deps } = fakeHarness();
     deps.resolveSkillDirs = () => ({
       skills: [{ name: "release-notes", dir: skill }],
+      dropped: [],
       cleanup: () => {},
     });
     let agentDirSkillCount = -1;
@@ -1200,8 +1311,12 @@ describe("runSandboxAgent orchestration", () => {
       calls.workspacePlan.prompt.agentsMd,
       /^<!-- agenta:platform-guidance:start -->\n/,
     );
+    // The config sentences moved to the SDK platform text on 2026-09-07; the file-citation
+    // sentence is the contributor that always lands here.
     assert.ok(
-      calls.workspacePlan.prompt.agentsMd.includes("parameters.agent.skills"),
+      calls.workspacePlan.prompt.agentsMd.includes(
+        "relative to your working directory",
+      ),
     );
   });
 
@@ -1259,11 +1374,13 @@ describe("runSandboxAgent orchestration", () => {
       /agent-files\//,
     );
     assert.ok(
-      file.includes("parameters.agent.skills"),
-      "the skill sentence still lands",
+      file.includes("relative to your working directory"),
+      "the file-citation sentence still lands",
     );
+    // The file-citation sentence names `agent-files/` in its link example, so the mount
+    // paragraph is detected by its own opening phrase rather than by the folder name.
     assert.ok(
-      !file.includes("agent-files/"),
+      !file.includes("durable agent folder"),
       "the mount paragraph must not appear in the file as well",
     );
     rmSync(cwd, { recursive: true, force: true });
@@ -1412,7 +1529,7 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(workspaceCalls, 2, "workspace prep is retried once");
     assert.equal(
       calls.createSessionOptions.cwd,
-      "/tmp/agenta/mounts/proj-1/mount-1",
+      "/var/lib/agenta/mounts/proj-1/mount-1",
     );
     assert.equal(cleanupCalls, 1);
   });
@@ -1425,7 +1542,7 @@ describe("runSandboxAgent orchestration", () => {
             update: {
               kind: "tool_result",
               content:
-                "realpath '/tmp/agenta/mounts/proj-1/mount-1/.restore_test': Transport endpoint is not connected",
+                "realpath '/var/lib/agenta/mounts/proj-1/mount-1/.restore_test': Transport endpoint is not connected",
             },
           },
         },
@@ -1434,7 +1551,7 @@ describe("runSandboxAgent orchestration", () => {
             update: {
               kind: "tool_result",
               content:
-                "realpath '/tmp/agenta/mounts/proj-1/mount-1/README.md': ENOTCONN",
+                "realpath '/var/lib/agenta/mounts/proj-1/mount-1/README.md': ENOTCONN",
             },
           },
         },
@@ -1507,7 +1624,11 @@ describe("runSandboxAgent orchestration", () => {
     // The durable cwd is object storage: it has no symlinks, so every remount can hand the link
     // back as a 0-byte file. The link must therefore belong to the mount lifecycle, not only to
     // first acquire — otherwise the rest of the session authenticates from an empty token file.
-    const cwd = "/tmp/agenta/mounts/proj-1/mount-1";
+    // Unlike its siblings, this case asserts on real files, so the cwd stands in for the durable
+    // mount instead of being it: the local durable root is `/var/lib/agenta`, which a test process
+    // cannot create. `createLocalCwd` is where the runner turns the derived durable path into the
+    // directory it works in, so overriding it keeps the whole mount lifecycle under test.
+    const cwd = mkdtempSync(join(tmpdir(), "codex-durable-cwd-"));
     const codexMount = mkdtempSync(join(tmpdir(), "codex-operator-home-"));
     const savedCodexHome = process.env.CODEX_HOME;
     writeFileSync(join(codexMount, "auth.json"), '{"tokens":{"id_token":"t"}}');
@@ -1527,6 +1648,7 @@ describe("runSandboxAgent orchestration", () => {
           },
         ],
       });
+      deps.createLocalCwd = () => cwd;
       let signCalls = 0;
       let mountCalls = 0;
       deps.signSessionMountCredentials = (async () => {
@@ -1835,6 +1957,149 @@ describe("runSandboxAgent orchestration", () => {
     );
   });
 
+  it("Daytona mounts the cwd, the session dir, and the agent drive at the same time, and links after the cwd", async () => {
+    const { deps } = fakeHarness();
+    const creds = (prefix: string) => ({
+      endpoint: "https://s3.example.com",
+      region: "us-east-1",
+      bucket: "agenta-store",
+      prefix,
+      accessKey: "AK-1",
+      secretKey: "SK-1",
+    });
+    deps.signSessionMountCredentials = (async (_s: string, _o: unknown, name?: string) =>
+      creds(`mounts/proj-1/${name ?? "cwd"}`)) as any;
+    deps.signAgentMountCredentials = (async () => creds("mounts/proj-1/agent")) as any;
+    const order: string[] = [];
+    const started = new Set<string>();
+    let releaseCwd!: () => void;
+    const cwdHeld = new Promise<void>((resolve) => {
+      releaseCwd = resolve;
+    });
+    // The session-dir mounts sign their own credentials; route them to the same fake mount.
+    deps.mountHarnessSessionDirs = (async (sb: unknown, _s: string, dirs: Array<{ path: string }>) => {
+      for (const dir of dirs) await deps.mountStorageRemote!(sb as never, dir.path, creds("d") as never, {} as never);
+    }) as any;
+    deps.mountStorageRemote = (async (_sb: unknown, path: string) => {
+      const kind = path.endsWith("-agent")
+        ? "agent"
+        : path.includes("/.claude/")
+          ? "session-dir"
+          : "cwd";
+      started.add(kind);
+      order.push(`start:${kind}`);
+      if (kind === "cwd") {
+        // Hold the cwd mount until the other two have started: a serial acquire never gets here.
+        for (let i = 0; i < 50 && started.size < 3; i++) {
+          await new Promise((r) => setTimeout(r, 1));
+        }
+        await cwdHeld;
+      } else if (started.size === 3) {
+        releaseCwd();
+      }
+      order.push(`done:${kind}`);
+      return true;
+    }) as any;
+    const startSandboxAgent = deps.startSandboxAgent!;
+    deps.startSandboxAgent = (async (opts: any) => {
+      const sandbox: any = await startSandboxAgent(opts);
+      sandbox.runProcess = async (o: { args?: string[] }) => {
+        if ((o.args?.[1] ?? "").includes("agent-files")) order.push("link");
+        return { exitCode: 0 };
+      };
+      return sandbox;
+    }) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sandbox: "daytona",
+        sessionId: "sess-1",
+        runContext: { workflow: { artifact: { id: "artifact-1" } } },
+        telemetry: {
+          exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+        },
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(
+      [...started].sort(),
+      ["agent", "cwd", "session-dir"],
+      `all three mounts ran: ${order}`,
+    );
+    assert.ok(
+      order.indexOf("start:agent") < order.indexOf("done:cwd") &&
+        order.indexOf("start:session-dir") < order.indexOf("done:cwd"),
+      `the agent and session-dir mounts start before the cwd mount ends: ${order}`,
+    );
+    assert.ok(order.includes("link"), `agent-files is linked: ${order}`);
+    assert.ok(
+      order.indexOf("link") > order.indexOf("done:cwd"),
+      `agent-files is linked only after the cwd mount: ${order}`,
+    );
+  });
+
+  it("Daytona rethrows a cwd mount abort only after the agent mount settled", async () => {
+    const { deps } = fakeHarness();
+    const creds = {
+      endpoint: "https://s3.example.com",
+      region: "us-east-1",
+      bucket: "agenta-store",
+      prefix: "mounts/proj-1/x",
+      accessKey: "AK-1",
+      secretKey: "SK-1",
+    };
+    deps.signSessionMountCredentials = (async () => creds) as any;
+    deps.signAgentMountCredentials = (async () => creds) as any;
+    let agentSettled = false;
+    let linked = false;
+    deps.mountHarnessSessionDirs = (async () => {}) as any;
+    deps.mountStorageRemote = (async (_sb: unknown, path: string) => {
+      if (path.endsWith("-agent")) {
+        await new Promise((r) => setTimeout(r, 20));
+        agentSettled = true;
+        return true;
+      }
+      if (path.includes("/.claude/")) return true;
+      throw new Error("cwd mount exploded");
+    }) as any;
+    const startSandboxAgent = deps.startSandboxAgent!;
+    deps.startSandboxAgent = (async (opts: any) => {
+      const sandbox: any = await startSandboxAgent(opts);
+      sandbox.runProcess = async (o: { args?: string[] }) => {
+        if ((o.args?.[1] ?? "").includes("agent-files")) linked = true;
+        return { exitCode: 0 };
+      };
+      return sandbox;
+    }) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sandbox: "daytona",
+        sessionId: "sess-1",
+        runContext: { workflow: { artifact: { id: "artifact-1" } } },
+        telemetry: {
+          exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+        },
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, false);
+    assert.match(String(!result.ok && result.error), /cwd mount exploded|could not|failed/i);
+    assert.equal(agentSettled, true, "the agent mount settled before the error surfaced");
+    assert.equal(linked, false, "a failed cwd mount skips the agent-files link");
+  });
+
   it("keeps terminal events empty on the streaming path", async () => {
     const { deps } = fakeHarness();
     const streamed: AgentEvent[] = [];
@@ -1855,6 +2120,18 @@ describe("runSandboxAgent orchestration", () => {
         type: "data",
         name: "agent-status",
         data: { phase: "environment_starting" },
+        transient: true,
+      },
+      {
+        type: "data",
+        name: "agent-status",
+        data: { phase: "preparing_workspace" },
+        transient: true,
+      },
+      {
+        type: "data",
+        name: "agent-status",
+        data: { phase: "opening_session" },
         transient: true,
       },
       {
@@ -2197,6 +2474,33 @@ describe("runSandboxAgent orchestration", () => {
     assert.deepEqual(calls.providerArgs[5], sandboxPermission);
   });
 
+  it("hands buildSandboxProvider the session's project and conversation labels", async () => {
+    const { calls, deps } = fakeHarness();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sandbox: "daytona",
+        sessionId: " session-1 ",
+        runContext: { project: { id: "project-1" } },
+        messages: [{ role: "user", content: "hello" }],
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    // sandboxId, env, binaryPath, piExtEnv, modelEnvironment, sandboxPermission, plan, options
+    assert.deepEqual(
+      (calls.providerArgs[7] as { sessionLabels?: unknown }).sessionLabels,
+      {
+        "agenta.project": "project-1",
+        "agenta.conversation": "session-1",
+      },
+    );
+  });
+
   it("passes cancellation signals into SandboxAgent.start", async () => {
     const { calls, deps } = fakeHarness();
     const controller = new AbortController();
@@ -2252,7 +2556,11 @@ describe("runSandboxAgent orchestration", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (_url: string, init?: RequestInit) => {
-        exported.push([...(init?.body as Buffer)]);
+        // Exports carry a binary body; other runner traffic (the pre-turn interactions read)
+        // sends JSON strings and is not what this test collects.
+        if (init?.body && typeof init.body !== "string") {
+          exported.push([...(init.body as Buffer)]);
+        }
         return new Response(null, { status: 200 });
       }),
     );
@@ -2405,6 +2713,11 @@ describe("runSandboxAgent orchestration", () => {
     // inputSchema (deferral would strip it -> empty tool input). The SDK only treats the exact
     // string "false"/"0"/"no"/"off" as off, so it must be the string "false".
     assert.equal(env.ENABLE_TOOL_SEARCH, "false");
+    assert.equal(env.MCP_PROTOCOL_NEGOTIATION, "auto");
+    // Claude Code runs its own Bash tool: its timeout is bounded by the per-tool-call limit, so a
+    // slow command is stopped and reported to the model instead of the watchdog ending the turn.
+    assert.equal(env.BASH_MAX_TIMEOUT_MS, String(DEFAULT_TOOL_CALL_TIMEOUT_MS));
+    assert.equal(env.BASH_DEFAULT_TIMEOUT_MS, "120000");
   });
 
   it("does not set ENABLE_TOOL_SEARCH for a non-claude (pi) run", async () => {
@@ -2424,6 +2737,10 @@ describe("runSandboxAgent orchestration", () => {
     const env = calls.providerArgs[1] as Record<string, string>;
     // The Tool-Search toggle is Claude-specific: a Pi run must not carry it.
     assert.equal(env.ENABLE_TOOL_SEARCH, undefined);
+    assert.equal(env.MCP_PROTOCOL_NEGOTIATION, undefined);
+    assert.equal(env.BASH_MAX_TIMEOUT_MS, undefined);
+    // Pi's own shell tool is capped by the Agenta extension instead.
+    assert.equal(env.AGENTA_AGENT_COMMAND_TIMEOUT_SECONDS, String(DEFAULT_TOOL_CALL_TIMEOUT_MS / 1000));
   });
 
   it("never puts the OTLP bearer in the local Pi daemon's env", async () => {
@@ -2497,6 +2814,76 @@ describe("runSandboxAgent orchestration", () => {
       model: "anthropic.claude-x",
       options: { strict: true },
     });
+  });
+
+  it("gives Claude the bare model id on a gateway run, in the env and in setModel", async () => {
+    // Regression: on a gateway run ANTHROPIC_MODEL / ANTHROPIC_CUSTOM_MODEL_OPTION carried
+    // `anthropic/claude-opus-5-5`, Claude Code accepted it in setModel because the custom option
+    // listed it, and sent it verbatim to the endpoint, which answered "model may not exist".
+    const { calls, deps } = fakeHarness();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        messages: [{ role: "user", content: "hello" }],
+        model: "anthropic/claude-opus-5-5",
+        modelConnection: {
+          provider: "anthropic",
+          deployment: "direct",
+          credentialMode: "none",
+          credentials: [],
+          endpoint: {
+            baseUrl: "https://gateway.example.com/gateways/llms/standard/anthropic",
+          },
+          gatewayCredentials: {
+            header: "X-AG-Credentials",
+            value: "ApiKey mock-gateway-credentials",
+          },
+        },
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    const env = calls.providerArgs[1] as Record<string, string>;
+    assert.equal(env.ANTHROPIC_MODEL, "claude-opus-5-5");
+    assert.equal(env.ANTHROPIC_CUSTOM_MODEL_OPTION, "claude-opus-5-5");
+    assert.equal(calls.applyModelArgs.at(-1)?.model, "claude-opus-5-5");
+  });
+
+  it("keeps a custom Claude deployment's model id as the user named it", async () => {
+    const { calls, deps } = fakeHarness();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        messages: [{ role: "user", content: "hello" }],
+        model: "anthropic/claude-opus-5-5",
+        modelConnection: {
+          provider: "anthropic",
+          deployment: "custom",
+          credentialMode: "env",
+          endpoint: { baseUrl: "https://llm-proxy.example.com" },
+          credentials: [
+            {
+              binding: { kind: "environment", name: "ANTHROPIC_API_KEY" },
+              value: "sk-ant-test",
+              usage: "local_use",
+            },
+          ],
+        },
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true, JSON.stringify(result));
+    const env = calls.providerArgs[1] as Record<string, string>;
+    assert.equal(env.ANTHROPIC_MODEL, "anthropic/claude-opus-5-5");
+    assert.equal(calls.applyModelArgs.at(-1)?.model, "anthropic/claude-opus-5-5");
   });
 
   it("sets Claude Vertex env and selected model pass-through", async () => {
@@ -2666,6 +3053,119 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
     if (!result.ok) return;
     assert.equal(result.stopReason, "paused");
     assert.deepEqual(calls.permissionReplies, []);
+  });
+
+  it("marks a paused turn settled after its cancellable teardown window", async () => {
+    const { deps } = depsWithDefaultResponder();
+    const sessionId = "conv-paused-registry";
+    const turnId = "turn-paused-registry";
+    registerExecution({
+      projectId: "11111111-1111-4111-8111-111111111111",
+      sessionId,
+      turnId,
+      startedAt: Date.now(),
+      abort: () => {},
+    });
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sessionId,
+        turnId,
+        permissions: { default: "ask" },
+        messages: [{ role: "user", content: "edit the file" }],
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.stopReason, "paused");
+    assert.equal(
+      findExecution("11111111-1111-4111-8111-111111111111", sessionId)?.settled,
+      true,
+    );
+  });
+
+  it("converts a Stop during pause teardown into the turn's cancelled outcome", async () => {
+    let markPauseTeardownStarted!: () => void;
+    const pauseTeardownStarted = new Promise<void>((resolve) => {
+      markPauseTeardownStarted = resolve;
+    });
+    let releasePauseTeardown!: () => void;
+    const pauseTeardownMayFinish = new Promise<void>((resolve) => {
+      releasePauseTeardown = resolve;
+    });
+    const { deps } = fakeHarness({
+      emitPermission: true,
+      hangPrompt: true,
+      afterDestroySession: async () => {
+        markPauseTeardownStarted();
+        await pauseTeardownMayFinish;
+      },
+    });
+    delete deps.responderFactory;
+    const startSandboxAgent = deps.startSandboxAgent!;
+    deps.startSandboxAgent = async (options) => {
+      const sandbox = await startSandboxAgent(options);
+      const cancellable = sandbox as unknown as {
+        destroySession: (id: string) => Promise<unknown>;
+        cancelSession?: (id: string) => Promise<unknown>;
+      };
+      cancellable.cancelSession = (id) => cancellable.destroySession(id);
+      return sandbox;
+    };
+
+    const projectId = "11111111-1111-4111-8111-111111111111";
+    const sessionId = "conv-stop-during-pause-teardown";
+    const turnId = "turn-stop-during-pause-teardown";
+    const controller = new AbortController();
+    registerExecution({
+      projectId,
+      sessionId,
+      turnId,
+      startedAt: Date.now(),
+      abort: () => controller.abort(USER_STOP_ABORT_REASON),
+    });
+
+    const turn = runSandboxAgent(
+      {
+        harness: "claude",
+        sessionId,
+        turnId,
+        permissions: { default: "ask" },
+        messages: [{ role: "user", content: "edit the file" }],
+      },
+      undefined,
+      controller.signal,
+      deps,
+    );
+
+    await pauseTeardownStarted;
+    const stopped = applyCommand(
+      {
+        id: "command-stop-during-pause-teardown",
+        projectId,
+        sessionId,
+        kind: "cancel",
+        target: { turnId, expectedTurnId: turnId },
+        createdAt: new Date().toISOString(),
+      },
+      { report: async () => {} },
+    );
+    assert.equal(controller.signal.aborted, true);
+    releasePauseTeardown();
+    const result = await turn;
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.stopReason, "cancelled");
+    assert.equal(result.cancelSettled, true);
+    assert.equal(findExecution(projectId, sessionId)?.settled, true);
+    unregisterExecution(sessionId, turnId);
+    assert.equal((await stopped).execution.state, "stopped");
   });
 
   it("effective ask with no decision pauses the tool, no harness reply (F-024)", async () => {
@@ -3425,9 +3925,74 @@ describe("runTurn run-limits deadline (split path)", () => {
     // The run RETURNED (did not hang) as a failure, and the teardown finally reclaimed the sandbox.
     assert.equal(result.ok, false);
     if (result.ok) return;
-    assert.match(result.error ?? "", /first response|deadline|idle|run limit/i);
+    assert.match(result.error ?? "", /did not start responding|made no progress|ran longer than/);
     assert.equal(calls.sandboxDestroyed, 1);
     assert.equal(calls.sandboxDisposed, 1);
+  });
+
+  it("a turn stopped at the plan's turn limit ends with the plan's message and its own class", async () => {
+    const { calls, deps, events } = fakeHarness({ hangPrompt: true });
+    const message =
+      "The Hobby plan limits a request to 30 minutes.";
+
+    const result = await runSandboxAgent(
+      { harness: "claude", messages: [{ role: "user", content: "hello" }] },
+      undefined,
+      undefined,
+      {
+        ...deps,
+        resolveRunLimits: () => ({
+          totalMs: 20,
+          idleMs: 1_000,
+          ttfbMs: 1_000,
+          toolCallMs: 1_000,
+          turnLimitMessage: message,
+        }),
+      },
+    );
+
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.error, message);
+    const error = events.find((event) => event.type === "error") as any;
+    assert.equal(error?.code, "turn_time_limit_reached");
+    assert.equal(error?.message, message);
+    assert.equal(calls.sandboxDestroyed, 1);
+  });
+
+  it("ends a turn whose tool call never returns a result, saying a tool call ran too long (EU 2026-10-06)", async () => {
+    // The last-resort guard: the command was told to stop at the limit, yet no result came even
+    // after the grace. The person reads which limit ended the turn, not "The agent run failed".
+    const { calls, deps, events } = fakeHarness({
+      hangPrompt: true,
+      promptEvents: [
+        {
+          payload: {
+            update: { sessionUpdate: "tool_call", toolCallId: "call-hung", title: "bash", rawInput: { command: "find /" } },
+          },
+        },
+      ],
+    });
+
+    const result = await runSandboxAgent(
+      { harness: "claude", messages: [{ role: "user", content: "scan the disk" }] },
+      undefined,
+      undefined,
+      {
+        ...deps,
+        resolveRunLimits: () => ({ totalMs: 60_000, idleMs: 60_000, ttfbMs: 60_000, toolCallMs: 20, toolCallGraceMs: 10 }),
+      },
+    );
+
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    const message =
+      "A tool call ran longer than 1 second and did not stop, so the turn was ended. Ask for smaller steps, or send the message again.";
+    assert.equal(result.error, message);
+    const error = events.find((event) => event.type === "error") as any;
+    assert.equal(error?.code, "tool_call_time_limit");
+    assert.equal(error?.message, message);
+    assert.equal(calls.sandboxDestroyed, 1);
   });
 
   it("does NOT trip a turn that paused for human input, even past every deadline window", async () => {
@@ -3462,5 +4027,120 @@ describe("runTurn run-limits deadline (split path)", () => {
     // Paused, not a deadline error: the pause path — not a tripped limit — ended the turn.
     assert.equal(result.stopReason, "paused");
     assert.equal(calls.sandboxDestroyed, 1);
+  });
+});
+
+/**
+ * The Daytona sandbox-gone path, end to end through the real environment wiring.
+ *
+ * On 2026-09-04 an isolated re-run showed the full cost of the gap this closes: the sandbox was
+ * deleted at 16:26:31, the runner's own socket was told `SANDBOX_NOT_FOUND` at 16:26:37, and the
+ * turn still beat `running=true` for THIRTY minutes. Nothing detected the death. What finally
+ * ended the turn was the 30 minute per-tool-call deadline
+ * (`[run-limits] tool call ... exceeded 1800000ms`), and only then did the turn's error and done
+ * records persist, 27 minutes after the client had already given up.
+ *
+ * Everything downstream of the turn ending is already correct: the error terminal, the records,
+ * the `running=false` beat that clears the row, the teardown. The only defect was WHEN the turn
+ * ended. So these tests pin the trigger and the terminal it produces, which is what puts all of
+ * that 27 minutes earlier.
+ */
+describe("a sandbox the provider deletes under a running turn", () => {
+  /** Daytona's real answer for a deleted sandbox, from the runner log of that re-run. */
+  const goneAnswer = () =>
+    new Response(
+      "not found: sandbox 39f3aa96-ddc7-4417-b8ab-71804894edf6 not found, " +
+        "it may have been deleted or stopped - inspect audit logs for more info",
+      { status: 404, headers: { "x-daytona-error-code": "SANDBOX_NOT_FOUND" } },
+    );
+
+  /**
+   * Production's reporter over a fake socket. The double stands in for the network only: the
+   * wrapper, the latch and the arming are the real ones, so this exercises the wiring rather
+   * than a copy of it.
+   */
+  function harnessWithGoneSocket(answer: () => Response) {
+    const fake = fakeHarness({ hangPrompt: true });
+    fake.deps.createAcpFetch = ((_dispatcher: unknown, options: any) =>
+      withSandboxGoneReport(
+        (async () => answer()) as unknown as typeof fetch,
+        options,
+      )) as any;
+    return fake;
+  }
+
+  /** Let the run reach its prompt, which is where the real turn sits when its sandbox dies. */
+  async function waitForStartedTurn(calls: { startOptions: any }) {
+    for (let i = 0; i < 50 && !calls.startOptions; i += 1)
+      await flushPromises();
+    assert.ok(calls.startOptions, "the run should have started its sandbox");
+    await flushPromises();
+  }
+
+  it("ends the turn with a sandbox_gone error terminal, from the turn's own socket", async () => {
+    const { calls, deps, events } = harnessWithGoneSocket(goneAnswer);
+
+    const run = runSandboxAgent(
+      {
+        harness: "claude",
+        sessionId: "conv-sandbox-deleted",
+        messages: [{ role: "user", content: "run one shell command" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+    await waitForStartedTurn(calls);
+
+    // The turn is parked on a prompt that can never settle, exactly as on 2026-09-04. Its own
+    // socket is the next thing to speak, and what it says is that the sandbox is gone.
+    await (calls.startOptions.fetch as typeof fetch)(
+      "http://sandbox/v1/acp/session",
+    );
+    const result = await run;
+
+    // The turn RETURNED rather than hanging for thirty minutes, and it returned as this error.
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.error, SANDBOX_GONE_MESSAGE);
+    // The terminal the client reads, and the record that persists at this moment.
+    const errorEvent = events.find((event) => event.type === "error") as any;
+    assert.ok(errorEvent, "the run should emit an error terminal");
+    assert.equal(errorEvent.code, "sandbox_gone");
+    // The teardown ran, so the sandbox and its slot are reclaimed here rather than at eviction.
+    assert.equal(calls.sandboxDestroyed, 1);
+  });
+
+  it("keeps running when the same socket merely returns an ordinary error", async () => {
+    // A 502 from the proxy is a blip, not a death. Nothing must end the turn on it, or a
+    // transient network fault would kill healthy runs.
+    const { calls, deps } = harnessWithGoneSocket(
+      () => new Response("", { status: 502 }),
+    );
+
+    const run = runSandboxAgent(
+      {
+        harness: "claude",
+        sessionId: "conv-proxy-blip",
+        messages: [{ role: "user", content: "run one shell command" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+    await waitForStartedTurn(calls);
+
+    await (calls.startOptions.fetch as typeof fetch)(
+      "http://sandbox/v1/acp/session",
+    );
+    for (let i = 0; i < 20; i += 1) await flushPromises();
+
+    // Still parked on its prompt: no terminal, no teardown.
+    assert.equal(calls.sandboxDestroyed, 0);
+    const settled = await Promise.race([
+      run.then(() => "settled" as const),
+      Promise.resolve("pending" as const),
+    ]);
+    assert.equal(settled, "pending");
   });
 });

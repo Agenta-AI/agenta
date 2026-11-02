@@ -7,6 +7,7 @@ Each one is a state the locks alone cannot distinguish, so each is pinned by a t
 than by a comment.
 """
 
+from contextlib import asynccontextmanager
 from typing import Optional
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
@@ -20,16 +21,19 @@ from oss.src.core.sessions.streams.dtos import (
 )
 from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.dbs.redis.sessions.locks import (
-    clear_running,
-    force_clear_owner,
+    SessionHeartbeatGuardLost,
     get_alive_owner,
-    get_owner,
     get_running_owner,
     is_turn_superseded,
+    session_heartbeat_guard,
 )
+from oss.src.dbs.redis.sessions.contract import RELEASE_IF_OWNER_LUA
 
 from unit.sessions.test_heartbeat_parked_zombie import _FakeStreamsDAO
 from unit.sessions.test_project_scoped_locks import _FakeRedis
+from oss.tests.pytest.utils.principals import make_envelope
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 _PROJECT = uuid4()
@@ -76,10 +80,6 @@ async def _running(lock_engine) -> Optional[str]:
     )
 
 
-async def _owner(lock_engine) -> Optional[str]:
-    return await get_owner(lock_engine, project_id=str(_PROJECT), session_id=_SESSION)
-
-
 async def _superseded(lock_engine, turn: str) -> bool:
     return await is_turn_superseded(
         lock_engine, project_id=str(_PROJECT), session_id=_SESSION, turn_id=turn
@@ -87,36 +87,74 @@ async def _superseded(lock_engine, turn: str) -> bool:
 
 
 # --------------------------------------------------------------------------- #
-# Replica affinity
+# The heartbeat guard
 # --------------------------------------------------------------------------- #
 
 
 @pytest.mark.asyncio
-async def test_a_dead_turns_beat_does_not_reclaim_replica_affinity(lock_engine):
-    """`claim_owner` never steals, so an owner key that keeps getting renewed locks the
-    session out of every other replica for as long as the renewals continue. A tombstoned
-    turn's beat must read affinity, not claim it — otherwise a killed session's trailing
-    beats pin it to the replica that no longer runs anything."""
+async def test_heartbeat_guard_release_failure_does_not_mask_the_body(lock_engine):
+    redis = lock_engine._client()
+    original_eval = redis.eval
+
+    async def fail_release(script, numkeys, *keys_and_args):
+        if script == RELEASE_IF_OWNER_LUA:
+            raise ConnectionError("redis unavailable")
+        return await original_eval(script, numkeys, *keys_and_args)
+
+    with (
+        patch.object(redis, "eval", new=fail_release),
+        patch("oss.src.dbs.redis.sessions.locks.log.warning") as warning,
+    ):
+        async with session_heartbeat_guard(
+            lock_engine,
+            project_id=str(_PROJECT),
+            session_id=_SESSION,
+        ):
+            result = "committed"
+
+    assert result == "committed"
+    warning.assert_called_once_with(
+        "heartbeat guard release failed; lease will expire",
+        session_id=_SESSION,
+        exc_info=True,
+    )
+
+
+@pytest.mark.asyncio
+async def test_heartbeat_returns_committed_result_when_guard_lease_is_lost(lock_engine):
     dao = _FakeStreamsDAO()
     svc = _service(lock_engine, dao)
 
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-a"))
-    assert await _owner(lock_engine) == "replica-a"
+    class _LostGuard:
+        def ensure_held(self):
+            raise SessionHeartbeatGuardLost("lease expired")
 
-    await svc.command(project_id=_PROJECT, user_id=_USER, request=_cancel())
-    assert await _superseded(lock_engine, "turn-a") is True
-    # What kill does to affinity, so another replica can take the session over.
-    await force_clear_owner(lock_engine, project_id=str(_PROJECT), session_id=_SESSION)
+    @asynccontextmanager
+    async def _lost_guard(*_args, **_kwargs):
+        yield _LostGuard()
 
-    late = await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-a"))
+    with (
+        patch(
+            "oss.src.core.sessions.streams.service.session_heartbeat_guard",
+            new=_lost_guard,
+        ),
+        patch("oss.src.core.sessions.streams.service.log.warning") as warning,
+    ):
+        result = await svc.heartbeat(
+            project_id=_PROJECT,
+            request=_beat("turn-a"),
+            envelope=make_envelope(),
+            access=OWNERLESS_PROJECT_POLICY,
+            run_admission=NoopRunAdmission(),
+            admission_envelope=make_envelope(),
+        )
 
-    assert late.is_current_turn is False
-    assert await _owner(lock_engine) is None, (
-        "a dead turn's beat re-pinned the session to its replica for a full OWNER_TTL"
-    )
-    assert late.replica_id == "replica-a", (
-        "the caller still needs an owner back; reporting the beat's own replica is fine "
-        "because is_current_turn=False already tells it to stop"
+    assert result.is_current_turn is True
+    assert dao.row is result.stream
+    assert dao.row is not None and dao.row.turn_id == "turn-a"
+    warning.assert_called_once_with(
+        "sessions: heartbeat guard lease lost after heartbeat committed",
+        session_id=_SESSION,
     )
 
 
@@ -134,8 +172,22 @@ async def test_handover_will_not_evict_a_turn_that_took_the_lock_mid_read(lock_e
     svc = _service(lock_engine, dao)
 
     # A parked holder: alive=turn-live, running cleared.
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-live"))
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-live", running=False))
+    await svc.heartbeat(
+        project_id=_PROJECT,
+        request=_beat("turn-live"),
+        envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
+    )
+    await svc.heartbeat(
+        project_id=_PROJECT,
+        request=_beat("turn-live", running=False),
+        envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
+    )
     assert await _alive(lock_engine) == "turn-live"
     assert await _running(lock_engine) is None
 
@@ -144,7 +196,14 @@ async def test_handover_will_not_evict_a_turn_that_took_the_lock_mid_read(lock_e
         "oss.src.core.sessions.streams.service.get_alive_owner",
         new=AsyncMock(return_value="turn-ghost"),
     ):
-        result = await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-new"))
+        result = await svc.heartbeat(
+            project_id=_PROJECT,
+            request=_beat("turn-new"),
+            envelope=make_envelope(),
+            access=OWNERLESS_PROJECT_POLICY,
+            run_admission=NoopRunAdmission(),
+            admission_envelope=make_envelope(),
+        )
 
     assert await _alive(lock_engine) == "turn-live", (
         "the handover evicted the holder on the strength of a stale read"
@@ -163,25 +222,43 @@ async def test_handover_will_not_evict_a_turn_that_took_the_lock_mid_read(lock_e
 
 
 @pytest.mark.asyncio
-async def test_cancel_tombstones_before_it_clears_the_locks(lock_engine):
-    """Cancel clears `alive` and then tombstones the turn it displaced. A beat from that very
-    turn arriving between the two finds `alive` free, nx-acquires it back, and the cancelled
-    session reads as alive for a full ALIVE_TTL. Writing the tombstone first closes it."""
+async def test_cancel_atomically_tombstones_and_clears_the_locks(lock_engine):
+    """The displaced turn cannot re-arm the session after the atomic operation returns."""
     dao = _FakeStreamsDAO()
     svc = _service(lock_engine, dao)
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-a"))
+    await svc.heartbeat(
+        project_id=_PROJECT,
+        request=_beat("turn-a"),
+        envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
+    )
     assert await _alive(lock_engine) == "turn-a"
+    redis = lock_engine._client()
+    original_eval = redis.eval
 
-    async def _beat_mid_displacement(engine, *, project_id: str, session_id: str):
-        await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-a"))
-        return await clear_running(engine, project_id=project_id, session_id=session_id)
+    async def _beat_after_atomic_displacement(script, numkeys, *keys_and_args):
+        result = await original_eval(script, numkeys, *keys_and_args)
+        if "AGENTA_DISPLACE_TURNS" in script:
+            late = await svc.heartbeat(
+                project_id=_PROJECT,
+                request=_beat("turn-a"),
+                envelope=make_envelope(),
+                access=OWNERLESS_PROJECT_POLICY,
+                run_admission=NoopRunAdmission(),
+                admission_envelope=make_envelope(),
+            )
+            assert late.is_current_turn is False
+        return result
 
-    # `clear_running` runs after `alive` is cleared, i.e. inside the old window.
-    with patch(
-        "oss.src.core.sessions.streams.service.clear_running",
-        new=_beat_mid_displacement,
-    ):
-        await svc.command(project_id=_PROJECT, user_id=_USER, request=_cancel())
+    with patch.object(redis, "eval", new=_beat_after_atomic_displacement):
+        await svc.command(
+            project_id=_PROJECT,
+            user_id=_USER,
+            request=_cancel(),
+            access=OWNERLESS_PROJECT_POLICY,
+        )
 
     assert await _alive(lock_engine) is None, (
         "the cancelled turn's own beat re-armed `alive`; the session stays 'alive' until "

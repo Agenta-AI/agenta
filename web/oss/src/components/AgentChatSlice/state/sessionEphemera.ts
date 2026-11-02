@@ -1,5 +1,3 @@
-import type {SessionAttachmentResponse} from "@agenta/chat/assets"
-import type {StagedUpload} from "@agenta/chat/model"
 import {clearSessionEphemera as clearSharedSessionEphemera} from "@agenta/chat/state"
 import type {StateSnapshot} from "react-virtuoso"
 
@@ -16,13 +14,8 @@ import type {StateSnapshot} from "react-virtuoso"
  * paints the transcript at its true geometry and scroll position in the first frame. */
 export const virtStateBySession = new Map<string, StateSnapshot>()
 
-/** Pending (not yet sent) upload-tray entries per session — same lifetime as the drafts.
- * `originFileObj` holds live File blobs; typed by the upload response the tray stores. */
-export const attachmentsBySession = new Map<string, StagedUpload<SessionAttachmentResponse>[]>()
-
 /** Drop every ephemeral trace of a permanently deleted session, shared AND desktop-only. */
 export const clearSessionEphemera = (sessionId: string) => {
     clearSharedSessionEphemera(sessionId)
     virtStateBySession.delete(sessionId)
-    attachmentsBySession.delete(sessionId)
 }

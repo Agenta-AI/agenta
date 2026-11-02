@@ -3,6 +3,8 @@ import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 
+import {sidebarHasManualOrderAtom} from "../reorder"
+
 const SESSION_FILTERS_STORAGE_KEY = "agenta:sidebar:session-filters"
 // EXPANDED, not collapsed: groups now start folded, so the stored set is what the user opened.
 // A new key on purpose — reading the old collapsed set here would invert every saved choice.
@@ -28,6 +30,9 @@ export const ACTIVITY_WINDOW_HOURS: Record<SidebarSessionActivityFilter, number 
 /** What the headings bucket by. `none` is a flat list. Pins always lead in their own heading. */
 export type SidebarSessionGroupBy = "none" | "agent" | "date" | "status"
 
+/** Which sessions the rail lists. `chat` and `automation` swap the list; `all` mixes both. */
+export type SidebarSessionTypeFilter = "all" | "chat" | "automation"
+
 /** Everything the menu offers. A stored value outside this set is stale and falls back. */
 const GROUP_BY_VALUES = new Set<string>(["none", "agent", "date", "status"])
 
@@ -37,11 +42,7 @@ export interface SidebarSessionFilters {
     agentIds: string[]
     status: SidebarSessionStatusFilter
     activity: SidebarSessionActivityFilter
-    /**
-     * Whether trigger-originated runs are listed. Off by default, matching the sessions page:
-     * a schedule that runs hourly would otherwise bury the conversations you are having.
-     */
-    showAutomations: boolean
+    type: SidebarSessionTypeFilter
 }
 
 export const DEFAULT_SIDEBAR_SESSION_FILTERS: SidebarSessionFilters = {
@@ -52,7 +53,8 @@ export const DEFAULT_SIDEBAR_SESSION_FILTERS: SidebarSessionFilters = {
     // A WEEK, not everything: the rail is for what you are working on, and the sessions page owns
     // the archive. It also narrows the fetch, which no render-side cap can do.
     activity: "7d",
-    showAutomations: false,
+    // CHAT, not all: a schedule that runs hourly would bury the conversations you are having.
+    type: "chat",
 }
 
 // Persisted, not in-memory: a hot module swap re-creates every atomFamily instance, so an
@@ -71,6 +73,24 @@ const toggledGroupsStorageAtom = atomWithStorage<Record<string, string[]>>(
 const storageScope = (scopeId: string, projectId: string | null) =>
     `${scopeId}:${projectId || NO_PROJECT_SCOPE}`
 
+// A scope's own defaults, over the shared ones. Registered by the host at module load, before
+// any read: the mobile rail groups by agent so every heading can carry its "+".
+const scopeDefaults = new Map<string, Partial<SidebarSessionFilters>>()
+
+/** Give one scope different defaults — its Reset returns to these, not the shared ones. */
+export const setSidebarSessionFilterDefaults = (
+    scopeId: string,
+    overrides: Partial<SidebarSessionFilters>,
+): void => {
+    scopeDefaults.set(scopeId, overrides)
+}
+
+/** The defaults a scope resets to. */
+export const sidebarSessionFilterDefaults = (scopeId: string): SidebarSessionFilters => ({
+    ...DEFAULT_SIDEBAR_SESSION_FILTERS,
+    ...scopeDefaults.get(scopeId),
+})
+
 /** Scoped per project so one project's agent filter never narrows another's list. */
 export const sidebarSessionFiltersAtomFamily = atomFamily((scopeId: string) =>
     atom(
@@ -79,18 +99,19 @@ export const sidebarSessionFiltersAtomFamily = atomFamily((scopeId: string) =>
             // MERGED, not `??`: state persisted before a field existed would otherwise come back
             // missing it, and the facet would render with no value.
             const stored = get(sessionFiltersStorageAtom)[scope] ?? {}
-            const merged = {...DEFAULT_SIDEBAR_SESSION_FILTERS, ...stored}
+            const defaults = sidebarSessionFilterDefaults(scopeId)
+            const merged = {...defaults, ...stored}
             // "Pinned first" was retired — pins lead under every grouping, so it grouped by
             // nothing. Anyone still holding it reads as the default rather than as a value the
             // menu cannot show or the grouper understands.
             return GROUP_BY_VALUES.has(merged.groupBy)
                 ? merged
-                : {...merged, groupBy: DEFAULT_SIDEBAR_SESSION_FILTERS.groupBy}
+                : {...merged, groupBy: defaults.groupBy}
         },
         (get, set, next: Partial<SidebarSessionFilters>) => {
             const scope = storageScope(scopeId, get(projectIdAtom))
             const storage = get(sessionFiltersStorageAtom)
-            const current = {...DEFAULT_SIDEBAR_SESSION_FILTERS, ...(storage[scope] ?? {})}
+            const current = {...sidebarSessionFilterDefaults(scopeId), ...(storage[scope] ?? {})}
             set(sessionFiltersStorageAtom, {...storage, [scope]: {...current, ...next}})
         },
     ),
@@ -105,6 +126,7 @@ const FILTER_KEYS = (
 export const sidebarSessionFiltersDirtyAtomFamily = atomFamily((scopeId: string) =>
     atom((get) => {
         const filters = get(sidebarSessionFiltersAtomFamily(scopeId))
+        const defaults = sidebarSessionFilterDefaults(scopeId)
         return FILTER_KEYS.some((key) => {
             const value = filters[key]
             // An array default is a fresh [] every read, so identity would report dirty forever.
@@ -113,7 +135,7 @@ export const sidebarSessionFiltersDirtyAtomFamily = atomFamily((scopeId: string)
             // week, widening it back to everything is off-DEFAULT but not a filter — and a dot
             // that lights up for showing MORE rows says the opposite of what it means.
             if (value === "all") return false
-            return value !== DEFAULT_SIDEBAR_SESSION_FILTERS[key]
+            return value !== defaults[key]
         })
     }),
 )
@@ -144,10 +166,13 @@ export const sidebarSessionToggledGroupsAtomFamily = atomFamily((scopeId: string
 )
 
 /**
- * Whether a grouping's headings start folded.
+ * Does the filter menu's Reset have anything to do?
  *
- * Nothing does. A rail that opens closed is a rail you have to unpack before it tells you
- * anything, and a heading with its rows hidden carries less than the rows would have. The stored
- * set flips headings away from this, so anything you fold stays folded.
+ * Separate from `sidebarSessionFiltersDirtyAtomFamily`: that one also picks the empty-state copy.
  */
-export const groupingStartsFolded = (_groupBy: SidebarSessionGroupBy) => false
+export const sidebarSessionMenuDirtyAtomFamily = atomFamily((scopeId: string) =>
+    atom(
+        (get) =>
+            get(sidebarSessionFiltersDirtyAtomFamily(scopeId)) || get(sidebarHasManualOrderAtom),
+    ),
+)

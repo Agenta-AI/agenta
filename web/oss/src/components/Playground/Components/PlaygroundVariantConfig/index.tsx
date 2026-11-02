@@ -2,6 +2,7 @@
 
 import {memo, useCallback, useMemo, useState} from "react"
 
+import {AutomationDrawer} from "@agenta/automation-ui"
 import {testcaseMolecule} from "@agenta/entities/testcase"
 import {parseEvaluatorKeyFromUri, workflowMolecule} from "@agenta/entities/workflow"
 import {
@@ -371,8 +372,16 @@ const PlaygroundVariantConfig: React.FC<
                             />
                         }
                         storageHeader={
-                            <StorageFilesHeader revisionId={variantId} sessionId={chatSessionId} />
+                            <StorageFilesHeader
+                                revisionId={variantId}
+                                sessionId={chatSessionId}
+                                scope={chatScopeKey}
+                            />
                         }
+                        // One drawer for schedules and subscriptions alike — the same editor
+                        // the automations screens render, in place of the two kind-specific
+                        // forms this panel used to open.
+                        automationDrawer={<AutomationDrawer />}
                     />
                 ))}
         </div>

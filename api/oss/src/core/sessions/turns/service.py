@@ -9,6 +9,7 @@ from typing import Dict, List, Optional
 from uuid import UUID
 
 from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.core.shared.dtos import RunUsage
 from oss.src.core.sessions.turns.dtos import (
     HarnessKind,
     SessionTurn,
@@ -18,6 +19,13 @@ from oss.src.core.sessions.turns.dtos import (
 )
 from oss.src.core.sessions.turns.interfaces import SessionTurnsDAOInterface
 from oss.src.core.sessions.turns.types import SessionTurnNotFound
+from oss.src.tasks.asyncio.sessions.streaming import (
+    publish_turn_ended,
+    publish_turn_started,
+)
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
 
 
 class SessionTurnsService:
@@ -36,11 +44,20 @@ class SessionTurnsService:
         #
         turn: SessionTurnCreate,
     ) -> SessionTurn:
-        return await self._dao.append(
+        appended = await self._dao.append(
             project_id=project_id,
             user_id=user_id,
             turn=turn,
         )
+        try:
+            await publish_turn_started(
+                project_id=project_id,
+                session_id=appended.session_id,
+                turn_id=str(appended.turn_id),
+            )
+        except Exception:
+            log.error("[SESSIONS] Failed to publish turn-started", exc_info=True)
+        return appended
 
     async def fetch_turn(
         self,
@@ -67,7 +84,28 @@ class SessionTurnsService:
         )
         if completed is None:
             raise SessionTurnNotFound(turn.session_id, turn.turn_index)
+        try:
+            await publish_turn_ended(
+                project_id=project_id,
+                session_id=completed.session_id,
+                turn_id=str(completed.turn_id),
+            )
+        except Exception:
+            log.error("[SESSIONS] Failed to publish turn-ended", exc_info=True)
         return completed
+
+    async def set_turn_usage_from_trace(
+        self,
+        *,
+        project_id: UUID,
+        trace_id: UUID,
+        usage: RunUsage,
+    ) -> int:
+        return await self._dao.set_turn_usage_from_trace(
+            project_id=project_id,
+            trace_id=trace_id,
+            usage=usage,
+        )
 
     async def query_turns(
         self,

@@ -113,9 +113,13 @@ export function DateRangeCalendar({
     const min = React.useMemo(() => fromWire(minDate), [minDate])
     const max = React.useMemo(() => fromWire(maxDate), [maxDate])
 
-    const [viewMonth, setViewMonth] = React.useState<DayjsValue>(() =>
-        (start ?? end ?? dayjs()).startOf("month"),
-    )
+    const [viewMonth, setViewMonth] = React.useState<DayjsValue>(() => {
+        const first = (start ?? end ?? dayjs()).startOf("month")
+        // The last month shown stays at or before `maxDate`, so no grid is all disabled days.
+        return max && first.add(months - 1, "month").isAfter(max, "month")
+            ? max.startOf("month").subtract(months - 1, "month")
+            : first
+    })
     const [hovered, setHovered] = React.useState<DayjsValue | null>(null)
     /**
      * The single day in the grid's tab order (roving tabindex). Every day used to be
@@ -351,13 +355,15 @@ export function DateRangeCalendar({
                                 const disabled = isDisabledDay(day)
                                 const isStart = Boolean(rangeStart && day.isSame(rangeStart, "day"))
                                 const isEnd = Boolean(rangeEnd && day.isSame(rangeEnd, "day"))
+                                // Spill-over days repeat the neighbouring grid; only one of the two shows the range.
                                 const inRange = Boolean(
+                                    !outside &&
                                     rangeStart &&
                                     rangeEnd &&
                                     !day.isBefore(rangeStart, "day") &&
                                     !day.isAfter(rangeEnd, "day"),
                                 )
-                                const endpoint = isStart || isEnd
+                                const endpoint = !outside && (isStart || isEnd)
                                 return (
                                     <div
                                         key={day.valueOf()}
@@ -365,9 +371,10 @@ export function DateRangeCalendar({
                                         aria-selected={endpoint || undefined}
                                         className={cn(
                                             "flex items-center justify-center py-0.5",
-                                            inRange && !endpoint && "bg-muted",
-                                            inRange && isStart && "rounded-l-control-sm bg-muted",
-                                            inRange && isEnd && "rounded-r-control-sm bg-muted",
+                                            // A primary tint: muted matches the popover surface in dark mode.
+                                            inRange && "bg-primary/15",
+                                            inRange && isStart && "rounded-l-control-sm",
+                                            inRange && isEnd && "rounded-r-control-sm",
                                         )}
                                     >
                                         <button
@@ -389,10 +396,11 @@ export function DateRangeCalendar({
                                                 // CONTROL_RESET — see button.tsx (preflight is off app-wide).
                                                 "box-border border-0 border-solid bg-transparent p-0 font-[inherit]",
                                                 "flex size-6 cursor-pointer items-center justify-center rounded-control-sm text-field-sm text-foreground transition-colors",
-                                                "hover:bg-secondary",
+                                                "hover:bg-accent",
                                                 outside && "text-placeholder",
                                                 day.isSame(dayjs(), "day") &&
                                                     !endpoint &&
+                                                    !outside &&
                                                     "border border-solid border-primary",
                                                 endpoint &&
                                                     "bg-primary text-primary-foreground hover:bg-btn-primary-hover",

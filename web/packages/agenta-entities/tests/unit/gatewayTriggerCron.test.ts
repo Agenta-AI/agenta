@@ -9,7 +9,14 @@
 
 import {describe, expect, it} from "vitest"
 
-import {describeCron, nextCronRuns, validateCron} from "../../src/gatewayTrigger/core/cron"
+import {
+    describeCron,
+    MIN_CRON_INTERVAL_MINUTES,
+    nextCronRuns,
+    smallestCronGapMinutes,
+    validateCron,
+    validateSchedule,
+} from "../../src/gatewayTrigger/core/cron"
 
 describe("validateCron", () => {
     it("accepts a well-formed 5-field expression", () => {
@@ -124,5 +131,67 @@ describe("nextCronRuns", () => {
         expect(describeCron("0 9 * * 1-5")).toBe(
             "Monday, Tuesday, Wednesday, Thursday, Friday at 09:00 UTC",
         )
+    })
+})
+
+describe("smallestCronGapMinutes", () => {
+    it("measures a plain step", () => {
+        expect(smallestCronGapMinutes("* * * * *")).toBe(1)
+        expect(smallestCronGapMinutes("*/5 * * * *")).toBe(5)
+        expect(smallestCronGapMinutes("*/15 * * * *")).toBe(15)
+        expect(smallestCronGapMinutes("0 * * * *")).toBe(60)
+    })
+
+    it("finds the tight gap inside a minute list, not the long one after it", () => {
+        // ":00, :01, then :00 next hour" — gaps of 1 and 59; the answer is 1.
+        expect(smallestCronGapMinutes("0,1 * * * *")).toBe(1)
+        // Here the tight gap is the *second* one, so two fires would not be enough.
+        expect(smallestCronGapMinutes("0,59 * * * *")).toBe(1)
+    })
+
+    it("catches a tight gap on a day-restricted expression", () => {
+        // Only ever fires on 31 January; sampling has to reach that far to see it.
+        expect(smallestCronGapMinutes("0,1 0 31 1 *")).toBe(1)
+    })
+
+    it("returns null when there is no second fire to compare against", () => {
+        expect(smallestCronGapMinutes("nope")).toBeNull()
+    })
+})
+
+describe("validateSchedule", () => {
+    it("keeps rejecting what validateCron rejects", () => {
+        expect(validateSchedule("0 9 * *")).toMatchObject({valid: false})
+        expect(validateSchedule("99 * * * *")).toMatchObject({valid: false})
+    })
+
+    it.each(["* * * * *", "*/5 * * * *", "*/14 * * * *", "0,1 * * * *", "0,1 0 31 1 *"])(
+        "rejects %s for running below the floor",
+        (expression) => {
+            const result = validateSchedule(expression)
+            expect(result.valid).toBe(false)
+            expect(result.error).toContain("at most once every 15 minutes")
+        },
+    )
+
+    it.each(["*/15 * * * *", "*/30 * * * *", "0 * * * *", "0 9 * * *", "0 9 * * 1", "0 0 1 * *"])(
+        "accepts %s",
+        (expression) => {
+            expect(validateSchedule(expression)).toEqual({valid: true})
+        },
+    )
+
+    it("names the actual cadence so the user knows what to change", () => {
+        expect(validateSchedule("* * * * *").error).toContain("runs every 1 minute")
+        expect(validateSchedule("*/5 * * * *").error).toContain("runs every 5 minutes")
+    })
+
+    it("honours a caller-supplied floor", () => {
+        expect(validateSchedule("*/30 * * * *", 60).valid).toBe(false)
+        expect(validateSchedule("* * * * *", 1).valid).toBe(true)
+    })
+
+    it("mirrors the backend default", () => {
+        expect(MIN_CRON_INTERVAL_MINUTES).toBe(15)
     })
 })

@@ -20,7 +20,14 @@
  * list) and provider-model-auth/design.md (Concern 1: ModelRef; Concern 3b: per-harness gating).
  */
 
-import {bareModelId} from "@agenta/entities/secret"
+import {
+    bareModelId,
+    connectionNamespaceFrom,
+    connectionScopeFrom,
+    explicitAgentConnection,
+    type AgentConnectionNamespace,
+    type SecretOwnerScope,
+} from "@agenta/entities/secret"
 import type {
     HarnessCapabilities,
     HarnessCapabilitiesMap,
@@ -42,8 +49,16 @@ export interface ConnectionFields {
     provider: string | null
     /** Credential mode. Defaults to "agenta" (the project default). */
     mode: ConnectionMode
-    /** Named connection slug; only meaningful when mode === "agenta". */
+    /**
+     * The connection record this run uses. On an `agenta` connection it names a stored key; on a
+     * `self_managed` one it names a stored SUBSCRIPTION sign-in. Null on a self-managed run that
+     * uses whatever login the deployment mounted, which is the pre-subscription behaviour.
+     */
     slug: string | null
+    /** The gateway namespace an `agenta` slug was picked from; null lets the gateway infer it. */
+    namespace: AgentConnectionNamespace | null
+    /** Whose connection the slug names; null reads as the project's. */
+    scope: SecretOwnerScope | null
 }
 
 /** The structured `agent.llm` object shape (a subset; extra keys round-trip untouched). */
@@ -51,7 +66,12 @@ interface ModelRefObject {
     provider?: string | null
     model?: string | null
     extras?: Record<string, unknown>
-    connection?: {mode?: string | null; slug?: string | null} | null
+    connection?: {
+        mode?: string | null
+        slug?: string | null
+        namespace?: string | null
+        scope?: string | null
+    } | null
     [key: string]: unknown
 }
 
@@ -88,9 +108,11 @@ export function connectionFromConfig(model: unknown): ConnectionFields {
             provider: typeof model.provider === "string" ? model.provider : null,
             mode: coerceMode(connection.mode),
             slug: typeof connection.slug === "string" ? connection.slug : null,
+            namespace: connectionNamespaceFrom(connection.namespace),
+            scope: connectionScopeFrom(connection.scope),
         }
     }
-    return {provider: null, mode: "agenta", slug: null}
+    return {provider: null, mode: "agenta", slug: null, namespace: null, scope: null}
 }
 
 export interface ComposeModelValueArgs {
@@ -98,6 +120,10 @@ export interface ComposeModelValueArgs {
     provider: string | null
     mode: ConnectionMode
     slug: string | null
+    /** Written only beside an `agenta` slug; omitted, the gateway infers it from the slug. */
+    namespace?: AgentConnectionNamespace | null
+    /** Whose connection the slug names; written only for an organization connection. */
+    scope?: SecretOwnerScope | null
     /**
      * The prior `agent.llm` value. When it is a structured object, its extra keys (notably
      * `extras`, set via the raw-JSON hatch) are carried through so a form edit never silently
@@ -113,14 +139,17 @@ const FORM_MANAGED_KEYS = new Set(["model", "provider", "connection"])
  *
  * Always returns the structured object (never a bare string): the picker always produces a
  * ModelRef. The `connection` is emitted only when it carries non-default info (a `self_managed`
- * mode, or an `agenta` slug); the `slug` is emitted only for an agenta connection. Extra keys on
- * the prior object (e.g. `extras`) ride through.
+ * mode, or a slug); a slug rides along in EITHER mode — under `agenta` it names a stored key, under
+ * `self_managed` it names a stored subscription sign-in. Extra keys on the prior object (e.g.
+ * `extras`) ride through.
  */
 export function composeModelValue({
     modelId,
     provider,
     mode,
     slug,
+    namespace,
+    scope,
     existing,
 }: ComposeModelValueArgs): Record<string, unknown> {
     const id = modelId ?? ""
@@ -139,9 +168,7 @@ export function composeModelValue({
 
     const isDefaultConnection = mode === "agenta" && !slug
     if (!isDefaultConnection) {
-        const connection: Record<string, unknown> = {mode}
-        if (mode === "agenta" && slug) connection.slug = slug
-        result.connection = connection
+        result.connection = explicitAgentConnection({mode, slug, namespace, scope})
     }
 
     return result

@@ -1,36 +1,90 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
+import {revalidateSessionMountsAtom} from "@agenta/entities/session"
+import {projectIdAtom} from "@agenta/shared/state"
 import {generateId} from "@agenta/shared/utils"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {
     type AttachmentRejection,
     DEFAULT_ATTACHMENT_LIMITS,
     attachmentRefsToParts,
+    exceedsAttachmentLimit,
+    formatBytes,
     validateIncoming,
 } from "../assets"
-import {uploadAttachment, type SessionAttachmentResponse} from "../assets/attachmentTransport"
+import {
+    AttachmentUploadError,
+    uploadAttachment,
+    uploadFileToSessionDrive,
+    type SessionAttachmentResponse,
+    type SessionDriveFileResponse,
+} from "../assets/attachmentTransport"
 import type {StagedUpload as UploadFile} from "../model"
 import {attachmentsBySession} from "../state/sessionEphemera"
 
 import {removeUploadFile, useAttachmentUploads} from "./useAttachmentUploads"
 
-type StagedFile = UploadFile<SessionAttachmentResponse>
+/** A tray row settles as an attachment reference, or as a file saved to the session drive. */
+export type ComposerUploadResponse = SessionAttachmentResponse | SessionDriveFileResponse
+export type ComposerAttachment = UploadFile<ComposerUploadResponse>
+type StagedFile = ComposerAttachment
 
-/** Convert settled upload-tray entries into reference `file` parts via the neutral builder. */
+/** The drive destination of a row that went to the session drive, else undefined. */
+export const stagedDriveFile = (file: StagedFile): SessionDriveFileResponse["drive"] | undefined =>
+    file.response && "drive" in file.response ? file.response.drive : undefined
+
+const hasUploadResponse = (file: StagedFile): boolean =>
+    Boolean(file.response && ("attachment" in file.response || "drive" in file.response))
+
+/**
+ * Append one line per drive-saved row to the message text, so the agent knows where the file is.
+ * A line already in the text is skipped: an edited held message comes back with its note AND its
+ * rows, and a resend must not repeat the note. The session title leaves these lines out; the API
+ * (`derive_session_name`) and the runner (`proposeSessionName`) match on the line's prefix, so keep
+ * the three in step.
+ */
+export const withDriveFileNote = (text: string, files: StagedFile[]): string => {
+    const lines = files.flatMap((file) => {
+        const drive = stagedDriveFile(file)
+        if (!drive) return []
+        const line = `Uploaded to the session drive (too large to attach): \`${drive.path}\` (${formatBytes(drive.size)})`
+        return text.includes(line) ? [] : [line]
+    })
+    return [text, ...lines].filter(Boolean).join("\n\n")
+}
+
+/** Convert settled upload-tray entries into reference `file` parts via the neutral builder.
+ * Rows saved to the session drive carry no attachment; {@link withDriveFileNote} covers them. */
 export const stagedFilesToParts = (files: StagedFile[], sessionId: string) =>
     attachmentRefsToParts(
-        files.map((file) => {
-            const attachment = file.response?.attachment
-            if (!attachment) throw new Error(`Attachment upload is incomplete: ${file.name}`)
-            return {
-                attachmentId: attachment.attachment_id,
-                filename: attachment.filename,
-                mediaType: attachment.media_type,
-                size: attachment.size,
-            }
-        }),
+        files
+            .filter((file) => !stagedDriveFile(file))
+            .map((file) => {
+                const attachment =
+                    file.response && "attachment" in file.response
+                        ? file.response.attachment
+                        : undefined
+                if (!attachment) throw new Error(`Attachment upload is incomplete: ${file.name}`)
+                return {
+                    attachmentId: attachment.attachment_id,
+                    filename: attachment.filename,
+                    mediaType: attachment.media_type,
+                    size: attachment.size,
+                }
+            }),
         sessionId,
     )
+
+/**
+ * What a send carries for these tray rows: the text, with a line for each row saved to the session
+ * drive, and the attachment parts (undefined when there are none). Every composer host builds its
+ * outbound message through this, so a drive-saved file is never sent without its note.
+ */
+export const stagedFilesToOutbound = (text: string, files: StagedFile[], sessionId: string) => {
+    const parts = stagedFilesToParts(files, sessionId)
+    return {text: withDriveFileNote(text, files), parts: parts.length ? parts : undefined}
+}
 
 // `uid` is the tray's React key, its preview-URL key, the remove / view / retry handle, and the
 // upload's idempotency key, so it has to be unique per TRAY ROW. Deriving it from name+mtime+size
@@ -52,11 +106,19 @@ const toUploadFile = (file: File, uploadsEnabled: boolean): StagedFile => ({
 export const useComposerAttachments = ({
     sessionId,
     uploadsEnabled = true,
+    largeFilesToDrive = false,
 }: {
     sessionId: string
     /** Hosts gate the whole attachment path on their rollout flag; off = inline-only staging. */
     uploadsEnabled?: boolean
+    /** Save a file over the attachment cap to the session drive instead of rejecting it. Needs
+     * uploads: the inline-only path has nowhere to put the file. */
+    largeFilesToDrive?: boolean
 }) => {
+    // The session's project. Every other session-scoped call sends it; the upload must too, or
+    // the API stores the attachment under the caller's default project and the runner, scoped
+    // to the session's real project, gets a 404 and never reads the file.
+    const projectId = useAtomValue(projectIdAtom)
     // Restored from the per-session store on remount (route re-entry, tab close/reopen) —
     // pending attachments survive alongside the composer draft. Rejections stay transient.
     const [files, setFiles] = useState<StagedFile[]>(
@@ -78,7 +140,6 @@ export const useComposerAttachments = ({
     const [rejections, setRejections] = useState<AttachmentRejection[]>([])
     // The attachment currently open in the Files-drawer preview (its uid), or null when closed.
     const [viewingUid, setViewingUid] = useState<string | null>(null)
-    const [attachmentsOpen, setAttachmentsOpen] = useState(false)
     useEffect(() => {
         // Park whatever is on screen under the session it actually belongs to…
         const owner = filesOwnerRef.current
@@ -96,6 +157,8 @@ export const useComposerAttachments = ({
     // Single limits object so it can later be swapped for capability-derived limits.
     const limits = DEFAULT_ATTACHMENT_LIMITS
     const atMax = files.length >= limits.maxCount
+    const oversizedToDrive = largeFilesToDrive && uploadsEnabled
+    const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
     // Drag-over state for the whole-panel drop overlay (depth counter avoids child flicker).
     const dragDepthRef = useRef(0)
     const [isDragging, setIsDragging] = useState(false)
@@ -110,8 +173,37 @@ export const useComposerAttachments = ({
                 onProgress,
                 signal,
             }: {uid: string; onProgress: (percent: number) => void; signal: AbortSignal},
-        ) => uploadAttachment({file, sessionId, idempotencyKey: uid, onProgress, signal}),
-        [sessionId],
+        ) => {
+            // A staged file only exists inside an open session, so the project is resolved by
+            // now. Guard the pre-hydration null so the attachment is never posted without it.
+            if (!projectId) {
+                return Promise.reject(
+                    new AttachmentUploadError("This upload needs an active project."),
+                )
+            }
+            if (oversizedToDrive && exceedsAttachmentLimit(file, limits)) {
+                return uploadFileToSessionDrive({
+                    file,
+                    sessionId,
+                    projectId,
+                    onProgress,
+                    signal,
+                }).then((response: ComposerUploadResponse) => {
+                    // The Files drawer shows the new file without waiting for the turn to end.
+                    revalidateSessionMounts(sessionId)
+                    return response
+                })
+            }
+            return uploadAttachment({
+                file,
+                sessionId,
+                projectId,
+                idempotencyKey: uid,
+                onProgress,
+                signal,
+            })
+        },
+        [sessionId, projectId, oversizedToDrive, limits, revalidateSessionMounts],
     )
     // Upload lifecycle for the tray (progress / error / retry).
     const uploads = useAttachmentUploads(files, setFiles, attachmentUploader)
@@ -128,7 +220,7 @@ export const useComposerAttachments = ({
     // A staged attachment blocks send until its reference exists; without uploads the inline path
     // only needs every entry to be settled.
     const attachmentsSettled = uploadsEnabled
-        ? files.every((file) => file.status === "done" && Boolean(file.response?.attachment))
+        ? files.every((file) => file.status === "done" && hasUploadResponse(file))
         : files.every((file) => file.status === "done")
 
     /** Why send is held, for the send button's tooltip. */
@@ -140,7 +232,9 @@ export const useComposerAttachments = ({
 
     /** Add files from paste / programmatic sources through the guardrails. */
     const addFiles = (incoming: File[], extraRejections: AttachmentRejection[] = []) => {
-        const {accepted, rejections} = validateIncoming(incoming, stagedCountRef.current, limits)
+        const {accepted, rejections} = validateIncoming(incoming, stagedCountRef.current, limits, {
+            allowOversized: oversizedToDrive,
+        })
         const allRejections = [...extraRejections, ...rejections]
         if (accepted.length) {
             // Stage once and enqueue the MINTED uids — re-deriving them here is what let the tray
@@ -150,10 +244,9 @@ export const useComposerAttachments = ({
             setFiles((prev) => [...prev, ...staged])
             if (uploadsEnabled) uploads.enqueue(staged.map((f) => f.uid))
         }
-        setRejections(allRejections)
-        // Open for rejections too. Otherwise dropping something unsupported writes a message into
-        // a closed panel and reads as nothing having happened at all.
-        if (accepted.length || allRejections.length) setAttachmentsOpen(true)
+        // Append: a rejection stays until it is dismissed or the message is sent. Replacing the
+        // list made an earlier failure vanish the moment another file was attached.
+        if (allRejections.length) setRejections((prev) => [...prev, ...allRejections])
     }
 
     // Removing a chip also aborts its in-flight request.
@@ -206,7 +299,6 @@ export const useComposerAttachments = ({
                   },
         )
         setFiles((prev) => [...prev, ...settledEntries])
-        setAttachmentsOpen(true)
         return null
     }
 
@@ -273,12 +365,24 @@ export const useComposerAttachments = ({
         return {onDragEnter, onDragOver, onDragLeave, onDrop}
     }
 
+    /** Dismiss one rejection card by position — two files can reject with the same name AND
+     * reason, so the pair does not identify a card. */
+    const dismissRejection = (index: number) => {
+        setRejections((prev) => prev.filter((_, i) => i !== index))
+    }
+
     /** Drop the attachments a send just carried, plus any rejection notice. */
     const clearAttachments = (consumedUids: string[]) => {
         // Only what this send carried: anything staged while it was in flight belongs to the next message.
-        setFiles((prev) => prev.filter((file) => !consumedUids.includes(file.uid)))
+        const keep = (file: StagedFile) => !consumedUids.includes(file.uid)
+        setFiles((prev) => prev.filter(keep))
+        // The store is also written here, not only by the sync effect: a hand-off navigates right
+        // after this call, and the destination composer seeds its tray from the store on mount.
+        const owner = filesOwnerRef.current
+        const remaining = files.filter(keep)
+        if (remaining.length > 0) attachmentsBySession.set(owner, remaining)
+        else attachmentsBySession.delete(owner)
         setRejections([])
-        setAttachmentsOpen(false)
     }
 
     /**
@@ -287,20 +391,20 @@ export const useComposerAttachments = ({
      * than through `addFiles`, which would re-upload them as second attachments. Idempotent:
      * anything already back in the tray is left where it is.
      */
-    const restoreAttachments = (restored: StagedFile[]) => {
+    const restoreAttachments = useCallback((restored: StagedFile[]) => {
         setFiles((prev) => [
             ...restored.filter((file) => !prev.some((row) => row.uid === file.uid)),
             ...prev,
         ])
-    }
+    }, [])
 
     return {
+        /** The session this tray belongs to — the composer reads the same session's quotes. */
+        sessionId,
         uploadsEnabled,
         files,
         rejections,
         setRejections,
-        attachmentsOpen,
-        setAttachmentsOpen,
         viewingUid,
         setViewingUid,
         limits,
@@ -310,6 +414,7 @@ export const useComposerAttachments = ({
         isDragging,
         addFiles,
         removeFile,
+        dismissRejection,
         uploadExtraFiles,
         uploads,
         clearAttachments,

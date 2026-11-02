@@ -8,13 +8,17 @@ from oss.src.core.mounts.dtos import Mount
 from oss.src.core.mounts.service import MountsService
 from oss.src.core.mounts.types import MountFileNotFound
 from oss.src.core.store.storage import ObjectStore
+from oss.src.dbs.postgres.mounts.dbes import MountDBE
 from oss.src.dbs.postgres.sessions.attachments.dbes import SessionAttachmentDBE
 from oss.src.dbs.postgres.shared.engine import TransactionsEngine
 from oss.src.utils.env import env
 from oss.tests.pytest.utils.mounts import skip_if_mount_storage_unavailable
 
-# Reads the database directly, so it only runs adjacent to the stack (see conftest).
-pytestmark = pytest.mark.integration
+# Reads the database AND the object store directly, so it only runs adjacent to
+# the stack (see conftest). The store probe is separate from the Postgres one:
+# the bundled SeaweedFS publishes no host port, so it stays unreachable even
+# where Postgres is fine.
+pytestmark = [pytest.mark.integration, pytest.mark.store_required]
 
 _PNG = b"\x89PNG\r\n\x1a\n" + b"teardown"
 
@@ -43,6 +47,7 @@ def _upload(authed_api, session_id):
 
 
 async def _coordinates(attachment_id):
+    """Read the attachment's place and its mount's stored prefix, before anything is deleted."""
     engine = TransactionsEngine()
     try:
         async with engine.session() as session:
@@ -51,7 +56,14 @@ async def _coordinates(attachment_id):
                     SessionAttachmentDBE.project_id,
                     SessionAttachmentDBE.mount_id,
                     SessionAttachmentDBE.path,
-                ).where(SessionAttachmentDBE.id == UUID(attachment_id))
+                    MountDBE.storage_prefix,
+                )
+                .join(
+                    MountDBE,
+                    (MountDBE.project_id == SessionAttachmentDBE.project_id)
+                    & (MountDBE.id == SessionAttachmentDBE.mount_id),
+                )
+                .where(SessionAttachmentDBE.id == UUID(attachment_id))
             )
             return result.one()
     finally:
@@ -60,11 +72,15 @@ async def _coordinates(attachment_id):
 
 def _storage_key(coordinates):
     """Derive the object key through the service so a key-construction bug fails here too."""
-    project_id, mount_id, path = coordinates
+    project_id, mount_id, path, storage_prefix = coordinates
     service = MountsService(mounts_dao=None, namespace=env.store.namespace)
     return service._storage_key(
-        project_id=project_id,
-        mount=Mount(id=mount_id, project_id=project_id, slug=str(mount_id)),
+        mount=Mount(
+            id=mount_id,
+            project_id=project_id,
+            slug=str(mount_id),
+            storage_prefix=storage_prefix,
+        ),
         path=path,
     )
 

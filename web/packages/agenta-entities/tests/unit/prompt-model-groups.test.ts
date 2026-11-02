@@ -1,6 +1,7 @@
 import {describe, expect, it} from "vitest"
 
 import type {ProviderConnection} from "../../src/secret/core/connections"
+import {toProviderConnections} from "../../src/secret/core/connections"
 import {
     CURRENT_SELECTION_GROUP_KEY,
     buildConnectionModelGroups,
@@ -12,6 +13,7 @@ import {
     withCurrentSelectionGroup,
     withoutSlugBoundGroups,
 } from "../../src/secret/core/promptModelGroups"
+import {SUBSCRIPTION_PROVIDER_KIND} from "../../src/secret/core/subscriptionConnections"
 import {SecretKind} from "../../src/secret/core/types"
 
 const CATALOG = {
@@ -461,6 +463,43 @@ describe("buildConnectionModelGroups", () => {
         })
 
         expect(groups.map((group) => group.label)).toEqual(["My gateway"])
+    })
+
+    it("skips a hosted subscription, which holds no key a litellm run could use", () => {
+        const connections = toProviderConnections([
+            {
+                id: "sub-1",
+                slug: "chatgpt",
+                type: SUBSCRIPTION_PROVIDER_KIND,
+                displayName: "ChatGPT",
+                models: ["gpt-4o"],
+                subscription: {provider: "chatgpt", loginState: "ready", hasLogin: true},
+            },
+        ] as any) as ProviderConnection[]
+
+        expect(connections[0].secretKind).toBe(SUBSCRIPTION_PROVIDER_KIND)
+
+        expect(buildConnectionModelGroups({connections, catalog: CATALOG})).toEqual([])
+    })
+
+    it("keeps the key-backed connections when a subscription sits beside them", () => {
+        const connections = [
+            standard(),
+            {
+                id: "sub-1",
+                slug: "chatgpt",
+                name: "ChatGPT",
+                kind: "openai",
+                title: "ChatGPT",
+                secretKind: SUBSCRIPTION_PROVIDER_KIND as unknown as SecretKind,
+                models: ["gpt-4o"],
+                source: {},
+            } as ProviderConnection,
+        ]
+
+        const groups = buildConnectionModelGroups({connections, catalog: CATALOG})
+
+        expect(groups.map((group) => group.label)).toEqual(["OpenAI"])
     })
 })
 
@@ -966,6 +1005,11 @@ describe("selectedOptionLabel", () => {
                     provider: "openrouter",
                     label: "DeepSeek: DeepSeek V4 Flash",
                 },
+                {
+                    id: "openrouter/moonshotai/kimi-k3.1-pro",
+                    provider: "openrouter",
+                    label: "Kimi K3.1 Pro",
+                },
             ],
         },
     }
@@ -995,6 +1039,54 @@ describe("selectedOptionLabel", () => {
         expect(selectedOptionLabel({groups, model: "openrouter/deepseek/deepseek-v4-flash"})).toBe(
             "DeepSeek: DeepSeek V4 Flash",
         )
+    })
+
+    it("labels Kimi K3.1 Pro without changing its runnable OpenRouter id", () => {
+        const groups = buildConnectionModelGroups({
+            connections: [
+                standard({
+                    id: "or",
+                    slug: "openrouter",
+                    kind: "openrouter",
+                    models: ["moonshotai/kimi-k3.1-pro"],
+                }),
+            ],
+            capabilities: caps,
+        })
+
+        expect(groups[0].options).toMatchObject([
+            {
+                label: "Kimi K3.1 Pro",
+                value: "openrouter/moonshotai/kimi-k3.1-pro",
+            },
+        ])
+        expect(selectedOptionLabel({groups, model: "openrouter/moonshotai/kimi-k3.1-pro"})).toBe(
+            "Kimi K3.1 Pro",
+        )
+    })
+
+    it("keeps an uncatalogued OpenRouter model id as its fallback label", () => {
+        const groups = buildConnectionModelGroups({
+            connections: [
+                standard({
+                    id: "or",
+                    slug: "openrouter",
+                    kind: "openrouter",
+                    models: ["moonshotai/uncatalogued-model"],
+                }),
+            ],
+            capabilities: caps,
+        })
+
+        expect(groups[0].options).toMatchObject([
+            {
+                label: "moonshotai/uncatalogued-model",
+                value: "openrouter/moonshotai/uncatalogued-model",
+            },
+        ])
+        expect(
+            selectedOptionLabel({groups, model: "openrouter/moonshotai/uncatalogued-model"}),
+        ).toBe("moonshotai/uncatalogued-model")
     })
 
     it("gives a manually added id back exactly as typed", () => {

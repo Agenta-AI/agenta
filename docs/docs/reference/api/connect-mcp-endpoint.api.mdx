@@ -1,0 +1,73 @@
+---
+id: connect-mcp-endpoint
+title: "Connect Endpoint"
+description: "One route, two steps. `body.scopes is None` -> discover and cache the"
+sidebar_label: "Connect Endpoint"
+hide_title: true
+hide_table_of_contents: true
+api: eJzlVk1v4zYQ/SvEXJoAWjsNelLRom4adIN0GyPJ9pIYNk2NLW4kkktScVRD/70YUrIl5wNBrvVFMDmcGb55b4Zb8HztIL2DP7nHDa9T9uVsCrMEMnTCSuOlVpDClUJmdeUxYX6jmfNo3IgtljqrR05og45Jx/7WChfs068sk07oR7SMq4wJLnJkPsd7JXIUD4V0nmnlNa0xqzc/M87C4pHRzsllUTMsja+PydUS11IFPxZ9ZVV0xCufayv/5ZQfs5hJi8KP7tW9WuiNQjt/kCr7pXJoF5QZZwat0+oHx/RGMSfX6pNUTCrnkWfsaDEXWikUfh7tFscjSEAbtCHCRQYpdBalMHNUmdFSeUjAcMtL9GgJxi0oXiKk0BnMZQYJSMLQcJ9DAha/V9JiBqm3FSbgRI4lh3QLvjZ01Hkr1RoSWGlbcg8pVFXw4qUvyOC89c0uMmiaZBdzf/Eu5PcKbT2IueKFGwRFVZVUf2P1NxR0IQKNGHCYToYrXhWUz962S+mKQrNLCt00sxgQnf9dZzUFObyz0Mqj8rTFjSmkCCiPvzki27aXnbFUAy/RxXViWjil6qtVwFt6LN1z9Jpd/txaXgPB1C6oqiiAkuySv4lu6Yh+QDX0f+j2dTe34XCzj6yXByh9OZueRRJdR3zgUGftOomQXU0qn7Nw552gaqYtG5B/dK8WEZcFMxYdKs+OuIoKirIK/C9wzQt2D0pHl+4ejmmHNBg1RqIeQdPQDSw6o5WLYJ+enNBnmOlNJQQ6t6oKdt0aw4cLK3QVD7XISeVxjbYH3Vmw6JHwJGQZdT+vbPHRql23PthXWxAFIjhzvVphIOy7GXbIJ3bVumgS4N5TPagZfDDNSfQQJJ8APhlp0c3ly2Tt4HvL4Xl0wS7eT9m2ypEhP52ePifFP7yQWezJ59Zq+3FGZOi5LAbwDw0KLQa77wB1B8vs9dr9pWOChHLp1i+15R006Bxf454Ir5sGMNgt7TbUmk0V2d5uX4SFJgHhn3punhXjjLB88i8WbN9i7wI2Mf3Wrlf3fYlihV6H4o9YgrfY8fn2dvrMYeRHiT7XNDaNdnFM+hxSGK/jO8ONS2HcuBuTbrztTcxm3M5aSMChfexma5A5jLmRoazxb+69cel4jNVIFLrKRnyNyvMRl9FwRj5EZaWvg5PJ9OIS68/IM7SQ3s36BjfExsivodmuJtzISySU2pk76ffibuzm8RTBQDy/3g/D8ydemgL7w+yuo8tsN396LUaqle5TZRIuxybTi2ezY7BFsuMisKzLNGzTfB/AtkcLEsAyiA488vK33Q7lQTWIYU5GP45OaIkKW3LVC9F2Cna+fx0NUtzuu8H/9EXZsohUPDYFl6HPtNMrKuQOOoWQhIWhz04lkEA6fFl2QpklkJPQ0jvYbpfc4VdbNA0txzcgMT+Tji+L3ivwAevDZ+MjLyrKMOjmkVtJJ14+/Wppj67bXnTMXrtypyZV92N2GfWvGJp13ql121qcxWCfQkvde3g2YahNxBMTIdD4N21nva41vbq5hQSW7QO21BmdsXxDrZZvYrY6XD60i7C2hYKrdUVDIYXok37/AeI+nzk=
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Connect Endpoint"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/gateways/mcps/endpoints/{endpoint_id}/connect"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+One route, two steps. `body.scopes is None` -&gt; discover and cache the
+checklist onto the row; a list (possibly empty) -&gt; begin and return the
+authorization redirect.
+
+`owner_kind=user` is a person's own sign-in instead (`_connect_person`).
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./connect-mcp-endpoint.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./connect-mcp-endpoint.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./connect-mcp-endpoint.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

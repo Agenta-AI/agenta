@@ -1,10 +1,6 @@
 import {useCallback, useMemo, useRef, useState, type ReactNode} from "react"
 
-import {
-    AGENT_TEMPLATES,
-    templateBuilderMessage,
-    type AgentStarterTemplate,
-} from "@agenta/entities/workflow"
+import {templateBuilderMessage, type AgentStarterTemplate} from "@agenta/entities/workflow"
 
 import TemplateChipDock from "../components/TemplateChipDock"
 
@@ -18,7 +14,7 @@ interface ComposerApi {
 const CHIPPED_COMPOSER_CLASS =
     "!rounded-[0px_14px_14px_14px] !border-[1.5px] !border-[var(--ag-colorPrimary)]"
 /** Strip-era default composer classes (no chip). */
-const DEFAULT_COMPOSER_CLASS =
+export const DEFAULT_COMPOSER_CLASS =
     "!rounded-[14px] !border-[1.5px] !border-[var(--ag-strip-input-border)]"
 
 /**
@@ -107,7 +103,8 @@ export function useTemplateProvenance({composerApi}: {composerApi: ComposerApi})
 
     // Keep showing the last template during the exit so the chip fades out with real content, not a placeholder.
     const chipNode = useMemo(() => {
-        const shown = selectedTemplate ?? lastTemplateRef.current ?? AGENT_TEMPLATES[0]
+        // Null only before the first pick, when the chip is not visible anyway.
+        const shown = selectedTemplate ?? lastTemplateRef.current
         return (
             <TemplateChipDock
                 template={shown}

@@ -588,7 +588,7 @@ export function TreeSelect({
                                     className={cn(
                                         // antd option geometry: min-h 28px, 4px×12px padding,
                                         // selected weight 600.
-                                        "flex w-full cursor-pointer select-none items-center gap-1 box-border min-h-control rounded-control-sm pr-3 py-1 text-field-md",
+                                        "flex w-full cursor-pointer select-none items-center gap-1 box-border min-h-control-sm rounded-control-sm pr-3 py-1 text-field-md",
                                         // antd: selected row = controlItemBgActive (always); a
                                         // non-selected active/hovered row = controlItemBgHover.
                                         selected ? "bg-controlItemBgActive font-semibold" : "",

@@ -4,6 +4,8 @@ from pydantic import BaseModel, ConfigDict
 
 
 class SecretManager(str, Enum):
+    # The retired starter-credits program. Nothing writes new rows with it, but stored
+    # rows may still carry it, so it must stay readable.
     STARTER_CREDITS_BRIDGE = "starter-credits-bridge"
 
 

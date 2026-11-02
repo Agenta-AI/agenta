@@ -43,10 +43,7 @@ export type {
     RunnableData,
     // Path types
     PathInfo,
-    ExtendedPathInfo,
     PathItem,
-    // State types
-    PlaygroundState,
     PlaygroundAction,
 } from "@agenta/entities/runnable"
 

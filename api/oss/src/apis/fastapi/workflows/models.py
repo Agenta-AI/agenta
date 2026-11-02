@@ -1,6 +1,9 @@
 from typing import Any, Literal, Optional, List
+from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from oss.src.core.git.dtos import RevisionGrouping, validate_revision_grouping
 
 from oss.src.core.shared.dtos import (
     Windowing,
@@ -229,6 +232,35 @@ class WorkflowRevisionEditRequest(BaseModel):
     )
 
 
+class WorkflowRevisionRequirementsQueryRequest(BaseModel):
+    """One agent configuration to check: a saved revision, or an unsaved draft."""
+
+    workflow_revision_ref: Optional[Reference] = Field(
+        default=None,
+        description="The saved revision to check.",
+    )
+    workflow_id: Optional[UUID] = Field(
+        default=None,
+        description=(
+            'The agent an unsaved draft belongs to. With it, the draft\'s `"user"` '
+            "items read the caller's account choices for that agent."
+        ),
+    )
+    parameters: Optional[dict] = Field(
+        default=None,
+        description=(
+            "An unsaved draft's parameters (`{agent: {...}}`), checked instead of a "
+            "saved revision."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _one_source(self) -> "WorkflowRevisionRequirementsQueryRequest":
+        if (self.workflow_revision_ref is None) == (self.parameters is None):
+            raise ValueError("send either workflow_revision_ref or parameters")
+        return self
+
+
 class WorkflowRevisionQueryRequest(BaseModel):
     workflow_revision: Optional[WorkflowRevisionQuery] = Field(
         default=None,
@@ -253,10 +285,31 @@ class WorkflowRevisionQueryRequest(BaseModel):
         description="When true, include archived revisions.",
     )
     #
+    grouping: Optional[RevisionGrouping] = Field(
+        default=None,
+        description=(
+            "Divide matching revisions by artifact or variant and select one "
+            "revision from each group."
+        ),
+    )
+    #
     windowing: Optional[Windowing] = Field(
         default=None,
         description="Cursor-based pagination controls.",
     )
+
+    @model_validator(mode="after")
+    def _validate_grouping(self):
+        validate_revision_grouping(
+            grouping=self.grouping,
+            artifact_refs=self.workflow_refs,
+            variant_refs=self.workflow_variant_refs,
+            revision_refs=self.workflow_revision_refs,
+            windowing=self.windowing,
+        )
+        if self.grouping and self.workflow_revision and self.workflow_revision.flags:
+            raise ValueError("grouping cannot be combined with workflow revision flags")
+        return self
 
 
 class WorkflowRevisionCommitRequest(BaseModel):
@@ -334,6 +387,11 @@ class WorkflowRevisionRetrieveRequest(BaseModel):
             "When true, resolve `@ag.references` tokens embedded in the revision "
             "configuration before returning it."
         ),
+    )
+    #
+    include_archived: Optional[bool] = Field(
+        default=None,
+        description="When false, an archived workflow, variant, or revision resolves to nothing.",
     )
 
 

@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import Any, List, Optional
 from uuid import UUID
 
 from oss.src.core.sessions.streams.dtos import (
+    SessionNameSource,
     SessionStream,
     SessionStreamCreate,
     SessionStreamEdit,
@@ -13,9 +14,22 @@ from oss.src.core.sessions.streams.dtos import (
 )
 from oss.src.core.sessions.types import SessionReference, SessionTriggerAttribution
 from oss.src.core.shared.dtos import Windowing
+from oss.src.core.sharing.dtos import AccessPolicy, SessionReadScope
 
 
 class SessionStreamsDAOInterface(ABC):
+    @abstractmethod
+    async def settle_command(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: Optional[str],
+        mirror_stopped: bool,
+        transaction: Optional[Any] = None,
+    ) -> None:
+        """Clear this command's marker and project its stopped state."""
+
     @abstractmethod
     async def create(
         self,
@@ -54,6 +68,7 @@ class SessionStreamsDAOInterface(ABC):
         self,
         *,
         project_id: UUID,
+        read_scope: SessionReadScope,
         filter: SessionStreamQuery,
         windowing: Optional[Windowing] = None,
         session_ids: Optional[List[str]] = None,
@@ -66,6 +81,7 @@ class SessionStreamsDAOInterface(ABC):
         self,
         *,
         project_id: UUID,
+        read_scope: SessionReadScope,
         filter: SessionStreamQuery,
         session_ids: Optional[List[str]] = None,
         exclude_session_ids: Optional[List[str]] = None,
@@ -89,6 +105,7 @@ class SessionStreamsDAOInterface(ABC):
         user_id: Optional[UUID],
         session_id: str,
         header: SessionStreamHeaderEdit,
+        name_source: SessionNameSource = SessionNameSource.manual,
     ) -> Optional[SessionStream]: ...
 
     @abstractmethod
@@ -176,8 +193,12 @@ class TriggerSessionClaimsDAOInterface(ABC):
         event_id: str,
         session_id: str,
         attribution: SessionTriggerAttribution,
+        access: AccessPolicy,
     ) -> bool:
-        """Atomically claim one trigger delivery and attribute its session."""
+        """Atomically claim one trigger delivery and attribute its session.
+
+        A new session row carries `access`; an existing row keeps its policy (the
+        conflict arm merges only the attribution tags)."""
         ...
 
     @abstractmethod

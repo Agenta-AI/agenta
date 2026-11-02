@@ -544,7 +544,7 @@ export function ProviderCredentialsSectionView({
 
     const railDetail = (
         <div className="flex min-h-[236px] overflow-hidden rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)]">
-            <div className="flex w-[190px] shrink-0 flex-col gap-0.5 overflow-y-auto border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] p-2">
+            <div className="flex w-[124px] shrink-0 flex-col gap-0.5 overflow-y-auto border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] p-2 sm:w-[190px]">
                 {visibleStandardSecrets.map((secret) => (
                     <RailRow
                         key={secret.name}

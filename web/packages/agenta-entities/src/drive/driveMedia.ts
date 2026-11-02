@@ -8,15 +8,14 @@
  */
 import {useEffect, useMemo, useState} from "react"
 
-import {axios, getAgentaApiUrl, getAuthToken} from "@agenta/shared/api"
+import {getMountsClient} from "@agenta/sdk/resources"
+import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import {type Mount} from "@agenta/entities/session"
-
-import {renderPdfFirstPage} from "./pdfThumb"
+import {type Mount, projectScopedRequest} from "@agenta/entities/session"
 
 /** Subset of the File System Access API we use to stream a download straight to disk (Chromium).
  * Declared locally — the global typings aren't present in every browser even when the runtime is,
@@ -44,19 +43,21 @@ export async function fetchMountFileBlob({
     mountId,
     projectId,
     path,
+    signal,
 }: {
     mountId: string
     projectId: string
     path: string
+    signal?: AbortSignal
 }): Promise<Blob | null> {
     if (!mountId || !projectId || !path) return null
     try {
-        // Axios (not Fern): Fern JSON-parses response bodies, mangling binary payloads.
-        const response = await axios.get(`${getAgentaApiUrl()}/mounts/${mountId}/files/download`, {
-            params: {project_id: projectId, path},
-            responseType: "blob",
-        })
-        return response.data as Blob
+        const response = await getMountsClient().downloadMountFile(
+            {mount_id: mountId, path},
+            // One attempt: a failure already maps to null, and retries hold a thumbnail slot.
+            projectScopedRequest(projectId, undefined, signal, 0),
+        )
+        return await response.blob()
     } catch {
         return null
     }
@@ -83,63 +84,6 @@ export const mountFileBlobQueryFamily = atomFamily(
     (a, b) => a.mountId === b.mountId && a.path === b.path,
 )
 
-/** Longest side of a generated grid thumbnail, in px. */
-const THUMB_PX = 256
-
-/** Downscale an image blob to a small thumbnail data URL on the CLIENT (webp, `THUMB_PX` longest
- * side). `createImageBitmap` decodes off the main thread; the draw + encode are tiny. Returns null
- * if the browser can't decode it (caller falls back to the type icon). This is what lets the grid
- * cache a few KB per tile instead of pinning the full-size original in memory while browsing many
- * files — the whole point of the FE thumbnail path (no server resize). */
-async function downscaleImage(blob: Blob): Promise<string | null> {
-    if (typeof createImageBitmap !== "function") return null
-    let bitmap: ImageBitmap | null = null
-    try {
-        bitmap = await createImageBitmap(blob)
-        const scale = Math.min(1, THUMB_PX / Math.max(bitmap.width, bitmap.height))
-        const w = Math.max(1, Math.round(bitmap.width * scale))
-        const h = Math.max(1, Math.round(bitmap.height * scale))
-        const canvas = document.createElement("canvas")
-        canvas.width = w
-        canvas.height = h
-        const ctx = canvas.getContext("2d")
-        if (!ctx) return null
-        ctx.drawImage(bitmap, 0, 0, w, h)
-        return canvas.toDataURL("image/webp", 0.7)
-    } catch {
-        return null
-    } finally {
-        bitmap?.close()
-    }
-}
-
-/**
- * A file's grid THUMBNAIL as a small data-URL string — a downscaled image or a rendered PDF first
- * page. The heavy original bytes are fetched, converted, and DROPPED; only the tiny string is
- * retained (generous `gcTime`, strings are cheap). So browsing thousands of image/pdf files keeps
- * memory bounded (KBs per seen tile, not the full originals) and scroll-back is instant with no
- * re-decode/re-render. Keyed separately from the full-size {@link mountFileBlobQueryFamily} viewer.
- */
-export const mountFileThumbnailQueryFamily = atomFamily(
-    ({mountId, path, mode}: {mountId: string; path: string; mode: "image" | "pdf"}) =>
-        atomWithQuery<string | null>((get) => {
-            const projectId = get(projectIdAtom) ?? ""
-            return {
-                queryKey: ["mounts", "thumb", projectId, mountId, path, mode],
-                queryFn: async () => {
-                    const blob = await fetchMountFileBlob({mountId, projectId, path})
-                    if (!blob) return null
-                    return mode === "pdf" ? renderPdfFirstPage(blob) : downscaleImage(blob)
-                },
-                enabled: Boolean(mountId && path && projectId),
-                staleTime: Infinity,
-                gcTime: 5 * 60_000,
-                refetchOnWindowFocus: false,
-            }
-        }),
-    (a, b) => a.mountId === b.mountId && a.path === b.path && a.mode === b.mode,
-)
-
 /** Object URL for a drive file's bytes — revoked on change/unmount. */
 export function useMountFileObjectUrl(
     mount: Mount | null,
@@ -155,6 +99,148 @@ export function useMountFileObjectUrl(
     }, [url])
     return {url, isPending: query.isPending, failed: !query.isPending && !blob}
 }
+
+/** Longest side of a generated grid thumbnail, in px. */
+const THUMB_PX = 256
+
+/** A downscaled image: a small data URL, its drawn size, and the original's byte size. */
+export interface DriveImageThumb {
+    src: string
+    width: number
+    height: number
+    /** The original image's size, before scaling. */
+    sourceWidth: number
+    sourceHeight: number
+    bytes: number
+}
+
+/** Thumbnails fetch and decode at most this many at a time; the rest wait their turn. */
+const MAX_THUMBNAILS_IN_FLIGHT = 2
+let thumbnailsInFlight = 0
+const thumbnailQueue: (() => void)[] = []
+
+async function withThumbnailSlot<T>(run: () => Promise<T>): Promise<T> {
+    if (thumbnailsInFlight >= MAX_THUMBNAILS_IN_FLIGHT)
+        await new Promise<void>((resolve) => thumbnailQueue.push(resolve))
+    else thumbnailsInFlight += 1
+    try {
+        return await run()
+    } finally {
+        // Hand the slot straight to a waiter, so a new caller cannot slip in between.
+        const next = thumbnailQueue.shift()
+        if (next) next()
+        else thumbnailsInFlight -= 1
+    }
+}
+
+/** The image's own size, read from its header without decoding the pixels. */
+async function imageSize(blob: Blob): Promise<{width: number; height: number} | null> {
+    const url = URL.createObjectURL(blob)
+    try {
+        return await new Promise((resolve) => {
+            const img = new Image()
+            img.onload = () => resolve({width: img.naturalWidth, height: img.naturalHeight})
+            img.onerror = () => resolve(null)
+            img.src = url
+        })
+    } finally {
+        URL.revokeObjectURL(url)
+    }
+}
+
+const readAsDataUrl = (blob: Blob): Promise<string | null> =>
+    new Promise((resolve) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : null)
+        reader.onerror = () => resolve(null)
+        reader.readAsDataURL(blob)
+    })
+
+/** WebP-encode at the target size; the canvas scales a bitmap the browser did not resize. */
+async function encodeWebp(
+    bitmap: ImageBitmap,
+    width: number,
+    height: number,
+): Promise<Blob | null> {
+    if (typeof OffscreenCanvas === "function") {
+        const canvas = new OffscreenCanvas(width, height)
+        canvas.getContext("2d")?.drawImage(bitmap, 0, 0, width, height)
+        return canvas.convertToBlob({type: "image/webp", quality: 0.7})
+    }
+    const canvas = document.createElement("canvas")
+    canvas.width = width
+    canvas.height = height
+    canvas.getContext("2d")?.drawImage(bitmap, 0, 0, width, height)
+    return new Promise((resolve) => canvas.toBlob(resolve, "image/webp", 0.7))
+}
+
+/** Webp data URL, `px` on its longest side, decoded already scaled; null when undecodable. */
+async function downscaleImage(blob: Blob, px: number): Promise<DriveImageThumb | null> {
+    if (typeof createImageBitmap !== "function") return null
+    let bitmap: ImageBitmap | null = null
+    try {
+        const size = await imageSize(blob)
+        if (!size?.width || !size.height) return null
+        const scale = Math.min(1, px / Math.max(size.width, size.height))
+        const width = Math.max(1, Math.round(size.width * scale))
+        const height = Math.max(1, Math.round(size.height * scale))
+        bitmap = await createImageBitmap(blob, {
+            resizeWidth: width,
+            resizeHeight: height,
+            resizeQuality: "medium",
+        })
+        const encoded = await encodeWebp(bitmap, width, height)
+        const src = encoded ? await readAsDataUrl(encoded) : null
+        return src
+            ? {
+                  src,
+                  width,
+                  height,
+                  sourceWidth: size.width,
+                  sourceHeight: size.height,
+                  bytes: blob.size,
+              }
+            : null
+    } catch {
+        return null
+    } finally {
+        bitmap?.close()
+    }
+}
+
+/** A file's thumbnail as a small data URL; the full bytes are fetched, scaled, then dropped. */
+// Keyed by one string: an object key with a comparator is a linear scan on every lookup.
+const mountFileThumbnailByKey = atomFamily((key: string) =>
+    atomWithQuery<DriveImageThumb | null>((get) => {
+        const [mountId, path, pxText] = key.split("\0")
+        const px = Number(pxText)
+        const projectId = get(projectIdAtom) ?? ""
+        return {
+            queryKey: ["mounts", "thumb", projectId, mountId, path, px],
+            queryFn: ({signal}) =>
+                withThumbnailSlot(async () => {
+                    if (signal.aborted) return null
+                    const blob = await fetchMountFileBlob({mountId, projectId, path, signal})
+                    return blob ? downscaleImage(blob, px) : null
+                }),
+            enabled: Boolean(mountId && path && projectId),
+            staleTime: Infinity,
+            // The larger chat previews are dropped sooner once nothing shows them.
+            gcTime: px > THUMB_PX ? 60_000 : 5 * 60_000,
+            refetchOnWindowFocus: false,
+        }
+    }),
+)
+
+export const mountFileThumbnailQueryFamily = ({
+    mountId,
+    path,
+    px = THUMB_PX,
+}: {
+    mountId: string
+    path: string
+    px?: number
+}) => mountFileThumbnailByKey(`${mountId}\0${path}\0${px}`)
 
 /** Download one drive file (any type) via the bytes endpoint. */
 /**
@@ -222,6 +308,8 @@ export async function downloadMountFile({
     return true
 }
 
+const EXPORT_TIMEOUT_SECONDS = 600
+
 /** Download the WHOLE drive as ONE zip ("download all") — spanning every mount the drive folds in
  * (cwd at the root, the agent's durable folder under `agent-files/`). The backend STREAMS the zip
  * (never buffered whole) and reads file bodies with bounded concurrency.
@@ -251,6 +339,11 @@ export async function downloadMountArchive({
         })),
         filename,
     }
+    // The server lists every file before it sends headers, so Fern's 30s default is too short.
+    const exportOptions = {
+        ...projectScopedRequest(projectId, undefined, undefined, 0),
+        timeoutInSeconds: EXPORT_TIMEOUT_SECONDS,
+    }
 
     // ─── Streaming-to-disk (Chromium) ────────────────────────────────────────────────────────────
     const showSaveFilePicker = getShowSaveFilePicker()
@@ -272,19 +365,11 @@ export async function downloadMountArchive({
             let writable: WritableFileStreamLike | null = null
             try {
                 writable = await handle.createWritable()
-                const jwt = await getAuthToken()
-                const url = `${getAgentaApiUrl()}/mounts/files/export?project_id=${encodeURIComponent(projectId)}`
-                const response = await fetch(url, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        ...(jwt ? {Authorization: `Bearer ${jwt}`} : {}),
-                    },
-                    body: JSON.stringify(payload),
-                })
-                if (!response.ok || !response.body) throw new Error(`archive ${response.status}`)
+                const response = await getMountsClient().exportMountFiles(payload, exportOptions)
+                const body = response.stream()
+                if (!body) throw new Error("archive has no body")
                 // Manual read → write per chunk (pipeTo into a FileSystemWritableFileStream no-ops).
-                const reader = response.body.getReader()
+                const reader = body.getReader()
                 for (;;) {
                     const {done, value} = await reader.read()
                     if (done) break
@@ -301,11 +386,8 @@ export async function downloadMountArchive({
 
     // ─── Buffered fallback (Safari / Firefox / no picker) ─────────────────────────────────────────
     try {
-        const response = await axios.post(`${getAgentaApiUrl()}/mounts/files/export`, payload, {
-            params: {project_id: projectId},
-            responseType: "blob",
-        })
-        const url = URL.createObjectURL(response.data as Blob)
+        const response = await getMountsClient().exportMountFiles(payload, exportOptions)
+        const url = URL.createObjectURL(await response.blob())
         const anchor = document.createElement("a")
         anchor.href = url
         anchor.download = filename

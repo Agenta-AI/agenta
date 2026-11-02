@@ -1,25 +1,18 @@
 import {createElement} from "react"
 
-// import {testsetsListAtom} from "@agenta/entities/testset"
-import {
-    agentWorkflowsListQueryStateAtom,
-    // evaluatorsListQueryAtom,
-    // nonArchivedEvaluatorsAtom,
-    promptWorkflowsListQueryStateAtom,
-} from "@agenta/entities/workflow"
+import {promptWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
+import {playgroundSessionPath} from "@agenta/sessions/link"
 import {addPendingSessionOpenAtom} from "@agenta/sessions/state"
-import {ChatsCircleIcon, CircleIcon} from "@phosphor-icons/react"
-import {RobotIcon} from "@phosphor-icons/react"
+import {ChatsCircleIcon, CircleIcon, CircleNotchIcon, LightningIcon} from "@phosphor-icons/react"
 import {atom, getDefaultStore} from "jotai"
 
 import {MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "../constants"
 
-import {withEntityGroups} from "./groups"
+import {withEntityGroups, withRefsByRecency} from "./groups"
 import {sidebarSessionToggledGroupsAtomFamily} from "./sessionFilters"
 import {
     sidebarSessionGroupKey,
     sidebarSessionGroupsAtomFamily,
-    sidebarSessionScopeLimit,
     sidebarSessionsListAtomFamily,
     type SessionSidebarRef,
 } from "./sessionsSource"
@@ -33,9 +26,13 @@ import type {
 
 const DEFAULT_SIDEBAR_ENTITY_LIMIT = 5
 
-// Sidebar item keys that own a dynamic entity list. The static row in
-// `useSidebarConfig` and the registry entry below must share the same key —
-// keep the constant the single source of truth.
+/** An entity that renders every ref it holds, however many that is — the list is bounded by what
+ * has been fetched, not by a render cap. */
+export const SIDEBAR_UNBOUNDED = Number.POSITIVE_INFINITY
+
+// Sidebar item keys shared by the static row in `useSidebarConfig` and any registry entry
+// below — keep the constant the single source of truth. Only Prompts and Sessions own a
+// dynamic list today; the rest are plain rows whose keys are still addressed by name.
 export const PROMPTS_SIDEBAR_KEY = "project-prompts-link"
 export const AGENTS_SIDEBAR_KEY = "project-agents-link"
 export const TESTSETS_SIDEBAR_KEY = "app-testsets-link"
@@ -58,14 +55,16 @@ export const defineSidebarEntity = <TRef extends SidebarEntityRef>(
     activeSourceAtom: gatedSidebarSource(scopeId, parentKey, config.listAtom),
     getLabel: (ref) => config.getLabel(ref as TRef),
     childLink: (ref, projectURL) => `${projectURL}${config.childPath(ref as TRef)}`,
-    emptyLabel: config.emptyLabel,
-    maxItems: config.maxItems ?? DEFAULT_SIDEBAR_ENTITY_LIMIT,
-    showAllLink: config.showAllPath
-        ? (projectURL) => `${projectURL}${config.showAllPath}`
-        : undefined,
     childMatchLinks: config.childMatchPaths
         ? (ref, projectURL) =>
               config.childMatchPaths!(ref as TRef).map((path) => `${projectURL}${path}`)
+        : undefined,
+    emptyLabel: config.emptyLabel,
+    hideWhenEmpty: config.hideWhenEmpty,
+    maxItems: config.maxItems ?? DEFAULT_SIDEBAR_ENTITY_LIMIT,
+    dragZone: config.dragZone,
+    showAllLink: config.showAllPath
+        ? (projectURL) => `${projectURL}${config.showAllPath}`
         : undefined,
     getIcon: config.getIcon ? (ref) => config.getIcon!(ref as TRef) : undefined,
     getTooltip: config.getTooltip ? (ref) => config.getTooltip!(ref as TRef) : undefined,
@@ -75,13 +74,17 @@ export const defineSidebarEntity = <TRef extends SidebarEntityRef>(
     getOnClick: config.getOnClick ? (ref) => config.getOnClick!(ref as TRef) : undefined,
     wrapRow: config.wrapRow ? (ref, node) => config.wrapRow!(ref as TRef, node) : undefined,
     getGroupKey: config.getGroupKey ? (ref) => config.getGroupKey!(ref as TRef) : undefined,
+    ranksAtom: config.ranksAtom,
     groupsAtom: config.groupsAtom,
     toggleGroupAtom: config.toggleGroupAtom,
+    groupAddLink: config.groupAdd,
 })
 
 // ── Add a new dynamic entity by appending one entry here. Nothing else. ──────
 // If the entity only exposes query + data atoms (no combined ListQueryState),
 // wrap them: `listAtom: fromParts(xxxListQueryAtom, xxxListDataAtom)`.
+// Test sets and evaluators render as STATIC rows (see `useSidebarConfig`) — their keys are
+// exported below so a dynamic list can be added here later without renaming anything.
 const ENTITIES: SidebarEntity[] = [
     defineSidebarEntity(MAIN_SIDEBAR_SCOPE_ID, PROMPTS_SIDEBAR_KEY, {
         kind: "app",
@@ -96,12 +99,15 @@ const ENTITIES: SidebarEntity[] = [
         icon: createElement(ChatsCircleIcon, {size: 14}),
         listAtom: sidebarSessionsListAtomFamily(MAIN_SIDEBAR_SCOPE_ID),
         getLabel: (session) => session.name || "Untitled session",
-        // The link navigates to the owning agent; the click hands over WHICH session, since the
-        // playground has no way to read that from the route.
-        childPath: (session) => `/apps/${session.appId}/playground`,
+        // The session's own deep link, so copy/open-in-new-tab lands here (#5974).
+        childPath: (session) =>
+            session.appId
+                ? playgroundSessionPath("/apps", session.appId, session.sessionId)
+                : "/sessions",
+        // Highlight on the agent's playground whatever session the URL carries.
+        childMatchPaths: (session) => (session.appId ? [`/apps/${session.appId}/playground`] : []),
         getOnClick: (session) => () => {
-            // A row with no resolved agent yet cannot open anything; the sidebar still shows it so
-            // a first-turn session keeps its place (#5974).
+            // No resolved agent yet: nothing to open, but the row keeps its place (#5974).
             if (!session.appId) return
             getDefaultStore().set(addPendingSessionOpenAtom, {
                 appId: session.appId,
@@ -109,55 +115,53 @@ const ENTITIES: SidebarEntity[] = [
                 title: session.name ?? undefined,
             })
         },
+        // A turn in flight SPINS, the same signal the mobile rail paints — `alive` alone left a
+        // running session showing the idle hollow dot.
         // Amber for a session blocked on you, the same signal the sessions list and the home
         // panel paint. `--ag-run-status-warning` rather than `colorWarning`: the semantic token's
         // light step is a muddy #8a6400 that reads as disabled at this size.
         // Every row gets the same status dot, pinned included: the Pinned heading already says a
         // row is pinned, and a pin glyph in its place hid whether that session was waiting on you.
-        getIcon: (session) =>
-            createElement(CircleIcon, {
+        getIcon: (session) => {
+            // State wins the glyph while a turn is live; otherwise the SHAPE says the type — a
+            // bolt for a trigger run, a dot for a chat — and the colour still carries the gate.
+            const amber = session.waiting ? "text-[var(--ag-run-status-warning)]" : undefined
+            if (session.running)
+                return createElement(CircleNotchIcon, {size: 12, className: "animate-spin"})
+            if (session.isAutomation)
+                return createElement(LightningIcon, {
+                    size: 12,
+                    // Fill means LIVE on both glyphs; the bolt shape alone says automation.
+                    weight: session.waiting || session.alive ? "fill" : "regular",
+                    className: amber,
+                })
+            return createElement(CircleIcon, {
                 size: 10,
                 weight: session.waiting || session.alive ? "fill" : "regular",
-                className: session.waiting ? "text-[var(--ag-run-status-warning)]" : undefined,
-            }),
+                className: amber,
+            })
+        },
+        // The label alone cannot say WHICH agent a session belongs to (#5945), and the heading
+        // only says it under agent grouping. Falls back to the full name when no agent resolves.
+        getTooltip: (session) => {
+            const name = session.name?.trim() || "Untitled session"
+            const agent = session.agentName?.trim()
+            return agent ? `${name} — ${agent}` : undefined
+        },
         emptyLabel: "No sessions",
-        // Grouped by owning agent, with the same headings and filters the mobile rail uses —
-        // one model, two hosts. The row menu stays mobile-only for now.
+        // The Sessions row has no caret to protect, and "No sessions yet" under a heading that
+        // already says Sessions is the same sentence twice.
+        hideWhenEmpty: true,
+        // Grouped by owning agent, with the same headings, filters and row menu the mobile rail
+        // uses — one model, two hosts.
         getGroupKey: sidebarSessionGroupKey,
         groupsAtom: sidebarSessionGroupsAtomFamily(MAIN_SIDEBAR_SCOPE_ID),
         toggleGroupAtom: sidebarSessionToggledGroupsAtomFamily(MAIN_SIDEBAR_SCOPE_ID),
         // An archived row is second-class, not hidden: same row, dimmed.
         getRowClassName: (session) => (session.archived ? "opacity-60" : undefined),
-        // A heading over one row says nothing, so a grouped list needs the window the source
-        // fetches rather than the flat list's seven.
-        maxItems: sidebarSessionScopeLimit(MAIN_SIDEBAR_SCOPE_ID),
-        showAllPath: "/sessions",
+        // Every loaded page renders; the scroll container pages in more as you reach its end.
+        maxItems: SIDEBAR_UNBOUNDED,
     }),
-    defineSidebarEntity(MAIN_SIDEBAR_SCOPE_ID, AGENTS_SIDEBAR_KEY, {
-        kind: "app",
-        icon: createElement(RobotIcon, {size: 14}),
-        listAtom: agentWorkflowsListQueryStateAtom,
-        getLabel: (workflow) => workflow.name || workflow.slug || "Untitled agent",
-        childPath: (workflow) => `/apps/${workflow.id}/playground`,
-        emptyLabel: "No agents",
-        showAllPath: "/agents",
-    }),
-    // defineSidebarEntity(MAIN_SIDEBAR_SCOPE_ID, TESTSETS_SIDEBAR_KEY, {
-    //     kind: "testset",
-    //     listAtom: testsetsListAtom,
-    //     getLabel: (testset) => testset.name || "Untitled test set",
-    //     childPath: (testset) => `/testsets/${testset.id}`,
-    //     emptyLabel: "No test sets",
-    //     showAllPath: "/testsets",
-    // }),
-    // defineSidebarEntity(MAIN_SIDEBAR_SCOPE_ID, EVALUATORS_SIDEBAR_KEY, {
-    //     kind: "evaluator",
-    //     listAtom: fromParts(evaluatorsListQueryAtom, nonArchivedEvaluatorsAtom),
-    //     getLabel: (workflow) => workflow.name || workflow.slug || "Untitled evaluator",
-    //     childPath: (workflow) => `/apps/${workflow.id}/overview`,
-    //     emptyLabel: "No evaluators",
-    //     showAllPath: "/evaluators",
-    // }),
 ]
 
 /** All dynamic entities keyed by their sidebar item key. */
@@ -174,7 +178,16 @@ export const sidebarEntitySourcesAtom = atom((get) => {
     const sources: Record<string, SidebarEntitySource> = {}
     for (const [key, entity] of Object.entries(SIDEBAR_ENTITIES)) {
         const source = get(entity.activeSourceAtom)
-        sources[key] = withEntityGroups(source, entity.groupsAtom && get(entity.groupsAtom))
+        // Ranks are read only once the source HAS rows: a ranks atom reaches other entities'
+        // queries (agents rank off the sessions), and reading it unconditionally would subscribe
+        // those from a collapsed rail that renders nothing — the gate above exists to stop exactly
+        // that. `withRefsByRecency` no-ops on a non-ready source anyway.
+        let ordered = source
+        if (entity.ranksAtom && source.status === "ready") {
+            const ranks = get(entity.ranksAtom)
+            ordered = withRefsByRecency(source, (ref) => ranks.get(ref.id))
+        }
+        sources[key] = withEntityGroups(ordered, entity.groupsAtom && get(entity.groupsAtom))
     }
     return sources
 })

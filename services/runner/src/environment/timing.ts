@@ -32,12 +32,15 @@ export type TimingLog = (
  * series with a mode dimension.
  */
 export const ACQUIRE_STAGES = [
+  "local_mounts",
   "sandbox_start",
   "mounts",
   "agent_mount",
+  "agent_tools_setup",
   "prepare_workspace",
   "probe_capabilities",
   "create_session",
+  "credential_preflight",
   "acquire_total",
 ] as const;
 

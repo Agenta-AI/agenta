@@ -8,6 +8,7 @@
 import {describe, expect, it} from "vitest"
 
 import {
+    mountedSubscriptionName,
     subscriptionPairModels,
     subscriptionPairsFrom,
     subscriptionPlanName,
@@ -28,9 +29,44 @@ describe("subscriptionPairsFrom", () => {
         ])
     })
 
+    it("names a pair by its plan alone when no hosted subscription shares the plan", () => {
+        const pairs = subscriptionPairsFrom({codex: {state: "ready"}}, new Set(["anthropic"]))
+
+        expect(pairs?.map((pair) => pair.name)).toEqual(["ChatGPT"])
+    })
+
+    it("says where a pair comes from when a hosted subscription shares its plan", () => {
+        // A project with a hosted Claude subscription AND a Claude login set up on the server
+        // lists both; only the Claude pair takes the long name.
+        const pairs = subscriptionPairsFrom(
+            {
+                claude: {state: "ready"},
+                codex: {state: "ready"},
+            },
+            new Set(["anthropic"]),
+        )
+
+        expect(pairs?.map((pair) => pair.name)).toEqual([
+            "Claude (set up on the server)",
+            "ChatGPT",
+        ])
+    })
+
     it("names the plan a user pays for, not the company behind it", () => {
         expect(subscriptionPlanName("anthropic")).toBe("Claude")
         expect(subscriptionPlanName("openai")).toBe("ChatGPT")
+    })
+
+    it("says where a mounted login comes from, so a hosted row is not its twin", () => {
+        // A deployment can mount a ChatGPT login AND hold a hosted ChatGPT subscription. Both are
+        // subscription rows to the same plan with different model lists, so the plain plan name
+        // on both left the user choosing between two identical rows.
+        expect(mountedSubscriptionName("openai")).toBe("ChatGPT (set up on the server)")
+        expect(mountedSubscriptionName("anthropic")).toBe("Claude (set up on the server)")
+    })
+
+    it("qualifies an unknown family too, rather than falling back to a bare id", () => {
+        expect(mountedSubscriptionName("acme")).toBe("acme (set up on the server)")
     })
 
     it("lists only the logins that work — a setup state is not a row", () => {

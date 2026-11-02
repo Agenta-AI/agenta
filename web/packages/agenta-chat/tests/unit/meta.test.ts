@@ -11,7 +11,7 @@ import type {ToolUIPart} from "ai"
 import {describe, expect, it} from "vitest"
 
 import {
-    ConnectToolWidget,
+    ConnectRequestWidget,
     ElicitationWidget,
     clientToolWidgets,
 } from "@agenta/entity-ui/clientTools"
@@ -53,8 +53,20 @@ describe("isClientToolPart", () => {
     })
 
     it("still claims a parked unknown client tool so the fallback settles it", () => {
-        const part = toolPart({type: "tool-mysteryTool", state: "input-available"})
+        const part = toolPart({
+            type: "tool-mysteryTool",
+            state: "input-available",
+            render: {kind: "mystery"},
+        })
         expect(isClientToolPart(part, settledCtx)).toBe(true)
+        const hinted = toolPart({type: "tool-mysteryTool", state: "input-available"})
+        const renderMap = new Map([["call_1", {kind: "mystery"}]])
+        expect(isClientToolPart(hinted, settledCtx, renderMap)).toBe(true)
+    })
+
+    it("does NOT claim a parked server tool with no render hint (still running remotely)", () => {
+        const part = toolPart({type: "tool-test_run", state: "input-available"})
+        expect(isClientToolPart(part, settledCtx)).toBe(false)
     })
 
     it("does NOT claim an unsettled tool while the turn is still streaming", () => {
@@ -94,11 +106,15 @@ describe("resolveClientToolHandler", () => {
         expect(resolveClientToolHandler(clientToolMeta(part))).toBe(ElicitationWidget)
     })
 
+    // `request_connection` answers two different asks — an integration key or a gateway target —
+    // and which surface opens is decided inside `ConnectRequestWidget`, on the input. Dispatch
+    // still has one entry per axis; splitting it here instead would make the gateway surface
+    // reachable only from a host that registered it, which is how /m came to be without one.
     it("still resolves the connect widget on both axes", () => {
         const part = toolPart({type: "tool-request_connection", state: "input-available"})
-        expect(resolveClientToolHandler(clientToolMeta(part))).toBe(ConnectToolWidget)
+        expect(resolveClientToolHandler(clientToolMeta(part))).toBe(ConnectRequestWidget)
         expect(resolveClientToolHandler(clientToolMeta(part, renderMapFor("connect")))).toBe(
-            ConnectToolWidget,
+            ConnectRequestWidget,
         )
     })
 

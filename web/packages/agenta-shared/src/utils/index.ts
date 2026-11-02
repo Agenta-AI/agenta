@@ -14,6 +14,20 @@ export {
 
 // Platform detection (modifier-key naming)
 export {isMacPlatform, modifierKeyLabel, altKeyPrefix, pushToTalkLabel} from "./platform"
+// Overlay ownership detection
+export {isOnScreen, isOverlayOpen} from "./overlay"
+
+// The playground's keyboard shortcut registry
+export {
+    PLAYGROUND_SHORTCUTS,
+    SHORTCUT_GROUP_TITLES,
+    getShortcut,
+    shortcutAria,
+    shortcutGroups,
+    shortcutFaces,
+    shortcutText,
+} from "./shortcuts"
+export type {Shortcut, ShortcutGroupId, ShortcutModifier} from "./shortcuts"
 
 // Filtering utilities
 export {filterItems} from "./filterItems"
@@ -26,24 +40,17 @@ export {timeAgo} from "./timeAgo"
 
 // Path utilities for nested data navigation
 export {
-    buildTestcaseColumnPaths,
     collectPaths,
-    combineTypedPaths,
     deleteValueAtPath,
     // Typed path utilities for UI selection components
     extractTypedPaths,
     getChildCount,
     getItemsAtPath,
-    getLastSegment,
-    getParentPath,
     getValueAtPath,
     getValueAtStringPath,
-    getValueType,
     hasValueAtPath,
-    isChildPath,
     isExpandable,
     parsePath,
-    pathToString,
     setValueAtPath,
 } from "./pathUtils"
 export type {
@@ -53,6 +60,22 @@ export type {
     PathSegment,
     TypedPathInfo,
 } from "./pathUtils"
+
+// The query param a session is addressed by, on either app
+export {SESSION_QUERY_PARAM} from "./sessionParam"
+
+// The query params a drive selection and an open automation are linked by
+export {
+    AUTOMATION_QUERY_PARAM,
+    DRIVE_QUERY_PARAM,
+    formatDriveParam,
+    parseDriveParam,
+    readQueryParam,
+    replaceQueryParam,
+    shareUrlWithQueryParam,
+    withQueryParam,
+} from "./deepLinkParams"
+export type {DriveLinkTarget} from "./deepLinkParams"
 
 // Template variable validation (envelope-slot aware)
 export {
@@ -73,13 +96,10 @@ export {
     deriveToolViewModelFromResult,
     extractDisplayTextFromMessage,
     extractTextFromContent,
-    getAttachmentInfo,
     getAttachments,
     hasAttachments,
     isChatMessageObject,
     isChatMessagesArray,
-    messageHasContent,
-    messageHasToolCalls,
     normalizeMessagesFromField,
     removeAttachmentFromContent,
     tryParseArrayFromString,
@@ -94,15 +114,9 @@ export type {LoggerOptions} from "./createLogger"
 // JSON parsing utilities
 export {safeJson5Parse, tryParsePartialJson} from "./jsonParsing"
 
-// Key path utilities
-export {keyToString, stringToKeyPath} from "./keyUtils"
-
 // JSON detection utilities
 export {
-    canExpandAsJson,
     inferLogicalType,
-    isJsonArray,
-    isJsonObject,
     isJsonString,
     isPlainObject,
     tryParseAsArray,
@@ -113,12 +127,7 @@ export {
 export type {JsonParseResult, LogicalType} from "./jsonDetection"
 
 // Editor language detection utilities
-export {
-    detectEditorLanguage,
-    getContentLanguage,
-    looksLikeJson,
-    type EditorLanguage,
-} from "./editorLanguage"
+export {detectEditorLanguage, getContentLanguage, type EditorLanguage} from "./editorLanguage"
 
 // OpenAPI schema utilities
 export {dereferenceSchema, type DereferencedSchemaResult} from "./openapi"
@@ -142,6 +151,10 @@ export {
     formatTokens,
 } from "./formatters/index"
 export type {Formatter, FormatterOptions} from "./formatters/index"
+
+// Token usage split into input, cache and output
+export {splitTokenUsage} from "./tokenBreakdown"
+export type {TokenBreakdown, TokenCounts} from "./tokenBreakdown"
 
 // Enum label utilities
 export {formatEnumLabel} from "./formatEnumLabel"
@@ -184,7 +197,6 @@ export {
 
 // Status inference utilities
 export {
-    getStatusColor,
     getStatusLabel,
     getStatusSeverity,
     inferStatusFromSummary,
@@ -211,10 +223,28 @@ export type {
 // Gateway Tool Slug utilities
 export {
     slugify as connectionSlugify,
+    connectionDisplayName,
+    defaultConnectionName,
     generateDefaultSlug,
     randomAlphanumeric,
 } from "./connectionSlug"
-export {buildGatewayToolSlug, isGatewayToolSlug, parseGatewayToolSlug} from "./toolSlug"
+export {
+    buildGatewayToolSlug,
+    humanizeActionKey,
+    isGatewayToolSlug,
+    parseGatewayToolSlug,
+} from "./toolSlug"
+
+// Agent tool-permission policy vocabulary.
+export {
+    DEFAULT_PERMISSION_POLICY,
+    PERMISSION_POLICY_OPTIONS,
+    isPermissionPolicy,
+    permissionPolicyLabel,
+    permissionPolicyOptionsForEnum,
+    type PermissionPolicy,
+    type PermissionPolicyOption,
+} from "./permissionPolicy"
 
 // Gateway Tool JSON-Schema → form-field descriptor utilities
 export {
@@ -236,7 +266,6 @@ export {
     deriveElicitationPartState,
     hasPriorElicitationDegradation,
     parseElicitationPayload,
-    partitionElicitationDraft,
     serializeElicitationContent,
     type ElicitationAction,
     type ElicitationFieldSchema,
@@ -245,6 +274,21 @@ export {
     type ElicitationRequestPayload,
     type ElicitationResult,
 } from "./elicitation"
+
+// The question form as ordered steps — the docked card's model
+export {
+    buildElicitationSteps,
+    collectStepContent,
+    formatStepValue,
+    initialStepValues,
+    isStepAnswered,
+    parseSecretRefusal,
+    validateStep,
+    type ElicitationForm,
+    type ElicitationStep,
+    type ElicitationStepKind,
+    type ElicitationStepOption,
+} from "./elicitationSteps"
 
 // Polling utilities
 export {shortPoll} from "./shortPoll"

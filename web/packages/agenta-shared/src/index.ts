@@ -11,7 +11,7 @@
  *
  * ## State Atoms
  * - `projectIdAtom` - Current project ID (populated by app)
- * - Jotai recipes: `atomWithDebounce`, `atomWithCompare`, `atomWithToggle`, etc.
+ * - Jotai recipes: `atomWithDebounce`, `atomWithRefresh`
  *
  * ## Chat Message Utilities
  * - Types: `SimpleChatMessage`, `MessageContent`, `ToolCall`, etc.
@@ -20,7 +20,6 @@
  *
  * ## Hooks
  * - `useDebounceInput` - Debounced input handling with synchronized state
- * - `useReducerAtom` - Reducer ergonomics for primitive atoms
  *
  * @example
  * ```typescript
@@ -52,18 +51,7 @@ export {
 export type {AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosInterceptorConfig} from "./api"
 
 // State atoms
-export {
-    projectIdAtom,
-    setProjectIdAtom,
-    atomWithRefresh,
-    atomWithCompare,
-    atomWithToggle,
-    atomWithToggleAndStorage,
-    atomWithListeners,
-    atomWithBroadcast,
-    atomWithDebounce,
-    atomWithRefreshAndDefault,
-} from "./state"
+export {projectIdAtom, setProjectIdAtom, atomWithRefresh, atomWithDebounce} from "./state"
 export type {DebouncedAtomBundle} from "./state"
 
 // Utilities
@@ -97,19 +85,12 @@ export {
     deleteValueAtPath,
     hasValueAtPath,
     isExpandable,
-    getValueType,
     getChildCount,
     getItemsAtPath,
     parsePath,
-    pathToString,
-    getParentPath,
-    getLastSegment,
-    isChildPath,
     collectPaths,
     // Typed path utilities for UI selection
     extractTypedPaths,
-    combineTypedPaths,
-    buildTestcaseColumnPaths,
 } from "./utils"
 export type {
     PathSegment,
@@ -127,7 +108,6 @@ export {
     extractTextFromContent,
     extractDisplayTextFromMessage,
     hasAttachments,
-    getAttachmentInfo,
     updateTextInContent,
     addImageToContent,
     addFileToContent,
@@ -135,8 +115,6 @@ export {
     getAttachments,
     isChatMessageObject,
     isChatMessagesArray,
-    messageHasContent,
-    messageHasToolCalls,
     tryParseArrayFromString,
     normalizeMessagesFromField,
     deriveToolViewModelFromResult,
@@ -151,25 +129,19 @@ export type {LoggerOptions} from "./utils"
 // JSON parsing utilities
 export {tryParsePartialJson, safeJson5Parse} from "./utils"
 
-// Key path utilities
-export {keyToString, stringToKeyPath} from "./utils"
-
 // JSON detection utilities
 export {
     isPlainObject,
     isJsonString,
-    isJsonObject,
-    isJsonArray,
     tryParseJson,
     tryParseAsObject,
     tryParseAsArray,
-    canExpandAsJson,
     tryParseJsonValue,
 } from "./utils"
 export type {JsonParseResult} from "./utils"
 
 // Editor language detection utilities
-export {detectEditorLanguage, getContentLanguage, looksLikeJson, type EditorLanguage} from "./utils"
+export {detectEditorLanguage, getContentLanguage, type EditorLanguage} from "./utils"
 
 // OpenAPI schema utilities
 export {dereferenceSchema, type DereferencedSchemaResult} from "./utils"
@@ -198,7 +170,6 @@ export {
 } from "./hooks"
 export type {UseSelectionStateResult} from "./hooks"
 export type {UseRunAllShortcutParams} from "./hooks"
-export {useReducerAtom} from "./hooks"
 
 // Formatting utilities
 export {
@@ -229,13 +200,7 @@ export {isBase64, dataUriToObjectUrl, isUrl} from "./utils"
 export {stripAgentaMetadataDeep, stripEmptyCollectionsDeep, stripEnhancedWrappers} from "./utils"
 
 // Status inference utilities
-export {
-    toFiniteNumber,
-    getStatusLabel,
-    getStatusColor,
-    getStatusSeverity,
-    inferStatusFromSummary,
-} from "./utils"
+export {toFiniteNumber, getStatusLabel, getStatusSeverity, inferStatusFromSummary} from "./utils"
 export type {ExecutionStatus, ExecutionSummary, StatusSeverity} from "./utils"
 
 // Mapping utilities for input/output mappings

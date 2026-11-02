@@ -1,207 +1,75 @@
-import {useMemo, useState} from "react"
+import {memo, useCallback, useEffect, useMemo, useRef} from "react"
 
-import {getMessageTraceId, getMessageUsage} from "@agenta/chat/assets"
+import {
+    getMessageTraceId,
+    getMessageUsage,
+    isMessageRunErrorTransport,
+    isPendingSendFailed,
+    PENDING_SEND_FAILED_NOTE,
+} from "@agenta/chat/assets"
 import {ClientToolPart, type ClientToolOutputHandler} from "@agenta/chat/clientTools"
-import {StartupActivity, TurnFooter} from "@agenta/chat/components"
-import {partSentence, partToolName, rowSummary, type TurnViewModel} from "@agenta/chat/model"
-import {resolveToolDisplay} from "@agenta/chat/skin"
-import {useStartupPhase} from "@agenta/chat/state"
+import {
+    ActivityTimeline,
+    AttachmentStrip,
+    type AttachmentStripFile,
+    CollapsibleMessageBody,
+    McpServerNoticeCard,
+    TurnFooter,
+} from "@agenta/chat/components"
+import {useSessionTurnFooter} from "@agenta/chat/hooks"
+import {readableTraceError, splitTurnActivity, type TurnViewModel} from "@agenta/chat/model"
+import {messageBodyKey} from "@agenta/chat/state"
+import {canViewSpansAtom} from "@agenta/entities/access"
+import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
-import {buildRenderMap} from "@agenta/playground"
+import {buildRenderMap} from "@agenta/playground/agent-chat"
+import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
 import {hasPriorElicitationDegradation} from "@agenta/shared/utils"
 import {
     ChatBubble,
-    ChatBubbleAvatar,
-    ChatTypingDots,
-    turnRowClass,
     turnToolbarClass,
     turnToolbarRevealClass,
+    userBubbleContentClass,
 } from "@agenta/ui/components/presentational"
-import {useSetAtom} from "jotai"
-import {
-    Ban,
-    Bot,
-    Brain,
-    CheckCircle2,
-    ChevronRight,
-    CircleDashed,
-    User,
-    Wrench,
-    XCircle,
-} from "lucide-react"
+import type {ToolUIPart} from "ai"
+import {useAtomValue, useSetAtom} from "jotai"
 
-import {AssistantMarkdown} from "./AssistantMarkdown"
-import {AttachmentPart} from "./AttachmentPart"
+import {cn} from "@/lib/utils"
+
+import {AnswerReveal} from "./AnswerReveal"
+import {AssistantMarkdown, UserMarkdown} from "./AssistantMarkdown"
 import {isLiveTextItem} from "./markdownStream"
+import {useBillingRoute, useCanBuyCredits, useProviderRecovery} from "./providerRecovery"
+import {quotedMessageParts} from "./quotedMessageParts"
+import {describeRunFailure, RunErrorMessage} from "./RunErrorMessage"
+import {RunErrorRecovery} from "./RunErrorRecovery"
+import {runRetryAction} from "./runRetry"
+import {refreshOnSetupFailure} from "./setupFailureRefresh"
+import {turnFiles} from "./turnFileList"
+import {TurnFiles} from "./TurnFiles"
+import {mobileTurnRowClass} from "./turnRowClass"
+import {UserQuoteBlock} from "./UserQuoteBlock"
+import {ARRIVED_ANSWER_ATTR, LAST_TURN_ATTR} from "./useTranscriptAutoScroll"
 
-type ToolsItem = Extract<TurnViewModel["items"][number], {kind: "tools"}>
-
-/** Desktop ReasoningPart's shape: a caret+brain toggle over a muted italic aside. */
-const ReasoningFold = ({text, streaming}: {text: string; streaming: boolean}) => {
-    const [manual, setManual] = useState<boolean | null>(null)
-    const open = manual ?? streaming
-    return (
-        <div className="flex max-w-full flex-col">
-            <button
-                type="button"
-                onClick={() => setManual(!open)}
-                aria-expanded={open}
-                className="text-colorTextSecondary -ml-1 flex w-fit items-center gap-1 rounded px-1 py-0.5 text-xs italic"
-            >
-                <ChevronRight
-                    className={`size-3 transition-transform ${open ? "rotate-90" : ""}`}
-                />
-                <Brain className="size-3" />
-                <span>{streaming ? "Thinking…" : "Thought"}</span>
-            </button>
-            {open ? (
-                <div className="text-colorTextTertiary ml-5 mt-1 whitespace-pre-wrap text-xs">
-                    {text}
-                </div>
-            ) : null}
-        </div>
-    )
+/** The byte size the transcript replay records on an attachment part, when it has one. */
+const attachmentSize = (metadata: unknown): number | undefined => {
+    const size = (metadata as {agenta?: {size?: unknown}} | undefined)?.agenta?.size
+    return typeof size === "number" ? size : undefined
 }
 
-/** One tool group, desktop ToolActivity's header language: status glyph + name + summary.
- *
- * The name is the HUMANISED sentence the shared resolver builds ("Reading a file"), not the wire
- * name — the desktop has read that way since the tool-activity work landed, and rendering
- * `partToolName` here left /m showing "read" beside prod's "Reading a file failed". */
-const ToolLines = ({item}: {item: ToolsItem}) => (
-    <div className="flex flex-col gap-1 py-0.5">
-        {item.parts.map((tool, i) => {
-            const key = tool.toolCallId ?? `${item.index}-${i}`
-            const state = tool.state as string
-            // Desktop's per-state header language: a gate is a warning wrench marked "Awaiting
-            // approval" (the decision lives in the bottom ApprovalDock), a denial gets the quiet
-            // ban glyph, and everything unsettled spins.
-            const awaiting = state === "approval-requested"
-            const denied = state === "output-denied"
-            const failed = state === "output-error"
-            const settled = state === "output-available" || state === "approval-responded"
-            const summary = awaiting ? "Awaiting approval" : denied ? "denied" : rowSummary(tool)
-            const display = resolveToolDisplay(
-                partToolName(tool),
-                (tool as {input?: unknown}).input,
-                undefined,
-                (tool as {output?: unknown}).output,
-            )
-            const shownName = partSentence(tool, display.activity)
-            // Drop a summary the sentence already made: "Reading a file failed · failed" is the
-            // same word twice. The desktop row reads sentence + technical detail, not both.
-            const midText =
-                summary && shownName.toLowerCase().endsWith(summary.toLowerCase()) ? null : summary
-            return (
-                <p
-                    key={key}
-                    className="m-0 flex min-w-0 items-center gap-2 overflow-hidden text-xs"
-                >
-                    {awaiting ? (
-                        <Wrench className="text-colorWarning size-3.5 shrink-0" />
-                    ) : denied ? (
-                        <Ban className="text-colorTextTertiary size-3.5 shrink-0" />
-                    ) : failed ? (
-                        <XCircle className="text-colorError size-3.5 shrink-0" />
-                    ) : settled ? (
-                        <CheckCircle2 className="text-colorSuccess size-3.5 shrink-0" />
-                    ) : (
-                        <CircleDashed className="text-colorTextTertiary size-3.5 shrink-0 motion-safe:animate-spin" />
-                    )}
-                    {/* The sentence never yields, as on the desktop row: the detail and the status
-                        beside it absorb the squeeze. With `min-w-0` here instead, every child was
-                        equally shrinkable, so a long argument took the width and left "Listed
-                        files" as "Li…" on a phone. `max-w-full` caps a sentence that is wider than
-                        the row on its own, and the row clips what is left. */}
-                    <span className="text-colorText max-w-full shrink-0 truncate font-medium">
-                        {shownName}
-                    </span>
-                    {display.detail ? (
-                        <span className="text-colorTextSecondary min-w-0 truncate font-mono">
-                            {display.detail}
-                        </span>
-                    ) : null}
-                    {midText ? (
-                        <span
-                            className={`min-w-0 truncate ${
-                                failed ? "text-colorError" : "text-colorTextSecondary"
-                            }`}
-                        >
-                            {midText}
-                        </span>
-                    ) : null}
-                </p>
-            )
-        })}
-    </div>
-)
+/** One transcript turn: a user bubble, or an assistant fold, answer, meta line and any run error. */
+const ASSISTANT_META: ("tokens" | "cost")[] = ["tokens", "cost"]
 
-/** Desktop RunErrorBody's callout: the red card with a title and the reason inline. */
-const RunErrorCallout = ({text}: {text: string}) => {
-    const [expanded, setExpanded] = useState(false)
-    const big = text.length > 240 || text.split("\n").length > 4
-    return (
-        <div className="bg-destructive/10 flex items-start gap-2 rounded-xl px-4 py-3">
-            <XCircle className="text-colorError mt-px size-4 shrink-0" />
-            <div className="flex min-w-0 flex-col items-start gap-0.5">
-                <span className="text-colorError text-xs font-medium">The agent run failed</span>
-                <span
-                    className={`text-colorError whitespace-pre-wrap break-words text-xs ${
-                        big && !expanded ? "line-clamp-3" : ""
-                    }`}
-                >
-                    {text}
-                </span>
-                {big ? (
-                    <button
-                        type="button"
-                        onClick={() => setExpanded((v) => !v)}
-                        className="text-colorError -ml-1 rounded px-1 py-0.5 text-[11px] font-medium"
-                    >
-                        {expanded ? "Show less" : "Show more"}
-                    </button>
-                ) : null}
-            </div>
-        </div>
-    )
-}
-
-/**
- * The started-but-empty assistant turn: what the agent is DOING, in words, beside its avatar.
- *
- * The indicator belongs to the turn, not to the transcript. /m rendered it as a status line after
- * the whole list, so on a tall pane it floated far below the avatar it belonged to, detached from
- * anything. And it was wordless — the runner narrates its startup (#6047) so a cold boot reads as
- * progress rather than a stall, and /m dropped that narration entirely.
- */
-const PendingTurn = ({sessionId}: {sessionId: string}) => {
-    const startupPhase = useStartupPhase(sessionId)
-    return (
-        <div className={`${turnRowClass} justify-start`}>
-            <ChatBubble
-                placement="start"
-                variant="borderless"
-                avatar={<ChatBubbleAvatar icon={<Bot className="size-4" />} />}
-                className="min-w-0 max-w-[85%]"
-                content={
-                    startupPhase ? <StartupActivity label={startupPhase} /> : <ChatTypingDots />
-                }
-            />
-        </div>
-    )
-}
-
-/**
- * One transcript turn on the shared bubble chrome — the mobile face of the desktop
- * AgentMessage: user turns as filled bubbles hugging the right, assistant turns flush on the
- * canvas, both with the 24px icon avatar; reasoning folds, tool lines with status glyphs, and
- * the red run-failure callout.
- */
-export const TurnRow = ({
+const TurnRowInner = ({
     turn,
     onClientToolOutput,
     onRewind,
     sessionId,
+    remoteRunning = false,
+    waitingOnUser = false,
+    resuming = false,
+    runId,
+    runStartedAt,
 }: {
     turn: TurnViewModel
     /** Settles a browser-fulfilled tool (elicitation, connect) back into the run. Optional because
@@ -212,7 +80,20 @@ export const TurnRow = ({
     onRewind?: (turn: TurnViewModel) => void
     /** Scopes the startup narration to this conversation. */
     sessionId: string
+    /** The run is going on elsewhere (another client, a poll): the last turn reads live. */
+    remoteRunning?: boolean
+    /** The run is parked on the reader: the last turn's fold line says so. */
+    waitingOnUser?: boolean
+    /** The reader answered and the transcript still shows the ask — the fold reads as work. */
+    resuming?: boolean
+    /** Keys the clock and fold to the run, so the placeholder turn's carry to the real one. */
+    runId?: string
+    /** When the server saved the user message that started this run: the clock counts from it. */
+    runStartedAt?: number
 }) => {
+    const inspectorEnabled = useAtomValue(playgroundInspectorEnabledAtom)
+    // A reader whose role has no trace access gets no trace action and no trace read.
+    const canViewSpans = useAtomValue(canViewSpansAtom)
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const traceId = getMessageTraceId(turn.message)
     // `render.kind` rides as a sibling `data-render` part, so widget dispatch needs the map.
@@ -225,6 +106,27 @@ export const TurnRow = ({
         turn.message.parts as {state?: string; errorText?: string}[],
     )
     const usage = getMessageUsage(turn.message)
+    // A user turn has no trace of its own: it takes its time from the turn it started.
+    const sessionTurn = useSessionTurnFooter({
+        sessionId,
+        traceId: turn.isUser ? turn.turnTraceId : traceId,
+    })
+    const openProviders = useProviderRecovery()
+    const openBilling = useBillingRoute()
+    const canBuyCredits = useCanBuyCredits(turn.status.errorCode)
+
+    /**
+     * Notices about a server that did not join the run, above the timeline rather than in it.
+     *
+     * `splitTurnActivity` folds only calls, client tools and the model's own text, so a notice has
+     * no step to be; and `hiddenFromFold` keeps the failed call that produced it off the timeline
+     * anyway, so the notice is the reader's ONLY signal that a server is missing. It renders
+     * whether or not the call behind it is on screen.
+     */
+    const mcpNotices = useMemo(
+        () => turn.items.filter((item) => item.kind === "mcpNotice"),
+        [turn.items],
+    )
 
     // The turn's text, which is what a reader wants on the clipboard — not its tool rows.
     const copyText = (turn.message.parts ?? [])
@@ -233,114 +135,300 @@ export const TurnRow = ({
         .join("\n")
         .trim()
 
-    // Only the turn being generated shows the loading state, and only until it has content —
-    // the same gate the desktop uses.
-    if (!turn.isUser && turn.isStreamingTurn && !turn.status.hasContent) {
-        return <PendingTurn sessionId={sessionId} />
-    }
+    // Quoting is offered on settled answers only; mid-stream the text is still being written.
+    const quoteProps =
+        !turn.isUser && !turn.isStreamingTurn
+            ? ({
+                  "data-quotable": "true",
+                  "data-quote-kind": "message",
+                  "data-quote-message-id": turn.message.id,
+              } as const)
+            : undefined
 
-    const body = (
+    const footer = {
+        messageId: turn.message.id,
+        traceId,
+        isStreaming: turn.isStreamingTurn,
+        usage,
+        sessionTurnFigures: sessionTurn.figures,
+        sessionTurnStartedAt: sessionTurn.startedAt,
+        sessionTurnsPending: sessionTurn.pending,
+        copyText,
+        // Rewinding the last turn re-runs the current one; hidden, as on desktop.
+        onRewind: onRewind && !turn.isLast ? () => onRewind(turn) : undefined,
+        onViewTrace: canViewSpans ? (id: string) => openTraceDrawer({traceId: id}) : undefined,
+        // The time is the fold's line ("Worked for 11s"); the meta keeps the rest.
+        metrics: ASSISTANT_META,
+    }
+    // Live while this client streams it, or while a poll says the run goes on elsewhere.
+    const live = !turn.isUser && (turn.isStreamingTurn || (turn.isLast && remoteRunning))
+    // A failure the records never carried lives on the trace: a model call that died with no
+    // answer. Read only for an answer-less settled turn, as the desktop does.
+    const answerless = !turn.isUser && turn.status.noResponse && !live && !turn.status.showError
+    const traceSummary = useAtomValue(
+        traceDataSummaryAtomFamily(answerless && traceId ? traceId : ""),
+    )
+    // A trace keeps the provider's failure as it came back, which can be a raw JSON body with
+    // account ids; only its sanitized sentence may reach the screen, as on the desktop.
+    const traceError = answerless ? readableTraceError(traceSummary.error) : null
+    const errorText = turn.status.showError
+        ? (turn.status.errorText ?? "Something went wrong.")
+        : traceError
+    const runError = errorText
+        ? describeRunFailure({
+              text: errorText,
+              code: turn.status.errorCode ?? undefined,
+              transport: isMessageRunErrorTransport(turn.message),
+              onRetry: runRetryAction(turn, onRewind ? () => onRewind(turn) : undefined),
+              can: {providers: !!openProviders, buyCredits: canBuyCredits, plans: !!openBilling},
+              onSignIn: openProviders,
+          })
+        : null
+    // The latest turn failing for needs-setup refreshes the tags and the banner.
+    const lastErrorCode = turn.isLast && errorText ? turn.status.errorCode : null
+    useEffect(() => refreshOnSetupFailure(lastErrorCode), [lastErrorCode, turn.message.id])
+    const streamedHereRef = useRef(false)
+    if (turn.isStreamingTurn) streamedHereRef.current = true
+    // The fold holds the work; every message the agent wrote to the reader shows below it, so a
+    // message followed by a call or a card is never mistaken for thinking.
+    const activity = useMemo(() => splitTurnActivity(turn.items), [turn.items])
+    const answered = activity.messages.length > 0
+    const writing = activity.messages.at(-1)?.part.state === "streaming"
+    // Parked on the reader is open too: a message before a question is not the answer yet.
+    const runOpen = live || (turn.isLast && (waitingOnUser || resuming))
+    // An answer present at mount is history (reload, session open); a later one arrived live.
+    // By message id alone: adoption can shift the answer's index without it being a new answer.
+    // Only once the run is over: an interim message must not pin the scroll while work goes on.
+    const answerKey = answered && !runOpen ? turn.message.id : null
+    const mountAnswerKeyRef = useRef(answerKey)
+    const rowMarkers = turn.isLast
+        ? {
+              [LAST_TURN_ATTR]: turn.isUser ? "user" : "assistant",
+              ...(answerKey !== null && answerKey !== mountAnswerKeyRef.current
+                  ? {[ARRIVED_ANSWER_ATTR]: answerKey}
+                  : {}),
+          }
+        : undefined
+    // Browser-fulfilled tools keep their place on the timeline, widget and all.
+    const renderClientTool = useCallback(
+        (part: ToolUIPart) =>
+            onClientToolOutput ? (
+                <ClientToolPart
+                    part={part}
+                    onOutput={onClientToolOutput}
+                    renderMap={renderMap}
+                    degradedEarlierInTurn={degradedEarlierInTurn}
+                    bare
+                />
+            ) : null,
+        [onClientToolOutput, renderMap, degradedEarlierInTurn],
+    )
+
+    // A sent message reads in order inside its bubble: each quote, its note, then the message.
+    const userParts = useMemo(
+        () =>
+            turn.isUser
+                ? turn.items.flatMap((item) =>
+                      item.kind === "part" && item.part.type === "text"
+                          ? quotedMessageParts(item.part.text ?? "").map((part, at) => ({
+                                key: `${item.index}:${at}`,
+                                part,
+                            }))
+                          : [],
+                  )
+                : [],
+        [turn.isUser, turn.items],
+    )
+    const writtenFiles = useMemo(() => turnFiles(activity.steps), [activity.steps])
+
+    const body = turn.isUser ? (
         <div className="flex min-w-0 max-w-full flex-col gap-2">
-            {turn.items.map((item, position) => {
-                if (item.kind === "part") {
-                    if (item.part.type === "text") {
-                        // What the user typed renders literally — markdown in your own words
-                        // is surprising (desktop parity).
-                        if (turn.isUser) {
-                            return (
-                                <p
-                                    key={item.index}
-                                    className="m-0 whitespace-pre-wrap break-words text-xs"
-                                >
-                                    {item.part.text}
-                                </p>
-                            )
-                        }
-                        return (
+            {userParts.map(({key, part}) =>
+                part.kind === "quote" ? (
+                    <UserQuoteBlock key={key} quote={part.quote} />
+                ) : (
+                    // Markdown, as the desktop bubble renders it: the composer's export is markdown.
+                    <UserMarkdown key={key} text={part.text} />
+                ),
+            )}
+        </div>
+    ) : (
+        <div className="flex min-w-0 max-w-full flex-col gap-3">
+            <ActivityTimeline
+                messageId={turn.message.id}
+                clockId={runId}
+                sessionId={sessionId}
+                steps={activity.steps}
+                streaming={live}
+                answerStarted={answered}
+                writing={writing}
+                waitingOnUser={turn.isLast && waitingOnUser}
+                resuming={turn.isLast && resuming}
+                hadGate={turn.hadGate}
+                sessionTurnStartedAt={sessionTurn.startedAt}
+                sessionTurnDurationMs={sessionTurn.figures?.durationMs}
+                streamedHere={streamedHereRef.current}
+                runStartedAt={runStartedAt}
+                renderClientTool={renderClientTool}
+                failure={runError?.failure}
+            />
+            {answered ? (
+                <div {...quoteProps} className="flex min-w-0 flex-col gap-3">
+                    {activity.messages.map((message, at) => (
+                        <AnswerReveal
+                            key={message.index}
+                            animate={live}
+                            answer={at === activity.messages.length - 1}
+                        >
                             <AssistantMarkdown
-                                key={item.index}
-                                streaming={isLiveTextItem(turn, position)}
-                                text={item.part.text}
+                                streaming={isLiveTextItem(turn, message.index)}
+                                text={message.part.text}
                             />
-                        )
-                    }
-                    if (item.part.type === "file") {
-                        return <AttachmentPart key={item.index} part={item.part} />
-                    }
-                    if (item.part.type === "reasoning") {
-                        return (
-                            <ReasoningFold
-                                key={item.index}
-                                text={item.part.text}
-                                streaming={isLiveTextItem(turn, position)}
-                            />
-                        )
-                    }
-                    return null
-                }
-                if (item.kind === "tools") {
-                    return <ToolLines key={item.index} item={item} />
-                }
-                if (item.kind === "clientTool" && onClientToolOutput) {
-                    return (
-                        <ClientToolPart
-                            key={`clienttool-${item.part.toolCallId || item.index}`}
-                            part={item.part}
-                            onOutput={onClientToolOutput}
-                            renderMap={renderMap}
-                            degradedEarlierInTurn={degradedEarlierInTurn}
-                        />
-                    )
-                }
-                return null
-            })}
-            {turn.status.showError ? (
-                <RunErrorCallout text={turn.status.errorText ?? "Something went wrong."} />
+                        </AnswerReveal>
+                    ))}
+                </div>
+            ) : null}
+            {/* After the messages: a server that did not join is what the turn came to. */}
+            {mcpNotices.map((item) => (
+                <McpServerNoticeCard key={`mcp-${item.index}`} notice={item.notice} />
+            ))}
+            {!live ? <TurnFiles files={writtenFiles} /> : null}
+            {runError ? (
+                <>
+                    <RunErrorMessage paragraphs={runError.paragraphs} quote={runError.quote} />
+                    <RunErrorRecovery actions={runError.recoveries} />
+                </>
+            ) : answerless && !traceSummary.isPending ? (
+                <span className="text-xs italic text-colorTextSecondary">
+                    No response — the agent ended its turn without answering.
+                </span>
+            ) : turn.status.stopped && !answered && !live ? (
+                // Keyed on the answer the row shows, not on `hasAnswer`: a stop interrupts the
+                // running call, the fold hides that failed call, and the turn would read empty.
+                <span className="text-xs italic text-colorTextSecondary">Stopped</span>
+            ) : null}
+            {/* The turn's meta line sits under the answer, revealed on hover or focus like the
+                desktop's; the row keeps its height so nothing shifts when it appears. Not while
+                the run is parked on the reader: the turn is not over, only waiting. */}
+            {!live && !(turn.isLast && (waitingOnUser || resuming)) ? (
+                <div
+                    className={`flex min-h-6 items-center gap-1 ${
+                        inspectorEnabled ? "" : turnToolbarRevealClass
+                    }`}
+                >
+                    <TurnFooter
+                        {...footer}
+                        isUser={false}
+                        copyText={footer.copyText || runError?.paragraphs.join("\n\n")}
+                        onRetry={runError?.onRetry}
+                    />
+                </div>
             ) : null}
         </div>
     )
 
+    // Attachments hang above the bubble rather than inside its fill, so a message reads as its
+    // files first and its words second. One strip per message, so the viewer pages through all.
+    const files = useMemo(
+        () =>
+            turn.items.flatMap((item): AttachmentStripFile[] =>
+                item.kind === "files"
+                    ? item.parts.map((file) => ({
+                          name: file.filename || file.mediaType || "attachment",
+                          mediaType: file.mediaType ?? "",
+                          src: file.url || undefined,
+                          size: attachmentSize(file.providerMetadata),
+                      }))
+                    : [],
+            ),
+        [turn.items],
+    )
+    const header = files.length ? (
+        <AttachmentStrip files={files} align={turn.isUser ? "end" : "start"} />
+    ) : null
+    // Attachments with no words paint no bubble; an assistant turn always paints its fold line.
+    const hasBubbleContent =
+        !turn.isUser ||
+        turn.items.some(
+            (item) => item.kind !== "files" && !(item.kind === "part" && item.part.type === "text"),
+        ) ||
+        userParts.length > 0 ||
+        turn.status.showError
+
+    // Desktop parity: a long pasted message clamps behind "Show more" rather than burying its reply.
+    const userBody = turn.isUser ? (
+        <CollapsibleMessageBody stateKey={messageBodyKey(turn.message.id)}>
+            {body}
+        </CollapsibleMessageBody>
+    ) : (
+        body
+    )
+
+    // A send the server refused after the composer had already cleared. The row keeps the text so
+    // it is not lost; this says why it is sitting there with no answer coming.
+    const failureNote = isPendingSendFailed(turn.message) ? (
+        <div
+            data-pending-send-failed="true"
+            role="status"
+            className="mt-1 text-[11px] leading-4 opacity-80"
+        >
+            {PENDING_SEND_FAILED_NOTE}
+        </div>
+    ) : null
+    const content = failureNote ? (
+        <div className="flex min-w-0 max-w-full flex-col">
+            {userBody}
+            {failureNote}
+        </div>
+    ) : (
+        userBody
+    )
+
+    if (turn.hidden) return null
+
     return (
-        <div className={`${turnRowClass} ${turn.isUser ? "justify-end" : "justify-start"}`}>
+        <div
+            className={`${mobileTurnRowClass} ${turn.isUser ? "justify-end" : "justify-start"}`}
+            {...rowMarkers}
+        >
             <ChatBubble
                 placement={turn.isUser ? "end" : "start"}
-                variant={turn.isUser ? "filled" : "borderless"}
-                avatar={
-                    <ChatBubbleAvatar
-                        icon={
-                            turn.isUser ? <User className="size-4" /> : <Bot className="size-4" />
-                        }
-                    />
+                variant={turn.isUser && hasBubbleContent ? "filled" : "borderless"}
+                // No avatar column; the 85% inset is what reads as a user bubble.
+                className={
+                    turn.isUser ? "min-w-0 max-w-[85%]" : "min-w-0 max-w-full sm:max-w-[85%]"
                 }
-                className="min-w-0 max-w-[85%]"
                 classNames={{
-                    content: "min-w-0 max-w-full overflow-hidden text-xs",
+                    content: turn.isUser
+                        ? cn(
+                              userBubbleContentClass,
+                              "rounded-xl rounded-br-sm bg-muted text-xs sm:px-3.5 sm:py-2.5",
+                          )
+                        : "min-w-0 max-w-full overflow-hidden text-xs",
                     body: "min-w-0 max-w-full overflow-hidden",
                 }}
-                content={body}
+                // A refused file-only send has no words to paint, but its failure still has to be
+                // said, or the cards sit there looking like an upload that worked.
+                content={hasBubbleContent ? content : failureNote}
+                header={header}
             />
-            {/* The turn's information and actions, revealed on hover or keyboard focus — the same
-                lane the desktop transcript reserves, so a settled turn reads quietly until you
-                reach for it. */}
-            <div
-                className={`${turnToolbarClass} ${turnToolbarRevealClass} ${
-                    turn.isUser ? "right-11" : "left-11"
-                }`}
-            >
-                <TurnFooter
-                    messageId={turn.message.id}
-                    traceId={traceId}
-                    turnTraceId={turn.turnTraceId}
-                    isUser={turn.isUser}
-                    isStreaming={turn.isStreamingTurn}
-                    usage={usage}
-                    copyText={copyText}
-                    // Rewinding the LAST turn just re-runs the turn that is already current, so the
-                    // desktop hides it there and so do we.
-                    onRewind={onRewind && !turn.isLast ? () => onRewind(turn) : undefined}
-                    onViewTrace={(id) => openTraceDrawer({traceId: id})}
-                />
-            </div>
+            {/* A user turn's actions, revealed on hover or keyboard focus — the lane the desktop
+                transcript reserves. An assistant turn carries its meta line in flow instead. The
+                debug trace action stays visible on touch while the inspector flag is on. */}
+            {turn.isUser ? (
+                <div
+                    className={`${turnToolbarClass} ${
+                        inspectorEnabled
+                            ? "pointer-events-auto opacity-100"
+                            : turnToolbarRevealClass
+                    } right-0`}
+                >
+                    <TurnFooter {...footer} isUser />
+                </div>
+            ) : null}
         </div>
     )
 }
+
+// Memoized: the conversation commits once per streamed chunk; unchanged turns stay identity-stable.
+export const TurnRow = memo(TurnRowInner)

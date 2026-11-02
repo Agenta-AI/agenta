@@ -3,17 +3,32 @@ import type {
     SessionInteractionRowStates,
     SessionRecord,
 } from "@agenta/entities/session"
+import {findCustomMcpEndpoint, type MCPEndpoint} from "@agenta/entities/mcpEndpoint"
+import {interactionStatesFromWatchEvent} from "@agenta/entities/session"
 import {CLIENT_TOOL_INTERACTION_ENDED_OUTPUT} from "@agenta/shared/clientTools"
-import {describe, expect, it} from "vitest"
+import {projectIdAtom} from "@agenta/shared/state"
+import {getDefaultStore} from "jotai"
+import type {UIMessage} from "ai"
+import {afterEach, describe, expect, it} from "vitest"
 
 import {
     APPROVED_EXECUTION_RESULT_UNKNOWN,
+    attachmentContentUrl,
+    reconcileInteractionRowStates,
     transcriptToMessages,
 } from "../../../src/assets/transcriptToMessages"
 
+import {readMcpServerNotice} from "../../../src/model/mcpServerNotice"
+import {buildTurnRenderItems, executedToolIdentities} from "../../../src/model/renderModel"
+
 import abandonedFormSession from "./__fixtures__/abandonedFormSession.json"
 
-const record = (id: string, payload: Record<string, unknown>, sender = "agent"): SessionRecord => ({
+const record = (
+    id: string,
+    payload: Record<string, unknown>,
+    sender = "agent",
+    turnId: string | null = null,
+): SessionRecord => ({
     id,
     session_id: "session-1",
     project_id: "project-1",
@@ -21,8 +36,16 @@ const record = (id: string, payload: Record<string, unknown>, sender = "agent"):
     sender,
     session_update: String(payload.type),
     payload,
+    turn_id: turnId,
     created_at: null,
 })
+
+const firstAssistantMetadata = (
+    messages: UIMessage[] | null,
+): Record<string, unknown> | undefined =>
+    messages?.find((message) => message.role === "assistant")?.metadata as
+        | Record<string, unknown>
+        | undefined
 
 describe("transcriptToMessages", () => {
     it("replays the approved-content manifest as the egress's sibling data part", () => {
@@ -67,6 +90,103 @@ describe("transcriptToMessages", () => {
 
     it("returns null when records carry no renderable payload", () => {
         expect(transcriptToMessages([record("r1", {type: "done"})])).toBeNull()
+    })
+
+    it("preserves a cancelled terminal as a neutral stopped turn", () => {
+        const messages = transcriptToMessages([
+            record("r1", {type: "message", text: "partial answer"}),
+            record("r2", {type: "done", stopReason: "cancelled"}),
+        ])
+
+        expect(messages).toHaveLength(1)
+        expect(messages?.[0]).toMatchObject({
+            role: "assistant",
+            parts: [{type: "text", text: "partial answer"}],
+            metadata: {runStopped: true},
+        })
+    })
+
+    it("keeps a stopped carrier when cancellation lands before any content", () => {
+        const messages = transcriptToMessages([
+            record("r1", {type: "done", stopReason: "cancelled"}),
+        ])
+
+        expect(messages).toEqual([
+            expect.objectContaining({
+                id: "r1",
+                role: "assistant",
+                parts: [],
+                metadata: {runStopped: true},
+            }),
+        ])
+    })
+
+    it("does not read a turn a Steer cancelled as Stopped", () => {
+        const pausedThenSteered = (cancelledBy?: string) =>
+            transcriptToMessages([
+                record("u1", {type: "message", text: "connect Linear"}, "user", "turn-1"),
+                record(
+                    "c1",
+                    {type: "tool_call", id: "tc-1", name: "request_connection", input: {}},
+                    "agent",
+                    "turn-1",
+                ),
+                record("d1", {type: "done", stopReason: "paused"}, "agent", "turn-1"),
+                record(
+                    "d2",
+                    {type: "done", stopReason: "cancelled", ...(cancelledBy ? {cancelledBy} : {})},
+                    "agent",
+                    "turn-2",
+                ),
+                record("u2", {type: "message", text: "say something"}, "user", "turn-3"),
+            ])
+
+        const steered = pausedThenSteered("steer")
+        expect(steered?.map((message) => message.role)).toEqual(["user", "assistant", "user"])
+        expect(steered?.[1].metadata?.runStopped).toBeUndefined()
+
+        expect(pausedThenSteered()?.[1].metadata).toMatchObject({runStopped: true})
+    })
+
+    it("adds no empty row for a content-free turn a Steer cancelled", () => {
+        const messages = transcriptToMessages([
+            record("u1", {type: "message", text: "go"}, "user", "turn-1"),
+            record(
+                "d1",
+                {type: "done", stopReason: "cancelled", cancelledBy: "steer"},
+                "agent",
+                "turn-1",
+            ),
+            record("u2", {type: "message", text: "do this instead"}, "user", "turn-2"),
+        ])
+
+        expect(messages?.map((message) => message.role)).toEqual(["user", "user"])
+    })
+
+    it("suppresses an abort error when the same durable turn is explicitly user-stopped", () => {
+        const messages = transcriptToMessages([
+            record("r1", {type: "error", message: "Request was aborted"}),
+            record("r2", {type: "done", stopReason: "cancelled"}),
+        ])
+
+        expect(messages?.[0].metadata).toEqual({runStopped: true})
+    })
+
+    it("settles a paused approval as cancelled without interaction row state", () => {
+        const messages = transcriptToMessages([
+            record("r-call", {type: "tool_call", id: "tool-1", name: "bash", input: {}}),
+            record("r-request", {
+                type: "interaction_request",
+                id: "approval-1",
+                kind: "user_approval",
+                payload: {toolCallId: "tool-1"},
+            }),
+            record("r-paused", {type: "done", stopReason: "paused"}),
+            record("r-cancelled", {type: "done", stopReason: "cancelled"}),
+        ])
+
+        expect(messages?.[0]).toMatchObject({metadata: {runStopped: true}})
+        expect(messages?.[0].parts[0]).toMatchObject({state: "output-denied"})
     })
 
     it("splits assistant turns on a `done` boundary into separate messages", () => {
@@ -187,6 +307,152 @@ const approvalRecords = (): SessionRecord[] => [
  * turn the user already answered.
  */
 describe("transcriptToMessages approval resume", () => {
+    it("retires tab A's pending card on the first continuation frame without a response event", () => {
+        const pendingRecords = [
+            record("r-user", {type: "message", text: "run it"}, "user", "source-turn"),
+            record(
+                "r-call",
+                {type: "tool_call", id: "tool-1", name: "bash", input: {}},
+                "agent",
+                "source-turn",
+            ),
+            record(
+                "r-req",
+                {
+                    type: "interaction_request",
+                    id: "approval-1",
+                    kind: "user_approval",
+                    payload: {toolCallId: "tool-1"},
+                },
+                "agent",
+                "source-turn",
+            ),
+            record("r-source-done", {type: "done", stopReason: "paused"}, "agent", "source-turn"),
+        ]
+        const pendingParts = transcriptToMessages(pendingRecords)![1].parts as unknown as Record<
+            string,
+            unknown
+        >[]
+        expect(pendingParts).toEqual(
+            expect.arrayContaining([expect.objectContaining({state: "approval-requested"})]),
+        )
+
+        const continuationRunning = transcriptToMessages([
+            ...pendingRecords,
+            record(
+                "r-continuation-thought",
+                {type: "thought", text: "approved"},
+                "agent",
+                "continuation-turn",
+            ),
+        ])!
+        expect(continuationRunning.flatMap((message) => message.parts)).not.toEqual(
+            expect.arrayContaining([expect.objectContaining({state: "approval-requested"})]),
+        )
+        expect(firstAssistantMetadata(continuationRunning)).toMatchObject({
+            approvalContinuation: {
+                executionId: "continuation-turn",
+                state: "running",
+                approvalIds: ["approval-1"],
+            },
+        })
+
+        const continuationDone = transcriptToMessages([
+            ...pendingRecords,
+            record(
+                "r-continuation-thought",
+                {type: "thought", text: "approved"},
+                "agent",
+                "continuation-turn",
+            ),
+            record("r-continuation-done", {type: "done"}, "agent", "continuation-turn"),
+        ])!
+        expect(continuationDone.flatMap((message) => message.parts)).not.toEqual(
+            expect.arrayContaining([expect.objectContaining({state: "approval-requested"})]),
+        )
+        expect(firstAssistantMetadata(continuationDone)).toMatchObject({
+            approvalContinuation: {
+                executionId: "continuation-turn",
+                state: "done",
+                approvalIds: ["approval-1"],
+            },
+        })
+    })
+
+    it("tracks a durable continuation by its own execution through running and terminal records", () => {
+        const source = [
+            record("r-user", {type: "message", text: "run it"}, "user", "source-turn"),
+            record(
+                "r-call",
+                {type: "tool_call", id: "tool-1", name: "bash", input: {}},
+                "agent",
+                "source-turn",
+            ),
+            record(
+                "r-req",
+                {
+                    type: "interaction_request",
+                    id: "approval-1",
+                    kind: "user_approval",
+                    payload: {toolCallId: "tool-1"},
+                },
+                "agent",
+                "source-turn",
+            ),
+            record("r-source-done", {type: "done", stopReason: "paused"}, "agent", "source-turn"),
+        ]
+        const running = [
+            ...source,
+            record(
+                "r-continuation-thought",
+                {type: "thought", text: "approved"},
+                "agent",
+                "continuation-turn",
+            ),
+            record(
+                "r-response",
+                {
+                    type: "interaction_response",
+                    id: "approval-1",
+                    kind: "user_approval",
+                    payload: {toolCallId: "tool-2", approved: true},
+                },
+                "agent",
+                "continuation-turn",
+            ),
+        ]
+
+        expect(firstAssistantMetadata(transcriptToMessages(running))).toMatchObject({
+            paused: true,
+            approvalContinuation: {
+                sourceExecutionId: "source-turn",
+                executionId: "continuation-turn",
+                state: "running",
+                approvalIds: ["approval-1"],
+            },
+        })
+
+        const finished = transcriptToMessages([
+            ...running,
+            record(
+                "r-result",
+                {type: "tool_result", id: "tool-2", output: "ok"},
+                "agent",
+                "continuation-turn",
+            ),
+            record("r-continuation-done", {type: "done"}, "agent", "continuation-turn"),
+        ])
+        expect(firstAssistantMetadata(finished)).toMatchObject({
+            recordTerminal: true,
+            approvalContinuation: {
+                sourceExecutionId: "source-turn",
+                executionId: "continuation-turn",
+                state: "done",
+                approvalIds: ["approval-1"],
+            },
+        })
+    })
+
     it("merges a paused turn with its resume into one message and settles the re-emitted call once", () => {
         // Real cold-replay shape (verified against records): a Write call pauses for approval, the
         // turn ends stopReason:"paused", then the resume turn RE-EMITS the same call id, settles it,
@@ -781,6 +1047,62 @@ describe("transcriptToMessages interaction-row precedence", () => {
         })
     })
 
+    // The gate is answered and the SAME turn resumes, with no user message between — the shape
+    // every real gateway approval has now that a park stream finishes cleanly and the run continues.
+    const resumedApprovalRecords = (): SessionRecord[] => [
+        record("r-user-1", {type: "message", text: "draft the email"}, "user"),
+        record("r-call", {
+            type: "tool_call",
+            id: "tool-1",
+            name: "run_tool",
+            input: {integration: "gmail", tool: "CREATE_EMAIL_DRAFT"},
+        }),
+        record("r-req", {
+            type: "interaction_request",
+            id: "approval-1",
+            kind: "user_approval",
+            payload: {toolCallId: "tool-1"},
+        }),
+        record("r-done-paused", {type: "done", stopReason: "paused"}),
+        record("r-msg", {type: "message", text: "I did not send it."}),
+        record("r-done", {type: "done"}),
+    ]
+
+    it("replays a DENIED gate on a resumed turn as denied", () => {
+        // The resumed-turn sweep knows only THAT the gate was answered. Running before the rows, it
+        // consumed `approval-requested`, the row's verdict was skipped, and the card claimed the
+        // user had approved a tool they refused.
+        const parts = allParts(
+            resumedApprovalRecords(),
+            rowStates(
+                rowState("approval-1", {
+                    kind: "user_approval",
+                    status: "resolved",
+                    resolution: {verdict: "denied", tool_call_id: "tool-1"},
+                }),
+            ),
+        )
+
+        expect(parts.find((part) => part.toolCallId === "tool-1")).toMatchObject({
+            state: "approval-responded",
+            approval: {id: "approval-1", approved: false},
+        })
+    })
+
+    it("still settles a resumed turn's gate when no row carries a verdict", () => {
+        // The sweep's own job, unchanged: a resumed gate must not replay as still awaiting the user.
+        const messages = transcriptToMessages(resumedApprovalRecords()) ?? []
+        const parts = messages.flatMap(
+            (message) => message.parts as unknown as Record<string, unknown>[],
+        )
+
+        expect(parts.some((part) => part.state === "approval-requested")).toBe(false)
+        expect(parts.find((part) => part.toolCallId === "tool-1")).toMatchObject({
+            state: "approval-responded",
+        })
+        expect(messages.at(-1)?.metadata).toMatchObject({recordTerminal: true})
+    })
+
     it("keeps an answered approval row's approved verdict", () => {
         const parts = allParts(
             abandonedApprovalRecords(),
@@ -797,6 +1119,44 @@ describe("transcriptToMessages interaction-row precedence", () => {
             state: "approval-responded",
             approval: {id: "approval-1", approved: true},
         })
+    })
+
+    it("replays the observer tab sequence from pending record to pushed resolution", () => {
+        const live = transcriptToMessages(abandonedApprovalRecords()) ?? []
+        const pushed = interactionStatesFromWatchEvent(
+            JSON.stringify({
+                type: "interaction",
+                session_id: "session-1",
+                status: "resolved",
+                interactions: [
+                    {
+                        id: "interaction-row-1",
+                        session_id: "session-1",
+                        turn_id: "turn-1",
+                        token: "approval-1",
+                        kind: "user_approval",
+                        status: "responded",
+                        data: {
+                            request: {tool_call_id: "tool-1"},
+                            resolution: {verdict: "approved", tool_call_id: "tool-1"},
+                        },
+                    },
+                ],
+            }),
+            "session-1",
+        )
+        const reconciled = reconcileInteractionRowStates(live, pushed)
+
+        expect(
+            reconciled
+                .flatMap((message) => message.parts)
+                .find((part) => ("toolCallId" in part ? part.toolCallId === "tool-1" : false)),
+        ).toMatchObject({state: "approval-responded", approval: {approved: true}})
+        expect(
+            live
+                .flatMap((message) => message.parts)
+                .find((part) => ("toolCallId" in part ? part.toolCallId === "tool-1" : false)),
+        ).toMatchObject({state: "approval-requested"})
     })
 
     it("preserves record-only replay when row states are omitted", () => {
@@ -1002,5 +1362,425 @@ describe("transcriptToMessages run-error code", () => {
 
     it("omits the code when an older runner sends none", () => {
         expect(runErrorOf({type: "error", message: "boom"})).toEqual({message: "boom"})
+    })
+})
+
+describe("transcriptToMessages user-Stop terminal record", () => {
+    // A cancelled terminal closes its turn without swallowing the next one.
+    it("closes a stopped turn like a completed one", () => {
+        const messages = transcriptToMessages([
+            record("r-user", {type: "message", text: "run something long"}, "user"),
+            record("r-msg", {type: "message", text: "starting"}),
+            record("r-done-cancelled", {type: "done", stopReason: "cancelled"}),
+            record("r-user-2", {type: "message", text: "what was the codeword"}, "user"),
+            record("r-msg-2", {type: "message", text: "MANGO"}),
+            record("r-done", {type: "done"}),
+        ])
+
+        // Four bubbles: a stopped turn must not swallow the next one the way a pause does.
+        expect(messages).toHaveLength(4)
+        expect(messages![1].parts).toMatchObject([{type: "text", text: "starting"}])
+        expect(messages![3].parts).toMatchObject([{type: "text", text: "MANGO"}])
+    })
+
+    it("does not mark a stopped turn as paused", () => {
+        const messages = transcriptToMessages([
+            record("r-user", {type: "message", text: "run something long"}, "user"),
+            record("r-msg", {type: "message", text: "starting"}),
+            record("r-done-cancelled", {type: "done", stopReason: "cancelled"}),
+        ])
+
+        expect(
+            (messages![1] as unknown as {metadata?: {paused?: boolean}}).metadata?.paused,
+        ).toBeFalsy()
+    })
+})
+
+describe("transcriptToMessages turn ids", () => {
+    it("stamps the record's turn id on a user row so a client can recognise its own send", () => {
+        // The invoke response's acceptance frame carries this same id, which is how a pending-send
+        // echo tells its own saved row from another tab's.
+        const messages = transcriptToMessages(
+            [
+                record("r1", {type: "message", text: "hello"}, "user", "turn-1"),
+                record("r2", {type: "message", text: "hi back"}, "agent", "turn-1"),
+            ],
+            {},
+        )
+        const userRow = messages?.find((message) => message.role === "user")
+        expect((userRow?.metadata as {turnId?: string} | undefined)?.turnId).toBe("turn-1")
+    })
+
+    it("leaves assistant rows without one, so latestTurnId keeps its Stop semantics", () => {
+        const messages = transcriptToMessages(
+            [record("r1", {type: "message", text: "hi back"}, "agent", "turn-1")],
+            {},
+        )
+        const assistantRow = messages?.find((message) => message.role === "assistant")
+        expect((assistantRow?.metadata as {turnId?: string} | undefined)?.turnId).toBeUndefined()
+    })
+
+    it("omits the turn id when the record carries none", () => {
+        const messages = transcriptToMessages(
+            [record("r1", {type: "message", text: "hello"}, "user", null)],
+            {},
+        )
+        const userRow = messages?.find((message) => message.role === "user")
+        expect((userRow?.metadata as {turnId?: string} | undefined)?.turnId).toBeUndefined()
+    })
+})
+
+describe("transcriptToMessages MCP server notices", () => {
+    /**
+     * The durable row a disconnected OAuth MCP connection produces, captured verbatim from
+     * `POST /sessions/records/query` on a live run (endpoint id and slug replaced). The runner
+     * probes the handshake, the gateway refuses it 409 with the remedy attached, and the backend
+     * persists the notice under `record_type: "mcp_server_failed"`.
+     */
+    const MCP_FAILED_PAYLOAD = {
+        type: "mcp_server_failed",
+        serverName: "mock-mcp",
+        reasonCode: "handshake_http_error",
+        status: 409,
+        message: "MCP server mock-mcp failed to connect: 409",
+        detail: {
+            code: "auth_required",
+            message: "Authorization required for custom/mock-mcp-slug",
+            retryable: false,
+            details: {
+                cause: "auth_required",
+                requirement: {
+                    target: "custom/mock-mcp-slug",
+                    state: "needs_auth",
+                    connect: {
+                        endpoint: "/gateways/mcps/endpoints/endpoint-1/connect",
+                        body: {},
+                    },
+                },
+            },
+        },
+    }
+
+    /** The settings row this project holds for that server, as the card looks it up. */
+    const CONNECTED_ROW = {
+        id: "endpoint-1",
+        slug: "mock-mcp-slug",
+        name: "Mock MCP",
+        namespace: "custom",
+        auth_mode: "oauth",
+        data: {route: {base_url: "https://mcp.mock.test"}},
+    } as unknown as MCPEndpoint
+
+    it("replays the notice as the same data part the live stream emits", () => {
+        // The live egress projects the identical runner event through a field allow-list
+        // (`_mcp_server_failed_part`). Replay has to produce the same payload, because the
+        // reader on the other side is one function for both paths (`readMcpServerNotice`).
+        const messages = transcriptToMessages([record("r1", MCP_FAILED_PAYLOAD)], {})
+        const parts = messages![0].parts as unknown as Record<string, unknown>[]
+        const notice = parts.find((part) => part.type === "data-mcp-server-failed")
+        expect(notice).toEqual({
+            type: "data-mcp-server-failed",
+            data: {
+                serverName: "mock-mcp",
+                reasonCode: "handshake_http_error",
+                status: 409,
+                message: "MCP server mock-mcp failed to connect: 409",
+                detail: MCP_FAILED_PAYLOAD.detail,
+            },
+        })
+    })
+
+    it("keeps what the reader acts on: the connection, and that it needs authorizing", () => {
+        // The replayed notice has to carry enough to offer Connect. That is the SLUG and the
+        // authorization state, not the endpoint id the refusal also happens to carry: the card
+        // resolves the row from the slug through `findCustomMcpEndpoint`, so an id read straight
+        // off the wire was never the thing the affordance depends on (D86). The affordance
+        // itself is asserted end to end in `mcpNoticeReplayAction.render.test.tsx`.
+        const messages = transcriptToMessages([record("r1", MCP_FAILED_PAYLOAD)], {})
+        const parts = messages![0].parts as unknown as Record<string, unknown>[]
+        const notice = readMcpServerNotice(
+            (parts.find((part) => part.type === "data-mcp-server-failed") as {data?: unknown}).data,
+        )
+        expect(notice?.needsAuthorization).toBe(true)
+        expect(notice?.slug).toBe("mock-mcp-slug")
+        expect(findCustomMcpEndpoint([CONNECTED_ROW], notice?.slug ?? undefined)?.id).toBe(
+            "endpoint-1",
+        )
+    })
+
+    it("replaces the harness's 'No such tool available' card rather than sitting beside it", () => {
+        // The whole point of replaying the notice: the tool error and the notice describe one
+        // event, and the harness's wording is the one that says nothing about authorization.
+        const messages = transcriptToMessages(
+            [
+                record("r1", MCP_FAILED_PAYLOAD),
+                record("r2", {
+                    type: "tool_call",
+                    id: "tool-1",
+                    name: "mcp__mock-mcp__echo",
+                    input: {marker: "m"},
+                }),
+                record("r3", {
+                    type: "tool_result",
+                    id: "tool-1",
+                    output: "Error: No such tool available: mcp__mock-mcp__echo",
+                    isError: true,
+                }),
+            ],
+            {},
+        )
+        const parts = messages![0].parts as unknown as UIMessage["parts"]
+        const items = buildTurnRenderItems(parts, {
+            executed: executedToolIdentities(parts),
+            isClientToolPart: () => false,
+        })
+        expect(items.map((item) => item.kind)).toEqual(["mcpNotice"])
+    })
+
+    it("ignores a record with no server name, which names nothing to reconnect", () => {
+        const messages = transcriptToMessages(
+            [record("r1", {type: "mcp_server_failed", status: 409})],
+            {},
+        )
+        const parts = (messages ?? []).flatMap(
+            (message) => message.parts as unknown as Record<string, unknown>[],
+        )
+        expect(parts.some((part) => part.type === "data-mcp-server-failed")).toBeFalsy()
+    })
+})
+
+it.each([undefined, null, "Visible", ""])("preserves display override %j on replay", (display) => {
+    const messages = transcriptToMessages([
+        record(
+            "display",
+            {
+                type: "message",
+                text: "Visible plus setup fact cobalt",
+                ...(display !== undefined ? {display_content: display} : {}),
+            },
+            "user",
+            "execution-display",
+        ),
+    ])!
+    expect(messages[0].parts).toEqual([{type: "text", text: "Visible plus setup fact cobalt"}])
+    expect((messages[0].metadata as Record<string, unknown>).display_content).toBe(display)
+    expect((messages[0].metadata as Record<string, unknown>).turnId).toBe("execution-display")
+})
+
+describe("attachmentContentUrl", () => {
+    const store = getDefaultStore()
+    const initialProjectId = store.get(projectIdAtom)
+
+    afterEach(() => store.set(projectIdAtom, initialProjectId))
+
+    it.each(["project-other", null])(
+        "keeps replay attachment URLs in the record project when the active project is %s",
+        (activeProjectId) => {
+            const rows = [
+                record(
+                    "r-file",
+                    {
+                        type: "message",
+                        text: "Attached",
+                        attachments: [
+                            {attachmentId: "att-1", mediaType: "image/png", filename: "image.png"},
+                        ],
+                    },
+                    "user",
+                ),
+            ]
+            store.set(projectIdAtom, activeProjectId)
+            const messages = transcriptToMessages(rows)
+            const file = messages?.[0].parts.find((part) => part.type === "file")
+            expect(file?.type).toBe("file")
+            if (file?.type !== "file") throw new Error("Missing attachment")
+            const url = new URL(file.url)
+            expect(url.searchParams.get("project_id")).toBe("project-1")
+            expect(url.searchParams.get("session_id")).toBe("session-1")
+        },
+    )
+
+    it("uses an explicit project instead of the active project", () => {
+        store.set(projectIdAtom, "project-other")
+        const url = new URL(attachmentContentUrl("session-1", "att-1", "project-1"))
+        expect(url.searchParams.get("project_id")).toBe("project-1")
+    })
+
+    it("does not replace an explicit null project with the active project", () => {
+        store.set(projectIdAtom, "project-other")
+        const url = new URL(attachmentContentUrl("session-1", "att-1", null))
+        expect(url.searchParams.has("project_id")).toBe(false)
+    })
+
+    it("scopes the content URL to the active project", () => {
+        store.set(projectIdAtom, "project-xyz")
+        const url = new URL(attachmentContentUrl("session-1", "att-1"))
+        expect(url.pathname).toMatch(/\/sessions\/attachments\/att-1\/content$/)
+        expect(url.searchParams.get("session_id")).toBe("session-1")
+        expect(url.searchParams.get("project_id")).toBe("project-xyz")
+    })
+
+    it("omits project_id when no project is active", () => {
+        store.set(projectIdAtom, null)
+        const url = new URL(attachmentContentUrl("session-1", "att-1"))
+        expect(url.searchParams.get("session_id")).toBe("session-1")
+        expect(url.searchParams.has("project_id")).toBe(false)
+    })
+})
+
+describe("transcriptToMessages tool results stored before their calls", () => {
+    // Two record writers can commit concurrently, so the durable log can hold a tool_result ahead
+    // of its tool_call. Replay must still settle the step instead of showing it as running.
+    const toolParts = (messages: UIMessage[] | null) =>
+        (messages ?? [])
+            .flatMap((message) => message.parts as unknown as Record<string, unknown>[])
+            .filter((part) => typeof part.toolCallId === "string")
+
+    it("applies a result that arrives before its call", () => {
+        const parts = toolParts(
+            transcriptToMessages([
+                record("r-user", {type: "message", text: "edit the file"}, "user", "turn-1"),
+                record(
+                    "r-result",
+                    {type: "tool_result", id: "tool-1", output: "written"},
+                    "agent",
+                    "turn-1",
+                ),
+                record(
+                    "r-call",
+                    {type: "tool_call", id: "tool-1", name: "write", input: {path: "a.md"}},
+                    "agent",
+                    "turn-1",
+                ),
+            ]),
+        )
+
+        expect(parts).toHaveLength(1)
+        expect(parts[0]).toMatchObject({
+            type: "tool-write",
+            toolCallId: "tool-1",
+            state: "output-available",
+            output: "written",
+            input: {path: "a.md"},
+        })
+    })
+
+    it("applies an early error result to its call", () => {
+        const parts = toolParts(
+            transcriptToMessages([
+                record("r-result", {
+                    type: "tool_result",
+                    id: "tool-1",
+                    isError: true,
+                    output: "no",
+                }),
+                record("r-call", {type: "tool_call", id: "tool-1", name: "write", input: {}}),
+            ]),
+        )
+
+        expect(parts[0]).toMatchObject({state: "output-error", errorText: "no"})
+    })
+
+    it("closes a tool step its turn left open when the turn is done", () => {
+        const parts = toolParts(
+            transcriptToMessages([
+                record("r-user", {type: "message", text: "edit the file"}, "user", "turn-1"),
+                record(
+                    "r-call",
+                    {type: "tool_call", id: "tool-1", name: "write", input: {}},
+                    "agent",
+                    "turn-1",
+                ),
+                record("r-done", {type: "done"}, "agent", "turn-1"),
+            ]),
+        )
+
+        expect(parts[0]).toMatchObject({toolCallId: "tool-1", state: "output-available"})
+    })
+
+    it("closes a tool step its turn left open when the turn is cancelled", () => {
+        const parts = toolParts(
+            transcriptToMessages([
+                record("r-call", {type: "tool_call", id: "tool-1", name: "write", input: {}}),
+                record("r-done", {type: "done", stopReason: "cancelled"}),
+            ]),
+        )
+
+        expect(parts[0]).toMatchObject({toolCallId: "tool-1", state: "output-available"})
+    })
+
+    it("keeps a tool step open while its turn is still running or paused", () => {
+        const running = toolParts(
+            transcriptToMessages([
+                record("r-call", {type: "tool_call", id: "tool-1", name: "write", input: {}}),
+            ]),
+        )
+        const paused = toolParts(
+            transcriptToMessages([
+                record("r-call", {type: "tool_call", id: "tool-1", name: "write", input: {}}),
+                record("r-done", {type: "done", stopReason: "paused"}),
+            ]),
+        )
+
+        expect(running[0].state).toBe("input-available")
+        expect(paused[0].state).toBe("input-available")
+    })
+
+    it("does not touch a parked approval when the turn is done", () => {
+        const parts = toolParts(
+            transcriptToMessages([
+                record("r-call", {
+                    type: "tool_call",
+                    id: "tool-1",
+                    name: "commit_revision",
+                    input: {},
+                }),
+                record("r-request", {
+                    type: "interaction_request",
+                    id: "approval-1",
+                    kind: "user_approval",
+                    payload: {toolCallId: "tool-1"},
+                }),
+                record("r-done", {type: "done"}),
+            ]),
+        )
+
+        expect(parts[0]).toMatchObject({
+            toolCallId: "tool-1",
+            state: "approval-requested",
+            approval: {id: "approval-1"},
+        })
+    })
+
+    it("does not touch a parked client tool or elicitation when the turn is done", () => {
+        const parts = toolParts(
+            transcriptToMessages([
+                record("r-client-call", {
+                    type: "tool_call",
+                    id: "client-1",
+                    name: "request_input",
+                    input: {},
+                }),
+                record("r-client", {
+                    type: "interaction_request",
+                    id: "client-1",
+                    kind: "client_tool",
+                    payload: {toolCallId: "client-1", toolName: "request_input"},
+                }),
+                record("r-input-call", {type: "tool_call", id: "input-1", name: "ask", input: {}}),
+                record("r-input", {
+                    type: "interaction_request",
+                    id: "input-1",
+                    kind: "user_input",
+                    payload: {toolCallId: "input-1"},
+                }),
+                record("r-done", {type: "done"}),
+            ]),
+        )
+
+        expect(parts.map((part) => [part.toolCallId, part.state])).toEqual([
+            ["client-1", "input-available"],
+            ["input-1", "input-available"],
+        ])
     })
 })

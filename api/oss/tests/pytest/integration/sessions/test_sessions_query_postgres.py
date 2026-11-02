@@ -32,6 +32,7 @@ from oss.src.dbs.postgres.sessions.streams.dao import (
     SessionStreamsDAO,
 )
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
+from oss.tests.pytest.utils.sharing import PROJECT_SESSION_SCOPE
 
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
@@ -189,12 +190,14 @@ async def test_sessions_query_limit_origin_cursor_and_paging_against_real_sql(
     # never "no LIMIT clause at all" (the actual P0-1 bug) and never a 500 from a
     # literal `LIMIT -1`.
     zero_limit_rows = await dao.query(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=project_id,
         filter=SessionStreamQuery(),
         windowing=Windowing(limit=0),
     )
     assert len(zero_limit_rows) == 1
     negative_limit_rows = await dao.query(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=project_id,
         filter=SessionStreamQuery(),
         windowing=Windowing(limit=-5),
@@ -203,6 +206,7 @@ async def test_sessions_query_limit_origin_cursor_and_paging_against_real_sql(
 
     # -- P1-1: origins ["manual"] must match the NULL-origin rows ------------ #
     manual_rows = await dao.query(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=project_id,
         filter=SessionStreamQuery(origins=[SessionOrigin.manual]),
         windowing=Windowing(limit=MAX_SESSION_QUERY_LIMIT),
@@ -211,6 +215,7 @@ async def test_sessions_query_limit_origin_cursor_and_paging_against_real_sql(
     assert all(row.stream.origin == SessionOrigin.manual for row in manual_rows)
 
     trigger_rows = await dao.query(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=project_id,
         filter=SessionStreamQuery(origins=[SessionOrigin.trigger]),
         windowing=Windowing(limit=MAX_SESSION_QUERY_LIMIT),
@@ -218,6 +223,7 @@ async def test_sessions_query_limit_origin_cursor_and_paging_against_real_sql(
     assert {row.stream.session_id for row in trigger_rows} == trigger_ids
 
     both_rows = await dao.query(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=project_id,
         filter=SessionStreamQuery(
             origins=[SessionOrigin.manual, SessionOrigin.trigger]
@@ -227,6 +233,7 @@ async def test_sessions_query_limit_origin_cursor_and_paging_against_real_sql(
     assert {row.stream.session_id for row in both_rows} == manual_ids | trigger_ids
 
     exclude_trigger_rows = await dao.query(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=project_id,
         filter=SessionStreamQuery(exclude_origins=[SessionOrigin.trigger]),
         windowing=Windowing(limit=MAX_SESSION_QUERY_LIMIT),
@@ -269,6 +276,7 @@ async def test_sessions_query_limit_origin_cursor_and_paging_against_real_sql(
                 next=cursor_stream.id,
             )
         return await dao.query(
+            read_scope=PROJECT_SESSION_SCOPE,
             project_id=project_id,
             filter=SessionStreamQuery(),
             windowing=windowing,

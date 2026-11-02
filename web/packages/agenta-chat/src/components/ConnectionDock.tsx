@@ -19,6 +19,7 @@ import {
     useConnectFlow,
     useIntegrationIdentity,
 } from "@agenta/entity-ui/clientTools"
+import {isOverlayOpen} from "@agenta/shared/utils"
 import {Button} from "@agenta/ui/ui"
 import {Spinner} from "@phosphor-icons/react"
 import {
@@ -468,13 +469,13 @@ const ConnectBody = ({
     const settle = useCallback<SettleClientTool>(
         (args) => {
             if ("errorText" in args) {
-                onOutput({
+                return onOutput({
                     toolName: meta.toolName,
                     toolCallId: meta.toolCallId,
                     errorText: args.errorText,
                 })
             } else {
-                onOutput({
+                return onOutput({
                     toolName: meta.toolName,
                     toolCallId: meta.toolCallId,
                     output: args.output,
@@ -499,6 +500,10 @@ const ConnectBody = ({
     useEffect(() => {
         if (!active || !shortcutsEnabled) return
         const onKeyDown = (event: KeyboardEvent) => {
+            // Something on top owns the keyboard. Both halves are load-bearing: Radix cancels
+            // Escape for a dialog, menu or popover but still lets it reach us, and it never
+            // touches Cmd+Enter, which only the overlay check catches.
+            if (event.defaultPrevented || isOverlayOpen()) return
             const commit = (event.metaKey || event.ctrlKey) && event.key === "Enter"
             const back = event.key === "Escape" && !event.metaKey && !event.ctrlKey
             if (!commit && !back) return
@@ -532,7 +537,7 @@ const ConnectBody = ({
                         Connecting {name}… finish signing in from the popup window.
                     </span>
                 </div>
-            ) : phase === "error" ? (
+            ) : phase === "error" || errorText ? (
                 <span className="text-xs text-colorError" title={errorText ?? undefined}>
                     {errorText ?? "Connection failed."}
                 </span>
@@ -555,6 +560,7 @@ const ConnectBody = ({
                             variant="ghost"
                             className={`text-colorTextSecondary ${touchCls}`}
                             onClick={decline}
+                            disabled={Boolean(errorText)}
                         >
                             Not now
                         </Button>
@@ -568,7 +574,7 @@ const ConnectBody = ({
                             }
                             onClick={() => runConnect(true)}
                         >
-                            {phase === "error" ? "Retry" : "Connect"}
+                            {phase === "error" || errorText ? "Retry" : "Connect"}
                         </Button>
                     </>
                 )}

@@ -81,7 +81,8 @@ def test_harness_type_coerce():
     assert HarnessKind.coerce(HarnessKind.PI) is HarnessKind.PI
     assert HarnessKind.coerce("pi_core") is HarnessKind.PI
     assert HarnessKind.coerce("PI_CORE") is HarnessKind.PI  # case-insensitive
-    assert HarnessKind.coerce("pi_agenta") is HarnessKind.AGENTA
+    # The removed ``pi_agenta`` experiment's spelling still reads as Pi (old stored revisions).
+    assert HarnessKind.coerce("pi_agenta") is HarnessKind.PI
     assert HarnessKind.coerce("claude") is HarnessKind.CLAUDE
     with pytest.raises(ValueError):
         HarnessKind.coerce("bogus")

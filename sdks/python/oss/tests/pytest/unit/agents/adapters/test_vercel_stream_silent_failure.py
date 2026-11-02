@@ -166,3 +166,37 @@ async def test_a_parked_turn_is_not_reported_as_no_output() -> None:
     ]
 
     assert _error_texts(parts) == []
+
+
+@pytest.mark.asyncio
+async def test_a_turn_stopped_before_any_output_reads_as_stopped_not_as_no_output() -> (
+    None
+):
+    """QA3A-3: a Stop 150 ms into a turn produced "The agent produced no output." A cancelled turn
+    is the user's own decision, not a failure: it must end with no error frame, in both
+    adapters (the live stream and the terminal-result parts).
+    """
+    events = [{"type": "done", "data": {"stopReason": "cancelled"}}]
+    live = [
+        part
+        async for part in agent_stream_to_vercel_stream(_records(events), trace_id="t4")
+    ]
+    assert _error_texts(live) == []
+    assert [p["type"] for p in live][-1] == "finish"
+
+    run = AgentStream(
+        _records(
+            [
+                {
+                    "kind": "event",
+                    "event": {"type": "done", "data": {"stopReason": "cancelled"}},
+                },
+                {
+                    "kind": "result",
+                    "result": {"ok": True, "output": "", "stopReason": "cancelled"},
+                },
+            ]
+        )
+    )
+    terminal = [part async for part in agent_run_to_vercel_parts(run)]
+    assert _error_texts(terminal) == []

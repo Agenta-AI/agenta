@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Request, Query, HTTPException, status as http_status
 
+from oss.src.core.access.dtos import PrincipalRef
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import (
@@ -123,6 +124,16 @@ if is_ee():
 
 
 log = get_module_logger(__name__)
+
+
+def _caller(request: Request) -> PrincipalRef:
+    """The principal an evaluation run executes as after a create, start, rerun or
+    edit: the calling request's principal. Never taken from the body."""
+
+    principal = getattr(request.state, "principal", None)
+    if principal is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return principal
 
 
 class EvaluationsRouter:
@@ -407,7 +418,7 @@ class EvaluationsRouter:
             operation_id="refresh_metrics",
         )
 
-        # TODO: deprecate once web uses /mretrics/refresh
+        # TODO: deprecate once web uses /metrics/refresh
         # POST /api/evaluations/metrics/
         self.router.add_api_route(
             path="/metrics/",
@@ -605,6 +616,7 @@ class EvaluationsRouter:
                 user_id=UUID(request.state.user_id),
                 #
                 runs=runs_create_request.runs,
+                principal=_caller(request),
             )
         except Exception:
             # Internal error after the quota was charged — refund.
@@ -654,6 +666,7 @@ class EvaluationsRouter:
             user_id=UUID(request.state.user_id),
             #
             runs=runs_edit_request.runs,
+            principal=_caller(request),
         )
 
         runs_response = EvaluationRunsResponse(
@@ -864,6 +877,7 @@ class EvaluationsRouter:
             user_id=UUID(request.state.user_id),
             #
             run=run_edit_request.run,
+            principal=_caller(request),
         )
 
         run_response = EvaluationRunResponse(
@@ -2009,6 +2023,7 @@ class SimpleEvaluationsRouter:
                 user_id=UUID(request.state.user_id),
                 #
                 evaluation=evaluation_create,
+                principal=_caller(request),
             )
         except Exception:
             # Internal error after the quota was charged — refund.
@@ -2091,6 +2106,7 @@ class SimpleEvaluationsRouter:
             user_id=UUID(request.state.user_id),
             #
             evaluation=evaluation_edit,
+            principal=_caller(request),
         )
 
         response = SimpleEvaluationResponse(
@@ -2177,6 +2193,7 @@ class SimpleEvaluationsRouter:
             user_id=UUID(request.state.user_id),
             #
             evaluation_id=evaluation_id,
+            principal=_caller(request),
         )
 
         response = SimpleEvaluationResponse(
@@ -2360,6 +2377,7 @@ class SimpleEvaluationsRouter:
             step_keys=process_slice_request.step_keys,
             repeat_idxs=process_slice_request.repeat_idxs,
             overwrite=process_slice_request.overwrite,
+            principal=_caller(request),
         )
 
     # POST /api/simple/evaluations/{evaluation_id}/probe
@@ -2551,6 +2569,7 @@ class SimpleEvaluationsRouter:
             user_id=UUID(request.state.user_id),
             #
             run_id=evaluation_id,
+            principal=_caller(request),
             steps=add_request.steps,
         )
 
@@ -2581,6 +2600,7 @@ class SimpleEvaluationsRouter:
             user_id=UUID(request.state.user_id),
             #
             run_id=evaluation_id,
+            principal=_caller(request),
             step_keys=remove_request.step_keys,
         )
 
@@ -2611,6 +2631,7 @@ class SimpleEvaluationsRouter:
             user_id=UUID(request.state.user_id),
             #
             run_id=evaluation_id,
+            principal=_caller(request),
             repeats=repeats_request.repeats,
         )
 
@@ -2737,6 +2758,7 @@ class SimpleQueuesRouter:
                 user_id=UUID(request.state.user_id),
                 #
                 queue=queue_create_request.queue,
+                principal=_caller(request),
             )
         except Exception:
             # Internal error after the quota was charged — refund.

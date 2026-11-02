@@ -1,0 +1,1 @@
+{"title":"Body","body":{"content":{"application/json":{"schema":{"properties":{"references":{"additionalProperties":true,"type":"object","title":"References"}},"type":"object","required":["references"],"title":"TelegramHostedBindLinkRequest"}}},"required":true}}

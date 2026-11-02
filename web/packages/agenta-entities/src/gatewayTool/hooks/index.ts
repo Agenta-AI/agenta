@@ -24,6 +24,10 @@ export {invalidateToolConnections, useToolConnectionActions} from "./useToolConn
 export {toolConnectionQueryAtomFamily, useToolConnectionQuery} from "./useToolConnectionQuery"
 export {toolConnectionsQueryAtom, useToolConnectionsQuery} from "./useToolConnectionsQuery"
 export {
+    personalToolConnectionsQueryAtom,
+    usePersonalToolConnections,
+} from "./usePersonalToolConnections"
+export {
     toolIntegrationConnectionsAtomFamily,
     useToolIntegrationConnections,
 } from "./useToolIntegrationConnections"
@@ -31,5 +35,9 @@ export {
     toolIntegrationDetailQueryFamily,
     useToolIntegrationDetail,
 } from "./useToolIntegrationDetail"
+export {
+    toolIntegrationCatalogQueryFamily,
+    useToolIntegrationCatalog,
+} from "./useToolIntegrationCatalog"
 export {buildToolSlug, useToolExecution} from "./useToolExecution"
 export {useToolsConnections, type CreateConnectionInput} from "./useToolsConnections"

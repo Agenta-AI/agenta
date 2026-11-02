@@ -73,9 +73,9 @@ function getConfiguredTestEmail(): string | null {
 }
 
 async function fillOTPDigits(page: Page, otp: string, delay: number): Promise<void> {
-    // Ant Design 5.x Input.OTP renders: <div class="ant-otp"><input class="ant-otp-input"/>...</div>
+    // Target the OTP autofill field independently of the component library.
     // Click the first cell to ensure focus (autoFocus may have been lost), then type sequentially.
-    const firstInput = page.locator(".ant-otp input").first()
+    const firstInput = page.locator('input[autocomplete="one-time-code"]').first()
     await firstInput.waitFor({state: "visible", timeout: 10000})
     await firstInput.click()
     await page.keyboard.type(otp, {delay})
@@ -881,6 +881,66 @@ async function authenticateUserImpl({
     await waitForSettledAuthenticatedPage(page, timeout)
 }
 
+/**
+ * Storage keys owned by `@agenta/shared`'s classicMode state. Copied rather than imported: the
+ * test package does not depend on the web packages, and the values run inside `page.evaluate`.
+ * Source of truth: `web/packages/agenta-shared/src/state/classicMode.ts`.
+ */
+const ACTIVE_USER_ID_KEY = "agenta:onboarding:active-user-id"
+const navSimplifiedOverrideKey = (userId: string) =>
+    `agenta:onboarding:${userId}:nav-simplified-override`
+
+/**
+ * Put the shared storage state on the full desktop app, the way the Classic mode switch does.
+ *
+ * Every account this setup creates is new enough to fall in the simplified cohort, so Classic
+ * mode is off by default. That costs the desktop suites twice: the gate redirects them into `/m`,
+ * where none of the desktop paths they assert on exist, and the desktop sidebar hides its
+ * advanced areas (Prompts, Evaluations), which several specs navigate through.
+ *
+ * Turning Classic mode on fixes both. The override is what the Preferences switch writes, and it
+ * outranks the signup-era default everywhere it is read, so the client-side gate stands down and
+ * the cookie sync publishes `agenta-classic-mode=1` for the middleware. `?view=desktop` on top is
+ * the product's own escape hatch: it sets `agenta-mobile-optout`, which both gates honour ahead of
+ * everything else, and it clears any `agenta-classic-mode=0` the signup flow already wrote.
+ *
+ * The mobile-gate spec runs with `storageState: undefined`, so it still exercises the gate itself.
+ */
+async function pinDesktopView(page: Page, rootURL: string, timeout: number): Promise<void> {
+    try {
+        // Navigate first: localStorage is per-origin, and a context that has not left about:blank
+        // has none to write to.
+        await page.goto(`${rootURL}/w?view=desktop`, {timeout, waitUntil: "domcontentloaded"})
+
+        const userId = await page.evaluate((key) => localStorage.getItem(key), ACTIVE_USER_ID_KEY)
+        if (userId) {
+            await page.evaluate(
+                (key) => localStorage.setItem(key, "false"),
+                navSimplifiedOverrideKey(userId),
+            )
+        } else {
+            console.warn(
+                "[global-setup] No active user id in storage; Classic mode stays at its default",
+            )
+        }
+
+        const optedOut = (await page.context().cookies()).some(
+            (cookie) => cookie.name === "agenta-mobile-optout",
+        )
+        if (!optedOut) {
+            console.warn(
+                "[global-setup] agenta-mobile-optout cookie was not set; desktop tests may be redirected to /m",
+            )
+            return
+        }
+        console.log(
+            "[global-setup] Pinned the desktop view (Classic mode on, mobile gate opted out)",
+        )
+    } catch (error) {
+        console.warn("[global-setup] Could not pin the desktop view:", error)
+    }
+}
+
 async function globalSetup() {
     console.log("[global-setup] Starting global setup for authentication")
 
@@ -932,6 +992,8 @@ async function globalSetup() {
             testmail,
         })
 
+        await pinDesktopView(authenticatedPage, rootURL, timeout)
+
         mkdirSync(dirname(storageState), {recursive: true})
         await authenticatedPage.context().storageState({path: storageState})
         await maybeCreateEphemeralProject(authenticatedPage, baseURL)
@@ -942,6 +1004,9 @@ async function globalSetup() {
             )
             const cachedContext = await browser.newContext({storageState})
             const cachedPage = await cachedContext.newPage()
+            // A state saved before this pin existed still redirects to /m; refresh it.
+            await pinDesktopView(cachedPage, rootURL, timeout)
+            await cachedContext.storageState({path: storageState})
             await cachedPage.goto(`${rootURL}/apps`, {timeout, waitUntil: "domcontentloaded"})
             await maybeCreateEphemeralProject(cachedPage, baseURL)
             await cachedContext.close()
@@ -1006,7 +1071,7 @@ async function maybeCreateEphemeralProject(page: Page, baseURL: string): Promise
             console.log(
                 "[global-setup] Ephemeral project disabled (AGENTA_TEST_EPHEMERAL_PROJECT=false)",
             )
-            writeProjectMetadata(projectMetadataPath, defaultProject, page, null)
+            writeProjectMetadata(projectMetadataPath, defaultProject, page, null, false)
             return
         }
 
@@ -1022,7 +1087,7 @@ async function maybeCreateEphemeralProject(page: Page, baseURL: string): Promise
             console.warn(
                 `[global-setup] Failed to create ephemeral project (${response.status()}): ${text}`,
             )
-            writeProjectMetadata(projectMetadataPath, defaultProject, page, null)
+            writeProjectMetadata(projectMetadataPath, defaultProject, page, null, false)
             return
         }
 
@@ -1031,12 +1096,12 @@ async function maybeCreateEphemeralProject(page: Page, baseURL: string): Promise
             `[global-setup] Created ephemeral project: ${projectName} (${project.project_id})`,
         )
 
-        writeProjectMetadata(projectMetadataPath, project, page, originalDefaultProjectId)
+        writeProjectMetadata(projectMetadataPath, project, page, originalDefaultProjectId, true)
     } catch (error) {
         console.warn("[global-setup] Failed to create ephemeral project, using default:", error)
         try {
             const projectMetadataPath = getProjectMetadataPath()
-            writeProjectMetadata(projectMetadataPath, null, page, null)
+            writeProjectMetadata(projectMetadataPath, null, page, null, false)
         } catch (writeError) {
             console.warn("[global-setup] Could not write fallback project metadata:", writeError)
         }
@@ -1048,6 +1113,7 @@ function writeProjectMetadata(
     project: any,
     page: Page,
     originalDefaultProjectId: string | null,
+    ephemeral: boolean,
 ): void {
     let metadata: Record<string, unknown> | null = null
 
@@ -1056,6 +1122,7 @@ function writeProjectMetadata(
             project_id: project.project_id,
             project_name: project.project_name ?? null,
             workspace_id: project.workspace_id,
+            ephemeral,
             ...(originalDefaultProjectId !== null
                 ? {original_default_project_id: originalDefaultProjectId}
                 : {}),
@@ -1070,6 +1137,7 @@ function writeProjectMetadata(
                 metadata = {
                     workspace_id: match[1],
                     project_id: match[2],
+                    ephemeral,
                     created_at: new Date().toISOString(),
                 }
                 console.log("[global-setup] Derived project metadata from page URL")

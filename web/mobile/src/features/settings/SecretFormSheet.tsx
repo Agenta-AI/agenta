@@ -6,19 +6,24 @@ import {
     type CustomSecretContent,
     type NamedSecretRow,
 } from "@agenta/entities/secret"
+import {OwnerRadioGroup} from "@agenta/entity-ui/secret"
+import type {OwnerKind} from "@agenta/shared/types"
 import {slugifyName} from "@agenta/shared/utils"
-
-import {Button} from "@/components/ui/button"
-import {Input} from "@/components/ui/input"
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select"
 import {
-    Sheet,
-    SheetContent,
-    SheetDescription,
-    SheetFooter,
-    SheetHeader,
-    SheetTitle,
-} from "@/components/ui/sheet"
+    Button,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    Input,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/ui/ui"
 
 import {Field} from "./Field"
 
@@ -49,11 +54,20 @@ export const SecretFormSheet = ({
     open,
     secret,
     onClose,
+    owners,
+    projectName,
 }: {
     open: boolean
     /** The row being edited, or null when creating. */
     secret: NamedSecretRow | null
     onClose: () => void
+    /**
+     * Who may own a new secret; the first is the default. Two ask "Who can use it", one is used
+     * without asking, absent is the project's (today's behaviour). An edit keeps the row's owner.
+     */
+    owners?: Exclude<OwnerKind, "organization">[]
+    /** The current project's name, for "Everyone in {project}". */
+    projectName?: string
 }) => {
     const {handleModifyNamedSecret} = useVaultSecret()
 
@@ -64,6 +78,12 @@ export const SecretFormSheet = ({
     const [value, setValue] = useState("")
     const [error, setError] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
+    const [chosenOwner, setOwner] = useState<Exclude<OwnerKind, "organization">>(
+        owners?.[0] ?? "project",
+    )
+    // The allowed owners can change while the dialog is open (the switch was still loading):
+    // a choice that is no longer allowed falls back to the first allowed owner.
+    const owner = owners?.includes(chosenOwner) ? chosenOwner : (owners?.[0] ?? "project")
 
     const isEditing = Boolean(secret?.id)
 
@@ -72,6 +92,7 @@ export const SecretFormSheet = ({
         setError(null)
         setSlugTouched(false)
         setSaving(false)
+        setOwner(owners?.[0] ?? "project")
         setName(secret?.name ?? "")
         setSlug(secret?.slug ?? "")
         setFormat(secret?.format ?? CustomSecretFormat.Text)
@@ -82,6 +103,8 @@ export const SecretFormSheet = ({
         } else {
             setValue(typeof secret.content === "string" ? secret.content : "")
         }
+        // `owners` is read when the sheet opens; a change while it is open must not reset it.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, secret])
 
     // On create the slug follows the name until it is edited directly.
@@ -99,14 +122,18 @@ export const SecretFormSheet = ({
         }
         setError(null)
         setSaving(true)
+        // An edit keeps the row's owner; a new secret takes the chosen one.
+        const ownerKind = isEditing ? secret?.ownerKind : owner === "user" ? "user" : undefined
         try {
             await handleModifyNamedSecret({
                 ...(secret ?? {}),
                 id: secret?.id,
                 name: name.trim(),
-                slug: slug.trim(),
+                // The slug is immutable, so it is sent on create only.
+                slug: isEditing ? undefined : slug.trim(),
                 format,
                 content: isJson ? (parsed?.content ?? {}) : value,
+                ownerKind,
             } as NamedSecretRow)
             onClose()
         } catch (cause) {
@@ -119,21 +146,21 @@ export const SecretFormSheet = ({
     const canSubmit = Boolean(name.trim() && slug.trim() && value.trim()) && !saving
 
     return (
-        <Sheet
+        <Dialog
             open={open}
             onOpenChange={(next) => {
                 if (!next && !saving) onClose()
             }}
         >
-            <SheetContent side="responsive">
-                <SheetHeader>
-                    <SheetTitle>{isEditing ? "Edit secret" : "Create secret"}</SheetTitle>
-                    <SheetDescription>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>{isEditing ? "Edit secret" : "Create secret"}</DialogTitle>
+                    <DialogDescription>
                         Agents reference a secret by its slug, never by its value.
-                    </SheetDescription>
-                </SheetHeader>
+                    </DialogDescription>
+                </DialogHeader>
 
-                <div className="flex flex-col gap-3 px-4">
+                <div className="flex flex-col gap-3">
                     <Field label="Name">
                         <Input
                             autoFocus
@@ -202,18 +229,43 @@ export const SecretFormSheet = ({
                         />
                     </Field>
 
+                    {!isEditing && owners && owners.length > 1 ? (
+                        // Not a <Field>: its <label> would wrap the radios' own labels.
+                        <div className="flex flex-col gap-1.5">
+                            <span className="text-sm font-medium text-foreground">
+                                Who can use it
+                            </span>
+                            <OwnerRadioGroup<Exclude<OwnerKind, "organization">>
+                                value={owner}
+                                onChange={setOwner}
+                                options={[
+                                    {
+                                        value: "user",
+                                        label: "Only me",
+                                        note: "You pick it when an agent asks for your own value.",
+                                    },
+                                    {
+                                        value: "project",
+                                        label: `Everyone in ${projectName ?? "this project"}`,
+                                        note: "Builders can attach it to agents in this project.",
+                                    },
+                                ]}
+                            />
+                        </div>
+                    ) : null}
+
                     {error ? <p className="m-0 text-sm text-colorError">{error}</p> : null}
                 </div>
 
-                <SheetFooter>
-                    <Button disabled={!canSubmit} onClick={submit}>
-                        {saving ? "Saving…" : isEditing ? "Save" : "Create secret"}
-                    </Button>
+                <DialogFooter>
                     <Button variant="outline" onClick={onClose} disabled={saving}>
                         Cancel
                     </Button>
-                </SheetFooter>
-            </SheetContent>
-        </Sheet>
+                    <Button disabled={!canSubmit} onClick={submit}>
+                        {saving ? "Saving…" : isEditing ? "Save" : "Create secret"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     )
 }

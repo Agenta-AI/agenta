@@ -7,8 +7,18 @@ from oss.src.core.secrets.dtos import (
     SecretResponseDTO,
     UpdateSecretDTO,
 )
-from oss.src.core.secrets.enums import SecretKind, StandardProviderKind
+from oss.src.core.secrets.enums import (
+    SUBSCRIPTION_PROVIDER_HARNESSES,
+    SUBSCRIPTION_PROVIDER_MODELS,
+    SecretKind,
+    StandardProviderKind,
+    SubscriptionProviderKind,
+)
 from oss.src.core.secrets.services import VaultService, next_provider_key_name
+from oss.tests.pytest.utils.organization_secrets import (
+    load_effective_from_list,
+    owner_scope,
+)
 
 
 PROJECT_ID = uuid4()
@@ -22,6 +32,8 @@ class _FakeSecretsDAO:
     test could see provider numbering or saved policy cross a project boundary.
     """
 
+    load_effective = load_effective_from_list
+
     def __init__(self):
         self.records: list[tuple[tuple, SecretResponseDTO]] = []
 
@@ -32,7 +44,14 @@ class _FakeSecretsDAO:
             if scope == (project_id, organization_id)
         ]
 
-    async def create(self, project_id, organization_id, create_secret_dto):
+    async def create(
+        self,
+        *,
+        owner,
+        create_secret_dto,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         record = SecretResponseDTO(
             id=uuid4(),
             slug=create_secret_dto.slug,
@@ -43,10 +62,23 @@ class _FakeSecretsDAO:
         self.records.append(((project_id, organization_id), record))
         return record
 
-    async def list(self, project_id, organization_id):
+    async def list(
+        self,
+        *,
+        owner,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         return self._scoped(project_id, organization_id)
 
-    async def get_by_id(self, secret_id, project_id, organization_id):
+    async def get_by_id(
+        self,
+        *,
+        owner,
+        secret_id,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         return next(
             (
                 record
@@ -58,13 +90,15 @@ class _FakeSecretsDAO:
 
     async def update(
         self,
+        *,
+        owner,
         secret_id,
         update_secret_dto,
-        project_id,
-        organization_id,
         user_id=None,
         resolve_update=None,
+        **_kwargs,
     ):
+        project_id, organization_id = owner_scope(owner)
         del user_id
         scope = (project_id, organization_id)
         stored = next(
@@ -135,6 +169,25 @@ def _custom_provider_payload(name="My gateway", slug=None):
 @pytest.fixture
 def vault():
     return VaultService(_FakeSecretsDAO())
+
+
+def test_an_organization_default_name_carries_the_owner():
+    assert (
+        next_provider_key_name(
+            kind=StandardProviderKind.OPENAI,
+            taken_names=set(),
+            owner_label="Organization",
+        )
+        == "OpenAI (Organization)"
+    )
+    assert (
+        next_provider_key_name(
+            kind=StandardProviderKind.OPENAI,
+            taken_names={"OpenAI (Organization)"},
+            owner_label="Organization",
+        )
+        == "OpenAI (Organization) 2"
+    )
 
 
 def test_next_provider_key_name_numbers_later_connections():
@@ -312,3 +365,97 @@ async def test_update_does_not_reach_across_a_project_boundary(vault, saved_conn
     )
 
     assert updated is None
+
+
+CHATGPT_DEFAULT_MODELS = SUBSCRIPTION_PROVIDER_MODELS[SubscriptionProviderKind.CHATGPT]
+CHATGPT_DEFAULT_HARNESSES = SUBSCRIPTION_PROVIDER_HARNESSES[
+    SubscriptionProviderKind.CHATGPT
+]
+
+
+def _subscription_payload(**data):
+    return CreateSecretDTO.model_validate(
+        {
+            "header": {"name": "ChatGPT"},
+            "secret": {
+                "kind": "subscription_provider",
+                "data": {"provider": "chatgpt", **data},
+            },
+        }
+    )
+
+
+def _subscription_update(**data):
+    return UpdateSecretDTO.model_validate(
+        {
+            "header": {"name": "ChatGPT"},
+            "secret": {
+                "kind": "subscription_provider",
+                "data": {"provider": "chatgpt", **data},
+            },
+        }
+    )
+
+
+@pytest.fixture
+async def narrowed_subscription(vault):
+    return await vault.create_secret(
+        project_id=PROJECT_ID,
+        create_secret_dto=_subscription_payload(
+            models=["gpt-5.5"], harnesses=["codex"]
+        ),
+    )
+
+
+async def _update_subscription(vault, secret, **data):
+    return await vault.update_secret(
+        secret_id=secret.id,
+        update_secret_dto=_subscription_update(**data),
+        project_id=PROJECT_ID,
+    )
+
+
+async def test_a_subscription_update_that_omits_the_lists_keeps_them(
+    vault, narrowed_subscription
+):
+    updated = await _update_subscription(vault, narrowed_subscription)
+
+    assert updated.data.models == ["gpt-5.5"]
+    assert updated.data.harnesses == ["codex"]
+
+
+async def test_a_subscription_update_to_the_default_lists_resets_them(
+    vault, narrowed_subscription
+):
+    # Selecting every model is normalized to "follow the defaults", which is not an omission.
+    updated = await _update_subscription(
+        vault,
+        narrowed_subscription,
+        models=list(CHATGPT_DEFAULT_MODELS),
+        harnesses=list(CHATGPT_DEFAULT_HARNESSES),
+    )
+
+    assert updated.data.models == CHATGPT_DEFAULT_MODELS
+    assert updated.data.harnesses == CHATGPT_DEFAULT_HARNESSES
+
+
+async def test_a_subscription_update_to_a_narrowed_list_keeps_it(
+    vault, narrowed_subscription
+):
+    updated = await _update_subscription(
+        vault, narrowed_subscription, models=["gpt-6.1-sol"], harnesses=["claude"]
+    )
+
+    assert updated.data.models == ["gpt-6.1-sol"]
+    assert updated.data.harnesses == ["claude"]
+
+
+async def test_a_subscription_update_to_an_empty_list_keeps_it(
+    vault, narrowed_subscription
+):
+    updated = await _update_subscription(
+        vault, narrowed_subscription, models=[], harnesses=[]
+    )
+
+    assert updated.data.models == []
+    assert updated.data.harnesses == []

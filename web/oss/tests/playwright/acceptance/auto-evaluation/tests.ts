@@ -1,6 +1,6 @@
 import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
 import {getProjectScopedBasePath} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
-import {expect, pollLocatorState} from "@agenta/web-tests/utils"
+import {appToast, expect, pollLocatorState} from "@agenta/web-tests/utils"
 import {
     deriveEvaluationKind,
     type EvaluationRunForKindDetection,
@@ -173,11 +173,6 @@ const selectAutoEvaluationModalTableInput = async ({
 }) => {
     const activePane = modal.locator(".ant-tabs-tabpane-active").last()
     const searchInput = activePane.locator('input[placeholder="Search"]').first()
-    const inputSelector =
-        'input[type="checkbox"], input[type="radio"], .ant-checkbox-input, .ant-radio-input'
-    const controlSelector =
-        '.ant-checkbox, .ant-checkbox-wrapper, .ant-radio, .ant-radio-wrapper, [role="checkbox"], [role="radio"]'
-    const selectedTags = modal.locator(".ant-tabs-tab .ant-tag")
 
     if (rowText && (await pollLocatorState(() => searchInput.isVisible()))) {
         await typeIntoLocator(searchInput, rowText)
@@ -196,45 +191,22 @@ const selectAutoEvaluationModalTableInput = async ({
         : activePane.locator("[data-row-key]").first()
     await expect(targetRow).toBeVisible({timeout: 30000})
 
-    const targetRowKey = await targetRow.getAttribute("data-row-key")
-    const stableRow = targetRowKey
-        ? modal.locator(`[data-row-key="${targetRowKey}"]`).first()
-        : targetRow
-    await expect(stableRow).toBeVisible({timeout: 30000})
+    const selectedTabId = await modal.getByRole("tab", {selected: true}).getAttribute("id")
+    const selectionControl = targetRow
+        .getByRole("checkbox")
+        .or(targetRow.getByRole("radio"))
+        .first()
 
-    const isSelected = async () => {
-        const rowClassName = await stableRow.getAttribute("class").catch(() => null)
-        if (rowClassName?.includes("ant-table-row-selected")) {
-            return true
-        }
-
-        const ariaSelected = await stableRow.getAttribute("aria-selected").catch(() => null)
-        if (ariaSelected === "true") {
-            return true
-        }
-
-        const selectionInput = stableRow.locator(inputSelector).first()
-        if ((await selectionInput.count().catch(() => 0)) > 0) {
-            return await pollLocatorState(() => selectionInput.isChecked())
-        }
-
-        if (typeof rowText === "string") {
-            return (await selectedTags.filter({hasText: rowText}).count()) > 0
-        }
-
-        return false
+    if (!(await selectionControl.isChecked())) {
+        await selectionControl.click()
     }
-
-    if (!(await isSelected())) {
-        const selectionControl = stableRow.locator(controlSelector).first()
-        if ((await selectionControl.count().catch(() => 0)) > 0) {
-            await selectionControl.click({force: true})
-        } else {
-            await stableRow.click({force: true})
-        }
+    // Selection can advance the tab and replace grouped rows. Check the persisted summary.
+    await expect(
+        modal.locator(`[id="${selectedTabId}"]`).getByRole("img", {name: "check-circle"}),
+    ).toBeVisible({timeout: 30000})
+    if (rowText) {
+        await expect(modal.locator(`[id="${selectedTabId}"]`)).toContainText(rowText)
     }
-
-    await expect.poll(isSelected, {timeout: 30000}).toBe(true)
 }
 
 const waitForAutoResultsPage = async (page: Page, appId: string) => {
@@ -507,9 +479,9 @@ const waitAndClickDeleteForRun = async (
     await expect(deleteModal).toBeVisible({timeout: 10000})
     await deleteModal.getByRole("button", {name: AUTO_EVAL_DELETE_OK_BUTTON}).click()
 
-    // The success message toasts through @agenta/ui's app-message facade (role="status"),
-    // not an antd `.ant-message` node.
-    await expect(page.getByRole("status").getByText(AUTO_EVAL_DELETE_SUCCESS).first()).toBeVisible({
+    // The success message toasts through @agenta/ui's app-message facade, which draws a
+    // Sonner toast, not an antd `.ant-message` node.
+    await expect(appToast(page, AUTO_EVAL_DELETE_SUCCESS)).toBeVisible({
         timeout: 15000,
     })
 }

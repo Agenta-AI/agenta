@@ -1,0 +1,96 @@
+{
+  "invokes": [
+    {
+      "session_id": "33b88425-15b0-4371-a6ad-7cff451f6df9",
+      "references": {
+        "application": {
+          "id": "01a071e5-0c43-7e71-951b-ded6d453b7e2",
+          "slug": "qa-secret-ui-8nj0m219"
+        },
+        "application_variant": {
+          "id": "01a071e5-0c5f-78f3-8852-0d52fb0efdeb",
+          "slug": "qa-secret-ui-8nj0m219-default"
+        },
+        "application_revision": {
+          "id": "01a07200-9347-7121-a6ea-d18b0d63856c",
+          "slug": "02f70d56d997",
+          "version": "1"
+        }
+      },
+      "bindings": [
+        {
+          "secret": {
+            "slug": "deployment-token"
+          },
+          "binding": {
+            "type": "env",
+            "name": "DEPLOY_TOKEN"
+          }
+        }
+      ]
+    },
+    {
+      "session_id": "33b88425-15b0-4371-a6ad-7cff451f6df9",
+      "references": {
+        "application": {
+          "id": "01a071e5-0c43-7e71-951b-ded6d453b7e2",
+          "slug": "qa-secret-ui-8nj0m219"
+        },
+        "application_variant": {
+          "id": "01a071e5-0c5f-78f3-8852-0d52fb0efdeb",
+          "slug": "qa-secret-ui-8nj0m219-default"
+        },
+        "application_revision": {
+          "id": "01a07200-9347-7121-a6ea-d18b0d63856c",
+          "slug": "02f70d56d997",
+          "version": "1"
+        }
+      },
+      "bindings": [
+        {
+          "secret": {
+            "slug": "deployment-token"
+          },
+          "binding": {
+            "type": "env",
+            "name": "DEPLOY_TOKEN"
+          }
+        }
+      ]
+    },
+    {
+      "session_id": "33b88425-15b0-4371-a6ad-7cff451f6df9",
+      "references": {
+        "application": {
+          "id": "01a071e5-0c43-7e71-951b-ded6d453b7e2",
+          "slug": "qa-secret-ui-8nj0m219"
+        },
+        "application_variant": {
+          "id": "01a071e5-0c5f-78f3-8852-0d52fb0efdeb",
+          "slug": "qa-secret-ui-8nj0m219-default"
+        },
+        "application_revision": {
+          "id": "01a07200-9347-7121-a6ea-d18b0d63856c",
+          "slug": "02f70d56d997",
+          "version": "1"
+        }
+      },
+      "bindings": [
+        {
+          "secret": {
+            "slug": "deployment-token"
+          },
+          "binding": {
+            "type": "env",
+            "name": "DEPLOY_TOKEN"
+          }
+        }
+      ]
+    }
+  ],
+  "vaultCreates": 0,
+  "commits": 0,
+  "retryVisible": true,
+  "repeatedRequestUsedSavedBinding": true,
+  "recovered": true
+}

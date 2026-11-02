@@ -14,7 +14,11 @@ from __future__ import annotations
 
 import pytest
 
-from agenta.sdk.agents import AgentTemplate, AgentTemplateShapeError
+from agenta.sdk.agents import (
+    AgentTemplate,
+    AgentTemplateShapeError,
+    InvalidHarnessKindError,
+)
 from agenta.sdk.models.workflows import WorkflowServiceRequest
 
 from oss.src.agent import app
@@ -180,3 +184,44 @@ async def test_handler_raises_on_flat_template():
             messages=[{"role": "user", "content": "hi"}],
             parameters={"agent": {"harness": "claude", "sandbox": "daytona"}},
         )
+
+
+@pytest.mark.parametrize("kind", [12345, "not_a_real_harness"])
+async def test_handler_raises_a_coded_400_on_an_unreadable_harness_kind(kind):
+    """F4: the shape is right, the harness is not. It must still be a named 400.
+
+    This is the case a config persisted before the commit boundary existed still reaches. It
+    used to travel as far as ``make_harness`` and surface as an unhandled 500 whose body was
+    the enum's ``ValueError`` repr, so the caller learned neither the field nor the values it
+    could have sent.
+    """
+    with pytest.raises(InvalidHarnessKindError) as caught:
+        await app._agent(
+            request=WorkflowServiceRequest(),
+            messages=[{"role": "user", "content": "hi"}],
+            parameters={"agent": {"harness": {"kind": kind}}},
+        )
+
+    assert caught.value.code == 400
+    assert "harness.kind" in caught.value.message
+
+
+# ---------------------------------------------------------------------------
+# A field value the template does not accept is the caller's error, not a 500.
+# ---------------------------------------------------------------------------
+
+
+def test_unknown_connection_mode_is_a_named_400():
+    # Production sent `connection.mode` values such as "default" and "platform". Pydantic
+    # refused them, and the raw ValidationError reached the invoke route as HTTP 500.
+    with pytest.raises(AgentTemplateShapeError) as excinfo:
+        AgentTemplate.from_params(
+            {"agent": {"llm": {"model": "gpt-5.5", "connection": {"mode": "default"}}}}
+        )
+
+    assert excinfo.value.code == 400
+    assert "connection.mode" in excinfo.value.message
+    assert "'agenta' or 'self_managed'" in excinfo.value.message
+    # Only the field and the rule: the raw value may be a credential on other fields.
+    assert "input_value" not in excinfo.value.message
+    assert "default" not in excinfo.value.message

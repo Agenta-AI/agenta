@@ -114,12 +114,18 @@ export default function AgentsPage() {
                     </Link>
                 </div>
 
-                <AgentsGrid
-                    rows={rows}
-                    isLoading={isLoading}
-                    actions={cardActions}
-                    onCreate={handleCreate}
-                />
+                {/* /agents is a full-height route, so the layout frame is bounded and
+                    `overflow-hidden`: without a scroller of its own the roster was simply
+                    clipped at the frame's bottom edge. The table this grid replaced scrolled
+                    internally, which is where the page's scrolling used to come from. */}
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                    <AgentsGrid
+                        rows={rows}
+                        isLoading={isLoading}
+                        actions={cardActions}
+                        onCreate={handleCreate}
+                    />
+                </div>
             </PageLayout>
         )
 

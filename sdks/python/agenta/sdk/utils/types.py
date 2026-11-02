@@ -8,9 +8,13 @@ from pydantic import ConfigDict, BaseModel, HttpUrl, RootModel
 from pydantic import Field, model_validator, AliasChoices
 
 
-from agenta.sdk.agents.dtos import HARNESS_IDENTITIES, SandboxPermission
+from agenta.sdk.agents.dtos import (
+    HARNESS_IDENTITIES,
+    UNLISTED_HARNESS_KINDS,
+    SandboxPermission,
+)
 from agenta.sdk.agents.mcp import MCPServerConfig
-from agenta.sdk.agents.tools import ToolConfig
+from agenta.sdk.agents.tools import DEFAULT_AGENTA_TOOLS, ToolConfig
 from agenta.sdk.agents.wire_models import run_contract_schemas
 from agenta.sdk.utils.assets import supported_llm_models, model_metadata
 from agenta.sdk.utils.helpers import _PLACEHOLDER_RE
@@ -1028,7 +1032,11 @@ class PromptTemplate(AgSchemaMixin):
             kwargs["chat_template_kwargs"] = llm_config.chat_template_kwargs
 
         if llm_config.response_format:
-            kwargs["response_format"] = llm_config.response_format.dict(by_alias=True)
+            # Drop unset optional fields. Some providers (OpenRouter) ignore a
+            # json_schema response_format that carries "description": null.
+            kwargs["response_format"] = llm_config.response_format.model_dump(
+                by_alias=True, exclude_none=True
+            )
 
         if llm_config.tools:
             kwargs["tools"] = llm_config.tools
@@ -1140,16 +1148,24 @@ def _harness_field_schema_extra() -> Dict[str, Any]:
     catalog (``GET /catalog/harnesses/{value}``), where its capabilities live — the same
     catalog/ref mechanism as ``x-ag-type-ref`` -> ``/catalog/types/``. The frontend resolves it
     to drive the harness-filtered provider/model picker, instead of reading an inlined inspect
-    ``meta`` field."""
+    ``meta`` field.
+
+    Unlisted harnesses (``UNLISTED_HARNESS_KINDS``) stay out of both lists, so no schema-driven
+    control offers them; a config that names one still runs."""
+    listed = [
+        identity
+        for identity in HARNESS_IDENTITIES
+        if identity.value not in UNLISTED_HARNESS_KINDS
+    ]
     return {
-        "enum": [identity.value for identity in HARNESS_IDENTITIES],
+        "enum": [identity.value for identity in listed],
         "oneOf": [
             {
                 "const": identity.value,
                 "title": identity.name,
                 _HARNESS_SLUG_KEY: identity.slug,
             }
-            for identity in HARNESS_IDENTITIES
+            for identity in listed
         ],
         "x-ag-harness-ref": "harness",
     }
@@ -1181,6 +1197,26 @@ class _ConnectionSchema(BaseModel):
         default=None,
         title="Slug",
         description="The named vault connection (agenta mode only); omit for the project default.",
+    )
+    namespace: Optional[Literal["standard", "custom", "builtin", "organization"]] = (
+        Field(
+            default=None,
+            title="Namespace",
+            description=(
+                "The gateway namespace the slug was picked from (agenta mode with a slug only); "
+                "omit to let the gateway infer it. An organization connection uses "
+                "'organization'."
+            ),
+        )
+    )
+    scope: Optional[Literal["project", "organization"]] = Field(
+        default=None,
+        title="Scope",
+        description=(
+            "Whose connection the slug names: the project's (the default) or the "
+            "organization's. An organization connection needs a slug and namespace "
+            "'organization'."
+        ),
     )
 
 
@@ -1342,7 +1378,7 @@ class _HarnessSchema(BaseModel):
     """The coding agent to drive plus its execution knobs (was the flat ``harness`` scalar and
     its ``harness_kwargs`` slice).
 
-    ``kind`` is the harness selector (the bare ``pi_core`` / ``pi_agenta`` / ``claude`` value).
+    ``kind`` is the harness selector (the bare ``pi_core`` / ``claude`` / ``codex`` value).
     ``permissions`` is the allow/ask/deny rule lists that decide which tools may run. ``extras``
     is the per-harness escape hatch (Pi's ``system`` / ``append_system`` prompt overrides)."""
 
@@ -1352,8 +1388,7 @@ class _HarnessSchema(BaseModel):
         default=_DEFAULT_HARNESS,
         title="Harness",
         description=(
-            "Coding agent to drive: pi_core (plain Pi), claude, or pi_agenta (Pi with "
-            "Agenta's forced skills, tools, and base instructions)."
+            "Coding agent to drive: pi_core (Pi), claude (Claude Code), or codex (Codex)."
         ),
         json_schema_extra=_harness_field_schema_extra(),
     )
@@ -1383,7 +1418,8 @@ class _PermissionsSchema(BaseModel):
         description=(
             "allow runs every tool without asking. ask requires approval for every tool. "
             "deny refuses every tool. allow_reads runs read-hinted tools and asks for "
-            "everything else; this is the default."
+            "everything else. Omitting this field applies allow_reads; the standard "
+            "creation template sets it to allow."
         ),
     )
 
@@ -1414,6 +1450,40 @@ class _RunnerSchema(BaseModel):
     )
 
 
+class _SandboxSecretReferenceSchema(BaseModel):
+    model_config = ConfigDict(extra="forbid", title="Secret reference")
+    slug: Optional[str] = Field(
+        default=None,
+        title="Secret",
+        description="Secret slug. Left out for a 'user' secret.",
+    )
+    namespace: Optional[Literal["organization"]] = Field(
+        default=None,
+        title="Namespace",
+        description="'organization' names an organization secret; left out, a project secret.",
+    )
+    account_source: Optional[Literal["agent", "user"]] = Field(
+        default=None,
+        title="Account",
+        description="'user': the run person's own secret. Left out means 'agent'.",
+    )
+
+
+class _SandboxEnvironmentBindingSchema(BaseModel):
+    model_config = ConfigDict(extra="forbid", title="Environment binding")
+    type: Literal["env"] = "env"
+    name: str = Field(
+        title="Variable name",
+        pattern=r"^[A-Za-z_][A-Za-z0-9_]*$",
+    )
+
+
+class _SandboxCredentialSchema(BaseModel):
+    model_config = ConfigDict(extra="forbid", title="Sandbox credential")
+    secret: _SandboxSecretReferenceSchema
+    binding: _SandboxEnvironmentBindingSchema
+
+
 class _SandboxSchema(BaseModel):
     """Where the agent runs plus its security boundary (was the flat ``sandbox`` scalar and the
     sibling ``sandbox_permission``).
@@ -1423,10 +1493,15 @@ class _SandboxSchema(BaseModel):
 
     model_config = ConfigDict(extra="forbid", title="Sandbox")
 
-    kind: Literal["local", "daytona"] = Field(
+    kind: Literal["local", "daytona", "inprocess"] = Field(
         default=_DEFAULT_SANDBOX,
         title="Sandbox",
         description="Where the agent runs: local daemon or a Daytona sandbox.",
+    )
+    credentials: List[_SandboxCredentialSchema] = Field(
+        default_factory=list,
+        title="Credentials",
+        description="Project secret references bound to sandbox environment variables.",
     )
     permissions: Optional[SandboxPermission] = Field(
         default=None,
@@ -1461,8 +1536,9 @@ def build_agent_v0_default(
     template: Dict[str, Any] = {
         "instructions": {"agents_md": _DEFAULT_AGENTS_MD},
         "llm": {"provider": _DEFAULT_AGENT_PROVIDER, "model": _DEFAULT_AGENT_MODEL},
-        # Built-in tools are always active and are not configured here.
-        "tools": [],
+        # Built-in tools are always active and are not configured here. The one entry turns
+        # on the Agenta tools every new agent gets, in every run.
+        "tools": [{"type": "agenta_tools", "tools": dict(DEFAULT_AGENTA_TOOLS)}],
         "mcps": [],
     }
     if skill_slug is not None:
@@ -1487,7 +1563,7 @@ def build_agent_v0_default(
     template["harness"] = {"kind": _DEFAULT_HARNESS}
     template["runner"] = {
         "kind": "sidecar",
-        "permissions": {"default": _DEFAULT_PERMISSION_MODE},
+        "permissions": {"default": "allow"},
     }
     template["sandbox"] = sandbox
     return template

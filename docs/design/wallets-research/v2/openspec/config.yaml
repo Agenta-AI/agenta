@@ -1,0 +1,9 @@
+schema: spec-driven
+context: |
+  Agenta credits and included resource usage. Documentation package only.
+  Wallet foundation is implemented on unmerged PR #6050 (feat/add-wallets) and its unmerged takeover
+  branch wallets/takeover (PR #7153). The foundation baseline describes wallets/takeover at 0693b307c1.
+  Other changes are unimplemented proposals unless explicitly marked otherwise.
+  Original design decisions remain distinct from 2026-09-22 product direction.
+  Keep numeric commercial settings configurable. Lifetime top-ups do not require subscriptions.
+  Do not treat the backlog as mandatory scope for a release. No implementation or rollout authorization.

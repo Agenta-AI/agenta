@@ -116,10 +116,16 @@ function assertSize(bytes: number, relativePath: string): void {
 /**
  * Open `name` relative to an already-open directory handle.
  *
- * Node exposes no `openat`, but `/proc/self/fd/<fd>` names the directory the descriptor
- * points at, so opening `<that>/<name>` resolves `name` against the INODE we hold rather
- * than against a path that may have been replaced. Combined with `O_NOFOLLOW` on each
+ * Node exposes no `openat`, but on Linux `/proc/self/fd/<fd>` names the directory the
+ * descriptor points at, so opening `<that>/<name>` resolves `name` against the INODE we hold
+ * rather than against a path that may have been replaced. Combined with `O_NOFOLLOW` on each
  * component, this gives the property section 3.2 requires without a native helper.
+ *
+ * macOS has neither `/proc/self/fd` nor a directory-FD path facility that Node can use. Its
+ * fallback still walks one component at a time with `O_NOFOLLOW`, which refuses every static
+ * symbolic link, but cannot make the Linux descriptor-pinning guarantee against an adversary
+ * that renames a parent directory during the walk. Keep the fallback explicit rather than
+ * treating a missing `/proc` as a missing source file.
  *
  * `name` is a single component, never a path: the caller walks one level at a time, so an
  * attacker never gets a multi-component lookup to redirect.
@@ -128,6 +134,7 @@ async function openAt(
   parent: FileHandle,
   name: string,
   flags: number,
+  fallbackParentPath?: string,
 ): Promise<FileHandle> {
   if (name.includes("/")) {
     throw new ImportError(
@@ -135,7 +142,13 @@ async function openAt(
       "internal: openAt takes one component",
     );
   }
-  return fs.open(`/proc/self/fd/${parent.fd}/${name}`, flags);
+  if (process.platform === "linux") {
+    return fs.open(`/proc/self/fd/${parent.fd}/${name}`, flags);
+  }
+  if (!fallbackParentPath) {
+    throw new Error("internal: non-Linux openAt requires its parent path");
+  }
+  return fs.open(path.join(fallbackParentPath, name), flags);
 }
 
 export class LocalWorkspaceReader implements WorkspaceReader {
@@ -166,6 +179,7 @@ export class LocalWorkspaceReader implements WorkspaceReader {
 
     let dir: FileHandle | undefined;
     let file: FileHandle | undefined;
+    let dirPath = this.rootPath();
     try {
       try {
         // O_NOFOLLOW on the ROOT, not only on the components below it. Without it a symbolic
@@ -203,9 +217,11 @@ export class LocalWorkspaceReader implements WorkspaceReader {
           dir,
           segments[index],
           resolved.relativePath,
+          dirPath,
         );
         await dir.close();
         dir = next;
+        dirPath = path.join(dirPath, segments[index]);
       }
 
       const name = segments[segments.length - 1];
@@ -217,6 +233,7 @@ export class LocalWorkspaceReader implements WorkspaceReader {
           dir,
           name,
           fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW,
+          dirPath,
         );
       } catch (error) {
         throw await this.describeOpenFailure(error, resolved.relativePath);
@@ -259,12 +276,14 @@ export class LocalWorkspaceReader implements WorkspaceReader {
     parent: FileHandle,
     name: string,
     relativePath: string,
+    parentPath: string,
   ): Promise<FileHandle> {
     try {
       return await openAt(
         parent,
         name,
         fsConstants.O_RDONLY | fsConstants.O_DIRECTORY | fsConstants.O_NOFOLLOW,
+        parentPath,
       );
     } catch (error) {
       const code = (error as NodeJS.ErrnoException)?.code;
@@ -275,7 +294,7 @@ export class LocalWorkspaceReader implements WorkspaceReader {
       // descriptor: ELOOP then means a link, success means an ordinary file. This costs
       // one syscall on the error path and never performs a new path lookup.
       if (code === "ENOTDIR" || code === "ELOOP") {
-        const kind = await this.classifyRefusedComponent(parent, name);
+        const kind = await this.classifyRefusedComponent(parent, name, parentPath);
         throw new ImportError(
           "source_unsupported_content",
           kind === "symlink"
@@ -324,6 +343,7 @@ export class LocalWorkspaceReader implements WorkspaceReader {
   private async classifyRefusedComponent(
     parent: FileHandle,
     name: string,
+    parentPath: string,
   ): Promise<"symlink" | "not-a-directory"> {
     let handle: FileHandle | undefined;
     try {
@@ -331,6 +351,7 @@ export class LocalWorkspaceReader implements WorkspaceReader {
         parent,
         name,
         fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW,
+        parentPath,
       );
       return "not-a-directory";
     } catch (error) {

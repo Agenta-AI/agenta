@@ -38,6 +38,7 @@ WIRED_CELLS = [
     "matrix_w5.py",
     "matrix_w4.py",
     "matrix_w3.py",
+    "matrix_n1_session_context.py",
 ]
 
 

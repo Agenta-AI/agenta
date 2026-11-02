@@ -349,6 +349,9 @@ async def _agent_run_to_vercel_parts_impl(
             elif etype == "attachment_delivery":
                 content_parts_emitted += 1
                 yield _attachment_delivery_part(data)
+            elif etype == "mcp_server_failed":
+                content_parts_emitted += 1
+                yield _mcp_server_failed_part(data)
             elif etype == "usage":
                 usage = _usage_metadata(data)
             elif etype == "error":
@@ -356,8 +359,28 @@ async def _agent_run_to_vercel_parts_impl(
                 for part in _error_parts(
                     data.get("message", ""),
                     failure_code=_runner_failure_code(data.get("code")),
+                    error_detail=data.get("detail"),
                 ):
                     yield part
+            elif etype == "turn":
+                # The runner's admitted execution id, forwarded onto the MESSAGE METADATA so the
+                # client reads it as `message.metadata.turnId`, beside the `sessionId` the `start`
+                # frame already carries and the `traceId`/`usage` the `finish` frame adds.
+                #
+                # It cannot ride the `start` frame itself: that frame is emitted before the runner
+                # replies at all (see the `start` yield above), so a runner-minted id does not
+                # exist yet. A `message-metadata` chunk is the same channel one frame later, and
+                # the AI SDK MERGES metadata rather than replacing it (`mergeObjects`), so the id
+                # survives the `finish` frame's own metadata to the end of the turn.
+                #
+                # A client keeps it to name the execution it means to Stop
+                # (`expected_execution_id`) instead of cancelling "whatever runs now".
+                turn_id = data.get("turnId")
+                if isinstance(turn_id, str) and turn_id:
+                    yield {
+                        "type": "message-metadata",
+                        "messageMetadata": {"turnId": turn_id},
+                    }
             elif etype == "done":
                 # Last non-null stop reason wins; see the routing-layer twin's `done` note.
                 reason = data.get("stopReason")
@@ -393,7 +416,13 @@ async def _agent_run_to_vercel_parts_impl(
                 trace_id = result.trace_id
 
         yield {"type": "finish-step"}
-        if content_parts_emitted == 0 and not error_emitted:
+        # A Stop is not a failure: a turn the user cancelled before any output ends as
+        # stopped, never as "The agent produced no output."
+        if (
+            content_parts_emitted == 0
+            and not error_emitted
+            and stop_reason != "cancelled"
+        ):
             # An ok:true run with zero content parts would otherwise render as a blank bubble.
             # Skip this when a real error already went out above -- appending a second, useless
             # "no output" frame on top of it would bury the actionable message (the swallowed-
@@ -632,6 +661,9 @@ async def _agent_stream_to_vercel_stream_impl(
             elif etype == "attachment_delivery":
                 content_parts_emitted += 1
                 yield _attachment_delivery_part(data)
+            elif etype == "mcp_server_failed":
+                content_parts_emitted += 1
+                yield _mcp_server_failed_part(data)
             elif etype == "usage":
                 usage = _usage_metadata(data)
             elif etype == "error":
@@ -639,8 +671,28 @@ async def _agent_stream_to_vercel_stream_impl(
                 for part in _error_parts(
                     data.get("message", ""),
                     failure_code=_runner_failure_code(data.get("code")),
+                    error_detail=data.get("detail"),
                 ):
                     yield part
+            elif etype == "turn":
+                # The runner's admitted execution id, forwarded onto the MESSAGE METADATA so the
+                # client reads it as `message.metadata.turnId`, beside the `sessionId` the `start`
+                # frame already carries and the `traceId`/`usage` the `finish` frame adds.
+                #
+                # It cannot ride the `start` frame itself: that frame is emitted before the runner
+                # replies at all (see the `start` yield above), so a runner-minted id does not
+                # exist yet. A `message-metadata` chunk is the same channel one frame later, and
+                # the AI SDK MERGES metadata rather than replacing it (`mergeObjects`), so the id
+                # survives the `finish` frame's own metadata to the end of the turn.
+                #
+                # A client keeps it to name the execution it means to Stop
+                # (`expected_execution_id`) instead of cancelling "whatever runs now".
+                turn_id = data.get("turnId")
+                if isinstance(turn_id, str) and turn_id:
+                    yield {
+                        "type": "message-metadata",
+                        "messageMetadata": {"turnId": turn_id},
+                    }
             elif etype == "done":
                 # Prefer the LAST non-null stop reason. The handler appends a corrective
                 # terminal `done` after the runner's `done` when the authoritative result
@@ -664,7 +716,13 @@ async def _agent_stream_to_vercel_stream_impl(
         # Every exit path — including the raw exception above — must still drain to a
         # finish frame, or a consumer waiting on it hangs.
         yield {"type": "finish-step"}
-        if content_parts_emitted == 0 and not error_emitted:
+        # A Stop is not a failure: a turn the user cancelled before any output ends as
+        # stopped, never as "The agent produced no output."
+        if (
+            content_parts_emitted == 0
+            and not error_emitted
+            and stop_reason != "cancelled"
+        ):
             # An ok:true run with zero content parts would otherwise render as a blank bubble.
             # Skip this when a real error already went out above (see the dev-twin's matching
             # note) -- a swallowed-provider-error turn both streams a live error event and fails
@@ -749,8 +807,7 @@ def _interaction_parts(
                 # The tool call was already surfaced (often by the tracing tool_call event, whose
                 # name is the ACP title/kind, and often with empty input on a cold-replay resume).
                 # Re-emit `tool-input-available` to refresh BOTH the stable `toolName` and the real
-                # args, instead of persisting the drift-prone name + `{}` input (HITL
-                # approve-empty-input / name-drift bug).
+                # args, instead of persisting a stale name with empty input.
                 yield {
                     "type": "tool-input-available",
                     "toolCallId": tool_call_id,
@@ -927,6 +984,26 @@ def _as_text(value: Any) -> str:
     return value if isinstance(value, str) else str(value)
 
 
+def _mcp_server_failed_part(data: Dict[str, Any]) -> Dict[str, Any]:
+    """An MCP server that did not join the run, as a non-fatal data part.
+
+    A notice, not an error: the turn ran and succeeded, it just ran without that server's
+    tools. Emitting it as an `error` part would end the message on the client.
+
+    ``detail`` carries the gateway's own refusal when the handshake body held one, which for a
+    disconnected connection is where ``requirement.connect`` lives — the endpoint that reconnects
+    it (OR85). It is listed here rather than passed through wholesale because the runner event may
+    grow fields that are not a client's business; the cost is that a new field must be added here
+    too, and forgetting is silent, which is how the connect action was lost the first time.
+    """
+    notice = {
+        key: data[key]
+        for key in ("serverName", "reasonCode", "status", "message", "detail")
+        if data.get(key) is not None
+    }
+    return {"type": "data-mcp-server-failed", "data": notice}
+
+
 def _attachment_delivery_part(data: Dict[str, Any]) -> Dict[str, Any]:
     delivery = {
         key: data[key]
@@ -956,15 +1033,30 @@ def _error_parts(
     *,
     failure_code: Optional[str] = None,
     error: Optional[BaseException] = None,
+    error_detail: Optional[Dict[str, Any]] = None,
 ) -> Iterator[Dict[str, Any]]:
     resolved_code = failure_code or getattr(error, "failure_code", None)
     if not isinstance(resolved_code, str) or not resolved_code:
         resolved_code = AgentRunFailed.failure_code
     resolved_text = _as_text(error_text)
-    yield {
-        "type": "data-agent-error",
-        "data": {"code": resolved_code, "errorText": resolved_text},
-    }
+    # Include recovered gateway error details only when available. The live `error` event carries
+    # them in its own `detail` field; a raised terminal failure carries them on the exception.
+    resolved_detail = error_detail
+    if not resolved_detail:
+        resolved_detail = getattr(error, "error_detail", None)
+    # OR28: prefer the gateway's own code over the runner's generic one. A NAMED runner class
+    # (`starter_credits_exhausted`) answers a different question and wins; the generic fallback
+    # carries no information the gateway's code does not carry better.
+    if (
+        resolved_code == DEFAULT_RUNNER_FAILURE_CODE
+        and isinstance(resolved_detail, dict)
+        and _FAILURE_CODE.match(str(resolved_detail.get("code", "")))
+    ):
+        resolved_code = str(resolved_detail["code"])
+    data: Dict[str, Any] = {"code": resolved_code, "errorText": resolved_text}
+    if resolved_detail:
+        data["errorDetail"] = resolved_detail
+    yield {"type": "data-agent-error", "data": data}
     yield {"type": "error", "errorText": resolved_text}
 
 

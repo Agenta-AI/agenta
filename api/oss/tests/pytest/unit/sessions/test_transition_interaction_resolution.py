@@ -123,8 +123,7 @@ async def test_transition_route_settlement_matrix(
 
     router = InteractionsRouter(
         interactions_service=_InteractionsService(),
-        workflows_service=AsyncMock(),
-        respond_task=AsyncMock(),
+        commands_service=AsyncMock(),
     )
     body = SessionInteractionTransitionRequest(
         session_id="session-1",
@@ -188,8 +187,7 @@ def test_transition_route_rejects_invalid_approval_resolution_with_422(payload):
     ]
     router = InteractionsRouter(
         interactions_service=interactions_service,
-        workflows_service=AsyncMock(),
-        respond_task=AsyncMock(),
+        commands_service=AsyncMock(),
     )
     app = FastAPI()
     app.include_router(router.router)
@@ -232,8 +230,7 @@ async def test_transition_route_accepts_open_resolution_for_client_tool_on_respo
     )
     router = InteractionsRouter(
         interactions_service=interactions_service,
-        workflows_service=AsyncMock(),
-        respond_task=AsyncMock(),
+        commands_service=AsyncMock(),
     )
     body = SessionInteractionTransitionRequest(
         session_id="session-1",
@@ -279,8 +276,7 @@ async def test_transition_route_rejects_resolved_client_tool_with_409():
     ]
     router = InteractionsRouter(
         interactions_service=interactions_service,
-        workflows_service=AsyncMock(),
-        respond_task=AsyncMock(),
+        commands_service=AsyncMock(),
     )
     body = SessionInteractionTransitionRequest(
         session_id="session-1",
@@ -319,8 +315,7 @@ async def test_transition_route_rejects_resolved_client_tool_without_resolution_
     ]
     router = InteractionsRouter(
         interactions_service=interactions_service,
-        workflows_service=AsyncMock(),
-        respond_task=AsyncMock(),
+        commands_service=AsyncMock(),
     )
     body = SessionInteractionTransitionRequest(
         session_id="session-1",

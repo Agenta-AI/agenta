@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "entry": "pr-reviewer",
+  "agents": {
+    "pr-reviewer": {
+      "name": "PR reviewer",
+      "description": "Reviews every opened pull request. Comments inline on risky changes, flags missing tests, and posts a plain-English summary for the author.",
+      "instructions": "./ai.agenta/agents/pr-reviewer/AGENTS.md",
+      "setup": "./ai.agenta/agents/pr-reviewer/SETUP.md",
+      "connections": [
+        {
+          "key": "read-the-diff-and-post-review-comments",
+          "required": true,
+          "purpose": "Read the diff and post review comments",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "github"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "gitlab"
+            }
+          ],
+          "setup_notes": "Read PRs, post reviews & comments"
+        }
+      ]
+    }
+  }
+}
