@@ -1,6 +1,10 @@
 import {useEffect, useMemo, useRef} from "react"
 
-import {isSessionCreatedHere, isSessionFresh} from "@agenta/entities/session"
+import {
+    forgetSessionCreatedHere,
+    isSessionCreatedHere,
+    isSessionFresh,
+} from "@agenta/entities/session"
 
 import {sharingCopy} from "@/lib/sharingCopy"
 
@@ -38,19 +42,24 @@ export const useChatAccess = ({
     const notFound = query.isSuccess && !query.data
     const readable = Boolean(sharing) && !notFound
     useEffect(() => {
-        if (readable) accessSessionRef.current = sessionId
+        if (!readable) return
+        accessSessionRef.current = sessionId
+        // The chat has a row now, and the row decides from here on: a chat whose access is later
+        // removed must not read as an empty chat of our own after a reload.
+        forgetSessionCreatedHere(sessionId)
     }, [readable, sessionId])
     const hadAccess = accessSessionRef.current === sessionId
 
     const fresh = isSessionFresh(sessionId)
     // A chat with no turns has no row, and the fresh marker does not survive a reload. A chat this
-    // tab created is then that empty chat: it may send. The route's agent does not decide this,
-    // because another person's private chat also has no row.
-    const emptyChat = notFound && !hadAccess && isSessionCreatedHere(sessionId)
+    // tab created, on its agent's route, is then that empty chat: it may send. The route's agent
+    // alone does not decide this, because another person's private chat also has no row.
+    const emptyChat =
+        notFound && !hadAccess && Boolean(routeAgentId) && isSessionCreatedHere(sessionId)
     let blocked: "not_found" | "removed" | null = null
     if (notFound) {
         if (hadAccess) blocked = "removed"
-        else if (!fresh && !emptyChat && !routeAgentId) blocked = "not_found"
+        else if (!fresh && !routeAgentId) blocked = "not_found"
     }
 
     const failed = query.isError

@@ -34,6 +34,7 @@ const rows = vi.hoisted(() => ({querySessionStreams: vi.fn()}))
 vi.mock("@agenta/entities/session", () => ({
     isSessionFresh: (sessionId: string) => fresh.has(sessionId),
     isSessionCreatedHere: (sessionId: string) => created.has(sessionId),
+    forgetSessionCreatedHere: (sessionId: string) => created.delete(sessionId),
     querySessionStreams: (...args: unknown[]) => rows.querySessionStreams(...args),
 }))
 
@@ -172,6 +173,26 @@ describe("until the sharing state of an existing chat is known", () => {
 
         expect(seen.canSend).toBe(false)
         expect(seen.blocked).toBeNull()
+    })
+
+    it("an empty chat this tab created needs its agent's route to send", async () => {
+        created.add("created-no-route")
+        rows.querySessionStreams.mockResolvedValue(notFound)
+        await mount("created-no-route")
+        await advance(0)
+
+        expect(seen.canSend).toBe(false)
+        expect(seen.blocked).toBe("not_found")
+    })
+
+    it("a chat this tab created is no longer an empty chat once it has a row", async () => {
+        created.add("created-then-used")
+        rows.querySessionStreams.mockResolvedValue(state("participant"))
+        await mount("created-then-used", "agent-1")
+        await advance(0)
+
+        expect(seen.canSend).toBe(true)
+        expect(created.has("created-then-used")).toBe(false)
     })
 
     it("no row without an agent route stays not found", async () => {
