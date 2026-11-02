@@ -27,10 +27,10 @@ export const Active: Story = {}
 export const ActiveWithPlayground: Story = {args: {onOpenPlayground: () => {}}}
 
 /** An archived agent offers Restore in place of Rename and Archive agent. */
-export const Archived: Story = {args: {onRestore: () => {}}}
+export const Archived: Story = {args: {archived: true, onRestore: () => {}}}
 
 /** An archived agent for a reader without edit rights: no Restore and no Archive agent. */
-export const ArchivedReadOnly: Story = {args: {canArchive: false}}
+export const ArchivedReadOnly: Story = {args: {archived: true}}
 
 /** An active agent for a reader who may not archive: Archive agent is gone. */
 export const ActiveReadOnly: Story = {args: {onOpenPlayground: () => {}, canArchive: false}}

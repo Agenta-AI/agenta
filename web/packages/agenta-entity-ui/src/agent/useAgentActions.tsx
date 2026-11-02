@@ -50,8 +50,12 @@ export const useRestoreWorkflow = () => {
                 console.error("Failed to restore the agent", error)
                 return false
             }
-            void queryClient.invalidateQueries({queryKey: ["workflows"]})
-            void queryClient.invalidateQueries({queryKey: ["agent-workflows"]})
+            // Wait for the lists, so a caller guarding against a second press holds until the row
+            // has left the archived list.
+            await Promise.all([
+                queryClient.invalidateQueries({queryKey: ["workflows"]}),
+                queryClient.invalidateQueries({queryKey: ["agent-workflows"]}),
+            ])
             return true
         },
         [projectId, queryClient],

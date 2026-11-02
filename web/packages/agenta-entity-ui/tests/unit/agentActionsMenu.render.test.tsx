@@ -73,12 +73,17 @@ describe("AgentActionsMenu", () => {
         ])
     })
 
-    it("onRestore shows Restore instead of Archive agent and Rename", () => {
-        const items = labels(html({onRestore: noop}))
+    it("An archived agent with onRestore shows Restore instead of Archive agent and Rename", () => {
+        const items = labels(html({archived: true, onRestore: noop}))
         expect(items).toContain("Restore")
         expect(items).not.toContain("Archive agent")
         expect(items).not.toContain("Rename")
         expect(items).not.toContain("Configure")
+    })
+
+    it("An archived agent without onRestore shows neither Restore, Archive agent nor Rename", () => {
+        const items = labels(html({archived: true}))
+        expect(items).toEqual(["Open configuration", "Copy Slug"])
     })
 
     it("canArchive false hides Archive agent", () => {

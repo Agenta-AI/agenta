@@ -15,10 +15,7 @@ export interface AgentRowActions {
     restore: (row: AgentListRow) => Promise<void>
 }
 
-/**
- * What the roster's menu does beyond what the shared menu does itself. Called once per page, so
- * the permission check is one request however many rows are drawn.
- */
+/** What the roster's menu does beyond what the shared menu does itself. Called once per page. */
 export const useAgentRowActions = (base: string, projectId: string): AgentRowActions => {
     const canEdit = useProjectPermission(projectId, "edit_workflows")
     const restoreAgent = useRestoreWorkflow()
@@ -56,10 +53,7 @@ export const useAgentRowActions = (base: string, projectId: string): AgentRowAct
 export const agentMenuProps = (
     row: AgentListRow,
     actions: AgentRowActions,
-): Pick<AgentActionsMenuProps, "onOpenPlayground" | "onRestore" | "canArchive"> =>
+): Pick<AgentActionsMenuProps, "archived" | "onOpenPlayground" | "onRestore" | "canArchive"> =>
     row.archived
-        ? {
-              onRestore: actions.canEdit ? () => void actions.restore(row) : undefined,
-              canArchive: false,
-          }
+        ? {archived: true, onRestore: actions.canEdit ? () => void actions.restore(row) : undefined}
         : {onOpenPlayground: () => actions.openPlayground(row), canArchive: actions.canEdit}

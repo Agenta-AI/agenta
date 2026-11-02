@@ -41,10 +41,9 @@ export interface AgentActionsMenuProps {
     onConfigure?: () => void
     /** Opens a chat with the agent. Absent means no item. */
     onOpenPlayground?: () => void
-    /**
-     * Restores an archived agent. Present means the agent IS archived: the menu offers Restore in
-     * place of Rename, Configure and Archive, none of which apply to a put-away agent.
-     */
+    /** The agent is archived: Rename, Configure and Archive agent do not apply to it. */
+    archived?: boolean
+    /** Restores an archived agent. Absent means no Restore, for a reader who may not. */
     onRestore?: () => void
     /** False hides Archive agent, for a reader who may not archive. Defaults to true. */
     canArchive?: boolean
@@ -70,6 +69,7 @@ export const AgentActionsMenu = ({
     onDelete,
     onConfigure,
     onOpenPlayground,
+    archived = false,
     onRestore,
     canArchive = true,
     align = "start",
@@ -115,7 +115,7 @@ export const AgentActionsMenu = ({
                         Publish
                     </DropdownMenuItem>
                 ) : null}
-                {onRestore ? null : onConfigure ? (
+                {archived ? null : onConfigure ? (
                     <DropdownMenuItem onSelect={onConfigure}>
                         <PencilSimple size={16} />
                         Configure
@@ -138,11 +138,13 @@ export const AgentActionsMenu = ({
                         Copy Slug
                     </DropdownMenuItem>
                 ) : null}
-                {onRestore ? (
-                    <DropdownMenuItem onSelect={onRestore}>
-                        <ArrowCounterClockwise size={16} />
-                        Restore
-                    </DropdownMenuItem>
+                {archived ? (
+                    onRestore ? (
+                        <DropdownMenuItem onSelect={onRestore}>
+                            <ArrowCounterClockwise size={16} />
+                            Restore
+                        </DropdownMenuItem>
+                    ) : null
                 ) : canArchive ? (
                     <>
                         {/* Set apart: everything above is reversible in a keystroke, and this one

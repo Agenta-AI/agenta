@@ -164,8 +164,8 @@ describe("the roster's agent menu", () => {
                 />,
             ),
         )
+        expect(lastMenu().archived).toBe(true)
         expect(lastMenu().onRestore).toBeUndefined()
-        expect(lastMenu().canArchive).toBe(false)
         await act(async () =>
             root.render(
                 <AgentRowCells row={row()} narrow={false} onOpen={noop} actions={actions} />,
@@ -186,8 +186,8 @@ describe("the roster's agent menu", () => {
                 />,
             ),
         )
-        expect(lastMenu().canArchive).toBe(false)
-        // Restore replaces Archive agent in the menu.
+        // The menu hides Rename and Archive agent for an archived agent; Restore replaces them.
+        expect(lastMenu().archived).toBe(true)
         expect(lastMenu().onRestore).toBeTypeOf("function")
     })
 })
