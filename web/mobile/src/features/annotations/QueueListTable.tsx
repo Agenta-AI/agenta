@@ -46,7 +46,6 @@ const NARROW_MIN_WIDTH = 340
 export const QueueListTable = ({
     rows,
     base,
-    isLoading,
     canDelete,
     onDelete,
     empty,
@@ -54,7 +53,6 @@ export const QueueListTable = ({
     rows: SimpleQueueTableRow[]
     /** `/w/:workspace/p/:project` */
     base: string
-    isLoading: boolean
     canDelete: boolean
     onDelete: (queue: QueueToDelete) => void
     empty?: ReactNode
@@ -70,7 +68,6 @@ export const QueueListTable = ({
             columns={narrow ? NARROW_COLUMNS : WIDE_COLUMNS}
             minWidth={narrow ? NARROW_MIN_WIDTH : WIDE_MIN_WIDTH}
             stickyHeader
-            loading={isLoading}
             groups={[{key: "all", label: null, rows}]}
             rowKey={(row) => row.id}
             onOpenRow={open}

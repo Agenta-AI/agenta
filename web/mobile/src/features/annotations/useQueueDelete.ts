@@ -49,5 +49,5 @@ export const useQueueDelete = () => {
         }
     }, [deleteQueue, target])
 
-    return {target, isOpen: target !== null, requestDelete, confirm, cancel, isDeleting, error}
+    return {target, requestDelete, confirm, cancel, isDeleting, error}
 }

@@ -1,6 +1,8 @@
-import {useEffect, useState} from "react"
+import {useState} from "react"
 
 import {SkeletonBlock} from "@agenta/ui/ui"
+
+import {useIntersectionObserver} from "./useIntersectionObserver"
 
 /**
  * The end of the list. It asks for the next page each time it comes near the viewport, as long
@@ -17,19 +19,10 @@ export const QueueLoadMore = ({
 }) => {
     const [node, setNode] = useState<HTMLDivElement | null>(null)
 
-    useEffect(() => {
-        if (!node || !hasMore || isLoadingMore || typeof IntersectionObserver === "undefined") {
-            return
-        }
-        const observer = new IntersectionObserver(
-            (entries) => {
-                if (entries.some((entry) => entry.isIntersecting)) onLoadMore()
-            },
-            {rootMargin: "300px"},
-        )
-        observer.observe(node)
-        return () => observer.disconnect()
-    }, [node, hasMore, isLoadingMore, onLoadMore])
+    useIntersectionObserver(node, onLoadMore, {
+        rootMargin: "300px",
+        enabled: hasMore && !isLoadingMore,
+    })
 
     if (!hasMore) return null
     return (

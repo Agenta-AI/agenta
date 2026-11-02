@@ -9,9 +9,9 @@ import {
 import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
 import {useAtomValue, useSetAtom} from "jotai"
-import {useRouter} from "next/router"
 
 import type {CreateQueueValues} from "./createQueueTypes"
+import {useQueueLink} from "./useQueueLink"
 
 const ITEM_LABEL = {traces: "traces", testcases: "test cases"} as const
 
@@ -20,7 +20,7 @@ const ITEM_LABEL = {traces: "traces", testcases: "test cases"} as const
  * selection. Every failure shows a fixed sentence; the detail goes to the console.
  */
 export const useCreateQueue = () => {
-    const router = useRouter()
+    const queueLink = useQueueLink()
     const projectId = useAtomValue(projectIdAtom)
     const selection = useAtomValue(createQueueDrawerSelectionAtom)
     const setSelection = useSetAtom(createQueueDrawerSelectionAtom)
@@ -55,8 +55,6 @@ export const useCreateQueue = () => {
             inFlight.current = true
             setIsSubmitting(true)
             const finish = () => {
-                inFlight.current = false
-                setIsSubmitting(false)
                 setSelection(null)
                 setOpen(false)
             }
@@ -77,8 +75,6 @@ export const useCreateQueue = () => {
                 }
                 const queue = await createQueue(payload)
                 if (!queue) {
-                    inFlight.current = false
-                    setIsSubmitting(false)
                     message.error("Failed to create annotation queue")
                     return
                 }
@@ -103,29 +99,29 @@ export const useCreateQueue = () => {
                 }
 
                 finish()
-                const workspaceId = router.query.workspace_id
-                const routeProjectId = router.query.project_id
-                const base =
-                    typeof workspaceId === "string" && typeof routeProjectId === "string"
-                        ? `/w/${workspaceId}/p/${routeProjectId}`
-                        : null
                 message.success({
                     content: "Annotation queue created.",
-                    // The Next router adds the /m base path; a raw location match would not.
-                    onNavigate: base
-                        ? () => void router.push(`${base}/annotations/${queue.id}`)
-                        : undefined,
-                    linkText: `View "${queue.name ?? "queue"}"`,
+                    ...queueLink(queue.id, `View "${queue.name ?? "queue"}"`),
                     duration: 5,
                 })
             } catch (cause) {
                 console.error("Creating the annotation queue failed", cause)
+                message.error("Couldn't create the queue")
+            } finally {
                 inFlight.current = false
                 setIsSubmitting(false)
-                message.error("Couldn't create the queue")
             }
         },
-        [addTestcases, addTraces, createQueue, projectId, router, selection, setOpen, setSelection],
+        [
+            addTestcases,
+            addTraces,
+            createQueue,
+            projectId,
+            queueLink,
+            selection,
+            setOpen,
+            setSelection,
+        ],
     )
 
     return {submit, close, isSubmitting, selection}

@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo} from "react"
+import {useCallback, useEffect, useMemo, useRef} from "react"
 
 import {useInfiniteTablePagination} from "@agenta/entities/shared"
 import {
@@ -21,7 +21,9 @@ export type QueueKindFilter = "traces" | "testcases" | null
  * The store keeps only default queues of kind traces or test cases.
  */
 export const useQueueList = () => {
-    const [kind, setKind] = useAtom(simpleQueueKindFilterAtom)
+    const [kindValue, setKind] = useAtom(simpleQueueKindFilterAtom)
+    const kind: QueueKindFilter =
+        kindValue === "traces" || kindValue === "testcases" ? kindValue : null
     const searchTerm = useAtomValue(simpleQueueSearchTermAtom)
     const setSearchTerm = useSetAtom(simpleQueueSearchTermAtom)
     const searchBox = useDebouncedAtomSearch(setSearchTerm, SEARCH_DELAY_MS, searchTerm)
@@ -34,10 +36,15 @@ export const useQueueList = () => {
         })
 
     // A new search or type starts again from the first page. Pages loaded under the old
-    // filter would otherwise stay in the list.
+    // filter would otherwise stay in the list. The first render needs no reset: the
+    // pagination hook already starts from the first page.
+    const filterKey = `${searchTerm}\u0000${kind}`
+    const lastFilterKey = useRef(filterKey)
     useEffect(() => {
+        if (lastFilterKey.current === filterKey) return
+        lastFilterKey.current = filterKey
         resetPages()
-    }, [searchTerm, kind, resetPages])
+    }, [filterKey, resetPages])
 
     const loaded = useMemo(() => rows.filter((row) => !row.__isSkeleton), [rows])
     const {hasMore, isFetching} = paginationInfo
@@ -59,7 +66,7 @@ export const useQueueList = () => {
         /** The term the server filters by. It trails `search` by the debounce. */
         appliedSearch: searchTerm,
         clearSearch: searchBox.reset,
-        kind: (kind === "traces" || kind === "testcases" ? kind : null) as QueueKindFilter,
-        setKind: (next: QueueKindFilter) => setKind(next),
+        kind,
+        setKind,
     }
 }

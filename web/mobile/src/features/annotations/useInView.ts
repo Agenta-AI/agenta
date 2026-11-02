@@ -1,4 +1,6 @@
-import {useEffect, useState} from "react"
+import {useState} from "react"
+
+import {useIntersectionObserver} from "./useIntersectionObserver"
 
 /**
  * True once the element has been near the viewport. It stays true afterwards, so a cell that
@@ -9,26 +11,10 @@ import {useEffect, useState} from "react"
  */
 export const useInView = <T extends Element>(rootMargin = "200px") => {
     const [node, setNode] = useState<T | null>(null)
-    const [inView, setInView] = useState(false)
+    const [seen, setSeen] = useState(false)
+    const inView = seen || typeof IntersectionObserver === "undefined"
 
-    useEffect(() => {
-        if (inView || !node) return
-        if (typeof IntersectionObserver === "undefined") {
-            setInView(true)
-            return
-        }
-        const observer = new IntersectionObserver(
-            (entries) => {
-                if (entries.some((entry) => entry.isIntersecting)) {
-                    setInView(true)
-                    observer.disconnect()
-                }
-            },
-            {rootMargin},
-        )
-        observer.observe(node)
-        return () => observer.disconnect()
-    }, [node, inView, rootMargin])
+    useIntersectionObserver(node, () => setSeen(true), {rootMargin, enabled: !inView})
 
     return {ref: setNode, inView}
 }

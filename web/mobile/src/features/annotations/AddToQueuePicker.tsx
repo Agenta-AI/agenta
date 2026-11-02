@@ -8,7 +8,9 @@ import {
 import type {AddToQueuePopoverSlotProps} from "@agenta/observability-ui/traceDrawer"
 import {Popover, PopoverAnchor, PopoverContent} from "@agenta/ui/ui"
 import {useSetAtom} from "jotai"
+import {useRouter} from "next/router"
 
+import {useProjectPermission} from "@/features/context/useProjectPermission"
 import {useDeveloperViewEnabled} from "@/features/developer/developerViewAccess"
 
 import {AddToQueuePickerPanel} from "./AddToQueuePickerPanel"
@@ -24,8 +26,14 @@ const PickerBody = ({
     const setKind = useSetAtom(createQueueDrawerDefaultKindAtom)
     const setSelection = useSetAtom(createQueueDrawerSelectionAtom)
     const setSheetOpen = useSetAtom(createQueueDrawerOpenAtom)
-    // The sheet host mounts only while the view is enabled, so "New" shows only then.
-    const createEnabled = useDeveloperViewEnabled("annotation-queues") === true
+    const projectId = useRouter().query.project_id
+    const canEdit = useProjectPermission(
+        typeof projectId === "string" ? projectId : "",
+        "edit_evaluation_queues",
+    )
+    // The sheet host mounts only while the view is enabled, so "New" shows only then. Creating
+    // a queue also needs the edit right.
+    const createEnabled = useDeveloperViewEnabled("annotation-queues") === true && canEdit
     // The sheet host is mounted once in the app shell, so it outlives this popover content.
     const openCreate = () => {
         setKind(args.itemType)

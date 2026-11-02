@@ -148,6 +148,15 @@ describe("the annotation queues screen", () => {
         expect(fixture.refetch).toHaveBeenCalled()
     })
 
+    it("A failed next page shows a retry under the rows", async () => {
+        setList({rows: [{id: "q-1"}], isError: true})
+        await render()
+        expect(host.querySelector('[data-testid="rows"]')).not.toBeNull()
+        expect(host.textContent).toContain("Could not load more annotation queues")
+        await click("Try again")
+        expect(fixture.refetch).toHaveBeenCalled()
+    })
+
     it("New Queue is hidden without edit rights", async () => {
         await render()
         expect(buttonLabels()).toContain("New Queue")

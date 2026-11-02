@@ -24,10 +24,19 @@ const fixture = vi.hoisted(() => ({
     configure: vi.fn(),
     antdLoaded: vi.fn(),
     viewEnabled: true,
+    canEdit: true,
+    permissionCalls: [] as string[][],
 }))
 
 vi.mock("@/features/developer/developerViewAccess", () => ({
     useDeveloperViewEnabled: () => fixture.viewEnabled,
+}))
+
+vi.mock("@/features/context/useProjectPermission", () => ({
+    useProjectPermission: (projectId: string, action: string) => {
+        fixture.permissionCalls.push([projectId, action])
+        return fixture.canEdit
+    },
 }))
 
 vi.mock("@agenta/entities/simpleQueue", async () => {
@@ -108,6 +117,8 @@ describe("annotation queue picker", () => {
     beforeEach(() => {
         fixture.queues = QUEUES
         fixture.viewEnabled = true
+        fixture.canEdit = true
+        fixture.permissionCalls = []
         for (const fn of [fixture.add, fixture.success, fixture.error, fixture.push]) fn.mockClear()
         fixture.configure.mockClear()
         fixture.antdLoaded.mockClear()
@@ -200,6 +211,16 @@ describe("annotation queue picker", () => {
             (button) => button.textContent?.trim() === "New",
         )
         expect(newButton).toBeUndefined()
+    })
+
+    it("New is hidden without edit rights", async () => {
+        fixture.canEdit = false
+        await mount({itemType: "testcases", itemIds: ["c-1"]})
+        const newButton = Array.from(document.querySelectorAll("button")).find(
+            (button) => button.textContent?.trim() === "New",
+        )
+        expect(newButton).toBeUndefined()
+        expect(fixture.permissionCalls).toContainEqual(["p-1", "edit_evaluation_queues"])
     })
 
     it("Picker mode hands the queue to the caller and adds nothing", async () => {

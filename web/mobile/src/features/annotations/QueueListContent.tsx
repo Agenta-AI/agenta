@@ -5,6 +5,7 @@ import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@ag
 import {QueueListTable} from "./QueueListTable"
 import {QueueLoadMore} from "./QueueLoadMore"
 import {QueueListLoadError} from "./states/QueueListLoadError"
+import {QueueListLoadMoreError} from "./states/QueueListLoadMoreError"
 import {QueueListSkeleton} from "./states/QueueListSkeleton"
 import {QueuesFirstRun} from "./states/QueuesFirstRun"
 import {QueuesNoMatch} from "./states/QueuesNoMatch"
@@ -88,16 +89,19 @@ export const QueueListContent = (props: QueueListContentProps) => {
                     <QueueListTable
                         rows={props.rows}
                         base={props.base}
-                        isLoading={false}
                         canDelete={props.canEdit}
                         onDelete={props.onDelete}
                         empty={empty}
                     />
-                    <QueueLoadMore
-                        hasMore={props.hasMore}
-                        isLoadingMore={props.isLoadingMore}
-                        onLoadMore={props.onLoadMore}
-                    />
+                    {props.isError ? (
+                        <QueueListLoadMoreError onRetry={props.onRetry} />
+                    ) : (
+                        <QueueLoadMore
+                            hasMore={props.hasMore}
+                            isLoadingMore={props.isLoadingMore}
+                            onLoadMore={props.onLoadMore}
+                        />
+                    )}
                 </>
             )}
         </>

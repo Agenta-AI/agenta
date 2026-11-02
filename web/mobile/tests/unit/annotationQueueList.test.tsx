@@ -236,7 +236,7 @@ describe("annotation queue delete", () => {
 
         await act(async () => release({data: {count: 1, queue_id: "q-1"}}))
         expect(http.success).toHaveBeenCalledWith("Deleted successfully")
-        expect(latest.isOpen).toBe(false)
+        expect(latest.target).toBeNull()
     })
 
     it("A failed delete shows Couldn't delete this queue without the API text", async () => {

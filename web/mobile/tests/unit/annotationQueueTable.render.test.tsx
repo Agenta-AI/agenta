@@ -104,7 +104,6 @@ const mount = async (
                 <QueueListTable
                     rows={rows}
                     base="/w/ws/p/proj"
-                    isLoading={false}
                     canDelete={canDelete}
                     onDelete={vi.fn()}
                 />
