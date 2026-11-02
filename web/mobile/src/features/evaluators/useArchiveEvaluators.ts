@@ -1,20 +1,25 @@
 import {useCallback, useRef, useState} from "react"
 
 import {findEvaluationRunsUsing} from "@agenta/entities/evaluationRun"
-import {archiveWorkflow, invalidateEvaluatorsListCache} from "@agenta/entities/workflow"
-import type {EvaluatorCategory} from "@agenta/entities/workflow"
+import {
+    archiveWorkflow,
+    invalidateEvaluatorsListCache,
+    isHumanEvaluator,
+    type EvaluatorEntry,
+} from "@agenta/entities/workflow"
 import {message} from "@agenta/ui/app-message"
 import {useQueryClient} from "@tanstack/react-query"
 
 export type ArchiveOutcome =
     | {status: "archived"}
-    /** Evaluation runs still use the evaluator. Nothing was archived. */
+    /** Evaluation runs still use an evaluator. Nothing was archived. */
     | {status: "in-use"; runCount: number}
     | {status: "failed"}
 
 /**
  * Archive evaluators, with the toasts. An automatic evaluator that an evaluation run uses is not
- * archived. A second call while one runs does nothing and reports `failed` without a toast.
+ * archived. Whether an evaluator is automatic comes from the evaluator itself, never from the tab
+ * the reader is on. A second call while one runs does nothing and reports `failed` without a toast.
  */
 export const useArchiveEvaluators = (projectId: string) => {
     const queryClient = useQueryClient()
@@ -23,39 +28,45 @@ export const useArchiveEvaluators = (projectId: string) => {
 
     const archive = useCallback(
         async (
-            workflowIds: readonly string[],
-            category: EvaluatorCategory,
+            entries: readonly EvaluatorEntry[],
+            {checkInUse}: {checkInUse: boolean},
         ): Promise<ArchiveOutcome> => {
-            if (inFlight.current || workflowIds.length === 0) return {status: "failed"}
+            if (inFlight.current || entries.length === 0) return {status: "failed"}
             inFlight.current = true
             setArchiving(true)
             try {
-                if (category === "automatic") {
+                const automaticIds = entries
+                    .filter((entry) => !isHumanEvaluator(entry.latestRevision))
+                    .map((entry) => entry.workflow.id)
+                if (checkInUse && automaticIds.length > 0) {
                     const runIds = await findEvaluationRunsUsing({
                         projectId,
-                        references: workflowIds.map((id) => ({evaluator: {id}})),
+                        references: automaticIds.map((id) => ({evaluator: {id}})),
                     })
                     if (runIds.length > 0) return {status: "in-use", runCount: runIds.length}
                 }
-                await Promise.all(workflowIds.map((id) => archiveWorkflow(projectId, id)))
+                // Wait for every request, so the refresh below sees all of them.
+                const results = await Promise.allSettled(
+                    entries.map((entry) => archiveWorkflow(projectId, entry.workflow.id)),
+                )
+                invalidateEvaluatorsListCache()
+                await queryClient.invalidateQueries({queryKey: ["workflows"]})
+                const failed = results.find((result) => result.status === "rejected")
+                if (failed) throw failed.reason
             } catch (error) {
                 // The server's text is for the logs. The reader gets one plain sentence.
                 console.error("Archiving evaluators failed", error)
                 message.error("Failed to archive evaluators")
-                // Some may have been archived before one failed: show the list as it is now.
-                void queryClient.invalidateQueries({queryKey: ["workflows"]})
                 return {status: "failed"}
             } finally {
                 inFlight.current = false
                 setArchiving(false)
             }
             message.success(
-                workflowIds.length === 1
+                entries.length === 1
                     ? "Evaluator archived"
-                    : `${workflowIds.length} evaluators archived`,
+                    : `${entries.length} evaluators archived`,
             )
-            invalidateEvaluatorsListCache()
-            await queryClient.invalidateQueries({queryKey: ["workflows"]})
             return {status: "archived"}
         },
         [projectId, queryClient],

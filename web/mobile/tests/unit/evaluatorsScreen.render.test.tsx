@@ -10,7 +10,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 const noop = vi.hoisted(() => () => undefined)
 const state = vi.hoisted(() => ({
     query: {} as Record<string, string>,
-    canEdit: true,
+    perms: {} as Record<string, boolean>,
     replace: vi.fn(),
 }))
 const api = vi.hoisted(() => ({
@@ -76,7 +76,11 @@ vi.mock("@/features/nav/AppShell", () => ({
 vi.mock("@/features/nav/NavDrawer", () => ({NavDrawer: () => null}))
 vi.mock("@/features/context/useBindProjectContext", () => ({useBindProjectContext: noop}))
 vi.mock("@/features/context/useProjectPermission", () => ({
-    useProjectPermission: () => state.canEdit,
+    useProjectPermission: (_project: string, action: string) => state.perms[action] ?? true,
+    useProjectPermissionState: (_project: string, action: string) => ({
+        allowed: state.perms[action] ?? true,
+        pending: false,
+    }),
 }))
 vi.mock("@/components/PageTitle", () => ({PageTitle: () => null}))
 
@@ -130,7 +134,7 @@ beforeEach(() => {
     root = createRoot(host)
     window.localStorage.clear()
     state.query = {}
-    state.canEdit = true
+    state.perms = {}
     state.replace.mockReset()
     Object.values(api).forEach((mock) => mock.mockReset())
     server = makeEvaluatorServer()
@@ -207,7 +211,7 @@ describe("EvaluatorsScreen", () => {
     })
 
     it("Archive is hidden without edit_evaluators", async () => {
-        state.canEdit = false
+        state.perms.edit_evaluators = false
         await mount()
         expect(checkboxes()).toHaveLength(0)
         expect(document.querySelector('[aria-label="Evaluator actions"]')).not.toBeNull()
@@ -289,6 +293,29 @@ describe("EvaluatorsScreen", () => {
         expect(document.body.textContent).toContain("Evaluator in use")
         expect(document.body.textContent).toContain("currently in use by 1 evaluation.")
         expect(api.archiveWorkflow).not.toHaveBeenCalled()
+    })
+
+    it("A viewer without view_evaluation_runs archives without the in-use check", async () => {
+        state.perms.view_evaluation_runs = false
+        await mount()
+        await act(async () => checkboxes()[0]?.click())
+        await act(async () => button(/^Archive$/)?.click())
+        const confirm = [
+            ...document.querySelectorAll<HTMLElement>('[role="alertdialog"] button'),
+        ].find((b) => b.textContent === "Archive")
+        await act(async () => confirm?.click())
+        await flush()
+        expect(api.findRuns).not.toHaveBeenCalled()
+        expect(api.archiveWorkflow).toHaveBeenCalledWith("pr", "w1")
+    })
+
+    it("Without view_evaluators nothing is requested and the load error shows", async () => {
+        state.perms.view_evaluators = false
+        state.query = {revisionId: "w1-r2"}
+        await mount()
+        expect(text()).toContain("Could not load evaluators")
+        expect(api.queryWorkflows).not.toHaveBeenCalled()
+        expect(document.querySelector('[data-testid="drawer"]')).toBeNull()
     })
 
     it("A failed load shows a retry", async () => {

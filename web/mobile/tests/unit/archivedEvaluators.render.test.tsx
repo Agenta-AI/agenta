@@ -10,7 +10,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 const noop = vi.hoisted(() => () => undefined)
 const state = vi.hoisted(() => ({
     query: {} as Record<string, string>,
-    canEdit: true,
+    perms: {} as Record<string, boolean>,
     replace: vi.fn(),
 }))
 const api = vi.hoisted(() => ({
@@ -64,7 +64,11 @@ vi.mock("@/features/nav/AppShell", () => ({
 vi.mock("@/features/nav/NavDrawer", () => ({NavDrawer: () => null}))
 vi.mock("@/features/context/useBindProjectContext", () => ({useBindProjectContext: noop}))
 vi.mock("@/features/context/useProjectPermission", () => ({
-    useProjectPermission: () => state.canEdit,
+    useProjectPermission: (_project: string, action: string) => state.perms[action] ?? true,
+    useProjectPermissionState: (_project: string, action: string) => ({
+        allowed: state.perms[action] ?? true,
+        pending: false,
+    }),
 }))
 vi.mock("@/components/PageTitle", () => ({PageTitle: () => null}))
 
@@ -124,7 +128,7 @@ beforeEach(() => {
     root = createRoot(host)
     window.localStorage.clear()
     state.query = {}
-    state.canEdit = true
+    state.perms = {}
     state.replace.mockReset()
     Object.values(api).forEach((mock) => mock.mockReset())
     server = makeArchivedServer()
@@ -236,7 +240,7 @@ describe("ArchivedEvaluatorsScreen", () => {
     })
 
     it("Restore is hidden without edit_evaluators", async () => {
-        state.canEdit = false
+        state.perms.edit_evaluators = false
         await mount()
         await openKebab()
         expect(menuItem("Open details")).toBeDefined()
@@ -252,6 +256,13 @@ describe("ArchivedEvaluatorsScreen", () => {
             undefined,
             {shallow: true},
         )
+    })
+
+    it("Without view_evaluators nothing is requested and the load error shows", async () => {
+        state.perms.view_evaluators = false
+        await mount()
+        expect(text()).toContain("Could not load archived evaluators")
+        expect(api.queryWorkflows).not.toHaveBeenCalled()
     })
 
     it("A failed load shows a retry", async () => {

@@ -12,7 +12,7 @@ import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
-import {useProjectPermission} from "../context/useProjectPermission"
+import {useProjectPermission, useProjectPermissionState} from "../context/useProjectPermission"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 import {useRevisionParam} from "../revisions/useRevisionParam"
@@ -45,7 +45,15 @@ export const ArchivedEvaluatorsScreen = ({
     const trimmed = term.trim()
     const canRestore = useProjectPermission(projectId, "edit_evaluators")
 
-    const archived = useArchivedEvaluators({projectId, category, search: trimmed})
+    // The workflow endpoints check `view_workflows`, so this page asks for `view_evaluators` itself.
+    const view = useProjectPermissionState(projectId, "view_evaluators")
+    const archived = useArchivedEvaluators({
+        projectId,
+        category,
+        search: trimmed,
+        enabled: view.allowed,
+    })
+    const denied = !view.pending && !view.allowed
     const rows = useMemo(() => archived.entries.map(toArchivedRow), [archived.entries])
     const [, setRevisionId] = useRevisionParam()
     const {restore, restoring} = useRestoreEvaluator()
@@ -83,7 +91,7 @@ export const ArchivedEvaluatorsScreen = ({
                             <EvaluatorCategoryTabs category={category} onChange={setCategory} />
                         </div>
                         <ListTableToolbar search={search.value} onSearchChange={search.onChange} />
-                        {archived.isError ? (
+                        {denied || archived.isError ? (
                             // A failed fetch must not read as "No archived evaluators".
                             <LoadError
                                 framed
@@ -94,7 +102,7 @@ export const ArchivedEvaluatorsScreen = ({
                             <ArchivedEvaluatorsTable
                                 rows={rows}
                                 category={category}
-                                isLoading={archived.isPending}
+                                isLoading={view.pending || archived.isPending}
                                 restoring={restoring}
                                 empty={
                                     <EvaluatorsEmpty
@@ -111,7 +119,7 @@ export const ArchivedEvaluatorsScreen = ({
                     </div>
                 </ScreenScaffold>
             </AppShell>
-            <EvaluatorsDrawer navigationIds={navigationIds} />
+            {view.allowed ? <EvaluatorsDrawer navigationIds={navigationIds} /> : null}
         </>
     )
 }

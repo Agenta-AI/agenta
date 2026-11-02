@@ -12,7 +12,7 @@ import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
-import {useProjectPermission} from "../context/useProjectPermission"
+import {useProjectPermission, useProjectPermissionState} from "../context/useProjectPermission"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 import {useRevisionParam} from "../revisions/useRevisionParam"
@@ -50,7 +50,18 @@ export const EvaluatorsScreen = ({
     const trimmed = term.trim()
     const canEdit = useProjectPermission(projectId, "edit_evaluators")
 
-    const evaluators = useEvaluators({projectId, category, search: trimmed})
+    // The workflow endpoints check `view_workflows`, so this page asks for `view_evaluators` itself.
+    const view = useProjectPermissionState(projectId, "view_evaluators")
+    // Reading evaluation runs, for the in-use check, is a separate permission. A viewer without it
+    // cannot see which runs use an evaluator, and the check would only answer 403.
+    const runs = useProjectPermissionState(projectId, "view_evaluation_runs")
+
+    const evaluators = useEvaluators({
+        projectId,
+        category,
+        search: trimmed,
+        enabled: view.allowed,
+    })
     const workflowIds = useMemo(
         () => evaluators.entries.map((entry) => entry.workflow.id),
         [evaluators.entries],
@@ -76,15 +87,17 @@ export const EvaluatorsScreen = ({
         () => workflowIds.filter((id) => selected.has(id)),
         [workflowIds, selected],
     )
+    const archiveEntries = useMemo(
+        () => evaluators.entries.filter((entry) => archiveIds.includes(entry.workflow.id)),
+        [evaluators.entries, archiveIds],
+    )
     const targets = useMemo<ArchiveTarget[]>(
         () =>
-            evaluators.entries
-                .filter((entry) => archiveIds.includes(entry.workflow.id))
-                .map((entry) => ({
-                    name: evaluatorLabel(entry),
-                    version: entry.latestRevision.version ?? null,
-                })),
-        [evaluators.entries, archiveIds],
+            archiveEntries.map((entry) => ({
+                name: evaluatorLabel(entry),
+                version: entry.latestRevision.version ?? null,
+            })),
+        [archiveEntries],
     )
 
     const toggle = useCallback(
@@ -101,7 +114,7 @@ export const EvaluatorsScreen = ({
         setInUseRunCount(null)
     }, [])
     const confirmArchive = useCallback(async () => {
-        const outcome = await archive(archiveIds, category)
+        const outcome = await archive(archiveEntries, {checkInUse: runs.allowed || runs.pending})
         if (outcome.status === "in-use") {
             setInUseRunCount(outcome.runCount)
             return
@@ -109,7 +122,7 @@ export const EvaluatorsScreen = ({
         if (outcome.status === "failed") return
         setSelected(new Set())
         closeDialog()
-    }, [archive, archiveIds, category, closeDialog])
+    }, [archive, archiveEntries, runs.allowed, runs.pending, closeDialog])
     const changeCategory = useCallback(
         (next: typeof category) => {
             setSelected(new Set())
@@ -118,8 +131,10 @@ export const EvaluatorsScreen = ({
         [setCategory],
     )
 
-    const isError = evaluators.isError || revisions.isError
-    const isLoading = evaluators.isPending || (workflowIds.length > 0 && revisions.isPending)
+    const denied = !view.pending && !view.allowed
+    const isError = denied || evaluators.isError || revisions.isError
+    const isLoading =
+        view.pending || evaluators.isPending || (workflowIds.length > 0 && revisions.isPending)
     const retry = () => {
         void evaluators.refetch()
         void revisions.refetch()
@@ -222,7 +237,7 @@ export const EvaluatorsScreen = ({
                 onConfirm={() => void confirmArchive()}
                 onClose={closeDialog}
             />
-            <EvaluatorsDrawer navigationIds={navigationIds} />
+            {view.allowed ? <EvaluatorsDrawer navigationIds={navigationIds} /> : null}
         </>
     )
 }

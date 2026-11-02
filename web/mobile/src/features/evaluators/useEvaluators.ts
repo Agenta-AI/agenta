@@ -6,7 +6,7 @@ import {
     type EvaluatorEntry,
     type EvaluatorListMode,
 } from "@agenta/entities/workflow"
-import {keepPreviousData, useQuery} from "@tanstack/react-query"
+import {useQuery} from "@tanstack/react-query"
 
 /** Under `workflows`, so an archive or a restore refreshes the lists. */
 export const EVALUATORS_QUERY_KEY = (
@@ -50,18 +50,25 @@ export const useEvaluatorEntries = ({
     projectId,
     category,
     search,
+    enabled = true,
 }: {
     mode: EvaluatorListMode
     projectId: string
     category: EvaluatorCategory
     search: string
+    /** False while the reader may not see evaluators: nothing is requested. */
+    enabled?: boolean
 }) => {
     const query = useQuery({
         queryKey: EVALUATORS_QUERY_KEY(mode, projectId, category, search),
         queryFn: () => fetchEvaluatorEntries(projectId, category, search, mode),
-        enabled: Boolean(projectId),
-        // Keep the last rows on screen while a new search loads, so typing does not blank the list.
-        placeholderData: keepPreviousData,
+        enabled: Boolean(projectId) && enabled,
+        // Keep the last rows on screen while a new search loads, so typing does not blank the
+        // list. Never across tabs: another tab's rows would sit there with Archive on them.
+        placeholderData: (previous, previousQuery) =>
+            previousQuery?.queryKey[4] === projectId && previousQuery.queryKey[5] === category
+                ? previous
+                : undefined,
         staleTime: 30_000,
     })
 
@@ -78,4 +85,5 @@ export const useEvaluators = (args: {
     projectId: string
     category: EvaluatorCategory
     search: string
+    enabled?: boolean
 }) => useEvaluatorEntries({...args, mode: "active"})

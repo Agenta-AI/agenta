@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import {act, createElement} from "react"
 
+import type {EvaluatorEntry} from "@agenta/entities/workflow"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -47,22 +48,31 @@ const flush = async () => {
     })
 }
 
-const ARGS = (search: string) => ({projectId: "p1", category: "automatic" as const, search})
+interface ProbeProps {
+    search?: string
+    archived?: boolean
+    category?: "automatic" | "human"
+}
+const ARGS = ({search = "", category = "automatic"}: ProbeProps) => ({
+    projectId: "p1",
+    category,
+    search,
+})
 
-const Active = ({search}: {search: string}) => {
-    names = useEvaluators(ARGS(search)).entries.map((entry) => entry.workflow.name ?? "")
+const Active = (props: ProbeProps) => {
+    names = useEvaluators(ARGS(props)).entries.map((entry) => entry.workflow.name ?? "")
     return null
 }
-const Archived = ({search}: {search: string}) => {
-    names = useArchivedEvaluators(ARGS(search)).entries.map((entry) => entry.workflow.name ?? "")
+const Archived = (props: ProbeProps) => {
+    names = useArchivedEvaluators(ARGS(props)).entries.map((entry) => entry.workflow.name ?? "")
     return null
 }
-const Probe = ({search = "", archived = false}: {search?: string; archived?: boolean}) => {
+const Probe = (props: ProbeProps) => {
     archive = useArchiveEvaluators("p1").archive
-    return archived ? createElement(Archived, {search}) : createElement(Active, {search})
+    return props.archived ? createElement(Archived, props) : createElement(Active, props)
 }
 
-const mount = async (props?: {search?: string; archived?: boolean}) => {
+const mount = async (props?: ProbeProps) => {
     await act(async () => {
         root.render(createElement(QueryClientProvider, {client}, createElement(Probe, props)))
     })
@@ -105,6 +115,23 @@ describe("evaluator lists", () => {
         expect(names).toEqual(["Exact match check", "Length check"])
     })
 
+    it("Another tab's rows are not kept while the new tab loads", async () => {
+        await mount()
+        expect(names).toEqual(["Exact match check", "Length check"])
+        api.queryWorkflows.mockImplementation(() => new Promise(noop))
+        await act(async () => {
+            root.render(
+                createElement(
+                    QueryClientProvider,
+                    {client},
+                    createElement(Probe, {category: "human"}),
+                ),
+            )
+        })
+        await flush()
+        expect(names).toEqual([])
+    })
+
     it("Archived evaluators ask the server to include archived workflows", async () => {
         await mount({archived: true})
         expect(api.queryWorkflows).toHaveBeenCalledWith(
@@ -114,11 +141,17 @@ describe("evaluator lists", () => {
 })
 
 describe("archiving evaluators", () => {
-    const run = async (ids: string[], category: "automatic" | "human" = "automatic") => {
+    const entry = (id: string) => {
+        const server = makeEvaluatorServer()
+        const workflow = server.workflows.find((item) => item.id === id)
+        const latestRevision = latestByWorkflow(server.revisions).get(id)
+        return {workflow, latestRevision} as unknown as EvaluatorEntry
+    }
+    const run = async (ids: string[], options = {checkInUse: true}) => {
         await mount()
         let outcome: ArchiveOutcome | undefined
         await act(async () => {
-            outcome = await archive(ids, category)
+            outcome = await archive(ids.map(entry), options)
         })
         return outcome
     }
@@ -147,9 +180,24 @@ describe("archiving evaluators", () => {
     })
 
     it("A human evaluator skips the in-use check", async () => {
-        await run(["w3"], "human")
+        await run(["w3"])
         expect(api.findRuns).not.toHaveBeenCalled()
         expect(api.archiveWorkflow).toHaveBeenCalledWith("p1", "w3")
+    })
+
+    it("A mixed selection checks only the automatic evaluators", async () => {
+        await run(["w1", "w3"])
+        expect(api.findRuns).toHaveBeenCalledWith({
+            projectId: "p1",
+            references: [{evaluator: {id: "w1"}}],
+        })
+        expect(api.archiveWorkflow).toHaveBeenCalledTimes(2)
+    })
+
+    it("Without the check the evaluators are archived without asking for runs", async () => {
+        await run(["w1"], {checkInUse: false})
+        expect(api.findRuns).not.toHaveBeenCalled()
+        expect(api.archiveWorkflow).toHaveBeenCalledWith("p1", "w1")
     })
 
     it("A failed archive shows Failed to archive evaluators", async () => {
@@ -159,6 +207,31 @@ describe("archiving evaluators", () => {
         expect(api.error).toHaveBeenCalledWith("Failed to archive evaluators")
         expect(JSON.stringify(api.error.mock.calls)).not.toContain("raw api text")
         expect(api.success).not.toHaveBeenCalled()
+        log.mockRestore()
+    })
+
+    it("The list refreshes only after every archive request has finished", async () => {
+        const log = vi.spyOn(console, "error").mockImplementation(noop)
+        let finishSecond: () => void = noop
+        api.archiveWorkflow.mockImplementation((_project: string, id: string) =>
+            id === "w1"
+                ? Promise.reject(new Error("boom"))
+                : new Promise<void>((resolve) => (finishSecond = resolve)),
+        )
+        await mount()
+        let outcome: ArchiveOutcome | undefined
+        let settled = false
+        const pending = act(async () => {
+            outcome = await archive([entry("w1"), entry("w2")], {checkInUse: false})
+            settled = true
+        })
+        await flush()
+        expect(settled).toBe(false)
+        expect(api.invalidate).not.toHaveBeenCalled()
+        finishSecond()
+        await pending
+        expect(outcome).toEqual({status: "failed"})
+        expect(api.invalidate).toHaveBeenCalled()
         log.mockRestore()
     })
 })

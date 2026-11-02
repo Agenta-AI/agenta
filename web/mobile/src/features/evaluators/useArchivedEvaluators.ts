@@ -7,4 +7,5 @@ export const useArchivedEvaluators = (args: {
     projectId: string
     category: EvaluatorCategory
     search: string
+    enabled?: boolean
 }) => useEvaluatorEntries({...args, mode: "archived"})
