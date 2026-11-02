@@ -43,5 +43,15 @@ export const useObservabilityAppScope = (routeAppId: string | null, enabled: boo
         if (store.get(observabilityAppIdAtom) !== appId) store.set(observabilityAppIdAtom, appId)
     }
 
+    // Leaving the screen puts the scope back to project wide.
     useEffect(() => () => store.set(observabilityAppIdAtom, null), [store])
+
+    // Sets the scope again after mount: React StrictMode runs every cleanup, then every setup, so
+    // the cleanup above alone would leave the queries project wide under a picker that names an
+    // app. It is its own effect, without a cleanup, so an app change never passes through null.
+    useEffect(() => {
+        if (!enabled) return
+        store.set(bindObservabilityScopeAtom, mobileObservabilityScopeAtom)
+        store.set(observabilityAppIdAtom, appId)
+    }, [store, enabled, appId])
 }

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import {act} from "react"
+import {act, StrictMode} from "react"
 
 import {
     observabilityScopeAtom,
@@ -103,6 +103,17 @@ describe("useObservabilityAppScope", () => {
 
         render(<Screen routeAppId="app-1" enabled seen={seen} />)
         expect(store.get(userFiltersAtomFamily("traces"))).toEqual([filter])
+    })
+
+    it("The scope survives the StrictMode effect replay", () => {
+        const seen: ObservabilityScope[] = []
+        render(
+            <StrictMode>
+                <Screen routeAppId="app-1" enabled seen={seen} />
+            </StrictMode>,
+        )
+
+        expect(store.get(observabilityScopeAtom)).toEqual({appId: "app-1", routeAppId: "app-1"})
     })
 
     it("Leaving the screen resets the scope", () => {
