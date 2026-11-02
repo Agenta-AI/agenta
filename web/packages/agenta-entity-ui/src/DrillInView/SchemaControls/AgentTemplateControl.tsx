@@ -118,6 +118,7 @@ import {useConfigItemDrawer} from "./agentTemplate/useConfigItemDrawer"
 import {useModelHarness} from "./agentTemplate/useModelHarness"
 import {ConfigItemDrawer} from "./ConfigItemDrawer"
 import {connectionFromConfig, modelIdFromConfig} from "./connectionUtils"
+import {SkillFormSkeleton} from "./DrawerSkeletons"
 import {InstructionsDrawer} from "./InstructionsDrawer"
 import {JsonObjectEditor} from "./JsonObjectEditor"
 import {SectionDrawer} from "./SectionDrawer"
@@ -1439,6 +1440,9 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                               saving={committing}
                               width={def.drawerWidth?.(draft)}
                               contentFlush={Boolean(def.formFlush?.(draft))}
+                              loadingBody={
+                                  shownEditing.kind === "skill" ? <SkillFormSkeleton /> : undefined
+                              }
                               onCancel={closeEditor}
                               onSave={commitDraft}
                               saveDisabled={

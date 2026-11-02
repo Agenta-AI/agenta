@@ -14,7 +14,6 @@ export const IntegrationsTab = ({workspaceId, projectId}: SettingsTabProps) => {
     const {projectSwitch, projectName, projectCount} = useSettingsProjectGroup(
         workspaceId,
         projectId,
-        "tools",
     )
     const canEdit = useProjectPermission(projectId, "edit_tools")
     return (

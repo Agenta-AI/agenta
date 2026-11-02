@@ -56,7 +56,6 @@ export const ProjectsTab = ({workspaceId, projectId}: SettingsTabProps) => {
                 switchSettingsContext(router, {
                     workspaceId: project.organization_id ?? project.workspace_id ?? workspaceId,
                     projectId: project.project_id,
-                    tab: "projects",
                 })
             }
             renderCreateDialog={({open, onClose, onSubmit, pending}) => (

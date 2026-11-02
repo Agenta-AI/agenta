@@ -53,11 +53,24 @@ const SKILL_WITH_FILES = {
     ],
 }
 
-function Frame({value, disabled}: {value: Record<string, unknown>; disabled?: boolean}) {
+function Frame({
+    value,
+    disabled,
+    downloadable,
+}: {
+    value: Record<string, unknown>
+    disabled?: boolean
+    downloadable?: boolean
+}) {
     const [current, setCurrent] = useState(value)
     return (
         <div className="h-[560px] w-[860px] overflow-hidden rounded-lg border border-solid border-colorBorderSecondary p-3">
-            <SkillFormView value={current} onChange={setCurrent} disabled={disabled} />
+            <SkillFormView
+                value={current}
+                onChange={setCurrent}
+                disabled={disabled}
+                downloadable={downloadable}
+            />
         </div>
     )
 }
@@ -78,4 +91,16 @@ export const WithFiles: Story = {
 export const Disabled: Story = {
     args: {value: SKILL_WITH_FILES, onChange: noop, disabled: true},
     render: () => <Frame value={SKILL_WITH_FILES} disabled />,
+}
+
+/** Saved skill: the rail header offers a download, as `<name>.zip` here since it bundles files. */
+export const Downloadable: Story = {
+    args: {value: SKILL_WITH_FILES, onChange: noop, downloadable: true},
+    render: () => <Frame value={SKILL_WITH_FILES} downloadable />,
+}
+
+/** Read-only and downloadable: an archived or built-in skill can still be taken out. */
+export const DownloadableReadOnly: Story = {
+    args: {value: SKILL, onChange: noop, disabled: true, downloadable: true},
+    render: () => <Frame value={SKILL} disabled downloadable />,
 }

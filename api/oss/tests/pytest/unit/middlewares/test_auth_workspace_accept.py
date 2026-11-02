@@ -1,9 +1,9 @@
-"""Bearer and API-key authentication accept organization ids and legacy workspace ids.
+"""Bearer and API-key authentication take the organization id where a workspace id was.
 
-Workspace removal step 1: `?workspace_id=` may carry the organization id or any workspace
-of the project's organization; a project without a workspace answers its organization id;
-the workspace-only branch checks project membership through the resolver; the auth context
-keeps today's answers for every existing project.
+Workspace removal step 2b: `?workspace_id=` must carry the project's organization id; a
+legacy workspace id is an unknown id (refused); the workspace-only branch checks project
+membership through the resolver; the no-parameter branch starts from the user's oldest
+organization membership. No branch reads a workspace.
 """
 
 from types import SimpleNamespace
@@ -80,12 +80,10 @@ def world(monkeypatch):
     user = uuid4()
     organization_id = uuid4()
     other_organization_id = uuid4()
-    workspace_a, workspace_b, foreign_workspace = uuid4(), uuid4(), uuid4()
+    legacy_workspace = uuid4()
     dao = InMemoryMembershipsDAO()
     project = dao.add_project(
-        make_summary(
-            organization_id=organization_id, workspace_id=workspace_a, is_default=True
-        )
+        make_summary(organization_id=organization_id, is_default=True)
     )
     no_workspace = dao.add_project(make_summary(organization_id=organization_id))
     service = MembershipsService(
@@ -99,47 +97,22 @@ def world(monkeypatch):
     projects = {
         str(project.project_id): SimpleNamespace(
             id=project.project_id,
-            workspace_id=workspace_a,
             organization_id=organization_id,
             organization=SimpleNamespace(name="Organization"),
         ),
         str(no_workspace.project_id): SimpleNamespace(
             id=no_workspace.project_id,
-            workspace_id=None,
             organization_id=organization_id,
             organization=SimpleNamespace(name="Organization"),
         ),
     }
-    workspaces = {
-        str(workspace_a): SimpleNamespace(
-            id=workspace_a, organization_id=organization_id
-        ),
-        str(workspace_b): SimpleNamespace(
-            id=workspace_b, organization_id=organization_id
-        ),
-        str(foreign_workspace): SimpleNamespace(
-            id=foreign_workspace, organization_id=other_organization_id
-        ),
-    }
     defaults = {
-        str(workspace_a): db_manager_module.DefaultProjectRef(
-            project_id=project.project_id,
-            project_organization_id=organization_id,
-            project_workspace_id=workspace_a,
-            ref_workspace_id=workspace_a,
-            ref_organization_id=organization_id,
-        ),
         str(organization_id): db_manager_module.DefaultProjectRef(
             project_id=project.project_id,
             project_organization_id=organization_id,
-            project_workspace_id=workspace_a,
-            ref_workspace_id=None,
-            ref_organization_id=organization_id,
         ),
     }
-    state = SimpleNamespace(
-        default_workspace=str(workspace_a), oldest_organization=None
-    )
+    state = SimpleNamespace(oldest_organization=str(organization_id))
 
     async def _get_session(request):
         return SimpleNamespace(get_user_id=lambda: "supertokens-user")
@@ -148,32 +121,9 @@ def world(monkeypatch):
         reads.append("get_project_by_id")
         return projects.get(str(project_id))
 
-    async def _fetch_project_with_workspace_organization(*, project_id):
-        # Step 2: the project + workspace branch reads the project with its workspace's
-        # organization in one statement.
-        reads.append("get_project_by_id")
-        project = projects.get(str(project_id))
-        if project is None:
-            return None
-        workspace = workspaces.get(str(project.workspace_id))
-        return db_manager_module.ProjectWithWorkspaceOrganization(
-            project=project,
-            workspace_organization_id=workspace.organization_id if workspace else None,
-        )
-
-    async def _get_workspace(workspace_id):
-        reads.append("get_workspace")
-        return workspaces.get(str(workspace_id))
-
-    async def _fetch_default_project(*, workspace_or_organization_id):
+    async def _fetch_default_project(*, organization_id):
         reads.append("fetch_default_project")
-        return defaults.get(str(workspace_or_organization_id))
-
-    async def _get_default_workspace_id(user_id):
-        reads.append("get_default_workspace_id")
-        if state.default_workspace is None:
-            raise auth.NoResultFound("no workspace membership")
-        return state.default_workspace
+        return defaults.get(str(organization_id))
 
     async def _fetch_oldest_organization_id(*, user_id):
         reads.append("fetch_oldest_organization_id")
@@ -190,17 +140,8 @@ def world(monkeypatch):
     monkeypatch.setattr(memberships_module, "set_cache", cache.set)
     monkeypatch.setattr(auth, "sign_secret_token", _sign_secret_token)
     monkeypatch.setattr(auth.db_manager, "get_project_by_id", _get_project_by_id)
-    monkeypatch.setattr(auth.db_manager, "get_workspace", _get_workspace)
-    monkeypatch.setattr(
-        auth.db_manager,
-        "fetch_project_with_workspace_organization",
-        _fetch_project_with_workspace_organization,
-    )
     monkeypatch.setattr(
         auth.db_manager, "fetch_default_project", _fetch_default_project
-    )
-    monkeypatch.setattr(
-        auth.db_manager, "get_default_workspace_id", _get_default_workspace_id
     )
     monkeypatch.setattr(
         auth.db_manager, "fetch_oldest_organization_id", _fetch_oldest_organization_id
@@ -222,9 +163,7 @@ def world(monkeypatch):
         no_workspace=no_workspace,
         organization_id=organization_id,
         other_organization_id=other_organization_id,
-        workspace_a=workspace_a,
-        workspace_b=workspace_b,
-        foreign_workspace=foreign_workspace,
+        legacy_workspace=legacy_workspace,
         defaults=defaults,
         state=state,
         member=member,
@@ -254,26 +193,22 @@ async def test_bearer_accepts_the_organization_id_with_a_project(world):
     state = await _bearer(
         world, project_id=world.project.project_id, workspace_id=world.organization_id
     )
-    assert state.workspace_id == str(world.organization_id)  # step 2
+    assert state.workspace_id == str(world.organization_id)
     assert state.organization_id == str(world.organization_id)
-    assert "get_workspace" not in world.reads
+    # The project read (the second one is the organization-name lookup, as today).
+    assert world.reads == ["get_project_by_id", "get_project_by_id"]
 
 
-async def test_bearer_accepts_the_projects_own_workspace_without_a_read(world):
+async def test_bearer_refuses_a_legacy_workspace_id_with_a_project(world):
     world.member()
-    await _bearer(
-        world, project_id=world.project.project_id, workspace_id=world.workspace_a
-    )
-    assert "get_workspace" not in world.reads
-
-
-async def test_bearer_accepts_another_workspace_of_the_same_organization(world):
-    world.member()
-    state = await _bearer(
-        world, project_id=world.project.project_id, workspace_id=world.workspace_b
-    )
-    assert world.reads.count("get_workspace") == 1
-    assert state.workspace_id == str(world.organization_id)  # step 2
+    with pytest.raises(UnauthorizedException):
+        await _bearer(
+            world,
+            project_id=world.project.project_id,
+            workspace_id=world.legacy_workspace,
+        )
+    assert _denied(world)
+    assert world.reads == ["get_project_by_id"]
 
 
 async def test_bearer_refuses_another_organization_id(world):
@@ -287,17 +222,6 @@ async def test_bearer_refuses_another_organization_id(world):
     assert _denied(world)
 
 
-async def test_bearer_refuses_a_workspace_of_another_organization(world):
-    world.member()
-    with pytest.raises(UnauthorizedException):
-        await _bearer(
-            world,
-            project_id=world.project.project_id,
-            workspace_id=world.foreign_workspace,
-        )
-    assert _denied(world)
-
-
 # --- workspace_id only ------------------------------------------------------- #
 
 
@@ -305,22 +229,28 @@ async def test_bearer_workspace_only_accepts_the_organization_id(world):
     world.member()
     state = await _bearer(world, workspace_id=world.organization_id)
     assert state.project_id == str(world.project.project_id)
-    assert state.workspace_id == str(world.organization_id)  # step 2
+    assert state.workspace_id == str(world.organization_id)
     assert world.reads.count("fetch_default_project") == 1
-    assert "get_workspace" not in world.reads
     assert world.dao.reads == ["fetch_membership_row"]
+
+
+async def test_bearer_workspace_only_refuses_a_legacy_workspace_id(world):
+    world.member()
+    with pytest.raises(UnauthorizedException):
+        await _bearer(world, workspace_id=world.legacy_workspace)
+    assert _denied(world)
 
 
 async def test_bearer_workspace_only_makes_no_membership_cache_call(world):
     world.member()
-    await _bearer(world, workspace_id=world.workspace_a)
+    await _bearer(world, workspace_id=world.organization_id)
     assert "resolve_membership" not in world.cache.names()
     assert world.cache.names().count("verify_bearer_token") == 2  # one GET, one SET
 
 
 async def test_bearer_workspace_only_refuses_a_non_member(world):
     with pytest.raises(HTTPException) as error:
-        await _bearer(world, workspace_id=world.workspace_a)
+        await _bearer(world, workspace_id=world.organization_id)
     assert error.value.status_code == 401
     assert not _denied(world)
 
@@ -338,7 +268,7 @@ async def test_bearer_ignores_a_workspace_only_state_cached_by_old_code(world):
     old_key = {
         "u_id": str(world.user)[-12:],
         "p_id": "",
-        "w_id": str(world.workspace_a)[-12:],
+        "w_id": str(world.organization_id)[-12:],
         "scope": "default",
     }
     await world.cache.set(
@@ -349,13 +279,13 @@ async def test_bearer_ignores_a_workspace_only_state_cached_by_old_code(world):
         value={
             "user_id": str(world.user),
             "project_id": str(world.project.project_id),
-            "workspace_id": str(world.workspace_a),
+            "workspace_id": str(world.organization_id),
             "organization_id": str(world.organization_id),
             "principal": {"kind": "human", "id": str(world.user)},
         },
     )
     with pytest.raises(HTTPException) as error:
-        await _bearer(world, workspace_id=world.workspace_a)
+        await _bearer(world, workspace_id=world.organization_id)
     assert error.value.status_code == 401
 
 
@@ -374,7 +304,7 @@ async def test_bearer_project_state_cached_by_old_code_still_serves(world):
         value={
             "user_id": str(world.user),
             "project_id": str(world.project.project_id),
-            "workspace_id": str(world.workspace_a),
+            "workspace_id": str(world.organization_id),
             "organization_id": str(world.organization_id),
             "principal": {"kind": "human", "id": str(world.user)},
         },
@@ -399,21 +329,20 @@ async def test_bearer_project_without_workspace_answers_the_organization_id(worl
 # --- no parameters ----------------------------------------------------------- #
 
 
-async def test_bearer_without_parameters_keeps_the_oldest_workspace(world):
+async def test_bearer_without_parameters_starts_from_the_oldest_organization(world):
     world.member()
     state = await _bearer(world)
     assert state.project_id == str(world.project.project_id)
-    assert state.workspace_id == str(world.organization_id)  # step 2
+    assert state.workspace_id == str(world.organization_id)
     # (`get_project_by_id` after these is the organization-name lookup, as today.)
-    assert world.reads[:2] == ["get_default_workspace_id", "fetch_default_project"]
-    assert "get_workspace" not in world.reads
+    assert world.reads[:2] == ["fetch_oldest_organization_id", "fetch_default_project"]
     assert world.dao.reads == ["fetch_membership_row"]  # the resolver decides
 
 
-async def test_bearer_without_parameters_refuses_a_workspace_row_without_membership(
+async def test_bearer_without_parameters_refuses_an_organization_without_membership(
     world,
 ):
-    # A workspace row alone no longer lets the user in: the resolver says not a member.
+    # The resolver says not a member of the default project.
     with pytest.raises(HTTPException) as error:
         await _bearer(world)
     assert error.value.status_code == 401
@@ -437,7 +366,7 @@ async def test_bearer_without_parameters_ignores_a_state_cached_by_old_code(worl
         value={
             "user_id": str(world.user),
             "project_id": str(world.project.project_id),
-            "workspace_id": str(world.workspace_a),
+            "workspace_id": str(world.organization_id),
             "organization_id": str(world.organization_id),
             "principal": {"kind": "human", "id": str(world.user)},
         },
@@ -447,59 +376,10 @@ async def test_bearer_without_parameters_ignores_a_state_cached_by_old_code(worl
     assert error.value.status_code == 401
 
 
-async def test_bearer_without_parameters_falls_back_to_the_oldest_organization(world):
-    world.member()
-    world.state.default_workspace = None
-    world.state.oldest_organization = str(world.organization_id)
-    state = await _bearer(world)
-    assert state.project_id == str(world.project.project_id)
-    assert world.reads[:3] == [
-        "get_default_workspace_id",
-        "fetch_oldest_organization_id",
-        "fetch_default_project",
-    ]
-    assert world.dao.reads == ["fetch_membership_row"]
-
-
 async def test_bearer_without_parameters_and_no_membership_at_all_is_refused(world):
-    world.state.default_workspace = None
     world.state.oldest_organization = None
     with pytest.raises(UnauthorizedException):
         await _bearer(world)
-
-
-async def _changed_default(world):
-    # The user's only workspace row is in B; B has no own default after the
-    # consolidation, so the organization default (in A) is selected.
-    world.state.default_workspace = str(world.workspace_b)
-    world.defaults[str(world.workspace_b)] = db_manager_module.DefaultProjectRef(
-        project_id=world.project.project_id,
-        project_organization_id=world.organization_id,
-        project_workspace_id=world.workspace_a,
-        ref_workspace_id=world.workspace_b,
-        ref_organization_id=world.organization_id,
-    )
-
-
-async def test_bearer_without_parameters_refuses_a_changed_default_for_a_non_member(
-    world,
-):
-    await _changed_default(world)
-    with pytest.raises(HTTPException) as error:
-        await _bearer(world)
-    assert error.value.status_code == 401
-    assert world.reads == ["get_default_workspace_id", "fetch_default_project"]
-    # Refused on the default project, then no other project to open.
-    assert world.dao.reads == ["fetch_membership_row", "list_membership_rows"]
-    assert not _denied(world)
-
-
-async def test_bearer_without_parameters_accepts_a_changed_default_for_a_member(world):
-    await _changed_default(world)
-    world.member()
-    state = await _bearer(world)
-    assert state.project_id == str(world.project.project_id)
-    assert state.workspace_id == str(world.organization_id)  # step 2
 
 
 # --- API key ----------------------------------------------------------------- #
@@ -542,8 +422,6 @@ async def test_bearer_without_parameters_refuses_on_ee_without_a_project_row(
 
 
 async def test_bearer_without_parameters_refuses_the_fallback_for_a_non_member(world):
-    world.state.default_workspace = None
-    world.state.oldest_organization = str(world.organization_id)
     with pytest.raises(HTTPException) as error:
         await _bearer(world)
     assert error.value.status_code == 401
@@ -577,8 +455,8 @@ def _ee_member_of_the_secondary_project_only(world, monkeypatch):
     )
     picked = []
 
-    async def _pick_fallback_project(*, project_ids, ref_workspace_id):
-        picked.append((list(project_ids), ref_workspace_id))
+    async def _pick_fallback_project(*, project_ids):
+        picked.append(list(project_ids))
         return project_ids[0] if project_ids else None
 
     monkeypatch.setattr(
@@ -594,7 +472,7 @@ async def test_bearer_without_parameters_lands_on_a_project_the_member_may_open(
     state = await _bearer(world)
     assert state.project_id == str(world.no_workspace.project_id)
     assert state.organization_id == str(world.organization_id)
-    assert picked == [([world.no_workspace.project_id], world.workspace_a)]
+    assert picked == [[world.no_workspace.project_id]]
 
 
 async def test_bearer_workspace_only_lands_on_a_project_the_member_may_open(
@@ -603,7 +481,7 @@ async def test_bearer_workspace_only_lands_on_a_project_the_member_may_open(
     picked = _ee_member_of_the_secondary_project_only(world, monkeypatch)
     state = await _bearer(world, workspace_id=world.organization_id)
     assert state.project_id == str(world.no_workspace.project_id)
-    assert picked == [([world.no_workspace.project_id], None)]
+    assert picked == [[world.no_workspace.project_id]]
 
 
 async def test_bearer_without_parameters_reads_nothing_more_for_a_default_member(

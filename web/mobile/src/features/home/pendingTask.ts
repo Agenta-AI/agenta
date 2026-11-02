@@ -9,14 +9,6 @@ export interface PendingTask {
     agentId: string
     text: string
     parts?: FileUIPart[]
-    /**
-     * The starter template this agent was created from, when it was.
-     *
-     * The template declares the connections the agent will need, and nothing else on the session
-     * route can name it: the agent's config is written by the builder during this very turn, and
-     * the URL carries only the agent id. Without it the connect step has nothing to read.
-     */
-    templateKey?: string
     delivery?: "sending" | "failed"
     /** The refusal's own sentence, when the send was refused with one. */
     failureReason?: string
@@ -76,7 +68,7 @@ export const keepFailedSendAtom = atom(
 
 /**
  * The chat screen of a session closed while its task was not on its way. A held task (the
- * transcript, the vault or the setup step had not answered) has nothing left to send it, so it
+ * transcript, the vault or the needs-setup check had not answered) has nothing left to send it, so it
  * waits as failed, which the chat screen offers again with a retry. A held or failed task keeps
  * the session listed in the rail, the user's only way back to a session the server does not know.
  * A task already sending is left to its own send.

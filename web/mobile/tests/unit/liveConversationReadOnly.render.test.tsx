@@ -86,6 +86,13 @@ vi.mock("@agenta/chat/hooks", () => ({
         settle: calls.sendToolOutput,
         dismiss: vi.fn(),
     }),
+    useSecretDock: ({enabled}: {enabled: boolean}) => ({
+        open: enabled,
+        front: enabled ? {toolCallId: "secret-1"} : null,
+        settlingIds: new Set(),
+        settle: calls.sendToolOutput,
+        dismiss: vi.fn(),
+    }),
     useComposerAttachments: () => ({restoreAttachments: vi.fn(), setRejections: vi.fn()}),
 }))
 
@@ -139,9 +146,6 @@ vi.mock("@agenta/chat/assets", () => ({
     shouldShowStopControl: () => false,
     restoreRefusedSend: vi.fn(),
 }))
-vi.mock("@agenta/chat/clientTools", () => ({
-    getPendingSecretInteractions: () => [{toolCallId: "secret-1"}],
-}))
 vi.mock("@agenta/chat/state", () => ({getSessionTurnId: () => null, runKey: () => ""}))
 vi.mock("@agenta/entities/session", async () => {
     const {atom} = await import("jotai")
@@ -167,7 +171,6 @@ vi.mock("@agenta/entity-ui/clientTools", () => ({
     SecretRequestDock: () => <div data-testid="secret-dock" />,
 }))
 vi.mock("@agenta/entity-ui/onboarding", () => ({
-    AgentSetupCard: () => null,
     PersonalAccountsCard: () => <div data-testid="personal-card" />,
 }))
 vi.mock("@/features/chat/usePersonalSetupStep", () => ({
@@ -294,9 +297,6 @@ vi.mock("@/features/chat/TranscriptTurns", () => ({
 }))
 vi.mock("@/features/chat/useApprovalActions", () => ({
     useApprovalActions: () => ({phase: "idle", errorText: null, respond: calls.steerRespond}),
-}))
-vi.mock("@/features/chat/useSessionSetupStep", () => ({
-    useSessionSetupStep: () => ({open: false, blocking: false}),
 }))
 vi.mock("@/features/chat/useSessionWatch", () => ({useSessionWatch: () => ({connected: true})}))
 vi.mock("@/features/chat/useStartBlankSession", () => ({useStartBlankSession: () => vi.fn()}))
