@@ -10,8 +10,8 @@ import {FirstRunScreen} from "./FirstRunScreen"
  * project gets, under the app shell this route must provide for itself (Home provides its own
  * when it mounts the first run).
  *
- * Blank shows the template strip; `?template=<key>` arrives with the pick already made, so the
- * connect step opens in the strip's place. See [[FirstRunScreen]] for the structure.
+ * Blank shows the template strip; `?template=<key>` arrives with the pick already made and creates
+ * that agent on landing. See [[FirstRunScreen]] for the structure.
  */
 export const NewAgentScreen = ({
     workspaceId,

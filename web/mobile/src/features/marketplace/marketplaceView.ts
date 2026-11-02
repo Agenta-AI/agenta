@@ -128,18 +128,18 @@ export interface SetupStep {
     text: string
 }
 
-/** What using a template leads to on this app: the setup screen, then the first session. */
+/** What using a template leads to on this app: the agent, its first session, then its accounts. */
 export const setupSteps = (template: AgentStarterTemplate): SetupStep[] => {
     const names = [
         ...new Set(template.connections.map((slot) => templateApp(slot.primary.slug).name)),
     ]
     return [
-        {title: "Use this template", text: "Opens setup for a new agent in this workspace."},
+        {title: "Use this template", text: "Creates the agent in this workspace and opens it."},
         ...(names.length
             ? [
                   {
                       title: `Connect ${joinNames(names)}`,
-                      text: "Each account connects from the setup screen.",
+                      text: "Connect each account when the agent asks for it.",
                   },
               ]
             : []),

@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import {act, createElement} from "react"
 
-import {getDefaultStore} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -23,12 +22,10 @@ vi.mock("@agenta/entities/workflow", async () => {
         agentTemplatesAtom: atom([template]),
         agentTemplateByKey: (templates: {key: string}[], key: string) =>
             templates.find((item) => item.key === key),
-        appendSetupPreamble: (text: string) => text,
         invalidateWorkflowsListCache: vi.fn(),
     }
 })
 
-import {templateSetupDraftAtom} from "@/features/agents/templateSetupDraft"
 import {useNewAgentAction} from "@/features/agents/useNewAgentAction"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
@@ -39,7 +36,6 @@ const base = "/w/workspace/p/project"
 beforeEach(async () => {
     push.mockReset().mockResolvedValue(true)
     createAgent.mockReset().mockResolvedValue({appId: "agent", sessionId: "session"})
-    getDefaultStore().set(templateSetupDraftAtom, null)
     root = createRoot(document.createElement("div"))
     const Probe = () => {
         actions = useNewAgentAction(base)
@@ -49,13 +45,16 @@ beforeEach(async () => {
 })
 afterEach(() => act(() => root.unmount()))
 
-describe("template setup before the first run", () => {
-    it("opens the existing setup route instead of starting a template from the roster", async () => {
+describe("template create", () => {
+    it("creates the agent and opens its first session with no setup screen", async () => {
         await act(async () => actions.createFromTemplate("pr-reviewer"))
-        expect(createAgent).not.toHaveBeenCalled()
-        expect(push).toHaveBeenCalledWith(`${base}/agents/new?template=pr-reviewer`)
+        expect(createAgent).toHaveBeenCalledWith(
+            expect.objectContaining({template, name: "PR reviewer"}),
+        )
+        expect(push).toHaveBeenCalledTimes(1)
+        expect(push).toHaveBeenCalledWith(`${base}/sessions/session?agent=agent`)
     })
-    it("preserves an edited Home prompt and its staging scope", async () => {
+    it("loads the template with an edited Home prompt and its staging scope", async () => {
         await act(async () => {
             await actions.createFromPrompt({
                 text: "Ask before posting",
@@ -63,26 +62,12 @@ describe("template setup before the first run", () => {
                 sessionId: "staged",
             })
         })
-        expect(createAgent).not.toHaveBeenCalled()
-        expect(getDefaultStore().get(templateSetupDraftAtom)).toMatchObject({
-            base,
-            templateKey: "pr-reviewer",
-            text: "Ask before posting",
-            sessionId: "staged",
-        })
-    })
-    it("loads the template with the confirmed provider choice", async () => {
-        const setup = {connectedSlugs: ["gitlab"], accounts: []}
-        await act(async () => {
-            await actions.createFromPrompt({
-                text: "Review",
-                templateKey: "pr-reviewer",
-                entityId: "local-draft",
-                setup,
-            })
-        })
         expect(createAgent).toHaveBeenCalledWith(
-            expect.objectContaining({template, entityId: "local-draft", setup}),
+            expect.objectContaining({
+                template,
+                initialMessage: "Ask before posting",
+                stagingSessionId: "staged",
+            }),
         )
         expect(push).toHaveBeenCalledWith(`${base}/sessions/session?agent=agent`)
     })
@@ -93,7 +78,6 @@ describe("template setup before the first run", () => {
                 text: "Review",
                 templateKey: "not-in-catalogue",
                 entityId: "local-draft",
-                setup: {connectedSlugs: [], accounts: []},
             })
         })
         expect(handedOff).toBe(false)
@@ -105,12 +89,6 @@ describe("template setup before the first run", () => {
             await actions.createFromPrompt({text: "Help me write"})
         })
         expect(createAgent).toHaveBeenCalledOnce()
-        expect(getDefaultStore().get(templateSetupDraftAtom)).toBeNull()
-    })
-    it("drops the draft if setup navigation is cancelled", async () => {
-        push.mockResolvedValue(false)
-        await act(async () => actions.createFromTemplate("pr-reviewer"))
-        expect(createAgent).not.toHaveBeenCalled()
-        expect(getDefaultStore().get(templateSetupDraftAtom)).toBeNull()
+        expect(createAgent).toHaveBeenCalledWith(expect.objectContaining({template: undefined}))
     })
 })

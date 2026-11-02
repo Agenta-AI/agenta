@@ -171,7 +171,6 @@ vi.mock("@agenta/entity-ui/clientTools", () => ({
     SecretRequestDock: () => <div data-testid="secret-dock" />,
 }))
 vi.mock("@agenta/entity-ui/onboarding", () => ({
-    AgentSetupCard: () => null,
     PersonalAccountsCard: () => <div data-testid="personal-card" />,
 }))
 vi.mock("@/features/chat/usePersonalSetupStep", () => ({
@@ -298,9 +297,6 @@ vi.mock("@/features/chat/TranscriptTurns", () => ({
 }))
 vi.mock("@/features/chat/useApprovalActions", () => ({
     useApprovalActions: () => ({phase: "idle", errorText: null, respond: calls.steerRespond}),
-}))
-vi.mock("@/features/chat/useSessionSetupStep", () => ({
-    useSessionSetupStep: () => ({open: false, blocking: false}),
 }))
 vi.mock("@/features/chat/useSessionWatch", () => ({useSessionWatch: () => ({connected: true})}))
 vi.mock("@/features/chat/useStartBlankSession", () => ({useStartBlankSession: () => vi.fn()}))
