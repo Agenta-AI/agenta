@@ -1,4 +1,3 @@
-import {copyToClipboard} from "@agenta/ui/utils"
 import {
     Button,
     DropdownMenu,
@@ -7,6 +6,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
+import {copyToClipboard} from "@agenta/ui/utils"
 import {CloudArrowUp, Copy, DotsThreeVertical, Eye, Trash} from "@phosphor-icons/react"
 
 import type {AppRevisionRow} from "./useAppRevisions"

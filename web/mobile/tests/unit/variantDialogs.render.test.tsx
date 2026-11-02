@@ -30,7 +30,8 @@ vi.mock("@agenta/playground", () => ({
     playgroundController: {actions: {deleteRevision: {id: "delete"}}},
 }))
 vi.mock("jotai", () => ({
-    useAtomValue: (atom: {id: string}) => (atom.id === "entity" ? fixture.entity : fixture.environments),
+    useAtomValue: (atom: {id: string}) =>
+        atom.id === "entity" ? fixture.entity : fixture.environments,
     useSetAtom: () => fixture.deleteRevision,
 }))
 vi.mock("@agenta/ui/app-message", () => ({

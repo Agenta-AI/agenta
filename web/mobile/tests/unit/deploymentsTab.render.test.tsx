@@ -21,7 +21,7 @@ const fixture = vi.hoisted(() => ({
     publish: vi.fn(),
     success: vi.fn(),
     error: vi.fn(),
-    permissions: {"deploy_environments": true} as Record<string, boolean>,
+    permissions: {deploy_environments: true} as Record<string, boolean>,
     pickable: [] as unknown[],
 }))
 
@@ -60,7 +60,8 @@ vi.mock("@agenta/ui/app-message", () => ({
     message: {success: fixture.success, error: fixture.error},
 }))
 vi.mock("../../src/features/context/useProjectPermission", () => ({
-    useProjectPermission: (_project: string, action: string) => fixture.permissions[action] ?? false,
+    useProjectPermission: (_project: string, action: string) =>
+        fixture.permissions[action] ?? false,
 }))
 vi.mock("../../src/features/developer/developerViewAccess", () => ({
     useDeveloperViewEnabled: () => false,
@@ -79,8 +80,8 @@ vi.mock("../../src/features/variants/useAppRevisions", () => ({
     }),
 }))
 
-import {DeployToEnvironmentDialog} from "@/features/variants/DeployToEnvironmentDialog"
 import {DeploymentsTab} from "@/features/variants/DeploymentsTab"
+import {DeployToEnvironmentDialog} from "@/features/variants/DeployToEnvironmentDialog"
 import {RevertDeploymentDialog} from "@/features/variants/RevertDeploymentDialog"
 
 const environment = (slug: string, deployedRevisionId: string | null, variant: string | null) => ({
@@ -191,10 +192,16 @@ describe("DeploymentsTab", () => {
         const items = (menu: Element) => {
             act(() => {
                 menu.dispatchEvent(
-                    new KeyboardEvent("keydown", {key: "ArrowDown", bubbles: true, cancelable: true}),
+                    new KeyboardEvent("keydown", {
+                        key: "ArrowDown",
+                        bubbles: true,
+                        cancelable: true,
+                    }),
                 )
             })
-            const labels = [...document.querySelectorAll("[role=menuitem]")].map((el) => el.textContent)
+            const labels = [...document.querySelectorAll("[role=menuitem]")].map(
+                (el) => el.textContent,
+            )
             act(() => {
                 document.dispatchEvent(new KeyboardEvent("keydown", {key: "Escape", bubbles: true}))
             })
@@ -242,8 +249,24 @@ describe("RevertDeploymentDialog", () => {
 describe("DeployToEnvironmentDialog", () => {
     it("Deploy env stays disabled for the revision already deployed", () => {
         fixture.pickable = [
-            {revisionId: "rev-2", variantId: "v", variantName: "First", variantSlug: null, version: 2, model: "", createdAt: null},
-            {revisionId: "rev-3", variantId: "v", variantName: "First", variantSlug: null, version: 3, model: "", createdAt: null},
+            {
+                revisionId: "rev-2",
+                variantId: "v",
+                variantName: "First",
+                variantSlug: null,
+                version: 2,
+                model: "",
+                createdAt: null,
+            },
+            {
+                revisionId: "rev-3",
+                variantId: "v",
+                variantName: "First",
+                variantSlug: null,
+                version: 3,
+                model: "",
+                createdAt: null,
+            },
         ]
         mount(
             createElement(DeployToEnvironmentDialog, {

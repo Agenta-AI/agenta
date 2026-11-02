@@ -50,6 +50,6 @@ export const visibleRevisionIds = (
     groups: readonly ListTableGroup<AppRevisionRow>[],
     collapsed: ReadonlySet<string>,
 ): string[] =>
-    groups.filter((group) => !collapsed.has(group.key)).flatMap((group) =>
-        group.rows.map((row) => row.revisionId),
-    )
+    groups
+        .filter((group) => !collapsed.has(group.key))
+        .flatMap((group) => group.rows.map((row) => row.revisionId))

@@ -22,11 +22,7 @@ const usePublish = () => {
     return useAtomValue(publishMutationAtom).mutateAsync
 }
 
-const toPayload = (
-    target: DeployTarget,
-    environmentSlug: string,
-    note: string,
-) => ({
+const toPayload = (target: DeployTarget, environmentSlug: string, note: string) => ({
     revisionId: target.revisionId,
     environmentSlug,
     note: note.trim() || undefined,

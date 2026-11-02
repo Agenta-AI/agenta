@@ -17,6 +17,7 @@ import {DeployRevisionDialog} from "./DeployRevisionDialog"
 import {VariantsEmpty} from "./states/VariantsEmpty"
 import {VariantsNoMatch} from "./states/VariantsNoMatch"
 import {useAppRevisions, type AppRevisionRow} from "./useAppRevisions"
+import {VariantsTable} from "./VariantsTable"
 import {
     readDisplayMode,
     toRevisionGroups,
@@ -24,7 +25,6 @@ import {
     writeDisplayMode,
     type VariantsDisplayMode,
 } from "./variantsView"
-import {VariantsTable} from "./VariantsTable"
 
 // The drawer and its config pane cost nothing until a reader opens a revision.
 const RevisionDrawerHost = dynamic(
@@ -54,7 +54,10 @@ export const VariantsTab = ({projectId, app}: {projectId: string; app: Workflow}
 
     const groups = useMemo(() => toRevisionGroups(revisions.rows, mode), [revisions.rows, mode])
     const navigationIds = useMemo(() => visibleRevisionIds(groups, collapsed), [groups, collapsed])
-    const openRow = useCallback((row: AppRevisionRow) => setRevisionId(row.revisionId), [setRevisionId])
+    const openRow = useCallback(
+        (row: AppRevisionRow) => setRevisionId(row.revisionId),
+        [setRevisionId],
+    )
 
     const changeMode = (next: string) => {
         const value = next === "variants" ? "variants" : "revisions"

@@ -101,9 +101,9 @@ describe("useAppRevisions", () => {
             {next: null, limit: 50, order: "descending"},
             "chat",
         )
-        expect(latest?.rows.map((row: AppRevisionRow) => [row.revisionId, row.variantName])).toEqual(
-            [["rev-2", "First"]],
-        )
+        expect(
+            latest?.rows.map((row: AppRevisionRow) => [row.revisionId, row.variantName]),
+        ).toEqual([["rev-2", "First"]])
     })
 
     it("Load more sends the cursor the server returned", async () => {

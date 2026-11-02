@@ -20,8 +20,8 @@ import {useDeveloperViewEnabled} from "../developer/developerViewAccess"
 import {useUrlParams} from "../developer/useUrlParams"
 import {useRevisionParam} from "../revisions/useRevisionParam"
 
-import {DeployToEnvironmentDialog} from "./DeployToEnvironmentDialog"
 import {DeploymentHistoryTable} from "./DeploymentHistoryTable"
+import {DeployToEnvironmentDialog} from "./DeployToEnvironmentDialog"
 import {EnvironmentCards} from "./EnvironmentCards"
 import {RevertDeploymentDialog} from "./RevertDeploymentDialog"
 import {DeploymentsEmpty} from "./states/DeploymentsEmpty"
@@ -65,7 +65,8 @@ export const DeploymentsTab = ({
         [environments.data, slugParam],
     )
     const environmentId =
-        environmentList.data?.environments.find((entry) => entry.slug === selected?.slug)?.id ?? null
+        environmentList.data?.environments.find((entry) => entry.slug === selected?.slug)?.id ??
+        null
 
     const history = useAppDeploymentHistory({
         projectId,
@@ -78,7 +79,11 @@ export const DeploymentsTab = ({
     const currentRevisionId = selected?.deployedRevisionId ?? null
 
     const navigationIds = useMemo(
-        () => [...new Set(rows.flatMap((row) => (row.deployedRevisionId ? [row.deployedRevisionId] : [])))],
+        () => [
+            ...new Set(
+                rows.flatMap((row) => (row.deployedRevisionId ? [row.deployedRevisionId] : [])),
+            ),
+        ],
         [rows],
     )
     const open = (row: AppDeploymentRow) => {

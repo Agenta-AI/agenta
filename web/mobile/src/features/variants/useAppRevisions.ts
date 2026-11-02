@@ -1,4 +1,8 @@
-import {pickModelName, queryWorkflowRevisionsByWorkflow, queryWorkflowVariants} from "@agenta/entities/workflow"
+import {
+    pickModelName,
+    queryWorkflowRevisionsByWorkflow,
+    queryWorkflowVariants,
+} from "@agenta/entities/workflow"
 import {useInfiniteQuery} from "@tanstack/react-query"
 
 export const REVISIONS_PAGE_SIZE = 50

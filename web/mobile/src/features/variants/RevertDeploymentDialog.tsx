@@ -1,5 +1,6 @@
 import {useState} from "react"
 
+import type {AppDeploymentRow} from "@agenta/entities/environment"
 import {CommitMessageInput} from "@agenta/ui/components/presentational"
 import {
     Button,
@@ -10,7 +11,6 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@agenta/ui/ui"
-import type {AppDeploymentRow} from "@agenta/entities/environment"
 
 import {useRevertDeployment} from "./useDeploymentWrites"
 

@@ -1,4 +1,7 @@
-import {buildAppDeploymentHistory, fetchEnvironmentRevisionsList} from "@agenta/entities/environment"
+import {
+    buildAppDeploymentHistory,
+    fetchEnvironmentRevisionsList,
+} from "@agenta/entities/environment"
 import {useQuery} from "@tanstack/react-query"
 
 /**

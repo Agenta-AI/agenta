@@ -111,7 +111,11 @@ export const DeployToEnvironmentDialog = ({
                                 ) : null}
                             </div>
                         ) : null}
-                        <CommitMessageInput value={note} onChange={setNote} label="Deploy message" />
+                        <CommitMessageInput
+                            value={note}
+                            onChange={setNote}
+                            label="Deploy message"
+                        />
                     </div>
 
                     <div className="flex min-w-0 flex-col gap-2">

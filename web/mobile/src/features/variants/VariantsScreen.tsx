@@ -43,7 +43,10 @@ export const VariantsScreen = ({
     const apps = useAtomValue(appWorkflowsListQueryStateAtom)
     const appId = read("app")
     const tab: TabId = read("tab") === "deployments" ? "deployments" : "variants"
-    const app = useMemo(() => apps.data.find((entry) => entry.id === appId) ?? null, [apps.data, appId])
+    const app = useMemo(
+        () => apps.data.find((entry) => entry.id === appId) ?? null,
+        [apps.data, appId],
+    )
 
     const body = (() => {
         if (apps.isError) {
@@ -91,7 +94,9 @@ export const VariantsScreen = ({
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
-                        <div className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${PAGE_FRAME}`}>
+                        <div
+                            className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${PAGE_FRAME}`}
+                        >
                             <div className="flex min-w-0 flex-wrap items-center gap-2">
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px]">

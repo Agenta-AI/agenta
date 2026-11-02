@@ -53,7 +53,8 @@ vi.mock("../../src/features/context/useBindProjectContext", () => ({
     useBindProjectContext: () => undefined,
 }))
 vi.mock("../../src/features/context/useProjectPermission", () => ({
-    useProjectPermission: (_project: string, action: string) => fixture.permissions[action] ?? false,
+    useProjectPermission: (_project: string, action: string) =>
+        fixture.permissions[action] ?? false,
 }))
 vi.mock("../../src/features/nav/AppShell", () => ({
     AppShell: ({children}: {children: ReactNode}) => children,
@@ -75,8 +76,8 @@ vi.mock("../../src/features/variants/DeleteRevisionDialog", () => ({
     DeleteRevisionDialog: () => null,
 }))
 
-import {VariantsScreen} from "@/features/variants/VariantsScreen"
 import {VariantRowMenu} from "@/features/variants/VariantRowMenu"
+import {VariantsScreen} from "@/features/variants/VariantsScreen"
 
 const revision = (id: string, version: number, variantId: string, variantName: string) => ({
     revisionId: id,
@@ -148,19 +149,25 @@ describe("VariantsScreen", () => {
             revision("r1", 1, "va", "Support"),
         ]
         mount()
-        const headings = [...document.querySelectorAll("button[aria-expanded]:not([aria-haspopup])")].map(
-            (el) => el.textContent,
-        )
+        const headings = [
+            ...document.querySelectorAll("button[aria-expanded]:not([aria-haspopup])"),
+        ].map((el) => el.textContent)
         expect(headings.some((value) => value?.includes("Support"))).toBe(true)
         expect(headings.some((value) => value?.includes("Billing"))).toBe(true)
-        expect([...document.querySelectorAll("[role=button]")].filter((el) => el.textContent?.includes(" v")).length).toBe(3)
+        expect(
+            [...document.querySelectorAll("[role=button]")].filter((el) =>
+                el.textContent?.includes(" v"),
+            ).length,
+        ).toBe(3)
     })
 
     it("The display mode survives a reload", () => {
         fixture.query = {app: "app-1"}
         fixture.revisions.rows = [revision("r1", 1, "va", "Support")]
         mount()
-        expect(document.querySelectorAll("button[aria-expanded]:not([aria-haspopup])")).toHaveLength(0)
+        expect(
+            document.querySelectorAll("button[aria-expanded]:not([aria-haspopup])"),
+        ).toHaveLength(0)
         const variants = [
             ...document.querySelectorAll("[aria-label='Display mode'] [role=radio]"),
         ].find((el) => el.textContent === "Variants") as HTMLElement
@@ -170,7 +177,9 @@ describe("VariantsScreen", () => {
         act(() => root.unmount())
         root = createRoot(host)
         mount()
-        expect(document.querySelectorAll("button[aria-expanded]:not([aria-haspopup])").length).toBeGreaterThan(0)
+        expect(
+            document.querySelectorAll("button[aria-expanded]:not([aria-haspopup])").length,
+        ).toBeGreaterThan(0)
     })
 
     it("Clicking a row writes its revision id to the URL", () => {

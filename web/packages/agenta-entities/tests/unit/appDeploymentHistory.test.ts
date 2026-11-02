@@ -39,10 +39,7 @@ describe("buildAppDeploymentHistory", () => {
     })
 
     it("Deployment history drops the empty first revision", () => {
-        const rows = buildAppDeploymentHistory(
-            [envRevision("e1", 0, {a: ref("app-1", "r1")})],
-            APP,
-        )
+        const rows = buildAppDeploymentHistory([envRevision("e1", 0, {a: ref("app-1", "r1")})], APP)
         expect(rows).toEqual([])
     })
 
@@ -82,7 +79,9 @@ describe("buildAppDeploymentHistory", () => {
 describe("pickModelName", () => {
     it("Model name comes only from model keys, not from prompt text", () => {
         expect(
-            pickModelName({prompt: {messages: [{content: "model: not this"}], llm_config: {model: " gpt-x "}}}),
+            pickModelName({
+                prompt: {messages: [{content: "model: not this"}], llm_config: {model: " gpt-x "}},
+            }),
         ).toBe("gpt-x")
         expect(pickModelName({prompt: {messages: [{content: "model"}]}})).toBe("")
         expect(pickModelName(null)).toBe("")

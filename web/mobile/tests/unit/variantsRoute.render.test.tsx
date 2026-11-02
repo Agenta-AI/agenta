@@ -6,8 +6,8 @@ import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {DEVELOPER_VIEWS} from "@/features/developer/developerViews"
 import {DeveloperViewGate} from "@/features/developer/DeveloperViewGate"
+import {DEVELOPER_VIEWS} from "@/features/developer/developerViews"
 
 vi.mock("next/router", () => ({
     useRouter: () => ({asPath: "/w/ws/p/pr/variants", back: vi.fn()}),

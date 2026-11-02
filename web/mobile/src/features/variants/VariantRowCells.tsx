@@ -52,7 +52,10 @@ export const VariantRowCells = ({
             </span>
         )}
         {narrow ? null : (
-            <span className="block truncate text-[13px] text-muted-foreground" title={row.message ?? undefined}>
+            <span
+                className="block truncate text-[13px] text-muted-foreground"
+                title={row.message ?? undefined}
+            >
                 {row.message || "—"}
             </span>
         )}

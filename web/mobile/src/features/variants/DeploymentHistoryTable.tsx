@@ -28,7 +28,9 @@ const WIDE_QUERY = "(min-width: 640px)"
 export const variantLabel = (row: AppDeploymentRow): string => {
     const slug = row.variantSlug
     if (!slug) return "—"
-    return row.appSlug && slug.startsWith(`${row.appSlug}.`) ? slug.slice(row.appSlug.length + 1) : slug
+    return row.appSlug && slug.startsWith(`${row.appSlug}.`)
+        ? slug.slice(row.appSlug.length + 1)
+        : slug
 }
 
 /** The deployments of one app in one environment, newest first. */
@@ -67,7 +69,9 @@ export const DeploymentHistoryTable = ({
                     </span>
                     <span className="block min-w-0 truncate text-[14px] font-medium text-foreground">
                         {variantLabel(row)}
-                        {row.deployedRevisionVersion != null ? ` v${row.deployedRevisionVersion}` : ""}
+                        {row.deployedRevisionVersion != null
+                            ? ` v${row.deployedRevisionVersion}`
+                            : ""}
                     </span>
                     {narrow ? null : (
                         <span
