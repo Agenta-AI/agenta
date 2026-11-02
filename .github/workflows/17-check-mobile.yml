@@ -233,7 +233,10 @@ jobs:
         run: |
           IMAGE="ghcr.io/agenta-ai/agenta-web-mobile:${{ needs.prepare.outputs.image_tag }}-${{ matrix.arch }}"
           docker create --name mobile-speed "$IMAGE" >/dev/null
-          docker cp mobile-speed:/app/mobile/.next "$RUNNER_TEMP/mobile-next"
+          # Copy only what the script reads. The whole folder holds dangling symlinks that `docker cp` rejects.
+          mkdir -p "$RUNNER_TEMP/mobile-next"
+          docker cp mobile-speed:/app/mobile/.next/build-manifest.json "$RUNNER_TEMP/mobile-next/"
+          docker cp mobile-speed:/app/mobile/.next/static "$RUNNER_TEMP/mobile-next/static"
           docker rm mobile-speed >/dev/null
           node web/mobile/scripts/speed/check.mjs --dir="$RUNNER_TEMP/mobile-next"
 
