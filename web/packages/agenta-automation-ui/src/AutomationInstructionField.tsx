@@ -105,7 +105,7 @@ export const AutomationInstructionField = ({
     const resolving = Boolean(agentId) && !revision && latest.isPending
 
     // The revision can land after a message was typed, or an automation can have been saved under
-    // the wrong key before this resolved at all (#7936). Either way the stored shape is migrated to
+    // the wrong key before this resolved at all. Either way the stored shape is migrated to
     // the one the agent takes, deleting the old key rather than leaving both. A saved automation
     // opens with the shape already known, so the second case is found by reading the stored key,
     // not by watching the shape change.
@@ -116,25 +116,26 @@ export const AutomationInstructionField = ({
         previousShape.current = shape
         if (resolving) return
         const changed = previous.isChat !== shape.isChat || previous.primaryKey !== shape.primaryKey
+        const [read, remap] = isEvent
+            ? [parseMessageTemplate, remapMessageTemplate]
+            : [getScheduleMessage, remapMessageShape]
         const from = changed
             ? previous
-            : revision
-              ? misplacedMessageShape(
-                    inputsText,
-                    shape,
-                    ports.map((port) => port.key),
-                    isEvent ? parseMessageTemplate : getScheduleMessage,
-                )
-              : null
+            : misplacedMessageShape(
+                  inputsText,
+                  shape,
+                  ports.map((port) => port.key),
+                  read,
+              )
         if (!from) return
-        const next = (isEvent ? remapMessageTemplate : remapMessageShape)(inputsText, from, shape)
+        const next = remap(inputsText, from, shape)
         if (next === inputsText) return
         try {
             onCommit(JSON.parse(next) as Record<string, unknown>)
         } catch {
             // A mapping the composer cannot read is left exactly as it was.
         }
-    }, [inputsText, isEvent, onCommit, ports, resolving, revision, shape])
+    }, [inputsText, isEvent, onCommit, ports, resolving, shape])
 
     const onChange = useCallback(
         (next: string) => {

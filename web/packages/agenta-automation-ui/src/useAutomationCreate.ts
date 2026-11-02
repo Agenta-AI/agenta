@@ -136,7 +136,7 @@ export const useAutomationCreate = ({
                       : "Choose the event this automation runs on",
             // The instruction is stored under the key the agent reads, which only its latest
             // revision says. Created before that, it lands under "message" and a chat agent
-            // runs with no message (#7936).
+            // runs with no message.
             instruction:
                 !draft.agentId || latestRevision.data
                     ? ""
