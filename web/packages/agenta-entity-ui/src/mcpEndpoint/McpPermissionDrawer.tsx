@@ -119,6 +119,10 @@ export interface McpPermissionDrawerProps {
     readOnly?: boolean
     /** The "Account" block, above the preset select. Absent in Settings' "View tools". */
     account?: ReactNode
+    /**
+     * The reader may not edit the agent. Controls lock, and the drawer offers no removal and no
+     * sign-in, because such a reader may not use the server either.
+     */
     disabled?: boolean
     /** The drawer's panel element, so a reconnect opened from it can open inside it. */
     panelRef?: Ref<HTMLDivElement>
@@ -495,8 +499,8 @@ export default function McpPermissionDrawer({
                 title="Couldn't read this server's tools"
                 description={tools.error}
                 action={
-                    tools.needsAuth && onReconnect ? (
-                        <Button variant="outline" disabled={disabled} onClick={onReconnect}>
+                    tools.needsAuth && onReconnect && !disabled ? (
+                        <Button variant="outline" onClick={onReconnect}>
                             Connect
                         </Button>
                     ) : tools.retryable ? (

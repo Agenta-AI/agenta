@@ -1035,4 +1035,13 @@ describe("a reader who may not edit the agent", () => {
         expect(text()).toContain("You do not have access to this server's tools.")
         logged.mockRestore()
     })
+
+    it("offers no Connect when the tool list asks for a sign-in", async () => {
+        listMcpTools.mockRejectedValue(new McpProtocolError("Sign in first", "auth_required", 401))
+        const logged = vi.spyOn(console, "error").mockImplementation(() => undefined)
+        await render(viewer)
+
+        expect(button("Connect")).toBeUndefined()
+        logged.mockRestore()
+    })
 })
