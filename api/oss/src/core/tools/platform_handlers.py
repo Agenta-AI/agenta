@@ -984,7 +984,7 @@ async def handle_commit_revision(
                     "Look up the workflow by its slug, then send the embed with that "
                     "workflow's own id, or with the slug alone."
                 ),
-                details={"slug": e.slug},
+                details={"slug": e.slug} if e.slug else {},
             )
         )
     except StaticWorkflowSlug as e:

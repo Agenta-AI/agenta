@@ -54,15 +54,17 @@ class EmbedReferenceInconsistentError(EmbedError, RetrieveRefsInconsistent):
     """
 
     def __init__(self, *, references: Dict[str, Any]):
-        named = next(
+        slug = next(
             (ref.slug for ref in references.values() if getattr(ref, "slug", None)),
             None,
-        ) or next(
+        )
+        named = slug or next(
             (str(ref.id) for ref in references.values() if getattr(ref, "id", None)),
             "an embedded reference",
         )
         kind = next(iter(references), "workflow").split("_", 1)[0]
-        self.slug = named
+        # None when the caller sent only ids, so an id is never reported as a slug.
+        self.slug = slug
         # Names only what the caller sent: the resolved entity may be one it cannot read.
         RetrieveRefsInconsistent.__init__(
             self,

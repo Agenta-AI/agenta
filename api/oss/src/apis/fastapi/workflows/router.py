@@ -2055,7 +2055,7 @@ class WorkflowsRouter:
                         "Remove that entry, add it again from the picker, and send the "
                         "commit again."
                     ),
-                    "details": {"slug": e.slug},
+                    "details": {"slug": e.slug} if e.slug else {},
                 },
             ) from e
         except NonEmbeddableWorkflowReferenceError as e:
