@@ -224,6 +224,7 @@ export {
 export {
     clearSessionFresh,
     freshSessionIds,
+    isSessionCreatedHere,
     isSessionFresh,
     markSessionFresh,
 } from "./core/freshSessions"

@@ -13,6 +13,34 @@
  */
 export const freshSessionIds = new Set<string>()
 
-export const markSessionFresh = (sessionId: string) => freshSessionIds.add(sessionId)
+// Sessions this tab created, kept in `sessionStorage` so the record survives a reload. Narrower
+// than the fresh marker: it is never cleared, and it only answers "this chat is ours". The chat's
+// access check uses it, because after a reload an empty chat of our own has no row, and so does
+// another person's private chat. Hydration does not use it.
+const CREATED_HERE_KEY = "agenta:sessions-created-here"
+const CREATED_HERE_LIMIT = 50
+
+const readCreatedHere = (): string[] => {
+    try {
+        const parsed: unknown = JSON.parse(sessionStorage.getItem(CREATED_HERE_KEY) ?? "[]")
+        return Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string") : []
+    } catch {
+        return []
+    }
+}
+
+export const markSessionFresh = (sessionId: string) => {
+    freshSessionIds.add(sessionId)
+    try {
+        const ids = readCreatedHere().filter((id) => id !== sessionId)
+        ids.push(sessionId)
+        sessionStorage.setItem(CREATED_HERE_KEY, JSON.stringify(ids.slice(-CREATED_HERE_LIMIT)))
+    } catch {
+        // No storage (server render, private mode): the in-memory marker still holds until reload.
+    }
+}
 export const isSessionFresh = (sessionId: string) => freshSessionIds.has(sessionId)
+/** Whether this tab created the session, also after a reload. */
+export const isSessionCreatedHere = (sessionId: string) =>
+    freshSessionIds.has(sessionId) || readCreatedHere().includes(sessionId)
 export const clearSessionFresh = (sessionId: string) => freshSessionIds.delete(sessionId)

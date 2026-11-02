@@ -19,6 +19,8 @@ const sharing = vi.hoisted(() => ({
     querySharingMembers: vi.fn(),
 }))
 const fresh = vi.hoisted(() => new Set<string>())
+// Chats this tab created; unlike `fresh`, the record survives a reload.
+const created = vi.hoisted(() => new Set<string>())
 
 vi.mock("@agenta/sdk/resources", () => ({
     getSharingClient: () => sharing,
@@ -31,6 +33,7 @@ const rows = vi.hoisted(() => ({querySessionStreams: vi.fn()}))
 // The fresh-session marker and the session row read; the rest of the entity is not read here.
 vi.mock("@agenta/entities/session", () => ({
     isSessionFresh: (sessionId: string) => fresh.has(sessionId),
+    isSessionCreatedHere: (sessionId: string) => created.has(sessionId),
     querySessionStreams: (...args: unknown[]) => rows.querySessionStreams(...args),
 }))
 
@@ -150,7 +153,8 @@ describe("until the sharing state of an existing chat is known", () => {
         expect(seen.blocked).toBeNull()
     })
 
-    it("an empty chat on its agent's route may send after a reload", async () => {
+    it("an empty chat this tab created may send after a reload", async () => {
+        created.add("empty-after-reload")
         rows.querySessionStreams.mockResolvedValue(notFound)
         await mount("empty-after-reload", "agent-1")
         await advance(0)
@@ -158,6 +162,15 @@ describe("until the sharing state of an existing chat is known", () => {
         expect(seen.canSend).toBe(true)
         expect(seen.blocked).toBeNull()
         expect(seen.readOnly).toBeNull()
+    })
+
+    it("an agent link to a chat with no row that this tab did not create stays locked", async () => {
+        // Another person's private chat reads like an empty one: no row.
+        rows.querySessionStreams.mockResolvedValue(notFound)
+        await mount("someone-elses-private", "agent-1")
+        await advance(0)
+
+        expect(seen.canSend).toBe(false)
     })
 
     it("no row without an agent route stays not found", async () => {
