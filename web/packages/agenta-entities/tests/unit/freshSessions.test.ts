@@ -7,6 +7,7 @@ import {beforeEach, describe, expect, it} from "vitest"
 
 import {
     clearSessionFresh,
+    forgetSessionCreatedHere,
     freshSessionIds,
     isSessionCreatedHere,
     isSessionFresh,
@@ -35,6 +36,14 @@ describe("sessions created in this tab", () => {
         clearSessionFresh("s1")
 
         expect(isSessionCreatedHere("s1")).toBe(true)
+    })
+
+    it("are forgotten when the session is deleted", () => {
+        markSessionFresh("s1")
+        forgetSessionCreatedHere("s1")
+        reload()
+
+        expect(isSessionCreatedHere("s1")).toBe(false)
     })
 
     it("are not known for a session this tab never created", () => {

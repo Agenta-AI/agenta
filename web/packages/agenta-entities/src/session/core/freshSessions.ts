@@ -2,8 +2,9 @@
  * Sessions created brand-new in this browser and not yet run.
  *
  * A never-run local session has no backend records, so an open-with-empty-cache hydration would be
- * a guaranteed-empty server query. Marked on create, cleared on the first send. In-memory only:
- * after a reload the marker is gone, so a never-run session opened post-reload legitimately falls
+ * a guaranteed-empty server query. Marked on create, cleared on the first send. In-memory only
+ * (`markSessionFresh` also writes the separate created-here record below): after a reload the
+ * marker is gone, so a never-run session opened post-reload legitimately falls
  * back to hydrating (we can no longer tell "never ran" from "ran, cache cleared" without asking the
  * server — which is the point of hydration).
  *
@@ -40,6 +41,19 @@ export const markSessionFresh = (sessionId: string) => {
     }
 }
 export const isSessionFresh = (sessionId: string) => freshSessionIds.has(sessionId)
+/** A deleted session is no longer ours to open. */
+export const forgetSessionCreatedHere = (sessionId: string) => {
+    try {
+        const ids = readCreatedHere()
+        if (!ids.includes(sessionId)) return
+        sessionStorage.setItem(
+            CREATED_HERE_KEY,
+            JSON.stringify(ids.filter((id) => id !== sessionId)),
+        )
+    } catch {
+        // No storage: nothing was recorded.
+    }
+}
 /** Whether this tab created the session, also after a reload. */
 export const isSessionCreatedHere = (sessionId: string) =>
     freshSessionIds.has(sessionId) || readCreatedHere().includes(sessionId)

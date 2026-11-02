@@ -171,6 +171,7 @@ describe("until the sharing state of an existing chat is known", () => {
         await advance(0)
 
         expect(seen.canSend).toBe(false)
+        expect(seen.blocked).toBeNull()
     })
 
     it("no row without an agent route stays not found", async () => {
