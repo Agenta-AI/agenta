@@ -1,6 +1,6 @@
 import {useState} from "react"
 
-import {isValidEmailAddress} from "@agenta/auth"
+import {getEmailSignInMode, isValidEmailAddress} from "@agenta/auth"
 import {projectPermissionQueryPrefix} from "@agenta/entities/access"
 import type {WorkspaceMember} from "@agenta/entities/organization"
 import {
@@ -69,7 +69,11 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
     // reader may do, so no control appears that the API would refuse.
     const scopeKnown = Boolean(organizationId && workspaceId)
     const canInvite = useProjectPermission(projectId, "add_new_user_to_workspace")
-    const canResetPassword = useProjectPermission(projectId, "reset_password")
+    // A reset link only works where members sign in with a password; with email codes the
+    // backend has no password recipe and the request fails.
+    const passwordSignIn = getEmailSignInMode() === "password"
+    const canResetPassword =
+        useProjectPermission(projectId, "reset_password") && passwordSignIn
     const canChangeRoles = useProjectPermission(projectId, "modify_user_roles")
     // The remove route requires the admin role itself (or the organization owner), whatever
     // permissions a custom role holds, so this reads the reader's own role.

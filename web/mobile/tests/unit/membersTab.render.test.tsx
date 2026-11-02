@@ -17,6 +17,12 @@ const state = vi.hoisted(() => ({
     updateUsername: vi.fn(),
     signedIn: {id: "user-1", email: "me@example.com", username: "Me"},
     org: null as unknown,
+    emailMode: "password" as "password" | "otp" | "disabled",
+}))
+
+vi.mock("@agenta/auth", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@agenta/auth")>()),
+    getEmailSignInMode: () => state.emailMode,
 }))
 
 vi.mock("../../src/features/settings/useSettingsOrg", () => ({
@@ -147,6 +153,7 @@ beforeEach(() => {
         value: () => undefined,
     })
     state.permissions = new Set()
+    state.emailMode = "password"
     state.refetch.mockReset()
     state.fetchOfferedRoles.mockReset().mockResolvedValue([
         {role_name: "admin", role_description: "Administrator"},
@@ -184,6 +191,14 @@ describe("MembersTab password reset", () => {
         state.permissions = new Set(["reset_password"])
         await mount()
         expect(menuButton("Owner")).toBeNull()
+    })
+
+    it("does not offer Reset password when members sign in with email codes", async () => {
+        state.permissions = new Set(["reset_password"])
+        state.emailMode = "otp"
+        await mount()
+        await openMenu("Alice")
+        expect(menuItem("Reset password")).toBeUndefined()
     })
 
     it("does not offer Reset password without the server permission", async () => {
