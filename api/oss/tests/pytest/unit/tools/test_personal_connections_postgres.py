@@ -21,6 +21,9 @@ from oss.src.core.gateway.connections.dtos import (
 from oss.src.core.secrets.dtos import SecretOwner
 from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.dbs.postgres.gateway.connections.dao import ConnectionsDAO
+from oss.src.dbs.postgres.gateway.connections.mappings import (
+    map_connection_create_to_dbe,
+)
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.src.utils.env import env
 
@@ -253,3 +256,37 @@ async def test_two_sign_ins_at_once_leave_exactly_one_default(person):
     )
     assert all(result is not None and result.is_valid for result in results)
     assert len(await _defaults(dao, person)) == 1
+
+
+async def test_make_default_that_waits_for_a_create_clears_the_created_default(person):
+    """ "Make default" starts while a create holds the lock, so its first read misses the
+    created row. It must still clear that row's default, not fail on the default index."""
+    dao = ConnectionsDAO()
+    main = await _create_for(dao, person, "gmail-main", is_valid=False)
+    await dao.update_connection(
+        project_id=None, connection_id=main.id, owner=person, is_valid=True
+    )
+    assert await _defaults(dao, person) == []
+
+    async with dao.engine.session() as session:
+        created = map_connection_create_to_dbe(
+            project_id=None,
+            user_id=person.id,
+            dto=_create("gmail-secondary"),
+            owner=person,
+        )
+        session.add(created)
+        await session.flush()
+        await dao._lock_integration_rows(
+            session, owner=person, connection_id=created.id
+        )
+        waiting = asyncio.create_task(
+            dao.make_default(owner=person, connection_id=main.id)
+        )
+        await asyncio.sleep(0.5)
+        await dao._take_default_unless_valid(session, dbe=created, owner=person)
+        await session.commit()
+
+    moved = await waiting
+    assert moved is not None and moved.is_default is True
+    assert await _defaults(dao, person) == ["gmail-main"]
