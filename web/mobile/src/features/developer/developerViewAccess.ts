@@ -60,7 +60,7 @@ export const useDeveloperViewEnabled = (viewId: string): boolean | null => {
 
 export interface DeveloperViewPreviewSwitch {
     view: DeveloperView
-    enabled: boolean
+    optedIn: boolean
 }
 
 /**
@@ -74,8 +74,8 @@ export const developerViewPreviewSwitchesAtom = atom(
         const forcedIds = readForcedDeveloperViewIds()
         return DEVELOPER_VIEWS.filter(
             (view) => view.stage === "preview" && !forcedIds.has(view.id),
-        ).map((view) => ({view, enabled: get(developerViewPreviewAtomFamily(view.id))}))
+        ).map((view) => ({view, optedIn: get(developerViewPreviewAtomFamily(view.id))}))
     },
-    (_get, set, {viewId, enabled}: {viewId: string; enabled: boolean}) =>
-        set(developerViewPreviewAtomFamily(viewId), enabled),
+    (_get, set, {viewId, optedIn}: {viewId: string; optedIn: boolean}) =>
+        set(developerViewPreviewAtomFamily(viewId), optedIn),
 )

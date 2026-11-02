@@ -8,8 +8,9 @@ import type {DeveloperNavSection, DeveloperView} from "./developerViews"
 const SECTION_TITLES: Record<DeveloperNavSection, string> = {developer: "Developer"}
 
 /**
- * One rail section per nav section that has an enabled view, or nothing at all. Links never
- * prefetch: a developer view's code must not load on the pages every user opens.
+ * One rail section per nav section that has an enabled view, or nothing at all. Links do not
+ * prefetch when they scroll into view: a developer view's code must not load on the pages every
+ * user opens.
  */
 export const developerNavItems = (
     projectURL: string,

@@ -31,8 +31,8 @@ export interface PreferenceSection {
 }
 
 /**
- * The page's sections, rows and copy. Defined once so `/w` and `/m` cannot drift: a host only
- * decides how each row is bound, never what it says or where it sits.
+ * The page's sections, rows and copy. Defined once so `/w` and `/m` cannot drift: a host decides
+ * how each row is bound, and may add rows of its own through `hostItems`.
  */
 export const PREFERENCE_SECTIONS: PreferenceSection[] = [
     {

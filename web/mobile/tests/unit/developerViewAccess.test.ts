@@ -69,7 +69,7 @@ describe("enabledDeveloperViewsAtom", () => {
 
     it("adds a preview view once the user switches it on, and stores that per user", () => {
         const store = signedInStore()
-        store.set(developerViewPreviewSwitchesAtom, {viewId: "lab-preview", enabled: true})
+        store.set(developerViewPreviewSwitchesAtom, {viewId: "lab-preview", optedIn: true})
         expect(enabledIds(store)).toEqual(["lab-preview", "lab-on"])
         expect(localStorage.getItem("agenta:settings:u1:developer-view:lab-preview")).toBe("true")
 
@@ -87,13 +87,13 @@ describe("developerViewPreviewSwitchesAtom", () => {
     it("offers a switch for each preview view, pages and feature gates alike", () => {
         const store = signedInStore()
         expect(store.get(developerViewPreviewSwitchesAtom)).toEqual([
-            {view: preview, enabled: false},
-            {view: gate, enabled: false},
+            {view: preview, optedIn: false},
+            {view: gate, optedIn: false},
         ])
         store.set(developerViewPreviewAtomFamily("lab-gate"), true)
         expect(store.get(developerViewPreviewSwitchesAtom)).toEqual([
-            {view: preview, enabled: false},
-            {view: gate, enabled: true},
+            {view: preview, optedIn: false},
+            {view: gate, optedIn: true},
         ])
         expect(enabledIds(store)).toEqual(["lab-on", "lab-gate"])
     })
@@ -101,7 +101,7 @@ describe("developerViewPreviewSwitchesAtom", () => {
     it("offers no switch for a preview view the env already forces on", () => {
         process.env[DEVELOPER_VIEWS_ENV] = "lab-preview"
         expect(signedInStore().get(developerViewPreviewSwitchesAtom)).toEqual([
-            {view: gate, enabled: false},
+            {view: gate, optedIn: false},
         ])
     })
 })

@@ -44,14 +44,14 @@ export const PreferencesTab = () => {
     const [previewSwitches, setPreviewSwitch] = useAtom(developerViewPreviewSwitchesAtom)
     const hostItems = useMemo<HostPreferenceItem[]>(
         () =>
-            previewSwitches.map(({view, enabled}) => ({
+            previewSwitches.map(({view, optedIn}) => ({
                 section: "feature-flags",
                 key: `developer-view:${view.id}`,
                 title: view.label,
                 description: view.description,
                 binding: {
-                    enabled,
-                    onChange: (next) => setPreviewSwitch({viewId: view.id, enabled: next}),
+                    enabled: optedIn,
+                    onChange: (next) => setPreviewSwitch({viewId: view.id, optedIn: next}),
                 },
             })),
         [previewSwitches, setPreviewSwitch],

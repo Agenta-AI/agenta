@@ -76,7 +76,7 @@ describe("developer views", () => {
             expect(developerNavItems(PROJECT, [gate])).toEqual([])
         })
 
-        it("renders a Developer section whose links never prefetch", () => {
+        it("renders a Developer section whose links turn off prefetch", () => {
             const [, , on] = TEST_DEVELOPER_VIEWS
             render(
                 <NavMenu
