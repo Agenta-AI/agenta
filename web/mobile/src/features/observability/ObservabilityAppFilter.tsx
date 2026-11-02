@@ -43,7 +43,11 @@ export const AppFilterSelect = ({
         disabled={disabled}
         onValueChange={(next) => onChange(next === ALL_APPS ? null : next)}
     >
-        <SelectTrigger size="sm" className="w-44 max-w-full" aria-label="Filter by app">
+        <SelectTrigger
+            size="sm"
+            className="w-full min-w-44 max-w-full sm:w-64"
+            aria-label="Filter by app"
+        >
             <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -71,8 +75,9 @@ export const AppFilterSelect = ({
 /**
  * Narrows the observability screen to one app, over the apps list the nav already loads.
  *
- * Hidden when the list fails, so the page stays project wide. A `value` that is not in the list
- * (deleted, archived) is cleared once the list is known.
+ * Hidden when the list fails, and a picked app is cleared then, so the page stays project wide
+ * with no filter left that the user cannot see. A `value` that is not in the list (deleted,
+ * archived) is cleared once the list is known.
  */
 export const ObservabilityAppFilter = ({
     value,
@@ -84,7 +89,7 @@ export const ObservabilityAppFilter = ({
     const {data, isPending, isError} = useAtomValue(appWorkflowsListQueryStateAtom)
     const apps = data.map((app) => ({id: app.id, name: (app.name || app.slug || "").trim()}))
     const unknown =
-        value !== null && !isPending && !isError && !apps.some((app) => app.id === value)
+        value !== null && !isPending && (isError || !apps.some((app) => app.id === value))
 
     useEffect(() => {
         if (unknown) onChange(null)

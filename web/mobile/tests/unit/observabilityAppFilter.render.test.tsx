@@ -99,11 +99,11 @@ describe("ObservabilityAppFilter", () => {
         expect(onChange).not.toHaveBeenCalled()
     })
 
-    it("The picker is hidden when the apps list fails", () => {
+    it("The picker is hidden when the apps list fails, and the picked app is cleared", () => {
         apps.current = {data: [], isPending: false, isError: true}
         const onChange = mount("app-1")
 
         expect(trigger()).toBeNull()
-        expect(onChange).not.toHaveBeenCalled()
+        expect(onChange).toHaveBeenCalledWith(null)
     })
 })
