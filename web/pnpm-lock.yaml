@@ -412,6 +412,9 @@ importers:
 
   mobile:
     dependencies:
+      '@agenta/annotation':
+        specifier: workspace:../packages/agenta-annotation
+        version: link:../packages/agenta-annotation
       '@agenta/auth':
         specifier: workspace:../packages/agenta-auth
         version: link:../packages/agenta-auth

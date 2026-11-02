@@ -10,7 +10,11 @@
 
 import {useCallback, useMemo} from "react"
 
-import {annotationFormController, annotationSessionController} from "@agenta/annotation"
+import {
+    annotationFormController,
+    annotationSessionController,
+    getAddToTestsetDisabledReason,
+} from "@agenta/annotation"
 import {traceRootSpanAtomFamily} from "@agenta/entities/trace"
 import {useModifierKey} from "@agenta/shared/hooks"
 import {message} from "@agenta/ui/app-message"
@@ -20,8 +24,6 @@ import {Button, Select, Switch, Tag, Tooltip, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigation} from "../../context"
-
-import {getAddToTestsetDisabledReason} from "./assets/utils"
 
 // ============================================================================
 // HELPERS

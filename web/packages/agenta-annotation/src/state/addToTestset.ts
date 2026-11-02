@@ -14,3 +14,16 @@ export function getAddToTestsetDisabledReason({
     if (isSubmitting) return "Saving annotations"
     return null
 }
+
+/** The commit modes the add-to-testset modal offers. */
+export const ADD_TO_TESTSET_COMMIT_MODES = [
+    {id: "existing", label: "Existing testset"},
+    {id: "new", label: "New testset"},
+]
+
+/** The name field the add-to-testset modal shows when it creates a testset. */
+export const CREATE_TESTSET_FIELDS = {
+    modes: ["new"],
+    nameLabel: "Testset name",
+    defaultName: ({entity}: {entity: {name?: string} | null}) => entity?.name ?? "",
+}

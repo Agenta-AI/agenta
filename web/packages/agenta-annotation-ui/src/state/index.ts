@@ -1,1 +1,1 @@
-export {createQueueDrawerOpenAtom} from "./atoms"
+export {createQueueDrawerOpenAtom} from "@agenta/annotation"
