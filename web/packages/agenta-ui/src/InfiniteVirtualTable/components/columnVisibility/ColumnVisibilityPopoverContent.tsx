@@ -126,7 +126,7 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
                         label
                     ),
                 searchValues: [typeof label === "string" ? label : undefined, key],
-                icon: hasChildren ? <FolderOpen size="1em" /> : <FileIcon size="1em" />,
+                icon: hasChildren ? <FolderOpen size={16} /> : <FileIcon size={16} />,
             }
         },
         [],
@@ -144,7 +144,7 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
                 const icon =
                     meta.icon ??
                     defaultMeta.icon ??
-                    (hasChildren ? <FolderOpen size="1em" /> : <FileIcon size="1em" />)
+                    (hasChildren ? <FolderOpen size={16} /> : <FileIcon size={16} />)
                 const searchValues = meta.searchValues ??
                     defaultMeta.searchValues ?? [
                         node.label ?? undefined,

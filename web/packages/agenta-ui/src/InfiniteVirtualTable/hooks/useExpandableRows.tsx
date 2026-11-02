@@ -194,11 +194,11 @@ export function useExpandableRows<RecordType extends object, ChildType = unknown
                     }}
                 >
                     {loading ? (
-                        <CircleNotch size={14} className="animate-spin" />
+                        <CircleNotch size={16} className="animate-spin" />
                     ) : expanded ? (
-                        <MinusCircle size={14} />
+                        <MinusCircle size={16} />
                     ) : (
-                        <PlusCircle size={14} />
+                        <PlusCircle size={16} />
                     )}
                 </span>
             )
@@ -256,11 +256,11 @@ export function useExpandableRows<RecordType extends object, ChildType = unknown
                     }}
                 >
                     {loading ? (
-                        <CircleNotch size={14} className="animate-spin" />
+                        <CircleNotch size={16} className="animate-spin" />
                     ) : expanded ? (
-                        <MinusCircle size={14} />
+                        <MinusCircle size={16} />
                     ) : (
-                        <PlusCircle size={14} />
+                        <PlusCircle size={16} />
                     )}
                 </span>
             )
