@@ -41,7 +41,10 @@ import {EntityTable, type EntityColumnHeader} from "../shared"
 // ============================================================================
 
 export interface TestcaseTableProps {
-    /** Data source configuration */
+    /**
+     * Data source configuration. An edit session sets `includeNewRows`, so rows added locally
+     * and not yet saved show in the table.
+     */
     config: TestcaseDataConfig
     /** Enable row selection (default: false) */
     selectable?: boolean
@@ -73,11 +76,6 @@ export interface TestcaseTableProps {
     renderColumnHeader?: (header: EntityColumnHeader) => ReactNode
     /** Extra controls in the toolbar, next to the settings button */
     headerExtra?: ReactNode
-    /**
-     * The table belongs to an edit session: rows added locally and not yet saved show in
-     * the table. Without it only server rows show. Deleted rows are hidden either way.
-     */
-    editSession?: boolean
 }
 
 // ============================================================================
@@ -140,13 +138,7 @@ export function TestcaseTable({
     appendColumns,
     renderColumnHeader,
     headerExtra,
-    editSession = false,
 }: TestcaseTableProps) {
-    const tableConfig = useMemo<TestcaseDataConfig>(
-        () => (editSession ? {...config, includeNewRows: true} : config),
-        [config, editSession],
-    )
-
     // Testcase-specific row data resolver:
     // All rows (identity-only) look up data from the entity's .data property.
     // Note: This is a fallback - getCellValue is the primary accessor.
@@ -189,7 +181,7 @@ export function TestcaseTable({
     return (
         <EntityTable<TestcaseTableRow, TestcaseDataConfig, Column>
             controller={testcaseDataController}
-            config={tableConfig}
+            config={config}
             getRowData={getRowData}
             getCellValue={getCellValue}
             selectable={selectable}

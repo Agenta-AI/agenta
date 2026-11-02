@@ -618,6 +618,13 @@ export function EntityTable<
         }
     }, [typeChips, defaultGetRowValue])
 
+    // A row click opens the row when the caller asked for that, else it toggles selection.
+    const rowClickHandler = onRowClick
+        ? onRowClick
+        : selectable
+          ? (record: TRow) => handleRowSelect(record.id, !selectedIdsSet.has(record.id))
+          : undefined
+
     // Loading state
     if (isLoading && rows.length === 0) {
         return <LoadingSkeleton variant="paragraph" rows={loadingRows} />
@@ -645,24 +652,15 @@ export function EntityTable<
                 tableProps={{
                     size: "small",
                     bordered: true,
-                    onRow: onRowClick
+                    onRow: rowClickHandler
                         ? (record) => ({
-                              onClick: () => onRowClick(record),
+                              onClick: () => rowClickHandler(record),
                               className: cn(
                                   "cursor-pointer",
                                   selectedIdsSet.has(record.id) && bgColors.subtle,
                               ),
                           })
-                        : selectable
-                          ? (record) => ({
-                                onClick: () =>
-                                    handleRowSelect(record.id, !selectedIdsSet.has(record.id)),
-                                className: cn(
-                                    "cursor-pointer",
-                                    selectedIdsSet.has(record.id) && bgColors.subtle,
-                                ),
-                            })
-                          : undefined,
+                        : undefined,
                 }}
             />
         </div>

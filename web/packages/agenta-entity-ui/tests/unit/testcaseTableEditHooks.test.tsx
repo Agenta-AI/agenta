@@ -132,7 +132,7 @@ describe("TestcaseTable edit hooks", () => {
     })
 
     it("An edit session shows a new local row", async () => {
-        await mount(<TestcaseTable config={config} editSession />)
+        await mount(<TestcaseTable config={{...config, includeNewRows: true}} />)
         expect(container.querySelector('[data-row="new-1"]')).not.toBeNull()
     })
 

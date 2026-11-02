@@ -47,7 +47,7 @@ export const TestsetToolbar = ({
     /** `/w/{workspace}/p/{project}`, the start of every test set path. */
     base: string
     canEdit: boolean
-    revisions: Pick<RevisionsList, "latestVersion" | "load">
+    revisions: Pick<RevisionsList, "latestVersion" | "load" | "status">
     onImport?: () => void
     onRowAdded?: (rowId: string) => void
 }) => {
@@ -138,7 +138,7 @@ export const TestsetToolbar = ({
                 open={commitOpen}
                 isNew={isNew}
                 currentVersion={editor.header?.revisionVersion}
-                latestVersion={revisions.latestVersion}
+                latestVersion={revisions.status === "ready" ? revisions.latestVersion : null}
                 summary={editor.changesSummary}
                 diff={diff}
                 pending={isSaving}

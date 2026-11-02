@@ -52,8 +52,8 @@ export const CommitTestsetDialog = ({
     open: boolean
     isNew: boolean
     currentVersion: number | undefined
-    /** The highest saved version. The commit becomes the one after it. */
-    latestVersion: number
+    /** The highest saved version, or null until the revisions have loaded. */
+    latestVersion: number | null
     summary: Pick<ChangesSummary, "updatedTestcases" | "newTestcases" | "deletedTestcases">
     diff: ChangesDiff | null
     pending: boolean
@@ -81,7 +81,8 @@ export const CommitTestsetDialog = ({
                         <p className="m-0">
                             <span className="text-muted-foreground">Version </span>
                             <span className="font-medium">
-                                v{currentVersion ?? "#"} → v{latestVersion + 1}
+                                v{currentVersion ?? "#"}
+                                {latestVersion === null ? "" : ` → v${latestVersion + 1}`}
                             </span>
                         </p>
                     )}

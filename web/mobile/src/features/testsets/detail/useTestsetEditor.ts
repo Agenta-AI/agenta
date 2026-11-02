@@ -95,14 +95,13 @@ export function useTestsetEditor({
     // `saveTestsetAtom` and the changes summary look for edited server rows in this list, and
     // the paginated table does not fill it. Without it an edit to a saved row is never sent.
     const rows = useAtomValue(testcaseDataController.selectors.rows(tableConfig))
-    const serverIdsKey = rows
-        .filter((row) => !row.__isNew && !row.__isSkeleton)
-        .map((row) => row.id)
-        .join("\n")
+    const serverIds = useMemo(
+        () => rows.filter((row) => !row.__isNew && !row.__isSkeleton).map((row) => row.id),
+        [rows],
+    )
     useEffect(() => {
-        if (notFound) return
-        setServerIds(serverIdsKey ? serverIdsKey.split("\n") : [])
-    }, [notFound, serverIdsKey, setServerIds])
+        if (!notFound) setServerIds(serverIds)
+    }, [notFound, serverIds, setServerIds])
 
     const columns = useAtomValue(testcaseDataController.selectors.columns(tableConfig))
     const pendingOps = useAtomValue(revisionMolecule.atoms.pendingColumnOps(routeId))

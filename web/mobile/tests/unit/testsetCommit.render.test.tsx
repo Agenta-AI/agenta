@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import {act, type ReactNode} from "react"
+import {act} from "react"
 
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -71,7 +71,7 @@ describe("Testset toolbar, commit and leave prompt", () => {
     let root: Root
     let host: HTMLDivElement
 
-    const mount = (editor: Editor, canEdit = true, extra: ReactNode = null) =>
+    const mount = (editor: Editor, canEdit = true, revisionStatus: "ready" | "loading" = "ready") =>
         act(() =>
             root.render(
                 <>
@@ -80,10 +80,9 @@ describe("Testset toolbar, commit and leave prompt", () => {
                         routeId="rev-2"
                         base="/w/ws/p/pr"
                         canEdit={canEdit}
-                        revisions={{latestVersion: 5, load: vi.fn()}}
+                        revisions={{latestVersion: 5, load: vi.fn(), status: revisionStatus}}
                         onImport={vi.fn()}
                     />
-                    {extra}
                 </>,
             ),
         )
@@ -133,6 +132,13 @@ describe("Testset toolbar, commit and leave prompt", () => {
         await click("Commit")
         expect(document.body.textContent).toContain("Commit Changes")
         expect(document.body.textContent).toContain("v2 → v6")
+    })
+
+    it("The commit dialog leaves out the next version until the revisions load", async () => {
+        await mount(fakeEditor(), true, "loading")
+        await click("Commit")
+        expect(document.body.textContent).toContain("Version v2")
+        expect(document.body.textContent).not.toContain("→")
     })
 
     it("The commit dialog lists only non-zero change counts", async () => {
@@ -240,7 +246,7 @@ describe("Testset toolbar, commit and leave prompt", () => {
                     routeId="rev-2"
                     base="/w/ws/p/pr"
                     canEdit
-                    revisions={{latestVersion: 5, load: vi.fn()}}
+                    revisions={{latestVersion: 5, load: vi.fn(), status: "ready"}}
                     onRowAdded={onRowAdded}
                 />,
             ),
