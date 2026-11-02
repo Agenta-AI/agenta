@@ -1,6 +1,12 @@
 import {useCallback} from "react"
 
 import {
+    formatHumanMetricLabel,
+    getHumanMetrics,
+    type HumanMetric,
+    type WorkflowRevisionLike,
+} from "@agenta/annotation"
+import {
     EntityPicker,
     useEnrichedHumanEvaluatorAdapter,
     type WorkflowRevisionSelectionResult,
@@ -8,13 +14,6 @@ import {
 import {VersionBadge} from "@agenta/ui/components/presentational"
 import {textColors} from "@agenta/ui/styles"
 import {Plus} from "@phosphor-icons/react"
-
-import {
-    formatHumanMetricLabel,
-    getHumanMetrics,
-    type HumanMetric,
-    type WorkflowRevisionLike,
-} from "../../state/evaluatorSummary"
 
 export interface EntityEvaluatorSelectorProps {
     onSelect: (selection: WorkflowRevisionSelectionResult) => void

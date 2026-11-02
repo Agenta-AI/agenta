@@ -1,15 +1,14 @@
 import {useMemo} from "react"
 
-import {workflowMolecule} from "@agenta/entities/workflow"
-import {Trash} from "@phosphor-icons/react"
-import {Button, Tag, Typography} from "antd"
-import {useAtomValue} from "jotai"
-
 import {
     formatHumanMetricLabel,
     getHumanMetrics,
     type WorkflowRevisionLike,
-} from "../../state/evaluatorSummary"
+} from "@agenta/annotation"
+import {workflowMolecule} from "@agenta/entities/workflow"
+import {Trash} from "@phosphor-icons/react"
+import {Button, Tag, Typography} from "antd"
+import {useAtomValue} from "jotai"
 
 export interface SelectedEvaluatorCardData {
     revisionId: string

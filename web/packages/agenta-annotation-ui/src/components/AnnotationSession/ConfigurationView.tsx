@@ -11,6 +11,11 @@ import {memo, useCallback, useEffect, useMemo, useState} from "react"
 import type {KeyboardEvent, PropsWithChildren} from "react"
 
 import {annotationSessionController} from "@agenta/annotation"
+import {
+    deriveEvaluatorTypeLabel,
+    extractEvaluatorParameters,
+    parseOutputMetrics,
+} from "@agenta/annotation"
 import {simpleQueueMolecule} from "@agenta/entities/simpleQueue"
 import {resolveOutputSchema, workflowMolecule} from "@agenta/entities/workflow"
 import {EntityDeleteModal} from "@agenta/entity-ui"
@@ -21,11 +26,6 @@ import {Button, Form, Input, Segmented, Skeleton, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigation} from "../../context/AnnotationUIContext"
-import {
-    deriveEvaluatorTypeLabel,
-    extractEvaluatorParameters,
-    parseOutputMetrics,
-} from "../../state/evaluatorSummary"
 import AssignmentsCell from "../AnnotationQueuesView/cells/AssignmentsCell"
 
 const {Text} = Typography

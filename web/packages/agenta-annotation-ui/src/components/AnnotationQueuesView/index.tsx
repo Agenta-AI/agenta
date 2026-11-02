@@ -5,6 +5,13 @@ import {
     createQueueDrawerDefaultKindAtom,
     createQueueDrawerSelectionAtom,
 } from "@agenta/annotation"
+import {
+    QUEUE_KIND_LABELS,
+    formatQueueReviewed,
+    queueKindLabel,
+    queueKindTone,
+    queueStatusLabel,
+} from "@agenta/annotation"
 import {userByIdFamily} from "@agenta/entities/shared"
 import {
     simpleQueuePaginatedStore,
@@ -28,13 +35,6 @@ import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
 import {useAnnotationNavigation} from "../../context/AnnotationUIContext"
-import {
-    QUEUE_KIND_LABELS,
-    formatQueueReviewed,
-    queueKindLabel,
-    queueKindTone,
-    queueStatusLabel,
-} from "../../state/queueLabels"
 import CreateQueueDrawer from "../CreateQueueDrawer"
 import QueueStatusTag from "../QueueStatusTag"
 

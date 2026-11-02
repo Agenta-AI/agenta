@@ -1,10 +1,9 @@
 import {memo} from "react"
 
+import {queueStatusLabel, queueStatusTone} from "@agenta/annotation"
 import {simpleQueueMolecule, type EvaluationStatus} from "@agenta/entities/simpleQueue"
 import {Tag} from "antd"
 import {useAtomValue} from "jotai"
-
-import {queueStatusLabel, queueStatusTone} from "../state/queueLabels"
 
 interface QueueStatusTagProps {
     queueId: string

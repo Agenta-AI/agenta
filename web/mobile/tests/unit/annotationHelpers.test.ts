@@ -1,11 +1,6 @@
-// The annotation helpers live in @agenta/annotation-ui/state. That package has no test runner, and
-// a package.json change is out of scope here, so the tests run from the mobile suite.
-import {describe, expect, it} from "vitest"
+// The annotation helpers live in @agenta/annotation. They run from the mobile suite.
 
-import {
-    getHumanMetrics,
-    formatHumanMetricLabel,
-} from "../../../packages/agenta-annotation-ui/src/state/evaluatorSummary"
+import {getHumanMetrics, formatHumanMetricLabel} from "@agenta/annotation"
 import {
     formatQueueReviewed,
     queueKindLabel,
@@ -14,12 +9,13 @@ import {
     scenarioStatusLabel,
     scenarioStatusTone,
     truncateScenarioId,
-} from "../../../packages/agenta-annotation-ui/src/state/queueLabels"
+} from "@agenta/annotation"
 import {
     categorizeScenarioEntries,
     categorizeTestcaseFields,
     formatScenarioValue,
-} from "../../../packages/agenta-annotation-ui/src/state/scenarioContent"
+} from "@agenta/annotation"
+import {describe, expect, it} from "vitest"
 
 describe("annotation helpers", () => {
     it("Queue status labels match the old list", () => {

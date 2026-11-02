@@ -15,6 +15,7 @@ import {
     annotationSessionController,
     getAddToTestsetDisabledReason,
 } from "@agenta/annotation"
+import {truncateScenarioId} from "@agenta/annotation"
 import {traceRootSpanAtomFamily} from "@agenta/entities/trace"
 import {useModifierKey} from "@agenta/shared/hooks"
 import {message} from "@agenta/ui/app-message"
@@ -24,7 +25,6 @@ import {Button, Select, Switch, Tag, Tooltip, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigation} from "../../context"
-import {truncateScenarioId} from "../../state/queueLabels"
 
 // ============================================================================
 // TYPES

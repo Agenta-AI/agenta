@@ -13,6 +13,11 @@
 import {memo, useMemo} from "react"
 
 import {
+    categorizeScenarioEntries,
+    formatScenarioValue,
+    isComplexScenarioValue,
+} from "@agenta/annotation"
+import {
     traceEntityAtomFamily,
     traceRootSpanAtomFamily,
     traceInputsAtomFamily,
@@ -25,11 +30,6 @@ import {
     useTestcaseContentRenderer,
     useTraceContentRenderer,
 } from "../../context/AnnotationUIContext"
-import {
-    categorizeScenarioEntries,
-    formatScenarioValue,
-    isComplexScenarioValue,
-} from "../../state/scenarioContent"
 
 // ============================================================================
 // TYPES
