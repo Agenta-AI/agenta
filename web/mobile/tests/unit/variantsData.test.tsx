@@ -127,6 +127,21 @@ describe("useAppRevisions", () => {
         expect(latest?.rows.map((row: AppRevisionRow) => row.revisionId)).toEqual(["rev-1"])
     })
 
+    it("A version 0 revision with only a script is kept", async () => {
+        fixture.queryVariants.mockResolvedValue({workflow_variants: []})
+        fixture.queryRevisions.mockResolvedValue({
+            workflow_revisions: [
+                {...revision("rev-script", 0), data: {parameters: {}, script: {content: "x"}}},
+                {...revision("rev-empty", 0), data: {parameters: {}, script: null}},
+                {...revision("rev-none", 0), data: null},
+            ],
+            windowing: {next: null},
+        })
+        render(createElement(Probe, {search: ""}))
+        await flush()
+        expect(latest?.rows.map((row: AppRevisionRow) => row.revisionId)).toEqual(["rev-script"])
+    })
+
     it("Load more sends the cursor the server returned", async () => {
         fixture.queryVariants.mockResolvedValue({workflow_variants: []})
         fixture.queryRevisions.mockResolvedValueOnce({
@@ -244,7 +259,26 @@ describe("useAppDeploymentHistory", () => {
         expect(fixture.fetchHistory).toHaveBeenCalledWith({
             projectId: "p-1",
             environmentId: "env-1",
+            next: undefined,
         })
         expect(latest?.data?.map((row) => row.envRevisionId)).toEqual(["e3", "e1"])
+    })
+
+    it("Every page of environment revisions is fetched before the history is built", async () => {
+        const page = (from: number, count: number) => ({
+            environment_revisions: Array.from({length: count}, (_, i) => ({
+                id: `e${from - i}`,
+            })),
+        })
+        fixture.fetchHistory.mockResolvedValueOnce(page(250, 100))
+        fixture.fetchHistory.mockResolvedValueOnce(page(150, 100))
+        fixture.fetchHistory.mockResolvedValueOnce(page(50, 50))
+        fixture.buildHistory.mockReturnValue([])
+        render(createElement(Probe, {search: ""}))
+        await flush()
+        expect(fixture.fetchHistory).toHaveBeenCalledTimes(3)
+        expect(fixture.fetchHistory.mock.calls[1][0]).toMatchObject({next: "e151"})
+        expect(fixture.fetchHistory.mock.calls[2][0]).toMatchObject({next: "e51"})
+        expect(fixture.buildHistory.mock.calls[0][0]).toHaveLength(250)
     })
 })

@@ -55,6 +55,30 @@ describe("buildAppDeploymentHistory", () => {
         expect(rows.map((row) => row.envRevisionId)).toEqual(["e3", "e2"])
     })
 
+    it("Deploy, undeploy and redeploy of the same revision keeps all events", () => {
+        const rows = buildAppDeploymentHistory(
+            [
+                envRevision("e3", 3, {a: ref("app-1", "r1")}),
+                envRevision("e2", 2, {}),
+                envRevision("e1", 1, {a: ref("app-1", "r1")}),
+            ],
+            APP,
+        )
+        expect(rows.map((row) => row.envRevisionId)).toEqual(["e3", "e1"])
+        expect(rows.map((row) => row.index)).toEqual([2, 1])
+    })
+
+    it("Revisions are ordered by version even when given out of order", () => {
+        const rows = buildAppDeploymentHistory(
+            [
+                envRevision("e1", 1, {a: ref("app-1", "r1")}),
+                envRevision("e2", 2, {a: ref("app-1", "r2")}),
+            ],
+            APP,
+        )
+        expect(rows.map((row) => row.envRevisionId)).toEqual(["e2", "e1"])
+    })
+
     it("The newest deployment gets the highest index", () => {
         const rows = buildAppDeploymentHistory(
             [

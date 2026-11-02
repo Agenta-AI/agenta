@@ -185,6 +185,30 @@ describe("DeploymentsTab", () => {
         expect(text()).toContain("Renamed v1")
     })
 
+    it("Environment cards and the deploy dialog show the variant's current name", () => {
+        fixture.environments.data = [
+            {...environment("development", "rev-2", "old-stored-slug"), deployedVariantId: "var-1"},
+        ]
+        mountTab()
+        expect(text()).toContain("Renamed")
+        expect(text()).not.toContain("old-stored-slug")
+        fixture.pickable = [
+            {
+                revisionId: "rev-3",
+                variantId: "var-1",
+                variantName: "Renamed",
+                variantSlug: null,
+                version: 3,
+                model: "",
+                createdAt: null,
+            },
+        ]
+        act(() => button("Deploy")?.click())
+        act(() => (document.querySelector("[role=radio]") as HTMLElement).click())
+        expect(text()).toContain("Renamed v2 → Renamed v3")
+        expect(text()).not.toContain("old-stored-slug")
+    })
+
     it("A card without a deployment says No deployment", () => {
         mountTab()
         expect(text()).toContain("No deployment")

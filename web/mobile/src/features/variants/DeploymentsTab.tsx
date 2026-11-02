@@ -45,7 +45,7 @@ export const DeploymentsTab = ({
     base: string
 }) => {
     const {read, write} = useUrlParams()
-    const environments = useAtomValue(appEnvironmentsLoadableAtomFamily(app.id))
+    const storedEnvironments = useAtomValue(appEnvironmentsLoadableAtomFamily(app.id))
     const environmentList = useAtomValue(environmentsListQueryAtomFamily(false))
     const variants = useAtomValue(workflowVariantsListDataAtomFamily(app.id))
     const variantNames = useMemo(
@@ -57,6 +57,19 @@ export const DeploymentsTab = ({
                 }),
             ),
         [variants],
+    )
+    // The cards store the variant name from the deployment; show the current name after a rename.
+    const environments = useMemo(
+        () => ({
+            ...storedEnvironments,
+            data: storedEnvironments.data.map((entry) => ({
+                ...entry,
+                deployedVariantName:
+                    (entry.deployedVariantId ? variantNames.get(entry.deployedVariantId) : null) ??
+                    entry.deployedVariantName,
+            })),
+        }),
+        [storedEnvironments, variantNames],
     )
     const canDeploy = useProjectPermission(projectId, "deploy_environments")
     const endpointsEnabled = useDeveloperViewEnabled("endpoints")

@@ -50,18 +50,25 @@ export const buildAppDeploymentHistory = (
     revisions: readonly EnvironmentRevision[],
     app: AppDeploymentApp,
 ): AppDeploymentRow[] => {
-    const matches = revisions
+    // Every real revision takes part, also the ones without the app: an undeploy is a state
+    // change, so deploying the same revision again afterwards is a new event.
+    const ordered = revisions
         .filter((revision) => (revision.version ?? 0) > 0)
-        .map((revision) => ({revision, reference: findAppReference(revision, app)}))
-        .filter(
-            (entry): entry is {revision: EnvironmentRevision; reference: AppReference} =>
-                entry.reference !== null,
-        )
+        .sort((a, b) => (b.version ?? 0) - (a.version ?? 0))
+        .map((revision) => {
+            const reference = findAppReference(revision, app)
+            return {
+                revision,
+                reference,
+                deployedId: reference?.application_revision?.id ?? null,
+            }
+        })
 
-    const events = matches.filter((entry, position) => {
-        const older = matches[position + 1]
-        const olderId = older?.reference.application_revision?.id ?? null
-        return (entry.reference.application_revision?.id ?? null) !== olderId
+    const events = ordered.flatMap((entry, position) => {
+        const olderId = ordered[position + 1]?.deployedId ?? null
+        return entry.reference && entry.deployedId !== null && entry.deployedId !== olderId
+            ? [{revision: entry.revision, reference: entry.reference}]
+            : []
     })
 
     return events.map(({revision, reference}, position) => {

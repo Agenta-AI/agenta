@@ -24,15 +24,22 @@ export interface AppRevisionRow {
 export const appRevisionsKey = (projectId: string, appId: string, search: string) =>
     ["workflows", "app-revisions", projectId, appId, search] as const
 
+const hasContent = (value: unknown): boolean => {
+    if (value == null || value === "") return false
+    if (Array.isArray(value)) return value.length > 0
+    if (typeof value === "object") return Object.keys(value).length > 0
+    return true
+}
+
 /**
- * The empty first revision a new variant starts with: version 0 and no parameters. A version 0
- * that holds parameters is a real first commit and stays.
+ * The empty first revision a new variant starts with: version 0 and nothing in its data (no
+ * parameters, no script, no other config). A version 0 that holds anything is a real first commit
+ * and stays.
  */
 const isEmptySeed = (revision: {
     version?: number | string | null
-    data?: {parameters?: Record<string, unknown> | null} | null
-}) =>
-    Number(revision.version ?? 0) <= 0 && Object.keys(revision.data?.parameters ?? {}).length === 0
+    data?: Record<string, unknown> | null
+}) => Number(revision.version ?? 0) <= 0 && !Object.values(revision.data ?? {}).some(hasContent)
 
 interface Page {
     rows: AppRevisionRow[]
