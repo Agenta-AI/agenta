@@ -319,6 +319,37 @@ describe("SessionShareDialog", () => {
     })
 })
 
+describe("the copied link while nobody else has access", () => {
+    const copyLink = async () => {
+        act(() => buttonNamed(sessionSharingCopy.copyLink)!.click())
+        await flush()
+    }
+
+    it("warns next to the copy button and in the toast when the chat is private with nobody added", async () => {
+        const onNotify = vi.fn()
+        render({onCopyLink: () => true, onNotify})
+        expect(text()).toContain(sessionSharingCopy.linkNobodyYet)
+        await copyLink()
+        expect(onNotify).toHaveBeenCalledWith(sessionSharingCopy.linkCopiedNobodyYet)
+    })
+
+    it.each([
+        ["someone was added", sharing({grants: [{user_id: bob.user_id, role: "viewer"}]})],
+        ["the chat is shared with the project", sharing({policy: {...sharing().policy, visibility: "project"}})],
+    ])("says nothing more once %s", async (_, state) => {
+        const onNotify = vi.fn()
+        render({sharing: state, onCopyLink: () => true, onNotify})
+        expect(text()).not.toContain(sessionSharingCopy.linkNobodyYet)
+        await copyLink()
+        expect(onNotify).toHaveBeenCalledWith(sessionSharingCopy.linkCopied)
+    })
+
+    it("does not warn when the dialog offers no link", () => {
+        render()
+        expect(text()).not.toContain(sessionSharingCopy.linkNobodyYet)
+    })
+})
+
 describe("a member whose project role cannot send (QA D3)", () => {
     const viewerRole = {...carol, role: "viewer", can_run_sessions: false} as ProjectMemberProfile
 
