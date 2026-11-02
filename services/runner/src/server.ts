@@ -364,8 +364,8 @@ export const makeKeepaliveEngine = (engineDeps: () => SandboxAgentDeps | Promise
 
       return runTurn(env, request, emit, signal, {
         ...opts,
-       // After the spread so a caller-supplied set wins, and short-circuited so we never CLAIM
-       // rows the spread would then discard — a claimed row is spent even if it is thrown away.
+        // After the spread so a caller-supplied set wins, and short-circuited so we never CLAIM
+        // rows the spread would then discard — a claimed row is spent even if it is thrown away.
         seededDecisions,
       });
     };
@@ -412,9 +412,6 @@ export const makeKeepaliveEngine = (engineDeps: () => SandboxAgentDeps | Promise
       clearInterval(heartbeat);
     }
   },
-
-
-
   // LIFECYCLE MIGRATION, STEP 6. The live-route applier. The coordinator gates on the plan being
   // entirely live-applicable; this performs it and commits applied state only if all of it landed.
   applyReconcilePlan: (env, request, plan) =>
