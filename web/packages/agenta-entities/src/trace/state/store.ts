@@ -21,6 +21,7 @@
 import {immutablePersister} from "@agenta/shared/api/persist"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {createBatchFetcher} from "@agenta/shared/utils"
+import {AgentaApiError, AgentaApiTimeoutError} from "@agentaai/api-client"
 import type {QueryKey} from "@tanstack/react-query"
 import {atom, getDefaultStore} from "jotai"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
@@ -112,13 +113,36 @@ const isTraceFresh = (traceId: string) => {
     return markedAt !== undefined && Date.now() - markedAt < FRESH_TRACE_WINDOW_MS
 }
 
-/** Retry not-found aggressively only for fresh traces; once for everything else. */
-const traceNotFoundRetry =
+const TRACE_TRANSPORT_RETRIES = 2
+const TRACE_RETRY_BASE_DELAY_MS = 500
+const TRACE_FAILURE_GC_TIME_MS = 60_000
+
+const isTransportError = (error: unknown): boolean => {
+    if (error instanceof AgentaApiTimeoutError) return true
+    if (error instanceof AgentaApiError) return error.statusCode === undefined
+    if (!(error instanceof Error) || error.name === "AbortError") return false
+
+    return (
+        error.name === "TypeError" ||
+        /fetch|network|load failed|timeout/i.test(error.message)
+    )
+}
+
+/** Retry fresh not-found reads and transient transport failures, but not HTTP errors. */
+const traceQueryRetry =
     (traceId: string | null) =>
     (failureCount: number, error: Error): boolean => {
-        if (!(error instanceof TraceNotFoundError) || !traceId) return false
+        if (!traceId) return false
+        if (isTransportError(error)) return failureCount < TRACE_TRANSPORT_RETRIES
+        if (!(error instanceof TraceNotFoundError)) return false
         return failureCount < (isTraceFresh(traceId) ? 5 : 1)
     }
+
+const traceQueryRetryDelay = (attemptIndex: number, error: Error): number => {
+    const isTransport = isTransportError(error)
+    const baseDelay = isTransport ? TRACE_RETRY_BASE_DELAY_MS : 1000
+    return Math.min(baseDelay * 2 ** attemptIndex, isTransport ? 2000 : 10000)
+}
 
 // ============================================================================
 // BATCH FETCHER FOR SPANS
@@ -277,6 +301,7 @@ export const traceBatchFetcher = createBatchFetcher<
                 error instanceof Error ? error.message : String(error),
                 error,
             )
+            throw error
         }
 
         return results
@@ -376,6 +401,7 @@ const traceSummaryBatchFetcher = createBatchFetcher<
                 error instanceof Error ? error.message : String(error),
                 error,
             )
+            throw error
         }
 
         return results
@@ -731,9 +757,9 @@ export const traceEntityAtomFamily = instrumentedAtomFamily(
                 // Traces are immutable once ingested — never refetch a found one.
                 // invalidateTraceEntityCache still forces a refresh after runs.
                 staleTime: Infinity,
-                gcTime: 5 * 60_000,
+                gcTime: TRACE_FAILURE_GC_TIME_MS,
                 refetchOnWindowFocus: false,
-                retryOnMount: false,
+                retryOnMount: true,
                 structuralSharing: true,
                 queryFn: async () => {
                     if (!traceId || !projectId) return null
@@ -767,8 +793,8 @@ export const traceEntityAtomFamily = instrumentedAtomFamily(
                     return response
                 },
                 // Retry configuration for traces not yet ingested
-                retry: traceNotFoundRetry(traceId),
-                retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000), // 1s, 2s, 4s, 8s, 10s
+                retry: traceQueryRetry(traceId),
+                retryDelay: traceQueryRetryDelay,
             }
         }),
     {name: "trace.traceEntityAtomFamily"},
@@ -799,9 +825,9 @@ export const traceSummaryQueryAtomFamily = instrumentedAtomFamily(
                 persister: immutablePersister.persisterFn<TraceSummarySpans | null, QueryKey>,
                 // Immutable once ingested; invalidateTraceEntityCache covers reruns.
                 staleTime: Infinity,
-                gcTime: 5 * 60_000,
+                gcTime: TRACE_FAILURE_GC_TIME_MS,
                 refetchOnWindowFocus: false,
-                retryOnMount: false,
+                retryOnMount: true,
                 queryFn: async (): Promise<TraceSummarySpans | null> => {
                     if (!traceId || !projectId) return null
                     const result = await traceSummaryBatchFetcher({projectId, traceId})
@@ -811,8 +837,8 @@ export const traceSummaryQueryAtomFamily = instrumentedAtomFamily(
                     }
                     return result
                 },
-                retry: traceNotFoundRetry(traceId),
-                retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 10000),
+                retry: traceQueryRetry(traceId),
+                retryDelay: traceQueryRetryDelay,
             }
         }),
     {name: "trace.traceSummaryQueryAtomFamily"},
