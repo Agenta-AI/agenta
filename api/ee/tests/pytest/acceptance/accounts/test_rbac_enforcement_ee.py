@@ -6,10 +6,10 @@ business-plan account (pinned so enforcement runs deterministically). Asserts:
   - the org owner is ALLOWED to invite/remove workspace members,
   - a viewer member is DENIED (403) the same action.
 
-This suite covers permissions only. The EE entitlement gate (the
-`Flag.RBAC`-not-entitled allow-all bypass) is an entitlements concern and is
-exercised by the entitlements suite, not here — permissions and entitlements
-are tested independently.
+Roles apply on every plan. `TestRbacWithoutEntitlementEe` shows it on Pro, a plan
+without `Flag.RBAC`: a viewer is still denied, and the plan offers only admin and
+member. Member permissions per route are in
+oss/tests/pytest/acceptance/accounts/test_member_role.py.
 """
 
 from uuid import uuid4
@@ -169,3 +169,91 @@ class TestRbacEnforcementEe:
         finally:
             _delete_account_by_email(admin_api, email=owner_email)
             _delete_account_by_email(admin_api, email=viewer_email)
+
+
+class TestRbacWithoutEntitlementEe:
+    def test_pro_viewer_denied_and_short_role_list(self, admin_api):
+        uid = uuid4().hex[:12]
+        owner_email = f"rbac-pro-owner-{uid}@test.agenta.ai"
+        viewer_email = f"rbac-pro-viewer-{uid}@test.agenta.ai"
+        target_email = f"rbac-pro-target-{uid}@agenta.ai"
+
+        owner = _create_account(admin_api, email=owner_email, plan="cloud_v0_pro")
+        viewer = _create_account(admin_api, email=viewer_email)
+
+        organization_id = _first_id(owner["organizations"])
+        workspace_id = _first_id(owner["workspaces"])
+        project_id = _first_id(owner["projects"])
+        owner_headers = {"Authorization": f"ApiKey {_api_key(owner)}"}
+
+        try:
+            _add_project_member(
+                admin_api,
+                organization_id=organization_id,
+                project_id=project_id,
+                user_id=viewer["user"]["id"],
+                role="viewer",
+            )
+            viewer_headers = {
+                "Authorization": "ApiKey "
+                + _create_api_key_for_project(
+                    admin_api, project_id=project_id, user_id=viewer["user"]["id"]
+                )
+            }
+            invite = (
+                f"/organizations/{organization_id}/workspaces/{workspace_id}/invite"
+            )
+
+            # A stored viewer on Pro is a real viewer: no invite.
+            denied = admin_api(
+                "POST",
+                invite,
+                params={"project_id": project_id},
+                headers=viewer_headers,
+                json=[{"email": target_email}],
+            )
+            assert denied.status_code == 403, denied.text
+
+            roles = admin_api(
+                "GET",
+                "/access/roles",
+                params={"project_id": project_id},
+                headers=owner_headers,
+            )
+            assert roles.status_code == 200, roles.text
+            assert roles.json()["offered"] == {
+                "roles": ["admin", "member"],
+                "floor_role": "member",
+            }
+
+            refused = admin_api(
+                "POST",
+                invite,
+                params={"project_id": project_id},
+                headers=owner_headers,
+                json=[{"email": target_email, "roles": ["viewer"]}],
+            )
+            assert refused.status_code == 400, refused.text
+        finally:
+            _delete_account_by_email(admin_api, email=owner_email)
+            _delete_account_by_email(admin_api, email=viewer_email)
+
+    def test_business_offers_every_role_but_owner(self, admin_api):
+        uid = uuid4().hex[:12]
+        owner_email = f"rbac-biz-owner-{uid}@test.agenta.ai"
+        owner = _create_account(admin_api, email=owner_email, plan="cloud_v0_business")
+        project_id = _first_id(owner["projects"])
+        try:
+            roles = admin_api(
+                "GET",
+                "/access/roles",
+                params={"project_id": project_id},
+                headers={"Authorization": f"ApiKey {_api_key(owner)}"},
+            )
+            assert roles.status_code == 200, roles.text
+            offered = roles.json()["offered"]
+            assert "owner" not in offered["roles"]
+            assert {"admin", "member", "viewer", "developer"} <= set(offered["roles"])
+            assert offered["floor_role"] == "viewer"
+        finally:
+            _delete_account_by_email(admin_api, email=owner_email)

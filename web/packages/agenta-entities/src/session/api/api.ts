@@ -27,6 +27,7 @@ import {
     sessionMountsResponseSchema,
     sessionStreamResponseSchema,
     sessionStreamsResponseSchema,
+    sessionTurnsResponseSchema,
     type MountFile,
     type Mount,
     type SessionInteraction,
@@ -37,6 +38,7 @@ import {
     type SessionExpansion,
     type SessionOrigin,
     type SessionStream,
+    type SessionTurn,
     type SessionsQueryResponse,
     type SessionWindowing,
 } from "../core/schema"
@@ -1359,4 +1361,28 @@ export async function cancelSessionExecution({
         )
         return null
     }
+}
+
+/**
+ * A session's turns, with their usage. One read per session: the chat takes each turn's
+ * tokens, cost and latency from these rows instead of reading the trace. `null` on failure.
+ */
+export async function querySessionTurns({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+}: SessionScopedParams): Promise<SessionTurn[] | null> {
+    if (!projectId || !sessionId) return null
+
+    const data = await callFern("[querySessionTurns]", () =>
+        getSessionsClient().queryTurns(
+            {query: {session_id: sessionId}},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    if (!data) return null
+
+    const parsed = safeParseWithLogging(sessionTurnsResponseSchema, data, "[querySessionTurns]")
+    return parsed ? (parsed.turns ?? []) : null
 }

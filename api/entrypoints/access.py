@@ -6,7 +6,7 @@ of every access decision). Every process that checks access calls it at startup:
 (`entrypoints/routers.py`) and both workers (`worker_streams.py`, `worker_queues.py`).
 """
 
-from oss.src.core.access.rbac import AlwaysEnforcedRbac
+from oss.src.core.access.rbac import NoRbacEntitlement
 from oss.src.core.access.service import AccessService, register_access_service
 from oss.src.core.memberships.dtos import MembershipPolicy
 from oss.src.core.memberships.service import (
@@ -41,11 +41,11 @@ def bootstrap_access() -> AccessService:
     )
 
     if is_ee():
-        from ee.src.core.access.rbac import EntitlementsRbacEnforcement  # noqa: PLC0415
+        from ee.src.core.access.rbac import PlanRbacEntitlement  # noqa: PLC0415
 
-        rbac = EntitlementsRbacEnforcement()
+        rbac_entitlement = PlanRbacEntitlement()
     else:
-        rbac = AlwaysEnforcedRbac()
+        rbac_entitlement = NoRbacEntitlement()
 
     principals_dao = PrincipalsDAO(engine=get_transactions_engine())
 
@@ -56,7 +56,7 @@ def bootstrap_access() -> AccessService:
 
     access_service = AccessService(
         memberships=memberships_service,
-        rbac=rbac,
+        rbac_entitlement=rbac_entitlement,
         principals=principals_dao,
         resource_policy=sharing_service,
     )

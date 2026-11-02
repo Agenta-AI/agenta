@@ -23,6 +23,11 @@ import {WithQueryClient} from "../support/queryClient"
 vi.mock("next/router", () => import("../support/nextRouter").then((m) => m.nextRouterModule))
 
 const topUpOffer = vi.hoisted(() => ({status: "unavailable" as string, calls: [] as unknown[]}))
+// Checkout needs `edit_billing`; the check itself is covered by its own suite.
+vi.mock("@/features/context/useProjectPermission", () => ({
+    useProjectPermission: () => true,
+    useProjectPermissionState: () => ({allowed: true, pending: false}),
+}))
 vi.mock("@agenta/settings-ui", () => ({
     useTopUpOffer: (params: {enabled?: boolean}) => {
         topUpOffer.calls.push(params)

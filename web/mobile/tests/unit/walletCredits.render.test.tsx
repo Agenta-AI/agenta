@@ -16,6 +16,14 @@ import type {WalletSummary, WalletUsage} from "@/features/wallet/walletApi"
 const api = vi.hoisted(() => ({
     summary: vi.fn(),
     usage: vi.fn(),
+    canEditBilling: true,
+    billingPending: false,
+}))
+
+// Where credits went is `edit_billing`. The check itself is covered by its own suite.
+vi.mock("@/features/context/useProjectPermission", () => ({
+    useProjectPermission: () => api.canEditBilling,
+    useProjectPermissionState: () => ({allowed: api.canEditBilling, pending: api.billingPending}),
 }))
 
 vi.mock("@/features/wallet/walletApi", async (original) => ({
@@ -95,6 +103,8 @@ globalThis.ResizeObserver ??= class {
 
 beforeEach(() => {
     runtime.__env = {NEXT_PUBLIC_AGENTA_WALLETS_ENABLED: "true"}
+    api.canEditBilling = true
+    api.billingPending = false
 })
 afterEach(() => {
     if (root) act(() => root!.unmount())
@@ -239,6 +249,26 @@ describe("the Credits tab", () => {
         const shown = await render(<CreditsTab projectId="proj-1" />)
 
         expect(shown).toContain("1,234.5")
-        expect(shown).toContain("Usage details are owner-only")
+        expect(shown).toContain("Usage details are for owners and admins.")
+    })
+
+    it("loads rather than locks while the billing check is in flight", async () => {
+        api.canEditBilling = false
+        api.billingPending = true
+        api.summary.mockResolvedValue(summary("enforce"))
+        const shown = await render(<CreditsTab projectId="proj-1" />)
+
+        expect(shown).not.toContain("Usage details are for owners and admins.")
+        expect(api.usage).not.toHaveBeenCalled()
+    })
+
+    it("asks for no usage at all when the reader may not read billing", async () => {
+        api.canEditBilling = false
+        api.summary.mockResolvedValue(summary("enforce"))
+        const shown = await render(<CreditsTab projectId="proj-1" />)
+
+        expect(shown).toContain("Usage details are for owners and admins.")
+        expect(shown).not.toContain("Buy credits")
+        expect(api.usage).not.toHaveBeenCalled()
     })
 })

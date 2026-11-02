@@ -21,6 +21,9 @@ from oss.src.core.access.permissions.types import (
 from oss.src.core.memberships.service import get_memberships_service
 from oss.src.core.memberships.types import MemberNotFound, OrganizationOwnerProtected
 from oss.src.core.access.controls import get_role, get_roles
+from oss.src.core.access.service import ROLE_SCOPE, get_access_service
+from oss.src.core.access.types import RbacEntitlementUnavailable, RoleNotOffered
+from oss.src.utils.context import get_auth_scope
 from oss.src.services.db_manager import get_project_by_workspace
 
 if is_ee():
@@ -128,27 +131,25 @@ async def get_workspace(request: Request):
 )
 async def get_all_workspace_roles(request: Request) -> List[Dict[str, str]]:
     """
-    Get all workspace roles.
-
-    Returns a list of all available workspace roles.
-
-    Returns:
-        List[WorkspaceRoleResponse]: A list of DefaultRole objects representing the available workspace roles.
-
-    Raises:
-        HTTPException: If an error occurs while retrieving the workspace roles.
+    Get the offered roles of the caller's organization: the roles its invites and
+    role changes may set. The plan decides the list; `GET /access/roles`
+    also returns the full catalog.
     """
 
-    # Resolve via access-controls (env-overridable via AGENTA_ACCESS_ROLES).
-    workspace_roles_with_description = [
+    try:
+        offered = await get_access_service().offered_roles(
+            organization_id=get_auth_scope().organization_id
+        )
+    except RbacEntitlementUnavailable as exc:
+        raise HTTPException(status_code=503, detail=exc.message) from exc
+    return [
         {
             "role_name": role["role"],
             "role_description": role.get("description") or "",
         }
-        for role in get_roles("workspace")
+        for role in get_roles(ROLE_SCOPE)
+        if role["role"] in offered.roles
     ]
-
-    return workspace_roles_with_description
 
 
 @router.get(
@@ -206,10 +207,20 @@ async def assign_role_to_user(
                 },
             )
 
-        if not payload.role or get_role("workspace", payload.role) is None:
+        if not payload.role or get_role(ROLE_SCOPE, payload.role) is None:
             return JSONResponse(
                 status_code=400, content={"detail": "Workspace role is invalid."}
             )
+        # `owner` is never offered; the owner check below keeps its 403.
+        if payload.role != DefaultRole.OWNER.value:
+            try:
+                await get_access_service().require_offered_role(
+                    organization_id=project.organization_id, role=payload.role
+                )
+            except RoleNotOffered as exc:
+                return JSONResponse(status_code=400, content={"detail": exc.message})
+            except RbacEntitlementUnavailable as exc:
+                return JSONResponse(status_code=503, content={"detail": exc.message})
 
         user = await db_manager.get_user_with_email(payload.email)
         if user is None:
@@ -270,7 +281,7 @@ async def unassign_role_from_user(
                 },
             )
 
-        if not role or get_role("workspace", role) is None:
+        if not role or get_role(ROLE_SCOPE, role) is None:
             return JSONResponse(
                 status_code=400, content={"detail": "Workspace role is invalid."}
             )
@@ -286,13 +297,19 @@ async def unassign_role_from_user(
         if member is None:
             raise HTTPException(status_code=404, detail="User not found.")
 
-        # Removing the active role reverts the member to the default floor role;
+        # Removing the active role reverts the member to the plan's floor role;
         # removing any other role changes nothing.
         if member.role == role:
+            try:
+                offered = await get_access_service().offered_roles(
+                    organization_id=project.organization_id
+                )
+            except RbacEntitlementUnavailable as exc:
+                return JSONResponse(status_code=503, content={"detail": exc.message})
             await _set_member_role(
                 organization_id=project.organization_id,
                 user_id=user.id,
-                role=DefaultRole.VIEWER.value,
+                role=offered.floor_role,
                 actor_user_id=request.state.user_id,
             )
         return True

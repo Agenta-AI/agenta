@@ -20,7 +20,6 @@ class DecisionReason(str, Enum):
     ROLE = "role"
     PROJECT_OWNER = "project_owner"
     ORGANIZATION_OWNER = "organization_owner"
-    RBAC_NOT_ENTITLED = "rbac_not_entitled"
     NOT_MEMBER = "not_member"
     MISSING_CAPABILITY = "missing_capability"
     PRINCIPAL_INACTIVE = "principal_inactive"
@@ -36,6 +35,15 @@ class DecisionReason(str, Enum):
 class Decision(BaseModel):
     allowed: bool
     reason: DecisionReason
+
+
+class OfferedRoles(BaseModel):
+    """The roles a plan lets an invite or a role change set (slugs, catalog order), and
+    its floor role: the role of an invite that names none, and of a member whose role
+    is removed. `member` without the RBAC entitlement, `viewer` with it."""
+
+    roles: list[str]
+    floor_role: str
 
 
 # -- run principal (M2) -------------------------------------------------------------

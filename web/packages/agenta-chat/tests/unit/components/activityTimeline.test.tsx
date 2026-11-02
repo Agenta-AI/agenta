@@ -21,33 +21,14 @@ vi.mock("@agenta/entities/gatewayTool", () => ({
     useToolIntegrationDetail: () => ({integration: null}),
 }))
 
-/** Trace root-span starts by trace id, for the turns that read one. */
-const {traceStarts, traceDurations} = vi.hoisted(() => ({
-    traceStarts: new Map<string, string>(),
-    traceDurations: new Map<string, number>(),
-}))
+/** Session turn starts and durations by test key, for the turns that have one. */
+const turnStarts = new Map<string, string>()
+const turnDurations = new Map<string, number>()
 
-vi.mock("@agenta/entities/loadable", async () => {
-    const {atom} = await import("jotai")
-    const byKey = new Map<string, unknown>()
-    return {
-        traceDataSummaryAtomFamily: (key: string) => {
-            if (!byKey.has(key)) {
-                byKey.set(
-                    key,
-                    atom(() => ({
-                        rootSpan: traceStarts.has(key) ? {start_time: traceStarts.get(key)} : null,
-                        metrics: traceDurations.has(key)
-                            ? {durationMs: traceDurations.get(key)}
-                            : {},
-                        isPending: false,
-                        error: null,
-                    })),
-                )
-            }
-            return byKey.get(key)
-        },
-    }
+/** The session turn props of the turn stored under `key`. */
+const sessionTurnOf = (key: string) => ({
+    sessionTurnStartedAt: turnStarts.get(key) ?? null,
+    sessionTurnDurationMs: turnDurations.get(key),
 })
 
 const toolStep = (state: string, key = "c1"): ActivityStep => ({
@@ -90,8 +71,8 @@ beforeEach(() => {
 afterEach(() => {
     vi.useRealTimers()
     vi.unstubAllGlobals()
-    traceStarts.clear()
-    traceDurations.clear()
+    turnStarts.clear()
+    turnDurations.clear()
     cleanup()
 })
 
@@ -108,20 +89,20 @@ describe("ActivityTimeline", () => {
     // TAB, not of the run, so a long wait read as a fresh one.
     it("counts from the run's start for a turn it met mid-flight", () => {
         vi.setSystemTime(new Date("2026-09-21T10:00:40Z"))
-        traceStarts.set("t1", "2026-09-21T10:00:00Z")
+        turnStarts.set("t1", "2026-09-21T10:00:00Z")
         mount({
             steps: [toolStep("input-available")],
             streaming: true,
-            traceId: "t1",
+            ...sessionTurnOf("t1"),
             streamedHere: false,
         })
         expect(screen.getByRole("button", {expanded: false}).textContent).toMatch(/0:40/)
     })
 
-    it("counts from now for a run it streamed itself, trace or no trace", () => {
+    it("counts from now for a run it streamed itself, session turn or not", () => {
         vi.setSystemTime(new Date("2026-09-21T10:00:40Z"))
-        traceStarts.set("t1", "2026-09-21T10:00:00Z")
-        mount({steps: [toolStep("input-available")], streaming: true, traceId: "t1"})
+        turnStarts.set("t1", "2026-09-21T10:00:00Z")
+        mount({steps: [toolStep("input-available")], streaming: true, ...sessionTurnOf("t1")})
         expect(screen.getByRole("button", {expanded: false}).textContent).toMatch(/0:00/)
     })
 
@@ -367,9 +348,9 @@ describe("ActivityTimeline", () => {
     })
 
     // #7445: After a turn resumes from an approval, the header showed "Worked for 85m 9s"
-    // because the trace duration spanned from the parked turn's start to the end of the resume.
+    // because the recorded duration spanned from the parked turn's start to the end of the resume.
     it("does not count time waiting for an approval into worked time", () => {
-        traceDurations.set("t1", (85 * 60 + 9) * 1000)
+        turnDurations.set("t1", (85 * 60 + 9) * 1000)
         const view = mount({steps: [toolStep("input-available")], streaming: true})
         act(() => {
             vi.advanceTimersByTime(3000)
@@ -413,7 +394,7 @@ describe("ActivityTimeline", () => {
                     steps={[toolStep("output-available")]}
                     streaming={false}
                     answerStarted={true}
-                    traceId="t1"
+                    {...sessionTurnOf("t1")}
                 />
             </Provider>,
         )
@@ -423,7 +404,7 @@ describe("ActivityTimeline", () => {
     })
 
     it("settles to Worked without duration when an unclocked turn had an approval", () => {
-        traceDurations.set("t2", (85 * 60 + 9) * 1000)
+        turnDurations.set("t2", (85 * 60 + 9) * 1000)
         const stepWithApproval: ActivityStep = {
             ...toolStep("output-available", "c2"),
             part: {
@@ -436,7 +417,7 @@ describe("ActivityTimeline", () => {
             steps: [stepWithApproval],
             streaming: false,
             answerStarted: true,
-            traceId: "t2",
+            ...sessionTurnOf("t2"),
         })
         const line = screen.getAllByRole("button")[0]
         expect(line.textContent).toBe("Worked")
@@ -444,7 +425,7 @@ describe("ActivityTimeline", () => {
     })
 
     it("keeps approval history when replay removes the answered gate from the timeline", () => {
-        traceDurations.set("replayed", (85 * 60 + 9) * 1000)
+        turnDurations.set("replayed", (85 * 60 + 9) * 1000)
         const parts: UIMessage["parts"] = [
             {
                 type: "tool-read",
@@ -471,15 +452,15 @@ describe("ActivityTimeline", () => {
             messageId: turn.message.id,
             steps: activity.steps,
             hadGate: turn.hadGate,
-            traceId: "replayed",
+            ...sessionTurnOf("replayed"),
         })
         expect(screen.getAllByRole("button")[0].textContent).toBe("Worked")
     })
 
-    it("does not use the trace start for a gated turn opened after approval", () => {
+    it("does not use the session turn start for a gated turn opened after approval", () => {
         vi.setSystemTime(new Date("2026-09-21T11:25:03Z"))
-        traceStarts.set("resumed", "2026-09-21T10:00:00Z")
-        traceDurations.set("resumed", (85 * 60 + 9) * 1000)
+        turnStarts.set("resumed", "2026-09-21T10:00:00Z")
+        turnDurations.set("resumed", (85 * 60 + 9) * 1000)
         const tree = (streaming: boolean) => (
             <Provider>
                 <ActivityTimeline
@@ -489,7 +470,7 @@ describe("ActivityTimeline", () => {
                     answerStarted={!streaming}
                     streamedHere={false}
                     hadGate
-                    traceId="resumed"
+                    {...sessionTurnOf("resumed")}
                 />
             </Provider>
         )
@@ -502,10 +483,10 @@ describe("ActivityTimeline", () => {
         expect(screen.getAllByRole("button")[0].textContent).toBe("Worked")
     })
 
-    it("discards an anchored clock when approval history arrives after the trace start", () => {
+    it("discards an anchored clock when approval history arrives after the session turn start", () => {
         vi.setSystemTime(new Date("2026-09-21T11:25:03Z"))
-        traceStarts.set("late-gate", "2026-09-21T10:00:00Z")
-        traceDurations.set("late-gate", (85 * 60 + 9) * 1000)
+        turnStarts.set("late-gate", "2026-09-21T10:00:00Z")
+        turnDurations.set("late-gate", (85 * 60 + 9) * 1000)
         const tree = (hadGate: boolean, streaming: boolean) => (
             <Provider>
                 <ActivityTimeline
@@ -515,7 +496,7 @@ describe("ActivityTimeline", () => {
                     answerStarted={!streaming}
                     streamedHere={!streaming}
                     hadGate={hadGate}
-                    traceId="late-gate"
+                    {...sessionTurnOf("late-gate")}
                 />
             </Provider>
         )
@@ -528,9 +509,9 @@ describe("ActivityTimeline", () => {
         expect(screen.getAllByRole("button")[0].textContent).toBe("Worked")
     })
 
-    it("keeps the trace duration for a settled turn without a gate", () => {
-        traceDurations.set("ungated", 9000)
-        mount({steps: [toolStep("output-available")], traceId: "ungated"})
+    it("keeps the session turn duration for a settled turn without a gate", () => {
+        turnDurations.set("ungated", 9000)
+        mount({steps: [toolStep("output-available")], ...sessionTurnOf("ungated")})
         expect(screen.getAllByRole("button")[0].textContent).toBe("Worked for 9s")
     })
 
