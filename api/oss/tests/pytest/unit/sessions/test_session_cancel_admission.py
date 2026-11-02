@@ -42,6 +42,7 @@ from oss.src.core.sessions.commands.types import (
 from oss.src.core.sessions.executions.dtos import (
     SessionExecutionSettlement,
     SessionExecutionSettlementResult,
+    SessionExecutionState,
 )
 from oss.src.core.sessions.streams.dtos import (
     CommandMode,
@@ -1349,9 +1350,21 @@ async def test_atomic_settlement_does_not_publish_when_no_gate_was_cancelled(
     assert interactions.published_cancelled == []
 
 
+class _LockingExecutionsDAO(_FakeExecutionsDAO):
+    async def lock_for_control(
+        self, *, project_id, session_id, execution_id, transaction
+    ):
+        return self.rows.get((session_id, execution_id)) or SessionExecutionSettlement(
+            project_id=project_id,
+            session_id=session_id,
+            execution_id=execution_id,
+            state=SessionExecutionState.active,
+        )
+
+
 @pytest.mark.asyncio
 async def test_watchdog_cannot_replace_the_runners_terminal_outcome(lock_engine):
-    executions = _FakeExecutionsDAO()
+    executions = _LockingExecutionsDAO()
     svc = _service(lock_engine, executions=executions)
     first = await executions.settle(
         project_id=_PROJECT,
@@ -1362,14 +1375,14 @@ async def test_watchdog_cannot_replace_the_runners_terminal_outcome(lock_engine)
     )
     assert first.won is True
 
-    won = await svc.settle_execution_lost(
+    settlement = await svc.settle_execution_lost(
         project_id=_PROJECT,
         session_id=_SESSION,
         execution_id="turn-A",
         settled_at=datetime.now(timezone.utc),
     )
 
-    assert won is False
+    assert settlement.settled is False
     assert executions.rows[(_SESSION, "turn-A")].terminal_outcome == "stopped"
 
 
