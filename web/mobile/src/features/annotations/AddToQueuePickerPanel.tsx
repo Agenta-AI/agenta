@@ -36,7 +36,7 @@ export const AddToQueuePickerPanel = ({
 }: AddToQueuePickerPanelProps) => (
     <div className="flex flex-col">
         <div className="flex flex-col gap-2 p-3">
-            <p className="text-sm font-medium">Select annotation queue</p>
+            <p className="m-0 text-sm font-medium">Select annotation queue</p>
             <SearchInput
                 placeholder="Search queues..."
                 value={search}
@@ -44,7 +44,7 @@ export const AddToQueuePickerPanel = ({
                 aria-label="Search queues"
             />
         </div>
-        <div className="max-h-[min(22.5rem,50dvh)] overflow-y-auto border-t border-border">
+        <div className="max-h-[min(22.5rem,50dvh)] overflow-y-auto border-0 border-t border-solid border-border">
             {status === "loading" ? (
                 <AddToQueuePickerSkeleton />
             ) : status === "error" ? (
@@ -54,14 +54,14 @@ export const AddToQueuePickerPanel = ({
                     message={search.trim() ? "No matching queues" : emptyMessage}
                 />
             ) : (
-                <ul className="py-1">
+                <ul className="m-0 list-none p-0 py-1">
                     {queues.map((queue) => (
                         <li key={queue.id}>
                             <button
                                 type="button"
                                 disabled={submittingId !== null}
                                 onClick={() => onSelect(queue.id)}
-                                className="flex w-full min-h-11 flex-col items-start justify-center px-3 py-2 text-left hover:bg-accent focus-visible:bg-accent focus-visible:outline-none disabled:cursor-wait disabled:opacity-50"
+                                className="flex w-full min-h-11 cursor-pointer flex-col items-start justify-center border-0 bg-transparent px-3 py-2 text-left hover:bg-accent focus-visible:bg-accent focus-visible:outline-none disabled:cursor-wait disabled:opacity-50"
                             >
                                 <span
                                     className={
