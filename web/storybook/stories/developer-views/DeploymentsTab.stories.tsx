@@ -58,6 +58,7 @@ const Demo = ({state, canRevert = true}: DemoProps) => (
                 <DeploymentHistoryTable
                     rows={state === "noHistory" ? [] : HISTORY}
                     isLoading={false}
+                    variantNames={new Map([["v-support", "Support"]])}
                     currentRevisionId="rev-3"
                     canRevert={canRevert}
                     onOpen={() => undefined}

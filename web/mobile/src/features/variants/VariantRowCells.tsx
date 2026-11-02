@@ -31,7 +31,7 @@ export const VariantRowCells = ({
                 variant={{id: row.revisionId}}
                 variantName={row.variantName}
                 revision={row.version}
-                isLatest={isLatest}
+                isLatest={isLatest && !narrow}
                 showBadges
                 showRevisionAsTag
                 hideDiscard
