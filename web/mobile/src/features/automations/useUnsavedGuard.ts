@@ -30,6 +30,21 @@ export const useUnsavedGuard = ({
     const router = useRouter()
     const bypass = useRef(false)
 
+    // The bypass is for one navigation. A `leave` with no unsaved edits has no listener to
+    // consume it, and the page can stay mounted on the next route, so the end of every route
+    // change clears it. Otherwise the next edit could leave without the question.
+    useEffect(() => {
+        const clearBypass = () => {
+            bypass.current = false
+        }
+        router.events.on("routeChangeComplete", clearBypass)
+        router.events.on("routeChangeError", clearBypass)
+        return () => {
+            router.events.off("routeChangeComplete", clearBypass)
+            router.events.off("routeChangeError", clearBypass)
+        }
+    }, [router])
+
     useEffect(() => {
         if (!dirty) return
 

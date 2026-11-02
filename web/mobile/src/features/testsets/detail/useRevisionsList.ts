@@ -11,9 +11,13 @@ export interface RevisionOption {
     authorId: string | null
 }
 
-/** The key starts with `testsets`, so a write that invalidates `["testsets"]` refreshes it. */
+/**
+ * The key starts like the package revisions list (`["revisions-list", projectId, testsetId]`),
+ * so `invalidateRevisionsListCache`, which a commit and an archive call, refreshes it too. The
+ * last part keeps it apart from the package query, which caches a different shape.
+ */
 export const revisionsListQueryKey = (projectId: string, testsetId: string) =>
-    ["testsets", "revisions", projectId, testsetId] as const
+    ["revisions-list", projectId, testsetId, "version-menu"] as const
 
 /**
  * The saved revisions of one test set, newest first. Version 0 is the empty placeholder every

@@ -17,8 +17,11 @@ vi.mock("next/router", () => ({
     useRouter: () => ({
         push: router.push,
         events: {
-            on: (_name: string, handler: (url: string) => void) => router.handlers.add(handler),
-            off: (_name: string, handler: (url: string) => void) => router.handlers.delete(handler),
+            // Only the route change start matters here: it is the one the guard can stop.
+            on: (name: string, handler: (url: string) => void) =>
+                name === "routeChangeStart" && router.handlers.add(handler),
+            off: (name: string, handler: (url: string) => void) =>
+                name === "routeChangeStart" && router.handlers.delete(handler),
             emit: vi.fn(),
         },
     }),

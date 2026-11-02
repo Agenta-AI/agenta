@@ -554,24 +554,25 @@ const applyPendingColumnChanges = (
 }
 
 /**
- * Combined entity atom: draft if exists, otherwise server data with column changes.
+ * Combined entity atom: the draft if one exists, otherwise the server data, with the pending
+ * column changes applied to either.
  * Returns Testcase (nested format) - cell values accessed via testcase.data[columnKey].
+ *
+ * The column changes apply to drafts too. A draft made before a column rename still holds the
+ * old key; without this the cell shows empty under the new name, and the save sends the old key
+ * in the row, which brings the old column back after the backend applies the rename.
  */
 export const testcaseEntityAtomFamily = atomFamily((testcaseId: string) =>
     atom((get): Testcase | null => {
         const draft = get(testcaseDraftAtomFamily(testcaseId))
-        if (draft) return draft
+        const data = draft ?? get(testcaseQueryAtomFamily(testcaseId)).data ?? null
+        if (!data) return null
 
-        const query = get(testcaseQueryAtomFamily(testcaseId))
-        const data = query.data ?? null
-
-        if (data) {
-            const pendingRenames = get(pendingColumnRenamesAtom)
-            const pendingDeleted = get(pendingDeletedColumnsAtom)
-            const pendingAdded = get(pendingAddedColumnsAtom)
-            if (pendingRenames.size > 0 || pendingDeleted.size > 0 || pendingAdded.size > 0) {
-                return applyPendingColumnChanges(data, pendingRenames, pendingDeleted, pendingAdded)
-            }
+        const pendingRenames = get(pendingColumnRenamesAtom)
+        const pendingDeleted = get(pendingDeletedColumnsAtom)
+        const pendingAdded = get(pendingAddedColumnsAtom)
+        if (pendingRenames.size > 0 || pendingDeleted.size > 0 || pendingAdded.size > 0) {
+            return applyPendingColumnChanges(data, pendingRenames, pendingDeleted, pendingAdded)
         }
 
         return data
@@ -740,12 +741,14 @@ export const updateTestcaseAtom = atom(
 )
 
 /**
- * Discard all drafts
+ * Discard all drafts, including the drafts of rows marked deleted. A screen may drop a deleted
+ * row from `testcaseIdsAtom`, and its draft would come back if the row is restored.
  */
 export const discardAllDraftsAtom = atom(null, (get, set) => {
     const ids = get(testcaseIdsAtom)
     const newIds = get(newEntityIdsAtom)
-    ;[...ids, ...newIds].forEach((id) => {
+    const deletedIds = get(deletedEntityIdsAtom)
+    ;[...ids, ...newIds, ...deletedIds].forEach((id) => {
         set(testcaseDraftAtomFamily(id), null)
     })
 })

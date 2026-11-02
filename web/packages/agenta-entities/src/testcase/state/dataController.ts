@@ -62,6 +62,7 @@ import {extractColumnsFromData, type Column} from "../core"
 
 import {testcaseMolecule} from "./molecule"
 import {testcasePaginatedStore, type TestcaseTableRow} from "./paginatedStore"
+import {testcaseEntityAtomFamily} from "./store"
 
 // ============================================================================
 // TYPES
@@ -194,11 +195,15 @@ const columnsAtomFamily = atomFamily((config: TestcaseDataConfig) => {
         const rows = get(rowsAtomFamily(config))
 
         // Extract columns from entity data (testcase.data)
-        // We need to look up entity data for each row since rows are identity-only
+        // We need to look up entity data for each row since rows are identity-only.
+        // In server mode the read subscribes to the entity, which carries the pending column
+        // renames, adds and removals, so the headers follow a column edit at once.
         const dataObjects: Record<string, unknown>[] = []
         for (const row of rows.slice(0, 20)) {
             // Sample first 20 rows
-            const entity = testcaseMolecule.get.data(row.id)
+            const entity = config.useLocal
+                ? testcaseMolecule.get.data(row.id)
+                : get(testcaseEntityAtomFamily(row.id))
             if (entity?.data) {
                 dataObjects.push(entity.data as Record<string, unknown>)
             }
