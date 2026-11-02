@@ -62,7 +62,7 @@ export function approvalRenderHints(
 ): Map<ContentBlock, ApprovalRenderHint> {
   const callShapeById = new Map<string, { name?: string; input?: unknown }>();
   for (const message of history) {
-    const content = message?.content;
+    const content = message.content;
     if (!Array.isArray(content)) continue;
     for (const block of content) {
       if (block?.type === "tool_call" && block.toolCallId) {
@@ -80,6 +80,7 @@ export function approvalRenderHints(
       : undefined;
     const name = block.toolName ?? shape?.name;
     const input = block.input ?? shape?.input;
+    if (input === undefined) return undefined;
     return approvedCallKey(name, input);
   };
 
@@ -91,7 +92,7 @@ export function approvalRenderHints(
   }[] = [];
 
   for (const message of history) {
-    const content = message?.content;
+    const content = message.content;
     if (!Array.isArray(content)) continue;
     for (const block of content) {
       if (block?.type !== "tool_result") continue;
@@ -108,23 +109,10 @@ export function approvalRenderHints(
     }
   }
 
-  const blockInput = (block: ContentBlock): unknown => {
-    if (block.input !== undefined) return block.input;
-    if (block.toolCallId && callShapeById.has(block.toolCallId)) {
-      return callShapeById.get(block.toolCallId)?.input;
-    }
-    return undefined;
-  };
-
-  const hasSpecificInput = (block: ContentBlock): boolean => {
-    return blockInput(block) !== undefined;
-  };
-
-  const isPauseSentinel = (block: ContentBlock): boolean => {
+  const isDeferredResult = (block: ContentBlock): boolean => {
     return (
       typeof block.output === "string" &&
-      (block.output.startsWith(DEFERRED_NOT_EXECUTED_PREFIX) ||
-        block.output === APPROVED_EXECUTION_RESULT_UNKNOWN)
+      block.output.startsWith(DEFERRED_NOT_EXECUTED_PREFIX)
     );
   };
 
@@ -132,23 +120,17 @@ export function approvalRenderHints(
     entry: (typeof toolResults)[number],
     later: (typeof toolResults)[number],
   ): boolean => {
-    if (
-      entry.block.toolCallId &&
-      later.block.toolCallId &&
-      entry.block.toolCallId === later.block.toolCallId
-    ) {
-      return true;
+    if (entry.key !== undefined && later.key !== undefined) {
+      return entry.key === later.key;
     }
-    if (hasSpecificInput(entry.block) && hasSpecificInput(later.block)) {
-      return entry.key !== undefined && entry.key === later.key;
+    if (entry.block.toolCallId && later.block.toolCallId) {
+      return entry.block.toolCallId === later.block.toolCallId;
     }
-    return (
-      entry.toolName !== undefined &&
-      entry.toolName === later.toolName
-    );
+    return entry.toolName !== undefined && entry.toolName === later.toolName;
   };
 
   const hints = new Map<ContentBlock, ApprovalRenderHint>();
+  const consumedResults = new Set<number>();
   const unresolved = new Map<
     string | undefined,
     { block: ContentBlock; index: number }[]
@@ -158,24 +140,31 @@ export function approvalRenderHints(
     const entry = toolResults[index];
     if (entry.decision !== "allow") continue;
 
-    const hasLaterRealResult = toolResults
-      .slice(index + 1)
-      .some(
-        (later) =>
-          later.decision === undefined &&
-          !isPauseSentinel(later.block) &&
-          matchesExecution(entry, later),
-      );
-    if (hasLaterRealResult) {
+    let matchedResultIndex = -1;
+    for (
+      let laterIndex = index + 1;
+      laterIndex < toolResults.length;
+      laterIndex++
+    ) {
+      if (consumedResults.has(laterIndex)) continue;
+      const later = toolResults[laterIndex];
+      if (
+        later.decision === undefined &&
+        !isDeferredResult(later.block) &&
+        matchesExecution(entry, later)
+      ) {
+        matchedResultIndex = laterIndex;
+        break;
+      }
+    }
+
+    if (matchedResultIndex !== -1) {
+      consumedResults.add(matchedResultIndex);
       hints.set(entry.block, "executed");
       continue;
     }
 
-    const bucketKey =
-      entry.key ??
-      (entry.block.toolCallId
-        ? `${entry.toolName}#${entry.block.toolCallId}`
-        : entry.toolName);
+    const bucketKey = entry.key ?? entry.toolName;
     const list = unresolved.get(bucketKey) ?? [];
     list.push({ block: entry.block, index });
     unresolved.set(bucketKey, list);

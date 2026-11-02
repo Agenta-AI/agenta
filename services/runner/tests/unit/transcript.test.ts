@@ -654,6 +654,94 @@ describe("buildTurnText approval transcript hints", () => {
     assert.match(transcript, /Call the tool again/);
   });
 
+  it("treats APPROVED_EXECUTION_RESULT_UNKNOWN as settling its approved call without prompting retry (#7951)", () => {
+    const transcript = turnTextFor([
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool_call",
+            toolCallId: "call-1",
+            toolName: COMMIT_TOOL,
+            input: { name: "draft" },
+          },
+          {
+            type: "tool_result",
+            toolCallId: "call-1",
+            toolName: COMMIT_TOOL,
+            output: { approved: true },
+          },
+        ],
+      },
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool_result",
+            toolCallId: "call-1",
+            toolName: COMMIT_TOOL,
+            output: APPROVED_EXECUTION_RESULT_UNKNOWN,
+          },
+        ],
+      },
+    ]);
+
+    assert.match(transcript, /executed below/);
+    assert.doesNotMatch(transcript, /Call the tool again/);
+    assert.match(transcript, /may have already run/);
+    assert.match(transcript, /do NOT retry a side-effecting call/i);
+  });
+
+  it("settles at most one approval in order when multiple identical calls are approved (#7951)", () => {
+    const transcript = turnTextFor([
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool_call",
+            toolCallId: "call-1",
+            toolName: "read_file",
+            input: { path: "duplicate.txt" },
+          },
+          {
+            type: "tool_result",
+            toolCallId: "call-1",
+            toolName: "read_file",
+            output: { approved: true },
+          },
+          {
+            type: "tool_call",
+            toolCallId: "call-2",
+            toolName: "read_file",
+            input: { path: "duplicate.txt" },
+          },
+          {
+            type: "tool_result",
+            toolCallId: "call-2",
+            toolName: "read_file",
+            output: { approved: true },
+          },
+        ],
+      },
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool_result",
+            toolCallId: "call-1",
+            toolName: "read_file",
+            output: { content: "content line" },
+          },
+        ],
+      },
+    ]);
+
+    const callsToRun = transcript.match(/Call the tool again/g) ?? [];
+    assert.equal(callsToRun.length, 1);
+    const executed = transcript.match(/executed below/g) ?? [];
+    assert.equal(executed.length, 1);
+  });
+
   it("keeps preflight tolerant of unverified attachment display fields", () => {
     assert.equal(
       messageTranscript([
