@@ -50,7 +50,10 @@ export const useChatAccess = ({
 
     const fresh = isSessionFresh(sessionId)
     const failed = query.isError
-    const known = sessionAccessKnown({fresh, loaded: Boolean(sharing), failed})
+    // A chat with no turns has no row, and the fresh marker does not survive a reload. On a route
+    // that names the agent, "no row" is that empty chat: it may send, and the server checks access.
+    const emptyChat = notFound && Boolean(routeAgentId) && !blocked
+    const known = sessionAccessKnown({fresh: fresh || emptyChat, loaded: Boolean(sharing), failed})
     // The row read says whether the chat's agent is hidden from this reader (it polls, so an
     // agent made private while the chat is open is seen within the recheck bound). Null when
     // the row names no workflow: the agent's own revision read decides then.
