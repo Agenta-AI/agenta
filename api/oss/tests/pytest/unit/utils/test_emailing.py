@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 
@@ -71,10 +71,7 @@ async def test_add_contact_retries_on_429_then_succeeds():
         assert response is not None
         assert response.status_code == 200
         assert fake_client.call_count == 3
-        assert mock_sleep.call_count == 2
-        # First sleep delay is 1, second is 2
-        mock_sleep.assert_any_call(1)
-        mock_sleep.assert_any_call(2)
+        assert mock_sleep.await_args_list == [call(1), call(2)]
 
 
 @pytest.mark.asyncio
@@ -101,8 +98,4 @@ async def test_add_contact_exhausts_retries():
             await add_contact("test@example.com", max_retries=3, initial_delay=1)
 
         assert fake_client.call_count == 3
-        assert mock_sleep.call_count == 3
-        # Delays should be 1, 2, 4
-        mock_sleep.assert_any_call(1)
-        mock_sleep.assert_any_call(2)
-        mock_sleep.assert_any_call(4)
+        assert mock_sleep.await_args_list == [call(1), call(2), call(4)]

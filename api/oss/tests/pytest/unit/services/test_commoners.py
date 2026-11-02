@@ -2,6 +2,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
+import httpx
 import pytest
 
 from oss.src.core.auth import helper as auth_helper
@@ -79,6 +80,49 @@ async def test_create_accounts_awaits_add_contact():
         ) as mock_add_contact,
     ):
         await create_accounts(payload)
+
+        mock_add_contact.assert_awaited_once_with("test@example.com")
+
+
+@pytest.mark.asyncio
+async def test_create_accounts_survives_add_contact_failure():
+    payload = {"uid": "123", "email": "test@example.com"}
+
+    with (
+        patch(
+            "oss.src.services.commoners.acquire_lock",
+            return_value="lock1",
+            new_callable=AsyncMock,
+        ),
+        patch(
+            "oss.src.services.commoners.release_lock",
+            return_value=True,
+            new_callable=AsyncMock,
+        ),
+        patch(
+            "oss.src.services.commoners.db_manager.get_user_with_email",
+            return_value=AsyncMock(id="user1"),
+            new_callable=AsyncMock,
+        ),
+        patch(
+            "oss.src.services.commoners.db_manager.get_user_organizations",
+            return_value=["org1"],
+            new_callable=AsyncMock,
+        ),
+        patch(
+            "oss.src.core.auth.service.AuthService.enforce_domain_policies",
+            new_callable=AsyncMock,
+        ),
+        patch("oss.src.services.commoners.is_ee", return_value=True),
+        patch(
+            "oss.src.utils.emailing.add_contact",
+            new_callable=AsyncMock,
+            side_effect=httpx.ConnectTimeout("loops is down"),
+        ) as mock_add_contact,
+    ):
+        user = await create_accounts(payload)
+
+        assert user is not None
 
         mock_add_contact.assert_awaited_once_with("test@example.com")
 
