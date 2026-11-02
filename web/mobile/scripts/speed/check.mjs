@@ -9,7 +9,8 @@
 //
 // First-load JS of a page = gzip size of the JavaScript files that the page needs on first
 // load: the chunks of `/_app` (the shell every page shares) plus the chunks of the page itself,
-// each file counted once. Chunks loaded later with next/dynamic are not first-load JS.
+// each file counted once. Chunks loaded with next/dynamic are not counted, including ones a page
+// mounts at once (a drawer closed at first); the build manifest does not list them.
 import {spawn, spawnSync} from "node:child_process"
 import {existsSync, readFileSync, rmSync, writeFileSync} from "node:fs"
 import {dirname, join, resolve} from "node:path"
@@ -27,6 +28,12 @@ const budgetPath = join(here, "budget.json")
 const args = new Set(process.argv.slice(2))
 const WRITE = args.has("--write")
 const TIMING = args.has("--timing")
+
+if (TIMING && dirArg) {
+    // Timing deletes the build folder before each run, so it only works on the app's own `.next`.
+    console.error("--timing cannot be combined with --dir.")
+    process.exit(1)
+}
 
 const kb = (bytes) => `${(bytes / 1024).toFixed(1)} KB`
 const readBudget = () => JSON.parse(readFileSync(budgetPath, "utf8"))

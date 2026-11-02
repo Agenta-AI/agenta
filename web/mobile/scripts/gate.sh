@@ -87,6 +87,15 @@ pnpm --filter @agenta/mobile lint >"$OUT/lint" 2>&1 || { no "lint"; tail -30 "$O
 echo "PASS: lint"
 # Tests related to the changed files (the full suite takes about 15 minutes; CI runs it).
 CHANGED=$(echo "$FILES" | grep -E '^web/(mobile/(src|tests)|packages)/.*\.(ts|tsx)$' | sed -e 's#^web/mobile/##' -e 's#^web/#../#' || true)
+# A changed shared package also runs its own tests, with its own Vitest config.
+for PKG in $(echo "$FILES" | grep -E '^web/packages/[^/]+/.*\.(ts|tsx)$' | cut -d/ -f3 | sort -u); do
+    [ -f "packages/$PKG/vitest.config.ts" ] || continue
+    PKG_FILES=$(echo "$FILES" | grep -E "^web/packages/$PKG/.*\.(ts|tsx)$" | sed "s#^web/packages/$PKG/##")
+    # shellcheck disable=SC2086
+    pnpm --filter "./packages/$PKG" exec vitest related --run --passWithNoTests --maxWorkers=2 \
+        $PKG_FILES >"$OUT/test-$PKG" 2>&1 || { no "unit tests in $PKG"; tail -30 "$OUT/test-$PKG"; exit 1; }
+    echo "PASS: unit tests in $PKG"
+done
 if [ -n "$CHANGED" ]; then
     # shellcheck disable=SC2086
     pnpm --filter @agenta/mobile exec vitest related --run --passWithNoTests --maxWorkers=2 \
