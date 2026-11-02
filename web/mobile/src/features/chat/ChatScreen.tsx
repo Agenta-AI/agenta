@@ -161,27 +161,27 @@ export const ChatScreen = ({
     const liveStream = liveness.data?.find((s) => s.session_id === sessionId)
     const running = Boolean(liveStream?.flags?.is_running)
     const sharedReader = Boolean(liveStream?.capabilities?.shared_reader)
+    // A chat the reader cannot open gets a page of its own: no tab strip, no config pane and no
+    // agent from the chat before it, so a private chat looks exactly like an unknown one.
+    if (access.blocked) {
+        return (
+            <AppShell workspaceId={workspaceId} projectId={projectId}>
+                <ScreenScaffold>
+                    <ChatNoAccess
+                        kind={access.blocked}
+                        sessionsHref={`/w/${workspaceId}/p/${projectId}/sessions`}
+                    />
+                </ScreenScaffold>
+            </AppShell>
+        )
+    }
+
     // The conversation is ALWAYS mounted — the mode only decides what sits beside it (and, on a
     // narrow frame, which of the two is on screen). Unmounting it on a mode flip would drop a
     // streaming turn.
     // Until the agent query settles, `entityId` is null for an agent-backed session too — so
     // committing to the replay branch here would tell the user the session is read-only when it
     // is not. `resolving` is query-PENDING, not fetching: a cached answer renders immediately.
-    // A chat the reader cannot open gets a page of its own: no tab strip, no config pane and no
-    // agent from the chat before it, so a private chat looks exactly like an unknown one.
-    if (access.blocked) {
-        return (
-            <AppShell workspaceId={workspaceId} projectId={projectId}>
-                <div className="flex h-[calc(var(--ag-viewport-height,100dvh)-var(--ag-top-bars-h,0px))] min-w-0 flex-col pt-[var(--ag-screen-safe-top,env(safe-area-inset-top))]">
-                    <ChatNoAccess
-                        kind={access.blocked}
-                        sessionsHref={`/w/${workspaceId}/p/${projectId}/sessions`}
-                    />
-                </div>
-            </AppShell>
-        )
-    }
-
     const chat = showLoading ? (
         <ChatLoading />
     ) : unreachable ? (

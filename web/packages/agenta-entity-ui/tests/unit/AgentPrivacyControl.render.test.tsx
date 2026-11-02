@@ -198,7 +198,7 @@ describe("AgentPrivacyDialog", () => {
     it("the Shared with project choice says the agent's chats stay private", () => {
         renderDialog({})
         expect(document.body.textContent ?? "").toContain(
-            "Chats with it stay private: share each chat from its own Share button.",
+            agentSharingCopy.lineProject("Acme support"),
         )
     })
 
