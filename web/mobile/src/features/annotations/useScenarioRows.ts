@@ -6,7 +6,6 @@ import {useSettledValue} from "@agenta/shared/hooks"
 import {useAtomValue, useStore} from "jotai"
 
 import {metricSearchText, type EvaluatorColumn} from "./scenarioListColumns"
-import {readScenarioRef} from "./scenarioRefs"
 
 /** One item of the queue as the All Annotations list draws it. */
 export interface ScenarioRow {
@@ -14,8 +13,6 @@ export interface ScenarioRow {
     /** Position in the queue, from 0. */
     index: number
     status: string | null
-    traceId: string
-    testcaseId: string
 }
 
 /** The first test case input, as the list's Item column shows it. */
@@ -27,7 +24,8 @@ const SEARCH_DELAY_MS = 200
 /**
  * Every item in queue order, narrowed by the status filter and the search. The search runs on the
  * client like the old list: ids, the item text and every metric value. It waits for typing to
- * pause, because the queue is not paged and each pass reads every row.
+ * pause, because the queue is not paged and each pass reads every row. It matches the data that
+ * has loaded; the rows on screen load theirs as they render.
  */
 export const useScenarioRows = ({
     search,
@@ -46,15 +44,8 @@ export const useScenarioRows = ({
     const rows = useMemo<ScenarioRow[]>(
         () =>
             records.map((record, index) => {
-                const raw = record as Record<string, unknown>
-                const scenarioId = String(raw.id ?? index)
-                return {
-                    scenarioId,
-                    index,
-                    status: statuses[scenarioId] ?? null,
-                    traceId: readScenarioRef(raw, "trace_id"),
-                    testcaseId: readScenarioRef(raw, "testcase_id"),
-                }
+                const scenarioId = String(record.id ?? index)
+                return {scenarioId, index, status: statuses[scenarioId] ?? null}
             }),
         [records, statuses],
     )
@@ -64,11 +55,8 @@ export const useScenarioRows = ({
         if (!term) return byStatus
         const controller = annotationSessionController.selectors
         return byStatus.filter((row) => {
-            const traceId =
-                row.traceId || store.get(controller.scenarioTraceRef(row.scenarioId)).traceId
-            const testcaseId =
-                row.testcaseId ||
-                store.get(controller.scenarioTestcaseRef(row.scenarioId)).testcaseId
+            const {traceId} = store.get(controller.scenarioTraceRef(row.scenarioId))
+            const {testcaseId} = store.get(controller.scenarioTestcaseRef(row.scenarioId))
             const itemText = traceId
                 ? store.get(traceRootSpanAtomFamily(traceId))?.span_name
                 : testcaseId

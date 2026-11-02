@@ -9,7 +9,6 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {AnnotationFormPanel} from "./AnnotationFormPanel"
 import {ScenarioContent} from "./ScenarioContent"
-import {readScenarioRef} from "./scenarioRefs"
 
 const SHEET_WIDTH = {"--ag-sheet-responsive-width": "1100px"} as CSSProperties
 
@@ -27,15 +26,10 @@ export const AnnotateScenarioSheet = ({
     onClose: () => void
 }) => {
     const id = scenarioId ?? ""
-    const records = useAtomValue(annotationSessionController.selectors.scenarioRecords())
     const isTraces = useAtomValue(annotationSessionController.selectors.queueKind()) !== "testcases"
     const traceRef = useAtomValue(annotationSessionController.selectors.scenarioTraceRef(id))
     const testcaseRef = useAtomValue(annotationSessionController.selectors.scenarioTestcaseRef(id))
-    const scenario =
-        (records.find((record) => record.id === scenarioId) as
-            | Record<string, unknown>
-            | undefined) ?? null
-    const traceId = isTraces ? readScenarioRef(scenario, "trace_id") || traceRef.traceId : ""
+    const traceId = isTraces ? traceRef.traceId : ""
     const rootSpan = useAtomValue(traceRootSpanAtomFamily(traceId || null))
     const openTrace = useSetAtom(openTraceDrawerAtom)
 
@@ -70,7 +64,7 @@ export const AnnotateScenarioSheet = ({
                     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 md:flex-row md:overflow-hidden">
                         <div className="min-w-0 rounded-lg border border-solid border-border md:flex-1 md:overflow-y-auto">
                             <ScenarioContent
-                                scenario={scenario}
+                                hasScenario
                                 isTraces={isTraces}
                                 traceId={traceId}
                                 testcaseId={testcaseRef.testcaseId}

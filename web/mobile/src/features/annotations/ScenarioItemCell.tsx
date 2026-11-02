@@ -24,24 +24,14 @@ const TestcaseItem = ({testcaseId}: {testcaseId: string}) => {
 }
 
 /** What the item is: the trace's root span name, or the test case's first input. */
-export const ScenarioItemCell = ({
-    scenarioId,
-    traceId,
-    testcaseId,
-}: {
-    scenarioId: string
-    traceId: string
-    testcaseId: string
-}) => {
+export const ScenarioItemCell = ({scenarioId}: {scenarioId: string}) => {
     const traceRef = useAtomValue(
         annotationSessionController.selectors.scenarioTraceRef(scenarioId),
     )
     const testcaseRef = useAtomValue(
         annotationSessionController.selectors.scenarioTestcaseRef(scenarioId),
     )
-    const trace = traceId || traceRef.traceId
-    if (trace) return <TraceItem traceId={trace} />
-    const testcase = testcaseId || testcaseRef.testcaseId
-    if (testcase) return <TestcaseItem testcaseId={testcase} />
+    if (traceRef.traceId) return <TraceItem traceId={traceRef.traceId} />
+    if (testcaseRef.testcaseId) return <TestcaseItem testcaseId={testcaseRef.testcaseId} />
     return <Text value="—" />
 }

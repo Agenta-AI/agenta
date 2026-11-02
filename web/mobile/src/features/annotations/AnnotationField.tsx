@@ -1,6 +1,6 @@
 import {useId} from "react"
 
-import type {AnnotationMetricField} from "@agenta/annotation"
+import {isEmptyValue, type AnnotationMetricField} from "@agenta/annotation"
 import {
     AutosizeTextarea,
     Segmented,
@@ -22,12 +22,6 @@ const BOOLEAN_OPTIONS = [
 /** A value no option has, so the segmented control shows no choice instead of picking the first. */
 const NO_CHOICE = ""
 
-const isEmpty = (value: unknown) =>
-    value === null ||
-    value === undefined ||
-    value === "" ||
-    (Array.isArray(value) && value.length === 0)
-
 /**
  * One metric of an evaluator, drawn by its schema type: True and False, a number (with a slider
  * when the range is known), a multi or single select over the schema's values, or free text.
@@ -47,7 +41,7 @@ export const AnnotationField = ({
     const id = useId()
     const type = Array.isArray(field.type) ? field.type[0] : field.type
     const value = field.value
-    const canClear = !readOnly && !isEmpty(value)
+    const canClear = !readOnly && !isEmptyValue(value)
     const clear = () => onChange(null)
 
     if (type === "boolean") {
@@ -87,7 +81,9 @@ export const AnnotationField = ({
 
     const itemOptions = field.items?.enum
     if (type === "array" && itemOptions && itemOptions.length > 0) {
-        const selected = (Array.isArray(value) ? value : isEmpty(value) ? [] : [value]).map(String)
+        const selected = (Array.isArray(value) ? value : isEmptyValue(value) ? [] : [value]).map(
+            String,
+        )
         return (
             <div className="flex flex-col gap-1.5">
                 <AnnotationFieldLabel
@@ -108,7 +104,8 @@ export const AnnotationField = ({
         )
     }
 
-    if (Array.isArray(field.type) && field.enum && field.enum.length > 0) {
+    const options = field.enum
+    if (Array.isArray(field.type) && options && options.length > 0) {
         return (
             <div className="flex flex-col gap-1.5">
                 <AnnotationFieldLabel
@@ -118,12 +115,17 @@ export const AnnotationField = ({
                     onClear={clear}
                 />
                 <div inert={readOnly}>
-                    <Select value={isEmpty(value) ? "" : String(value)} onValueChange={onChange}>
+                    <Select
+                        value={isEmptyValue(value) ? "" : String(value)}
+                        // The null option saves the text "null", as the old view did: a real null
+                        // reads as "no value" in the form, so it could never complete an item.
+                        onValueChange={onChange}
+                    >
                         <SelectTrigger id={id} className="w-full">
                             <SelectValue placeholder="Select" />
                         </SelectTrigger>
                         <SelectContent>
-                            {field.enum.map((option) => (
+                            {options.map((option) => (
                                 <SelectItem key={String(option)} value={String(option)}>
                                     {option === null ? "none of the above" : String(option)}
                                 </SelectItem>
@@ -147,7 +149,7 @@ export const AnnotationField = ({
                 id={id}
                 autoSize={{minRows: 2, maxRows: 6}}
                 placeholder="Enter a value"
-                value={typeof value === "string" ? value : isEmpty(value) ? "" : String(value)}
+                value={typeof value === "string" ? value : isEmptyValue(value) ? "" : String(value)}
                 readOnly={readOnly}
                 onChange={(event) => onChange(event.target.value || null)}
             />

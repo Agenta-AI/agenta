@@ -8,8 +8,9 @@ import {atom, createStore, type Atom, type Getter, type Setter, type WritableAto
  * action records its payload in `calls`; a case can give an action a body (`handlers`) when the
  * screen should see its effect, for example a failing submit. No request is ever sent.
  *
- * Use it from a `vi.mock("@agenta/annotation", ...)` factory:
- * `const {annotationModuleFake} = await import("../support/annotationSessionFake")`.
+ * Use it from a `vi.mock("@agenta/annotation", ...)` factory that keeps the real helpers:
+ * `const fake = await import("../support/annotationSessionFake")`, then return
+ * `{...(await importOriginal()), annotationSessionController: fake.annotationSessionController, ...}`.
  */
 
 export interface FakeMetricField {

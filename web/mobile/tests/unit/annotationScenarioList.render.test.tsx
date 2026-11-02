@@ -135,10 +135,11 @@ const findButton = (scope: ParentNode, label: string) =>
 beforeEach(() => {
     vi.clearAllMocks()
     resetSession({
-        scenarioRecords: [
-            {id: "s-1", tags: {trace_id: "trace-1"}},
-            {id: "s-2", tags: {trace_id: "trace-2"}},
-        ],
+        scenarioRecords: [{id: "s-1"}, {id: "s-2"}],
+        traceRefs: {
+            "s-1": {traceId: "trace-1", spanId: "span-1"},
+            "s-2": {traceId: "trace-2", spanId: "span-2"},
+        },
         scenarioStatuses: {"s-1": "failure", "s-2": "success"},
         listColumnDefs: [TONE_COLUMN],
         metricValues: {"s-2:friendly": "very polite"},

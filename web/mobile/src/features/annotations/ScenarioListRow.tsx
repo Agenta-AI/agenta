@@ -70,11 +70,7 @@ export const ScenarioListRow = ({
                 {row.index + 1}
             </span>
         </SimpleTooltip>
-        <ScenarioItemCell
-            scenarioId={row.scenarioId}
-            traceId={row.traceId}
-            testcaseId={row.testcaseId}
-        />
+        <ScenarioItemCell scenarioId={row.scenarioId} />
         {columns.map((column) => (
             <ScenarioEvaluatorCell
                 key={column.key}

@@ -44,7 +44,22 @@ vi.mock("@agenta/ui/ui", async (importOriginal) => {
                 {children}
             </button>
         ),
-        Select: Pass,
+        // A text box stands in for the select's choice, so a case can pick an option's value.
+        Select: ({
+            children,
+            onValueChange,
+        }: {
+            children: React.ReactNode
+            onValueChange: (value: string) => void
+        }) => (
+            <div>
+                {children}
+                <input
+                    data-testid="select"
+                    onChange={(event) => onValueChange(event.target.value)}
+                />
+            </div>
+        ),
         SelectTrigger: Pass,
         SelectValue: ({placeholder}: {placeholder?: string}) => <span>{placeholder}</span>,
         SelectContent: Pass,
@@ -163,6 +178,16 @@ describe("an annotation field", () => {
         const options = Array.from(host.querySelectorAll("[role=option]")).map((o) => o.textContent)
         expect(options).toEqual(["good", "none of the above"])
         expect(host.textContent).toContain("Select")
+    })
+
+    it("Picking none of the above saves it as a value, not as empty", async () => {
+        await render({value: null, type: ["string", "null"], enum: ["good", null]})
+        const select = host.querySelector("[data-testid=select]") as HTMLInputElement
+        await typeInto(select, "good")
+        expect(onChange).toHaveBeenLastCalledWith("good")
+        await typeInto(select, "null")
+        // Stored as the old view stored it: a real null would read as "no value".
+        expect(onChange).toHaveBeenLastCalledWith("null")
     })
 
     it("Clear sets the value to null and is disabled when empty", async () => {
