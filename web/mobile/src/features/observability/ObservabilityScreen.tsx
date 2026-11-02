@@ -150,6 +150,7 @@ const ObservabilityContent = ({
                                     <>
                                         {tracesFilters}
                                         <ObservabilityAppFilter
+                                            projectId={projectId}
                                             value={routeAppId}
                                             onChange={onAppChange}
                                         />

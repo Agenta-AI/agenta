@@ -2,6 +2,7 @@ import {useEffect, type ReactNode} from "react"
 
 import {appWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {AgentGlyph} from "@agenta/entity-ui/agent"
+import {projectIdAtom} from "@agenta/shared/state"
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@agenta/ui/ui"
 import {Robot} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -80,13 +81,20 @@ export const AppFilterSelect = ({
  * archived) is cleared once the list is known.
  */
 export const ObservabilityAppFilter = ({
+    projectId,
     value,
     onChange,
 }: {
+    projectId: string
     value: string | null
     onChange: (appId: string | null) => void
 }) => {
-    const {data, isPending, isError} = useAtomValue(appWorkflowsListQueryStateAtom)
+    const state = useAtomValue(appWorkflowsListQueryStateAtom)
+    // The shared project follows the route in an effect, so for one render after a navigation
+    // the list can still belong to the previous project. Treat it as loading until they match.
+    const listProjectId = useAtomValue(projectIdAtom)
+    const {data, isError} = state
+    const isPending = state.isPending || listProjectId !== projectId
     const apps = data.map((app) => ({id: app.id, name: (app.name || app.slug || "").trim()}))
     const unknown =
         value !== null && !isPending && (isError || !apps.some((app) => app.id === value))

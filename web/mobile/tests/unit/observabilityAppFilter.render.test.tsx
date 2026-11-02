@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import {act} from "react"
 
+import {projectIdAtom} from "@agenta/shared/state"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -31,11 +32,13 @@ describe("ObservabilityAppFilter", () => {
     let root: Root
     let host: HTMLDivElement
 
-    const mount = (value: string | null, onChange = vi.fn()) => {
+    const mount = (value: string | null, onChange = vi.fn(), storeProject = "proj-1") => {
+        const store = createStore()
+        store.set(projectIdAtom, storeProject)
         act(() =>
             root.render(
-                <Provider store={createStore()}>
-                    <ObservabilityAppFilter value={value} onChange={onChange} />
+                <Provider store={store}>
+                    <ObservabilityAppFilter projectId="proj-1" value={value} onChange={onChange} />
                 </Provider>,
             ),
         )
@@ -80,6 +83,13 @@ describe("ObservabilityAppFilter", () => {
 
         expect(trigger()?.textContent).toContain("All apps")
         expect(onChange).toHaveBeenCalledWith(null)
+    })
+
+    it("The list of another project is not used to clear the app", () => {
+        const onChange = mount("deleted-app", vi.fn(), "proj-2")
+
+        expect(trigger()?.disabled).toBe(true)
+        expect(onChange).not.toHaveBeenCalled()
     })
 
     it("A known app id is kept and does not call onChange", () => {
