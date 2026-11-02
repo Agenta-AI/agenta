@@ -17,6 +17,7 @@ import {EventsClient} from "@agentaai/api-client/resources/events"
 import {GatewayMcpClient} from "@agentaai/api-client/resources/gatewayMcp"
 import {KeysClient} from "@agentaai/api-client/resources/keys"
 import {MountsClient} from "@agentaai/api-client/resources/mounts"
+import {OrganizationsClient} from "@agentaai/api-client/resources/organizations"
 import {ProjectsClient} from "@agentaai/api-client/resources/projects"
 import {SecretsClient} from "@agentaai/api-client/resources/secrets"
 import {SessionsClient} from "@agentaai/api-client/resources/sessions"
@@ -136,6 +137,11 @@ let _sessionsLowPriority: SessionsClient | undefined
  * conversation stream. */
 export function getLowPrioritySessionsClient(): SessionsClient {
     return (_sessionsLowPriority ??= new SessionsClient(withLowPriorityFetch(buildClientOptions())))
+}
+
+let _organizations: OrganizationsClient | undefined
+export function getOrganizationsClient(): OrganizationsClient {
+    return (_organizations ??= new OrganizationsClient(buildClientOptions()))
 }
 
 let _projects: ProjectsClient | undefined
