@@ -24,6 +24,7 @@ import {
     TrashIcon,
 } from "@phosphor-icons/react"
 
+import type {PromptsDialog} from "./promptDialogState"
 import {promptsCopy} from "./promptsCopy"
 
 const CRUMB_BUTTON =
@@ -61,19 +62,13 @@ export const PromptsBreadcrumb = ({
     siblingsOf,
     canEditFolders,
     onOpenFolder,
-    onRename,
-    onMove,
-    onNewFolder,
-    onDelete,
+    openDialog,
 }: {
     chain: Folder[]
     siblingsOf: (parentId: string | null) => Folder[]
     canEditFolders: boolean
     onOpenFolder: (id: string | null) => void
-    onRename: (folder: Folder) => void
-    onMove: (folder: Folder) => void
-    onNewFolder: () => void
-    onDelete: (folder: Folder) => void
+    openDialog: (dialog: PromptsDialog) => void
 }) => {
     const copy = promptsCopy.menu
     const atRoot = chain.length === 0
@@ -156,26 +151,42 @@ export const PromptsBreadcrumb = ({
                                             {canEditFolders ? (
                                                 <>
                                                     <DropdownMenuItem
-                                                        onSelect={() => onRename(folder)}
+                                                        onSelect={() =>
+                                                            openDialog({
+                                                                kind: "renameFolder",
+                                                                folder,
+                                                            })
+                                                        }
                                                     >
                                                         <PencilSimpleIcon size={16} />
                                                         {copy.rename}
                                                     </DropdownMenuItem>
                                                     <DropdownMenuItem
-                                                        onSelect={() => onMove(folder)}
+                                                        onSelect={() =>
+                                                            openDialog({kind: "moveFolder", folder})
+                                                        }
                                                     >
                                                         <FolderDashedIcon size={16} />
                                                         {copy.move}
                                                     </DropdownMenuItem>
                                                     <DropdownMenuSeparator />
-                                                    <DropdownMenuItem onSelect={onNewFolder}>
+                                                    <DropdownMenuItem
+                                                        onSelect={() =>
+                                                            openDialog({kind: "newFolder"})
+                                                        }
+                                                    >
                                                         <FolderPlusIcon size={16} />
                                                         {promptsCopy.newFolder}
                                                     </DropdownMenuItem>
                                                     <DropdownMenuSeparator />
                                                     <DropdownMenuItem
                                                         className="text-destructive focus:text-destructive"
-                                                        onSelect={() => onDelete(folder)}
+                                                        onSelect={() =>
+                                                            openDialog({
+                                                                kind: "deleteFolder",
+                                                                folder,
+                                                            })
+                                                        }
                                                     >
                                                         <TrashIcon size={16} />
                                                         {copy.delete}

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import {act, type ReactNode} from "react"
 
+import type {QueryClient} from "@tanstack/react-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -9,7 +10,12 @@ const router = vi.hoisted(() => ({
     query: {} as Record<string, string>,
     replace: vi.fn(),
 }))
+const folderClient = vi.hoisted(() => ({queryFolders: vi.fn()}))
 vi.mock("next/router", () => ({useRouter: () => router}))
+vi.mock("@agenta/sdk/resources", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@agenta/sdk/resources")>()),
+    getFoldersClient: () => folderClient,
+}))
 
 import {
     makePromptsStore,
@@ -46,8 +52,10 @@ describe("usePromptsBrowser", () => {
 
     const mount = (
         cache: Parameters<typeof makePromptsStore>[0] = {folders: FOLDERS, prompts: PROMPTS},
+        prepare?: (client: QueryClient) => void,
     ) => {
         const {store, queryClient} = makePromptsStore(cache)
+        prepare?.(queryClient)
         const tree: ReactNode = (
             <PromptsTestProviders store={store} queryClient={queryClient}>
                 <Probe />
@@ -101,6 +109,20 @@ describe("usePromptsBrowser", () => {
         expect(latest.isPending).toBe(true)
         expect(router.replace).not.toHaveBeenCalled()
         expect(latest.folderId).toBe("f1")
+    })
+
+    it("A folder missing from a cached list is kept while the list refreshes", () => {
+        router.query = {folderId: "created-elsewhere"}
+        folderClient.queryFolders.mockReturnValue(new Promise(() => undefined))
+        // A copy older than the stale time: the list refetches on mount.
+        mount({prompts: PROMPTS}, (client) =>
+            client.setQueryData(["folders", "project-1"], FOLDERS, {
+                updatedAt: Date.now() - 60_000,
+            }),
+        )
+        expect(latest.isPending).toBe(false)
+        expect(router.replace).not.toHaveBeenCalled()
+        expect(latest.folderId).toBe("created-elsewhere")
     })
 
     it("A search term lists matches from every folder", () => {

@@ -83,10 +83,10 @@ export const RenamePromptDialog = ({
                             disabled={pending}
                             onClick={onClose}
                         >
-                            {promptsCopy.folderDialog.cancel}
+                            {promptsCopy.cancel}
                         </Button>
                         <Button type="submit" disabled={!canSubmit}>
-                            {pending ? "Working…" : copy.save}
+                            {pending ? promptsCopy.working : copy.save}
                         </Button>
                     </DialogFooter>
                 </form>

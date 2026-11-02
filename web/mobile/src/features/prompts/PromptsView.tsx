@@ -4,6 +4,7 @@ import type {Folder} from "@agenta/entities/workflow"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableToolbar} from "@agenta/ui/list-table"
 
+import type {PromptsDialog} from "./promptDialogState"
 import type {PromptsRow} from "./promptRow"
 import type {PromptRowActions} from "./promptRowActions"
 import {PromptsBreadcrumb} from "./PromptsBreadcrumb"
@@ -29,10 +30,7 @@ export const PromptsView = ({
     canEditPrompts,
     rowActions,
     onOpenFolder,
-    onRenameFolder,
-    onMoveFolder,
-    onNewFolder,
-    onDeleteFolder,
+    openDialog,
     onRetry,
 }: {
     chain: Folder[]
@@ -47,10 +45,7 @@ export const PromptsView = ({
     canEditPrompts: boolean
     rowActions: PromptRowActions
     onOpenFolder: (id: string | null) => void
-    onRenameFolder: (folder: Folder) => void
-    onMoveFolder: (folder: Folder) => void
-    onNewFolder: () => void
-    onDeleteFolder: (folder: Folder) => void
+    openDialog: (dialog: PromptsDialog) => void
     onRetry: () => void
 }): ReactNode => (
     <>
@@ -59,10 +54,7 @@ export const PromptsView = ({
             siblingsOf={siblingsOf}
             canEditFolders={canEditFolders}
             onOpenFolder={onOpenFolder}
-            onRename={onRenameFolder}
-            onMove={onMoveFolder}
-            onNewFolder={onNewFolder}
-            onDelete={onDeleteFolder}
+            openDialog={openDialog}
         />
         <ListTableToolbar
             search={search}

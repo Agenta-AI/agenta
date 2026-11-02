@@ -87,10 +87,14 @@ export const FolderNameDialog = ({
                             disabled={pending}
                             onClick={onClose}
                         >
-                            {copy.cancel}
+                            {promptsCopy.cancel}
                         </Button>
                         <Button type="submit" disabled={!canSubmit}>
-                            {pending ? "Working…" : mode === "create" ? copy.create : copy.save}
+                            {pending
+                                ? promptsCopy.working
+                                : mode === "create"
+                                  ? copy.create
+                                  : copy.save}
                         </Button>
                     </DialogFooter>
                 </form>

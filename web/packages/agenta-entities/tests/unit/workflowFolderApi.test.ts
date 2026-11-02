@@ -24,6 +24,7 @@ import {
     moveWorkflowToFolder,
     queryFolders,
     renameFolder,
+    renameWorkflow,
 } from "../../src/workflow/folder"
 
 const PROJECT = {queryParams: {project_id: "project-1"}}
@@ -133,5 +134,19 @@ describe("workflow folder api", () => {
         expect(folders.deleteFolder).toHaveBeenCalledWith({folder_id: "f1"}, PROJECT)
         expect(folders.queryFolders).not.toHaveBeenCalled()
         expect(workflows.editWorkflow).not.toHaveBeenCalled()
+    })
+
+    it("Rename prompt sends the name and the description as a metadata edit", async () => {
+        await renameWorkflow({
+            projectId: "project-1",
+            workflowId: "w1",
+            name: "Welcome",
+            description: "Hi",
+        })
+
+        expect(workflows.editWorkflow).toHaveBeenCalledWith(
+            {workflow_id: "w1", workflow: {id: "w1", name: "Welcome", description: "Hi"}},
+            PROJECT,
+        )
     })
 })

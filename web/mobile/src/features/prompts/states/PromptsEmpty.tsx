@@ -28,7 +28,7 @@ export const PromptsEmpty = ({
         {kind === "search" && onClearSearch ? (
             <EmptyContent>
                 <Button size="sm" variant="outline" onClick={onClearSearch}>
-                    Clear search
+                    {promptsCopy.clearSearch}
                 </Button>
             </EmptyContent>
         ) : null}

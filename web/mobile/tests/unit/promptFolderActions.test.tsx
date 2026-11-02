@@ -10,7 +10,7 @@ const api = vi.hoisted(() => ({
     moveFolder: vi.fn(),
     deleteFolder: vi.fn(),
     moveWorkflowToFolder: vi.fn(),
-    updateWorkflow: vi.fn(),
+    renameWorkflow: vi.fn(),
     archiveWorkflow: vi.fn(),
 }))
 const toast = vi.hoisted(() => ({success: vi.fn(), error: vi.fn()}))
@@ -145,7 +145,7 @@ describe("usePromptFolderActions", () => {
     it("Moving a prompt shows App moved and refetches prompts", async () => {
         mount()
         await act(async () => {
-            await latest.movePrompt({id: "p1", name: "Welcome", folder_id: null}, "f3")
+            await latest.movePrompt({id: "p1", folder_id: null}, "f3")
         })
         expect(api.moveWorkflowToFolder).toHaveBeenCalledWith({
             projectId: PROJECT_ID,
@@ -169,7 +169,7 @@ describe("usePromptFolderActions", () => {
     it("Archiving a prompt shows App archived", async () => {
         mount()
         await act(async () => {
-            await latest.archivePrompt({id: "p1", name: "Welcome"})
+            await latest.archivePrompt({id: "p1"})
         })
         expect(api.archiveWorkflow).toHaveBeenCalledWith(PROJECT_ID, "p1")
         expect(toast.success).toHaveBeenCalledWith("App archived")
@@ -180,8 +180,9 @@ describe("usePromptFolderActions", () => {
         await act(async () => {
             await latest.renamePrompt({id: "p1"}, {name: "Welcome 2", description: "Hi"})
         })
-        expect(api.updateWorkflow).toHaveBeenCalledWith(PROJECT_ID, {
-            id: "p1",
+        expect(api.renameWorkflow).toHaveBeenCalledWith({
+            projectId: PROJECT_ID,
+            workflowId: "p1",
             name: "Welcome 2",
             description: "Hi",
         })
@@ -217,7 +218,7 @@ describe("usePromptFolderActions", () => {
         expect(latest.canEditPrompts).toBe(false)
         expect(latest.canEditFolders).toBe(true)
         await act(async () => {
-            await latest.archivePrompt({id: "p1", name: "Welcome"})
+            await latest.archivePrompt({id: "p1"})
         })
         expect(api.archiveWorkflow).not.toHaveBeenCalled()
     })

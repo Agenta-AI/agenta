@@ -119,10 +119,7 @@ const Host = ({
             remove: noop,
         },
         onOpenFolder: setFolderId,
-        onRenameFolder: noop,
-        onMoveFolder: noop,
-        onNewFolder: () => setNewFolderOpen(true),
-        onDeleteFolder: noop,
+        openDialog: (dialog) => dialog.kind === "newFolder" && setNewFolderOpen(true),
         onRetry: noop,
     }
     return (

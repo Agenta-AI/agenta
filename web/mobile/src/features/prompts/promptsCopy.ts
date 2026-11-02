@@ -1,10 +1,11 @@
-/**
- * Every string of the Prompts page. Lines marked "new" have no text in the old app.
- */
+/** Every string of the Prompts page. */
 export const promptsCopy = {
     pageTitle: "Prompts",
     searchPlaceholder: "Search",
     createNew: "Create new",
+    working: "Working…",
+    cancel: "Cancel",
+    clearSearch: "Clear search",
     newFolder: "New folder",
     rootLabel: "All prompts",
     folderTag: "Folder",
@@ -24,7 +25,6 @@ export const promptsCopy = {
         placeholder: "Untitled folder",
         create: "Create",
         save: "Save",
-        cancel: "Cancel",
         slug: (slug: string) => `Slug: ${slug}`,
         path: (path: string) => `Folder path: ${path}`,
     },
@@ -34,7 +34,6 @@ export const promptsCopy = {
         selectLabel: "Select folder",
         confirm: (destination: string | null) =>
             destination ? `Move to ${destination}` : "Move folder",
-        cancel: "Cancel",
     },
     deleteDialog: {
         title: "Are you sure you want to delete?",

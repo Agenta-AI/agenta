@@ -104,10 +104,7 @@ export const PromptsScreen = ({
                             canEditPrompts={actions.canEditPrompts}
                             rowActions={rowActions}
                             onOpenFolder={browser.openFolder}
-                            onRenameFolder={(folder) => setDialog({kind: "renameFolder", folder})}
-                            onMoveFolder={(folder) => setDialog({kind: "moveFolder", folder})}
-                            onNewFolder={() => setDialog({kind: "newFolder"})}
-                            onDeleteFolder={(folder) => setDialog({kind: "deleteFolder", folder})}
+                            openDialog={setDialog}
                             onRetry={browser.refetch}
                         />
                     </div>

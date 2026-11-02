@@ -126,13 +126,13 @@ export const MoveToFolderDialog = ({
                 {error ? <p className="m-0 text-sm text-destructive">{error}</p> : null}
                 <DialogFooter>
                     <Button variant="outline" disabled={pending} onClick={onClose}>
-                        {copy.cancel}
+                        {promptsCopy.cancel}
                     </Button>
                     <Button
                         disabled={!canConfirm}
                         onClick={() => selectedId && onConfirm(selectedId)}
                     >
-                        {pending ? "Working…" : copy.confirm(destination?.name ?? null)}
+                        {pending ? promptsCopy.working : copy.confirm(destination?.name ?? null)}
                     </Button>
                 </DialogFooter>
             </DialogContent>

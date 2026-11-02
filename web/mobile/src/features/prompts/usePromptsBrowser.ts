@@ -6,6 +6,7 @@ import {
     filterTreeBySearch,
     folderChain,
     indexFolders,
+    invalidateProjectFolders,
     projectFoldersListQueryStateAtom,
     promptWorkflowsListQueryStateAtom,
     siblingFolders,
@@ -37,7 +38,9 @@ export const usePromptsBrowser = () => {
     const urlFolderId = typeof rawFolderId === "string" && rawFolderId ? rawFolderId : null
 
     const foldersById = useMemo(() => indexFolders(foldersQuery.data), [foldersQuery.data])
-    const foldersLoaded = !foldersQuery.isPending && !foldersQuery.isError
+    // A folder missing from a cached list may only be missing from the stale copy.
+    const foldersLoaded =
+        !foldersQuery.isPending && !foldersQuery.isError && !foldersQuery.isFetching
 
     const openFolder = useCallback(
         (id: string | null) => {
@@ -86,7 +89,7 @@ export const usePromptsBrowser = () => {
     }
 
     const refetch = useCallback(() => {
-        void queryClient.invalidateQueries({queryKey: ["folders"]})
+        void invalidateProjectFolders(queryClient)
         void queryClient.invalidateQueries({queryKey: ["workflows"]})
     }, [queryClient])
 

@@ -5,6 +5,7 @@ export {
     moveWorkflowToFolder,
     queryFolders,
     renameFolder,
+    renameWorkflow,
 } from "./api"
 export {FOLDER_KIND_APPLICATIONS, folderSchema, type Folder} from "./schema"
 export {

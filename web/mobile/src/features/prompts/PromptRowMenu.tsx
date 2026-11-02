@@ -8,7 +8,7 @@ import {
 import {
     DotsThreeVerticalIcon,
     FolderDashedIcon,
-    NoteIcon,
+    FolderOpenIcon,
     PencilSimpleIcon,
     TrashIcon,
 } from "@phosphor-icons/react"
@@ -49,7 +49,7 @@ export const PromptRowMenu = ({
             <DropdownMenuContent align="end" className="w-max min-w-[160px]">
                 {row.kind === "folder" ? (
                     <DropdownMenuItem onSelect={() => actions.openFolder(row)}>
-                        <NoteIcon size={16} />
+                        <FolderOpenIcon size={16} />
                         {copy.open}
                     </DropdownMenuItem>
                 ) : null}

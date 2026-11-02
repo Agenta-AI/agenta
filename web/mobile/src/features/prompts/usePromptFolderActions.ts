@@ -11,7 +11,7 @@ import {
     moveFolder,
     moveWorkflowToFolder,
     renameFolder,
-    updateWorkflow,
+    renameWorkflow,
     type Folder,
     type FoldersById,
 } from "@agenta/entities/workflow"
@@ -33,7 +33,6 @@ const fail = (error: string): ActionResult => ({ok: false, error})
 
 interface PromptRef {
     id: string
-    name?: string | null
     folder_id?: string | null
 }
 
@@ -202,7 +201,7 @@ export const usePromptFolderActions = ({
             run(
                 canEditPrompts,
                 async () => {
-                    await updateWorkflow(projectId, {id: prompt.id, ...fields})
+                    await renameWorkflow({projectId, workflowId: prompt.id, ...fields})
                     await refetchPrompts()
                 },
                 promptsCopy.failure.renamePrompt,

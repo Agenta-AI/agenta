@@ -5,6 +5,7 @@ import {
     isValidMoveTarget,
     type Folder,
     type FoldersById,
+    type MoveItem,
 } from "@agenta/entities/workflow"
 
 import {ArchivePromptDialog} from "./dialogs/ArchivePromptDialog"
@@ -13,9 +14,31 @@ import {FolderNameDialog} from "./dialogs/FolderNameDialog"
 import {MoveToFolderDialog} from "./dialogs/MoveToFolderDialog"
 import {RenamePromptDialog} from "./dialogs/RenamePromptDialog"
 import type {PromptsDialog} from "./promptDialogState"
-import type {usePromptFolderActions} from "./usePromptFolderActions"
+import type {ActionResult, usePromptFolderActions} from "./usePromptFolderActions"
 
 type Actions = ReturnType<typeof usePromptFolderActions>
+
+/** What the move dialog is moving, and the folder the item sits in now. */
+const moveTarget = (
+    dialog: PromptsDialog | null,
+): {name: string; currentId: string | null; item: MoveItem} | null => {
+    if (dialog?.kind === "moveFolder") {
+        return {
+            name: dialog.folder.name ?? "",
+            currentId: dialog.folder.id,
+            item: {kind: "folder", id: dialog.folder.id},
+        }
+    }
+    if (dialog?.kind === "movePrompt") {
+        const folderId = dialog.prompt.folder_id ?? null
+        return {
+            name: dialog.prompt.name ?? "",
+            currentId: folderId,
+            item: {kind: "prompt", id: dialog.prompt.id, folderId},
+        }
+    }
+    return null
+}
 
 /**
  * Hosts the dialog the page has open: runs its write, shows the failure sentence inside it
@@ -39,7 +62,7 @@ export const PromptsDialogs = ({
     useEffect(() => setError(null), [dialog])
 
     const finish = useCallback(
-        async (work: Promise<{ok: true} | {ok: false; error: string}>) => {
+        async (work: Promise<ActionResult>) => {
             const result = await work
             if (result.ok) onClose()
             else setError(result.error)
@@ -48,6 +71,7 @@ export const PromptsDialogs = ({
     )
 
     const folders: Folder[] = [...foldersById.values()]
+    const move = moveTarget(dialog)
     const common = {pending: actions.pending, error, onClose}
 
     return (
@@ -74,40 +98,12 @@ export const PromptsDialogs = ({
             />
             <MoveToFolderDialog
                 {...common}
-                open={dialog?.kind === "moveFolder" || dialog?.kind === "movePrompt"}
-                itemName={
-                    dialog?.kind === "moveFolder"
-                        ? (dialog.folder.name ?? "")
-                        : dialog?.kind === "movePrompt"
-                          ? (dialog.prompt.name ?? "")
-                          : ""
-                }
+                open={move !== null}
+                itemName={move?.name ?? ""}
                 folders={folders}
-                initialSelectedId={
-                    dialog?.kind === "moveFolder"
-                        ? dialog.folder.id
-                        : dialog?.kind === "movePrompt"
-                          ? (dialog.prompt.folder_id ?? null)
-                          : null
-                }
+                initialSelectedId={move?.currentId ?? null}
                 isDisabled={(destinationId) =>
-                    dialog?.kind === "moveFolder"
-                        ? !isValidMoveTarget({
-                              foldersById,
-                              item: {kind: "folder", id: dialog.folder.id},
-                              destinationId,
-                          })
-                        : dialog?.kind === "movePrompt"
-                          ? !isValidMoveTarget({
-                                foldersById,
-                                item: {
-                                    kind: "prompt",
-                                    id: dialog.prompt.id,
-                                    folderId: dialog.prompt.folder_id ?? null,
-                                },
-                                destinationId,
-                            })
-                          : true
+                    move ? !isValidMoveTarget({foldersById, item: move.item, destinationId}) : true
                 }
                 onConfirm={(destinationId) => {
                     if (dialog?.kind === "moveFolder") {
