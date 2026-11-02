@@ -52,7 +52,11 @@ const render = (element: ReactNode) => {
     })
 }
 
-const flush = () => act(() => new Promise((resolve) => setTimeout(resolve, 0)))
+const flush = async () => {
+    for (let tick = 0; tick < 5; tick++) {
+        await act(() => new Promise((resolve) => setTimeout(resolve, 5)))
+    }
+}
 
 afterEach(() => {
     act(() => root?.unmount())
