@@ -194,6 +194,7 @@ export const ChatScreen = ({
             agentId={heldAgentId}
             readOnly={access.readOnly}
             canSend={access.canSend}
+            accessPending={access.accessPending}
         />
     ) : (
         <ReplayScreen

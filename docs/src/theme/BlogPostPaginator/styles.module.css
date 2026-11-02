@@ -1,0 +1,9 @@
+.neighbors {
+  display: flex;
+  gap: 8px;
+}
+
+/* The theme caps each link at 48% of the row; here the labels are one word. */
+.neighbors :global(.pagination-nav__link) {
+  max-width: none;
+}

@@ -3,5 +3,6 @@
 export const UpdateSecretRequestScope = {
     Project: "project",
     Organization: "organization",
+    User: "user",
 } as const;
 export type UpdateSecretRequestScope = (typeof UpdateSecretRequestScope)[keyof typeof UpdateSecretRequestScope];

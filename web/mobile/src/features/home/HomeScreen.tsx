@@ -17,7 +17,6 @@ import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {isOnboardingFlowEnabled} from "@/lib/env"
 
 import {NewAgentAction} from "../agents/NewAgentAction"
 import {useBindProjectContext} from "../context/useBindProjectContext"
@@ -75,7 +74,6 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
     const profile = useProfile()
     const userId = profile.user?.id ?? null
     const pendingOnboarding = resolvePendingOnboarding({
-        enabled: isOnboardingFlowEnabled(),
         pending: profile.isPending ? null : userId !== null && isOnboardingPending(userId),
         agentCount: agents.length,
         agentsPending: agentsQuery.isPending,

@@ -29,24 +29,31 @@ def _tool_entries(parameters: Optional[dict]) -> List[Any]:
 
 def build_share_disclosure(*, parameters: Optional[dict]) -> ShareDisclosure:
     """One `DisclosedConnection` per gateway connection named in the revision's tools,
-    deduplicated and sorted. MCP endpoints (`mcps`) and provider keys are not
+    deduplicated and sorted. A "user" item is listed by its integration with
+    `account_source: "user"` and no slug: each person who runs the agent uses their own
+    connection. MCP endpoints (`mcps`) and provider keys are not
     connections of the gateway and are not listed. An entry that does not parse is
     skipped: the disclosure never fails the sharing read."""
 
     configs = coerce_tool_configs(_tool_entries(parameters), on_error="collect")
-    seen: Set[Tuple[str, str, str]] = set()
+    # (provider, integration, slug, account source); a "user" item has no slug.
+    seen: Set[Tuple[str, str, str, str]] = set()
     for config in configs.tool_configs:
         if isinstance(config, GatewayToolConfig):
-            seen.add((config.provider, config.integration, config.connection))
+            seen.add((config.provider, config.integration, config.connection, "agent"))
         elif isinstance(config, GatewayConnectionToolConfig):
             ref = config.connection
-            seen.add((ref.provider, ref.integration, ref.slug))
+            source = "user" if ref.account_source == "user" else "agent"
+            seen.add((ref.provider, ref.integration, ref.slug or "", source))
 
     return ShareDisclosure(
         connections=[
             DisclosedConnection(
-                provider=provider, integration=integration, connection=connection
+                provider=provider,
+                integration=integration,
+                connection=connection or None,
+                account_source="user" if source == "user" else None,
             )
-            for provider, integration, connection in sorted(seen)
+            for provider, integration, connection, source in sorted(seen)
         ]
     )

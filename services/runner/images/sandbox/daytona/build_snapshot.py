@@ -68,6 +68,17 @@ PI_ACP_VERSION = "0.0.29"
 SANDBOX_AGENT_HOME = "/home/sandbox/.local/share/sandbox-agent"
 PI_ACP_INSTALL_DIR = f"{SANDBOX_AGENT_HOME}/bin/agent_processes"
 PI_ACP_PACKAGE_JSON = f"{PI_ACP_INSTALL_DIR}/pi/node_modules/pi-acp/package.json"
+PI_ACP_BUNDLE = f"{PI_ACP_INSTALL_DIR}/pi/node_modules/pi-acp/dist/index.js"
+
+# pi-acp checks npm for a newer Pi on every `session/new` (`pi --version`, then `npm view`, both
+# synchronous), which delays the first prompt by about a second. The runner image turns it off
+# through its pnpm patch (patches/pi-acp@0.0.29.patch); this is the same line for the snapshot's
+# unpatched adapter. It follows the opt-in env var the pi-acp maintainer proposed upstream
+# (svkozak/pi-acp#72). Drop both once a pinned pi-acp release has the gate.
+PI_ACP_UPDATE_CHECK_ANCHOR = "function buildUpdateNotice() {\n"
+PI_ACP_UPDATE_CHECK_GATE = (
+    '  if (process.env.PI_ACP_CHECK_FOR_UPDATES !== "true") return null;\n'
+)
 
 # Codex ACP adapter. The `-full` base image bakes SOME codex-acp, but an unpinned one: it served
 # an older model set than the runner's pin, so the same agent saw different models depending on
@@ -228,6 +239,42 @@ console.log("codex-acp-approvals=" + patched);
     return (
         f"RUN echo {blob} | base64 -d > /tmp/patch-codex-acp.mjs "
         "&& node /tmp/patch-codex-acp.mjs && rm /tmp/patch-codex-acp.mjs"
+    )
+
+
+def pi_acp_update_check_patch_command() -> str:
+    """A self-contained RUN that makes pi-acp's npm update check opt-in.
+
+    Same shape as `codex_approval_patch_command`: base64-embedded, fails on a missing anchor,
+    idempotent, and verified after the write.
+    """
+    script = f"""
+import {{ readFileSync, writeFileSync }} from "node:fs";
+const file = {json.dumps(PI_ACP_BUNDLE)};
+const anchor = {json.dumps(PI_ACP_UPDATE_CHECK_ANCHOR)};
+const gate = {json.dumps(PI_ACP_UPDATE_CHECK_GATE)};
+const source = readFileSync(file, "utf8");
+if (source.includes(anchor + gate)) {{
+  console.log("pi-acp update-check patch: already opt-in");
+}} else if (source.split(anchor).length - 1 !== 1) {{
+  console.error(
+    "pi-acp update-check patch: anchor missing in " + file +
+    ". pi-acp changed buildUpdateNotice: update PI_ACP_UPDATE_CHECK_ANCHOR in build_snapshot.py."
+  );
+  process.exit(1);
+}} else {{
+  writeFileSync(file, source.replace(anchor, anchor + gate));
+}}
+if (!readFileSync(file, "utf8").includes(anchor + gate)) {{
+  console.error("pi-acp update-check patch did not take in " + file);
+  process.exit(1);
+}}
+console.log("pi-acp-update-check=opt-in");
+"""
+    blob = base64.b64encode(script.encode()).decode()
+    return (
+        f"RUN echo {blob} | base64 -d > /tmp/patch-pi-acp.mjs "
+        "&& node /tmp/patch-pi-acp.mjs && rm /tmp/patch-pi-acp.mjs"
     )
 
 
@@ -536,6 +583,7 @@ def build_snapshot(daytona: Daytona, name: str) -> None:
             f'&& test "$(node -p "require(\'{PI_ACP_PACKAGE_JSON}\').version")" '
             f'= "{PI_ACP_VERSION}" '
             f"&& echo pi-acp-version={PI_ACP_VERSION}",
+            pi_acp_update_check_patch_command(),
             # Same treatment for Codex: pin the adapter to the runner's version, then assert it.
             pin_agent_process_command("codex", CODEX_ACP_VERSION),
             f'RUN test "$(node -p "require(\'{CODEX_ACP_PACKAGE_JSON}\').version")" '

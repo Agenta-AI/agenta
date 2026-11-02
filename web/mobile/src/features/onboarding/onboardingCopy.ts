@@ -17,6 +17,9 @@ export const ONBOARDING_COPY = {
     kickerClass:
         "text-muted-foreground text-[11px] font-medium uppercase leading-4 tracking-[0.04em]",
     keyHint: (key: string) => `Press ${key}`,
+    /** The one-line write-in a choice marked `text` asks for. */
+    writeIn: "Tell us more",
+    writeInPlaceholder: "One line is enough",
     model: {
         kicker: "Added to your wallet",
         title: (credits: string) => `${credits} credits, on us`,
@@ -85,7 +88,6 @@ export const ONBOARDING_COPY = {
         howItWorks: "How it works",
         when: "When",
         step: (n: number, app: string | null) => (app ? `Step ${n} · ${app}` : `Step ${n}`),
-        useHint: "Creates the agent and opens it.",
         use: "Use template",
         creating: "Creating agent",
         loading: "Loading templates",
@@ -93,13 +95,8 @@ export const ONBOARDING_COPY = {
         empty: "No templates in this category.",
     },
     creator: {
-        name: "Name",
-        namePlaceholder: "Name your agent",
-        icon: "Icon and color",
-        iconLabel: (name: string) => `Icon ${name}`,
-        colorLabel: (color: string) => `Color ${color}`,
-        hue: "Custom color",
-        firstMessage: "First message",
+        title: "Describe your agent",
+        subtitle: "Say what it should do and when. It starts working on this as its first task.",
         starters: "Message ideas",
         modelMissing: "Your agent needs a model to run.",
         modelMissingAction: "Choose one",

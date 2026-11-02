@@ -264,6 +264,8 @@ class TriggerSubscriptionData(BaseModel):
     # MAPPING — inputs-only template resolved into WorkflowServiceRequest.data.inputs.
     # A bare selector string (e.g. "$") is allowed at top level = whole context.
     inputs_fields: Optional[Union[Dict[str, Any], str]] = None
+    # Adds the event data to the agent's message.
+    include_event: bool = True
     #
     # DESTINATION — the bound workflow, by reference (the /retrieve shape).
     references: Optional[Dict[str, Reference]] = None
@@ -385,6 +387,8 @@ class TriggerDeliveryData(BaseModel):
     #
     references: Optional[Dict[str, Reference]] = None
     inputs: Optional[Dict[str, Any]] = None
+    # The normalized event context block (subscriptions only), for previews.
+    event: Optional[Dict[str, Any]] = None
     #
     result: Optional[Dict[str, Any]] = None
     # The failure message (old readers keep reading a string); `error_details` holds
@@ -424,3 +428,10 @@ class TriggerDeliveryQuery(BaseModel):
     subscription_id: Optional[UUID] = None
     schedule_id: Optional[UUID] = None
     event_id: Optional[str] = None
+
+
+class TriggerWebhookRegistration(BaseModel):
+    """The provider project's delivery webhook: its signing secret and the URL it posts to."""
+
+    secret: str
+    webhook_url: Optional[str] = None

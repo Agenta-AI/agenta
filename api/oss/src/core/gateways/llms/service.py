@@ -47,6 +47,7 @@ from oss.src.core.secrets.enums import ORGANIZATION_GATEWAY_KINDS, SecretKind
 from oss.src.core.gateways.llms.types import (
     LLM_GATEWAY_SERVED_DEPLOYMENT_KINDS,
     LLMCapabilityNotAllowedError,
+    LLMAgentModelNotAvailableError,
     LLMConnectionProviderRequiredError,
     LLMEndpointNotFoundError,
     LLMEndpointProviderMissingError,
@@ -79,6 +80,7 @@ from oss.src.core.gateways.policy.types import (
 )
 from oss.src.core.gateways.types import (
     GatewayEndpointInactiveError,
+    GatewaysError,
     LLMGatewayConnectionNotServedError,
 )
 from oss.src.core.shared.dtos import Windowing
@@ -753,6 +755,85 @@ class LLMGatewayService:
         with nothing to act on. `LLMGatewayConnectionResolution.provider_key` stays a required
         field, so the invariant no construction path can dodge is still enforced underneath.
         """
+        target, model = await self._agent_connection_target(
+            scope=scope,
+            model=model,
+            provider_key=provider_key,
+            connection_slug=connection_slug,
+            connection_namespace=connection_namespace,
+            connection_scope=connection_scope,
+        )
+        if target.deployment_kind == LLMDeploymentKind.BEDROCK:
+            raise LLMGatewayConnectionNotServedError()
+        self._check_active(target=target)
+        self._check_agent_model(target=target, model=model)
+        resolved_provider = target.provider_key or provider_key
+        if not resolved_provider:
+            raise LLMEndpointProviderMissingError(
+                namespace=target.namespace, name=target.name
+            )
+        deployment_kind = target.deployment_kind
+        protocol: Optional[LLMProtocol] = None
+        if deployment_kind == LLMDeploymentKind.MOCK:
+            resolved_provider = "anthropic" if model.startswith("claude-") else "openai"
+        elif target.namespace == GatewayEndpointNamespace.BUILTIN:
+            # A real `builtin` endpoint answers the harness on one OpenAI-compatible
+            # chat-completions surface, whatever upstream serves it behind the gateway. The
+            # harness drives that surface as it drives any OpenAI-compatible custom route.
+            # The Vertex-backed one also serves Gemini's native protocol, which a harness that
+            # knows `protocol` speaks instead (`docs/design/gemini-native-door`).
+            if deployment_kind == LLMDeploymentKind.VERTEX:
+                protocol = LLMProtocol.GEMINI
+            resolved_provider = "openai"
+            deployment_kind = LLMDeploymentKind.CUSTOM
+        elif target.provider_key == "gemini":
+            # The same for a Gemini provider key: behind the gateway it is Google's
+            # OpenAI-compatible endpoint. A harness that drives Gemini natively (Pi's `google`
+            # provider speaks generateContent) has no gateway route to reach it on. The model
+            # loses its catalogue prefix, which Google's endpoint does not accept.
+            resolved_provider = "openai"
+            deployment_kind = LLMDeploymentKind.CUSTOM
+            model = model.removeprefix("gemini/")
+        elif (
+            deployment_kind == LLMDeploymentKind.VERTEX
+            and resolved_provider == "openai"
+        ):
+            # The same for a Vertex endpoint that speaks OpenAI's shape: the gateway relays it to
+            # Vertex's OpenAI-compatible endpoint and mints the Google token itself, so the
+            # harness sees a custom route and never a Vertex credential. An Anthropic-shaped
+            # Vertex endpoint keeps its deployment: Claude drives Vertex natively.
+            deployment_kind = LLMDeploymentKind.CUSTOM
+        return LLMGatewayConnectionResolution(
+            namespace=target.namespace,
+            name=target.name,
+            provider_key=resolved_provider,
+            deployment_kind=deployment_kind,
+            # The harness sends this id to the gateway, and the gateway relays it to the
+            # upstream, so it must be the upstream's own name for the model.
+            model=target.upstream_model(model),
+            protocol=protocol,
+            custom_provider=(
+                target.resolved_secret.secret.kind == SecretKind.CUSTOM_PROVIDER
+                if target.namespace == GatewayEndpointNamespace.ORGANIZATION
+                and target.resolved_secret is not None
+                else None
+            ),
+        )
+
+    async def _agent_connection_target(
+        self,
+        *,
+        scope: AuthScope,
+        model: str,
+        provider_key: Optional[str],
+        connection_slug: Optional[str],
+        connection_namespace: Optional[GatewayEndpointNamespace],
+        connection_scope: SecretOwnerKind,
+    ) -> Tuple[_ResolvedLlmTarget, str]:
+        """The target an agent connection names, and the model it runs there.
+
+        The model changes only for a retired starter-credits model, which resolves to the
+        built-in model."""
         if (
             connection_scope == SecretOwnerKind.ORGANIZATION
             or connection_namespace == GatewayEndpointNamespace.ORGANIZATION
@@ -811,61 +892,66 @@ class LLMGatewayService:
                 name=AGENTA_PROVIDER,
             )
             model = builtin_model
-        if target.deployment_kind == LLMDeploymentKind.BEDROCK:
-            raise LLMGatewayConnectionNotServedError()
-        self._check_active(target=target)
-        resolved_provider = target.provider_key or provider_key
-        if not resolved_provider:
-            raise LLMEndpointProviderMissingError(
-                namespace=target.namespace, name=target.name
+        return target, model
+
+    @staticmethod
+    def _check_agent_model(*, target: _ResolvedLlmTarget, model: str) -> None:
+        """Refuse a model the target's own allowlist does not offer. A standard provider
+        key spends the caller's key and leaves the model to the provider (see
+        `_check_allowlist`), so it is never refused here."""
+        if target.model_rules == GatewayEndpointNamespace.STANDARD:
+            return
+        # The relay checks the name the harness sends, which is the upstream's own name.
+        if not target.models.allows(target.upstream_model(model)):
+            raise LLMAgentModelNotAvailableError(
+                model=model, namespace=target.namespace, name=target.name
             )
-        deployment_kind = target.deployment_kind
-        protocol: Optional[LLMProtocol] = None
-        if deployment_kind == LLMDeploymentKind.MOCK:
-            resolved_provider = "anthropic" if model.startswith("claude-") else "openai"
-        elif target.namespace == GatewayEndpointNamespace.BUILTIN:
-            # A real `builtin` endpoint answers the harness on one OpenAI-compatible
-            # chat-completions surface, whatever upstream serves it behind the gateway. The
-            # harness drives that surface as it drives any OpenAI-compatible custom route.
-            # The Vertex-backed one also serves Gemini's native protocol, which a harness that
-            # knows `protocol` speaks instead (`docs/design/gemini-native-door`).
-            if deployment_kind == LLMDeploymentKind.VERTEX:
-                protocol = LLMProtocol.GEMINI
-            resolved_provider = "openai"
-            deployment_kind = LLMDeploymentKind.CUSTOM
-        elif target.provider_key == "gemini":
-            # The same for a Gemini provider key: behind the gateway it is Google's
-            # OpenAI-compatible endpoint. A harness that drives Gemini natively (Pi's `google`
-            # provider speaks generateContent) has no gateway route to reach it on. The model
-            # loses its catalogue prefix, which Google's endpoint does not accept.
-            resolved_provider = "openai"
-            deployment_kind = LLMDeploymentKind.CUSTOM
-            model = model.removeprefix("gemini/")
-        elif (
-            deployment_kind == LLMDeploymentKind.VERTEX
-            and resolved_provider == "openai"
+
+    async def agent_connection_requirement(
+        self,
+        *,
+        scope: AuthScope,
+        model: str,
+        provider_key: Optional[str],
+        connection_slug: Optional[str],
+        connection_namespace: Optional[GatewayEndpointNamespace] = None,
+        connection_scope: SecretOwnerKind = SecretOwnerKind.PROJECT,
+    ) -> Tuple[Optional[Tuple[str, str]], Optional[LLMGatewayConnectionResolution]]:
+        """What an agent's model connection needs, as `(kind, reason)`, and the
+        resolution when it needs nothing.
+
+        The run's own resolve, so the check reads the connection exactly as the run does:
+        the same target, the same active flag, the same model allowlist. One more rule the
+        resolve does not apply: a connection with no slug needs a project key for its
+        provider (a built-in provider needs none)."""
+        try:
+            resolution = await self.resolve_agent_connection(
+                scope=scope,
+                model=model,
+                provider_key=provider_key,
+                connection_slug=connection_slug,
+                connection_namespace=connection_namespace,
+                connection_scope=connection_scope,
+            )
+        except (LLMEndpointNotFoundError, LLMNamedConnectionNotFoundError):
+            return ("model_key", "not_found"), None
+        except GatewayEndpointInactiveError:
+            return ("model_key", "turned_off"), None
+        except LLMAgentModelNotAvailableError:
+            return ("model", "not_available"), None
+        except GatewaysError:
+            # A refusal that is not a missing item (a malformed or unserved connection):
+            # the run reports it on its own.
+            return None, None
+        if (
+            not connection_slug
+            and provider_key
+            and resolution.namespace == GatewayEndpointNamespace.STANDARD
+            and provider_key
+            not in await self.resolver.available_provider_keys(scope=scope)
         ):
-            # The same for a Vertex endpoint that speaks OpenAI's shape: the gateway relays it to
-            # Vertex's OpenAI-compatible endpoint and mints the Google token itself, so the
-            # harness sees a custom route and never a Vertex credential. An Anthropic-shaped
-            # Vertex endpoint keeps its deployment: Claude drives Vertex natively.
-            deployment_kind = LLMDeploymentKind.CUSTOM
-        return LLMGatewayConnectionResolution(
-            namespace=target.namespace,
-            name=target.name,
-            provider_key=resolved_provider,
-            deployment_kind=deployment_kind,
-            # The harness sends this id to the gateway, and the gateway relays it to the
-            # upstream, so it must be the upstream's own name for the model.
-            model=target.upstream_model(model),
-            protocol=protocol,
-            custom_provider=(
-                target.resolved_secret.secret.kind == SecretKind.CUSTOM_PROVIDER
-                if target.namespace == GatewayEndpointNamespace.ORGANIZATION
-                and target.resolved_secret is not None
-                else None
-            ),
-        )
+            return ("model_key", "not_chosen"), None
+        return None, resolution
 
     # Data plane
 

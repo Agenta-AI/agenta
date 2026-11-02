@@ -30,10 +30,12 @@ import {QuoteNote} from "./QuoteNote"
 import {CommentSheet, QuoteNoteSheet} from "./QuoteNoteSheet"
 import {
     addQuote,
+    clearQuoteReveal,
     getQuotes,
     removeQuote,
     submitSessionMessage,
     updateQuote,
+    useQuoteReveal,
     useSessionQuotes,
 } from "./store"
 
@@ -74,6 +76,14 @@ export interface PreviewCommentLayerProps {
     onPickConsumed: () => void
     /** The draft note closed (staged, sent or cancelled). */
     onDraftClose?: () => void
+    /** A draft or edit note opened or closed; the picker pauses while one is open. */
+    onNoteChange?: (open: boolean) => void
+    /** Each new value closes the open note, as Esc would (a click in the frame). */
+    dismissSignal?: number
+    /** A composer chip asked for this comment: bring its element into view (scroll, slide, sheet). */
+    onRevealPin?: (quote: PreviewQuote) => void
+    /** Comment mode is on; turning it off closes an open note. */
+    commenting?: boolean
     pinRects: PreviewPinRect[]
     touch?: boolean
 }
@@ -179,6 +189,10 @@ export const PreviewCommentLayer = ({
     pick,
     onPickConsumed,
     onDraftClose,
+    onNoteChange,
+    dismissSignal,
+    onRevealPin,
+    commenting,
     pinRects,
     touch,
 }: PreviewCommentLayerProps) => {
@@ -244,6 +258,59 @@ export const PreviewCommentLayer = ({
         return () => observer.disconnect()
     }, [rootRef])
 
+    const noteOpen = editor !== null
+    const noteChange = useRef(onNoteChange)
+    noteChange.current = onNoteChange
+    useEffect(() => noteChange.current?.(noteOpen), [noteOpen])
+
+    const dismiss = useRef<() => void>(() => {})
+    useEffect(() => {
+        if (dismissSignal) dismiss.current()
+    }, [dismissSignal])
+    useEffect(() => {
+        if (commenting === false) dismiss.current()
+    }, [commenting])
+
+    // A chip asked for one of this file's comments: bring it into view, then open its card.
+    const reveal = useQuoteReveal(sessionId)
+    const revealed = reveal ? comments.find((quote) => quote.id === reveal.id) : undefined
+    const revealPin = useRef(onRevealPin)
+    revealPin.current = onRevealPin
+    // Ask the host at once (a slide, a sheet tab), then again when the frame first places the pin.
+    const asked = useRef<{seq: number; placed: boolean} | null>(null)
+    useEffect(() => {
+        const root = rootRef.current
+        if (!sessionId || !root || !reveal || !revealed) return
+        // A changed comment has no pin to show.
+        if (revealed.stale) {
+            clearQuoteReveal(sessionId, reveal.seq)
+            return
+        }
+        const rect = pinRects.find((pin) => pin.id === revealed.id)?.rect ?? null
+        const point = rect ? pinPoint(revealed, rect) : null
+        const onScreen =
+            !!point &&
+            point.top >= 0 &&
+            point.left >= 0 &&
+            point.top <= root.clientHeight &&
+            point.left <= root.clientWidth
+        if (onScreen) {
+            dismiss.current()
+            setOpenPin(revealed.id)
+            clearQuoteReveal(sessionId, reveal.seq)
+            return
+        }
+        const last = asked.current?.seq === reveal.seq ? asked.current : null
+        // Asked after the pin was placed and it is still off screen: give up, never pop up later.
+        if (last?.placed) {
+            clearQuoteReveal(sessionId, reveal.seq)
+            return
+        }
+        if (last && !rect) return
+        asked.current = {seq: reveal.seq, placed: !!rect}
+        revealPin.current?.(revealed)
+    }, [sessionId, reveal, revealed, pinRects, rootRef])
+
     // QuoteNote focuses its field on mount; typing continues after any text it opens with.
     const editorKey = !editor ? null : editor.kind === "edit" ? editor.id : editor.quote.id
     useLayoutEffect(() => {
@@ -273,6 +340,7 @@ export const PreviewCommentLayer = ({
         if (draft) removeQuote(sessionId, draft.quote.id)
         close()
     }
+    dismiss.current = discardDraft
     // Follow the element; a cell range's live rect is its first cell, so keep the range's size.
     const draftRect = (() => {
         if (!draft) return null

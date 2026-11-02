@@ -93,10 +93,10 @@ async def _prepared_grants(monkeypatch, *, revision_url):
     )
 
     service = WorkflowsService(workflows_dao=AsyncMock())
-    service._ensure_request_revision = AsyncMock()
+    service._ensure_request_revision = AsyncMock(return_value=None)
     service._stamp_session_context = AsyncMock()
     service._get_revision_data = lambda request: SimpleNamespace(
-        url=revision_url, uri=None
+        parameters=None, url=revision_url, uri=None
     )
 
     credentials, service_url = await service._prepare_invoke(

@@ -54,6 +54,7 @@ def map_secrets_dto_to_dbe(
     organization_id: uuid.UUID | None,
     secret_dto: CreateSecretDTO,
     management: SecretManagementDTO | None = None,
+    user_id: uuid.UUID | None = None,
 ) -> SecretsDBE:
     vault_secret_dbe = SecretsDBE(
         slug=secret_dto.slug,
@@ -61,6 +62,7 @@ def map_secrets_dto_to_dbe(
         description=(secret_dto.header.description if secret_dto.header else None),
         project_id=project_id,
         organization_id=organization_id,
+        user_id=user_id,
         kind=secret_dto.secret.kind.value,
         data=_data_payload(
             # `mode="json"` because the payload is JSON: a field typed as anything but
@@ -137,6 +139,11 @@ def _owner_of(row) -> SecretOwner | None:
     if project_id is not None:
         return SecretOwner(kind=SecretOwnerKind.PROJECT, id=project_id)
     organization_id = getattr(row, "organization_id", None)
+    user_id = getattr(row, "user_id", None)
+    if organization_id is not None and user_id is not None:
+        return SecretOwner(
+            kind=SecretOwnerKind.USER, id=user_id, organization_id=organization_id
+        )
     if organization_id is not None:
         return SecretOwner(kind=SecretOwnerKind.ORGANIZATION, id=organization_id)
     return None

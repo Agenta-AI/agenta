@@ -62,6 +62,7 @@ export function OfficeViewerFrame({
     // The slide the frame last reported; a new object per report, so pins follow every one.
     const [shown, setShown] = useState<{slide: number} | null>(null)
     const [pick, setPick] = useState<PreviewPick | null>(null)
+    const [dismissSignal, setDismissSignal] = useState(0)
     const [pinRects, setPinRects] = useState<PreviewPinRect[]>([])
     const sessionId = usePreviewCommentSession()
     const {enabled, setEnabled} = usePreviewCommentMode()
@@ -100,11 +101,8 @@ export function OfficeViewerFrame({
             if (!message) return
             switch (message.type) {
                 case "ready": {
-                    // Comments anchor to page layout, so comment mode always renders pages.
                     const narrow =
-                        kind === "document" &&
-                        !enabledRef.current &&
-                        (rootRef.current?.clientWidth ?? 0) < REFLOW_BELOW_PX
+                        kind === "document" && (rootRef.current?.clientWidth ?? 0) < REFLOW_BELOW_PX
                     reflowRef.current = narrow
                     setReflow(narrow)
                     blob.arrayBuffer().then(
@@ -136,9 +134,9 @@ export function OfficeViewerFrame({
                 case "picked": {
                     const root = rootRef.current
                     if (!enabledRef.current || !box || !root) return
-                    const {selector, tag, page, point} = message.element
+                    const {selector, tag, page, block, point} = message.element
                     setPick({
-                        anchor: {type: "element", format, selector, tag, page, point},
+                        anchor: {type: "element", format, selector, tag, page, block, point},
                         text: message.text,
                         rect: frameRectToRoot(message.rect, box, root),
                     })
@@ -146,6 +144,12 @@ export function OfficeViewerFrame({
                 }
                 case "pick-cancel":
                     setEnabled(false)
+                    return
+                case "pick-dismiss":
+                    setDismissSignal((n) => n + 1)
+                    return
+                case "pick-toggle":
+                    setEnabled(!enabledRef.current)
                     return
                 case "pin-rects": {
                     const root = rootRef.current
@@ -187,6 +191,9 @@ export function OfficeViewerFrame({
     useEffect(() => {
         if (shown) send({type: "pins", pins})
     }, [shown, pins, send])
+    useEffect(() => {
+        if (shown && sessionId) send({type: "pick-keys"})
+    }, [shown, sessionId, send])
 
     // A file that keeps the renderer busy falls back to download instead of loading forever.
     const loading = state.status === "loading"
@@ -208,9 +215,6 @@ export function OfficeViewerFrame({
         },
         [send],
     )
-    useEffect(() => {
-        if (enabled && reflow) layout(false)
-    }, [enabled, reflow, layout])
 
     const rendered = state.status === "rendered" ? state : null
     const slides = kind === "presentation" ? rendered : null
@@ -248,6 +252,14 @@ export function OfficeViewerFrame({
                     target={target}
                     pick={pick}
                     onPickConsumed={() => setPick(null)}
+                    onNoteChange={(held) => send({type: "pick-hold", held})}
+                    dismissSignal={dismissSignal}
+                    onRevealPin={({id, source: {anchor}}) => {
+                        if (anchor.type === "element" && slides && anchor.page)
+                            step(anchor.page - 1 - targetRef.current)
+                        send({type: "pin-reveal", id})
+                    }}
+                    commenting={enabled}
                     pinRects={pinRects}
                 />
             ) : null}
@@ -289,8 +301,7 @@ export function OfficeViewerFrame({
                         value={reflow ? "reflow" : "pages"}
                         onChange={(v) => layout(v === "reflow")}
                         options={[
-                            // Comments anchor to page layout, so reflow waits for comment mode to end.
-                            {value: "reflow", label: "Reflow", disabled: enabled},
+                            {value: "reflow", label: "Reflow"},
                             {value: "pages", label: "Pages"},
                         ]}
                     />

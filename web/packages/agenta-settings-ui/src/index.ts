@@ -19,6 +19,7 @@ export {
 export {AccountPage, type AccountPageProps} from "./AccountPage"
 export {ApiKeysPage, type ApiKeysPageProps} from "./ApiKeysPage"
 export {NamedSecretTable, type NamedSecretTableProps} from "./secrets/NamedSecretTable"
+export {addAccountOwners, showsYours} from "./shared/accountOwners"
 export {
     AIProvidersPage,
     SUBSCRIPTION_DOCS_URL,

@@ -75,7 +75,10 @@ export interface NormalizedGatewayTool {
 
 export interface NormalizedGatewayIntegration {
   provider: string;
-  connection: string;
+  /** The project connection's slug; absent for a "user" integration. */
+  connection?: string;
+  /** "user": the run person's own connection, named by the run's credential. */
+  accountSource?: "user";
   toolkitVersion: string;
   tools: Record<string, NormalizedGatewayTool>;
 }
@@ -169,8 +172,12 @@ export function normalizeGatewayPolicy(raw: unknown): NormalizedGatewayPolicy {
     if (!key || !isRecord(rawEntry)) continue;
     const provider = nonEmptyString(rawEntry.provider);
     const connection = nonEmptyString(rawEntry.connection);
+    // A "user" integration names no connection: the API reads the run person's own from
+    // the run's credential. Any other entry needs its connection slug.
+    const accountSource = rawEntry.accountSource === "user" ? "user" : undefined;
     const toolkitVersion = concreteToolkitVersion(rawEntry.toolkitVersion);
-    if (!provider || !connection || !toolkitVersion) continue;
+    if (!provider || !toolkitVersion) continue;
+    if (!connection && !accountSource) continue;
 
     const tools = emptyMap<NormalizedGatewayTool>();
     if (isRecord(rawEntry.tools)) {
@@ -184,7 +191,13 @@ export function normalizeGatewayPolicy(raw: unknown): NormalizedGatewayPolicy {
       }
     }
     if (Object.keys(tools).length === 0) continue;
-    integrations[key] = { provider, connection, toolkitVersion, tools };
+    integrations[key] = {
+      provider,
+      ...(connection ? { connection } : {}),
+      ...(accountSource ? { accountSource } : {}),
+      toolkitVersion,
+      tools,
+    };
   }
   return branded;
 }
@@ -216,6 +229,8 @@ export interface GatewayCallContext {
   provider: string;
   integration?: string;
   connection?: string;
+  /** Copied from the resolved policy: "user" routes the call to the run person's own connection. */
+  account_source?: "user";
   tool?: string;
   toolkit_version?: string;
   /**
@@ -350,7 +365,8 @@ export function planGatewayRun(
     context: {
       provider: entry.provider,
       integration,
-      connection: entry.connection,
+      ...(entry.connection ? { connection: entry.connection } : {}),
+      ...(entry.accountSource ? { account_source: entry.accountSource } : {}),
       tool,
       toolkit_version: entry.toolkitVersion,
     },

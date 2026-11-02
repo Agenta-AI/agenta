@@ -1,9 +1,9 @@
 import {templateProviderSlugs, type AgentStarterTemplate} from "@agenta/entities/workflow"
-import {DEFAULT_AGENT_ICON} from "@agenta/ui/agent-icon"
+import {AGENT_ICON_COLORS, DEFAULT_AGENT_ICON} from "@agenta/ui/agent-icon"
 import {z} from "zod"
 
 import type {ConnectedApps} from "./onboardingApps"
-import {RECOMMENDED, templateGlyph, type GalleryCategory} from "./onboardingChoices"
+import {ICON_CHOICES, RECOMMENDED, templateGlyph, type GalleryCategory} from "./onboardingChoices"
 import {
     answerLabels,
     knownAnswers,
@@ -99,8 +99,6 @@ export const onboardingReducer = (
     }
 }
 
-export const FIRST_AGENT_FALLBACK_NAME = "My first agent"
-
 /** What Create commits. */
 export interface FirstAgentInput {
     name: string
@@ -112,20 +110,24 @@ export interface FirstAgentInput {
     apps: string[]
 }
 
-/** A blank start, once it has a first message. */
+/** A look for an agent nobody styled: one of the offered glyphs on one of the swatches. */
+export const randomAgentIcon = (random: () => number = Math.random): OnboardingIconPick => ({
+    icon: ICON_CHOICES[Math.floor(random() * ICON_CHOICES.length)],
+    color: AGENT_ICON_COLORS[Math.floor(random() * AGENT_ICON_COLORS.length)][0],
+})
+
+/**
+ * A blank start, once it has a first message. It asks for no name or look: the name is left
+ * empty, so the agent starts as the create core's default and renames itself from its first
+ * task, as one started from Home does; the look is drawn at random.
+ */
 export const blankAgentInput = (
-    agent: OnboardingAgent,
     firstMessage: string,
+    pickIcon: () => OnboardingIconPick = randomAgentIcon,
 ): FirstAgentInput | null => {
     const message = firstMessage.trim()
     if (!message) return null
-    return {
-        name: agent.name.trim() || FIRST_AGENT_FALLBACK_NAME,
-        firstMessage: message,
-        templateKey: null,
-        icon: agent.icon,
-        apps: [],
-    }
+    return {name: "", firstMessage: message, templateKey: null, icon: pickIcon(), apps: []}
 }
 
 /** A template's package, with its look and the apps it uses that are already connected. */

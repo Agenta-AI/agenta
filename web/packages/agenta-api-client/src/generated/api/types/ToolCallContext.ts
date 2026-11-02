@@ -12,7 +12,16 @@ export interface ToolCallContext {
     provider?: (string | null) | undefined;
     integration?: (string | null) | undefined;
     connection?: (string | null) | undefined;
+    account_source?: (ToolCallContext.AccountSource | null) | undefined;
     tool?: (string | null) | undefined;
     toolkit_version?: (string | null) | undefined;
     toolkit_versions?: (Record<string, string | null> | null) | undefined;
+}
+
+export namespace ToolCallContext {
+    export const AccountSource = {
+        Agent: "agent",
+        User: "user",
+    } as const;
+    export type AccountSource = (typeof AccountSource)[keyof typeof AccountSource];
 }

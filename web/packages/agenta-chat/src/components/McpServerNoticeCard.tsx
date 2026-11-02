@@ -1,9 +1,9 @@
 /**
  * The turn's account of an MCP server that did not join the run, with the way back.
  *
- * Shared by both apps deliberately, and drawn as the spec's D4 banner: the same sentence and the
- * same action the permission drawer shows for the same connection, so a lapsed login reads as one
- * message with one remedy wherever the reader meets it (spec D4; UI QA round 3, D2).
+ * Shared by both apps deliberately: the same sentence and the same action the permission drawer
+ * shows for the same connection, so a lapsed login reads as one message with one remedy wherever
+ * the reader meets it (spec D4; UI QA round 3, D2).
  *
  * The Reconnect action is offered only once the endpoint row is resolved, because reconnecting
  * needs the row's id, slug and base URL. When the notice names a connection this project cannot
@@ -18,7 +18,7 @@ import {
     refreshMcpEndpointsAtom,
 } from "@agenta/entities/mcpEndpoint"
 import {McpConnectJourney} from "@agenta/entity-ui/mcpEndpoint"
-import {Alert, Button, cn, touchTargetExpansion} from "@agenta/ui/ui"
+import {Button, cn, touchTargetExpansion} from "@agenta/ui/ui"
 import {ArrowClockwise, WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -41,39 +41,35 @@ export const McpServerNoticeCard = ({notice, className}: McpServerNoticeCardProp
 
     return (
         <>
-            <Alert
-                type="warning"
-                showIcon
-                icon={<WarningCircle />}
+            {/* A quiet row, like a tool result: the server not joining is an outcome of the
+                turn, and a banner made it louder than the fix offered beside it. */}
+            <div
                 // A replayed notice is history, not news: `status` reads it after the reader's own
                 // work, where `alert` would interrupt on every reload of the transcript.
                 role="status"
                 data-mcp-server-notice={notice.serverName}
-                className={cn("border-colorWarningBorder bg-colorWarningBg", className)}
-                message={<span className="text-xs text-colorText">{lead}</span>}
-                description={
-                    detail ? (
-                        <span className="text-xs leading-normal text-colorTextSecondary">
-                            {detail}
-                        </span>
-                    ) : undefined
-                }
-                action={
-                    canConnect ? (
-                        <Button
-                            size="sm"
-                            onClick={() => setConnecting(true)}
-                            aria-label={`Reconnect ${connectionName}`}
-                            // The banner's one action, in a transcript a phone scrolls: 28px of
-                            // chrome, 44px to land a finger on.
-                            className={touchTargetExpansion(28)}
-                        >
-                            <ArrowClockwise />
-                            Reconnect
-                        </Button>
-                    ) : undefined
-                }
-            />
+                className={cn("flex min-w-0 items-center gap-2 text-xs", className)}
+            >
+                <WarningCircle size={14} className="shrink-0 text-colorWarning" />
+                <span className="min-w-0 text-colorTextSecondary">
+                    <span className="text-colorText">{lead}</span>
+                    {detail ? <span> {detail}</span> : null}
+                </span>
+                {canConnect ? (
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setConnecting(true)}
+                        aria-label={`Reconnect ${connectionName}`}
+                        // The row's one action, in a transcript a phone scrolls: 28px of chrome,
+                        // 44px to land a finger on.
+                        className={cn("shrink-0", touchTargetExpansion(28))}
+                    >
+                        <ArrowClockwise />
+                        Reconnect
+                    </Button>
+                ) : null}
+            </div>
             {canConnect && connecting && endpoint?.id && endpoint.slug && (
                 <McpConnectJourney
                     open

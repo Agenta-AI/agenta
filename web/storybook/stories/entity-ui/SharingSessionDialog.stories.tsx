@@ -52,6 +52,8 @@ interface DialogStoryProps {
     result?: SharingWriteResult
     /** Users the invite refuses with 422. */
     invalidUserIds?: string[]
+    /** The agent has items that use each person's own account. */
+    usesPersonalAccounts?: boolean
 }
 
 function ShareDialogStory({
@@ -60,6 +62,7 @@ function ShareDialogStory({
     loadError,
     result = "ok",
     invalidUserIds = [],
+    usesPersonalAccounts = false,
 }: DialogStoryProps) {
     const [sharing, setSharing] = useState(initial)
     const [open, setOpen] = useState(true)
@@ -117,6 +120,7 @@ function ShareDialogStory({
                 onCopyLink={() => {}}
                 onNotify={setToast}
                 onReload={() => {}}
+                usesPersonalAccounts={usesPersonalAccounts}
             />
             {toast ? <p className="m-0 text-sm text-muted-foreground">Toast: {toast}</p> : null}
         </div>
@@ -140,6 +144,10 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const EmptyGrants: Story = {args: {initial: state()}}
+/** The agent uses each person's own accounts for some items: one line says what sharing shows. */
+export const AgentUsesPersonalAccounts: Story = {
+    args: {initial: state(), usesPersonalAccounts: true},
+}
 export const WithPeople: Story = {
     args: {
         initial: state({

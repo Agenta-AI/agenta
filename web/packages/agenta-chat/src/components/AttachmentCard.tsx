@@ -14,14 +14,11 @@ import {
 
 import {
     ATTACHMENT_TILE as TILE,
+    ATTACHMENT_TILE_CORNER as CORNER_BUTTON,
     ATTACHMENT_TILE_FACE as FACE,
     AttachmentTileName as TileName,
 } from "./attachmentTile"
 import {useAudioPlayback} from "./useAudioPlayback"
-
-/** Shown on hover or keyboard focus where hovering exists; always shown on touch. */
-const CORNER_BUTTON =
-    "absolute right-1 top-1 z-[1] flex size-5 cursor-pointer items-center justify-center rounded-sm border-0 bg-background/90 p-0 text-muted-foreground shadow-sm transition-[color,opacity] hover:text-foreground focus-visible:opacity-100 motion-reduce:transition-none [&_svg]:shrink-0 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/attachment:opacity-100 [@media(hover:hover)]:group-has-[:focus-visible]/attachment:opacity-100"
 
 export type AttachmentCardState = "idle" | "uploading" | "error"
 

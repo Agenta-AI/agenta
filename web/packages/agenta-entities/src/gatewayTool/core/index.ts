@@ -36,6 +36,6 @@ export type {
     ToolResult,
     ToolResultData,
 } from "./types"
-export {isConnectionActive, isConnectionValid} from "./types"
+export {isConnectionActive, isConnectionValid, isConnectionDefault} from "./types"
 export {toolCatalogCategorySchema, toolCatalogCategoriesResponseSchema} from "./types"
 export {dedupeBy} from "./dedupe"

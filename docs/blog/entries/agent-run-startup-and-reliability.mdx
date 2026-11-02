@@ -1,0 +1,34 @@
+---
+title: "Less repeated work when agent runs start and finish"
+slug: agent-run-startup-and-reliability
+date: 2026-10-29
+tags: [v0.127.1]
+description: "Reduce repeated runner setup work and fix connection testing, conversation replay and SDK URL handling."
+---
+
+<Summary>
+
+<img src="https://pub-69f3eb49ae974b8090d6ab0da30f8ea2.r2.dev/changelog/v0.127.1/release-poster-concept-v1.png" alt="Release concept: Less repeated setup work when agent runs start and finish." style={{ width: '100%', maxWidth: 680, height: 'auto', display: 'block', margin: '0 auto' }} />
+
+The runner now avoids several repeated steps when starting an agent session. It reuses local tool binaries and Pi skill copies where applicable, mounts drives in parallel, and reuses a harness capability probe.
+
+When its trace is ready, a completed Pi turn no longer waits for the full trace-drain polling window. Organization owners and admins can test their connections from a project that does not use them. Conversation replay no longer cuts through a character and leaves a chat unable to continue.
+
+</Summary>
+
+{/* truncate */}
+
+<img src="https://pub-69f3eb49ae974b8090d6ab0da30f8ea2.r2.dev/changelog/v0.127.1/release-poster-concept-v1.png" alt="Release concept: Less repeated setup work when agent runs start and finish." style={{ width: '100%', maxWidth: 680, height: 'auto', display: 'block', margin: '0 auto' }} />
+
+## Reduce repeated setup work
+
+The runner [reuses an agent's tool binaries](https://github.com/Agenta-AI/agenta/pull/7860) across local sessions when they have not changed, gives [Pi a local copy of its skills](https://github.com/Agenta-AI/agenta/pull/7862), [mounts drives in parallel](https://github.com/Agenta-AI/agenta/pull/7863), and [reuses a capability probe](https://github.com/Agenta-AI/agenta/pull/7865) for the same harness setup. These changes avoid repeated work; the release does not establish one speedup figure for every deployment.
+
+A Pi turn also [finishes without waiting for the full trace-drain window](https://github.com/Agenta-AI/agenta/pull/7907) when its final trace marker is present.
+
+## Bug fixes
+
+- Organization owners and admins [can test an organization connection](https://github.com/Agenta-AI/agenta/pull/7888) from a project it is not shared with. Members do not gain access to that connection.
+- Replaying conversation history [does not split an emoji or another multi-unit character](https://github.com/Agenta-AI/agenta/pull/7900) at a text cutoff, which previously could make later turns fail.
+- The Python SDK [strips `/api` only as a path segment](https://github.com/Agenta-AI/agenta/pull/6806), rather than corrupting a URL whose hostname contains `api`.
+- An organization created through the admin route [receives its full authentication flags](https://github.com/Agenta-AI/agenta/pull/5819).

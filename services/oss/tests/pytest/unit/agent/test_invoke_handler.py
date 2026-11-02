@@ -14,6 +14,8 @@ from pathlib import Path
 
 import pytest
 
+from agenta.sdk.agents.requirements import AgentNeedsSetupError
+
 from agenta.sdk.agents import (
     AgentTemplate,
     AgentResult,
@@ -532,8 +534,10 @@ async def test_named_connection_resolution_failure_fails_loud(
 
     _patch_resolution(monkeypatch, backend, resolve=_resolve)
 
-    with pytest.raises(ConnectionNotFoundError):
+    with pytest.raises(AgentNeedsSetupError) as needs:
         await _invoke("pi_core", model=_STRUCTURED_MODEL)
+    # Needs setup: one agent_needs_setup error that keeps the old failure as its cause.
+    assert isinstance(needs.value.__cause__, ConnectionNotFoundError)
 
 
 async def test_default_connection_resolution_failure_fails_closed(
@@ -595,8 +599,10 @@ async def test_claude_unsupported_provider_rejected_pre_resolve(
 
     _patch_resolution(monkeypatch, backend, resolve=_resolve)
 
-    with pytest.raises(UnsupportedProviderError):
+    with pytest.raises(AgentNeedsSetupError) as needs:
         await _invoke("claude", model={"provider": "openai", "model": "gpt-5.5"})
+    # Needs setup: one agent_needs_setup error that keeps the old failure as its cause.
+    assert isinstance(needs.value.__cause__, UnsupportedProviderError)
 
 
 async def test_development_mock_reaches_connection_resolution_for_every_harness():
@@ -681,10 +687,12 @@ async def test_pi_bedrock_rejected_post_resolve(monkeypatch, fake_backend):
 
     _patch_resolution(monkeypatch, backend, resolve=_resolve)
 
-    with pytest.raises(UnsupportedDeploymentError):
+    with pytest.raises(AgentNeedsSetupError) as needs:
         await _invoke(
             "pi_core", model={"provider": "anthropic", "model": "anthropic.claude-x"}
         )
+    # Needs setup: one agent_needs_setup error that keeps the old failure as its cause.
+    assert isinstance(needs.value.__cause__, UnsupportedDeploymentError)
 
 
 # Level 1: the 27-combo stream x trim x force cube, `_agent` called directly.

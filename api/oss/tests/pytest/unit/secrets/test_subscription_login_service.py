@@ -30,7 +30,6 @@ from oss.src.core.secrets.types import (
     SubscriptionLoginAttemptNotFound,
     SubscriptionLoginRunnerNotConfigured,
     SubscriptionLoginRunnerUnavailable,
-    SubscriptionProviderConflict,
     SubscriptionSecretNotFound,
 )
 from oss.src.dbs.postgres.secrets.mappings import (
@@ -314,17 +313,17 @@ class TestCreateRules:
     async def test_a_new_connection_is_named_and_slugged(self, vault):
         secret = await _make_secret(vault)
 
-        assert secret.slug == "chatgpt"
+        assert secret.slug.startswith("chatgpt-")
         assert secret.header.name == "ChatGPT"
         assert secret.data.provider_slug == "chatgpt"
 
-    async def test_a_second_chatgpt_connection_is_a_conflict(self, vault):
-        await _make_secret(vault)
+    async def test_a_second_chatgpt_connection_gets_its_own_slug(self, vault):
+        first = await _make_secret(vault)
+        second = await _make_secret(vault)
 
-        with pytest.raises(SubscriptionProviderConflict):
-            await _make_secret(vault)
+        assert first.slug != second.slug
 
-    async def test_a_caller_cannot_replace_the_provider_storage_slug(self, vault):
+    async def test_a_caller_cannot_choose_the_storage_slug(self, vault):
         secret = await vault.create_secret(
             project_id=PROJECT_ID,
             create_secret_dto=CreateSecretDTO.model_validate(
@@ -336,7 +335,7 @@ class TestCreateRules:
             ),
         )
 
-        assert secret.slug == "chatgpt"
+        assert secret.slug.startswith("personal-chatgpt-")
         assert secret.header.name == "Personal ChatGPT"
         assert secret.data.provider_slug == "personal-chatgpt"
 

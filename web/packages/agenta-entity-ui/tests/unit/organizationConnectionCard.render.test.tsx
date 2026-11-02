@@ -1,7 +1,7 @@
 /**
  * The connection card on an organization connection: a member reads it locked and may still
- * Test it as saved; a stored row is tested only where the current project may use it, a typed
- * key from any project.
+ * Test it as saved, only where the current project may use it; a manager tests it from any
+ * project; a typed key is tested from any project.
  */
 import {act, createElement} from "react"
 
@@ -127,7 +127,18 @@ describe("an organization connection in the card", () => {
         )
     })
 
-    it("cannot be tested where the current project may not use it", async () => {
+    it("a member cannot test it where the current project may not use it", async () => {
+        await render(
+            companyKey({
+                availability: "selected_projects",
+                selectedProjectIds: ["project-2"],
+            } as Partial<ProviderConnection>),
+            true,
+        )
+        expect(testButton()?.disabled).toBe(true)
+    })
+
+    it("a manager tests it from a project that may not use it", async () => {
         await render(
             companyKey({
                 availability: "selected_projects",
@@ -135,7 +146,7 @@ describe("an organization connection in the card", () => {
             } as Partial<ProviderConnection>),
             false,
         )
-        expect(testButton()?.disabled).toBe(true)
+        expect(testButton()?.disabled).toBe(false)
     })
 
     it("tests a new key on its own, without the organization scope", async () => {

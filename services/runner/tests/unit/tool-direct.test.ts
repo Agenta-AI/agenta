@@ -47,6 +47,7 @@ import {
   type RelayResponse,
 } from "../../src/tools/relay.ts";
 import type { ResolvedToolSpec, RunContext } from "../../src/protocol.ts";
+import { isWellFormed } from "../utils/well-formed.ts";
 
 // A fake run context (direct-call tools, Phase 3a). The keys are the snake_case binding namespace
 // a `call.context` value (`"$ctx.<dotted.path>"`) addresses.
@@ -945,6 +946,15 @@ describe("agentaErrorDetail", () => {
       detail.length < MAX_ERROR_DETAIL_CHARS + 40,
       "a huge upstream body cannot flood the tool result",
     );
+    assert.match(detail, /\(truncated\)$/);
+  });
+
+  it("does not split a character that straddles the cap", () => {
+    const detail = agentaErrorDetail(
+      JSON.stringify({ detail: `${"x".repeat(MAX_ERROR_DETAIL_CHARS - 1)}𝗰tail` }),
+    );
+    assert.ok(detail);
+    assert.ok(isWellFormed(detail));
     assert.match(detail, /\(truncated\)$/);
   });
 });

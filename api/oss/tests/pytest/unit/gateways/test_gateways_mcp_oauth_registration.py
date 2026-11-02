@@ -11,7 +11,6 @@ import time
 import pytest
 
 from oss.src.core.gateways.mcps.oauth.registration import (
-    client_metadata_document,
     client_metadata_url,
     identity_document_client_info,
     is_publicly_resolvable,
@@ -27,8 +26,8 @@ def test_client_metadata_url_is_fixed_and_deployment_wide():
     assert url == "https://api.acme.internal/gateways/mcps/oauth/client-metadata.json"
 
 
-def test_client_metadata_document_carries_the_fixed_redirect_and_no_secret():
-    document = client_metadata_document(
+def test_identity_document_carries_the_fixed_redirect_and_no_secret():
+    document = identity_document_client_info(
         api_url=_API_URL,
         redirect_uri="https://api.acme.internal/gateways/mcps/connect/callback",
     )
@@ -37,7 +36,7 @@ def test_client_metadata_document_carries_the_fixed_redirect_and_no_secret():
         "https://api.acme.internal/gateways/mcps/connect/callback"
     ]
     assert document.token_endpoint_auth_method == "none"
-    assert not hasattr(document, "client_secret")
+    assert document.client_secret is None
 
 
 def test_identity_document_client_info_is_deterministic():

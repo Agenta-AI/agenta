@@ -27,6 +27,15 @@ import {toolActionAvailabilityKey, useToolActionAvailability} from "@agenta/enti
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {
     agentCreationPrefsAtom,
+    agentRequirementsAtomFamily,
+    invalidateAgentRequirements,
+    isPersonalRequirement,
+    MODEL_NEEDS_SETUP_MESSAGE,
+    modelRequirement,
+    NEEDS_SETUP_LABEL,
+    needsSetupReasonLabel,
+    requirementAtPath,
+    requirementForItem,
     workflowBuildKitUiStateAtomFamily,
     migrateBuildKitStateAtom,
     type BuildKitUiState,
@@ -64,6 +73,7 @@ import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
 import {mergeAgentConfigDraft, readRunnerPermission} from "./agentConfigPatch"
 import {useAutoExpandOnPopulate} from "./agentSectionAutoExpand"
+import {IntegrationAccountBlock} from "./agentTemplate/accounts/IntegrationAccountBlock"
 import {AgentIntegrationDrawer} from "./agentTemplate/AgentIntegrationDrawer"
 import {
     AgentTemplateSectionList,
@@ -83,6 +93,8 @@ import {
 import {ITEM_KINDS, type ItemKind} from "./agentTemplate/itemKinds"
 import {InstructionsFileRow, type ItemRowStatus} from "./agentTemplate/ItemRow"
 import {McpServersSectionBody} from "./agentTemplate/McpServersSectionBody"
+import {isNeedsSetupStatus, needsSetupStatus} from "./agentTemplate/needsSetup"
+import {NeedsSetupTag} from "./agentTemplate/NeedsSetupTag"
 import {SectionAddButton} from "./agentTemplate/SectionAddButton"
 import {SectionChangeBody} from "./agentTemplate/SectionChangeBody"
 import {
@@ -388,6 +400,21 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const drillIn = useOptionalDrillIn<unknown>()
     const revisionId = drillIn?.entityId ?? null
     revisionIdRef.current = revisionId
+    // The server's needs-setup check for this saved revision; null until it answers.
+    // A personal requirement belongs to each person who runs the agent, so the editor skips it.
+    // The path and item lookups skip it themselves; the section summaries below filter it here.
+    const requirements = useAtomValue(agentRequirementsAtomFamily(revisionId ?? ""))
+    const editorRequirements = useMemo(
+        () => requirements?.filter((r) => !isPersonalRequirement(r)) ?? null,
+        [requirements],
+    )
+    const modelReq = editorRequirements ? modelRequirement(editorRequirements) : undefined
+    const secretReq = requirements
+        ? requirementAtPath(requirements, "sandbox.credentials")
+        : undefined
+    const mcpNeedsSetup = Boolean(
+        editorRequirements?.some((r) => r.kind === "mcp_server" || r.kind === "mcp_sign_in"),
+    )
     // A secret attach/edit/remove commits a new revision from inside the open drawer. Keep the
     // drawer open on it: re-snapshot the (clean) draft from the adopted revision instead of closing.
     const credentialRebaseTarget = useRef<string | null>(null)
@@ -509,11 +536,15 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         handleRemoveReferenceBySlug,
         integrationRows,
         setIntegrationConnection,
+        addPersonalIntegration,
+        setIntegrationAccount,
         setIntegrationPermissions,
         setIntegrationToolPermission,
         removeIntegration,
         migrateIntegrationEntries,
     } = useAgentTools({config, onChange, configRef, openCreate, workflowReference})
+    // Where an item's "Account" line reads from: the revision on screen and the agent as edited.
+    const accountContext = useMemo(() => ({revisionId, agent: config}), [revisionId, config])
 
     /**
      * Open one integration's permission drawer. Migration runs HERE, on the click, and never on a
@@ -831,18 +862,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         [gatewayToolViews, gatewayTools?.enabled],
     )
     const actionAvailability = useToolActionAvailability(actionProbePairs)
-    // Connection lookup by slug and id (tools persist the slug; index both to be safe).
-    // Null while loading or after a failed fetch — an empty list must not read as "all removed".
-    const connectionLookup = useMemo(() => {
-        if (!gatewayTools?.enabled || gatewayTools.connectionsLoading) return null
-        if (gatewayTools.connectionsErrored) return null
-        const lookup = new Map<string, (typeof gatewayTools.connections)[number]>()
-        for (const c of gatewayTools.connections) {
-            lookup.set(c.slug, c)
-            lookup.set(c.id, c)
-        }
-        return lookup
-    }, [gatewayTools])
     const toolResolutionStatus = useCallback(
         (index: number): ItemRowStatus | undefined => {
             const entry = gatewayToolViews.get(index)
@@ -861,39 +880,28 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         "Couldn't resolve this tool — the action may have been renamed or removed. Open it to inspect the raw definition.",
                 }
             }
-            // Null while connections are still loading: never flash "Unresolved" on a slow load.
-            if (!connectionLookup) return undefined
-            const slug =
-                entry.kind === "connection" ? entry.connection.connection : entry.action.connection
-            const connection = connectionLookup.get(slug)
-            if (!connection) {
-                return {
-                    tone: "invalid",
-                    label: "Unresolved",
-                    tooltip: `The "${slug}" connection no longer exists in this project. Reconnect the app or remove the tool.`,
-                }
-            }
-            if (connection.flags?.is_valid === false) {
-                return {
-                    tone: "incomplete",
-                    label: "Reconnect",
-                    tooltip: `The ${connection.name || slug} connection needs to be re-authenticated.`,
-                }
-            }
-            return undefined
+            // A missing, turned-off or signed-out connection is the server's needs-setup check.
+            if (!requirements) return undefined
+            const ref = entry.kind === "connection" ? entry.connection : entry.action
+            const req = requirementForItem(requirements, {
+                kinds: ["app_connection"],
+                slug: ref.connection,
+                integration: ref.integration,
+            })
+            return req ? needsSetupStatus(req) : undefined
         },
-        [gatewayToolViews, actionAvailability, connectionLookup],
+        [gatewayToolViews, actionAvailability, requirements],
     )
     // Section rollup counts for the header indicator/tooltips.
     const toolResolutionSummary = useMemo(() => {
         let unresolved = 0
-        let reconnect = 0
+        let needsSetup = 0
         for (const index of gatewayToolViews.keys()) {
             const s = toolResolutionStatus(index)
             if (s?.tone === "invalid") unresolved += 1
-            else if (s?.tone === "incomplete") reconnect += 1
+            else if (isNeedsSetupStatus(s)) needsSetup += 1
         }
-        return {unresolved, reconnect}
+        return {unresolved, needsSetup}
     }, [gatewayToolViews, toolResolutionStatus])
 
     // A blocking resolution problem outranks draft markers; structural invalid stays first.
@@ -979,7 +987,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         if (key === "model-harness") {
             if (mh.hasModelOrHarness && !modelIdFromConfig(config.llm))
                 return "No model is selected."
-            if (mh.modelUnsupported) return "The selected model isn't available on this harness."
             return null
         }
         if (key === "subagents") {
@@ -1000,7 +1007,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             )
                 return "An integration is missing its name."
             if (toolResolutionSummary.unresolved > 0)
-                return "A connected-app tool couldn't be resolved — its action or connection may have been renamed or removed."
+                return "A connected-app tool couldn't be resolved. Its action may have been renamed or removed."
             return null
         }
         if (key === "mcp")
@@ -1015,10 +1022,10 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     }
     // Structurally valid but missing setup the section needs to run (amber, ranks below invalid).
     const sectionIncompleteTip = (key: string): string | null => {
-        if (key === "model-harness" && mh.needsProviderKey)
-            return "Connect the model's provider key to run this agent."
-        if (key === "tools" && toolResolutionSummary.reconnect > 0)
-            return "A connected app needs to be re-authenticated."
+        if (key === "model-harness" && modelReq) return MODEL_NEEDS_SETUP_MESSAGE
+        if (key === "tools" && toolResolutionSummary.needsSetup > 0) return NEEDS_SETUP_LABEL
+        if (key === "mcp" && mcpNeedsSetup) return NEEDS_SETUP_LABEL
+        if (key === "advanced" && secretReq) return NEEDS_SETUP_LABEL
         return null
     }
     const headerIndicator = (
@@ -1041,15 +1048,26 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const sectionIndicator = (key: string) =>
         withDraftPulse(key, headerIndicator(key) ?? agentChangeIndicator(key))
 
-    // The blocking cases the user must resolve, as a short pill next to the Model section title.
+    // The pill next to the Model section title. "No model" is client-side: with no model set the
+    // server has nothing to check. Everything else is the server's needs-setup check.
     const modelHarnessBadge: React.ReactNode =
         mh.hasModelOrHarness && !modelIdFromConfig(config.llm) ? (
             <SectionTitleBadge label="No model" tone="error" />
-        ) : mh.modelUnsupported ? (
-            <SectionTitleBadge label="Unavailable" tone="error" />
-        ) : mh.needsProviderKey ? (
-            <SectionTitleBadge label="Connect key" tone="warning" />
+        ) : modelReq ? (
+            <SectionTitleBadge label={NEEDS_SETUP_LABEL} tone="warning" />
         ) : null
+    const advancedBadge: React.ReactNode = secretReq ? (
+        <SectionTitleBadge label={NEEDS_SETUP_LABEL} tone="warning" />
+    ) : null
+    // A tagged integration opens the drawer that picks or connects its account.
+    const openIntegrationRow = useCallback(
+        (row: IntegrationRow) => {
+            if (integrationRowIndices(row).some((i) => isNeedsSetupStatus(toolResolutionStatus(i))))
+                openIntegration()
+            else openIntegrationPermissions(row)
+        },
+        [openIntegration, openIntegrationPermissions, toolResolutionStatus],
+    )
 
     const instructionsStatus: ItemRowStatus | undefined = draftSectionKeys.has("instructions")
         ? {tone: "edited", label: "Edited", tooltip: "Edited — not saved yet."}
@@ -1096,9 +1114,9 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             titleBadge: modelHarnessBadge,
             summary: mh.modelSummary,
             indicator: sectionIndicator("model-harness"),
-            // A model still to connect is the one thing that opens the section by itself — the list
+            // A model that needs setup is the one thing that opens the section by itself; the list
             // holds the affordance that fixes it.
-            defaultOpen: Boolean(mh.needsProviderKey),
+            defaultOpen: Boolean(modelReq),
             // The section EXPANDS (it carries no `onOpen`, which is what routes a header to a drawer
             // instead): the connection list renders right here. The drawer survives for the chat's
             // "connect a model" banner and for the Advanced section; it is just no longer where this
@@ -1114,6 +1132,13 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         withTooltip={withTooltip}
                         revisionId={revisionId}
                     />
+                    {modelReq ? (
+                        <NeedsSetupTag
+                            tag={false}
+                            reason={needsSetupReasonLabel(modelReq.reason)}
+                            className="mt-1"
+                        />
+                    ) : null}
                 </ChangedPathsProvider>
             ),
         },
@@ -1161,9 +1186,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         integrationRows={integrationRows}
                         disabled={disabled}
                         statusFor={toolStatusFor}
-                        onOpenIntegration={
-                            gatewayTools?.enabled ? openIntegrationPermissions : undefined
-                        }
+                        onOpenIntegration={gatewayTools?.enabled ? openIntegrationRow : undefined}
                         onRemoveIntegration={(row) => {
                             removeIntegration(row)
                             closeEditor()
@@ -1276,6 +1299,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             key: "advanced",
             icon: <SlidersHorizontal size={16} />,
             title: "Advanced",
+            titleBadge: advancedBadge,
             indicator: sectionIndicator("advanced"),
             // Never self-opening: nothing in Advanced blocks a run (see `needsProviderKeyInline`).
             defaultOpen: false,
@@ -1495,6 +1519,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         withTooltip={withTooltip}
                         revisionId={sectionRevision ?? revisionId}
                         buildKitOverride={draftBuildKitOverride}
+                        // A model the chosen key no longer offers: list only that key's models.
+                        onlyCurrentConnection={modelReq?.kind === "model"}
                     />
                 </ChangedPathsProvider>
             </SectionDrawer>
@@ -1561,9 +1587,14 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             {gatewayTools?.enabled && (
                 <AgentIntegrationDrawer
                     open={integrationDrawerOpen}
-                    onClose={() => setIntegrationDrawerOpen(false)}
+                    onClose={() => {
+                        setIntegrationDrawerOpen(false)
+                        // A sign-in there can fix a tagged integration without a new revision.
+                        void invalidateAgentRequirements()
+                    }}
                     integrationRows={integrationRows}
                     onAddIntegration={setIntegrationConnection}
+                    onAddPersonalIntegration={addPersonalIntegration}
                 />
             )}
 
@@ -1584,6 +1615,19 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     }
                     agentPolicy={agentPermissionPolicy}
                     disabled={disabled}
+                    account={
+                        permissionRow?.entry ? (
+                            <IntegrationAccountBlock
+                                target={permissionTarget}
+                                entry={permissionRow.entry}
+                                context={accountContext}
+                                onChange={(account) =>
+                                    setIntegrationAccount(permissionTarget, account)
+                                }
+                                disabled={disabled}
+                            />
+                        ) : undefined
+                    }
                 />
             )}
         </div>

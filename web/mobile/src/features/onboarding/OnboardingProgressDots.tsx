@@ -28,8 +28,8 @@ export const OnboardingProgressDots = ({
     return (
         <nav
             aria-label={ONBOARDING_COPY.stepCounter(current + 1, steps.length)}
-            // In the page's flow on a phone, so it never covers content; fixed at the foot from md.
-            className="flex shrink-0 items-center justify-center gap-0.5 pb-[max(1.5rem,env(safe-area-inset-bottom))] md:fixed md:bottom-8 md:left-1/2 md:z-20 md:-translate-x-1/2 md:pb-0"
+            // In the page's flow at every size, on the page background, so it never covers content.
+            className="bg-background flex shrink-0 items-center justify-center gap-0.5 pb-[max(1.5rem,env(safe-area-inset-bottom))] md:pb-8 md:pt-6"
         >
             {steps.map((step, index) => {
                 const open = reached(step)

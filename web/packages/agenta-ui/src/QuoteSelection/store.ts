@@ -51,19 +51,19 @@ export const restoreQuotes = (sessionId: string, quotes: Quote[]) =>
 /** Drop everything a permanently deleted session held. */
 export const clearSessionQuotes = (sessionId: string) => write(sessionId, [])
 
-const subscribeQuotes = (sessionId: string, fn: () => void) => {
-    const set = listeners.get(sessionId) ?? new Set()
-    listeners.set(sessionId, set)
+const subscribeIn = (map: Map<string, Set<() => void>>, sessionId: string, fn: () => void) => {
+    const set = map.get(sessionId) ?? new Set()
+    map.set(sessionId, set)
     set.add(fn)
     return () => {
         set.delete(fn)
-        if (set.size === 0) listeners.delete(sessionId)
+        if (set.size === 0) map.delete(sessionId)
     }
 }
 
 export const useSessionQuotes = (sessionId: string | null | undefined): Quote[] => {
     const subscribe = useCallback(
-        (fn: () => void) => (sessionId ? subscribeQuotes(sessionId, fn) : () => {}),
+        (fn: () => void) => (sessionId ? subscribeIn(listeners, sessionId, fn) : () => {}),
         [sessionId],
     )
     const snapshot = useCallback(() => (sessionId ? getQuotes(sessionId) : EMPTY), [sessionId])
@@ -87,4 +87,40 @@ export const registerQuoteSubmit = (sessionId: string, submit: () => boolean) =>
 export const submitSessionMessage = (sessionId: string): boolean => {
     const submit = submitters.get(sessionId)
     return typeof submit === "function" ? submit() : false
+}
+
+/** A composer chip asked to show its comment: the Files pane opens the file, the layer its pin. */
+export interface QuoteReveal {
+    id: string
+    seq: number
+}
+
+const reveals = new Map<string, QuoteReveal>()
+const revealListeners = new Map<string, Set<() => void>>()
+let revealSeq = 0
+
+const emitReveal = (sessionId: string) => revealListeners.get(sessionId)?.forEach((fn) => fn())
+
+export const revealQuote = (sessionId: string, id: string) => {
+    reveals.set(sessionId, {id, seq: (revealSeq += 1)})
+    emitReveal(sessionId)
+}
+
+/** The pin card opened; only the request that was handled is cleared. */
+export const clearQuoteReveal = (sessionId: string, seq: number) => {
+    if (reveals.get(sessionId)?.seq !== seq) return
+    reveals.delete(sessionId)
+    emitReveal(sessionId)
+}
+
+export const useQuoteReveal = (sessionId: string | null | undefined): QuoteReveal | null => {
+    const subscribe = useCallback(
+        (fn: () => void) => (sessionId ? subscribeIn(revealListeners, sessionId, fn) : () => {}),
+        [sessionId],
+    )
+    const snapshot = useCallback(
+        () => (sessionId ? (reveals.get(sessionId) ?? null) : null),
+        [sessionId],
+    )
+    return useSyncExternalStore(subscribe, snapshot, snapshot)
 }

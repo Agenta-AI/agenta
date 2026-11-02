@@ -6,6 +6,7 @@ export { ProbeProviderRequest } from "./ProbeProviderRequest.js";
 export type { ReadSecretRequest } from "./ReadSecretRequest.js";
 export type { ReadSubscriptionLoginRequest } from "./ReadSubscriptionLoginRequest.js";
 export type { SecretProjectsRequest } from "./SecretProjectsRequest.js";
+export type { SecretsResolveRequest } from "./SecretsResolveRequest.js";
 export type { StartSubscriptionLoginRequest } from "./StartSubscriptionLoginRequest.js";
 export type { SubscriptionLoginFailureRequest } from "./SubscriptionLoginFailureRequest.js";
 export type { SubscriptionLoginPushRequest } from "./SubscriptionLoginPushRequest.js";

@@ -22,6 +22,9 @@ export interface LastContext {
 export const projectHomeUrl = ({workspaceId, projectId}: LastContext): string =>
     `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/apps`
 
+export const projectOnboardingUrl = ({workspaceId, projectId}: LastContext): string =>
+    `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/onboarding`
+
 /** A website template link lands on that template's create step instead of the project home. */
 export const projectTemplateUrl = ({workspaceId, projectId}: LastContext, templateKey: string) =>
     `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/agents/new?template=${encodeURIComponent(templateKey)}`

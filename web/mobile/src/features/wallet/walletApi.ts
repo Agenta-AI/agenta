@@ -47,7 +47,7 @@ export interface WalletUsage {
     sessions: WalletUsageSession[]
 }
 
-/** The usage detail is owner-only; a 403 is an answer, not a failure. */
+/** The usage detail needs `edit_billing` (owner and admin); a 403 is an answer, not a failure. */
 export const isForbidden = (error: unknown) =>
     (error as {response?: {status?: number}} | null)?.response?.status === 403
 

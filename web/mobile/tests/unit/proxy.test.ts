@@ -106,3 +106,13 @@ describe("mobile reverse gate proxy", () => {
         expect(res.headers.get("location")).toBeNull()
     })
 })
+
+describe("mobile reverse gate proxy with an invite", () => {
+    it("keeps a Classic mode user on /m", () => {
+        const invite =
+            "/m/auth?token=t&email=a%40b.c&organization_id=o1&workspace_id=w1&project_id=p1"
+        for (const path of [invite, "/m/invite"]) {
+            expect(proxy(req(path, doc(DESKTOP_UA, CLASSIC_ON))).headers.get("location")).toBeNull()
+        }
+    })
+})

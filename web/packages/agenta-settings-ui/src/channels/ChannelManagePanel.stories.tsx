@@ -215,7 +215,7 @@ export const GroupChatsDenied: Story = {
     render: () => (
         <ManageHost
             connection={telegramHere}
-            options={{behavior: {"cx-telegram": {dm: true, group: false}}}}
+            options={{behavior: {"cx-telegram": {dm: true, group: false, spaceIds: null}}}}
         />
     ),
     parameters: {
@@ -248,12 +248,19 @@ export const BehaviorSaveFails: Story = {
     },
 }
 
-/** Only two Telegram accounts may talk to the bot. */
-export const AllowedUsers: Story = {
+/** The agent answers only two Telegram accounts. */
+export const Audience: Story = {
     render: () => (
         <ManageHost
             connection={telegramHere}
-            options={{allowedUsers: {"cx-telegram": ["123456789", "987654321"]}}}
+            options={{
+                audience: {
+                    "cx-telegram": [
+                        {id: "123456789", name: null, email: null},
+                        {id: "987654321", name: null, email: null},
+                    ],
+                },
+            }}
         />
     ),
     parameters: {

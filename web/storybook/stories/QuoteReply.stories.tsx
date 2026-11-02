@@ -153,7 +153,7 @@ export const Note: Story = {
     ),
 }
 
-/** The chips the staged quotes become, above the composer input. */
+/** The square tiles the staged quotes become, above the composer input. */
 export const Chips: Story = {
     render: () => (
         <div className="flex flex-col gap-6">
@@ -167,30 +167,29 @@ export const Chips: Story = {
                 />
             </div>
             <div className="rounded-lg border border-solid border-colorBorderSecondary">
-                <ComposerQuotes quotes={[fileQuote, staleQuote]} onRemove={() => {}} touch />
+                <ComposerQuotes quotes={[fileQuote, staleQuote]} onRemove={() => {}} />
             </div>
         </div>
     ),
 }
 
 /**
- * Long file names in containers from a phone to a wide desktop. A chip never grows past its row:
- * the excerpt and the file name truncate, and the line range, the stale tag and the remove button
- * always stay visible inside the border.
+ * Long file names in containers from a phone to a wide desktop. A tile keeps its square: the
+ * excerpt clamps, the file name truncates, and the line range stays visible.
  */
 export const ChipsWithLongFileNames: Story = {
     render: () => (
         <div className="flex flex-col gap-6">
             {[
-                {label: "Phone, 320px, touch", width: 320, touch: true},
-                {label: "Phone, 390px, touch", width: 390, touch: true},
-                {label: "Side panel, 560px", width: 560, touch: false},
-                {label: "Desktop, 900px", width: 900, touch: false},
-            ].map(({label, width, touch}) => (
+                {label: "Phone, 320px", width: 320},
+                {label: "Phone, 390px", width: 390},
+                {label: "Side panel, 560px", width: 560},
+                {label: "Desktop, 900px", width: 900},
+            ].map(({label, width}) => (
                 <div key={label} className="flex flex-col gap-2" style={{width}}>
                     <div className="text-xs text-colorTextSecondary">{label}</div>
                     <div className="rounded-lg border border-solid border-colorBorderSecondary">
-                        <ComposerQuotes quotes={longFileQuotes} onRemove={() => {}} touch={touch} />
+                        <ComposerQuotes quotes={longFileQuotes} onRemove={() => {}} />
                     </div>
                 </div>
             ))}
