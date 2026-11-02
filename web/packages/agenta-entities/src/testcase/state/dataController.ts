@@ -88,6 +88,11 @@ export interface TestcaseDataConfig extends EntityDataConfigBase {
     localRows?: {id: string; data: Record<string, unknown>}[]
     /** Column keys for local mode (when data might be empty) */
     localColumnKeys?: string[]
+    /**
+     * Keep unsaved local rows (ids with the `new-` prefix) in server mode.
+     * An edit session needs them; a read-only table does not. Default: false.
+     */
+    includeNewRows?: boolean
 }
 
 /**
@@ -100,7 +105,8 @@ function areConfigsEqual(a: TestcaseDataConfig, b: TestcaseDataConfig): boolean 
         a.useLocal === b.useLocal &&
         a.pageSize === b.pageSize &&
         a.localRows === b.localRows &&
-        a.localColumnKeys === b.localColumnKeys
+        a.localColumnKeys === b.localColumnKeys &&
+        a.includeNewRows === b.includeNewRows
     )
 }
 
@@ -144,8 +150,10 @@ const rowsAtomFamily = atomFamily((config: TestcaseDataConfig) => {
         }
         const state = get(testcasePaginatedStore.selectors.state(paginatedParams))
 
-        // Filter out skeleton and new rows for server mode
-        return state.rows.filter((row) => !row.__isNew && !row.__isSkeleton)
+        // Filter out skeleton rows, and new rows unless the table is an edit session
+        return state.rows.filter(
+            (row) => !row.__isSkeleton && (config.includeNewRows || !row.__isNew),
+        )
     })
 }, areConfigsEqual)
 

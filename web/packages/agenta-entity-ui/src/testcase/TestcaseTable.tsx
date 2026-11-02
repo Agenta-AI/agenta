@@ -22,7 +22,7 @@
  * ```
  */
 
-import {useCallback, useMemo} from "react"
+import {useCallback, useMemo, type ReactNode} from "react"
 
 import {
     testcaseMolecule as testcase,
@@ -32,9 +32,9 @@ import {
     type TestcaseTableRow,
 } from "@agenta/entities/testcase"
 import {SmartCellContent, TextCellContent} from "@agenta/ui/cell-renderers"
-import type {RowHeightFeatureConfig, TypeChipConfig} from "@agenta/ui/table"
+import type {ColumnDefs, RowHeightFeatureConfig, TypeChipConfig} from "@agenta/ui/table"
 
-import {EntityTable} from "../shared"
+import {EntityTable, type EntityColumnHeader} from "../shared"
 
 // ============================================================================
 // TYPES
@@ -62,6 +62,22 @@ export interface TestcaseTableProps {
     showSettings?: boolean
     /** Whether export actions should be enabled */
     canExportData?: boolean
+    /**
+     * Called when a row is clicked. A row click then no longer toggles selection; the
+     * checkbox still does.
+     */
+    onRowClick?: (row: TestcaseTableRow) => void
+    /** Extra columns appended after the data columns, for example a row menu */
+    appendColumns?: ColumnDefs<TestcaseTableRow>
+    /** Replaces each column and group header, for per-column actions */
+    renderColumnHeader?: (header: EntityColumnHeader) => ReactNode
+    /** Extra controls in the toolbar, next to the settings button */
+    headerExtra?: ReactNode
+    /**
+     * The table belongs to an edit session: rows added locally and not yet saved show in
+     * the table. Without it only server rows show. Deleted rows are hidden either way.
+     */
+    editSession?: boolean
 }
 
 // ============================================================================
@@ -120,7 +136,17 @@ export function TestcaseTable({
     rowHeightConfig = DEFAULT_ROW_HEIGHT_CONFIG,
     showSettings = true,
     canExportData = true,
+    onRowClick,
+    appendColumns,
+    renderColumnHeader,
+    headerExtra,
+    editSession = false,
 }: TestcaseTableProps) {
+    const tableConfig = useMemo<TestcaseDataConfig>(
+        () => (editSession ? {...config, includeNewRows: true} : config),
+        [config, editSession],
+    )
+
     // Testcase-specific row data resolver:
     // All rows (identity-only) look up data from the entity's .data property.
     // Note: This is a fallback - getCellValue is the primary accessor.
@@ -163,18 +189,22 @@ export function TestcaseTable({
     return (
         <EntityTable<TestcaseTableRow, TestcaseDataConfig, Column>
             controller={testcaseDataController}
-            config={config}
+            config={tableConfig}
             getRowData={getRowData}
             getCellValue={getCellValue}
             selectable={selectable}
             selectedIds={selectedIds}
             onSelectionChange={onSelectionChange}
+            onRowClick={onRowClick}
             multiSelect={multiSelect}
             selectionDisabled={selectionDisabled}
             grouping
             rowHeightConfig={rowHeightConfig}
             showSettings={showSettings}
             enableExport={canExportData}
+            appendColumns={appendColumns}
+            renderColumnHeader={renderColumnHeader}
+            headerExtra={headerExtra}
             typeChips={typeChips}
             renderCell={renderCell}
             emptyMessage="No testcases found"

@@ -52,6 +52,7 @@ import {bgColors, cn} from "@agenta/ui/styles"
 import {
     buildEntityColumns,
     InfiniteVirtualTableFeatureShell,
+    isColumnGroupDef,
     type BuildEntityColumnsOptions,
     type RowHeightFeatureConfig,
     type TableScopeConfig,
@@ -66,6 +67,22 @@ import {getDefaultStore} from "jotai/vanilla"
 // ============================================================================
 // TYPES
 // ============================================================================
+
+/**
+ * A column header the table is about to render, handed to `renderColumnHeader`.
+ * A group header (the parent of dotted keys) has `isGroup: true` and the group path as `key`.
+ */
+export interface EntityColumnHeader {
+    /** Column key, or the group path for a group header */
+    key: string
+    /** The key relative to its group */
+    label: string
+    /** The header the table would render without `renderColumnHeader` */
+    title: ReactNode
+    isGroup: boolean
+    /** Path of the group this header sits under, or null at the top level */
+    groupPath: string | null
+}
 
 /**
  * Props for the generic EntityTable component.
@@ -107,6 +124,12 @@ export interface EntityTableProps<
      */
     getCellValue?: (record: TRow, columnKey: string) => unknown
 
+    /**
+     * Called when a row is clicked. When set, a row click no longer toggles selection
+     * (the checkbox still does), so a table can use rows to open a detail view.
+     */
+    onRowClick?: (record: TRow) => void
+
     // Selection
     /** Enable row selection (default: false) */
     selectable?: boolean
@@ -133,6 +156,11 @@ export interface EntityTableProps<
     prependColumns?: ColumnDefs<TRow>
     /** Extra columns appended to the column list */
     appendColumns?: ColumnDefs<TRow>
+    /**
+     * Replaces the header of every leaf and group column, for per-column actions such as
+     * rename and delete. Receives the header the table would render, so it can wrap it.
+     */
+    renderColumnHeader?: (header: EntityColumnHeader) => ReactNode
     /** Optional cell renderer override for entity-specific display rules. */
     renderCell?: (
         value: unknown,
@@ -147,6 +175,8 @@ export interface EntityTableProps<
     showSettings?: boolean
     /** Enable table export action (default: true) */
     enableExport?: boolean
+    /** Extra controls in the table toolbar, next to the settings button */
+    headerExtra?: ReactNode
     /**
      * Type chip config. When omitted, a default config is built from
      * `getCellValue`/`getRowData` so chip rendering doesn't depend on each
@@ -190,6 +220,59 @@ const defaultGetRowData = <TRow,>(record: TRow): Record<string, unknown> | null 
     record as Record<string, unknown>
 
 // ============================================================================
+// COLUMN HEADERS
+// ============================================================================
+
+const GROUP_KEY_PREFIX = "__group_"
+
+/** A title can be a function of the sort state; the header slot gets what it draws now. */
+const resolveTitle = (title: ColumnDef<unknown>["title"]): ReactNode =>
+    typeof title === "function" ? title({}) : title
+
+/** The key relative to its group: `inputs.prompt` under `inputs` is `prompt`. */
+const relativeKey = (key: string, groupPath: string | null) =>
+    groupPath && key.startsWith(`${groupPath}.`) ? key.slice(groupPath.length + 1) : key
+
+/** Runs `renderColumnHeader` over every leaf and group column, keeping the column order. */
+function withColumnHeaders<TRow>(
+    columns: ColumnDefs<TRow>,
+    renderColumnHeader: (header: EntityColumnHeader) => ReactNode,
+    groupPath: string | null = null,
+): ColumnDefs<TRow> {
+    return columns.map((column) => {
+        if (isColumnGroupDef(column)) {
+            const key = String(column.key ?? "")
+            if (!key.startsWith(GROUP_KEY_PREFIX)) return column
+            const path = key.slice(GROUP_KEY_PREFIX.length)
+            return {
+                ...column,
+                title: renderColumnHeader({
+                    key: path,
+                    label: relativeKey(path, groupPath),
+                    title: resolveTitle(column.title),
+                    isGroup: true,
+                    groupPath,
+                }),
+                children: withColumnHeaders(column.children, renderColumnHeader, path),
+            }
+        }
+        const key = String(column.key ?? "")
+        // Selection and collapsed-group columns are not data columns.
+        if (!key || key.startsWith("__")) return column
+        return {
+            ...column,
+            title: renderColumnHeader({
+                key,
+                label: relativeKey(key, groupPath),
+                title: resolveTitle(column.title),
+                isGroup: false,
+                groupPath,
+            }),
+        }
+    })
+}
+
+// ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
@@ -215,15 +298,18 @@ export function EntityTable<
     selectable = false,
     selectedIds: externalSelectedIds,
     onSelectionChange,
+    onRowClick,
     multiSelect = true,
     selectionDisabled = false,
     grouping = false,
     prependColumns,
     appendColumns,
+    renderColumnHeader,
     renderCell,
     rowHeightConfig = DEFAULT_ROW_HEIGHT_CONFIG,
     showSettings = true,
     enableExport = true,
+    headerExtra,
     typeChips,
     store,
     pageSize,
@@ -484,7 +570,11 @@ export function EntityTable<
         const result: ColumnDefs<TRow> = []
         if (selectable) result.push(selectionColumn)
         if (prependColumns) result.push(...prependColumns)
-        result.push(...entityColumns)
+        result.push(
+            ...(renderColumnHeader
+                ? withColumnHeaders(entityColumns, renderColumnHeader)
+                : entityColumns),
+        )
         if (appendColumns) result.push(...appendColumns)
         return result
     }, [
@@ -501,6 +591,7 @@ export function EntityTable<
         getRowData,
         getCellValue,
         renderCell,
+        renderColumnHeader,
         prependColumns,
         appendColumns,
     ])
@@ -548,21 +639,30 @@ export function EntityTable<
                 autoHeight={autoHeight}
                 useSettingsDropdown={showSettings}
                 enableExport={enableExport}
+                primaryActions={headerExtra}
                 typeChips={effectiveTypeChips}
                 store={globalStore}
                 tableProps={{
                     size: "small",
                     bordered: true,
-                    onRow: selectable
+                    onRow: onRowClick
                         ? (record) => ({
-                              onClick: () =>
-                                  handleRowSelect(record.id, !selectedIdsSet.has(record.id)),
+                              onClick: () => onRowClick(record),
                               className: cn(
                                   "cursor-pointer",
                                   selectedIdsSet.has(record.id) && bgColors.subtle,
                               ),
                           })
-                        : undefined,
+                        : selectable
+                          ? (record) => ({
+                                onClick: () =>
+                                    handleRowSelect(record.id, !selectedIdsSet.has(record.id)),
+                                className: cn(
+                                    "cursor-pointer",
+                                    selectedIdsSet.has(record.id) && bgColors.subtle,
+                                ),
+                            })
+                          : undefined,
                 }}
             />
         </div>
