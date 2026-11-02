@@ -134,6 +134,33 @@ describe("creating a schedule before the agent's revision loads", () => {
         expect(createSchedule).toHaveBeenCalledTimes(1)
         expect(seen.blockedReason).toBe("")
     })
+
+    it("saves a message typed before the revision loaded under messages", async () => {
+        // The create screen as it is wired: the field commits into the same draft the hook saves.
+        const Screen = () => {
+            seen = useAutomationCreate({defaultAgentId: "agent-1"})
+            return createElement(AutomationInstructionField, {
+                agentId: seen.draft.agentId,
+                inputsFields: seen.draft.inputsFields,
+                onCommit: seen.setInputs,
+                kind: "schedule",
+                connectionId: null,
+                eventKey: null,
+                includeEvent: false,
+                onChangeIncludeEvent: () => undefined,
+                automation: null,
+            })
+        }
+        await render(createElement(Screen))
+        await act(async () => seen.setInputs({message: "post the digest"}))
+
+        await act(async () => store.set(latest.current, {data: chatRevision, isPending: false}))
+        await act(async () => void (await seen.create()))
+
+        expect(createSchedule).toHaveBeenCalledTimes(1)
+        const inputs = createSchedule.mock.calls[0][0].data.inputs_fields
+        expect(inputs).toEqual({messages: [{role: "user", content: "post the digest"}]})
+    })
 })
 
 describe("a message stored under the fallback key", () => {
