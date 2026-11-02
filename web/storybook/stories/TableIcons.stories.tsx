@@ -58,7 +58,13 @@ const ActionsColumn = () => {
     )
     return (
         <div className="w-[360px] border border-solid border-colorBorderSecondary">
-            <VirtualTable<Row> columns={columns} dataSource={rows} rowKey="key" />
+            <VirtualTable<Row>
+                columns={columns}
+                dataSource={rows}
+                rowKey={(row) => row.key}
+                rowHeight={48}
+                height={160}
+            />
         </div>
     )
 }

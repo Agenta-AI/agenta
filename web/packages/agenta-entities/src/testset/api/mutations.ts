@@ -432,7 +432,8 @@ export async function uploadTestsetRevisionFile(params: {
         {queryParams: {project_id: projectId}},
     )
 
-    return {revisionId: response.testset?.revision_id ?? null}
+    if (!response.testset) throw new Error("The upload did not return a Testset")
+    return {revisionId: response.testset.revision_id ?? null}
 }
 
 // ============================================================================
