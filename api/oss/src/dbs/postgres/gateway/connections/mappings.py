@@ -20,7 +20,11 @@ def map_connection_create_to_dbe(
     #
     dto: ConnectionCreate,
     owner: Optional[SecretOwner] = None,
+    is_default: bool = False,
 ) -> ConnectionDBE:
+    """`owner` set: a person's own row, with no project."""
+    if owner is not None and owner.kind != SecretOwnerKind.USER:
+        raise ValueError("a connection owner is a person")
     # The service replaces data with a provider-shaped dict before persistence;
     # a typed model (validate-on-assignment is off) is dumped, dropping unset keys.
     data = None
@@ -39,6 +43,7 @@ def map_connection_create_to_dbe(
         project_id=None if owner is not None else project_id,
         organization_id=owner.organization_id if owner is not None else None,
         user_id=owner.id if owner is not None else None,
+        is_default=is_default,
         slug=dto.slug,
         name=dto.name,
         description=dto.description,
@@ -81,15 +86,9 @@ def map_connection_dbe_to_dto(
         data=data,
         status=status,
         meta=dbe.meta,
-        owner=(
-            SecretOwner(
-                kind=SecretOwnerKind.USER,
-                id=dbe.user_id,
-                organization_id=dbe.organization_id,
-            )
-            if getattr(dbe, "user_id", None) is not None
-            else None
-        ),
+        organization_id=dbe.organization_id,
+        user_id=dbe.user_id,
+        is_default=bool(dbe.is_default),
         #
         created_at=dbe.created_at,
         updated_at=dbe.updated_at,

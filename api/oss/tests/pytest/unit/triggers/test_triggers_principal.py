@@ -20,17 +20,12 @@ from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 _DEFAULT_TARGET = object()
-_OWNER = PrincipalRef(kind=PrincipalKind.HUMAN, id=uuid4())
 
 
 def _service(*, revision_artifact_id=None):
     dao = MagicMock()
     dao.create_schedule = AsyncMock(side_effect=lambda **kw: kw)
-    dao.fetch_schedule = AsyncMock(
-        return_value=SimpleNamespace(
-            id=uuid4(), principal=_OWNER, data=_schedule_data(None)
-        )
-    )
+    dao.fetch_schedule = AsyncMock(return_value=SimpleNamespace(id=uuid4()))
     dao.edit_schedule = AsyncMock(side_effect=lambda **kw: kw)
     workflows = MagicMock()
     workflows.retrieve_workflow_revision = AsyncMock(
@@ -88,20 +83,21 @@ async def test_environment_reference_leaves_artifact_null():
     assert dao.create_schedule.await_args.kwargs["artifact_id"] is None
 
 
-async def test_edit_keeps_principal_recomputes_artifact():
+async def test_edit_writes_the_editor_and_recomputes_artifact():
     new_artifact = uuid4()
     service, dao = _service(revision_artifact_id=new_artifact)
+    editor = PrincipalRef(kind=PrincipalKind.HUMAN, id=uuid4())
     await service.edit_schedule(
         project_id=uuid4(),
-        user_id=uuid4(),
+        user_id=editor.id,
         schedule=TriggerScheduleEdit(
             id=uuid4(), data=_schedule_data({"workflow": {"id": str(new_artifact)}})
         ),
-        editor=_OWNER,
+        principal=editor,
     )
     kwargs = dao.edit_schedule.await_args.kwargs
     assert kwargs["artifact_id"] == new_artifact
-    assert "principal" not in kwargs
+    assert kwargs["principal"] == editor
 
 
 def test_create_body_cannot_set_principal():

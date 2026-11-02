@@ -3,12 +3,14 @@
 import type * as AgentaApi from "../index.js";
 
 /**
- * Who owns a stored secret (CONTRACT section 8).
+ * Who owns a stored secret.
  *
  * A frozen pydantic model rather than a dataclass, because it rides inside cached and
- * serialized DTOs. Storage keeps the typed columns; the DAO maps `kind` to the column.
+ * serialized DTOs. Storage keeps the typed columns; the DAO maps `kind` to the columns.
+ * A user owner is a person inside one organization, so it also names the organization.
  */
 export interface SecretOwner {
     kind: AgentaApi.SecretOwnerKind;
     id: string;
+    organization_id?: (string | null) | undefined;
 }

@@ -4,7 +4,6 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from oss.src.core.credentials.uses import CredentialUse
 from oss.src.core.sessions.dtos import (
     SessionExpansion,
     SessionListItem,
@@ -28,10 +27,14 @@ from oss.src.core.sessions.interactions.dtos import (
     SessionInteractionStatus,
 )
 from oss.src.core.sessions.mounts.dtos import SessionMount, SessionMountQuery
-from oss.src.core.sessions.turns.dtos import HarnessKind, SessionTurn, SessionTurnQuery
+from oss.src.core.sessions.turns.dtos import (
+    HarnessKind,
+    SessionTurn,
+    SessionTurnQuery,
+)
 from oss.src.core.sessions.types import SessionReference
 from oss.src.core.sessions.inputs.dtos import PendingInputUpdate, PendingInput
-from oss.src.core.shared.dtos import OTelSpanId, Windowing
+from oss.src.core.shared.dtos import OTelSpanId, Windowing, RunUsage
 from oss.src.dbs.postgres.sessions.streams.dao import MAX_SESSION_QUERY_LIMIT
 
 
@@ -454,17 +457,8 @@ class SessionTurnCompleteRequest(BaseModel):
     turn_index: int
     agent_session_id: Optional[str] = None
     end_time: datetime
-
-
-class CredentialUsesQueryRequest(BaseModel):
-    session_id: str
-
-
-class CredentialUsesResponse(BaseModel):
-    """Which person's own account each turn of a session used, per connection (M7)."""
-
-    count: int = 0
-    uses: List[CredentialUse] = []
+    # The runner's usage of the turn; kept only from the runner.
+    usage: Optional[RunUsage] = None
 
 
 class SessionTurnQueryRequest(BaseModel):

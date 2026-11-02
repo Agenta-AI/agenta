@@ -69,6 +69,14 @@ export interface ProjectsPageProps {
     /** Create / delete dialogs — the host's. Rename happens in place on the row. */
     renderCreateDialog?: (state: ProjectDialogState<ProjectFormValues>) => React.ReactNode
     renderDeleteDialog?: (state: ProjectDialogState<void>) => React.ReactNode
+    /** Whether the reader may create a project. Defaults to "yes wherever a dialog exists". */
+    canCreate?: boolean
+    /** Whether the reader may rename a project. Same default. */
+    canEdit?: boolean
+    /** Whether the reader may make a project the default. Defaults to `canEdit`. */
+    canSetDefault?: boolean
+    /** Whether the reader may delete a project. Same default; the API allows the owner only. */
+    canDelete?: boolean
     /**
      * After a create, rename, set-default or delete lands, for a host that caches projects
      * elsewhere.
@@ -84,6 +92,10 @@ export const ProjectsPage = ({
     onSwitch,
     renderCreateDialog,
     renderDeleteDialog,
+    canCreate,
+    canEdit: canEditProp,
+    canSetDefault: canSetDefaultProp,
+    canDelete,
     onChanged,
 }: ProjectsPageProps) => {
     const queryClient = useQueryClient()
@@ -102,9 +114,14 @@ export const ProjectsPage = ({
                 project.workspace_id === workspaceId || project.organization_id === workspaceId,
         )
     }, [projects, workspaceId])
+    // A host that brings no dialogs gets the list read-only rather than affordances that open
+    // nothing. A host that knows the reader's reach says so, and each verb follows its own flag.
+    const hasDialogs = Boolean(renderCreateDialog || renderDeleteDialog)
+    const canEdit = canEditProp ?? hasDialogs
+    const canSetDefault = canSetDefaultProp ?? canEdit
+    const showCreate = (canCreate ?? hasDialogs) && Boolean(renderCreateDialog)
+    const showDelete = (canDelete ?? hasDialogs) && Boolean(renderDeleteDialog)
     const canDeleteProjects = scopedProjects.length > 1
-    // A host that brings no dialogs gets the list read-only rather than affordances that open nothing.
-    const canEdit = Boolean(renderCreateDialog || renderDeleteDialog)
 
     const {columns, shows} = usePhoneColumns(COLUMNS, PHONE_KEYS)
 
@@ -182,7 +199,7 @@ export const ProjectsPage = ({
         [canDeleteProjects],
     )
 
-    const newProject = canEdit ? (
+    const newProject = showCreate ? (
         <Button onClick={() => setCreateModalOpen(true)} disabled={isLoading}>
             <Plus size={14} />
             New project
@@ -294,7 +311,7 @@ export const ProjectsPage = ({
                                     key: "default",
                                     label: "Set as default",
                                     icon: <CheckCircle size={14} />,
-                                    hidden: Boolean(record.is_default_project),
+                                    hidden: !canSetDefault || Boolean(record.is_default_project),
                                     disabled: defaultMutation.isPending,
                                     onClick: () => defaultMutation.mutate(record.project_id),
                                 },
@@ -304,7 +321,7 @@ export const ProjectsPage = ({
                                     label: "Delete project",
                                     icon: <Trash size={14} />,
                                     danger: true,
-                                    hidden: !renderDeleteDialog,
+                                    hidden: !showDelete,
                                     // The last project and the default project cannot be deleted.
                                     disabled:
                                         !canDeleteProjects || Boolean(record.is_default_project),

@@ -51,8 +51,7 @@ class SecretsDBE(Base, SecretsDBA):
                 "project_id IS NULL AND user_id IS NULL AND slug IS NOT NULL"
             ),
         ),
-        # Each person's slugs, per organization (M7). User rows use canonical slugs, so
-        # this is the one-account-per-service rule.
+        # Each person's slugs, per organization.
         Index(
             "uq_secrets_user_slug",
             "organization_id",
@@ -73,7 +72,7 @@ class SecretsDBE(Base, SecretsDBA):
         ),
         CheckConstraint(
             "user_id IS NULL OR kind IN "
-            "('PROVIDER_KEY', 'SUBSCRIPTION_PROVIDER', 'OAUTH_GRANT')",
+            "('CUSTOM_SECRET', 'SUBSCRIPTION_PROVIDER', 'OAUTH_GRANT', 'MCP_TOKEN')",
             name="ck_secrets_user_kinds",
         ),
         CheckConstraint(

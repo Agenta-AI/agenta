@@ -73,20 +73,13 @@ def gateway_platform_run(request: Optional[Request]) -> bool:
     return getattr(request.state, "gateway_platform_run", None) is True
 
 
-def gateway_bindings(request: Optional[Request]) -> List[Dict[str, Any]]:
-    """The presenting credential's signed `caller_account` bindings (M7), in token form,
-    for a route that re-mints the credential: a narrowed credential keeps the run's
-    bindings, never more. Empty for every caller that is not a run."""
+def run_accounts(request: Optional[Request]) -> List[Dict[str, Any]]:
+    """The presenting credential's `run_accounts` claim, in token form, for a route that
+    re-mints the credential: the new credential carries the run's accounts unchanged,
+    never more. Empty for every caller that is not a run."""
     if request is None:
         return []
-    from oss.src.core.credentials.bindings import claims_to_token  # noqa: PLC0415
-
-    return claims_to_token(getattr(request.state, "gateway_bindings", None) or ())
-
-
-def gateway_session_id(request: Optional[Request]) -> Optional[str]:
-    """The presenting credential's signed session (M7), for a route that re-mints it."""
-    if request is None:
-        return None
-    value = getattr(request.state, "gateway_session_id", None)
-    return value if isinstance(value, str) and value else None
+    return [
+        account.model_dump(mode="json", exclude_none=True)
+        for account in getattr(request.state, "run_accounts", None) or ()
+    ]

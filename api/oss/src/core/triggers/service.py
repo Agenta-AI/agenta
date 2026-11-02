@@ -8,13 +8,8 @@ from uuid import UUID
 
 from croniter import croniter
 
-from oss.src.core.access.dtos import PrincipalRef, RunOrigin
-from oss.src.core.access.durable_work import (
-    DurableWorkChange,
-    DurableWorkKind,
-    check_durable_work_change,
-    execution_changed,
-)
+from oss.src.core.access.dtos import PrincipalRef, RunEnvelope, RunOrigin
+from oss.src.core.account_choices.items import run_person_id
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.principals import stored_work_envelope
 from oss.src.core.access.service import get_access_service
@@ -309,10 +304,11 @@ def _has_primary_evidence(
 
 async def recheck_trigger_principal(
     *, project_id: UUID, trigger, origin: RunOrigin
-) -> None:
+) -> RunEnvelope:
     """A trigger that is started again must still have a principal that may run it.
     Raises `MissingPrincipal` or `AccessDenied`, so a resume of a trigger whose key or
-    creator is gone is refused at once instead of at its next tick."""
+    creator is gone is refused at once instead of at its next tick. Returns the
+    envelope its runs carry."""
 
     if trigger.principal is None:
         raise MissingPrincipal()
@@ -320,59 +316,21 @@ async def recheck_trigger_principal(
     organization_id = await access.project_organization_id(project_id=project_id)
     if organization_id is None:
         raise MissingPrincipal("The trigger's project has no organization")
+    envelope = stored_work_envelope(
+        principal=trigger.principal,
+        organization_id=organization_id,
+        project_id=project_id,
+        origin=origin,
+        origin_id=str(trigger.id),
+        created_by_id=trigger.created_by_id,
+    )
     try:
-        await access.require(
-            envelope=stored_work_envelope(
-                principal=trigger.principal,
-                organization_id=organization_id,
-                project_id=project_id,
-                origin=origin,
-                origin_id=str(trigger.id),
-                created_by_id=trigger.created_by_id,
-            ),
-            action=Permission.RUN_WORKFLOWS,
-        )
+        await access.require(envelope=envelope, action=Permission.RUN_WORKFLOWS)
     except AccessDenied as denied:
         # The router names the principal kind in the refusal.
         denied.principal_kind = trigger.principal.kind
         raise
-
-
-# What a subscription or a schedule executes (M7 edit rule). The schedule's timing
-# (cron, start, end), names, tags and flags are lifecycle: anyone with the capability
-# may change them.
-_SUBSCRIPTION_EXECUTION_FIELDS = (
-    "event_key",
-    "trigger_config",
-    "inputs_fields",
-    "references",
-    "selector",
-)
-_SCHEDULE_EXECUTION_FIELDS = ("event_key", "inputs_fields", "references", "selector")
-
-
-def _execution_fields(data: Any, fields: Tuple[str, ...]) -> Dict[str, Any]:
-    return {field: getattr(data, field, None) for field in fields}
-
-
-def _subscription_change(
-    *, existing: TriggerSubscription, edit: TriggerSubscriptionEdit
-) -> DurableWorkChange:
-    before = _execution_fields(existing.data, _SUBSCRIPTION_EXECUTION_FIELDS)
-    after = _execution_fields(edit.data, _SUBSCRIPTION_EXECUTION_FIELDS)
-    if existing.connection_id != edit.connection_id or execution_changed(before, after):
-        return DurableWorkChange.EXECUTION
-    return DurableWorkChange.LIFECYCLE
-
-
-def _schedule_change(
-    *, existing: TriggerSchedule, edit: TriggerScheduleEdit
-) -> DurableWorkChange:
-    before = _execution_fields(existing.data, _SCHEDULE_EXECUTION_FIELDS)
-    after = _execution_fields(edit.data, _SCHEDULE_EXECUTION_FIELDS)
-    if execution_changed(before, after):
-        return DurableWorkChange.EXECUTION
-    return DurableWorkChange.LIFECYCLE
+    return envelope
 
 
 def _resumed_meta(meta):
@@ -409,6 +367,8 @@ class TriggersService:
         self.connections_service = connections_service
         self.workflows_service = workflows_service
         self.schedule_dispatch_task = schedule_dispatch_task
+        # Refuses a turn-on while the agent's model needs setup. Set at wiring.
+        self.needs_setup_guard: Optional[Any] = None
         self.webhook_secret_resolver = WebhookSecretResolver(
             adapter_registry=adapter_registry,
         )
@@ -1192,30 +1152,17 @@ class TriggersService:
         user_id: UUID,
         #
         subscription: TriggerSubscriptionEdit,
-        editor: PrincipalRef,
+        principal: PrincipalRef,
     ) -> Optional[TriggerSubscription]:
         """Full-PUT edit. Reflects the connection, event, trigger_config and the
-        combined is_active/is_valid onto the provider ``ti_*``.
-
-        Only the executing principal may change what the subscription executes: its
-        connection, event, inputs and target (M7). Others may rename it or pause it."""
+        combined is_active/is_valid onto the provider ``ti_*``. The editor
+        (`principal`) becomes the executing principal in the same write."""
         existing = await self.dao.fetch_subscription(
             project_id=project_id,
             subscription_id=subscription.id,
         )
         if existing is None:
             return None
-
-        def check(locked: TriggerSubscription) -> None:
-            check_durable_work_change(
-                kind=DurableWorkKind.SUBSCRIPTION,
-                principal=editor,
-                executing=locked.principal,
-                change=_subscription_change(existing=locked, edit=subscription),
-            )
-
-        # Refused before any provider change when the stored row already shows it.
-        check(existing)
 
         # Test subscriptions skip the bound-workflow requirement and stay "on".
         # Turning test OFF (test → prod) re-imposes it: references must resolve,
@@ -1246,15 +1193,13 @@ class TriggersService:
                     is_valid=existing.flags.is_valid,
                 )
 
-            # The principal stays; the target agent follows the edited references. The
-            # rule is checked again on the locked row, so a concurrent edit cannot slip
-            # past it.
+            # The target agent follows the edited references.
             return await self.dao.edit_subscription(
                 project_id=project_id,
                 user_id=user_id,
                 subscription=subscription,
                 artifact_id=artifact_id,
-                check=check,
+                principal=principal,
             )
 
         if target_changed:
@@ -1304,7 +1249,7 @@ class TriggersService:
                 subscription=subscription,
                 artifact_id=artifact_id,
                 trigger_id=trigger_id,
-                check=check,
+                principal=principal,
             )
         except Exception:
             if replacement is not None:
@@ -1466,6 +1411,34 @@ class TriggersService:
             is_valid=False,
         )
 
+    async def _check_needs_setup(
+        self, *, project_id: UUID, trigger: Any, envelope: RunEnvelope
+    ) -> None:
+        """Refuse turning on a trigger whose agent's model needs setup, for the person
+        its runs use (`envelope` is the one its runs carry)."""
+        if self.needs_setup_guard is None:
+            return
+        data = getattr(trigger, "data", None)
+        references = getattr(data, "references", None)
+        selector = getattr(data, "selector", None)
+        await self.needs_setup_guard.check(
+            project_id=project_id,
+            references=(
+                {
+                    key: ref.model_dump(mode="json", exclude_none=True)
+                    for key, ref in references.items()
+                }
+                if references
+                else None
+            ),
+            selector=(
+                selector.model_dump(mode="json", exclude_none=True)
+                if selector is not None
+                else None
+            ),
+            run_person_id=run_person_id(envelope),
+        )
+
     async def set_subscription_active(
         self,
         *,
@@ -1493,8 +1466,11 @@ class TriggersService:
             raise SubscriptionNotFoundError(subscription_id=str(subscription_id))
 
         if is_active:
-            await recheck_trigger_principal(
+            envelope = await recheck_trigger_principal(
                 project_id=project_id, trigger=existing, origin=RunOrigin.SUBSCRIPTION
+            )
+            await self._check_needs_setup(
+                project_id=project_id, trigger=existing, envelope=envelope
             )
 
         edit = TriggerSubscriptionEdit(
@@ -1852,12 +1828,10 @@ class TriggersService:
         user_id: UUID,
         #
         schedule: TriggerScheduleEdit,
-        editor: PrincipalRef,
+        principal: PrincipalRef,
     ) -> Optional[TriggerSchedule]:
-        """Full-PUT edit (load the current row, override owned fields).
-
-        Only the executing principal may change what the schedule executes: its event,
-        inputs and target (M7). Others may rename it, pause it or move its times."""
+        """Full-PUT edit (load the current row, override owned fields). The editor
+        (`principal`) becomes the executing principal in the same write."""
         existing = await self.dao.fetch_schedule(
             project_id=project_id,
             schedule_id=schedule.id,
@@ -1873,22 +1847,13 @@ class TriggersService:
             references=schedule.data.references,
         )
 
-        def check(locked: TriggerSchedule) -> None:
-            check_durable_work_change(
-                kind=DurableWorkKind.SCHEDULE,
-                principal=editor,
-                executing=locked.principal,
-                change=_schedule_change(existing=locked, edit=schedule),
-            )
-
-        # The principal stays; the target agent follows the edited references. The rule
-        # is checked on the locked row, so a concurrent edit cannot slip past it.
+        # The target agent follows the edited references.
         return await self.dao.edit_schedule(
             project_id=project_id,
             user_id=user_id,
             schedule=schedule,
             artifact_id=artifact_id,
-            check=check,
+            principal=principal,
         )
 
     async def delete_schedule(
@@ -1931,8 +1896,11 @@ class TriggersService:
             )
 
         if is_active:
-            await recheck_trigger_principal(
+            envelope = await recheck_trigger_principal(
                 project_id=project_id, trigger=existing, origin=RunOrigin.SCHEDULE
+            )
+            await self._check_needs_setup(
+                project_id=project_id, trigger=existing, envelope=envelope
             )
 
         edit = TriggerScheduleEdit(

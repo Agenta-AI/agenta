@@ -1,5 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {hasUserItems} from "@agenta/entities/accountChoice"
+import {personalAccountsAccessAtom} from "@agenta/entities/secret"
 import {
     restrictSessionToOwnerAtom,
     revokeSessionGrantAtom,
@@ -11,6 +13,10 @@ import {
     type SessionRole,
     type Visibility,
 } from "@agenta/entities/sharing"
+import {
+    retrievedWorkflowRevisionFamilyKey,
+    retrievedWorkflowRevisionQueryAtomFamily,
+} from "@agenta/entities/workflow"
 import {sessionRoutePath, shareUrl} from "@agenta/sessions/link"
 import {
     SessionShareDialog,
@@ -47,12 +53,25 @@ export const SessionShareDialogBound = ({
     request: ShareDialogRequest
     onClose: () => void
 }) => {
-    const {sessionId, sessionName, workspaceId, projectId} = request
+    const {sessionId, sessionName, workspaceId, projectId, agentId} = request
     const router = useRouter()
     const project = useCurrentProject(workspaceId, projectId)
     const me = useAtomValue(userAtom)
 
     const sharingQuery = useAtomValue(sessionSharingQueryAtomFamily(sessionId))
+    // The agent's configuration says whether it uses each person's own accounts (contract
+    // section 13, item 16): no record says which turn used one.
+    // The agent ref reads its latest revision, as the automation notice does.
+    const agentRevision = useAtomValue(
+        retrievedWorkflowRevisionQueryAtomFamily(
+            retrievedWorkflowRevisionFamilyKey(agentId ? {workflow: {id: agentId}} : null),
+        ),
+    )
+    const personalOff = useAtomValue(personalAccountsAccessAtom) === "off"
+    const usesPersonalAccounts = useMemo(
+        () => !personalOff && hasUserItems(agentRevision.data?.parameters?.agent),
+        [agentRevision.data, personalOff],
+    )
     const labels = useDisclosureProviderLabel(sharingQuery.data?.disclosure)
     const [search, setSearch] = useState("")
     // The picker queries as the person types, a beat behind them.
@@ -124,6 +143,7 @@ export const SessionShareDialogBound = ({
             onNotify={(text) => message.success(text)}
             // A 409: load the current state, then the dialog asks for the change again.
             onReload={() => void sharingQuery.refetch()}
+            usesPersonalAccounts={usesPersonalAccounts}
         />
     )
 }

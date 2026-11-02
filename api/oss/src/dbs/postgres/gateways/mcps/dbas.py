@@ -36,11 +36,6 @@ class MCPEndpointDBA(
 
     __abstract__ = True
 
-    # Overrides `ProjectScopeDBA`: a person's own server has no project (M7).
-    project_id = Column(UUID(as_uuid=True), nullable=True)
-    organization_id = Column(UUID(as_uuid=True), nullable=True)
-    user_id = Column(UUID(as_uuid=True), nullable=True)
-
     auth_mode = Column(
         SQLEnum(MCPAuthScheme, name="gatewayauthscheme_enum"), nullable=False
     )
@@ -81,3 +76,5 @@ class MCPOAuthAttemptDBA(ProjectScopeDBA, UserScopeDBA, IdentifierDBA):
     # popup's message never arrives. See `MCPOAuthAttemptStatus`.
     status = Column(String, nullable=False, server_default="pending")
     error = Column(String, nullable=True)
+    # Whose sign-in the callback writes: `project`, or `user` (the person in `user_id`).
+    owner_kind = Column(String, nullable=False, server_default="project")

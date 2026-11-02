@@ -14,6 +14,7 @@ export {PersonAvatar, personName, type SharingPerson} from "./people"
 export {
     defaultProviderLabel,
     disclosureAccountNames,
+    disclosurePersonalAccountNames,
     sharingWriteResultFromError,
     type SharingWriteResult,
 } from "./result"

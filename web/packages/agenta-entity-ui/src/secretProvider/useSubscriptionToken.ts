@@ -11,6 +11,7 @@ import {
     subscriptionTokenErrorText,
     type ProviderConnection,
 } from "@agenta/entities/secret"
+import {invalidateAgentRequirements} from "@agenta/entities/workflow"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {useSetAtom} from "jotai"
 
@@ -68,6 +69,8 @@ export const useSubscriptionToken = ({
             }
             // Resolves once the vault refetch reports the connection ready.
             await setSubscriptionToken({secretId, token, scope})
+            // A new token can fix an agent without a new revision.
+            void invalidateAgentRequirements()
             setCreatedId(null)
             setReplacing(false)
             setValue("")

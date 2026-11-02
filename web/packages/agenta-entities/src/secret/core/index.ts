@@ -60,6 +60,7 @@ export {
     SecretManagementPolicy,
     StandardProviderKind,
     VAULT_PERSIST_REDACTED,
+    isUserSecretBinding,
 } from "./types"
 
 export {

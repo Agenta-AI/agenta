@@ -80,6 +80,7 @@ clients/python/tests/results/
 # QA gate run outputs: machine artifacts with per-run probe tokens that trip secret
 # scanners (and once rode a blanket commit onto a public branch). Never tracked.
 .agents/skills/agent-release-gate/qa-gate-runs/
+.agents/skills/agent-release-gate/resources/qa-gate-runs/
 !.dockerignore
 !api/.dockerignore
 !services/.dockerignore
@@ -110,6 +111,15 @@ clients/python/tests/results/
 !.agents/skills/mobile-app-structure/
 !.agents/skills/mobile-shadcn-conventions/
 !.agents/skills/mobile-motion-patterns/
+!.agents/skills/design-interfaces/
+!.agents/skills/keep-docs-in-sync/
+!.agents/skills/naming-and-resources/
+!.agents/skills/plain-writing/
+!.agents/skills/prepare-pr-review/
+!.agents/skills/review-correctness/
+!.agents/skills/review-naming/
+!.agents/skills/review-simplify/
+!.agents/skills/review-slop/
 !.claude/
 .claude/*
 !.claude/skills/
@@ -138,6 +148,15 @@ clients/python/tests/results/
 !.claude/skills/mobile-shadcn-conventions
 !.claude/skills/mobile-motion-patterns
 !.claude/skills/gitbutler-stacks
+!.claude/skills/design-interfaces
+!.claude/skills/keep-docs-in-sync
+!.claude/skills/naming-and-resources
+!.claude/skills/plain-writing
+!.claude/skills/prepare-pr-review
+!.claude/skills/review-correctness
+!.claude/skills/review-naming
+!.claude/skills/review-simplify
+!.claude/skills/review-slop
 !.claude/settings.json
 
 # Entire (entire.com) shared config and agent hooks; each hook is a no-op

@@ -15,6 +15,7 @@ import {
     type ProviderConnection,
     type SecretOwnerScope,
 } from "@agenta/entities/secret"
+import {invalidateAgentRequirements} from "@agenta/entities/workflow"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -109,6 +110,8 @@ export const useSubscriptionSignIn = ({
         const attempt = pending
         closeAttempt(attempt)
 
+        // A sign-in can fix an agent without a new revision. `unreadable` probably landed too.
+        if (outcome === "succeeded" || outcome === "unreadable") void invalidateAgentRequirements()
         if (outcome === "succeeded") {
             setError(null)
             void refreshVault()

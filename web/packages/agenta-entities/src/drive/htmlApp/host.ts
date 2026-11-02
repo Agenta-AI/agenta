@@ -314,9 +314,14 @@ export function createHtmlAppHost(
         setAccess: gate.set,
         startPick: picks.startPick,
         stopPick: picks.stopPick,
+        holdPick: picks.holdPick,
+        allowPickKeys: picks.allowPickKeys,
+        revealPin: picks.revealPin,
         setPins: picks.setPins,
         onPicked: picks.onPicked,
         onPinRects: picks.onPinRects,
         onPickCancel: picks.onPickCancel,
+        onPickDismiss: picks.onPickDismiss,
+        onPickToggle: picks.onPickToggle,
     }
 }

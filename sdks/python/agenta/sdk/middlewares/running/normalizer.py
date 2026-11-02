@@ -8,6 +8,7 @@ from uuid import UUID
 
 from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.models.workflows import (
+    details_of,
     failure_code_of,
     retry_after_of,
     returned_stacktrace,
@@ -236,6 +237,7 @@ class NormalizerMiddleware:
                 stacktrace=returned_stacktrace(exc.stacktrace),
                 failure_code=failure_code,
                 retry_after=retry_after_of(exc),
+                details=details_of(exc),
             )
         else:
             type = "https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error"
@@ -263,6 +265,7 @@ class NormalizerMiddleware:
                 stacktrace=returned_stacktrace(stacktrace),
                 failure_code=failure_code,
                 retry_after=retry_after_of(exc),
+                details=details_of(exc),
             )
 
         trace_id, span_id, session_id = self._correlation_ids()

@@ -209,13 +209,12 @@ class AccessConfig(BaseModel):
         or "false"
     ).lower() in _TRUTHY
 
-    # Personal credentials (M7): people may store their own provider keys, subscription
-    # logins, Composio connections and MCP servers, and agents may use them through
-    # "Each person's own account". Off until every API pod and runner of the deployment
-    # runs the release that added them: an older pod would read a person's row as an
-    # organization row.
-    personal_credentials_enabled: bool = _parse_bool_env(
-        "AGENTA_ACCESS_PERSONAL_CREDENTIALS_ENABLED", False
+    # People may store their own accounts (custom secrets, Composio connections, MCP
+    # sign-ins), and an agent's "user" items use them. Off until every API pod and runner
+    # of the deployment runs the release that added them: an older pod reads a person's
+    # row as an organization row.
+    personal_accounts_enabled: bool = _parse_bool_env(
+        "AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED", False
     )
 
     plans: dict | None = _load_json_env_dict("AGENTA_ACCESS_PLANS")

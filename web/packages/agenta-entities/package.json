@@ -29,6 +29,8 @@
     },
     "exports": {
         ".": "./src/index.ts",
+        "./access": "./src/access/index.ts",
+        "./accountChoice": "./src/accountChoice/index.ts",
         "./annotation": "./src/annotation/index.ts",
         "./annotation/dto": "./src/annotation/dto/index.ts",
         "./drive": "./src/drive/index.ts",

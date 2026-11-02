@@ -9,17 +9,6 @@ class SecretsError(Exception):
         super().__init__(message)
 
 
-class SubscriptionProviderConflict(SecretsError):
-    """The owner already holds a subscription connection for this provider."""
-
-    def __init__(self, provider: str, owner: str = "project"):
-        self.provider = provider
-        super().__init__(
-            f"This {owner} already has a {provider} subscription connection. "
-            "Remove it before you add another one."
-        )
-
-
 class SecretSlugConflict(SecretsError):
     """A secret already exists at this project and slug.
 
@@ -234,8 +223,10 @@ class SecretStorageError(SecretsError):
 
 
 class PersonalSecretKindNotSupported(SecretsError):
-    """Only provider keys can be a person's own secret in the first step of M7."""
+    """A person may store only custom secrets through the vault routes."""
+
+    code = "kind_not_supported"
 
     def __init__(self, kind):
         self.kind = getattr(kind, "value", kind)
-        super().__init__("Only provider keys can be personal for now.")
+        super().__init__("You can only add custom secrets to your own accounts.")

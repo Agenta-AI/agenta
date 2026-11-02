@@ -22,6 +22,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_serializer, model_validator
 
+from ..accounts import AccountSource
+
 # How a credential connection is named in the agent config. A connection is a portable
 # reference into the vault, never a database id and never a raw secret value. Exactly two
 # modes: ``agenta`` (a vault connection, project-default when ``slug`` is omitted, named when
@@ -36,11 +38,6 @@ ConnectionNamespace = Literal["standard", "custom", "builtin", "organization"]
 # Whose connection ``slug`` names: the project's (the default, also when omitted) or the
 # organization's. An organization connection is used only when an agent names it.
 ConnectionScope = Literal["project", "organization"]
-# Whose account the run uses (M7). ``caller_account`` ("Each person's own account") uses the
-# credential of the person the run acts for; ``project_default`` ("The project's shared
-# account") uses the connection the reference names. Omitted means ``project_default``. The
-# server signs the bindings into the run's credential; this field only records the choice.
-ConnectionBinding = Literal["caller_account", "project_default"]
 
 # Sent in `subscription` beside an organization subscription login (see
 # `ResolvedConnection.to_wire`). Mirrors `ORGANIZATION_SUBSCRIPTION_FENCE` in the runner.
@@ -150,25 +147,26 @@ class Connection(BaseModel):
     # Whose connection ``slug`` names (M5). Omitted means the project's. ``organization``
     # needs a slug and namespace ``organization`` (filled in when omitted).
     scope: Optional[ConnectionScope] = None
-    # Whose account the run uses (M7). ``caller_account`` takes the person's own provider key
-    # (mode ``agenta``); it never names an organization connection, and a personal
-    # subscription login (mode ``self_managed``) is not available yet.
-    binding: Optional[ConnectionBinding] = None
+    # Whose login fills the model. ``user`` is the run person's own subscription login, so
+    # it needs mode ``self_managed`` and names no slug. Omitted means ``agent``.
+    account_source: Optional[AccountSource] = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
     @model_validator(mode="after")
     def _namespace_names_a_slug(self) -> "Connection":
-        if self.binding == "caller_account" and (
-            self.scope == "organization" or self.namespace == "organization"
-        ):
-            raise ValueError(
-                "an organization connection is a shared account; it cannot use "
-                "binding 'caller_account'"
-            )
-        if self.binding == "caller_account" and self.mode == "self_managed":
-            raise ValueError(
-                "each person's own subscription login is not available yet; "
-                "binding 'caller_account' needs mode 'agenta'"
-            )
+        if self.account_source == "user":
+            if self.mode != "self_managed":
+                raise ValueError(
+                    "account_source 'user' needs mode 'self_managed': a provider key "
+                    "is always the agent's"
+                )
+            if self.slug or self.scope or self.namespace:
+                raise ValueError(
+                    "a connection with account_source 'user' names no slug, scope or "
+                    "namespace"
+                )
+            return self
         if self.scope == "organization" or self.namespace == "organization":
             # An organization key or custom provider (mode `agenta`), or an organization
             # subscription login (mode `self_managed`); both are named by slug.
@@ -190,10 +188,6 @@ class Connection(BaseModel):
     @property
     def is_organization(self) -> bool:
         return self.scope == "organization"
-
-    @property
-    def is_caller_account(self) -> bool:
-        return self.binding == "caller_account"
 
 
 class Endpoint(BaseModel):

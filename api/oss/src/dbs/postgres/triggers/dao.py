@@ -1,6 +1,6 @@
 import asyncio
 from datetime import datetime, timezone
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 from uuid import UUID
 
 from sqlalchemy import Boolean, cast, delete, func, literal, select, update
@@ -56,9 +56,13 @@ from oss.src.dbs.postgres.triggers.upsert_utils import (
 log = get_module_logger(__name__)
 
 
-def _set_principal_and_target(dbe, *, principal: PrincipalRef, artifact_id) -> None:
+def _set_principal(dbe, *, principal: PrincipalRef) -> None:
     dbe.principal_kind = principal.kind.value
     dbe.principal_id = principal.id
+
+
+def _set_principal_and_target(dbe, *, principal: PrincipalRef, artifact_id) -> None:
+    _set_principal(dbe, principal=principal)
     dbe.artifact_id = artifact_id
 
 
@@ -205,10 +209,8 @@ class TriggersDAO(TriggersDAOInterface):
         #
         artifact_id: Any = KEEP_ARTIFACT_ID,
         trigger_id: Optional[str] = None,
-        check: Optional[Callable[[Any], None]] = None,
+        principal: Optional[PrincipalRef] = None,
     ) -> Optional[TriggerSubscription]:
-        """`check` runs on the locked row before the write (the M7 edit rule), so the
-        row it judged is the row the edit replaces."""
         async with self.engine.session() as session:
             stmt = (
                 select(TriggerSubscriptionDBE)
@@ -227,9 +229,6 @@ class TriggersDAO(TriggersDAOInterface):
             if not subscription_dbe:
                 return None
 
-            if check is not None:
-                check(map_subscription_dbe_to_dto(subscription_dbe=subscription_dbe))
-
             map_subscription_dto_to_dbe_edit(
                 subscription_dbe=subscription_dbe,
                 #
@@ -237,7 +236,10 @@ class TriggersDAO(TriggersDAOInterface):
                 #
                 subscription=subscription,
             )
-            # The principal never changes on an edit; the target follows the refs.
+            # An edit route's save makes its caller the executing principal, in
+            # this same write; lifecycle writes pass none and keep it.
+            if principal is not None:
+                _set_principal(subscription_dbe, principal=principal)
             if artifact_id is not KEEP_ARTIFACT_ID:
                 subscription_dbe.artifact_id = artifact_id
             if trigger_id is not None:
@@ -983,10 +985,8 @@ class TriggersDAO(TriggersDAOInterface):
         schedule: TriggerScheduleEdit,
         #
         artifact_id: Any = KEEP_ARTIFACT_ID,
-        check: Optional[Callable[[Any], None]] = None,
+        principal: Optional[PrincipalRef] = None,
     ) -> Optional[TriggerSchedule]:
-        """`check` runs on the locked row before the write (the M7 edit rule), so the
-        row it judged is the row the edit replaces."""
         async with self.engine.session() as session:
             stmt = (
                 select(TriggerScheduleDBE)
@@ -1005,9 +1005,6 @@ class TriggersDAO(TriggersDAOInterface):
             if not schedule_dbe:
                 return None
 
-            if check is not None:
-                check(map_schedule_dbe_to_dto(schedule_dbe=schedule_dbe))
-
             map_schedule_dto_to_dbe_edit(
                 schedule_dbe=schedule_dbe,
                 #
@@ -1015,7 +1012,10 @@ class TriggersDAO(TriggersDAOInterface):
                 #
                 schedule=schedule,
             )
-            # The principal never changes on an edit; the target follows the refs.
+            # An edit route's save makes its caller the executing principal, in
+            # this same write; lifecycle writes pass none and keep it.
+            if principal is not None:
+                _set_principal(schedule_dbe, principal=principal)
             if artifact_id is not KEEP_ARTIFACT_ID:
                 schedule_dbe.artifact_id = artifact_id
 

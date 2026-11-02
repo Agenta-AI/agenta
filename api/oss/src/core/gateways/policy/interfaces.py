@@ -43,8 +43,9 @@ class SecretsResolverInterface(ABC):
     ) -> ResolvedSecret:
         """Resolve one secret for one call.
 
-        Resolves the project's secret. A person's own secret goes through
-        select_personal_credential, never through this method.
+        The owner named on the reference picks the row: the project's, an
+        organization row available to the project (model plane), or a person's
+        MCP sign-in (MCP plane).
 
         By ref arm:
           ProviderKeyRef -> scan the project's provider_key / custom_provider
@@ -72,12 +73,6 @@ class SecretsResolverInterface(ABC):
         with no keys, whereas a caller reaching resolve() has already committed
         to needing one."""
         raise NotImplementedError
-
-    async def personal_provider_key(
-        self, *, scope: AuthScope, user_id: UUID, provider_key: str
-    ) -> Optional["SecretResponseDTO"]:
-        """The person's own provider key in the run's organization (M7), or None."""
-        return None
 
     @abstractmethod
     async def provider_connection_by_slug(

@@ -7,13 +7,6 @@ from datetime import datetime, timedelta, timezone
 from genson import SchemaBuilder
 
 from oss.src.core.access.dtos import PrincipalRef
-from oss.src.core.access.durable_work import (
-    DurableWorkChange,
-    DurableWorkKind,
-    DurableWorkOwnerOnly,
-    check_durable_work_change,
-    execution_changed,
-)
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.shared.dtos import Reference, Windowing, Tags, Meta
@@ -212,48 +205,6 @@ def _is_invocation_query(data: Any) -> bool:
             return True
 
     return False
-
-
-def _check_run_edit(
-    *, editor: PrincipalRef, prior_run: EvaluationRun, edit: EvaluationRunEdit
-) -> None:
-    """The run's configuration (`data`: steps, mappings, repeats, concurrency) is what it
-    executes. Name, tags, flags and status are lifecycle (M7 edit rule)."""
-    change = (
-        DurableWorkChange.EXECUTION
-        # An edit without `data` leaves the stored configuration as it is.
-        if edit.data is not None and execution_changed(prior_run.data, edit.data)
-        else DurableWorkChange.LIFECYCLE
-    )
-    check_durable_work_change(
-        kind=DurableWorkKind.EVALUATION_RUN,
-        principal=editor,
-        executing=prior_run.principal,
-        change=change,
-    )
-
-
-def _simple_targets(data: Optional[SimpleEvaluationData]) -> Dict[str, Any]:
-    """What a simple evaluation executes: its query, testset, application and evaluator
-    steps."""
-    if data is None:
-        return {}
-    return {
-        "query_steps": _target_ids(data.query_steps),
-        "testset_steps": _target_ids(data.testset_steps),
-        "application_steps": _target_ids(data.application_steps),
-        "evaluator_steps": _target_ids(data.evaluator_steps),
-    }
-
-
-def _target_ids(target: Any) -> List[str]:
-    """A target's ids, whichever shape it has: a list of ids, a map of id to origin (as a
-    stored run reads back), or nothing."""
-    if isinstance(target, dict):
-        return sorted(str(key) for key in target)
-    if isinstance(target, (list, tuple)):
-        return sorted(str(item) for item in target)
-    return []
 
 
 class EvaluationsService:
@@ -827,13 +778,17 @@ class EvaluationsService:
         run_id: UUID,
         principal: PrincipalRef,
         user_id: Optional[UUID] = None,
-    ) -> None:
-        """An explicit start or rerun: the run executes as the caller from now on."""
-        await self.evaluations_dao.set_run_principal(
+        open_only: bool = False,
+    ) -> bool:
+        """An explicit start or rerun, or a step save that changes no step: the run
+        executes as the caller from now on. With `open_only`, a closed run is left as
+        it is. Returns whether the run changed."""
+        return await self.evaluations_dao.set_run_principal(
             project_id=project_id,
             run_id=run_id,
             principal=principal,
             user_id=user_id,
+            open_only=open_only,
         )
 
     async def fetch_run(
@@ -870,22 +825,13 @@ class EvaluationsService:
         #
         run: EvaluationRunEdit,
         principal: Optional[PrincipalRef] = None,
-        editor: Optional[PrincipalRef] = None,
     ) -> Optional[EvaluationRun]:
-        """`editor` is the requesting principal of a user edit; internal callers leave it
-        None. Only the run's executing principal may change its configuration (M7). The
-        rule runs on the row the DAO locks for the write."""
         run.version = CURRENT_VERSION
 
         # Capture the prior graph so reconciliation can prune any step the edit
         # drops. An edit that omits a step is a destructive removal.
         prior_run = await self.fetch_run(project_id=project_id, run_id=run.id)
         prior_step_keys = self._step_keys(prior_run)
-        locked_check = None
-        if editor is not None:
-
-            def locked_check(locked: EvaluationRun) -> None:
-                _check_run_edit(editor=editor, prior_run=locked, edit=run)
 
         edited_run = await self.evaluations_dao.edit_run(
             project_id=project_id,
@@ -893,7 +839,6 @@ class EvaluationsService:
             #
             run=run,
             **({"principal": principal} if principal is not None else {}),
-            **({"check": locked_check} if locked_check is not None else {}),
         )
         if edited_run:
             edited_run = await self._reconcile_run(
@@ -911,8 +856,10 @@ class EvaluationsService:
         user_id: UUID,
         #
         runs: List[EvaluationRunEdit],
-        editor: Optional[PrincipalRef] = None,
+        principal: PrincipalRef,
     ) -> List[EvaluationRun]:
+        """The editor (`principal`) becomes each run's executing principal in the same
+        write."""
         for run in runs:
             run.version = CURRENT_VERSION
 
@@ -920,23 +867,6 @@ class EvaluationsService:
             project_id=project_id,
             run_ids=[run.id for run in runs],
         )
-        if editor is not None:
-            # Check every run before writing any, so a refusal changes nothing.
-            prior_by_id = {prior_run.id: prior_run for prior_run in prior_runs}
-            for run in runs:
-                prior_run = prior_by_id.get(run.id)
-                if prior_run is not None:
-                    _check_run_edit(editor=editor, prior_run=prior_run, edit=run)
-            # A user's batch is written run by run, each checked again on its locked row,
-            # so a concurrent change by the executing principal cannot be overwritten.
-            edited = []
-            for run in runs:
-                edited_run = await self.edit_run(
-                    project_id=project_id, user_id=user_id, run=run, editor=editor
-                )
-                if edited_run is not None:
-                    edited.append(edited_run)
-            return edited
         prior_step_keys_by_id = {
             prior_run.id: self._step_keys(prior_run) for prior_run in prior_runs
         }
@@ -946,6 +876,7 @@ class EvaluationsService:
             user_id=user_id,
             #
             runs=runs,
+            principal=principal,
         )
         return [
             await self._reconcile_run(
@@ -2552,10 +2483,10 @@ class SimpleEvaluationsService:
         user_id: UUID,
         #
         evaluation: SimpleEvaluationEdit,
-        editor: Optional[PrincipalRef] = None,
+        principal: PrincipalRef,
     ) -> Optional[SimpleEvaluation]:
-        """`editor` is the requesting principal; only the run's executing principal may
-        change its targets (M7)."""
+        """The editor (`principal`) becomes the run's executing principal in the
+        same write; the restart of an active run keeps it."""
         evaluation.flags = evaluation.flags or SimpleEvaluationFlags(
             is_closed=False,
             is_live=False,
@@ -2607,28 +2538,6 @@ class SimpleEvaluationsService:
                 log.error("[EVAL] [failure] cannot edit closed evaluation run")
                 return None
 
-            # Only the executing principal may change the targets (M7). Anyone else's
-            # edit keeps the stored configuration as it is, so a rename never rebuilds
-            # or restores it; the locked-row check in `edit_run` then refuses the write
-            # when the configuration changed after this read.
-            stored_run = None
-            targets_changed = False
-            if editor is not None:
-                stored_run = await self.evaluations_service.fetch_run(
-                    project_id=project_id, run_id=_evaluation.id
-                )
-                targets_changed = execution_changed(
-                    _simple_targets(_evaluation.data), _simple_targets(evaluation.data)
-                )
-                if targets_changed:
-                    # Refused before the run is stopped.
-                    check_durable_work_change(
-                        kind=DurableWorkKind.EVALUATION_RUN,
-                        principal=editor,
-                        executing=stored_run.principal if stored_run else None,
-                        change=DurableWorkChange.EXECUTION,
-                    )
-
             was_active = _evaluation.flags.is_active
 
             run_status = _evaluation.data.status
@@ -2663,22 +2572,18 @@ class SimpleEvaluationsService:
                 is_split=_evaluation.flags.is_split,
             )
 
-            run_data = (
-                stored_run.data
-                if stored_run is not None and not targets_changed
-                else await self._make_evaluation_run_data(
-                    project_id=project_id,
-                    user_id=user_id,
-                    #
-                    query_steps=evaluation.data.query_steps,
-                    testset_steps=evaluation.data.testset_steps,
-                    application_steps=evaluation.data.application_steps,
-                    evaluator_steps=evaluation.data.evaluator_steps,
-                    #
-                    repeats=_evaluation.data.repeats,
-                    #
-                    is_live=(_evaluation.flags.is_live if _evaluation.flags else None),
-                )
+            run_data = await self._make_evaluation_run_data(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                query_steps=evaluation.data.query_steps,
+                testset_steps=evaluation.data.testset_steps,
+                application_steps=evaluation.data.application_steps,
+                evaluator_steps=evaluation.data.evaluator_steps,
+                #
+                repeats=_evaluation.data.repeats,
+                #
+                is_live=(_evaluation.flags.is_live if _evaluation.flags else None),
             )
 
             run_edit = EvaluationRunEdit(
@@ -2700,7 +2605,7 @@ class SimpleEvaluationsService:
                 user_id=user_id,
                 #
                 run=run_edit,
-                editor=editor,
+                principal=principal,
             )
 
             if not run:
@@ -2736,8 +2641,6 @@ class SimpleEvaluationsService:
 
             return _evaluation
 
-        except DurableWorkOwnerOnly:
-            raise
         except Exception:  # pylint: disable=broad-except
             log.error("[EVAL] [failure]     ", exc_info=True)
             return None
@@ -3325,11 +3228,14 @@ class SimpleEvaluationsService:
         #
         run: EvaluationRun,
         new_data: EvaluationRunData,
+        principal: PrincipalRef,
     ) -> Optional[EvaluationRun]:
-        """Persist a new `data` payload for `run`, preserving every other field."""
+        """Persist a new `data` payload for `run`, preserving every other field. The
+        editor (`principal`) becomes the run's executing principal in the same write."""
         return await self.evaluations_service.edit_run(
             project_id=project_id,
             user_id=user_id,
+            principal=principal,
             run=EvaluationRunEdit(
                 id=run.id,
                 name=run.name,
@@ -3340,6 +3246,31 @@ class SimpleEvaluationsService:
                 flags=run.flags,
                 data=new_data,
             ),
+        )
+
+    async def _set_editor(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run: EvaluationRun,
+        principal: PrincipalRef,
+    ) -> EvaluationRun:
+        """A save that changes no step still makes the editor the run's executing
+        principal. Only the principal is written, never the fetched snapshot, so a
+        concurrent save's steps stay. A closed run refuses the save, as an edit does.
+        Returns the run as stored after the write."""
+        if not await self.evaluations_service.set_run_principal(
+            project_id=project_id,
+            run_id=run.id,
+            principal=principal,
+            user_id=user_id,
+            open_only=True,
+        ):
+            raise EvaluationClosedConflict(run_id=run.id)
+        return await self.evaluations_service.fetch_run(
+            project_id=project_id, run_id=run.id
         )
 
     async def add_scenarios(
@@ -3420,6 +3351,7 @@ class SimpleEvaluationsService:
         #
         run_id: UUID,
         steps: List[EvaluationRunDataStep],
+        principal: PrincipalRef,
     ) -> Optional[EvaluationRun]:
         """Append steps to the run (width dimension).
 
@@ -3434,14 +3366,14 @@ class SimpleEvaluationsService:
         )
         if not run or not run.data:
             return None
-        if not steps:
-            return run
 
         existing = list(run.data.steps or [])
         existing_keys = {step.key for step in existing}
         fresh = [step for step in steps if step.key not in existing_keys]
         if not fresh:
-            return run
+            return await self._set_editor(
+                project_id=project_id, user_id=user_id, run=run, principal=principal
+            )
 
         new_data = run.data.model_copy(update={"steps": existing + fresh})
         return await self._edit_run_data(
@@ -3449,6 +3381,7 @@ class SimpleEvaluationsService:
             user_id=user_id,
             run=run,
             new_data=new_data,
+            principal=principal,
         )
 
     async def remove_steps(
@@ -3459,6 +3392,7 @@ class SimpleEvaluationsService:
         #
         run_id: UUID,
         step_keys: List[str],
+        principal: PrincipalRef,
     ) -> Optional[EvaluationRun]:
         """Drop steps from the run by key (width dimension).
 
@@ -3472,13 +3406,13 @@ class SimpleEvaluationsService:
         )
         if not run or not run.data:
             return None
-        if not step_keys:
-            return run
 
         drop = set(step_keys)
         kept = [step for step in (run.data.steps or []) if step.key not in drop]
         if len(kept) == len(run.data.steps or []):
-            return run
+            return await self._set_editor(
+                project_id=project_id, user_id=user_id, run=run, principal=principal
+            )
 
         new_data = run.data.model_copy(update={"steps": kept})
         return await self._edit_run_data(
@@ -3486,6 +3420,7 @@ class SimpleEvaluationsService:
             user_id=user_id,
             run=run,
             new_data=new_data,
+            principal=principal,
         )
 
     async def set_repeats(
@@ -3496,6 +3431,7 @@ class SimpleEvaluationsService:
         #
         run_id: UUID,
         repeats: int,
+        principal: PrincipalRef,
     ) -> Optional[EvaluationRun]:
         """Set the run's repeat (depth) dimension.
 
@@ -3516,6 +3452,7 @@ class SimpleEvaluationsService:
             user_id=user_id,
             run=run,
             new_data=new_data,
+            principal=principal,
         )
 
     async def close(

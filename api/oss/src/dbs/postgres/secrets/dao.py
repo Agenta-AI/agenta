@@ -1,8 +1,9 @@
 """Postgres storage of the vault, addressed by owner (M5).
 
-Every method takes a `SecretOwner` and maps its kind to the typed column. Project and
-organization rows live in two slug spaces (`uq_secrets_project_id_slug`,
-`uq_secrets_organization_id_slug`).
+Every method takes a `SecretOwner` and maps its kind to the typed columns. Project,
+organization and person rows live in three slug spaces (`uq_secrets_project_id_slug`,
+`uq_secrets_organization_id_slug`, `uq_secrets_user_slug`). An organization read never
+sees a person's row, and a person's read sees only that person's rows.
 
 Two rules hold for every write here:
 
@@ -22,7 +23,7 @@ from datetime import datetime, timezone
 from typing import Callable, List, Optional, Sequence
 from uuid import UUID
 
-from sqlalchemy import func, select, text
+from sqlalchemy import delete, func, or_, select, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,8 +37,8 @@ from oss.src.core.secrets.dtos import (
 )
 from oss.src.core.secrets.enums import (
     ORGANIZATION_SECRET_KINDS,
+    SIGN_IN_SECRET_KINDS,
     SecretAvailability,
-    SecretKind,
     SecretOwnerKind,
 )
 from oss.src.core.secrets.interfaces import SecretsDAOInterface
@@ -46,7 +47,6 @@ from oss.src.core.secrets.types import (
     ProjectNotInOrganization,
     SecretSlugConflict,
     SecretStorageError,
-    SubscriptionProviderConflict,
 )
 from oss.src.dbs.postgres.secrets.dbes import SecretProjectDBE, SecretsDBE
 from oss.src.dbs.postgres.secrets.mappings import (
@@ -114,7 +114,7 @@ _LIST_ORGANIZATION_PROJECT_IDS_SQL = (
 
 
 def owner_columns(owner: SecretOwner) -> dict:
-    """The typed columns an owner maps to. A user owner (M7) is a person inside one
+    """The typed columns an owner maps to. A user owner is a person inside one
     organization: both columns, no project."""
     if owner.kind == SecretOwnerKind.PROJECT:
         return {"project_id": owner.id}
@@ -175,18 +175,9 @@ def _conflict_from(
         or "uq_secrets_organization_id_slug" in message
         or "uq_secrets_user_slug" in message
     ):
-        if (
-            create_secret_dto is not None
-            and create_secret_dto.secret.kind == SecretKind.SUBSCRIPTION_PROVIDER
-        ):
-            provider = create_secret_dto.secret.data.provider
-            return SubscriptionProviderConflict(
-                provider=getattr(provider, "value", provider),
-                owner=owner.kind.value if owner is not None else "project",
-            )
-        # Every other kind gets the generic conflict, so a caller writing under a slug it
-        # derives (rather than one the user typed) can read the winner and update instead
-        # of crashing on a raw driver error.
+        # The generic conflict, so a caller writing under a slug it derives (rather than
+        # one the user typed) can read the winner and update instead of crashing on a raw
+        # driver error.
         slug = create_secret_dto.slug if create_secret_dto is not None else ""
         return SecretSlugConflict(slug=slug or "")
     return SecretStorageError()
@@ -449,6 +440,70 @@ class SecretsDAO(SecretsDAOInterface):
                 await session.delete(vault_secret_dbe)
                 await session.commit()
                 return deleted
+        except DBAPIError as error:
+            raise _conflict_from(error) from None
+
+    async def delete_by_owner(self, *, owner: SecretOwner) -> int:
+        """Every row of a person owner, in one statement (they left the organization)."""
+        if owner.kind != SecretOwnerKind.USER:
+            raise ValueError("only a person's rows are deleted by owner")
+        async with self.engine.session() as session:
+            result = await session.execute(
+                delete(SecretsDBE).where(*_owner_filter(owner))
+            )
+            await session.commit()
+            return result.rowcount or 0
+
+    # -- MCP sign-ins ------------------------------------------------------------------
+
+    async def list_by_ids(
+        self, *, owner: SecretOwner, secret_ids: Sequence[UUID]
+    ) -> List[SecretResponseDTO]:
+        async with self.engine.session() as session:
+            result = await session.execute(
+                select(SecretsDBE).where(
+                    *_owner_filter(owner), SecretsDBE.id.in_(list(secret_ids))
+                )
+            )
+            return [
+                map_secrets_dbe_to_dto(secrets_dbe=secrets_dbe)
+                for secrets_dbe in result.scalars().all()
+            ]
+
+    async def list_sign_ins(
+        self, *, owner: SecretOwner, slugs: Sequence[str]
+    ) -> List[SecretResponseDTO]:
+        async with self.engine.session() as session:
+            result = await session.execute(
+                select(SecretsDBE).where(
+                    *_owner_filter(owner),
+                    SecretsDBE.slug.in_(list(slugs)),
+                    SecretsDBE.kind.in_(sorted(SIGN_IN_SECRET_KINDS)),
+                )
+            )
+            return [
+                map_secrets_dbe_to_dto(secrets_dbe=secrets_dbe)
+                for secrets_dbe in result.scalars().all()
+            ]
+
+    async def delete_sign_ins(
+        self, *, organization_id: UUID, project_id: UUID, slugs: Sequence[str]
+    ) -> int:
+        try:
+            async with self.engine.session() as session:
+                result = await session.execute(
+                    delete(SecretsDBE).where(
+                        SecretsDBE.slug.in_(list(slugs)),
+                        SecretsDBE.kind.in_(sorted(SIGN_IN_SECRET_KINDS)),
+                        or_(
+                            SecretsDBE.project_id == project_id,
+                            (SecretsDBE.organization_id == organization_id)
+                            & SecretsDBE.user_id.is_not(None),
+                        ),
+                    )
+                )
+                await session.commit()
+                return result.rowcount or 0
         except DBAPIError as error:
             raise _conflict_from(error) from None
 

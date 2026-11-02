@@ -1,5 +1,6 @@
 from enum import Enum
 from typing import Any, Dict, Optional
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -65,9 +66,12 @@ class Connection(
     data: Optional[Json] = None
     #
     status: Optional[ConnectionStatus] = None
-    # Set on a person's own connection only (M7): kind `user`, the person and their
-    # organization. A project connection carries None, as before.
-    owner: Optional[SecretOwner] = None
+    # A person's own connection: the person and their organization. A project
+    # connection carries None for both.
+    organization_id: Optional[UUID] = None
+    user_id: Optional[UUID] = None
+    # The person's default connection for the integration. Always false for a project.
+    is_default: bool = False
 
     @property
     def provider_connection_id(self) -> Optional[str]:
@@ -169,19 +173,8 @@ class ConnectionRefreshResponse(BaseModel):
 
 def entity_for(*, owner: Optional[SecretOwner], project_id: Any) -> str:
     """The provider-side user of a connection: its project, or for a person's own
-    connection `org:<organization>:user:<user>` (design open question 2: this format
-    lives at Composio, so changing it means every person reconnects)."""
-    if owner is not None and owner.organization_id is not None:
+    connection `org:<organization id>:user:<user id>`. The format lives at Composio, so
+    changing it means every person connects again."""
+    if owner is not None:
         return f"org:{owner.organization_id}:user:{owner.id}"
     return str(project_id)
-
-
-def provider_entity(connection: Any) -> Optional[str]:
-    """The provider-side user a stored connection was made for."""
-    owner = getattr(connection, "owner", None)
-    if owner is not None and getattr(owner, "organization_id", None) is not None:
-        return entity_for(owner=owner, project_id=None)
-    data = getattr(connection, "data", None)
-    if isinstance(data, dict) and data.get("project_id"):
-        return str(data["project_id"])
-    return None

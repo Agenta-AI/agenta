@@ -53,6 +53,7 @@ const GridRow = memo(function GridRow({
     width,
     columnCount,
     commenting,
+    hovering,
     selLeft,
     selRight,
     active,
@@ -64,6 +65,7 @@ const GridRow = memo(function GridRow({
     width: number
     columnCount: number
     commenting: boolean
+    hovering: boolean
     /** The selected columns in this row, inclusive; -1 when none. */
     selLeft: number
     selRight: number
@@ -72,12 +74,12 @@ const GridRow = memo(function GridRow({
 }) {
     // Under the letter row, which is h-7 tall.
     const pin = sticky ? "sticky top-7 bg-colorBgContainer" : ""
-    const hover = commenting
-        ? "hover:outline hover:outline-2 hover:-outline-offset-2 hover:outline-colorPrimary"
+    const hover = hovering
+        ? "hover:bg-colorSelectionBg hover:outline hover:outline-2 hover:-outline-offset-2 hover:outline-colorSelection"
         : ""
     const picked = commenting
-        ? "bg-colorInfoBg"
-        : "outline outline-2 -outline-offset-2 outline-colorPrimary"
+        ? "bg-colorSelectionBg"
+        : "outline outline-2 -outline-offset-2 outline-colorSelection"
     return (
         <tr>
             <th
@@ -140,7 +142,7 @@ export function SheetGrid({
             />
             <div className="min-h-0 flex-1 overflow-auto bg-colorBgContainer">
                 <table
-                    className={`min-w-full border-separate border-spacing-0 text-[13px] ${comments ? "cursor-cell select-none" : ""}`}
+                    className={`min-w-full border-separate border-spacing-0 text-[13px] ${comments ? "select-none" : ""} ${comments && !comments.held ? "cursor-cell" : ""}`}
                     onPointerDown={comments?.onPointerDown}
                     onPointerOver={comments?.onPointerOver}
                     onClick={comments ? undefined : onClick}
@@ -172,6 +174,7 @@ export function SheetGrid({
                                     width={width}
                                     columnCount={columnCount}
                                     commenting={!!comments}
+                                    hovering={!!comments && !comments.held}
                                     selLeft={inBox ? box.left : -1}
                                     selRight={inBox ? box.right : -1}
                                     active={inBox}

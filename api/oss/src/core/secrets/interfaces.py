@@ -53,10 +53,11 @@ class LLMEndpointRegistrarInterface(ABC):
 
 
 class SecretsDAOInterface:
-    """Storage of the vault, addressed by owner (M5).
+    """Storage of the vault, addressed by owner.
 
-    The existing methods take `owner: SecretOwner` instead of the column pair; the DAO maps
-    the kind to the column. A USER owner is refused in M5. With an ORGANIZATION owner the
+    The methods take `owner: SecretOwner` instead of the column pair; the DAO maps the
+    kind to the columns. A USER owner is a person inside one organization and reaches only
+    that person's rows. With an ORGANIZATION owner the
     methods serve EE SSO (any kind) and, with `shareable=True`, organization connections:
     shareable kinds only, read with their selected projects.
     """
@@ -121,6 +122,29 @@ class SecretsDAOInterface:
         shareable: bool = False,
     ) -> Optional[SecretResponseDTO]:
         """The deleted row, or None when the owner holds no such row."""
+        raise NotImplementedError
+
+    async def delete_by_owner(self, *, owner: SecretOwner) -> int:
+        """Delete every row of a person owner. Returns the count."""
+        raise NotImplementedError
+
+    async def list_by_ids(
+        self, *, owner: SecretOwner, secret_ids: Sequence[UUID]
+    ) -> List[SecretResponseDTO]:
+        """The owner's rows among these ids, in one statement."""
+        raise NotImplementedError
+
+    async def list_sign_ins(
+        self, *, owner: SecretOwner, slugs: Sequence[str]
+    ) -> List[SecretResponseDTO]:
+        """The owner's MCP sign-ins (OAuth grants and MCP tokens) at these slugs."""
+        raise NotImplementedError
+
+    async def delete_sign_ins(
+        self, *, organization_id: UUID, project_id: UUID, slugs: Sequence[str]
+    ) -> int:
+        """Delete the MCP sign-ins at these slugs of the project and of every person in
+        the organization, in one statement. Returns the count."""
         raise NotImplementedError
 
     async def load_effective(self, *, project_id: UUID) -> CachedEffectiveSecrets:

@@ -605,7 +605,8 @@ export class ToolsClient {
     }
 
     /**
-     * Query connections with optional filtering.
+     * Query connections with optional filtering. `scope=user`: the caller's own
+     * connections in the request's organization.
      *
      * @param {AgentaApi.QueryToolConnectionsRequest} request
      * @param {ToolsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -626,10 +627,11 @@ export class ToolsClient {
         request: AgentaApi.QueryToolConnectionsRequest = {},
         requestOptions?: ToolsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.ToolConnectionsResponse>> {
-        const { provider_key: providerKey, integration_key: integrationKey } = request;
+        const { provider_key: providerKey, integration_key: integrationKey, scope } = request;
         const _queryParams: Record<string, unknown> = {
             provider_key: providerKey,
             integration_key: integrationKey,
+            scope: scope != null ? scope : undefined,
         };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
@@ -678,7 +680,9 @@ export class ToolsClient {
     }
 
     /**
-     * Create a new tool connection.
+     * Create a new tool connection. `scope=user`: the caller's own connection, in
+     * the request's organization. A person's first connection for an integration
+     * becomes their default.
      *
      * @param {AgentaApi.ToolConnectionCreateRequest} request
      * @param {ToolsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -704,6 +708,10 @@ export class ToolsClient {
         request: AgentaApi.ToolConnectionCreateRequest,
         requestOptions?: ToolsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.ToolConnectionResponse>> {
+        const { scope, ..._body } = request;
+        const _queryParams: Record<string, unknown> = {
+            scope: scope != null ? scope : undefined,
+        };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -720,9 +728,9 @@ export class ToolsClient {
             method: "POST",
             headers: _headers,
             contentType: "application/json",
-            queryParameters: requestOptions?.queryParams,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
             requestType: "json",
-            body: request,
+            body: _body,
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
             maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
             withCredentials: true,
@@ -829,7 +837,7 @@ export class ToolsClient {
     }
 
     /**
-     * Get a connection by ID.
+     * Get a connection by ID: the caller's own, or one of the project's.
      *
      * @param {AgentaApi.FetchToolConnectionRequest} request
      * @param {ToolsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -905,7 +913,7 @@ export class ToolsClient {
     }
 
     /**
-     * Delete a connection by ID.
+     * Delete a connection by ID: the caller's own, or one of the project's.
      *
      * @param {AgentaApi.DeleteToolConnectionRequest} request
      * @param {ToolsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1132,6 +1140,83 @@ export class ToolsClient {
             _response.rawResponse,
             "POST",
             "/tools/connections/{connection_id}/revoke",
+        );
+    }
+
+    /**
+     * Make one of the caller's own connections their default for its integration.
+     * Only a person has a default.
+     *
+     * @param {AgentaApi.MakeDefaultToolConnectionRequest} request
+     * @param {ToolsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.tools.makeDefaultToolConnection({
+     *         connection_id: "connection_id"
+     *     })
+     */
+    public makeDefaultToolConnection(
+        request: AgentaApi.MakeDefaultToolConnectionRequest,
+        requestOptions?: ToolsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.ToolConnectionResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__makeDefaultToolConnection(request, requestOptions));
+    }
+
+    private async __makeDefaultToolConnection(
+        request: AgentaApi.MakeDefaultToolConnectionRequest,
+        requestOptions?: ToolsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.ToolConnectionResponse>> {
+        const { connection_id: connectionId } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `tools/connections/${core.url.encodePathParam(connectionId)}/make-default`,
+            ),
+            method: "POST",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.ToolConnectionResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as unknown,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "POST",
+            "/tools/connections/{connection_id}/make-default",
         );
     }
 

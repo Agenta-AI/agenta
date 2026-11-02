@@ -1,6 +1,8 @@
 from datetime import datetime
 from enum import Enum
 from typing import List, Optional
+
+from agenta.sdk.agents.accounts import AccountSource
 from uuid import UUID
 
 from pydantic import BaseModel, model_validator
@@ -154,7 +156,10 @@ class DisclosedConnection(BaseModel):
 
     provider: str
     integration: str
-    connection: str  # the connection slug in the revision's tools
+    # The project connection's slug in the revision's tools; None for a "user" item,
+    # which uses each person's own connection to the integration and names none.
+    connection: Optional[str] = None
+    account_source: Optional[AccountSource] = None
 
 
 class ShareDisclosure(BaseModel):
@@ -183,8 +188,6 @@ class NotShareableReason(str, Enum):
     CHANNEL = "channel"  # a channel session (for example Slack)
     OWNERLESS = "ownerless"  # no owner (an API key or an automation started it)
     NO_AGENT = "no_agent"  # no agent reference yet (before its first turn)
-    # a run of the session used a person's own credential (M7); never shared after that
-    PERSONAL_CREDENTIALS = "personal_credentials"
 
 
 class SessionSharingState(BaseModel):

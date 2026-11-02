@@ -363,7 +363,7 @@ async def test_refresh_connection_no_auth_is_noop():
     conn = _no_auth_connection_gw()
 
     class _Dao:
-        async def get_connection(self, *, project_id, connection_id):
+        async def get_connection(self, *, project_id, connection_id, owner=None):
             return conn
 
     service.connections_dao = _Dao()

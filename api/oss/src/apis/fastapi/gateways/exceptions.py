@@ -5,7 +5,6 @@ from typing import Any, Dict, Optional
 
 from fastapi import HTTPException, status
 
-from oss.src.core.credentials.policy import PersonalCredentialRefused
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.gateways.types import (
@@ -17,6 +16,7 @@ from oss.src.core.gateways.llms.types import (
     LLMEndpointNotFoundError,
     LLMEndpointProviderMissingError,
     LLMModelIdentifierInvalidError,
+    LLMAgentModelNotAvailableError,
     LLMModelNotAllowedError,
     LLMNamedConnectionNotFoundError,
     LLMOrganizationConnectionSlugRequiredError,
@@ -163,16 +163,6 @@ def handle_gateway_exceptions():
                         details={"target": _target_of(e)},
                     ),
                 ) from e
-            except PersonalCredentialRefused as e:
-                # Each person's own account cannot be used (M7); nothing else is tried.
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=gateway_error_envelope(
-                        code=e.code,
-                        message=e.message,
-                        next_step=None,
-                    ),
-                ) from e
             except LLMNamedConnectionNotFoundError as e:
                 # A typed miss of a connection the agent named, so a caller can ask the
                 # user to configure it.
@@ -292,6 +282,18 @@ def handle_gateway_exceptions():
                         code="mcp_connection_name_taken",
                         message=e.message,
                         next_step="Give this connection a name no other one in the project uses.",
+                    ),
+                ) from e
+            except LLMAgentModelNotAvailableError as e:
+                # The agent's model, refused while its connection resolves: the agent
+                # needs a model this connection offers, before the run starts.
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail=gateway_error_envelope(
+                        code="model_not_available",
+                        message=e.message,
+                        next_step="Pick a model this connection offers.",
+                        details={"target": _target_of(e), "model": e.model},
                     ),
                 ) from e
             except (LLMModelNotAllowedError, MCPToolNotAllowedError) as e:

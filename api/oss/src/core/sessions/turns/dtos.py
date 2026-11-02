@@ -1,4 +1,5 @@
 from datetime import datetime
+from enum import Enum
 from typing import List, Optional
 from uuid import UUID
 
@@ -14,7 +15,18 @@ from oss.src.core.access.dtos import (
     RunSender,
 )
 from oss.src.core.sessions.types import SessionReference
-from oss.src.core.shared.dtos import Identifier, Lifecycle, OTelSpanId
+from oss.src.core.shared.dtos import Identifier, Lifecycle, OTelSpanId, RunUsage
+
+
+class SessionTurnUsageSource(str, Enum):
+    """Where a turn's figures came from: the trace root, or only the runner."""
+
+    RUNNER = "runner"
+    TRACE = "trace"
+
+
+class SessionTurnStoredUsage(RunUsage):
+    source: SessionTurnUsageSource
 
 
 class SessionTurn(Identifier, Lifecycle):
@@ -36,6 +48,8 @@ class SessionTurn(Identifier, Lifecycle):
     sender: Optional[RunSender] = None
     context: Optional[RunContext] = None
     approved_by: Optional[RunApproval] = None
+    # Null when no writer has reported usage yet.
+    usage: Optional[SessionTurnStoredUsage] = None
 
 
 class SessionTurnCreate(BaseModel):
@@ -60,6 +74,8 @@ class SessionTurnComplete(BaseModel):
     turn_index: int
     agent_session_id: Optional[str] = None
     end_time: datetime
+    # The runner's usage of the turn; it fills only the fields that have no value.
+    usage: Optional[RunUsage] = None
     # Server-set. Fills the attribution only on a row that has none.
     envelope: Optional[RunEnvelope] = None
 

@@ -25,6 +25,8 @@ const calls = vi.hoisted(() => ({
     rewind: vi.fn(),
 }))
 const dialog = vi.hoisted(() => ({confirm: vi.fn()}))
+const modelSetup = vi.hoisted(() => ({blocked: false, loading: false, canFix: false}))
+const personalSetup = vi.hoisted(() => ({open: false}))
 
 const approval = {approvalId: "gate-1", toolName: "send_email"}
 
@@ -70,6 +72,7 @@ vi.mock("@agenta/chat/hooks", () => ({
         retryHistory: vi.fn(),
     }),
     useAgentModelKeyStatus: () => ({gateActive: false, loading: false}),
+    useAgentModelSetup: () => modelSetup,
     // The docks open only when the screen enables them, as the real hooks do.
     useElicitationDock: ({enabled}: {enabled: boolean}) => ({
         open: enabled,
@@ -87,6 +90,7 @@ vi.mock("@agenta/chat/hooks", () => ({
 }))
 
 vi.mock("@agenta/chat/components", () => ({
+    ModelSetupBanner: () => null,
     ConnectionFocusProvider: ({children}: {children: ReactNode}) => children,
     ConnectionWarningStrip: () => null,
     ConnectionDock: () => <div data-testid="connection-dock" />,
@@ -155,13 +159,20 @@ vi.mock("@agenta/entities/workflow", async () => {
     return {
         invalidateAgentCommittedRevisionCache: vi.fn(),
         workflowBuildKitOverlayReadyAtomFamily: () => ready,
+        MODEL_SETUP_PLACEHOLDER: "Set up the model to send messages",
     }
 })
 vi.mock("@agenta/entity-ui/agent", () => ({AgentIntroCard: () => null}))
 vi.mock("@agenta/entity-ui/clientTools", () => ({
     SecretRequestDock: () => <div data-testid="secret-dock" />,
 }))
-vi.mock("@agenta/entity-ui/onboarding", () => ({AgentSetupCard: () => null}))
+vi.mock("@agenta/entity-ui/onboarding", () => ({
+    AgentSetupCard: () => null,
+    PersonalAccountsCard: () => <div data-testid="personal-card" />,
+}))
+vi.mock("@/features/chat/usePersonalSetupStep", () => ({
+    usePersonalSetupStep: () => ({open: personalSetup.open, items: [], pendingKeys: new Set()}),
+}))
 vi.mock("@agenta/shared/utils", () => ({isOnScreen: () => true, isOverlayOpen: () => false}))
 vi.mock("@agenta/ui/app-message", () => ({
     message: {warning: vi.fn()},
@@ -244,9 +255,23 @@ vi.mock("@/features/chat/states/PendingTaskError", () => ({
     ),
 }))
 vi.mock("@/features/chat/ConnectModelStrip", () => ({ConnectModelStrip: () => null}))
+vi.mock("@/features/chat/useOpenModelSetup", () => ({useOpenModelSetup: () => vi.fn()}))
 vi.mock("@/features/chat/Composer", () => ({
-    Composer: ({disabled}: {disabled: boolean}) => (
-        <div data-testid="composer" data-disabled={disabled ? "true" : "false"} />
+    Composer: ({
+        disabled,
+        sendDisabled,
+        placeholder,
+    }: {
+        disabled: boolean
+        sendDisabled?: boolean
+        placeholder?: string
+    }) => (
+        <div
+            data-testid="composer"
+            data-disabled={disabled ? "true" : "false"}
+            data-send-disabled={sendDisabled ? "true" : "false"}
+            data-placeholder={placeholder ?? ""}
+        />
     ),
 }))
 vi.mock("@/features/chat/TranscriptTurns", () => ({
@@ -289,6 +314,7 @@ let root: Root
 
 beforeEach(() => {
     for (const fn of Object.values(calls)) fn.mockReset()
+    Object.assign(modelSetup, {blocked: false, loading: false, canFix: false})
     dialog.confirm.mockReset()
     host = document.createElement("div")
     document.body.append(host)
@@ -306,7 +332,11 @@ const viewer: SessionReadOnly = {
     approvalNote: "Waiting for Alice Martin or someone who can send in this chat.",
 }
 
-const render = async (props: {readOnly?: SessionReadOnly | null; canSend?: boolean}) => {
+const render = async (props: {
+    readOnly?: SessionReadOnly | null
+    canSend?: boolean
+    accessPending?: boolean
+}) => {
     await act(async () =>
         root.render(
             <Provider store={createStore()}>
@@ -399,6 +429,32 @@ describe("the live chat for a reader who can send", () => {
     })
 })
 
+describe("the Connect your accounts card", () => {
+    const card = () => host.querySelector('[data-testid="personal-card"]')
+
+    beforeEach(() => {
+        personalSetup.open = true
+    })
+    afterEach(() => {
+        personalSetup.open = false
+    })
+
+    it("shows on a reloaded chat with no row yet, where sending stays off", async () => {
+        await render({readOnly: null, canSend: false, accessPending: false})
+        expect(card()).not.toBeNull()
+    })
+
+    it("waits for the row read, so it does not flash for a read-only reader", async () => {
+        await render({readOnly: null, canSend: false, accessPending: true})
+        expect(card()).toBeNull()
+    })
+
+    it("stays hidden for a read-only reader", async () => {
+        await render({readOnly: viewer, canSend: false, accessPending: false})
+        expect(card()).toBeNull()
+    })
+})
+
 describe("a rewind confirmation open when access goes", () => {
     it("its OK re-runs nothing", async () => {
         const confirm = vi.fn()
@@ -438,5 +494,30 @@ describe("a rewind confirmation open when access goes", () => {
         await act(async () => onOk())
 
         expect(confirm).toHaveBeenCalledTimes(1)
+    })
+})
+
+describe("an agent whose model needs setup", () => {
+    it("turns Send off but keeps typing, swaps the placeholder and holds the Home task", async () => {
+        modelSetup.blocked = true
+        await render({readOnly: null, canSend: true})
+
+        const composer = byId("composer")
+        expect(composer?.dataset.disabled).toBe("false")
+        expect(composer?.dataset.sendDisabled).toBe("true")
+        expect(composer?.dataset.placeholder).toBe("Set up the model to send messages")
+        expect(byId("task-retry")?.dataset.disabled).toBe("true")
+    })
+
+    it("keeps Retry off while the check has not answered, and on once it has", async () => {
+        modelSetup.loading = true
+        await render({readOnly: null, canSend: true})
+
+        expect(byId("composer")?.dataset.sendDisabled).toBe("false")
+        expect(byId("task-retry")?.dataset.disabled).toBe("true")
+
+        modelSetup.loading = false
+        await render({readOnly: null, canSend: true})
+        expect(byId("task-retry")?.dataset.disabled).toBe("false")
     })
 })

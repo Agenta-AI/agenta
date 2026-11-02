@@ -20,4 +20,7 @@ export interface TriggerConnection {
     integration_key: string;
     data?: (Record<string, AgentaApi.FullJsonOutput | null> | null) | undefined;
     status?: (AgentaApi.TriggerConnectionStatus | null) | undefined;
+    organization_id?: (string | null) | undefined;
+    user_id?: (string | null) | undefined;
+    is_default?: boolean | undefined;
 }

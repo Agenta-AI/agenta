@@ -220,6 +220,8 @@ export const triggerSubscriptionDataSchema = z
         inputs_fields: z.union([z.record(z.string(), z.unknown()), z.string()]).nullish(),
         references: z.record(z.string(), triggerReferenceSchema).nullish(),
         selector: triggerSelectorSchema.nullish(),
+        // Adds the event data to the agent's message. Absent reads as on.
+        include_event: z.boolean().nullish(),
     })
     .passthrough()
 export type TriggerSubscriptionData = z.infer<typeof triggerSubscriptionDataSchema>
@@ -310,6 +312,8 @@ export const triggerDeliveryDataSchema = z
         session_id: z.string().nullish(),
         references: z.record(z.string(), triggerReferenceSchema).nullish(),
         inputs: z.record(z.string(), z.unknown()).nullish(),
+        // The event context block the run resolved against (`event_type`, `attributes`, ...).
+        event: z.record(z.string(), z.unknown()).nullish(),
         result: z.record(z.string(), z.unknown()).nullish(),
         error: z.string().nullish(),
         // Set on capture-and-skip deliveries from an is_test subscription.

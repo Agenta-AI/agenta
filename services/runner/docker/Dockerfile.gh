@@ -37,9 +37,10 @@ RUN sh /tmp/install-agent-tools.sh && rm /tmp/install-agent-tools.sh
 # entry in the image. fusermount calls getpwuid() and aborts with "could not determine username"
 # for a nameless uid, killing every geesefs workspace mount. libnss-unknown synthesizes an entry
 # for unknown uids so any `user:` override works.
+# tini: the init process the ENTRYPOINT below runs, see there.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        ca-certificates fuse libnss-unknown \
+        ca-certificates fuse libnss-unknown tini \
     && rm -rf /var/lib/apt/lists/* \
     && echo "user_allow_other" >> /etc/fuse.conf \
     && sed -i -E "s/^(passwd|group):(.*)/\1:\2 unknown/" /etc/nsswitch.conf \
@@ -176,6 +177,13 @@ RUN node_modules/.bin/tsx scripts/patch-codex-acp-approvals.ts
 # data dir the daemon resolves from the overridden HOME. `a+x` grants traversal only: `share` stays
 # unlistable and `pki/` keeps its own 0700. Everything under `sandbox-agent/` is already 0755.
 RUN chmod a+x /home/node/.local/share
+
+# Run under tini so orphaned grandchildren get reaped. Without it `tsx` is PID 1, and a `pi` or
+# `pi-acp` whose parent exits is re-parented to it and stays a zombie for the life of the pod (seen
+# on Kubernetes, where nothing else adds an init). tini forwards SIGTERM to its child only, so the runner
+# still drains its turns before its own children stop. `-s` makes tini a subreaper, so it also works
+# under compose's `init: true`, where Docker's own init is PID 1.
+ENTRYPOINT ["tini", "-s", "--"]
 
 # Call the local tsx binary directly to avoid pnpm/corepack HOME writes when the
 # container runs as a non-root host uid.

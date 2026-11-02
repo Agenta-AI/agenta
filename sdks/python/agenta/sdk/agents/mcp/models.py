@@ -10,9 +10,10 @@ from pydantic import (
     Field,
     field_serializer,
     field_validator,
-    model_serializer,
     model_validator,
 )
+
+from ..accounts import AccountSource
 
 
 Permission = Literal["allow", "ask", "deny"]
@@ -78,41 +79,16 @@ class MCPGatewayConnection(BaseModel):
     namespace: Literal["builtin", "standard", "custom"]
     provider: Optional[str] = Field(default=None, min_length=1, max_length=128)
     slug: Optional[str] = Field(default=None, min_length=1, max_length=128)
-    # Whose server ``slug`` names (M7): the project's (default) or, with ``user``, the
-    # personal server with that slug of the person the run acts for.
-    scope: Optional[Literal["project", "user"]] = None
-    # Whose account the run uses (M7). A personal server (scope ``user``) is always
-    # ``caller_account``. Each person's own sign-in to a project's server is a later step.
-    binding: Optional[Literal["caller_account", "project_default"]] = None
-
-    @model_serializer(mode="wrap")
-    def _omit_unset_fields(self, handler):
-        # An older API or runner refuses unknown keys here, so a reference that names no
-        # scope or binding serializes exactly as it did before M7.
-        data = handler(self)
-        if isinstance(data, dict):
-            for key in ("scope", "binding"):
-                if data.get(key) is None:
-                    data.pop(key, None)
-        return data
-
-    @property
-    def is_personal(self) -> bool:
-        return self.scope == "user"
+    # ``user``: the run person's own sign-in to this project server. Custom routes only;
+    # the slug still names the server.
+    account_source: Optional[AccountSource] = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
     @model_validator(mode="after")
     def _validate_route_identity(self) -> "MCPGatewayConnection":
-        if self.scope == "user" and (
-            self.namespace != "custom" or self.binding != "caller_account"
-        ):
-            raise ValueError(
-                "a personal MCP server (scope 'user') needs namespace 'custom' and "
-                "binding 'caller_account'"
-            )
-        if self.scope != "user" and self.binding == "caller_account":
-            raise ValueError(
-                "each person's own sign-in to a project's MCP server is not available yet"
-            )
+        if self.account_source == "user" and self.namespace != "custom":
+            raise ValueError("account_source 'user' is for custom gateway MCP routes")
         if self.namespace == "custom":
             if not self.slug or self.provider:
                 raise ValueError("custom gateway MCP routes require slug only")

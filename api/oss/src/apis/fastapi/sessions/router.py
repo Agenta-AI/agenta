@@ -39,7 +39,6 @@ from fastapi import UploadFile as FastAPIUploadFile
 from starlette.datastructures import UploadFile
 from typing import Any, Awaitable, Callable, Dict, Optional, Tuple, Union
 
-from oss.src.core.credentials.uses import CredentialUsesDAOInterface
 from oss.src.core.access.context import fresh_request_memo, get_request_access
 from oss.src.core.access.dtos import RunApproval
 from oss.src.core.sessions.streams.types import SessionCreationRequiresRunCredential
@@ -119,7 +118,10 @@ from oss.src.core.sessions.streams.service import (
     SessionStreamsService,
     derive_command_mode,
 )
-from oss.src.core.sessions.commands.service import SessionCommandsService
+from oss.src.core.sessions.commands.service import (
+    SessionCommandsService,
+    steer_cancel_key,
+)
 from oss.src.core.sessions.commands.types import (
     ExecutionExpectationFailed,
     SessionCommandIdempotencyConflict,
@@ -244,8 +246,6 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionTurnAppendRequest,
     SessionTurnCompleteRequest,
     SessionTurnQueryRequest,
-    CredentialUsesQueryRequest,
-    CredentialUsesResponse,
     SessionTurnResponse,
     SessionTurnsResponse,
     # root session-level ops
@@ -1615,6 +1615,31 @@ class RecordsRouter:
                 terminal_outcome=ending,
             )
 
+        attributes = body.attributes
+        if (
+            self.commands_service is not None
+            and body.record_type == TERMINAL_RECORD_TYPE
+            and body.turn_id
+            and (attributes or {}).get("stopReason") == "cancelled"
+        ):
+            # The runner cannot tell a Steer from a Stop: both abort the turn the same way. The
+            # cancel command can, so name the cause on the record and the transcript does not
+            # call a turn the user's own reply replaced "Stopped".
+            try:
+                if await self.commands_service.cancelled_by_steer(
+                    project_id=UUID(project_id),
+                    session_id=body.session_id,
+                    execution_id=body.turn_id,
+                ):
+                    attributes = {**(attributes or {}), "cancelledBy": "steer"}
+            except Exception:  # noqa: BLE001 - the cause is a label; the record must land
+                log.warning(
+                    "cancel cause lookup failed session=%s turn=%s",
+                    body.session_id,
+                    body.turn_id,
+                    exc_info=True,
+                )
+
         published = await publish_record(
             organization_id=UUID(request.state.organization_id),
             project_id=UUID(project_id),
@@ -1626,7 +1651,7 @@ class RecordsRouter:
                 timestamp=body.timestamp,
                 record_type=body.record_type,
                 record_source=body.record_source,
-                attributes=body.attributes,
+                attributes=attributes,
                 turn_id=body.turn_id,
                 span_id=body.span_id,
             ),
@@ -2623,26 +2648,9 @@ class SessionMountsRouter:
 class SessionTurnsRouter:
     """Turns sub-router — /sessions/turns/*"""
 
-    def __init__(
-        self,
-        *,
-        turns_service: SessionTurnsService,
-        credential_uses_dao: Optional[CredentialUsesDAOInterface] = None,
-    ) -> None:
+    def __init__(self, *, turns_service: SessionTurnsService) -> None:
         self.turns_service = turns_service
-        self.credential_uses_dao = credential_uses_dao
         self.router = APIRouter()
-
-        if credential_uses_dao is not None:
-            self.router.add_api_route(
-                "/credential-uses/query",
-                self.query_credential_uses,
-                methods=["POST"],
-                operation_id="query_turn_credential_uses",
-                status_code=status.HTTP_200_OK,
-                response_model=CredentialUsesResponse,
-                response_model_exclude_none=True,
-            )
 
         self.router.add_api_route(
             "/",
@@ -2680,33 +2688,6 @@ class SessionTurnsRouter:
             response_model=SessionTurnResponse,
             response_model_exclude_none=True,
         )
-
-    @intercept_exceptions()
-    async def query_credential_uses(
-        self,
-        request: Request,
-        body: CredentialUsesQueryRequest,
-    ) -> CredentialUsesResponse:
-        """Which person's own account each turn of the session used (M7, design D8).
-        Every reader of the session sees it; a session the caller may not read answers
-        nothing, as the turns query does."""
-        project_id: UUID = request.state.project_id
-        if not await check_action_access(
-            user_uid=str(request.state.user_id),
-            project_id=str(project_id),
-            permission=Permission.VIEW_SESSIONS,
-        ):
-            raise FORBIDDEN_EXCEPTION
-        if not await allow_resource(
-            request,
-            action=Permission.VIEW_SESSIONS,
-            resource=session_resource(body.session_id),
-        ):
-            return CredentialUsesResponse()
-        uses = await self.credential_uses_dao.list_for_session(
-            project_id=UUID(str(project_id)), session_id=body.session_id
-        )
-        return CredentialUsesResponse(count=len(uses), uses=uses)
 
     @intercept_exceptions()
     async def append_turn(
@@ -2799,17 +2780,18 @@ class SessionTurnsRouter:
                 request, session_id=body.session_id, turn_id=None
             ):
                 raise SessionTurnNotFound(body.session_id, body.turn_index)
+            # Runtime handles and usage are kept only from the runner.
+            runner_verified = has_valid_runner_token(request)
             turn = await self.turns_service.complete_turn(
                 project_id=project_id,
                 turn=SessionTurnComplete(
                     session_id=body.session_id,
                     turn_index=body.turn_index,
                     agent_session_id=(
-                        body.agent_session_id
-                        if has_valid_runner_token(request)
-                        else None
+                        body.agent_session_id if runner_verified else None
                     ),
                     end_time=body.end_time,
+                    usage=body.usage if runner_verified else None,
                     envelope=request_run_envelope(request),
                 ),
             )
@@ -3613,7 +3595,7 @@ class SessionControlRouter:
                     user_id=UUID(str(user_id)) if user_id else None,
                     session_id=payload.session_id,
                     expected_execution_id=admission.execution_id,
-                    idempotency_key=f"steer:{admission.input.id}",
+                    idempotency_key=steer_cancel_key(admission.input.id),
                     steer_input_id=admission.input.id,
                 )
             except Exception as error:  # noqa: BLE001 - the input is already durable
@@ -3790,7 +3772,6 @@ class SessionsRouter:
         commands_service: SessionCommandsService,
         run_admission: RunAdmission,
         inputs_service: Optional[SessionInputsService] = None,
-        credential_uses_dao: Optional[CredentialUsesDAOInterface] = None,
     ) -> None:
         self.streams = SessionStreamsRouter(
             service=streams_service,
@@ -3813,9 +3794,7 @@ class SessionsRouter:
             session_mounts_service=session_mounts_service,
             mounts_service=mounts_service,
         )
-        self.turns = SessionTurnsRouter(
-            turns_service=turns_service, credential_uses_dao=credential_uses_dao
-        )
+        self.turns = SessionTurnsRouter(turns_service=turns_service)
         self.root = SessionsRootRouter(
             sessions_service=sessions_service,
             streams_service=streams_service,

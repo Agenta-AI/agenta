@@ -118,8 +118,6 @@ from oss.src.core.evaluations.types import (
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
-from oss.src.apis.fastapi.shared.durable_work import durable_work_refused
-from oss.src.core.access.durable_work import DurableWorkOwnerOnly
 
 if is_ee():
     from ee.src.core.access.entitlements.service import check_entitlements, Counter
@@ -129,8 +127,8 @@ log = get_module_logger(__name__)
 
 
 def _caller(request: Request) -> PrincipalRef:
-    """The principal an evaluation run executes as after a create, start or rerun:
-    the calling request's principal. Never taken from the body."""
+    """The principal an evaluation run executes as after a create, start, rerun or
+    edit: the calling request's principal. Never taken from the body."""
 
     principal = getattr(request.state, "principal", None)
     if principal is None:
@@ -663,16 +661,13 @@ class EvaluationsRouter:
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        try:
-            runs = await self.evaluations_service.edit_runs(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                #
-                runs=runs_edit_request.runs,
-                editor=_caller(request),
-            )
-        except DurableWorkOwnerOnly as e:
-            raise await durable_work_refused(e) from e
+        runs = await self.evaluations_service.edit_runs(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            runs=runs_edit_request.runs,
+            principal=_caller(request),
+        )
 
         runs_response = EvaluationRunsResponse(
             count=len(runs),
@@ -877,16 +872,13 @@ class EvaluationsRouter:
         if str(run_id) != str(run_edit_request.run.id):
             return EvaluationRunResponse()
 
-        try:
-            run = await self.evaluations_service.edit_run(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                #
-                run=run_edit_request.run,
-                editor=_caller(request),
-            )
-        except DurableWorkOwnerOnly as e:
-            raise await durable_work_refused(e) from e
+        run = await self.evaluations_service.edit_run(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            run=run_edit_request.run,
+            principal=_caller(request),
+        )
 
         run_response = EvaluationRunResponse(
             count=1 if run else 0,
@@ -2109,16 +2101,13 @@ class SimpleEvaluationsRouter:
 
         evaluation_edit = evaluation_edit_request.evaluation
 
-        try:
-            evaluation = await self.simple_evaluations_service.edit(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                #
-                evaluation=evaluation_edit,
-                editor=_caller(request),
-            )
-        except DurableWorkOwnerOnly as e:
-            raise await durable_work_refused(e) from e
+        evaluation = await self.simple_evaluations_service.edit(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            evaluation=evaluation_edit,
+            principal=_caller(request),
+        )
 
         response = SimpleEvaluationResponse(
             count=1 if evaluation else 0,
@@ -2580,6 +2569,7 @@ class SimpleEvaluationsRouter:
             user_id=UUID(request.state.user_id),
             #
             run_id=evaluation_id,
+            principal=_caller(request),
             steps=add_request.steps,
         )
 
@@ -2610,6 +2600,7 @@ class SimpleEvaluationsRouter:
             user_id=UUID(request.state.user_id),
             #
             run_id=evaluation_id,
+            principal=_caller(request),
             step_keys=remove_request.step_keys,
         )
 
@@ -2640,6 +2631,7 @@ class SimpleEvaluationsRouter:
             user_id=UUID(request.state.user_id),
             #
             run_id=evaluation_id,
+            principal=_caller(request),
             repeats=repeats_request.repeats,
         )
 

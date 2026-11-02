@@ -1,52 +1,45 @@
 import {useId, useState} from "react"
 
+import ChatMarkdown from "@agenta/chat/markdown"
 import {
     ALL_RELEASES_LINK,
     isWhatsNewOptedOut,
     markAllReleasesSeen,
     RELEASES,
     setWhatsNewOptedOut,
-    type ReleaseEntry,
+    type Release,
 } from "@agenta/navigation"
 import {Button, Checkbox, Dialog, DialogClose, DialogContent, DialogTitle} from "@agenta/ui/ui"
-import {ArrowUpRight, Package, Play, Sparkle, X} from "@phosphor-icons/react"
+import {ArrowUpRight, Sparkle, Wrench, X} from "@phosphor-icons/react"
 import {useAtom} from "jotai"
 
 import {cn} from "@/lib/utils"
 
-import {useMobileVersion} from "../nav/useMobileNavItems"
+import {markdownIcons, proseClassName} from "../chat/AssistantMarkdown"
 
-import {streamPlayerUrl, streamThumbnailUrl} from "./streamMedia"
+import {FadingScrollBody} from "./FadingScrollBody"
+import {ReleaseFeatureVideo} from "./ReleaseFeatureVideo"
+import {ReleaseItemsSection} from "./ReleaseItemsSection"
 import {whatsNewAtom} from "./whatsNewAtom"
 
 /** The rail lists this many releases, newest first; the rest are one link away. */
-const RAIL_COUNT = 4
+const RAIL_COUNT = 6
 
-/** Release clips open on a black frame, so the still is taken a moment in. */
-const STILL_SECONDS = 2
-
-/** The ship date from the documented id convention `changelog-YYYY-MM-DD-slug`. */
-const releaseDate = (release: ReleaseEntry): Date | null => {
-    const match = /^changelog-(\d{4})-(\d{2})-(\d{2})-/.exec(release.id)
-    return match ? new Date(Date.UTC(+match[1], +match[2] - 1, +match[3])) : null
-}
-
-const formatReleaseDate = (release: ReleaseEntry): string =>
-    releaseDate(release)?.toLocaleDateString("en-US", {
+const formatReleaseDate = (release: Release): string => {
+    const [year, month, day] = release.date.split("-").map(Number)
+    return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
         year: "numeric",
         timeZone: "UTC",
-    }) ?? ""
+    })
+}
 
-const NEWEST_RELEASES = [...RELEASES]
-    .sort((a, b) => (releaseDate(b)?.getTime() ?? 0) - (releaseDate(a)?.getTime() ?? 0))
-    .slice(0, RAIL_COUNT)
+const RAIL_RELEASES = RELEASES.slice(0, RAIL_COUNT)
 
 /** Release timeline rail beside the picked release; closing it in any way marks everything seen. */
 export const WhatsNewDialog = () => {
     const [state, setState] = useAtom(whatsNewAtom)
-    const version = useMobileVersion()
     const [selectedId, setSelectedId] = useState<string | null>(null)
     const [playingId, setPlayingId] = useState<string | null>(null)
     // Null until touched, so each opening starts from the stored choice.
@@ -56,9 +49,8 @@ export const WhatsNewDialog = () => {
 
     const selected =
         RELEASES.find((release) => release.id === (selectedId ?? state?.releaseId)) ??
-        NEWEST_RELEASES[0]
+        RAIL_RELEASES[0]
     if (!selected) return null
-    const playing = playingId === selected.id
 
     const close = () => {
         setWhatsNewOptedOut(optOut)
@@ -78,9 +70,9 @@ export const WhatsNewDialog = () => {
             <DialogContent
                 showCloseButton={false}
                 aria-describedby={undefined}
-                className="gap-0 rounded-2xl p-0 shadow-dialog max-md:max-h-[85dvh] md:grid md:h-[540px] md:max-w-[920px] md:grid-cols-[272px_1fr] md:overflow-hidden"
+                className="gap-0 rounded-2xl p-0 shadow-dialog max-md:max-h-[85dvh] md:grid md:h-[min(720px,85dvh)] md:max-w-[1040px] md:grid-cols-[272px_1fr] md:grid-rows-[minmax(0,1fr)] md:overflow-hidden"
             >
-                <div className="flex flex-col border-0 border-solid border-colorBorderSecondary bg-muted px-3 pb-3 pt-5 max-md:border-t md:border-r">
+                <div className="flex flex-col border-0 border-solid border-colorBorderSecondary bg-muted px-3 pb-3 pt-5 max-md:border-t md:min-h-0 md:overflow-y-auto md:border-r">
                     <div className="flex flex-col gap-1 px-2 pb-3">
                         <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
                             What&apos;s new
@@ -91,147 +83,131 @@ export const WhatsNewDialog = () => {
                     </div>
 
                     <div className="flex flex-col">
-                        {NEWEST_RELEASES.map((release, index) => {
-                            const active = release.id === selected.id
-                            return (
-                                <button
-                                    key={release.id}
-                                    type="button"
-                                    onClick={() => select(release.id)}
-                                    className="group grid cursor-pointer grid-cols-[20px_1fr] gap-2 border-0 bg-transparent p-0 text-left"
-                                >
-                                    <span className="relative">
-                                        <span
-                                            className={cn(
-                                                "absolute bottom-0 left-1/2 w-px -translate-x-1/2 bg-border",
-                                                index === 0 ? "top-[19px]" : "top-0",
-                                            )}
-                                        />
-                                        <span
-                                            className={cn(
-                                                "absolute left-1/2 top-[15px] box-border size-[9px] -translate-x-1/2 rounded-full border-[1.5px] border-solid",
-                                                active
-                                                    ? "border-foreground bg-foreground shadow-[0_0_0_3px_var(--hero-action-bg)]"
-                                                    : "border-colorTextQuaternary bg-muted shadow-[0_0_0_3px_var(--muted)]",
-                                            )}
-                                        />
-                                    </span>
-                                    <span
-                                        className={cn(
-                                            "my-1 flex min-w-0 flex-col gap-0.5 rounded-lg border border-solid px-2.5 py-1.5 transition-colors",
-                                            active
-                                                ? "border-colorBorderSecondary bg-background shadow-[var(--ag-surface-card-shadow)]"
-                                                : "border-transparent group-hover:bg-background",
-                                        )}
+                        <div className="flex flex-col gap-2">
+                            {RAIL_RELEASES.map((release, index) => {
+                                const active = release.id === selected.id
+                                return (
+                                    <button
+                                        key={release.id}
+                                        type="button"
+                                        onClick={() => select(release.id)}
+                                        className="group relative grid cursor-pointer grid-cols-[15px_1fr] items-start gap-1.5 border-0 bg-transparent p-0 text-left"
                                     >
-                                        <span className="text-[10.5px] font-medium uppercase tracking-[0.06em] text-colorTextTertiary">
-                                            {formatReleaseDate(release)}
+                                        <span aria-hidden className="relative self-stretch">
+                                            {/* One segment per row, so the thread fits any row height. */}
+                                            <span
+                                                className={cn(
+                                                    "absolute left-1/2 w-px -translate-x-1/2 bg-border",
+                                                    index === 0 ? "top-[17px]" : "top-0",
+                                                    index === RAIL_RELEASES.length - 1
+                                                        ? "h-[17px]"
+                                                        : "-bottom-2",
+                                                )}
+                                            />
+                                            <span
+                                                className={cn(
+                                                    "absolute left-1/2 top-[14px] size-[7px] -translate-x-1/2 rounded-full ring-[3px] ring-muted transition-colors",
+                                                    active
+                                                        ? "bg-foreground"
+                                                        : "bg-colorTextQuaternary group-hover:bg-colorTextTertiary",
+                                                )}
+                                            />
                                         </span>
                                         <span
                                             className={cn(
-                                                "text-[13.5px] leading-[1.35] text-foreground",
-                                                active ? "font-medium" : "font-normal",
+                                                "flex min-w-0 flex-col gap-0.5 rounded-lg px-2.5 py-2 transition-colors",
+                                                active
+                                                    ? "bg-background"
+                                                    : "group-hover:bg-background/60",
                                             )}
                                         >
-                                            {release.title}
+                                            <span className="flex items-center justify-between gap-2 text-[11.5px] text-colorTextTertiary">
+                                                <span className="flex items-center gap-1.5">
+                                                    {release.id}
+                                                    {index === 0 ? (
+                                                        <span className="rounded bg-colorSuccessBg px-1.5 text-[10.5px] font-medium leading-4 text-colorSuccessText">
+                                                            Latest
+                                                        </span>
+                                                    ) : null}
+                                                </span>
+                                                <span>{formatReleaseDate(release)}</span>
+                                            </span>
+                                            <span className="truncate text-[13.5px] leading-5 text-foreground">
+                                                {release.features[0]?.title}
+                                            </span>
                                         </span>
-                                    </span>
-                                </button>
-                            )
-                        })}
-                        <a
-                            href={ALL_RELEASES_LINK}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="grid grid-cols-[20px_1fr] gap-2 text-muted-foreground no-underline hover:text-foreground"
-                        >
-                            <span className="relative h-10">
-                                <span className="absolute left-1/2 top-0 h-[11px] w-px -translate-x-1/2 bg-border" />
-                                <Package
-                                    size={14}
-                                    aria-hidden
-                                    className="absolute left-1/2 top-[13px] -translate-x-1/2"
-                                />
-                            </span>
-                            <span className="flex items-center gap-1 px-3 text-[13px]">
-                                View all releases
-                                <ArrowUpRight size={11} aria-hidden />
-                            </span>
-                        </a>
+                                    </button>
+                                )
+                            })}
+                        </div>
                     </div>
 
-                    {version ? (
-                        <span className="mt-auto px-2 pt-4 text-[11px] text-colorTextTertiary">
-                            Running v{version}
-                        </span>
-                    ) : null}
+                    <a
+                        href={ALL_RELEASES_LINK}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-auto flex items-center gap-1 px-2 pt-4 text-[13px] text-muted-foreground no-underline hover:text-foreground"
+                    >
+                        View all releases
+                        <ArrowUpRight size={11} aria-hidden />
+                    </a>
                 </div>
 
-                <div className="relative order-first flex min-w-0 flex-col px-4 pb-4 pt-11 md:order-none md:px-5 md:pb-5 md:pt-12">
+                <div className="relative order-first flex min-w-0 flex-col md:order-none md:min-h-0">
                     <DialogClose asChild>
                         <Button
                             variant="ghost"
                             size="icon-sm"
                             aria-label="Close"
-                            className="absolute right-2 top-2 text-muted-foreground md:right-3 md:top-3"
+                            className="absolute right-2 top-2 z-10 bg-background/80 text-muted-foreground backdrop-blur-sm hover:bg-background md:right-3 md:top-3"
                         >
                             <X />
                         </Button>
                     </DialogClose>
-                    <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-solid border-colorBorderSecondary">
-                        {selected.streamVideoId && playing ? (
-                            <iframe
-                                // Keyed so a new release swaps the player rather than navigating it.
-                                key={selected.streamVideoId}
-                                src={streamPlayerUrl(selected.streamVideoId)}
-                                title={selected.title}
-                                className="block size-full border-0 bg-black"
-                                allow="autoplay; fullscreen; picture-in-picture"
-                            />
-                        ) : selected.streamVideoId ? (
-                            <button
-                                type="button"
-                                onClick={() => setPlayingId(selected.id)}
-                                aria-label={`Play ${selected.title}`}
-                                className="block size-full cursor-pointer border-0 bg-black p-0"
-                            >
-                                <img
-                                    src={streamThumbnailUrl(selected.streamVideoId, STILL_SECONDS)}
-                                    alt=""
-                                    className="block size-full object-cover"
+
+                    <FadingScrollBody
+                        // Keyed so a newly picked release opens scrolled to the top.
+                        key={selected.id}
+                        className="flex flex-col gap-8 px-4 pb-6 pt-12 md:min-h-0 md:flex-1 md:overflow-y-auto md:px-6 md:pt-6"
+                    >
+                        {selected.features.map((feature) => (
+                            <section key={feature.id} className="flex flex-col gap-3">
+                                {feature.streamVideoId ? (
+                                    <ReleaseFeatureVideo
+                                        feature={feature}
+                                        videoId={feature.streamVideoId}
+                                        playing={playingId === feature.id}
+                                        onPlay={() => setPlayingId(feature.id)}
+                                    />
+                                ) : null}
+                                <h2 className="m-0 pr-10 text-[17px] font-semibold tracking-[-0.015em] text-foreground md:text-[20px]">
+                                    {feature.title}
+                                </h2>
+                                <ChatMarkdown
+                                    baseClassName={proseClassName}
+                                    content={feature.body}
+                                    icons={markdownIcons}
                                 />
-                                <span className="absolute bottom-4 left-4 inline-flex h-[34px] items-center gap-2 rounded-full bg-background pl-[5px] pr-[13px] text-[13px] font-medium text-foreground shadow-overlay">
-                                    <span className="inline-flex size-6 items-center justify-center rounded-full bg-hero-action text-hero-action-foreground">
-                                        <Play size={11} weight="fill" aria-hidden />
-                                    </span>
-                                    Play
-                                </span>
-                            </button>
-                        ) : (
-                            <div className="flex size-full flex-col items-center justify-center gap-3.5 bg-muted bg-[radial-gradient(var(--border)_1px,transparent_1px)] bg-[size:16px_16px]">
-                                <span className="inline-flex size-16 items-center justify-center rounded-2xl border border-solid border-colorBorderSecondary bg-background text-foreground shadow-[var(--ag-surface-card-shadow)]">
-                                    <Sparkle size={28} aria-hidden />
-                                </span>
-                                <span className="text-[17px] font-semibold text-foreground">
-                                    {selected.title}
-                                </span>
-                                <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-colorTextTertiary">
-                                    {formatReleaseDate(selected)}
-                                </span>
+                            </section>
+                        ))}
+
+                        {selected.improvements.length > 0 || selected.fixes.length > 0 ? (
+                            <div className="flex flex-col gap-2">
+                                <ReleaseItemsSection
+                                    title="Improvements"
+                                    icon={Sparkle}
+                                    items={selected.improvements}
+                                />
+                                <ReleaseItemsSection
+                                    title="Fixes"
+                                    icon={Wrench}
+                                    items={selected.fixes}
+                                />
                             </div>
-                        )}
-                    </div>
+                        ) : null}
+                    </FadingScrollBody>
 
-                    <div className="mt-4 flex flex-col gap-1.5">
-                        <h2 className="m-0 text-[17px] font-semibold tracking-[-0.015em] text-foreground md:text-[20px]">
-                            {selected.title}
-                        </h2>
-                        <p className="m-0 max-w-[56ch] text-[14px] leading-[1.55] text-muted-foreground">
-                            {selected.description}
-                        </p>
-                    </div>
-
-                    <div className="-mb-2 mt-auto flex items-center justify-between gap-3 pt-3">
+                    <div className="flex items-center justify-between gap-3 border-0 border-t border-solid border-colorBorderSecondary px-4 py-2.5 md:px-6">
                         <label
                             htmlFor={optOutId}
                             className="flex cursor-pointer items-center gap-2 whitespace-nowrap text-[13px] text-muted-foreground"
@@ -249,7 +225,7 @@ export const WhatsNewDialog = () => {
                             className="rounded-[10px] px-3 text-[13.5px] font-normal hover:bg-muted"
                         >
                             <a
-                                href={selected.link ?? ALL_RELEASES_LINK}
+                                href={selected.features[0]?.link ?? ALL_RELEASES_LINK}
                                 target="_blank"
                                 rel="noreferrer"
                             >

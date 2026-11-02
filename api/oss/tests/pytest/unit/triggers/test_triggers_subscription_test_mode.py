@@ -98,14 +98,10 @@ def _create(*, is_test, references=None):
     )
 
 
-_OWNER = any_principal()
-
-
 def _existing(*, is_test):
     return TriggerSubscription(
         id=uuid4(),
         created_by_id=uuid4(),
-        principal=_OWNER,
         connection_id=uuid4(),
         trigger_id="ti_existing",
         flags=TriggerSubscriptionFlags(is_test=is_test),
@@ -162,8 +158,8 @@ async def test_edit_to_test_bypasses_validation_and_forces_active():
     result = await service.edit_subscription(
         project_id=uuid4(),
         user_id=uuid4(),
-        editor=_OWNER,
         subscription=_edit(existing, is_test=True),
+        principal=any_principal(),
     )
 
     service._validate_references.assert_not_awaited()
@@ -180,8 +176,8 @@ async def test_edit_test_off_rejects_when_references_do_not_resolve():
         await service.edit_subscription(
             project_id=uuid4(),
             user_id=uuid4(),
-            editor=_OWNER,
             subscription=_edit(existing, is_test=False, references=None),
+            principal=any_principal(),
         )
 
 
@@ -193,8 +189,8 @@ async def test_edit_test_off_succeeds_when_references_resolve():
     result = await service.edit_subscription(
         project_id=uuid4(),
         user_id=uuid4(),
-        editor=_OWNER,
         subscription=_edit(existing, is_test=False, references={"workflow": {}}),
+        principal=any_principal(),
     )
 
     service._validate_references.assert_awaited_once()

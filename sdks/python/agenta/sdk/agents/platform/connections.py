@@ -630,6 +630,12 @@ _SUBSCRIPTION_RUNS: Dict[str, _SubscriptionRun] = {
 }
 
 
+def subscription_runs_on(provider: str, harness: str) -> bool:
+    """Whether a subscription login of ``provider`` can drive ``harness``."""
+    run = _SUBSCRIPTION_RUNS.get(provider)
+    return run is not None and run.harness == harness
+
+
 @dataclass
 class _SubscriptionCandidate:
     """One ``subscription_provider`` vault record, as the resolver reads it."""
@@ -713,7 +719,7 @@ def _resolve_subscription(
     # The pair is checked before the login state: signing in again would not help a run
     # that cannot consume the credential in the first place.
     run = _SUBSCRIPTION_RUNS.get(chosen.provider)
-    if run is None or harness != run.harness:
+    if not subscription_runs_on(chosen.provider, harness):
         raise SubscriptionNotSupportedError(
             harness=harness,
             provider=chosen.provider,
@@ -880,6 +886,11 @@ def _resolve_from_secrets(
     if inferred:
         model = model.model_copy(update={"provider": inferred})
     if connection.mode == "self_managed":
+        if connection.account_source == "user":
+            # The run person's own subscription login. No flow stores one yet, so it is
+            # a missing model (Needs setup), and it never falls back to the login of the
+            # runner operator.
+            raise SubscriptionConnectionMissingError(slug="")
         subscription_slug = _stripped(connection.slug)
         if connection.is_organization:
             # The rows here are the project's; an organization login is released by its own
@@ -1223,10 +1234,6 @@ class VaultConnectionResolver:
         # is byte for byte what it was.
         if model.connection.scope is not None:
             body["connection_scope"] = model.connection.scope
-        # Sent only when set (M7). The run's signed bindings decide; this lets the gateway
-        # refuse a personal-account connection whose run carries none.
-        if model.connection.binding is not None:
-            body["connection_binding"] = model.connection.binding
 
         try:
             async with httpx.AsyncClient(timeout=self._connection.timeout) as client:
@@ -1276,10 +1283,6 @@ class VaultConnectionResolver:
                     raise OrganizationConnectionUnavailableError(
                         slug=model.connection.slug or ""
                     )
-                # Each person's own key is served only by the gateway (M7). The vault
-                # path would answer the project's key, which this agent did not pick.
-                if model.connection.is_caller_account:
-                    raise refusal
                 return await self._resolve_from_vault(
                     api_base=api_base,
                     authorization=authorization,
@@ -1315,12 +1318,6 @@ class VaultConnectionResolver:
         provider = resolved.get("provider_key")
         deployment = resolved.get("deployment_kind")
         namespace = resolved.get("namespace")
-        # Each person's own key is answered only in the `user` namespace (M7). An API
-        # that predates bindings ignores the field and answers the shared connection.
-        if model.connection.is_caller_account and namespace != "user":
-            raise ConnectionResolutionError(
-                "the gateway did not resolve each person's own account"
-            )
         name = resolved.get("name")
         resolved_model = resolved.get("model")
         if not all(

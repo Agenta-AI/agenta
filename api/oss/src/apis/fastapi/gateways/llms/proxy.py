@@ -8,7 +8,6 @@ import httpx
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
-from oss.src.core.credentials.policy import PersonalCredentialRefused
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 from oss.src.apis.fastapi.gateways.exceptions import log_plane_disabled
@@ -89,7 +88,6 @@ _DOMAIN_EXCEPTIONS = (
     SecretInvalidError,
     LLMEndpointNotFoundError,
     LLMNamedConnectionNotFoundError,
-    PersonalCredentialRefused,
     LLMUpstreamError,
 )
 
@@ -321,15 +319,6 @@ def _map_domain_exception(exc: Exception) -> JSONResponse:
             error_type="invalid_request_error",
             code="endpoint_not_found",
         )
-    if isinstance(exc, PersonalCredentialRefused):
-        # The person's own account cannot be used (M7). The message is for the person.
-        return _openai_error(
-            status_code=403,
-            message=exc.message,
-            error_type="invalid_request_error",
-            code=exc.code,
-            headers=_NOT_RETRYABLE,
-        )
     if isinstance(exc, LLMNamedConnectionNotFoundError):
         return _openai_error(
             status_code=404,
@@ -473,12 +462,6 @@ class LLMGatewayProxy:
             operation_id="llm_gateway_chat_completions_organization",
         )
         self.router.add_api_route(
-            "/user/{provider}/v1/chat/completions",
-            self.chat_completions_user,
-            methods=["POST"],
-            operation_id="llm_gateway_chat_completions_user",
-        )
-        self.router.add_api_route(
             "/builtin/{provider}/v1/responses",
             self.responses_builtin,
             methods=["POST"],
@@ -501,12 +484,6 @@ class LLMGatewayProxy:
             self.responses_organization,
             methods=["POST"],
             operation_id="llm_gateway_responses_organization",
-        )
-        self.router.add_api_route(
-            "/user/{provider}/v1/responses",
-            self.responses_user,
-            methods=["POST"],
-            operation_id="llm_gateway_responses_user",
         )
         self.router.add_api_route(
             "/builtin/{provider}/v1/messages",
@@ -539,12 +516,6 @@ class LLMGatewayProxy:
             operation_id="llm_gateway_messages_organization",
         )
         self.router.add_api_route(
-            "/user/{provider}/v1/messages",
-            self.messages_user,
-            methods=["POST"],
-            operation_id="llm_gateway_messages_user",
-        )
-        self.router.add_api_route(
             "/builtin/{provider}/v1/models",
             self.list_models_builtin,
             methods=["GET"],
@@ -567,12 +538,6 @@ class LLMGatewayProxy:
             self.list_models_organization,
             methods=["GET"],
             operation_id="llm_gateway_list_models_organization",
-        )
-        self.router.add_api_route(
-            "/user/{provider}/v1/models",
-            self.list_models_user,
-            methods=["GET"],
-            operation_id="llm_gateway_list_models_user",
         )
 
     # --- chat completions ---------------------------------------------------- #
@@ -619,17 +584,6 @@ class LLMGatewayProxy:
             protocol=LLMProtocol.CHAT_COMPLETIONS,
         )
 
-    async def chat_completions_user(self, request: Request, provider: str) -> Response:
-        # The person's own key for `provider` (M7): only for a run whose signed bindings
-        # name this model connection as each person's own account.
-        return await self._relay(
-            request,
-            namespace=GatewayEndpointNamespace.USER,
-            name=provider,
-            parser=parse_llm_call_context,
-            protocol=LLMProtocol.CHAT_COMPLETIONS,
-        )
-
     # --- responses -------------------------------------------------------------- #
 
     async def responses_builtin(self, request: Request, provider: str) -> Response:
@@ -668,17 +622,6 @@ class LLMGatewayProxy:
             protocol=LLMProtocol.RESPONSES,
         )
 
-    async def responses_user(self, request: Request, provider: str) -> Response:
-        # The person's own key for `provider` (M7): only for a run whose signed bindings
-        # name this model connection as each person's own account.
-        return await self._relay(
-            request,
-            namespace=GatewayEndpointNamespace.USER,
-            name=provider,
-            parser=parse_responses_call_context,
-            protocol=LLMProtocol.RESPONSES,
-        )
-
     # --- messages --------------------------------------------------------------- #
 
     async def messages_builtin(self, request: Request, provider: str) -> Response:
@@ -709,17 +652,6 @@ class LLMGatewayProxy:
         )
 
     # --- gemini (native) ---------------------------------------------------------- #
-
-    async def messages_user(self, request: Request, provider: str) -> Response:
-        # The person's own key for `provider` (M7): only for a run whose signed bindings
-        # name this model connection as each person's own account.
-        return await self._relay(
-            request,
-            namespace=GatewayEndpointNamespace.USER,
-            name=provider,
-            parser=parse_messages_call_context,
-            protocol=LLMProtocol.MESSAGES,
-        )
 
     async def gemini_stream_builtin(
         self, request: Request, provider: str, model: str
@@ -860,11 +792,6 @@ class LLMGatewayProxy:
     async def list_models_organization(self, slug: str) -> Any:
         return await self._list_models(
             namespace=GatewayEndpointNamespace.ORGANIZATION, name=slug
-        )
-
-    async def list_models_user(self, provider: str) -> Any:
-        return await self._list_models(
-            namespace=GatewayEndpointNamespace.USER, name=provider
         )
 
     async def _list_models(

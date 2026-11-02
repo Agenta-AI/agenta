@@ -1,5 +1,6 @@
-import {renderAsync} from "docx-preview"
+import {parseAsync, renderDocument} from "docx-preview"
 
+import {documentBody, modelBlocks, tagBlocks} from "./docxBlocks"
 import {pageAtLine, sectionPageCount} from "./docxPages"
 import {runViewer} from "./runtime"
 
@@ -73,13 +74,20 @@ runViewer({
     kind: "document",
     render: async (bytes, root, {reflow}) => {
         root.classList.toggle("reflow", reflow)
-        await renderAsync(bytes, root, docxStyles, {
+        const options = {
             renderAltChunks: false,
             useBase64URL: true,
             breakPages: !reflow,
             ignoreWidth: reflow,
             ignoreHeight: reflow,
-        })
+        }
+        // keepOrigin keeps the body XML, which numbers the blocks the way python-docx does.
+        const doc = await parseAsync(bytes, {...options, keepOrigin: true} as typeof options)
+        tagBlocks(modelBlocks(doc), documentBody(doc))
+        const nodes = await renderDocument(doc, options)
+        docxStyles.innerHTML = ""
+        root.innerHTML = ""
+        for (const node of nodes) (node.nodeName === "STYLE" ? docxStyles : root).appendChild(node)
         const slideCount = countPages(root)
         fitPages(root)
         document.body.scrollTop = 0

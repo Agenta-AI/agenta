@@ -12,12 +12,14 @@ import {
     ConnectionFocusProvider,
     ConnectionWarningStrip,
     ElicitationDock,
+    ModelSetupBanner,
     QueuedMessagesDock,
 } from "@agenta/chat/components"
 import type {QueuedMessage} from "@agenta/chat/hooks"
 import {
     useAgentConversation,
     useAgentModelKeyStatus,
+    useAgentModelSetup,
     useConnectionDock,
     useElicitationDock,
     useComposerAttachments,
@@ -27,6 +29,7 @@ import {
     getLivePendingApprovals,
     isSessionTurnStopping,
     refusedSendReason,
+    SendRefusedError,
     type TurnViewModel,
 } from "@agenta/chat/model"
 import {getSessionTurnId} from "@agenta/chat/state"
@@ -39,11 +42,12 @@ import {
 } from "@agenta/entities/session"
 import {
     invalidateAgentCommittedRevisionCache,
+    MODEL_SETUP_PLACEHOLDER,
     workflowBuildKitOverlayReadyAtomFamily,
 } from "@agenta/entities/workflow"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {SecretRequestDock} from "@agenta/entity-ui/clientTools"
-import {AgentSetupCard} from "@agenta/entity-ui/onboarding"
+import {AgentSetupCard, PersonalAccountsCard} from "@agenta/entity-ui/onboarding"
 import {isOnScreen, isOverlayOpen} from "@agenta/shared/utils"
 import {message, modal} from "@agenta/ui/app-message"
 import {ChatBubble} from "@agenta/ui/components/presentational"
@@ -80,6 +84,7 @@ import {MODEL_KEY_WAIT_LIMIT_MS, pendingTaskDecision} from "./pendingTaskPolicy"
 import {ReadOnlyComposerNotice} from "./ReadOnlyComposerNotice"
 import {heldCommitAtomFamily, selectedRevisionAtomFamily} from "./selectedRevision"
 import type {SessionReadOnly} from "./sessionReadOnly"
+import {refreshOnSetupFailure} from "./setupFailureRefresh"
 import {ChatLoading} from "./states/ChatStates"
 import {PendingTaskError} from "./states/PendingTaskError"
 import {cancelledStopAction} from "./stopHereState"
@@ -88,6 +93,8 @@ import {mobileTurnRowClass} from "./turnRowClass"
 import {mergeAssistantRuns} from "./turnRuns"
 import {deriveMobileRemoteTurnPresentation, showTrailingWorkingPulse} from "./turnStatus"
 import {useApprovalActions, type ApprovalActions} from "./useApprovalActions"
+import {useOpenModelSetup} from "./useOpenModelSetup"
+import {usePersonalSetupStep} from "./usePersonalSetupStep"
 import {useSessionSetupStep} from "./useSessionSetupStep"
 import {useSessionWatch} from "./useSessionWatch"
 import {useStartBlankSession} from "./useStartBlankSession"
@@ -123,6 +130,7 @@ export const LiveConversation = ({
     agentId,
     readOnly = null,
     canSend = true,
+    accessPending = false,
     embedded = false,
 }: {
     entityId: string
@@ -147,6 +155,8 @@ export const LiveConversation = ({
      * yet: every control that sends, approves, answers or re-runs is off, shortcuts included.
      */
     canSend?: boolean
+    /** The session row read has not answered yet. */
+    accessPending?: boolean
     /** Rendered inside a workspace pane — the shell and its rail belong to the parent. */
     embedded?: boolean
 }) => {
@@ -198,6 +208,7 @@ export const LiveConversation = ({
     }, [])
     const sendFailed = useCallback(
         (message: {text: string; fileParts?: FileUIPart[]}, error?: unknown) => {
+            refreshOnSetupFailure(error instanceof SendRefusedError ? error.refusalCode : null)
             if (onScreenRef.current) {
                 dropUnacceptedLocalSession(sessionId)
                 return
@@ -287,12 +298,18 @@ export const LiveConversation = ({
     // Wallet credits fund runs without a key, and an unanswered wallet is not "no credits".
     const walletPending = modelKey.gateActive && wallet.isLoading
     const modelBlocked = modelKey.gateActive && !hasCredits && !wallet.isLoading
-    // The strip stays hidden until the vault and wallet answer, but the parked task must NOT go
-    // out on that same unknown — see `pendingTaskPolicy`.
-    const modelKeyLoading = modelKey.loading || walletPending
+    // The server's needs-setup check: a model item that needs setup turns Send off, not typing.
+    // Subscribed here so the check starts with the screen's other requests.
+    const modelSetup = useAgentModelSetup(entityId)
+    const setupBlocked = modelSetup.blocked && !modelBlocked
+    const openModelSetup = useOpenModelSetup()
+    // The strips stay hidden until the vault, the wallet and the needs-setup check answer, but the
+    // parked task must NOT go out on that same unknown — see `pendingTaskPolicy`.
+    const modelKeyLoading = modelKey.loading || walletPending || modelSetup.loading
 
-    // The vault wait is bounded (`pendingTaskPolicy`). This stays 0 while the wait is on and
-    // becomes the elapsed time when the deadline fires, which is the render that releases the task.
+    // The wait for the vault, the wallet and the needs-setup check is bounded (`pendingTaskPolicy`).
+    // This stays 0 while the wait is on and becomes the elapsed time when the deadline fires, which
+    // is the render that releases the task.
     const modelKeyWaitStartRef = useRef<number | null>(null)
     const [modelKeyWaitedMs, setModelKeyWaitedMs] = useState(0)
     useEffect(() => {
@@ -411,6 +428,8 @@ export const LiveConversation = ({
     // its own. Holds the first message while it does; declines silently when there is nothing to
     // ask, which is every other way into this screen.
     const setup = useSessionSetupStep(sessionId)
+    // The viewer's own missing "user" items. Optional: it never holds a message.
+    const personalSetup = usePersonalSetupStep(sessionId, entityId)
     useEffect(() => {
         if (!pendingTask || pendingTask.delivery || locked) return
         const decision = pendingTaskDecision({
@@ -419,7 +438,7 @@ export const LiveConversation = ({
             hydrating: isHydrating,
             modelKeyLoading,
             modelKeyWaitedMs,
-            modelBlocked,
+            modelBlocked: modelBlocked || setupBlocked,
             setupBlocking: setup.blocking,
         })
         if (decision === "hold") return
@@ -437,6 +456,7 @@ export const LiveConversation = ({
         modelKeyLoading,
         modelKeyWaitedMs,
         modelBlocked,
+        setupBlocked,
         setup.blocking,
         send,
         sessionId,
@@ -1006,10 +1026,30 @@ export const LiveConversation = ({
                                 </ContentRail>
                             </div>
                         ) : null}
+                        {/* The viewer's own accounts for this agent's "user" items. After the
+                        template step, which asks first when both would show. Not `locked`: a
+                        reloaded chat with no turns has no session row, so sending stays off, and
+                        the card holds no message. */}
+                        {personalSetup.open && !setup.open && !readOnly && !accessPending ? (
+                            <div className="bg-background shrink-0 px-3 pt-3 pb-0">
+                                <ContentRail>
+                                    <PersonalAccountsCard
+                                        workflowId={personalSetup.workflowId}
+                                        items={personalSetup.items}
+                                        pendingKeys={personalSetup.pendingKeys}
+                                        onContinue={personalSetup.close}
+                                        onDismiss={personalSetup.close}
+                                    />
+                                </ContentRail>
+                            </div>
+                        ) : null}
                         {/* Docked with the other strips, directly above the composer it disables —
                         the same place the desktop banner sits. */}
                         <ContentRail>
                             <ConnectModelStrip gateActive={modelBlocked} />
+                            {modelBlocked ? null : (
+                                <ModelSetupBanner revisionId={entityId} onSetUp={openModelSetup} />
+                            )}
                         </ContentRail>
                         {/* Failed Home tasks retain their original text and files for retry. */}
                         {pendingTaskError ? (
@@ -1025,6 +1065,7 @@ export const LiveConversation = ({
                                     setup.blocking ||
                                     isHydrating ||
                                     modelBlocked ||
+                                    setupBlocked ||
                                     (modelKeyLoading && modelKeyWaitedMs < MODEL_KEY_WAIT_LIMIT_MS)
                                 }
                                 onRetry={() => {
@@ -1066,12 +1107,19 @@ export const LiveConversation = ({
                                         // had already gone would hand the text back with that dock's
                                         // request silently cancelled. Both writes go out, and the
                                         // first rejection is what the composer reports.
+                                        //
+                                        // The steer waits on the dismissals, but its message shows
+                                        // now: awaiting them first left the run resuming with the
+                                        // message nowhere on screen.
                                         if (elicits.open || connects.open) {
-                                            await Promise.all([
+                                            const dismissed = Promise.all([
                                                 elicits.open ? elicits.dismiss() : null,
                                                 connects.open ? connects.dismiss() : null,
                                             ])
-                                            await conversation.steer({text, parts, stagedFiles})
+                                            await conversation.steer(
+                                                {text, parts, stagedFiles},
+                                                {after: dismissed},
+                                            )
                                             return
                                         }
                                         await send({text, parts, stagedFiles})
@@ -1091,8 +1139,13 @@ export const LiveConversation = ({
                                         await conversation.steer({text, parts, stagedFiles})
                                 }}
                                 disabled={disabled}
+                                sendDisabled={setupBlocked}
                                 placeholder={
-                                    modelBlocked ? "Connect a model to start chatting…" : undefined
+                                    modelBlocked
+                                        ? "Connect a model to start chatting…"
+                                        : setupBlocked
+                                          ? MODEL_SETUP_PLACEHOLDER
+                                          : undefined
                                 }
                                 hasTurns={!conversation.isEmpty}
                                 waitingOnUser={parkedOnUser}

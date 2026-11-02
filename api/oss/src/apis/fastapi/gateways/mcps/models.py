@@ -7,7 +7,7 @@ The house triple, matching `triggers/models.py`, plus the connect shapes.
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from oss.src.core.gateways.mcps.dtos import (
     MCPCredentialBinding,
@@ -34,14 +34,30 @@ class MCPEndpointQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
+class MCPUserSignIn(BaseModel):
+    """The caller's own sign-in to a server. `is_ready` has the meaning of
+    `ItemAccount.is_ready`."""
+
+    is_ready: bool
+
+
+class MCPEndpointWithSignIn(MCPEndpoint):
+    # Built from a stored `MCPEndpoint` by the routes that have no sign-in to add.
+    model_config = ConfigDict(from_attributes=True)
+
+    # The caller's own sign-in; null when they have none. Left out for a caller who is no
+    # person, with personal accounts off, and for a server that takes no sign-in.
+    user_sign_in: Optional[MCPUserSignIn] = None
+
+
 class MCPEndpointResponse(BaseModel):
     count: int = 0
-    endpoint: Optional[MCPEndpoint] = None
+    endpoint: Optional[MCPEndpointWithSignIn] = None
 
 
 class MCPEndpointsResponse(BaseModel):
     count: int = 0
-    endpoints: List[MCPEndpoint] = Field(default_factory=list)
+    endpoints: List[MCPEndpointWithSignIn] = Field(default_factory=list)
 
 
 class MCPEndpointCheckRequest(BaseModel):
@@ -66,6 +82,9 @@ class MCPConnectRequest(BaseModel):
     `scopes` present (an empty list is a legal "no scopes") is the begin step."""
 
     scopes: Optional[List[str]] = None
+    # A person's own token for a token server (`owner_kind=user`). Write-only: never
+    # returned, never logged.
+    token: Optional[str] = Field(default=None, repr=False)
 
     @field_validator("scopes")
     @classmethod

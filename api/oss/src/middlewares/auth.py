@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 from re import compile as re_compile
 from uuid import UUID
 from datetime import datetime, timezone
@@ -15,7 +15,6 @@ from jwt import encode, decode, DecodeError, ExpiredSignatureError, InvalidToken
 from supertokens_python.recipe.session.exceptions import TryRefreshTokenError
 from supertokens_python.asyncio import get_user as get_supertokens_user_by_id
 
-from oss.src.core.credentials.bindings import claims_from_token
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache
@@ -60,6 +59,7 @@ from oss.src.core.access.principals import (
     envelope_to_claims,
     missing_principal_error,
 )
+from oss.src.core.account_choices.claims import run_accounts_from_claim
 from oss.src.core.access.types import InvalidRunClaims
 from oss.src.core.memberships.service import get_memberships_service
 
@@ -82,11 +82,10 @@ _CREDENTIALS_HEADER = "X-AG-Credentials"
 
 # `/gateways/{plane}/{namespace}/...` is the data plane; `/gateways/{plane}/endpoints/...`
 # is ordinary CRUD. No namespace can spell `endpoints`, which is what keeps the two apart
-# under one mount prefix. Only the LLM plane has the `organization` namespace (M5);
-# both planes have `user` (M7), a person's own key or server.
+# under one mount prefix. Only the LLM plane has the `organization` namespace (M5).
 _GATEWAY_DATA_PLANE = re_compile(
     r"^(?:/api)?/gateways/"
-    r"(?:llms/(?:builtin|standard|custom|organization|user)|mcps/(?:builtin|standard|custom|user))"
+    r"(?:llms/(?:builtin|standard|custom|organization)|mcps/(?:builtin|standard|custom))"
     r"(?:/|$)"
 )
 
@@ -544,8 +543,7 @@ def _build_request_access_from_state(request: Request) -> Optional[RequestAccess
             credential_kind=credential_kind,
             acting_user_id=UUID(str(user_id)),
             envelope=getattr(state, "run_envelope", None),
-            bindings=getattr(state, "gateway_bindings", None) or (),
-            session_id=getattr(state, "gateway_session_id", None),
+            run_accounts=getattr(state, "run_accounts", None) or (),
         )
     except (TypeError, ValueError, ValidationError):
         log.warning("[auth] request access could not be built", exc_info=True)
@@ -1539,13 +1537,13 @@ async def verify_secret_token(
         request.state.gateway_run_id = auth_context.get("gateway_run_id")
         request.state.gateway_run_labels = auth_context.get("gateway_run_labels")
         request.state.gateway_tools = auth_context.get("gateway_tools")
-        request.state.gateway_bindings = claims_from_token(
-            auth_context.get("gateway_bindings")
-        )
-        session_claim = auth_context.get("gateway_session_id")
-        request.state.gateway_session_id = (
-            session_claim if isinstance(session_claim, str) and session_claim else None
-        )
+        # The run's "user" accounts, by id. A malformed claim refuses the credential.
+        try:
+            request.state.run_accounts = run_accounts_from_claim(
+                auth_context.get("run_accounts")
+            )
+        except InvalidRunClaims as exc:
+            raise DecodeError("Secret token carries invalid run accounts.") from exc
         request.state.gateway_platform_run = (
             audience == GATEWAY_TOKEN_AUDIENCE
             and auth_context.get("gateway_platform_run") is True
@@ -1641,10 +1639,12 @@ async def sign_secret_token(
     expires_in: Optional[int] = None,
     *,
     envelope: RunEnvelope,
-    gateway_bindings: Optional[List[Dict[str, Any]]] = None,
-    gateway_session_id: Optional[str] = None,
+    run_accounts: Optional[List[dict]] = None,
 ):
     """Mint a secret token. `expires_in` overrides the default lifetime, in seconds.
+
+    `run_accounts` is the run's `run_accounts` claim (the ready accounts of its "user"
+    items, by id), written only when set. It is not an envelope claim.
 
     `envelope` is required: every run credential carries its principal, authority and
     run context as claims (`principal`, `restrictions`, `authority`, `run`, `sender`,
@@ -1718,15 +1718,8 @@ async def sign_secret_token(
         if gateway_platform_run:
             auth_context["gateway_platform_run"] = True
 
-        # The run's `caller_account` connections (M7), signed from the resolved revision.
-        # Absent unless set: a lookup with no binding is the project's shared account.
-        if gateway_bindings:
-            auth_context["gateway_bindings"] = list(gateway_bindings)
-        # The session the run belongs to: the shared-session guard of a person's own
-        # credential reads it (M7), also in a child run of this one. Unlike the run
-        # labels, it authorizes, so it is never taken from a caller's body.
-        if gateway_session_id:
-            auth_context["gateway_session_id"] = str(gateway_session_id)
+        if run_accounts:
+            auth_context["run_accounts"] = list(run_accounts)
 
         auth_context.update(envelope_to_claims(envelope=envelope))
 

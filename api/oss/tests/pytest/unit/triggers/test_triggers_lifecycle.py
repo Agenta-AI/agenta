@@ -405,7 +405,7 @@ async def test_deleted_configurations_are_rejected_by_edit_and_activation_paths(
             project_id=uuid4(),
             user_id=uuid4(),
             subscription=MagicMock(id=uuid4()),
-            editor=any_principal(),
+            principal=any_principal(),
         )
         is None
     )
@@ -421,7 +421,7 @@ async def test_deleted_configurations_are_rejected_by_edit_and_activation_paths(
             project_id=uuid4(),
             user_id=uuid4(),
             schedule=MagicMock(id=uuid4()),
-            editor=any_principal(),
+            principal=any_principal(),
         )
         is None
     )

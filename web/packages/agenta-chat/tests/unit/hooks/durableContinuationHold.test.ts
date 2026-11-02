@@ -35,11 +35,15 @@ const AFTER_CONTINUATION_DONE = 12
 const messagesAfter = (count: number): UIMessage[] =>
     transcriptToMessages(records.slice(0, count) as never) ?? []
 
+let sessions = 0
+
 /** The hook as the desktop mounts it after a durable approve. */
-const renderQueue = (initial: {messages: UIMessage[]; continuationExecutionId?: string | null}) =>
-    renderHook(
+const renderQueue = (initial: {messages: UIMessage[]; continuationExecutionId?: string | null}) => {
+    const sessionId = `session-${++sessions}`
+    return renderHook(
         (props: {messages: UIMessage[]; continuationExecutionId?: string | null}) =>
             useAgentChatQueue({
+                sessionId,
                 messages: props.messages,
                 stopped: false,
                 server: {
@@ -54,6 +58,7 @@ const renderQueue = (initial: {messages: UIMessage[]; continuationExecutionId?: 
             }),
         {initialProps: initial},
     )
+}
 
 afterEach(() => {
     vi.useRealTimers()
