@@ -231,6 +231,13 @@ describe("Testset toolbar, commit and leave prompt", () => {
         expect(button("Import")?.disabled).toBe(true)
     })
 
+    it("Every toolbar action is off while a save runs", async () => {
+        await mount(fakeEditor({isSaving: true}))
+        expect(button("Add row")?.disabled).toBe(true)
+        expect(button("Discard")?.disabled).toBe(true)
+        expect(button("Commit")?.disabled).toBe(true)
+    })
+
     it("A reader who may not edit sees no toolbar and no leave prompt", async () => {
         await mount(fakeEditor(), false)
         expect(button("Commit")).toBeUndefined()

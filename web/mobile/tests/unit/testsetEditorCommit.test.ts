@@ -52,15 +52,20 @@ const manyRows = () =>
                 : {question: `Question ${index + 1}`, answer: "Yes"},
     }))
 
-let rowsOnServer = serverRows()
+let rowsOnServer: {id: string; data: Record<string, unknown>}[] = serverRows()
 let failFullRevision = false
 let failCommit = false
 let revisionsInList: {id: string; version: string}[] = []
+/** The `data` of the full revision, when a test needs a shape other than `rowsOnServer`. */
+let fullRevisionData: Record<string, unknown> | null | undefined = undefined
+/** While set, the revision read and the commit request wait for it, so a test can act then. */
+let hold: Promise<void> | null = null
 
 /** Answers each request the package sends, by URL. */
 const routeHttp = () => {
     http.get.mockImplementation(async (url: string) => {
         if (url.endsWith(`/testsets/revisions/${REVISION}`)) {
+            await hold
             return {
                 data: {
                     testset_revision: {
@@ -91,6 +96,7 @@ const routeHttp = () => {
             }
         }
         if (url.endsWith("/testsets/revisions/commit")) {
+            await hold
             if (failCommit) throw new Error("Request failed with status code 500")
             return {
                 data: {
@@ -113,10 +119,13 @@ const routeHttp = () => {
                             testset_id: TESTSET,
                             testset_variant_id: VARIANT,
                             version: "2",
-                            data: {
-                                testcase_ids: rowsOnServer.map((row) => row.id),
-                                testcases: rowsOnServer,
-                            },
+                            data:
+                                fullRevisionData !== undefined
+                                    ? fullRevisionData
+                                    : {
+                                          testcase_ids: rowsOnServer.map((row) => row.id),
+                                          testcases: rowsOnServer,
+                                      },
                         },
                     ],
                 },
@@ -228,6 +237,8 @@ describe("useTestsetEditor commit over the real package state", () => {
         rowsOnServer = serverRows()
         failFullRevision = false
         failCommit = false
+        fullRevisionData = undefined
+        hold = null
         routeHttp()
         queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}})
         store.set(queryClientAtom, queryClient)
@@ -450,6 +461,141 @@ describe("useTestsetEditor commit over the real package state", () => {
         })
     })
 
+    /** Holds the next revision read and commit until the returned function is called. */
+    const holdRequests = () => {
+        let release = () => undefined as void
+        hold = new Promise<void>((resolve) => {
+            release = () => {
+                hold = null
+                resolve()
+            }
+        })
+        return release
+    }
+
+    it("While a column saves, the editor is read only and a row edit stays out of it", async () => {
+        await mount()
+        const release = holdRequests()
+        let saving: Promise<unknown> = Promise.resolve()
+        act(() => {
+            saving = editor().renameColumn("answer", "reply")
+        })
+        await flush()
+
+        expect(editor().isSaving).toBe(true)
+        expect(editor().readOnly).toBe(true)
+        expect(editor().columnEditBlocked).not.toBeNull()
+        expect(run(() => editor().addRow())).toBeNull()
+        run(() => editor().deleteRows(["case-1"]))
+        expect(store.get(testcaseMolecule.newIds)).toEqual([])
+        // A cell editor that writes to the store directly: its edit must not join the save.
+        run(() => store.set(testcaseMolecule.actions.update, "case-1", {data: {answer: "14 days"}}))
+
+        await act(async () => {
+            release()
+            await saving
+        })
+
+        expect(commitBodies()).toHaveLength(1)
+        expect(commitBody()?.testset_revision.delta).toEqual({
+            rows: undefined,
+            columns: {replace: [["answer", "reply"]]},
+        })
+        expect(editor().readOnly).toBe(false)
+    })
+
+    it("A failed column save keeps a row edit made while it ran", async () => {
+        failCommit = true
+        const errors = vi.spyOn(console, "error").mockImplementation(() => undefined)
+        await mount()
+        const release = holdRequests()
+        let saving: Promise<unknown> = Promise.resolve()
+        act(() => {
+            saving = editor().deleteColumn("answer")
+        })
+        await flush()
+        run(() => store.set(testcaseMolecule.actions.update, "case-1", {data: {answer: "14 days"}}))
+
+        await act(async () => {
+            release()
+            await saving
+        })
+
+        expect(editor().changesSummary.updatedTestcases).toBe(1)
+        expect(store.get(revisionMolecule.atoms.pendingColumnOps(REVISION))).toMatchObject({
+            add: [],
+            remove: [],
+            rename: [],
+        })
+        errors.mockRestore()
+    })
+
+    it("A second click while a column saves sends nothing more", async () => {
+        await mount()
+        const release = holdRequests()
+        let first: Promise<unknown> = Promise.resolve()
+        let second: Promise<unknown> = Promise.resolve()
+        act(() => {
+            first = editor().addColumn("country")
+            second = editor().addColumn("country")
+        })
+        let commitResult: string | null = "unset"
+        await act(async () => {
+            commitResult = await editor().commit("x")
+        })
+
+        await act(async () => {
+            release()
+            await first
+        })
+
+        expect(await second).toMatchObject({ok: false, reason: "saving"})
+        expect(commitResult).toBeNull()
+        expect(commitBodies()).toHaveLength(1)
+        expect(commitBody()?.testset_revision.delta.columns).toEqual({add: ["country"]})
+    })
+
+    it("A nested name used only by a row past the first 20 is refused", async () => {
+        rowsOnServer = manyRows().map((row, index) =>
+            index === 22 ? {id: row.id, data: {question: "Q", parent: {child: "keep"}}} : row,
+        )
+        await mount()
+
+        expect(await act(() => editor().addColumn("parent.child"))).toEqual({
+            ok: false,
+            reason: "duplicate",
+        })
+        expect(await act(() => editor().renameColumn("answer", "parent.child"))).toEqual({
+            ok: false,
+            reason: "duplicate",
+        })
+        expect(commitBodies()).toHaveLength(0)
+    })
+
+    it("A column can be added to a revision with no rows", async () => {
+        rowsOnServer = []
+        fullRevisionData = {testcase_ids: []}
+        await mount()
+
+        expect(await act(() => editor().addColumn("country"))).toEqual({
+            ok: true,
+            revisionId: NEW_REVISION,
+        })
+        expect(commitBody()?.testset_revision.delta.columns).toEqual({add: ["country"]})
+    })
+
+    it("A column can be added to a revision saved with no data", async () => {
+        rowsOnServer = []
+        fullRevisionData = null
+        await mount()
+
+        expect(await act(() => editor().addColumn("country"))).toEqual({
+            ok: true,
+            revisionId: NEW_REVISION,
+        })
+        expect(commitBody()?.testset_revision.delta.columns).toEqual({add: ["country"]})
+    })
+
     describe("on a new test set", () => {
         const createdRows = () => {
             const call = http.post.mock.calls.find(([url]) =>
@@ -526,6 +672,46 @@ describe("useTestsetEditor commit over the real package state", () => {
 
             await commit()
             expect(createdRows()).toEqual([{data: {question: "No"}}])
+        })
+
+        it("A row-only column can be deleted and its name given to another column", async () => {
+            await mount("new")
+            const rowId = run(() => editor().addRow())
+            // "a" lives only in the row, never in the column list.
+            run(() => store.set(testcaseMolecule.actions.update, rowId ?? "", {data: {a: "old"}}))
+            await act(() => editor().addColumn("b"))
+            run(() => store.set(testcaseMolecule.actions.update, rowId ?? "", {data: {b: "keep"}}))
+
+            await act(() => editor().deleteColumn("a"))
+            expect(await act(() => editor().renameColumn("b", "a"))).toEqual({
+                ok: true,
+                revisionId: null,
+            })
+
+            await commit()
+            expect(createdRows()).toEqual([{data: {a: "keep"}}])
+        })
+
+        it("A rename to a name held only by a row past row 20 is refused", async () => {
+            await mount("new")
+            await act(() => editor().addColumn("a"))
+            const ids = Array.from({length: 21}, () => run(() => editor().addRow()) ?? "")
+            ids.forEach((id, index) =>
+                run(() =>
+                    store.set(testcaseMolecule.actions.update, id, {
+                        data: index === 20 ? {a: "replacement", b: "keep"} : {a: `row ${index}`},
+                    }),
+                ),
+            )
+
+            expect(await act(() => editor().renameColumn("a", "b"))).toEqual({
+                ok: false,
+                reason: "duplicate",
+            })
+            expect(await act(() => editor().addColumn("b"))).toEqual({
+                ok: false,
+                reason: "duplicate",
+            })
         })
     })
 

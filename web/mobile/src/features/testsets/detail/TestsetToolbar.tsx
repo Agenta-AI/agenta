@@ -120,7 +120,7 @@ export const TestsetToolbar = ({
                             </span>
                         </SimpleTooltip>
                     ) : null}
-                    <Button variant="outline" size="sm" onClick={handleAddRow}>
+                    <Button variant="outline" size="sm" disabled={isSaving} onClick={handleAddRow}>
                         <Plus aria-hidden size={14} />
                         Add row
                     </Button>
