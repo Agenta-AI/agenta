@@ -89,6 +89,13 @@ vi.mock("@agenta/chat/hooks", () => ({
         settle: vi.fn(),
         dismiss: vi.fn(),
     }),
+    useSecretDock: () => ({
+        open: false,
+        front: null,
+        settlingIds: new Set(),
+        settle: vi.fn(),
+        dismiss: vi.fn(),
+    }),
     useComposerAttachments: () => ({restoreAttachments: vi.fn(), setRejections: vi.fn()}),
 }))
 
@@ -144,9 +151,6 @@ vi.mock("@agenta/chat/assets", () => ({
     resolveStopExecution: vi.fn(),
     shouldShowStopControl: () => false,
     restoreRefusedSend: vi.fn(),
-}))
-vi.mock("@agenta/chat/clientTools", () => ({
-    getPendingSecretInteractions: () => [],
 }))
 vi.mock("@agenta/chat/state", () => ({getSessionTurnId: () => null, runKey: () => ""}))
 vi.mock("@agenta/entities/session", async () => {

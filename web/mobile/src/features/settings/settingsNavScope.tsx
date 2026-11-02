@@ -16,6 +16,7 @@ import {
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
+import {isProjectPath, projectSwitchUrl} from "@/lib/context"
 import {withMobileSettingsLabels} from "@/lib/integrationsCopy"
 
 import {DrawerProjectSwitcher} from "../nav/DrawerProjectSwitcher"
@@ -100,7 +101,15 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
             >
                 <SidebarBackButton
                     collapsed={collapsed}
-                    onBack={() => void router.push(lastPath ?? `${projectURL}/apps`)}
+                    onBack={() =>
+                        void router.push(
+                            !lastPath
+                                ? `${projectURL}/apps`
+                                : isProjectPath(lastPath)
+                                  ? projectSwitchUrl(lastPath, {workspaceId, projectId})
+                                  : lastPath,
+                        )
+                    }
                 />
                 <SidebarToggleButton onDismiss={onDismiss} />
             </div>

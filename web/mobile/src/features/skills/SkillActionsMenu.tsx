@@ -19,6 +19,7 @@ import {
     ArrowSquareOut,
     ArrowUUpLeft,
     DotsThreeVertical,
+    DownloadSimple,
     Plus,
 } from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -49,7 +50,7 @@ export const SkillActionsMenu = ({
     onOpen: (row: SkillListRow) => void
 }) => {
     const projectId = useAtomValue(projectIdAtom) ?? ""
-    const {archive, restore} = useSkillActions()
+    const {archive, restore, download} = useSkillActions()
     const {check} = useSkillUpdates()
     const {confirm, modal} = useConfirmModal()
     const [agentsOpen, setAgentsOpen] = useState(false)
@@ -105,6 +106,12 @@ export const SkillActionsMenu = ({
                                 Check for updates
                             </DropdownMenuItem>
                         ) : null}
+                        {row.item.origin === "builtin" ? null : (
+                            <DropdownMenuItem onSelect={() => void download(row.id)}>
+                                <DownloadSimple aria-hidden size={14} />
+                                Download
+                            </DropdownMenuItem>
+                        )}
                         <DropdownMenuSeparator />
                         {row.archived ? (
                             <DropdownMenuItem onSelect={() => void restore(row.id)}>

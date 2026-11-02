@@ -38,6 +38,7 @@ import {
 import {
     ArrowLeft,
     CaretDown,
+    DownloadSimple,
     File as FileIcon,
     Info,
     Plus,
@@ -48,6 +49,7 @@ import {motion, useMotionValue, useTransform} from "motion/react"
 
 import {CodeEditor, codeLanguageFromPath} from "./CodeEditor"
 import {MarkdownEditor} from "./MarkdownEditor"
+import {downloadSkill, skillDownloadKind} from "./skillDownload"
 import {
     NOT_TEXT,
     SKILL_BODY_MAX,
@@ -77,6 +79,8 @@ export interface SkillFormViewProps {
      * to submit anything yet.
      */
     showMissing?: boolean
+    /** Offer a download of the skill as SKILL.md or a .zip. Off for a draft not yet created. */
+    downloadable?: boolean
 }
 
 /** Which file the right pane is editing: the pinned SKILL.md body, or a `files[]` entry by index. */
@@ -205,6 +209,7 @@ export function SkillFormView({
     railBottomSlot,
     autoFocusName = false,
     showMissing = false,
+    downloadable = false,
 }: SkillFormViewProps) {
     const skill = (value ?? {}) as Record<string, unknown>
     const nameInput = useRef<HTMLInputElement>(null)
@@ -216,6 +221,8 @@ export function SkillFormView({
     const files: SkillFileEntry[] = Array.isArray(skill.files)
         ? (skill.files as SkillFileEntry[])
         : []
+    // The kind, not the built package: zipping every bundled file on each keystroke is waste.
+    const downloadKind = downloadable ? skillDownloadKind(skill) : null
 
     const [selected, setSelected] = useState<Selection>("skill")
     // Phone: one pane at a time, as the version-history drawer does. Opens on the editor for the
@@ -312,6 +319,10 @@ export function SkillFormView({
         next.body = parsed.body
         if (parsed.files.length) next.files = parsed.files
         else delete next.files
+        if (parsed.disable_model_invocation) {
+            next.disable_model_invocation = true
+            setAdvancedOpen(true)
+        } else delete next.disable_model_invocation
         onChange(next)
         openEntry("skill")
     }
@@ -410,23 +421,47 @@ export function SkillFormView({
             >
                 <div className="flex shrink-0 items-center justify-between gap-1">
                     <span className="text-xs font-medium">Files</span>
-                    {!disabled ? (
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <button
-                                        type="button"
-                                        aria-label="Add file"
-                                        onClick={addFile}
-                                        className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-c-586673)] hover:text-[var(--ag-c-1C2C3D)]"
-                                    >
-                                        <Plus size={14} />
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent>Add a file</TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
-                    ) : null}
+                    <div className="flex items-center gap-2">
+                        {downloadable ? (
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            type="button"
+                                            aria-label="Download skill"
+                                            onClick={() => downloadSkill(skill)}
+                                            disabled={!downloadKind}
+                                            className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-c-586673)] hover:text-[var(--ag-c-1C2C3D)] disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                            <DownloadSimple size={14} />
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        {downloadKind === "zip"
+                                            ? "Download as .zip"
+                                            : "Download SKILL.md"}
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        ) : null}
+                        {!disabled ? (
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            type="button"
+                                            aria-label="Add file"
+                                            onClick={addFile}
+                                            className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-c-586673)] hover:text-[var(--ag-c-1C2C3D)]"
+                                        >
+                                            <Plus size={14} />
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Add a file</TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        ) : null}
+                    </div>
                 </div>
 
                 {/* The list grows to fill the column so the drop zone sits at the bottom. Filled

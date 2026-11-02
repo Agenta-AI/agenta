@@ -23,6 +23,7 @@ export interface SkillFileEntry {
 export interface ParsedSkill {
     name?: string
     description?: string
+    disable_model_invocation?: boolean
     body: string
     files: SkillFileEntry[]
 }
@@ -40,13 +41,14 @@ const IGNORED = /(^|\/)(__MACOSX\/|\.DS_Store$|\.git\/)/
 export function parseSkillMarkdown(md: string): {
     name?: string
     description?: string
+    disable_model_invocation?: boolean
     body: string
 } {
     const clean = md.replace(/^\uFEFF/, "")
     const m = clean.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/)
     if (!m) return {body: clean.trim()}
     const fm = m[1] ?? ""
-    const body = (m[2] ?? "").replace(/^[\r\n]+/, "")
+    const body = (m[2] ?? "").replace(/^[\r\n]+/, "").trimEnd()
     let metadata: unknown
     try {
         metadata = loadYaml(fm)
@@ -62,7 +64,13 @@ export function parseSkillMarkdown(md: string): {
         if (typeof value !== "string") return undefined
         return value.trim() || undefined
     }
-    return {name: read("name"), description: read("description"), body}
+    return {
+        name: read("name"),
+        description: read("description"),
+        // The frontmatter key the runner writes and the backend parser reads.
+        ...(record["disable-model-invocation"] === true ? {disable_model_invocation: true} : {}),
+        body,
+    }
 }
 
 /** Build a skill object from a flat set of files (archives already expanded). */
@@ -70,7 +78,7 @@ export function buildSkillFromFiles(raw: RawFile[]): ParsedSkill {
     const files = raw.filter((f) => f.bytes && !f.path.endsWith("/") && !IGNORED.test(f.path))
     const skillFile = files.find((f) => SKILL_MD.test(f.path))
     const md = skillFile ? strFromU8(skillFile.bytes) : ""
-    const {name, description, body} = parseSkillMarkdown(md)
+    const {name, description, disable_model_invocation, body} = parseSkillMarkdown(md)
     // Strip the folder SKILL.md lives in, so bundled paths are relative to it.
     const baseDir = skillFile ? skillFile.path.replace(/SKILL\.md$/i, "") : ""
     const bundled: SkillFileEntry[] = files
@@ -81,7 +89,13 @@ export function buildSkillFromFiles(raw: RawFile[]): ParsedSkill {
             return {path: rel, content: strFromU8(f.bytes)}
         })
         .filter((f) => f.path)
-    return {name, description, body, files: bundled}
+    return {
+        name,
+        description,
+        ...(disable_model_invocation ? {disable_model_invocation} : {}),
+        body,
+        files: bundled,
+    }
 }
 
 /** Expand any `.zip` / `.skill` archives into their entries; pass other files through. */
@@ -165,10 +179,11 @@ export function mergePastedSkill(
     skill: Record<string, unknown>,
     md: string,
 ): Record<string, unknown> {
-    const {name, description, body} = parseSkillMarkdown(md)
+    const {name, description, disable_model_invocation, body} = parseSkillMarkdown(md)
     const next: Record<string, unknown> = {...skill, body}
     if (name) next.name = name
     if (description) next.description = description
+    if (disable_model_invocation) next.disable_model_invocation = true
     return next
 }
 

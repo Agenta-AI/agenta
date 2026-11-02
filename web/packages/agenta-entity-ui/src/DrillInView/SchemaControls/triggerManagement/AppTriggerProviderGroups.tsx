@@ -148,7 +148,6 @@ export function AppTriggerProviderGroups({
                                 subscriptionId={record.id ?? ""}
                                 runLabel={record.name || eventLabel || "trigger"}
                                 eventKey={record.data?.event_key ?? undefined}
-                                references={record.data?.references}
                                 playgroundEntityId={entityId}
                                 runDisabled={disabled || !record.id}
                                 onOpen={() =>

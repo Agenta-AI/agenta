@@ -24,7 +24,6 @@ import {
     $isRangeSelection,
     $setSelection,
     COMMAND_PRIORITY_HIGH,
-    type ElementNode,
 } from "lexical"
 
 import {markdownViewAtom} from "../../state/assets/atoms"
@@ -496,24 +495,20 @@ const MarkdownPlugin = ({
     useEffect(() => {
         return editor.registerUpdateListener(({editorState}) => {
             editorState.read(() => {
-                const root = $getRoot()
-                const children = root.getChildren()
-                const markdownCodeNode = children.find(
-                    (node) => $isCodeNode(node) && node.getLanguage() === "markdown",
-                )
-
-                if (!markdownCodeNode) return
-
-                const index = children.indexOf(markdownCodeNode)
-                const trailingNodes = children.slice(index + 1)
+                const [markdownCodeNode, ...trailingNodes] = $getRoot().getChildren()
+                // Source view only: a ```markdown fence inside rich text is an ordinary block.
+                if (
+                    !$isCodeNode(markdownCodeNode) ||
+                    markdownCodeNode.getLanguage() !== "markdown"
+                ) {
+                    return
+                }
 
                 if (trailingNodes.length > 0) {
                     editor.update(() => {
                         for (const node of trailingNodes) {
                             const content = node.getTextContent()
-                            ;(markdownCodeNode as ElementNode).append(
-                                $createTextNode("\n" + content),
-                            )
+                            markdownCodeNode.append($createTextNode("\n" + content))
                             node.remove()
                         }
                     })

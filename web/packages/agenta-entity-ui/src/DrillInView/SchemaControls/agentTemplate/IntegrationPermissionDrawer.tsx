@@ -38,6 +38,7 @@ import {atomWithStorage} from "jotai/utils"
 
 import ConnectionStatusBadge from "../../../gatewayTool/components/ConnectionStatusBadge"
 import {ScrollFadeArea} from "../../../shared/ScrollFadeArea"
+import {ToolPermissionsSkeleton} from "../DrawerSkeletons"
 import {
     INTEGRATION_PRESETS,
     TOOL_PERMISSION_OPTIONS,
@@ -866,6 +867,7 @@ export function IntegrationPermissionDrawer({
             placement="right"
             width={INTEGRATION_DRAWER_WIDTH}
             destroyOnClose
+            bodyFallback={<ToolPermissionsSkeleton />}
             panelRef={panelRef}
             title={
                 source?.title ?? (

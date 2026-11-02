@@ -24,7 +24,11 @@ export {buildRegistrySections, toSkillListItem, type RegistrySections} from "./r
 export {SkillImportDrawer, type SkillImportDrawerProps} from "./SkillImportDrawer"
 export {SkillCreateDrawer, type SkillCreateDrawerProps} from "./SkillCreateDrawer"
 export {useSkillCreateEntry} from "./useSkillCreateEntry"
-export {SkillDetailDrawer, type SkillDetailDrawerProps} from "./SkillDetailDrawer"
+export {
+    SkillDetailDrawer,
+    skillRevisionsQueryKey,
+    type SkillDetailDrawerProps,
+} from "./SkillDetailDrawer"
 export {SkillAgentPicker} from "./SkillAgentPicker"
 export {SkillPickerHost} from "./SkillPickerHost"
 export {SkillDetailHost} from "./SkillDetailHost"

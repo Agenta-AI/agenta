@@ -675,7 +675,8 @@ export const ChannelConnectFlow = ({
     // A step whose title already names the field hides the field's own label.
     const renderFields = (hideLabels = false) => (
         <div className="flex flex-col gap-4">
-            {setupLoading ? (
+            {/* Only before the fields exist: a later load must not push them down. */}
+            {setupLoading && !fields.length ? (
                 <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
                     <Spinner size="small" /> Loading the {name} setup…
                 </div>
