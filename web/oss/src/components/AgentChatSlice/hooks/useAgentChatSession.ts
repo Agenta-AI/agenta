@@ -49,6 +49,7 @@ import {
     resumeSessionContinuationAtom,
     revalidateSessionMountsAtom,
     revalidateSessionRecordsAtom,
+    revalidateSessionTurnsAtom,
 } from "@agenta/entities/session"
 import {markTraceAsFresh} from "@agenta/entities/trace"
 import {invalidateAgentCommittedRevisionCache, workflowMolecule} from "@agenta/entities/workflow"
@@ -146,6 +147,7 @@ export const useAgentChatSession = ({
     const captureTurnRequest = useSetAtom(captureTurnRequestAtom)
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
+    const revalidateSessionTurns = useSetAtom(revalidateSessionTurnsAtom)
     const setSessionStatus = useSetAtom(setSessionStatusAtom)
     const respondInteractionAnswer = useSetAtom(respondInteractionAnswerAtom)
     const respondInteractionAnswers = useSetAtom(respondInteractionAnswersAtom)
@@ -303,6 +305,7 @@ export const useAgentChatSession = ({
             markTraceAsFresh(getMessageTraceId(message))
             revalidateSessionMounts(sessionId)
             revalidateSessionRecords(sessionId)
+            revalidateSessionTurns(sessionId)
             void queryClient.invalidateQueries({queryKey: ["session-liveness"]})
             // The first turn is what creates the durable session row; every later one changes its
             // title/preview/activity. Nothing else tells the session lists, so they discovered a

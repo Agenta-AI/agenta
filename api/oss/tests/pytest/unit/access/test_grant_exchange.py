@@ -474,7 +474,7 @@ async def test_exchange_denies_an_inactive_principal(exchange, monkeypatch):
             memberships_dao=InMemoryMembershipsDAO(),
             policy=MembershipPolicy.ORGANIZATION_WIDE,
         ),
-        rbac=RecordingRbac(),
+        rbac_entitlement=RecordingRbac(),
         principals=principals,
         resource_policy=AllowAllResourcePolicy(),
     )

@@ -1,3 +1,4 @@
+import {canViewSpansAtom} from "@agenta/entities/access"
 import type {AnnotationDto} from "@agenta/entities/annotation/dto"
 import {
     attachAnnotationsToTraces,
@@ -75,7 +76,12 @@ export const tracesQueryAtom = atomWithInfiniteQuery((get) => {
     // URL param to be sent. Gating on `!isResolving` skips that wasted
     // request — once ctx settles, the atom re-evaluates with the correct
     // `effectiveAppId` and queryFn fires.
-    const enabledFlag = sessionExists && Boolean(appId || projectId) && !workflowCtx.isResolving
+    // A reader without `view_spans` gets no trace list: the API would refuse every page.
+    const enabledFlag =
+        sessionExists &&
+        Boolean(appId || projectId) &&
+        !workflowCtx.isResolving &&
+        get(canViewSpansAtom)
 
     return {
         queryKey: ["traces", projectId, appId, params],
@@ -189,7 +195,7 @@ export const annotationsQueryAtom = atomWithQuery((get) => {
                 []
             )
         },
-        enabled: Array.isArray(links) && links.length > 0,
+        enabled: Array.isArray(links) && links.length > 0 && get(canViewSpansAtom),
         refetchOnWindowFocus: false,
     }
 })
@@ -351,7 +357,7 @@ export const sessionsQueryAtom = atomWithInfiniteQuery((get) => {
                 nextWindowing: response?.windowing,
             }
         },
-        enabled: sessionExists && Boolean(appId || projectId),
+        enabled: sessionExists && Boolean(appId || projectId) && get(canViewSpansAtom),
 
         getNextPageParam: (lastPageRaw) => {
             // Disable pagination in realtime mode (latest activity shows fixed LIMIT items)
@@ -478,7 +484,11 @@ export const sessionsSpansQueryAtom = atomWithInfiniteQuery((get) => {
                 annotationPageSize: 0,
             }
         },
-        enabled: sessionExists && Boolean(appId || projectId) && sessionIds.length > 0,
+        enabled:
+            sessionExists &&
+            Boolean(appId || projectId) &&
+            sessionIds.length > 0 &&
+            get(canViewSpansAtom),
 
         getNextPageParam: (lastPage, _pages) => {
             const page = lastPage as {

@@ -10,7 +10,7 @@ from fastapi import HTTPException
 import oss.src.core.memberships.service as memberships_module
 import oss.src.routers.projects_router as projects_router
 from oss.src.core.access.context import reset_request_access, set_request_access
-from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.permissions.types import Permission, RequiredRole
 from oss.src.core.memberships.dtos import (
     MembershipSource,
     OrganizationMember,
@@ -244,7 +244,27 @@ async def test_make_default_needs_the_permission_on_the_current_default(
 
     assert (error.value.status_code, error.value.detail) == (403, DENIED)
     checked = [call.kwargs["project_id"] for call in state.access.await_args_list]
-    assert checked == [str(project_id), str(state.default_project)]
+    assert checked == [str(project_id), str(project_id), str(state.default_project)]
+    # Choosing the default needs the admin role, not only `EDIT_WORKSPACE`.
+    assert state.access.await_args.kwargs["role"] == RequiredRole.ADMIN
+    set_default.assert_not_awaited()
+
+
+async def test_member_cannot_make_a_project_the_default(routes, monkeypatch):
+    # A member renames projects (`EDIT_WORKSPACE`) but lacks the admin role.
+    state = routes(listing=_listing("member"))
+    state.access.side_effect = lambda **kwargs: "permission" in kwargs
+    set_default = AsyncMock()
+    monkeypatch.setattr(projects_router.db_manager, "set_default_project", set_default)
+
+    with pytest.raises(HTTPException) as error:
+        await projects_router.update_project(
+            project_id=uuid4(),
+            payload=projects_router.UpdateProjectRequest(make_default=True),
+            request=_request(),
+        )
+
+    assert (error.value.status_code, error.value.detail) == (403, DENIED)
     set_default.assert_not_awaited()
 
 
@@ -270,7 +290,7 @@ async def test_make_default_without_a_default_checks_the_first_project(
     )
 
     checked = [call.kwargs["project_id"] for call in state.access.await_args_list]
-    assert checked == [str(project_id)]
+    assert checked == [str(project_id), str(project_id)]
     set_default.assert_awaited_once_with(str(project_id))
 
 
