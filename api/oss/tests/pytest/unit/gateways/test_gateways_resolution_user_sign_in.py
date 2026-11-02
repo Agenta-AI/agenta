@@ -12,7 +12,6 @@ from pydantic import ValidationError
 from oss.src.core.gateways.policy.dtos import (
     BoundSecretRef,
     GatewayPlane,
-    SecretMode,
 )
 from oss.src.core.gateways.policy.resolution import SecretsResolver
 from oss.src.core.gateways.policy.types import SecretNotFoundError
@@ -99,7 +98,6 @@ async def test_the_mcp_plane_reads_the_persons_row_in_the_runs_organization():
     resolved = await resolver.resolve(
         scope=scope,
         ref=_user_ref(secret_id=row.id, user_id=person),
-        mode=SecretMode.PROJECT_ONLY,
     )
 
     assert resolved.secret.id == row.id
@@ -121,7 +119,6 @@ async def test_another_persons_row_is_not_found():
         await resolver.resolve(
             scope=scope,
             ref=_user_ref(secret_id=row.id, user_id=other),
-            mode=SecretMode.PROJECT_ONLY,
         )
 
 
@@ -136,7 +133,6 @@ async def test_the_model_plane_never_reads_a_persons_row():
         await resolver.resolve(
             scope=scope,
             ref=_user_ref(secret_id=row.id, user_id=person),
-            mode=SecretMode.PROJECT_ONLY,
         )
     assert vault.calls == []
 
@@ -152,6 +148,5 @@ async def test_a_project_reference_is_read_as_on_main():
         await resolver.resolve(
             scope=scope,
             ref=BoundSecretRef(secret_id=secret_id),
-            mode=SecretMode.PROJECT_ONLY,
         )
     assert vault.calls == [("project", scope.project_id, secret_id)]

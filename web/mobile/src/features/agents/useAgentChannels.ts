@@ -4,6 +4,7 @@ import {getChannelsClient} from "@agenta/sdk/resources"
 import {
     EMPTY_CONNECTIONS,
     buildAgentChannelsActions,
+    type ChannelConnection,
     type ChannelConnections,
 } from "@agenta/settings-ui"
 import {projectIdAtom} from "@agenta/shared/state"
@@ -16,6 +17,38 @@ import {getApiUrl} from "@/lib/env"
 const buildSlackInstallUrl = (projectId: string): string => {
     const params = new URLSearchParams({project_id: projectId})
     return `${getApiUrl()}/channels/catalog/channels/slack/install/?${params.toString()}`
+}
+
+/** Names each connection's answering agent from the current roster, keeping shared rows shared. */
+const withAgentNames = (
+    connections: ChannelConnections,
+    resolve: (id: string) => string | null,
+): ChannelConnections => {
+    const renamed = new Map<ChannelConnection, ChannelConnection>()
+    const rename = (connection: ChannelConnection): ChannelConnection => {
+        const agent = connection.agent
+        if (!agent) return connection
+        let next = renamed.get(connection)
+        if (!next) {
+            next = {...connection, agent: {...agent, name: resolve(agent.id)}}
+            renamed.set(connection, next)
+        }
+        return next
+    }
+    const renameOrNull = (connection: ChannelConnection | null) =>
+        connection ? rename(connection) : null
+    return {
+        ...connections,
+        slack: renameOrNull(connections.slack),
+        telegram: renameOrNull(connections.telegram),
+        whatsapp: renameOrNull(connections.whatsapp),
+        agentConnections: connections.agentConnections && {
+            slack: connections.agentConnections.slack.map(rename),
+            telegram: connections.agentConnections.telegram.map(rename),
+            whatsapp: connections.agentConnections.whatsapp.map(rename),
+        },
+        allConnections: connections.allConnections?.map(rename),
+    }
 }
 
 /**
@@ -38,13 +71,16 @@ export const useAgentChannels = (
     const reloadSeq = useRef(0)
 
     const resolve = useCallback((id: string) => resolveAgentName?.(id) ?? null, [resolveAgentName])
+    // Each agents-list refetch brings a new resolver; a ref keeps it from rebuilding the actions.
+    const resolveRef = useRef(resolve)
+    resolveRef.current = resolve
 
     const actions = useMemo(() => {
         const built = buildAgentChannelsActions({
             client: getChannelsClient(),
             projectId: () => getDefaultStore().get(projectIdAtom),
             appId,
-            resolveAgentName: resolve,
+            resolveAgentName: (id) => resolveRef.current(id),
             hostedSlackInstallUrl: buildSlackInstallUrl,
         })
         return {
@@ -66,7 +102,7 @@ export const useAgentChannels = (
                 }
             },
         }
-    }, [appId, resolve])
+    }, [appId])
 
     useEffect(() => {
         let alive = true
@@ -83,5 +119,8 @@ export const useAgentChannels = (
         }
     }, [actions])
 
-    return {connections, loading, loadError, actions}
+    // A roster that lands after the read still names the answering agents.
+    const named = useMemo(() => withAgentNames(connections, resolve), [connections, resolve])
+
+    return {connections: named, loading, loadError, actions}
 }

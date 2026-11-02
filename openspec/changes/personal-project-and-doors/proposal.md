@@ -8,7 +8,7 @@ Every project is a team project, so a user has no private place for their own ag
 
 Four ordered deliveries, each testable alone. Shared rules: CONTRACT.md sections 1, 3 and 10.
 
-- **D1. Service identity** (`service-accounts`). A `service_account` principal: a non-human member of one team project with one role. Keys become personal keys (act as their user) or service keys (act as a service account). Installations belong to a service account. Existing keys and installations migrate once. Afterwards `PrincipalKind` is `human | service_account`.
+- **D1. Service identity** (`service-accounts`). A `service_account` principal: a non-human member of one team project with one role. Keys become personal keys (act as their user) or service keys (act as a service account). Installations belong to a service account; installation turns keep today's role (the linked user's, else the binding creator's, CONTRACT.md section 4). Existing keys and installations migrate once. Afterwards `PrincipalKind` is `human | service_account`.
 - **D2. Personal projects** (`personal-projects`). One per (organization, user), created on first use. In `/m`, a new agent starts in its creator's personal project.
 - **D3. Agent moves** (`agent-moves`). Sharing an agent moves it from the owner's personal project into a team project. Rows only, no file copy.
 - **D4. Doors** (`project-doors`). Server-side find agents, run an agent and read files, from a web run in the user's personal project into a team project of the same organization.

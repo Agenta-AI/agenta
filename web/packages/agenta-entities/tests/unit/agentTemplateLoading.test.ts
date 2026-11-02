@@ -4,11 +4,13 @@ import {getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
-const {createWorkflowMock, loadAgentTemplateMock, fetchOverlayMock} = vi.hoisted(() => ({
-    createWorkflowMock: vi.fn(),
-    loadAgentTemplateMock: vi.fn(),
-    fetchOverlayMock: vi.fn(),
-}))
+const {createWorkflowMock, loadAgentTemplateMock, fetchOverlayMock, queryConnectionsMock} =
+    vi.hoisted(() => ({
+        createWorkflowMock: vi.fn(),
+        loadAgentTemplateMock: vi.fn(),
+        fetchOverlayMock: vi.fn(),
+        queryConnectionsMock: vi.fn(),
+    }))
 
 vi.mock("../../src/workflow/api", async (importOriginal) => {
     const actual = await importOriginal<typeof import("../../src/workflow/api")>()
@@ -23,16 +25,21 @@ vi.mock("../../src/workflow/api/agentTemplates", () => ({
     loadAgentTemplate: loadAgentTemplateMock,
 }))
 
+vi.mock("../../src/gatewayTool/api", () => ({
+    queryToolConnections: queryConnectionsMock,
+}))
+
 import {templateBuilderMessage} from "../../src/workflow/agentTemplates"
-import {FIXTURE_TEMPLATES as AGENT_TEMPLATES} from "./agentTemplateFixtures"
 import type {AgentTemplateLoadResult} from "../../src/workflow/api/agentTemplates"
-import {buildCreatePayloadFromEphemeral} from "../../src/workflow/state/createPayload"
 import {createWorkflowFromEphemeralAtom} from "../../src/workflow/state/commit"
+import {buildCreatePayloadFromEphemeral} from "../../src/workflow/state/createPayload"
 import {
     loadAgentTemplateFromEphemeralAtom,
     templateConnectionChoices,
 } from "../../src/workflow/state/loadTemplate"
 import {workflowLocalServerDataAtomFamily} from "../../src/workflow/state/store"
+
+import {FIXTURE_TEMPLATES as AGENT_TEMPLATES} from "./agentTemplateFixtures"
 
 const REVISION_ID = "local-template-loading"
 const WORKFLOW_DATA = {
@@ -64,6 +71,7 @@ beforeEach(() => {
         workflow_variant_id: "ordinary-variant",
         data: WORKFLOW_DATA,
     })
+    queryConnectionsMock.mockReset().mockResolvedValue({count: 0, connections: []})
     loadAgentTemplateMock.mockReset()
     loadAgentTemplateMock.mockResolvedValue({
         workflow_id: "loaded-workflow",
@@ -106,16 +114,11 @@ describe("shared ephemeral creation payload", () => {
 })
 
 describe("template package loading", () => {
-    it("maps setup alternatives to stable package connection keys", () => {
+    it("maps a connected alternative to the slot's stable package connection key", () => {
         const template = AGENT_TEMPLATES.find((item) => item.key === "pr-reviewer")!
         const githubSlot = template.connections.find((item) => item.primary.slug === "github")!
 
-        expect(
-            templateConnectionChoices(template, {
-                accounts: [],
-                connectedSlugs: ["gitlab"],
-            }),
-        ).toContainEqual({
+        expect(templateConnectionChoices(template, ["gitlab"])).toContainEqual({
             connection_key: githubSlot.key,
             kind: "gateway",
             provider: "composio",
@@ -125,14 +128,12 @@ describe("template package loading", () => {
 
     it("preserves the host's edited template prompt", async () => {
         const template = AGENT_TEMPLATES.find((item) => item.key === "pr-reviewer")!
-        const setup = {accounts: [], connectedSlugs: ["github"]}
         const initialMessage = "Review only security-sensitive pull requests."
 
         await store.set(loadAgentTemplateFromEphemeralAtom, {
             revisionId: REVISION_ID,
             template,
             initialMessage,
-            setup,
         })
 
         expect(loadAgentTemplateMock).toHaveBeenCalledWith(
@@ -145,6 +146,33 @@ describe("template package loading", () => {
             expect.stringMatching(/^agent-template:/),
             "project-1",
         )
+    })
+
+    it("binds the project's usable connections and skips the rest, with no setup step", async () => {
+        const template = AGENT_TEMPLATES.find((item) => item.key === "pr-reviewer")!
+        queryConnectionsMock.mockResolvedValue({
+            count: 2,
+            connections: [
+                {integration_key: "gitlab", flags: {is_active: true, is_valid: true}},
+                {integration_key: "github", flags: {is_active: true, is_valid: false}},
+                {integration_key: "slack", flags: {is_active: false, is_valid: true}},
+            ],
+        })
+
+        await store.set(loadAgentTemplateFromEphemeralAtom, {revisionId: REVISION_ID, template})
+
+        const githubSlot = template.connections.find((item) => item.primary.slug === "github")!
+        const choices = loadAgentTemplateMock.mock.calls[0][0].connection_choices
+        expect(choices).toContainEqual({
+            connection_key: githubSlot.key,
+            kind: "gateway",
+            provider: "composio",
+            integration: "gitlab",
+        })
+        expect(choices.filter((choice: {kind: string}) => choice.kind === "gateway")).toHaveLength(
+            1,
+        )
+        expect(choices).toHaveLength(template.connections.length)
     })
 
     it("loads a source from outside the catalog without connection choices", async () => {

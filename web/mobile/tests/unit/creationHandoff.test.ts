@@ -7,7 +7,6 @@ const mocks = vi.hoisted(() => ({
     stash: vi.fn(),
     drop: vi.fn(),
     reveal: vi.fn(),
-    draft: vi.fn(),
     captureIntent: vi.fn(),
 }))
 vi.mock("react", () => ({useCallback: (fn: unknown) => fn, useState: () => [false, vi.fn()]}))
@@ -20,7 +19,6 @@ vi.mock("@agenta/entities/workflow", () => ({
     agentTemplatesAtom: "templates",
     agentTemplateByKey: (templates: {key: string}[], key: string) =>
         templates.find((template) => template.key === key),
-    appendSetupPreamble: (text: string) => text,
     invalidateWorkflowsListCache: vi.fn(),
 }))
 vi.mock("@agenta/home-ui", () => ({useCreateAgent: () => mocks.create}))
@@ -31,14 +29,13 @@ vi.mock("jotai", () => ({
     useAtomValue: (atom: string) =>
         atom === "templates" ? [{key: "reviewer", name: "Reviewer"}] : undefined,
     useSetAtom: (atom: string) =>
-        ({stash: mocks.stash, drop: mocks.drop, reveal: mocks.reveal, draft: mocks.draft})[atom],
+        ({stash: mocks.stash, drop: mocks.drop, reveal: mocks.reveal})[atom],
 }))
 vi.mock("../../src/lib/ids", () => ({newId: () => "fresh-session"}))
 vi.mock("../../src/features/home/pendingTask", () => ({
     stashPendingTaskAtom: "stash",
     takePendingTaskAtom: "drop",
 }))
-vi.mock("../../src/features/agents/templateSetupDraft", () => ({templateSetupDraftAtom: "draft"}))
 
 import {useNewAgentAction} from "../../src/features/agents/useNewAgentAction"
 
@@ -88,7 +85,7 @@ describe("creation handoff after merging release changes", () => {
         expect(mocks.fresh).toHaveBeenCalledWith("staging")
         expect(mocks.stash).toHaveBeenCalledWith({
             sessionId: "staging",
-            task: {agentId: "agent", text: "Hello", parts: undefined, templateKey: undefined},
+            task: {agentId: "agent", text: "Hello", parts: undefined},
         })
         expect(mocks.reveal).not.toHaveBeenCalled()
     })

@@ -13,13 +13,17 @@ export interface DriveFileLookup {
 }
 
 /** Resolves tool paths against the ambient conversation drive, without reading any file. */
-export function useDriveFileLookup(): (path: string) => DriveFileLookup {
+export function useDriveFileLookup(): (path: string, exact?: boolean) => DriveFileLookup {
     const sessionId = useDriveSessionId()
     const artifactId = useDriveArtifactId()
     const {files, resolveMount} = useSessionDrive(sessionId ?? "", artifactId ?? undefined)
     return useCallback(
-        (path: string) => {
-            const entry = files.find((file) => mountPathMatchesToolPath(file.path, path)) ?? null
+        (path: string, exact = false) => {
+            // `exact` takes a drive path as is; a tool path matches on its tail.
+            const entry =
+                files.find((file) =>
+                    exact ? file.path === path : mountPathMatchesToolPath(file.path, path),
+                ) ?? null
             // The file may live in the cwd mount or the nested agent-files mount.
             return {entry, target: entry ? resolveMount(entry.path) : null}
         },

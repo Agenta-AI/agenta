@@ -443,7 +443,8 @@ async def test_remove_member_clears_rows_and_invitations_in_the_organization():
         assert result.user_id == member
         assert result.deleted_invitation_count == 1
         assert await _organization_roles(org_a.organization_id, member) == []
-        assert await _workspace_roles(org_a.workspace_ids, member) == {}
+        # Workspace removal step 2b: legacy workspace rows are neither written nor
+        # deleted; nothing reads them, and step 3 drops the table.
         assert await _project_roles(org_a.project_ids, member) == {}
         invitations = await fetch_all(
             "SELECT id FROM project_invitations WHERE project_id = :p",

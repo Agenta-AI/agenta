@@ -39,9 +39,6 @@ export interface HomeFocusProps {
     /**
      * Create an agent from what was typed in create mode. A template contributes its NAME and its
      * KEY — the instruction is already in the composer, where it can be edited before sending.
-     *
-     * The key is what lets the session ask for the template's accounts (`useSessionSetupStep`).
-     * Without it a template picked here would be the one create path that never gates.
      */
     onCreateFromPrompt: (input: {
         text: string
