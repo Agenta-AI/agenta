@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# Pre-commit gate for work on /m (web/mobile). Usage, from the repository root:
+#   web/mobile/scripts/gate.sh <base-ref>
+# Compares the working tree with <base-ref>, so run it before the commit.
+# Fast checks (diff bans) run first. Then types, lint and the unit tests run.
+# Exit code 0 only when every check passes.
+set -u
+BASE=${1:-}
+[ -n "$BASE" ] || { echo "usage: gate.sh <base-ref>"; exit 2; }
+cd "$(git rev-parse --show-toplevel)" || exit 1
+git rev-parse --verify "$BASE" >/dev/null 2>&1 || { echo "unknown ref: $BASE"; exit 2; }
+
+FAIL=0
+no() { echo "GATE FAIL: $1"; FAIL=1; }
+
+# Include new, not yet tracked files in the diff.
+git add -AN . || exit 1
+git diff --check "$BASE" || no "whitespace errors"
+
+ADDED=$(git diff "$BASE" -U0 | grep -E '^\+' | grep -vE '^\+\+\+' || true)
+FILES=$(git diff "$BASE" --name-only)
+
+# 1. Banned imports.
+echo "$ADDED" | grep -qE "from ['\"](antd|@ant-design|lexical|@lexical|@/oss|@agenta/oss|@agenta/ee)" \
+    && no "banned import (antd, @ant-design, lexical, @/oss, @agenta/oss, @agenta/ee)"
+
+# 2. Suppressions and skipped tests.
+echo "$ADDED" | grep -qE "@ts-ignore|@ts-nocheck|eslint-disable|: any\b|as any\b|\.skip\(" \
+    && no "suppression, any, or skipped test"
+
+# 3. Dependency files.
+echo "$FILES" | grep -qE "(^|/)package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$" \
+    && no "dependency files changed"
+
+# 4. The old /w app.
+echo "$FILES" | grep -qE "^web/(oss|ee)/" && no "web/oss or web/ee changed"
+
+# 5. Env, CI, hosting.
+echo "$FILES" | grep -qE "(^|/)\.env|^\.github/|^hosting/" && no "env, CI, or hosting file changed"
+
+# 6. Deleted tests.
+[ -n "$(git diff "$BASE" --diff-filter=D --name-only | grep -E '\.(test|spec)\.' || true)" ] \
+    && no "test file deleted"
+
+echo "$FILES" | grep -q . || no "no changes"
+
+# 7. antd reaching /m through a changed file in web/mobile/src or web/packages.
+# Checks the added lines of each changed source file. A re-export line added in the file
+# ("export * from './x'") is followed one level: the target file is searched whole.
+ANTD_RE="from ['\"](antd|@ant-design/)|require\(['\"](antd|@ant-design/)|import\(['\"](antd|@ant-design/)"
+while IFS= read -r f; do
+    case "$f" in web/mobile/src/*|web/packages/*) ;; *) continue ;; esac
+    case "$f" in *.ts|*.tsx|*.js|*.jsx|*.mjs) ;; *) continue ;; esac
+    [ -f "$f" ] || continue
+    if git diff "$BASE" -U0 -- "$f" | grep -E '^\+' | grep -vE '^\+\+\+' | grep -qE "$ANTD_RE"; then
+        no "$f adds an antd import"
+        continue
+    fi
+    dir=$(dirname "$f")
+    while IFS= read -r spec; do
+        for cand in "$dir/$spec.ts" "$dir/$spec.tsx" "$dir/$spec/index.ts" "$dir/$spec/index.tsx" "$dir/$spec"; do
+            if [ -f "$cand" ]; then
+                grep -qE "$ANTD_RE" "$cand" && no "$f re-exports $cand, which imports antd"
+                break
+            fi
+        done
+    done < <(git diff "$BASE" -U0 -- "$f" | grep -E "^\+" | grep -E "^\+\s*export .* from ['\"]\.{1,2}/" \
+        | sed -E "s/.*from ['\"]([^'\"]+)['\"].*/\1/")
+done <<< "$FILES"
+
+[ "$FAIL" -eq 0 ] || exit 1
+
+# 8. Types, lint, related tests. Heavy: serialised across agents when the lock file exists.
+LOCK="$HOME/agenta-build-m-views/heavy.lock"
+heavy() { if [ -e "$LOCK" ] || [ -d "$(dirname "$LOCK")" ]; then flock "$LOCK" "$@"; else "$@"; fi; }
+OUT=$(mktemp -d)
+cd web || exit 1
+
+heavy pnpm --filter @agenta/mobile types:check >"$OUT/tsc" 2>&1 || { no "types:check"; tail -30 "$OUT/tsc"; exit 1; }
+echo "PASS: types:check"
+pnpm --filter @agenta/mobile lint >"$OUT/lint" 2>&1 || { no "lint"; tail -30 "$OUT/lint"; exit 1; }
+echo "PASS: lint"
+pnpm --filter @agenta/mobile exec vitest run --maxWorkers=2 >"$OUT/test" 2>&1 || { no "unit tests"; tail -30 "$OUT/test"; }
+tail -10 "$OUT/test"
+[ "$FAIL" -eq 0 ] && echo "PASS: gate"
+exit $FAIL

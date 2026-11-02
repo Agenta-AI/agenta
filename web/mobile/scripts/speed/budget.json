@@ -1,0 +1,49 @@
+{
+    "margin": {
+        "sizePercent": 3,
+        "sizeMinBytes": 5120,
+        "timingPercent": 15
+    },
+    "firstLoadGzipBytes": {
+        "shell": 1231906,
+        "routes": {
+            "/": 1234384,
+            "/404": 1233450,
+            "/auth": 1295712,
+            "/auth/callback/[[...provider]]": 1263818,
+            "/embed/[embedId]": 1312443,
+            "/invite": 1269549,
+            "/w": 1234386,
+            "/w/[workspace_id]": 1234435,
+            "/w/[workspace_id]/p": 1234438,
+            "/w/[workspace_id]/p/[project_id]": 1233373,
+            "/w/[workspace_id]/p/[project_id]/agents": 1375925,
+            "/w/[workspace_id]/p/[project_id]/agents/[agent_id]": 1904482,
+            "/w/[workspace_id]/p/[project_id]/agents/new": 1481035,
+            "/w/[workspace_id]/p/[project_id]/apps": 1406783,
+            "/w/[workspace_id]/p/[project_id]/automations": 1383244,
+            "/w/[workspace_id]/p/[project_id]/automations/[automation_id]": 1763948,
+            "/w/[workspace_id]/p/[project_id]/automations/new": 1430265,
+            "/w/[workspace_id]/p/[project_id]/observability": 1481855,
+            "/w/[workspace_id]/p/[project_id]/onboarding/[[...step]]": 1381673,
+            "/w/[workspace_id]/p/[project_id]/sessions": 1853763,
+            "/w/[workspace_id]/p/[project_id]/sessions/[session_id]": 1785188,
+            "/w/[workspace_id]/p/[project_id]/settings": 1368600,
+            "/w/[workspace_id]/p/[project_id]/skills": 1411554,
+            "/w/[workspace_id]/p/[project_id]/templates": 1364202,
+            "/w/[workspace_id]/p/[project_id]/templates/[template_key]": 1358846
+        }
+    },
+    "timing": {
+        "buildSeconds": 120.9,
+        "devCompileHomeSeconds": 51.6,
+        "devCompileSessionPageSeconds": 45.8,
+        "note": "Median of 3 runs on a shared dev box. Machine dependent: compare only on the same box."
+    },
+    "keyPages": {
+        "home": "/w/[workspace_id]/p/[project_id]",
+        "sessionsList": "/w/[workspace_id]/p/[project_id]/sessions",
+        "sessionPage": "/w/[workspace_id]/p/[project_id]/sessions/[session_id]",
+        "agentsList": "/w/[workspace_id]/p/[project_id]/agents"
+    }
+}

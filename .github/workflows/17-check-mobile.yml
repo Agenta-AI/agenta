@@ -226,6 +226,17 @@ jobs:
           expect_status / 404
           docker rm -f mobile-smoke
 
+      - name: Check first-load JavaScript budget (/m must not get heavier)
+        # One architecture is enough: the JavaScript is the same for both. The script reads the
+        # build manifest and the static chunks out of the image the previous step built.
+        if: matrix.arch == 'amd64'
+        run: |
+          IMAGE="ghcr.io/agenta-ai/agenta-web-mobile:${{ needs.prepare.outputs.image_tag }}-${{ matrix.arch }}"
+          docker create --name mobile-speed "$IMAGE" >/dev/null
+          docker cp mobile-speed:/app/mobile/.next "$RUNNER_TEMP/mobile-next"
+          docker rm mobile-speed >/dev/null
+          node web/mobile/scripts/speed/check.mjs --dir="$RUNNER_TEMP/mobile-next"
+
       - name: Verify image runs as non-root
         run: |
           IMAGE="ghcr.io/agenta-ai/agenta-web-mobile:${{ needs.prepare.outputs.image_tag }}-${{ matrix.arch }}"
