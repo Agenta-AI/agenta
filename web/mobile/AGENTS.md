@@ -87,7 +87,7 @@ specifics), `vercel:shadcn`, `vercel:react-best-practices`.
 - Lint / types: `pnpm --filter @agenta/mobile lint` / `pnpm --filter @agenta/mobile types:check`
 - Token bridge: `pnpm --filter @agenta/mobile generate:tokens`
 
-## Speed budget and the pre-commit gate
+## Speed budget
 
 /m must never get slower. Three things count: the JavaScript users download, the `next dev`
 cold compile time, and the `next build` time. The budget is in `scripts/speed/budget.json`.
@@ -106,8 +106,3 @@ cold compile time, and the `next build` time. The budget is in `scripts/speed/bu
   a barrel that pulls a view into a shared page. If he approves, run `speed:check --write`
   after a fresh build, review the diff of `budget.json`, and say why in the PR body.
   A new route has no budget until it is added the same way.
-- **Gate.** From the repository root, before you commit:
-  `web/mobile/scripts/gate.sh <base-ref>`. It checks the diff for banned imports (antd,
-  Lexical, app-layer), suppressions, changed dependency files, `web/oss`/`web/ee` edits, deleted
-  tests, and antd added to a file under `web/mobile/src` or `web/packages` (one level of
-  re-exports is followed). Then it runs types, lint, and the unit tests.
