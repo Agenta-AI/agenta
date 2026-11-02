@@ -5,7 +5,7 @@ import {
     getHumanMetrics,
     type WorkflowRevisionLike,
 } from "@agenta/annotation"
-import {evaluatorWorkflowMetaMapAtom} from "@agenta/entities/workflow"
+import {evaluatorWorkflowMetaMapAtom, workflowMolecule} from "@agenta/entities/workflow"
 import {
     EntityPicker,
     useEnrichedHumanEvaluatorAdapter,
@@ -32,16 +32,24 @@ const metricSummary = (labels: string[]) =>
         ? labels.join(", ")
         : `${labels.slice(0, 3).join(", ")} +${labels.length - 3}`
 
+/** The evaluator's own name: a revision's name can read "default" or be empty. */
+const RevisionName = ({revisionId}: {revisionId: string}) => {
+    const name = useAtomValue(workflowMolecule.selectors.artifactName(revisionId))
+    return (
+        <span className="max-w-[180px] truncate" title={name ?? undefined}>
+            {name ?? "Unnamed"}
+        </span>
+    )
+}
+
 const renderRevisionLabel = (entity: unknown) => {
-    const revision = entity as WorkflowRevisionLike
+    const revision = entity as WorkflowRevisionLike & {id: string}
     const metrics = revision.flags?.is_feedback ? getHumanMetrics(revision) : []
     const labels = metrics.map(formatHumanMetricLabel)
     return (
         <div className="flex min-w-0 flex-col gap-0.5">
             <div className="flex min-w-0 items-center gap-2">
-                <span className="max-w-[180px] truncate" title={revision.name ?? undefined}>
-                    {revision.name ?? "Unnamed"}
-                </span>
+                <RevisionName revisionId={revision.id} />
                 <VersionBadge version={revision.version ?? 0} variant="chip" size="small" />
             </div>
             {labels.length > 0 ? (
@@ -61,7 +69,8 @@ export const QueueEvaluatorField = ({
     disabled,
 }: {
     selected: SelectedEvaluator[]
-    onChange: (next: SelectedEvaluator[]) => void
+    // An updater, so several picks in one tick each build on the latest list.
+    onChange: (update: (previous: SelectedEvaluator[]) => SelectedEvaluator[]) => void
     error?: string
     disabled?: boolean
 }) => {
@@ -94,27 +103,29 @@ export const QueueEvaluatorField = ({
     const handleSelect = useCallback(
         (result: WorkflowRevisionSelectionResult) => {
             const {id, metadata} = result as EvaluatorSelection
-            if (selected.some((evaluator) => evaluator.revisionId === id)) {
-                onChange(selected.filter((evaluator) => evaluator.revisionId !== id))
-                return
-            }
-            onChange([
-                ...selected,
-                {
-                    evaluatorId: metadata.workflowId || "",
-                    revisionId: id,
-                    evaluatorName: metadata.workflowName || "Evaluator",
-                    version: metadata.revision ?? 0,
-                    isHuman: Boolean(metadata.isHuman),
-                },
-            ])
+            onChange((previous) =>
+                previous.some((evaluator) => evaluator.revisionId === id)
+                    ? previous.filter((evaluator) => evaluator.revisionId !== id)
+                    : [
+                          ...previous,
+                          {
+                              evaluatorId: metadata.workflowId || "",
+                              revisionId: id,
+                              evaluatorName: metadata.workflowName || "Evaluator",
+                              version: metadata.revision ?? 0,
+                              isHuman: Boolean(metadata.isHuman),
+                          },
+                      ],
+            )
         },
-        [onChange, selected],
+        [onChange],
     )
     const remove = useCallback(
         (revisionId: string) =>
-            onChange(selected.filter((evaluator) => evaluator.revisionId !== revisionId)),
-        [onChange, selected],
+            onChange((previous) =>
+                previous.filter((evaluator) => evaluator.revisionId !== revisionId),
+            ),
+        [onChange],
     )
 
     return (
@@ -142,7 +153,7 @@ export const QueueEvaluatorField = ({
                         onDeselectChild={remove}
                         showParentDescription
                         showChildSelectAll
-                        onClearAll={() => onChange([])}
+                        onClearAll={() => onChange(() => [])}
                         size="middle"
                     />
                 </div>

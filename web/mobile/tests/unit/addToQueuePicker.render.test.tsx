@@ -50,6 +50,10 @@ vi.mock("@agenta/annotation", async () => {
         createQueueDrawerSelectionAtom: makeAtom<unknown>(null),
     }
 })
+vi.mock("@/features/context/useProjectPermission", () => ({
+    useProjectPermission: () => true,
+}))
+
 vi.mock("@/features/developer/developerViewAccess", () => ({
     useDeveloperViewEnabled: () => true,
 }))
