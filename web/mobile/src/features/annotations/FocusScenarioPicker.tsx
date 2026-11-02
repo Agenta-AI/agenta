@@ -1,6 +1,4 @@
 import {annotationSessionController, truncateScenarioId} from "@agenta/annotation"
-import {traceRootSpanAtomFamily} from "@agenta/entities/trace"
-import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {message} from "@agenta/ui/app-message"
 import {
     Badge,
@@ -16,11 +14,20 @@ import {copyToClipboard} from "@agenta/ui/utils"
 import {ArrowSquareOut, Copy} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {useScenarioTraceOpener} from "./useScenarioTraceOpener"
+
 /**
  * The footer's left side: which item of how many, the item's trace or test case id with a copy
  * action, and for a trace the button that opens it in the trace drawer.
  */
-export const FocusScenarioPicker = ({scenarioId}: {scenarioId: string}) => {
+export const FocusScenarioPicker = ({
+    scenarioId,
+    compact,
+}: {
+    scenarioId: string
+    /** On a narrow screen the trace button lives in the footer's More menu. */
+    compact: boolean
+}) => {
     const focusIds = useAtomValue(annotationSessionController.selectors.focusScenarioIds())
     const total = useAtomValue(annotationSessionController.selectors.scenarioIds()).length
     const isTraces = useAtomValue(annotationSessionController.selectors.queueKind()) === "traces"
@@ -31,9 +38,8 @@ export const FocusScenarioPicker = ({scenarioId}: {scenarioId: string}) => {
         annotationSessionController.selectors.scenarioTestcaseRef(scenarioId),
     )
     const traceId = isTraces ? traceRef.traceId : ""
-    const rootSpan = useAtomValue(traceRootSpanAtomFamily(traceId || null))
+    const openTrace = useScenarioTraceOpener(scenarioId)
     const navigateToIndex = useSetAtom(annotationSessionController.actions.navigateToIndex)
-    const openTrace = useSetAtom(openTraceDrawerAtom)
 
     const index = focusIds.indexOf(scenarioId)
     const displayId = traceId || testcaseRef.testcaseId
@@ -74,14 +80,14 @@ export const FocusScenarioPicker = ({scenarioId}: {scenarioId: string}) => {
                     </button>
                 </SimpleTooltip>
             ) : null}
-            {traceId ? (
+            {openTrace && !compact ? (
                 <Button
                     type="button"
                     size="icon-sm"
                     variant="ghost"
                     aria-label="Open trace"
                     className="text-muted-foreground"
-                    onClick={() => openTrace({traceId, activeSpanId: rootSpan?.span_id ?? null})}
+                    onClick={openTrace}
                 >
                     <ArrowSquareOut aria-hidden size={14} />
                 </Button>

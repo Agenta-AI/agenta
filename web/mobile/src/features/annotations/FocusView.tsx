@@ -64,7 +64,7 @@ export const FocusView = ({
 
     return (
         <div className="flex min-h-0 flex-1 flex-col">
-            <div className="min-h-0 flex-1 overflow-y-auto bg-muted/30 p-2 md:overflow-hidden">
+            <div className="min-h-0 flex-1 overflow-y-auto bg-muted p-2 md:overflow-hidden">
                 <div className="flex flex-col gap-3 md:h-full md:flex-row md:gap-4">
                     <div className="min-w-0 rounded-lg border border-solid border-border bg-background md:flex-1 md:overflow-y-auto">
                         <ScenarioContent

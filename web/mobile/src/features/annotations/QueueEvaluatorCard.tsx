@@ -44,7 +44,7 @@ const toJson = (value: unknown): string => {
 }
 
 const Box = ({children}: {children: React.ReactNode}) => (
-    <div className="rounded-md border border-solid border-border bg-muted/40 px-2.5 py-1.5">
+    <div className="rounded-md border border-solid border-border bg-muted px-2.5 py-1.5">
         {children}
     </div>
 )
@@ -84,7 +84,7 @@ export const QueueEvaluatorCard = ({evaluatorId}: {evaluatorId: string}) => {
 
     return (
         <div className="flex flex-col">
-            <div className="flex min-h-10 items-center justify-between gap-2 bg-muted/40 px-3 py-1.5">
+            <div className="flex min-h-10 items-center justify-between gap-2 bg-muted px-3 py-1.5">
                 <div className="flex min-w-0 items-center gap-2">
                     <span
                         className="min-w-0 truncate text-sm font-medium text-foreground"

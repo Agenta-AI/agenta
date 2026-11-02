@@ -1,14 +1,13 @@
 import type {CSSProperties} from "react"
 
 import {annotationSessionController} from "@agenta/annotation"
-import {traceRootSpanAtomFamily} from "@agenta/entities/trace"
-import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {Button, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle} from "@agenta/ui/ui"
 import {ArrowSquareOut} from "@phosphor-icons/react"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue} from "jotai"
 
 import {AnnotationFormPanel} from "./AnnotationFormPanel"
 import {ScenarioContent} from "./ScenarioContent"
+import {useScenarioTraceOpener} from "./useScenarioTraceOpener"
 
 const SHEET_WIDTH = {"--ag-sheet-responsive-width": "1100px"} as CSSProperties
 
@@ -29,9 +28,7 @@ export const AnnotateScenarioSheet = ({
     const isTraces = useAtomValue(annotationSessionController.selectors.queueKind()) !== "testcases"
     const traceRef = useAtomValue(annotationSessionController.selectors.scenarioTraceRef(id))
     const testcaseRef = useAtomValue(annotationSessionController.selectors.scenarioTestcaseRef(id))
-    const traceId = isTraces ? traceRef.traceId : ""
-    const rootSpan = useAtomValue(traceRootSpanAtomFamily(traceId || null))
-    const openTrace = useSetAtom(openTraceDrawerAtom)
+    const openTrace = useScenarioTraceOpener(id)
 
     return (
         <Sheet open={scenarioId !== null} onOpenChange={(next) => !next && onClose()}>
@@ -45,15 +42,13 @@ export const AnnotateScenarioSheet = ({
                     <SheetDescription className="sr-only">
                         Rate this item and mark it completed.
                     </SheetDescription>
-                    {traceId ? (
+                    {openTrace ? (
                         <Button
                             type="button"
                             size="sm"
                             variant="outline"
                             className="ml-auto"
-                            onClick={() =>
-                                openTrace({traceId, activeSpanId: rootSpan?.span_id ?? null})
-                            }
+                            onClick={openTrace}
                         >
                             <ArrowSquareOut aria-hidden size={14} />
                             View Full Trace
@@ -66,7 +61,7 @@ export const AnnotateScenarioSheet = ({
                             <ScenarioContent
                                 hasScenario
                                 isTraces={isTraces}
-                                traceId={traceId}
+                                traceId={traceRef.traceId}
                                 testcaseId={testcaseRef.testcaseId}
                             />
                         </div>

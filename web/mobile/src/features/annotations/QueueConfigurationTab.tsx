@@ -36,7 +36,7 @@ export const QueueConfigurationTab = ({
     const description = queue?.description?.trim()
 
     return (
-        <div className="min-h-0 flex-1 overflow-y-auto bg-muted/30 py-6">
+        <div className="min-h-0 flex-1 overflow-y-auto bg-muted py-6">
             <div className="mx-auto flex w-full max-w-[560px] flex-col gap-4 px-4">
                 <QueueConfigSection title="General">
                     <div className="flex flex-col gap-3 p-4">

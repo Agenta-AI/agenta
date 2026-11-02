@@ -6,6 +6,7 @@ import {
     DropdownMenu,
     DropdownMenuCheckboxItem,
     DropdownMenuContent,
+    DropdownMenuItem,
     DropdownMenuTrigger,
     Switch,
 } from "@agenta/ui/ui"
@@ -36,10 +37,17 @@ const SwitchRow = ({
 }
 
 /**
- * "Hide marked complete" and "Auto next". On a phone they move into a More menu so the footer
- * keeps room for the buttons.
+ * "Hide marked complete" and "Auto next". On a narrow screen they move into a More menu, with
+ * Open trace, so the footer keeps room for the buttons.
  */
-export const FocusSwitches = ({compact}: {compact: boolean}) => {
+export const FocusSwitches = ({
+    compact,
+    onOpenTrace,
+}: {
+    compact: boolean
+    /** On a narrow screen the More menu also opens the item's trace. */
+    onOpenTrace: (() => void) | null
+}) => {
     const hideCompleted = useAtomValue(annotationSessionController.selectors.hideCompletedInFocus())
     const autoNext = useAtomValue(annotationSessionController.selectors.focusAutoNext())
     const setHideCompleted = useSetAtom(annotationSessionController.actions.setHideCompletedInFocus)
@@ -54,6 +62,9 @@ export const FocusSwitches = ({compact}: {compact: boolean}) => {
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                    {onOpenTrace ? (
+                        <DropdownMenuItem onSelect={onOpenTrace}>Open trace</DropdownMenuItem>
+                    ) : null}
                     <DropdownMenuCheckboxItem
                         checked={hideCompleted}
                         onCheckedChange={(checked) => setHideCompleted(checked === true)}

@@ -108,7 +108,7 @@ export const AnnotationFormPanel = ({
                             value={evaluator.slug}
                             className="border-0 border-b border-solid border-border"
                         >
-                            <AccordionTrigger className="bg-muted/40 px-3 py-2.5">
+                            <AccordionTrigger className="bg-muted px-3 py-2.5">
                                 <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
                                     <span
                                         className="min-w-0 truncate"

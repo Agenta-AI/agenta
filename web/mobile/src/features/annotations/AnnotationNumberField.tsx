@@ -66,7 +66,7 @@ export const AnnotationNumberField = ({
                     <Slider
                         aria-label={label}
                         data-empty={empty || undefined}
-                        className="data-[empty]:[&_[data-slot=slider-range]]:opacity-0 data-[empty]:[&_[data-slot=slider-thumb]]:opacity-0"
+                        className="[&[data-empty]_[data-slot=slider-range]]:opacity-0 [&[data-empty]_[data-slot=slider-thumb]]:opacity-0"
                         min={min}
                         max={max}
                         step={step}

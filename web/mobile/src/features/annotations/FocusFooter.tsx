@@ -7,6 +7,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {FocusScenarioPicker} from "./FocusScenarioPicker"
 import {FocusSwitches} from "./FocusSwitches"
+import {useScenarioTraceOpener} from "./useScenarioTraceOpener"
 import type {useSubmitAnnotations} from "./useSubmitAnnotations"
 
 const WIDE_QUERY = "(min-width: 1024px)"
@@ -24,6 +25,7 @@ export const FocusFooter = ({
     submission: ReturnType<typeof useSubmitAnnotations>
 }) => {
     const wide = useMediaQuery(WIDE_QUERY)
+    const openTrace = useScenarioTraceOpener(scenarioId)
     const modifierKey = useModifierKey()
     const hasNext = useAtomValue(annotationSessionController.selectors.hasNext())
     const hasPrev = useAtomValue(annotationSessionController.selectors.hasPrev())
@@ -43,9 +45,9 @@ export const FocusFooter = ({
 
     return (
         <div className="flex w-full min-w-0 items-center justify-between gap-1.5 sm:gap-4">
-            <FocusScenarioPicker scenarioId={scenarioId} />
+            <FocusScenarioPicker scenarioId={scenarioId} compact={!wide} />
             <div className="flex shrink-0 items-center gap-1 sm:gap-2 lg:gap-4">
-                <FocusSwitches compact={!wide} />
+                <FocusSwitches compact={!wide} onOpenTrace={openTrace} />
                 <div className="flex items-center gap-1 sm:gap-2">
                     <Button
                         type="button"
