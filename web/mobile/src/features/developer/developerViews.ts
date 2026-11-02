@@ -66,4 +66,11 @@ export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
         nav: {icon: PlugsIcon, section: "developer"},
         stage: "hidden",
     },
+    {
+        id: "observability-app-filter",
+        label: "Filter by app",
+        description:
+            "Filter traces and sessions by app, and open sessions for one agent from a link.",
+        stage: "hidden",
+    },
 ]

@@ -16,9 +16,12 @@ import {projectHomeUrl} from "@/lib/context"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useProjectPermissionState} from "../context/useProjectPermission"
+import {canDeveloperViewBeEnabled, useDeveloperViewEnabled} from "../developer/developerViewAccess"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
+import {ObservabilityAppFilter} from "./ObservabilityAppFilter"
+import {setObservabilityAppInUrl, useObservabilityAppScope} from "./observabilityAppScope"
 import {SessionsList} from "./SessionsList"
 import {SessionsTable} from "./SessionsTable"
 import {TracesFilters} from "./TracesFilters"
@@ -62,12 +65,16 @@ const TAB_ITEMS = [
     },
 ]
 
-export const ObservabilityScreen = ({
+const ObservabilityContent = ({
     workspaceId,
     projectId,
+    appFilterEnabled,
+    routeAppId,
 }: {
     workspaceId: string
     projectId: string
+    appFilterEnabled: boolean
+    routeAppId: string | null
 }) => {
     useBindProjectContext(projectId)
     const [tab, setTab] = useState<ObservabilityTab>("traces")
@@ -80,8 +87,11 @@ export const ObservabilityScreen = ({
             void router.replace(projectHomeUrl({workspaceId, projectId}))
     }, [spans.allowed, spans.pending, projectId, router, workspaceId])
 
-    // No scope binding: the seam's own defaults are project-wide with no workflow, which is
-    // exactly this screen. Binding would only re-state them.
+    const onAppChange = useCallback(
+        (appId: string | null) => setObservabilityAppInUrl(router, appId),
+        [router],
+    )
+    const tracesFilters = tab === "traces" ? <TracesFilters /> : undefined
 
     const isNarrow = useIsNarrowScreen()
     // Selection lives in the table; the narrow card list has none. Anything that acts on a
@@ -135,7 +145,20 @@ export const ObservabilityScreen = ({
                             componentType={tab}
                             onRefresh={onRefresh}
                             sortSlot={<ObservabilityRangePicker />}
-                            filtersSlot={tab === "traces" ? <TracesFilters /> : undefined}
+                            filtersSlot={
+                                appFilterEnabled ? (
+                                    <>
+                                        {tracesFilters}
+                                        <ObservabilityAppFilter
+                                            projectId={projectId}
+                                            value={routeAppId}
+                                            onChange={onAppChange}
+                                        />
+                                    </>
+                                ) : (
+                                    tracesFilters
+                                )
+                            }
                             onExport={tab === "traces" ? onExport : undefined}
                             isExporting={isExporting}
                             onDelete={tab === "traces" && showsTable ? onDelete : undefined}
@@ -187,6 +210,42 @@ export const ObservabilityScreen = ({
                 </ScreenScaffold>
             </AppShell>
         </>
+    )
+}
+
+/**
+ * Project wide, which is the scope seam's own default, unless the app filter developer view is
+ * on: then `?app=` scopes the queries and the toolbar gets a picker.
+ *
+ * The content subscribes to the traces query as soon as it renders, so a link with `?app=` waits
+ * here for the answer on the view. Without that wait its first request would be project wide.
+ */
+export const ObservabilityScreen = ({
+    workspaceId,
+    projectId,
+}: {
+    workspaceId: string
+    projectId: string
+}) => {
+    const router = useRouter()
+    const appFilterView = useDeveloperViewEnabled("observability-app-filter")
+    const appFilterEnabled = appFilterView === true
+    const routeAppId = typeof router.query.app === "string" ? router.query.app : null
+    useObservabilityAppScope(appFilterEnabled ? routeAppId : null)
+
+    if (
+        appFilterView === null &&
+        routeAppId !== null &&
+        canDeveloperViewBeEnabled("observability-app-filter")
+    )
+        return null
+    return (
+        <ObservabilityContent
+            workspaceId={workspaceId}
+            projectId={projectId}
+            appFilterEnabled={appFilterEnabled}
+            routeAppId={routeAppId}
+        />
     )
 }
 
