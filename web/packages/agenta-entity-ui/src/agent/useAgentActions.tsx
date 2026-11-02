@@ -1,6 +1,6 @@
 import {useCallback} from "react"
 
-import {archiveWorkflow, updateWorkflow} from "@agenta/entities/workflow"
+import {archiveWorkflow, unarchiveWorkflow, updateWorkflow} from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message, modal} from "@agenta/ui/app-message"
 import {Input} from "@agenta/ui/ui"
@@ -24,6 +24,30 @@ export const useRenameAgent = () => {
                 await updateWorkflow(projectId, {id, name})
             } catch {
                 message.error("Couldn't rename this agent")
+                return false
+            }
+            void queryClient.invalidateQueries({queryKey: ["workflows"]})
+            void queryClient.invalidateQueries({queryKey: ["agent-workflows"]})
+            return true
+        },
+        [projectId, queryClient],
+    )
+}
+
+/**
+ * The restore write on its own: unarchive, then refresh the lists that show the agent. It reports
+ * through its result and never toasts, because the host knows which noun and which surface.
+ */
+export const useRestoreWorkflow = () => {
+    const queryClient = useQueryClient()
+    const projectId = useAtomValue(projectIdAtom) ?? ""
+
+    return useCallback(
+        async (id: string): Promise<boolean> => {
+            try {
+                await unarchiveWorkflow(projectId, id)
+            } catch (error) {
+                console.error("Failed to restore the agent", error)
                 return false
             }
             void queryClient.invalidateQueries({queryKey: ["workflows"]})

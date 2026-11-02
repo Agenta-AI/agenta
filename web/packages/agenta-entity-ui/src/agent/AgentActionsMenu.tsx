@@ -10,8 +10,10 @@ import {
     Broadcast,
     Copy,
     DotsThreeVertical,
+    ArrowCounterClockwise,
     Note,
     PencilSimple,
+    Rocket,
     TextAlignLeft,
 } from "@phosphor-icons/react"
 
@@ -37,6 +39,15 @@ export interface AgentActionsMenuProps {
     onDelete?: () => void
     /** Custom-workflow "Configure" — only the desktop has that flow, so absent means no item. */
     onConfigure?: () => void
+    /** Opens a chat with the agent. Absent means no item. */
+    onOpenPlayground?: () => void
+    /**
+     * Restores an archived agent. Present means the agent IS archived: the menu offers Restore in
+     * place of Rename, Configure and Archive, none of which apply to a put-away agent.
+     */
+    onRestore?: () => void
+    /** False hides Archive agent, for a reader who may not archive. Defaults to true. */
+    canArchive?: boolean
     /** Which edge the menu hangs from. A trigger near the right edge wants `end`. */
     align?: "start" | "end"
     /** The close's focus restore. A host whose rename mounts an editor suppresses it here. */
@@ -58,6 +69,9 @@ export const AgentActionsMenu = ({
     onEditDescription,
     onDelete,
     onConfigure,
+    onOpenPlayground,
+    onRestore,
+    canArchive = true,
     align = "start",
     onCloseAutoFocus,
     className,
@@ -89,13 +103,19 @@ export const AgentActionsMenu = ({
                         Open configuration
                     </DropdownMenuItem>
                 ) : null}
+                {onOpenPlayground ? (
+                    <DropdownMenuItem onSelect={onOpenPlayground}>
+                        <Rocket size={16} />
+                        Open in playground
+                    </DropdownMenuItem>
+                ) : null}
                 {onPublish ? (
                     <DropdownMenuItem onSelect={onPublish}>
                         <Broadcast size={16} />
                         Publish
                     </DropdownMenuItem>
                 ) : null}
-                {onConfigure ? (
+                {onRestore ? null : onConfigure ? (
                     <DropdownMenuItem onSelect={onConfigure}>
                         <PencilSimple size={16} />
                         Configure
@@ -118,18 +138,27 @@ export const AgentActionsMenu = ({
                         Copy Slug
                     </DropdownMenuItem>
                 ) : null}
-                {/* Set apart: everything above is reversible in a keystroke, and this one takes
-                    the agent off the roster. */}
-                <DropdownMenuSeparator />
-                {/* Archive, not Delete: the verb behind it has always been `archiveWorkflow`,
-                    and the modal it opens is already titled "Archive". */}
-                <DropdownMenuItem
-                    className="!text-colorError"
-                    onSelect={onDelete ?? (() => actions.remove(agent))}
-                >
-                    <Archive size={16} />
-                    Archive agent
-                </DropdownMenuItem>
+                {onRestore ? (
+                    <DropdownMenuItem onSelect={onRestore}>
+                        <ArrowCounterClockwise size={16} />
+                        Restore
+                    </DropdownMenuItem>
+                ) : canArchive ? (
+                    <>
+                        {/* Set apart: everything above is reversible in a keystroke, and this one
+                            takes the agent off the roster. */}
+                        <DropdownMenuSeparator />
+                        {/* Archive, not Delete: the verb behind it has always been
+                            `archiveWorkflow`, and the modal it opens is already titled "Archive". */}
+                        <DropdownMenuItem
+                            className="!text-colorError"
+                            onSelect={onDelete ?? (() => actions.remove(agent))}
+                        >
+                            <Archive size={16} />
+                            Archive agent
+                        </DropdownMenuItem>
+                    </>
+                ) : null}
             </DropdownMenuContent>
         </DropdownMenu>
     )

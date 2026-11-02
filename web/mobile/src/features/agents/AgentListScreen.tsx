@@ -39,6 +39,7 @@ import {
 import {NewAgentAction} from "./NewAgentAction"
 import {AgentsNoMatch} from "./states/AgentsNoMatch"
 import {useAgentOwners} from "./useAgentOwners"
+import {useAgentRowActions} from "./useAgentRowActions"
 import {useArchivedAgents} from "./useArchivedAgents"
 import {useNewAgentAction} from "./useNewAgentAction"
 
@@ -66,6 +67,7 @@ export const AgentListScreen = ({
     const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
     const newAgent = useNewAgentAction(base)
+    const rowActions = useAgentRowActions(base, projectId)
     const query = useAtomValue(agentWorkflowsListQueryStateAtom)
     const [search, setSearch] = useAtom(agentRosterSearchAtom)
     const waitingByAgent = useWaitingByAgent()
@@ -160,6 +162,7 @@ export const AgentListScreen = ({
             view={view.mode}
             isLoading={isLoading}
             onOpen={openRow}
+            actions={rowActions}
             empty={emptyState}
         />
     )
