@@ -203,7 +203,6 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
             ? {faces: shortcutFaces(shortcut, mac), aria: shortcutAria(PALETTE_SHORTCUT_ID)}
             : undefined
     }, [mac])
-    // Rebuilt views from the old app, by rollout stage; none while no view is enabled.
     const developerViews = useEnabledDeveloperViews()
     const wrapSessionRow = useCallback(
         (ref: SidebarEntityRef, node: ReactNode) =>
