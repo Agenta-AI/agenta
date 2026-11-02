@@ -48,6 +48,7 @@ import {resolveSessionPanes} from "./sessionPanes"
 import {SessionsPane} from "./SessionsPane"
 import {SessionTabs} from "./SessionTabs"
 import {SessionTopBar} from "./SessionTopBar"
+import {ConfigPaneLoading} from "./states/ConfigPaneLoading"
 import {useDriveUrlSync} from "./useDriveUrlSync"
 import {useLeaveSession} from "./useLeaveSession"
 import {sessionHeaderKey} from "./useSessionHeader"
@@ -56,10 +57,11 @@ import {useStartBlankSession} from "./useStartBlankSession"
 import {useTriggerTestRun} from "./useTriggerTestRun"
 
 // Build's config panel carries the whole schema-form surface (DrillInView + the editor). Chat
-// mode never renders it, so it loads on demand instead of riding in the session page's bundle —
-// the panel is behind an explicit mode switch, so a chunk fetch on that click is invisible.
+// mode never renders it, so it loads on demand instead of riding in the session page's bundle.
+// Until the chunk lands the pane shows its skeleton, not an empty column.
 const ConfigPane = dynamic(() => import("./ConfigPane").then((m) => m.ConfigPane), {
     ssr: false,
+    loading: ConfigPaneLoading,
 })
 
 // The tool catalog is opened by setting an atom, so whoever opens it needs this mounted or the

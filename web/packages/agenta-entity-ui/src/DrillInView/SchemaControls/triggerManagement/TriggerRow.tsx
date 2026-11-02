@@ -5,12 +5,11 @@ import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/
 
 import {TriggerActionsMenu} from "./TriggerActionsMenu"
 
-/** A trigger row: leading status-dot icon, name + optional chip, subtitle, ⋯ menu. */
+/** A trigger row: leading status-dot icon, name, subtitle, ⋯ menu. */
 export function TriggerRow({
     icon,
     name,
     nameMuted,
-    chip,
     subtitle,
     active,
     disabled,
@@ -22,7 +21,6 @@ export function TriggerRow({
     icon: ReactNode
     name: string
     nameMuted?: boolean
-    chip?: ReactNode
     subtitle: string
     active: boolean
     disabled?: boolean
@@ -75,19 +73,12 @@ export function TriggerRow({
                         <TooltipContent>{active ? "Active" : "Paused"}</TooltipContent>
                     </Tooltip>
                     <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                            <span
-                                className={`truncate text-xs font-normal ${
-                                    nameMuted ? "italic text-[var(--ag-colorTextTertiary)]" : ""
-                                }`}
-                            >
-                                {name}
-                            </span>
-                            {chip ? (
-                                <span className="ml-0.5 max-w-[170px] shrink-0 truncate rounded bg-[var(--ag-colorFillSecondary)] px-1.5 py-0.5 text-[12px] text-[var(--ag-colorTextSecondary)]">
-                                    {chip}
-                                </span>
-                            ) : null}
+                        <div
+                            className={`truncate text-xs font-normal ${
+                                nameMuted ? "italic text-[var(--ag-colorTextTertiary)]" : ""
+                            }`}
+                        >
+                            {name}
                         </div>
                         <div className="mt-0.5 truncate text-xs leading-snug text-[var(--ag-colorTextSecondary)]">
                             {subtitle}

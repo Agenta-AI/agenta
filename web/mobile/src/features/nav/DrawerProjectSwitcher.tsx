@@ -12,9 +12,8 @@ import {THEME_OPTIONS, themeIcon, useThemeMode} from "@agenta/ui/theme"
 import {useMutation} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
-import {projectHomeUrl, writeLastContext} from "@/lib/context"
-
 import {useLogout} from "../auth/useLogout"
+import {switchSettingsContext} from "../settings/switchContext"
 import {LiveChatNavButton} from "../support/LiveChatNavButton"
 import {useLiveChatEnabled} from "../support/useLiveChatEnabled"
 
@@ -50,11 +49,8 @@ export const DrawerProjectSwitcher = ({
         projectId,
     )
 
-    const goTo = (nextWorkspaceId: string, nextProjectId: string) => {
-        writeLastContext({workspaceId: nextWorkspaceId, projectId: nextProjectId})
-        // The resolver's own spelling of this route; the literal it replaces dropped the encoding.
-        void router.push(projectHomeUrl({workspaceId: nextWorkspaceId, projectId: nextProjectId}))
-    }
+    const goTo = (nextWorkspaceId: string, nextProjectId: string) =>
+        switchSettingsContext(router, {workspaceId: nextWorkspaceId, projectId: nextProjectId})
 
     const projects = useMemo<SwitcherEntry[]>(
         () =>
@@ -64,7 +60,7 @@ export const DrawerProjectSwitcher = ({
                 isActive: project.project_id === projectId,
                 onSelect: () => goTo(project.workspace_id, project.project_id),
             })),
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+
         [currentGroup?.projects, projectId],
     )
 
@@ -80,7 +76,7 @@ export const DrawerProjectSwitcher = ({
                     if (first) goTo(group.workspaceId, first.project_id)
                 },
             })),
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+
         [groups, currentGroup?.key],
     )
 

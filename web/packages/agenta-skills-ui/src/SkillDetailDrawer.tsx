@@ -16,7 +16,7 @@
 import {useCallback, useMemo, useRef, useState} from "react"
 
 import {AgentChip} from "@agenta/entity-ui/agent"
-import {SkillFormView} from "@agenta/entity-ui/drill-in"
+import {SkillFormSkeleton, SkillFormView} from "@agenta/entity-ui/drill-in"
 import {
     archiveSkill,
     commitSkillRevision,
@@ -64,6 +64,10 @@ import Link from "next/link"
 import {SkillAgentPicker, skillUsageQueryKey} from "./SkillAgentPicker"
 import type {SkillListItem, SkillUsageRef} from "./types"
 
+/** The head-revision query's key; the registry row's Download reads the same cache. */
+export const skillRevisionsQueryKey = (projectId: string, workflowId: string) =>
+    ["skills", "revisions", projectId, workflowId] as const
+
 export interface SkillDetailDrawerProps {
     open: boolean
     onClose: () => void
@@ -105,7 +109,7 @@ export function SkillDetailDrawer({
     const isBuiltin = skill?.origin === "builtin"
 
     const revisionsQuery = useQuery({
-        queryKey: ["skills", "revisions", projectId, workflowId],
+        queryKey: skillRevisionsQueryKey(projectId, workflowId),
         queryFn: () => fetchSkillRevisions({projectId, workflowId}),
         enabled: open && Boolean(projectId && workflowId) && !isBuiltin,
         staleTime: 15_000,
@@ -499,6 +503,11 @@ export function SkillDetailDrawer({
                 placement="right"
                 width={width}
                 destroyOnClose
+                bodyFallback={
+                    <div className="flex min-h-0 flex-1 flex-col p-4">
+                        <SkillFormSkeleton />
+                    </div>
+                }
                 title={title}
                 extra={actions}
                 styles={{
@@ -570,9 +579,7 @@ export function SkillDetailDrawer({
                             </span>
                         </div>
                     ) : revisionsQuery.isPending ? (
-                        <div className="flex flex-1 items-center justify-center">
-                            <Spinner size="small" />
-                        </div>
+                        <SkillFormSkeleton />
                     ) : revisionsQuery.isError ? (
                         // A failed load must not read as an empty skill with a dead Save.
                         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
@@ -596,6 +603,7 @@ export function SkillDetailDrawer({
                                 onChange={readOnly ? () => undefined : setDraft}
                                 disabled={readOnly || busy}
                                 showMissing={attempted}
+                                downloadable
                             />
                         </div>
                     )}

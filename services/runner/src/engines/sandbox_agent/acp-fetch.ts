@@ -1,5 +1,6 @@
 import { Agent, fetch as undiciFetch } from "undici";
 
+import { DEFAULT_TOTAL_DEADLINE_MS } from "./run-limits.ts";
 import { sandboxGoneReason } from "./sandbox-gone.ts";
 
 /**
@@ -26,8 +27,12 @@ function envTimeoutMs(name: string, defaultMs: number): number {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : defaultMs;
 }
 
+/**
+ * The `session/prompt` response headers arrive only when the turn ends, so this must outlast the
+ * longest turn: at this limit the request fails and the turn fails with it.
+ */
+const DEFAULT_ACP_HEADERS_TIMEOUT_MS = DEFAULT_TOTAL_DEADLINE_MS + 60 * 60_000;
 /** Wide enough for ordinary transport waits; a human-input pause disables run limits separately. */
-const DEFAULT_ACP_HEADERS_TIMEOUT_MS = 60 * 60_000; // 60 min
 const DEFAULT_ACP_BODY_TIMEOUT_MS = 60 * 60_000; // 60 min
 
 /**

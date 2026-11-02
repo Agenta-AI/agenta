@@ -48,7 +48,7 @@ export const ChannelsTab = ({workspaceId, projectId}: SettingsTabProps) => {
     const [picked, setPicked] = useState<string | null>(null)
     const agent = agents.find((candidate) => candidate.id === picked) ?? agents[0]
 
-    // The roster landing rebuilds the actions, so the reload that follows names every agent.
+    // A roster that lands after the read still names every agent; it does not reload.
     const {connections, loading, loadError, actions} = useAgentChannels(agent?.id ?? "", {
         resolveAgentName,
     })

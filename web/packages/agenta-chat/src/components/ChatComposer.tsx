@@ -257,7 +257,7 @@ export const ChatComposer = ({
                         : waitingOnUser
                           ? // The parked interaction is docked directly above, so point at it rather
                             // than describing the wait in the abstract.
-                            "Answer above, or type to queue a message"
+                            "Answer above, or type a message instead"
                           : !hasTurns
                             ? "What should we work on?"
                             : // An ongoing session carries the key hints here instead of as chips.
