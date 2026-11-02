@@ -74,9 +74,10 @@ done <<< "$FILES"
 
 [ "$FAIL" -eq 0 ] || exit 1
 
-# 8. Types, lint, related tests. Heavy: serialised across agents when the lock file exists.
-LOCK="$HOME/agenta-build-m-views/heavy.lock"
-heavy() { if [ -d "$(dirname "$LOCK")" ]; then flock "$LOCK" "$@"; else "$@"; fi; }
+# 8. Types, lint, related tests. Types run on the second machine when its helper exists.
+ROOT=$PWD
+REMOTE="$HOME/agenta-build-m-views/tools/remote.sh"
+heavy() { if [ -x "$REMOTE" ]; then "$REMOTE" "$ROOT" "$@"; else "$@"; fi; }
 OUT=$(mktemp -d)
 cd web || exit 1
 
