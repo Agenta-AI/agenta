@@ -88,6 +88,7 @@ export const AutomationCreateBody = ({
                     onChangeIncludeEvent={state.setIncludeEvent}
                     // Nothing is created yet, so there is no delivery: the preview shows labels.
                     automation={null}
+                    error={errors.instruction}
                 />
             </div>
 

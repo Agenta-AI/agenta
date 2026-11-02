@@ -142,6 +142,30 @@ export function remapMessageShape(
     return setScheduleMessage(JSON.stringify(obj), message, next.isChat, next.primaryKey)
 }
 
+/** Where a message is typed while the bound agent's input shape is not known yet. */
+export const FALLBACK_MESSAGE_SHAPE = {isChat: false, primaryKey: "message"}
+
+/**
+ * The shape to move a stored message out of, once the agent's shape is known. A message typed
+ * or saved before the agent's revision loaded sits under the fallback key, and an agent that
+ * does not take that key runs with no message at all. Null when the agent's own key already
+ * holds the message, the agent takes the fallback key, or there is nothing to move.
+ *
+ * `read` is the reader for the composer in use: `getScheduleMessage` or, for an event
+ * automation, `parseMessageTemplate`.
+ */
+export function misplacedMessageShape(
+    inputsText: string,
+    shape: {isChat: boolean; primaryKey: string},
+    agentInputKeys: readonly string[],
+    read: (inputsText: string, isChat: boolean, primaryKey: string) => string | null,
+): {isChat: boolean; primaryKey: string} | null {
+    const fallback = FALLBACK_MESSAGE_SHAPE
+    if (agentInputKeys.includes(fallback.primaryKey)) return null
+    if (read(inputsText, shape.isChat, shape.primaryKey)) return null
+    return read(inputsText, fallback.isChat, fallback.primaryKey) ? fallback : null
+}
+
 /**
  * Best-effort message preview from a resolved `inputs_fields` object — for list rows
  * where the agent schema isn't handy. Reads the first chat user message, else the first

@@ -134,17 +134,34 @@ export const useAutomationCreate = ({
                     : draft.connectionId && draft.eventKey
                       ? ""
                       : "Choose the event this automation runs on",
+            // The instruction is stored under the key the agent reads, which only its latest
+            // revision says. Created before that, it lands under "message" and a chat agent
+            // runs with no message (#7936).
+            instruction:
+                !draft.agentId || latestRevision.data
+                    ? ""
+                    : latestRevision.isPending
+                      ? "Loading the agent. Try again in a moment."
+                      : "Couldn't load this agent. Reload the page and try again.",
         }),
-        [draft.agentId, draft.connectionId, draft.cron, draft.eventKey, draft.kind],
+        [
+            draft.agentId,
+            draft.connectionId,
+            draft.cron,
+            draft.eventKey,
+            draft.kind,
+            latestRevision.data,
+            latestRevision.isPending,
+        ],
     )
-    const blockedReason = missing.agent || missing.runsWhen
+    const blockedReason = missing.agent || missing.runsWhen || missing.instruction
 
     // The errors show only once the reader has tried to create: a form that opens with two
     // red fields is telling them off for not having filled in what they have not reached yet.
     // Once they have tried, the marks stay live — they clear field by field as each is fixed.
     const [attempted, setAttempted] = useState(false)
     const errors = useMemo(
-        () => (attempted ? missing : {agent: "", runsWhen: ""}),
+        () => (attempted ? missing : {agent: "", runsWhen: "", instruction: ""}),
         [attempted, missing],
     )
 

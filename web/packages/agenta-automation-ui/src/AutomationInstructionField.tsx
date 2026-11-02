@@ -3,7 +3,10 @@ import {useCallback, useEffect, useMemo, useRef} from "react"
 import {
     addsEventText,
     eventFieldsFromSchema,
+    FALLBACK_MESSAGE_SHAPE,
+    getScheduleMessage,
     latestDeliveryEvent,
+    misplacedMessageShape,
     parseMessageTemplate,
     remapMessageShape,
     remapMessageTemplate,
@@ -54,6 +57,7 @@ export const AutomationInstructionField = ({
     includeEvent,
     onChangeIncludeEvent,
     automation,
+    error,
 }: {
     agentId: string | null
     inputsFields: unknown
@@ -66,6 +70,8 @@ export const AutomationInstructionField = ({
     onChangeIncludeEvent: (next: boolean) => void
     /** The saved automation whose deliveries fill the preview; null on the create screen. */
     automation: Automation | null
+    /** Why the automation cannot be created yet; the create screen's only use. */
+    error?: string
 }) => {
     const isEvent = kind === "event"
     const inputsText = useMemo(() => JSON.stringify(inputsFields ?? {}, null, 2), [inputsFields])
@@ -84,11 +90,13 @@ export const AutomationInstructionField = ({
         return Boolean(properties?.messages)
     }, [inputSchema, revision?.flags?.is_chat])
 
+    const ports = useMemo(() => extractInputPortsFromSchema(inputSchema ?? null), [inputSchema])
     const primaryKey = useMemo(() => {
         if (isChat) return "messages"
-        const ports = extractInputPortsFromSchema(inputSchema ?? null)
-        return ports.find((port) => port.type === "string")?.key ?? "message"
-    }, [inputSchema, isChat])
+        return (
+            ports.find((port) => port.type === "string")?.key ?? FALLBACK_MESSAGE_SHAPE.primaryKey
+        )
+    }, [isChat, ports])
 
     // The field is never locked. Before an agent is picked — or before its revision lands — the
     // message is typed under the completion key, and the migration below rewrites it into the
@@ -97,27 +105,36 @@ export const AutomationInstructionField = ({
     const resolving = Boolean(agentId) && !revision && latest.isPending
 
     // The revision can land after a message was typed, or an automation can have been saved under
-    // the wrong key before this resolved at all. Either way the stored shape is migrated to the
-    // one the agent takes, deleting the old key rather than leaving both.
+    // the wrong key before this resolved at all (#7936). Either way the stored shape is migrated to
+    // the one the agent takes, deleting the old key rather than leaving both. A saved automation
+    // opens with the shape already known, so the second case is found by reading the stored key,
+    // not by watching the shape change.
     const shape = useMemo(() => ({isChat, primaryKey}), [isChat, primaryKey])
     const previousShape = useRef(shape)
     useEffect(() => {
         const previous = previousShape.current
         previousShape.current = shape
         if (resolving) return
-        if (previous.isChat === shape.isChat && previous.primaryKey === shape.primaryKey) return
-        const next = (isEvent ? remapMessageTemplate : remapMessageShape)(
-            inputsText,
-            previous,
-            shape,
-        )
+        const changed = previous.isChat !== shape.isChat || previous.primaryKey !== shape.primaryKey
+        const from = changed
+            ? previous
+            : revision
+              ? misplacedMessageShape(
+                    inputsText,
+                    shape,
+                    ports.map((port) => port.key),
+                    isEvent ? parseMessageTemplate : getScheduleMessage,
+                )
+              : null
+        if (!from) return
+        const next = (isEvent ? remapMessageTemplate : remapMessageShape)(inputsText, from, shape)
         if (next === inputsText) return
         try {
             onCommit(JSON.parse(next) as Record<string, unknown>)
         } catch {
             // A mapping the composer cannot read is left exactly as it was.
         }
-    }, [inputsText, isEvent, onCommit, resolving, shape])
+    }, [inputsText, isEvent, onCommit, ports, resolving, revision, shape])
 
     const onChange = useCallback(
         (next: string) => {
@@ -145,12 +162,13 @@ export const AutomationInstructionField = ({
                 includeEvent={includeEvent}
                 onChangeIncludeEvent={onChangeIncludeEvent}
                 automation={automation}
+                error={error}
             />
         )
     }
 
     return (
-        <AutomationField label="Instruction">
+        <AutomationField label="Instruction" error={error}>
             <MessageComposer
                 inputsText={inputsText}
                 onChange={onChange}
@@ -172,6 +190,7 @@ function EventInstruction({
     includeEvent,
     onChangeIncludeEvent,
     automation,
+    error,
 }: {
     inputsText: string
     /** Whether the dispatcher adds the event to the stored inputs; see `addsEventText`. */
@@ -184,6 +203,7 @@ function EventInstruction({
     includeEvent: boolean
     onChangeIncludeEvent: (next: boolean) => void
     automation: Automation | null
+    error?: string
 }) {
     // The catalog is keyed by integration, which the automation knows only through its connection.
     const {connections} = useTriggerConnectionsQuery()
@@ -211,7 +231,7 @@ function EventInstruction({
     }, [])
 
     return (
-        <AutomationField label="Instruction">
+        <AutomationField label="Instruction" error={error}>
             <div className="flex flex-col gap-4">
                 <EventMessageComposer
                     inputsText={inputsText}
