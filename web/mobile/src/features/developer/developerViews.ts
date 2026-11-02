@@ -1,4 +1,4 @@
-import type {Icon} from "@phosphor-icons/react"
+import {Archive, type Icon} from "@phosphor-icons/react"
 
 /**
  * How far a developer view has rolled out.
@@ -49,4 +49,13 @@ export interface DeveloperView {
  * a view's screen loads only from its own route page, so listing it here adds nothing to the
  * pages every user opens.
  */
-export const DEVELOPER_VIEWS: readonly DeveloperView[] = []
+export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
+    {
+        id: "archived-apps",
+        label: "Archived apps",
+        description: "Archived apps, with Restore.",
+        routes: ["/apps/archived"],
+        nav: {icon: Archive, section: "developer"},
+        stage: "hidden",
+    },
+]
