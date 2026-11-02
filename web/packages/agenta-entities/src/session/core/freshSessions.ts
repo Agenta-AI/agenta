@@ -15,10 +15,9 @@
 export const freshSessionIds = new Set<string>()
 
 // Sessions this tab created, kept in `sessionStorage` so the record survives a reload. Narrower
-// than the fresh marker: it only answers "this empty chat is ours", and the chat forgets it once
-// the session has a row. The chat's
-// access check uses it, because after a reload an empty chat of our own has no row, and so does
-// another person's private chat. Hydration does not use it.
+// than the fresh marker: it only answers "this empty chat is ours". The chat's access check uses
+// it, because after a reload an empty chat of our own has no row, and so does another person's
+// private chat. The check forgets the id once the session has a row. Hydration does not use it.
 const CREATED_HERE_KEY = "agenta:sessions-created-here"
 const CREATED_HERE_LIMIT = 50
 
@@ -42,7 +41,7 @@ export const markSessionFresh = (sessionId: string) => {
     }
 }
 export const isSessionFresh = (sessionId: string) => freshSessionIds.has(sessionId)
-/** A deleted session is no longer ours to open. */
+/** Drop the record: the session was deleted, or it has a row and the row decides now. */
 export const forgetSessionCreatedHere = (sessionId: string) => {
     try {
         const ids = readCreatedHere()

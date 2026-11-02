@@ -190,9 +190,16 @@ describe("until the sharing state of an existing chat is known", () => {
         rows.querySessionStreams.mockResolvedValue(state("participant"))
         await mount("created-then-used", "agent-1")
         await advance(0)
-
         expect(seen.canSend).toBe(true)
-        expect(created.has("created-then-used")).toBe(false)
+
+        // Access is removed, and the page reloads: the screen remembers nothing.
+        await act(async () => root.unmount())
+        root = createRoot(host)
+        rows.querySessionStreams.mockResolvedValue(notFound)
+        await mount("created-then-used", "agent-1")
+        await advance(0)
+
+        expect(seen.canSend).toBe(false)
     })
 
     it("no row without an agent route stays not found", async () => {
