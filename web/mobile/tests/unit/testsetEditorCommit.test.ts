@@ -572,28 +572,23 @@ describe("useTestsetEditor commit over the real package state", () => {
         expect(commitBodies()).toHaveLength(0)
     })
 
-    it("A column can be added to a revision with no rows", async () => {
+    it.each([
+        ["with no rows", {testcase_ids: []}],
+        ["saved with no data", null],
+    ])("A column change on a revision %s is refused and sends nothing", async (_name, data) => {
         rowsOnServer = []
-        fullRevisionData = {testcase_ids: []}
+        fullRevisionData = data
         await mount()
 
-        expect(await act(() => editor().addColumn("country"))).toEqual({
-            ok: true,
-            revisionId: NEW_REVISION,
-        })
-        expect(commitBody()?.testset_revision.delta.columns).toEqual({add: ["country"]})
-    })
-
-    it("A column can be added to a revision saved with no data", async () => {
-        rowsOnServer = []
-        fullRevisionData = null
-        await mount()
-
-        expect(await act(() => editor().addColumn("country"))).toEqual({
-            ok: true,
-            revisionId: NEW_REVISION,
-        })
-        expect(commitBody()?.testset_revision.delta.columns).toEqual({add: ["country"]})
+        const refused = {
+            ok: false,
+            reason: "noRows",
+            message: "Add a row first, then add columns",
+        }
+        expect(await act(() => editor().addColumn("country"))).toEqual(refused)
+        expect(await act(() => editor().renameColumn("answer", "reply"))).toEqual(refused)
+        expect(await act(() => editor().deleteColumn("answer"))).toEqual(refused)
+        expect(commitBodies()).toHaveLength(0)
     })
 
     describe("on a new test set", () => {

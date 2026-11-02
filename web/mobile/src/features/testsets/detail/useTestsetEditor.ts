@@ -31,7 +31,7 @@ const SAVE_FAILED = "Failed to save changes"
 /** Why a column name was refused. An unchanged rename is not an error: it changes nothing. */
 export type ColumnNameRefusal = "empty" | "duplicate" | "unchanged"
 /** Why a column change was not made, with the sentence that tells the reader. */
-export type ColumnChangeFailure = "rowChanges" | "saving" | "columnsUnknown" | "failed"
+export type ColumnChangeFailure = "rowChanges" | "saving" | "columnsUnknown" | "noRows" | "failed"
 /**
  * The result of a column change. On a saved test set the change is saved at once as a new
  * version, and `revisionId` is that version, for the page to open. On a new test set nothing is
@@ -44,6 +44,7 @@ export type ColumnEdit =
 
 const ROW_CHANGES_FIRST = "Save or discard your row changes first"
 const COLUMNS_UNKNOWN = "Could not check the column names. Try again."
+const ADD_A_ROW_FIRST = "Add a row first, then add columns"
 const SAVE_RUNNING = "Wait for the current save to finish"
 
 type ColumnChange =
@@ -83,17 +84,21 @@ const addColumnPaths = (keys: Set<string>, data: Record<string, unknown>, prefix
 }
 
 /**
- * Every column name in the saved revision. The table reads its columns from the first rows
- * only, so a name used only by later rows is found here and nowhere else.
+ * Every column name in the saved revision, and whether it has rows. The table reads its
+ * columns from the first rows only, so a name used only by later rows is found here and
+ * nowhere else.
  */
-const savedColumnKeys = async (projectId: string, revisionId: string): Promise<Set<string>> => {
+const savedColumns = async (
+    projectId: string,
+    revisionId: string,
+): Promise<{keys: Set<string>; hasRows: boolean}> => {
     const revision = await fetchRevisionWithTestcases({id: revisionId, projectId})
     if (!revision) throw new Error("The revision was not found")
     const keys = new Set<string>()
     const ids = revision.data?.testcase_ids
     const testcases = revision.data?.testcases
     // A revision with no rows has no names beyond the ones the page knows.
-    if (!ids?.length && !testcases?.length) return keys
+    if (!ids?.length && !testcases?.length) return {keys, hasRows: false}
     // Every row must be here: a missing row could hold the name being checked.
     if (!Array.isArray(testcases) || (ids && ids.length !== testcases.length)) {
         throw new Error("The revision did not return all its testcases")
@@ -102,7 +107,7 @@ const savedColumnKeys = async (projectId: string, revisionId: string): Promise<S
         const data = (testcase as {data?: Record<string, unknown> | null}).data
         if (data) addColumnPaths(keys, data)
     }
-    return keys
+    return {keys, hasRows: true}
 }
 
 /**
@@ -307,16 +312,19 @@ export function useTestsetEditor({
             }
             const operations = {columns: columnDelta(change)}
             try {
+                // The server applies a column change to existing rows only, so a revision
+                // with no rows would report success and save nothing.
+                let saved: {keys: Set<string>; hasRows: boolean}
+                try {
+                    saved = await savedColumns(projectId, revisionId)
+                } catch (cause) {
+                    console.error("Reading the test set columns failed", cause)
+                    return {ok: false, reason: "columnsUnknown", message: COLUMNS_UNKNOWN}
+                }
+                if (!saved.hasRows) return {ok: false, reason: "noRows", message: ADD_A_ROW_FIRST}
                 if (change.kind !== "remove") {
-                    let saved: Set<string>
-                    try {
-                        saved = await savedColumnKeys(projectId, revisionId)
-                    } catch (cause) {
-                        console.error("Reading the test set columns failed", cause)
-                        return {ok: false, reason: "columnsUnknown", message: COLUMNS_UNKNOWN}
-                    }
                     const name = change.kind === "add" ? change.columnKey : change.newKey
-                    if (saved.has(name)) return {ok: false, reason: "duplicate"}
+                    if (saved.keys.has(name)) return {ok: false, reason: "duplicate"}
                 }
                 // A row edit made while the names were read waits for its own save.
                 if (store.get(hasUnsavedChangesAtom)) {
