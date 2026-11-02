@@ -48,7 +48,7 @@ The "model no longer available" design is approved: the model row shows "Needs s
 | `mcp_server` | `agent.mcps[].connection.slug` | A server with that slug exists where the agent runs and is active | `not_found`, `not_shared`, `turned_off` |
 | `mcp_sign_in` | from the MCP server above | The server's connection state is `ready` | `needs_sign_in` |
 | `secret` | `agent.sandbox.credentials[].secret.slug`, `tools[].secrets[]` | A secret with that slug exists where the agent runs | `not_found`, `not_shared` |
-| `app_connection` | `tools[].connection`, new and old shapes | A connection with that integration and slug exists, is active and is valid | `not_chosen`, `not_found`, `not_shared`, `turned_off`, `needs_sign_in` |
+| `app_connection` | `tools[].connection`, new and old shapes | A connection with that integration and slug exists, is active and is valid | `not_chosen`, `not_found`, `not_shared`, `turned_off`, `needs_sign_in`, `needs_personal_account` |
 
 `self_managed` without a slug (the runner operator's login) is not an Agenta item and is never a requirement. A missing MCP server gives one requirement (`mcp_server`); the sign-in check runs only when the server exists. Model items are `model_key`, `subscription` and `model`.
 

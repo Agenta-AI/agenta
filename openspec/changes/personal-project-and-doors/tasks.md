@@ -39,7 +39,7 @@ M6 does not wait for the rest of M4.
 
 - [ ] 4.1 Door limits at run start. (Door eligibility)
 - [ ] 4.2 `DoorsService`, the three doors, events. (Door check; Child run; Read files without storage credentials)
-- [ ] 4.3 Routes, SDK ops, agent-workflows docs; find and read flags on after D1 release C; run-an-agent flag on after M9 runs on every pod. (Door events and routes; Run-an-agent activation gate)
+- [ ] 4.3 Routes, SDK ops, agent-workflows docs; find and read flags on after D1 release C; run-an-agent flag on after `small-team-roles` is live (it replaces M9b). (Door events and routes; Run-an-agent activation gate)
 
 ## 5. QA matrix
 

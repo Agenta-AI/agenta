@@ -19,7 +19,7 @@ All nine design questions were decided by the owner on 2026-10-26.
 - Every other missing item (tools, MCP servers, MCP sign-ins, custom secrets, connected apps) does not block. The run starts without it. The only sign is the tag on the item's own card: no banner, no card, no blocker and no new chat notice.
 - Saving is always allowed. No check runs at save time.
 - A schedule or trigger that fires while a model item needs setup is skipped, not retried. The schedule stays on, and the automation shows the skip.
-- One fix sheet per item: pick an existing item, connect a new one, sign in again, or remove the item from the agent. A fix writes every place that uses the item, as one new revision. The sheet never applies a replacement on its own.
+- One fix sheet per item: pick an existing item, connect a new one, sign in again, or remove a non-model item from the agent. A fix writes every place that uses the item, as one new revision. The sheet never applies a replacement on its own.
 - Templates keep their own setup step. Slack and other channels keep today's reply.
 
 ## Capabilities

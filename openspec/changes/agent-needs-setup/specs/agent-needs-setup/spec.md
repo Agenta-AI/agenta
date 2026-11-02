@@ -58,7 +58,7 @@ Saving an agent SHALL always succeed when its shape and the caller's permissions
 - **THEN** the revision SHALL be saved, and the tag SHALL stay on the model key card
 
 ### Requirement: Needs setup in the editor and the chat
-Every item card that names an item with a requirement SHALL show the tag "Needs setup" and the reason on a second line. The agent list SHALL show no tag. Only a model item SHALL show a banner, in the config pane and above the composer, and only a model item SHALL disable Send. Other items SHALL get no banner, no card, no blocker and no new chat notice.
+Every item card that names an item with a requirement SHALL show the tag "Needs setup" and the reason on a second line. The agent list SHALL show no tag. Only a model item SHALL show a banner, in the config pane and above the composer, and only a model item SHALL disable Send. Other items SHALL get only the tag on their own card: no banner, no extra card, no blocker and no new chat notice.
 
 #### Scenario: Model no longer available
 - **WHEN** an agent's model left the catalog
