@@ -5,7 +5,6 @@ import {UserAuthorLabel} from "@agenta/entities/shared"
 import {
     evaluatorTemplatesMapAtom,
     parseEvaluatorKeyFromUri,
-    workflowDetailQueryAtomFamily,
     workflowMolecule,
 } from "@agenta/entities/workflow"
 import {FormattedDate, Tag} from "@agenta/ui/components/presentational"
@@ -50,15 +49,10 @@ const EvaluatorTypeRow = ({uri}: {uri: string | null | undefined}) => {
     return <DetailRow label="Type">{label}</DetailRow>
 }
 
-const EvaluatorSlugRow = ({
-    workflowId,
-    fallbackSlug,
-}: {
-    workflowId: string | null
-    fallbackSlug: string | null | undefined
-}) => {
-    const detail = useAtomValue(workflowDetailQueryAtomFamily(workflowId))
-    const slug = detail.data?.slug ?? fallbackSlug
+// The evaluator's slug, from its workflow. A revision's own slug is an opaque id, so the row
+// stays hidden until the workflow slug is known.
+const EvaluatorSlugRow = ({revisionId}: {revisionId: string}) => {
+    const slug = useAtomValue(workflowMolecule.selectors.artifactSlug(revisionId))
     if (!slug) return null
     return <DetailRow label="Slug">{slug}</DetailRow>
 }
@@ -95,13 +89,9 @@ export const RevisionDetails = ({
             {kind === "deployment" && (
                 <VariantRow revisionId={revisionId} version={revision.version} />
             )}
+            {/* The entity flag too, as /w does: a wrong kind from a host never fetches the catalog. */}
             {kind === "evaluator" && isEvaluator && <EvaluatorTypeRow uri={revision.data?.uri} />}
-            {kind === "evaluator" && (
-                <EvaluatorSlugRow
-                    workflowId={revision.workflow_id ?? null}
-                    fallbackSlug={revision.slug}
-                />
-            )}
+            {kind === "evaluator" && <EvaluatorSlugRow revisionId={revisionId} />}
             <DetailRow label="Date created">
                 <FormattedDate date={revision.created_at} />
             </DetailRow>

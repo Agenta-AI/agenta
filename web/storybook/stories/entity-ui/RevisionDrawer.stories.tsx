@@ -161,7 +161,7 @@ export const Evaluator: Story = {
                 return [
                     [["workflows", "revision", ids.revisionId, ids.projectId], revision],
                     [
-                        ["workflows", "detail", ids.projectId, ids.workflowId],
+                        ["workflows", "artifact", ids.workflowId, ids.projectId],
                         workflowRevision(ids, {id: ids.workflowId, slug: "exact-match"}),
                     ],
                     [

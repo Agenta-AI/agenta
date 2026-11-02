@@ -8,7 +8,7 @@ import {useAtomValue} from "jotai"
 
 import PlaygroundConfigSection from "../../DrillInView/components/PlaygroundConfigSection"
 import {defaultAdapter} from "../../DrillInView/components/PlaygroundConfigSection/adapters"
-import {SIBLING_GROUP_KEYS} from "../../DrillInView/components/PlaygroundConfigSection/constants"
+import {hasRenderableConfigSections} from "../../DrillInView/components/PlaygroundConfigSection/schemaData"
 import type {ConfigViewMode} from "../../DrillInView/components/PlaygroundConfigSection/types"
 
 import type {RevisionDrawerKind} from "./types"
@@ -47,13 +47,9 @@ export const RevisionConfigView = ({
     const [viewMode, setViewMode] = useState<ConfigViewMode>(
         kind === "deployment" ? "json" : "form",
     )
-    // The same data the config section draws: parameters plus the hook or code group.
+    // The same data and the same test the config section uses: parameters, or a hook or code group.
     const config = useAtomValue(defaultAdapter.atoms.serverData(revisionId))
-    const isEmpty =
-        Object.keys(config?.parameters ?? {}).length === 0 &&
-        !SIBLING_GROUP_KEYS.some((key) => config && key in config)
-
-    if (isEmpty) {
+    if (!hasRenderableConfigSections(config)) {
         return (
             <p className="text-muted-foreground m-0 py-6 text-center text-sm">
                 No parameters to display

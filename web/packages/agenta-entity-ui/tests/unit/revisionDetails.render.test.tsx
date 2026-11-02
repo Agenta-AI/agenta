@@ -19,7 +19,6 @@ const {reads, values} = vi.hoisted(() => ({
 vi.mock("@agenta/entities/workflow", async () => {
     const {atom} = await import("jotai")
     const empty = atom<unknown>(null)
-    const noDetail = atom({data: null})
     const select = (name: string) => (id: string) => values.get(`${name}:${id}`) ?? empty
     return {
         workflowMolecule: {
@@ -27,10 +26,9 @@ vi.mock("@agenta/entities/workflow", async () => {
                 data: select("data"),
                 variantLabel: select("variantLabel"),
                 isEvaluator: select("isEvaluator"),
+                artifactSlug: select("artifactSlug"),
             },
         },
-        workflowDetailQueryAtomFamily: (id: string | null) =>
-            values.get(`detail:${id}`) ?? noDetail,
         parseEvaluatorKeyFromUri: (uri: string | null | undefined) => uri?.split(":")[2] ?? null,
         evaluatorTemplatesMapAtom: atom(() => {
             reads.count++
@@ -145,7 +143,7 @@ describe("RevisionDetails", () => {
 
     it("Evaluator details show type and slug", async () => {
         put("isEvaluator:rev-1", true)
-        put("detail:wf-1", {data: {slug: "exact-match-slug"}})
+        put("artifactSlug:rev-1", "exact-match-slug")
         await render({revisionId: "rev-1", kind: "evaluator"})
 
         expect(valueOf("Type")).toBe("Exact Match")
