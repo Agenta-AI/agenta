@@ -87,7 +87,8 @@ pnpm --filter @agenta/mobile lint >"$OUT/lint" 2>&1 || { no "lint"; tail -30 "$O
 echo "PASS: lint"
 # Tests related to the changed files (the full suite takes about 15 minutes; CI runs it).
 CHANGED=$(echo "$FILES" | grep -E '^web/(mobile/(src|tests)|packages)/.*\.(ts|tsx)$' | sed -e 's#^web/mobile/##' -e 's#^web/#../#' || true)
-# A changed shared package also runs its own tests, with its own Vitest config.
+# A changed shared package also runs its own tests, with its own Vitest config. Tests in other
+# packages that depend on it are left to CI, which runs the full suite.
 for PKG in $(echo "$FILES" | grep -E '^web/packages/[^/]+/.*\.(ts|tsx)$' | cut -d/ -f3 | sort -u); do
     [ -f "packages/$PKG/vitest.config.ts" ] || continue
     PKG_FILES=$(echo "$FILES" | grep -E "^web/packages/$PKG/.*\.(ts|tsx)$" | sed "s#^web/packages/$PKG/##")
