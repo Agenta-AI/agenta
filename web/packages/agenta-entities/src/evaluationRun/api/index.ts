@@ -1,5 +1,6 @@
 export {
     fetchEvaluationRun,
+    findEvaluationRunsUsing,
     queryEvaluationRuns,
     queryEvaluationResults,
     queryEvaluationMetrics,

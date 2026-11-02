@@ -130,6 +130,7 @@ export {
     type EvaluationConcurrency,
     type CreateAutoEvaluationRunsParams,
     type CreateAutoEvaluationRunsResult,
+    findEvaluationRunsUsing,
 } from "./api"
 
 // ============================================================================

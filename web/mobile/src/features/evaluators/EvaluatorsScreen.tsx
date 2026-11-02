@@ -1,0 +1,228 @@
+import {useCallback, useMemo, useState} from "react"
+
+import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
+import {pageContentWidthClass} from "@agenta/ui/components/page-width"
+import {LoadError} from "@agenta/ui/components/presentational"
+import {ListTableToolbar} from "@agenta/ui/list-table"
+import {Button} from "@agenta/ui/ui"
+import {TrayIcon} from "@phosphor-icons/react"
+import Link from "next/link"
+
+import {PageTitle} from "@/components/PageTitle"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
+
+import {useBindProjectContext} from "../context/useBindProjectContext"
+import {useProjectPermission} from "../context/useProjectPermission"
+import {AppShell} from "../nav/AppShell"
+import {NavDrawer} from "../nav/NavDrawer"
+import {useRevisionParam} from "../revisions/useRevisionParam"
+
+import {ArchiveEvaluatorsDialog, type ArchiveTarget} from "./ArchiveEvaluatorsDialog"
+import {EvaluatorCategoryTabs} from "./EvaluatorCategoryTabs"
+import {archivedEvaluatorsUrl} from "./evaluatorPaths"
+import {EvaluatorsDrawer} from "./EvaluatorsDrawer"
+import {EvaluatorsTable} from "./EvaluatorsTable"
+import {buildEvaluatorGroups, evaluatorLabel} from "./evaluatorsView"
+import {EvaluatorsEmpty} from "./states/EvaluatorsEmpty"
+import {useArchiveEvaluators} from "./useArchiveEvaluators"
+import {useEvaluatorCategory} from "./useEvaluatorCategory"
+import {useEvaluatorRevisions} from "./useEvaluatorRevisions"
+import {useEvaluators} from "./useEvaluators"
+
+/** The page column, shared with the other list pages, so the pages line up. */
+const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
+
+/**
+ * Automatic and human evaluators, with archive. A row opens the evaluator in a read-only drawer:
+ * changing an evaluator's configuration comes with the evaluator playground.
+ */
+export const EvaluatorsScreen = ({
+    workspaceId,
+    projectId,
+}: {
+    workspaceId: string
+    projectId: string
+}) => {
+    useBindProjectContext(projectId)
+    const [category, setCategory] = useEvaluatorCategory()
+    const [term, setTerm] = useState("")
+    const search = useDebouncedAtomSearch(setTerm, 300)
+    const trimmed = term.trim()
+    const canEdit = useProjectPermission(projectId, "edit_evaluators")
+
+    const evaluators = useEvaluators({projectId, category, search: trimmed})
+    const workflowIds = useMemo(
+        () => evaluators.entries.map((entry) => entry.workflow.id),
+        [evaluators.entries],
+    )
+    const revisions = useEvaluatorRevisions({projectId, workflowIds})
+    const groups = useMemo(
+        () => buildEvaluatorGroups(evaluators.entries, revisions.revisions),
+        [evaluators.entries, revisions.revisions],
+    )
+    const navigationIds = useMemo(
+        () => groups.flatMap((group) => group.rows.map((row) => row.id)),
+        [groups],
+    )
+
+    const [, setRevisionId] = useRevisionParam()
+    const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
+    const [archiveIds, setArchiveIds] = useState<readonly string[]>([])
+    const [inUseRunCount, setInUseRunCount] = useState<number | null>(null)
+    const {archive, archiving} = useArchiveEvaluators(projectId)
+
+    // A selection of evaluators the list no longer holds (archived, or filtered out) is not one.
+    const selectedIds = useMemo(
+        () => workflowIds.filter((id) => selected.has(id)),
+        [workflowIds, selected],
+    )
+    const targets = useMemo<ArchiveTarget[]>(
+        () =>
+            evaluators.entries
+                .filter((entry) => archiveIds.includes(entry.workflow.id))
+                .map((entry) => ({
+                    name: evaluatorLabel(entry),
+                    version: entry.latestRevision.version ?? null,
+                })),
+        [evaluators.entries, archiveIds],
+    )
+
+    const toggle = useCallback(
+        (workflowId: string) =>
+            setSelected((current) => {
+                const next = new Set(current)
+                if (!next.delete(workflowId)) next.add(workflowId)
+                return next
+            }),
+        [],
+    )
+    const closeDialog = useCallback(() => {
+        setArchiveIds([])
+        setInUseRunCount(null)
+    }, [])
+    const confirmArchive = useCallback(async () => {
+        const outcome = await archive(archiveIds, category)
+        if (outcome.status === "in-use") {
+            setInUseRunCount(outcome.runCount)
+            return
+        }
+        if (outcome.status === "failed") return
+        setSelected(new Set())
+        closeDialog()
+    }, [archive, archiveIds, category, closeDialog])
+    const changeCategory = useCallback(
+        (next: typeof category) => {
+            setSelected(new Set())
+            setCategory(next)
+        },
+        [setCategory],
+    )
+
+    const isError = evaluators.isError || revisions.isError
+    const isLoading = evaluators.isPending || (workflowIds.length > 0 && revisions.isPending)
+    const retry = () => {
+        void evaluators.refetch()
+        void revisions.refetch()
+    }
+
+    return (
+        <>
+            <PageTitle title="Evaluators" />
+            <AppShell workspaceId={workspaceId} projectId={projectId}>
+                <ScreenScaffold
+                    header={
+                        <div
+                            className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${PAGE_FRAME}`}
+                        >
+                            <div className="flex min-w-0 items-center gap-2">
+                                <NavDrawer workspaceId={workspaceId} projectId={projectId} />
+                                <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
+                                    Evaluators
+                                </h1>
+                            </div>
+                        </div>
+                    }
+                >
+                    <div className={`min-w-0 px-4 pb-12 pt-3 ${PAGE_FRAME}`}>
+                        <div className="mb-3 overflow-x-auto">
+                            <EvaluatorCategoryTabs category={category} onChange={changeCategory} />
+                        </div>
+                        <ListTableToolbar
+                            search={search.value}
+                            onSearchChange={search.onChange}
+                            actions={
+                                canEdit && selectedIds.length > 0 ? (
+                                    <Button
+                                        size="sm"
+                                        variant="destructive"
+                                        onClick={() => setArchiveIds(selectedIds)}
+                                    >
+                                        Archive
+                                    </Button>
+                                ) : (
+                                    <Button asChild size="sm" variant="ghost">
+                                        <Link
+                                            href={archivedEvaluatorsUrl(
+                                                workspaceId,
+                                                projectId,
+                                                category,
+                                            )}
+                                            prefetch={false}
+                                        >
+                                            <TrayIcon aria-hidden />
+                                            Archived
+                                        </Link>
+                                    </Button>
+                                )
+                            }
+                        />
+                        {isError ? (
+                            // A failed fetch must not read as "No evaluators".
+                            <LoadError framed title="Could not load evaluators" onRetry={retry} />
+                        ) : (
+                            <>
+                                <EvaluatorsTable
+                                    groups={groups}
+                                    category={category}
+                                    selectable={canEdit}
+                                    selectedWorkflowIds={selected}
+                                    isLoading={isLoading}
+                                    empty={
+                                        <EvaluatorsEmpty
+                                            category={category}
+                                            term={trimmed || undefined}
+                                            onClear={search.reset}
+                                        />
+                                    }
+                                    onToggle={toggle}
+                                    onOpen={(row) => setRevisionId(row.id)}
+                                    onArchive={(workflowId) => setArchiveIds([workflowId])}
+                                />
+                                {revisions.hasMore ? (
+                                    <div className="flex justify-center pt-3">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={revisions.isLoadingMore}
+                                            onClick={revisions.loadMore}
+                                        >
+                                            Load more
+                                        </Button>
+                                    </div>
+                                ) : null}
+                            </>
+                        )}
+                    </div>
+                </ScreenScaffold>
+            </AppShell>
+            <ArchiveEvaluatorsDialog
+                targets={targets}
+                inUseRunCount={inUseRunCount}
+                pending={archiving}
+                onConfirm={() => void confirmArchive()}
+                onClose={closeDialog}
+            />
+            <EvaluatorsDrawer navigationIds={navigationIds} />
+        </>
+    )
+}

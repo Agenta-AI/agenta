@@ -198,6 +198,16 @@ export {pickModelName} from "./core/pickModelName"
 // Flag query type
 export type {WorkflowQueryFlags} from "./core"
 
+// Which evaluators a list shows
+export {
+    isHumanEvaluator,
+    isManagedEvaluator,
+    selectEvaluators,
+    type EvaluatorCategory,
+    type EvaluatorEntry,
+    type EvaluatorListMode,
+} from "./core"
+
 export type {
     // API parameter types
     WorkflowListParams,
