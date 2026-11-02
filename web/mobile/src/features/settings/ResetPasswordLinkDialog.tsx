@@ -68,28 +68,17 @@ export const ResetPasswordLinkDialog = ({
             })
     }
 
-    const close = () => {
-        sequence.current += 1
-        setLink(null)
-        setError(null)
-        setLoading(false)
-        setCopied(false)
-        onClose()
-    }
+    const name = target?.user.username || target?.user.email || "the member"
 
     return (
-        <Dialog open={Boolean(target)} onOpenChange={(next) => (next ? undefined : close())}>
+        <Dialog open={Boolean(target)} onOpenChange={(next) => (next ? undefined : onClose())}>
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Reset password link</DialogTitle>
                     <DialogDescription>
                         {link
-                            ? "Share this one-time link with "
-                            : "Generate a one-time link that lets "}
-                        {target?.user.username || target?.user.email || "the member"}
-                        {link
-                            ? ". It cannot be retrieved again after you close this."
-                            : " set a new password."}
+                            ? `Share this one-time link with ${name}. It cannot be retrieved again after you close this.`
+                            : `Generate a one-time link that lets ${name} set a new password.`}
                     </DialogDescription>
                 </DialogHeader>
                 {loading ? (
@@ -110,7 +99,7 @@ export const ResetPasswordLinkDialog = ({
                     </p>
                 ) : null}
                 <DialogFooter>
-                    <Button variant="outline" onClick={close}>
+                    <Button variant="outline" onClick={onClose}>
                         {link ? "Close" : "Cancel"}
                     </Button>
                     {!link ? (
