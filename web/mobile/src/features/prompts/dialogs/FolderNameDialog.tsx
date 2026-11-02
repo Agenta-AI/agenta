@@ -75,10 +75,12 @@ export const FolderNameDialog = ({
                             onChange={(event) => setName(event.target.value)}
                         />
                     </Field>
-                    <div className="flex flex-col gap-1 text-sm text-muted-foreground">
-                        <span>{copy.slug(folderSlug(trimmed))}</span>
-                        <span className="break-all">{copy.path(pathFor(trimmed))}</span>
-                    </div>
+                    {trimmed ? (
+                        <div className="flex flex-col gap-1 text-sm text-muted-foreground">
+                            <span>{copy.slug(folderSlug(trimmed))}</span>
+                            <span className="break-all">{copy.path(pathFor(trimmed))}</span>
+                        </div>
+                    ) : null}
                     {error ? <p className="m-0 text-sm text-destructive">{error}</p> : null}
                     <DialogFooter>
                         <Button
