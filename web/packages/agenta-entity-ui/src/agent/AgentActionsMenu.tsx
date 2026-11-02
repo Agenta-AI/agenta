@@ -55,7 +55,7 @@ export interface AgentActionsMenuProps {
 }
 
 /**
- * THE agent kebab: open, rename, copy slug, archive. One definition for the desktop overview
+ * THE agent kebab: open, open in playground, rename, copy slug, archive, and restore for an archived agent. One definition for the desktop overview
  * header and the mobile screens, so they can't offer different verbs for the same object.
  * Copying is entirely the menu's business; open, rename and archive defer to the host — and an
  * entry whose handler is missing is dropped rather than offered dead.

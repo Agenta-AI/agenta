@@ -174,7 +174,7 @@ describe("the roster's agent menu", () => {
         expect(lastMenu().canArchive).toBe(false)
     })
 
-    it("An archived row never offers Archive agent", async () => {
+    it("An archived row passes the archived mode, so the menu offers no Archive agent", async () => {
         await mountHook()
         await act(async () =>
             root.render(
