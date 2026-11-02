@@ -18,7 +18,9 @@
         "tokens:check": "tsx scripts/generate-shadcn-tokens.ts --check",
         "test": "pnpm run test:unit",
         "test:unit": "vitest run",
-        "test:watch": "vitest"
+        "test:watch": "vitest",
+        "speed:check": "node scripts/speed/check.mjs",
+        "speed:timing": "node scripts/speed/check.mjs --timing"
     },
     "dependencies": {
         "@agenta/auth": "workspace:../packages/agenta-auth",
