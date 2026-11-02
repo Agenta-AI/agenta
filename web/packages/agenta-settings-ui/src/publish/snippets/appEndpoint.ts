@@ -68,6 +68,16 @@ const pythonLiteral = (value: unknown, depth = 0): string => {
 /** The text as one shell argument in single quotes. */
 const shellSingleQuoted = (text: string): string => `'${text.replaceAll("'", "'\\''")}'`
 
+/** The text as a quoted string literal that Python and TypeScript both accept. */
+const stringLiteral = (text: string): string => JSON.stringify(text)
+
+/**
+ * The body as a TypeScript expression. An object literal turns a `__proto__` key into a
+ * prototype setter, so a body with that key is parsed from JSON text instead.
+ */
+const typescriptValue = (json: string, spaces: number): string =>
+    json.includes('"__proto__"') ? `JSON.parse(${stringLiteral(json)})` : indent(json, spaces)
+
 const indent = (text: string, spaces: number): string =>
     text
         .split("\n")
@@ -95,11 +105,11 @@ export const buildInvokeAppSnippets = ({
         python: `import requests
 import json
 
-url = "${url}"
+url = ${stringLiteral(url)}
 params = ${pythonLiteral(JSON.parse(params))}
 headers = {
     "Content-Type": "application/json",
-    "Authorization": "ApiKey ${key}",${chat ? `\n    "Baggage": "${SESSION_BAGGAGE}",` : ""}
+    "Authorization": ${stringLiteral(`ApiKey ${key}`)},${chat ? `\n    "Baggage": "${SESSION_BAGGAGE}",` : ""}
 }
 
 response = requests.post(url, json=params, headers=headers)
@@ -108,19 +118,19 @@ data = response.json()
 
 print(json.dumps(data, indent=4))
 `,
-        bash: `curl -X POST "${url}" \\
+        bash: `curl -X POST ${shellSingleQuoted(url)} \\
 -H "Content-Type: application/json" \\
--H "Authorization: ApiKey ${key}" \\${chat ? `\n-H "Baggage: ${SESSION_BAGGAGE}" \\` : ""}
+-H ${shellSingleQuoted(`Authorization: ApiKey ${key}`)} \\${chat ? `\n-H "Baggage: ${SESSION_BAGGAGE}" \\` : ""}
 -d ${shellSingleQuoted(params)}
 `,
         typescript: `import axios from 'axios';
 
 const generate = async () => {
-    const url = '${url}';
-    const data = ${indent(params, 4)};
+    const url = ${stringLiteral(url)};
+    const data = ${typescriptValue(params, 4)};
     const headers = {
         "Content-Type": "application/json",
-        "Authorization": "ApiKey ${key}",${chat ? `\n        "Baggage": "${SESSION_BAGGAGE}",` : ""}
+        "Authorization": ${stringLiteral(`ApiKey ${key}`)},${chat ? `\n        "Baggage": "${SESSION_BAGGAGE}",` : ""}
     };
 
     const response = await axios.post(url, data, { headers });
@@ -159,27 +169,26 @@ os.environ["AGENTA_API_URL"] = ${JSON.stringify(apiUrl)}
 
 ag.init()
 config = ag.ConfigManager.get_from_registry(
-    app_slug="${appSlug}",
-    environment_slug="${environmentSlug}",
+    app_slug=${stringLiteral(appSlug)},
+    environment_slug=${stringLiteral(environmentSlug)},
 )
 print(config)
 `,
-        bash: `curl -X POST '${endpoint}' \\
+        bash: `curl -X POST ${shellSingleQuoted(endpoint)} \\
 -H 'Content-Type: application/json' \\
--H "Authorization: ApiKey ${key}" \\
--d '{
-    "application_ref": {
-        "slug": "${appSlug}"
-    },
-    "environment_ref": {
-        "slug": "${environmentSlug}"
-    }
-}'
+-H ${shellSingleQuoted(`Authorization: ApiKey ${key}`)} \\
+-d ${shellSingleQuoted(
+            JSON.stringify(
+                {application_ref: {slug: appSlug}, environment_ref: {slug: environmentSlug}},
+                null,
+                4,
+            ),
+        )}
 `,
         typescript: `import axios from 'axios';
 
 const getConfig = async (appSlug: string, environmentSlug: string) => {
-    const baseUrl = '${endpoint}';
+    const baseUrl = ${stringLiteral(endpoint)};
 
     try {
         const response = await axios.post(baseUrl, {
@@ -192,7 +201,7 @@ const getConfig = async (appSlug: string, environmentSlug: string) => {
         }, {
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': "ApiKey ${key}",
+                'Authorization': ${stringLiteral(`ApiKey ${key}`)},
             },
         });
 
@@ -202,7 +211,7 @@ const getConfig = async (appSlug: string, environmentSlug: string) => {
     }
 };
 
-getConfig('${appSlug}', '${environmentSlug}').then(console.log).catch(console.error);
+getConfig(${stringLiteral(appSlug)}, ${stringLiteral(environmentSlug)}).then(console.log).catch(console.error);
 `,
     }
 }
