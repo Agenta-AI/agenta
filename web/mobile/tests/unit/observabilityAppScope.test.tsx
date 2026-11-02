@@ -33,7 +33,9 @@ const Screen = ({
     seen: ObservabilityScope[]
 }) => {
     useObservabilityAppScope(routeAppId, enabled)
-    return <ScopeProbe seen={seen} />
+    // Keyed like the screen's wait: its content mounts only after the view answers, so its
+    // queries subscribe to a scope that is already set.
+    return <ScopeProbe key={String(enabled)} seen={seen} />
 }
 
 describe("useObservabilityAppScope", () => {
@@ -66,6 +68,15 @@ describe("useObservabilityAppScope", () => {
 
     it("An app in the URL scopes the very first traces query", () => {
         const seen: ObservabilityScope[] = []
+        render(<Screen routeAppId="app-1" enabled seen={seen} />)
+
+        expect(seen[0]).toEqual({appId: "app-1", routeAppId: "app-1"})
+    })
+
+    it("The scope is ready on the first render after the view turns on", () => {
+        const seen: ObservabilityScope[] = []
+        render(<Screen routeAppId="app-1" enabled={false} seen={seen} />)
+        seen.length = 0
         render(<Screen routeAppId="app-1" enabled seen={seen} />)
 
         expect(seen[0]).toEqual({appId: "app-1", routeAppId: "app-1"})

@@ -65,12 +65,16 @@ const TAB_ITEMS = [
     },
 ]
 
-export const ObservabilityScreen = ({
+const ObservabilityContent = ({
     workspaceId,
     projectId,
+    appFilterEnabled,
+    routeAppId,
 }: {
     workspaceId: string
     projectId: string
+    appFilterEnabled: boolean
+    routeAppId: string | null
 }) => {
     useBindProjectContext(projectId)
     const [tab, setTab] = useState<ObservabilityTab>("traces")
@@ -83,11 +87,6 @@ export const ObservabilityScreen = ({
             void router.replace(projectHomeUrl({workspaceId, projectId}))
     }, [spans.allowed, spans.pending, projectId, router, workspaceId])
 
-    // Project wide, which is the seam's own default, unless the app filter developer view is on:
-    // then `?app=` scopes the queries and the toolbar gets a picker.
-    const appFilterEnabled = useDeveloperViewEnabled("observability-app-filter") === true
-    const routeAppId = typeof router.query.app === "string" ? router.query.app : null
-    useObservabilityAppScope(routeAppId, appFilterEnabled)
     const onAppChange = useCallback(
         (appId: string | null) => setObservabilityAppInUrl(router, appId),
         [router],
@@ -210,6 +209,37 @@ export const ObservabilityScreen = ({
                 </ScreenScaffold>
             </AppShell>
         </>
+    )
+}
+
+/**
+ * Project wide, which is the scope seam's own default, unless the app filter developer view is
+ * on: then `?app=` scopes the queries and the toolbar gets a picker.
+ *
+ * The content subscribes to the traces query as soon as it renders, so a link with `?app=` waits
+ * here for the answer on the view. Without that wait its first request would be project wide.
+ */
+export const ObservabilityScreen = ({
+    workspaceId,
+    projectId,
+}: {
+    workspaceId: string
+    projectId: string
+}) => {
+    const router = useRouter()
+    const appFilterView = useDeveloperViewEnabled("observability-app-filter")
+    const appFilterEnabled = appFilterView === true
+    const routeAppId = typeof router.query.app === "string" ? router.query.app : null
+    useObservabilityAppScope(routeAppId, appFilterEnabled)
+
+    if (appFilterView === null && routeAppId !== null) return null
+    return (
+        <ObservabilityContent
+            workspaceId={workspaceId}
+            projectId={projectId}
+            appFilterEnabled={appFilterEnabled}
+            routeAppId={routeAppId}
+        />
     )
 }
 

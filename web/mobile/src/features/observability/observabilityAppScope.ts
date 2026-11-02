@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react"
+import {useEffect} from "react"
 
 import {bindObservabilityScopeAtom, type ObservabilityScope} from "@agenta/observability"
 import {atom, useStore} from "jotai"
@@ -29,26 +29,19 @@ export const setObservabilityAppInUrl = (router: NextRouter, appId: string | nul
 /**
  * Scopes the traces and sessions queries to `routeAppId` while `enabled`.
  *
- * The scope is set during the first render, not in an effect: the queries read it when their
- * components render, so an effect would let a project-wide request go out before the app. Later
- * changes follow in an effect, and leaving the screen puts the scope back to project wide.
+ * The scope is set during render, before the children that read it, not only in an effect: the
+ * queries read it when their components render, so an effect alone would let a project-wide
+ * request go out before the app. The write only happens when the app changed. Leaving the screen
+ * puts the scope back to project wide.
  */
 export const useObservabilityAppScope = (routeAppId: string | null, enabled: boolean) => {
     const store = useStore()
     const appId = enabled ? routeAppId : null
 
-    useState(() => {
-        if (appId) {
-            store.set(bindObservabilityScopeAtom, mobileObservabilityScopeAtom)
-            store.set(observabilityAppIdAtom, appId)
-        }
-    })
-
-    useEffect(() => {
-        if (!enabled) return
+    if (enabled) {
         store.set(bindObservabilityScopeAtom, mobileObservabilityScopeAtom)
-        store.set(observabilityAppIdAtom, appId)
-    }, [appId, enabled, store])
+        if (store.get(observabilityAppIdAtom) !== appId) store.set(observabilityAppIdAtom, appId)
+    }
 
     useEffect(() => () => store.set(observabilityAppIdAtom, null), [store])
 }

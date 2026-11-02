@@ -128,6 +128,15 @@ describe("ObservabilityScreen app filter", () => {
         expect(host.querySelector("[data-testid='app-filter']")).toBeNull()
     })
 
+    it("A link with an app waits for the view answer before it renders the content", () => {
+        viewEnabled.current = null
+        router.query = {...router.query, app: "app-1"}
+        mount()
+
+        expect(host.innerHTML).toBe("")
+        expect(store.get(observabilityScopeAtom)).toEqual({appId: null, routeAppId: null})
+    })
+
     it("Choosing an app writes app to the URL and keeps the trace param", () => {
         window.history.replaceState(null, "", "/?trace=t1")
         mount()
