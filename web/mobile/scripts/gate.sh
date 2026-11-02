@@ -9,6 +9,8 @@ BASE=${1:-}
 [ -n "$BASE" ] || { echo "usage: gate.sh <base-ref>"; exit 2; }
 cd "$(git rev-parse --show-toplevel)" || exit 1
 git rev-parse --verify "$BASE" >/dev/null 2>&1 || { echo "unknown ref: $BASE"; exit 2; }
+# Compare with the merge base, so changes that landed on <base-ref> after you branched do not count.
+BASE=$(git merge-base "$BASE" HEAD) || exit 2
 
 FAIL=0
 no() { echo "GATE FAIL: $1"; FAIL=1; }
@@ -72,7 +74,7 @@ done <<< "$FILES"
 
 # 8. Types, lint, related tests. Heavy: serialised across agents when the lock file exists.
 LOCK="$HOME/agenta-build-m-views/heavy.lock"
-heavy() { if [ -e "$LOCK" ] || [ -d "$(dirname "$LOCK")" ]; then flock "$LOCK" "$@"; else "$@"; fi; }
+heavy() { if [ -d "$(dirname "$LOCK")" ]; then flock "$LOCK" "$@"; else "$@"; fi; }
 OUT=$(mktemp -d)
 cd web || exit 1
 

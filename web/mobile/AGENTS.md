@@ -111,13 +111,3 @@ cold compile time, and the `next build` time. The budget is in `scripts/speed/bu
   Lexical, app-layer), suppressions, changed dependency files, `web/oss`/`web/ee` edits, deleted
   tests, and antd added to a file under `web/mobile/src` or `web/packages` (one level of
   re-exports is followed). Then it runs types, lint, and the unit tests.
-
-<!-- BEGIN:nextjs-agent-rules -->
-
-## This is NOT the Next.js you know
-
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
-
-This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
-
-<!-- END:nextjs-agent-rules -->

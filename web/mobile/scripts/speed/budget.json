@@ -39,11 +39,5 @@
         "devCompileHomeSeconds": 51.6,
         "devCompileSessionPageSeconds": 45.8,
         "note": "Median of 3 runs on a shared dev box. Machine dependent: compare only on the same box."
-    },
-    "keyPages": {
-        "home": "/w/[workspace_id]/p/[project_id]",
-        "sessionsList": "/w/[workspace_id]/p/[project_id]/sessions",
-        "sessionPage": "/w/[workspace_id]/p/[project_id]/sessions/[session_id]",
-        "agentsList": "/w/[workspace_id]/p/[project_id]/agents"
     }
 }

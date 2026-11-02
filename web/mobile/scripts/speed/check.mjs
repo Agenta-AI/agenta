@@ -28,14 +28,6 @@ const args = new Set(process.argv.slice(2))
 const WRITE = args.has("--write")
 const TIMING = args.has("--timing")
 
-// The pages the budget names. Every other route in the build is budgeted too.
-const KEY_PAGES = {
-    home: "/w/[workspace_id]/p/[project_id]",
-    sessionsList: "/w/[workspace_id]/p/[project_id]/sessions",
-    sessionPage: "/w/[workspace_id]/p/[project_id]/sessions/[session_id]",
-    agentsList: "/w/[workspace_id]/p/[project_id]/agents",
-}
-
 const kb = (bytes) => `${(bytes / 1024).toFixed(1)} KB`
 const readBudget = () => JSON.parse(readFileSync(budgetPath, "utf8"))
 const median = (values) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)]
@@ -134,7 +126,6 @@ function writeSizes() {
         Object.entries(now.routes).sort(([a], [b]) => (a < b ? -1 : 1)),
     )
     budget.firstLoadGzipBytes = {shell: now.shell, routes}
-    budget.keyPages = KEY_PAGES
     saveBudget(budget)
     console.log(
         `Wrote first-load baselines (${Object.keys(routes).length} routes, shell ${kb(now.shell)}).`,
