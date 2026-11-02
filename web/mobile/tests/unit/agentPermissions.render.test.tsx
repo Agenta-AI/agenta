@@ -177,6 +177,8 @@ describe("mobile schema-driven agent permissions", () => {
         fixture.environments = ["local", "daytona"]
         await mount()
         await act(async () => store.set(openAgentConfigSectionAtom, "advanced"))
+        // The drawer mounts its body two frames after it opens.
+        await act(() => new Promise((resolve) => setTimeout(resolve, 40)))
         const drawer = document.querySelector('[role="dialog"]')!
         expect(drawer).not.toBeNull()
         expect(drawer.textContent).toContain("Execution environment")
