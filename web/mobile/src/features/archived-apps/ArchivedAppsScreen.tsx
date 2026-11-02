@@ -39,10 +39,11 @@ export const ArchivedAppsScreen = ({
     useBindProjectContext(projectId)
     const [term, setTerm] = useState("")
     const search = useDebouncedAtomSearch(setTerm, 300)
-    const archived = useArchivedApps({projectId, search: term})
+    const trimmed = term.trim()
+    // The trimmed term keys the query: "bot" and "bot " are the same request.
+    const archived = useArchivedApps({projectId, search: trimmed})
     const canRestore = useProjectPermission(projectId, "edit_workflows")
     const rows = useMemo(() => archived.apps.map(toArchivedAppRow), [archived.apps])
-    const trimmed = term.trim()
 
     return (
         <>

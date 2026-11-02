@@ -78,6 +78,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+    vi.unstubAllEnvs()
     act(() => root.unmount())
     host.remove()
 })
@@ -104,6 +105,5 @@ describe("archived apps route", () => {
         expect(retry).toBeDefined()
         await act(async () => retry?.click())
         expect(api.queryWorkflows).toHaveBeenCalledTimes(2)
-        vi.unstubAllEnvs()
     })
 })

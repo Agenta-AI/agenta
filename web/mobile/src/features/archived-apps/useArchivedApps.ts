@@ -19,11 +19,11 @@ export const useArchivedApps = ({projectId, search}: {projectId: string; search:
         queryFn: async (): Promise<Workflow[]> => {
             const response = await queryWorkflows({
                 projectId,
-                name: search.trim() || undefined,
+                name: search || undefined,
                 flags: {is_evaluator: false},
                 includeArchived: true,
             })
-            // Sort a copy. The response array is not ours to reorder.
+            // `filter` gives a copy, so the sort does not reorder the response array.
             const archived = (response.workflows ?? [])
                 .filter((workflow) => workflow.deleted_at)
                 .sort((a, b) => (b.deleted_at ?? "").localeCompare(a.deleted_at ?? ""))
