@@ -115,11 +115,6 @@ describe("useEndpointEnvironments", () => {
         expect(latest.selected?.name).toBe("staging")
         setQuery("a1", settled([env("development"), env("staging"), env("production")]))
         expect(latest.selected?.name).toBe("staging")
-        setQuery("a1", {
-            ...settled([env("development"), env("staging"), env("production")]),
-            isPending: false,
-        })
-        expect(latest.selected?.name).toBe("staging")
     })
 
     it("Changing the app resets the selection to that app's default", () => {

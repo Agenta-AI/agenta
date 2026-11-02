@@ -79,8 +79,12 @@ export const EndpointsScreen = ({
     const notFound = !apps.isPending && !apps.isError && appId !== "" && app === null
 
     let state: EndpointsViewState
-    if (apps.isError || (appId && (variants.isError || environments.isError))) state = "error"
-    else if (apps.isPending || (appId && (variants.isPending || environments.isPending)))
+    if (apps.isError || (appId && (variants.isError || environments.isError || snippets.isError)))
+        state = "error"
+    else if (
+        apps.isPending ||
+        (appId && (variants.isPending || environments.isPending || snippets.isPending))
+    )
         state = "loading"
     else if (!appId) state = "pickApp"
     else if ((variants.data ?? []).length === 0 || environments.environments.length === 0)

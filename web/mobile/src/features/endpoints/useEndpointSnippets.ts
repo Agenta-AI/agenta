@@ -21,6 +21,10 @@ export const useEndpointSnippets = (
     environment: AppEnvironmentDeployment | null,
 ) => {
     const revisionId = environment?.deployedRevisionId ?? ""
+    // A disabled query reports pending forever, so ask only when there is a revision to load.
+    const revision = useAtomValue(
+        useMemo(() => workflowMolecule.atoms.query(revisionId), [revisionId]),
+    )
     const url = useAtomValue(
         useMemo(() => workflowMolecule.selectors.deploymentUrl(revisionId), [revisionId]),
     )
@@ -32,10 +36,10 @@ export const useEndpointSnippets = (
     )
     const environmentSlug = environment?.slug ?? "none"
 
-    return useMemo(() => {
+    const snippets = useMemo(() => {
         const params = buildAppEndpointParams({inputSchema, environmentSlug, isChat, appSlug})
         return {
-            invoke: buildInvokeAppSnippets({url: url?.trim() ?? "", params}),
+            invoke: buildInvokeAppSnippets({url: url?.trim() ?? "", params, isChat}),
             fetchConfig: buildFetchConfigSnippets({
                 apiUrl: getApiUrl(),
                 appSlug: appSlug ?? "",
@@ -43,4 +47,10 @@ export const useEndpointSnippets = (
             }),
         }
     }, [inputSchema, environmentSlug, isChat, appSlug, url])
+
+    return {
+        ...snippets,
+        isPending: Boolean(revisionId) && Boolean(revision.isPending),
+        isError: Boolean(revisionId) && Boolean(revision.isError),
+    }
 }

@@ -11,7 +11,6 @@ export {
 } from "./snippets/request"
 export {buildAgentSnippets, type AgentSnippetLang} from "./snippets/snippets"
 export {
-    API_KEY_PLACEHOLDER,
     buildAppEndpointParams,
     buildFetchConfigSnippets,
     buildInvokeAppSnippets,

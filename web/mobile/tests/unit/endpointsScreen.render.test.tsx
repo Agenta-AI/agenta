@@ -7,7 +7,14 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {EndpointsScreen} from "@/features/endpoints/EndpointsScreen"
 
-import {appsAtom, envsQuery, fakeEnv, variantsAtom, type FakeEnv} from "./endpointsScreenFixtures"
+import {
+    appsAtom,
+    envsQuery,
+    fakeEnv,
+    revisionQuery,
+    variantsAtom,
+    type FakeEnv,
+} from "./endpointsScreenFixtures"
 
 const router = vi.hoisted(() => ({
     query: {} as Record<string, string | undefined>,
@@ -47,6 +54,7 @@ vi.mock("@agenta/entities/workflow", async () => {
         appWorkflowsListQueryStateAtom: fixtures.appsAtom,
         workflowVariantsListQueryStateAtomFamily: () => fixtures.variantsAtom,
         workflowMolecule: {
+            atoms: {query: () => fixtures.revisionQuery},
             selectors: {
                 deploymentUrl: select("url"),
                 inputSchema: select("inputSchema"),
@@ -142,6 +150,7 @@ describe("EndpointsScreen", () => {
             value: {writeText},
         })
         store.set(appsAtom, {data: APPS, isPending: false, isError: false})
+        store.set(revisionQuery, {isPending: false, isError: false})
     })
 
     afterEach(() => {
@@ -231,6 +240,22 @@ describe("EndpointsScreen", () => {
         const config = byTestId("endpoints-config-code")?.textContent ?? ""
         expect(config).toContain('environment_slug="prod-eu"')
         expect(config).not.toContain('"Production"')
+    })
+
+    it("A deployed revision still loading shows the skeleton, not a snippet with no URL", () => {
+        ready([fakeEnv("production")])
+        store.set(revisionQuery, {isPending: true, isError: false})
+        render()
+        expect(byTestId("endpoints-skeleton")).not.toBeNull()
+        expect(byTestId("endpoints-invoke-code")).toBeNull()
+    })
+
+    it("A deployed revision that fails to load shows the retry", () => {
+        ready([fakeEnv("production")])
+        store.set(revisionQuery, {isPending: false, isError: true})
+        render()
+        expect(text()).toContain("Could not load endpoints")
+        expect(byTestId("endpoints-invoke-code")).toBeNull()
     })
 
     it("A failed environments load shows a retry", () => {

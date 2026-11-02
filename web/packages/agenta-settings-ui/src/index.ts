@@ -193,7 +193,6 @@ export {
     AGENT_INVOKE_DOCS_URL,
     agentHostFromApiUrl,
     buildAgentSnippets,
-    API_KEY_PLACEHOLDER,
     CodeBlock,
     buildAppEndpointParams,
     buildFetchConfigSnippets,

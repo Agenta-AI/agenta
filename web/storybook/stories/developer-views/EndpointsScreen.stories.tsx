@@ -53,6 +53,7 @@ const snippetsFor = (isChat: boolean) => {
         invoke: buildInvokeAppSnippets({
             url: "https://cloud.example.com/services/app/invoke",
             params,
+            isChat,
         }),
         fetchConfig: buildFetchConfigSnippets({
             apiUrl: "https://cloud.example.com/api",

@@ -45,3 +45,8 @@ export const fakeEnv = (name: string, slug = name, deployed = true): FakeEnv => 
     revision: null,
     updatedAt: null,
 })
+
+export const revisionQuery = atom<{isPending: boolean; isError: boolean}>({
+    isPending: false,
+    isError: false,
+})

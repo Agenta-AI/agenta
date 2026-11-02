@@ -78,18 +78,23 @@ describe("invoke snippets", () => {
     })
 
     it("Chat invoke snippets send the session baggage header in all three languages", () => {
-        const snippets = buildInvokeAppSnippets({url, params: chat, apiKey: "K"})
+        const snippets = buildInvokeAppSnippets({url, params: chat, isChat: true, apiKey: "K"})
         for (const lang of LANGS) {
             expect(snippets[lang]).toContain("ag.session.id=your_session_id")
         }
-        const plainSnippets = buildInvokeAppSnippets({url, params: plain, apiKey: "K"})
+        const plainSnippets = buildInvokeAppSnippets({
+            url,
+            params: plain,
+            isChat: false,
+            apiKey: "K",
+        })
         for (const lang of LANGS) {
             expect(plainSnippets[lang]).not.toContain("Baggage")
         }
     })
 
     it("Snippets use the YOUR_API_KEY placeholder when no key is given", () => {
-        const snippets = buildInvokeAppSnippets({url, params: plain})
+        const snippets = buildInvokeAppSnippets({url, params: plain, isChat: false})
         for (const lang of LANGS) {
             expect(snippets[lang]).toContain("ApiKey YOUR_API_KEY")
             expect(snippets[lang]).toContain(url)
@@ -105,8 +110,46 @@ describe("invoke snippets", () => {
         expect(fetched.python).not.toContain('= ""')
     })
 
+    it("Python and cURL stay valid for boolean, null and apostrophe defaults", () => {
+        const params = buildAppEndpointParams({
+            inputSchema: {
+                properties: {
+                    on: {default: true},
+                    off: {default: false},
+                    none: {default: null},
+                    note: {default: "What's new?"},
+                },
+            },
+            environmentSlug: "production",
+            isChat: false,
+            appSlug: "a",
+        })
+        const snippets = buildInvokeAppSnippets({url, params, isChat: false})
+        expect(snippets.python).toContain('"on": True')
+        expect(snippets.python).toContain('"off": False')
+        expect(snippets.python).not.toMatch(/\b(true|false|null)\b/)
+        expect(snippets.bash).toContain("What'\\''s new?")
+        expect(snippets.typescript).toContain('"on": true')
+    })
+
+    it("A non-chat app with a messages input gets no session header", () => {
+        const params = buildAppEndpointParams({
+            inputSchema: {properties: {messages: {}}},
+            environmentSlug: "production",
+            isChat: false,
+            appSlug: "a",
+        })
+        const snippets = buildInvokeAppSnippets({url, params, isChat: false})
+        expect(snippets.bash).not.toContain("Baggage")
+    })
+
     it("Invoke snippets use the given key", () => {
-        const snippets = buildInvokeAppSnippets({url, params: plain, apiKey: "secret"})
+        const snippets = buildInvokeAppSnippets({
+            url,
+            params: plain,
+            isChat: false,
+            apiKey: "secret",
+        })
         expect(snippets.bash).toContain("ApiKey secret")
         expect(snippets.bash).not.toContain("YOUR_API_KEY")
     })

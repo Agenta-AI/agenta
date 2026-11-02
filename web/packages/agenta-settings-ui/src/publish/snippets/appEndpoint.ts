@@ -4,7 +4,7 @@ export type AppEndpointLang = "python" | "bash" | "typescript"
 export type AppEndpointSnippets = Record<AppEndpointLang, string>
 
 /** Written into a snippet when the reader has not given an API key. */
-export const API_KEY_PLACEHOLDER = "YOUR_API_KEY"
+const API_KEY_PLACEHOLDER = "YOUR_API_KEY"
 
 const SESSION_BAGGAGE = "ag.session.id=your_session_id"
 
@@ -45,13 +45,27 @@ export const buildAppEndpointParams = ({
     )
 }
 
-const isChatParams = (params: string): boolean => {
-    try {
-        return JSON.parse(params)?.data?.inputs?.messages !== undefined
-    } catch {
-        return false
+/** The value as Python source: JSON text breaks on `true`, `false` and `null`. */
+const pythonLiteral = (value: unknown, depth = 0): string => {
+    if (value === null || value === undefined) return "None"
+    if (value === true) return "True"
+    if (value === false) return "False"
+    if (typeof value !== "object") return JSON.stringify(value)
+    const pad = "  ".repeat(depth + 1)
+    const close = "  ".repeat(depth)
+    if (Array.isArray(value)) {
+        if (!value.length) return "[]"
+        return `[\n${value.map((item) => pad + pythonLiteral(item, depth + 1)).join(",\n")}\n${close}]`
     }
+    const entries = Object.entries(value)
+    if (!entries.length) return "{}"
+    return `{\n${entries
+        .map(([key, item]) => `${pad}${JSON.stringify(key)}: ${pythonLiteral(item, depth + 1)}`)
+        .join(",\n")}\n${close}}`
 }
+
+/** The text as one shell argument in single quotes. */
+const shellSingleQuoted = (text: string): string => `'${text.replaceAll("'", "'\\''")}'`
 
 const indent = (text: string, spaces: number): string =>
     text
@@ -63,6 +77,8 @@ export interface InvokeAppSnippetInput {
     url: string
     /** The body from `buildAppEndpointParams`. */
     params: string
+    /** A chat app also needs the session header. */
+    isChat: boolean
     apiKey?: string
 }
 
@@ -70,16 +86,16 @@ export interface InvokeAppSnippetInput {
 export const buildInvokeAppSnippets = ({
     url,
     params,
+    isChat: chat,
     apiKey,
 }: InvokeAppSnippetInput): AppEndpointSnippets => {
     const key = apiKey || API_KEY_PLACEHOLDER
-    const chat = isChatParams(params)
     return {
         python: `import requests
 import json
 
 url = "${url}"
-params = ${params}
+params = ${pythonLiteral(JSON.parse(params))}
 headers = {
     "Content-Type": "application/json",
     "Authorization": "ApiKey ${key}",${chat ? `\n    "Baggage": "${SESSION_BAGGAGE}",` : ""}
@@ -94,7 +110,7 @@ print(json.dumps(data, indent=4))
         bash: `curl -X POST "${url}" \\
 -H "Content-Type: application/json" \\
 -H "Authorization: ApiKey ${key}" \\${chat ? `\n-H "Baggage: ${SESSION_BAGGAGE}" \\` : ""}
--d '${params}'
+-d ${shellSingleQuoted(params)}
 `,
         typescript: `import axios from 'axios';
 
