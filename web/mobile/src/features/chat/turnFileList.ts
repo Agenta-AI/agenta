@@ -15,7 +15,7 @@ export type TurnFile = FileActivity | LinkedFile
 const MARKDOWN_LINK =
     /(?<!!)\[[^\]\n]*\]\(\s*(?:<([^<>\n]+)>|((?:[^()\s<>]|\([^()\s]*\))+))(?:\s+["'][^"'\n]*["'])?\s*\)/g
 // Code shows a link's syntax; it does not offer the file.
-const CODE = /```[\s\S]*?(?:```|$)|`[^`\n]*`/g
+const CODE = /```[\s\S]*?(?:```|$)|~~~[\s\S]*?(?:~~~|$)|`[^`\n]*`/g
 
 /** The drive paths an answer links to, in the order it links them. */
 export const answerLinkedPaths = (texts: readonly string[]): string[] => {

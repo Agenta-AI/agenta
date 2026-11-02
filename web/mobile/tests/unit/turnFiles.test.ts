@@ -118,6 +118,7 @@ describe("answerLinkedPaths", () => {
                 "[site](https://agenta.ai/x.zip) [host](//evil.com/x.zip) [top](#intro)",
                 "![chart](chart.png) [folder](templates/) [up](../secret.md)",
                 "`[code](a.zip)`\n```\n[block](b.zip)\n```",
+                "~~~\n[tilde](c.zip)\n~~~",
             ]),
         ).toEqual([])
     })
