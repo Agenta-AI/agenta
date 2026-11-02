@@ -7,13 +7,13 @@ import type {NextRouter} from "next/router"
 import {currentQuery} from "./bindTraceDrawerSeams"
 
 /** The app the observability screen is narrowed to, or `null` for the whole project. */
-export const observabilityAppIdAtom = atom<string | null>(null)
+const observabilityAppIdAtom = atom<string | null>(null)
 
 /**
  * Both fields carry the picked app. The package gives `appId` a "last used app" fallback on the
  * old app's project pages, which would send an app id with no matching filter row.
  */
-export const mobileObservabilityScopeAtom = atom((get): ObservabilityScope => {
+const mobileObservabilityScopeAtom = atom((get): ObservabilityScope => {
     const appId = get(observabilityAppIdAtom)
     return {appId, routeAppId: appId}
 })
@@ -26,45 +26,28 @@ export const setObservabilityAppInUrl = (router: NextRouter, appId: string | nul
     void router.replace({pathname: router.pathname, query}, undefined, {shallow: true})
 }
 
-/** Counts screen setups, so a reset queued by a cleanup can tell a later setup ran first. */
-let scopeGeneration = 0
+type Store = ReturnType<typeof useStore>
+
+/** Writes only on a change, so a screen that never picks an app never binds the scope. */
+const writeAppScope = (store: Store, appId: string | null) => {
+    if (store.get(observabilityAppIdAtom) === appId) return
+    store.set(bindObservabilityScopeAtom, mobileObservabilityScopeAtom)
+    store.set(observabilityAppIdAtom, appId)
+}
 
 /**
- * Scopes the traces and sessions queries to `routeAppId` while `enabled`.
+ * Scopes the traces and sessions queries to `appId`, or project wide for `null`.
  *
- * The scope is set during render, before the children that read it, not only in an effect: the
- * queries read it when their components render, so an effect alone would let a project-wide
- * request go out before the app. The write only happens when the app changed. Leaving the screen
- * puts the scope back to project wide.
+ * Written during render, before the children that run the queries render: an effect alone would
+ * let a project wide request go out first. Leaving the screen puts the scope back to project wide,
+ * because the global trace drawer reads it on every page.
  */
-export const useObservabilityAppScope = (routeAppId: string | null, enabled: boolean) => {
+export const useObservabilityAppScope = (appId: string | null) => {
     const store = useStore()
-    const appId = enabled ? routeAppId : null
+    writeAppScope(store, appId)
 
-    if (enabled) {
-        store.set(bindObservabilityScopeAtom, mobileObservabilityScopeAtom)
-        if (store.get(observabilityAppIdAtom) !== appId) store.set(observabilityAppIdAtom, appId)
-    }
-
-    // Leaving the screen puts the scope back to project wide. The reset waits a microtask, and a
-    // screen that sets up again before then (the StrictMode replay) cancels it, so the mounted
-    // queries never see a project wide scope while the screen is still there.
-    useEffect(() => {
-        scopeGeneration += 1
-        return () => {
-            const generation = scopeGeneration
-            queueMicrotask(() => {
-                if (generation === scopeGeneration) store.set(observabilityAppIdAtom, null)
-            })
-        }
-    }, [store])
-
-    // Sets the scope again after mount: React StrictMode runs every cleanup, then every setup, so
-    // the cleanup above alone would leave the queries project wide under a picker that names an
-    // app. It is its own effect, without a cleanup, so an app change never passes through null.
-    useEffect(() => {
-        if (!enabled) return
-        store.set(bindObservabilityScopeAtom, mobileObservabilityScopeAtom)
-        store.set(observabilityAppIdAtom, appId)
-    }, [store, enabled, appId])
+    // Again after mount: the StrictMode replay runs the cleanup below while the screen stays.
+    // Kept apart from the cleanup, so an app change never passes through project wide.
+    useEffect(() => writeAppScope(store, appId), [store, appId])
+    useEffect(() => () => writeAppScope(store, null), [store])
 }

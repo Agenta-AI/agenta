@@ -231,7 +231,7 @@ export const ObservabilityScreen = ({
     const appFilterView = useDeveloperViewEnabled("observability-app-filter")
     const appFilterEnabled = appFilterView === true
     const routeAppId = typeof router.query.app === "string" ? router.query.app : null
-    useObservabilityAppScope(routeAppId, appFilterEnabled)
+    useObservabilityAppScope(appFilterEnabled ? routeAppId : null)
 
     if (
         appFilterView === null &&

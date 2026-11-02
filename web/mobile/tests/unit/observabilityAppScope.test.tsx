@@ -32,7 +32,7 @@ const Screen = ({
     enabled: boolean
     seen: ObservabilityScope[]
 }) => {
-    useObservabilityAppScope(routeAppId, enabled)
+    useObservabilityAppScope(enabled ? routeAppId : null)
     // Keyed like the screen's wait: its content mounts only after the view answers, so its
     // queries subscribe to a scope that is already set.
     return <ScopeProbe key={String(enabled)} seen={seen} />
@@ -118,15 +118,12 @@ describe("useObservabilityAppScope", () => {
         expect(seen.every((scope) => scope.appId === "app-1")).toBe(true)
     })
 
-    it("Leaving the screen resets the scope", async () => {
+    it("Leaving the screen resets the scope", () => {
         const seen: ObservabilityScope[] = []
         render(<Screen routeAppId="app-1" enabled seen={seen} />)
         expect(store.get(observabilityScopeAtom).appId).toBe("app-1")
 
         render(null)
-        await act(async () => {
-            await Promise.resolve()
-        })
 
         expect(store.get(observabilityScopeAtom)).toEqual(PROJECT_WIDE)
     })
