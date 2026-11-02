@@ -17,12 +17,12 @@ import type {
 // belongs to the mobile app and is not drawn here.
 
 // The members the "Archived By" column resolves names from, and the signed-in user ("(you)").
-const ME = {id: "user-me", username: "Mahmoud", email: "me@example.com"}
+const ME = {id: "user-me", username: "Alex", email: "me@example.com"}
 setUserAtoms({
     currentUserAtom: atom(ME),
     membersAtom: atom([
         {user: ME},
-        {user: {id: "user-ana", username: "Ana Souza", email: "ana@example.com"}},
+        {user: {id: "user-sam", username: "Sam Lee", email: "sam@example.com"}},
     ]),
 })
 
