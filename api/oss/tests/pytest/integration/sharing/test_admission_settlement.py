@@ -111,7 +111,7 @@ class _Project:
         self.carol = self._member()
         self.access = AccessService(
             memberships=self.world.service._memberships,
-            rbac=RecordingRbac(enforced=True),
+            rbac_entitlement=RecordingRbac(entitled=True),
             principals=self.principals,
             resource_policy=self.world.service,
         )

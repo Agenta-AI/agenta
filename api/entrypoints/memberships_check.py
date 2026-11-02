@@ -13,8 +13,8 @@ environment (`POSTGRES_URI_CORE`) and `AGENTA_LICENSE` set to the edition:
             P1 to P12 per organization (ids only, never emails). EE: it also lists
             as `P2b_undecided` the organizations whose plan cannot answer the RBAC
             entitlement (no subscription, or a plan the entitlements do not
-            define). P2b and `--apply` skip them, as the hot path never treats
-            them as organizations without RBAC.
+            define). P2b and `--apply` skip them, as `PlanRbacEntitlement` never
+            treats them as organizations without RBAC.
 --apply     Before the upgrade. (1) Deletes the newer rows of each duplicate
             (project_id, user_id) group, counted over non-demo rows, and keeps the
             oldest by (created_at, id) (P5). Demo rows are left to `oss000000044`,
@@ -339,15 +339,15 @@ def _applies(edition: str) -> bool:
     return edition == "both" or edition == _edition()
 
 
-async def _rbac_enforced(organization_id: UUID) -> Optional[bool]:
+async def _rbac_entitled(organization_id: UUID) -> Optional[bool]:
     """The EE RBAC entitlement of one organization (P2b needs organizations without
     it), or None when the plan cannot answer: no subscription, or a plan the
     entitlements do not define.
 
-    The hot path (`EntitlementsRbacEnforcement.is_enforced`) raises
-    `EntitlementsException` in those cases, so it never treats such an organization
-    as one without RBAC. The job does the same: the organization is not a P2b
-    organization, and the report lists it as `P2b_undecided` instead of stopping.
+    `PlanRbacEntitlement.is_entitled` counts such an organization as entitled, so it
+    never treats it as one without RBAC. The job does the same: the organization is
+    not a P2b organization, and the report lists it as `P2b_undecided` instead of
+    stopping.
     """
 
     from ee.src.core.access.entitlements.service import (  # noqa: PLC0415
@@ -358,7 +358,7 @@ async def _rbac_enforced(organization_id: UUID) -> Optional[bool]:
     )
 
     # Not `check_entitlements`: it fails open, (True, None, None) on a Redis or
-    # database error, which would read as "RBAC enforced" and silently skip the P2b
+    # database error, which would read as "RBAC entitled" and silently skip the P2b
     # rows of that organization. An operator job must stop on the error instead.
     try:
         check, _, _ = await _check_entitlements(
@@ -411,12 +411,12 @@ async def _no_rbac_organizations(
     result = []
     started = monotonic()
     for organization_id in organization_ids:
-        enforced = await _rbac_enforced(organization_id)
-        if enforced is None:
+        entitled = await _rbac_entitled(organization_id)
+        if entitled is None:
             if undecided is not None:
                 undecided.append(organization_id)
             continue
-        if not enforced:
+        if not entitled:
             result.append(organization_id)
     ENTITLEMENT_READS["organizations"] += len(organization_ids)
     ENTITLEMENT_READS["seconds"] += monotonic() - started

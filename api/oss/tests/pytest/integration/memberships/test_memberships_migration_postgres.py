@@ -472,7 +472,7 @@ def check_module(monkeypatch):
     async def _no_rbac(organization_id):
         return False
 
-    monkeypatch.setattr(module, "_rbac_enforced", _no_rbac)
+    monkeypatch.setattr(module, "_rbac_entitled", _no_rbac)
     return module
 
 
@@ -878,7 +878,7 @@ async def test_report_and_apply_skip_an_undecided_organization(
     async def _rbac(organization_id):
         return None if organization_id == undecided.organization_id else False
 
-    monkeypatch.setattr(check_module, "_rbac_enforced", _rbac)
+    monkeypatch.setattr(check_module, "_rbac_entitled", _rbac)
     organizations = [decided.organization_id, undecided.organization_id]
     try:
         await execute(

@@ -134,6 +134,7 @@ vi.mock("@agenta/entities/session", () => ({
     resumeSessionContinuationAtom: "resume-session-continuation",
     revalidateSessionMountsAtom: "revalidate-mounts",
     revalidateSessionRecordsAtom: "revalidate-records",
+    revalidateSessionTurnsAtom: "revalidate-turns",
 }))
 
 vi.mock("@agenta/entities/trace", () => ({markTraceAsFresh: vi.fn()}))

@@ -45,6 +45,9 @@ class Tracker(str, Enum):
 
 
 class Flag(str, Enum):
+    # Offers every catalog role in invites and role changes (not only admin and
+    # member), and lets organization credentials be limited to selected projects.
+    # Roles apply on every plan; this flag never decides an access check.
     RBAC = "rbac"
     AUDIT = "audit"
     ACCESS = "access"

@@ -1,3 +1,4 @@
+import {canViewSpansAtom} from "@agenta/entities/access"
 import {attachAnnotationsToTraces} from "@agenta/entities/annotation/dto"
 import {transformApiData} from "@agenta/entities/annotation/dto"
 import {AnnotationDto} from "@agenta/entities/annotation/dto"
@@ -175,7 +176,7 @@ export const traceDrawerQueryAtom = atomWithQuery((get) => {
 
     return {
         queryKey: ["trace-drawer", traceId ?? "none", projectId ?? "none"],
-        enabled: Boolean(traceId),
+        enabled: Boolean(traceId) && get(canViewSpansAtom),
         refetchOnWindowFocus: false,
         queryFn: async () => {
             if (!traceId) return null
@@ -262,7 +263,7 @@ export const traceDrawerAnnotationsQueryAtom = atomWithQuery((get) => {
     return {
         // Same reason as the list query: the request is project-scoped, so the key is too.
         queryKey: ["trace-drawer-annotations", projectId, links],
-        enabled: Array.isArray(links) && links.length > 0,
+        enabled: Array.isArray(links) && links.length > 0 && get(canViewSpansAtom),
         refetchOnWindowFocus: false,
         queryFn: async () => {
             if (!Array.isArray(links) || !links.length) return [] as AnnotationDto[]
@@ -351,7 +352,7 @@ export const annotationLinkTracesQueryAtom = atomWithQuery<Record<string, Traces
 
         return {
             queryKey: ["trace-drawer-annotation-links", targets, projectId ?? "none"],
-            enabled: Array.isArray(targets) && targets.length > 0,
+            enabled: Array.isArray(targets) && targets.length > 0 && get(canViewSpansAtom),
             refetchOnWindowFocus: false,
             queryFn: async () => {
                 const uniqueTraceIds = Array.from(new Set(targets.map((t) => t.trace_id)))
@@ -449,7 +450,7 @@ export const linkedSpanTracesQueryAtom = atomWithQuery<Record<string, TracesWith
 
         return {
             queryKey: ["trace-drawer-linked-spans", targets, projectId ?? "none"],
-            enabled: Array.isArray(targets) && targets.length > 0,
+            enabled: Array.isArray(targets) && targets.length > 0 && get(canViewSpansAtom),
             refetchOnWindowFocus: false,
             queryFn: async () => {
                 const providedTraceIds = targets

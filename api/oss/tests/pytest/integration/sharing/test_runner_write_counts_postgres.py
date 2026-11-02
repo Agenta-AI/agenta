@@ -54,7 +54,7 @@ from oss.src.core.access.dtos import (
     RunSender,
 )
 from oss.src.core.access.permissions.types import Permission
-from oss.src.core.access.rbac import AlwaysEnforcedRbac
+from oss.src.core.access.rbac import NoRbacEntitlement
 from oss.src.core.access.service import AccessService
 from oss.src.core.memberships.dtos import MembershipPolicy
 from oss.src.core.memberships.service import MembershipsService
@@ -209,12 +209,12 @@ def access_service(monkeypatch) -> AccessService:
 
     engine = get_transactions_engine()
     if is_ee():
-        from ee.src.core.access.rbac import EntitlementsRbacEnforcement
+        from ee.src.core.access.rbac import PlanRbacEntitlement
 
-        rbac = EntitlementsRbacEnforcement()
+        rbac = PlanRbacEntitlement()
         policy = MembershipPolicy.PROJECT_ROWS
     else:
-        rbac = AlwaysEnforcedRbac()
+        rbac = NoRbacEntitlement()
         policy = MembershipPolicy.ORGANIZATION_WIDE
     memberships = MembershipsService(
         memberships_dao=MembershipsDAO(engine=engine), policy=policy
@@ -222,7 +222,7 @@ def access_service(monkeypatch) -> AccessService:
     principals = PrincipalsDAO(engine=engine)
     service = AccessService(
         memberships=memberships,
-        rbac=rbac,
+        rbac_entitlement=rbac,
         principals=principals,
         resource_policy=SharingService(
             sharing_dao=SharingDAO(engine=engine),

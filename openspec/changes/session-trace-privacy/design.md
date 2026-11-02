@@ -1,12 +1,14 @@
 # Design: session trace privacy
 
+Status: decisions 1 to 5 and 7, the linkage and filter parts of the migration section, the risks and the open questions are replaced by `small-team-roles`. Decision 6 and the core usage columns still hold. The tombstone table and its write shipped in M3; the EE retention flush of tombstones is not built.
+
 ## Context
 
 Tracing is a separate database, so core cannot join access rows in SQL. Code facts: `research-session-trace-privacy.md`.
 
 ## Decisions
 
-### 1. Read semantics
+### 1. Read semantics (replaced)
 
 A span in project P is readable by principal X if and only if:
 
@@ -15,15 +17,15 @@ A span in project P is readable by principal X if and only if:
 
 A session id names a session of P when P has a live session row or a privacy tombstone with that id. "May read" for a live session is the M3 rule. A tombstone is readable only by its former owner. A trace with no such session id keeps rule 1 only.
 
-### 2. Privacy tombstone
+### 2. Privacy tombstone (replaced)
 
 `session_trace_tombstones` (core_oss): `project_id`, `session_id`, `owner_user_id`, `deleted_at`; PK `(project_id, session_id)`. M3 ships the table (revision `oss000000048`) and the write: the session delete writes it, for a private session, in the statement that deletes the stream row. M3 also uses it for the session decision (the former owner reads, nobody writes, everyone else gets the hidden answer). Session deletion leaves spans to tracing retention, so the tombstone must outlive the row. The EE retention flush deletes a tombstone once `deleted_at` is older than the plan's retention plus one day. With unlimited retention (OSS, some plans) it stays.
 
-### 3. Linkage
+### 3. Linkage (replaced)
 
 The filter works per trace, so a child span follows its trace. Emitters stamp the session id on every span of a session run; ingest keeps it on every carrying span and copies the root's value to children in the same batch. Old root-only spans need no backfill.
 
-### 4. One read-scope boundary
+### 4. One read-scope boundary (replaced)
 
 ```python
 class MaintenanceOperation(str, Enum):
@@ -44,15 +46,15 @@ class TraceAccessService:
 
 `scope` is a required keyword with no default on every `TracingService` and `TracingDAOInterface` read. The DAO applies it before ordering, counting and paging. Services never build their own scope; they pass the caller's. Adding a maintenance operation is a spec change.
 
-### 5. Measurement step, then strategy
+### 5. Measurement step, then strategy (replaced)
 
 Before building the filter, measure on production: unreadable sessions per (reader, project) at p50, p99 and maximum, tombstones per project, and candidate SQL cost on the largest tracing projects. The chosen filter payload, and any tracing-database change, is recorded with the numbers for owner review. Decision 1 and the scope argument do not change with the choice.
 
 ### 6. Per-turn usage
 
-`session_turns` gets nullable `input_tokens`, `output_tokens`, `total_tokens` (bigint), `cost` (numeric 18,9), `usage_source` (`runner` or `trace`), and a concurrent index `(project_id, trace_id)`. `complete_turn` takes optional runner usage. Ingest, after `cumulate_costs`, calls `SessionTurnsService.record_trace_usage(project_id, trace_id, usage)` for linked roots. `TurnMetrics` loads the trace only when opened.
+`session_turns` gets nullable `input_tokens`, `output_tokens`, `total_tokens` (bigint), `cost` (numeric 18,9), `usage_source` (`runner` or `trace`), and a concurrent index `(project_id, trace_id)`. `complete_turn` takes optional runner usage. Ingest, after `cumulate_costs`, calls `SessionTurnsService.record_trace_usage(project_id, trace_id, usage)`, which updates the turn with the same trace id. A trace that belongs to no turn updates no row. The chat footer reads no trace.
 
-### 7. Unavailable, never zero
+### 7. Unavailable, never zero (replaced)
 
 Analytics responses add `access: {restricted: bool}`. Scope errors are excluded from `@suppress_exceptions`, which today turns every analytics failure into an empty result.
 

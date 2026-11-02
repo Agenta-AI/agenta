@@ -9,7 +9,7 @@ vi.mock("@agenta/sdk/resources", () => ({
     getAccessClient: () => ({checkPermissions}),
 }))
 
-import {fetchProjectPermission} from "@/features/context/useProjectPermission"
+import {fetchProjectPermission} from "../../src/access"
 
 describe("fetchProjectPermission", () => {
     beforeEach(() => {
