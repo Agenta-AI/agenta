@@ -97,7 +97,7 @@ export const TestsetsTable = ({
         onExport: (format) => onExport(row, format),
         onArchive: () =>
             confirm({
-                title: "Archive this test set?",
+                title: "Archive this testset?",
                 message: `“${row.name}” and all its revisions will be archived.`,
                 okText: "Archive",
                 danger: true,

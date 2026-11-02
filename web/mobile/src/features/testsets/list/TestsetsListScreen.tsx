@@ -61,7 +61,7 @@ export const TestsetsListScreen = ({
     const body =
         list.isError && list.testsets.length === 0 ? (
             // A failed fetch must not read as an empty project. A failed Load more keeps the rows.
-            <LoadError framed title="Could not load test sets" onRetry={list.refetch} />
+            <LoadError framed title="Could not load testsets" onRetry={list.refetch} />
         ) : (
             <TestsetsTable
                 rows={list.testsets}
@@ -89,7 +89,7 @@ export const TestsetsListScreen = ({
 
     return (
         <>
-            <PageTitle title="Test sets" />
+            <PageTitle title="Testsets" />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={

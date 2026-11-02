@@ -16,7 +16,7 @@ export const TestsetsEmpty = ({onCreate}: {onCreate?: () => void}) => (
             <EmptyMedia variant="icon">
                 <Table2 />
             </EmptyMedia>
-            <EmptyTitle className="text-foreground">No test sets yet</EmptyTitle>
+            <EmptyTitle className="text-foreground">No testsets yet</EmptyTitle>
             <EmptyDescription>
                 Create one from a file, from scratch or with the API.
             </EmptyDescription>

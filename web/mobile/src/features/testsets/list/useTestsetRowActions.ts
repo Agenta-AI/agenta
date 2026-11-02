@@ -21,14 +21,14 @@ export const exportFileName = (name: string, format: TestsetExportFormat): strin
 
 const inUseMessage = (count: number): string => {
     const noun = count === 1 ? "evaluation" : "evaluations"
-    return `The test set is used by ${count} ${noun}. Archive or delete the ${noun} first.`
+    return `The testset is used by ${count} ${noun}. Archive or delete the ${noun} first.`
 }
 
 /** Thrown for the one refusal the reader can act on; its message is safe to show. */
 class TestsetInUseError extends Error {}
 
-const ROW_BUSY = "This test set is busy. Try again in a moment"
-const ARCHIVE_FAILED = "Couldn't archive this test set"
+const ROW_BUSY = "This testset is busy. Try again in a moment"
+const ARCHIVE_FAILED = "Couldn't archive this testset"
 
 /**
  * The verbs a testset row offers. Each runs once per row at a time: a second press while one is
@@ -67,12 +67,12 @@ export function useTestsetRowActions({projectId, base}: {projectId: string; base
                     const revision = await fetchLatestRevision({projectId, testsetId: row.id})
                     // Version 0 is the empty placeholder every Testset starts with.
                     if (!revision || revision.version <= 0) {
-                        message.error("This test set has no saved revision yet")
+                        message.error("This testset has no saved revision yet")
                         return
                     }
                     await router.push(`${base}/testsets/${revision.id}`)
                 } catch {
-                    message.error("Couldn't open this test set")
+                    message.error("Couldn't open this testset")
                 }
             }),
         [base, guarded, projectId, router],

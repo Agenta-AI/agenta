@@ -41,7 +41,7 @@ export function useTestsetsList({projectId, search}: UseTestsetsListParams) {
     const loadMore = () => {
         if (!hasNextPage || isFetchingNextPage) return
         void fetchNextPage().then((result) => {
-            if (result.isError) message.error("Couldn't load more test sets")
+            if (result.isError) message.error("Couldn't load more testsets")
         })
     }
 
