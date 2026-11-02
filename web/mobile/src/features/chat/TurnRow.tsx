@@ -241,7 +241,15 @@ const TurnRowInner = ({
                 : [],
         [turn.isUser, turn.items],
     )
-    const writtenFiles = useMemo(() => turnFiles(activity.steps), [activity.steps])
+    const writtenFiles = useMemo(
+        () =>
+            // Once settled, `messages` holds only the answer; an open run's text is still interim.
+            turnFiles(
+                activity.steps,
+                runOpen ? [] : activity.messages.map((message) => message.part.text),
+            ),
+        [activity.steps, activity.messages, runOpen],
+    )
 
     const body = turn.isUser ? (
         <div className="flex min-w-0 max-w-full flex-col gap-2">
