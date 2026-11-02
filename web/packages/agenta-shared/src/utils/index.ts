@@ -64,6 +64,19 @@ export type {
 // The query param a session is addressed by, on either app
 export {SESSION_QUERY_PARAM} from "./sessionParam"
 
+// The query params a drive selection and an open automation are linked by
+export {
+    AUTOMATION_QUERY_PARAM,
+    DRIVE_QUERY_PARAM,
+    formatDriveParam,
+    parseDriveParam,
+    readQueryParam,
+    replaceQueryParam,
+    shareUrlWithQueryParam,
+    withQueryParam,
+} from "./deepLinkParams"
+export type {DriveLinkTarget} from "./deepLinkParams"
+
 // Template variable validation (envelope-slot aware)
 export {
     KNOWN_ENVELOPE_SLOTS,

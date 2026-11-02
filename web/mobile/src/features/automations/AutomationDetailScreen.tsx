@@ -66,6 +66,8 @@ export const AutomationDetailScreen = ({
         setCron,
         setInputs,
         setEvent,
+        setIncludeEvent,
+        draft,
         discard,
         save,
     } = useAutomationEditor(automationId)
@@ -154,6 +156,8 @@ export const AutomationDetailScreen = ({
                             onChangeCron={setCron}
                             onSelectEvent={setEvent}
                             onChangeInputs={setInputs}
+                            includeEvent={draft.includeEvent}
+                            onChangeIncludeEvent={setIncludeEvent}
                             onToggle={onToggle}
                             testRun={
                                 <AutomationTestRunButton

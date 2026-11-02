@@ -47,6 +47,13 @@ export interface ApprovalCardProps {
     onDenyAll?: (approvalIds: string[]) => void
     /** Card surface + density; hosts pass their own token surface. */
     className?: string
+    /**
+     * The viewer cannot answer (they can view the chat but not send to it): the card keeps the
+     * eyebrow, the ask and the details, and drops every answer control and shortcut.
+     */
+    readOnly?: boolean
+    /** Shown in place of the actions while `readOnly`; the host words it (it names the owner). */
+    readOnlyNote?: string | null
 }
 
 export const ApprovalCard = ({
@@ -61,6 +68,8 @@ export const ApprovalCard = ({
     onRespond,
     onApproveAll,
     onDenyAll,
+    readOnly = false,
+    readOnlyNote,
     className = "gap-2.5 border border-solid border-colorBorderSecondary bg-colorBgContainer p-3.5",
 }: ApprovalCardProps) => {
     const current = approvals[0]
@@ -151,14 +160,14 @@ export const ApprovalCard = ({
     const showKeys = hasKeyboard
 
     const approve = () => {
-        if (responding) return
+        if (responding || readOnly) return
         setFiredAction("approve")
         if (alwaysAllowArmed && canAlwaysAllow) grantMany(grantableTools)
         if (batched) return onApproveAll(approvals.map((a) => a.approvalId))
         onRespond({approvalId: current.approvalId, approved: true})
     }
     const deny = () => {
-        if (responding) return
+        if (responding || readOnly) return
         setFiredAction("deny")
         // No always-allow grant on a deny, ever.
         if (batched && onDenyAll) return onDenyAll(approvals.map((a) => a.approvalId))
@@ -171,6 +180,8 @@ export const ApprovalCard = ({
     // has focus, so a note-in-progress can use Escape/Enter for its own editing. `approve`/`deny`
     // already no-op while `responding`, so a double-fire is harmless.
     useEffect(() => {
+        // A read-only card answers nothing, so it binds no keys either.
+        if (readOnly) return
         const onKeyDown = (event: KeyboardEvent) => {
             // Something on top owns the keyboard. Both halves are load-bearing: Radix cancels
             // Escape for a dialog, menu or popover but still lets it reach us, and it never
@@ -288,71 +299,82 @@ export const ApprovalCard = ({
 
             {/* Actions. The whole row collapses while steering: an explicit deny+redirect shouldn't
                 leave Approve competing, so the redirect panel becomes the entire action surface. */}
-            <HeightCollapse className="-mt-1" open={!steerOpen && !answered} fade inert>
-                {/* Wraps rather than squeezes: with Redirect on, the buttons drop to their own line
+            {readOnly && readOnlyNote && !answered ? (
+                <p className="m-0 text-xs text-colorTextSecondary">{readOnlyNote}</p>
+            ) : null}
+            {readOnly ? null : (
+                <HeightCollapse className="-mt-1" open={!steerOpen && !answered} fade inert>
+                    {/* Wraps rather than squeezes: with Redirect on, the buttons drop to their own line
                     instead of shoving Approve off a narrow screen. */}
-                <div className="flex flex-wrap items-center gap-2">
-                    {canAlwaysAllow ? (
-                        <label className="flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap text-xs text-colorTextSecondary">
-                            <Checkbox
-                                checked={alwaysAllowArmed}
-                                disabled={responding}
-                                onCheckedChange={(checked) => setAlwaysAllowArmed(checked === true)}
-                                aria-labelledby={alwaysAllowLabelId}
-                                className="shrink-0"
-                            />
-                            <span id={alwaysAllowLabelId}>Always auto-approve</span>
-                        </label>
-                    ) : null}
-                    <div className="ml-auto flex shrink-0 items-center gap-1.5">
-                        {steerEnabled ? (
-                            <Button
+                    <div className="flex flex-wrap items-center gap-2">
+                        {canAlwaysAllow ? (
+                            <label className="flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap text-xs text-colorTextSecondary">
+                                <Checkbox
+                                    checked={alwaysAllowArmed}
+                                    disabled={responding}
+                                    onCheckedChange={(checked) =>
+                                        setAlwaysAllowArmed(checked === true)
+                                    }
+                                    aria-labelledby={alwaysAllowLabelId}
+                                    className="shrink-0"
+                                />
+                                <span id={alwaysAllowLabelId}>Always auto-approve</span>
+                            </label>
+                        ) : null}
+                        <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                            {steerEnabled ? (
+                                <Button
+                                    variant="ghost"
+                                    disabled={responding}
+                                    className={`text-colorTextSecondary ${touchCls}`}
+                                    onClick={() => setSteerOpen(true)}
+                                >
+                                    Redirect
+                                </Button>
+                            ) : null}
+                            <LoadingButton
                                 variant="ghost"
                                 disabled={responding}
-                                className={`text-colorTextSecondary ${touchCls}`}
-                                onClick={() => setSteerOpen(true)}
+                                loading={responding && firedAction === "deny"}
+                                className={touchCls}
+                                onClick={deny}
+                                aria-keyshortcuts={shortcutAria("approval.deny")}
                             >
-                                Redirect
-                            </Button>
-                        ) : null}
-                        <LoadingButton
-                            variant="ghost"
-                            disabled={responding}
-                            loading={responding && firedAction === "deny"}
-                            className={touchCls}
-                            onClick={deny}
-                            aria-keyshortcuts={shortcutAria("approval.deny")}
-                        >
-                            {batched && onDenyAll ? "Deny all" : "Deny"}
-                            {/* Decorative: the button's own label already names the action. */}
-                            {showKeys ? (
-                                <ShortcutKeys id="approval.deny" aria-hidden className="ml-1.5" />
-                            ) : null}
-                        </LoadingButton>
-                        <LoadingButton
-                            disabled={responding}
-                            loading={responding && firedAction === "approve"}
-                            className={touchCls}
-                            onClick={approve}
-                            aria-keyshortcuts={shortcutAria("approval.approve")}
-                        >
-                            {batched ? "Approve all" : "Approve"}
-                            {showKeys ? (
-                                <ShortcutKeys
-                                    id="approval.approve"
-                                    tone="inverse"
-                                    aria-hidden
-                                    className="ml-1.5"
-                                />
-                            ) : null}
-                        </LoadingButton>
+                                {batched && onDenyAll ? "Deny all" : "Deny"}
+                                {/* Decorative: the button's own label already names the action. */}
+                                {showKeys ? (
+                                    <ShortcutKeys
+                                        id="approval.deny"
+                                        aria-hidden
+                                        className="ml-1.5"
+                                    />
+                                ) : null}
+                            </LoadingButton>
+                            <LoadingButton
+                                disabled={responding}
+                                loading={responding && firedAction === "approve"}
+                                className={touchCls}
+                                onClick={approve}
+                                aria-keyshortcuts={shortcutAria("approval.approve")}
+                            >
+                                {batched ? "Approve all" : "Approve"}
+                                {showKeys ? (
+                                    <ShortcutKeys
+                                        id="approval.approve"
+                                        tone="inverse"
+                                        aria-hidden
+                                        className="ml-1.5"
+                                    />
+                                ) : null}
+                            </LoadingButton>
+                        </div>
                     </div>
-                </div>
-            </HeightCollapse>
+                </HeightCollapse>
+            )}
 
             {/* Steer: an inline redirect note. Unmounted (not merely collapsed) while the flag is
                 off — a collapsed HeightCollapse still leaves its controls in the tab order. */}
-            {steerEnabled && !answered ? (
+            {steerEnabled && !answered && !readOnly ? (
                 <HeightCollapse open={steerOpen} fade inert>
                     <div className="flex flex-col gap-2 border-0 border-t border-solid border-colorBorderSecondary pt-2.5">
                         <span className="text-xs text-colorTextSecondary">

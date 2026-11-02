@@ -25,9 +25,11 @@ _BUCKET = "test-bucket"
 
 
 def _mount(*, session_id: Optional[str], slug: str, deleted: bool = False) -> Mount:
+    mount_id = uuid4()
     return Mount(
-        id=uuid4(),
+        id=mount_id,
         project_id=_PROJECT,
+        storage_prefix=f"mounts/{_PROJECT}/{mount_id}",
         session_id=session_id,
         slug=slug,
         name=slug,

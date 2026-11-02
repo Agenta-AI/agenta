@@ -59,6 +59,12 @@ export const SESSION_TURN_IN_USE_CODE = "session_turn_in_use"
 export const SESSION_TURN_IN_USE_MESSAGE =
     "This session is already running a turn. Your message was not sent. Wait for the reply, or stop the turn, then send again."
 
+/**
+ * The platform refused the turn's admission request itself (an invalid session id, a key without
+ * access). The message was not sent, and sending it again fails the same way.
+ */
+export const SESSION_ADMISSION_REJECTED_CODE = "session_admission_rejected"
+
 /** True when a `useChat` error is the single-turn admission refusal. */
 export const isSessionBusyRefusal = (err: unknown): boolean =>
     parseAgentRunError(err).message.trim() === SESSION_TURN_IN_USE_MESSAGE
@@ -133,6 +139,13 @@ export class SendRefusedError extends Error {
     }
 }
 
+/**
+ * The reason of a send refused with 403 that stated none: the reader may see the chat but not
+ * send to it, so "try again" would be wrong (QA D5). The first sentence of the approved /m
+ * Viewer notice.
+ */
+export const ACCESS_REFUSED_REASON = "You can view this chat, but you cannot send to it."
+
 /** Build the refusal for a non-OK invoke response from its status and its (already read) body. */
 export const readSendRefusal = (status: number, body: string): SendRefusedError => {
     let parsed: ParsedRunError | null = null
@@ -143,7 +156,7 @@ export const readSendRefusal = (status: number, body: string): SendRefusedError 
     }
     return new SendRefusedError({
         status,
-        statedReason: parsed?.message ?? null,
+        statedReason: parsed?.message ?? (status === 403 ? ACCESS_REFUSED_REASON : null),
         refusalCode: typeof parsed?.code === "string" ? parsed.code : null,
     })
 }
@@ -158,7 +171,13 @@ export const refusedSendReason = (error: unknown): string | null =>
  */
 export const describeRefusedSend = (error: unknown): string => {
     const stated = refusedSendReason(error)
-    return stated ? `wasn't sent — ${stated}` : REFUSED_SEND_REASON
+    if (stated) return `wasn't sent — ${stated}`
+    // A 403 that reached here as another error type is the same access refusal.
+    const status = (error as {status?: unknown; statusCode?: unknown} | null | undefined) ?? {}
+    if (status.status === 403 || status.statusCode === 403) {
+        return `wasn't sent — ${ACCESS_REFUSED_REASON}`
+    }
+    return REFUSED_SEND_REASON
 }
 
 /** The subject of the refusal chip's row. The message, not a file, is what was rejected. */

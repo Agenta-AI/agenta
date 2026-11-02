@@ -98,8 +98,9 @@ export const useVaultSecret = () => {
 
     const handleModifyNamedSecret = useCallback(
         async (secret: NamedSecretRow) => {
-            await createCustomNamedSecret(secret)
+            const id = await createCustomNamedSecret(secret)
             vaultQuery.refetch()
+            return id
         },
         [createCustomNamedSecret, vaultQuery],
     )

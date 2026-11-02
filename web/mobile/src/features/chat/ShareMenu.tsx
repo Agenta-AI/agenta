@@ -19,9 +19,13 @@ import {useAtomValue, useStore} from "jotai"
 import {useAgentPublishPanel} from "../agents/useAgentPublishPanel"
 import {pendingTasksAtom, stashPendingTaskAtom} from "../home/pendingTask"
 
+import {AgentPrivacyHost} from "./AgentPrivacyHost"
 import {ShareMenuItem} from "./ShareMenuItem"
 
-/** The session header's share actions: a Templates menu with the two template requests, then Publish. */
+/**
+ * The session header's share actions: a Templates menu with the two template requests, the
+ * agent's privacy control, then Publish. Templates only for someone who can send here.
+ */
 export const ShareMenu = ({
     agentId,
     sessionId,
@@ -53,6 +57,7 @@ export const ShareMenu = ({
         [agentsQuery.data],
     )
 
+    const agentName = agent?.name || agent?.slug || "Agent"
     const publish = useAgentPublishPanel({
         agentId,
         agentName: agent?.name || agent?.slug || undefined,
@@ -62,6 +67,9 @@ export const ShareMenu = ({
         workspaceId,
         side: "right",
     })
+    const {reload} = publish
+    // A privacy write can change the agent's channel connections: read them again after it.
+    const reloadChannels = useCallback(() => void reload().catch(() => null), [reload])
 
     const sendTemplateRequest = (text: string) => {
         // Read the store, not the render: a double tap lands before the re-render.
@@ -119,6 +127,17 @@ export const ShareMenu = ({
             {canRequestTemplate ? (
                 <span aria-hidden className="h-5 w-px shrink-0 bg-colorBorderSecondary" />
             ) : null}
+            {/* Who can see this agent: between Templates and Publish, at every width. */}
+            <AgentPrivacyHost
+                agentId={agentId}
+                agentName={agentName}
+                access={agentsQuery.data ? (agent ? (agent.access ?? null) : undefined) : undefined}
+                workspaceId={workspaceId}
+                projectId={projectId}
+                connections={publish.connections}
+                onOpenChannels={publish.openHub}
+                onChanged={reloadChannels}
+            />
             <Button
                 variant="ghost"
                 size="sm"

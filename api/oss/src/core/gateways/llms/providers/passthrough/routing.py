@@ -169,6 +169,15 @@ def _vertex_messages_url(route: LLMResolvedRoute, *, stream: bool) -> str:
     return f"{prefix}/publishers/anthropic/models/{model}:{action}"
 
 
+def vertex_gemini_native_url(route: LLMResolvedRoute) -> str:
+    """Vertex's native streaming operation for a built-in model named `google/<model>`."""
+    model = _path_segment_model(route).removeprefix("google/")
+    return (
+        f"{_vertex_base_prefix(route)}/publishers/google/models/{model}"
+        ":streamGenerateContent?alt=sse"
+    )
+
+
 _MESSAGES_ROUTING: Dict[LLMDeploymentKind, Callable[[LLMResolvedRoute, bool], str]] = {
     LLMDeploymentKind.VERTEX: _vertex_messages_url,
 }

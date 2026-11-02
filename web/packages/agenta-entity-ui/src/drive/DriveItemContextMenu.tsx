@@ -9,7 +9,7 @@
  * affordance files already had. The copy feedback rides the kit's imperative message service,
  * which renders through the app's own outlet and themes with it.
  */
-import {type ReactElement, useCallback} from "react"
+import {type ReactElement, useCallback, useContext} from "react"
 
 import {downloadMountArchive} from "@agenta/entities/drive"
 import {type SessionDriveData} from "@agenta/entities/drive"
@@ -27,11 +27,13 @@ import {
     Copy,
     DownloadSimple,
     FolderOpen,
+    LinkSimple,
     PencilSimple,
     Trash,
 } from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
+import {DriveLinkContext} from "./driveLink"
 import {useDriveFileDownload} from "./useDriveFileDownload"
 
 /** An item's write verbs; rename is file-only (no backend move endpoint). */
@@ -126,6 +128,7 @@ export const DriveItemContextMenu = ({
     className?: string
     children: ReactElement | ReactElement[]
 }) => {
+    const copyLink = useContext(DriveLinkContext)
     // The tiles/rows are themselves click targets — keep a menu click from also selecting them.
     const stop = (event: {stopPropagation: () => void}) => event.stopPropagation()
 
@@ -143,6 +146,12 @@ export const DriveItemContextMenu = ({
                     <Copy size={14} />
                     Copy path
                 </ContextMenuItem>
+                {copyLink ? (
+                    <ContextMenuItem onSelect={() => copyLink({path, isFolder})}>
+                        <LinkSimple size={14} />
+                        Copy link
+                    </ContextMenuItem>
+                ) : null}
                 {onDownload ? (
                     <ContextMenuItem onSelect={() => onDownload(path, isFolder)}>
                         <DownloadSimple size={14} />

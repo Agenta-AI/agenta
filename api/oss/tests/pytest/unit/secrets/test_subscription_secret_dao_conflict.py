@@ -1,13 +1,16 @@
-"""The database tie-breaker for concurrent subscription-connection creation."""
+"""A slug collision on a subscription login is the generic slug conflict."""
 
 from contextlib import asynccontextmanager
 from uuid import uuid4
+
+from oss.src.core.secrets.dtos import SecretOwner
+from oss.src.core.secrets.enums import SecretOwnerKind
 
 import pytest
 from sqlalchemy.exc import IntegrityError
 
 from oss.src.core.secrets.dtos import CreateSecretDTO
-from oss.src.core.secrets.types import SubscriptionProviderConflict
+from oss.src.core.secrets.types import SecretSlugConflict
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 
 
@@ -52,14 +55,13 @@ async def test_concurrent_subscription_create_returns_domain_conflict(anyio_back
         }
     )
 
-    with pytest.raises(SubscriptionProviderConflict) as exc_info:
+    with pytest.raises(SecretSlugConflict) as exc_info:
         await dao.create(
-            project_id=uuid4(),
-            organization_id=None,
+            owner=SecretOwner(kind=SecretOwnerKind.PROJECT, id=uuid4()),
             create_secret_dto=create,
         )
 
-    assert exc_info.value.provider == "chatgpt"
+    assert "chatgpt" in exc_info.value.message
 
 
 @pytest.fixture

@@ -529,3 +529,20 @@ class ForceNotSupportedV0Error(ErrorStatus):
 
     def __init__(self, message: str = "flags.force is not supported yet"):
         super().__init__(code=self.code, type=self.type, message=message)
+
+
+class InvalidSessionIdV0Error(ErrorStatus):
+    """An agent `session_id` the platform's session store refuses; maps to HTTP 400."""
+
+    code: int = 400
+    type: str = f"{ERRORS_BASE_URL}#v0:sessions:invalid-session-id"
+
+    def __init__(self, got: Any):
+        super().__init__(
+            code=self.code,
+            type=self.type,
+            message=(
+                "Invalid session_id:\nExpected 1 to 128 characters from "
+                f"A-Z, a-z, 0-9, '_' and '-'.\nGot '{got}'."
+            ),
+        )

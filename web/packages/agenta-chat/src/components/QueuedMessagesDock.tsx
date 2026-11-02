@@ -14,8 +14,9 @@
  *    loads it into the input; this card only MARKS which row is under edit and offers the way out.
  *    See `useAgentChatQueue.commitEdit` for what the resulting send does.
  */
-import {memo, useEffect, useRef, useState} from "react"
+import {memo, useEffect, useMemo, useRef, useState} from "react"
 
+import {splitQuotedMessage, truncateQuoteText, type QuotedExcerpt} from "@agenta/shared/quotes"
 import {getCollapseLabel} from "@agenta/ui/components/presentational"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import {Button} from "@agenta/ui/ui"
@@ -23,6 +24,7 @@ import {
     CaretUp,
     File as FileIcon,
     PencilSimple,
+    Quotes,
     SpeakerHigh,
     Stack,
     Trash,
@@ -41,8 +43,9 @@ const CARD_SURFACE =
 const BODY_MAX_H = "max-h-40"
 
 /** Shared tile chrome, so the count block and the type icon read as the same object. */
-const TILE =
-    "inline-flex size-5 shrink-0 items-center justify-center rounded border border-solid border-colorBorderSecondary"
+const TILE_CHROME =
+    "inline-flex h-5 shrink-0 items-center justify-center rounded border border-solid border-colorBorderSecondary"
+const TILE = `${TILE_CHROME} w-5`
 
 /** One attachment tile: image thumbnail, else a type icon. Sized to sit inside a 32px row. */
 const Attachment = ({part}: {part: FileUIPart}) => {
@@ -87,6 +90,23 @@ const Attachments = ({files}: {files: FileUIPart[]}) => {
     )
 }
 
+/** A quoted reply's excerpts as one tile, so the row reads as the reply, not as raw markdown. */
+const QuoteTile = ({quotes}: {quotes: QuotedExcerpt[]}) => {
+    const label = quotes.length === 1 ? "1 quote" : `${quotes.length} quotes`
+    return (
+        <span
+            role="img"
+            aria-label={label}
+            title={quotes.map((q) => `${q.origin}: ${truncateQuoteText(q.text, 80)}`).join("\n")}
+            // Widens to fit a count.
+            className={`${TILE_CHROME} min-w-5 gap-0.5 bg-colorFillTertiary px-1 text-[10px] font-medium tabular-nums text-colorTextSecondary`}
+        >
+            <Quotes size={11} aria-hidden />
+            {quotes.length > 1 ? quotes.length : null}
+        </span>
+    )
+}
+
 const Row = ({
     message,
     editing,
@@ -106,7 +126,9 @@ const Row = ({
     onSendNow?: (id: string) => void
     sendNowBlocked: boolean
 }) => {
-    const text = message.text.trim()
+    const {quotes, text} = useMemo(() => splitQuotedMessage(message.text.trim()), [message.text])
+    // A bare quote with no reply shows its excerpt instead.
+    const excerpt = !text && quotes.length ? truncateQuoteText(quotes[0].text) : ""
     // A steer or promoted row is already on its way; any other waits while one is.
     const sendingThis = message.policy === "steer" || !!message.promotedExecutionId
     const files = message.fileParts ?? []
@@ -118,9 +140,17 @@ const Row = ({
             }`}
         >
             {files.length > 0 && <Attachments files={files} />}
+            {quotes.length > 0 && <QuoteTile quotes={quotes} />}
             {text ? (
                 <span title={text} className="min-w-0 flex-1 truncate text-xs text-colorText">
                     {text}
+                </span>
+            ) : excerpt ? (
+                <span
+                    title={quotes[0].text}
+                    className="min-w-0 flex-1 truncate text-xs text-colorTextSecondary"
+                >
+                    {excerpt}
                 </span>
             ) : (
                 <span className="min-w-0 flex-1 truncate text-xs italic text-colorTextTertiary">

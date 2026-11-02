@@ -708,11 +708,14 @@ describe("buildAgentRequest", () => {
         expect(req!.headers["x-ag-messages-format"]).toBe("vercel")
     })
 
-    it("omits project_id from the query when unauthenticated", async () => {
+    it("sends project_id even without an Authorization header (a cookie session)", async () => {
+        // Without it the services bind the run to the caller's DEFAULT project, and a run in
+        // any other project resolves its connections there.
         store.set(executionHeadersAtom, () => async () => ({}))
         seed(store, "e", {data: {workflow_id: REAL_APP}})
         const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
-        expect(req!.invocationUrl).not.toContain("project_id")
+        expect(req!.headers).not.toHaveProperty("Authorization")
+        expect(req!.invocationUrl).toContain("project_id=proj-123")
     })
 
     it("drops blank MCP server entries (at parameters.agent.mcps) before sending", async () => {

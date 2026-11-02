@@ -4,7 +4,8 @@
  */
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { TurnWatchdog, type TurnSilenceError } from "../../../src/engines/inprocess/pi/turn-watchdog.ts";
+import { TurnSilenceError, TurnWatchdog } from "../../../src/engines/inprocess/pi/turn-watchdog.ts";
+import { classifyRunError } from "../../../src/engines/sandbox_agent/errors.ts";
 
 const event = (e: Record<string, unknown>) => e as unknown as AgentSessionEvent;
 const assistant = { role: "assistant" };
@@ -39,6 +40,32 @@ describe("TurnWatchdog", () => {
     expect(tripped).toHaveLength(1);
   });
 
+  it("gives the wait for the provider's first response the longer limit, after a tool result", () => {
+    // Pi emits the assistant message_start only once the provider answered with headers, and it
+    // retries a failed provider call silently before that (EU prod, reference 1d06e6bb).
+    dog.observe(event({ type: "tool_execution_start", toolCallId: "t1" }));
+    dog.observe(event({ type: "tool_execution_end", toolCallId: "t1" }));
+    dog.observe(event({ type: "message_start", message: { role: "toolResult" } }));
+    dog.observe(event({ type: "message_end", message: { role: "toolResult" } }));
+    dog.observe(event({ type: "turn_end", message: assistant, toolResults: [] }));
+    dog.observe(event({ type: "turn_start" }));
+    vi.advanceTimersByTime(9_000);
+    expect(tripped).toHaveLength(0);
+    dog.observe(event({ type: "message_start", message: assistant }));
+    vi.advanceTimersByTime(9_000);
+    expect(tripped).toHaveLength(0);
+    dog.observe(event({ type: "message_end", message: assistant }));
+    vi.advanceTimersByTime(1_000);
+    expect(tripped).toHaveLength(1);
+  });
+
+  it("still trips when the provider never answers within the model limit", () => {
+    dog.observe(event({ type: "turn_start" }));
+    vi.advanceTimersByTime(10_000);
+    expect(tripped).toHaveLength(1);
+    expect(tripped[0]!.message).toMatch(/no progress for 10 seconds/);
+  });
+
   it("gives compaction and a retry back-off the longer limit", () => {
     dog.observe(event({ type: "compaction_start", reason: "threshold" }));
     vi.advanceTimersByTime(5_000);
@@ -64,5 +91,13 @@ describe("TurnWatchdog", () => {
     dog.stop();
     vi.advanceTimersByTime(60_000);
     expect(tripped).toHaveLength(0);
+  });
+});
+
+describe("TurnSilenceError", () => {
+  it("reaches the chat as its own sentence, not the generic hidden failure", () => {
+    const classified = classifyRunError(new TurnSilenceError(120_000), "pi", "anthropic", { unknownText: "hidden" });
+    expect(classified.code).toBe("run_idle_time_limit");
+    expect(classified.message).toMatch(/^The agent stopped responding: no progress for 120 seconds/);
   });
 });

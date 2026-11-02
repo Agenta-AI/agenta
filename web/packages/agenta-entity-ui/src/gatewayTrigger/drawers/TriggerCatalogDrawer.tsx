@@ -51,7 +51,7 @@ function TriggerConnectFlow({
     onConnectionCreated,
 }: {
     integration: TriggerCatalogIntegration
-    handlers: {onClose: () => void; onSuccess: () => void}
+    handlers: {onClose: () => void; onSuccess: () => void; container: HTMLElement | null}
     onConnectionCreated?: () => void
 }) {
     const {integrations} = useTriggerCatalogIntegrations()
@@ -62,6 +62,7 @@ function TriggerConnectFlow({
     return (
         <TriggerConnectDrawer
             open
+            container={handlers.container}
             integrationKey={full.key}
             integrationName={full.name}
             integrationLogo={full.logo ?? undefined}

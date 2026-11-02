@@ -21,9 +21,6 @@ NUKE=false  # Default to not nuking volumes
 DOWN=false  # Default to up; --down only stops containers
 WITH_TUNNEL=true  # Composio trigger-event tunnel; disable with --no-tunnel
 LOCAL_OVERRIDES=true  # Auto-include docker-compose.<stage>.*.local.yml; disable with --no-local-overrides
-# The mobile web app (/m) starts with every stack that runs a web app. Only a backend-only
-# run (--no-web / --web-mode none) holds it back.
-WITH_MOBILE=true
 declare -a EXTRA_COMPOSE_FILES=()  # Extra -f files from --compose-file (repeatable)
 declare -a RECREATE_SERVICES=()    # Services to surgically recreate via --recreate (repeatable)
 declare -a REBUILD_SERVICES=()     # Services to surgically rebuild + recreate via --rebuild (repeatable)
@@ -259,7 +256,7 @@ while [[ "$#" -gt 0 ]]; do
             ;;
         --with-mobile)
             # Deprecated: /m is on by default. Kept so old commands and scripts still run.
-            WITH_MOBILE=true
+            :
             ;;
         --no-local-overrides)
             LOCAL_OVERRIDES=false
@@ -426,13 +423,6 @@ Refusing to start: Docker Compose would silently fall back to its built-in defau
 Pass an existing --env-file (e.g. --env-file .env.$LICENSE.$STAGE.local) or create the file."
 fi
 
-# A backend-only run (--no-web / --web-mode none) starts neither web app. There is no desktop
-# app to route anyone, and in dev web-mobile runs the web dev image, which that run never builds.
-if [[ "$WEB_MODE" == "none" ]]; then
-    WITH_MOBILE=false
-    echo "Backend-only run: starting web-mobile with 0 replicas."
-fi
-
 # Export the ENV_FILE to the environment
 export ENV_FILE="$ENV_FILE"
 
@@ -474,13 +464,21 @@ if $WITH_TUNNEL; then
     COMPOSE_CMD+=" --profile with-tunnel"
 fi
 
-# The mobile app has no profile: it is part of the stack. A backend-only run starts it
-# with 0 replicas, which is the only compose-native way to hold back one service of a
-# file that everything else in the stack shares. `--scale` is valid on `up` only, so it
-# is kept out of COMPOSE_CMD (which also drives `config`, `build`, `pull`, and `down`).
-UP_EXTRA_ARGS=""
-if ! $WITH_MOBILE; then
-    UP_EXTRA_ARGS=" --scale web-mobile=0"
+# A backend-only run (--no-web / --web-mode none) starts neither web app. The `with-web`
+# profile already holds back the desktop app, but web-mobile has no profile: it is part of
+# every stack. Scaling it to 0 is not enough, because `pull` and `up` still fetch its image
+# (in dev that is the web dev image, which a backend-only run never builds). So name every
+# other service explicitly for `pull` and `up`. `build` and `down` keep the full model.
+declare -a STACK_SERVICES=()
+if [[ "$WEB_MODE" == "none" ]]; then
+    _all_services="$($COMPOSE_CMD config --services)" \
+        || error_exit "Failed to read compose services for the assembled file set."
+    while IFS= read -r _svc; do
+        if [[ -n "$_svc" && "$_svc" != "web-mobile" ]]; then
+            STACK_SERVICES+=("$_svc")
+        fi
+    done <<< "$_all_services"
+    echo "Backend-only run: leaving out web and web-mobile."
 fi
 
 # --------------------------------------------------------------------------------------------
@@ -561,7 +559,7 @@ elif $BUILD; then
 elif $PULL_ENABLED; then
     # Pull non-built images for all stages unless disabled
     echo "Pulling latest images..."
-    $COMPOSE_CMD pull --ignore-buildable || error_exit "Pull failed"
+    $COMPOSE_CMD pull --ignore-buildable ${STACK_SERVICES[@]+"${STACK_SERVICES[@]}"} || error_exit "Pull failed"
 fi
 
 # Shutdown with optional nuke
@@ -582,7 +580,7 @@ if $DOWN; then
 fi
 
 echo "Starting Docker containers with domain: $AGENTA_WEB_URL ..."
-AGENTA_WEB_URL="$AGENTA_WEB_URL" $COMPOSE_CMD up -d --remove-orphans$UP_EXTRA_ARGS || error_exit "Failed to start Docker containers."
+AGENTA_WEB_URL="$AGENTA_WEB_URL" $COMPOSE_CMD up -d --remove-orphans ${STACK_SERVICES[@]+"${STACK_SERVICES[@]}"} || error_exit "Failed to start Docker containers."
 
 echo "✅ Setup complete!"
 

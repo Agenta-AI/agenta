@@ -33,6 +33,9 @@ export const MCP_SERVER_NOTICE_PART = "data-mcp-server-failed"
 /** The failure class a disconnected connection refuses its handshake with. */
 export const MCP_AUTH_REQUIRED_CODE = "auth_required"
 
+/** The gateway has no endpoint for the server the agent's configuration names. */
+const MCP_NOT_SET_UP_CODES = new Set(["endpoint_not_found", "adapter_not_found"])
+
 export interface McpServerNotice {
     /** The server as the agent's configuration names it (`mock-mcp`). */
     serverName: string
@@ -42,6 +45,8 @@ export interface McpServerNotice {
     slug: string | null
     /** This server is disconnected and reconnecting is what fixes it. */
     needsAuthorization: boolean
+    /** The project has no endpoint for this server yet. */
+    notSetUp: boolean
 }
 
 const readString = (value: unknown): string | null =>
@@ -81,6 +86,7 @@ export const readMcpServerNotice = (data: unknown): McpServerNotice | null => {
         slug: slugFromMcpTarget(readString(requirement?.target)),
         needsAuthorization:
             code === MCP_AUTH_REQUIRED_CODE || readString(requirement?.state) === "needs_auth",
+        notSetUp: !!code && MCP_NOT_SET_UP_CODES.has(code),
     }
 }
 
@@ -137,6 +143,9 @@ export const mcpServerNoticeCopy = (
             lead: `${name} needs a new sign-in.`,
             detail: "Its tools fail until someone in the project reconnects.",
         }
+    // The gateway's own sentence names an endpoint path and a hint the reader cannot act on.
+    if (notice.notSetUp)
+        return {lead: `${name} isn't set up yet, so its tools were skipped.`, detail: null}
     return {
         lead: notice.statedMessage ?? `${name} did not connect, so its tools were unavailable`,
         detail: null,

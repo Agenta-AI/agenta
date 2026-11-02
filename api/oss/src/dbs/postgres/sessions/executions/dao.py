@@ -190,6 +190,7 @@ class SessionExecutionsDAO(SessionExecutionsDAOInterface):
         settled_by: str,
         settled_at: Optional[datetime] = None,
         transaction: Optional[Any] = None,
+        defer_to_stop: bool = False,
     ) -> SessionExecutionSettlementResult:
         settled_at = settled_at or datetime.now(timezone.utc)
 
@@ -200,7 +201,9 @@ class SessionExecutionsDAO(SessionExecutionsDAOInterface):
                 execution_id=execution_id,
                 transaction=session,
             )
-            if stored.terminal_outcome is not None:
+            if stored.terminal_outcome is not None or (
+                defer_to_stop and stored.state == SessionExecutionState.stopping
+            ):
                 return SessionExecutionSettlementResult(settlement=stored, won=False)
             row = (
                 await session.execute(

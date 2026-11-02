@@ -7,16 +7,19 @@
  *   popup and the timeout cannot each report the same attempt.
  * - `stop()` releases the listener, the poll and the timeout together. The watch outlives the
  *   call that started it, so whoever starts one owns tearing it down.
- * - A closed popup is a failure, never a success: closing the window is not proof that the
- *   callback exchanged the authorization code.
- * - Every attempt terminates. Without the timeout, a popup abandoned on a provider's error page
- *   leaves the caller waiting forever.
+ * - A closed popup or the end of the wait is not an outcome by itself. The API is asked how
+ *   the attempt ended, because the callback's message can be lost: an opener the provider's
+ *   page severed, or an app origin the callback did not post to. Only a recorded success is a
+ *   success; anything still pending is the failure it looks like.
+ * - Every attempt terminates. The wait is the attempt's own lifetime from the API, so the sheet
+ *   gives up exactly when the callback would refuse it.
  */
 import {isTrustedOauthConnectedMessage, type McpOauthCompletionMessage} from "./connectMessage"
+import type {MCPConnectAttempt} from "./types"
 
-/** Long enough for a provider's consent screen, including a login and a second factor. */
-export const CONSENT_TIMEOUT_MS = 180_000
 export const CONSENT_POLL_MS = 1_000
+/** Just above the time the API takes to read one attempt, so a stalled check still ends. */
+export const CONSENT_CHECK_TIMEOUT_MS = 10_000
 
 export const CONSENT_CLOSED_MESSAGE = "Authorization window closed before completion."
 export const CONSENT_TIMEOUT_MESSAGE = "Authorization did not complete in time. Try again."
@@ -40,15 +43,19 @@ export interface OauthConsentTarget {
 export interface WatchOauthConsentOptions {
     /** The consent popup. A null one is treated as already gone. */
     popup: Pick<Window, "closed"> | null
-    /** Ignore completions naming a different endpoint, so two open dialogs cannot cross. */
-    endpointId?: string
+    /** Ignore completions naming a different attempt, so two open dialogs cannot cross. */
+    attemptId: string
     trustedOrigins: Set<string>
     target: OauthConsentTarget
     onConnected: () => void
     onFailed: (reason: string) => void
+    /** Ask the API how this attempt ended. A failed check reads as `null`. */
+    checkOutcome: () => Promise<Pick<MCPConnectAttempt, "status" | "error"> | null>
+    /** The attempt's lifetime, from the API that issued it. */
+    timeoutMs: number
     timers?: OauthConsentTimers
-    timeoutMs?: number
     pollMs?: number
+    checkTimeoutMs?: number
 }
 
 const defaultTimers: OauthConsentTimers = {
@@ -64,26 +71,32 @@ const defaultTimers: OauthConsentTimers = {
  */
 export function watchOauthConsent({
     popup,
-    endpointId,
+    attemptId,
     trustedOrigins,
     target,
     onConnected,
     onFailed,
+    checkOutcome,
+    timeoutMs,
     timers = defaultTimers,
-    timeoutMs = CONSENT_TIMEOUT_MS,
     pollMs = CONSENT_POLL_MS,
+    checkTimeoutMs = CONSENT_CHECK_TIMEOUT_MS,
 }: WatchOauthConsentOptions): () => void {
     let settled = false
     let pollHandle: TimerHandle
     let timeoutHandle: TimerHandle
 
-    const stop = () => {
-        settled = true
+    const release = () => {
         target.removeEventListener("message", onMessage)
         if (pollHandle !== undefined) timers.clearInterval(pollHandle)
         if (timeoutHandle !== undefined) timers.clearTimeout(timeoutHandle)
         pollHandle = undefined
         timeoutHandle = undefined
+    }
+
+    const stop = () => {
+        settled = true
+        release()
     }
 
     const settle = (outcome: () => void) => {
@@ -92,15 +105,36 @@ export function watchOauthConsent({
         outcome()
     }
 
+    /**
+     * The window closed or the wait ran out with no message. Everything is released while the
+     * API is asked, and a stop that lands during the question still wins. The question has its
+     * own bound, because a request that never answers would otherwise leave nothing to end it.
+     */
+    const settleFromServer = (fallback: string) => {
+        if (settled) return
+        release()
+        timeoutHandle = timers.setTimeout(() => settle(() => onFailed(fallback)), checkTimeoutMs)
+        void checkOutcome()
+            .catch(() => null)
+            .then((outcome) =>
+                settle(() => {
+                    if (outcome?.status === "connected") onConnected()
+                    else if (outcome?.status === "failed")
+                        onFailed(outcome.error || CONSENT_FAILED_MESSAGE)
+                    else onFailed(fallback)
+                }),
+            )
+    }
+
     function onMessage(event: MessageEvent) {
         if (!isTrustedOauthConnectedMessage(event.data, event.origin, trustedOrigins)) return
         const completion = event.data as McpOauthCompletionMessage
-        // A completion has to name this attempt's endpoint, not merely fail to contradict it.
-        // Accepting one that omits the id let whichever watch happened to be live settle on
-        // another attempt's message, which is a connection reporting itself from someone
-        // else's consent (M14). The poll and the timeout still end an attempt whose callback
-        // says nothing identifiable.
-        if (endpointId && completion.endpoint_id !== endpointId) return
+        // A completion has to name this attempt, not merely fail to contradict it. Accepting
+        // one that omits the id let whichever watch happened to be live settle on another
+        // attempt's message, which is a connection reporting itself from someone else's
+        // consent (M14). The poll and the timeout still end an attempt whose callback says
+        // nothing identifiable.
+        if (completion.attempt_id !== attemptId) return
         settle(() => {
             if (completion.success) onConnected()
             else onFailed(completion.error || CONSENT_FAILED_MESSAGE)
@@ -111,11 +145,11 @@ export function watchOauthConsent({
 
     pollHandle = timers.setInterval(() => {
         if (popup && !popup.closed) return
-        settle(() => onFailed(CONSENT_CLOSED_MESSAGE))
+        settleFromServer(CONSENT_CLOSED_MESSAGE)
     }, pollMs)
 
     timeoutHandle = timers.setTimeout(() => {
-        settle(() => onFailed(CONSENT_TIMEOUT_MESSAGE))
+        settleFromServer(CONSENT_TIMEOUT_MESSAGE)
     }, timeoutMs)
 
     return stop

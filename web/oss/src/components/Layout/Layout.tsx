@@ -19,7 +19,7 @@ import {refreshSession} from "@/oss/lib/helpers/auth/refreshSession"
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 import {appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
 import {layoutFullHeightRequestAtom} from "@/oss/state/layout/fullHeight"
-import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
+import {cacheWorkspaceOrgPair, selectedOrgAtom} from "@/oss/state/org/selectors/org"
 import {getProjectValues, routeContextAtom, useProjectData} from "@/oss/state/project"
 import {
     cacheLastUsedProjectId,
@@ -27,6 +27,7 @@ import {
     demoReturnHintPendingAtom,
     lastNonDemoProjectAtom,
 } from "@/oss/state/project/selectors/project"
+import {canonicalWorkspacePath} from "@/oss/state/project/selectors/routeContext"
 import {urlAtom} from "@/oss/state/url"
 import {playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
 
@@ -255,6 +256,9 @@ const AppWithVariants = memo(
         }, [activeSidebarView.id, sidebarLastPath])
 
         const {project} = useProjectData()
+        // Projects carry no demo flag any more; the demo workspace is an organization flag.
+        const selectedOrg = useAtomValue(selectedOrgAtom)
+        const isDemoWorkspace = Boolean(project && selectedOrg?.flags?.is_demo)
         const lastNonDemoProject = useAtomValue(lastNonDemoProjectAtom)
         const [demoReturnHintPending, setDemoReturnHintPending] = useAtom(demoReturnHintPendingAtom)
         const [demoReturnHintDismissed, setDemoReturnHintDismissed] = useAtom(
@@ -264,7 +268,7 @@ const AppWithVariants = memo(
         const navigate = useSetAtom(requestNavigationAtom)
 
         useEffect(() => {
-            if (project?.is_demo) return
+            if (isDemoWorkspace) return
             if (!demoReturnHintPending) return
             if (demoReturnHintDismissed) {
                 setDemoReturnHintPending(false)
@@ -275,7 +279,7 @@ const AppWithVariants = memo(
         }, [
             demoReturnHintDismissed,
             demoReturnHintPending,
-            project?.is_demo,
+            isDemoWorkspace,
             setDemoReturnHintPending,
         ])
 
@@ -290,7 +294,7 @@ const AppWithVariants = memo(
         const maintenanceNotice = useMaintenanceNotice()
         const [maintenanceDismissed, setMaintenanceDismissed] = useState(true)
         const topBarsHeight =
-            (project?.is_demo ? 38 : 0) + (maintenanceNotice && !maintenanceDismissed ? 38 : 0)
+            (isDemoWorkspace ? 38 : 0) + (maintenanceNotice && !maintenanceDismissed ? 38 : 0)
 
         // Stable theme object so antd cssinjs doesn't re-evaluate per parent render
         const contentThemeConfig = useMemo(
@@ -355,7 +359,7 @@ const AppWithVariants = memo(
                         onDismissedChange={setMaintenanceDismissed}
                     />
                 ) : null}
-                {project?.is_demo && (
+                {isDemoWorkspace && (
                     <>
                         <div
                             className={clsx([
@@ -457,8 +461,19 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const router = useRouter()
     // An address naming a workspace or project that does not exist is a 404, and it is owned here
     // rather than per page: every route under /w carries those ids, so one guard covers them all.
-    const {isNotFound: isRouteNotFound} = useAtomValue(routeContextAtom)
+    const {isNotFound: isRouteNotFound, canonicalWorkspaceId} = useAtomValue(routeContextAtom)
     const isBareRoute = isAuthRoute || router.pathname === "/404" || isRouteNotFound
+
+    // A legacy workspace id in the address: replace it once with the project's organization id.
+    // From the browser's address, not `router.asPath`: before the router is ready, asPath still
+    // holds the route pattern (`[project_id]`), and the rewrite must keep the ids and the query.
+    useEffect(() => {
+        if (!canonicalWorkspaceId || !router.isReady || typeof window === "undefined") return
+        const {pathname, search, hash} = window.location
+        const next = canonicalWorkspacePath(`${pathname}${search}${hash}`, canonicalWorkspaceId)
+        if (next) void router.replace(next)
+        // `router` is stable for the page; the target id and readiness are what change.
+    }, [canonicalWorkspaceId, router.isReady])
 
     // One owner for the whole app. A phone keyboard opens over the page, so every frame sized
     // against the layout viewport hides its bottom edge behind it. This publishes the visible

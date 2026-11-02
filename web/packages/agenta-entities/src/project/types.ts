@@ -6,6 +6,5 @@ export interface ProjectsResponse {
     organization_id?: string | null
     organization_name?: string | null
     user_role?: string | null
-    is_demo?: boolean | null
     is_default_project?: boolean
 }

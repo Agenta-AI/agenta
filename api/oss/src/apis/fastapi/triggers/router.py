@@ -9,6 +9,13 @@ import httpx
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
 
+from oss.src.core.access.dtos import PrincipalKind, PrincipalRef
+from oss.src.core.access.principals import (
+    access_denied_error,
+    missing_principal_error,
+)
+from oss.src.core.access.types import AccessDenied, MissingPrincipal
+from oss.src.core.tools.dtos import AgentError
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache
@@ -50,10 +57,12 @@ from oss.src.core.triggers.exceptions import (
     TriggerReferenceInvalid,
     TriggerScheduleInvalid,
 )
+from oss.src.core.triggers.providers.composio.adapter import normalize_webhook_event
 from oss.src.core.triggers.service import TriggersService
 
 
 from oss.src.core.access.permissions.types import Permission
+from oss.src.core.agent_requirements.guard import AgentNeedsSetupRefused
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 
@@ -110,6 +119,59 @@ def handle_adapter_exceptions():
         return wrapper
 
     return decorator
+
+
+def _request_principal(request: Request) -> PrincipalRef:
+    """The principal a created or edited trigger runs as: the request's principal
+    (a human, or an API key). Never taken from the body."""
+
+    principal = getattr(request.state, "principal", None)
+    if principal is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return principal
+
+
+def _editor_principal(request: Request) -> PrincipalRef:
+    """The principal an edit writes as the trigger's executing principal: the request's.
+
+    A channel installation may not edit. For an installation, a run takes the role of
+    the row's `created_by_id`, and an edit does not change that column, so an edited
+    trigger would run with its creator's role."""
+
+    principal = _request_principal(request)
+    if principal.kind == PrincipalKind.INSTALLATION:
+        raise HTTPException(
+            status_code=403,
+            detail=AgentError(
+                code="edit_from_channel_not_allowed",
+                message="An automation cannot be changed from a channel conversation.",
+                retryable=False,
+                next_step="Change it in Agenta, or with an API key.",
+            ).model_dump(exclude_none=True),
+        )
+    return principal
+
+
+def _resume_refused(refusal, *, project_id) -> HTTPException:
+    """A start of a trigger whose principal may no longer run it: 403 `access_denied`
+    or 409 `missing_principal`, with the reason, and the trigger stays paused."""
+
+    if isinstance(refusal, AccessDenied):
+        principal = getattr(refusal, "principal_kind", None)
+        return HTTPException(
+            status_code=403,
+            detail=access_denied_error(
+                decision=refusal.decision,
+                principal_kind=principal or "human",
+                project_id=UUID(str(project_id)),
+            ).model_dump(exclude_none=True),
+        )
+    return HTTPException(
+        status_code=409,
+        detail=missing_principal_error(
+            next_step="Save the trigger again, then start it."
+        ).model_dump(exclude_none=True),
+    )
 
 
 class TriggersRouter:
@@ -1008,6 +1070,7 @@ class TriggersRouter:
                 user_id=UUID(str(request.state.user_id)),
                 #
                 subscription=body.subscription,
+                principal=_request_principal(request),
             )
         except ConnectionNotFoundError as e:
             raise HTTPException(status_code=404, detail=e.message) from e
@@ -1035,6 +1098,7 @@ class TriggersRouter:
                 user_id=UUID(str(request.state.user_id)),
                 #
                 subscription=body.subscription,
+                principal=_request_principal(request),
             )
         except ConnectionNotFoundError as e:
             raise HTTPException(status_code=404, detail=e.message) from e
@@ -1116,6 +1180,7 @@ class TriggersRouter:
         subscription_id: UUID,
         body: TriggerSubscriptionEditRequest,
     ) -> TriggerSubscriptionResponse:
+        editor = _editor_principal(request)
         await self._check(request, Permission.EDIT_TRIGGERS)
 
         if str(subscription_id) != str(body.subscription.id):
@@ -1130,6 +1195,7 @@ class TriggersRouter:
                 user_id=UUID(str(request.state.user_id)),
                 #
                 subscription=body.subscription,
+                principal=editor,
             )
         except TriggerReferenceInvalid as e:
             raise HTTPException(status_code=422, detail=e.message) from e
@@ -1261,6 +1327,12 @@ class TriggersRouter:
             )
         except SubscriptionNotFoundError as e:
             raise HTTPException(status_code=404, detail=e.message) from e
+        except (AccessDenied, MissingPrincipal) as refusal:
+            raise _resume_refused(
+                refusal, project_id=request.state.project_id
+            ) from refusal
+        except AgentNeedsSetupRefused as refusal:
+            raise HTTPException(status_code=422, detail=refusal.envelope()) from refusal
 
         return TriggerSubscriptionResponse(
             count=1,
@@ -1286,6 +1358,7 @@ class TriggersRouter:
                 user_id=UUID(str(request.state.user_id)),
                 #
                 schedule=body.schedule,
+                principal=_request_principal(request),
             )
         except TriggerScheduleInvalid as e:
             raise HTTPException(status_code=422, detail=e.message) from e
@@ -1368,6 +1441,7 @@ class TriggersRouter:
         schedule_id: UUID,
         body: TriggerScheduleEditRequest,
     ) -> TriggerScheduleResponse:
+        editor = _editor_principal(request)
         await self._check(request, Permission.EDIT_TRIGGERS)
 
         if str(schedule_id) != str(body.schedule.id):
@@ -1382,6 +1456,7 @@ class TriggersRouter:
                 user_id=UUID(str(request.state.user_id)),
                 #
                 schedule=body.schedule,
+                principal=editor,
             )
         except TriggerScheduleInvalid as e:
             raise HTTPException(status_code=422, detail=e.message) from e
@@ -1465,6 +1540,12 @@ class TriggersRouter:
             )
         except ScheduleNotFoundError as e:
             raise HTTPException(status_code=404, detail=e.message) from e
+        except (AccessDenied, MissingPrincipal) as refusal:
+            raise _resume_refused(
+                refusal, project_id=request.state.project_id
+            ) from refusal
+        except AgentNeedsSetupRefused as refusal:
+            raise HTTPException(status_code=422, detail=refusal.envelope()) from refusal
 
         return TriggerScheduleResponse(
             count=1,
@@ -1597,12 +1678,14 @@ class TriggersRouter:
                 detail="Invalid payload",
             )
 
-        metadata = envelope.get("metadata") or {}
-        trigger_id = metadata.get("trigger_id") or metadata.get("nano_id")
-        event_id = metadata.get("id")
+        event = normalize_webhook_event(envelope)
 
-        if not trigger_id or not event_id:
-            # Nothing to route — accept (no-op) so the provider does not retry.
+        if event is None:
+            log.warning(
+                "[TRIGGERS] composio event not routable type=%r",
+                str(envelope.get("type"))[:64],
+            )
+            # Accept (no-op) so the provider does not retry.
             return TriggerEventAck(
                 status="accepted", detail="No trigger_id/id to route"
             )
@@ -1611,9 +1694,9 @@ class TriggersRouter:
             try:
                 await asyncio.wait_for(
                     self.dispatch_task.kiq(
-                        trigger_id=str(trigger_id),
-                        event_id=str(event_id),
-                        event=envelope,
+                        trigger_id=str(event["metadata"]["trigger_id"]),
+                        event_id=str(event["metadata"]["id"]),
+                        event=event,
                     ),
                     timeout=_ENQUEUE_TIMEOUT_SECONDS,
                 )

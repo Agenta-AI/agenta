@@ -1152,9 +1152,8 @@ function buildExecutionItem(
               application_id: isRawBody
                   ? undefined
                   : resolveApplicationId(requestPayload, entityData),
-              project_id: params.headers.Authorization
-                  ? readString(params.projectId || undefined)
-                  : undefined,
+              // Always, as for the agent run: a cookie session names its project too.
+              project_id: readString(params.projectId || undefined),
           })
         : ""
     const isAppWorkflow = !!rawPayloadRecord?.__appWorkflow

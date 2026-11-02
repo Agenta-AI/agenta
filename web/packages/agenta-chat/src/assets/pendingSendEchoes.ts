@@ -35,8 +35,6 @@ export interface PendingSendEcho {
     failed?: boolean
     /** Fallback user-row count, used only while this send has no identity of its own yet. */
     coveredAtUserCount: number
-    /** User-row count when this echo was made; falling below it means a rewind stranded it. */
-    createdAtUserCount: number
 }
 
 /**
@@ -120,7 +118,6 @@ export const retirePendingSendEchoes = (
     {userCount, durableTurnIds, dockedIds}: RetirePendingSendEchoesArgs,
 ): readonly PendingSendEcho[] => {
     const next = pending.filter((item) => {
-        if (userCount < item.createdAtUserCount) return false
         // The saved row is the strongest evidence there is, so it is checked FIRST. A row that
         // turns up late still retires an echo an earlier guess had already flagged as failed.
         if (item.executionId) return !durableTurnIds.has(item.executionId)

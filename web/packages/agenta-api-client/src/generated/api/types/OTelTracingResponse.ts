@@ -17,4 +17,6 @@ export interface OTelTracingResponse {
     spans?: (AgentaApi.SpanOutput[] | null) | undefined;
     /** Nested tree of spans keyed by `trace_id` → span name, populated when the query was run with `focus="trace"` (default). */
     traces?: (Record<string, AgentaApi.SpansTreeOutput | null> | null) | undefined;
+    /** Windowing of the next page. Present when this page is full (it holds `windowing.limit` spans, or traces with `focus="trace"`); send it as `windowing` in the next request. When the last page is full, the page after it is empty. */
+    windowing?: (AgentaApi.Windowing | null) | undefined;
 }

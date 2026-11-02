@@ -469,6 +469,40 @@ describe("provider shapes", () => {
     assert.equal(controlRequests[0].headers.Authorization, undefined);
   });
 
+  it("sends a Claude setup-token as an OAuth bearer and convicts a stuck sandbox", async () => {
+    const token = "the claude setup-token under test";
+    const { run, commands, controlRequests } = harness([BARE_401], 3_000, {
+      provider: "anthropic",
+      deployment: "direct",
+      baseUrl: "https://api.anthropic.com",
+      apiKeyVar: "CLAUDE_CODE_OAUTH_TOKEN",
+      controlKey: token,
+      control: { status: 200 },
+    });
+    assert.equal(await run, "stuck");
+    assert.match(
+      commands[0],
+      /'https:\/\/api\.anthropic\.com\/v1\/models\?limit=1'/,
+    );
+    assert.match(
+      commands[0],
+      /Authorization: Bearer \$CLAUDE_CODE_OAUTH_TOKEN/,
+    );
+    assert.match(commands[0], /anthropic-beta: oauth-2025-04-20/);
+    assert.ok(!commands[0].includes("x-api-key"));
+    assert.ok(
+      !commands[0].includes(token),
+      "the token never enters the sandbox command",
+    );
+    assert.equal(controlRequests[0].headers.Authorization, `Bearer ${token}`);
+    assert.equal(
+      controlRequests[0].headers["anthropic-beta"],
+      "oauth-2025-04-20",
+    );
+    assert.equal(controlRequests[0].headers["anthropic-version"], "2023-06-01");
+    assert.equal(controlRequests[0].headers["x-api-key"], undefined);
+  });
+
   it("uses OpenAI's model list on a direct connection", async () => {
     const { run, commands, controlRequests } = harness([BARE_401], 3_000, {
       provider: "openai",

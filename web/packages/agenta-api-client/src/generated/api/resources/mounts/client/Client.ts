@@ -1050,6 +1050,7 @@ export class MountsClient {
      * @param {AgentaApi.GetMountFilesRequest} request
      * @param {MountsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
+     * @throws {@link AgentaApi.ContentTooLargeError}
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
@@ -1120,6 +1121,8 @@ export class MountsClient {
 
         if (_response.error.reason === "status-code") {
             switch (_response.error.statusCode) {
+                case 413:
+                    throw new AgentaApi.ContentTooLargeError(_response.error.body as unknown, _response.rawResponse);
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
                         _response.error.body as unknown,

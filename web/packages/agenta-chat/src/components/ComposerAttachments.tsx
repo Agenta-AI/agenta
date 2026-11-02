@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from "react"
+import {useEffect, useRef, useState, type ReactNode} from "react"
 
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
@@ -9,8 +9,8 @@ import type {StagedUpload as UploadFile} from "../model"
 import AttachmentCard from "./AttachmentCard"
 import AttachmentCardGrid from "./AttachmentCardGrid"
 
-/** Three rows of cards plus a sliver of the fourth, which is what says "keep scrolling". */
-const TRAY_MAX_HEIGHT = 140
+/** Two rows of tiles plus a sliver of the third, which is what says "keep scrolling". */
+const TRAY_MAX_HEIGHT = 196
 
 /** Cards scale in on add and out on remove; `layout` slides the survivors into place. */
 const ITEM_VARIANTS = {
@@ -28,18 +28,18 @@ interface ComposerAttachmentsProps {
     onRetry?: (uid: string) => void
     /** Whether this upload error can be retried. */
     canRetry?: (uid: string) => boolean
+    /** Tiles that share the row ahead of the attachments (staged quotes). */
+    leading?: ReactNode
 }
 
-/**
- * The composer's staged attachments, as equal-height cards that wrap. Picking, dropping and the
- * rejection strip are owned by the parent — this only draws what is actually staged.
- */
+/** The composer's staged attachments, as square tiles that wrap; the parent owns picking. */
 const ComposerAttachments = ({
     files,
     onRemove,
     onView,
     onRetry,
     canRetry,
+    leading,
 }: ComposerAttachmentsProps) => {
     const [previews, setPreviews] = useState<Record<string, string>>({})
 
@@ -96,7 +96,7 @@ const ComposerAttachments = ({
 
     // Nothing staged means nothing to draw — the paperclip opens the picker directly, so there is
     // no empty state to invite a drop.
-    if (files.length === 0) return null
+    if (files.length === 0 && !leading) return null
 
     return (
         <MotionConfig transition={SESSION_SPRING}>
@@ -104,6 +104,7 @@ const ComposerAttachments = ({
                 <AttachmentCardGrid ref={scrollRef} maxHeight={TRAY_MAX_HEIGHT}>
                     {/* popLayout: a removed card leaves the flow at once, so the rest close the
                         gap while it animates out rather than after. */}
+                    {leading}
                     <AnimatePresence initial={false} mode="popLayout">
                         {files.map((f) => {
                             const file = f.originFileObj as File | undefined
@@ -118,7 +119,6 @@ const ComposerAttachments = ({
                                     initial="initial"
                                     animate="animate"
                                     exit="exit"
-                                    className="min-w-0"
                                 >
                                     <AttachmentCard
                                         name={f.name}

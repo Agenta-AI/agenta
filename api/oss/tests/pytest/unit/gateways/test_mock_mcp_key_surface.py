@@ -11,6 +11,7 @@ depend on `AGENTA_GATEWAYS_MOCKS_ENABLED`, which decides only whether the deploy
 mounts it.
 """
 
+import base64
 import json
 
 import pytest
@@ -74,8 +75,8 @@ def test_it_publishes_no_protected_resource_document(client):
 
 
 def test_the_registered_header_is_accepted(client, key):
-    """What an endpoint carrying a `credential_header` sends: the stored value verbatim,
-    under the name the endpoint registered."""
+    """What a header binding with no prefix sends: the stored value verbatim, under the
+    name the binding names."""
     response = client.post(
         KEY_MCP_PATH,
         json=_HANDSHAKE,
@@ -87,8 +88,8 @@ def test_the_registered_header_is_accepted(client, key):
 
 
 def test_the_authorization_fallback_is_accepted(client, key):
-    """What an endpoint that registered no header name sends
-    (`providers/http/adapter.py::credential_headers`)."""
+    """What an endpoint with no binding sends
+    (`providers/http/adapter.py::injected_credentials`)."""
     response = client.post(
         KEY_MCP_PATH,
         json=_HANDSHAKE,
@@ -98,9 +99,39 @@ def test_the_authorization_fallback_is_accepted(client, key):
     assert response.status_code == 200
 
 
+def test_the_key_in_the_named_query_parameter_is_accepted(client, key):
+    """What a query binding sends."""
+    response = client.post(
+        f"{KEY_MCP_PATH}?{env.mock_gateways.mcp_key_header}={key}", json=_HANDSHAKE
+    )
+
+    assert response.status_code == 200
+
+
+def test_the_key_in_the_path_is_accepted_and_another_is_challenged(client, key):
+    """What a url binding sends, with the key in place of `{secret}`."""
+    accepted = client.post(f"/key/{key}/mcp", json=_HANDSHAKE)
+    refused = client.post("/key/wrong/mcp", json=_HANDSHAKE)
+
+    assert accepted.status_code == 200
+    assert refused.status_code == 401
+
+
+def test_basic_with_the_key_as_the_password_is_accepted(client, key):
+    """What the connect sheet's Basic helper stores, with any username."""
+    encoded = base64.b64encode(f"any-user:{key}".encode()).decode()
+    response = client.post(
+        KEY_MCP_PATH, json=_HANDSHAKE, headers={"Authorization": f"Basic {encoded}"}
+    )
+
+    assert response.status_code == 200
+
+
 @pytest.mark.parametrize(
     "headers",
     [
+        {"Authorization": "Basic " + base64.b64encode(b"any-user:wrong").decode()},
+        {"Authorization": "Basic not-base64"},
         {"X-Api-Key": "wrong"},
         {"Authorization": "Bearer wrong"},
         {"Authorization": "wrong"},

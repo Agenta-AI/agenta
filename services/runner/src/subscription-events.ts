@@ -1,7 +1,7 @@
 /**
  * The structured log vocabulary for hosted subscription logins.
  *
- * New Relic sees this runner through its logs, so every decision on the subscription path emits
+ * Operators see this runner through its logs, so every decision on the subscription path emits
  * ONE line with a stable event name and key=value fields. The same fields are set on the active
  * span when there is one, so a run's trace carries the decision too.
  *

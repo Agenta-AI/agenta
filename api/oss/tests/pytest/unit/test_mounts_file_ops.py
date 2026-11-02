@@ -33,7 +33,7 @@ from oss.src.core.mounts.service import (
     validate_file_path,
 )
 from oss.src.core.store.dtos import StoreObject, StorePutResult
-from oss.src.core.store.types import StorePreconditionFailed
+from oss.src.core.store.types import StoreObjectTooLarge, StorePreconditionFailed
 from oss.src.core.mounts.types import (
     MountFileNotFound,
     MountNotFound,
@@ -268,11 +268,13 @@ class FakeMountStorage:
         return body
 
     async def get_object_with_etag(
-        self, *, bucket: str, key: str
+        self, *, bucket: str, key: str, max_bytes: Optional[int] = None
     ) -> Tuple[bytes, Optional[str]]:
         b = self._store.get(bucket, {})
         if key not in b:
             raise MountFileNotFound()
+        if max_bytes is not None and len(b[key]) > max_bytes:
+            raise StoreObjectTooLarge(max_bytes)
         return b[key], self.etag_of(b[key])
 
     async def stat_object(self, *, bucket: str, key: str) -> StoreObject:
@@ -362,9 +364,11 @@ _PROJECT_ID = UUID("00000000-0000-0000-0000-0000000000a9")
 
 
 def _make_mount(project_id: UUID = _PROJECT_ID) -> Mount:
+    mount_id = uuid4()
     return Mount(
-        id=uuid4(),
+        id=mount_id,
         project_id=project_id,
+        storage_prefix=f"mounts/{project_id}/{mount_id}",
         slug="m",
     )
 
@@ -372,9 +376,11 @@ def _make_mount(project_id: UUID = _PROJECT_ID) -> Mount:
 def _make_cwd_mount(project_id: UUID = _PROJECT_ID) -> Mount:
     """The session's durable working directory — where the runner links `agent-files` in."""
     session_id = str(uuid4())
+    mount_id = uuid4()
     return Mount(
-        id=uuid4(),
+        id=mount_id,
         project_id=project_id,
+        storage_prefix=f"mounts/{project_id}/{mount_id}",
         session_id=session_id,
         slug=mint_session_slug(session_id=session_id, name="cwd"),
         name="cwd",
@@ -443,7 +449,7 @@ class TestArchiveZipSlip:
             mounts_store=storage,
             bucket=_BUCKET,
         )
-        mount_base = service._storage_key(project_id=mount.project_id, mount=mount)
+        mount_base = service._storage_key(mount=mount)
         bucket_store = storage._store.setdefault(_BUCKET, {})
         for key in keys:
             bucket_store[f"{mount_base}{key}"] = b"x"
@@ -484,7 +490,7 @@ class TestArchiveZipNamespace:
         )
         bucket_store = storage._store.setdefault(_BUCKET, {})
         for mount, files in contents:
-            base = service._storage_key(project_id=_PROJECT_ID, mount=mount)
+            base = service._storage_key(mount=mount)
             for rel, body in files.items():
                 bucket_store[f"{base}{rel}"] = body
 
@@ -989,7 +995,7 @@ class TestMountFileOpsRoundtrip:
                 project_id=pid, mount_id=mid, path=path, content=b"x"
             )
         # More markers than one store page (max(cap, 200)) so the first page reports has_more=True.
-        mount_base = service._storage_key(project_id=pid, mount=mount)
+        mount_base = service._storage_key(mount=mount)
         bucket_store = storage._store.setdefault(_BUCKET, {})
         for i in range(250):
             bucket_store[f"{mount_base}zzz{i:04}/"] = b""

@@ -9,6 +9,7 @@ from typing import Dict, List, Optional
 from uuid import UUID
 
 from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.core.shared.dtos import RunUsage
 from oss.src.core.sessions.turns.dtos import (
     HarnessKind,
     SessionTurn,
@@ -92,6 +93,19 @@ class SessionTurnsService:
         except Exception:
             log.error("[SESSIONS] Failed to publish turn-ended", exc_info=True)
         return completed
+
+    async def set_turn_usage_from_trace(
+        self,
+        *,
+        project_id: UUID,
+        trace_id: UUID,
+        usage: RunUsage,
+    ) -> int:
+        return await self._dao.set_turn_usage_from_trace(
+            project_id=project_id,
+            trace_id=trace_id,
+            usage=usage,
+        )
 
     async def query_turns(
         self,

@@ -16,4 +16,6 @@ import type * as AgentaApi from "../index.js";
  */
 export interface GatewayCredentialsRequest {
     plane?: (AgentaApi.GatewayPlane | null) | undefined;
+    session_id?: (string | null) | undefined;
+    agent_id?: (string | null) | undefined;
 }

@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from agenta.sdk.agents.skills.models import SkillTemplate
 from agenta.sdk.engines.running.utils import AGENTA_BUILTIN_SKILL_URI
 
+from oss.src.core.sharing.dtos import AgentReadScope
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.core.shared.idempotency import (
@@ -116,6 +117,7 @@ class SkillsService:
         referenced workflow id and slug (one count per agent per skill)."""
         agent_heads = await self.workflows_service.query_workflow_head_revisions(
             project_id=project_id,
+            read_scope=AgentReadScope(owner_user_id=None),
             #
             workflow_revision_query=WorkflowRevisionQuery(
                 flags=WorkflowRevisionQueryFlags(is_agent=True),
@@ -166,6 +168,7 @@ class SkillsService:
 
         head_revisions = await self.workflows_service.query_workflow_head_revisions(
             project_id=project_id,
+            read_scope=AgentReadScope(owner_user_id=None),
             #
             workflow_revision_query=WorkflowRevisionQuery(
                 flags=WorkflowRevisionQueryFlags(is_skill=True),
@@ -187,6 +190,7 @@ class SkillsService:
         if artifact_ids:
             artifacts = await self.workflows_service.query_workflows(
                 project_id=project_id,
+                read_scope=AgentReadScope(owner_user_id=None),
                 workflow_refs=[
                     Reference(id=artifact_id) for artifact_id in artifact_ids
                 ],
@@ -298,6 +302,7 @@ class SkillsService:
 
         agent_heads = await self.workflows_service.query_workflow_head_revisions(
             project_id=project_id,
+            read_scope=AgentReadScope(owner_user_id=None),
             #
             workflow_revision_query=WorkflowRevisionQuery(
                 flags=WorkflowRevisionQueryFlags(is_agent=True),
@@ -598,6 +603,7 @@ class SkillsService:
         v0 (the empty bootstrap revision) is server-filtered — history starts at v1."""
         revisions = await self.workflows_service.query_workflow_revisions(
             project_id=project_id,
+            read_scope=AgentReadScope(owner_user_id=None),
             workflow_refs=[Reference(id=workflow_id)],
         )
         rows: List[SkillRevisionRow] = []

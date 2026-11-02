@@ -127,7 +127,8 @@ export async function prepareEnvironmentSetup(
     );
   }
   // Derive the durable cwd from the sign prefix (one source of truth, both providers).
-  // <prefix> is already "mounts/<project_id>/<mount_id>", so no extra slug is needed.
+  // <prefix> is already the mount's stored prefix ("mounts/<scope_id>/<mount_id>"), so no extra
+  // slug is needed.
   let durableCwd: string | undefined;
   if (mountCreds?.prefix) {
     // Same resolver `buildRunPlan` uses, not a second reading of the config: this choice is made

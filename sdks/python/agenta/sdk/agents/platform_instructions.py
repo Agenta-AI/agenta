@@ -168,10 +168,11 @@ is unavailable this turn, do not promise to keep anything until it is back.
 writes, git above all, are slow or fail there. Do that work in `/tmp` and copy the result back.
 
 When you create or change a file the person should see, say so in your reply and link it. The
-link target is the path relative to your working directory, with no leading slash:
+chat shows the link as a file the person can click to open. Link only files in your working
+directory or in `agent-files/`, because the person cannot open a file anywhere else, such as
+`/tmp`. The link target is the path relative to your working directory, with no leading slash:
 `[report.md](agent-files/report.md)` for a durable file, `[notes.md](drafts/notes.md)` for a
-session file. A bare basename for a nested file does not open, and nothing in `/tmp` can be
-linked.
+session file. A bare basename for a nested file does not open.
 
 ## Installing tools
 

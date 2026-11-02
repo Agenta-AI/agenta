@@ -21,6 +21,10 @@ Key namespace — every key is project-scoped:
                                                — the runner pod that holds this turn:
                                                  `<replica_id>\\x1f<replica_address>`
                                                  (API-side only; see below)
+  admitted:<project_id>:session:<session_id>:turn:<turn_id>
+                                               — the principal this turn's heartbeat
+                                                 admitted, `<kind>:<id>` (API-side only;
+                                                 see below)
 
 `session_id` is caller-supplied and Postgres uniqueness is (project_id, session_id), so two
 projects may legitimately hold the same one. The `project_id` segment is the tenant boundary:
@@ -131,6 +135,19 @@ def turn_bound_key(project_id: str, session_id: str, turn_id: str) -> str:
     return f"bound:{project_id}:session:{session_id}:turn:{turn_id}"
 
 
+def turn_admitted_key(project_id: str, session_id: str, turn_id: str) -> str:
+    """The principal a checked heartbeat admitted for this turn, as `<kind>:<id>`.
+
+    API-side only: the heartbeat writes it after a beat passed `RunAdmission`, and a later
+    running beat of the same turn by the same principal skips the check (verified
+    continuity). It counts only while the turn holds `running`, lives as long as the turn
+    binding, each verified heartbeat read renews it (a runner write reads it with
+    `running` in its one cache read and never renews it), and the turn's end,
+    displacement or stop deletes it.
+    """
+    return f"admitted:{project_id}:session:{session_id}:turn:{turn_id}"
+
+
 def displaced_channel(project_id: str, session_id: str) -> str:
     return f"displaced:{project_id}:session:{session_id}"
 
@@ -224,6 +241,25 @@ def make_watch_entity_changed_payload(*, entity: str, id: str) -> dict:
 #   ARGV[1] = the owner value to check
 #   Returns 1 if deleted, 0 if not owner or key gone.
 # ---------------------------------------------------------------------------
+
+# current_turn_admission (API-side only, the runner never runs it):
+#   KEYS[1] = the session's `running` key
+#   KEYS[2] = the turn's `admitted` key
+#   ARGV[1] = the turn id
+#   ARGV[2] = the admission TTL in seconds
+#   Returns the admission value, renewing its TTL, only while the turn holds `running`
+#   (it is the session's current turn). Else nil.
+CURRENT_TURN_ADMISSION_LUA = """
+-- AGENTA_CURRENT_TURN_ADMISSION
+if redis.call('GET', KEYS[1]) ~= ARGV[1] then
+    return false
+end
+local admitted = redis.call('GET', KEYS[2])
+if admitted then
+    redis.call('EXPIRE', KEYS[2], ARGV[2])
+end
+return admitted
+""".strip()
 
 RELEASE_IF_OWNER_LUA = """
 local current = redis.call('GET', KEYS[1])
@@ -360,6 +396,40 @@ if string.sub(current, 1, string.len(ARGV[2])) == ARGV[2] then
     redis.call('EXPIRE', KEYS[1], ARGV[3])
 end
 return {0, current}
+""".strip()
+
+# One beat's supersession check, turn binding and admission record, in one round trip.
+#   KEYS[1] = the turn's `superseded` tombstone
+#   KEYS[2] = the turn's `bound` key
+#   KEYS[3] = the turn's `admitted` key
+#   ARGV[1] = the binding value, ARGV[2] = the replica prefix (id + separator),
+#   ARGV[3] = the binding TTL, ARGV[4] = the tombstone TTL,
+#   ARGV[5] = the admission value ('' = write none), ARGV[6] = the admission TTL
+# A superseded turn returns {-1, false} after renewing its tombstone and binds nothing.
+# Else BIND_TURN_LUA, and the admission record is written when this replica holds the
+# binding. Returns {1, value} when this call bound the turn, {0, stored value} otherwise.
+BEAT_BIND_TURN_LUA = """
+-- AGENTA_BEAT_BIND_TURN
+if redis.call('EXISTS', KEYS[1]) == 1 then
+    redis.call('EXPIRE', KEYS[1], ARGV[4])
+    return {-1, false}
+end
+local current = redis.call('GET', KEYS[2])
+local written = 0
+local mine = false
+if not current then
+    redis.call('SET', KEYS[2], ARGV[1], 'EX', ARGV[3])
+    current = ARGV[1]
+    written = 1
+    mine = true
+elseif string.sub(current, 1, string.len(ARGV[2])) == ARGV[2] then
+    redis.call('EXPIRE', KEYS[2], ARGV[3])
+    mine = true
+end
+if mine and ARGV[5] ~= '' then
+    redis.call('SET', KEYS[3], ARGV[5], 'EX', ARGV[6])
+end
+return {written, current}
 """.strip()
 
 # ---------------------------------------------------------------------------

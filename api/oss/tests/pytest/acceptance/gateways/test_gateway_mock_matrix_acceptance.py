@@ -27,6 +27,7 @@ from oss.tests.pytest.acceptance.gateways.mock_matrix import (
     CredentialOwner,
     GATEWAY_MOCK_CASES,
     GatewayMockCase,
+    GatewayNamespace,
     GatewayPlane,
     LLM_MOCK_CASES,
     MCP_MOCK_CASES,
@@ -227,6 +228,16 @@ def _llm_payload(*, stream: bool = False, model: str = "mock/echo") -> dict[str,
     }
 
 
+def _is_builtin_llm(case: GatewayMockCase) -> bool:
+    """Built-in LLM routes serve only platform agent runs, never a test's API key."""
+    return case.plane is GatewayPlane.LLM and case.namespace is GatewayNamespace.BUILTIN
+
+
+def _assert_builtin_refused(response) -> None:
+    assert response.status_code == 403, response.text
+    assert response.json()["error"]["code"] == "builtin_requires_agent_run"
+
+
 def _mcp_post(gateway_api, route: str):
     def _post(payload, *, headers=None):
         return gateway_api("POST", route, json=payload, headers=headers or {})
@@ -245,6 +256,11 @@ def test_every_dev_mock_case_reaches_its_selected_profile(
     gateway_api, provisioned_gateway_mock_case
 ):
     case, route = provisioned_gateway_mock_case
+
+    if _is_builtin_llm(case):
+        response = gateway_api("POST", f"{route}/chat/completions", json=_llm_payload())
+        _assert_builtin_refused(response)
+        return
 
     if case.plane is GatewayPlane.LLM:
         response = gateway_api("POST", f"{route}/chat/completions", json=_llm_payload())
@@ -290,6 +306,10 @@ def test_every_llm_mock_case_preserves_streaming_framing(
         "POST", f"{route}/chat/completions", json=_llm_payload(stream=True)
     )
 
+    if _is_builtin_llm(case):
+        _assert_builtin_refused(response)
+        return
+
     assert response.status_code == 200, response.text
     assert response.content.endswith(b"data: [DONE]\n\n")
     if case.requires_custom_endpoint:
@@ -316,3 +336,29 @@ def test_every_mcp_mock_case_relays_a_tool_call(
     assert body["id"] == 2
     if case.requires_custom_endpoint:
         _assert_profile(response, case=case)
+
+
+@pytest.mark.parametrize(
+    "gateway_mock_case",
+    [case for case in LLM_MOCK_CASES if _is_builtin_llm(case)],
+    indirect=True,
+)
+def test_an_api_key_exchanged_for_a_gateway_token_is_refused_built_in_models(
+    gateway_api, authed_api, provisioned_gateway_mock_case
+):
+    """The exchange serves any caller, but only the platform runtime's token is marked."""
+    _, route = provisioned_gateway_mock_case
+    exchanged = _assert_ok(
+        authed_api("POST", "/gateways/credentials", json={"plane": "llm"})
+    )["credentials"]
+    headers = {"X-AG-Credentials": exchanged}
+
+    _assert_builtin_refused(
+        gateway_api(
+            "POST",
+            f"{route}/chat/completions",
+            json=_llm_payload(),
+            headers=headers,
+        )
+    )
+    _assert_builtin_refused(gateway_api("GET", f"{route}/models", headers=headers))

@@ -1,5 +1,5 @@
 from re import sub
-from typing import Optional, Union, List, Dict, Any
+from typing import Any, Dict, List, Literal, Optional, Union
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -10,7 +10,9 @@ from oss.src.core.secrets.managed import (
 )
 
 from oss.src.core.secrets.enums import (
+    SecretAvailability,
     SecretKind,
+    SecretOwnerKind,
     is_always_write_only,
     LLMEndpointProtocol,
     LLMStandardProviderKind,
@@ -99,6 +101,8 @@ class CustomModelSettingsDTO(BaseModel):
 
 
 class StandardProviderDTO(BaseModel):
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     kind: LLMStandardProviderKind
     provider: StandardProviderSettingsDTO
     # A missing list means "use Agenta's default models"; an empty list is an explicit "none".
@@ -113,6 +117,10 @@ class MCPStandardProviderDTO(BaseModel):
 
 
 class CustomProviderSettingsDTO(BaseModel):
+    # The key and the extras hold credential values: a validation error must name the
+    # field, never quote the input (see StandardProviderSettingsDTO).
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     url: Optional[str] = None
     version: Optional[str] = None
     key: Optional[str] = None
@@ -120,6 +128,8 @@ class CustomProviderSettingsDTO(BaseModel):
 
 
 class CustomProviderDTO(BaseModel):
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     kind: LLMCustomProviderKind
     provider: CustomProviderSettingsDTO
     models: List[CustomModelSettingsDTO]
@@ -323,6 +333,10 @@ class OAuthGrantSettingsDTO(BaseModel):
     # identity-document strategy, which persists no registration at all. Both fall back
     # to the issuer's registration, which is where they were already looking.
     client_registration_slug: Optional[str] = None
+    # The client id these tokens were issued to. A grant from a client the person
+    # registered by hand, or from the identity document, has no registration row to
+    # name, so this is what keeps its renewal on the same client.
+    client_id: Optional[str] = None
 
 
 class OAuthGrantDTO(BaseModel):
@@ -450,7 +464,8 @@ def _validate_secret_data_based_on_kind(
             raise ValueError(
                 "The provided request secret dto is missing required fields for WebhookProviderSettingsDTO"
             )
-    elif kind == SecretKind.CUSTOM_SECRET.value:
+    elif kind in (SecretKind.CUSTOM_SECRET.value, SecretKind.MCP_TOKEN.value):
+        # A person's MCP token has the custom secret shape.
         if not isinstance(data, dict):
             raise ValueError(
                 "The provided request secret dto is not a valid type for CustomSecretDTO"
@@ -524,10 +539,10 @@ def _validate_secret_data_based_on_kind(
         # lineup of their creation day. An explicit empty list stays an explicit "none".
         # Validate first, so a malformed list is refused as a validation error.
         subscription = SubscriptionProviderDTO.model_validate(data)
-        if (
-            subscription.models is not None
-            and set(subscription.models)
-            in SUBSCRIPTION_PROVIDER_MODEL_SNAPSHOTS[provider_kind]
+        if subscription.models is not None and (
+            set(subscription.models) == set(SUBSCRIPTION_PROVIDER_MODELS[provider_kind])
+            or set(subscription.models)
+            in SUBSCRIPTION_PROVIDER_MODEL_SNAPSHOTS.get(provider_kind, ())
         ):
             subscription.models = None
         if subscription.harnesses is not None and set(subscription.harnesses) == set(
@@ -573,6 +588,8 @@ def _validate_secret_data_based_on_kind(
 class SecretDTO(BaseModel):
     """Create-time secret payload. Required credential fields must be present."""
 
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     kind: SecretKind
     data: SecretDataDTO
 
@@ -583,11 +600,25 @@ class SecretDTO(BaseModel):
 
 
 class CreateSecretDTO(Slug, BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
 
     header: Header
     secret: SecretDTO
     write_only: bool = True
+    # `organization` creates a connection of the request's organization, which every
+    # project can use, or (in EE with RBAC) only the listed projects. `user` creates the
+    # caller's own custom secret in the request's organization.
+    scope: Literal["project", "organization", "user"] = "project"
+    availability: Optional[SecretAvailability] = None
+    project_ids: Optional[List[UUID]] = None
+
+    @model_validator(mode="after")
+    def projects_only_for_organization_scope(self):
+        if self.scope != "organization" and (
+            self.availability is not None or self.project_ids is not None
+        ):
+            raise ValueError("availability and project_ids need scope organization")
+        return self
 
     @model_validator(mode="after")
     def force_write_only_on_unreadable_kinds(self):
@@ -600,8 +631,9 @@ class CreateSecretDTO(Slug, BaseModel):
 
     @model_validator(mode="before")
     def ensure_header_exists(cls, values):
-        # Only a provider_key may arrive header-less: it is named after its provider on create
-        # (see `VaultService.create_secret`). Every other kind is addressed by its name.
+        # Only a provider_key, or an organization's subscription login, may arrive
+        # header-less: each is named after its provider on create. Every other kind is
+        # addressed by its name.
         secret = values.get("secret")
         kind = (
             secret.get("kind")
@@ -611,6 +643,11 @@ class CreateSecretDTO(Slug, BaseModel):
         if isinstance(kind, SecretKind):
             kind = kind.value
         if kind == SecretKind.PROVIDER_KEY.value:
+            return values
+        if (
+            kind == SecretKind.SUBSCRIPTION_PROVIDER.value
+            and values.get("scope") == "organization"
+        ):
             return values
 
         header = values.get("header")
@@ -653,6 +690,8 @@ class CreateSecretDTO(Slug, BaseModel):
 class UpdateSecretPayloadDTO(BaseModel):
     """Update-time payload. Omitted credential fields keep their stored values."""
 
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     kind: SecretKind
     data: SecretDataDTO
 
@@ -663,7 +702,7 @@ class UpdateSecretPayloadDTO(BaseModel):
 
 
 class UpdateSecretDTO(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
 
     header: Optional[Header] = None
     secret: Optional[UpdateSecretPayloadDTO] = None
@@ -703,13 +742,55 @@ class SecretValueStatus(BaseModel):
     preview: Optional[str] = None
 
 
+class SecretOwner(BaseModel):
+    """Who owns a stored secret.
+
+    A frozen pydantic model rather than a dataclass, because it rides inside cached and
+    serialized DTOs. Storage keeps the typed columns; the DAO maps `kind` to the columns.
+    A user owner is a person inside one organization, so it also names the organization.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    kind: SecretOwnerKind
+    id: UUID
+    # A user owner only: the organization the person's row belongs to.
+    organization_id: Optional[UUID] = None
+
+    @classmethod
+    def for_user(cls, *, organization_id: UUID, user_id: UUID) -> "SecretOwner":
+        return cls(
+            kind=SecretOwnerKind.USER, id=user_id, organization_id=organization_id
+        )
+
+    @model_validator(mode="after")
+    def _user_owner_names_its_organization(self) -> "SecretOwner":
+        if (self.kind == SecretOwnerKind.USER) != (self.organization_id is not None):
+            raise ValueError(
+                "a user owner, and only a user owner, names its organization"
+            )
+        return self
+
+
 class _SecretResponseBaseDTO(Identifier, Slug, BaseModel):
+    # A cached entry or a stored row that fails validation is logged by the cache helpers;
+    # the error must name fields, never values.
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     kind: SecretKind
     data: SecretDataDTO
     header: Header
     lifecycle: Optional[LegacyLifecycleDTO] = None
 
     write_only: bool = False
+
+    # Set by every DAO mapping. Optional so an entry cached by an older pod still reads.
+    owner: Optional[SecretOwner] = None
+    # Organization rows only.
+    availability: Optional[SecretAvailability] = None
+    # Organization rows limited to selected projects, on management responses only. Never
+    # in a cache entry and never in what a project member sees.
+    selected_project_ids: Optional[List[UUID]] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -725,6 +806,14 @@ class _SecretResponseBaseDTO(Identifier, Slug, BaseModel):
         # not be, which is why the fix needs no data migration. Every construction path runs
         # through this model, the cache rehydration included.
         if is_always_write_only(self.kind):
+            self.write_only = True
+        return self
+
+    @model_validator(mode="after")
+    def force_write_only_on_organization_rows(self):
+        # Fail closed, the same way as the kind rule above, and on cache rehydration too:
+        # an organization credential is never readable back, whatever the stored mark says.
+        if self.owner is not None and self.owner.kind == SecretOwnerKind.ORGANIZATION:
             self.write_only = True
         return self
 
@@ -771,3 +860,21 @@ class PublicSecretResponseDTO(_SecretResponseBaseDTO):
 
     management: Optional[PublicSecretManagementDTO] = None
     value_status: SecretValueStatus
+
+
+class CachedEffectiveSecrets(BaseModel):
+    """The cache value of one project's credentials (`effective_secrets`).
+
+    `project_id` is the FULL project id: a read whose id differs is a miss. `secrets` are
+    the project's own rows. `organization` are the shareable organization rows AVAILABLE to
+    this project (availability is applied in SQL), so the entry never names another
+    project. An agent uses an organization row only when it names it by scope and slug.
+    """
+
+    model_config = ConfigDict(hide_input_in_errors=True)
+
+    project_id: UUID
+    # The project row's organization; None when the project was not found.
+    organization_id: Optional[UUID] = None
+    secrets: List[SecretResponseDTO] = []
+    organization: List[SecretResponseDTO] = []

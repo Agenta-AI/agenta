@@ -27,18 +27,22 @@ export interface DaytonaSecretCandidate {
    */
   ordinal: number;
   /**
-   * WHO reads this credential. Two consumers exist today because two things in a run hold
-   * credentials: the model, and each HTTP MCP server (named, because a run can attach several
+   * WHO reads this credential. Three things in a run hold credentials: the model (a provider
+   * key), the model gateway (the run's own gateway credential, which replaces a provider key on a
+   * gateway-routed connection), and each HTTP MCP server (named, because a run can attach several
    * and each has its own key). This is the field that was missing from the old flat `secrets`
    * map, and without it the runner could not tell which host a given key was allowed to reach,
    * which is what a Daytona Secret restriction requires.
    */
-  consumer: { kind: "model" } | { kind: "http_mcp"; server: string };
+  consumer:
+    | { kind: "model" }
+    | { kind: "gateway" }
+    | { kind: "http_mcp"; server: string };
   /**
    * WHERE the value lands in the sandbox. `environment` for a model key (harnesses read provider
-   * keys from environment variables); `header` for an MCP credential (an HTTP MCP server reads
-   * its key from a request header). These are the only two delivery points that exist in the
-   * run today, and they follow from the two consumers above rather than being an open set.
+   * keys from environment variables); `header` for a gateway or MCP credential (the receiving
+   * server reads it from a request header). These are the only two delivery points that exist
+   * in the run today, and they follow from the consumers above rather than being an open set.
    */
   binding: { kind: "environment" | "header"; name: string };
   /**
@@ -81,9 +85,9 @@ export function credentialSlotFor(
 ): CredentialSlot {
   return {
     consumer:
-      candidate.consumer.kind === "model"
-        ? { kind: "model" }
-        : { kind: "mcp", server: candidate.consumer.server },
+      candidate.consumer.kind === "http_mcp"
+        ? { kind: "mcp", server: candidate.consumer.server }
+        : { kind: candidate.consumer.kind },
     binding: candidate.binding,
     allowedHost: candidate.allowedHost,
   };
@@ -212,6 +216,32 @@ export function exactHttpsHost(rawUrl: string): string {
   return host;
 }
 
+/**
+ * The host the run's gateway credential may be substituted into, or undefined to leave it as a
+ * plain environment value.
+ *
+ * The gateway credential authenticates the harness to this deployment's model gateway. It is not
+ * a provider key, but it can spend the run's model budget, so a Daytona run hides it the same
+ * way it hides a provider key: the sandbox holds a placeholder, and Daytona substitutes the real
+ * value only into requests to the gateway host.
+ *
+ * Undefined, not a failure, when the gateway endpoint cannot carry a host restriction (plain
+ * HTTP, an IP literal, a non-default port, an internal name). Before this hiding existed every
+ * gateway credential was a plain environment value, and a deployment whose gateway endpoint does
+ * not qualify keeps that behavior rather than losing its Daytona runs.
+ */
+function gatewayCredentialHost(
+  connection: ModelConnection,
+): string | undefined {
+  const baseUrl = connection.endpoint?.baseUrl;
+  if (!connection.gatewayCredentials?.value || !baseUrl) return undefined;
+  try {
+    return exactHttpsHost(baseUrl);
+  } catch {
+    return undefined;
+  }
+}
+
 /** Split remote opaque credentials from values that remain safe to pass directly at create. */
 export function buildDaytonaSecretPlan(input: {
   modelConnection?: ModelConnection;
@@ -250,7 +280,9 @@ export function buildDaytonaSecretPlan(input: {
       );
     }
     const consumerKey =
-      candidate.consumer.kind === "model" ? "model" : candidate.consumer.server;
+      candidate.consumer.kind === "http_mcp"
+        ? candidate.consumer.server
+        : candidate.consumer.kind;
     const key = `${candidate.consumer.kind}:${consumerKey}:${candidate.binding.kind}:${candidate.binding.name.toLowerCase()}`;
     if (seen.has(key)) {
       fail(`duplicate credential binding '${candidate.binding.name}'`);
@@ -294,6 +326,15 @@ export function buildDaytonaSecretPlan(input: {
         binding: credential.binding,
         allowedHost: host,
         value: credential.value,
+      });
+    }
+    const gatewayHost = gatewayCredentialHost(connection);
+    if (gatewayHost && connection.gatewayCredentials) {
+      add({
+        consumer: { kind: "gateway" },
+        binding: { kind: "header", name: connection.gatewayCredentials.header },
+        allowedHost: gatewayHost,
+        value: connection.gatewayCredentials.value,
       });
     }
   }

@@ -29,6 +29,7 @@ from oss.tests.pytest.unit.channels.test_channels_inbox_dispatcher import (
     _make_resolution,
     _make_trigger,
 )
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 _TURN_IN_USE = WorkflowDetachedStartFailed(
     "Workflow service rejected detached start: This session is already running "
@@ -115,6 +116,7 @@ class TestFollowUpDuringARunningTurn:
         invoke = AsyncMock(return_value="run-1")
 
         dispatcher = InboxDispatcher(
+            run_admission=NoopRunAdmission(),
             channels_service=channels_service,
             invoke_fn=invoke,
             session_queue=queue,
@@ -144,6 +146,7 @@ class TestFollowUpDuringARunningTurn:
         queue, dao, _ = _queue(running=True)
 
         dispatcher = InboxDispatcher(
+            run_admission=NoopRunAdmission(),
             channels_service=channels_service,
             invoke_fn=AsyncMock(),
             session_queue=queue,
@@ -174,6 +177,7 @@ class TestFollowUpDuringARunningTurn:
         invoke = AsyncMock(return_value="run-1")
 
         dispatcher = InboxDispatcher(
+            run_admission=NoopRunAdmission(),
             channels_service=channels_service,
             invoke_fn=invoke,
             session_queue=queue,
@@ -202,6 +206,7 @@ class TestFollowUpDuringARunningTurn:
 
         invoke = AsyncMock(side_effect=refused)
         dispatcher = InboxDispatcher(
+            run_admission=NoopRunAdmission(),
             channels_service=channels_service,
             invoke_fn=invoke,
             session_queue=queue,
@@ -224,6 +229,7 @@ class TestRedelivery:
         event, _, trigger, channels_service = _setup()
         queue, dao, _ = _queue(running=True)
         dispatcher = InboxDispatcher(
+            run_admission=NoopRunAdmission(),
             channels_service=channels_service,
             invoke_fn=AsyncMock(),
             session_queue=queue,
@@ -246,6 +252,7 @@ class TestRedelivery:
         channels_service.open_turn = AsyncMock(return_value=None)
         queue, dao, _ = _queue(running=True)
         dispatcher = InboxDispatcher(
+            run_admission=NoopRunAdmission(),
             channels_service=channels_service,
             invoke_fn=AsyncMock(),
             session_queue=queue,
@@ -292,6 +299,7 @@ class TestNeverDropped:
         workflows_service.invoke_workflow_detached = AsyncMock(side_effect=refused)
 
         dispatcher = InboxDispatcher(
+            run_admission=NoopRunAdmission(),
             channels_service=channels_service,
             workflows_service=workflows_service,
             session_queue=queue,
@@ -313,6 +321,7 @@ class TestNeverDropped:
         adapter = self._with_delivery(channels_service, resolution)
 
         dispatcher = InboxDispatcher(
+            run_admission=NoopRunAdmission(),
             channels_service=channels_service,
             invoke_fn=AsyncMock(side_effect=TurnRefused()),
         )
@@ -333,6 +342,7 @@ class TestNeverDropped:
         invoke = AsyncMock(return_value="run-1")
 
         dispatcher = InboxDispatcher(
+            run_admission=NoopRunAdmission(),
             channels_service=channels_service,
             invoke_fn=invoke,
             session_queue=queue,

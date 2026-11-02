@@ -160,6 +160,9 @@ export const semantic = {
     infoBorderHover: {light: "#7fa0b5", dark: "#15325b"},
     primaryBorder: {light: HAIRLINE, dark: "#57572a"}, // antd colorPrimaryBorder (focus ring); ≠ infoBorder in dark
     primaryBorderHover: {light: INK_FAINT, dark: "#787834"}, // antd colorPrimaryBorderHover (slider track hover)
+    // Preview comments: the hover outline, selected cells and pins share this one blue (antd blue-6).
+    selection: {light: "#1677ff", dark: "#4096ff"},
+    selectionBg: {light: "rgba(22, 119, 255, 0.08)", dark: "rgba(64, 150, 255, 0.16)"},
 } satisfies Record<string, Pair>
 
 // Overlay/elevation shadows. Dark is the hand-tuned override (a 1px light ring +

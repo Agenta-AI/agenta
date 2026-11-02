@@ -10,14 +10,13 @@ import {
     VoiceInputButton,
 } from "@agenta/chat/components"
 import {
-    stagedFilesToParts,
+    stagedFilesToOutbound,
     useChatSlashCommands,
     useComposerDraft,
     useVoiceComposer,
     type ComposerAttachment,
     type useComposerAttachments,
 } from "@agenta/chat/hooks"
-import {refusedSendRejections} from "@agenta/chat/model"
 import {dismissSoftKeyboardAfterSend} from "@agenta/ui/hooks"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {HarnessTooltip, SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
@@ -27,6 +26,7 @@ import {AnimatePresence, motion} from "motion/react"
 import {ContentRail} from "@/components/ContentRail"
 import {useMotionPresets} from "@/lib/motion/presets"
 
+import {sendRefusalRejections} from "./sessionReadOnly"
 import {useComposerPrefill} from "./useComposerPrefill"
 
 /**
@@ -48,6 +48,7 @@ export const Composer = ({
     onSteer,
     onRefusedOverDraft,
     disabled = false,
+    sendDisabled = false,
     waitingOnUser = false,
     streaming = false,
     stopping = false,
@@ -55,6 +56,7 @@ export const Composer = ({
     inputBusy = streaming,
     inputRef,
     placeholder,
+    hasTurns,
     onNewSession,
 }: {
     /** The agent revision the `/` palette reads and writes (model, permissions, skills). */
@@ -77,6 +79,8 @@ export const Composer = ({
     onRefusedOverDraft?: (input: {text: string; parts?: FileUIPart[]}) => void
     /** No resolvable agent yet, or the screen is still hydrating. */
     disabled?: boolean
+    /** Typing stays on and Send is off: the agent's model needs setup. */
+    sendDisabled?: boolean
     /** The run is parked on the user (pending approval) — sends will queue. */
     waitingOnUser?: boolean
     /** A run is streaming from this device — the send button becomes Stop. */
@@ -89,6 +93,8 @@ export const Composer = ({
     inputRef?: MutableRefObject<RichChatInputHandle | null>
     /** Full placeholder override — used when the composer is gated (no model key). */
     placeholder?: string
+    /** The session already has turns: the key hints move from chips into the placeholder. */
+    hasTurns?: boolean
     /** Starts a fresh session — the palette offers no /new row without it. */
     onNewSession?: () => void
 }) => {
@@ -163,7 +169,7 @@ export const Composer = ({
         // Enter and the send button (and a voice take completing) can all fire while an upload
         // is still in flight; a second pass would re-send the same staged tray. Returning false
         // synchronously keeps the text in the editor.
-        if (sending.current) {
+        if (sendDisabled || sending.current) {
             if (extraFiles.length) attachments.addFiles(extraFiles)
             return false
         }
@@ -199,11 +205,13 @@ export const Composer = ({
         if (!uploadedExtras) return false
         const outbound = [...staged, ...uploadedExtras]
         let parts: FileUIPart[] | undefined
+        let sendText = text
         let cleared = false
         try {
             // `stagedFilesToParts` THROWS on a file whose upload hasn't settled — reachable via
             // Enter, which the send button's `sendDisabled` guard doesn't cover.
-            parts = outbound.length > 0 ? stagedFilesToParts(outbound, sessionId) : undefined
+            // Files over the attachment cap went to the session drive; the text names them.
+            ;({text: sendText, parts} = stagedFilesToOutbound(text, outbound, sessionId))
             // The message leaves the composer HERE, before the send can fail: draft and tray go
             // now, and every refusal path puts them back afterwards (the catch below for an early
             // one, the screen's `restoreRefusedSend` for a late one). Clearing after the await let
@@ -213,8 +221,9 @@ export const Composer = ({
             attachments.clearAttachments(staged.map((file) => file.uid))
             cleared = true
             release()
-            if (policy === "steer" && onSteer) await onSteer({text, parts, stagedFiles: outbound})
-            else await onSend({text, parts, stagedFiles: outbound})
+            if (policy === "steer" && onSteer)
+                await onSteer({text: sendText, parts, stagedFiles: outbound})
+            else await onSend({text: sendText, parts, stagedFiles: outbound})
             return true
         } catch (error: unknown) {
             // Nothing consumes this promise (RichChatInput's submit is fire-and-forget), so an
@@ -223,7 +232,7 @@ export const Composer = ({
             // composer's own inline channel. `outbound`, not `staged`: a voice take never sat in
             // the tray, and restoring it there is what makes it retryable. Idempotent: a throw
             // before the clear leaves the tray as it was.
-            attachments.setRejections(refusedSendRejections(error))
+            attachments.setRejections(sendRefusalRejections(error))
             // Never over a draft typed while this send was pending: the host keeps it instead.
             if (cleared && !canRestoreRefusedSend(richInputRef.current)) {
                 onRefusedOverDraft?.({text, parts})
@@ -364,10 +373,12 @@ export const Composer = ({
                             onChange={draft.handleComposerChange}
                             slashCommands={slash.sections}
                             disabled={disabled}
+                            sendDisabled={sendDisabled}
                             composerDisabled={disabled}
                             dictating={dictating}
                             dictationAnalyserRef={voice.dictationAnalyserRef}
                             placeholder={placeholder}
+                            hasTurns={hasTurns}
                             waitingOnUser={waitingOnUser}
                             streaming={stoppable}
                             stopping={stopping}

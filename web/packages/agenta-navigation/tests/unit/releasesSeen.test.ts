@@ -1,9 +1,15 @@
 import {describe, expect, it} from "vitest"
 
-import type {ReleaseEntry} from "../../src/releases"
+import type {Release} from "../../src/releases"
 import {computeUnseenReleases} from "../../src/releases/seen"
 
-const release = (id: string): ReleaseEntry => ({id, title: id, description: id})
+const release = (id: string, entryIds: string[] = [id]): Release => ({
+    id,
+    date: "2026-01-01",
+    features: entryIds.map((entryId) => ({id: entryId, title: entryId, body: "", link: ""})),
+    improvements: [],
+    fixes: [],
+})
 
 describe("computeUnseenReleases", () => {
     const shipped = [release("c"), release("b"), release("a")]
@@ -28,5 +34,10 @@ describe("computeUnseenReleases", () => {
         expect(computeUnseenReleases({releases: curated, seenIds: ["b", "a"]})).toEqual([
             release("mid"),
         ])
+    })
+
+    it("shows a seen version again when a new entry joins it", () => {
+        const grown = [release("v2", ["a", "b"])]
+        expect(computeUnseenReleases({releases: grown, seenIds: ["a"]})).toEqual(grown)
     })
 })

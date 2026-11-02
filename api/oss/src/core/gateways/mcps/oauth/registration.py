@@ -6,7 +6,7 @@ from functools import partial
 from typing import Callable, List
 from urllib.parse import urlparse
 
-from mcp.shared.auth import OAuthClientInformationFull, OAuthClientMetadata
+from mcp.shared.auth import OAuthClientInformationFull
 
 from oss.src.core.gateways.egress import resolve_offloaded
 
@@ -15,6 +15,7 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 _METADATA_PATH = "/gateways/mcps/oauth/client-metadata.json"
+_CALLBACK_PATH = "/gateways/mcps/connect/callback"
 
 # Long enough for a resolver that is merely slow, short enough that one that is gone does
 # not hold a consent step open.
@@ -27,30 +28,28 @@ def _default_resolve(hostname: str) -> List[str]:
     return [info[4][0] for info in socket.getaddrinfo(hostname, None)]
 
 
+def callback_redirect_uri(*, api_url: str) -> str:
+    """Return the fixed OAuth callback URI."""
+    return f"{api_url.rstrip('/')}{_CALLBACK_PATH}"
+
+
 def client_metadata_url(*, api_url: str) -> str:
     """Return the client identity document URL."""
     return f"{api_url.rstrip('/')}{_METADATA_PATH}"
 
 
-def client_metadata_document(*, api_url: str, redirect_uri: str) -> OAuthClientMetadata:
-    """Build the deployment-wide OAuth client identity document."""
-    return OAuthClientMetadata(
+def identity_document_client_info(
+    *, api_url: str, redirect_uri: str
+) -> OAuthClientInformationFull:
+    """Served as-is at its URL; `client_id` must equal that URL (CIMD §4.1)."""
+    return OAuthClientInformationFull(
+        client_id=client_metadata_url(api_url=api_url),
         redirect_uris=[redirect_uri],
         grant_types=["authorization_code", "refresh_token"],
         response_types=["code"],
         token_endpoint_auth_method="none",
         client_name="Agenta",
-    )
-
-
-def identity_document_client_info(
-    *, api_url: str, redirect_uri: str
-) -> OAuthClientInformationFull:
-    """Build deterministic client information for the identity-document strategy."""
-    document = client_metadata_document(api_url=api_url, redirect_uri=redirect_uri)
-    return OAuthClientInformationFull(
-        client_id=client_metadata_url(api_url=api_url),
-        **document.model_dump(),
+        application_type="web",
     )
 
 

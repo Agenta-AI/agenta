@@ -9,7 +9,7 @@ checks the wallet's committed balance against its floor.
 
 import asyncio
 from datetime import date, datetime, timedelta, timezone
-from typing import Awaitable, Callable, Optional, Set, Tuple
+from typing import Awaitable, Callable, FrozenSet, Optional, Set, Tuple
 from uuid import UUID
 
 from oss.src.utils.logging import get_module_logger
@@ -39,9 +39,6 @@ from ee.src.core.wallets.purchases import (
     PURCHASE_CREDIT_KIND,
     PURCHASE_LIFETIME_DAYS,
     PURCHASE_PRIORITY,
-    STARTER_CREDITS_KIND,
-    STARTER_CREDITS_LIFETIME_DAYS,
-    STARTER_CREDITS_PRIORITY,
 )
 from ee.src.core.wallets.types import (
     WalletCreditDTO,
@@ -52,6 +49,7 @@ from ee.src.core.wallets.types import (
 log = get_module_logger(__name__)
 
 PlanReader = Callable[[UUID], Awaitable[Optional[str]]]
+GrantsBlockedReader = Callable[[UUID], Awaitable[bool]]
 
 # The daily grant's share of an admission. Well below the 1s shadow bound and the 2s bound
 # each admission point puts around its whole answer, so a stalled plan read or award lock
@@ -70,11 +68,14 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
         *,
         wallets_dao: WalletsDAOInterface,
         plan_reader: Optional[PlanReader] = None,
+        grants_blocked_reader: Optional[GrantsBlockedReader] = None,
     ):
         self.wallets_dao = wallets_dao
         # Reads an organization's plan slug. Only the admission instance has one, and only
         # that instance grants the daily free credits.
         self.plan_reader = plan_reader
+        # True for an organization the fraud check marked: it gets no daily grant.
+        self.grants_blocked_reader = grants_blocked_reader
         # Organizations whose daily grant this process already settled for `_daily_day`.
         # Spares a plan read and a locked award on every admission; the award's
         # idempotency key, not this set, is what guarantees one grant per day.
@@ -175,6 +176,10 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
         plan = await self.plan_reader(organization_id)
         if plan not in DAILY_FREE_CREDIT_PLANS:
             return
+        if self.grants_blocked_reader is not None and await self.grants_blocked_reader(
+            organization_id
+        ):
+            return
         try:
             await self.award(
                 organization_id=organization_id,
@@ -189,18 +194,37 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
     async def settle(self, command: DebitCommandV1) -> None:
         await self.wallets_dao.settle(command=command)
 
+    async def hold(
+        self,
+        *,
+        organization_id: UUID,
+        keep_credit_kinds: FrozenSet[str] = frozenset(),
+        now: Optional[datetime] = None,
+    ) -> int:
+        """Empty the wallet so `check()` refuses: expire the live credits. The floor is
+        left alone, so a later purchase or paid plan allowance is spendable at once.
+        See `WalletsDAOInterface.hold_credits`."""
+        return await self.wallets_dao.hold_credits(
+            organization_id=organization_id,
+            keep_credit_kinds=keep_credit_kinds,
+            now=now or datetime.now(timezone.utc),
+        )
+
     async def provision_general_balance(
         self,
         *,
         organization_id: UUID,
         plan: str,
+        floor_musd: Optional[int] = None,
     ) -> None:
         """Idempotent — see `WalletsDAOInterface.provision_general_balance`. Called from
         the organization-creation flow, after the organization-creation transaction has
-        already committed."""
+        already committed. `floor_musd` overrides the plan's floor."""
         await self.wallets_dao.provision_general_balance(
             organization_id=organization_id,
-            floor_musd=floor_musd_for_plan(plan=plan),
+            floor_musd=(
+                floor_musd if floor_musd is not None else floor_musd_for_plan(plan=plan)
+            ),
         )
 
     async def award(
@@ -308,27 +332,6 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
         return await self.wallets_dao.get_awarded_credit(
             organization_id=organization_id,
             idempotency_key=_purchase_key(checkout_session_id),
-        )
-
-    async def grant_starter_credits(
-        self,
-        *,
-        organization_id: UUID,
-        amount_musd: int,
-        now: Optional[datetime] = None,
-    ) -> WalletCreditDTO:
-        """Move an organization's remaining starter-credits proxy budget into the wallet,
-        expiring after twelve months. Idempotent per organization: a rerun returns the
-        first transfer whatever amount it is called with."""
-        now = now or datetime.now(timezone.utc)
-        return await self.wallets_dao.award_credit(
-            organization_id=organization_id,
-            idempotency_key=f"starter_credits:organization:{organization_id}",
-            credit_kind=STARTER_CREDITS_KIND,
-            amount_musd=amount_musd,
-            priority=STARTER_CREDITS_PRIORITY,
-            end_time=now + timedelta(days=STARTER_CREDITS_LIFETIME_DAYS),
-            now=now,
         )
 
 

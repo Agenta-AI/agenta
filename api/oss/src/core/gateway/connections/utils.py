@@ -20,12 +20,15 @@ def make_oauth_state(
     secret_key: str,
     slug: Optional[str] = None,
     integration_key: Optional[str] = None,
+    is_human: bool = False,
+    user_organization_id: Optional[UUID] = None,
 ) -> str:
     """Generate an HMAC-signed state token to embed in OAuth callback URLs.
 
     ``slug``/``integration_key`` identify the connection so the callback can tell the
     opener WHICH connection finished — the playground can have several connect flows
     live at once (see ConnectToolWidget). They survive round-trip in the signed payload.
+    ``is_human`` records that a person (not an API key) started the flow as ``user_id``.
     """
     payload = {
         "project_id": str(project_id),
@@ -37,6 +40,13 @@ def make_oauth_state(
         payload["slug"] = slug
     if integration_key:
         payload["integration"] = integration_key
+    if is_human:
+        payload["human"] = True
+    # A person's own connection: the callback activates the row of `user_id` in the
+    # organization `user_organization_id`, never a project row.
+    if user_organization_id is not None:
+        payload["owner"] = "user"
+        payload["organization_id"] = str(user_organization_id)
     payload_bytes = json.dumps(payload, sort_keys=True).encode()
     payload_b64 = base64.urlsafe_b64encode(payload_bytes).decode().rstrip("=")
     sig = hmac.new(

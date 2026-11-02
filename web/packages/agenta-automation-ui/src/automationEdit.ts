@@ -40,6 +40,8 @@ export interface AutomationPatch {
     eventKey?: string
     /** Event subscriptions only — the event's own filters, as the picker returned them. */
     triggerConfig?: Record<string, unknown>
+    /** Event subscriptions only — whether the event data is added to the agent's message. */
+    includeEvent?: boolean
 }
 
 export type AutomationEditBody = TriggerScheduleEdit | TriggerSubscriptionEdit
@@ -81,6 +83,7 @@ function subscriptionEdit(
         ...(patch.references === undefined ? {} : {references: patch.references}),
         ...(patch.eventKey === undefined ? {} : {event_key: patch.eventKey}),
         ...(patch.triggerConfig === undefined ? {} : {trigger_config: patch.triggerConfig}),
+        ...(patch.includeEvent === undefined ? {} : {include_event: patch.includeEvent}),
     }
     return {
         id: subscription.id ?? "",
@@ -110,6 +113,8 @@ export interface AutomationCreateDraft {
     /** Event drafts only — the event's own `trigger_config` filters, as the picker returned them. */
     triggerConfig?: Record<string, unknown>
     inputsFields: Record<string, unknown>
+    /** Event drafts only — whether the event data is added to the agent's message. */
+    includeEvent: boolean
     /** Defaults to on. A duplicate arrives OFF, so a copy never starts running unannounced. */
     isActive?: boolean
 }
@@ -156,6 +161,7 @@ export function buildAutomationCreate(
             event_key: draft.eventKey ?? "",
             trigger_config: draft.triggerConfig,
             inputs_fields: draft.inputsFields,
+            include_event: draft.includeEvent,
             references,
         },
     }

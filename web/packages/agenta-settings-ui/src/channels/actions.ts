@@ -1,9 +1,12 @@
 import {platformLabel} from "./helpers"
 import type {
+    ChannelAudiencePerson,
     ChannelBehaviorState,
     ChannelChatType,
     ChannelConnection,
     ChannelConnections,
+    ChannelPeopleDirectory,
+    ChannelPerson,
     ChannelPlatform,
     ChannelReadableChannel,
     ChannelSetupIdentity,
@@ -28,7 +31,7 @@ import type {
  * `@agenta/sdk/resources`.
  */
 
-type Scope = {queryParams: {project_id: string}} | undefined
+export type Scope = {queryParams: {project_id: string}} | undefined
 
 /**
  * The subset of the generated `ChannelsClient` this module calls.
@@ -56,6 +59,8 @@ export interface ChannelsClientLike {
     queryChannelGrants(body: object, scope?: Scope): Promise<unknown>
     createChannelGrant(body: object, scope?: Scope): Promise<unknown>
     deleteChannelGrant(body: object, scope?: Scope): Promise<unknown>
+    queryChannelPeople(body: object, scope?: Scope): Promise<unknown>
+    refreshChannelPeople(body: object, scope?: Scope): Promise<unknown>
 }
 
 export interface AgentChannelsActionsOptions {
@@ -70,13 +75,14 @@ export interface AgentChannelsActionsOptions {
     hostedSlackInstallUrl: (projectId: string) => string | null
 }
 
-type Row = Record<string, unknown>
+export type Row = Record<string, unknown>
 
-const asRecord = (value: unknown): Row => (value && typeof value === "object" ? (value as Row) : {})
+export const asRecord = (value: unknown): Row =>
+    value && typeof value === "object" ? (value as Row) : {}
 
-const asArray = (value: unknown): Row[] => (Array.isArray(value) ? value.map(asRecord) : [])
+export const asArray = (value: unknown): Row[] => (Array.isArray(value) ? value.map(asRecord) : [])
 
-const asString = (value: unknown): string | null =>
+export const asString = (value: unknown): string | null =>
     typeof value === "string" && value ? value : null
 
 /** The backend channel key for a platform and install mode. */
@@ -96,8 +102,6 @@ export const referencedAppId = (agent: Row): string | null => {
     }
     return null
 }
-
-const SPACE_KINDS: ChannelSpaceKind[] = ["private", "group", "topic"]
 
 const asSpaceKind = (value: unknown): ChannelSpaceKind =>
     value === "private" || value === "topic" ? value : "group"
@@ -294,7 +298,181 @@ export const connectionsForAgent = (
     return out
 }
 
-const rethrow = (fallback: string) => (error: unknown) => {
+/**
+ * Make a connection answer as an app: create the default channel agent when the connection has
+ * none, retarget the answering one and turn it on otherwise, no-op when it already answers there.
+ */
+export const pointConnectionAt = async ({
+    client,
+    scope,
+    appId,
+    connectionId,
+}: {
+    client: Pick<
+        ChannelsClientLike,
+        "queryChannelAgents" | "createChannelAgent" | "editChannelAgent"
+    >
+    scope: Scope
+    appId: string
+    connectionId: string
+}): Promise<void> => {
+    const res = await client.queryChannelAgents({agent: {connection_id: connectionId}}, scope)
+    const answering = answeringAgentRow(asArray(asRecord(res).agents))
+    const references = {application: {id: appId}}
+    if (!answering) {
+        await client.createChannelAgent(
+            {
+                agent: {
+                    connection_id: connectionId,
+                    slug: "default",
+                    name: "Default agent",
+                    data: {references},
+                    flags: {is_default: true},
+                },
+            },
+            scope,
+        )
+        return
+    }
+    const flags = asRecord(answering.flags)
+    if (referencedAppId(answering) === appId && flags.is_active !== false) return
+    const agentId = asString(answering.id)
+    if (!agentId) throw new Error("The connection's agent has no id.")
+    // A restore can bring the binding back off (someone else's private agent): connecting
+    // turns it on. The edit writes the whole flags, so `is_default` stays as stored.
+    await client.editChannelAgent(
+        {
+            agent_id: agentId,
+            agent: {id: agentId, data: {references}, flags: {...flags, is_active: true}},
+        },
+        scope,
+    )
+}
+
+/** One rule of where an agent answers: by kind of place, or for one place. */
+export type BehaviorRule =
+    | {effect: "allow" | "deny"; kind: ChannelSpaceKind}
+    | {effect: "allow"; spaceId: string}
+
+/**
+ * Where the agent answers, read from its grants. With no grant it answers everywhere. Once a
+ * grant exists, a place no rule names is refused and any deny wins. "Only these channels" is
+ * allow rules for single places with no rule for the channel kinds, so it reads back as chosen.
+ * A space's default-agent rule is an allow rule for that place like any other: the backend
+ * counts it, so it reads as a chosen channel.
+ */
+export const behaviorFromGrants = (
+    platform: ChannelPlatform,
+    grants: Row[],
+): ChannelBehaviorState => {
+    if (grants.length === 0) return {dm: true, group: true, spaceIds: null}
+    const kindRule = (kind: ChannelSpaceKind, effect: "allow" | "deny") =>
+        grants.some(
+            (grant) =>
+                !grant.space_id &&
+                asString(grant.kind) === kind &&
+                (grant.effect === "deny" ? "deny" : "allow") === effect,
+        )
+    const chosen = grants
+        .filter((grant) => grant.effect !== "deny" && asString(grant.space_id))
+        .map((grant) => asString(grant.space_id) as string)
+    const groupKinds = groupKindsOf(platform)
+    const dm = !kindRule("private", "deny") && kindRule("private", "allow")
+    if (groupKinds.some((kind) => kindRule(kind, "deny")))
+        return {dm, group: false, spaceIds: chosen.length ? chosen : null}
+    if (groupKinds.some((kind) => kindRule(kind, "allow"))) return {dm, group: true, spaceIds: null}
+    return {dm, group: true, spaceIds: chosen}
+}
+
+/**
+ * The rules for a behavior state, written by the switches and the Advanced row together.
+ * "Only these channels" never writes a deny for channels, because any deny wins; channels
+ * nobody checked match no rule and are refused. With channels switched off, the chosen places
+ * stay stored (the kind deny wins over them), so switching channels back on restores them.
+ */
+export const rulesForBehavior = (
+    platform: ChannelPlatform,
+    next: ChannelBehaviorState,
+): BehaviorRule[] => {
+    const chosen: BehaviorRule[] = (next.spaceIds ?? []).map((spaceId) => ({
+        effect: "allow",
+        spaceId,
+    }))
+    if (next.group && next.spaceIds !== null) {
+        // Always one rule for DMs here: with DMs off and nothing checked, no rule at all
+        // would read as "answers everywhere".
+        return [
+            {effect: next.dm ? ("allow" as const) : ("deny" as const), kind: "private" as const},
+            ...chosen,
+        ]
+    }
+    // Both on, every channel: the unrestricted state is "no grant at all".
+    if (next.dm && next.group) return []
+    const groupKinds = groupKindsOf(platform)
+    const kinds: ChannelSpaceKind[] = ["private", ...groupKinds]
+    return [
+        ...kinds.map((kind) => ({
+            effect: (kind === "private" ? next.dm : next.group)
+                ? ("allow" as const)
+                : ("deny" as const),
+            kind,
+        })),
+        ...chosen,
+    ]
+}
+
+/** The people list on a channel agent row (`data.audience`). */
+export const audienceOf = (agent: Row): ChannelAudiencePerson[] => {
+    const audience = asRecord(asRecord(agent.data).audience)
+    const labels = asRecord(audience.labels)
+    const senders = Array.isArray(audience.senders) ? audience.senders : []
+    return senders
+        .map((value) => String(value).trim())
+        .filter(Boolean)
+        .map((id) => {
+            const label = asRecord(labels[id])
+            return {id, name: asString(label.name), email: asString(label.email)}
+        })
+}
+
+/** The audience block an agent edit sends: the ids, and their labels for display. */
+export const audienceBody = (people: ChannelAudiencePerson[]) => ({
+    senders: people.map((person) => person.id),
+    labels: Object.fromEntries(
+        people
+            .filter((person) => person.name || person.email)
+            .map((person) => [person.id, {name: person.name, email: person.email}]),
+    ),
+})
+
+export const mapPersonRow = (row: Row): ChannelPerson => {
+    const source = row.source
+    return {
+        id: String(row.id ?? ""),
+        name: asString(row.name),
+        email: asString(row.email),
+        username: asString(row.username),
+        isGuest: row.is_guest === true,
+        isBot: row.is_bot === true,
+        isDeleted: row.is_deleted === true,
+        source:
+            source === "recent_senders" || source === "directory" || source === "email_lookup"
+                ? source
+                : null,
+    }
+}
+
+export const mapDirectory = (value: unknown): ChannelPeopleDirectory => {
+    const row = asRecord(value)
+    const state = row.state
+    return {
+        state:
+            state === "ready" || state === "loading" || state === "failed" ? state : "unavailable",
+        updatedAt: asString(row.updated_at),
+    }
+}
+
+export const rethrow = (fallback: string) => (error: unknown) => {
     throw new Error(clientErrorMessage(error, fallback))
 }
 
@@ -317,34 +495,8 @@ export const buildAgentChannelsActions = ({
         return asArray(asRecord(res).agents)
     }
 
-    /** Make the connection answer as this page's agent: create the default agent when the
-     * connection has none, retarget the answering one otherwise, no-op when it already
-     * points here. */
-    const pointHere = async (connectionId: string): Promise<void> => {
-        const answering = answeringAgentRow(await agentsOf(connectionId))
-        if (!answering) {
-            await client.createChannelAgent(
-                {
-                    agent: {
-                        connection_id: connectionId,
-                        slug: "default",
-                        name: "Default agent",
-                        data: {references: references()},
-                        flags: {is_default: true},
-                    },
-                },
-                scope(),
-            )
-            return
-        }
-        if (referencedAppId(answering) === appId) return
-        const agentId = asString(answering.id)
-        if (!agentId) throw new Error("The connection's agent has no id.")
-        await client.editChannelAgent(
-            {agent_id: agentId, agent: {id: agentId, data: {references: references()}}},
-            scope(),
-        )
-    }
+    const pointHere = (connectionId: string) =>
+        pointConnectionAt({client, scope: scope(), appId, connectionId})
 
     /** The channel agent row that answers on this connection — the subject of every grant. */
     const channelAgentId = async (connectionId: string): Promise<string> => {
@@ -400,27 +552,19 @@ export const buildAgentChannelsActions = ({
             .catch(rethrow("Could not add this channel."))
     }
 
-    /** This agent's grants that name a kind and no single space — the switches' storage. */
-    const kindGrants = async (agentId: string): Promise<Row[]> => {
+    /** This agent's grants: the rules that say where it answers. */
+    const agentGrants = async (agentId: string): Promise<Row[]> => {
         const res = await client
             .queryChannelGrants({grant: {agent_id: agentId}}, scope())
             .catch(rethrow("Could not read where this agent may answer."))
-        return asArray(asRecord(res).grants).filter(
-            (grant) => !grant.deleted_at && !grant.space_id && asString(grant.kind),
-        )
+        return asArray(asRecord(res).grants).filter((grant) => !grant.deleted_at)
     }
 
     const readBehavior = async (
         platform: ChannelPlatform,
         connectionId: string,
-    ): Promise<ChannelBehaviorState> => {
-        const grants = await kindGrants(await channelAgentId(connectionId))
-        const denied = (kinds: ChannelSpaceKind[]) =>
-            grants.some(
-                (grant) => grant.effect === "deny" && kinds.includes(asSpaceKind(grant.kind)),
-            )
-        return {dm: !denied(["private"]), group: !denied(groupKindsOf(platform))}
-    }
+    ): Promise<ChannelBehaviorState> =>
+        behaviorFromGrants(platform, await agentGrants(await channelAgentId(connectionId)))
 
     const writeBehavior = async (
         platform: ChannelPlatform,
@@ -428,72 +572,99 @@ export const buildAgentChannelsActions = ({
         next: ChannelBehaviorState,
     ): Promise<void> => {
         const agentId = await channelAgentId(connectionId)
-        const grants = await kindGrants(agentId)
-        const drop = async (rows: Row[]) => {
-            for (const row of rows) {
-                const grantId = asString(row.id)
-                if (!grantId) continue
-                await client
-                    .deleteChannelGrant({grant_id: grantId}, scope())
-                    .catch(rethrow("Could not save this setting."))
+        const grants = await agentGrants(agentId)
+        const wanted = rulesForBehavior(platform, next)
+        const keyOf = (rule: BehaviorRule) =>
+            `${rule.effect}:${"spaceId" in rule ? `space:${rule.spaceId}` : `kind:${rule.kind}`}`
+        // A stored row's key, in the same form. A deny for one place (only the API writes
+        // one) never matches a wanted rule, so the save removes it.
+        const grantKey = (grant: Row): string | null => {
+            const effect = grant.effect === "deny" ? "deny" : "allow"
+            const spaceId = asString(grant.space_id)
+            if (spaceId) return `${effect}:space:${spaceId}`
+            const kind = asString(grant.kind)
+            return kind ? `${effect}:kind:${asSpaceKind(kind)}` : null
+        }
+        const wantedKeys = new Set(wanted.map(keyOf))
+        const kept = new Set<string>()
+
+        // Which stored rows stay, and which go: a space's default-agent rule included, since
+        // the backend counts it as an allow rule for that place.
+        const obsolete: string[] = []
+        for (const grant of grants) {
+            const key = grantKey(grant)
+            if (!key) continue
+            if (wantedKeys.has(key) && !kept.has(key)) {
+                kept.add(key)
+                continue
             }
+            const grantId = asString(grant.id)
+            if (grantId) obsolete.push(grantId)
         }
-
-        // Both on is the unrestricted state, and the backend spells that "no grant at all".
-        // Leaving an allow grant behind would deny every kind nobody named.
-        if (next.dm && next.group) {
-            await drop(grants)
-            return
-        }
-
-        // The group switch covers topics too: a Slack channel is a topic-bearing space, and
-        // an unnamed kind is denied once any grant exists.
-        const wanted = (kind: ChannelSpaceKind) =>
-            (kind === "private" ? next.dm : next.group) ? "allow" : "deny"
-
-        for (const kind of SPACE_KINDS) {
-            const mine = grants.filter((grant) => asSpaceKind(grant.kind) === kind)
-            const keep = mine.find((grant) => grant.effect === wanted(kind))
-            await drop(mine.filter((grant) => grant !== keep))
-            if (keep) continue
+        // New rules first, then the old ones go. In between, the stored rules are the old and
+        // the new together, which never admits a place that neither admits; removing first
+        // could pass through "no rule at all", which answers everywhere.
+        for (const rule of wanted) {
+            if (kept.has(keyOf(rule))) continue
             await client
                 .createChannelGrant(
-                    {grant: {agent_id: agentId, effect: wanted(kind), kind, data: {}}},
+                    {
+                        grant: {
+                            agent_id: agentId,
+                            effect: rule.effect,
+                            ...("spaceId" in rule ? {space_id: rule.spaceId} : {kind: rule.kind}),
+                            data: {},
+                        },
+                    },
                     scope(),
                 )
                 .catch(rethrow("Could not save this setting."))
         }
+        for (const grantId of obsolete) {
+            await client
+                .deleteChannelGrant({grant_id: grantId}, scope())
+                .catch(rethrow("Could not save this setting."))
+        }
     }
 
-    const connectionRow = async (connectionId: string): Promise<Row> => {
-        const res = await client
-            .queryChannelConnections({}, scope())
-            .catch(rethrow("Could not load the channel connections."))
-        const row = asArray(asRecord(res).connections).find(
-            (candidate) => asString(candidate.id) === connectionId,
-        )
-        if (!row) throw new Error("This connection no longer exists.")
-        return row
-    }
+    const readAudience = async (connectionId: string): Promise<ChannelAudiencePerson[]> =>
+        audienceOf(await answeringAgent(connectionId))
 
-    const readAllowedUsers = async (connectionId: string): Promise<string[]> => {
-        const data = asRecord(asRecord(await connectionRow(connectionId)).data)
-        const raw = data.allowed_senders
-        if (!Array.isArray(raw)) return []
-        return raw.map((value) => String(value).trim()).filter(Boolean)
-    }
-
-    const writeAllowedUsers = async (connectionId: string, ids: string[]): Promise<void> => {
-        // `data` merges key by key on the backend, so this replaces the list and nothing else.
+    const writeAudience = async (
+        connectionId: string,
+        people: ChannelAudiencePerson[],
+    ): Promise<void> => {
+        const agentId = asString((await answeringAgent(connectionId)).id)
+        // The edit replaces the whole audience block and leaves the rest of `data` as stored.
         await client
-            .editChannelConnection(
+            .editChannelAgent(
                 {
-                    connection_id: connectionId,
-                    connection: {id: connectionId, data: {allowed_senders: ids}},
+                    agent_id: agentId,
+                    agent: {id: agentId, data: {audience: audienceBody(people)}},
                 },
                 scope(),
             )
-            .catch(rethrow("Could not save the allowed accounts."))
+            .catch(rethrow("Could not save who can message it."))
+    }
+
+    const queryPeople = async (connectionId: string, text: string, ids?: string[]) => {
+        const res = await client
+            .queryChannelPeople(
+                {connection_id: connectionId, people: {text, ...(ids?.length ? {ids} : {})}},
+                scope(),
+            )
+            .catch(rethrow("Could not search people."))
+        return {
+            people: asArray(asRecord(res).people).map(mapPersonRow),
+            directory: mapDirectory(asRecord(res).directory),
+        }
+    }
+
+    const refreshPeople = async (connectionId: string) => {
+        const res = await client
+            .refreshChannelPeople({connection_id: connectionId}, scope())
+            .catch(rethrow("Could not refresh the people list."))
+        return mapDirectory(asRecord(res).directory)
     }
 
     const updateCredentials = async (
@@ -594,16 +765,26 @@ export const buildAgentChannelsActions = ({
                 )
                 const id = answering ? referencedAppId(answering) : null
                 connection.agent = id ? {id, name: resolveAgentName(id)} : null
-                // The row's copy counts the places it answers in ("1 group + DMs"). One call
-                // per connection, and a failure only costs the count, not the row.
-                try {
-                    connection.chats = (await listSpaces(connection.connectionId)).map((space) => ({
+                // A binding can be off while its connection stays connected.
+                connection.agentOff = answering
+                    ? asRecord(answering.flags).is_active === false
+                    : false
+                connection.audienceCount = answering ? audienceOf(answering).length : 0
+                // The row's copy counts the places it answers in ("1 group + DMs") and says
+                // when the agent's rules limit them. One call each per connection, side by
+                // side, and a failure only costs the count, not the row.
+                const answeringId = answering ? asString(answering.id) : null
+                const [listed, grants] = await Promise.all([
+                    listSpaces(connection.connectionId).catch(() => null),
+                    answeringId ? agentGrants(answeringId).catch(() => null) : null,
+                ])
+                if (listed) {
+                    connection.chats = listed.map((space) => ({
                         name: space.name,
                         type: chatTypeOf(space.kind, connection.platform),
                     }))
-                } catch {
-                    /* the row falls back to "Direct messages" */
                 }
+                if (grants) connection.behavior = behaviorFromGrants(connection.platform, grants)
                 // A hosted Telegram connection is created when the link is minted, before
                 // any chat tapped Start. Until a chat is bound it is pending, not connected.
                 if (
@@ -684,8 +865,30 @@ export const buildAgentChannelsActions = ({
         return mapConnectionRow(row)
     }
 
-    const connectHere = async (_platform: ChannelPlatform, connectionId: string) =>
+    const connectHere = async (platform: ChannelPlatform, connectionId: string) =>
         pointHere(connectionId).catch(rethrow("Could not connect this agent."))
+
+    /** Turn the answering binding back on. The edit carries its references, so the server
+     *  checks the agent under a lock and refuses a private agent of someone else. */
+    const turnOn = async (platform: ChannelPlatform, connectionId: string) => {
+        const answering = await answeringAgent(connectionId)
+        const agentId = asString(answering.id)
+        if (!agentId) throw new Error("This connection answers as no agent yet.")
+        await client
+            .editChannelAgent(
+                {
+                    agent_id: agentId,
+                    agent: {
+                        id: agentId,
+                        data: {references: asRecord(answering.data).references},
+                        // The edit writes the whole flags: keep `is_default` as stored.
+                        flags: {...asRecord(answering.flags), is_active: true},
+                    },
+                },
+                scope(),
+            )
+            .catch(rethrow(`Could not turn ${platformLabel(platform)} on.`))
+    }
 
     const disconnect = async (_platform: ChannelPlatform, connectionId: string) => {
         await client
@@ -708,13 +911,16 @@ export const buildAgentChannelsActions = ({
         connectCustom,
         connectHere,
         disconnect,
+        turnOn,
         listSpaces,
         discoverSpaces,
         addSpace,
         readBehavior,
         writeBehavior,
-        readAllowedUsers,
-        writeAllowedUsers,
+        readAudience,
+        writeAudience,
+        queryPeople,
+        refreshPeople,
         updateCredentials,
         readToolSettings,
         writeToolSettings,

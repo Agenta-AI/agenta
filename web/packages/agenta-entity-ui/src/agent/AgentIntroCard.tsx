@@ -1,9 +1,13 @@
 import {useMemo} from "react"
 
-import {workflowMolecule} from "@agenta/entities/workflow"
+import {harnessCapabilitiesAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {Robot} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
+import {
+    modelDisplayName,
+    type HarnessCapabilitiesMap,
+} from "../DrillInView/SchemaControls/connectionUtils"
 import {isHarnessBuiltinTool} from "../DrillInView/SchemaControls/toolUtils"
 
 import {useAgentIconChrome} from "./agentIcon"
@@ -13,6 +17,25 @@ const agentModel = (config: unknown): string | null => {
     const a = (config as {agent?: {llm?: {model?: unknown}; model?: unknown}} | null)?.agent
     const m = a?.llm?.model ?? a?.model
     return typeof m === "string" && m ? m : null
+}
+
+/** The harness the agent runs under, which picks the catalog its model name comes from. */
+const agentHarness = (config: unknown): string | null => {
+    const kind = (config as {agent?: {harness?: {kind?: unknown}}} | null)?.agent?.harness?.kind
+    return typeof kind === "string" && kind ? kind : null
+}
+
+/**
+ * What the card calls the agent's model: the catalog's curated name, else the bare model id. A
+ * connection model key ("Agenta/custom/vertex_ai/gemini-3.7-flash") is routing detail, not a name,
+ * so it never reaches the card whole. Null when the agent has no model.
+ */
+export const agentModelLabel = (
+    config: unknown,
+    capabilities: HarnessCapabilitiesMap | null | undefined,
+): string | null => {
+    const model = agentModel(config)
+    return model ? modelDisplayName(capabilities, agentHarness(config), model) : null
 }
 
 /** The first line of the agent's instructions, as a one-line summary. */
@@ -40,6 +63,8 @@ export const capabilityLabel = (config: unknown): string | null => {
     if (skills) parts.push(`${skills} skill${skills === 1 ? "" : "s"}`)
     return parts.length ? parts.join(" · ") : null
 }
+
+const HARNESS_CATALOG_KEY = "agenta:agent-intro-card"
 
 const Bot = ({size = 34, workflowId}: {size?: number; workflowId?: string | null}) => {
     const glyph = Math.round(size * 0.5)
@@ -76,7 +101,9 @@ export const AgentIntroCard = ({entityId, className}: {entityId: string; classNa
         useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
     )
     const workflowId = useAtomValue(workflowMolecule.selectors.workflowId(entityId))
+    const harnessCapabilities = useAtomValue(harnessCapabilitiesAtomFamily(HARNESS_CATALOG_KEY))
     const model = agentModel(config)
+    const modelLabel = agentModelLabel(config, harnessCapabilities)
     const capabilities = capabilityLabel(config)
     const summary = agentSummary(config)
 
@@ -97,8 +124,11 @@ export const AgentIntroCard = ({entityId, className}: {entityId: string; classNa
                     </span>
                     <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                         {model ? (
-                            <span className="rounded-full border border-solid border-colorBorderSecondary bg-colorBgContainer px-1.5 py-px font-mono text-xs text-colorTextSecondary">
-                                {model}
+                            <span
+                                className="rounded-full border border-solid border-colorBorderSecondary bg-colorBgContainer px-1.5 py-px font-mono text-xs text-colorTextSecondary"
+                                title={model}
+                            >
+                                {modelLabel}
                             </span>
                         ) : null}
                         {capabilities ? (

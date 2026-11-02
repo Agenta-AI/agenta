@@ -1,4 +1,4 @@
-import {memo, useCallback, useMemo, useRef} from "react"
+import {memo, useCallback, useEffect, useMemo, useRef} from "react"
 
 import {
     getMessageTraceId,
@@ -16,13 +16,10 @@ import {
     McpServerNoticeCard,
     TurnFooter,
 } from "@agenta/chat/components"
-import {
-    endsOnClosedText,
-    readableTraceError,
-    splitTurnActivity,
-    type TurnViewModel,
-} from "@agenta/chat/model"
+import {useSessionTurnFooter} from "@agenta/chat/hooks"
+import {readableTraceError, splitTurnActivity, type TurnViewModel} from "@agenta/chat/model"
 import {messageBodyKey} from "@agenta/chat/state"
+import {canViewSpansAtom} from "@agenta/entities/access"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {buildRenderMap} from "@agenta/playground/agent-chat"
@@ -42,10 +39,16 @@ import {cn} from "@/lib/utils"
 import {AnswerReveal} from "./AnswerReveal"
 import {AssistantMarkdown, UserMarkdown} from "./AssistantMarkdown"
 import {isLiveTextItem} from "./markdownStream"
-import {useBillingRoute, useBuyCreditsRoute, useProviderRecovery} from "./providerRecovery"
-import {RunErrorCallout} from "./RunErrorCallout"
+import {useBillingRoute, useCanBuyCredits, useProviderRecovery} from "./providerRecovery"
+import {quotedMessageParts} from "./quotedMessageParts"
+import {describeRunFailure, RunErrorMessage} from "./RunErrorMessage"
+import {RunErrorRecovery} from "./RunErrorRecovery"
 import {runRetryAction} from "./runRetry"
+import {refreshOnSetupFailure} from "./setupFailureRefresh"
+import {turnFiles} from "./turnFileList"
+import {TurnFiles} from "./TurnFiles"
 import {mobileTurnRowClass} from "./turnRowClass"
+import {UserQuoteBlock} from "./UserQuoteBlock"
 import {ARRIVED_ANSWER_ATTR, LAST_TURN_ATTR} from "./useTranscriptAutoScroll"
 
 /** The byte size the transcript replay records on an attachment part, when it has one. */
@@ -66,6 +69,7 @@ const TurnRowInner = ({
     waitingOnUser = false,
     resuming = false,
     runId,
+    runStartedAt,
 }: {
     turn: TurnViewModel
     /** Settles a browser-fulfilled tool (elicitation, connect) back into the run. Optional because
@@ -84,8 +88,12 @@ const TurnRowInner = ({
     resuming?: boolean
     /** Keys the clock and fold to the run, so the placeholder turn's carry to the real one. */
     runId?: string
+    /** When the server saved the user message that started this run: the clock counts from it. */
+    runStartedAt?: number
 }) => {
     const inspectorEnabled = useAtomValue(playgroundInspectorEnabledAtom)
+    // A reader whose role has no trace access gets no trace action and no trace read.
+    const canViewSpans = useAtomValue(canViewSpansAtom)
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const traceId = getMessageTraceId(turn.message)
     // `render.kind` rides as a sibling `data-render` part, so widget dispatch needs the map.
@@ -98,9 +106,14 @@ const TurnRowInner = ({
         turn.message.parts as {state?: string; errorText?: string}[],
     )
     const usage = getMessageUsage(turn.message)
+    // A user turn has no trace of its own: it takes its time from the turn it started.
+    const sessionTurn = useSessionTurnFooter({
+        sessionId,
+        traceId: turn.isUser ? turn.turnTraceId : traceId,
+    })
     const openProviders = useProviderRecovery()
     const openBilling = useBillingRoute()
-    const openBuyCredits = useBuyCreditsRoute(turn.status.errorCode)
+    const canBuyCredits = useCanBuyCredits(turn.status.errorCode)
 
     /**
      * Notices about a server that did not join the run, above the timeline rather than in it.
@@ -135,13 +148,15 @@ const TurnRowInner = ({
     const footer = {
         messageId: turn.message.id,
         traceId,
-        turnTraceId: turn.turnTraceId,
         isStreaming: turn.isStreamingTurn,
         usage,
+        sessionTurnFigures: sessionTurn.figures,
+        sessionTurnStartedAt: sessionTurn.startedAt,
+        sessionTurnsPending: sessionTurn.pending,
         copyText,
         // Rewinding the last turn re-runs the current one; hidden, as on desktop.
         onRewind: onRewind && !turn.isLast ? () => onRewind(turn) : undefined,
-        onViewTrace: (id: string) => openTraceDrawer({traceId: id}),
+        onViewTrace: canViewSpans ? (id: string) => openTraceDrawer({traceId: id}) : undefined,
         // The time is the fold's line ("Worked for 11s"); the meta keeps the rest.
         metrics: ASSISTANT_META,
     }
@@ -159,25 +174,32 @@ const TurnRowInner = ({
     const errorText = turn.status.showError
         ? (turn.status.errorText ?? "Something went wrong.")
         : traceError
-    // A closed text is only the answer once the run is over: until then a call can still follow it,
-    // and the model may take many seconds to start that call. A timed hold promoted such asides to
-    // the answer and pulled them back into the fold when the call landed.
-    const trailingClosed = useMemo(() => endsOnClosedText(turn.items), [turn.items])
+    const runError = errorText
+        ? describeRunFailure({
+              text: errorText,
+              code: turn.status.errorCode ?? undefined,
+              transport: isMessageRunErrorTransport(turn.message),
+              onRetry: runRetryAction(turn, onRewind ? () => onRewind(turn) : undefined),
+              can: {providers: !!openProviders, buyCredits: canBuyCredits, plans: !!openBilling},
+              onSignIn: openProviders,
+          })
+        : null
+    // The latest turn failing for needs-setup refreshes the tags and the banner.
+    const lastErrorCode = turn.isLast && errorText ? turn.status.errorCode : null
+    useEffect(() => refreshOnSetupFailure(lastErrorCode), [lastErrorCode, turn.message.id])
     const streamedHereRef = useRef(false)
     if (turn.isStreamingTurn) streamedHereRef.current = true
-    // `live`, as the fold's header reads it: a send can flip the local stream on and off and then
-    // run on the shared reader, so a closed local stream is not a finished run.
-    const runOpen = live
-    const activity = useMemo(
-        () =>
-            splitTurnActivity(turn.items, {
-                holdClosedText: runOpen && trailingClosed,
-            }),
-        [turn.items, runOpen, trailingClosed],
-    )
+    // The fold holds the work; every message the agent wrote to the reader shows below it, so a
+    // message followed by a call or a card is never mistaken for thinking.
+    const activity = useMemo(() => splitTurnActivity(turn.items), [turn.items])
+    const answered = activity.messages.length > 0
+    const writing = activity.messages.at(-1)?.part.state === "streaming"
+    // Parked on the reader is open too: a message before a question is not the answer yet.
+    const runOpen = live || (turn.isLast && (waitingOnUser || resuming))
     // An answer present at mount is history (reload, session open); a later one arrived live.
     // By message id alone: adoption can shift the answer's index without it being a new answer.
-    const answerKey = activity.answer ? turn.message.id : null
+    // Only once the run is over: an interim message must not pin the scroll while work goes on.
+    const answerKey = answered && !runOpen ? turn.message.id : null
     const mountAnswerKeyRef = useRef(answerKey)
     const rowMarkers = turn.isLast
         ? {
@@ -202,63 +224,85 @@ const TurnRowInner = ({
         [onClientToolOutput, renderMap, degradedEarlierInTurn],
     )
 
+    // A sent message reads in order inside its bubble: each quote, its note, then the message.
+    const userParts = useMemo(
+        () =>
+            turn.isUser
+                ? turn.items.flatMap((item) =>
+                      item.kind === "part" && item.part.type === "text"
+                          ? quotedMessageParts(item.part.text ?? "").map((part, at) => ({
+                                key: `${item.index}:${at}`,
+                                part,
+                            }))
+                          : [],
+                  )
+                : [],
+        [turn.isUser, turn.items],
+    )
+    const writtenFiles = useMemo(() => turnFiles(activity.steps), [activity.steps])
+
     const body = turn.isUser ? (
         <div className="flex min-w-0 max-w-full flex-col gap-2">
-            {turn.items.map((item) => {
-                if (item.kind !== "part" || item.part.type !== "text") return null
-                if (!(item.part.text ?? "").trim()) return null
-                // Markdown, as the desktop bubble renders it: the composer's export is markdown.
-                return <UserMarkdown key={item.index} text={item.part.text ?? ""} />
-            })}
+            {userParts.map(({key, part}) =>
+                part.kind === "quote" ? (
+                    <UserQuoteBlock key={key} quote={part.quote} />
+                ) : (
+                    // Markdown, as the desktop bubble renders it: the composer's export is markdown.
+                    <UserMarkdown key={key} text={part.text} />
+                ),
+            )}
         </div>
     ) : (
         <div className="flex min-w-0 max-w-full flex-col gap-3">
-            {mcpNotices.map((item) => (
-                <McpServerNoticeCard key={`mcp-${item.index}`} notice={item.notice} />
-            ))}
             <ActivityTimeline
                 messageId={turn.message.id}
                 clockId={runId}
                 sessionId={sessionId}
                 steps={activity.steps}
                 streaming={live}
-                answerStarted={activity.answer !== null}
+                answerStarted={answered}
+                writing={writing}
                 waitingOnUser={turn.isLast && waitingOnUser}
                 resuming={turn.isLast && resuming}
-                traceId={traceId}
+                hadGate={turn.hadGate}
+                sessionTurnStartedAt={sessionTurn.startedAt}
+                sessionTurnDurationMs={sessionTurn.figures?.durationMs}
                 streamedHere={streamedHereRef.current}
+                runStartedAt={runStartedAt}
                 renderClientTool={renderClientTool}
+                failure={runError?.failure}
             />
-            {activity.answer ? (
-                <div {...quoteProps}>
-                    <AnswerReveal animate={live}>
-                        <AssistantMarkdown
-                            streaming={isLiveTextItem(turn, activity.answerIndex)}
-                            text={activity.answer.text}
-                        />
-                    </AnswerReveal>
+            {answered ? (
+                <div {...quoteProps} className="flex min-w-0 flex-col gap-3">
+                    {activity.messages.map((message, at) => (
+                        <AnswerReveal
+                            key={message.index}
+                            animate={live}
+                            answer={at === activity.messages.length - 1}
+                        >
+                            <AssistantMarkdown
+                                streaming={isLiveTextItem(turn, message.index)}
+                                text={message.part.text}
+                            />
+                        </AnswerReveal>
+                    ))}
                 </div>
             ) : null}
-            {errorText ? (
-                <RunErrorCallout
-                    text={errorText}
-                    // Failed before any step: nothing to hang a node on, so it is its own card.
-                    variant={activity.steps.length ? "step" : "card"}
-                    code={turn.status.errorCode ?? undefined}
-                    transport={isMessageRunErrorTransport(turn.message)}
-                    onRetry={runRetryAction(turn, onRewind ? () => onRewind(turn) : undefined)}
-                    // Both classes the callout can clear with a credential go to the same page,
-                    // as they do on the desktop.
-                    onAddKey={openProviders}
-                    onSignIn={openProviders}
-                    onOpenBilling={openBilling}
-                    onBuyCredits={openBuyCredits}
-                />
+            {/* After the messages: a server that did not join is what the turn came to. */}
+            {mcpNotices.map((item) => (
+                <McpServerNoticeCard key={`mcp-${item.index}`} notice={item.notice} />
+            ))}
+            {!live ? <TurnFiles files={writtenFiles} /> : null}
+            {runError ? (
+                <>
+                    <RunErrorMessage paragraphs={runError.paragraphs} quote={runError.quote} />
+                    <RunErrorRecovery actions={runError.recoveries} />
+                </>
             ) : answerless && !traceSummary.isPending ? (
                 <span className="text-xs italic text-colorTextSecondary">
                     No response — the agent ended its turn without answering.
                 </span>
-            ) : turn.status.stopped && !activity.answer && !live ? (
+            ) : turn.status.stopped && !answered && !live ? (
                 // Keyed on the answer the row shows, not on `hasAnswer`: a stop interrupts the
                 // running call, the fold hides that failed call, and the turn would read empty.
                 <span className="text-xs italic text-colorTextSecondary">Stopped</span>
@@ -272,7 +316,12 @@ const TurnRowInner = ({
                         inspectorEnabled ? "" : turnToolbarRevealClass
                     }`}
                 >
-                    <TurnFooter {...footer} isUser={false} />
+                    <TurnFooter
+                        {...footer}
+                        isUser={false}
+                        copyText={footer.copyText || runError?.paragraphs.join("\n\n")}
+                        onRetry={runError?.onRetry}
+                    />
                 </div>
             ) : null}
         </div>
@@ -294,21 +343,16 @@ const TurnRowInner = ({
             ),
         [turn.items],
     )
-    const attachments = files.length ? (
+    const header = files.length ? (
         <AttachmentStrip files={files} align={turn.isUser ? "end" : "start"} />
     ) : null
     // Attachments with no words paint no bubble; an assistant turn always paints its fold line.
     const hasBubbleContent =
         !turn.isUser ||
         turn.items.some(
-            (item) =>
-                item.kind !== "files" &&
-                !(
-                    item.kind === "part" &&
-                    item.part.type === "text" &&
-                    !(item.part.text ?? "").trim()
-                ),
+            (item) => item.kind !== "files" && !(item.kind === "part" && item.part.type === "text"),
         ) ||
+        userParts.length > 0 ||
         turn.status.showError
 
     // Desktop parity: a long pasted message clamps behind "Show more" rather than burying its reply.
@@ -356,14 +400,17 @@ const TurnRowInner = ({
                 }
                 classNames={{
                     content: turn.isUser
-                        ? cn(userBubbleContentClass, "rounded-md text-xs")
+                        ? cn(
+                              userBubbleContentClass,
+                              "rounded-xl rounded-br-sm bg-muted text-xs sm:px-3.5 sm:py-2.5",
+                          )
                         : "min-w-0 max-w-full overflow-hidden text-xs",
                     body: "min-w-0 max-w-full overflow-hidden",
                 }}
                 // A refused file-only send has no words to paint, but its failure still has to be
                 // said, or the cards sit there looking like an upload that worked.
                 content={hasBubbleContent ? content : failureNote}
-                header={attachments}
+                header={header}
             />
             {/* A user turn's actions, revealed on hover or keyboard focus — the lane the desktop
                 transcript reserves. An assistant turn carries its meta line in flow instead. The

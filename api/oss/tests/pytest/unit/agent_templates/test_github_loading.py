@@ -52,6 +52,7 @@ from oss.tests.pytest.unit.agent_templates.test_router import (
     _validate,
     _validation_app,
 )
+from oss.tests.pytest.utils.principals import make_envelope
 
 
 RESOURCES = (
@@ -194,7 +195,10 @@ async def test_load_records_repository_commit_path_version_and_digest(github):
     loader, _, workflows, _, _ = _github_loader(github)
 
     result = await loader.load(
-        project_id=PROJECT_ID, user_id=USER_ID, command=_command()
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        command=_command(),
+        envelope=make_envelope(),
     )
 
     [workflow] = workflows.records.values()
@@ -225,6 +229,7 @@ async def test_contribution_from_a_fork_head_loads_without_touching_the_catalog(
         command=_command(
             repo_url="https://github.com/contributor/agenta", commit=OTHER_COMMIT
         ),
+        envelope=make_envelope(),
     )
 
     [workflow] = workflows.records.values()
@@ -244,6 +249,7 @@ async def test_missing_or_private_source_creates_nothing(github):
             project_id=PROJECT_ID,
             user_id=USER_ID,
             command=_command(repo_url="https://github.com/agenta-ai/private"),
+            envelope=make_envelope(),
         )
 
     assert workflows.records == {}
@@ -255,13 +261,19 @@ async def test_missing_or_private_source_creates_nothing(github):
 async def test_completed_replay_does_not_contact_github(github):
     loader, skills, workflows, mounts, starts = _github_loader(github)
     first = await loader.load(
-        project_id=PROJECT_ID, user_id=USER_ID, command=_command()
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        command=_command(),
+        envelope=make_envelope(),
     )
     requests = len(github.requests)
 
     github.raise_error = httpx.ConnectError("GitHub is down")
     replay = await loader.load(
-        project_id=PROJECT_ID, user_id=USER_ID, command=_command()
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        command=_command(),
+        envelope=make_envelope(),
     )
 
     assert replay.replayed is True
@@ -275,7 +287,12 @@ async def test_completed_replay_does_not_contact_github(github):
 
 async def test_completed_request_with_another_commit_or_path_conflicts(github):
     loader, _, workflows, _, starts = _github_loader(github)
-    await loader.load(project_id=PROJECT_ID, user_id=USER_ID, command=_command())
+    await loader.load(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        command=_command(),
+        envelope=make_envelope(),
+    )
     github.raise_error = httpx.ConnectError("GitHub is down")
 
     for changed in (
@@ -285,7 +302,12 @@ async def test_completed_request_with_another_commit_or_path_conflicts(github):
         _command(initial_message="Something else."),
     ):
         with pytest.raises(TemplateCreateConflict):
-            await loader.load(project_id=PROJECT_ID, user_id=USER_ID, command=changed)
+            await loader.load(
+                project_id=PROJECT_ID,
+                user_id=USER_ID,
+                command=changed,
+                envelope=make_envelope(),
+            )
 
     assert len(workflows.records) == 1
     assert len(starts.calls) == 1
@@ -294,13 +316,23 @@ async def test_completed_request_with_another_commit_or_path_conflicts(github):
 async def test_interrupted_load_recovers_from_the_same_commit_and_stored_pin(github):
     loader, skills, workflows, _, starts = _github_loader(github, start_fail_once=True)
     with pytest.raises(RuntimeError, match="session failure"):
-        await loader.load(project_id=PROJECT_ID, user_id=USER_ID, command=_command())
+        await loader.load(
+            project_id=PROJECT_ID,
+            user_id=USER_ID,
+            command=_command(),
+            envelope=make_envelope(),
+        )
     first_attempt = len(github.requests)
 
     # Content served for the commit no longer matches the stored digest: refuse it.
     github.raw_overrides[f"{PACKAGE_PATH}/plugin.json"] = b"{}"
     with pytest.raises(Exception) as changed:
-        await loader.load(project_id=PROJECT_ID, user_id=USER_ID, command=_command())
+        await loader.load(
+            project_id=PROJECT_ID,
+            user_id=USER_ID,
+            command=_command(),
+            envelope=make_envelope(),
+        )
     assert getattr(changed.value, "code", None) in {
         "template_source_github_content_mismatch",
         "template_source_digest_mismatch",
@@ -308,7 +340,10 @@ async def test_interrupted_load_recovers_from_the_same_commit_and_stored_pin(git
 
     github.raw_overrides.clear()
     result = await loader.load(
-        project_id=PROJECT_ID, user_id=USER_ID, command=_command()
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        command=_command(),
+        envelope=make_envelope(),
     )
 
     assert result.replayed is True

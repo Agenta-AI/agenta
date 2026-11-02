@@ -10,6 +10,7 @@ import uuid_utils.compat as uuid
 from oss.src.core.gateways.policy.dtos import GatewayOutcome, GatewayTarget
 from oss.src.core.gateways.policy.interfaces import UsageSinkInterface
 from oss.src.utils.context import AuthScope
+from oss.src.utils.env import env
 
 from ee.src.core.measurements.components import (
     CACHE_READ_TOKENS,
@@ -18,7 +19,6 @@ from ee.src.core.measurements.components import (
     OUTPUT_TOKENS,
     REQUEST_COUNT,
 )
-from ee.src.core.wallets.admission import measured
 from ee.src.core.wallets.contracts import (
     GatewayKind,
     MeasurementCommandV1,
@@ -44,7 +44,7 @@ class MeasurementUsageSink(UsageSinkInterface):
         run_id: Optional[str],
         run_labels: Optional[Dict[str, str]] = None,
     ) -> None:
-        if not await measured(scope.organization_id, wait=False):
+        if not env.wallets.enabled:
             return
         await self.publisher.publish(
             measurement_from_call(

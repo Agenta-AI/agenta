@@ -39,6 +39,38 @@ describe("session admission", () => {
     used = 81;
     expect(() => ledger.admit("b")).toThrow(RUNNER_AT_CAPACITY_MESSAGE);
   });
+
+  it("admits a session when evicting parked conversations brings the heap under the share", () => {
+    let used = 90;
+    let pressureCalls = 0;
+    const ledger = new SessionLedger({
+      maxSessions: 100,
+      heapPressureRatio: 0.85,
+      heap: () => ({ used, limit: 100 }),
+      onHeapPressure: () => {
+        pressureCalls += 1;
+        used = 40;
+      },
+    });
+    expect(() => ledger.admit("a")).not.toThrow();
+    expect(pressureCalls).toBe(1);
+    expect(() => ledger.admit("b")).not.toThrow();
+    expect(pressureCalls).toBe(1);
+  });
+
+  it("still refuses when nothing could be evicted and the heap stays above the share", () => {
+    let pressureCalls = 0;
+    const ledger = new SessionLedger({
+      maxSessions: 100,
+      heapPressureRatio: 0.85,
+      heap: () => ({ used: 99, limit: 100 }),
+      onHeapPressure: () => void (pressureCalls += 1),
+    });
+    expect(() => ledger.admit("a")).toThrow(RUNNER_AT_CAPACITY_MESSAGE);
+    expect(() => ledger.admit("a")).toThrow(RUNNER_AT_CAPACITY_MESSAGE);
+    expect(pressureCalls).toBe(2);
+    expect(ledger.snapshot().sessions).toBe(0);
+  });
 });
 
 describe("memory accounting", () => {

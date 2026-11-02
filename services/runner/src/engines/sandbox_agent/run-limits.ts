@@ -43,7 +43,10 @@ export const PI_COMMAND_TIMEOUT_ENV = "AGENTA_AGENT_COMMAND_TIMEOUT_SECONDS";
 export const DEFAULT_TOTAL_DEADLINE_MS = 11 * 60 * 60_000; // 11 hours
 // 30 minutes; override with AGENTA_RUNNER_RUN_IDLE_TIMEOUT_MS.
 export const DEFAULT_IDLE_TIMEOUT_MS = 30 * 60_000;
-export const DEFAULT_TTFB_TIMEOUT_MS = 2 * 60_000; // 2 min
+// 8 minutes. Above the slowest first answer the LLM gateway waits for: `builtin/agenta` gives a
+// model 300 s (and Pi gives any request 300 s), after up to two gateway retries that wait at most
+// 60 s each, with a minute left for the harness to start. A Pi retry counts as progress.
+export const DEFAULT_TTFB_TIMEOUT_MS = 8 * 60_000;
 // 30 minutes; override with AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS.
 export const DEFAULT_TOOL_CALL_TIMEOUT_MS = 30 * 60_000;
 /**

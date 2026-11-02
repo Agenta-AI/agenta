@@ -46,8 +46,7 @@ const pickPreferredProjectForWorkspace = (
     const workspaceDefault = workspaceProjects.find((project) => project.is_default_project)
     if (workspaceDefault) return workspaceDefault
 
-    const nonDemo = workspaceProjects.find((project) => !project.is_demo)
-    return nonDemo ?? workspaceProjects[0]
+    return workspaceProjects[0]
 }
 
 export const useOrgData = () => {

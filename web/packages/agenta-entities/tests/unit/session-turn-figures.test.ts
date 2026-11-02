@@ -1,0 +1,101 @@
+import {describe, expect, it} from "vitest"
+
+import {
+    normalizeTraceId,
+    turnFigures,
+    turnsByTraceId,
+    turnsMayChange,
+} from "../../src/session/core/turnFigures"
+
+describe("turnFigures", () => {
+    it("maps usage to display fields and latency from start and end", () => {
+        expect(
+            turnFigures({
+                trace_id: "a",
+                start_time: "2026-10-28T10:00:00Z",
+                end_time: "2026-10-28T10:00:02.5Z",
+                usage: {input_tokens: 7, output_tokens: 3, total_tokens: 10, cost: 0.02},
+            }),
+        ).toEqual({
+            promptTokens: 7,
+            completionTokens: 3,
+            totalTokens: 10,
+            totalCost: 0.02,
+            durationMs: 2500,
+        })
+    })
+
+    it("keeps unknown figures unknown, never zero", () => {
+        const figures = turnFigures({
+            start_time: "2026-10-28T10:00:00Z",
+            end_time: null,
+            usage: {total_tokens: 10, cost: null, source: "runner"},
+        })
+        expect(figures).toEqual({totalTokens: 10})
+        expect(figures?.totalCost).toBeUndefined()
+        expect(figures?.durationMs).toBeUndefined()
+    })
+
+    it("keeps the latency of a turn with no usage, tokens and cost unavailable", () => {
+        expect(
+            turnFigures({
+                start_time: "2026-10-28T10:00:00Z",
+                end_time: "2026-10-28T10:00:01Z",
+                usage: null,
+            }),
+        ).toEqual({durationMs: 1000})
+    })
+
+    it("returns undefined when the row knows no figure", () => {
+        expect(turnFigures({trace_id: "a", usage: null})).toBeUndefined()
+    })
+})
+
+describe("turnsByTraceId", () => {
+    it("matches a UUID trace id to the hex form a message carries", () => {
+        const turn = {trace_id: "0A1B2C3D-0000-4000-8000-00000000000F"}
+        const map = turnsByTraceId([turn, {trace_id: null}])
+        expect(map.size).toBe(1)
+        expect(map.get(normalizeTraceId("0a1b2c3d00004000800000000000000f"))).toBe(turn)
+    })
+
+    it("leaves out a trace id that several turns share", () => {
+        const own = {trace_id: "b", usage: {total_tokens: 3, source: "runner" as const}}
+        const map = turnsByTraceId([
+            {trace_id: "a", usage: {total_tokens: 1, source: "runner" as const}},
+            own,
+            {trace_id: "a", usage: {total_tokens: 2, source: "runner" as const}},
+        ])
+        expect(map.has("a")).toBe(false)
+        expect(map.get("b")).toBe(own)
+    })
+})
+
+describe("turnsMayChange", () => {
+    const now = Date.parse("2026-10-28T10:05:00Z")
+
+    it("is false while a turn runs: the turn's end refetches the turns", () => {
+        expect(turnsMayChange([{start_time: "2026-10-28T10:04:00Z", end_time: null}], now)).toBe(
+            false,
+        )
+        expect(turnsMayChange([{end_time: null}], now)).toBe(false)
+    })
+
+    it("is true for a turn that ended under 2 minutes ago, whatever its source", () => {
+        for (const usage of [
+            {total_tokens: 3, source: "runner"},
+            // A later ingest batch of the same trace can still change trace figures.
+            {cost: 0.01, source: "trace"},
+            null,
+        ]) {
+            expect(turnsMayChange([{end_time: "2026-10-28T10:04:30Z", usage}], now)).toBe(true)
+        }
+    })
+
+    it("is false once the turn ended 2 minutes ago or more", () => {
+        expect(turnsMayChange([{end_time: "2026-10-28T10:02:00Z", usage: {cost: 0.01}}], now)).toBe(
+            false,
+        )
+        expect(turnsMayChange([{end_time: "2026-10-28T09:00:00Z"}], now)).toBe(false)
+    })
+})

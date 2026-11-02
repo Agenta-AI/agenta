@@ -32,6 +32,8 @@ structlog.stdlib.BoundLogger.trace = bound_logger_trace
 # ENV VARS
 AGENTA_LOG_CONSOLE_ENABLED = env.agenta.logging.console_enabled
 AGENTA_LOG_CONSOLE_LEVEL = env.agenta.logging.console_level
+AGENTA_LOG_FORMAT = env.agenta.logging.format
+GOOGLE_CLOUD_PROJECT = env.agenta.logging.google_cloud_project
 
 # COLORS
 LEVEL_COLORS = {
@@ -92,6 +94,14 @@ def add_logger_info(
     return event_dict
 
 
+def _safe_str(value) -> str:
+    # a field whose __str__ raises must not break the log call
+    try:
+        return str(value)
+    except Exception:
+        return f"<unprintable {type(value).__name__}>"
+
+
 def colored_console_renderer() -> Processor:
     hidden = {
         "SeverityText",
@@ -111,7 +121,7 @@ def colored_console_renderer() -> Processor:
         padded = f"[{level:<5}]"
         logger = f"\033[38;5;245m[{event_dict.pop('logger', '')}]\033[0m"
         extras = " ".join(
-            f"\033[38;5;245m{k}={v}\033[0m"
+            f"\033[38;5;245m{k}={_safe_str(v)}\033[0m"
             for k, v in event_dict.items()
             if k not in hidden
         )
@@ -140,6 +150,26 @@ _root.propagate = False
 # CONFIGURE HANDLERS AND STRUCTLOG LOGGERS
 loggers = []
 
+
+# The JSON helpers live in the SDK. Importing it loads the whole agenta package
+# (litellm included), so only the json format pays for that import.
+def _console_renderer() -> Processor:
+    if AGENTA_LOG_FORMAT == "json":
+        from agenta.sdk.utils.logging import json_renderer
+
+        return json_renderer(GOOGLE_CLOUD_PROJECT)
+    return colored_console_renderer()
+
+
+def _plain_formatter() -> logging.Formatter:
+    # records that bypass structlog (uvicorn, gunicorn, stdlib SDK loggers)
+    if AGENTA_LOG_FORMAT == "json":
+        from agenta.sdk.utils.logging import JsonFormatter
+
+        return JsonFormatter(GOOGLE_CLOUD_PROJECT)
+    return logging.Formatter("%(message)s")
+
+
 if AGENTA_LOG_CONSOLE_ENABLED and not _LOGGING_CONFIGURED:
     _LOGGING_CONFIGURED = True
 
@@ -158,7 +188,7 @@ if AGENTA_LOG_CONSOLE_ENABLED and not _LOGGING_CONFIGURED:
     loggers.append(
         structlog.wrap_logger(
             console_logger,
-            processors=SHARED_PROCESSORS + [colored_console_renderer()],
+            processors=SHARED_PROCESSORS + [_console_renderer()],
             wrapper_class=structlog.stdlib.BoundLogger,
             logger_factory=structlog.stdlib.LoggerFactory(),
             cache_logger_on_first_use=False,  # Don't cache to avoid stale state
@@ -169,18 +199,30 @@ if AGENTA_LOG_CONSOLE_ENABLED and not _LOGGING_CONFIGURED:
     for name in ("uvicorn.access", "uvicorn.error", "gunicorn.error"):
         uh = logging.StreamHandler(sys.stdout)
         uh.setLevel(getattr(logging, AGENTA_LOG_CONSOLE_LEVEL, TRACE_LEVEL))
-        uh.setFormatter(logging.Formatter("%(message)s"))
+        uh.setFormatter(_plain_formatter())
         server_logger = logging.getLogger(name)
         server_logger.handlers.clear()
         server_logger.setLevel(logging.INFO)
         server_logger.addHandler(uh)
         server_logger.propagate = False
 
+    if AGENTA_LOG_FORMAT == "json":
+        from agenta.sdk.utils.logging import capture_warnings_as_json
+
+        capture_warnings_as_json(GOOGLE_CLOUD_PROJECT)
+
+    # structlog lines are already rendered; plain stdlib SDK records still need a format
+    sdk_handler = console_handler
+    if AGENTA_LOG_FORMAT == "json":
+        sdk_handler = logging.StreamHandler(sys.stdout)
+        sdk_handler.setLevel(console_handler.level)
+        sdk_handler.setFormatter(_plain_formatter())
+
     # Intercept agenta SDK loggers to prevent duplicate output
     for sdk_name in ("agenta", "agenta.sdk"):
         sdk_logger = logging.getLogger(sdk_name)
         sdk_logger.handlers.clear()
-        sdk_logger.addHandler(console_handler)  # Use our handler
+        sdk_logger.addHandler(sdk_handler)  # Use our handler
         sdk_logger.setLevel(logging.INFO)
         sdk_logger.propagate = False
 

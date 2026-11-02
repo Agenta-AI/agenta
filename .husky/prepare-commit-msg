@@ -1,0 +1,3 @@
+#!/bin/sh
+# Entire CLI hooks
+if command -v entire >/dev/null 2>&1; then entire hooks git prepare-commit-msg "$1" "$2" 2>/dev/null || true; else :; fi

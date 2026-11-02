@@ -32,7 +32,10 @@ import {
 
 import { createAgentaOtel } from "../tracing/otel.ts";
 import { Redactor, curatedEnvSecretValues } from "../redaction.ts";
-import { createPiFileSpanExporter } from "../tracing/pi-file-exporter.ts";
+import {
+  createPiFileSpanExporter,
+  type PiFileSpanExporter,
+} from "../tracing/pi-file-exporter.ts";
 import {
   PI_TRACE_CONTROL_ENV,
   PI_TRACE_MAX_CONTROL_BYTES,
@@ -66,7 +69,6 @@ import {
   PI_GATEWAY_MCP_SERVERS_ENV,
   registerPiGatewayMcpTools,
 } from "./pi-mcp.ts";
-import { registerGeminiThoughtSignatures } from "./gemini-thought-signatures.ts";
 
 /** Read and delete one runner-authored turn control. Invalid bytes never poison a warm turn. */
 export function readPiTurnTraceControl(
@@ -512,8 +514,6 @@ function registerAgentaExtension(
     });
   }
 
-  registerGeminiThoughtSignatures(pi);
-
   if (hasTools) registerTools(pi, env);
   if (gatewayMcpServers) {
     pi.on("before_agent_start", async () => {
@@ -557,10 +557,12 @@ function registerAgentaExtension(
   if (!hasTracing && !usageOut) return;
 
   const otel = createAgentaOtel({ enabled: false, captureContent: true });
+  let spool: PiFileSpanExporter | undefined;
   pi.on("before_agent_start", async () => {
     // Clear every turn-owned value first. A missing or malformed control must never reuse the
     // prior warm turn's traceparent, policy, redactor, channel, or usage.
     otel.beginTurn({ enabled: false, captureContent: true });
+    spool = undefined;
     if (usageOut) {
       try {
         unlinkSync(usageOut);
@@ -574,6 +576,11 @@ function registerAgentaExtension(
       ...curatedEnvSecretValues(),
       ...control.redaction.knownValues,
     ]);
+    spool = createPiFileSpanExporter({
+      directory: dirname(traceControlPath),
+      channelId: control.channelId,
+      log,
+    });
     otel.beginTurn({
       enabled: true,
       traceparent: control.propagation?.traceparent,
@@ -585,11 +592,7 @@ function registerAgentaExtension(
       skillsDropped: control.skillsDropped,
       customConnection: control.customConnection,
       redactor,
-      serializedBatchTransport: createPiFileSpanExporter({
-        directory: dirname(traceControlPath),
-        channelId: control.channelId,
-        log,
-      }),
+      serializedBatchTransport: spool,
     });
   });
   otel.register(pi); // lifecycle handlers (spans + usage accumulation)
@@ -604,7 +607,11 @@ function registerAgentaExtension(
         log(`usage writeback skipped: ${(err as Error).message}`);
       }
     }
-    if (otel.config.enabled) await otel.flush();
+    if (otel.config.enabled) {
+      await otel.flush();
+      // Every batch of this turn is now on disk. The marker lets the runner stop polling.
+      spool?.publishDone();
+    }
   });
 }
 

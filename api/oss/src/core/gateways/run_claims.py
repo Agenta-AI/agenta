@@ -60,3 +60,26 @@ def gateway_tools(request: Optional[Request]) -> Optional[List[Any]]:
         return None
     value = getattr(request.state, "gateway_tools", None)
     return value if isinstance(value, list) else None
+
+
+def gateway_platform_run(request: Optional[Request]) -> bool:
+    """Whether the presenting credential was issued to the platform's own agent runtime.
+
+    Only exactly `True` counts: a missing, false or non-boolean claim, and every principal
+    that is not a gateway token, answer False.
+    """
+    if request is None:
+        return False
+    return getattr(request.state, "gateway_platform_run", None) is True
+
+
+def run_accounts(request: Optional[Request]) -> List[Dict[str, Any]]:
+    """The presenting credential's `run_accounts` claim, in token form, for a route that
+    re-mints the credential: the new credential carries the run's accounts unchanged,
+    never more. Empty for every caller that is not a run."""
+    if request is None:
+        return []
+    return [
+        account.model_dump(mode="json", exclude_none=True)
+        for account in getattr(request.state, "run_accounts", None) or ()
+    ]

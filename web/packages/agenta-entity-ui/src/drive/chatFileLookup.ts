@@ -48,21 +48,37 @@ export const recordIndexAtomFamily = atomFamily((sessionId: string) =>
     }),
 )
 
+const inAgentFiles = (rel: string) =>
+    rel === AGENT_FILES_DIR || rel.startsWith(`${AGENT_FILES_DIR}/`)
+
+/** A mention's mount and mount-relative path, given the session's cwd and agent mounts. */
+export function resolveMentionMount<M>(
+    path: string,
+    cwdMount: M | null | undefined,
+    agentMount: M | null | undefined,
+): {mount: M; path: string} | null {
+    // The path as written first. The markdown sanitizer hands `agent-files/x` back as
+    // `/agent-files/x`, which names the agent's drive, never a sandbox path (#7715).
+    const written = cleanPath(path)
+    if (agentMount && inAgentFiles(written))
+        return {mount: agentMount, path: written.slice(AGENT_FILES_DIR.length + 1)}
+    // Then a full sandbox path, with its mount root stripped.
+    const tool = path.startsWith("/") ? drivePathFromToolPath(path) : null
+    if (tool?.origin === "agent") return agentMount ? {mount: agentMount, path: tool.path} : null
+    const rel = cleanPath(tool?.path ?? path)
+    if (agentMount && inAgentFiles(rel))
+        return {mount: agentMount, path: rel.slice(AGENT_FILES_DIR.length + 1)}
+    return cwdMount ? {mount: cwdMount, path: rel} : null
+}
+
 /** A mention's mount and mount-relative path, from the mount lists only (no file listing). */
 export function useMountResolver(sessionId: string, artifactId?: string | null) {
     const cwdMounts = useAtomValue(sessionMountsQueryFamily(sessionId)).data ?? []
     const cwdMount = pickCwdMount(cwdMounts)
     const agentMount = useAtomValue(agentMountQueryFamily(artifactId ?? "")).data ?? null
     return useCallback(
-        (path: string): {mount: Mount; path: string} | null => {
-            const tool = path.startsWith("/") ? drivePathFromToolPath(path) : null
-            if (tool?.origin === "agent")
-                return agentMount ? {mount: agentMount, path: tool.path} : null
-            const rel = cleanPath(tool?.path ?? path)
-            if (agentMount && (rel === AGENT_FILES_DIR || rel.startsWith(`${AGENT_FILES_DIR}/`)))
-                return {mount: agentMount, path: rel.slice(AGENT_FILES_DIR.length + 1)}
-            return cwdMount ? {mount: cwdMount, path: rel} : null
-        },
+        (path: string): {mount: Mount; path: string} | null =>
+            resolveMentionMount(path, cwdMount, agentMount),
         [cwdMount, agentMount],
     )
 }

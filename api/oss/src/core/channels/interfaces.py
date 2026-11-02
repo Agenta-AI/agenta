@@ -1,6 +1,6 @@
 from datetime import datetime
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 from uuid import UUID
 
 from oss.src.core.channels.dtos import (
@@ -8,6 +8,7 @@ from oss.src.core.channels.dtos import (
     ChannelAgentCreate,
     ChannelAgentEdit,
     ChannelAgentQuery,
+    ChannelBindingRestore,
     ChannelConnection,
     ChannelConnectionCreate,
     ChannelConnectionEdit,
@@ -98,10 +99,16 @@ class ChannelsDAOInterface(ABC):
         user_id: UUID,
         #
         connection_id: UUID,
+        #
+        guard_bindings: Dict[UUID, ChannelBindingRestore],
+        guard_user_id: Optional[UUID],
     ) -> Optional[ChannelConnection]:
-        """Clear `deleted_at`/`deleted_by_id` on this row. Does not restore
-        the agents archived alongside it -- that is a separate, explicit
-        choice, the same way re-enabling one is."""
+        """Clear `deleted_at`/`deleted_by_id` on this row and restore the bindings
+        archived with it, in one transaction: the connection row is locked, then each
+        agent of `guard_bindings` in id order (as in `create_agent`), then the bindings.
+        A restored active binding comes back off when its agent is private and not
+        `guard_user_id`'s, or when it is not in `guard_bindings` with the same
+        references (it changed after the read)."""
         ...
 
     @abstractmethod
@@ -134,7 +141,18 @@ class ChannelsDAOInterface(ABC):
         user_id: UUID,
         #
         agent: ChannelAgentCreate,
-    ) -> ChannelAgent: ...
+        #
+        guard_artifact_id: Optional[UUID] = None,
+        guard_user_id: Optional[UUID] = None,
+        # rollout only: also set the installation's allowed_senders, in the
+        # same transaction (the field the previous release reads)
+        installation_senders: Optional[List[str]] = None,
+    ) -> ChannelAgent:
+        """With `guard_artifact_id`, the write transaction first locks that agent's
+        artifact, reads its policy uncached and raises `SharedItemNotFound` for a
+        private agent whose owner is not `guard_user_id` (the human whose request writes;
+        None for any other principal), before it writes the binding (the lock order of
+        `set_agent_policy`)."""
 
     @abstractmethod
     async def fetch_agent(
@@ -179,7 +197,27 @@ class ChannelsDAOInterface(ABC):
         user_id: UUID,
         #
         agent: ChannelAgentEdit,
-    ) -> Optional[ChannelAgent]: ...
+        #
+        guard_artifact_id: Optional[UUID] = None,
+        guard_user_id: Optional[UUID] = None,
+        guard_artifact_ids: Sequence[UUID] = (),
+        # rollout only: also set the installation's allowed_senders, in the
+        # same transaction (the field the previous release reads)
+        installation_senders: Optional[List[str]] = None,
+    ) -> Optional[ChannelAgent]:
+        """`guard_artifact_id` and `guard_user_id` as in `create_agent`."""
+
+    @abstractmethod
+    async def clear_agent_default(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        agent_id: UUID,
+    ) -> None:
+        """Set only `flags.is_default` to false, in one statement: the binding keeps
+        its references and every other flag as they are stored now."""
 
     @abstractmethod
     async def delete_agent(
@@ -346,7 +384,12 @@ class ChannelsDAOInterface(ABC):
         user_id: UUID,
         #
         grant: ChannelGrantCreate,
-    ) -> ChannelGrant: ...
+        #
+        guard_artifact_ids: Sequence[UUID] = (),
+        guard_user_id: Optional[UUID] = None,
+    ) -> ChannelGrant:
+        """`guard_artifact_ids`: refuse, inside the write, a private agent whose
+        owner is not `guard_user_id` (SharedItemNotFound)."""
 
     @abstractmethod
     async def fetch_grant(
@@ -394,6 +437,9 @@ class ChannelsDAOInterface(ABC):
         user_id: UUID,
         #
         grant: ChannelGrantEdit,
+        #
+        guard_artifact_ids: Sequence[UUID] = (),
+        guard_user_id: Optional[UUID] = None,
     ) -> Optional[ChannelGrant]: ...
 
     @abstractmethod
@@ -403,6 +449,9 @@ class ChannelsDAOInterface(ABC):
         project_id: UUID,
         #
         grant_id: UUID,
+        #
+        guard_artifact_ids: Sequence[UUID] = (),
+        guard_user_id: Optional[UUID] = None,
     ) -> bool: ...
 
     @abstractmethod
@@ -415,6 +464,18 @@ class ChannelsDAOInterface(ABC):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[ChannelGrant]: ...
+
+    async def query_recent_senders(
+        self,
+        *,
+        project_id: UUID,
+        connection_id: UUID,
+        limit: int,
+    ) -> List[Dict[str, Any]]:
+        """The senders of this connection's newest stored messages, newest
+        first, one entry per message (`{id, name, username}` as the adapter
+        parsed them). For the settings screen's people picker only."""
+        raise NotImplementedError
 
     @abstractmethod
     async def count_grants(
@@ -736,6 +797,18 @@ class ChannelsDAOInterface(ABC):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[ChannelInboxTrigger]: ...
+
+    @abstractmethod
+    async def count_unstarted_triggers(
+        self,
+        *,
+        project_id: UUID,
+        #
+        thread_ids: List[UUID],
+    ) -> int:
+        """The REFUSED triggers of these threads and the FAILED ones that never
+        started (`never_sent`, `start_rejected`)."""
+        ...
 
     # --- outbox ------------------------------------------------------------- #
 

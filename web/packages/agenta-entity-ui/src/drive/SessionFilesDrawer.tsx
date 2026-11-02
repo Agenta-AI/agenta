@@ -49,16 +49,13 @@ export const matchesTail = (filePath: string, requested: string): boolean =>
  * Shared with SessionFilesPane, the docked variant of this host — the two must resolve alike.
  */
 export const resolveQuickLookPath = (recents: {path: string}[], requested: string): string => {
-    const resolved = drivePathFromToolPath(requested)
     if (requested.startsWith("/")) {
-        if (!resolved) {
-            // A presented path written absolute (`/agent-files/x`) is the drive's own, not `/etc/x`.
-            const presented = cleanPath(requested)
-            const known =
-                presented.startsWith(`${AGENT_FILES_DIR}/`) ||
-                recents.some((f) => f.path === presented)
-            return known ? presented : requested
-        }
+        // A presented path written absolute (`/agent-files/x`) is the drive's own, not `/etc/x`, so
+        // it is checked before any sandbox root is looked for in it (#7715).
+        const presented = cleanPath(requested)
+        if (presented.startsWith(`${AGENT_FILES_DIR}/`)) return presented
+        const resolved = drivePathFromToolPath(requested)
+        if (!resolved) return recents.some((f) => f.path === presented) ? presented : requested
         // The agent mount is presented folded under `agent-files/`, except on a drive that IS the
         // agent mount, which presents it at the root. Try both spellings, then fall back to the
         // folded one — `resolveMount` unfolds it again, so it resolves either way.
@@ -70,7 +67,11 @@ export const resolveQuickLookPath = (recents: {path: string}[], requested: strin
             folded
         )
     }
-    return recents.find((f) => matchesTail(f.path, requested))?.path ?? resolved?.path ?? requested
+    return (
+        recents.find((f) => matchesTail(f.path, requested))?.path ??
+        drivePathFromToolPath(requested)?.path ??
+        requested
+    )
 }
 
 export function SessionFilesDrawer({sessionId}: {sessionId: string}) {

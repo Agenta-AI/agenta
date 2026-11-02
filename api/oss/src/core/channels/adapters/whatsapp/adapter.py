@@ -234,7 +234,11 @@ class WhatsAppAdapter(ChannelAdapterInterface):
         return _phone_number_id(connection)
 
     async def parse_event(
-        self, *, body: bytes, connection: ChannelConnection | None = None
+        self,
+        *,
+        body: bytes,
+        connection: ChannelConnection | None = None,
+        request: ChannelRequestContext | None = None,
     ) -> list[ChannelInboundEvent]:
         """Every customer message this body carries for the connection's own
         number. One webhook can batch several."""

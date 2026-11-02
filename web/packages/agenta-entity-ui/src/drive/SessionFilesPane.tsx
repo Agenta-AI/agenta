@@ -13,9 +13,12 @@ import {useCallback, useEffect, useMemo, useRef} from "react"
 import {type DriveId} from "@agenta/entities/drive"
 import {useSessionDriveSummary} from "@agenta/entities/drive"
 import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
+import {clearQuoteReveal, getQuotes, useQuoteReveal} from "@agenta/ui/quote-selection"
 import {atom, useAtom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai-family"
 import dynamic from "next/dynamic"
+
+import {type DriveLinkItem} from "./driveLink"
 
 import {DriveExplorerSkeleton} from "./index"
 import {useDriveArtifactId} from "./index"
@@ -34,6 +37,9 @@ const DriveExplorer = dynamic(() => import("./DriveExplorer").then((m) => m.Driv
 // per-session (they are selection state) and latch this flag open via the effect below.
 export const sessionFilesPaneOpenAtomFamily = atomFamily((_scope: string) => atom(false))
 
+// This hook mounts more than once per session; each reveal opens the file once.
+const openedReveals = new Map<string, number>()
+
 /** The pane's open/close/toggle — one hook so the splitter host, the session bar toggle, and
  * every opener (config Files section, context rail, inspector) drive the SAME state. */
 /** `scope` is the HOST's to resolve (the desktop passes its chat scope key) — the package must
@@ -49,6 +55,16 @@ export const useSessionFilesPane = (scope: string, sessionId: string) => {
         if (sessionRequested) setScopeOpen(true)
     }, [sessionRequested, setScopeOpen])
     const open = scopeOpen || sessionRequested
+    // A composer chip asked to show its comment: open its file; the comment layer opens the pin.
+    const reveal = useQuoteReveal(sessionId)
+    useEffect(() => {
+        if (!reveal || openedReveals.get(sessionId) === reveal.seq) return
+        openedReveals.set(sessionId, reveal.seq)
+        const quote = getQuotes(sessionId).find((held) => held.id === reveal.id)
+        if (quote?.source.kind === "preview")
+            setQuickLook({path: quote.source.displayPath, exact: true})
+        else clearQuoteReveal(sessionId, reveal.seq)
+    }, [reveal, sessionId, setQuickLook])
     const close = useCallback(() => {
         setScopeOpen(false)
         setQuickLook(null)
@@ -65,9 +81,12 @@ export function SessionFilesPane({
     closeControl = "collapse",
     expanded = false,
     onToggleExpand,
+    onSelectionChange,
 }: {
     scope: string
     sessionId: string
+    /** Every selection, for a host that mirrors it in the URL. */
+    onSelectionChange?: (item: DriveLinkItem) => void
     /** Who closes the pane: row 1's "»" (the desktop), the host's own session-bar toggle
      * (`"none"` — `/m`, where the panel icon shows the open state and flips it), or a leading
      * "»" (`"back"` — a phone, where the pane has the screen and that bar is off it). */
@@ -94,9 +113,9 @@ export function SessionFilesPane({
     const initialPath = useMemo(
         () =>
             quickLook
-                ? quickLook.path
+                ? quickLook.path && !quickLook.exact
                     ? resolveQuickLookPath(drive.recents, quickLook.path)
-                    : ""
+                    : quickLook.path
                 : null,
         [quickLook, drive.recents],
     )
@@ -127,6 +146,8 @@ export function SessionFilesPane({
                 scope="session"
                 initialPath={initialPath}
                 initialPathSeq={initialPathSeq}
+                folderHint={quickLook?.folder ? initialPath : null}
+                onSelectionChange={onSelectionChange}
                 chrome
                 onClose={closeControl === "none" && !expanded ? undefined : close}
                 expanded={expanded}

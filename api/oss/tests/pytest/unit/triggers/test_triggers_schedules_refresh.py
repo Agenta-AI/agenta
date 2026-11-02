@@ -15,6 +15,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from oss.tests.pytest.utils.principals import any_principal
+
 from oss.src.core.triggers.dtos import (
     TriggerSchedule,
     TriggerScheduleData,
@@ -32,6 +34,7 @@ def _make_schedule(*, expr="* * * * *", is_active=True, start_time=None, end_tim
     return TriggerSchedule(
         id=uuid4(),
         created_by_id=uuid4(),
+        principal=any_principal(),
         flags=TriggerScheduleFlags(is_active=is_active),
         data=TriggerScheduleData(
             event_key="report.daily",

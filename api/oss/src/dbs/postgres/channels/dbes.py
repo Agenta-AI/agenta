@@ -147,6 +147,13 @@ class ChannelThreadDBE(Base, ChannelThreadDBA):
             "agent_id",
             "created_at",
         ),
+        # whether a thread names a session id (the session row insert and the
+        # session's sharing read ask it)
+        Index(
+            "ix_channel_threads_project_id_session_id",
+            "project_id",
+            "session_id",
+        ),
     )
 
 

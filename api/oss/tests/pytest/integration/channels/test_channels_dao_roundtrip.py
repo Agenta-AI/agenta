@@ -19,6 +19,7 @@ from oss.src.core.channels.dtos import (
     ChannelSpaceKind,
     ChannelThreadCreate,
     ChannelThreadData,
+    ChannelThreadFlags,
 )
 from oss.src.dbs.postgres.channels.dao import ChannelsDAO
 
@@ -283,6 +284,8 @@ async def test_fetch_current_thread_returns_the_latest_row_not_a_unique_lookup(
             external_key=external_key,
             session_id="session-old",
             data=ChannelThreadData(),
+            # Closed, as `!new` leaves it. An active row is reused, not replaced.
+            flags=ChannelThreadFlags(is_active=False),
         ),
     )
     newest = await dao.create_thread(

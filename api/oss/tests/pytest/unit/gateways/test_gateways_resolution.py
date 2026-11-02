@@ -12,6 +12,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from oss.src.core.gateways.policy.dtos import (
+    GatewayPlane,
     BoundSecretRef,
     SecretMode,
     SecretOwnerKind,
@@ -122,7 +123,8 @@ def _custom_provider_secret(
 
 def _resolver(*, secrets=None) -> Tuple[SecretsResolver, MockVaultService]:
     vault = MockVaultService(secrets)
-    return SecretsResolver(vault_service=vault), vault
+    # The project-only plane: today's resolution, unchanged by M5.
+    return SecretsResolver(vault_service=vault, plane=GatewayPlane.MCP), vault
 
 
 # --- BoundSecretRef -------------------------------------------------------------- #

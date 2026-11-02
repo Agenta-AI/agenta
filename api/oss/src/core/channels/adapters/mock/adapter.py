@@ -85,7 +85,11 @@ class MockAdapter(ChannelAdapterInterface):
         return self._installation_id
 
     async def parse_event(
-        self, *, body: bytes, connection: Optional[ChannelConnection] = None
+        self,
+        *,
+        body: bytes,
+        connection: Optional[ChannelConnection] = None,
+        request: Optional[ChannelRequestContext] = None,
     ) -> Optional[ChannelInboundEvent]:
         return self._script.pop()
 

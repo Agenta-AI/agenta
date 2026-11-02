@@ -82,6 +82,14 @@ function withEnv(overrides: Record<string, string | undefined>, fn: () => void):
   }
 }
 
+describe("the first-response limit", () => {
+  it("outlasts the slowest first answer the LLM gateway waits for", () => {
+    // `builtin/agenta` waits 300 s for a model, and the gateway may add two Retry-After waits
+    // of up to 60 s each before that answer.
+    assert.ok(DEFAULT_TTFB_TIMEOUT_MS > 300_000 + 2 * 60_000);
+  });
+});
+
 describe("resolveRunLimits", () => {
   it("defaults every limit wide with idle strictly under total", () => {
     withEnv(

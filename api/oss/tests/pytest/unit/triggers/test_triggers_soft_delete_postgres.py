@@ -1,10 +1,10 @@
 import uuid
 
 import pytest
-import pytest_asyncio
+
+from oss.tests.pytest.utils.principals import any_principal
 from sqlalchemy import text
 
-import oss.src.dbs.postgres.shared.engine as engine_module
 import oss.src.models.db_models  # noqa: F401
 from oss.src.core.sessions.dtos import (
     SessionTriggerAttribution,
@@ -22,123 +22,10 @@ from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
 from oss.src.dbs.postgres.gateway.connections.dbes import ConnectionDBE  # noqa: F401
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.src.dbs.postgres.triggers.dao import TriggersDAO
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
 
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
-
-
-@pytest_asyncio.fixture(autouse=True)
-async def _fresh_engine_per_test():
-    engine_module._transactions_engine = None
-    yield
-    if engine_module._transactions_engine is not None:
-        await engine_module._transactions_engine.close()
-        engine_module._transactions_engine = None
-
-
-@pytest_asyncio.fixture
-async def trigger_scope():
-    engine = get_transactions_engine()
-    user_id = uuid.uuid4()
-    organization_id = uuid.uuid4()
-    workspace_id = uuid.uuid4()
-    project_id = uuid.uuid4()
-    connection_id = uuid.uuid4()
-
-    async with engine.session() as session:
-        await session.execute(
-            text(
-                "INSERT INTO users (id, uid, username, email) "
-                "VALUES (:id, :uid, :username, :email)"
-            ),
-            {
-                "id": user_id,
-                "uid": str(user_id),
-                "username": "trigger-soft-delete-test",
-                "email": f"trigger-soft-delete-{user_id.hex[:8]}@example.com",
-            },
-        )
-        await session.execute(
-            text(
-                "INSERT INTO organizations (id, name, owner_id) "
-                "VALUES (:id, :name, :owner_id)"
-            ),
-            {
-                "id": organization_id,
-                "name": "trigger-soft-delete-org",
-                "owner_id": user_id,
-            },
-        )
-        await session.execute(
-            text(
-                "INSERT INTO workspaces (id, name, organization_id) "
-                "VALUES (:id, :name, :organization_id)"
-            ),
-            {
-                "id": workspace_id,
-                "name": "trigger-soft-delete-workspace",
-                "organization_id": organization_id,
-            },
-        )
-        await session.execute(
-            text(
-                "INSERT INTO projects "
-                "(id, project_name, workspace_id, organization_id) "
-                "VALUES (:id, :name, :workspace_id, :organization_id)"
-            ),
-            {
-                "id": project_id,
-                "name": "trigger-soft-delete-project",
-                "workspace_id": workspace_id,
-                "organization_id": organization_id,
-            },
-        )
-        await session.execute(
-            text(
-                "INSERT INTO gateway_connections "
-                "(id, project_id, created_by_id, slug, provider_key, integration_key) "
-                "VALUES (:id, :project_id, :user_id, :slug, :provider_key, :integration_key)"
-            ),
-            {
-                "id": connection_id,
-                "project_id": project_id,
-                "user_id": user_id,
-                "slug": "trigger-soft-delete-connection",
-                "provider_key": "composio",
-                "integration_key": "github",
-            },
-        )
-        await session.commit()
-
-    yield {
-        "project_id": project_id,
-        "user_id": user_id,
-        "connection_id": connection_id,
-    }
-
-    async with engine.session() as session:
-        for table in (
-            "trigger_deliveries",
-            "session_streams",
-            "trigger_subscriptions",
-            "trigger_schedules",
-            "gateway_connections",
-        ):
-            await session.execute(
-                text(f"DELETE FROM {table} WHERE project_id = :project_id"),
-                {"project_id": project_id},
-            )
-        await session.execute(
-            text("DELETE FROM projects WHERE id = :id"), {"id": project_id}
-        )
-        await session.execute(
-            text("DELETE FROM workspaces WHERE id = :id"), {"id": workspace_id}
-        )
-        await session.execute(
-            text("DELETE FROM organizations WHERE id = :id"), {"id": organization_id}
-        )
-        await session.execute(text("DELETE FROM users WHERE id = :id"), {"id": user_id})
-        await session.commit()
 
 
 async def test_soft_delete_retains_schedule_and_delivery_until_explicit_purge(
@@ -150,6 +37,8 @@ async def test_soft_delete_retains_schedule_and_delivery_until_explicit_purge(
     user_id = trigger_scope["user_id"]
     schedule = await dao.create_schedule(
         project_id=project_id,
+        principal=any_principal(),
+        artifact_id=None,
         user_id=user_id,
         schedule=TriggerScheduleCreate(
             name="Historical schedule",
@@ -218,6 +107,8 @@ async def test_soft_delete_retains_subscription_and_delivery_until_explicit_purg
     user_id = trigger_scope["user_id"]
     subscription = await dao.create_subscription(
         project_id=project_id,
+        principal=any_principal(),
+        artifact_id=None,
         user_id=user_id,
         subscription=TriggerSubscriptionCreate(
             connection_id=trigger_scope["connection_id"],
@@ -315,6 +206,7 @@ async def test_soft_delete_retains_subscription_and_delivery_until_explicit_purg
                 kind=SessionTriggerKind.subscription,
                 delivery_id=blocked_delivery_id,
             ),
+            access=OWNERLESS_PROJECT_POLICY,
         )
         is False
     )
@@ -360,6 +252,8 @@ async def test_atomic_claim_rejects_disabled_or_deleted_schedule(
     user_id = trigger_scope["user_id"]
     schedule = await triggers_dao.create_schedule(
         project_id=project_id,
+        principal=any_principal(),
+        artifact_id=None,
         user_id=user_id,
         schedule=TriggerScheduleCreate(
             data=TriggerScheduleData(event_key="cron.tick", schedule="* * * * *"),
@@ -397,6 +291,7 @@ async def test_atomic_claim_rejects_disabled_or_deleted_schedule(
             kind=SessionTriggerKind.schedule,
             delivery_id=delivery_id,
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert claimed is False

@@ -38,6 +38,17 @@ _COMMIT_INSTRUCTIONS = (
 )
 
 
+def normalize_github_repo_url(value: str) -> str:
+    match = _GITHUB_REPO_URL.match(value.strip())
+    if not match or match.group("repo") in {".", ".."}:
+        raise ValueError(
+            "The repository URL must be a public GitHub URL of the form "
+            "https://github.com/<owner>/<repo>."
+        )
+    # GitHub owner and repository names are case-insensitive.
+    return f"https://github.com/{match.group('owner')}/{match.group('repo')}".lower()
+
+
 class GitHubTemplateSource(BaseModel):
     """A package directory in a public GitHub repository at one exact commit.
 
@@ -68,16 +79,7 @@ class GitHubTemplateSource(BaseModel):
     @field_validator("repo_url")
     @classmethod
     def normalize_repo_url(cls, value: str) -> str:
-        match = _GITHUB_REPO_URL.match(value.strip())
-        if not match or match.group("repo") in {".", ".."}:
-            raise ValueError(
-                "repo_url must be a public repository URL of the form "
-                "https://github.com/<owner>/<repo>."
-            )
-        # GitHub owner and repository names are case-insensitive.
-        return (
-            f"https://github.com/{match.group('owner')}/{match.group('repo')}".lower()
-        )
+        return normalize_github_repo_url(value)
 
     @field_validator("commit")
     @classmethod
@@ -121,6 +123,22 @@ class GitHubTemplateSource(BaseModel):
     @property
     def repo(self) -> str:
         return self.repo_url.split("/")[4]
+
+
+class TemplateRepositoryEntry(BaseModel):
+    """One template package directory found in a repository scan."""
+
+    path: str
+    name: str
+    version: str | None = None
+    description: str | None = None
+
+
+class TemplateRepositoryScan(BaseModel):
+    repo_url: str
+    # The full SHA the scanned ref resolved to; load each entry at this commit.
+    commit: str
+    templates: list[TemplateRepositoryEntry]
 
 
 class TemplateSourcePin(BaseModel):

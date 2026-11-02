@@ -121,6 +121,48 @@ describe("transcriptToMessages", () => {
         ])
     })
 
+    it("does not read a turn a Steer cancelled as Stopped", () => {
+        const pausedThenSteered = (cancelledBy?: string) =>
+            transcriptToMessages([
+                record("u1", {type: "message", text: "connect Linear"}, "user", "turn-1"),
+                record(
+                    "c1",
+                    {type: "tool_call", id: "tc-1", name: "request_connection", input: {}},
+                    "agent",
+                    "turn-1",
+                ),
+                record("d1", {type: "done", stopReason: "paused"}, "agent", "turn-1"),
+                record(
+                    "d2",
+                    {type: "done", stopReason: "cancelled", ...(cancelledBy ? {cancelledBy} : {})},
+                    "agent",
+                    "turn-2",
+                ),
+                record("u2", {type: "message", text: "say something"}, "user", "turn-3"),
+            ])
+
+        const steered = pausedThenSteered("steer")
+        expect(steered?.map((message) => message.role)).toEqual(["user", "assistant", "user"])
+        expect(steered?.[1].metadata?.runStopped).toBeUndefined()
+
+        expect(pausedThenSteered()?.[1].metadata).toMatchObject({runStopped: true})
+    })
+
+    it("adds no empty row for a content-free turn a Steer cancelled", () => {
+        const messages = transcriptToMessages([
+            record("u1", {type: "message", text: "go"}, "user", "turn-1"),
+            record(
+                "d1",
+                {type: "done", stopReason: "cancelled", cancelledBy: "steer"},
+                "agent",
+                "turn-1",
+            ),
+            record("u2", {type: "message", text: "do this instead"}, "user", "turn-2"),
+        ])
+
+        expect(messages?.map((message) => message.role)).toEqual(["user", "user"])
+    })
+
     it("suppresses an abort error when the same durable turn is explicitly user-stopped", () => {
         const messages = transcriptToMessages([
             record("r1", {type: "error", message: "Request was aborted"}),
@@ -1583,5 +1625,162 @@ describe("attachmentContentUrl", () => {
         const url = new URL(attachmentContentUrl("session-1", "att-1"))
         expect(url.searchParams.get("session_id")).toBe("session-1")
         expect(url.searchParams.has("project_id")).toBe(false)
+    })
+})
+
+describe("transcriptToMessages tool results stored before their calls", () => {
+    // Two record writers can commit concurrently, so the durable log can hold a tool_result ahead
+    // of its tool_call. Replay must still settle the step instead of showing it as running.
+    const toolParts = (messages: UIMessage[] | null) =>
+        (messages ?? [])
+            .flatMap((message) => message.parts as unknown as Record<string, unknown>[])
+            .filter((part) => typeof part.toolCallId === "string")
+
+    it("applies a result that arrives before its call", () => {
+        const parts = toolParts(
+            transcriptToMessages([
+                record("r-user", {type: "message", text: "edit the file"}, "user", "turn-1"),
+                record(
+                    "r-result",
+                    {type: "tool_result", id: "tool-1", output: "written"},
+                    "agent",
+                    "turn-1",
+                ),
+                record(
+                    "r-call",
+                    {type: "tool_call", id: "tool-1", name: "write", input: {path: "a.md"}},
+                    "agent",
+                    "turn-1",
+                ),
+            ]),
+        )
+
+        expect(parts).toHaveLength(1)
+        expect(parts[0]).toMatchObject({
+            type: "tool-write",
+            toolCallId: "tool-1",
+            state: "output-available",
+            output: "written",
+            input: {path: "a.md"},
+        })
+    })
+
+    it("applies an early error result to its call", () => {
+        const parts = toolParts(
+            transcriptToMessages([
+                record("r-result", {
+                    type: "tool_result",
+                    id: "tool-1",
+                    isError: true,
+                    output: "no",
+                }),
+                record("r-call", {type: "tool_call", id: "tool-1", name: "write", input: {}}),
+            ]),
+        )
+
+        expect(parts[0]).toMatchObject({state: "output-error", errorText: "no"})
+    })
+
+    it("closes a tool step its turn left open when the turn is done", () => {
+        const parts = toolParts(
+            transcriptToMessages([
+                record("r-user", {type: "message", text: "edit the file"}, "user", "turn-1"),
+                record(
+                    "r-call",
+                    {type: "tool_call", id: "tool-1", name: "write", input: {}},
+                    "agent",
+                    "turn-1",
+                ),
+                record("r-done", {type: "done"}, "agent", "turn-1"),
+            ]),
+        )
+
+        expect(parts[0]).toMatchObject({toolCallId: "tool-1", state: "output-available"})
+    })
+
+    it("closes a tool step its turn left open when the turn is cancelled", () => {
+        const parts = toolParts(
+            transcriptToMessages([
+                record("r-call", {type: "tool_call", id: "tool-1", name: "write", input: {}}),
+                record("r-done", {type: "done", stopReason: "cancelled"}),
+            ]),
+        )
+
+        expect(parts[0]).toMatchObject({toolCallId: "tool-1", state: "output-available"})
+    })
+
+    it("keeps a tool step open while its turn is still running or paused", () => {
+        const running = toolParts(
+            transcriptToMessages([
+                record("r-call", {type: "tool_call", id: "tool-1", name: "write", input: {}}),
+            ]),
+        )
+        const paused = toolParts(
+            transcriptToMessages([
+                record("r-call", {type: "tool_call", id: "tool-1", name: "write", input: {}}),
+                record("r-done", {type: "done", stopReason: "paused"}),
+            ]),
+        )
+
+        expect(running[0].state).toBe("input-available")
+        expect(paused[0].state).toBe("input-available")
+    })
+
+    it("does not touch a parked approval when the turn is done", () => {
+        const parts = toolParts(
+            transcriptToMessages([
+                record("r-call", {
+                    type: "tool_call",
+                    id: "tool-1",
+                    name: "commit_revision",
+                    input: {},
+                }),
+                record("r-request", {
+                    type: "interaction_request",
+                    id: "approval-1",
+                    kind: "user_approval",
+                    payload: {toolCallId: "tool-1"},
+                }),
+                record("r-done", {type: "done"}),
+            ]),
+        )
+
+        expect(parts[0]).toMatchObject({
+            toolCallId: "tool-1",
+            state: "approval-requested",
+            approval: {id: "approval-1"},
+        })
+    })
+
+    it("does not touch a parked client tool or elicitation when the turn is done", () => {
+        const parts = toolParts(
+            transcriptToMessages([
+                record("r-client-call", {
+                    type: "tool_call",
+                    id: "client-1",
+                    name: "request_input",
+                    input: {},
+                }),
+                record("r-client", {
+                    type: "interaction_request",
+                    id: "client-1",
+                    kind: "client_tool",
+                    payload: {toolCallId: "client-1", toolName: "request_input"},
+                }),
+                record("r-input-call", {type: "tool_call", id: "input-1", name: "ask", input: {}}),
+                record("r-input", {
+                    type: "interaction_request",
+                    id: "input-1",
+                    kind: "user_input",
+                    payload: {toolCallId: "input-1"},
+                }),
+                record("r-done", {type: "done"}),
+            ]),
+        )
+
+        expect(parts.map((part) => [part.toolCallId, part.state])).toEqual([
+            ["client-1", "input-available"],
+            ["input-1", "input-available"],
+        ])
     })
 })

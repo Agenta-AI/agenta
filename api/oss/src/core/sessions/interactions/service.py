@@ -1,6 +1,7 @@
 from typing import Any, Dict, List, Optional
 from uuid import NAMESPACE_DNS, UUID, uuid5
 
+from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteraction,
     SessionInteractionCreate,
@@ -90,11 +91,13 @@ class SessionInteractionsService:
         user_id: Optional[UUID] = None,
         #
         interaction: SessionInteractionCreate,
+        envelope: RunEnvelope,
     ) -> SessionInteraction:
+        """`envelope` is the asking run's envelope; the resume continues under it."""
         created = await self.interactions_dao.create_interaction(
             project_id=project_id,
             user_id=user_id,
-            interaction=interaction,
+            interaction=interaction.model_copy(update={"run_envelope": envelope}),
         )
         await self._publish_interaction(
             project_id=project_id,

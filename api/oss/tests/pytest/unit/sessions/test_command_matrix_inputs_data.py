@@ -39,6 +39,7 @@ from oss.src.dbs.redis.sessions.locks import (
 )
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
 
 
 _PROJECT = uuid4()
@@ -113,6 +114,7 @@ async def test_inputs_present_no_force_is_send(lock_engine):
             data=WorkflowServiceRequestData(inputs={"messages": ["hi"]}),
             force=False,
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert result.mode == CommandMode.send
@@ -133,6 +135,7 @@ async def test_inputs_present_and_force_is_steer(lock_engine):
             data=WorkflowServiceRequestData(inputs={"messages": ["first"]}),
             force=False,
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     result = await svc.command(
@@ -143,6 +146,7 @@ async def test_inputs_present_and_force_is_steer(lock_engine):
             data=WorkflowServiceRequestData(inputs={"messages": ["steer"]}),
             force=True,
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert result.mode == CommandMode.steer
@@ -160,6 +164,7 @@ async def test_no_inputs_no_force_is_cancel(lock_engine):
         request=SessionStreamCommandRequest(
             session_id=session_id, data=None, force=False
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert result.mode == CommandMode.cancel
@@ -190,6 +195,7 @@ async def test_unfenced_cancel_before_new_turn_admission_ignores_the_parked_owne
         project_id=_PROJECT,
         user_id=_USER,
         request=SessionStreamCommandRequest(session_id=session_id),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert result.mode == CommandMode.cancel
@@ -227,12 +233,14 @@ async def test_unfenced_cancel_targets_the_turn_once_it_is_running(lock_engine):
             session_id=session_id,
             data=WorkflowServiceRequestData(inputs={"messages": ["hi"]}),
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     result = await svc.command(
         project_id=_PROJECT,
         user_id=_USER,
         request=SessionStreamCommandRequest(session_id=session_id),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert started.turn_id is not None
@@ -268,6 +276,7 @@ async def test_cancel_with_a_stale_execution_guard_touches_no_holder(lock_engine
             session_id=session_id,
             data=WorkflowServiceRequestData(inputs={"messages": ["first"]}),
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     with pytest.raises(SessionTurnMismatch):
@@ -278,6 +287,7 @@ async def test_cancel_with_a_stale_execution_guard_touches_no_holder(lock_engine
                 session_id=session_id,
                 expected_execution_id="another-turn",
             ),
+            access=OWNERLESS_PROJECT_POLICY,
         )
 
     assert (
@@ -318,6 +328,7 @@ async def test_no_inputs_and_force_is_attach(lock_engine):
         request=SessionStreamCommandRequest(
             session_id=session_id, data=None, force=True
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert result.mode == CommandMode.attach
@@ -338,6 +349,7 @@ async def test_empty_inputs_dict_counts_as_no_inputs(lock_engine):
             data=WorkflowServiceRequestData(inputs={}),
             force=False,
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert result.mode == CommandMode.cancel
@@ -357,6 +369,7 @@ async def test_data_present_but_inputs_none_counts_as_no_inputs(lock_engine):
             data=WorkflowServiceRequestData(),
             force=True,
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert result.mode == CommandMode.attach
@@ -375,6 +388,7 @@ async def test_send_with_inputs_409s_when_already_alive(lock_engine):
             data=WorkflowServiceRequestData(inputs={"messages": ["first"]}),
             force=False,
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     with pytest.raises(SessionTurnInUse):
@@ -386,4 +400,5 @@ async def test_send_with_inputs_409s_when_already_alive(lock_engine):
                 data=WorkflowServiceRequestData(inputs={"messages": ["second"]}),
                 force=False,
             ),
+            access=OWNERLESS_PROJECT_POLICY,
         )

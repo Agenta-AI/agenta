@@ -1,5 +1,6 @@
 import {useCallback} from "react"
 
+import type {Visibility} from "@agenta/entities/sharing"
 import {
     createEphemeralAppFromTemplate,
     createWorkflowFromEphemeralAtom,
@@ -7,6 +8,7 @@ import {
     loadAgentTemplateFromEphemeralAtom,
     type AgentSetupSelection,
     type AgentStarterTemplate,
+    type AgentTemplateSource,
 } from "@agenta/entities/workflow"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {useSetAtom} from "jotai"
@@ -33,12 +35,16 @@ export interface CreateAgentParams {
     entityId?: string
     /** Starter cards load their package and begin the durable first session in one request. */
     template?: AgentStarterTemplate
+    /** A package from outside the catalog (an upload or a GitHub repository). */
+    source?: AgentTemplateSource
     /** The host's current template prompt, including any edits made before creation. */
     stagingSessionId?: string
     attachmentIds?: string[]
     initialMessage?: string
     /** Account choices made in the starter setup step. */
     setup?: AgentSetupSelection
+    /** Who sees the new agent. Omitted, the server keeps its default. */
+    visibility?: Visibility
 }
 
 export interface UseCreateAgentOptions {
@@ -70,10 +76,12 @@ export const useCreateAgent = ({onError}: UseCreateAgentOptions = {}) => {
             name,
             entityId,
             template,
+            source,
             initialMessage,
             stagingSessionId,
             attachmentIds,
             setup,
+            visibility,
         }: CreateAgentParams = {}): Promise<CreatedAgent | null> => {
             if (creating) return null
             creating = true
@@ -90,14 +98,16 @@ export const useCreateAgent = ({onError}: UseCreateAgentOptions = {}) => {
                     return null
                 }
 
-                if (template) {
+                if (template || source) {
                     const result = await loadTemplateFromEphemeral({
                         revisionId: ephemeralId,
                         template,
+                        source,
                         initialMessage,
                         stagingSessionId,
                         attachmentIds,
                         setup,
+                        visibility,
                     })
                     return {
                         appId: result.workflow_id,
@@ -121,6 +131,7 @@ export const useCreateAgent = ({onError}: UseCreateAgentOptions = {}) => {
                     revisionId: ephemeralId,
                     name: agentName,
                     slug,
+                    visibility,
                 })
                 if (!result.success) {
                     onError?.(extractApiErrorMessage(result.error))

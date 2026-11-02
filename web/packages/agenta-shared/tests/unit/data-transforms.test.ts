@@ -42,6 +42,33 @@ describe("extractApiErrorMessage — Axios-style errors", () => {
     })
 })
 
+describe("extractApiErrorMessage — Fern client errors", () => {
+    it("reads the message from the parsed body, not the status line", () => {
+        const error = Object.assign(
+            new Error('UnprocessableEntityError Status code: 422 Body: {"code": "x"}'),
+            {
+                statusCode: 422,
+                body: {code: "template_package_invalid", message: "plugin.json is missing."},
+            },
+        )
+        expect(extractApiErrorMessage(error)).toBe("plugin.json is missing.")
+    })
+
+    it("reads a FastAPI validation body", () => {
+        const error = Object.assign(new Error("UnprocessableEntityError"), {
+            body: {detail: [{msg: "repo_url is invalid"}]},
+        })
+        expect(extractApiErrorMessage(error)).toBe("repo_url is invalid")
+    })
+
+    it("drops the pydantic error-type prefix from a validator message", () => {
+        const error = Object.assign(new Error("UnprocessableEntityError"), {
+            body: {detail: [{type: "value_error", msg: "Value error, repo_url is invalid"}]},
+        })
+        expect(extractApiErrorMessage(error)).toBe("repo_url is invalid")
+    })
+})
+
 describe("extractApiErrorMessage — Error instances", () => {
     it("returns error.message for a plain Error", () => {
         expect(extractApiErrorMessage(new Error("Something failed"))).toBe("Something failed")

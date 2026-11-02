@@ -21,6 +21,7 @@ from oss.src.core.workflows.types import (
     invoke_never_dispatched,
 )
 from oss.src.middlewares.auth import SECRET_RESOLVE_GRANT
+from oss.tests.pytest.utils.principals import make_envelope
 
 _SERVICES_URL = "https://agenta.example.com/services"
 
@@ -92,16 +93,17 @@ async def _prepared_grants(monkeypatch, *, revision_url):
     )
 
     service = WorkflowsService(workflows_dao=AsyncMock())
-    service._ensure_request_revision = AsyncMock()
+    service._ensure_request_revision = AsyncMock(return_value=None)
     service._stamp_session_context = AsyncMock()
     service._get_revision_data = lambda request: SimpleNamespace(
-        url=revision_url, uri=None
+        parameters=None, url=revision_url, uri=None
     )
 
     credentials, service_url = await service._prepare_invoke(
         project_id=uuid4(),
         user_id=uuid4(),
         request=SimpleNamespace(meta=None),
+        envelope=make_envelope(),
     )
 
     assert credentials == "Secret tok"

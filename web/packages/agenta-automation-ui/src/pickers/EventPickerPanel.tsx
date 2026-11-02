@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
+    normalizeRepoFilters,
     triggerCatalogDrawerOpenAtom,
     triggerEventsSearchAtom,
     useTriggerCatalogIntegrations,
@@ -199,15 +200,16 @@ export const EventPickerPanel = ({
         try {
             // Throws on a failed rule — SchemaForm has already painted the inline errors, so
             // there is nothing to report here beyond staying open.
-            const triggerConfig = await formRef.current?.getValues()
-            onSelectEvent({connectionId, eventKey, triggerConfig: triggerConfig ?? undefined})
+            const values = await formRef.current?.getValues()
+            const triggerConfig = values ? normalizeRepoFilters(schema, values) : undefined
+            onSelectEvent({connectionId, eventKey, triggerConfig})
             onClose()
         } catch {
             // Validation failed: the overlay stays open with the edit intact.
         } finally {
             setSaving(false)
         }
-    }, [connectionId, eventKey, onClose, onSelectEvent])
+    }, [connectionId, eventKey, onClose, onSelectEvent, schema])
 
     const boundAppLabel = connection
         ? appLabel(connection, catalogNames.get(connection.integration_key))

@@ -43,7 +43,7 @@ def _auth(key: str = "project-composio-key") -> MCPDirectAuth:
                     provider=StandardProviderSettingsDTO(key=key),
                 ),
             ),
-            owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
+            owner=SecretOwner(kind=SecretOwnerKind.PROJECT, id=uuid4()),
             origin=SecretOrigin.VAULT,
         )
     )

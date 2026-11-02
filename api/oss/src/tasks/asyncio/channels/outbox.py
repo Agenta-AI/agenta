@@ -56,6 +56,7 @@ from oss.src.core.channels.types import (
 from oss.src.core.shared.dtos import Status, Windowing
 from oss.src.utils.logging import get_module_logger
 
+_EPOCH = datetime.min.replace(tzinfo=timezone.utc)
 log = get_module_logger(__name__)
 
 # One read plus two re-reads, 0.8s apart: enough to cover the ~150ms commit
@@ -198,7 +199,8 @@ class ChannelsOutboxWorker:
             project_id=project_id,
             thread=ChannelThreadQuery(session_id=session_id),
         )
-        return threads[0] if threads else None
+        # `!use` adds a row per reopen of a session; its newest row is the live one.
+        return max(threads, key=lambda t: t.created_at or _EPOCH, default=None)
 
     # --- turn started -------------------------------------------------------#
 

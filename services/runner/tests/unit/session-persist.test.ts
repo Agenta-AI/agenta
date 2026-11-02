@@ -654,7 +654,7 @@ describe("durable records", () => {
 
   it("the turn-end flush leaves the loss count for the caller (does not consume it)", async () => {
     vi.stubEnv("AGENTA_RECORDS_INGEST_RETRY_BUDGET_MS", "0");
-    const ingest = stubIngest(() => new Response("", { status: 403 }));
+    const ingest = stubIngest(() => new Response("", { status: 422 }));
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
       const { emit, flush } = buildPersistingEmitter("sess-flush", () => "t");

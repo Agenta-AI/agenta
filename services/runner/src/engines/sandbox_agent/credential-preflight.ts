@@ -139,6 +139,9 @@ export function deliversModelSecretOnCreate(input: {
   );
 }
 
+/** The variable Claude Code reads a `claude setup-token` value from. */
+export const CLAUDE_TOKEN_BINDING = "CLAUDE_CODE_OAUTH_TOKEN";
+
 export interface PreflightSandbox {
   runProcess(request: {
     command: string;
@@ -238,6 +241,8 @@ const PROBE_TIMEOUT_S = 8;
 const CONTROL_TIMEOUT_MS = 8_000;
 /** Pinned by Anthropic's API, which refuses a versionless call. */
 const ANTHROPIC_VERSION = "2023-06-01";
+/** The beta header Anthropic requires before it reads an OAuth bearer. */
+const ANTHROPIC_OAUTH_BETA = "oauth-2025-04-20";
 /** A shell would expand anything else in the command string. */
 const SHELL_SAFE_ENV_VAR = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
@@ -349,6 +354,7 @@ function normalizeBaseUrl(baseUrl: string): string | undefined {
  */
 function probeShapeFor(
   baseUrl: string,
+  apiKeyVar: string,
   provider?: string,
   deployment?: string,
 ): ProbeShape {
@@ -377,10 +383,19 @@ function probeShapeFor(
       return {
         method: "GET",
         url: `${canonical}/v1/models?limit=1`,
-        buildHeaders: (credential) => ({
-          "x-api-key": credential,
-          "anthropic-version": ANTHROPIC_VERSION,
-        }),
+        // A Claude setup-token is an OAuth bearer, not an API key: the model list answers it
+        // 200 with these headers, and 401 for a placeholder.
+        buildHeaders: (credential): Record<string, string> =>
+          apiKeyVar === CLAUDE_TOKEN_BINDING
+            ? {
+                Authorization: `Bearer ${credential}`,
+                "anthropic-version": ANTHROPIC_VERSION,
+                "anthropic-beta": ANTHROPIC_OAUTH_BETA,
+              }
+            : {
+                "x-api-key": credential,
+                "anthropic-version": ANTHROPIC_VERSION,
+              },
         differential: true,
       };
     default:
@@ -539,7 +554,12 @@ export async function awaitCredentialSubstitution(
     return "ok";
   }
 
-  const shape = probeShapeFor(input.baseUrl, input.provider, input.deployment);
+  const shape = probeShapeFor(
+    input.baseUrl,
+    input.apiKeyVar,
+    input.provider,
+    input.deployment,
+  );
   const startedAt = now();
   const deadlineAt = startedAt + budgetMs;
   const remainingMs = () => Math.max(0, deadlineAt - now());

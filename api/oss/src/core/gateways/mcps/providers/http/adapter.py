@@ -1,15 +1,19 @@
 """HTTP relay for custom MCP servers."""
 
-from typing import Dict, Optional
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional
 
 import httpx
 
 from oss.src.core.gateways.mcps.dtos import (
     MCPBrokeredAuth,
     MCPCallContext,
+    MCPCredentialBinding,
     MCPDirectAuth,
     MCPRelayAuth,
     MCPResolvedRoute,
+    api_key_value,
+    with_url_secret,
 )
 from oss.src.core.gateways.egress import (
     EgressRefusedError,
@@ -33,50 +37,63 @@ from oss.src.core.gateways.mcps.types import MCPUpstreamError
 #: is still waiting, and the turn fails on work that was going to succeed.
 _DEFAULT_TIMEOUT_SECONDS = 30.0
 
-# Where an API-key endpoint's credential goes when its route names no header of its own.
+# How an API-key endpoint's credential travels when its route names no binding of its own.
 # `Bearer` is what an MCP server that documents no header of its own expects, and it is
-# what the LLM plane sends a custom endpoint.
+# what the LLM plane sends a custom endpoint. An OAuth grant always travels this way.
 _DEFAULT_CREDENTIAL_HEADER = "Authorization"
 _DEFAULT_CREDENTIAL_SCHEME = "Bearer"
+_DEFAULT_CREDENTIAL_BINDING = MCPCredentialBinding(
+    kind="header",
+    name=_DEFAULT_CREDENTIAL_HEADER,
+    prefix=_DEFAULT_CREDENTIAL_SCHEME,
+)
 
 
-def _api_key_value(data: object) -> Optional[str]:
-    """The key inside an API-key secret, whichever vault shape holds it.
+@dataclass(frozen=True)
+class InjectedCredentials:
+    """What the gateway adds to one upstream request: headers, query parameters, and the
+    value for the URL's `{secret}`.
 
-    Two shapes reach an MCP endpoint. A project-named secret (`custom_secret`), which is
-    what the agent config's `header_secret_refs` picks and therefore what registration
-    binds, keeps its value in `secret.content`; a provider-key record keeps it in
-    `provider.key`. A JSON-format named secret is a map with no single credential in it,
-    so it yields nothing rather than a guess at which entry is the key.
+    The URL parts are added to the request at send time and never to `route.url`, which is
+    the stored URL that error targets, logs and traces show.
     """
-    provider = getattr(data, "provider", None)
-    key = getattr(provider, "key", None) if provider is not None else None
-    if isinstance(key, str) and key:
-        return key
 
-    stored = getattr(data, "secret", None)
-    content = getattr(stored, "content", None) if stored is not None else None
-    return content if isinstance(content, str) and content else None
+    headers: Dict[str, str] = field(default_factory=dict)
+    query: Dict[str, str] = field(default_factory=dict)
+    url_secret: Optional[str] = None
+
+    @property
+    def url_values(self) -> List[str]:
+        """Every value this request carries in its URL, for the echo scanner."""
+        values = list(self.query.values())
+        if self.url_secret is not None:
+            values.append(self.url_secret)
+        return values
+
+    def request_url(self, url: str) -> httpx.URL:
+        """`url` with the URL parts added. Merged into the URL rather than passed as
+        `params`, which would replace the stored URL's own query."""
+        if self.url_secret is not None:
+            url = with_url_secret(url, self.url_secret)
+        return httpx.URL(url).copy_merge_params(self.query)
 
 
-def credential_headers(route: MCPResolvedRoute, auth: MCPDirectAuth) -> Dict[str, str]:
-    """The credential the gateway injects for this endpoint, as headers.
+def injected_credentials(
+    route: MCPResolvedRoute, auth: MCPDirectAuth
+) -> InjectedCredentials:
+    """The credential the gateway injects for this endpoint.
 
     Credentials live only in the vault. The endpoint carries their opaque `secret_id`, so
-    neither its DTO nor its route can expose token material; only the header *name* is
-    endpoint configuration.
+    neither its DTO nor its route can expose token material; only the binding is endpoint
+    configuration.
 
     An OAuth grant always travels as `Authorization: <token_type> <access_token>`, which
-    is the scheme the authorization server issued it under. An API key travels in the
-    header the endpoint registered (`route.credential_header`) with its value verbatim and
-    no scheme prefix, which is the binding the agent config already expresses as
-    `credentials.header_secret_refs` and the SDK already sends when it dials a server
-    directly — so a server reached through the gateway sees the same request it would have
-    seen without one. An endpoint that registered no header name falls back to
-    `Authorization: Bearer <key>`.
+    is the scheme the authorization server issued it under. An API key travels where the
+    endpoint's binding says (`route.credential_binding`), with the binding's prefix in
+    front of it when it has one.
     """
     if auth.secret is None:
-        return {}
+        return InjectedCredentials()
 
     data = auth.secret.secret.data
 
@@ -84,18 +101,28 @@ def credential_headers(route: MCPResolvedRoute, auth: MCPDirectAuth) -> Dict[str
     access_token = getattr(grant, "access_token", None) if grant is not None else None
     if access_token:
         token_type = getattr(grant, "token_type", None) or _DEFAULT_CREDENTIAL_SCHEME
-        return {_DEFAULT_CREDENTIAL_HEADER: f"{token_type} {access_token}"}
+        return InjectedCredentials(
+            headers={_DEFAULT_CREDENTIAL_HEADER: f"{token_type} {access_token}"}
+        )
 
-    key = _api_key_value(data)
+    key = api_key_value(data)
     if not key:
-        return {}
+        return InjectedCredentials()
 
-    header = (route.credential_header or "").strip()
-    if not header:
-        return {
-            _DEFAULT_CREDENTIAL_HEADER: f"{_DEFAULT_CREDENTIAL_SCHEME} {key}",
-        }
-    return {header: key}
+    return bound_credentials(route.credential_binding, key)
+
+
+def bound_credentials(
+    binding: Optional[MCPCredentialBinding], key: str
+) -> InjectedCredentials:
+    """An API key placed where `binding` says, or as a Bearer token when it says nothing."""
+    binding = binding or _DEFAULT_CREDENTIAL_BINDING
+    if binding.kind == "url":
+        return InjectedCredentials(url_secret=key)
+    value = f"{binding.prefix} {key}" if binding.prefix else key
+    if binding.kind == "query":
+        return InjectedCredentials(query={binding.name: value})
+    return InjectedCredentials(headers={binding.name: value})
 
 
 class HttpMCPAdapter(MCPUpstreamInterface):
@@ -123,7 +150,7 @@ class HttpMCPAdapter(MCPUpstreamInterface):
                 "belongs to ComposioMCPAdapter"
             )
 
-        credentials = credential_headers(route, auth)
+        credentials = injected_credentials(route, auth)
 
         # route.headers merged under the caller's forwarded headers (§7.1): caller
         # headers win on collision, but only the allowlisted ones travel at all. The
@@ -135,7 +162,7 @@ class HttpMCPAdapter(MCPUpstreamInterface):
                 route.url,
                 beneath_caller=route.headers,
                 caller_headers=headers,
-                above_caller=credentials or None,
+                above_caller=credentials.headers or None,
             )
         except EgressRefusedError as e:
             raise MCPUpstreamError(target=route.url, detail=e.relay_detail) from e
@@ -147,7 +174,9 @@ class HttpMCPAdapter(MCPUpstreamInterface):
                 timeout=timeout, transport=self._transport
             ) as client:
                 response = await client.post(
-                    target.url,
+                    # Added here and nowhere earlier, so the egress check, its refusals
+                    # and `route.url` all carry the URL without the credential.
+                    credentials.request_url(target.url),
                     content=body,
                     headers=target.headers,
                     extensions=target.extensions,
@@ -162,7 +191,9 @@ class HttpMCPAdapter(MCPUpstreamInterface):
         # credential to the sandbox. The whole response is in hand, so it is checked
         # before any of it is relayed.
         refuse_credential_echo(
-            scanner=credential_echo_scanner(credentials),
+            scanner=credential_echo_scanner(
+                credentials.headers, url_values=credentials.url_values
+            ),
             target=route.url,
             status_code=response.status_code,
             headers=response.headers,

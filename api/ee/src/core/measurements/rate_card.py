@@ -65,18 +65,32 @@ _MOCK_RATES = TokenRates(
     output_musd_per_million=4_000_000,  # $4.00 / M
 )
 
-# Our models: Gemini on Agenta's Vertex AI account, at the CURRENT list price x 1.75.
-# Source: cloud.google.com/vertex-ai/generative-ai/pricing, read 2026-10-02. Both models,
-# global endpoint, "through December 31, 2026": $0.75 input, $0.075 cached input, $3.75
-# output (response and reasoning) per million tokens; from January 1, 2027 Google doubles
-# both, and these rows change with it. Vertex's implicit cache has no per-token write
-# charge, so a write is priced as fresh input. The gateway calls the `global` location; a
-# non-global location lists 10% higher and is not priced here.
+# Our models: Gemini on Agenta's Vertex AI account, at the CURRENT list price x 1.2.
+# Source: cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing, read
+# 2026-10-14, global endpoint. Vertex's implicit cache has no per-token write charge, so a
+# write is priced as fresh input. The gateway calls the `global` location; a non-global
+# location lists 10% higher and is not priced here.
+#
+# Both rows use Google's promotional price and must change when the promotion ends.
+
+# Gemini 3.7 Flash and 3.8 Flash, "through December 31, 2026": $0.75 input, $0.075 cached
+# input, $3.75 output (response and reasoning) per million tokens. UPDATE ON 2027-01-01:
+# Google lists $1.50 / $0.15 / $7.50 from then.
 _GEMINI_FLASH_RATES = TokenRates(
-    input_musd_per_million=1_312_500,  # 750_000 x 1.75
-    cache_read_musd_per_million=131_250,  # 75_000 x 1.75
-    cache_write_musd_per_million=1_312_500,  # priced as input
-    output_musd_per_million=6_562_500,  # 3_750_000 x 1.75
+    input_musd_per_million=900_000,  # 750_000 x 1.2
+    cache_read_musd_per_million=90_000,  # 75_000 x 1.2
+    cache_write_musd_per_million=900_000,  # priced as input
+    output_musd_per_million=4_500_000,  # 3_750_000 x 1.2
+)
+
+# Gemini 4 Argon, "through November 30, 2026": $2 input, $0.10 cached input, $10 output
+# (response and reasoning) per million tokens. Google gives this price as 50% credits back
+# on net spend. UPDATE ON 2026-12-01: Google lists $4 / $0.20 / $20 from then.
+_GEMINI_ARGON_RATES = TokenRates(
+    input_musd_per_million=2_400_000,  # 2_000_000 x 1.2
+    cache_read_musd_per_million=120_000,  # 100_000 x 1.2
+    cache_write_musd_per_million=2_400_000,  # priced as input
+    output_musd_per_million=12_000_000,  # 10_000_000 x 1.2
 )
 
 # Keyed by the gateway's own vocabulary: (provider, model) as the producer writes them
@@ -84,6 +98,7 @@ _GEMINI_FLASH_RATES = TokenRates(
 TOKEN_RATES: Dict[Tuple[str, str], TokenRates] = {
     ("agenta", "google/gemini-3.7-flash"): _GEMINI_FLASH_RATES,
     ("agenta", "google/gemini-3.8-flash"): _GEMINI_FLASH_RATES,
+    ("agenta", "google/gemini-4-argon"): _GEMINI_ARGON_RATES,
     **{
         ("mock", model): _MOCK_RATES
         for model in ("mock/echo", "gpt-5.5", "claude-sonnet-5")

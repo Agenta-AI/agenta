@@ -15,6 +15,7 @@ Logs never include secret names or values, only counts.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Dict, Mapping, Optional, Sequence
 from urllib.parse import quote
 
@@ -28,13 +29,20 @@ from .connection import PlatformConnection
 
 log = get_module_logger(__name__)
 
+# How many named-secret reads one call keeps in flight.
+_READ_CONCURRENCY = 8
+
 
 async def resolve_named_secrets(
     names: Sequence[str],
     *,
     connection: Optional[PlatformConnection] = None,
+    scope: Optional[str] = None,
 ) -> Dict[str, str]:
-    """Resolve text project secrets by slug for tool and MCP environments. Best-effort."""
+    """Resolve text secrets by slug for tool and MCP environments. Best-effort.
+
+    The project's secrets, or with ``scope="organization"`` the organization secrets
+    available to the run's project (an agent's ``namespace: "organization"``)."""
     if not names:
         return {}
 
@@ -44,42 +52,94 @@ async def resolve_named_secrets(
         return {}
 
     requested = list(dict.fromkeys(str(name) for name in names))
-    resolved: Dict[str, str] = {}
     headers = connection.headers()
 
-    async with httpx.AsyncClient(timeout=connection.timeout) as client:
-        for name in requested:
-            try:
-                response = await client.get(
-                    f"{api_base}/secrets/{quote(name, safe='')}",
-                    headers=headers,
+    # Bounded so a long list cannot wait out the client's pool and read as missing.
+    semaphore = asyncio.Semaphore(_READ_CONCURRENCY)
+
+    async def _read(client: httpx.AsyncClient, name: str) -> Optional[str]:
+        async with semaphore:
+            return await _read_one(client, name)
+
+    async def _read_one(client: httpx.AsyncClient, name: str) -> Optional[str]:
+        try:
+            response = await client.get(
+                f"{api_base}/secrets/{quote(name, safe='')}",
+                headers=headers,
+                **({"params": {"scope": scope}} if scope else {}),
+            )
+            if response.status_code == 404:
+                return None
+            if response.status_code >= 400:
+                log.warning("agent: named-secret read HTTP %s", response.status_code)
+                return None
+            payload = response.json()
+            value = _text_custom_secret_value(payload)
+            if value is None and _is_write_only_redacted(payload):
+                # Engineering copy; adjust freely. No secret name in the log (module
+                # policy above); the caller knows which names it requested.
+                log.error(
+                    "agent: a requested named secret is write-only: its value "
+                    "cannot be read back outside the platform runtime. For "
+                    "standalone runs, set the value directly in the tool's "
+                    "environment configuration instead."
                 )
-                if response.status_code == 404:
-                    continue
-                if response.status_code >= 400:
-                    log.warning(
-                        "agent: named-secret read HTTP %s", response.status_code
-                    )
-                    continue
-                payload = response.json()
-                value = _text_custom_secret_value(payload)
-                if value is not None:
-                    resolved[name] = value
-                elif _is_write_only_redacted(payload):
-                    # Engineering copy; adjust freely. No secret name in the log (module
-                    # policy above); the caller knows which names it requested.
-                    log.error(
-                        "agent: a requested named secret is write-only: its value "
-                        "cannot be read back outside the platform runtime. For "
-                        "standalone runs, set the value directly in the tool's "
-                        "environment configuration instead."
-                    )
-            except Exception:  # pylint: disable=broad-except
-                log.warning("agent: named-secret read failed", exc_info=True)
+            return value
+        except Exception:  # pylint: disable=broad-except
+            log.warning("agent: named-secret read failed", exc_info=True)
+            return None
+
+    # One read per name, up to `_READ_CONCURRENCY` at once: each one swallows its own failure.
+    async with httpx.AsyncClient(timeout=connection.timeout) as client:
+        values = await asyncio.gather(*(_read(client, name) for name in requested))
+    resolved: Dict[str, str] = {
+        name: value for name, value in zip(requested, values) if value is not None
+    }
 
     missing_count = len(requested) - len(resolved)
     if missing_count:
         log.warning("agent: %d named secret(s) unresolved", missing_count)
+    return resolved
+
+
+async def resolve_user_secrets(
+    item_keys: Sequence[str],
+    *,
+    connection: Optional[PlatformConnection] = None,
+) -> Dict[str, str]:
+    """The run person's own secret values for these ``secret:user/<variable>`` item
+    keys, in ONE call (``POST /secrets/resolve``), read from the run's own claim.
+    Best-effort: a key with no value is left out, and an outage resolves nothing."""
+    if not item_keys:
+        return {}
+    connection = connection or PlatformConnection()
+    api_base = connection.base_url()
+    if not api_base:
+        return {}
+    try:
+        async with httpx.AsyncClient(timeout=connection.timeout) as client:
+            response = await client.post(
+                f"{api_base}/secrets/resolve",
+                headers=connection.headers(),
+                json={"item_keys": list(dict.fromkeys(item_keys))},
+            )
+        if response.status_code >= 400:
+            log.warning("agent: user-secret read HTTP %s", response.status_code)
+            return {}
+        payload = response.json() or {}
+    except Exception:  # pylint: disable=broad-except
+        log.warning("agent: user-secret read failed", exc_info=True)
+        return {}
+    resolved: Dict[str, str] = {}
+    for entry in payload.get("item_secrets") or []:
+        if not isinstance(entry, dict):
+            continue
+        value = _text_custom_secret_value(entry.get("secret"))
+        if isinstance(entry.get("item_key"), str) and value is not None:
+            resolved[entry["item_key"]] = value
+    missing_count = len(set(item_keys)) - len(resolved)
+    if missing_count:
+        log.info("agent: %d user secret(s) not set up; left out", missing_count)
     return resolved
 
 

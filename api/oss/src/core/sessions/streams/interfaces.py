@@ -14,6 +14,7 @@ from oss.src.core.sessions.streams.dtos import (
 )
 from oss.src.core.sessions.types import SessionReference, SessionTriggerAttribution
 from oss.src.core.shared.dtos import Windowing
+from oss.src.core.sharing.dtos import AccessPolicy, SessionReadScope
 
 
 class SessionStreamsDAOInterface(ABC):
@@ -67,6 +68,7 @@ class SessionStreamsDAOInterface(ABC):
         self,
         *,
         project_id: UUID,
+        read_scope: SessionReadScope,
         filter: SessionStreamQuery,
         windowing: Optional[Windowing] = None,
         session_ids: Optional[List[str]] = None,
@@ -79,6 +81,7 @@ class SessionStreamsDAOInterface(ABC):
         self,
         *,
         project_id: UUID,
+        read_scope: SessionReadScope,
         filter: SessionStreamQuery,
         session_ids: Optional[List[str]] = None,
         exclude_session_ids: Optional[List[str]] = None,
@@ -190,8 +193,12 @@ class TriggerSessionClaimsDAOInterface(ABC):
         event_id: str,
         session_id: str,
         attribution: SessionTriggerAttribution,
+        access: AccessPolicy,
     ) -> bool:
-        """Atomically claim one trigger delivery and attribute its session."""
+        """Atomically claim one trigger delivery and attribute its session.
+
+        A new session row carries `access`; an existing row keeps its policy (the
+        conflict arm merges only the attribution tags)."""
         ...
 
     @abstractmethod

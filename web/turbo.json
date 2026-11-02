@@ -16,7 +16,8 @@
         },
         "dev": {
             "cache": false,
-            "persistent": true
+            "persistent": true,
+            "passThroughEnv": ["AGENTA_API_URL", "AGENTA_API_INTERNAL_URL", "AGENTA_WEB_URL"]
         },
         "lint": {
             "dependsOn": ["^lint"],

@@ -44,14 +44,15 @@ class DeliveryReceipt(BaseModel):
       service settle at once instead of waiting for the deadline.
     * `replica_gone` — the target turn's bound pod did not answer as itself, so nothing was
       sent. The service turns it into `not_held` or `unreachable`; callers never see it.
+    * `refused` — the continuation may not run (no run envelope, or its principal lost
+      access). The service settled the command and the execution terminally; nothing
+      retries it.
     * `exhausted` — the bounded delivery budget is spent, so the transport was never called.
       Nothing retries the command on its own after this, which is why it is not `unreachable`:
       the caller must tell the user the truth rather than promise a redelivery.
     """
 
-    status: (
-        str  # "accepted" | "unreachable" | "not_held" | "replica_gone" | "exhausted"
-    )
+    status: str  # "accepted" | "unreachable" | "not_held" | "replica_gone" | "exhausted" | "refused"
     detail: Optional[str] = None
     # Which runner process took it, when the transport learned that. The service uses it as the
     # claim owner, so the outcome route's guard reads the same way on every transport.
@@ -135,6 +136,16 @@ class SessionCommandsDAOInterface(ABC):
     ) -> Optional[SessionCommand]:
         """The open (`pending` or `claimed`) command for this exact target, if one exists.
         This is what collapses two Stops in a row onto one command."""
+
+    async def fetch_turn_cancel(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        target_turn_id: str,
+    ) -> Optional[SessionCommand]:
+        """The latest cancel command that targeted this execution, in any state."""
+        raise NotImplementedError
 
     async def bind_steer_input(
         self,

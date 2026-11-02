@@ -17,11 +17,10 @@ from oss.src.core.channels.dtos import (
 )
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.types import ChannelThreadNotFound
-from oss.src.core.sessions.streams.dtos import (
-    SessionStreamCommandRequest,
-    SessionStreamCommandResponse,
+from oss.src.core.sessions.commands.service import (
+    CancelAdmission,
+    SessionCommandsService,
 )
-from oss.src.core.sessions.streams.service import SessionStreamsService
 
 # The grammar's fixed vocabulary. Whether a given channel actually offers one
 # of these is a runtime fact (`capabilities.commands`), never assumed here.
@@ -166,22 +165,20 @@ async def dispatch_new(
 
 async def dispatch_stop(
     *,
-    streams_service: SessionStreamsService,
+    commands_service: SessionCommandsService,
     project_id: UUID,
     user_id: UUID,
     thread: ChannelThread,
-) -> SessionStreamCommandResponse:
-    """`!stop` — the runtime's existing cancel entry point, no new
-    cancellation mechanism. `SessionStreamCommandRequest` with no `data` and
-    `force=False` resolves to `CommandMode.cancel` inside
-    `SessionStreamsService.command()`; that mode selection lives there, not
-    here — this call adds no branching of its own.
+) -> CancelAdmission:
+    """`!stop` — the same durable cancel the Stop button sends through
+    `POST /sessions/{session_id}/cancel`, no new cancellation mechanism. The
+    runner stops the running turn and keeps its partial answer.
     """
 
-    return await streams_service.command(
+    return await commands_service.request_cancel(
         project_id=project_id,
         user_id=user_id,
-        request=SessionStreamCommandRequest(session_id=thread.session_id),
+        session_id=thread.session_id,
     )
 
 
@@ -196,10 +193,9 @@ async def resolve_use_target(
     candidate list is exactly `!sessions`'s own scoping, so an id
     outside it is refused rather than silently ignored.
 
-    Returns the validated target row. Switching the thread to point at it has
-    no counterpart on `ChannelsService`, which exposes only `query_threads` and
-    `close_thread` for threads — no method creates a thread row pointing at
-    another session's `session_id`. That half of `!use` is unimplemented.
+    Returns the validated target row and changes nothing. The inbox
+    dispatcher's acknowledgment does the switch: it closes the old row, then
+    creates a new current row that reuses the target's `session_id`.
     """
 
     candidates = await dispatch_sessions(
@@ -215,13 +211,13 @@ async def resolve_use_target(
     return target
 
 
-DispatchResult = Union[List[ChannelThread], ChannelThread, SessionStreamCommandResponse]
+DispatchResult = Union[List[ChannelThread], ChannelThread, CancelAdmission]
 
 
 async def dispatch_command(
     *,
     channels_service: ChannelsService,
-    streams_service: SessionStreamsService,
+    commands_service: SessionCommandsService,
     project_id: UUID,
     user_id: UUID,
     thread: ChannelThread,
@@ -262,7 +258,7 @@ async def dispatch_command(
 
     if parsed.command == COMMAND_STOP:
         return await dispatch_stop(
-            streams_service=streams_service,
+            commands_service=commands_service,
             project_id=project_id,
             user_id=user_id,
             thread=thread,

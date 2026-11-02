@@ -8,6 +8,7 @@ import type {ToolUIPart, UIMessage} from "ai"
 import {displayMessage, getDisplayContent} from "../assets/displayContent"
 import {getMessageRunError, getMessageRunErrorCode, getMessageTraceId} from "../assets/trace"
 
+import {toolHadApproval} from "./approvals"
 import {getTurnGrouping} from "./grouping"
 import {isEmptyAssistantTurn, isToolPart} from "./parts"
 import {buildTurnRenderItems, executedToolIdentities, type RenderItem} from "./renderModel"
@@ -113,6 +114,8 @@ export interface TurnViewModel {
     status: TurnStatus
     /** Pre-folded render items (tool grouping, superseded-gate dedup, client-tool split). */
     items: RenderItem[]
+    /** A tool waited on the reader, including tools hidden or merged in the activity fold. */
+    hadGate: boolean
     /** The previous message is a settled, contentless assistant turn. */
     precededByEmptyAssistant: boolean
     /** Collapse this row entirely — a repeated empty "no response" turn after another one. */
@@ -205,12 +208,16 @@ const buildOneTurn = (source: UIMessage, ctx: OneTurnContext): TurnViewModel => 
     const hidden =
         getDisplayContent(source) === null ||
         (status.noResponse && !status.showError && !status.hasContent && precededByEmptyAssistant)
+    const classifyClientTool = (part: ToolUIPart): boolean =>
+        isClientToolPart?.(part, {isStreaming: isStreamingTurn, isLastMessage: isLast}) ?? false
+    const hadGate = message.parts.some((part) => {
+        if (!isToolPart(part.type)) return false
+        const tool = part as ToolUIPart
+        return toolHadApproval(tool) || classifyClientTool(tool)
+    })
     const items = buildTurnRenderItems(message.parts, {
         executed,
-        isClientToolPart: (part) =>
-            isClientToolPart
-                ? isClientToolPart(part, {isStreaming: isStreamingTurn, isLastMessage: isLast})
-                : false,
+        isClientToolPart: classifyClientTool,
     })
     return {
         message,
@@ -221,6 +228,7 @@ const buildOneTurn = (source: UIMessage, ctx: OneTurnContext): TurnViewModel => 
         isStreamingTurn,
         status,
         items,
+        hadGate,
         precededByEmptyAssistant,
         hidden,
         traceId: getMessageTraceId(message),

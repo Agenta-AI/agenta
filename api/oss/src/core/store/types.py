@@ -10,3 +10,11 @@ class StorePreconditionFailed(Exception):
     def __init__(self, current_etag: Optional[str] = None):
         self.current_etag = current_etag
         super().__init__("Object store precondition failed.")
+
+
+class StoreObjectTooLarge(Exception):
+    """A bounded read refused an object larger than the caller's `max_bytes` limit."""
+
+    def __init__(self, max_bytes: int):
+        self.max_bytes = max_bytes
+        super().__init__(f"Object is larger than {max_bytes} bytes.")

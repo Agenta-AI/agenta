@@ -1,7 +1,14 @@
 // The Copy · Reply pill over a selection: above it, flipped below when there is no room.
 import {useLayoutEffect, useRef, useState} from "react"
 
+import {Copy, Quotes} from "@phosphor-icons/react"
+
 const GAP = 8
+
+const actionClass = (touch?: boolean) =>
+    `flex cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-1.5 text-[11px] font-medium text-popover-foreground hover:bg-accent [&_svg]:shrink-0 [&_svg]:text-muted-foreground ${
+        touch ? "h-6" : "h-5"
+    }`
 
 export interface QuoteToolbarProps {
     /** Root-relative anchor: `left` is the selection's centre. */
@@ -39,28 +46,18 @@ export const QuoteToolbar = ({anchor, bounds, onCopy, onReply, touch}: QuoteTool
             data-quote-ignore="true"
             role="toolbar"
             aria-label="Quote actions"
-            className="absolute z-30 flex items-center gap-px rounded-lg border border-solid border-colorBorderSecondary bg-colorBgElevated p-0.5 shadow-lg"
+            className="absolute z-30 flex items-center rounded-lg border border-solid border-border/60 bg-popover p-0.5 shadow-md"
             style={{top, left, opacity: size.height ? 1 : 0}}
             // A mousedown inside the pill would collapse the very selection it acts on.
             onMouseDown={(e) => e.preventDefault()}
         >
-            <button
-                type="button"
-                onClick={onCopy}
-                className={`flex cursor-pointer items-center rounded-md border-0 bg-transparent px-2 font-medium text-colorText hover:bg-colorFillTertiary ${
-                    touch ? "h-6 text-[11px]" : "h-5 text-[11px]"
-                }`}
-            >
+            <button type="button" onClick={onCopy} className={actionClass(touch)}>
+                <Copy size={12} />
                 Copy
             </button>
-            <span className="h-3 w-px bg-colorBorderSecondary" aria-hidden />
-            <button
-                type="button"
-                onClick={onReply}
-                className={`flex cursor-pointer items-center rounded-md border-0 bg-transparent px-2 font-medium text-colorText hover:bg-colorFillTertiary ${
-                    touch ? "h-6 text-[11px]" : "h-5 text-[11px]"
-                }`}
-            >
+            <span className="mx-1 h-3 w-px bg-border/60" aria-hidden />
+            <button type="button" onClick={onReply} className={actionClass(touch)}>
+                <Quotes size={12} weight="fill" />
                 Reply
             </button>
         </div>

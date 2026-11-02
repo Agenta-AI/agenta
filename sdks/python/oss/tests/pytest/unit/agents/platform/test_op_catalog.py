@@ -97,6 +97,24 @@ def test_app_ops_are_handler_mode_and_hide_their_bound_fields():
     assert starters.resolved_input_schema()["properties"] == {}
 
 
+def _schema_refs(node, path="$"):
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key == "$ref":
+                yield path
+            yield from _schema_refs(value, f"{path}.{key}")
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            yield from _schema_refs(value, f"{path}[{index}]")
+
+
+def test_read_config_schema_is_inline():
+    """Moonshot (Kimi) rejects the `read_config` path segment as a `$ref` ("infinite
+    recursion") and fails every turn that offers the tool, so the segment stays inline."""
+    schema = get_platform_op("read_config").resolved_input_schema()
+    assert list(_schema_refs(schema)) == []
+
+
 def test_reserved_id_uses_the_tools_agenta_namespace():
     # Mirrors the reserved `tools.agenta.discover_tools` precedent (PR #4884).
     assert get_platform_op("discover_tools").reserved_id == (
@@ -803,10 +821,10 @@ async def test_create_trigger_ops_bind_self_target_and_hide_destination(connecti
     assert "Configure when to run in the schedule or trigger settings" in (
         inputs_fields_description
     )
-    assert "For subscriptions, map event data under a sibling key" in (
+    assert "The agent reads only `messages`" in inputs_fields_description
+    assert "the event is added to the last user message in `messages` by default" in (
         inputs_fields_description
     )
-    assert '"payload": "$.event.attributes"' in inputs_fields_description
 
     subscription = specs["create_subscription"]
     assert subscription.call.args_into == "subscription"

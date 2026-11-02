@@ -10,8 +10,12 @@ import Image from "@theme/IdealImage";
 
 On a self-hosted deployment, an agent can use your existing harness login instead of a model API key. Mount the login in the runner, then select it on the agent.
 
+:::tip Connect a Claude plan with a token
+To run agents on a Claude Pro or Max plan, paste a token from `claude setup-token` instead. It needs no mount, and it works on Agenta Cloud and on self-hosted deployments. See [Connect a Claude subscription](/guides/connect-a-claude-subscription).
+:::
+
 :::warning This needs a self-hosted deployment
-Agenta Cloud cannot use a subscription. A subscription authenticates the harness through a login file mounted into your runner, which only exists on a deployment you run yourself. See the [self-hosting quick start](/self-host/quick-start).
+A mounted login authenticates the harness through a login file mounted into your runner, which only exists on a deployment you run yourself. See the [self-hosting quick start](/self-host/quick-start).
 :::
 
 ## 1. Mount your login into the runner

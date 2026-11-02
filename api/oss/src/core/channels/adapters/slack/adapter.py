@@ -37,6 +37,7 @@ from oss.src.core.channels.dtos import (
     ChannelHistoryPage,
     ChannelInboundEvent,
     ChannelInboxEventProcessed,
+    ChannelPerson,
     ChannelRequestContext,
     ChannelSetupDoc,
     ChannelSetupIdentity,
@@ -65,6 +66,11 @@ _LISTING_PAGE_SIZE = 200
 # Default page size for backfill; clamped further to the install's own rate
 # tier at fetch time.
 _DEFAULT_BACKFILL_LIMIT = int(os.getenv("AGENTA_CHANNELS_BACKFILL_LIMIT") or 50)
+
+# users.list page size. Slack recommends at most 200.
+_PEOPLE_PAGE_SIZE = 200
+# users.list is a slow rate tier: a rate-limited page is tried this many times.
+_RATE_LIMIT_ATTEMPTS = 5
 
 # Downloading a file is one long GET, not a quick API call.
 _MEDIA_TIMEOUT_SECONDS = 30.0
@@ -216,6 +222,7 @@ class SlackAdapter(ChannelAdapterInterface):
         *,
         request_url: str,
         identity: Optional[ChannelSetupIdentity] = None,
+        locator: Optional[Dict[str, Any]] = None,
     ) -> Optional[ChannelSetupDoc]:
         identity = identity or ChannelSetupIdentity()
         manifest = build_slack_manifest(
@@ -319,7 +326,11 @@ class SlackAdapter(ChannelAdapterInterface):
         return event.get("type") in _DEACTIVATION_EVENT_TYPES
 
     async def parse_event(
-        self, *, body: bytes, connection: Optional[ChannelConnection] = None
+        self,
+        *,
+        body: bytes,
+        connection: Optional[ChannelConnection] = None,
+        request: Optional[ChannelRequestContext] = None,
     ) -> Optional[ChannelInboundEvent]:
         # block_actions arrives form-encoded (payload= field); event_callback
         # arrives as raw JSON. _parse_slack_payload handles both.
@@ -461,8 +472,8 @@ class SlackAdapter(ChannelAdapterInterface):
         """Download a shared file. Two calls: files.info resolves the file id
         to its current size and private URL (the stored part carries only the
         id, so a URL rotated since the event still resolves), then the URL is
-        fetched with the bot token. None when Slack reports the file larger
-        than `max_bytes`. An HTML response is Slack's login page, meaning the
+        fetched with the bot token. None when the file is larger than
+        `max_bytes`. An HTML response is Slack's login page, meaning the
         token cannot read files."""
 
         body = await self._call(
@@ -476,20 +487,32 @@ class SlackAdapter(ChannelAdapterInterface):
         if not url:
             # An external or tombstoned file has no downloadable copy.
             raise _SlackApiError(error="file_not_downloadable", status_code=200)
-        response = await self._client.get(
+        async with self._client.stream(
+            "GET",
             url,
             headers={"Authorization": f"Bearer {_bot_token(connection)}"},
             follow_redirects=True,
             timeout=_MEDIA_TIMEOUT_SECONDS,
-        )
-        response.raise_for_status()
-        if response.headers.get("content-type", "").startswith("text/html"):
-            raise _SlackApiError(
-                error="file_download_denied", status_code=response.status_code
-            )
-        if max_bytes is not None and len(response.content) > max_bytes:
-            return None
-        return response.content, media.get("mime_type") or entry.get("mimetype")
+        ) as response:
+            response.raise_for_status()
+            if response.headers.get("content-type", "").startswith("text/html"):
+                raise _SlackApiError(
+                    error="file_download_denied", status_code=response.status_code
+                )
+            content_length = response.headers.get("content-length", "")
+            if (
+                max_bytes is not None
+                and not response.headers.get("content-encoding")
+                and content_length.isdecimal()
+                and int(content_length) > max_bytes
+            ):
+                return None
+            data = bytearray()
+            async for chunk in response.aiter_bytes():
+                if max_bytes is not None and len(data) + len(chunk) > max_bytes:
+                    return None
+                data.extend(chunk)
+            return bytes(data), media.get("mime_type") or entry.get("mimetype")
 
     # --- egress --- #
 
@@ -529,6 +552,27 @@ class SlackAdapter(ChannelAdapterInterface):
             receipts.append({"channel": response["channel"], "ts": response["ts"]})
         # The last chunk's receipt is what edit_message targets.
         return receipts[-1]
+
+    async def post_ephemeral(
+        self,
+        *,
+        connection: ChannelConnection,
+        locator: Dict[str, Any],
+        recipient_id: str,
+        content: List[Dict[str, Any]],
+    ) -> bool:
+        text, _ = _render_content(content)
+        await self._call(
+            connection,
+            "chat.postEphemeral",
+            {
+                "channel": locator["channel"],
+                "user": recipient_id,
+                "thread_ts": locator.get("thread_ts"),
+                "text": text,
+            },
+        )
+        return True
 
     async def edit_message(
         self,
@@ -718,6 +762,62 @@ class SlackAdapter(ChannelAdapterInterface):
             if not cursor:
                 break
         return spaces
+
+    # --- people --- #
+
+    async def list_people(
+        self, *, connection: ChannelConnection
+    ) -> List[ChannelPerson]:
+        """users.list, every page. A slow rate tier, so a rate-limited page
+        waits as Slack asks and is tried again a few times."""
+
+        people: List[ChannelPerson] = []
+        cursor = ""
+        while True:
+            params: Dict[str, Any] = {"limit": _PEOPLE_PAGE_SIZE}
+            if cursor:
+                params["cursor"] = cursor
+            response = await self._call_waiting_on_rate_limit(
+                connection, "users.list", params
+            )
+            for member in response.get("members") or []:
+                if not isinstance(member, dict) or not member.get("id"):
+                    continue
+                if member.get("id") == "USLACKBOT":
+                    continue
+                people.append(_person_from_member(member, source="directory"))
+            cursor = (response.get("response_metadata") or {}).get("next_cursor") or ""
+            if not cursor:
+                break
+        return people
+
+    async def find_person_by_email(
+        self, *, connection: ChannelConnection, email: str
+    ) -> Optional[ChannelPerson]:
+        try:
+            response = await self._call(
+                connection, "users.lookupByEmail", {"email": email}, as_query=True
+            )
+        except _SlackApiError as e:
+            if e.error == "users_not_found":
+                return None
+            raise
+        member = response.get("user")
+        if not isinstance(member, dict) or not member.get("id"):
+            return None
+        return _person_from_member(member, source="email_lookup")
+
+    async def _call_waiting_on_rate_limit(
+        self, connection: ChannelConnection, method: str, params: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        for attempt in range(_RATE_LIMIT_ATTEMPTS):
+            try:
+                return await self._call(connection, method, params, as_query=True)
+            except _SlackApiError as e:
+                if e.error != "ratelimited" or attempt == _RATE_LIMIT_ATTEMPTS - 1:
+                    raise
+                await asyncio.sleep(min(e.retry_after or 5, 60))
+        raise RuntimeError("unreachable")
 
     async def join_space(
         self, *, connection: ChannelConnection, locator: Dict[str, Any]
@@ -962,6 +1062,22 @@ class _SlackApiError(Exception):
         self.status_code = status_code
         self.retry_after = retry_after
         super().__init__(f"Slack API error: {error}")
+
+
+def _person_from_member(member: Dict[str, Any], *, source: str) -> ChannelPerson:
+    profile = member.get("profile") if isinstance(member.get("profile"), dict) else {}
+    fields = _profile_fields(member)
+    return ChannelPerson(
+        id=str(member["id"]),
+        name=fields.get("name"),
+        username=fields.get("username"),
+        email=profile.get("email") or None,
+        # a multi-channel or single-channel guest
+        is_guest=bool(member.get("is_restricted") or member.get("is_ultra_restricted")),
+        is_bot=bool(member.get("is_bot")),
+        is_deleted=bool(member.get("deleted")),
+        source=source,
+    )
 
 
 def _retry_after(value: Optional[str]) -> Optional[int]:

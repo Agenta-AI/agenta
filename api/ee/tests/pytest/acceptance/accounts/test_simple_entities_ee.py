@@ -118,12 +118,14 @@ class TestSimpleWorkspaces:
         wks = body["accounts"][0]["workspaces"]
         assert wks
         workspace_id = list(wks.values())[0]["id"]
+        # Workspace removal step 2: the answer is the organization; deleting it as a
+        # workspace deletes nothing.
+        assert workspace_id == org_id
 
         delete_resp = admin_api(
             "DELETE",
             f"/admin/simple/accounts/workspaces/{workspace_id}",
         )
-        assert delete_resp.status_code == 200
-        assert delete_resp.json()["deleted"]["workspaces"]
+        assert delete_resp.status_code == 409
 
         _delete_account_by_email(admin_api, email=email)

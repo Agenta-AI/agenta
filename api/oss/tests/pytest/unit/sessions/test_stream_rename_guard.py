@@ -44,6 +44,8 @@ from oss.src.dbs.postgres.sessions.streams.mappings import (
 )
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 _PROJECT = uuid4()
@@ -238,7 +240,7 @@ def test_the_revision_comes_before_the_name_in_details():
 
 def test_a_padded_name_is_trimmed_before_it_is_stored():
     assert _edit(name="  Padded  ").name == "Padded"
-    assert _edit(replacing_name="  Padded  ").replacing_name == "Padded"
+    assert _edit(name="New", replacing_name="  Padded  ").replacing_name == "Padded"
     assert _edit(name="").name == ""
     with pytest.raises(ValueError):
         _edit(name="   ")
@@ -394,6 +396,7 @@ def test_a_create_carries_the_stamp():
             session_id=_SESSION,
             name=_PERSON_NAME,
             name_source=SessionNameSource.manual,
+            access=OWNERLESS_PROJECT_POLICY,
         ),
     )
 
@@ -408,6 +411,7 @@ def test_a_create_from_an_automatic_caller_is_unstamped():
             session_id=_SESSION,
             name=_AGENT_NAME,
             name_source=SessionNameSource.automatic,
+            access=OWNERLESS_PROJECT_POLICY,
         ),
     )
 
@@ -520,6 +524,7 @@ async def _rename(service, *, name, source, replacing=None, revision=None):
         session_id=_SESSION,
         header=_edit(name=name, replacing_name=replacing, replacing_revision=revision),
         name_source=source,
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
 
@@ -629,6 +634,7 @@ async def test_repeating_a_person_name_does_not_open_the_door(lock_engine):
         session_id=_SESSION,
         header=_edit(name=_PERSON_NAME, description="ran the shell command"),
         name_source=SessionNameSource.automatic,
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     with pytest.raises(SessionNameProtected):
@@ -757,7 +763,13 @@ def _app(router) -> FastAPI:
 
 def _client(service) -> TestClient:
     return TestClient(
-        _app(SessionStreamsRouter(service=service, interactions_service=AsyncMock()))
+        _app(
+            SessionStreamsRouter(
+                service=service,
+                interactions_service=AsyncMock(),
+                run_admission=NoopRunAdmission(),
+            )
+        )
     )
 
 
@@ -812,6 +824,8 @@ def test_the_route_reads_the_source_from_the_query_string():
 
 
 def test_a_body_name_source_cannot_reach_the_service():
+    # The header edit forbids unknown body keys, so a body `name_source` is refused
+    # before the service runs, and the query parameter stays the only source.
     service = AsyncMock()
     service.set_header.return_value = _row(name=_AGENT_NAME)
 
@@ -825,11 +839,8 @@ def test_a_body_name_source_cannot_reach_the_service():
             json={"name": _AGENT_NAME, "name_source": "manual"},
         )
 
-    assert response.status_code == 200
-    assert (
-        service.set_header.await_args.kwargs["name_source"]
-        is SessionNameSource.automatic
-    )
+    assert response.status_code == 422
+    service.set_header.assert_not_called()
 
 
 def test_a_refused_rename_answers_409_with_the_agent_actionable_envelope():

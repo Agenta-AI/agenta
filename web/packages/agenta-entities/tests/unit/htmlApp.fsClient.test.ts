@@ -16,7 +16,8 @@ vi.mock("@agenta/sdk/resources", () => ({
     getMountsClient: () => fern,
 }))
 
-vi.mock("@agenta/entities/session", () => ({
+vi.mock("@agenta/entities/session", async () => ({
+    ...(await vi.importActual("../../src/session/core/pathUtils")),
     getMountsClient: () => fern,
     projectScopedRequest: (projectId: string) => ({queryParams: {project_id: projectId}}),
 }))

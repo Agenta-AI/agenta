@@ -14,6 +14,7 @@ from oss.src.core.secrets.dtos import (
     OAuthProviderDTO,
     OAuthProviderSettingsDTO,
     SecretDTO,
+    SecretOwner,
     SecretResponseDTO,
     UpdateSecretDTO,
 )
@@ -31,26 +32,28 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 
-# A grant this close to its expiry counts as expired. Long enough that a token cannot die
-# between the check and the upstream call it authorizes, short enough that a healthy
-# hour-long token is not renewed on every request. One definition, because the data plane
-# decides whether to ask for a refresh and the OAuth service decides whether to perform
-# one: were they to disagree, a call would bounce between them.
+# A renewable grant this close to its expiry is renewed before it is used. Long enough that
+# a token cannot die between the check and the upstream call it authorizes, short enough
+# that a healthy hour-long token is not renewed on every request.
 REFRESH_SKEW_SECONDS = 60
 
 
-def grant_settings_expired(
-    grant: Optional[OAuthGrantSettingsDTO], *, skew: int = REFRESH_SKEW_SECONDS
-) -> bool:
-    """Whether a stored grant needs renewing before it is used.
+def grant_refresh_due(grant: Optional[OAuthGrantSettingsDTO]) -> bool:
+    """Whether a stored grant must go through `refresh_grant` before it is used.
 
-    A grant whose authorization server stated no lifetime is never treated as expired:
-    nothing here knows when it dies, and guessing would renew a working token on every
-    call. Such a grant still dies as a 401 from the upstream, which is the behaviour for
-    every token whose end nobody can predict.
+    One definition, because the data plane decides whether to ask for a refresh and the
+    OAuth service decides whether to perform one: were they to disagree, a call would
+    bounce between them.
+
+    A grant with a refresh token is due inside the skew. A grant without one cannot be
+    renewed early, so it is used until it really expires and is due only then, when the
+    refresh reports it dead (some servers, DataforSEO among them, register no refresh
+    grant). A grant whose authorization server stated no lifetime is never due: nothing
+    here knows when it dies, and it dies as a 401 from the upstream instead.
     """
     if grant is None or grant.expires_at is None:
         return False
+    skew = REFRESH_SKEW_SECONDS if grant.refresh_token else 0
     return grant.expires_at - skew <= time.time()
 
 
@@ -68,6 +71,13 @@ def grant_slug(endpoint_id: UUID) -> str:
     connection, which is what it was written for.
     """
     return get_slug_from_name_and_id("oauth-grant", endpoint_id)
+
+
+def token_slug(endpoint_id: UUID) -> str:
+    """The vault slug of a person's pasted token for one MCP server (kind `mcp_token`).
+
+    Built like `grant_slug`, with its own name part, so the two never collide."""
+    return get_slug_from_name_and_id("mcp-token", endpoint_id)
 
 
 # Written on every registration this module creates, and preferred by both the lookup and
@@ -138,6 +148,10 @@ class SecretsTokenStorage:
     overwriting the one in use, and a grant records which registration issued it so a
     renewal presents the client its tokens were bound to.
 
+    The grant is the project's, or a person's own sign-in when `owner` names that
+    person: one person's grant to a project server, at the same `grant_slug`, in their own
+    rows. The registration is the project's either way, because the server is.
+
     Both slugs are deterministic, so two callbacks completing at once compute the same
     slug and both find nothing to update. The write is therefore create-first, and the
     loser of the unique index on `(project_id, slug)` converts its refusal into the
@@ -155,9 +169,13 @@ class SecretsTokenStorage:
         endpoint_id: Optional[UUID] = None,
         authorization_server: Optional[str] = None,
         redirect_uri: Optional[str] = None,
+        owner: Optional[SecretOwner] = None,
     ) -> None:
         self.vault_service = vault_service
         self.project_id = project_id
+        # Whose grant this storage reads and writes: None for the project's, or a user
+        # owner for that person's own sign-in. The registration is always the project's.
+        self.owner = owner
         self.server_url = server_url
         self.endpoint_id = endpoint_id
         self.authorization_server = authorization_server
@@ -194,10 +212,18 @@ class SecretsTokenStorage:
         Reached on refresh, write and delete, not on the relay path: a relayed call reads
         its credential through the endpoint's own `secret_id`, never through here.
         """
-        secret = await self.vault_service.get_secret_by_slug(
-            secret_slug=grant_slug(self._require_endpoint_id()),
-            project_id=self.project_id,
-        )
+        slug = grant_slug(self._require_endpoint_id())
+        if self.owner is not None:
+            secret = await self.vault_service.get_personal_secret_by_slug(
+                organization_id=self.owner.organization_id,
+                user_id=self.owner.id,
+                slug=slug,
+            )
+        else:
+            secret = await self.vault_service.get_secret_by_slug(
+                secret_slug=slug,
+                project_id=self.project_id,
+            )
         if secret is None or secret.kind != SecretKind.OAUTH_GRANT:
             return None
         return secret
@@ -231,8 +257,13 @@ class SecretsTokenStorage:
     async def set_tokens(self, tokens: OAuthToken) -> None:
         await self.write_tokens(tokens)
 
-    async def write_tokens(self, tokens: OAuthToken) -> SecretResponseDTO:
-        """Write this connection's tokens and return the persisted secret."""
+    async def write_tokens(
+        self, tokens: OAuthToken, *, client_id: Optional[str] = None
+    ) -> SecretResponseDTO:
+        """Write this connection's tokens and return the persisted secret.
+
+        `client_id` is the client the tokens were issued to, recorded so a renewal
+        presents that client and no other."""
         endpoint_id = self._require_endpoint_id()
         expires_at = (
             int(time.time()) + tokens.expires_in
@@ -253,6 +284,7 @@ class SecretsTokenStorage:
             # Which client these tokens were issued against, so a renewal presents that
             # one rather than whatever registration the issuer holds by then.
             client_registration_slug=self.resolved_registration_slug,
+            client_id=client_id,
         )
         secret = SecretDTO(
             kind=SecretKind.OAUTH_GRANT,
@@ -260,6 +292,18 @@ class SecretsTokenStorage:
         )
 
         slug = grant_slug(endpoint_id)
+        if self.owner is not None:
+            # The person's row at this slug, created or replaced in place; the vault
+            # settles a race between two callbacks itself.
+            return await self.vault_service.put_personal_secret(
+                organization_id=self.owner.organization_id,
+                user_id=self.owner.id,
+                create_secret_dto=CreateSecretDTO(
+                    slug=slug,
+                    header=Header(name=f"OAuth grant — {self.server_url}"),
+                    secret=secret,
+                ),
+            )
         existing = await self._find_grant()
         if existing is not None:
             return await self._update(existing=existing, secret=secret)
@@ -288,6 +332,12 @@ class SecretsTokenStorage:
         live upstream until it expires. Recorded as debt (CU20) rather than left
         unsaid: revocation needs an endpoint this deployment does not discover yet.
         """
+        if self.owner is not None:
+            return await self.vault_service.delete_personal_secret_by_slug(
+                organization_id=self.owner.organization_id,
+                user_id=self.owner.id,
+                slug=grant_slug(self._require_endpoint_id()),
+            )
         existing = await self._find_grant()
         if existing is None:
             return False

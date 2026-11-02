@@ -104,56 +104,47 @@ describe("settings tab descriptions", () => {
     })
 
     it("varies the billing description with the billing entitlement", () => {
-        expect(getSettingsTabDescription("billing", baseAccess)).toContain("subscription")
-        expect(
-            getSettingsTabDescription("billing", {...baseAccess, billingEnabled: false}),
-        ).not.toContain("subscription")
+        expect(getSettingsTabDescription("billing", baseAccess)).toBe(
+            "Your plan, its limits, and payment details.",
+        )
+        expect(getSettingsTabDescription("billing", {...baseAccess, billingEnabled: false})).toBe(
+            "Track how much of your plan you have used.",
+        )
     })
 })
 
 describe("settings sidebar scopes", () => {
-    it("groups tabs by project, organization, and personal scope", () => {
-        expect(SETTINGS_SCOPES.map(({key}) => key)).toEqual(["project", "organization", "personal"])
+    it("groups tabs by connections, project, organization, and personal scope", () => {
+        expect(SETTINGS_SCOPES.map(({key}) => key)).toEqual([
+            "connections",
+            "project",
+            "organization",
+            "personal",
+        ])
+        expect(SETTINGS_SCOPES[0].title).toBe("Connections")
 
         const tabs = getSettingsSidebarTabs(baseAccess)
         const keysForScope = (scope: (typeof SETTINGS_SCOPES)[number]["key"]) =>
             tabs.filter((tab) => tab.scope === scope).map(({key}) => key)
 
-        expect(keysForScope("project")).toEqual([
+        expect(keysForScope("connections")).toEqual([
             "llms",
             "tools",
             "secrets",
             "mcpEndpoints",
             "channels",
-            "apiKeys",
-            "webhooks",
-            "analytics",
         ])
+        expect(keysForScope("project")).toEqual(["apiKeys", "webhooks", "analytics"])
         expect(keysForScope("organization")).toEqual([
+            "credits",
             "billing",
             "workspace",
             "organizationGeneral",
             "projects",
             "organization",
             "auditLog",
-            "credits",
-            "walletUsage",
         ])
         expect(keysForScope("personal")).toEqual(["account", "preferences"])
-    })
-
-    it("shows the wallet debug view only while the wallet is on, in a development build", () => {
-        expect(isSettingsTabVisible("walletUsage", baseAccess)).toBe(false)
-        expect(isSettingsTabVisible("walletUsage", {...baseAccess, walletsEnabled: true})).toBe(
-            false,
-        )
-        expect(
-            isSettingsTabVisible("walletUsage", {
-                ...baseAccess,
-                walletsEnabled: true,
-                walletDebug: true,
-            }),
-        ).toBe(true)
     })
 
     it("shows the credits view only where the organization's wallet is enforced", () => {
@@ -171,5 +162,34 @@ describe("settings sidebar scopes", () => {
     it("exposes separate LLM and MCP pages", () => {
         expect(getSettingsTabLabel("llms", baseAccess)).toBe("AI providers")
         expect(getSettingsTabLabel("mcpEndpoints", baseAccess)).toBe("MCPs")
+    })
+})
+
+describe("tabs a role cannot read", () => {
+    it("hides Analytics when the reader may not read trace content", () => {
+        expect(isSettingsTabVisible("analytics", {...baseAccess, canViewAnalytics: false})).toBe(
+            false,
+        )
+        expect(isSettingsTabVisible("analytics", {...baseAccess, canViewAnalytics: true})).toBe(
+            true,
+        )
+    })
+
+    it("keeps Analytics visible for a host that says nothing about it", () => {
+        expect(isSettingsTabVisible("analytics", baseAccess)).toBe(true)
+    })
+
+    it("shows the plan page to a non-owner who may read billing", () => {
+        expect(
+            isSettingsTabVisible("billing", {
+                ...baseAccess,
+                isOwner: false,
+                canViewBilling: true,
+            }),
+        ).toBe(true)
+    })
+
+    it("falls back to the owner check for a host that says nothing about billing", () => {
+        expect(isSettingsTabVisible("billing", {...baseAccess, isOwner: false})).toBe(false)
     })
 })

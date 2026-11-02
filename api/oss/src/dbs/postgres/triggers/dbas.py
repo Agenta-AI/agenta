@@ -36,6 +36,12 @@ class TriggerSubscriptionDBA(
         nullable=True,
     )
 
+    # The executing principal and the direct target agent (M2). artifact_id is NULL
+    # for an environment-bound trigger and never cascades.
+    principal_kind = Column(String, nullable=True)
+    principal_id = Column(UUID(as_uuid=True), nullable=True)
+    artifact_id = Column(UUID(as_uuid=True), nullable=True)
+
 
 class TriggerScheduleDBA(
     ProjectScopeDBA,
@@ -48,6 +54,12 @@ class TriggerScheduleDBA(
     MetaDBA,
 ):
     __abstract__ = True
+
+    # The executing principal and the direct target agent (M2). artifact_id is NULL
+    # for an environment-bound trigger and never cascades.
+    principal_kind = Column(String, nullable=True)
+    principal_id = Column(UUID(as_uuid=True), nullable=True)
+    artifact_id = Column(UUID(as_uuid=True), nullable=True)
 
 
 class TriggerDeliveryDBA(

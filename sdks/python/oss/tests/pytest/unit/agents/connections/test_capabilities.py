@@ -201,6 +201,15 @@ def test_pi_models_are_the_shared_catalog_ids_pi_can_run():
             assert provider not in supported_llm_models
 
 
+def test_pi_chatgpt_models_exclude_ids_a_chatgpt_account_refuses():
+    # Pi's catalog still lists these under ``openai-codex``, but a ChatGPT login refuses them
+    # with "not supported when using Codex with a ChatGPT account", so the picker must not offer
+    # them.
+    models = HARNESS_CONNECTION_CAPABILITIES["pi_core"].models["openai-codex"]
+    assert "gpt-5.5" not in models
+    assert "gpt-5.3-codex-spark" not in models
+
+
 def test_every_published_pi_model_is_one_pi_accepts():
     # Pi selects only models its pinned pi-ai catalog carries; anything else fails at run time.
     pi_ids = {entry["id"] for entry in model_catalog_entries("pi_core")}

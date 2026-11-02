@@ -27,6 +27,8 @@ export interface DriveFolderMenuProps {
     actions?: DriveFolderActions
     /** Absent at the root (nothing to copy). */
     onCopyPath?: () => void
+    /** Absent where the URL does not mirror the drive. */
+    onCopyLink?: () => void
     onDownloadAll?: () => void
     downloadingAll?: boolean
 }
@@ -47,6 +49,7 @@ export type DriveFolderMenuEntry =
 export const driveFolderMenuEntries = ({
     actions,
     onCopyPath,
+    onCopyLink,
     onDownloadAll,
     downloadingAll,
 }: DriveFolderMenuProps): DriveFolderMenuEntry[] => [
@@ -81,6 +84,17 @@ export const driveFolderMenuEntries = ({
         disabled: !onCopyPath,
         onSelect: onCopyPath,
     },
+    ...(onCopyLink
+        ? [
+              {
+                  key: "copy-link",
+                  icon: <LinkSimple />,
+                  label: "Copy link",
+                  disabled: false,
+                  onSelect: onCopyLink,
+              },
+          ]
+        : []),
     {
         key: "download-all",
         icon: <DownloadSimple />,

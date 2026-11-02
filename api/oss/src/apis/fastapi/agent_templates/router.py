@@ -3,13 +3,28 @@ from uuid import UUID
 from fastapi import APIRouter, Query, Request, status
 from fastapi.responses import JSONResponse
 
+from oss.src.apis.fastapi.sharing.utils import (
+    agent_creation_failed_exception,
+    allow_resource,
+    not_found_exception,
+    policy_for_request,
+    session_resource,
+)
+from oss.src.core.sessions.streams.types import SessionIdTombstoned
+from oss.src.core.sharing.dtos import SharedItemKind
+from oss.src.core.sharing.types import AdmissionDenied, AgentCreationFailed
+from oss.src.core.access.principals import access_denied_error
+from oss.src.core.access.types import AccessDenied
+from oss.src.middlewares.auth import request_run_envelope
 from oss.src.apis.fastapi.agent_templates.exceptions import (
+    SCAN_UNAVAILABLE_NEXT_STEP,
     template_load_error_response,
 )
 from oss.src.apis.fastapi.agent_templates.models import (
     TemplateLoadRequest,
     TemplateResponse,
     TemplatesQueryRequest,
+    TemplateSourceScanRequest,
     TemplatesResponse,
     TemplateValidateRequest,
 )
@@ -21,11 +36,16 @@ from oss.src.core.agent_templates.dtos import (
     GitHubTemplateSource,
     SessionFileTemplateSource,
     TemplateLoadResult,
+    TemplateRepositoryScan,
     TemplateSource,
     TemplateValidationResult,
     UploadTemplateSource,
 )
-from oss.src.core.agent_templates.exceptions import TemplateSourceNotFound
+from oss.src.core.agent_templates.exceptions import (
+    TemplatePackageInvalid,
+    TemplateSourceNotFound,
+)
+from oss.src.core.agent_templates.github import GitHubPackageFetcher
 from oss.src.core.agent_templates.loader import AgentTemplateLoader
 from oss.src.core.agent_templates.validation import AgentTemplateValidator
 from oss.src.core.shared.idempotency import request_key_hash
@@ -44,6 +64,28 @@ def _source_permissions(source: TemplateSource) -> list[Permission]:
     if isinstance(source, SessionFileTemplateSource):
         return [Permission.VIEW_SESSIONS, Permission.VIEW_MOUNTS]
     return []
+
+
+async def _hidden_source_error(
+    request: Request, source: TemplateSource
+) -> Exception | None:
+    """The error a session-backed source answers when its session is hidden from the
+    caller: the same `TemplateSourceNotFound` an unknown session gives."""
+    if isinstance(source, UploadTemplateSource):
+        if not await allow_resource(
+            request,
+            action=Permission.VIEW_SESSIONS,
+            resource=session_resource(source.staging_session_id),
+        ):
+            return TemplateSourceNotFound(f"upload:{source.attachment_id}")
+    if isinstance(source, SessionFileTemplateSource):
+        if not await allow_resource(
+            request,
+            action=Permission.VIEW_MOUNTS,
+            resource=session_resource(source.session_id),
+        ):
+            return TemplateSourceNotFound(f"session_file:{source.path}")
+    return None
 
 
 def _source_log(source: TemplateSource) -> dict[str, str]:
@@ -69,10 +111,12 @@ class AgentTemplatesRouter:
         loader: AgentTemplateLoader,
         catalog: AgentTemplateCatalog,
         validator: AgentTemplateValidator | None = None,
+        scanner: GitHubPackageFetcher | None = None,
     ) -> None:
         self._loader = loader
         self._catalog = catalog
         self._validator = validator
+        self._scanner = scanner or GitHubPackageFetcher()
         self.router = APIRouter()
         if validator is not None:
             self.router.add_api_route(
@@ -96,6 +140,20 @@ class AgentTemplatesRouter:
             status_code=status.HTTP_200_OK,
             response_model=TemplatesResponse,
             response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/sources/scan",
+            self.scan_template_source,
+            methods=["POST"],
+            operation_id="scan_agent_template_source",
+            status_code=status.HTTP_200_OK,
+            response_model=TemplateRepositoryScan,
+            responses={
+                403: {"description": "Forbidden"},
+                404: {"description": "Repository or ref not found"},
+                422: {"description": "Invalid request"},
+                503: {"description": "GitHub unavailable"},
+            },
         )
         self.router.add_api_route(
             "/load",
@@ -168,6 +226,24 @@ class AgentTemplatesRouter:
             return response
         return TemplateResponse(template=template)
 
+    @intercept_exceptions()
+    async def scan_template_source(
+        self,
+        request: Request,
+        *,
+        payload: TemplateSourceScanRequest,
+    ) -> TemplateRepositoryScan | JSONResponse:
+        await self._require_view(request)
+        try:
+            return await self._scanner.scan(repo_url=payload.repo_url)
+        except Exception as exc:
+            response = template_load_error_response(
+                exc, unavailable_next_step=SCAN_UNAVAILABLE_NEXT_STEP
+            )
+            if response is None:
+                raise
+            return response
+
     @staticmethod
     def _idempotency_error(*, code: str, message: str) -> JSONResponse:
         return JSONResponse(
@@ -213,6 +289,9 @@ class AgentTemplatesRouter:
         if self._validator is None:
             raise RuntimeError("Template validation is not configured.")
         try:
+            hidden = await _hidden_source_error(request, payload.source)
+            if hidden is not None:
+                raise hidden
             result = await self._validator.validate(
                 project_id=project_id,
                 source=payload.source,
@@ -270,11 +349,73 @@ class AgentTemplatesRouter:
         if project_id != authorized_project_id:
             raise FORBIDDEN_EXCEPTION  # type: ignore
         user_id = UUID(str(request.state.user_id))
+        envelope = request_run_envelope(request)
+        if envelope is None:
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+        access = policy_for_request(
+            request, kind=SharedItemKind.AGENT, requested=payload.visibility
+        )
         try:
+            hidden = await _hidden_source_error(request, payload.source)
+            if hidden is not None:
+                raise hidden
+            if (
+                payload.attachment_ids
+                and payload.staging_session_id
+                and not await allow_resource(
+                    request,
+                    action=Permission.VIEW_SESSIONS,
+                    resource=session_resource(payload.staging_session_id),
+                )
+            ):
+                # What the loader answers for attachments of an unknown session.
+                raise TemplatePackageInvalid(
+                    "attachment_source_invalid",
+                    "A staged attachment is unavailable in this project and session.",
+                )
             result = await self._loader.load(
                 project_id=project_id,
                 user_id=user_id,
                 command=payload.to_domain(request_key=request_key),
+                envelope=envelope,
+                access=access,
+                first_agent_owner_user_id=access.owner_user_id,
+                session_access=policy_for_request(
+                    request,
+                    kind=SharedItemKind.SESSION,
+                    requested=payload.visibility,
+                ),
+            )
+        except AgentCreationFailed as exc:
+            raise agent_creation_failed_exception(exc) from exc
+        except SessionIdTombstoned as exc:
+            # A reserved session id (a deleted private session's, or a channel thread's):
+            # answered as a hidden session, as the session routes do.
+            raise not_found_exception() from exc
+        except AdmissionDenied as exc:
+            if not exc.readable:
+                # A hidden session or agent answers like an unknown one.
+                raise not_found_exception() from exc
+            return JSONResponse(
+                status_code=status.HTTP_403_FORBIDDEN,
+                content={
+                    "detail": access_denied_error(
+                        decision=exc.decision,
+                        principal_kind=envelope.authority.principal.kind,
+                        project_id=project_id,
+                    ).model_dump(exclude_none=True)
+                },
+            )
+        except AccessDenied as exc:
+            return JSONResponse(
+                status_code=status.HTTP_403_FORBIDDEN,
+                content={
+                    "detail": access_denied_error(
+                        decision=exc.decision,
+                        principal_kind=envelope.authority.principal.kind,
+                        project_id=project_id,
+                    ).model_dump(exclude_none=True)
+                },
             )
         except Exception as exc:
             response = template_load_error_response(exc)

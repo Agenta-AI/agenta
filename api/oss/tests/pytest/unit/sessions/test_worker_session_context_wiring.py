@@ -13,13 +13,17 @@ import pytest
 
 from entrypoints import worker_queues
 from oss.src.core.workflows.service import WorkflowsService
+from oss.tests.pytest.utils.sharing import register_sharing_service_for_tests
 
 
 @pytest.mark.parametrize(
     "builder",
     ["_build_triggers_broker", "_build_interactions_broker"],
 )
-def test_a_queue_worker_installs_the_session_context_resolver(builder):
+def test_a_queue_worker_installs_the_session_context_resolver(builder, monkeypatch):
+    # main_async runs bootstrap_access() before any builder; the trigger dispatcher
+    # takes the registered SharingService.
+    register_sharing_service_for_tests(monkeypatch)
     with (
         patch.object(worker_queues, "_install_session_context_resolver") as install,
         patch.object(worker_queues, "TrimOnAckRedisStreamBroker"),

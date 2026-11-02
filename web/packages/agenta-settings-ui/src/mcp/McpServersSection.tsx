@@ -12,22 +12,25 @@
  * each one authenticates. What a server may actually do is a property of an agent, not of the
  * connection, so permissions are reachable from here only read-only ("View tools").
  */
-import {useCallback, useMemo, useState} from "react"
+import {type ReactNode, useCallback, useMemo, useState} from "react"
 
 import {
+    mcpReconnectTarget,
     connectionNameProblem,
     deleteMcpEndpointAtom,
     editMcpEndpoint,
     disconnectMcpEndpointAtom,
+    getMcpConnectionCheckLabel,
     getMcpConnectionStatus,
     getMcpConnectionStatusLabel,
+    readMcpConnectionHealth,
     mcpEndpointsQueryAtom,
     readMcpToolCount,
     refreshMcpEndpointsAtom,
     type McpConnectionStatus,
     type MCPEndpoint,
 } from "@agenta/entities/mcpEndpoint"
-import {customNamedSecretsAtom} from "@agenta/entities/secret"
+import {customNamedSecretsAtom, personalAccountsAccessAtom} from "@agenta/entities/secret"
 import {
     McpConnectJourney,
     McpConnectionDetail,
@@ -38,7 +41,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
-import {Button, cn, IconTile, touchTargetExpansion} from "@agenta/ui/ui"
+import {Button, IconTile} from "@agenta/ui/ui"
 import {
     ArrowsClockwise,
     LinkBreak,
@@ -48,14 +51,22 @@ import {
     Trash,
     Wrench,
 } from "@phosphor-icons/react"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {atomWithStorage} from "jotai/utils"
 
 import type {ConfirmDestructive} from "../confirm"
 import {SettingsPageActions} from "../SettingsPageShell"
+import {showsYours} from "../shared/accountOwners"
 import {InlineName} from "../shared/InlineName"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
+import {SettingsGroupHeading} from "../shared/SettingsGroupHeading"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 import {usePhoneColumns} from "../shared/usePhoneColumns"
+
+import {McpYoursTable, personalSignInServers} from "./McpYoursTable"
+
+/** Per viewer, like the other pages' groups: "Yours" folds away and stays folded. */
+const yoursCollapsedAtom = atomWithStorage("agenta:settings:mcps-yours-collapsed", false)
 
 /** Nouns for the rows; a host that calls them something else passes its own. */
 export interface McpServersSectionCopy {
@@ -82,6 +93,7 @@ const DEFAULT_COPY: McpServersSectionCopy = {
 const STATUS_TONE: Record<McpConnectionStatus, "success" | "warning" | "error"> = {
     connected: "success",
     login_expired: "warning",
+    not_signed_in: "warning",
     unreachable: "error",
 }
 
@@ -117,13 +129,25 @@ export interface McpServersSectionProps {
     confirm?: ConfirmDestructive
     /** Hides every write affordance. */
     readOnly?: boolean
+    /**
+     * Whether the member may read a server's tool list (`use_mcp_endpoints`). When false the
+     * connection detail leaves the tools section out instead of showing the relay's refusal.
+     */
+    canListTools?: boolean
     copy?: Partial<McpServersSectionCopy>
+    /** The project group's heading: the project switch. Shown with "Yours". */
+    projectSwitch?: ReactNode
+    /** How many projects the person has in the organization, for the empty "Yours" note. */
+    projectCount?: number
 }
 
 export default function McpServersSection({
     confirm,
     readOnly,
+    canListTools = true,
     copy: copyOverrides,
+    projectSwitch,
+    projectCount,
 }: McpServersSectionProps) {
     const copy = useMemo<McpServersSectionCopy>(
         () => ({...DEFAULT_COPY, ...copyOverrides}),
@@ -135,6 +159,8 @@ export default function McpServersSection({
     const disconnect = useSetAtom(disconnectMcpEndpointAtom)
     const deleteEndpoint = useSetAtom(deleteMcpEndpointAtom)
     const namedSecrets = useAtomValue(customNamedSecretsAtom)
+    const access = useAtomValue(personalAccountsAccessAtom)
+    const [yoursCollapsed, setYoursCollapsed] = useAtom(yoursCollapsedAtom)
 
     const [connecting, setConnecting] = useState(false)
     const [reconnecting, setReconnecting] = useState<MCPEndpoint | null>(null)
@@ -148,10 +174,14 @@ export default function McpServersSection({
     const [viewingKey, setViewingKey] = useState<string | null>(null)
     /** "View tools", tracked by key for the same reason as the connection above. */
     const [toolsKey, setToolsKey] = useState<string | null>(null)
+    // The tools drawer's panel: a reconnect started there opens inside it, not over the page.
+    const [toolsPanel, setToolsPanel] = useState<HTMLDivElement | null>(null)
     const [renamingKey, setRenamingKey] = useState<string | null>(null)
     const projectId = useAtomValue(projectIdAtom)
 
     const rows = useMemo(() => endpoints ?? [], [endpoints])
+    // A person signs in to the project's servers.
+    const yoursServers = useMemo(() => personalSignInServers(rows), [rows])
     const names = useMemo(() => rows.map((row) => row.name), [rows])
     const rowKey = useCallback((record: MCPEndpoint) => record.id ?? record.slug ?? "", [])
     const viewing = useMemo(
@@ -277,177 +307,196 @@ export default function McpServersSection({
         </Button>
     )
 
+    const projectTable = (
+        <ListTable<MCPEndpoint>
+            columns={columns}
+            groups={[{key: "servers", label: null, rows}]}
+            rowKey={rowKey}
+            minWidth={0}
+            loading={isPending}
+            skeletonRows={3}
+            hideHeader={empty}
+            onOpenRow={(record) => setViewing(record)}
+            empty={
+                <SettingsEmpty
+                    icon={getSettingsSidebarIcon("mcpEndpoints")}
+                    title={copy.emptyTitle}
+                    description={copy.emptyBody}
+                    action={readOnly ? null : connect}
+                />
+            }
+            renderRow={(record) => {
+                const status = getMcpConnectionStatus(record)
+                const health = readMcpConnectionHealth(record)
+                const checkLabel = health ? getMcpConnectionCheckLabel(health) : null
+                const secretName = record.secret_id
+                    ? secretNameById.get(record.secret_id)
+                    : undefined
+                return (
+                    <>
+                        <span className="flex min-w-0 items-center gap-2.5">
+                            {/* One generic glyph for every server: the registry holds arbitrary
+                            URLs, so there is no per-server branding to show. */}
+                            <IconTile
+                                size={28}
+                                tone="muted"
+                                aria-hidden="true"
+                                className="border border-solid border-border bg-muted text-muted-foreground"
+                            >
+                                <Plugs />
+                            </IconTile>
+                            <InlineName
+                                value={record.name || record.slug || ""}
+                                editing={!readOnly && renamingKey === rowKey(record)}
+                                ariaLabel="Connection name"
+                                testId="mcp-connection-name"
+                                onStart={
+                                    readOnly ? undefined : () => setRenamingKey(rowKey(record))
+                                }
+                                onDone={() => setRenamingKey(null)}
+                                validate={(name) =>
+                                    connectionNameProblem({
+                                        name,
+                                        existingNames: names,
+                                        currentName: record.name,
+                                    })
+                                }
+                                onSave={async (name) => {
+                                    if (!record.id) return
+                                    // A full replace: the edit route writes what it is given.
+                                    await editMcpEndpoint(
+                                        {
+                                            id: record.id,
+                                            name,
+                                            description: record.description,
+                                            auth_mode: record.auth_mode,
+                                            secret_id: record.secret_id,
+                                            data: record.data,
+                                            flags: record.flags,
+                                        },
+                                        projectId ?? undefined,
+                                    )
+                                    void refresh()
+                                }}
+                            />
+                        </span>
+                        {shows("url") ? (
+                            <span
+                                className="truncate font-mono text-[13px] text-muted-foreground"
+                                title={record.data.route.base_url ?? undefined}
+                            >
+                                {record.data.route.base_url}
+                            </span>
+                        ) : null}
+                        {!shows("auth") ? null : record.auth_mode === "oauth" ? (
+                            <span className="truncate">OAuth</span>
+                        ) : record.auth_mode === "none" ? (
+                            <span className="truncate">None</span>
+                        ) : secretName ? (
+                            // Never the credential itself, only what it is filed under.
+                            <span className="flex min-w-0 items-center gap-1">
+                                <span>API key ·</span>
+                                <span className="truncate font-mono text-xs">{secretName}</span>
+                            </span>
+                        ) : (
+                            <span className="truncate">API key</span>
+                        )}
+                        <span
+                            data-testid="mcp-connection-status"
+                            className="flex min-w-0 items-center gap-2"
+                        >
+                            <span className="flex min-w-0 flex-col">
+                                <StatusIndicator
+                                    tone={STATUS_TONE[status]}
+                                    label={getMcpConnectionStatusLabel(status)}
+                                    // min-w-0 lets the label truncate instead of pushing the menu out.
+                                    className="min-w-0 text-[13px]"
+                                />
+                                {checkLabel ? (
+                                    <span
+                                        data-testid="mcp-connection-check"
+                                        className="truncate text-xs text-muted-foreground"
+                                        title={checkLabel}
+                                    >
+                                        {checkLabel}
+                                    </span>
+                                ) : null}
+                            </span>
+                        </span>
+                        {readOnly ? null : (
+                            <SettingsRowMenu
+                                label="Server actions"
+                                items={[
+                                    {
+                                        key: "reconnect",
+                                        label: "Reconnect",
+                                        icon: <ArrowsClockwise size={14} />,
+                                        onClick: () => openReconnect(record),
+                                    },
+                                    {
+                                        key: "view-tools",
+                                        label: "View tools",
+                                        icon: <Wrench size={14} />,
+                                        hidden: !canListTools,
+                                        onClick: () => setToolsKey(rowKey(record)),
+                                    },
+                                    {
+                                        key: "rename",
+                                        label: "Rename",
+                                        icon: <PencilSimpleLine size={14} />,
+                                        deferred: true,
+                                        onClick: () => setRenamingKey(rowKey(record)),
+                                    },
+                                    {type: "divider"},
+                                    {
+                                        key: "disconnect",
+                                        label: "Disconnect",
+                                        icon: <LinkBreak size={14} />,
+                                        danger: true,
+                                        // Only an OAuth grant can be revoked; anything else is a 400.
+                                        hidden: !hasGrantToRevoke(record),
+                                        onClick: () => handleDisconnect(record),
+                                    },
+                                    {
+                                        key: "remove",
+                                        label: "Remove",
+                                        icon: <Trash size={14} />,
+                                        danger: true,
+                                        onClick: () => handleRemove(record),
+                                    },
+                                ]}
+                            />
+                        )}
+                    </>
+                )
+            }}
+        />
+    )
+
     return (
         <div className="flex flex-col">
             {readOnly ? null : <SettingsPageActions>{connect}</SettingsPageActions>}
 
-            <ListTable<MCPEndpoint>
-                columns={columns}
-                groups={[{key: "servers", label: null, rows}]}
-                rowKey={rowKey}
-                minWidth={0}
-                loading={isPending}
-                skeletonRows={3}
-                hideHeader={empty}
-                onOpenRow={(record) => setViewing(record)}
-                empty={
-                    <SettingsEmpty
-                        icon={getSettingsSidebarIcon("mcpEndpoints")}
-                        title={copy.emptyTitle}
-                        description={copy.emptyBody}
-                        action={readOnly ? null : connect}
+            {showsYours(access) ? (
+                <div className="flex flex-col gap-8">
+                    <McpYoursTable
+                        servers={yoursServers}
+                        collapsed={yoursCollapsed}
+                        onToggle={() => setYoursCollapsed((value) => !value)}
+                        confirm={confirm}
+                        projectCount={projectCount}
                     />
-                }
-                renderRow={(record) => {
-                    const status = getMcpConnectionStatus(record)
-                    const secretName = record.secret_id
-                        ? secretNameById.get(record.secret_id)
-                        : undefined
-                    return (
-                        <>
-                            <span className="flex min-w-0 items-center gap-2.5">
-                                {/* One generic glyph for every server: the registry holds arbitrary
-                                    URLs, so there is no per-server branding to show. */}
-                                <IconTile
-                                    size={28}
-                                    tone="muted"
-                                    aria-hidden="true"
-                                    className="border border-solid border-border bg-muted text-muted-foreground"
-                                >
-                                    <Plugs />
-                                </IconTile>
-                                <InlineName
-                                    value={record.name || record.slug || ""}
-                                    editing={!readOnly && renamingKey === rowKey(record)}
-                                    ariaLabel="Connection name"
-                                    testId="mcp-connection-name"
-                                    onStart={
-                                        readOnly ? undefined : () => setRenamingKey(rowKey(record))
-                                    }
-                                    onDone={() => setRenamingKey(null)}
-                                    validate={(name) =>
-                                        connectionNameProblem({
-                                            name,
-                                            existingNames: names,
-                                            currentName: record.name,
-                                        })
-                                    }
-                                    onSave={async (name) => {
-                                        if (!record.id) return
-                                        // A full replace: the edit route writes what it is given.
-                                        await editMcpEndpoint(
-                                            {
-                                                id: record.id,
-                                                name,
-                                                description: record.description,
-                                                auth_mode: record.auth_mode,
-                                                secret_id: record.secret_id,
-                                                data: record.data,
-                                                flags: record.flags,
-                                            },
-                                            projectId ?? undefined,
-                                        )
-                                        void refresh()
-                                    }}
-                                />
-                            </span>
-                            {shows("url") ? (
-                                <span
-                                    className="truncate font-mono text-[13px] text-muted-foreground"
-                                    title={record.data.route.base_url ?? undefined}
-                                >
-                                    {record.data.route.base_url}
-                                </span>
-                            ) : null}
-                            {!shows("auth") ? null : record.auth_mode === "oauth" ? (
-                                <span className="truncate">OAuth</span>
-                            ) : record.auth_mode === "none" ? (
-                                <span className="truncate">None</span>
-                            ) : secretName ? (
-                                // Never the credential itself, only what it is filed under.
-                                <span className="flex min-w-0 items-center gap-1">
-                                    <span>API key ·</span>
-                                    <span className="truncate font-mono text-xs">{secretName}</span>
-                                </span>
-                            ) : (
-                                <span className="truncate">API key</span>
-                            )}
-                            <span
-                                data-testid="mcp-connection-status"
-                                className="flex min-w-0 items-center gap-2"
-                            >
-                                <StatusIndicator
-                                    tone={STATUS_TONE[status]}
-                                    label={getMcpConnectionStatusLabel(status)}
-                                    // min-w-0 lets the label truncate instead of pushing Reconnect under the menu.
-                                    className="min-w-0 text-[13px]"
-                                />
-                                {/* The repair is offered where the problem is reported, so a row
-                                    that needs attention does not send the reader to a menu. */}
-                                {status !== "connected" && !readOnly ? (
-                                    <Button
-                                        variant="link"
-                                        // An inline link in a dense status cell: kept at the 24px step its touch target is built on.
-                                        size="xs"
-                                        // The invisible expansion lifts the 24px link to a 44px touch target.
-                                        className={cn("p-0 text-xs", touchTargetExpansion(24))}
-                                        onClick={(event) => {
-                                            // A different intent from the row click.
-                                            event.stopPropagation()
-                                            openReconnect(record)
-                                        }}
-                                    >
-                                        Reconnect
-                                    </Button>
-                                ) : null}
-                            </span>
-                            {readOnly ? null : (
-                                <SettingsRowMenu
-                                    label="Server actions"
-                                    items={[
-                                        {
-                                            key: "reconnect",
-                                            label: "Reconnect",
-                                            icon: <ArrowsClockwise size={14} />,
-                                            onClick: () => openReconnect(record),
-                                        },
-                                        {
-                                            key: "view-tools",
-                                            label: "View tools",
-                                            icon: <Wrench size={14} />,
-                                            onClick: () => setToolsKey(rowKey(record)),
-                                        },
-                                        {
-                                            key: "rename",
-                                            label: "Rename",
-                                            icon: <PencilSimpleLine size={14} />,
-                                            deferred: true,
-                                            onClick: () => setRenamingKey(rowKey(record)),
-                                        },
-                                        {type: "divider"},
-                                        {
-                                            key: "disconnect",
-                                            label: "Disconnect",
-                                            icon: <LinkBreak size={14} />,
-                                            danger: true,
-                                            // Only an OAuth grant can be revoked; anything else is a 400.
-                                            hidden: !hasGrantToRevoke(record),
-                                            onClick: () => handleDisconnect(record),
-                                        },
-                                        {
-                                            key: "remove",
-                                            label: "Remove",
-                                            icon: <Trash size={14} />,
-                                            danger: true,
-                                            onClick: () => handleRemove(record),
-                                        },
-                                    ]}
-                                />
-                            )}
-                        </>
-                    )
-                }}
-            />
+                    <section className="flex flex-col gap-3">
+                        <SettingsGroupHeading
+                            label={projectSwitch ?? "Project"}
+                            count={rows.length}
+                        />
+                        {projectTable}
+                    </section>
+                </div>
+            ) : (
+                projectTable
+            )}
 
             <McpConnectJourney
                 // A new controller per attempt. The component unmounts itself while closed,
@@ -458,19 +507,9 @@ export default function McpServersSection({
                 open={connecting}
                 onClose={closeConnect}
                 existingNames={names}
-                reconnect={
-                    reconnecting?.id && reconnecting.slug
-                        ? {
-                              id: reconnecting.id,
-                              slug: reconnecting.slug,
-                              name: reconnecting.name || reconnecting.slug,
-                              url: reconnecting.data.route.base_url || "",
-                              authMode: reconnecting.auth_mode,
-                              credentialHeader: reconnecting.data.route.credential_header,
-                          }
-                        : null
-                }
+                reconnect={mcpReconnectTarget(reconnecting)}
                 onConnected={() => void refresh()}
+                container={viewingTools ? toolsPanel : null}
             />
 
             {/*
@@ -497,6 +536,7 @@ export default function McpServersSection({
                 onChange={() => undefined}
                 onReconnect={viewingTools ? () => openReconnect(viewingTools) : undefined}
                 readOnly
+                panelRef={setToolsPanel}
             />
 
             <McpConnectionDetail
@@ -505,7 +545,9 @@ export default function McpServersSection({
                 existingNames={names}
                 onReconnect={openReconnect}
                 onDisconnect={handleDisconnect}
-                onChanged={() => void refresh()}
+                onChanged={refresh}
+                readOnly={readOnly}
+                canListTools={canListTools}
             />
         </div>
     )

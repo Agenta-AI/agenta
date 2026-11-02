@@ -9,11 +9,14 @@
 {{- $node := $values }}
 {{- range splitList "." $wl.key }}{{- $node = default dict (get $node .) }}{{- end }}
 {{- $cfg := default dict $node.pdb }}
-{{- $replicas := int $wl.replicas }}
-{{- /* Two or more replicas: one may go at a time. One replica: a budget
-       only helps when the operator asks for it with protectSingleton,
-       because minAvailable 1 on a single pod blocks every voluntary
-       eviction of its node for the platform's grace period. */}}
+{{- /* `maxUnavailable: 1` for every workload, whatever its replica count.
+       With two or more replicas one pod may go at a time, which is the point
+       of a budget. With one replica the budget permits the eviction instead
+       of deferring it: `minAvailable: 1` over a single pod allows zero
+       voluntary disruptions, so the platform cannot drain that node, warns
+       about it for the whole grace period, and evicts the pod anyway at the
+       end of it. The budget is rendered for a single replica all the same, so
+       the set of budgets does not change shape when a workload is scaled. */}}
 {{- /* hasKey, not truthiness: maxUnavailable 0 is a real setting (block
        every voluntary eviction), not an unset one. */}}
 {{- $hasMax := hasKey $cfg "maxUnavailable" }}
@@ -21,11 +24,8 @@
 {{- $maxUnavailable := $cfg.maxUnavailable }}
 {{- $minAvailable := $cfg.minAvailable }}
 {{- if not (or $hasMax $hasMin) }}
-{{- if gt $replicas 1 }}{{- $maxUnavailable = 1 }}{{- $hasMax = true }}
-{{- else if $cfg.protectSingleton }}{{- $minAvailable = 1 }}{{- $hasMin = true }}
+{{- $maxUnavailable = 1 }}{{- $hasMax = true }}
 {{- end }}
-{{- end }}
-{{- if or $hasMax $hasMin }}
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -44,7 +44,6 @@ spec:
     matchLabels:
       {{- include "agenta.selectorLabels" $root | nindent 6 }}
       app.kubernetes.io/component: {{ $wl.component }}
-{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}

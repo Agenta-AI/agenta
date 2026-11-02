@@ -30,6 +30,7 @@ from oss.src.core.tools.exceptions import (
     ConnectionInvalidError,
     ConnectionNotFoundError,
 )
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 # The values a leak would expose. Each is checked against the whole model-facing payload.
 CONNECTION_SLUG = "github-work"
@@ -48,6 +49,7 @@ class FakeToolsService:
 
 def _router(tools_service):
     return ToolsRouter(
+        run_admission=NoopRunAdmission(),
         tools_service=tools_service,
         workflows_service=SimpleNamespace(),
     )

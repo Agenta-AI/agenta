@@ -114,7 +114,11 @@ class WellBehavedFakeAdapter(ChannelAdapterInterface):
         return INSTALLATION_ID
 
     async def parse_event(
-        self, *, body: bytes, connection: Optional[ChannelConnection] = None
+        self,
+        *,
+        body: bytes,
+        connection: Optional[ChannelConnection] = None,
+        request=None,
     ) -> Optional[ChannelInboundEvent]:
         if body == b"ignore-me":
             return None

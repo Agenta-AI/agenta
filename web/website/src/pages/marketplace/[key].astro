@@ -576,7 +576,8 @@ const num = (id: string) => String(sections.indexOf(id) + 1).padStart(2, "0");
     }
     .ag-tpl-overview {
       margin: 0;
-      font: var(--text-display-md);
+      max-width: 62ch;
+      font: 300 22px/32px var(--font-display);
       color: var(--th-text-hi);
       text-wrap: pretty;
     }
@@ -888,7 +889,7 @@ const num = (id: string) => String(sections.indexOf(id) + 1).padStart(2, "0");
         gap: 10px;
       }
       .ag-tpl-overview {
-        font: 300 24px/32px var(--font-display);
+        font: 300 19px/28px var(--font-display);
       }
       .ag-tpl-tools {
         grid-template-columns: minmax(0, 1fr);

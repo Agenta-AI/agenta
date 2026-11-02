@@ -233,7 +233,11 @@ class TelegramAdapter(ChannelAdapterInterface):
     # for a connection that spans many chats.
 
     async def parse_event(
-        self, *, body: bytes, connection: Optional[ChannelConnection] = None
+        self,
+        *,
+        body: bytes,
+        connection: Optional[ChannelConnection] = None,
+        request: Optional[ChannelRequestContext] = None,
     ) -> Optional[ChannelInboundEvent]:
         update = _parse_json(body)
 

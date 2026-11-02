@@ -16,13 +16,18 @@ from oss.src.core.gateways.llms.types import (
     LLMEndpointNotFoundError,
     LLMEndpointProviderMissingError,
     LLMModelIdentifierInvalidError,
+    LLMAgentModelNotAvailableError,
     LLMModelNotAllowedError,
+    LLMNamedConnectionNotFoundError,
+    LLMOrganizationConnectionSlugRequiredError,
     LLMRoutingFieldNotAllowedError,
     LLMUpstreamError,
 )
 from oss.src.core.gateways.mcps.types import (
     MCPAgentaToolNotEntitledError,
     MCPAuthRequiredError,
+    MCPConnectionBusyError,
+    MCPConnectionChangedError,
     MCPConnectionNameTakenError,
     MCPEndpointNotFoundError,
     MCPScopeInsufficientError,
@@ -158,6 +163,30 @@ def handle_gateway_exceptions():
                         details={"target": _target_of(e)},
                     ),
                 ) from e
+            except LLMNamedConnectionNotFoundError as e:
+                # A typed miss of a connection the agent named, so a caller can ask the
+                # user to configure it.
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=gateway_error_envelope(
+                        code="connection_not_found",
+                        message=e.message,
+                        next_step=(
+                            "Pick a connection that exists for this project, or ask an "
+                            "organization admin to make this one available to it."
+                        ),
+                        details={"scope": e.scope.value, "slug": e.slug},
+                    ),
+                ) from e
+            except LLMOrganizationConnectionSlugRequiredError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail=gateway_error_envelope(
+                        code="organization_connection_slug_required",
+                        message=e.message,
+                        next_step="Name the organization connection by its slug.",
+                    ),
+                ) from e
             except GatewayPlaneDisabledError as e:
                 raise plane_disabled_http_exception(e) from e
             except GatewayEndpointInactiveError as e:
@@ -227,6 +256,23 @@ def handle_gateway_exceptions():
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=e.message,
                 ) from e
+            except MCPConnectionBusyError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=gateway_error_envelope(
+                        code="mcp_connection_busy",
+                        message=e.message,
+                        retryable=True,
+                        next_step="Try again.",
+                    ),
+                ) from e
+            except MCPConnectionChangedError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=gateway_error_envelope(
+                        code="mcp_connection_changed", message=e.message
+                    ),
+                ) from e
             except MCPConnectionNameTakenError as e:
                 # A conflict rather than a validation failure: the request is
                 # well-formed and would be accepted in a project where the name is free.
@@ -236,6 +282,18 @@ def handle_gateway_exceptions():
                         code="mcp_connection_name_taken",
                         message=e.message,
                         next_step="Give this connection a name no other one in the project uses.",
+                    ),
+                ) from e
+            except LLMAgentModelNotAvailableError as e:
+                # The agent's model, refused while its connection resolves: the agent
+                # needs a model this connection offers, before the run starts.
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail=gateway_error_envelope(
+                        code="model_not_available",
+                        message=e.message,
+                        next_step="Pick a model this connection offers.",
+                        details={"target": _target_of(e), "model": e.model},
                     ),
                 ) from e
             except (LLMModelNotAllowedError, MCPToolNotAllowedError) as e:

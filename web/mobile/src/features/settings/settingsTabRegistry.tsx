@@ -3,8 +3,6 @@ import type {ComponentType} from "react"
 import type {SettingsTabKey} from "@agenta/settings"
 import dynamic from "next/dynamic"
 
-import {billingUrl} from "@/lib/context"
-
 import type {SettingsTabProps} from "./settingsTabProps"
 import {SettingsTabSkeleton} from "./states/SettingsTabSkeleton"
 
@@ -20,17 +18,7 @@ const LOADERS: Partial<Record<SettingsTabKey, Loader>> = {
     webhooks: () => import("./WebhooksTab").then((m) => m.WebhooksTab),
     analytics: () => import("./AnalyticsTab").then((m) => m.AnalyticsTab),
     billing: () => import("./BillingTab").then((m) => m.BillingTab),
-    credits: () =>
-        import("../wallet/CreditsTab").then(({CreditsTab}) => {
-            const Credits = ({workspaceId, projectId}: SettingsTabProps) => (
-                <CreditsTab
-                    projectId={projectId}
-                    billingURL={billingUrl({workspaceId, projectId})}
-                />
-            )
-            return Credits
-        }),
-    walletUsage: () => import("../wallet/WalletUsageTab").then((m) => m.WalletUsageTab),
+    credits: () => import("../wallet/CreditsTab").then((m) => m.CreditsTab),
     workspace: () => import("./MembersTab").then((m) => m.MembersTab),
     organizationGeneral: () => import("./OrganizationsTab").then((m) => m.OrganizationsTab),
     projects: () => import("./ProjectsTab").then((m) => m.ProjectsTab),

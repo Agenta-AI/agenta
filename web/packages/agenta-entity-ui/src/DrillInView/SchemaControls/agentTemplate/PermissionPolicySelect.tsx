@@ -20,8 +20,8 @@ export interface PermissionPolicyOption {
     value: string
     /** Trigger label (antd's `optionLabelProp="title"`). */
     title: string
-    /** Second line in the dropdown row. */
-    help: string
+    /** Second line in the dropdown row. Omit for a one-line option. */
+    help?: string
     /** Glyph before the label, in the trigger and in the menu row. Omit for a text-only option. */
     icon?: ReactNode
     /** Draw a divider above this option (the integration drawer sets it on "Custom"). */
@@ -110,9 +110,11 @@ export function PermissionPolicySelect({
                                     <span className="whitespace-nowrap font-medium max-sm:text-xs">
                                         {option.title}
                                     </span>
-                                    <span className="text-xs leading-snug text-colorTextTertiary max-sm:text-[11px]">
-                                        {option.help}
-                                    </span>
+                                    {option.help ? (
+                                        <span className="text-xs leading-snug text-colorTextTertiary max-sm:text-[11px]">
+                                            {option.help}
+                                        </span>
+                                    ) : null}
                                 </span>
                             </span>
                         </SelectItem>

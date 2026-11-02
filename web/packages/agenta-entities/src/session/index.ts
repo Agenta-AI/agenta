@@ -8,6 +8,7 @@
 export {
     querySessionRecords,
     querySessionTranscript,
+    querySessionTurns,
     fetchSessionSnapshot,
     queryInteractions,
     fetchInteraction,
@@ -28,11 +29,7 @@ export {
     updatePendingSessionInput,
     type PendingInputAdmission,
     type PendingInputWriteOutcome,
-    commandSessionStream,
     cancelSessionExecution,
-    cancelSessionStream,
-    type CancelSessionOutcome,
-    type CancelSessionStreamParams,
     resumeSessionContinuation,
     killSession,
     deleteSession as deleteSessionRemote,
@@ -54,7 +51,6 @@ export {
     type InteractionScopedParams,
     type RespondInteractionParams,
     type TransitionInteractionParams,
-    type CommandSessionStreamParams,
     type CancelSessionExecutionParams,
     type CancelSessionExecutionResult,
     type ResumeSessionContinuationParams,
@@ -78,6 +74,10 @@ export {
     sessionSnapshotSchema,
     pendingSessionInputSchema,
     sessionsQueryResponseSchema,
+    sessionTurnSchema,
+    sessionTurnsResponseSchema,
+    type SessionTurn,
+    type SessionTurnUsage,
     type SessionRecord,
     type SessionRecordsQueryResponse,
     type SessionInteraction,
@@ -97,7 +97,6 @@ export {
     type SessionDelivery,
     type SessionMessagePreview,
     type SessionWindowing,
-    type SessionStreamCommandResponse,
     type PendingSessionInput,
     type CommandMode,
     mountFileSchema,
@@ -131,10 +130,30 @@ export {
     type SessionListCursor,
     type SessionListFilters,
 } from "./state/listOptions"
-export {invalidateSessionListQueries, invalidateSessionLivenessQueries} from "./state/invalidate"
+export {
+    invalidateProjectSessionListQueries,
+    invalidateSessionListQueries,
+    invalidateSessionLivenessQueries,
+} from "./state/invalidate"
 export {shouldAdoptServerTranscript, type TranscriptAdoptionInput} from "./core/transcriptAdoption"
 export {deriveMountRows, mountBreadcrumbs, type MountRow} from "./core/mountBrowser"
 export {pickCwdMount} from "./core/mountSelection"
+export {listedEntryAt, parentFolderOf} from "./core/pathUtils"
+export {
+    revalidateSessionTurnsAtom,
+    revalidateSessionTurnsOnTurnEndAtom,
+    sessionTurnsByTraceAtomFamily,
+    sessionTurnsPendingAtomFamily,
+    sessionTurnsQueryFamily,
+    sessionTurnsQueryKey,
+} from "./state/turns"
+export {
+    normalizeTraceId,
+    turnFigures,
+    turnsByTraceId,
+    turnsMayChange,
+    type TurnFigures,
+} from "./core/turnFigures"
 export {
     sessionRecordsQueryFamily,
     sessionRecordFileRecencyAtomFamily,
@@ -175,11 +194,14 @@ export {
     mountRootQueryFamily,
     mountDirQueryFamily,
     mountFileContentQueryFamily,
+    mountFolderListingQueryFamily,
+    mountFileExistsAtomFamily,
     revalidateSessionMountsAtom,
     sessionMountsQueryKey,
     mountFilesQueryKey,
     latestMountFilesQueryKey,
     mountFileContentQueryKey,
+    mountFolderListingQueryKey,
 } from "./state/mounts"
 export {
     detectFileActivity,
