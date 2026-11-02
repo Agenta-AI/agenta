@@ -17,14 +17,14 @@ vi.mock("@agenta/sdk/resources", async (importOriginal) => ({
     getFoldersClient: () => folderClient,
 }))
 
+import {usePromptsBrowser} from "@/features/prompts/usePromptsBrowser"
+
 import {
     makePromptsStore,
     PromptsTestProviders,
     type TestFolder,
     type TestPrompt,
 } from "./promptsTestStore"
-
-import {usePromptsBrowser} from "@/features/prompts/usePromptsBrowser"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 

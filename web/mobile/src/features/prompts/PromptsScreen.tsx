@@ -2,6 +2,9 @@ import {useCallback, useMemo, useState} from "react"
 
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 
+import {PageTitle} from "@/components/PageTitle"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
+
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
@@ -14,9 +17,6 @@ import {PromptsDialogs} from "./PromptsDialogs"
 import {PromptsView} from "./PromptsView"
 import {usePromptFolderActions} from "./usePromptFolderActions"
 import {usePromptsBrowser} from "./usePromptsBrowser"
-
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 /** The page column, shared with the other lists, so the nav entries line up. */
 const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`

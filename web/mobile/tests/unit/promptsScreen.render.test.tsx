@@ -38,14 +38,14 @@ vi.mock("@/components/ScreenScaffold", () => ({
     ),
 }))
 
+import {PromptsScreen} from "@/features/prompts/PromptsScreen"
+
 import {
     makePromptsStore,
     PromptsTestProviders,
     type TestFolder,
     type TestPrompt,
 } from "./promptsTestStore"
-
-import {PromptsScreen} from "@/features/prompts/PromptsScreen"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 

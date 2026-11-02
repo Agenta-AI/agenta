@@ -26,9 +26,9 @@ vi.mock("@/features/context/useProjectPermission", () => ({
         permissions[action],
 }))
 
-import {makePromptsStore, PromptsTestProviders, PROJECT_ID} from "./promptsTestStore"
-
 import {usePromptFolderActions} from "@/features/prompts/usePromptFolderActions"
+
+import {makePromptsStore, PromptsTestProviders, PROJECT_ID} from "./promptsTestStore"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
