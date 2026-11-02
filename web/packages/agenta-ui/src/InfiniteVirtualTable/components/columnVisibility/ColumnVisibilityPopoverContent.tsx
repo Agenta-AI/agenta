@@ -28,6 +28,12 @@ export interface ColumnVisibilityPopoverContentProps<RowType extends object> {
 
 type VisibilityTreeNode = CheckboxTreeNode & {searchLabel: string; children?: VisibilityTreeNode[]}
 
+/** The box antd's `.anticon` gave these icons: 1em wide, inline-block, 0.125em below the baseline. */
+const ANTD_ICON_BOX = {
+    size: "1em",
+    style: {display: "inline-block", verticalAlign: "-0.125em"},
+} as const
+
 const ColumnVisibilityPopoverContent = <RowType extends object>({
     onClose,
     controls,
@@ -126,7 +132,11 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
                         label
                     ),
                 searchValues: [typeof label === "string" ? label : undefined, key],
-                icon: hasChildren ? <FolderOpen size={16} /> : <FileIcon size={16} />,
+                icon: hasChildren ? (
+                    <FolderOpen {...ANTD_ICON_BOX} />
+                ) : (
+                    <FileIcon {...ANTD_ICON_BOX} />
+                ),
             }
         },
         [],
@@ -144,7 +154,11 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
                 const icon =
                     meta.icon ??
                     defaultMeta.icon ??
-                    (hasChildren ? <FolderOpen size={16} /> : <FileIcon size={16} />)
+                    (hasChildren ? (
+                        <FolderOpen {...ANTD_ICON_BOX} />
+                    ) : (
+                        <FileIcon {...ANTD_ICON_BOX} />
+                    ))
                 const searchValues = meta.searchValues ??
                     defaultMeta.searchValues ?? [
                         node.label ?? undefined,
