@@ -9,6 +9,8 @@ import {QueueRowCells} from "./QueueRowCells"
 import type {QueueToDelete} from "./useQueueDelete"
 
 const NAME_COLUMN: ListTableColumn = {key: "name", label: "Name", width: "minmax(160px,2fr)"}
+/** On a phone the name takes what the fixed columns leave. `minmax(0,1fr)` lets it shrink and truncate. */
+const NARROW_NAME_COLUMN: ListTableColumn = {key: "name", label: "Name", width: "minmax(0,1fr)"}
 const ACTIONS_COLUMN: ListTableColumn = {
     key: "actions",
     label: "Actions",
@@ -18,9 +20,9 @@ const ACTIONS_COLUMN: ListTableColumn = {
 
 /** Name, Reviewed, Status and the menu are the four a phone keeps. */
 const NARROW_COLUMNS: ListTableColumn[] = [
-    NAME_COLUMN,
-    {key: "reviewed", label: "Reviewed", width: "88px"},
-    {key: "status", label: "Status", width: "88px"},
+    NARROW_NAME_COLUMN,
+    {key: "reviewed", label: "Reviewed", width: "72px"},
+    {key: "status", label: "Status", width: "80px"},
     ACTIONS_COLUMN,
 ]
 const WIDE_COLUMNS: ListTableColumn[] = [
@@ -37,7 +39,7 @@ const WIDE_COLUMNS: ListTableColumn[] = [
 
 const WIDE_QUERY = "(min-width: 640px)"
 const WIDE_MIN_WIDTH = 1100
-const NARROW_MIN_WIDTH = 340
+const NARROW_MIN_WIDTH = 0
 
 /**
  * The queues in the shared list frame. A row opens the queue; the menu offers Open, Copy ID and,
