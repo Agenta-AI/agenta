@@ -89,14 +89,20 @@ export const FirstRunScreen = ({
         if (!entityId) return
         setFailedTemplate(null)
         const prompt = templateBuilderMessage(template)
+        const staged = attachments.files
+        const outbound = stagedFilesToOutbound(prompt, staged, sessionId)
         const handedOff = await newAgent.createFromPrompt({
-            text: prompt,
+            text: outbound.text,
             name: template.name,
             templateKey: template.key,
             sessionId,
+            parts: staged.length > 0 ? outbound.parts : undefined,
             entityId,
         })
-        if (handedOff) return
+        if (handedOff) {
+            attachments.clearAttachments(staged.map((file) => file.uid))
+            return
+        }
         setFailedTemplate(template)
         setRefill(prompt)
     }
