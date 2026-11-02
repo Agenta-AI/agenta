@@ -1,5 +1,6 @@
-"""A person's default Composio connection, on a real Postgres: the first connection is
-the default, the next is not, make default moves the flag, and two calls at once leave
+"""A person's default Composio connection, on a real Postgres: the first valid connection
+is the default, the next is not, a sign-in that succeeds makes its connection the default
+when no valid default exists, make default moves the flag, and two calls at once leave
 exactly one default. Skipped when Postgres is not reachable."""
 
 import asyncio
@@ -90,18 +91,30 @@ async def person():
         await session.commit()
 
 
-def _create(slug: str) -> ConnectionCreate:
-    return ConnectionCreate(
+def _create(slug: str, *, is_valid: bool = True) -> ConnectionCreate:
+    connection_create = ConnectionCreate(
         slug=slug,
         provider_key=ConnectionProviderKind.COMPOSIO,
         integration_key="gmail",
-        flags={"is_active": True, "is_valid": True},
+        flags={"is_active": True, "is_valid": is_valid},
+    )
+    # The service stores the provider's account id before the sign-in.
+    connection_create.data = {"connected_account_id": f"ca_{slug}"}
+    return connection_create
+
+
+async def _create_for(dao, owner, slug, *, is_valid: bool = True):
+    return await dao.create_connection(
+        project_id=None,
+        user_id=owner.id,
+        connection_create=_create(slug, is_valid=is_valid),
+        owner=owner,
     )
 
 
-async def _create_for(dao, owner, slug):
-    return await dao.create_connection(
-        project_id=None, user_id=owner.id, connection_create=_create(slug), owner=owner
+async def _sign_in(dao, owner, slug):
+    return await dao.activate_connection_by_provider_id(
+        project_id=None, provider_connection_id=f"ca_{slug}", owner=owner
     )
 
 
@@ -172,3 +185,48 @@ async def test_concurrent_first_creates_store_exactly_one_default(person):
     )
     assert len(created) == 4
     assert len(await _defaults(dao, person)) == 1
+
+
+async def test_a_connection_waiting_for_a_sign_in_becomes_the_default_on_success(
+    person,
+):
+    dao = ConnectionsDAO()
+    pending = await _create_for(dao, person, "gmail-main", is_valid=False)
+    assert pending.is_default is False
+
+    signed_in = await _sign_in(dao, person, "gmail-main")
+    assert signed_in.is_valid is True and signed_in.is_default is True
+    assert await _defaults(dao, person) == ["gmail-main"]
+
+
+async def test_an_abandoned_sign_in_does_not_keep_the_default_from_a_reconnect(person):
+    dao = ConnectionsDAO()
+    await _create_for(dao, person, "gmail-main", is_valid=False)
+    await _create_for(dao, person, "gmail-secondary", is_valid=False)
+    assert await _defaults(dao, person) == []
+
+    signed_in = await _sign_in(dao, person, "gmail-secondary")
+    assert signed_in.is_default is True
+    assert await _defaults(dao, person) == ["gmail-secondary"]
+
+
+async def test_a_sign_in_replaces_an_invalid_default(person):
+    """A row stored as the default before the sign-in, as the old code did."""
+    dao = ConnectionsDAO()
+    abandoned = await _create_for(dao, person, "gmail-main", is_valid=False)
+    await dao.make_default(owner=person, connection_id=abandoned.id)
+    await _create_for(dao, person, "gmail-secondary", is_valid=False)
+
+    signed_in = await _sign_in(dao, person, "gmail-secondary")
+    assert signed_in.is_default is True
+    assert await _defaults(dao, person) == ["gmail-secondary"]
+
+
+async def test_a_sign_in_keeps_a_valid_default(person):
+    dao = ConnectionsDAO()
+    await _create_for(dao, person, "gmail-main")
+    await _create_for(dao, person, "gmail-secondary", is_valid=False)
+
+    signed_in = await _sign_in(dao, person, "gmail-secondary")
+    assert signed_in.is_valid is True and signed_in.is_default is False
+    assert await _defaults(dao, person) == ["gmail-main"]

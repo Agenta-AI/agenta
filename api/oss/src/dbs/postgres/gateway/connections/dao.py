@@ -81,12 +81,20 @@ class ConnectionsDAO(ConnectionsDAOInterface):
         """Insert a new connection row. Raises EntityCreationConflict on slug collision.
 
         With a user `owner`, the row is that person's own, with no project. The person's
-        first connection for the integration becomes the default. When two creates race,
-        the default index refuses one, and that create is stored as not the default."""
-        is_default = owner is not None and not await self._has_personal_connections(
-            owner=owner,
-            provider_key=connection_create.provider_key,
-            integration_key=connection_create.integration_key,
+        first connection for the integration becomes the default when it is valid at
+        creation (an app with no sign-in). A connection that waits for a sign-in becomes
+        the default when the sign-in succeeds, in `activate_connection_by_provider_id`.
+        When two creates race, the default index refuses one, and that create is stored
+        as not the default."""
+        is_valid = bool((connection_create.flags or {}).get("is_valid"))
+        is_default = (
+            owner is not None
+            and is_valid
+            and not await self._has_personal_connections(
+                owner=owner,
+                provider_key=connection_create.provider_key,
+                integration_key=connection_create.integration_key,
+            )
         )
         try:
             return await self._insert(
@@ -311,7 +319,11 @@ class ConnectionsDAO(ConnectionsDAOInterface):
         provider_connection_id: str,
         owner: Optional[SecretOwner] = None,
     ) -> Optional[Connection]:
-        """Set is_valid=True and is_active=True for the connection matching the provider ID."""
+        """Set is_valid=True and is_active=True for the connection matching the provider ID.
+
+        A person's connection then becomes their default for the integration unless
+        another valid connection already is. An invalid default, such as an abandoned
+        sign-in, is replaced."""
         async with self.engine.session() as session:
             stmt = (
                 select(self.ConnectionDBE)
@@ -340,7 +352,16 @@ class ConnectionsDAO(ConnectionsDAOInterface):
             await session.commit()
             await session.refresh(dbe)
 
-            return map_connection_dbe_to_dto(dbe=dbe)
+            connection = map_connection_dbe_to_dto(dbe=dbe)
+
+        if owner is not None and not connection.is_default:
+            connection = (
+                await self._make_default(
+                    owner=owner, connection_id=connection.id, keep_valid_default=True
+                )
+                or connection
+            )
+        return connection
 
     @suppress_exceptions(default=None)
     async def find_connection_by_provider_id(
@@ -386,7 +407,15 @@ class ConnectionsDAO(ConnectionsDAOInterface):
         self, *, owner: SecretOwner, connection_id: UUID
     ) -> Optional[Connection]:
         """One transaction: clear the person's old default of the integration, then set
-        this connection. None when the connection is not the person's.
+        this connection. None when the connection is not the person's."""
+        return await self._make_default(
+            owner=owner, connection_id=connection_id, keep_valid_default=False
+        )
+
+    async def _make_default(
+        self, *, owner: SecretOwner, connection_id: UUID, keep_valid_default: bool
+    ) -> Optional[Connection]:
+        """With `keep_valid_default`, a valid default of another connection stays.
 
         Every connection of the person for that integration is locked first, so two calls
         at once run one after the other instead of both clearing and both setting."""
@@ -414,7 +443,10 @@ class ConnectionsDAO(ConnectionsDAOInterface):
             dbe = next((row for row in rows if row.id == connection_id), None)
             if dbe is None:
                 return None
-            if not dbe.is_default:
+            keep = keep_valid_default and any(
+                row.is_default and (row.flags or {}).get("is_valid") for row in rows
+            )
+            if not dbe.is_default and not keep:
                 for row in rows:
                     if row.is_default:
                         row.is_default = False
