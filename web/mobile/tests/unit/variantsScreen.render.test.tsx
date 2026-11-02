@@ -38,10 +38,20 @@ vi.mock("next/dynamic", () => ({
 vi.mock("@agenta/entities/workflow", () => ({
     appWorkflowsListQueryStateAtom: {id: "apps"},
     workflowLatestRevisionIdAtomFamily: () => ({id: "latest"}),
+    workflowVariantsListDataAtomFamily: () => ({id: "variants"}),
+    workflowMolecule: {selectors: {data: () => ({id: "entity"})}},
+    pickModelName: () => "",
 }))
 vi.mock("jotai", async (importOriginal) => ({
     ...(await importOriginal<typeof import("jotai")>()),
-    useAtomValue: (atom: {id: string}) => (atom.id === "apps" ? fixture.apps : "rev-3"),
+    useAtomValue: (atom: {id: string}) =>
+        atom.id === "apps"
+            ? fixture.apps
+            : atom.id === "variants"
+              ? []
+              : atom.id === "latest"
+                ? "rev-3"
+                : null,
 }))
 vi.mock("@agenta/ui/hooks", () => ({useMediaQuery: () => true}))
 vi.mock("@agenta/entities/shared", () => ({UserAuthorLabel: () => createElement("span")}))

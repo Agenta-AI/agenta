@@ -5,7 +5,7 @@ import {
     environmentsListQueryAtomFamily,
     type AppDeploymentRow,
 } from "@agenta/entities/environment"
-import type {Workflow} from "@agenta/entities/workflow"
+import {workflowVariantsListDataAtomFamily, type Workflow} from "@agenta/entities/workflow"
 import {useSettledValue} from "@agenta/shared/hooks"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableToolbar} from "@agenta/ui/list-table"
@@ -47,6 +47,17 @@ export const DeploymentsTab = ({
     const {read, write} = useUrlParams()
     const environments = useAtomValue(appEnvironmentsLoadableAtomFamily(app.id))
     const environmentList = useAtomValue(environmentsListQueryAtomFamily(false))
+    const variants = useAtomValue(workflowVariantsListDataAtomFamily(app.id))
+    const variantNames = useMemo(
+        () =>
+            new Map(
+                variants.flatMap((variant) => {
+                    const name = variant.name || variant.slug
+                    return name ? [[variant.id, name] as const] : []
+                }),
+            ),
+        [variants],
+    )
     const canDeploy = useProjectPermission(projectId, "deploy_environments")
     const endpointsEnabled = useDeveloperViewEnabled("endpoints")
     const [revisionId, setRevisionId] = useRevisionParam()
@@ -147,6 +158,7 @@ export const DeploymentsTab = ({
                     <DeploymentHistoryTable
                         rows={rows}
                         isLoading={history.isPending && environmentId !== null}
+                        variantNames={variantNames}
                         currentRevisionId={currentRevisionId}
                         canRevert={canDeploy}
                         onOpen={open}

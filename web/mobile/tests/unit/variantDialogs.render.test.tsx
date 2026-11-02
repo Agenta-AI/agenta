@@ -11,29 +11,19 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 const fixture = vi.hoisted(() => ({
     environments: {data: [] as unknown[], isPending: false, isError: false},
     deploy: vi.fn(),
-    deleteRevision: vi.fn(),
-    only: {only: false, pending: false},
+    archive: vi.fn(),
+    only: {only: false, pending: false, failed: false, retry: vi.fn()},
     setRevisionParam: vi.fn(),
     revisionParam: null as string | null,
     success: vi.fn(),
     error: vi.fn(),
-    entity: {id: "rev-2"} as unknown,
 }))
 
 vi.mock("@agenta/entities/environment", () => ({
     appEnvironmentsLoadableAtomFamily: () => ({id: "environments"}),
 }))
-vi.mock("@agenta/entities/workflow", () => ({
-    workflowMolecule: {selectors: {data: () => ({id: "entity"})}},
-}))
-vi.mock("@agenta/playground", () => ({
-    playgroundController: {actions: {deleteRevision: {id: "delete"}}},
-}))
-vi.mock("jotai", () => ({
-    useAtomValue: (atom: {id: string}) =>
-        atom.id === "entity" ? fixture.entity : fixture.environments,
-    useSetAtom: () => fixture.deleteRevision,
-}))
+vi.mock("@agenta/entities/workflow", () => ({archiveWorkflowRevision: fixture.archive}))
+vi.mock("jotai", () => ({useAtomValue: () => fixture.environments}))
 vi.mock("@agenta/ui/app-message", () => ({
     message: {success: fixture.success, error: fixture.error},
 }))
@@ -101,9 +91,8 @@ beforeEach(() => {
         isPending: false,
         isError: false,
     }
-    fixture.only = {only: false, pending: false}
+    fixture.only = {only: false, pending: false, failed: false, retry: vi.fn()}
     fixture.revisionParam = null
-    fixture.entity = {id: "rev-2"}
 })
 
 afterEach(() => {
@@ -192,7 +181,7 @@ describe("DeleteRevisionDialog", () => {
         )
 
     it("Deleting the only revision offers Close and no Delete", () => {
-        fixture.only = {only: true, pending: false}
+        fixture.only = {only: true, pending: false, failed: false, retry: vi.fn()}
         mount()
         expect(text()).toContain("Cannot delete the only revision. Delete the app instead.")
         expect(button("Close")).toBeDefined()
@@ -201,7 +190,7 @@ describe("DeleteRevisionDialog", () => {
 
     it("A successful delete closes the drawer that showed the revision", async () => {
         fixture.revisionParam = "rev-2"
-        fixture.deleteRevision.mockResolvedValue({success: true})
+        fixture.archive.mockResolvedValue({})
         const onClose = vi.fn()
         mount(onClose)
         expect(text()).toContain("You are about to delete First v2.")
@@ -216,7 +205,7 @@ describe("DeleteRevisionDialog", () => {
     })
 
     it("A failed delete shows Couldn't delete this revision and stays open", async () => {
-        fixture.deleteRevision.mockResolvedValue({success: false, error: "raw api text"})
+        fixture.archive.mockRejectedValue(new Error("raw api text"))
         vi.spyOn(console, "error").mockImplementation(() => undefined)
         const onClose = vi.fn()
         mount(onClose)
@@ -228,9 +217,21 @@ describe("DeleteRevisionDialog", () => {
         expect(onClose).not.toHaveBeenCalled()
     })
 
-    it("Delete waits until the revision record has loaded", () => {
-        fixture.entity = null
+    it("A successful delete archives only the chosen revision", async () => {
+        fixture.archive.mockResolvedValue({})
         mount()
+        await act(async () => {
+            button("Delete")?.click()
+        })
+        await flush()
+        expect(fixture.archive).toHaveBeenCalledTimes(1)
+        expect(fixture.archive).toHaveBeenCalledWith("p-1", "rev-2")
+    })
+
+    it("Delete stays disabled while the revision check has failed", () => {
+        fixture.only = {only: false, pending: false, failed: true, retry: vi.fn()}
+        mount()
+        expect(text()).toContain("Couldn't check this app's revisions.")
         expect(button("Delete")?.disabled).toBe(true)
     })
 })

@@ -7,7 +7,6 @@
 const nextConfig = {
     reactStrictMode: false,
     transpilePackages: [
-        "@agenta/playground",
         "@agenta/oss",
         "@agenta/ui",
         "@agenta/shared",

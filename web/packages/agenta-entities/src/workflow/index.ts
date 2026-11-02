@@ -234,6 +234,7 @@ export {
     queryWorkflowRevisionsByWorkflow,
     queryWorkflowRevisionsByWorkflows,
     queryWorkflowRevisions,
+    archiveWorkflowRevision,
     type WorkflowRevisionWindowing,
     // Retrieve (single revision by ref — slug/version/id)
     retrieveWorkflowRevision,

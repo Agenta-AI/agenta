@@ -1,7 +1,6 @@
 import {useState} from "react"
 
-import {workflowMolecule} from "@agenta/entities/workflow"
-import {playgroundController} from "@agenta/playground"
+import {archiveWorkflowRevision} from "@agenta/entities/workflow"
 import {message} from "@agenta/ui/app-message"
 import {
     AlertDialog,
@@ -16,7 +15,6 @@ import {
 } from "@agenta/ui/ui"
 import {Trash} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
-import {useAtomValue, useSetAtom} from "jotai"
 
 import {useRevisionParam} from "../revisions/useRevisionParam"
 
@@ -38,19 +36,17 @@ export const DeleteRevisionDialog = ({
     appId: string
     onClose: () => void
 }) => {
-    const deleteRevision = useSetAtom(playgroundController.actions.deleteRevision)
     const queryClient = useQueryClient()
     const [shownRevisionId, setShownRevisionId] = useRevisionParam()
-    const {only, pending: checking} = useIsOnlyRevision({projectId, appId})
-    // The delete reads the revision's own record. Subscribing loads it for a row that was never opened.
-    const entity = useAtomValue(workflowMolecule.selectors.data(row.revisionId))
+    const {only, pending: checking, failed, retry} = useIsOnlyRevision({projectId, appId})
     const [pending, setPending] = useState(false)
 
     const submit = async () => {
         setPending(true)
         try {
-            const result = await deleteRevision(row.revisionId)
-            if (!result.success) throw new Error(result.error ?? "Delete failed")
+            // Only this revision. The shared delete action also archives other revisions it
+            // takes for empty seeds, which can take a real revision with it.
+            await archiveWorkflowRevision(projectId, row.revisionId)
             message.success("Deleted workflow successfully")
             await queryClient.invalidateQueries({queryKey: ["workflows"]})
             if (shownRevisionId === row.revisionId) setShownRevisionId(null)
@@ -83,7 +79,14 @@ export const DeleteRevisionDialog = ({
                             : `You are about to delete ${row.variantName} v${row.version}.`}
                     </AlertDialogDescription>
                 </AlertDialogHeader>
-                {only ? null : (
+                {failed ? (
+                    <p className="m-0 text-sm text-destructive">
+                        Couldn't check this app's revisions.{" "}
+                        <button type="button" className="underline" onClick={() => void retry()}>
+                            Try again
+                        </button>
+                    </p>
+                ) : only ? null : (
                     <p className="m-0 text-sm text-muted-foreground">
                         This action cannot be undone.
                     </p>
@@ -105,7 +108,7 @@ export const DeleteRevisionDialog = ({
                             <AlertDialogAction asChild>
                                 <Button
                                     variant="destructive"
-                                    disabled={pending || checking || !entity}
+                                    disabled={pending || checking || failed}
                                     onClick={(event) => {
                                         event.preventDefault()
                                         void submit()

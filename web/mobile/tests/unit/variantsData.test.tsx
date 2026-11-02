@@ -11,6 +11,8 @@ import {afterEach, describe, expect, it, vi} from "vitest"
 const fixture = vi.hoisted(() => ({
     queryRevisions: vi.fn(),
     queryVariants: vi.fn(),
+    fetchHistory: vi.fn(),
+    buildHistory: vi.fn(),
     publish: vi.fn(),
     success: vi.fn(),
     error: vi.fn(),
@@ -23,8 +25,8 @@ vi.mock("@agenta/entities/workflow", () => ({
 }))
 vi.mock("@agenta/entities/environment", () => ({
     environmentsListQueryAtomFamily: () => ({id: "environments"}),
-    fetchEnvironmentRevisionsList: vi.fn(),
-    buildAppDeploymentHistory: vi.fn(),
+    fetchEnvironmentRevisionsList: fixture.fetchHistory,
+    buildAppDeploymentHistory: fixture.buildHistory,
 }))
 vi.mock("@agenta/entities/runnable", () => ({publishMutationAtom: {id: "publish"}}))
 vi.mock("jotai", () => ({
@@ -35,6 +37,7 @@ vi.mock("@agenta/ui/app-message", () => ({
     message: {success: fixture.success, error: fixture.error},
 }))
 
+import {useAppDeploymentHistory} from "@/features/variants/useAppDeploymentHistory"
 import {useAppRevisions, type AppRevisionRow} from "@/features/variants/useAppRevisions"
 import {
     useDeployRevision,
@@ -108,6 +111,20 @@ describe("useAppRevisions", () => {
         expect(
             latest?.rows.map((row: AppRevisionRow) => [row.revisionId, row.variantName]),
         ).toEqual([["rev-2", "First"]])
+    })
+
+    it("A first commit at version 0 with parameters is kept, an empty seed is not", async () => {
+        fixture.queryVariants.mockResolvedValue({workflow_variants: []})
+        fixture.queryRevisions.mockResolvedValue({
+            workflow_revisions: [
+                {...revision("rev-1", 0), data: {parameters: {prompt: {}}}},
+                {...revision("rev-seed", 0), data: {parameters: {}}},
+            ],
+            windowing: {next: null},
+        })
+        render(createElement(Probe, {search: ""}))
+        await flush()
+        expect(latest?.rows.map((row: AppRevisionRow) => row.revisionId)).toEqual(["rev-1"])
     })
 
     it("Load more sends the cursor the server returned", async () => {
@@ -199,5 +216,35 @@ describe("deployment writes", () => {
         })
         expect(ok).toBe(false)
         expect(fixture.error).toHaveBeenCalledWith("Couldn't revert this deployment")
+    })
+})
+
+describe("useAppDeploymentHistory", () => {
+    let latest: ReturnType<typeof useAppDeploymentHistory> | undefined
+    const Probe = ({search}: {search: string}) => {
+        latest = useAppDeploymentHistory({
+            projectId: "p-1",
+            appId: "app-1",
+            appSlug: "alpha",
+            environmentId: "env-1",
+            search,
+        })
+        return null
+    }
+
+    it("History is built from every deployment, then the search narrows the rows by note", async () => {
+        fixture.fetchHistory.mockResolvedValue({environment_revisions: []})
+        fixture.buildHistory.mockReturnValue([
+            {envRevisionId: "e3", message: "Fix typo"},
+            {envRevisionId: "e2", message: "Raise the limit"},
+            {envRevisionId: "e1", message: "fix again"},
+        ])
+        render(createElement(Probe, {search: "FIX"}))
+        await flush()
+        expect(fixture.fetchHistory).toHaveBeenCalledWith({
+            projectId: "p-1",
+            environmentId: "env-1",
+        })
+        expect(latest?.data?.map((row) => row.envRevisionId)).toEqual(["e3", "e1"])
     })
 })

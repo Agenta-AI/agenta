@@ -25,7 +25,9 @@ const NARROW_COLUMNS: ListTableColumn[] = [REVISION, VARIANT, DATE("104px"), ACT
 const WIDE_QUERY = "(min-width: 640px)"
 
 /** The variant's name as the history shows it: the app's slug prefix is dropped. */
-export const variantLabel = (row: AppDeploymentRow): string => {
+export const variantLabel = (row: AppDeploymentRow, names: ReadonlyMap<string, string>): string => {
+    const named = row.variantId ? names.get(row.variantId) : undefined
+    if (named) return named
     const slug = row.variantSlug
     if (!slug) return "—"
     return row.appSlug && slug.startsWith(`${row.appSlug}.`)
@@ -37,6 +39,7 @@ export const variantLabel = (row: AppDeploymentRow): string => {
 export const DeploymentHistoryTable = ({
     rows,
     isLoading,
+    variantNames,
     currentRevisionId,
     canRevert,
     onOpen,
@@ -45,6 +48,8 @@ export const DeploymentHistoryTable = ({
 }: {
     rows: AppDeploymentRow[]
     isLoading: boolean
+    /** Current variant names by id: a renamed variant shows its new name. */
+    variantNames: ReadonlyMap<string, string>
     currentRevisionId: string | null
     canRevert: boolean
     onOpen: (row: AppDeploymentRow) => void
@@ -68,7 +73,7 @@ export const DeploymentHistoryTable = ({
                         v{row.index}
                     </span>
                     <span className="block min-w-0 truncate text-[14px] font-medium text-foreground">
-                        {variantLabel(row)}
+                        {variantLabel(row, variantNames)}
                         {row.deployedRevisionVersion != null
                             ? ` v${row.deployedRevisionVersion}`
                             : ""}

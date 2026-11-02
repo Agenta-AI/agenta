@@ -17,6 +17,7 @@ import {DeployRevisionDialog} from "./DeployRevisionDialog"
 import {VariantsEmpty} from "./states/VariantsEmpty"
 import {VariantsNoMatch} from "./states/VariantsNoMatch"
 import {useAppRevisions, type AppRevisionRow} from "./useAppRevisions"
+import {useShownRevisionRow} from "./useShownRevisionRow"
 import {VariantsTable} from "./VariantsTable"
 import {
     readDisplayMode,
@@ -65,9 +66,11 @@ export const VariantsTab = ({projectId, app}: {projectId: string; app: Workflow}
         writeDisplayMode(value)
     }
 
-    const shownRow = revisionId
-        ? (revisions.rows.find((row) => row.revisionId === revisionId) ?? null)
-        : null
+    const shownRow = useShownRevisionRow({
+        revisionId,
+        appId: app.id,
+        rows: revisions.rows,
+    })
 
     if (revisions.isError) {
         return (

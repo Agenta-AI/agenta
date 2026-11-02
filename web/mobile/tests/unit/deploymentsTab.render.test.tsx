@@ -36,12 +36,16 @@ vi.mock("@agenta/entities/environment", () => ({
     appEnvironmentsLoadableAtomFamily: () => ({id: "environments"}),
     environmentsListQueryAtomFamily: () => ({id: "list"}),
 }))
+vi.mock("@agenta/entities/workflow", () => ({
+    workflowVariantsListDataAtomFamily: () => ({id: "variants"}),
+}))
 vi.mock("@agenta/entities/runnable", () => ({publishMutationAtom: {id: "publish"}}))
 vi.mock("@agenta/entities/shared", () => ({UserAuthorLabel: () => createElement("span")}))
 vi.mock("jotai", async (importOriginal) => ({
     ...(await importOriginal<typeof import("jotai")>()),
     useAtomValue: (atom: {id: string}) => {
         if (atom.id === "environments") return fixture.environments
+        if (atom.id === "variants") return [{id: "var-1", name: "Renamed"}]
         if (atom.id === "list")
             return {
                 data: {
@@ -173,6 +177,12 @@ describe("DeploymentsTab", () => {
             undefined,
             {shallow: true},
         )
+    })
+
+    it("History shows the variant's current name, not its old slug", () => {
+        fixture.history.data = [historyRow("e1", 1, "rev-1")]
+        mountTab()
+        expect(text()).toContain("Renamed v1")
     })
 
     it("A card without a deployment says No deployment", () => {

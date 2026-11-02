@@ -24,6 +24,16 @@ export interface AppRevisionRow {
 export const appRevisionsKey = (projectId: string, appId: string, search: string) =>
     ["workflows", "app-revisions", projectId, appId, search] as const
 
+/**
+ * The empty first revision a new variant starts with: version 0 and no parameters. A version 0
+ * that holds parameters is a real first commit and stays.
+ */
+const isEmptySeed = (revision: {
+    version?: number | string | null
+    data?: {parameters?: Record<string, unknown> | null} | null
+}) =>
+    Number(revision.version ?? 0) <= 0 && Object.keys(revision.data?.parameters ?? {}).length === 0
+
 interface Page {
     rows: AppRevisionRow[]
     next: string | null
@@ -63,7 +73,7 @@ export const useAppRevisions = ({
             ])
             const variantById = new Map(variants.workflow_variants.map((v) => [v.id, v]))
             const rows = revisions.workflow_revisions
-                .filter((revision) => (revision.version ?? 0) > 0)
+                .filter((revision) => !isEmptySeed(revision))
                 .map((revision): AppRevisionRow => {
                     const variantId = revision.workflow_variant_id ?? revision.variant_id ?? ""
                     const variant = variantById.get(variantId)
