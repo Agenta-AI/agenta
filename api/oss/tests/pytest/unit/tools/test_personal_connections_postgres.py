@@ -1,7 +1,7 @@
-"""A person's default Composio connection, on a real Postgres: the first valid connection
-is the default, the next is not, a sign-in that succeeds makes its connection the default
-when no valid default exists, make default moves the flag, and two calls at once leave
-exactly one default. Skipped when Postgres is not reachable."""
+"""A person's default Composio connection, on a real Postgres: a connection that is valid
+at creation or whose sign-in succeeds becomes the default when no valid default exists,
+make default moves the flag, and two calls at once leave exactly one default. Skipped
+when Postgres is not reachable."""
 
 import asyncio
 import socket
@@ -136,7 +136,7 @@ async def test_the_first_connection_is_the_default_and_the_next_is_not(person):
         await _create_for(dao, person, "gmail-main")
 
 
-async def test_after_the_default_is_deleted_a_new_connection_is_not_the_default(
+async def test_deleting_the_default_promotes_none_and_a_new_valid_one_takes_it(
     person,
 ):
     dao = ConnectionsDAO()
@@ -145,9 +145,19 @@ async def test_after_the_default_is_deleted_a_new_connection_is_not_the_default(
     assert await dao.delete_connection(
         project_id=None, connection_id=first.id, owner=person
     )
-    third = await _create_for(dao, person, "gmail-third")
-    assert third.is_default is False
     assert await _defaults(dao, person) == []
+
+    third = await _create_for(dao, person, "gmail-third")
+    assert third.is_default is True
+    assert await _defaults(dao, person) == ["gmail-third"]
+
+
+async def test_a_valid_connection_after_an_abandoned_sign_in_is_the_default(person):
+    dao = ConnectionsDAO()
+    await _create_for(dao, person, "gmail-main", is_valid=False)
+    valid = await _create_for(dao, person, "gmail-secondary")
+    assert valid.is_default is True
+    assert await _defaults(dao, person) == ["gmail-secondary"]
 
 
 async def test_make_default_moves_the_flag_and_concurrent_calls_leave_one(person):
@@ -230,3 +240,16 @@ async def test_a_sign_in_keeps_a_valid_default(person):
     signed_in = await _sign_in(dao, person, "gmail-secondary")
     assert signed_in.is_valid is True and signed_in.is_default is False
     assert await _defaults(dao, person) == ["gmail-main"]
+
+
+async def test_two_sign_ins_at_once_leave_exactly_one_default(person):
+    dao = ConnectionsDAO()
+    await _create_for(dao, person, "gmail-main", is_valid=False)
+    await _create_for(dao, person, "gmail-secondary", is_valid=False)
+
+    results = await asyncio.gather(
+        _sign_in(dao, person, "gmail-main"),
+        _sign_in(dao, person, "gmail-secondary"),
+    )
+    assert all(result is not None and result.is_valid for result in results)
+    assert len(await _defaults(dao, person)) == 1
