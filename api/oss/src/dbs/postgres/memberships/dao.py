@@ -45,8 +45,6 @@ from oss.src.models.db_models import (  # noqa: F401  (the tables this DAO owns)
     ProjectDB,
     ProjectMemberDB,
     UserDB,
-    WorkspaceDB,
-    WorkspaceMemberDB,
 )
 
 
@@ -249,12 +247,6 @@ WHERE user_id = :user_id
   AND project_id IN (SELECT id FROM projects WHERE organization_id = :organization_id)
 """
 
-_DELETE_WORKSPACE_ROWS_SQL = """
-DELETE FROM workspace_members
-WHERE user_id = :user_id
-  AND workspace_id IN (SELECT id FROM workspaces WHERE organization_id = :organization_id)
-"""
-
 _DELETE_ORGANIZATION_ROWS_SQL = """
 DELETE FROM organization_members
 WHERE user_id = :user_id AND organization_id = :organization_id
@@ -275,14 +267,14 @@ WITH cleared AS (
     WHERE organization_id = :organization_id AND is_default IS TRUE
       AND CAST(:make_default AS boolean)
 )
-INSERT INTO projects (id, project_name, is_default, organization_id, workspace_id,
+INSERT INTO projects (id, project_name, is_default, organization_id,
                       created_at, updated_at)
 SELECT :id, :name,
        CAST(:make_default AS boolean) OR NOT EXISTS (
            SELECT 1 FROM projects
            WHERE organization_id = :organization_id AND is_default IS TRUE
        ),
-       :organization_id, NULL, now(), now()
+       :organization_id, now(), now()
 RETURNING is_default
 """
 
@@ -576,7 +568,6 @@ class MembershipsDAO(MembershipsDAOInterface):
 
                 scope = {"organization_id": organization_id, "user_id": user_id}
                 await connection.execute(text(_DELETE_PROJECT_ROWS_SQL), scope)
-                await connection.execute(text(_DELETE_WORKSPACE_ROWS_SQL), scope)
                 await connection.execute(text(_DELETE_ORGANIZATION_ROWS_SQL), scope)
 
             result = await connection.execute(
