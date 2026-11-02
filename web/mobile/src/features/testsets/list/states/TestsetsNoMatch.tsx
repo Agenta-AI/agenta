@@ -8,7 +8,7 @@ export const TestsetsNoMatch = ({term, onClear}: {term: string; onClear: () => v
             <EmptyMedia variant="icon">
                 <Search />
             </EmptyMedia>
-            <EmptyTitle>No test sets match “{term}”</EmptyTitle>
+            <EmptyTitle className="text-foreground">No test sets match “{term}”</EmptyTitle>
         </EmptyHeader>
         <EmptyContent>
             <Button size="sm" variant="outline" onClick={onClear}>
