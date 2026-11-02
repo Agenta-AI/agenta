@@ -525,10 +525,9 @@ export async function mountStorage(
   // Never detach/fallback while a failed geesefs attempt may still attach later.
   await attempt?.stop();
   const detached = await unmountStorage(cwd, { ...deps.unmountDeps, log });
-      const failureDetail = String(
+  const failureDetail = String(
     failure instanceof Error ? failure.message : failure,
   );
-
   const detail = [
     failureDetail,
     geesefsStderr ? `geesefs stderr: ${geesefsStderr.slice(-300)}` : "",
