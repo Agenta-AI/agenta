@@ -37,6 +37,35 @@ describe("reconstructMessages", () => {
     assert.deepEqual(blocks[1].output, { document_id: "doc-123" });
     assert.equal(blocks[2].text, "Created doc-123.");
   });
+  it("keeps the work of a turn a time limit ended, and closes its open tool call", () => {
+    const turn = { turn_id: "long-turn" };
+    const records = [
+      rec("user", { type: "message", text: "fix the lock icon" }, turn),
+      rec("agent", { type: "tool_call", id: "clone", name: "bash", input: { command: "git clone" } }, turn),
+      rec("agent", { type: "tool_result", id: "clone", output: "cloned" }, turn),
+      rec("agent", { type: "tool_call", id: "lint", name: "bash", input: { command: "pnpm lint-fix" } }, turn),
+      rec("agent", { type: "error", code: "run_total_time_limit", message: "This turn ran longer than 45 minutes" }, turn),
+      rec("user", { type: "message", text: "continue" }),
+    ];
+    const messages = reconstructMessages(records);
+    assert.deepEqual(messages.map((message) => message.role), ["user", "assistant", "user"]);
+    const blocks = messages[1].content as ContentBlock[];
+    assert.deepEqual(blocks.map((block) => block.type), ["tool_call", "tool_result", "tool_call", "tool_result", "text"]);
+    assert.equal(blocks[1].output, "cloned");
+    assert.equal(blocks[3].toolCallId, "lint");
+    assert.match(blocks[4].text!, /unknown outcome/);
+  });
+
+  it("still drops the work of a turn the provider refused", () => {
+    const turn = { turn_id: "refused-turn" };
+    const messages = reconstructMessages([
+      rec("user", { type: "message", text: "check the pricing" }, turn),
+      rec("agent", { type: "tool_result", id: "x", output: "refused content" }, turn),
+      rec("agent", { type: "error", code: "provider_error", message: "refused" }, turn),
+    ]);
+    assert.deepEqual(messages, [{ role: "user", content: "check the pricing" }]);
+  });
+
   it("folds a simple user→assistant text exchange", () => {
     const out = reconstructMessages([
       rec("user", { type: "message", text: "hi" }),

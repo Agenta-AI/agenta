@@ -9,15 +9,18 @@
  * constructors, so they are equivalent to `getAgentaSdkClient().traces` etc.
  */
 import {AccessClient} from "@agentaai/api-client/resources/access"
+import {AccountChoicesClient} from "@agentaai/api-client/resources/accountChoices"
 import {ApplicationsClient} from "@agentaai/api-client/resources/applications"
 import {ChannelsClient} from "@agentaai/api-client/resources/channels"
 import {EvaluationsClient} from "@agentaai/api-client/resources/evaluations"
 import {EventsClient} from "@agentaai/api-client/resources/events"
+import {GatewayMcpClient} from "@agentaai/api-client/resources/gatewayMcp"
 import {KeysClient} from "@agentaai/api-client/resources/keys"
 import {MountsClient} from "@agentaai/api-client/resources/mounts"
 import {ProjectsClient} from "@agentaai/api-client/resources/projects"
 import {SecretsClient} from "@agentaai/api-client/resources/secrets"
 import {SessionsClient} from "@agentaai/api-client/resources/sessions"
+import {SharingClient} from "@agentaai/api-client/resources/sharing"
 import {SkillsClient} from "@agentaai/api-client/resources/skills"
 import {TestsetsClient} from "@agentaai/api-client/resources/testsets"
 import {ToolsClient} from "@agentaai/api-client/resources/tools"
@@ -155,4 +158,19 @@ export function getLowPriorityMountsClient(): MountsClient {
 let _channels: ChannelsClient | undefined
 export function getChannelsClient(): ChannelsClient {
     return (_channels ??= new ChannelsClient(buildClientOptions()))
+}
+
+let _sharing: SharingClient | undefined
+export function getSharingClient(): SharingClient {
+    return (_sharing ??= new SharingClient(buildClientOptions()))
+}
+
+let _accountChoices: AccountChoicesClient | undefined
+export function getAccountChoicesClient(): AccountChoicesClient {
+    return (_accountChoices ??= new AccountChoicesClient(buildClientOptions()))
+}
+
+let _gatewayMcp: GatewayMcpClient | undefined
+export function getGatewayMcpClient(): GatewayMcpClient {
+    return (_gatewayMcp ??= new GatewayMcpClient(buildClientOptions()))
 }

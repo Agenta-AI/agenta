@@ -2,6 +2,7 @@ import {AgentActionsMenu, AgentChip} from "@agenta/entity-ui/agent"
 import {InlineRenameInput} from "@agenta/sessions-ui"
 
 import {lastActiveLabel, NO_DESCRIPTION, type AgentListRow} from "./agentListView"
+import {AgentPrivateMarker} from "./AgentPrivateMarker"
 import {AGENT_RENAME_INPUT_CLASS, useAgentInlineRename} from "./useAgentInlineRename"
 
 /**
@@ -49,6 +50,7 @@ export const AgentCardBody = ({
                         >
                             {row.name}
                         </span>
+                        {row.isPrivate ? <AgentPrivateMarker /> : null}
                         {/* The same badge the row carries: without it the Status facet narrows
                             the grid to cards that say nothing about why. */}
                         {row.waiting > 0 ? (

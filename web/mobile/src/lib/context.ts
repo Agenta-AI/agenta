@@ -1,4 +1,3 @@
-import {filterOutDemoProjects} from "@agenta/entities/project"
 import {safeParseWithLogging} from "@agenta/entities/shared"
 import {getProjectsClient} from "@agenta/sdk/resources"
 import {z} from "zod"
@@ -22,6 +21,9 @@ export interface LastContext {
  */
 export const projectHomeUrl = ({workspaceId, projectId}: LastContext): string =>
     `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/apps`
+
+export const projectOnboardingUrl = ({workspaceId, projectId}: LastContext): string =>
+    `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/onboarding`
 
 /** A website template link lands on that template's create step instead of the project home. */
 export const projectTemplateUrl = ({workspaceId, projectId}: LastContext, templateKey: string) =>
@@ -76,21 +78,45 @@ export function forgetTemplateKey(): void {
     }
 }
 
-/**
- * Settings -> LLM providers, which renders the same shared AI-providers page the desktop's
- * provider drawer opens. It is where a project's own provider key is added and where a dead
- * subscription sign-in is renewed, so it is the destination for both recovery escapes on a failed
- * run.
- */
+/** Settings -> LLM providers: where a key is added or a subscription signed in again. */
 export const llmProvidersUrl = ({workspaceId, projectId}: LastContext): string =>
     `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/settings?tab=llms`
 
 export const billingUrl = ({workspaceId, projectId}: LastContext): string =>
     `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/settings?tab=billing`
 
-/** Settings -> Credits with the pack picker open: where "Buy credits" goes from anywhere. */
-export const buyCreditsUrl = ({workspaceId, projectId}: LastContext): string =>
-    `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/settings?tab=credits&buy_credits=1`
+/**
+ * The `/w/<segment>` a project routes under: its organization id. Workspace removal step 2
+ * answers the organization id where a workspace id was, and during the rollout an older API
+ * pod still answers the legacy workspace id for the same project, so routing keys on the
+ * organization, which never changes. A row without one (older API) keeps its workspace id.
+ */
+export const projectRouteSegment = (project: {
+    organization_id?: string | null
+    workspace_id?: string | null
+}): string | undefined => project.organization_id || project.workspace_id || undefined
+
+const PROJECT_PATH = /^\/w\/([^/?#]+)\/p\/([^/?#]+)(.*)$/
+
+/**
+ * The same route with the project's organization id in the `/w/<segment>` part, or null when
+ * the URL already names it (or the project is not in the list, or the list is not loaded).
+ * A legacy workspace id in a bookmark or a link is rewritten once; the rewrite cannot loop,
+ * because its result names the organization.
+ */
+export function canonicalProjectPath(
+    asPath: string,
+    projects: MobileProject[] | undefined,
+): string | null {
+    const match = PROJECT_PATH.exec(asPath)
+    if (!match || !projects) return null
+    const [, segment, projectSegment, rest] = match
+    const projectId = decodeURIComponent(projectSegment)
+    const project = projects.find((row) => row.project_id === projectId)
+    const organizationId = project?.organization_id
+    if (!organizationId || decodeURIComponent(segment) === organizationId) return null
+    return `/w/${encodeURIComponent(organizationId)}/p/${projectSegment}${rest}`
+}
 
 export function writeLastContext(context: LastContext): void {
     try {
@@ -157,7 +183,6 @@ const projectRowSchema = z.object({
     // "Default" where the desktop showed the org.
     organization_id: z.string().nullish(),
     organization_name: z.string().nullish(),
-    is_demo: z.boolean().nullish(),
     // Only the settings list reads these two; every other consumer ignores them. They stay
     // optional because the schema is a drift check, not a contract we want to fail on.
     user_role: z.string().nullish(),
@@ -176,9 +201,7 @@ async function fetchProjectsOnce(): Promise<ProjectsResult> {
         const data = await getProjectsClient().getProjects()
         const projects = safeParseWithLogging(z.array(projectRowSchema), data, "[fetchProjects]")
         if (!projects) return {kind: "error"}
-        // Hide demo projects, exactly as the desktop's projectsAtom does. Without this a mobile
-        // sign-in could resolve into a demo org the desktop never offers, with no way back out.
-        return {kind: "ok", projects: filterOutDemoProjects(projects)}
+        return {kind: "ok", projects}
     } catch (error) {
         const status = (error as {statusCode?: number} | null)?.statusCode
         if (status === 401 || status === 403) return {kind: "unauthenticated"}

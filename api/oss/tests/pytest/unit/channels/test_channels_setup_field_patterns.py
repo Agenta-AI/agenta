@@ -50,6 +50,7 @@ async def test_a_client_id_in_the_app_id_field_is_refused_before_anything_runs()
         await _service(adapter=adapter, dao=dao).create_connection(
             project_id=uuid4(),
             user_id=uuid4(),
+            guard_user_id=None,
             connection=_slack_create("7970714728294.12134175385185"),
         )
 
@@ -65,7 +66,10 @@ async def test_anything_but_an_a_prefixed_app_id_is_refused(value):
 
     with pytest.raises(ChannelSetupFieldInvalid):
         await _service(adapter=adapter, dao=_dao()).create_connection(
-            project_id=uuid4(), user_id=uuid4(), connection=_slack_create(value)
+            project_id=uuid4(),
+            user_id=uuid4(),
+            guard_user_id=None,
+            connection=_slack_create(value),
         )
 
 
@@ -78,7 +82,10 @@ async def test_a_real_app_id_passes_the_pattern_and_is_trimmed():
 
     with pytest.raises(Exception) as raised:
         await _service(adapter=adapter, dao=dao).create_connection(
-            project_id=uuid4(), user_id=uuid4(), connection=connection
+            project_id=uuid4(),
+            user_id=uuid4(),
+            guard_user_id=None,
+            connection=connection,
         )
 
     assert not isinstance(raised.value, ChannelSetupFieldInvalid)

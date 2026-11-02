@@ -42,6 +42,11 @@ class SessionTurnDBE(Base, SessionTurnDBA):
             unique=True,
         ),
         Index(
+            "ix_session_turns_project_id_trace_id",
+            "project_id",
+            "trace_id",
+        ),
+        Index(
             "ix_session_turns_references",
             "references",
             postgresql_using="gin",

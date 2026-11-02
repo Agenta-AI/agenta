@@ -46,6 +46,7 @@ def _row(kind: str):
         settled_at=None,
         tags=None,
         meta=None,
+        run_envelope=None,
     )
 
 

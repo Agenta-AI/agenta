@@ -4,11 +4,12 @@ import {
     createToolConnection,
     fetchToolConnection,
     invalidateToolConnections,
+    usePersonalToolConnections,
     useToolConnectionsQuery,
 } from "@agenta/entities/gatewayTool"
-import {getAgentaApiUrl, getAgentaWebUrl} from "@agenta/shared/api"
+import type {OwnerKind} from "@agenta/shared/types"
 import {defaultConnectionName, generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
-import {EnhancedModal, ModalContent, ModalFooter, message} from "@agenta/ui"
+import {EnhancedModal, ModalContent, ModalFooter} from "@agenta/ui"
 import {
     Field,
     Input,
@@ -19,6 +20,9 @@ import {
     SelectValue,
 } from "@agenta/ui/ui"
 import Image from "next/image"
+
+import {OwnerRadioGroup, type OwnerOption} from "../../secret/OwnerRadioGroup"
+import {openToolAuthPopup} from "../utils/openToolAuthPopup"
 
 const DEFAULT_PROVIDER = "composio"
 
@@ -32,7 +36,17 @@ interface Props {
     integrationDescription?: string
     authSchemes: string[]
     onClose: () => void
-    onSuccess?: () => void
+    /** The connection is made; `owner` is who it belongs to. */
+    onSuccess?: (owner: Exclude<OwnerKind, "organization">) => void
+    /** A drawer panel to open inside, masking only that drawer. Absent = the page. */
+    container?: HTMLElement | null
+    /**
+     * Who may own the new connection; the first is the default. Two ask "Who can use it", one
+     * is used without asking. Absent, the connection is the project's.
+     */
+    owners?: Exclude<OwnerKind, "organization">[]
+    /** The current project's name, for "Everyone in {project}". */
+    projectName?: string
 }
 
 function resolveAvailableModes(authSchemes: string[]): AuthMode[] {
@@ -57,7 +71,16 @@ export default function ConnectDrawer({
     authSchemes,
     onClose,
     onSuccess,
+    container = null,
+    owners,
+    projectName,
 }: Props) {
+    const [chosenOwner, setOwner] = useState<Exclude<OwnerKind, "organization">>(
+        owners?.[0] ?? "project",
+    )
+    // The allowed owners can change while the dialog is open (the switch was still loading):
+    // a choice that is no longer allowed falls back to the first allowed owner.
+    const owner = owners?.includes(chosenOwner) ? chosenOwner : (owners?.[0] ?? "project")
     const [loading, setLoading] = useState(false)
     /** A failed create said NOTHING before — the spinner just stopped, indistinguishable from
      * a popup that never came. The server's refusal must reach the person who clicked. */
@@ -66,13 +89,18 @@ export default function ConnectDrawer({
     const slugSuffixRef = useRef(randomAlphanumeric(3))
 
     // The slug is derived, not authored. Still sent: the API 500s on a null one.
-    const {connections} = useToolConnectionsQuery()
+    const {connections: projectConnections} = useToolConnectionsQuery()
+    const {connections: personalConnections} = usePersonalToolConnections()
+    const connections = owner === "user" ? (personalConnections ?? []) : (projectConnections ?? [])
     const existingCount = connections.filter(
         (connection) => connection.integration_key === integrationKey,
     ).length
     const seedName = defaultConnectionName(integrationName, existingCount)
 
     const nameTouchedRef = useRef(false)
+    // An open auth popup's listener and poll; stopped if the drawer unmounts first.
+    const popupCleanupRef = useRef<(() => void) | null>(null)
+    useEffect(() => () => popupCleanupRef.current?.(), [])
     const [name, setName] = useState(seedName)
     const [nameError, setNameError] = useState<string | null>(null)
     const slug = generateDefaultSlug(
@@ -95,8 +123,9 @@ export default function ConnectDrawer({
         setNameError(null)
         setSubmitError(null)
         setLoading(false)
+        setOwner(owners?.[0] ?? "project")
         onClose()
-    }, [onClose, seedName])
+    }, [onClose, seedName, owners])
 
     // The shared one, not a local copy: it also invalidates ["triggers", "connections"], which
     // this drawer was missing — a tool connected here left the triggers list stale.
@@ -113,15 +142,18 @@ export default function ConnectDrawer({
         try {
             setLoading(true)
 
-            const result = await createToolConnection({
-                connection: {
-                    slug,
-                    name: name || slug,
-                    provider_key: DEFAULT_PROVIDER,
-                    integration_key: integrationKey,
-                    data: {auth_scheme: selectedMode},
+            const result = await createToolConnection(
+                {
+                    connection: {
+                        slug,
+                        name: name || slug,
+                        provider_key: DEFAULT_PROVIDER,
+                        integration_key: integrationKey,
+                        data: {auth_scheme: selectedMode},
+                    },
                 },
-            })
+                owner,
+            )
 
             invalidateConnections()
 
@@ -129,66 +161,26 @@ export default function ConnectDrawer({
                 ?.redirect_url
             if (typeof redirectUrl === "string" && redirectUrl) {
                 // Composio handles all auth (OAuth and API key) via their redirect UI
-                const popup = window.open(
-                    redirectUrl,
-                    "tools_oauth",
-                    "width=600,height=700,popup=yes",
-                )
-                if (!popup) {
-                    setLoading(false)
-                    message.warning("Popup blocked. Redirecting in this tab.")
-                    window.location.assign(redirectUrl)
-                    return
-                }
-
                 const connectionId = result.connection?.id
-
-                const onAuthDone = async () => {
-                    window.focus()
-                    if (connectionId) {
-                        try {
-                            await fetchToolConnection(connectionId)
-                        } catch {
-                            /* best-effort */
+                popupCleanupRef.current = openToolAuthPopup(redirectUrl, () => {
+                    popupCleanupRef.current = null
+                    void (async () => {
+                        if (connectionId) {
+                            try {
+                                await fetchToolConnection(connectionId)
+                            } catch {
+                                /* best-effort */
+                            }
                         }
-                    }
-                    invalidateConnections()
-                    handleClose()
-                    onSuccess?.()
-                }
-
-                const trustedOrigins = new Set<string>([window.location.origin])
-                for (const url of [getAgentaApiUrl(), getAgentaWebUrl()]) {
-                    if (!url) continue
-                    try {
-                        trustedOrigins.add(new URL(url).origin)
-                    } catch {
-                        // ignore invalid env URLs
-                    }
-                }
-
-                const handler = (event: MessageEvent) => {
-                    if (
-                        event.data?.type === "tools:oauth:complete" &&
-                        trustedOrigins.has(event.origin)
-                    ) {
-                        window.removeEventListener("message", handler)
-                        void onAuthDone()
-                    }
-                }
-                window.addEventListener("message", handler)
-
-                // Fallback: detect popup closed
-                const pollTimer = setInterval(() => {
-                    if (popup && popup.closed) {
-                        clearInterval(pollTimer)
-                        window.removeEventListener("message", handler)
-                        void onAuthDone()
-                    }
-                }, 1000)
+                        invalidateConnections()
+                        handleClose()
+                        onSuccess?.(owner)
+                    })()
+                })
+                if (!popupCleanupRef.current) setLoading(false)
             } else {
                 handleClose()
-                onSuccess?.()
+                onSuccess?.(owner)
             }
         } catch (error) {
             console.error("[ConnectDrawer] create connection failed", error)
@@ -197,7 +189,29 @@ export default function ConnectDrawer({
             )
             setLoading(false)
         }
-    }, [slug, name, selectedMode, integrationKey, handleClose, onSuccess, invalidateConnections])
+    }, [
+        slug,
+        name,
+        selectedMode,
+        integrationKey,
+        owner,
+        handleClose,
+        onSuccess,
+        invalidateConnections,
+    ])
+
+    const ownerOptions: OwnerOption<Exclude<OwnerKind, "organization">>[] = [
+        {
+            value: "user",
+            label: "Only me",
+            note: `Used when you run an agent that uses each person's own ${integrationName}. Your first ${integrationName} account becomes your default.`,
+        },
+        {
+            value: "project",
+            label: `Everyone in ${projectName ?? "this project"}`,
+            note: "An agent in this project can use it as the agent's account, for every person who runs it.",
+        },
+    ]
 
     return (
         <EnhancedModal
@@ -225,6 +239,8 @@ export default function ConnectDrawer({
             footer={null}
             width={480}
             destroyOnClose
+            getContainer={container ?? false}
+            contained={!!container}
         >
             <ModalContent>
                 <div className="flex flex-col gap-1">
@@ -253,6 +269,18 @@ export default function ConnectDrawer({
                             }}
                         />
                     </Field>
+
+                    {owners && owners.length > 1 ? (
+                        <Field label="Who can use it">
+                            <OwnerRadioGroup
+                                value={owner}
+                                options={ownerOptions.filter((option) =>
+                                    owners.includes(option.value),
+                                )}
+                                onChange={setOwner}
+                            />
+                        </Field>
+                    ) : null}
 
                     {availableModes.length > 1 && (
                         <Field label="Auth Method">

@@ -18,6 +18,9 @@ export {
     isAgentDeploymentProviderKind,
     resolveAgentModelSelection,
     connectionNamespaceFrom,
+    savedConnectionNamespace,
+    connectionScopeFrom,
+    explicitAgentConnection,
     selectableAgentHarnesses,
     HIDDEN_AGENT_HARNESSES,
     subscriptionConnectionCandidates,
@@ -37,6 +40,7 @@ export type {
     NamedSecretRow,
     ProviderVaultRow,
     SecretDto,
+    SecretOwnerScope,
     SecretResponseDto,
     StandardProviderDto,
     StandardProviderSettingsDto,
@@ -56,6 +60,7 @@ export {
     SecretManagementPolicy,
     StandardProviderKind,
     VAULT_PERSIST_REDACTED,
+    isUserSecretBinding,
 } from "./types"
 
 export {
@@ -120,7 +125,10 @@ export {
     doneState,
     harnessSupportsProviderKind,
     hasRequiredCredential,
+    hostedSubscriptionFamilies,
     isSubscriptionConnection,
+    isOrganizationConnection,
+    httpStatusOf,
     probeFailureMessage,
     probeRequestFor,
     storedCredentialFields,
@@ -136,6 +144,7 @@ export type {SubscriptionHarnessStatus, SubscriptionPair} from "./subscriptionPa
 
 export type {
     SubscriptionAvailability,
+    SubscriptionConnectMethod,
     SubscriptionLoginState,
     SubscriptionRowFacts,
 } from "./subscriptionConnections"
@@ -146,14 +155,19 @@ export {
     SUBSCRIPTION_SIGN_IN_HINT,
     subscriptionAttemptErrorSentence,
     subscriptionAvailability,
+    subscriptionConnectMethod,
+    subscriptionConnectionFor,
     subscriptionHarnesses,
     subscriptionIsReady,
     subscriptionProviderFamily,
     subscriptionProviderName,
     subscriptionRunProvider,
     subscriptionStatusLine,
+    subscriptionTokenErrorText,
 } from "./subscriptionConnections"
 export {
+    MOUNTED_SUBSCRIPTION_SOURCE,
+    mountedSubscriptionDisplayName,
     mountedSubscriptionName,
     subscriptionPairModels,
     subscriptionPairsFrom,

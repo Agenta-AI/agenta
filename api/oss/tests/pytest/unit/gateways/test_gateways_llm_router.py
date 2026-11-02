@@ -79,7 +79,14 @@ class MockLLMGatewayService:
         self.resolve_raises = None
 
     async def resolve_agent_connection(
-        self, *, scope, model, provider_key, connection_slug, connection_namespace
+        self,
+        *,
+        scope,
+        model,
+        provider_key,
+        connection_slug,
+        connection_namespace,
+        connection_scope=None,
     ):
         self.calls.append("resolve_agent_connection")
         if self.resolve_raises is not None:
@@ -193,9 +200,37 @@ def test_resolve_agent_connection_returns_route_metadata_only(client, service, a
             "provider_key": "openai",
             "deployment_kind": "custom",
             "model": "gpt-4o",
+            "protocol": None,
         }
     }
     assert service.calls == ["resolve_agent_connection"]
+
+
+def test_resolve_answers_custom_provider_only_for_an_organization_connection(
+    client, service, allow
+):
+    service.resolve_return = LLMGatewayConnectionResolution(
+        namespace="organization",
+        name="acme-openai",
+        provider_key="openai",
+        deployment_kind="custom",
+        model="gpt-4o",
+        custom_provider=True,
+    )
+    response = client.post(
+        "/resolve",
+        json={
+            "model": "gpt-4o",
+            "provider_key": "openai",
+            "connection_slug": "acme-openai",
+            "connection_namespace": "organization",
+            "connection_scope": "organization",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["connection"]["custom_provider"] is True
+    assert response.json()["connection"]["protocol"] is None
 
 
 def test_create_endpoint_reaches_the_service(client, service, allow):

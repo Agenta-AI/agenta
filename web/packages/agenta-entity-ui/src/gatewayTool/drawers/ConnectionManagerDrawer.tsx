@@ -17,6 +17,7 @@ import {Divider, LoadingButton, Spinner} from "@agenta/ui/ui"
 import {ArrowClockwise, Play, Trash, XCircle} from "@phosphor-icons/react"
 import {useAtom, useSetAtom} from "jotai"
 
+import {consentPopupFeatures} from "../../shared/consentPopupFeatures"
 import ConnectionStatusBadge from "../components/ConnectionStatusBadge"
 
 function formatCreatedAt(value: string | null | undefined): string {
@@ -83,7 +84,7 @@ export default function ConnectionManagerDrawer() {
                 const popup = window.open(
                     redirectUrl,
                     "tools_oauth_refresh",
-                    "width=600,height=700,popup=yes",
+                    consentPopupFeatures(window),
                 )
 
                 if (!popup) {

@@ -1,5 +1,11 @@
 # Repository specifications
 
+## Agent embed
+
+[Handoff](changes/add-agent-embed/HANDOFF.md), [proposal](changes/add-agent-embed/proposal.md), [design](changes/add-agent-embed/design.md), [embed channel specification](changes/add-agent-embed/specs/embed-channel/spec.md), [turn context specification](changes/add-agent-embed/specs/channel-turn-context/spec.md), [tasks](changes/add-agent-embed/tasks.md), and [QA scenarios](changes/add-agent-embed/qa.md).
+
+Proposal, not implemented. Publish an agent as a chat iframe for internal tools. The embed is a new `embed` channel adapter beside `agenta`: every visitor action goes through the channel ingress, and the widget renders the conversation's session with `@agenta/chat`. A visitor is a channel space keyed by the hash of a random visitor key, created per browser or passed by the host page. The host may pass `context` that the model sees as a labeled part. No per-user tool scoping in v1.
+
 ## Channel inbound media
 
 [Proposal](changes/channel-inbound-media/proposal.md), [behavior specification](changes/channel-inbound-media/specs/channel-inbound-media/spec.md), and [tasks](changes/channel-inbound-media/tasks.md).

@@ -32,6 +32,7 @@ from redis.asyncio import Redis
 from oss.src.tasks.taskiq.shared.broker import stable_consumer_name
 from oss.src.utils import heartbeat
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.server_tracing import server_span
 
 log = get_module_logger(__name__)
 
@@ -439,10 +440,17 @@ class StreamConsumer:
                 if not batch:
                     continue
 
-                _, processed_message_ids = await self.process_batch(batch)
+                with server_span(
+                    f"process {self.stream_name}",
+                    attributes={
+                        "messaging.destination.name": self.stream_name,
+                        "messaging.batch.message_count": len(batch),
+                    },
+                ):
+                    _, processed_message_ids = await self.process_batch(batch)
 
-                if processed_message_ids:
-                    await self.ack_and_delete(processed_message_ids)
+                    if processed_message_ids:
+                        await self.ack_and_delete(processed_message_ids)
 
             except Exception:
                 log.error(

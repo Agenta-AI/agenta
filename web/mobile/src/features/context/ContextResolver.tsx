@@ -6,6 +6,7 @@ import {useRouter} from "next/router"
 
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {HomePageSkeleton} from "@/features/home/states/HomePageSkeleton"
+import {readPendingInvite} from "@/features/invite/pendingInvite"
 import {
     fetchProjects,
     projectHomeUrl,
@@ -51,6 +52,10 @@ export const ContextResolver = ({workspaceId}: ContextResolverProps = {}) => {
         staleTime: 30_000,
     })
     const result = query.data
+    // Every sign-in path ends at the root, so this one check covers them all. Read once, client-only.
+    const [hasInvite] = useState(
+        () => typeof window !== "undefined" && !workspaceId && readPendingInvite() !== null,
+    )
 
     const groups = useMemo<WorkspaceGroup[]>(
         () => (result?.kind === "ok" ? groupByWorkspace(result.projects) : []),
@@ -77,6 +82,10 @@ export const ContextResolver = ({workspaceId}: ContextResolverProps = {}) => {
     const templateKeyRef = useRef<string | null>(null)
 
     useEffect(() => {
+        if (hasInvite) {
+            void router.replace("/invite")
+            return
+        }
         if (!target?.projectId) return
         // On the URL, or remembered by AuthGate before a sign-in dropped the query.
         if (templateKeyRef.current === null) {
@@ -90,10 +99,12 @@ export const ContextResolver = ({workspaceId}: ContextResolverProps = {}) => {
         // path, but the guard keeps that true if a route is added under a project home.
         if (router.asPath.split("?")[0] === next) return
         void router.replace(next)
-    }, [target])
+    }, [target, hasInvite])
 
     // Signed out is not a screen on a phone — the auth page is, and AuthGate routes there
     // from wherever the user landed (this page redirects away too fast to be that gate).
+
+    if (hasInvite) return <HomePageSkeleton />
 
     if (result?.kind === "error" || (result?.kind === "ok" && groups.length === 0)) {
         return (

@@ -1,11 +1,23 @@
-import type {MobileProject} from "@/lib/context"
+import {projectRouteSegment, type MobileProject} from "@/lib/context"
 
-/** A project row that can be routed to: `/w/:workspace_id/p/:project_id` needs both halves. */
-export type RoutableProject = MobileProject & {workspace_id: string}
+/**
+ * A project row that can be routed to: `/w/:segment/p/:project_id` needs both halves. Its
+ * `workspace_id` here is the route segment, the organization id (workspace removal step 2).
+ */
+export type RoutableProject = MobileProject & {
+    workspace_id: string
+    /** The workspace id the API answered (a legacy id on an older pod), for saved pairs. */
+    legacy_workspace_id?: string | null
+}
 
-/** A row without a workspace would be a tap that goes nowhere, so it never reaches a group. */
+/** A row without a segment would be a tap that goes nowhere, so it never reaches a group. */
 const routableProjects = (projects: MobileProject[]): RoutableProject[] =>
-    projects.filter((project): project is RoutableProject => Boolean(project.workspace_id))
+    projects.flatMap((project) => {
+        const segment = projectRouteSegment(project)
+        return segment
+            ? [{...project, workspace_id: segment, legacy_workspace_id: project.workspace_id}]
+            : []
+    })
 
 /** First value that is a real, non-blank string. `""` is a missing name, not a name. */
 const firstNonBlank = (values: (string | null | undefined)[]): string | undefined =>

@@ -8,6 +8,7 @@ from oss.src.core.channels.dtos import (
     ChannelConnectionCreate,
     ChannelHistoryPage,
     ChannelInboundEvent,
+    ChannelPerson,
     ChannelRequestContext,
     ChannelSetupDoc,
     ChannelSetupIdentity,
@@ -39,13 +40,17 @@ class ChannelAdapterInterface(ABC):
         *,
         request_url: str,
         identity: Optional[ChannelSetupIdentity] = None,
+        locator: Optional[Dict[str, Any]] = None,
     ) -> Optional[ChannelSetupDoc]:
         """What we generate for the operator to apply — a manifest, a
         package, whatever the platform's setup form takes. Defaults to
         nothing: a channel with no document to generate answers with none,
         the same discipline as an empty capability slot. `identity` is how
         the app built from the document presents itself; a document that
-        names nothing ignores it."""
+        names nothing ignores it. `locator` is the installation's recorded
+        `connection_locator`, when one exists (the embed snippet names its
+        id). Only the locator, never the connection: a fetched connection
+        carries its hydrated credentials, and a document must not reach them."""
 
         return None
 
@@ -135,7 +140,11 @@ class ChannelAdapterInterface(ABC):
 
     @abstractmethod
     async def parse_event(
-        self, *, body: bytes, connection: Optional[ChannelConnection] = None
+        self,
+        *,
+        body: bytes,
+        connection: Optional[ChannelConnection] = None,
+        request: Optional[ChannelRequestContext] = None,
     ) -> Union[None, ChannelInboundEvent, List[ChannelInboundEvent]]:
         """Platform payload → the normalised event, or None for anything we do not
         act on (acks, bot echoes, platform noise). A platform that batches
@@ -146,7 +155,9 @@ class ChannelAdapterInterface(ABC):
 
         `connection` is available for adapters that need one of its own
         fields to parse correctly (Slack's bot user id, for bot-echo
-        filtering); ignored where nothing in the parse depends on it."""
+        filtering); ignored where nothing in the parse depends on it.
+        `request` is the same for a header the event depends on (the embed's
+        visitor key); every other adapter ignores it."""
 
     async def detect_deactivation(self, *, body: bytes) -> bool:
         """True when this inbound payload is the platform telling us an
@@ -195,6 +206,21 @@ class ChannelAdapterInterface(ABC):
     ) -> Dict[str, Any]:
         """Edit in place — the indicator becoming the answer. Offered only
         where the declaration says `rendering.controls.update`."""
+
+    async def post_ephemeral(
+        self,
+        *,
+        connection: ChannelConnection,
+        locator: Dict[str, Any],
+        recipient_id: str,
+        content: List[Dict[str, Any]],
+    ) -> bool:
+        """Show a message to one person inside a shared place, unseen by the
+        others (Slack's ephemeral message). False where the platform has no such
+        message (a Telegram group), so the caller sends nothing. Not stored by
+        the platform and never edited, so it returns no receipt."""
+
+        return False
 
     async def dismiss_choices(
         self,
@@ -284,6 +310,26 @@ class ChannelAdapterInterface(ABC):
         be discovered has nothing to join."""
 
         return None
+
+    # --- people ---
+
+    async def list_people(
+        self, *, connection: ChannelConnection
+    ) -> List[ChannelPerson]:
+        """Every person in the workspace, for the settings screen's people
+        picker, where the declaration says `people.directory`. Settings time
+        only, never on the message path. Raises ChannelNotSupported where bots
+        cannot list people (Telegram)."""
+
+        raise ChannelNotSupported(channel=self.channel)
+
+    async def find_person_by_email(
+        self, *, connection: ChannelConnection, email: str
+    ) -> Optional[ChannelPerson]:
+        """The workspace member with this exact email, or None. Raises
+        ChannelNotSupported where the platform has no emails (Telegram)."""
+
+        raise ChannelNotSupported(channel=self.channel)
 
     # --- history ---
 

@@ -62,6 +62,7 @@ export const Permission = {
     ViewSessions: "view_sessions",
     EditSessions: "edit_sessions",
     RunSessions: "run_sessions",
+    ManageAgentOwnership: "manage_agent_ownership",
     ViewMounts: "view_mounts",
     EditMounts: "edit_mounts",
     UseMounts: "use_mounts",

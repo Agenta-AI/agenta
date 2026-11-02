@@ -23,7 +23,10 @@ import {
   type SubscriptionPublisher,
   type SubscriptionPublishState,
 } from "../../src/engines/sandbox_agent/subscription-login/publisher.ts";
-import type { SubscriptionSandboxFs } from "../../src/engines/sandbox_agent/subscription-login/files.ts";
+import {
+  SUBSCRIPTION_FILE_MAX_BYTES,
+  type SubscriptionSandboxFs,
+} from "../../src/engines/sandbox_agent/subscription-login/files.ts";
 import type {
   ModelConnectionSubscription,
   SubscriptionLogin,
@@ -529,6 +532,65 @@ describe("a Daytona session", () => {
     assert.deepEqual(api.pushed, [REFRESHED]);
   });
 
+  /** A sandbox that reports each file's size through `statFs` and counts every read. */
+  function statSandbox(files: Record<string, { size: number; text: string }>) {
+    const reads: string[] = [];
+    const sandbox: SubscriptionSandboxFs = {
+      mkdirFs: async () => undefined,
+      writeFsFile: async () => undefined,
+      statFs: async ({ path }) => {
+        const found = files[path];
+        if (found === undefined) throw new Error("ENOENT");
+        return { path, entryType: "file", size: found.size };
+      },
+      readFsFile: async ({ path }) => {
+        reads.push(path);
+        const found = files[path];
+        if (found === undefined) throw new Error("ENOENT");
+        return Buffer.from(found.text, "utf-8");
+      },
+    };
+    return { sandbox, reads };
+  }
+
+  it("refuses an auth.json over the size limit without reading it", async () => {
+    const { sandbox, reads } = statSandbox({
+      [`${home}/auth.json`]: {
+        size: SUBSCRIPTION_FILE_MAX_BYTES + 1,
+        text: JSON.stringify({ "openai-codex": REFRESHED }),
+      },
+    });
+    const lines: string[] = [];
+    const api = fakeApi();
+    const publisher = start({
+      home,
+      api,
+      sandbox,
+      intervalMs: 60_000,
+      log: (line) => lines.push(line),
+    });
+
+    await publisher.reconcile("interval");
+    assert.deepEqual(api.pushed, []);
+    assert.ok(!reads.includes(`${home}/auth.json`), reads.join(","));
+    assert.match(
+      lines.join("\n"),
+      /decision=unreadable error=SubscriptionFileTooLargeError/,
+    );
+  });
+
+  it("still publishes an auth.json under the size limit", async () => {
+    const text = JSON.stringify({ "openai-codex": REFRESHED });
+    const { sandbox } = statSandbox({
+      [`${home}/auth.json`]: { size: Buffer.byteLength(text), text },
+    });
+    const api = fakeApi();
+    const publisher = start({ home, api, sandbox, intervalMs: 60_000 });
+
+    await publisher.reconcile("interval");
+    assert.deepEqual(api.pushed, [REFRESHED]);
+  });
+
   it("does nothing while the run has no sandbox", async () => {
     const api = fakeApi();
     const publisher = startSubscriptionPublisher({
@@ -550,6 +612,52 @@ describe("a Daytona session", () => {
     await publisher.reconcile("interval");
     await publisher.stop();
     assert.deepEqual(api.pushed, []);
+  });
+});
+
+describe("a local login file over the size limit", () => {
+  it("is refused and publishes nothing", async () => {
+    const home = tempHome();
+    const text = JSON.stringify({ "openai-codex": REFRESHED });
+    writeFileSync(
+      join(home, "auth.json"),
+      text + " ".repeat(SUBSCRIPTION_FILE_MAX_BYTES),
+      { mode: 0o600 },
+    );
+    const lines: string[] = [];
+    const api = fakeApi();
+    const publisher = start({
+      home,
+      api,
+      intervalMs: 60_000,
+      log: (line) => lines.push(line),
+    });
+
+    await publisher.reconcile("interval");
+    assert.deepEqual(api.pushed, []);
+    assert.match(lines.join("\n"), /error=SubscriptionFileTooLargeError/);
+  });
+});
+
+describe("a local meta.json over the size limit", () => {
+  it("is refused and publishes nothing", async () => {
+    const home = tempHome();
+    writeLogin(home, REFRESHED);
+    writeFileSync(join(home, "meta.json"), " ".repeat(SUBSCRIPTION_FILE_MAX_BYTES + 1), {
+      mode: 0o600,
+    });
+    const lines: string[] = [];
+    const api = fakeApi();
+    const publisher = start({
+      home,
+      api,
+      intervalMs: 60_000,
+      log: (line) => lines.push(line),
+    });
+
+    await publisher.reconcile("interval");
+    assert.deepEqual(api.pushed, []);
+    assert.match(lines.join("\n"), /error=SubscriptionFileTooLargeError/);
   });
 });
 
@@ -606,5 +714,92 @@ describe("the log never carries the credential", () => {
     assert.ok(!text.includes(REFRESHED.refresh), text);
     assert.ok(!text.includes(REFRESHED.access), text);
     assert.match(text, /decision=stale/);
+  });
+});
+
+/**
+ * An organization subscription login is upkept on the organization row. The push and the
+ * failure report carry `?scope=organization`, so the API checks the project's grant and writes
+ * the organization row, never a project row with the same id.
+ */
+describe("the upkeep URL of an organization subscription login", () => {
+  const ORGANIZATION_SUBSCRIPTION: ModelConnectionSubscription = {
+    ...SUBSCRIPTION,
+    owner: "organization",
+  };
+
+  function recordingFetch(urls: string[], body: unknown): typeof fetch {
+    return (async (url: string) => {
+      urls.push(url);
+      return new Response(JSON.stringify(body), { status: 200 });
+    }) as unknown as typeof fetch;
+  }
+
+  it("pushes a refreshed organization login with scope=organization", async () => {
+    const home = tempHome();
+    writeLogin(home, REFRESHED);
+    const urls: string[] = [];
+    const publisher = startSubscriptionPublisher({
+      plan: {
+        isDaytona: false,
+        credentials: {
+          subscription: ORGANIZATION_SUBSCRIPTION,
+          subscriptionHome: home,
+        },
+      },
+      state: subscriptionPublishState(ORGANIZATION_SUBSCRIPTION),
+      sandbox: () => undefined,
+      apiBase: "https://api.test",
+      authorization: "ApiKey test",
+      fetchImpl: recordingFetch(urls, { version: 4, updated: true }),
+      log: () => {},
+      intervalMs: 10,
+    });
+    assert.ok(publisher);
+    running.push(publisher);
+
+    await publisher.reconcile("interval");
+
+    assert.deepEqual(urls, [
+      "https://api.test/secrets/conn-1/subscription-login?scope=organization",
+    ]);
+  });
+
+  it("reports an organization login failure with scope=organization", async () => {
+    const urls: string[] = [];
+    await reportSubscriptionLoginFailure(
+      ORGANIZATION_SUBSCRIPTION,
+      subscriptionPublishState(ORGANIZATION_SUBSCRIPTION),
+      "auth_failed",
+      {
+        apiBase: "https://api.test",
+        authorization: "ApiKey test",
+        fetchImpl: recordingFetch(urls, { stale: false }),
+        log: () => {},
+      },
+    );
+
+    assert.deepEqual(urls, [
+      "https://api.test/secrets/conn-1/subscription-login/failure?scope=organization",
+    ]);
+  });
+
+  it("keeps the project URL for a project login", async () => {
+    const urls: string[] = [];
+    await reportSubscriptionLoginFailure(
+      SUBSCRIPTION,
+      subscriptionPublishState(SUBSCRIPTION),
+      "auth_failed",
+      {
+        apiBase: "https://api.test",
+        authorization: "ApiKey test",
+        fetchImpl: recordingFetch(urls, { stale: false }),
+        log: () => {},
+      },
+    );
+
+    assert.deepEqual(urls, [
+      "https://api.test/secrets/conn-1/subscription-login/failure",
+    ]);
   });
 });

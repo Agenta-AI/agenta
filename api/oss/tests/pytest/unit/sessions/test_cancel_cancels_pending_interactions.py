@@ -7,6 +7,9 @@ whose buttons answered a turn that no longer existed (#6315).
 These pin the router wiring: CANCEL cancels pending gates for the turns it ended, SEND / STEER /
 ATTACH do not, and a cancel that ended no turn falls back to the whole session (nothing holds
 it, so nothing can ever answer those gates — the same reasoning as kill).
+
+The CANCEL mode of `POST /sessions/streams/` is deprecated in favor of
+`POST /sessions/{session_id}/cancel`. Delete the CANCEL cases here when that mode is removed.
 """
 
 from unittest.mock import AsyncMock, patch
@@ -21,6 +24,7 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamCommandRequest,
     SessionStreamCommandResponse,
 )
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 _SESSION = "session_stop-gates"
@@ -77,7 +81,11 @@ async def _post(
     interactions = AsyncMock()
     interactions.cancel_session_pending.side_effect = cleanup_error
     interactions.cancel_session_pending.return_value = 1
-    router = SessionStreamsRouter(service=service, interactions_service=interactions)
+    router = SessionStreamsRouter(
+        service=service,
+        interactions_service=interactions,
+        run_admission=NoopRunAdmission(),
+    )
 
     project_id = uuid4()
     user_id = uuid4()

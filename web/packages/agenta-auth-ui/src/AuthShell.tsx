@@ -1,14 +1,4 @@
-/**
- * The sign-in page frame — the outer composition every host renders its methods inside.
- *
- * One column of methods (560px from `lg`) beside the marketing panel, which hides itself on
- * narrow viewports so the same markup is the phone screen. Extracted from the OSS auth page so
- * oss, ee and mobile share one layout instead of three that drift.
- *
- * The logo strip is positioned, not stacked: stacking it pushes the form down by its height and
- * the column reads as bottom-heavy. Out of flow, the form centers on the viewport and the logo
- * still sits in the top-left corner.
- */
+/** The sign-in frame: the method column beside the product panel, which hides below `lg`. */
 import type {ReactNode} from "react"
 
 import AuthSideBanner from "./AuthSideBanner"
@@ -16,16 +6,18 @@ import AuthSideBanner from "./AuthSideBanner"
 export interface AuthShellProps {
     /** The logo, dropped into the column's top-left corner. */
     header?: ReactNode
-    /** Extra classes on the logo strip — hosts that only want it from `lg` pass `hidden lg:block`. */
+    /** Extra classes on the logo strip. */
     headerClassName?: string
     /** The method column's content: heading block, buttons, forms. Capped at 400px. */
     children: ReactNode
     /** Optional deploy-time display font; loads "Agenta Display" and switches the headline treatment. */
     displayFontUrl?: string
-    /** Defaults to the marketing panel. Pass `null` for a bare column. */
+    /** Defaults to the product panel. Pass `null` for a bare column. */
     banner?: ReactNode
     /** Anything floating over the frame — hosts put their toast here. */
     overlay?: ReactNode
+    /** Plays the exit (fade and slight shrink) once a sign-in has succeeded. */
+    leaving?: boolean
 }
 
 /**
@@ -41,21 +33,22 @@ export const AuthShell = ({
     displayFontUrl,
     banner,
     overlay,
+    leaving = false,
 }: AuthShellProps) => (
     <main
-        className="auth-redesign flex min-h-dvh w-full items-stretch justify-center gap-3 p-3 lg:h-screen lg:overflow-hidden"
+        className={`auth-redesign auth-shell flex min-h-dvh w-full bg-background text-foreground lg:h-screen lg:overflow-hidden ${leaving ? "auth-shell-leaving" : ""}`}
         data-display-font={displayFontUrl ? "serif" : undefined}
     >
         {displayFontUrl && (
             <style>{`@font-face{font-family:"Agenta Display";src:url("${cssUrl(displayFontUrl)}");font-weight:300;font-display:swap;}`}</style>
         )}
-        <section className="relative flex w-full flex-col overflow-y-auto lg:w-[560px] lg:shrink-0">
+        <section className="relative z-[1] flex w-full flex-col overflow-y-auto [scrollbar-width:none] lg:w-1/2 lg:shrink-0">
             {header ? (
-                <div className={`absolute left-0 top-0 px-9 pt-7 ${headerClassName ?? ""}`}>
+                <div className={`absolute left-0 top-0 px-6 pt-7 sm:px-9 ${headerClassName ?? ""}`}>
                     {header}
                 </div>
             ) : null}
-            <div className="flex flex-1 items-center justify-center px-4 py-16">
+            <div className="flex flex-1 items-center justify-center px-[clamp(24px,4vw,48px)] py-[88px]">
                 <div className="flex w-full max-w-[400px] flex-col gap-[22px]">{children}</div>
             </div>
         </section>

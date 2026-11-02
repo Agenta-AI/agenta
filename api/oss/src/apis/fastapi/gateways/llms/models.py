@@ -4,7 +4,7 @@ The house triple, matching `triggers/models.py`: create/edit requests wrap the c
 under a named field, queries add `Windowing`, responses carry `count` plus the entity.
 """
 
-from typing import List, Optional
+from typing import Literal, List, Optional
 
 from fastapi import HTTPException, status
 from pydantic import BaseModel, Field, model_validator
@@ -90,6 +90,9 @@ class LLMGatewayConnectionResolveRequest(BaseModel):
     # The namespace the caller picked the slug from. A slug alone is ambiguous: a custom
     # endpoint may share a builtin endpoint's name, and they differ in who pays.
     connection_namespace: Optional[GatewayEndpointNamespace] = None
+    # Whose connection the slug names (M5): the project's (the default) or the
+    # organization's. An organization connection is used only when it is named here.
+    connection_scope: Optional[Literal["project", "organization"]] = None
 
 
 class LLMGatewayConnectionResolveResponse(BaseModel):

@@ -306,7 +306,9 @@ async def _capture_created_flags(
             return _Adapter()
 
     class _Dao:
-        async def create_connection(self, *, project_id, user_id, connection_create):
+        async def create_connection(
+            self, *, project_id, user_id, connection_create, owner=None
+        ):
             captured["flags"] = dict(connection_create.flags or {})
             captured["data"] = dict(connection_create.data or {})
             return connection_create
@@ -361,7 +363,7 @@ async def test_refresh_connection_no_auth_is_noop():
     conn = _no_auth_connection_gw()
 
     class _Dao:
-        async def get_connection(self, *, project_id, connection_id):
+        async def get_connection(self, *, project_id, connection_id, owner=None):
             return conn
 
     service.connections_dao = _Dao()

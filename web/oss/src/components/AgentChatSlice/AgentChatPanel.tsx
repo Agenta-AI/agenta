@@ -20,7 +20,7 @@ import {
     useCanPanesCoexist,
     useFilesPaneLayout,
 } from "@agenta/chat/state"
-import {commandSessionStream} from "@agenta/entities/session"
+import {cancelSessionExecution} from "@agenta/entities/session"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {DriveSessionProvider} from "@agenta/entity-ui/drive"
 import {SIDEBAR_DEFAULT_WIDTH} from "@agenta/navigation"
@@ -120,7 +120,7 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
         (id: string) => {
             const status = store.get(sessionStatusAtomFamily(id))
             if (projectId && shouldCancelRunOnClose({status, projectId})) {
-                commandSessionStream({sessionId: id, projectId}).catch(() => {})
+                cancelSessionExecution({sessionId: id, projectId}).catch(() => {})
             }
         },
         [projectId, store],

@@ -360,6 +360,7 @@ def test_default_models_are_published_per_harness_in_its_own_spelling():
         "anthropic/claude-fable-5-1",
         "anthropic/claude-sonnet-5-5",
         "anthropic/claude-sonnet-5",
+        "anthropic/claude-haiku-5-5",
         "anthropic/claude-haiku-4-5",
     ]
     assert pi_defaults["openrouter"] == PROVIDER_DEFAULT_MODELS["openrouter"]
@@ -530,3 +531,44 @@ def test_sonnet_5_5_is_a_prompt_model_a_default_and_a_pi_generated_model():
     # Claude names the tier: the pinned Claude Code build resolves `sonnet` to Sonnet 5.5.
     sonnet = next(e for e in claude_model_catalog().models if e.id == "sonnet")
     assert sonnet.name == "Claude Sonnet 5.5"
+
+
+def test_gemini_4_argon_is_published_with_its_display_name():
+    # `builtin/agenta` serves google/gemini-4-argon. The picker matches a catalog entry whose id,
+    # minus its provider prefix, equals that id, as the OpenRouter Flash entries do.
+    entries = model_catalog_entries("pi_core")
+    entry = next(
+        (item for item in entries if item["id"] == "openrouter/google/gemini-4-argon"),
+        None,
+    )
+    assert entry is not None, (
+        "openrouter/google/gemini-4-argon missing from the pi catalog"
+    )
+    assert entry["name"] == "Gemini 4 Argon"
+    assert entry["provider"] == "openrouter"
+
+
+def test_kimi_k3_1_pro_is_published_with_a_clean_label():
+    entries = harness_catalog_document()["pi_core"]["capabilities"]["model_catalog"]
+    entry = next(
+        (
+            item
+            for item in entries
+            if item["id"] == "openrouter/moonshotai/kimi-k3.1-pro"
+        ),
+        None,
+    )
+    assert entry is not None, (
+        "openrouter/moonshotai/kimi-k3.1-pro missing from the pi catalog"
+    )
+    assert entry["provider"] == "openrouter"
+    assert entry["source"] == "curated"
+    assert entry["name"] == "MoonshotAI: Kimi K3.1 Pro"
+    assert entry["label"] == "Kimi K3.1 Pro"
+    assert entry["context_window"] == 1048576
+    assert entry["modalities"] == ["text", "image", "video"]
+    assert entry["pricing"]["input_per_mtok"] == 2
+    assert entry["pricing"]["output_per_mtok"] == 10
+    assert entry["pricing"]["cache_read_per_mtok"] == 0.2
+    assert entry["pricing"]["cache_write_per_mtok"] is None
+    assert entry["pricing"]["currency"] == "USD"

@@ -12,9 +12,12 @@ import assert from "node:assert/strict";
 import type { AgentRunRequest } from "../../src/protocol.ts";
 import {
   buildPiModelConfigPlan,
+  isPiModelConfigApplicable,
+  PI_GATEWAY_DEFAULT_PROVIDER_ID,
   PiModelConfigError,
   serializePiModelsJson,
 } from "../../src/engines/sandbox_agent/pi-model-config.ts";
+import { GATEWAY_PLACEHOLDER_API_KEY } from "../../src/extensions/model-provider-override.ts";
 
 const RAW_KEY = "sk-super-secret-value-do-not-leak";
 
@@ -146,6 +149,60 @@ describe("buildPiModelConfigPlan (non-applicable -> no plan, current behavior)",
       ),
       undefined,
     );
+  });
+});
+
+describe("buildPiModelConfigPlan (gateway route with no named connection)", () => {
+  // A Gemini provider key with no connection picked: the gateway resolves it to its
+  // OpenAI-compatible chat-completions route. Pi's built-in `openai` provider would call
+  // `/responses` there, which Google does not serve (404).
+  const geminiKeyRequest = (): AgentRunRequest => ({
+    harness: "pi_core",
+    model: "openai/gemini-4-argon",
+    modelConnection: {
+      provider: "openai",
+      deployment: "custom",
+      endpoint: {
+        baseUrl: "https://gateway.example.test/api/gateways/llms/standard/gemini/v1",
+      },
+      credentialMode: "none",
+      credentials: [],
+      gatewayCredentials: { header: "X-AG-Credentials", value: RAW_KEY },
+    },
+  });
+
+  it("registers a chat-completions provider for the gateway route", () => {
+    const request = geminiKeyRequest();
+    assert.equal(isPiModelConfigApplicable(request), true);
+    assert.deepEqual(buildPiModelConfigPlan(request, {}), {
+      providerId: PI_GATEWAY_DEFAULT_PROVIDER_ID,
+      providerFamily: "openai",
+      api: "openai-completions",
+      baseUrl: "https://gateway.example.test/api/gateways/llms/standard/gemini/v1",
+      apiKey: GATEWAY_PLACEHOLDER_API_KEY,
+      apiKeyEnv: "OPENAI_API_KEY",
+      models: [{ id: "gemini-4-argon" }],
+      headers: { "X-AG-Credentials": "$AGENTA_GATEWAY_CREDENTIALS_VALUE" },
+    });
+  });
+
+  it("never writes the gateway credential into models.json", () => {
+    const plan = buildPiModelConfigPlan(geminiKeyRequest(), {});
+    assert.ok(plan);
+    assert.ok(!serializePiModelsJson(plan).includes(RAW_KEY));
+  });
+
+  it("leaves a direct custom route with no connection to the provider override", () => {
+    const request = geminiKeyRequest();
+    delete request.modelConnection!.gatewayCredentials;
+    assert.equal(isPiModelConfigApplicable(request), false);
+    assert.equal(buildPiModelConfigPlan(request, {}), undefined);
+  });
+
+  it("leaves a gateway route to a direct provider to Pi's built-in provider", () => {
+    const request = geminiKeyRequest();
+    request.modelConnection!.deployment = "direct";
+    assert.equal(buildPiModelConfigPlan(request, {}), undefined);
   });
 });
 

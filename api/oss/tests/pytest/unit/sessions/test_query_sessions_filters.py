@@ -25,6 +25,7 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamQueryFlags,
 )
 from oss.src.dbs.postgres.sessions.streams import dao as dao_module
+from oss.tests.pytest.utils.sharing import PROJECT_SESSION_SCOPE
 
 
 # ---------------------------------------------------------------------------------- #
@@ -76,7 +77,12 @@ def _dao(monkeypatch):
 
 async def _run_query(monkeypatch, **kwargs):
     dao, session = _dao(monkeypatch)
-    await dao.query(project_id=uuid4(), filter=kwargs.pop("filter"), **kwargs)
+    await dao.query(
+        read_scope=PROJECT_SESSION_SCOPE,
+        project_id=uuid4(),
+        filter=kwargs.pop("filter"),
+        **kwargs,
+    )
     return session.captured_stmt
 
 
@@ -135,6 +141,7 @@ async def test_count_shares_the_query_predicate_without_windowing(monkeypatch):
     dao, session = _dao(monkeypatch)
 
     await dao.count(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=uuid4(),
         filter=SessionStreamQuery(search="refund", include_ended=True),
         exclude_session_ids=["pinned-1"],
@@ -178,6 +185,7 @@ class _FakeStreamsService:
         self,
         *,
         project_id,
+        read_scope,
         filter,
         windowing=None,
         session_ids=None,
@@ -192,7 +200,13 @@ class _FakeStreamsService:
         return self.streams
 
     async def count_streams(
-        self, *, project_id, filter, session_ids=None, exclude_session_ids=None
+        self,
+        *,
+        project_id,
+        read_scope,
+        filter,
+        session_ids=None,
+        exclude_session_ids=None,
     ):
         self.count_captured = {
             "filter": filter,
@@ -237,6 +251,7 @@ async def test_flags_and_exclusions_forward_to_the_streams_query():
     service = _service(streams, _FakeTurnsService([]))
 
     await service.query_sessions(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=_PROJECT,
         query=SessionQuery(
             flags=SessionStreamQueryFlags(is_running=True),
@@ -254,7 +269,9 @@ async def test_session_ids_restrict_the_query_when_no_references_are_given():
     service = _service(streams, _FakeTurnsService([]))
 
     await service.query_sessions(
-        project_id=_PROJECT, query=SessionQuery(session_ids=["s2", "s1"])
+        read_scope=PROJECT_SESSION_SCOPE,
+        project_id=_PROJECT,
+        query=SessionQuery(session_ids=["s2", "s1"]),
     )
 
     assert streams.captured["session_ids"] == ["s1", "s2"]
@@ -268,6 +285,7 @@ async def test_references_and_session_ids_intersect():
     service = _service(streams, _FakeTurnsService(["s1", "s2"]))
 
     await service.query_sessions(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=_PROJECT,
         query=SessionQuery(
             turn_references=[{"id": str(uuid4())}], session_ids=["s2", "s3"]
@@ -283,6 +301,7 @@ async def test_disjoint_reference_and_id_filters_short_circuit_to_empty():
     service = _service(streams, _FakeTurnsService(["s1"]))
 
     result = await service.query_sessions(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=_PROJECT,
         query=SessionQuery(turn_references=[{"id": str(uuid4())}], session_ids=["s9"]),
     )
@@ -298,7 +317,9 @@ async def test_an_explicitly_empty_id_set_matches_nothing():
     service = _service(streams, _FakeTurnsService([]))
 
     result = await service.query_sessions(
-        project_id=_PROJECT, query=SessionQuery(session_ids=[])
+        read_scope=PROJECT_SESSION_SCOPE,
+        project_id=_PROJECT,
+        query=SessionQuery(session_ids=[]),
     )
 
     assert result == []
@@ -316,9 +337,17 @@ async def test_count_uses_the_same_predicate_as_the_list():
     )
 
     lifecycle = SessionQueryLifecycle(include_ended=True)
-    await service.query_sessions(project_id=_PROJECT, query=query, lifecycle=lifecycle)
+    await service.query_sessions(
+        read_scope=PROJECT_SESSION_SCOPE,
+        project_id=_PROJECT,
+        query=query,
+        lifecycle=lifecycle,
+    )
     total = await service.count_sessions(
-        project_id=_PROJECT, query=query, lifecycle=lifecycle
+        read_scope=PROJECT_SESSION_SCOPE,
+        project_id=_PROJECT,
+        query=query,
+        lifecycle=lifecycle,
     )
 
     assert total == 42
@@ -335,6 +364,7 @@ async def test_count_short_circuits_on_an_empty_intersection():
     service = _service(streams, _FakeTurnsService(["s1"]))
 
     total = await service.count_sessions(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=_PROJECT,
         query=SessionQuery(turn_references=[{"id": str(uuid4())}], session_ids=["s9"]),
     )

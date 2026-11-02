@@ -1214,3 +1214,68 @@ class TestResolverMiddlewareTracingParameters:
             await mw(request, call_next)
 
             assert TracingContext.get().parameters == resolved_params
+
+
+class TestResolveEmbedsRefusal:
+    """The API refuses an embed in the caller's configuration: the invoke answers 4xx."""
+
+    _PARAMETERS = {
+        "skills": [
+            {
+                "@ag.embed": {
+                    "@ag.references": {"workflow_revision": {"slug": "__ag__static"}},
+                }
+            }
+        ]
+    }
+
+    async def _resolve_against(self, status_code: int, body: dict):
+        import httpx
+
+        from agenta.sdk.middlewares.running.resolver import resolve_embeds
+
+        real_client = httpx.AsyncClient
+        transport = httpx.MockTransport(
+            lambda request: httpx.Response(status_code, json=body)
+        )
+        fake_async_api = MagicMock()
+        fake_async_api._client_wrapper._base_url = "http://api.test"
+
+        with (
+            patch.object(ag, "async_api", fake_async_api),
+            patch(
+                "agenta.sdk.middlewares.running.resolver.httpx.AsyncClient",
+                side_effect=lambda **kwargs: real_client(transport=transport),
+            ),
+        ):
+            return await resolve_embeds(
+                parameters=self._PARAMETERS, credentials="test-creds"
+            )
+
+    @pytest.mark.asyncio
+    async def test_api_refusal_keeps_its_status_and_detail(self):
+        import json
+
+        from agenta.sdk.decorators.routing import handle_invoke_failure
+
+        with pytest.raises(Exception) as raised:
+            await self._resolve_against(
+                400, {"detail": "This static workflow cannot be embedded."}
+            )
+
+        response = await handle_invoke_failure(raised.value)
+        body = json.loads(bytes(response.body))
+
+        assert response.status_code == 400
+        assert body["status"]["message"] == "This static workflow cannot be embedded."
+
+    @pytest.mark.asyncio
+    async def test_api_server_fault_stays_a_server_error(self):
+        from agenta.sdk.decorators.routing import handle_invoke_failure
+
+        with pytest.raises(Exception) as raised:
+            await self._resolve_against(500, {"detail": "Internal Server Error"})
+
+        response = await handle_invoke_failure(raised.value)
+
+        assert response.status_code == 500

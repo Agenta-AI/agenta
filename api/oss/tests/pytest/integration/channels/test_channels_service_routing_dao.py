@@ -36,6 +36,7 @@ from oss.src.core.channels.utils import ChannelKeyGrain, compose_external_key
 from oss.src.dbs.postgres.channels.dao import ChannelsDAO
 
 from oss.tests.pytest.unit.channels.contract.fakes import WellBehavedFakeAdapter
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 pytestmark = pytest.mark.integration
@@ -735,7 +736,11 @@ async def _log(thread, text, *, addressed=False):
 def _dispatcher(thread, runner):
     from oss.src.tasks.asyncio.channels.inbox import InboxDispatcher
 
-    return InboxDispatcher(channels_service=thread.service, invoke_fn=runner.invoke)
+    return InboxDispatcher(
+        run_admission=NoopRunAdmission(),
+        channels_service=thread.service,
+        invoke_fn=runner.invoke,
+    )
 
 
 async def test_two_mentions_dispatched_at_once_each_run_once(

@@ -130,6 +130,48 @@ describe("a built-in pick's namespace", () => {
     })
 })
 
+describe("a hosted subscription pick", () => {
+    // A stored sign-in is `self_managed` WITH a slug. Dropping the slug turns the run into a
+    // runner-mounted login, which a Daytona sandbox refuses.
+    const subscription = {
+        harness: "claude",
+        modelId: "default",
+        provider: "anthropic",
+        mode: "self_managed" as const,
+        slug: "claude",
+        namespace: null,
+    }
+
+    it("keeps the sign-in's slug on the new agent", () => {
+        expect(applyAgentModelSelection({}, subscription).llm).toEqual({
+            model: "default",
+            provider: "anthropic",
+            connection: {mode: "self_managed", slug: "claude"},
+        })
+    })
+
+    it("survives the last-used preferences", () => {
+        expect(
+            selectionFromAgentCreationPrefs({
+                version: 1,
+                harness: "claude",
+                model: "default",
+                provider: "anthropic",
+                connectionMode: "self_managed",
+                connectionSlug: "claude",
+            }),
+        ).toEqual(subscription)
+    })
+
+    it("writes no slug for a runner-mounted login", () => {
+        expect(applyAgentModelSelection({}, {...subscription, slug: null}).llm).toEqual({
+            model: "default",
+            provider: "anthropic",
+            connection: {mode: "self_managed"},
+        })
+    })
+})
+
 describe("ensureEnabledSandbox", () => {
     it("leaves the config untouched when the current kind is enabled", () => {
         const config = {sandbox: {kind: "local", permissions: {network: "on"}}, llm: {model: "x"}}
@@ -163,5 +205,21 @@ describe("ensureEnabledSandbox", () => {
     it("is a no-op when the enabled set is empty (never hide every option)", () => {
         const config = {sandbox: {kind: "local"}}
         expect(ensureEnabledSandbox(config, [])).toBe(config)
+    })
+})
+
+describe("an organization subscription pick", () => {
+    it("keeps the organization namespace when restored", () => {
+        expect(
+            selectionFromAgentCreationPrefs({
+                version: 1,
+                harness: "pi_core",
+                model: "gpt-5.5",
+                provider: "openai-codex",
+                connectionMode: "self_managed",
+                connectionSlug: "chatgpt",
+                connectionNamespace: "organization",
+            })?.namespace,
+        ).toBe("organization")
     })
 })

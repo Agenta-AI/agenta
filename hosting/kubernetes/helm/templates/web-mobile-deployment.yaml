@@ -74,6 +74,11 @@ spec:
               value: {{ include "agenta.servicesUrlEffective" . | quote }}
             - name: AGENTA_API_URL
               value: {{ include "agenta.apiUrlEffective" . | quote }}
+            {{- /* The embed widget page fetches its config server side; this skips the public URL. */}}
+            {{- if $agenta.apiInternalUrl }}
+            - name: AGENTA_API_INTERNAL_URL
+              value: {{ $agenta.apiInternalUrl | quote }}
+            {{- end }}
             - name: AGENTA_AUTH_KEY
               valueFrom:
                 secretKeyRef:
@@ -113,8 +118,8 @@ spec:
               port: http
             initialDelaySeconds: 5
             periodSeconds: 5
-            timeoutSeconds: 5
-            failureThreshold: 30
+            timeoutSeconds: 10
+            failureThreshold: 90
           livenessProbe:
             httpGet:
               path: /m/__env.js

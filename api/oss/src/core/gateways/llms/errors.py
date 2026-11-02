@@ -7,7 +7,7 @@ account).
 """
 
 import re
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 from oss.src.core.gateways.dtos import with_code_marker
 
@@ -66,6 +66,15 @@ def _redact_named_value(match: "re.Match[str]") -> str:
 
 _REDACTIONS = (
     (re.compile(r"\b(Bearer|Basic)\s+\S{6,}", re.IGNORECASE), r"\1 [secret]"),
+    # A provider's own masked copy of the key ("sk-proj-****...abcd", "sk-...3kKQ") still shows
+    # its first and last characters. The part before the mask is bounded, so a long run of
+    # "sk-a-" stays linear.
+    (
+        re.compile(
+            r"\b(?:sk|pk|rk)-[A-Za-z0-9_-]{0,24}(?:\*{3,}|\.{3,})[A-Za-z0-9_-]*"
+        ),
+        "[secret]",
+    ),
     (re.compile(r"\b(?:sk|pk|rk)-[A-Za-z0-9_-]{8,}"), "[secret]"),
     (re.compile(r"\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9._-]+"), "[secret]"),
     # Google API keys, AWS access key ids and Google OAuth access tokens.
@@ -126,3 +135,40 @@ def _cleaned(text: Any) -> str:
     if len(text) > _MESSAGE_MAX_CHARS:
         text = text[:_MESSAGE_MAX_CHARS].rstrip() + "..."
     return text
+
+
+# Google's canonical status for an HTTP status, as its APIs name errors.
+_GOOGLE_STATUSES = {
+    400: "INVALID_ARGUMENT",
+    401: "UNAUTHENTICATED",
+    403: "PERMISSION_DENIED",
+    404: "NOT_FOUND",
+    408: "DEADLINE_EXCEEDED",
+    409: "ABORTED",
+    413: "INVALID_ARGUMENT",
+    422: "INVALID_ARGUMENT",
+    424: "FAILED_PRECONDITION",
+    429: "RESOURCE_EXHAUSTED",
+    499: "CANCELLED",
+    500: "INTERNAL",
+    501: "UNIMPLEMENTED",
+    502: "UNAVAILABLE",
+    503: "UNAVAILABLE",
+    504: "DEADLINE_EXCEEDED",
+}
+
+
+def google_error(*, status: Optional[int], message: str) -> Dict[str, Any]:
+    """An error in Google's own shape, for a caller of the native Gemini door.
+
+    `@google/genai` raises a status body of this shape with the message in its text, so the
+    code marker the message carries reaches the runner.
+    """
+    code = status if status is not None else 502
+    return {
+        "error": {
+            "code": code,
+            "message": message,
+            "status": _GOOGLE_STATUSES.get(code, "UNKNOWN"),
+        }
+    }

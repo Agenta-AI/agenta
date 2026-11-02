@@ -50,7 +50,15 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          command: ["/usr/local/bin/supercronic", "/app/crontab"]
+          # json log format: supercronic writes JSON lines, and 2>&1 moves its own log from stderr to stdout
+          command:
+            - /bin/sh
+            - -c
+            - |
+              if [ "${AGENTA_LOG_FORMAT:-text}" = "json" ]; then
+                exec /usr/local/bin/supercronic -json /app/crontab 2>&1
+              fi
+              exec /usr/local/bin/supercronic /app/crontab
           env:
             {{- include "agenta.commonEnv" . | nindent 12 }}
             {{- range $key, $val := $cron.env }}

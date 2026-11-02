@@ -5,13 +5,14 @@ from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import not_, and_
+from sqlalchemy import not_, and_, update
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.exc import TimeoutError as PoolTimeoutError
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.inspection import inspect
 
+from oss.src.core.access.dtos import PrincipalRef
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import suppress_exceptions
 
@@ -88,6 +89,18 @@ _FETCH_RUN_ATTEMPTS = 3
 _FETCH_RUN_BACKOFF_SECONDS = 2.0
 
 
+def _set_run_principal(run_dbe, *, principal: PrincipalRef, user_id: UUID) -> None:
+    """The run executes as `principal`; `user_id` is the acting user of the request
+    that set it (an installation's linked user)."""
+    run_dbe.principal_kind = principal.kind.value
+    run_dbe.principal_id = principal.id
+    run_dbe.principal_user_id = user_id
+    # The edit reads the row without a lock. Always write the three columns, so a
+    # concurrent save cannot leave this save's configuration with another principal.
+    for column in ("principal_kind", "principal_id", "principal_user_id"):
+        flag_modified(run_dbe, column)
+
+
 class EvaluationsDAO(EvaluationsDAOInterface):
     def __init__(self, engine: TransactionsEngine = None):
         if engine is None:
@@ -104,6 +117,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         user_id: UUID,
         #
         run: EvaluationRunCreate,
+        principal: PrincipalRef,
     ) -> Optional[EvaluationRun]:
         _run = EvaluationRun(
             **run.model_dump(
@@ -128,6 +142,10 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
         if _run.data:
             run_dbe.data = _run.data.model_dump(mode="json")  # type: ignore
+
+        run_dbe.principal_kind = principal.kind.value
+        run_dbe.principal_id = principal.id
+        run_dbe.principal_user_id = user_id
 
         try:
             async with self.engine.session() as session:
@@ -155,6 +173,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         user_id: UUID,
         #
         runs: List[EvaluationRunCreate],
+        principal: PrincipalRef,
     ) -> List[EvaluationRun]:
         _runs = [
             EvaluationRun(
@@ -185,6 +204,9 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             if _run.data:
                 run_dbe.data = _run.data.model_dump(mode="json")  # type: ignore
+
+            run_dbe.principal_kind = principal.kind.value
+            run_dbe.principal_id = principal.id
 
             run_dbes.append(run_dbe)
 
@@ -305,6 +327,37 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return _runs
 
+    async def set_run_principal(
+        self,
+        *,
+        project_id: UUID,
+        run_id: UUID,
+        principal: PrincipalRef,
+        user_id: Optional[UUID] = None,
+        open_only: bool = False,
+    ) -> bool:
+        stmt = update(EvaluationRunDBE).where(
+            EvaluationRunDBE.project_id == project_id,
+            EvaluationRunDBE.id == run_id,
+        )
+        if open_only:
+            stmt = stmt.where(
+                EvaluationRunDBE.flags.contains({"is_closed": True}).isnot(True)
+            )
+        values = {
+            "principal_kind": principal.kind.value,
+            "principal_id": principal.id,
+            "principal_user_id": user_id,
+        }
+        # A change of principal is a change of the run, as an edit is.
+        if user_id is not None:
+            values["updated_at"] = datetime.now(timezone.utc)
+            values["updated_by_id"] = user_id
+        async with self.engine.session() as session:
+            result = await session.execute(stmt.values(**values))
+            await session.commit()
+        return result.rowcount > 0
+
     @suppress_exceptions(exclude=[EvaluationClosedConflict])
     async def edit_run(
         self,
@@ -313,6 +366,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         user_id: UUID,
         #
         run: EvaluationRunEdit,
+        principal: Optional[PrincipalRef] = None,
     ) -> Optional[EvaluationRun]:
         async with self.engine.session() as session:
             stmt = select(EvaluationRunDBE).filter(
@@ -364,6 +418,11 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             if run.data:
                 run_dbe.data = run.data.model_dump(mode="json")  # type: ignore
 
+            # An explicit start or an edit route's save sets the principal in
+            # this same UPDATE.
+            if principal is not None:
+                _set_run_principal(run_dbe, principal=principal, user_id=user_id)
+
             await session.commit()
 
             _run = create_dto_from_dbe(
@@ -381,6 +440,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         user_id: UUID,
         #
         runs: List[EvaluationRunEdit],
+        principal: Optional[PrincipalRef] = None,
     ) -> List[EvaluationRun]:
         run_ids = [run.id for run in runs]
 
@@ -437,6 +497,10 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
                 if run.data:
                     run_dbe.data = run.data.model_dump(mode="json")  # type: ignore
+
+                # An edit route's save sets the principal in this same UPDATE.
+                if principal is not None:
+                    _set_run_principal(run_dbe, principal=principal, user_id=user_id)
 
             await session.commit()
 

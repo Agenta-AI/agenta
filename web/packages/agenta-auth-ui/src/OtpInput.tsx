@@ -6,16 +6,13 @@ import {
     type KeyboardEvent,
 } from "react"
 
-import clsx from "clsx"
+import {Input, cn} from "@agenta/ui/ui"
 
 export interface OtpInputHandle {
     focus: () => void
 }
 
-/**
- * Six one-character cells over one string value (antd `Input.OTP` replacement, plain
- * elements). Paste fills from the first cell; typing advances; Backspace walks back.
- */
+/** Six one-character `Input` cells over one string: paste fills, typing advances, Backspace walks back. */
 export const OtpInput = forwardRef<
     OtpInputHandle,
     {
@@ -23,10 +20,12 @@ export const OtpInput = forwardRef<
         onChange: (value: string) => void
         length?: number
         error?: boolean
+        /** Dims the cells while the code is checked, then rings them green once it passes. */
+        status?: "verifying" | "verified"
         autoFocus?: boolean
         disabled?: boolean
     }
->(({value, onChange, length = 6, error, autoFocus, disabled}, ref) => {
+>(({value, onChange, length = 6, error, status, autoFocus, disabled}, ref) => {
     const cellsRef = useRef<(HTMLInputElement | null)[]>([])
     const focusCell = (index: number) =>
         cellsRef.current[Math.max(0, Math.min(index, length - 1))]?.focus()
@@ -64,14 +63,22 @@ export const OtpInput = forwardRef<
     }
 
     return (
-        <div className={clsx("auth-otp-group", error && "auth-otp-group-error")}>
+        <div className="flex w-full gap-2" role="group" aria-label="One-time code">
             {Array.from({length}, (_, index) => (
-                <input
+                <Input
                     key={index}
                     ref={(el) => {
                         cellsRef.current[index] = el
                     }}
-                    className="auth-otp-cell"
+                    aria-label={`Character ${index + 1}`}
+                    aria-invalid={error || undefined}
+                    size="lg"
+                    className={cn(
+                        "h-[52px] min-w-0 flex-1 rounded-lg px-0 text-center text-xl font-medium uppercase transition-[border-color,box-shadow,opacity] md:text-xl",
+                        value[index] && "auth-otp-pop border-ring",
+                        status === "verifying" && "opacity-60",
+                        status === "verified" && "border-success",
+                    )}
                     inputMode="text"
                     autoComplete={index === 0 ? "one-time-code" : "off"}
                     autoFocus={autoFocus && index === 0}

@@ -24,6 +24,8 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
+
+from oss.tests.pytest.utils.principals import make_envelope
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from starlette.requests import Request
@@ -372,6 +374,10 @@ def credentials_client(monkeypatch):
     monkeypatch.setattr(
         "oss.src.apis.fastapi.gateways.credentials_router.sign_secret_token",
         AsyncMock(return_value="signed-token"),
+    )
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.gateways.credentials_router.request_run_envelope",
+        lambda request: make_envelope(),
     )
     app = FastAPI()
     app.include_router(GatewayCredentialsRouter().router)

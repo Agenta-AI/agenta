@@ -28,6 +28,7 @@
  *      `@agenta/shared/state.userAtom`, hydrated by OSS `UserListener`.
  */
 
+import {getHostQueryClient} from "@agenta/shared/api"
 import {projectIdAtom, userAtom} from "@agenta/shared/state"
 import type {LlmProvider} from "@agenta/shared/types"
 import {
@@ -36,15 +37,17 @@ import {
     removeEmptyFromObjects,
 } from "@agenta/shared/utils"
 import type {QueryKey} from "@tanstack/react-query"
-import {atom} from "jotai"
+import {atom, type Getter} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomWithMutation, atomWithQuery} from "jotai-tanstack-query"
 import {z} from "zod"
 
+import {invalidatePersonalAccountReads} from "../../accountChoice/state"
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 import {createVaultSecret, deleteVaultSecret, fetchVaultSecret, updateVaultSecret} from "../api/api"
 import {
     getEnvNameMap,
+    projectRowsOnly,
     transformCustomProviderPayloadData,
     transformCustomSecretPayloadData,
     transformStandardProviderPayloadData,
@@ -58,6 +61,7 @@ import {
 } from "../core/types"
 
 import {vaultSecretsPersister} from "./persistence"
+import {PERSONAL_SECRETS_KEY} from "./personalSecrets"
 
 interface CreateMutationArgs {
     projectId: string
@@ -67,10 +71,12 @@ interface UpdateMutationArgs {
     projectId: string
     secret_id: string
     payload: Parameters<typeof updateVaultSecret>[0]["payload"]
+    scope?: Parameters<typeof updateVaultSecret>[0]["scope"]
 }
 interface DeleteMutationArgs {
     projectId: string
     secret_id: string
+    scope?: Parameters<typeof deleteVaultSecret>[0]["scope"]
 }
 
 /**
@@ -103,7 +109,7 @@ export const providerKeySetupDoneAtom = atomWithStorage<boolean>(
  * fires one background refetch on restore, so real values only ever live in
  * memory.
  */
-export const vaultSecretsQueryAtom = atomWithQuery<LlmProvider[]>((get) => {
+const vaultSecretsQueryOptions = (get: Getter) => {
     const user = get(userAtom)
     // Read migration status to keep this atom subscribed to migration changes
     // (matches OSS behavior — migration completion can trigger a refetch).
@@ -126,7 +132,27 @@ export const vaultSecretsQueryAtom = atomWithQuery<LlmProvider[]>((get) => {
         enabled: !!user && !!projectId,
         persister: vaultSecretsPersister.persisterFn<LlmProvider[], QueryKey>,
     }
-})
+}
+
+/**
+ * The project's vault rows: everything a prompt, an evaluator, or the project's settings may use.
+ * The response also carries the organization connections an agent of the project may name; they
+ * share this one request (`vaultSecretsWithOrganizationQueryAtom`) and are left out here, so no
+ * surface that cannot use them sees them by accident.
+ */
+export const vaultSecretsQueryAtom = atomWithQuery<LlmProvider[]>((get) => ({
+    ...vaultSecretsQueryOptions(get),
+    select: projectRowsOnly,
+}))
+
+/**
+ * The same request as `vaultSecretsQueryAtom`, with the organization connections the project may
+ * use after the project's own rows. Only agent surfaces read it: an agent names an organization
+ * connection by scope and slug, and nothing else can use one.
+ */
+export const vaultSecretsWithOrganizationQueryAtom = atomWithQuery<LlmProvider[]>((get) =>
+    vaultSecretsQueryOptions(get),
+)
 
 /**
  * Derived atom for standard provider secrets.
@@ -199,16 +225,16 @@ export const createVaultSecretMutationAtom = atomWithMutation(() => ({
  * Mutation atom for updating vault secrets.
  */
 export const updateVaultSecretMutationAtom = atomWithMutation(() => ({
-    mutationFn: ({projectId, secret_id, payload}: UpdateMutationArgs) =>
-        updateVaultSecret({projectId, secret_id, payload}),
+    mutationFn: ({projectId, secret_id, payload, scope}: UpdateMutationArgs) =>
+        updateVaultSecret({projectId, secret_id, payload, scope}),
 }))
 
 /**
  * Mutation atom for deleting vault secrets.
  */
 export const deleteVaultSecretMutationAtom = atomWithMutation(() => ({
-    mutationFn: ({projectId, secret_id}: DeleteMutationArgs) =>
-        deleteVaultSecret({projectId, secret_id}),
+    mutationFn: ({projectId, secret_id, scope}: DeleteMutationArgs) =>
+        deleteVaultSecret({projectId, secret_id, scope}),
 }))
 
 /**
@@ -289,6 +315,12 @@ export const createCustomSecretAtom = atom(null, async (get, set, provider: LlmP
     }
 })
 
+const invalidatePersonalSecrets = () =>
+    Promise.all([
+        getHostQueryClient().invalidateQueries({queryKey: [...PERSONAL_SECRETS_KEY]}),
+        invalidatePersonalAccountReads(),
+    ])
+
 /**
  * Atom for creating/updating user-named secrets (`custom_secret`).
  *
@@ -308,6 +340,8 @@ export const createCustomNamedSecretAtom = atom(null, async (get, set, secret: N
 
     try {
         const payload = transformCustomSecretPayloadData(secret)
+        // A person's own secret: every route names the owner (`scope=user`).
+        const personal = secret.ownerKind === "user"
 
         const findSecret = namedSecrets.find((s) => s.id === secret.id)
         const secretId = findSecret?.id ?? secret.id
@@ -317,10 +351,18 @@ export const createCustomNamedSecretAtom = atom(null, async (get, set, secret: N
                 projectId,
                 secret_id: secretId,
                 payload: toUpdateSecretPayload(payload),
+                scope: secret.ownerKind,
             })
         } else {
-            await createMutation.mutateAsync({projectId, payload})
+            const created = await createMutation.mutateAsync({
+                projectId,
+                payload: personal ? {...payload, scope: "user"} : payload,
+            })
+            if (personal) await invalidatePersonalSecrets()
+            return created?.id ?? undefined
         }
+        if (personal) await invalidatePersonalSecrets()
+        return secretId
     } catch (error) {
         console.error("Failed to create/update named secret:", error)
         throw error
@@ -339,7 +381,12 @@ export const deleteSecretAtom = atom(null, async (get, set, provider: LlmProvide
 
     try {
         if (provider.id) {
-            await deleteMutation.mutateAsync({projectId, secret_id: provider.id})
+            await deleteMutation.mutateAsync({
+                projectId,
+                secret_id: provider.id,
+                scope: provider.ownerKind,
+            })
+            if (provider.ownerKind === "user") await invalidatePersonalSecrets()
         }
     } catch (error) {
         console.error("Failed to delete secret:", error)

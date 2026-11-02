@@ -28,6 +28,7 @@ from oss.src.core.channels.types import (
 from oss.src.core.secrets.services import VaultService
 from oss.src.dbs.postgres.channels.dao import ChannelsDAO
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
+from oss.tests.pytest.utils.sharing import ProjectAgentResolver
 
 pytestmark = pytest.mark.integration
 
@@ -57,7 +58,7 @@ class _ScriptedAdapter(ChannelAdapterInterface):
     async def verify_signature(self, *, request, connection):
         raise NotImplementedError
 
-    async def parse_event(self, *, body, connection=None):
+    async def parse_event(self, *, body, connection=None, request=None):
         raise NotImplementedError
 
     async def post_message(self, *, connection, locator, content, idempotency_key):
@@ -88,6 +89,7 @@ async def _service(channels_scope, *, adapter) -> ChannelsService:
         channels_dao=ChannelsDAO(engine=engine),
         adapter_registry=ChannelAdapterRegistry(adapters={"slack": adapter}),
         vault_service=VaultService(secrets_dao=SecretsDAO(engine=engine)),
+        workflows_service=ProjectAgentResolver(),
     )
 
 
@@ -141,7 +143,10 @@ async def test_successful_create_writes_a_secret_and_a_connection_row(channels_s
     )
 
     result = await service.create_connection(
-        project_id=project_id, user_id=user_id, connection=connection
+        project_id=project_id,
+        user_id=user_id,
+        guard_user_id=None,
+        connection=connection,
     )
 
     assert await _secret_count(channels_scope["engine"], project_id) == 1
@@ -172,7 +177,10 @@ async def test_failed_verification_writes_neither_row(channels_scope):
 
     with pytest.raises(ChannelConnectionVerificationFailed):
         await service.create_connection(
-            project_id=project_id, user_id=user_id, connection=connection
+            project_id=project_id,
+            user_id=user_id,
+            guard_user_id=None,
+            connection=connection,
         )
 
     assert await _secret_count(channels_scope["engine"], project_id) == 0
@@ -198,7 +206,7 @@ async def test_two_projects_one_installation_get_a_domain_error_not_a_500(
         credentials={"bot_token": "x", "signing_secret": "y"},
     )
     await service.create_connection(
-        project_id=project_id, user_id=user_id, connection=first
+        project_id=project_id, user_id=user_id, guard_user_id=None, connection=first
     )
 
     other_project_id = uuid4()
@@ -225,7 +233,10 @@ async def test_two_projects_one_installation_get_a_domain_error_not_a_500(
 
         with pytest.raises(ChannelConnectionIdentityConflict):
             await service.create_connection(
-                project_id=other_project_id, user_id=user_id, connection=second
+                project_id=other_project_id,
+                user_id=user_id,
+                guard_user_id=None,
+                connection=second,
             )
     finally:
         async with engine.session() as session:
@@ -254,6 +265,7 @@ async def test_archive_cascades_to_agents_and_leaves_threads_alone(channels_scop
     connection = await service.create_connection(
         project_id=project_id,
         user_id=user_id,
+        guard_user_id=None,
         connection=ChannelConnectionCreate(
             channel="slack",
             external_key=uuid4(),
@@ -264,6 +276,7 @@ async def test_archive_cascades_to_agents_and_leaves_threads_alone(channels_scop
     agent = await service.create_agent(
         project_id=project_id,
         user_id=user_id,
+        guard_user_id=None,
         agent=ChannelAgentCreate(
             connection_id=connection.id,
             slug="archive-agent",

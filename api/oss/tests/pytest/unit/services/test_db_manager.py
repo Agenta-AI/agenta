@@ -121,77 +121,95 @@ async def test_get_default_workspace_id_raises_when_user_has_no_memberships(
         await db_manager.get_default_workspace_id(str(uuid4()))
 
 
-class _CapturingSession:
-    """Records the statement so a test can assert what was filtered on."""
-
-    def __init__(self, rows, captured):
-        self._rows = rows
-        self._captured = captured
-
-    async def execute(self, query):
-        self._captured.append(query)
-        return _ExecuteResult(self._rows)
+# ---------------------------------------------------------------------------
+# admin_create_organization -- flags regression (issue #5791)
+# ---------------------------------------------------------------------------
 
 
-class _CapturingSessionContext:
-    def __init__(self, rows, captured):
-        self._rows = rows
-        self._captured = captured
+class _WriteCapturingSession:
+    """Session stub that captures the object passed to .add()."""
+
+    def __init__(self):
+        self.added = None
+
+    def add(self, obj):
+        self.added = obj
+
+    async def commit(self):
+        pass
+
+    async def refresh(self, obj):
+        pass
+
+
+class _WriteCapturingSessionContext:
+    def __init__(self):
+        self.session = _WriteCapturingSession()
 
     async def __aenter__(self):
-        return _CapturingSession(self._rows, self._captured)
+        return self.session
 
     async def __aexit__(self, exc_type, exc, tb):
         return False
 
 
-def _patch_capturing_session(monkeypatch, rows):
-    captured = []
-    mock_engine = type(
-        "MockEngine",
-        (),
-        {"session": lambda self: _CapturingSessionContext(rows, captured)},
-    )()
+def _patch_write_session(monkeypatch):
+    ctx = _WriteCapturingSessionContext()
+    mock_engine = type("MockEngine", (), {"session": lambda self: ctx})()
     monkeypatch.setattr(db_manager, "get_transactions_engine", lambda: mock_engine)
-    return captured
+    return ctx
+
+
+def _patch_auth(monkeypatch, *, email_enabled: bool = True, oidc_enabled: bool = False):
+    """Replace db_manager.env with a lightweight stub to control auth flags.
+
+    email_enabled/oidc_enabled are @property methods on AuthFacade, so we
+    can't patch them directly; replacing the module-level 'env' reference is
+    the simplest isolation approach.
+    """
+    stub_env = SimpleNamespace(
+        auth=SimpleNamespace(email_enabled=email_enabled, oidc_enabled=oidc_enabled)
+    )
+    monkeypatch.setattr(db_manager, "env", stub_env)
 
 
 @pytest.mark.asyncio
-async def test_get_project_member_filters_on_both_project_and_user(monkeypatch):
-    # The pair is what the (user_id, project_id) index serves. Filtering on the
-    # project alone is the sequential scan this function replaced.
-    captured = _patch_capturing_session(monkeypatch, [SimpleNamespace(role="viewer")])
+async def test_admin_create_organization_includes_allow_email_flag(monkeypatch):
+    """admin_create_organization must write allow_email so the web UI lets
+    the user log in (filterOrgsByAuthMethod requires this flag -- issue #5791)."""
+    ctx = _patch_write_session(monkeypatch)
+    _patch_auth(monkeypatch, email_enabled=True, oidc_enabled=False)
 
-    await db_manager.get_project_member(
-        project_id=str(uuid4()),
-        user_id=str(uuid4()),
+    owner_id = uuid4()
+    await db_manager.admin_create_organization(
+        name="test-org", slug=None, owner_id=owner_id
     )
 
-    where = str(captured[0].whereclause)
-    assert "project_members.project_id" in where
-    assert "project_members.user_id" in where
+    flags = ctx.session.added.flags
+    assert "allow_email" in flags, "allow_email missing from admin-minted org flags"
+    assert flags["allow_email"] is True
 
 
 @pytest.mark.asyncio
-async def test_get_project_member_returns_the_row(monkeypatch):
-    member = SimpleNamespace(role="editor")
-    _patch_capturing_session(monkeypatch, [member])
+async def test_admin_create_organization_flags_mirror_create_organization(monkeypatch):
+    """Flags produced by admin_create_organization must contain the same keys
+    as those written by the normal signup path (create_organization)."""
+    ctx = _patch_write_session(monkeypatch)
+    _patch_auth(monkeypatch, email_enabled=True, oidc_enabled=False)
 
-    found = await db_manager.get_project_member(
-        project_id=str(uuid4()),
-        user_id=str(uuid4()),
+    owner_id = uuid4()
+    await db_manager.admin_create_organization(
+        name="test-org", slug=None, owner_id=owner_id
     )
 
-    assert found is member
-
-
-@pytest.mark.asyncio
-async def test_get_project_member_returns_none_for_a_non_member(monkeypatch):
-    _patch_capturing_session(monkeypatch, [])
-
-    found = await db_manager.get_project_member(
-        project_id=str(uuid4()),
-        user_id=str(uuid4()),
-    )
-
-    assert found is None
+    flags = ctx.session.added.flags
+    expected_keys = {
+        "is_demo",
+        "allow_email",
+        "allow_social",
+        "allow_sso",
+        "allow_root",
+        "domains_only",
+        "auto_join",
+    }
+    assert expected_keys == set(flags.keys())

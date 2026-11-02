@@ -9,6 +9,7 @@ export type { ListToolActionsRequest } from "./ListToolActionsRequest.js";
 export type { ListToolCategoriesRequest } from "./ListToolCategoriesRequest.js";
 export type { ListToolIntegrationsRequest } from "./ListToolIntegrationsRequest.js";
 export type { ListToolProvidersRequest } from "./ListToolProvidersRequest.js";
+export type { MakeDefaultToolConnectionRequest } from "./MakeDefaultToolConnectionRequest.js";
 export type { QueryToolConnectionsRequest } from "./QueryToolConnectionsRequest.js";
 export type { RefreshToolConnectionRequest } from "./RefreshToolConnectionRequest.js";
 export type { RevokeToolConnectionRequest } from "./RevokeToolConnectionRequest.js";

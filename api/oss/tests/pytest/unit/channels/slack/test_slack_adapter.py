@@ -1,3 +1,4 @@
+import gzip
 import hashlib
 import hmac
 import json
@@ -1607,6 +1608,116 @@ def _files_info_handler(entry, download):
     return handler
 
 
+class _MediaStream(httpx.AsyncByteStream):
+    def __init__(self, chunks, *, error=None):
+        self.chunks = chunks
+        self.error = error
+        self.consumed = 0
+        self.closed = False
+
+    async def __aiter__(self):
+        for chunk in self.chunks:
+            self.consumed += len(chunk)
+            yield chunk
+        if self.error is not None:
+            raise self.error
+
+    async def aclose(self):
+        self.closed = True
+
+
+@pytest.mark.parametrize("size", [None, 4])
+async def test_fetch_media_stops_streaming_when_the_limit_is_exceeded(size):
+    stream = _MediaStream([b"abcd"] * 4)
+    entry = {"url_private_download": "https://files.slack.com/f1"}
+    if size is not None:
+        entry["size"] = size
+    async with httpx.AsyncClient(
+        base_url="https://slack.com/api",
+        transport=httpx.MockTransport(
+            _files_info_handler(
+                entry, lambda request: httpx.Response(200, stream=stream)
+            )
+        ),
+    ) as client:
+        fetched = await SlackAdapter(http_client=client).fetch_media(
+            connection=_connection(), media={"media_id": "F1"}, max_bytes=8
+        )
+
+        assert fetched is None
+        assert stream.consumed == 12
+        assert stream.closed
+        assert not client.is_closed
+
+
+@pytest.mark.parametrize(
+    "headers,max_bytes,expected,consumed",
+    [
+        ({}, 9, b"abcdefghi", 9),
+        ({}, 8, None, 9),
+        ({"content-length": "9"}, 8, None, 0),
+        ({"content-length": "29", "content-encoding": "gzip"}, 9, b"abcdefghi", 29),
+    ],
+)
+async def test_fetch_media_size_boundaries_and_content_length(
+    headers, max_bytes, expected, consumed
+):
+    body = b"abcdefghi"
+    if headers.get("content-encoding") == "gzip":
+        body = gzip.compress(body)
+    stream = _MediaStream([body[:4], body[4:8], body[8:]])
+    async with httpx.AsyncClient(
+        base_url="https://slack.com/api",
+        transport=httpx.MockTransport(
+            _files_info_handler(
+                {
+                    "url_private_download": "https://files.slack.com/f1",
+                    "mimetype": "text/plain",
+                },
+                lambda request: httpx.Response(200, headers=headers, stream=stream),
+            )
+        ),
+    ) as client:
+        fetched = await SlackAdapter(http_client=client).fetch_media(
+            connection=_connection(), media={"media_id": "F1"}, max_bytes=max_bytes
+        )
+
+        assert fetched == ((expected, "text/plain") if expected is not None else None)
+        assert stream.consumed == consumed
+        assert stream.closed
+
+
+@pytest.mark.parametrize(
+    "status,error,expected_error,consumed",
+    [
+        (403, None, httpx.HTTPStatusError, 0),
+        (200, httpx.ReadError("download interrupted"), httpx.ReadError, 4),
+    ],
+)
+async def test_fetch_media_closes_the_stream_on_download_errors(
+    status, error, expected_error, consumed
+):
+    stream = _MediaStream([b"data"], error=error)
+    async with httpx.AsyncClient(
+        base_url="https://slack.com/api",
+        transport=httpx.MockTransport(
+            _files_info_handler(
+                {"url_private_download": "https://files.slack.com/f1"},
+                lambda request: httpx.Response(status, stream=stream),
+            )
+        ),
+    ) as client:
+        with pytest.raises(expected_error) as exc:
+            await SlackAdapter(http_client=client).fetch_media(
+                connection=_connection(), media={"media_id": "F1"}, max_bytes=8
+            )
+
+        if error is not None:
+            assert exc.value is error
+        assert stream.consumed == consumed
+        assert stream.closed
+
+
 async def test_fetch_media_resolves_files_info_then_downloads_with_the_bot_token():
     seen = []
 
@@ -1625,6 +1736,7 @@ async def test_fetch_media_resolves_files_info_then_downloads_with_the_bot_token
                 {
                     "id": "F1",
                     "size": 13,
+                    "mimetype": "application/octet-stream",
                     "url_private_download": "https://files.slack.com/f1",
                 },
                 download,

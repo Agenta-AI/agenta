@@ -202,6 +202,58 @@ jobs:
         working-directory: web
         run: pnpm --filter @agenta/storybook build-storybook
 
+  check-office-viewer-bundles:
+    # Ensures the office viewer script bundles stay in sync with their source frames.
+    # An independent job ensures failures cannot be hidden by unit tests failing in another package.
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Skip when package selection excludes web
+        if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","web-only"]'), inputs.packages)
+        run: exit 0
+
+      - name: Set up Node.js
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Enable Corepack
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        run: corepack enable
+
+      - name: Cache pnpm store
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pnpm-store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('web/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Set up pnpm store
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        run: pnpm config set store-dir ~/.pnpm-store
+
+      - name: Install dependencies
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        working-directory: web
+        run: pnpm install
+
+      - name: Check office viewer bundles
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        working-directory: web/packages/agenta-entity-ui
+        run: node scripts/build-office-viewers.mjs --check
+
   run-sdk-unit-tests:
     if: |
       github.event_name == 'workflow_dispatch' ||

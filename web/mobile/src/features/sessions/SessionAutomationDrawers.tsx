@@ -4,6 +4,7 @@ import {sessionRoutePath} from "@agenta/sessions/link"
 import {useRouter} from "next/router"
 
 import {AutomationRunHistoryDrawerHost} from "../automations/AutomationRunHistoryDrawerHost"
+import {useAutomationUrlSync} from "../automations/useAutomationUrlSync"
 
 /**
  * The trigger drawers a session row's automation verbs open — the same ones the desktop sessions
@@ -24,6 +25,7 @@ export const SessionAutomationDrawers = ({
     projectId: string
 }) => {
     const router = useRouter()
+    useAutomationUrlSync()
 
     return (
         <>

@@ -26,6 +26,7 @@ from oss.src.core.sessions.records.dtos import SessionMessagePreview
 from oss.src.core.sessions.service import SessionsService
 from oss.src.core.sessions.streams.dtos import SessionStream
 from oss.src.dbs.postgres.sessions.records import dao as records_dao_module
+from oss.tests.pytest.utils.sharing import PROJECT_SESSION_SCOPE
 
 
 # ---------------------------------------------------------------------------------- #
@@ -233,6 +234,7 @@ async def test_the_whole_page_is_previewed_in_one_call():
     )
 
     items = await _service(records).query_sessions(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=uuid4(),
         query=SessionQuery(),
         options=SessionQueryOptions(expand=[SessionExpansion.last_message]),
@@ -248,6 +250,7 @@ async def test_the_whole_page_is_previewed_in_one_call():
 async def test_sessions_still_list_without_the_records_engine():
     items = await _service(records_service=None).query_sessions(
         project_id=uuid4(),
+        read_scope=PROJECT_SESSION_SCOPE,
         query=SessionQuery(),
         options=SessionQueryOptions(expand=[SessionExpansion.last_message]),
     )
@@ -261,7 +264,9 @@ async def test_no_expansion_skips_records_but_still_loads_latest_turns():
     records = _FakeRecordsService({})
     service = _service(records)
 
-    items = await service.query_sessions(project_id=uuid4(), query=SessionQuery())
+    items = await service.query_sessions(
+        read_scope=PROJECT_SESSION_SCOPE, project_id=uuid4(), query=SessionQuery()
+    )
 
     assert [item.session_id for item in items] == ["a", "b"]
     assert records.calls == []
@@ -296,6 +301,7 @@ async def test_preview_and_latest_turn_batches_start_concurrently():
     items = await asyncio.wait_for(
         service.query_sessions(
             project_id=uuid4(),
+            read_scope=PROJECT_SESSION_SCOPE,
             options=SessionQueryOptions(expand=[SessionExpansion.last_message]),
         ),
         timeout=1,
@@ -311,6 +317,7 @@ async def test_records_failure_returns_base_rows_without_previews():
             raise RuntimeError("analytics unavailable")
 
     items = await _service(_FailingRecords()).query_sessions(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=uuid4(),
         options=SessionQueryOptions(expand=[SessionExpansion.last_message]),
     )
@@ -335,6 +342,7 @@ async def test_latest_turn_failure_still_propagates_with_preview_expansion():
 
     with pytest.raises(RuntimeError, match="turn lookup failed"):
         await service.query_sessions(
+            read_scope=PROJECT_SESSION_SCOPE,
             project_id=uuid4(),
             options=SessionQueryOptions(expand=[SessionExpansion.last_message]),
         )
@@ -372,6 +380,7 @@ async def test_latest_turn_failure_cancels_and_awaits_records_lookup():
 
     with pytest.raises(RuntimeError, match="turn lookup failed"):
         await service.query_sessions(
+            read_scope=PROJECT_SESSION_SCOPE,
             project_id=uuid4(),
             options=SessionQueryOptions(expand=[SessionExpansion.last_message]),
         )

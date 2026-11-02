@@ -14,9 +14,16 @@ from starlette.requests import Request
 
 from oss.src.middlewares import auth
 from oss.src.utils.exceptions import InternalServerErrorException, UnauthorizedException
+from oss.tests.pytest.utils.principals import envelope_for_claims
 
 
 SECRET_KEY = "unit-test-secret-key-with-32-bytes"
+
+# Scope ids are UUIDs: a minted token carries a run envelope whose authority must
+# name the same organization and project.
+U = "00000000-0000-4000-8000-0000000000a1"
+P = "00000000-0000-4000-8000-0000000000b2"
+O = "00000000-0000-4000-8000-0000000000c3"  # noqa: E741
 
 
 class _RecordingLog:
@@ -46,6 +53,14 @@ def _log(monkeypatch):
     return recorder
 
 
+def _envelope_claims() -> dict:
+    from oss.src.core.access.principals import envelope_to_claims
+
+    return envelope_to_claims(
+        envelope=envelope_for_claims(user_id=U, project_id=P, organization_id=O)
+    )
+
+
 def _request() -> Request:
     return Request(
         {
@@ -67,8 +82,10 @@ def _token(expires_in_seconds: int, issued_in_seconds: int = 0) -> str:
     issued_at = now + timedelta(seconds=issued_in_seconds)
     return encode(
         payload={
-            "user_id": "u",
-            "project_id": "p",
+            "user_id": U,
+            "project_id": P,
+            "organization_id": O,
+            **_envelope_claims(),
             "iat": int(issued_at.timestamp()),
             "exp": int(expiry.timestamp()),
         },
@@ -116,8 +133,8 @@ async def test_live_token_authenticates_and_logs_nothing(log):
         secret_token=_token(expires_in_seconds=600),
     )
 
-    assert request.state.user_id == "u"
-    assert request.state.project_id == "p"
+    assert request.state.user_id == U
+    assert request.state.project_id == P
     assert log.calls == []
 
 
@@ -151,13 +168,18 @@ async def test_small_clock_skew_still_authenticates(log):
         secret_token=_token(expires_in_seconds=600, issued_in_seconds=10),
     )
 
-    assert request.state.user_id == "u"
+    assert request.state.user_id == U
     assert log.calls == []
 
 
 @pytest.mark.asyncio
 async def test_signed_token_records_exact_issued_at_lifetime(log):
-    token = await auth.sign_secret_token(user_id="u", project_id="p")
+    token = await auth.sign_secret_token(
+        user_id=U,
+        project_id=P,
+        organization_id=O,
+        envelope=envelope_for_claims(user_id=U, project_id=P, organization_id=O),
+    )
 
     claims = decode(
         jwt=token,

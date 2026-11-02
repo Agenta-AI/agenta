@@ -119,6 +119,11 @@ export const useAgentEntity = (
         /** Ask the server for the latest revision now; the cached answer may be 30 s old. */
         refetchLatest: revisionQuery.refetch,
         unreachable,
+        /**
+         * The session names an agent the reader cannot see: the server answers a hidden agent
+         * exactly like an unknown one, with no revision at any level. The history stays readable.
+         */
+        agentHidden: Boolean(boundId) && revisionQuery.isSuccess && revisionQuery.data === null,
         retry,
         retrying: header.isFetching || revisionQuery.isFetching,
     }

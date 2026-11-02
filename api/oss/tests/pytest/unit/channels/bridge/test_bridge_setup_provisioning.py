@@ -108,7 +108,10 @@ async def test_no_supplied_secret_mints_one_and_writes_it_under_the_bridge_kind(
     service = _service(dao=dao, vault=vault)
 
     result = await service.create_connection(
-        project_id=uuid4(), user_id=uuid4(), connection=_bridge_create()
+        project_id=uuid4(),
+        user_id=uuid4(),
+        guard_user_id=None,
+        connection=_bridge_create(),
     )
 
     assert isinstance(result, ChannelConnectionCreated)
@@ -128,6 +131,7 @@ async def test_a_caller_supplied_secret_is_kept_verbatim_and_nothing_is_minted()
     result = await service.create_connection(
         project_id=uuid4(),
         user_id=uuid4(),
+        guard_user_id=None,
         connection=_bridge_create(
             credentials={"signing_secret": _FAKE_CALLER_SECRET_CANARY}
         ),
@@ -152,7 +156,10 @@ async def test_the_minted_secret_never_rides_a_plain_connection_response():
     service = _service(dao=dao, vault=vault)
 
     result = await service.create_connection(
-        project_id=uuid4(), user_id=uuid4(), connection=_bridge_create()
+        project_id=uuid4(),
+        user_id=uuid4(),
+        guard_user_id=None,
+        connection=_bridge_create(),
     )
 
     payload = ChannelConnectionResponse(count=1, connection=result).model_dump_json()

@@ -145,6 +145,15 @@ export const PROVIDERS: Record<string, {label: string; logo: string}> = {
     intercom: {label: "Intercom", logo: composioLogo("intercom")},
     zendesk: {label: "Zendesk", logo: composioLogo("zendesk")},
     posthog: {label: "PostHog", logo: composioLogo("posthog")},
+    composio_search: {label: "Composio Search", logo: composioLogo("composio_search")},
+    context_dev: {label: "Context.dev", logo: composioLogo("context_dev")},
+    peec_ai_mcp: {label: "Peec", logo: composioLogo("peec_ai_mcp")},
+    fal_ai: {label: "fal.ai", logo: composioLogo("fal_ai")},
+    google_search_console: {
+        label: "Google Search Console",
+        logo: composioLogo("google_search_console"),
+    },
+    browserbase_mcp: {label: "Browserbase", logo: composioLogo("browserbase_mcp")},
 }
 
 /**
@@ -272,6 +281,7 @@ export const TEMPLATE_CATEGORY_ORDER = [
     "Support",
     "Sales",
     "Knowledge",
+    "Marketing",
     "Ops",
 ] as const
 

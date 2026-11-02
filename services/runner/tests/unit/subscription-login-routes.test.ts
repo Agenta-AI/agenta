@@ -151,11 +151,14 @@ async function listen(
 }
 
 /** Start one attempt over HTTP and return the parsed body. Fails the test on a non-200. */
-async function startAttempt(url: string): Promise<Record<string, unknown>> {
+async function startAttempt(
+  url: string,
+  body: Record<string, unknown> = START_BODY,
+): Promise<Record<string, unknown>> {
   const res = await fetch(`${url}/subscription-login/attempts`, {
     method: "POST",
     headers: JSON_HEADERS,
-    body: JSON.stringify(START_BODY),
+    body: JSON.stringify(body),
   });
   assert.equal(res.status, 200);
   return (await res.json()) as Record<string, unknown>;
@@ -244,6 +247,28 @@ describe("POST /subscription-login/attempts", () => {
     }
   });
 
+  it("reports an organization attempt to the organization, not a project", async () => {
+    const provider = mockProvider();
+    const { attempts, outcomes } = store(provider);
+    const s = await listen(attempts);
+    try {
+      await startAttempt(s.url, {
+        provider: PROVIDER,
+        organizationId: "org-1",
+        secretId: OWNER.secretId,
+      });
+      provider.approve({ ...makeLogin({ refresh: "fixture-refresh" }) });
+      await outcomesReach(outcomes, 1);
+
+      const [outcome] = outcomes;
+      assert.equal(outcome.organizationId, "org-1");
+      assert.equal(outcome.projectId, undefined);
+      assert.equal(outcome.secretId, OWNER.secretId);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("requires the connection ids, so the outcome has somewhere to go", async () => {
     const provider = mockProvider();
     const s = await listen(store(provider).attempts);
@@ -254,6 +279,13 @@ describe("POST /subscription-login/attempts", () => {
         { provider: PROVIDER, secretId: "secret-1" },
         { provider: PROVIDER, projectId: "  ", secretId: "secret-1" },
         { provider: PROVIDER, projectId: 7, secretId: "secret-1" },
+        { provider: PROVIDER, organizationId: "org-1" },
+        {
+          provider: PROVIDER,
+          projectId: "project-1",
+          organizationId: "org-1",
+          secretId: "secret-1",
+        },
       ]) {
         const res = await fetch(`${s.url}/subscription-login/attempts`, {
           method: "POST",

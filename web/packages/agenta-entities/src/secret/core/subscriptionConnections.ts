@@ -10,33 +10,58 @@ export const SUBSCRIPTION_PROVIDER_KIND = "subscription_provider"
 export const SUBSCRIPTION_LOGIN_STATES = ["pending_login", "ready", "needs_login"] as const
 export type SubscriptionLoginState = (typeof SUBSCRIPTION_LOGIN_STATES)[number]
 
-/** The provider FAMILY a subscription product belongs to — what logos and model catalogs key on. */
-const FAMILY_BY_SUBSCRIPTION_PROVIDER: Record<string, string> = {
-    chatgpt: "openai",
+/** How a person connects a subscription: a device-code sign-in, or a pasted token. */
+export type SubscriptionConnectMethod = "device" | "token"
+
+interface SubscriptionProviderEntry {
+    /** The user-visible name of the product. */
+    name: string
+    /** The provider FAMILY the product belongs to — what logos and model catalogs key on. */
+    family: string
+    connectMethod: SubscriptionConnectMethod
+    /** The provider id a run carries, per harness that can consume this subscription. */
+    runProviders: Record<string, string>
 }
 
-/** The user-visible name of a subscription product. */
-const NAME_BY_SUBSCRIPTION_PROVIDER: Record<string, string> = {
-    chatgpt: "ChatGPT",
-}
-
-// The provider id a run carries. Pi only: Codex needs an `id_token` the device login never issues.
-const RUN_PROVIDER_BY_HARNESS: Record<string, string> = {
-    pi_core: "openai-codex",
+const SUBSCRIPTION_PROVIDERS: Record<string, SubscriptionProviderEntry> = {
+    // Pi only: Codex needs an `id_token` the device login never issues.
+    chatgpt: {
+        name: "ChatGPT",
+        family: "openai",
+        connectMethod: "device",
+        runProviders: {pi_core: "openai-codex"},
+    },
+    // A `claude setup-token` value, which only the Claude Code harness reads.
+    claude: {
+        name: "Claude",
+        family: "anthropic",
+        connectMethod: "token",
+        runProviders: {claude: "anthropic"},
+    },
 }
 
 /** The harnesses a subscription connection drives when the record names none. */
 export const DEFAULT_SUBSCRIPTION_HARNESSES = ["pi_core"]
 
 export const subscriptionProviderFamily = (provider: string): string =>
-    FAMILY_BY_SUBSCRIPTION_PROVIDER[provider] ?? provider
+    SUBSCRIPTION_PROVIDERS[provider]?.family ?? provider
 
 export const subscriptionProviderName = (provider: string): string =>
-    NAME_BY_SUBSCRIPTION_PROVIDER[provider] ?? provider
+    SUBSCRIPTION_PROVIDERS[provider]?.name ?? provider
+
+/** How the provider is connected. An unknown provider gets the device sign-in it always had. */
+export const subscriptionConnectMethod = (provider: string): SubscriptionConnectMethod =>
+    SUBSCRIPTION_PROVIDERS[provider]?.connectMethod ?? "device"
 
 /** The run's provider name, or `null` to keep a pair the server would refuse out of the picker. */
-export const subscriptionRunProvider = (harness: string, _provider: string): string | null =>
-    RUN_PROVIDER_BY_HARNESS[harness] ?? null
+export const subscriptionRunProvider = (harness: string, provider: string): string | null =>
+    SUBSCRIPTION_PROVIDERS[provider]?.runProviders[harness] ?? null
+
+/** The project's connection for one subscription provider. A project holds at most one. */
+export const subscriptionConnectionFor = <T extends {subscription?: {provider: string} | null}>(
+    connections: readonly T[],
+    provider: string,
+): T | null => connections.find((item) => item.subscription?.provider === provider) ?? null
 
 /** Whether a row's sign-in can drive a run right now. Anything but `ready` cannot. */
 export const subscriptionIsReady = (
@@ -76,6 +101,18 @@ export const subscriptionAttemptErrorSentence = (
     return "The sign-in did not complete. Try again."
 }
 
+/**
+ * Why a pasted token was not stored, from the API's `{message, next_step}` refusal, as one line.
+ * `null` when the error carries no such refusal, so the caller picks its own sentence.
+ */
+export const subscriptionTokenErrorText = (error: unknown): string | null => {
+    const detail = (error as {body?: {detail?: unknown}} | null)?.body?.detail
+    if (!detail || typeof detail !== "object") return null
+    const {message, next_step: nextStep} = detail as {message?: unknown; next_step?: unknown}
+    if (typeof message !== "string" || !message) return null
+    return typeof nextStep === "string" && nextStep ? `${message} ${nextStep}` : message
+}
+
 /** One short line per state, with the reason appended when the row carries one. */
 export const subscriptionStatusLine = (
     subscription: SubscriptionLoginFacts | null | undefined,
@@ -97,9 +134,12 @@ export interface SubscriptionRowFacts {
     subscription?: SubscriptionLoginFacts | null
 }
 
-/** The harnesses a row drives: the ones it names, or the default when it names none. */
-export const subscriptionHarnesses = (row: SubscriptionRowFacts): readonly string[] =>
-    row.harnesses?.length ? row.harnesses : DEFAULT_SUBSCRIPTION_HARNESSES
+/** The harnesses a row drives: the ones it names, else its provider's, else the default. */
+export const subscriptionHarnesses = (row: SubscriptionRowFacts): readonly string[] => {
+    if (row.harnesses?.length) return row.harnesses
+    const runProviders = SUBSCRIPTION_PROVIDERS[row.subscription?.provider ?? ""]?.runProviders
+    return runProviders ? Object.keys(runProviders) : DEFAULT_SUBSCRIPTION_HARNESSES
+}
 
 // `not_applicable` means signing in would not help this surface, so it must not be offered.
 export type SubscriptionAvailability = "ready" | "sign_in_needed" | "not_applicable"

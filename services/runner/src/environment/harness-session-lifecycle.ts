@@ -18,14 +18,106 @@
  * instead of resuming, which costs latency and never correctness. What the caller must NOT do is
  * treat a successful `resumeSession` as proof that history loaded — see `loadedFromContinuity`.
  */
-import { conciseError } from "../engines/sandbox_agent/errors.ts";
-import { probeCapabilities } from "../engines/sandbox_agent/capabilities.ts";
+import {
+  conciseError,
+  HarnessInitTimeoutError,
+} from "../engines/sandbox_agent/errors.ts";
+import {
+  probeCapabilities,
+  type ProbedCapabilities,
+} from "../engines/sandbox_agent/capabilities.ts";
+import { envTimerMs } from "../env.ts";
 import type { Log, TimingLog } from "./timing.ts";
+
+/**
+ * ============================================================================================
+ * THE INIT BUDGET
+ * ============================================================================================
+ *
+ * Opening the session is the runner's first round trip to the harness: `session/new` (or
+ * `session/load`) rides an ACP `initialize` the daemon answers only once the adapter is installed
+ * and responsive. NOTHING ON THAT PATH HAD A DEADLINE except the ACP fetch's own (an hour). When
+ * the daemon cold-installs an adapter it verifies the binary by running `codex-acp --help` with
+ * stdin=/dev/null, a probe that never returns and that the daemon does not time out either, so
+ * `initialize` simply never answers.
+ *
+ * What the user saw on 2026-10-27: a turn reported "running" for 17.8 minutes
+ * (`[timing] stage=acquire_total ms=1066709`), heart-beating the whole time while the session's
+ * running lock was renewed, so nothing else could be sent. A wedge that produces no error is the
+ * worst outcome available: nobody can retry what never failed.
+ *
+ * So the open gets a budget. It is deliberately WIDE (two minutes): a cold Claude install is a
+ * real download and a slow box makes it slower. It is not the fix for the wedge (`adapter-seed.ts`
+ * is). It is the backstop that turns any future wedge into an error the person reads in minutes
+ * instead of an hour of silence.
+ *
+ * THIS IS NOT THE DAEMON'S PROMPT TIMEOUT and must never grow into one. A turn runs for as long
+ * as the model needs; only the handshake before it is bounded here.
+ */
+export const ACP_INIT_TIMEOUT_ENV = "AGENTA_RUNNER_ACP_INIT_TIMEOUT_MS";
+export const DEFAULT_ACP_INIT_TIMEOUT_MS = 120_000;
+
+/** Harness ids are wire values (`pi_core`); the person in the chat reads a name. */
+const HARNESS_LABELS: Record<string, string> = {
+  codex: "Codex",
+  claude: "Claude",
+  pi: "Pi",
+  pi_core: "Pi",
+};
+
+export function harnessLabel(harness: string): string {
+  return HARNESS_LABELS[harness] ?? harness;
+}
+
+/** The configured budget, clamped into the timer domain. A bad override warns and falls back. */
+export function acpInitTimeoutMs(log?: (message: string) => void): number {
+  return envTimerMs(ACP_INIT_TIMEOUT_ENV, DEFAULT_ACP_INIT_TIMEOUT_MS, log ? { log } : {});
+}
+
+/**
+ * Race one handshake against the budget.
+ *
+ * The losing promise is NOT abandoned bare: the daemon call keeps running (there is no cancel on
+ * the ACP surface), and an ACP client that rejects after we have moved on would otherwise become
+ * an `unhandledRejection` that the server's handler prints as a mystery. Swallowing it here keeps
+ * the failure attributable to this timeout and nothing else.
+ */
+async function withInitTimeout<T>(
+  work: Promise<T>,
+  input: { harness: string; mode: "load" | "create"; log: Log },
+): Promise<T> {
+  const budgetMs = acpInitTimeoutMs(input.log);
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      work,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => {
+          work.catch(() => {});
+          input.log(
+            `[acp] session ${input.mode} did not answer within ${budgetMs}ms ` +
+              `harness=${input.harness}; failing the run (${ACP_INIT_TIMEOUT_ENV} raises the budget)`,
+          );
+          reject(new HarnessInitTimeoutError(harnessLabel(input.harness), budgetMs));
+        }, budgetMs);
+        timer.unref?.();
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 export interface ProbeInput {
   sandbox: { createSession?: unknown };
   acpAgent: string;
   timingLog: TimingLog;
+  /**
+   * Reuse key for the probe result, or undefined to probe every time. Set it only when the key
+   * names everything the answer depends on: the harness and the daemon and adapter build that
+   * answer. See `capabilityProbeCacheKey`.
+   */
+  cacheKey?: string;
 }
 
 export interface ProbeDeps {
@@ -41,16 +133,65 @@ export interface ProbeDeps {
 export async function probe(
   input: ProbeInput,
   deps: ProbeDeps = {},
-): Promise<Awaited<ReturnType<typeof probeCapabilities>>> {
+): Promise<ProbedCapabilities> {
   const probeCapabilitiesStartedAt = Date.now();
   try {
-    return await (deps.probeCapabilities ?? probeCapabilities)(
+    const cached = input.cacheKey ? probeCache.get(input.cacheKey) : undefined;
+    if (cached) return cloneProbed(cached);
+    const probed = await (deps.probeCapabilities ?? probeCapabilities)(
       input.sandbox as never,
       input.acpAgent as never,
     );
+    // Only a real answer is kept. The static fallback stands in for a probe that failed, and a
+    // failure can be passing (a daemon still starting), so the next acquire asks again.
+    if (input.cacheKey && probed.source === "probed") {
+      probeCache.set(input.cacheKey, cloneProbed(probed));
+    }
+    return probed;
   } finally {
     input.timingLog("probe_capabilities", probeCapabilitiesStartedAt);
   }
+}
+
+/**
+ * Probe results by `cacheKey`, for the life of this process. The probe asks a new daemon
+ * `getAgent(harness, { config: true })`, which for Pi runs `pi --version` (0.36-1.1 s measured),
+ * and the answer is the same for every daemon this process starts from the same build.
+ */
+const probeCache = new Map<string, ProbedCapabilities>();
+
+function cloneProbed(probed: ProbedCapabilities): ProbedCapabilities {
+  return { ...probed, capabilities: { ...probed.capabilities } };
+}
+
+/** Forget every kept probe result. For tests. */
+export function resetCapabilityProbeCache(): void {
+  probeCache.clear();
+}
+
+/**
+ * The reuse key for a probe, or undefined when the answer cannot be reused safely.
+ *
+ * - `local`: the daemon is the `binaryPath` binary, and the capability flags it reports for a
+ *   harness are part of that binary, so every local daemon this process starts answers the same.
+ * - `daytona`: the daemon and adapters come from the sandbox's snapshot. The key uses the
+ *   snapshot THIS sandbox was built from (`sandboxSnapshot`, see `sandboxSnapshotOf`), not the
+ *   configured one, so a parked sandbox from an older snapshot misses the cache. Without a known
+ *   snapshot (an image build, or a sandbox this process neither created nor reconnected) there
+ *   is no key and the probe runs.
+ * - anything else probes every time.
+ */
+export function capabilityProbeCacheKey(
+  sandboxId: string,
+  acpAgent: string,
+  binaryPath: string | undefined,
+  sandboxSnapshot?: string,
+): string | undefined {
+  if (sandboxId === "local") return `local|${binaryPath ?? ""}|${acpAgent}`;
+  if (sandboxId === "daytona" && sandboxSnapshot) {
+    return `daytona|${sandboxSnapshot}|${acpAgent}`;
+  }
+  return undefined;
 }
 
 export interface OpenSessionInput {
@@ -150,7 +291,8 @@ async function loadedHistoryWasObserved(
  * Open the harness session: load the native conversation when one is eligible, otherwise create
  * a fresh one.
  *
- * A load that throws degrades to a create. The `finally` still emits the ` mode=load` mark, so
+ * A load that throws degrades to a create, except a load that ran out of the init budget (see
+ * `withInitTimeout`). The `finally` still emits the ` mode=load` mark, so
  * the failed attempt is visible in timing rather than hidden behind the create that follows it.
  */
 export async function openSession(
@@ -195,7 +337,11 @@ export async function openSession(
           );
         }
       }
-      session = await input.sandbox.resumeSession(input.localSessionId);
+      session = await withInitTimeout(input.sandbox.resumeSession(input.localSessionId), {
+        harness: input.harness,
+        mode: "load",
+        log: input.log,
+      });
       loadedFromContinuity =
         session.agentSessionId === input.priorAgentSessionId;
       if (
@@ -222,6 +368,12 @@ export async function openSession(
           `historyVerified=${nativeHistoryVerified}`,
       );
     } catch (err) {
+      // A LOAD THAT TIMED OUT IS NOT A LOAD THAT FAILED. The ordinary degrade-to-create exists
+      // for an adapter that refuses an id; a handshake that never answered means the harness
+      // itself is unresponsive, and a create would spend the same budget again before failing
+      // with the same cause. Fail now, at one budget rather than two. (The `finally` below still
+      // emits the ` mode=load` mark for the attempt.)
+      if (err instanceof HarnessInitTimeoutError) throw err;
       input.log(
         `[continuity] resumeSession failed, falling back to cold createSession: ` +
           `${conciseError(err, input.harness)}`,
@@ -234,12 +386,15 @@ export async function openSession(
   if (!session) {
     const createSessionStartedAt = Date.now();
     try {
-      session = await input.sandbox.createSession({
-        ...(input.localSessionId ? { id: input.localSessionId } : {}),
-        agent: input.acpAgent,
-        cwd: input.cwd,
-        sessionInit: input.sessionInit,
-      });
+      session = await withInitTimeout(
+        input.sandbox.createSession({
+          ...(input.localSessionId ? { id: input.localSessionId } : {}),
+          agent: input.acpAgent,
+          cwd: input.cwd,
+          sessionInit: input.sessionInit,
+        }),
+        { harness: input.harness, mode: "create", log: input.log },
+      );
     } finally {
       input.timingLog("create_session", createSessionStartedAt, " mode=create");
     }

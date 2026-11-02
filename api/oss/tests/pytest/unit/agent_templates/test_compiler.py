@@ -106,9 +106,12 @@ def test_skill_embed_matches_current_authoring_contract():
         workflow_slug="prospect-research-abcd1234",
     )
 
-    embed = skill_embed(skill)
+    embed = skill_embed(skill, description="Research a prospect.")
 
-    assert set(embed) == {"@ag.embed"}
+    # The same entry the playground's skill picker writes: the label rides beside the embed.
+    assert set(embed) == {"@ag.embed", "name", "description"}
+    assert embed["name"] == "prospect-research"
+    assert embed["description"] == "Research a prospect."
     assert embed["@ag.embed"]["@ag.references"]["workflow"] == {
         "id": str(skill.workflow_id),
         "slug": skill.workflow_slug,
@@ -141,6 +144,29 @@ def test_compiler_deduplicates_an_existing_skill_reference_by_slug():
     )
 
     assert len(compiled.revision_data.parameters["agent"]["skills"]) == 1
+
+
+def test_compiler_accepts_a_builtin_model_connection_namespace():
+    # The /m model picker stores the built-in Agenta model with its gateway namespace.
+    base = _base_revision()
+    base.parameters["agent"]["llm"] = {
+        "provider": "openai",
+        "model": "google/gemini-3.7-flash",
+        "connection": {"mode": "agenta", "slug": "agenta", "namespace": "builtin"},
+    }
+
+    compiled = TemplateCompiler().compile(
+        package=_package(),
+        base_revision=base,
+        bindings=TemplateBindingPlan(),
+        installed_skills=[],
+        first_message="Configure the agent.",
+    )
+
+    assert (
+        compiled.revision_data.parameters["agent"]["llm"]
+        == base.parameters["agent"]["llm"]
+    )
 
 
 def test_compiler_rejects_invalid_native_agent_configuration():

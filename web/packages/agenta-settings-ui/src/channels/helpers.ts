@@ -1,3 +1,4 @@
+import {channelSharingCopy} from "./sharingCopy"
 import type {
     ChannelConnection,
     ChannelConnections,
@@ -56,6 +57,22 @@ export const formatConnectedOn = (iso: string | null | undefined): string | null
     return date.toLocaleDateString(undefined, {day: "numeric", month: "short", year: "numeric"})
 }
 
+/**
+ * Where a connection's agent answers, for the summary lines: whether it answers DMs, and in
+ * how many channels (or groups). Without the agent's rules read, every place it is in counts.
+ */
+export const answeringPlaces = (connection: ChannelConnection): {dm: boolean; groups: number} => {
+    const behavior = connection.behavior
+    const inPlaces = connection.chats.filter((chat) => chat.type !== "dm").length
+    if (!behavior) return {dm: true, groups: inPlaces}
+    const groups = !behavior.group
+        ? 0
+        : behavior.spaceIds !== null
+          ? behavior.spaceIds.length
+          : inPlaces
+    return {dm: behavior.dm, groups}
+}
+
 /** A connection's line in a list: its name, then how it was installed and where it answers. */
 export const connectionRowText = (
     connection: ChannelConnection,
@@ -76,10 +93,18 @@ export const connectionRowText = (
               : "Bot token revoked"
         return {title, detail}
     }
-    const nonDm = connection.chats.filter((chat) => chat.type !== "dm").length
+    const {dm, groups: nonDm} = answeringPlaces(connection)
     const noun = slack ? "channel" : "group"
-    const where = nonDm ? `DMs and ${nonDm} ${noun}${nonDm > 1 ? "s" : ""}` : "DMs"
-    return {title, detail: `${connectionKindLabel(connection)} · ${where}`}
+    const places = [
+        ...(dm ? ["DMs"] : []),
+        ...(nonDm ? [`${nonDm} ${noun}${nonDm > 1 ? "s" : ""}`] : []),
+    ]
+    const where = places.length ? places.join(" and ") : "Answers nowhere"
+    const people = connection.audienceCount ?? 0
+    const who = people
+        ? ` · Only ${people} ${slack ? (people === 1 ? "person" : "people") : people === 1 ? "account" : "accounts"}`
+        : ""
+    return {title, detail: `${connectionKindLabel(connection)} · ${where}${who}`}
 }
 
 /** How one of several connections on a platform is told apart: its handle, and on Slack the
@@ -239,6 +264,18 @@ export const summarizeConnection = (
         }
     }
 
+    // Its binding is off (the agent was made private): connected, but nothing answers.
+    if (connection.agentOff) {
+        return {
+            sub: channelSharingCopy.off,
+            subClass: "text-colorTextTertiary",
+            dotClass: "bg-colorTextQuaternary",
+            connected: true,
+            needsAttention: false,
+            action: "manage",
+        }
+    }
+
     const removed = connection.chats.filter((chat) => chat.removed).length
     if (removed > 0) {
         return {
@@ -251,9 +288,17 @@ export const summarizeConnection = (
         }
     }
 
-    const nonDm = connection.chats.filter((chat) => chat.type !== "dm").length
+    const {dm, groups: nonDm} = answeringPlaces(connection)
     const noun = platform === "slack" ? "channel" : "group"
-    const where = nonDm ? `${nonDm} ${noun}${nonDm > 1 ? "s" : ""} + DMs` : "Direct messages"
+    const groupsText = `${nonDm} ${noun}${nonDm > 1 ? "s" : ""}`
+    const where =
+        nonDm && dm
+            ? `${groupsText} + DMs`
+            : nonDm
+              ? groupsText
+              : dm
+                ? "Direct messages"
+                : "Answers nowhere"
     return {
         sub: `${botHandle(connection)} · ${where}`,
         subClass: "text-colorTextTertiary",
@@ -278,7 +323,7 @@ export const hasAnyIssue = (connections: ChannelConnections): boolean =>
 /** How many connections answer as an agent and are live. */
 export const liveCountOf = (connections: ChannelConnections, agentId: string): number =>
     (connections.allConnections ?? []).filter(
-        (c) => c.agent?.id === agentId && c.status === "connected",
+        (c) => c.agent?.id === agentId && c.status === "connected" && !c.agentOff,
     ).length
 
 /** The channel tool settings of a bot that never saved any. */
@@ -337,13 +382,16 @@ export const NOOP_ACTIONS: ChannelsActions = {
     connectCustom: async () => null,
     connectHere: async () => {},
     disconnect: async () => {},
+    turnOn: async () => {},
     listSpaces: async () => [],
     discoverSpaces: async () => [],
     addSpace: async () => {},
-    readBehavior: async () => ({dm: true, group: true}),
+    readBehavior: async () => ({dm: true, group: true, spaceIds: null}),
     writeBehavior: async () => {},
-    readAllowedUsers: async () => [],
-    writeAllowedUsers: async () => {},
+    readAudience: async () => [],
+    writeAudience: async () => {},
+    queryPeople: async () => ({people: [], directory: {state: "unavailable", updatedAt: null}}),
+    refreshPeople: async () => ({state: "unavailable", updatedAt: null}),
     updateCredentials: async () => {},
     readToolSettings: async () => DEFAULT_TOOL_SETTINGS,
     writeToolSettings: async () => {},
@@ -372,7 +420,7 @@ export const isLiveForAgent = (
     connection: ChannelConnection | null | undefined,
     agentId: string | undefined,
 ): boolean => {
-    if (!connection || connection.status !== "connected") return false
+    if (!connection || connection.status !== "connected" || connection.agentOff) return false
     const scope = connectionScope(connection, agentId)
     return scope === "here" || scope === "unknown"
 }

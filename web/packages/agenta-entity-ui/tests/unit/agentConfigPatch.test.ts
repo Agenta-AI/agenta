@@ -110,6 +110,23 @@ describe("mergeAgentConfigDraft", () => {
 })
 
 describe("withModel", () => {
+    it("keeps the organization scope of a picked organization connection", () => {
+        const next = withModel(template(), {
+            modelId: "gpt-5",
+            provider: "openai",
+            mode: "agenta",
+            slug: "openai-company",
+            namespace: "organization",
+            scope: "organization",
+        })
+        expect((next as any).llm.connection).toEqual({
+            mode: "agenta",
+            slug: "openai-company",
+            scope: "organization",
+            namespace: "organization",
+        })
+    })
+
     it("writes the ModelRef under parameters.agent", () => {
         const next = withModel(nested(), {modelId: "claude-sonnet-4-5", provider: "anthropic"})
         expect((next as any).agent.llm).toEqual({

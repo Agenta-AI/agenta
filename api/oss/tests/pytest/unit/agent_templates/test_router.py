@@ -7,6 +7,7 @@ import pytest
 from fastapi import FastAPI, Request
 from httpx import ASGITransport, AsyncClient
 
+from oss.tests.pytest.utils.principals import make_envelope
 from oss.src.apis.fastapi.agent_templates import router as router_module
 from oss.src.apis.fastapi.agent_templates.router import AgentTemplatesRouter
 from oss.src.core.agent_templates.catalog import AgentTemplateCatalog
@@ -78,6 +79,7 @@ def _app(loader, catalog=CATALOG):
     async def add_state(request: Request, call_next):
         request.state.project_id = str(PROJECT_ID)
         request.state.user_id = str(USER_ID)
+        request.state.run_envelope = make_envelope()
         return await call_next(request)
 
     app.include_router(
@@ -349,7 +351,7 @@ async def test_query_returns_every_listed_template_in_catalog_order(monkeypatch)
 
     assert response.status_code == 200, response.text
     body = response.json()
-    assert body["count"] == len(body["templates"]) == 29
+    assert body["count"] == len(body["templates"]) == 30
     assert [item["key"] for item in body["templates"]] == [
         entry.key for entry in CATALOG.entries()
     ]
@@ -373,7 +375,7 @@ async def test_query_accepts_an_empty_body_and_filters(monkeypatch):
     )
 
     assert empty.status_code == 200
-    assert empty.json()["count"] == 29
+    assert empty.json()["count"] == 30
     assert [item["key"] for item in filtered.json()["templates"]] == [
         "support-reply-drafter"
     ]
@@ -452,6 +454,7 @@ def _validation_app(validator, loader=None):
     async def add_state(request: Request, call_next):
         request.state.project_id = str(PROJECT_ID)
         request.state.user_id = str(USER_ID)
+        request.state.run_envelope = make_envelope()
         return await call_next(request)
 
     app.include_router(
@@ -656,6 +659,7 @@ def _scan_app(monkeypatch, scanner, access=None):
     async def add_state(request: Request, call_next):
         request.state.project_id = str(PROJECT_ID)
         request.state.user_id = str(USER_ID)
+        request.state.run_envelope = make_envelope()
         return await call_next(request)
 
     app.include_router(
@@ -720,3 +724,137 @@ async def test_scan_requires_view_and_maps_unavailable_to_404(monkeypatch):
     assert response.json()["details"]["reason"] == "template_source_github_unavailable"
     # The scan names no commit or package directory, so its next step must not either.
     assert "commit" not in response.json()["next_step"]
+
+
+@pytest.mark.asyncio
+async def test_template_start_denied_is_403_access_denied(monkeypatch):
+    from oss.src.core.access.dtos import Decision, DecisionReason
+    from oss.src.core.access.types import AccessDenied
+
+    loader = AsyncMock()
+    loader.load.side_effect = AccessDenied(
+        decision=Decision(allowed=False, reason=DecisionReason.MISSING_CAPABILITY)
+    )
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+
+    response = await _post(_app(loader))
+
+    assert response.status_code == 403
+    detail = response.json()["detail"]
+    assert detail["code"] == "access_denied"
+    assert detail["details"]["reason"] == "missing_capability"
+    assert detail["next_step"] == "Ask a project admin for access."
+
+
+@pytest.mark.asyncio
+async def test_a_hidden_replay_answers_like_an_unknown_id(monkeypatch):
+    """A refused replay of a load whose session or agent is hidden from the caller
+    answers the one canonical not-found body, never 403 or the stored ids."""
+    from oss.src.core.access.dtos import Decision, DecisionReason
+    from oss.src.core.sharing.types import AdmissionDenied
+
+    loader = AsyncMock()
+    loader.load.side_effect = AdmissionDenied(
+        decision=Decision(allowed=False, reason=DecisionReason.RESOURCE_DENIED),
+        readable=False,
+        boundary="template_start",
+    )
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+
+    response = await _post(_app(loader))
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": {"code": "not_found", "message": "Not found.", "retryable": False}
+    }
+
+
+@pytest.mark.asyncio
+async def test_load_passes_the_ownership_policy_and_requested_visibility(monkeypatch):
+    loader = AsyncMock()
+    loader.load.return_value = _result()
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+
+    response = await _post(_app(loader), body={**_body(), "visibility": "project"})
+
+    assert response.status_code == 201
+    kwargs = loader.load.await_args.kwargs
+    envelope_user = kwargs["envelope"].authority.principal.id
+    assert kwargs["access"].visibility.value == "project"
+    assert kwargs["access"].owner_user_id == envelope_user
+    assert kwargs["first_agent_owner_user_id"] == envelope_user
+    assert "visibility" not in kwargs["command"].model_dump()
+
+
+@pytest.mark.asyncio
+async def test_agent_creation_failed_is_the_envelope_not_a_generic_500(monkeypatch):
+    from oss.src.core.sharing.types import AgentCreationFailed
+
+    loader = AsyncMock()
+    loader.load.side_effect = AgentCreationFailed()
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+
+    response = await _post(_app(loader))
+
+    assert response.status_code == 500
+    assert response.json() == {
+        "detail": {
+            "code": "agent_creation_failed",
+            "message": "The agent was not created.",
+            "retryable": True,
+            "next_step": "Send the same request again.",
+        }
+    }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "visibility, expected",
+    [("project", "project"), (None, "private")],
+)
+async def test_load_gives_the_first_session_the_requested_visibility(
+    monkeypatch, visibility, expected
+):
+    """The load's requested visibility is the first session's too: a web human's
+    template load with `visibility: project` starts a project-visible session they
+    own; without it the session is private to them."""
+    from oss.src.core.sharing.dtos import AccessPolicy, Visibility
+    from oss.tests.pytest.utils.sharing import register_sharing_service_for_tests
+
+    register_sharing_service_for_tests(monkeypatch)
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    loader = AsyncMock()
+    loader.load.return_value = _result()
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def add_state(request: Request, call_next):
+        request.state.project_id = str(PROJECT_ID)
+        request.state.user_id = str(USER_ID)
+        request.state.run_envelope = make_envelope(principal_id=USER_ID)
+        return await call_next(request)
+
+    app.include_router(
+        AgentTemplatesRouter(loader=loader, catalog=CATALOG).router,
+        prefix="/api/agent-templates",
+    )
+    body = _body()
+    if visibility is not None:
+        body["visibility"] = visibility
+
+    response = await _post(app, body=body)
+
+    assert response.status_code == 201, response.text
+    assert loader.load.await_args.kwargs["session_access"] == AccessPolicy(
+        visibility=Visibility(expected), owner_user_id=USER_ID
+    )

@@ -8,6 +8,7 @@
 import {describe, expect, it} from "vitest"
 
 import {
+    getMcpConnectionCheckLabel,
     getMcpConnectionStatus,
     getMcpConnectionStatusLabel,
     readMcpConnectionHealth,
@@ -32,7 +33,29 @@ describe("getMcpConnectionStatus", () => {
         expect(
             getMcpConnectionStatus(endpoint({secret_id: "grant-1", flags: {is_valid: false}})),
         ).toBe("login_expired")
-        expect(getMcpConnectionStatus(endpoint({secret_id: null}))).toBe("login_expired")
+    })
+
+    it("calls a disconnected OAuth connection not signed in, though its sign-in check stayed", () => {
+        const status = getMcpConnectionStatus(
+            endpoint({
+                secret_id: null,
+                data: {
+                    route: {base_url: "https://mcp.example.test"},
+                    check: {ok: true, checked_at: "2026-10-14T12:00:00Z"},
+                },
+            }),
+        )
+
+        expect(status).toBe("not_signed_in")
+        expect(getMcpConnectionStatusLabel(status)).toBe("Not signed in")
+    })
+
+    it("calls an OAuth connection with no grant and no check not signed in, not expired", () => {
+        // A first sign-in still under way has no login to expire.
+        const status = getMcpConnectionStatus(endpoint({secret_id: null}))
+
+        expect(status).toBe("not_signed_in")
+        expect(getMcpConnectionStatusLabel(status)).toBe("Not signed in")
     })
 
     it("calls a key the server stopped accepting an expired login too", () => {
@@ -61,9 +84,65 @@ describe("getMcpConnectionStatus", () => {
 })
 
 describe("readMcpConnectionHealth", () => {
-    it("has nothing to report until the query response carries a health field", () => {
+    it("has nothing to report for a connection nobody has checked", () => {
         expect(readMcpConnectionHealth(endpoint({secret_id: "grant-1"}))).toBeNull()
         expect(readMcpConnectionHealth(endpoint({flags: {is_valid: false}}))).toBeNull()
+    })
+
+    it("reads the last explicit check off the connection", () => {
+        const checked = endpoint({
+            data: {
+                route: {base_url: "https://mcp.example.test"},
+                check: {
+                    ok: false,
+                    reason: "The server did not answer.",
+                    checked_at: "2026-10-14T10:00:00Z",
+                },
+            },
+        })
+        expect(readMcpConnectionHealth(checked)).toEqual({
+            ok: false,
+            reason: "The server did not answer.",
+            checkedAt: "2026-10-14T10:00:00Z",
+        })
+    })
+
+    it("does not let a failed check relabel the row", () => {
+        const checked = endpoint({
+            secret_id: "grant-1",
+            data: {
+                route: {base_url: "https://mcp.example.test"},
+                check: {
+                    ok: false,
+                    reason: "The server did not answer.",
+                    checked_at: "2026-10-14T10:00:00Z",
+                },
+            },
+        })
+        expect(getMcpConnectionStatus(checked)).toBe("connected")
+    })
+})
+
+describe("getMcpConnectionCheckLabel", () => {
+    const fiveMinutesAgo = () => new Date(Date.now() - 5 * 60 * 1000).toISOString()
+
+    it("says when a passed check ran", () => {
+        expect(
+            getMcpConnectionCheckLabel({ok: true, reason: null, checkedAt: fiveMinutesAgo()}),
+        ).toBe("Checked 5m ago")
+    })
+
+    it("says when a failed check ran and why it failed", () => {
+        expect(
+            getMcpConnectionCheckLabel({
+                ok: false,
+                reason: "The server did not accept that credential.",
+                checkedAt: fiveMinutesAgo(),
+            }),
+        ).toBe("Check failed 5m ago: The server did not accept that credential.")
+        expect(
+            getMcpConnectionCheckLabel({ok: false, reason: null, checkedAt: fiveMinutesAgo()}),
+        ).toBe("Check failed 5m ago")
     })
 })
 

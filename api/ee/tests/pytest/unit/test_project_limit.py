@@ -75,8 +75,21 @@ def _wire(monkeypatch, *, plan, projects):
         "count_organization_projects",
         AsyncMock(return_value=projects),
     )
+    # The permission check allows; the create goes through MembershipsService.
+    monkeypatch.setattr(
+        projects_router.db_manager,
+        "get_default_project_id_from_workspace",
+        AsyncMock(return_value=str(uuid4())),
+    )
+    monkeypatch.setattr(
+        projects_router, "check_action_access", AsyncMock(return_value=True)
+    )
     create = AsyncMock(side_effect=_Created)
-    monkeypatch.setattr(projects_router.db_manager, "create_workspace_project", create)
+    monkeypatch.setattr(
+        projects_router,
+        "get_memberships_service",
+        lambda: SimpleNamespace(create_project=create),
+    )
     return create
 
 
@@ -120,31 +133,3 @@ async def test_oss_has_no_project_limit(monkeypatch):
         await _create_project()
 
     projects_router.db_manager.count_organization_projects.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("plan, refused", [(HOBBY, True), (PRO, False)])
-async def test_a_new_workspace_counts_as_a_new_project(monkeypatch, plan, refused):
-    import oss.src.routers.organization_router as organization_router
-
-    _wire(monkeypatch, plan=plan, projects=1)
-    monkeypatch.setattr(
-        organization_router, "_check_org_owner", AsyncMock(return_value=True)
-    )
-    create = AsyncMock(return_value="created")
-    monkeypatch.setattr(
-        organization_router.organization_service, "create_new_workspace", create
-    )
-
-    response = await organization_router.create_workspace(
-        request=_request(),
-        organization_id=str(uuid4()),
-        payload=SimpleNamespace(name="Second"),
-    )
-
-    if refused:
-        assert response.status_code == 403
-        assert PROJECT_LIMIT_MESSAGE.encode() in response.body
-        create.assert_not_awaited()
-    else:
-        assert response == "created"

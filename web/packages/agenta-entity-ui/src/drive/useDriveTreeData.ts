@@ -33,6 +33,7 @@ export function useDriveTreeData({
     uploadFiles,
     expanded,
     selectedPath,
+    folderHint,
     searchActive,
     deferredSearch,
     showTemporary,
@@ -46,6 +47,8 @@ export function useDriveTreeData({
     uploadFiles: MountFile[]
     expanded: Set<string>
     selectedPath: string | null
+    /** A path known to be a folder; beats the name guess (`v1.2/` is a folder). */
+    folderHint?: string | null
     searchActive: boolean
     deferredSearch: string
     /** "Show temporary files" — the session-scoped files beside the `agent-files/` mount. */
@@ -63,7 +66,7 @@ export function useDriveTreeData({
             ? false
             : knownKind?.path === selectedPath
               ? knownKind.isFolder
-              : !looksLikeFilePath(selectedPath)
+              : selectedPath === folderHint || !looksLikeFilePath(selectedPath)
     // Directories to keep loaded: the root, every expanded folder, and the OPEN folder — which stays
     // subscribed even when its tree row is collapsed, since the content pane is still showing it. A
     // selected FILE needs no directory; its preview reads by path.

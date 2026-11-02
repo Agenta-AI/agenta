@@ -131,20 +131,10 @@ async def update_session_identities(request: Request, payload: SessionIdentities
     except Exception:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
+    # Only the sign-in callbacks record identities; the payload is ignored.
     access_payload = session.get_access_token_payload() if session else {}
     current = access_payload.get("session_identities") or []
-    merged = list(dict.fromkeys(current + payload.session_identities))
-
-    if hasattr(session, "update_access_token_payload"):
-        access_payload["session_identities"] = merged
-        await session.update_access_token_payload(access_payload)
-    elif hasattr(session, "merge_into_access_token_payload"):
-        await session.merge_into_access_token_payload({"session_identities": merged})
-    else:
-        raise HTTPException(
-            status_code=500, detail="Session payload update not supported"
-        )
-    return {"session_identities": merged, "previous": current}
+    return {"session_identities": current, "previous": current}
 
 
 @auth_router.get(

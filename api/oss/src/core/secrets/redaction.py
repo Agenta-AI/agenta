@@ -22,6 +22,7 @@ from oss.src.core.secrets.dtos import (
     SecretResponseDTO,
     SecretValueStatus,
 )
+from oss.src.core.secrets.enums import SecretKind, SecretOwnerKind
 
 
 # EVERY credential-bearing field per secret kind, as (container attribute, field names).
@@ -46,6 +47,7 @@ CREDENTIAL_FIELDS: Dict[str, Tuple[str, Tuple[str, ...]]] = {
     ),
     "oauth_provider": ("provider", ("client_secret",)),
     "oauth_grant": ("grant", ("access_token", "refresh_token")),
+    "mcp_token": ("secret", ("content",)),
 }
 
 
@@ -174,18 +176,67 @@ def _value_status(secret: SecretResponseDTO) -> SecretValueStatus:
     )
 
 
+def _is_organization_row(secret: SecretResponseDTO) -> bool:
+    return (
+        secret.owner is not None and secret.owner.kind == SecretOwnerKind.ORGANIZATION
+    )
+
+
 def project_secret_response(
     secret: SecretResponseDTO,
     *,
     reveal_write_only: bool,
 ) -> PublicSecretResponseDTO:
-    """Build the public response, optionally retaining a write-only value for runtime."""
+    """Build the public response, optionally retaining a write-only value for runtime.
+
+    An organization row is never revealed, whatever `reveal_write_only` says, and has no
+    preview: no HTTP response carries an organization value or a part of one (M5). The one
+    exception is `organization_secret_for_runtime`."""
+    return _projected(secret, reveal_write_only=reveal_write_only)
+
+
+# The organization values that leave the API, to the run that named them: a subscription
+# login, which the runner uses like a project login, and a custom secret, which the
+# sandbox gets as a variable. Every other organization value stays in the API.
+ORGANIZATION_RUNTIME_KINDS = frozenset(
+    {SecretKind.SUBSCRIPTION_PROVIDER, SecretKind.CUSTOM_SECRET}
+)
+
+
+def organization_secret_for_runtime(
+    secret: SecretResponseDTO,
+) -> PublicSecretResponseDTO:
+    """An organization subscription login or custom secret in plaintext, for the
+    platform runtime only. The caller holds the `secret-resolve` grant (the run's own
+    credential)."""
+    if (
+        not _is_organization_row(secret)
+        or secret.kind not in ORGANIZATION_RUNTIME_KINDS
+    ):
+        raise ValueError("Only an organization login or custom secret is released.")
+    return _projected(secret, reveal_write_only=True, release_organization_login=True)
+
+
+def _projected(
+    secret: SecretResponseDTO,
+    *,
+    reveal_write_only: bool,
+    release_organization_login: bool = False,
+) -> PublicSecretResponseDTO:
+    organization_row = _is_organization_row(secret)
+    if organization_row and not release_organization_login:
+        reveal_write_only = False
+
     public_data = secret.model_dump(mode="python", exclude={"management"})
     if secret.management is not None:
         public_data["management"] = {"policy": secret.management.policy}
 
+    value_status = _value_status(secret)
+    if organization_row:
+        value_status = SecretValueStatus(configured=value_status.configured)
+
     projected = PublicSecretResponseDTO.model_validate(
-        {**public_data, "value_status": _value_status(secret)}
+        {**public_data, "value_status": value_status}
     )
 
     if not reveal_write_only:
@@ -222,3 +273,21 @@ def project_secret_response(
 def redact_secret_response(secret: SecretResponseDTO) -> PublicSecretResponseDTO:
     """Return the public response with write-only credential material stripped."""
     return project_secret_response(secret, reveal_write_only=False)
+
+
+def organization_secret_response(secret: SecretResponseDTO) -> PublicSecretResponseDTO:
+    """An organization row for its management routes: no value, no preview, with its
+    availability and selected projects."""
+    return project_secret_response(secret, reveal_write_only=False)
+
+
+def organization_connection_response(
+    secret: SecretResponseDTO,
+) -> PublicSecretResponseDTO:
+    """An organization row as a member of a project it is available to sees it: no value,
+    no preview, and nothing about other projects (`availability` and
+    `selected_project_ids` dropped)."""
+    return project_secret_response(
+        secret.model_copy(update={"availability": None, "selected_project_ids": None}),
+        reveal_write_only=False,
+    )

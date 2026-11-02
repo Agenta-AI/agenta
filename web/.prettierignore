@@ -16,3 +16,6 @@ website/dist/
 # MDX wraps indented JSX children in extra <p> tags, so this post keeps its CTA
 # markup on single lines on purpose (see 5e8e7dd54a). Prettier would re-indent it.
 website/src/content/posts/ai-coworker-platforms-for-business.mdx
+
+# Bundled office viewer scripts (regenerate with `pnpm --filter @agenta/entity-ui build:office-viewers`).
+packages/agenta-entity-ui/src/drive/officeViewer/generated/

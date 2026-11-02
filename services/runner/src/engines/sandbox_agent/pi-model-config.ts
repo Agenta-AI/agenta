@@ -30,8 +30,11 @@ import type {
 import { GATEWAY_CREDENTIALS_VALUE_ENV } from "./run-plan.ts";
 import { GATEWAY_PLACEHOLDER_API_KEY } from "../../extensions/model-provider-override.ts";
 
-/** The API dialect this builder emits. The only value v1 supports (design Decision 1). */
-export type PiProviderApi = "openai-completions";
+/**
+ * The dialects Pi speaks to a custom provider: OpenAI chat completions, or Google's native
+ * Gemini protocol on a gateway route that serves it (`modelConnection.protocol === "gemini"`).
+ */
+export type PiProviderApi = "openai-completions" | "google-generative-ai";
 
 /**
  * The canonical env var a managed OpenAI-compatible key resolves into (design Decision 2). The
@@ -143,11 +146,28 @@ function variantBaseId(modelId: string): string | undefined {
   return modelId.slice(0, separator);
 }
 
+/**
+ * Drop `allowedFallbackModels` from a `compat` the registered id borrows from another model. The
+ * list names the concrete models Pi may fall back to for THAT model, and Pi sends it as a
+ * `fallbacks` request field. A registered id has no known fallback contract, and the Agenta
+ * gateway refuses the field on a standard provider route (HTTP 400 `routing_field_not_allowed`),
+ * so an inherited list breaks every turn. A built-in model is never registered, so its own list
+ * is untouched.
+ */
+function withoutFallbackModels(
+  compat: Record<string, unknown>,
+): Record<string, unknown> {
+  const { allowedFallbackModels: _dropped, ...rest } = compat;
+  return rest;
+}
+
 /** Copy the metadata fields Pi accepts on a `models.json` entry off a built-in definition. */
 function entryFromBuiltin(id: string, builtin: PiBuiltinModel): PiModelEntry {
   return {
     id,
-    ...(builtin.compat ? { compat: builtin.compat } : {}),
+    ...(builtin.compat
+      ? { compat: withoutFallbackModels(builtin.compat) }
+      : {}),
     ...(builtin.reasoning !== undefined
       ? { reasoning: builtin.reasoning }
       : {}),
@@ -176,19 +196,66 @@ function entryFromBuiltin(id: string, builtin: PiBuiltinModel): PiModelEntry {
  * together. Drop an entry once a Pi bump carries the model, since a built-in id is never
  * registered.
  */
+interface PiModelCostRates {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+}
+
+interface PiModelCost extends PiModelCostRates {
+  /** Rates for the whole request once its input passes `inputTokensAbove`. */
+  tiers?: Array<PiModelCostRates & { inputTokensAbove: number }>;
+}
+
 interface PiModelAheadOfCatalog {
   /** The built-in id on the same provider whose metadata this model inherits. */
   inheritsFrom: string;
-  cost: Record<string, number>;
+  /** Pi's cost table: per-million rates, plus optional long-prompt `tiers`. */
+  cost: PiModelCost;
   contextWindow?: number;
+  maxTokens?: number;
+  thinkingLevelMap?: Record<string, string | null>;
   /** `compat` keys to drop from the inherited definition. */
   withoutCompat?: string[];
 }
 
 // Pi 0.87.1 added Claude Opus 5.5 and Grok 4.7, and Pi 0.99.1 added Claude Sonnet 5.5, at the
-// prices their entries used to supply, so all three were dropped. Empty until the next model
-// outruns the pinned catalog.
-export const PI_MODELS_AHEAD_OF_CATALOG: Record<string, PiModelAheadOfCatalog> = {};
+// prices their entries used to supply, so all three were dropped.
+export const PI_MODELS_AHEAD_OF_CATALOG: Record<string, PiModelAheadOfCatalog> = {
+  // Pi 0.99.1 does not carry Haiku 5.5. Its request surface is Sonnet 5.5's, not Haiku 4.5's:
+  // adaptive thinking only (a `budget_tokens` request is a 400), 1M context, and 128K output.
+  // Unlike Sonnet 5.5, thinking can be turned off. A prompt over 100,000 tokens pays five times
+  // every rate. The values match the entry newer Pi releases ship (pi.dev/models).
+  "anthropic/claude-haiku-5-5": {
+    inheritsFrom: "claude-sonnet-5-5",
+    cost: {
+      input: 0.1,
+      output: 0.5,
+      cacheRead: 0.01,
+      cacheWrite: 0.125,
+      tiers: [
+        {
+          inputTokensAbove: 100000,
+          input: 0.5,
+          output: 2.5,
+          cacheRead: 0.05,
+          cacheWrite: 0.625,
+        },
+      ],
+    },
+    contextWindow: 1000000,
+    maxTokens: 128000,
+    thinkingLevelMap: {
+      minimal: null,
+      low: "low",
+      medium: "medium",
+      high: "high",
+      xhigh: "xhigh",
+      max: "max",
+    },
+  },
+};
 
 function entryAheadOfCatalog(
   provider: string,
@@ -205,8 +272,11 @@ function entryAheadOfCatalog(
       Object.entries(entry.compat).filter(([key]) => !known.withoutCompat?.includes(key)),
     );
   }
-  entry.cost = { ...known.cost };
+  entry.cost = structuredClone(known.cost) as unknown as Record<string, unknown>;
   if (known.contextWindow !== undefined) entry.contextWindow = known.contextWindow;
+  if (known.maxTokens !== undefined) entry.maxTokens = known.maxTokens;
+  if (known.thinkingLevelMap !== undefined)
+    entry.thinkingLevelMap = { ...known.thinkingLevelMap };
   return entry;
 }
 
@@ -223,9 +293,9 @@ function entryAheadOfCatalog(
  *     catalog model must produce no entry at all.
  *
  * Metadata comes from Pi's own table wherever it can: the routing-variant base model when there is
- * one, then a model listed in `PI_MODELS_AHEAD_OF_CATALOG`, else the provider's request dialect
- * (`compat`) from any built-in sibling so the call is shaped the way that provider expects. What
- * cannot be derived is simply left out and Pi defaults it.
+ * one, then a model listed in `PI_MODELS_AHEAD_OF_CATALOG`, else the request dialect (`compat`)
+ * that its closest built-in siblings share (`closestSiblingsCompat`), so the call is shaped the
+ * way that provider expects. What cannot be derived is simply left out and Pi defaults it.
  */
 export function buildPiModelRegistrationPlan(
   request: AgentRunRequest,
@@ -259,15 +329,59 @@ export function buildPiModelRegistrationPlan(
   const ahead = entryAheadOfCatalog(provider, modelId, builtins);
   if (ahead) return { builtinProvider: provider, models: [ahead] };
 
-  // No base model to inherit from: carry only the provider's request dialect, which is a property
-  // of the endpoint rather than of any one model, so the call is at least shaped correctly.
-  const sibling = builtins[0];
+  // No base model to inherit from: carry only the request dialect the closest siblings agree on,
+  // so the call is at least shaped the way that provider expects.
+  const compat = closestSiblingsCompat(modelId, builtins);
   return {
     builtinProvider: provider,
-    models: [
-      { id: modelId, ...(sibling?.compat ? { compat: sibling.compat } : {}) },
-    ],
+    models: [{ id: modelId, ...(compat ? { compat } : {}) }],
   };
+}
+
+/** Split a model id into its name tokens: `claude-haiku-5-5` -> `claude`, `haiku`, `5`, `5`. */
+function idTokens(id: string): string[] {
+  return id.split(/[-/._:]+/).filter(Boolean);
+}
+
+function sharedLeadingTokens(a: string[], b: string[]): number {
+  let count = 0;
+  while (count < a.length && count < b.length && a[count] === b[count]) count++;
+  return count;
+}
+
+/**
+ * The `compat` a model Pi does not know should borrow from the built-ins of its provider.
+ *
+ * The siblings are the built-ins of the same family, which are the ones whose id shares the most
+ * leading name tokens with the requested id (`claude-haiku-5-5` -> the `claude-haiku-*` models).
+ * When no id shares a token, every built-in of the provider is a sibling. The result holds only the
+ * keys that EVERY sibling sets to the same value: a flag that one model has and its siblings do not
+ * (for example `forceAdaptiveThinking` on one Claude line) is a fact about that model, and guessing
+ * it on would shape the request for a model it may not fit. The fallback list is dropped even when
+ * all siblings agree. Returns `undefined` when nothing is shared.
+ */
+function closestSiblingsCompat(
+  modelId: string,
+  builtins: PiBuiltinModel[],
+): Record<string, unknown> | undefined {
+  if (builtins.length === 0) return undefined;
+  const wanted = idTokens(modelId);
+  const scores = builtins.map((builtin) =>
+    sharedLeadingTokens(wanted, idTokens(builtin.id)),
+  );
+  const best = Math.max(...scores);
+  const siblings = builtins.filter((_, index) => scores[index] === best);
+
+  const [first, ...rest] = siblings.map((sibling) => sibling.compat ?? {});
+  const shared = Object.fromEntries(
+    Object.entries(withoutFallbackModels(first)).filter(([key, value]) =>
+      rest.every(
+        (other) =>
+          key in other && JSON.stringify(other[key]) === JSON.stringify(value),
+      ),
+    ),
+  );
+  return Object.keys(shared).length > 0 ? shared : undefined;
 }
 
 /**
@@ -289,11 +403,20 @@ function isPiHarness(harness: string | undefined): boolean {
 }
 
 /**
+ * The Pi provider id for a gateway route the author did not name: the project default, which the
+ * SDK sends with no `connection` at all. A standard Gemini provider key is the case today. The
+ * gateway serves it on an OpenAI-compatible chat-completions surface, which Pi's built-in
+ * `openai` provider does not speak (it calls `/responses`).
+ */
+export const PI_GATEWAY_DEFAULT_PROVIDER_ID = "agenta-gateway";
+
+/**
  * Applicability (which KIND of run this is) — ALL must hold, else this builder does not apply:
  *   - the harness is Pi;
  *   - the resolved provider family is "openai";
  *   - the resolved deployment is "custom";
- *   - the connection is a named Agenta connection (`mode === "agenta"`).
+ *   - the connection is a named Agenta connection (`mode === "agenta"`), or the run has no
+ *     connection (the project default) and is routed through the gateway.
  *
  * Exported so `buildPiExtensionEnv` can skip the generic Pi provider-override env for runs this
  * models.json path already routes (two competing registrations would race for the provider).
@@ -303,8 +426,13 @@ export function isPiModelConfigApplicable(request: AgentRunRequest): boolean {
     isPiHarness(request.harness) &&
     request.modelConnection?.provider === "openai" &&
     request.modelConnection?.deployment === "custom" &&
-    request.connection?.mode === "agenta"
+    (request.connection?.mode === "agenta" || isDefaultGatewayRoute(request))
   );
+}
+
+/** A gateway-routed run whose author picked no connection (the project default). */
+function isDefaultGatewayRoute(request: AgentRunRequest): boolean {
+  return !request.connection && !!request.modelConnection?.gatewayCredentials;
 }
 
 /**
@@ -333,7 +461,9 @@ export function buildPiModelConfigPlan(
   if (!isPiModelConfigApplicable(request)) return undefined;
 
   const credentialMode = request.modelConnection?.credentialMode;
-  const slug = request.connection?.slug?.trim();
+  const slug = isDefaultGatewayRoute(request)
+    ? PI_GATEWAY_DEFAULT_PROVIDER_ID
+    : request.connection?.slug?.trim();
   const baseUrl = request.modelConnection?.endpoint?.baseUrl?.trim();
   const model = request.model?.trim();
   const hasKey = !!secrets[OPENAI_API_KEY_ENV]?.trim();
@@ -369,6 +499,30 @@ export function buildPiModelConfigPlan(
       ? (model as string).slice(declaredProvider.length + 1)
       : (model as string);
   const modelId = stripped || (model as string);
+
+  // The gateway also serves this route in Google's native protocol. Pi's Google client
+  // appends `/models/<id>:streamGenerateContent` to a base that already carries its version
+  // and calls the model by its bare Gemini id (`docs/design/gemini-native-door`). The model is
+  // NOT marked as reasoning: Pi's default thinking level is "medium", and the product rule is
+  // that built-in Gemini thinks at LOW unless asked, which the gateway applies to a request
+  // that names no level. The connection's base stays the OpenAI-compatible `/v1` route for
+  // runners that do not know `protocol`.
+  const native =
+    gatewayCredentials &&
+    request.modelConnection?.protocol === "gemini" &&
+    /\/v1\/?$/.test(baseUrl as string);
+  if (native) {
+    return {
+      providerId: slug as string,
+      providerFamily: "openai",
+      api: "google-generative-ai",
+      baseUrl: (baseUrl as string).replace(/\/v1\/?$/, "/v1beta"),
+      apiKey: GATEWAY_PLACEHOLDER_API_KEY,
+      apiKeyEnv: OPENAI_API_KEY_ENV,
+      models: [{ id: modelId.replace(/^google\//, "") }],
+      headers: { [gatewayCredentials.header]: `$${GATEWAY_CREDENTIALS_VALUE_ENV}` },
+    };
+  }
 
   return {
     providerId: slug as string,

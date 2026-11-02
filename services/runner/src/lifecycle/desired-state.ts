@@ -127,6 +127,10 @@ export function normalizeDesiredState(
           provider: request.modelConnection.provider,
           deployment: request.modelConnection.deployment,
           endpoint: request.modelConnection.endpoint ?? null,
+          // Only when present, so every connection without it keeps the digest it had.
+          ...(request.modelConnection.protocol
+            ? { protocol: request.modelConnection.protocol }
+            : {}),
           credentialMode: request.modelConnection.credentialMode,
           environment: request.modelConnection.environment ?? null,
           credentials: credentialShapes(request.modelConnection.credentials),

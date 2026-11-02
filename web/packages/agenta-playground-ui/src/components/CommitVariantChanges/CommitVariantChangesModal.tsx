@@ -27,6 +27,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     onSuccess,
     appId,
     onAfterCommit,
+    createVisibility,
     ...props
 }) => {
     const {onCancel, open} = props
@@ -116,6 +117,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                     commitMessage: commitMessage ?? undefined,
                     name: editedName,
                     slug: editedSlug,
+                    visibility: createVisibility,
                 })
 
                 if (!result.success) {
@@ -205,6 +207,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
         [
             isEphemeral,
             createFromEphemeral,
+            createVisibility,
             createVariant,
             variantId,
             variantName,

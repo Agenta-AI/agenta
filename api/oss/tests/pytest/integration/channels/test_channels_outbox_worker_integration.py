@@ -87,7 +87,11 @@ class _LocalFakeAdapter(ChannelAdapterInterface):
         raise NotImplementedError
 
     async def parse_event(
-        self, *, body: bytes, connection: Optional[ChannelConnection] = None
+        self,
+        *,
+        body: bytes,
+        connection: Optional[ChannelConnection] = None,
+        request=None,
     ) -> Optional[ChannelInboundEvent]:
         raise NotImplementedError
 

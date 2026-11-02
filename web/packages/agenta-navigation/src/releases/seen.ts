@@ -1,7 +1,7 @@
-import {RELEASES, type ReleaseEntry} from "./index"
+import {RELEASES, type Release} from "./index"
 
-// Seen ids are a set, not a pointer: changelog.json is curated, not date-sorted.
-const WHATS_NEW_SEEN_KEY = "agenta-whats-new-seen-ids"
+// Seen ids are docs entry slugs, so an entry added later to a seen version still counts as new.
+const WHATS_NEW_SEEN_KEY = "agenta-whats-new-seen-entries"
 const WHATS_NEW_OPTED_OUT_KEY = "agenta-whats-new-opted-out"
 
 /** The pure core: given the release list and the stored seen ids, which releases are new? */
@@ -9,14 +9,14 @@ export const computeUnseenReleases = ({
     releases,
     seenIds,
 }: {
-    releases: ReleaseEntry[]
-    /** Ids stored as seen, or null when nothing was stored yet (first visit). */
+    releases: Release[]
+    /** Entry ids stored as seen, or null when nothing was stored yet (first visit). */
     seenIds: string[] | null
-}): ReleaseEntry[] => {
+}): Release[] => {
     // First visit: everything that already shipped is the product, not news.
     if (seenIds === null) return []
     const seen = new Set(seenIds)
-    return releases.filter((release) => !seen.has(release.id))
+    return releases.filter((release) => release.features.some((feature) => !seen.has(feature.id)))
 }
 
 // Storage can throw (private mode, blocked storage, quota); What's New then just stays quiet.
@@ -51,7 +51,7 @@ const readSeenIds = (): string[] | null => {
 }
 
 /** The releases not yet seen in this browser. Seeds the store on the first call, which returns []. */
-export const getUnseenReleases = (): ReleaseEntry[] => {
+export const getUnseenReleases = (): Release[] => {
     const seenIds = readSeenIds()
     if (seenIds === null) {
         markAllReleasesSeen()
@@ -63,7 +63,10 @@ export const getUnseenReleases = (): ReleaseEntry[] => {
 /** Store every listed release as seen, keeping older ids so a returning entry stays seen. */
 export const markAllReleasesSeen = () => {
     const previous = readSeenIds() ?? []
-    const union = new Set([...previous, ...RELEASES.map((release) => release.id)])
+    const union = new Set([
+        ...previous,
+        ...RELEASES.flatMap((release) => release.features.map((feature) => feature.id)),
+    ])
     writeStorage(WHATS_NEW_SEEN_KEY, JSON.stringify([...union]))
 }
 

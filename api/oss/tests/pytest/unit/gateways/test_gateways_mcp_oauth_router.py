@@ -31,12 +31,12 @@ def test_serves_a_client_metadata_document_with_no_auth_header():
     assert body["redirect_uris"] == [callback_redirect_uri(api_url=env.agenta.api_url)]
 
 
-def test_the_served_document_has_no_client_id_field():
-    """The client_id is the document's own URL (specs-wp20.md); it is never a field
-    inside the document itself."""
+def test_the_served_document_names_its_own_url_as_client_id():
+    """An authorization server refuses a document whose `client_id` is missing or differs
+    from the URL it fetched (draft-ietf-oauth-client-id-metadata-document §4.1)."""
     body = _client().get("/gateways/mcps/oauth/client-metadata.json").json()
 
-    assert "client_id" not in body
+    assert body["client_id"] == client_metadata_url(api_url=env.agenta.api_url)
 
 
 def test_client_metadata_url_matches_the_route_the_router_serves():

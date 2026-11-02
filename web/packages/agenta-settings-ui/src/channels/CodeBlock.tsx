@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react"
+import {useEffect, useState, type ReactNode} from "react"
 
 import {Button} from "@agenta/ui/ui"
 import {Check, Copy} from "@phosphor-icons/react"
@@ -11,6 +11,8 @@ export interface CodeBlockProps {
     wrap?: boolean
     /** The body's height cap, as a Tailwind class. */
     maxHeightClass?: string
+    /** More header actions, shown before Copy. */
+    actions?: ReactNode
     "data-testid"?: string
 }
 
@@ -20,6 +22,7 @@ export const CodeBlock = ({
     code,
     wrap = false,
     maxHeightClass = "max-h-64",
+    actions,
     "data-testid": testId,
 }: CodeBlockProps) => {
     const [copied, setCopied] = useState(false)
@@ -43,14 +46,17 @@ export const CodeBlock = ({
         <div className="min-w-0 overflow-hidden rounded-lg border border-solid border-border">
             <div className="flex items-center justify-between border-0 border-b border-solid border-border bg-muted py-1.5 pl-3 pr-2 text-xs text-muted-foreground">
                 {label}
-                <Button variant="ghost" size="xs" onClick={() => void copy()}>
-                    {copied ? (
-                        <Check weight="bold" data-icon="inline-start" />
-                    ) : (
-                        <Copy data-icon="inline-start" />
-                    )}
-                    {copied ? "Copied" : "Copy"}
-                </Button>
+                <div className="flex items-center gap-1">
+                    {actions}
+                    <Button variant="ghost" size="xs" onClick={() => void copy()}>
+                        {copied ? (
+                            <Check weight="bold" data-icon="inline-start" />
+                        ) : (
+                            <Copy data-icon="inline-start" />
+                        )}
+                        {copied ? "Copied" : "Copy"}
+                    </Button>
+                </div>
             </div>
             {/* The scroll sits on a div: a global rule gives every <pre> a wide scrollbar. */}
             <div className={`ag-scroll-quiet overflow-auto ${maxHeightClass}`}>

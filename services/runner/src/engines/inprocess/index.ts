@@ -107,7 +107,11 @@ export function createInProcessProvider(config: RunnerConfig, log: Log): InProce
     log,
     { mounter: geesefsMounter(log) },
   );
-  const ledger = new SessionLedger({ maxSessions: config.inprocess.maxSessions, heapPressureRatio: HEAP_PRESSURE_RATIO });
+  const ledger = new SessionLedger({
+    maxSessions: config.inprocess.maxSessions,
+    heapPressureRatio: HEAP_PRESSURE_RATIO,
+    onHeapPressure: () => void registry.evictParkedConversations(),
+  });
   const runtime = { registry, config: INPROCESS_LIMITS, ledger, log };
   // One line a minute while anything is held: sandboxes, retirements, slots kept
   // for sandboxes not yet confirmed stopped or gone, sessions, memory.

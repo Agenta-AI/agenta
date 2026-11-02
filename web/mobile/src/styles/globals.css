@@ -137,6 +137,9 @@
        painted it red, and the server tile had no fill. */
     --color-colorErrorText: var(--colorErrorText);
     --color-colorInfoBg: var(--colorInfoBg);
+    /* Preview comments: the hover outline, selected cells and comment pins. */
+    --color-colorSelection: var(--colorSelection);
+    --color-colorSelectionBg: var(--colorSelectionBg);
     --color-colorWarningBorder: var(--colorWarningBorder);
     --color-colorSuccessBorder: var(--colorSuccessBorder);
     --color-colorBgBase: var(--colorBgBase);

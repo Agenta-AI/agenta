@@ -23,6 +23,8 @@ def create_dbe_from_dto(
         # mode="json",
         exclude_none=True,
     )
+    # A read-only field, never a column; the principal is written by its own setter.
+    attributes.pop("principal", None)
     attributes["project_id"] = project_id
 
     dbe = DBE(**attributes, **kwargs)
@@ -42,6 +44,8 @@ def edit_dbe_from_dto(
         # mode="json",
         exclude_none=True,
     ).items():
+        if field == "principal":  # read-only; never set by an edit
+            continue
         setattr(dbe, field, value)
 
     for field, value in kwargs.items():
@@ -62,6 +66,16 @@ def create_dto_from_dbe(
     dto_fields = set(DTO.model_fields.keys())
 
     attributes = {field: getattr(dbe, field) for field in dbe_fields & dto_fields}
+
+    # The run principal is two columns on the row and one field on the read DTO.
+    if "principal" in dto_fields and "principal_kind" in dbe_fields:
+        from oss.src.dbs.postgres.access.mappings import (  # noqa: PLC0415
+            map_principal_columns,
+        )
+
+        attributes["principal"] = map_principal_columns(
+            kind=dbe.principal_kind, id=dbe.principal_id
+        )
 
     if attributes.get("trace_id") is not None:
         attributes["trace_id"] = str(attributes["trace_id"])

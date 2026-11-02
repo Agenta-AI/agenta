@@ -25,10 +25,13 @@ can be trusted against the other.
 
 While `AGENTA_GATEWAYS_MOCKS_ENABLED` is on, this process also serves a mock OAuth
 authorization server and a second, OAuth-protected MCP surface at `/oauth/mcp`
-(`issuer.py`), and a third, header-authenticated surface at `/key/mcp`. `/` stays
+(`issuer.py`), and a third, key-authenticated surface at `/key/mcp`, with a variant that
+takes the key in the path at `/key/<key>/mcp`. `/` stays
 unauthenticated, because every other mock suite speaks to it.
 """
 
+import base64
+import binascii
 import json
 
 from fastapi import APIRouter, FastAPI, Request
@@ -158,6 +161,9 @@ async def _serve(request: Request) -> Response:
 # challenge: that absence is the whole signal. A 401 that names one is the OAuth path, and
 # this surface exists to be the other one.
 KEY_MCP_PATH = "/key/mcp"
+# The same surface for a server that takes its key in the path (Firecrawl
+# `/<key>/v2/mcp`), which a connection reaches with a url binding and `{secret}`.
+KEY_IN_PATH_MCP_PATH = "/key/{key}/mcp"
 
 KEY_REALM = "agenta-mock-mcp-key"
 
@@ -181,19 +187,33 @@ def _key_challenge() -> Response:
 
 
 def _key_accepted(request: Request) -> bool:
-    """Both forms the gateway sends an API key in.
+    """Every form the gateway can send an API key in.
 
-    An endpoint that registers a `credential_header` sends the stored value verbatim under
-    that name; one that registers none falls back to `Authorization: Bearer <value>`
-    (`providers/http/adapter.py::credential_headers`). A mock that took only one of them
-    would refuse a correctly configured connection for a reason that is not the product.
+    An endpoint's credential binding sends the value under the header it names, in the
+    query parameter it names, or behind a prefix; one with no binding falls back to
+    `Authorization: Bearer <value>` (`providers/http/adapter.py::injected_credentials`).
+    Basic is accepted with the key as the password, so the connect sheet's Basic helper
+    can be driven against this surface with any username. A mock that took only some of
+    these would refuse a correctly configured connection for a reason that is not the
+    product.
     """
     expected = env.mock_gateways.mcp_key_value
     if not expected:
         return False
-    if request.headers.get(env.mock_gateways.mcp_key_header) == expected:
+    name = env.mock_gateways.mcp_key_header
+    if expected in (request.headers.get(name), request.query_params.get(name)):
         return True
-    return request.headers.get("Authorization") == f"Bearer {expected}"
+    authorization = request.headers.get("Authorization") or ""
+    scheme, _, value = authorization.partition(" ")
+    if scheme.lower() == "bearer":
+        return value == expected
+    if scheme.lower() == "basic":
+        try:
+            decoded = base64.b64decode(value, validate=True).decode()
+        except (binascii.Error, UnicodeDecodeError):
+            return False
+        return decoded.partition(":")[2] == expected
+    return False
 
 
 def build_key_router() -> APIRouter:
@@ -212,6 +232,15 @@ def build_key_router() -> APIRouter:
             return _key_challenge()
         # The same handler `/` and `/oauth/mcp` use, so all three answer one request with
         # one set of bytes and the framing rules stay in one place.
+        return await _serve(request)
+
+    @router.post(KEY_IN_PATH_MCP_PATH)
+    async def key_in_path_relay(key: str, request: Request) -> Response:
+        if (
+            not env.mock_gateways.mcp_key_value
+            or key != env.mock_gateways.mcp_key_value
+        ):
+            return _key_challenge()
         return await _serve(request)
 
     return router

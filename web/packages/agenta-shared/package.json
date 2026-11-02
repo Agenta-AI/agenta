@@ -29,6 +29,7 @@
         "./utils/mobileGate": "./src/utils/mobileGate/index.ts",
         "./hooks": "./src/hooks/index.ts",
         "./quotes": "./src/quotes.ts",
+        "./previewPicker": "./src/previewPicker.ts",
         "./schemas": "./src/schemas/index.ts",
         "./types": "./src/types/index.ts",
         "./utils/dateTime": "./src/utils/dateTime/index.ts"

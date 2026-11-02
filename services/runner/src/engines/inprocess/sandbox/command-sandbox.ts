@@ -234,6 +234,15 @@ export class CommandSandbox {
     return this.uses > 0;
   }
 
+  /**
+   * A sandbox this conversation retired is not confirmed gone yet. Dropping the conversation now
+   * would lose that wait (`untilRetiredSettled`): a replacement could change a file a request sent
+   * to the retired sandbox later overwrites.
+   */
+  get settling(): boolean {
+    return this.unsettled.size > 0;
+  }
+
   /** A sandbox of this conversation is started (as far as this runner knows). */
   get running(): boolean {
     return this.runningSince !== undefined;

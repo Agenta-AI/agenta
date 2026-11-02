@@ -21,6 +21,7 @@ import {
 } from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
+import {agentEntryHref} from "@/features/agents/agentEntry"
 import {AVAILABLE_SETTINGS_TABS, useMobileSettingsAccess} from "@/features/settings/settingsTabs"
 import {withMobileSettingsLabels} from "@/lib/integrationsCopy"
 
@@ -90,7 +91,7 @@ export const useCommandPaletteGroups = (
                 label: agent.name || "Agent",
                 // The agent's own avatar, as its rows draw it everywhere else.
                 icon: createElement(AgentChip, {workflowId: agent.id, box: "size-5", glyph: 13}),
-                href: `${projectURL}/agents/${agent.id}`,
+                href: agentEntryHref(projectURL, agent.id),
             }))
         const pages: CommandPaletteEntry[] = [
             {key: "home", label: "Home", icon: icon(HouseIcon), href: `${projectURL}/apps`},

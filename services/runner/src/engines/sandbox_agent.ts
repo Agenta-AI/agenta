@@ -37,6 +37,7 @@ export {
   runSandboxAgent,
   shouldPark,
   turnTeardownReason,
+  unpooledTeardownReason,
 } from "./sandbox_agent/engine.ts";
 export { runTurn } from "./sandbox_agent/run-turn.ts";
 export {

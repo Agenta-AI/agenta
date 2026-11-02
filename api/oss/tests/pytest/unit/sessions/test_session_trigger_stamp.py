@@ -10,6 +10,7 @@ from oss.src.core.sessions.dtos import (
     SessionTriggerKind,
 )
 from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
 
 
 class _Result:
@@ -108,6 +109,7 @@ async def test_claim_compiles_as_one_postgres_statement():
             kind=SessionTriggerKind.subscription,
             delivery_id=delivery_id,
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     compiled = engine.db_session.statement.compile(

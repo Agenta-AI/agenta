@@ -1,8 +1,8 @@
 import {Component, useState, type ReactNode} from "react"
 
 import {REGIONS, type RegionId} from "@agenta/auth"
+import {Button, cn} from "@agenta/ui/ui"
 import {Globe} from "@phosphor-icons/react"
-import clsx from "clsx"
 
 import {useRegionSelector} from "./useRegionSelector"
 
@@ -36,9 +36,14 @@ interface RegionButtonProps {
 }
 
 const RegionButton = ({id, label, isSelected, disabled, onSwitch}: RegionButtonProps) => (
-    <button
+    <Button
         type="button"
-        className={clsx("auth-pill", isSelected && "auth-pill-selected")}
+        variant={isSelected ? "default" : "outline"}
+        size="lg"
+        className={cn(
+            "h-10 flex-1 rounded-lg text-sm font-medium",
+            isSelected ? "disabled:opacity-100" : "text-muted-foreground",
+        )}
         onClick={() => onSwitch(id)}
         disabled={disabled}
         role="radio"
@@ -47,7 +52,7 @@ const RegionButton = ({id, label, isSelected, disabled, onSwitch}: RegionButtonP
     >
         <Globe size={14} />
         {label}
-    </button>
+    </Button>
 )
 
 // ---------------------------------------------------------------------------
@@ -55,7 +60,7 @@ const RegionButton = ({id, label, isSelected, disabled, onSwitch}: RegionButtonP
 // ---------------------------------------------------------------------------
 
 export const RegionInfoText = ({className}: {className?: string}) => (
-    <div className={clsx("flex flex-col gap-3", className)}>
+    <div className={cn("flex flex-col gap-3", className)}>
         <p className="m-0">Agenta Cloud is available in two regions:</p>
         <ul className="m-0 list-disc pl-5">
             {(Object.entries(REGIONS) as [RegionId, (typeof REGIONS)[RegionId]][]).map(
@@ -99,16 +104,20 @@ const RegionSelectorInner = ({onLearnMore}: RegionSelectorProps) => {
     return (
         <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
-                <span className="auth-label">Data Residency</span>
-                <button
+                <span className="text-xs font-medium uppercase leading-[18px] tracking-[0.03em] text-muted-foreground">
+                    Data Residency
+                </span>
+                <Button
                     type="button"
-                    className="auth-link"
+                    variant="link"
+                    size="xs"
+                    className="h-auto px-0 text-xs text-muted-foreground hover:text-foreground"
                     onClick={learnMore}
                     aria-haspopup={onLearnMore ? "dialog" : undefined}
                     aria-expanded={onLearnMore ? undefined : isInfoOpen}
                 >
                     Learn more
-                </button>
+                </Button>
             </div>
             <div className="flex gap-2" role="radiogroup" aria-label="Data residency region">
                 {(Object.entries(REGIONS) as [RegionId, (typeof REGIONS)[RegionId]][]).map(
@@ -124,7 +133,9 @@ const RegionSelectorInner = ({onLearnMore}: RegionSelectorProps) => {
                     ),
                 )}
             </div>
-            {!onLearnMore && isInfoOpen ? <RegionInfoText className="auth-subline" /> : null}
+            {!onLearnMore && isInfoOpen ? (
+                <RegionInfoText className="text-[15px] leading-[22px] text-muted-foreground" />
+            ) : null}
         </div>
     )
 }

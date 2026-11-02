@@ -37,7 +37,12 @@ export const useStartBlankSession = (base: string) =>
 let pending: string | null = null
 
 /** The same start, outside React — for callbacks built where no hook can run (the rail's config). */
-export const startBlankSession = (base: string, agentId: string): string => {
+export const startBlankSession = (
+    base: string,
+    agentId: string,
+    // `replace` for a route that forwards here, so Back does not land on it and forward again.
+    navigate: "push" | "replace" = "push",
+): string => {
     // A second tap is the same intent, so it gets the session already opening rather than
     // nothing: a caller that seeds state by id then seeds the one that mounts.
     if (pending) return pending
@@ -50,7 +55,7 @@ export const startBlankSession = (base: string, agentId: string): string => {
     markSessionFresh(sessionId)
     // Released on both outcomes: a cancelled navigation RESOLVES false rather than throwing,
     // and a refused one throws, and either way the person has to be able to ask again.
-    void Promise.resolve(Router.push(`${base}/sessions/${sessionId}?agent=${agentId}`))
+    void Promise.resolve(Router[navigate](`${base}/sessions/${sessionId}?agent=${agentId}`))
         .catch(() => undefined)
         .finally(() => {
             if (pending === sessionId) pending = null

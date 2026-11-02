@@ -8,6 +8,7 @@ import {
     fetchSessionRecordsAtom,
     revalidateSessionInteractionsAtom,
     revalidateSessionRecordsAtom,
+    revalidateSessionTurnsAtom,
     type SessionInteractionRowStates,
 } from "@agenta/entities/session"
 import type {UIMessage} from "ai"
@@ -179,6 +180,7 @@ export const reloadSessionMessages = async (
     try {
         const store = getDefaultStore()
         store.set(revalidateSessionRecordsAtom, sessionId)
+        store.set(revalidateSessionTurnsAtom, sessionId)
         const {transcript, refreshed} = await readSessionTranscript(sessionId)
         if (transcript) onTranscript(transcript)
         // No flight means the cache had nothing: that read WAS the fresh one.

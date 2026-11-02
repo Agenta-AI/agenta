@@ -55,6 +55,16 @@ def _raise_bad_request(message: str) -> None:
     raise error
 
 
+def _raise_api_refusal(error: httpx.HTTPStatusError) -> None:
+    try:
+        detail = error.response.json().get("detail")
+    except Exception:
+        detail = None
+    refusal = ValueError(detail if isinstance(detail, str) and detail else str(error))
+    refusal.status_code = error.response.status_code  # type: ignore[attr-defined]
+    raise refusal from error
+
+
 def _has_reference_identity(ref: Any) -> bool:
     if ref is None:
         return False
@@ -560,7 +570,14 @@ async def resolve_embeds(
                 timeout=30.0,
             )
 
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as error:
+                # A 4xx is the API refusing an embed in the caller's configuration: keep its
+                # status and its detail, so the invoke does not answer 500 for it.
+                if error.response.is_client_error:
+                    _raise_api_refusal(error)
+                raise
             result = response.json()
 
             revision = result.get("workflow_revision")

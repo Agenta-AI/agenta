@@ -1,5 +1,7 @@
 import {Anthropic, LLMIconMap, OpenAi, Pi} from "../LLMIcons"
 
+import type {ProviderGroup, ProviderOption} from "./types"
+
 /**
  * Capitalize the first letter of each word in a string.
  */
@@ -102,3 +104,18 @@ export const getProviderDisplayName = (key: string): string => {
         capitalize(key?.replace(/_/g, " ") || "")
     )
 }
+
+/** Whether an option matches a lowercased search term, by any text the picker shows for it. */
+export const optionMatchesSearch = (
+    option: ProviderOption,
+    group: ProviderGroup,
+    normalizedTerm: string,
+): boolean =>
+    [
+        option.label,
+        option.value,
+        option.caption,
+        option.searchCaption,
+        group.label,
+        group.caption,
+    ].some((text) => text?.toLowerCase().includes(normalizedTerm))

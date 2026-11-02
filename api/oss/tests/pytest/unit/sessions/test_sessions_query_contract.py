@@ -46,6 +46,7 @@ from oss.src.dbs.postgres.sessions.streams.mappings import (
     trigger_attribution_tags,
 )
 from oss.src.dbs.postgres.shared.utils import apply_windowing
+from oss.tests.pytest.utils.sharing import PROJECT_SESSION_SCOPE
 
 
 def test_nested_only_request_normalizes_by_semantic_role():
@@ -274,6 +275,7 @@ def _compile_stream_query(
     statement = SessionStreamsDAO._apply_filters(
         select(SessionStreamDBE),
         project_id=uuid4(),
+        read_scope=PROJECT_SESSION_SCOPE,
         filter=filter,
         session_ids=session_ids,
         exclude_session_ids=exclude_session_ids,
@@ -431,6 +433,7 @@ async def test_page_and_total_share_one_turn_reference_resolution():
     service, streams = _service([row], turns)
 
     page = await service.query_sessions_page(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=project_id,
         query=SessionQuery(
             turn_references=[SessionReference(id=uuid4())],
@@ -461,7 +464,9 @@ async def test_empty_request_is_origin_neutral():
     ]
     service, streams = _service(rows, _Turns())
 
-    result = await service.query_sessions(project_id=project_id)
+    result = await service.query_sessions(
+        read_scope=PROJECT_SESSION_SCOPE, project_id=project_id
+    )
 
     assert [row.session_id for row in result] == [
         "trigger-session",

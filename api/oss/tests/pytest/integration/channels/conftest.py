@@ -138,3 +138,12 @@ async def channels_scope():
         )
         await session.execute(text("DELETE FROM users WHERE id = :id"), {"id": user_id})
         await session.commit()
+
+
+@pytest.fixture(autouse=True)
+def _allowing_access_service(monkeypatch):
+    """The inbox builds run envelopes through the registered AccessService (project
+    to organization). These tests are not about the decision."""
+    from oss.tests.pytest.utils.principals import register_allowing_access_service
+
+    return register_allowing_access_service(monkeypatch)

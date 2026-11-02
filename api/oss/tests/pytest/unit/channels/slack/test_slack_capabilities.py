@@ -82,6 +82,7 @@ EXPECTED = {
             },
         ],
     },
+    "people": {"directory": True, "email_lookup": True},
     "commands": ["new", "sessions", "use"],
 }
 

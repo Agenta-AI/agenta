@@ -28,6 +28,7 @@ from oss.src.core.tools.platform_handlers import (
 from oss.src.core.workflows.change_set import ChangeSetError, Reason
 from oss.src.core.workflows.service import RevisionConflictError
 from oss.src.core.access.permissions.types import Permission
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 VARIANT = uuid4()
@@ -51,6 +52,8 @@ def _service(**over):
     service = SimpleNamespace()
     service.read_workflow_revision_config = AsyncMock()
     service.commit_workflow_revision_checked = AsyncMock()
+    # The commit takes its agent from the bound variant.
+    service.fetch_workflow_variant = AsyncMock(return_value=None)
     for key, value in over.items():
         setattr(service, key, value)
     return service
@@ -455,6 +458,7 @@ class TestTheBoundaryActuallyPerformsTheSideEffects:
 
         emitted, invalidated = [], []
         router = ToolsRouter(
+            run_admission=NoopRunAdmission(),
             tools_service=SimpleNamespace(),
             workflows_service=SimpleNamespace(),
             tracing_service=SimpleNamespace(),

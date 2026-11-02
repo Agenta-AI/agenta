@@ -164,6 +164,8 @@ const CORE: Row[] = [
     ["colorErrorActive", palette.semantic.errorActive],
     ["colorErrorBorder", palette.semantic.errorBorder],
     ["colorInfo", palette.semantic.info],
+    ["colorSelection", palette.semantic.selection],
+    ["colorSelectionBg", palette.semantic.selectionBg],
     ["colorInfoBorder", palette.semantic.infoBorder],
     ["colorPrimaryBorder", palette.semantic.primaryBorder],
     ["colorPrimaryBorderHover", palette.semantic.primaryBorderHover],

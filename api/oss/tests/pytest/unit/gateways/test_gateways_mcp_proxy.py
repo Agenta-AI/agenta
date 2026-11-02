@@ -423,3 +423,57 @@ def test_the_gateways_own_body_complaint_still_says_what_is_wrong():
     rendered = _map_gateway_exception(excinfo.value).body.decode()
 
     assert "must be a JSON-RPC object" in rendered
+
+
+# --- "user" items: account_source on the custom route ------------------------------ #
+
+_BODY = b'{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+
+
+def test_a_custom_call_is_an_agent_call_by_default(client, mock_service):
+    client.post("/custom/acme-notion", content=_BODY)
+
+    assert mock_service.calls[-1]["account_source"] == "agent"
+
+
+def test_account_source_user_reaches_the_service(client, mock_service):
+    client.post("/custom/acme-notion?account_source=user", content=_BODY)
+
+    assert mock_service.calls[-1]["account_source"] == "user"
+    assert mock_service.calls[-1]["name"] == "acme-notion"
+
+
+def test_an_unknown_account_source_is_refused_before_the_service(client, mock_service):
+    response = client.post("/custom/acme-notion?account_source=team", content=_BODY)
+
+    assert response.status_code == 422
+    assert mock_service.calls == []
+
+
+def test_a_missing_sign_in_answers_404_sign_in_missing(client, mock_service):
+    from oss.src.core.gateways.mcps.types import MCPSignInMissingError
+
+    mock_service.raise_error = MCPSignInMissingError(target="custom/acme-notion")
+
+    response = client.post("/custom/acme-notion?account_source=user", content=_BODY)
+
+    assert response.status_code == 404
+    assert response.json()["error"]["data"]["cause"] == "sign_in_missing"
+
+
+def test_a_persons_scope_challenge_points_to_their_own_sign_in(client, mock_service):
+    from oss.src.core.gateways.mcps.types import MCPScopeInsufficientError
+
+    endpoint_id = uuid4()
+    mock_service.raise_error = MCPScopeInsufficientError(
+        target="custom/acme-notion",
+        scopes=["write"],
+        endpoint_id=endpoint_id,
+        for_person=True,
+    )
+
+    response = client.post("/custom/acme-notion?account_source=user", content=_BODY)
+
+    assert response.json()["error"]["data"]["connect"]["endpoint"] == (
+        f"/gateways/mcps/endpoints/{endpoint_id}/connect?owner_kind=user"
+    )

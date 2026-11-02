@@ -61,6 +61,7 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app:/sdks/python:/clients/python \
+    GUNICORN_CMD_ARGS="--config python:entrypoints.gunicorn_conf" \
     PATH="/opt/venv/bin:${PATH}"
 
 # Hardcode trixie codename to avoid pulling in lsb-release (+ perl ~56MB).

@@ -127,6 +127,7 @@ import {
   agentMountAppendix,
   agentMountUnavailableAppendix,
 } from "./agent-mount-guidance.ts";
+import { agentToolsCacheFor } from "./agent-tools-cache.ts";
 import {
   AGENT_TOOLS_DIR_NAME,
   agentToolsLocalDir,
@@ -144,7 +145,7 @@ import {
   type ClaudeSystemPromptMeta,
 } from "./system-prompt-appendix.ts";
 import { platformGuidanceAppendix } from "./platform-guidance.ts";
-import { claudeThinkingMeta } from "./claude-thinking.ts";
+import { claudeSessionOptionsMeta } from "./claude-session-options.ts";
 import {
   describeCodexSubscriptionAuthFault,
   isSubscriptionCodexRun,
@@ -197,10 +198,12 @@ import {
 } from "../../environment/runtime-lifecycle.ts";
 import {
   openSession as openHarnessSession,
+  capabilityProbeCacheKey,
   probe as probeHarness,
   reopen as reopenHarnessSession,
   teardown as teardownHarnessSession,
 } from "../../environment/harness-session-lifecycle.ts";
+import { sandboxSnapshotOf } from "./created-sandboxes.ts";
 import {
   activateAgentMountGuidance as activateAgentMountGuidanceUnit,
   activateAgentMountUnavailableGuidance as activateAgentMountUnavailableGuidanceUnit,
@@ -672,7 +675,8 @@ async function acquireEnvironmentOnce(
   };
   const mountLocalDurableCwd = (reason: string) =>
     mountLocalDurableCwdUnit(ctx, mountDeps, reason);
-  const mountLocalAgentCwd = () => mountLocalAgentCwdUnit(ctx, mountDeps);
+  const mountLocalAgentCwd = (cwdReady?: Promise<unknown>) =>
+    mountLocalAgentCwdUnit(ctx, mountDeps, cwdReady ? { cwdReady } : {});
   const reSignAndRemountLocalCwd = () =>
     reSignAndRemountLocalCwdUnit(ctx, mountDeps);
   const activateAgentMountGuidance = () =>
@@ -756,15 +760,28 @@ async function acquireEnvironmentOnce(
     // Local geesefs runs on the host, so mount before spawning the daemon. This lets the
     // mount-success path add guidance/env atomically, while a failed mount starts a normal
     // scratch-only harness with no false durable-storage signal.
-    if (environment.mountCreds && plan.driveOnRunner) {
-      const mounted = await mountLocalDurableCwd("initial");
-      if (mounted && piSessionDir) environment.nativeHistoryDurable = true;
-      throwIfAcquireAborted(signal);
-    }
-    if (environment.agentMountCreds && plan.driveOnRunner) {
-      await mountLocalAgentCwd();
-      throwIfAcquireAborted(signal);
-    }
+    // The two mounts run at the same time: the agent home is a sibling of the cwd, not inside it,
+    // so neither mount waits on the other. Only the agent mount's `agent-files` link, which lives
+    // in the cwd, waits for the cwd mount (see `cwdReady`). Both are settled before any error is
+    // rethrown, so a failure in one never leaves the other still attaching behind the teardown.
+    const cwdMount =
+      environment.mountCreds && plan.driveOnRunner
+        ? mountLocalDurableCwd("initial")
+        : undefined;
+    const agentMount =
+      environment.agentMountCreds && plan.driveOnRunner
+        ? mountLocalAgentCwd(cwdMount)
+        : undefined;
+    const localMountsStartedAt = Date.now();
+    const [cwdResult, agentResult] = await Promise.allSettled([
+      cwdMount,
+      agentMount,
+    ]);
+    if (cwdMount || agentMount) timingLog("local_mounts", localMountsStartedAt);
+    if (cwdResult.status === "rejected") throw cwdResult.reason;
+    if (agentResult.status === "rejected") throw agentResult.reason;
+    if (cwdResult.value && piSessionDir) environment.nativeHistoryDurable = true;
+    if (cwdMount || agentMount) throwIfAcquireAborted(signal);
     // A harness in the runner (`inprocess`) mounts the drive in its own command sandbox when a
     // tool first needs it, so nothing is mounted here. The credentials' expiry bounds this
     // environment as a remote mount's does; the harness keeps the conversation file in the drive
@@ -963,11 +980,22 @@ async function acquireEnvironmentOnce(
     // minus the endpoint: the race exists wherever a model key rides a Secret on a fresh sandbox,
     // but the preflight can only SEE it on a provider whose request shape it knows. Gemini is
     // not one of those, so on that path the classifier is still the only guard.
+    // The gateway credential counts here and not for the preflight: a refused gateway credential
+    // is the same delivery race, but the gateway has no auth-only endpoint for a probe to read.
     if (
       deliversModelSecretOnCreate({
         isDaytona: plan.isDaytona,
         sandboxMode: acquiredSandbox.mode,
-        hasModelSecretCandidate: Boolean(modelSecretCandidate),
+        // A gateway credential counts only when a Secret actually holds it: with no delivery
+        // port the allocation is empty and the credential stayed a plain value.
+        hasModelSecretCandidate:
+          Boolean(modelSecretCandidate) ||
+          (environment.credentialDelivery !== undefined &&
+            Boolean(
+              plan.credentials.daytonaSecretPlan?.candidates.some(
+                (candidate) => candidate.consumer.kind === "gateway",
+              ),
+            )),
       })
     ) {
       environment.modelSecretDeliveredAt = Date.now();
@@ -1087,147 +1115,175 @@ async function acquireEnvironmentOnce(
     // Durable cwd: mount BEFORE createSession (so the session opens inside it) and BEFORE
     // workspace materialization (so AGENTS.md, harness files, and skills land in the durable
     // prefix instead of being hidden under the FUSE mount).
-    if (environment.mountCreds && plan.isDaytona) {
-      const mountsStartedAt = Date.now();
-      try {
-        // Mount against the store's own endpoint when the sandbox can reach it (public S3); fall
-        // back to the tunnel only for an in-network store. No tunnel + in-network store => the
-        // mount is REFUSED, and the refusal is announced rather than silent. It used to be
-        // silent, and the cost was not theoretical: the run continued on an empty directory, the
-        // model went looking for the user's saved files because its own history showed an earlier
-        // session where they were there, found nothing, and told the user their work was missing.
-        // Both surfaces now say so, the operator through the WARN below and the model through
-        // `agentMountUnavailableGuidance`.
-        const storeEndpoint = environment.mountCreds.endpoint;
-        const endpoint = storeReachableFromSandbox(storeEndpoint)
-          ? undefined
-          : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
-              storeEndpoint,
-              log: logger,
-              signal,
-            })) ?? undefined);
-        const refusal = mountRefusal(storeEndpoint, endpoint);
-        const canMount = !refusal;
-        if (refusal) {
-          // WARN, not debug, and once per acquire rather than once per day: a run whose durable
-          // cwd is missing behaves differently for the whole session, and the operator needs the
-          // cause named to know which thing to fix.
-          logger(
-            `WARN durable cwd mount SKIPPED for session=${sessionForMount}: ${refusal}. ` +
-              "The run continues on throwaway storage; nothing the agent writes to the working " +
-              "directory survives this session.",
-          );
+    // The cwd mount (with the harness session dirs) and the agent mount run at the same time. The
+    // three paths are siblings (`<cwd>`, `<cwd>-agent`, `/home/sandbox/...`), never one inside
+    // another, so no mount waits on another. Only the agent mount's `agent-files` link waits for
+    // the cwd mount. Both are settled before any error is rethrown, the cwd error first, so a
+    // failure in one never leaves the other still attaching behind the teardown.
+    const daytonaCwdMount = (async () => {
+      if (environment.mountCreds && plan.isDaytona) {
+        const mountsStartedAt = Date.now();
+        try {
+          // Mount against the store's own endpoint when the sandbox can reach it (public S3); fall
+          // back to the tunnel only for an in-network store. No tunnel + in-network store => the
+          // mount is REFUSED, and the refusal is announced rather than silent. It used to be
+          // silent, and the cost was not theoretical: the run continued on an empty directory, the
+          // model went looking for the user's saved files because its own history showed an earlier
+          // session where they were there, found nothing, and told the user their work was missing.
+          // Both surfaces now say so, the operator through the WARN below and the model through
+          // `agentMountUnavailableGuidance`.
+          const storeEndpoint = environment.mountCreds.endpoint;
+          const endpoint = storeReachableFromSandbox(storeEndpoint)
+            ? undefined
+            : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
+                storeEndpoint,
+                log: logger,
+                signal,
+              })) ?? undefined);
+          const refusal = mountRefusal(storeEndpoint, endpoint);
+          const canMount = !refusal;
+          if (refusal) {
+            // WARN, not debug, and once per acquire rather than once per day: a run whose durable
+            // cwd is missing behaves differently for the whole session, and the operator needs the
+            // cause named to know which thing to fix.
+            logger(
+              `WARN durable cwd mount SKIPPED for session=${sessionForMount}: ${refusal}. ` +
+                "The run continues on throwaway storage; nothing the agent writes to the working " +
+                "directory survives this session.",
+            );
+          }
+          // Per-harness session/transcript-dir mounts, remote-only by construction (this whole
+          // branch is `plan.isDaytona`) — local runs never reach here, so they stay mount-free/
+          // byte-identical. Transcript mounts derive from the session contract (a durable cwd mount
+          // is active), with no separate public switch or credential/session-id path. They live
+          // under `/home/sandbox`, outside the cwd, so they mount at the same time as the cwd.
+          const sessionDirsMount =
+            canMount && sessionForMount && runCred
+              ? (deps.mountHarnessSessionDirs ?? mountHarnessSessionDirs)(
+                  environment.sandbox,
+                  sessionForMount,
+                  harnessSessionMounts(
+                    plan.acpAgent,
+                    "/home/sandbox",
+                    DAYTONA_PI_DIR,
+                  ),
+                  endpoint,
+                  {
+                    apiBase: apiBase(),
+                    authorization: runCred,
+                    log: logger,
+                    signal,
+                  },
+                )
+              : undefined;
+          const cwdMount = canMount
+            ? (deps.mountStorageRemote ?? mountStorageRemote)(
+                environment.sandbox,
+                plan.workspace.cwd,
+                environment.mountCreds,
+                {
+                  endpoint,
+                  log: logger,
+                  signal,
+                },
+              )
+            : undefined;
+          const [cwdResult, sessionDirsResult] = await Promise.allSettled([
+            cwdMount,
+            sessionDirsMount,
+          ]);
+          if (cwdResult.status === "rejected") throw cwdResult.reason;
+          if (cwdResult.value) {
+            environment.installedMountExpiries.cwd = mountExpiryMs(
+              environment.mountCreds.expiresAt,
+            );
+            logger(`remote durable cwd active for session=${sessionForMount}`);
+          }
+          if (sessionDirsResult.status === "rejected") {
+            throw sessionDirsResult.reason;
+          }
+        } finally {
+          timingLog("mounts", mountsStartedAt);
         }
-        if (
-          canMount &&
-          (await (deps.mountStorageRemote ?? mountStorageRemote)(
-            environment.sandbox,
-            plan.workspace.cwd,
-            environment.mountCreds,
-            {
-              endpoint,
-              log: logger,
-              signal,
-            },
-          ))
-        ) {
-          environment.installedMountExpiries.cwd = mountExpiryMs(
-            environment.mountCreds.expiresAt,
-          );
-          logger(`remote durable cwd active for session=${sessionForMount}`);
-        }
-        // Per-harness session/transcript-dir mounts, remote-only by construction (this whole
-        // branch is `plan.isDaytona`) — local runs never reach here, so they stay mount-free/
-        // byte-identical. Transcript mounts derive from the session contract (a durable cwd mount
-        // is active), with no separate public switch or credential/session-id path.
-        if (canMount && sessionForMount && runCred) {
-          const dirs = harnessSessionMounts(
-            plan.acpAgent,
-            "/home/sandbox",
-            DAYTONA_PI_DIR,
-          );
-          await (deps.mountHarnessSessionDirs ?? mountHarnessSessionDirs)(
-            environment.sandbox,
-            sessionForMount,
-            dirs,
-            endpoint,
-            {
-              apiBase: apiBase(),
-              authorization: runCred,
-              log: logger,
-              signal,
-            },
-          );
-        }
-      } finally {
-        timingLog("mounts", mountsStartedAt);
       }
-    }
-    if (
-      environment.agentMountCreds &&
-      agentMountDir &&
-      plan.isDaytona &&
-      !environment.agentMountedPath
-    ) {
-      const agentMountStartedAt = Date.now();
-      try {
-        const storeEndpoint = environment.agentMountCreds.endpoint;
-        const endpoint = storeReachableFromSandbox(storeEndpoint)
-          ? undefined
-          : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
-              storeEndpoint,
+    })();
+    const daytonaAgentMount = (async () => {
+      if (
+        environment.agentMountCreds &&
+        agentMountDir &&
+        plan.isDaytona &&
+        !environment.agentMountedPath
+      ) {
+        const agentMountStartedAt = Date.now();
+        try {
+          const storeEndpoint = environment.agentMountCreds.endpoint;
+          const endpoint = storeReachableFromSandbox(storeEndpoint)
+            ? undefined
+            : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
+                storeEndpoint,
+                log: logger,
+                signal,
+              })) ?? undefined);
+          const refusal = mountRefusal(storeEndpoint, endpoint);
+          const canMount = !refusal;
+          const mountPath = agentMountDir;
+          if (refusal) {
+            agentMountSkipped = refusal;
+            logger(
+              `WARN durable agent mount SKIPPED for artifact=${artifactId}: ${refusal}. ` +
+                "The agent's durable folder is absent this run; the model is told so explicitly " +
+                "so it does not report the user's saved work as missing.",
+            );
+            // Pi reads its guidance from the append-prompt channel, so the negative sentence has to
+            // be delivered here. Claude takes the same statement through the session-init `_meta`
+            // built below, off `agentMountSkipped`.
+            await activateAgentMountUnavailableGuidance();
+          }
+          if (
+            canMount &&
+            (await (deps.mountStorageRemote ?? mountStorageRemote)(
+              environment.sandbox,
+              mountPath,
+              environment.agentMountCreds,
+              { endpoint, log: logger, signal },
+            ))
+          ) {
+            environment.agentMountedPath = mountPath;
+            environment.installedMountExpiries.agent = mountExpiryMs(
+              environment.agentMountCreds.expiresAt,
+            );
+            await seedAgentReadmeRemote(environment.sandbox, mountPath, {
               log: logger,
-              signal,
-            })) ?? undefined);
-        const refusal = mountRefusal(storeEndpoint, endpoint);
-        const canMount = !refusal;
-        const mountPath = agentMountDir;
-        if (refusal) {
-          agentMountSkipped = refusal;
+            });
+            // `agent-files` lives in the cwd: link it only once the cwd mount settled, or the
+            // link would land in the directory that mount then hides. A rejected cwd mount skips
+            // the link and the guidance; the acquire rethrows that rejection below.
+            if (!(await daytonaCwdMount.then(() => true, () => false))) return;
+            await linkAgentFilesRemote(
+              environment.sandbox,
+              plan.workspace.cwd,
+              mountPath,
+              { log: logger },
+            );
+            await activateAgentMountGuidance();
+            logger(`remote agent mount active for artifact=${artifactId}`);
+          }
+        } catch (err) {
+          throwIfAcquireAborted(signal);
           logger(
-            `WARN durable agent mount SKIPPED for artifact=${artifactId}: ${refusal}. ` +
-              "The agent's durable folder is absent this run; the model is told so explicitly " +
-              "so it does not report the user's saved work as missing.",
+            `remote agent mount failed artifact=${artifactId}: ${conciseError(err, plan.harness)}`,
           );
-          // Pi reads its guidance from the append-prompt channel, so the negative sentence has to
-          // be delivered here. Claude takes the same statement through the session-init `_meta`
-          // built below, off `agentMountSkipped`.
-          await activateAgentMountUnavailableGuidance();
+        } finally {
+          timingLog("agent_mount", agentMountStartedAt);
         }
-        if (
-          canMount &&
-          (await (deps.mountStorageRemote ?? mountStorageRemote)(
-            environment.sandbox,
-            mountPath,
-            environment.agentMountCreds,
-            { endpoint, log: logger, signal },
-          ))
-        ) {
-          environment.agentMountedPath = mountPath;
-          environment.installedMountExpiries.agent = mountExpiryMs(
-            environment.agentMountCreds.expiresAt,
-          );
-          await seedAgentReadmeRemote(environment.sandbox, mountPath, {
-            log: logger,
-          });
-          await linkAgentFilesRemote(
-            environment.sandbox,
-            plan.workspace.cwd,
-            mountPath,
-            { log: logger },
-          );
-          await activateAgentMountGuidance();
-          logger(`remote agent mount active for artifact=${artifactId}`);
-        }
-      } catch (err) {
-        throwIfAcquireAborted(signal);
-        logger(
-          `remote agent mount failed artifact=${artifactId}: ${conciseError(err, plan.harness)}`,
-        );
-      } finally {
-        timingLog("agent_mount", agentMountStartedAt);
       }
-    }
+    })();
+    const [daytonaCwdResult, daytonaAgentResult] = await Promise.allSettled([
+      daytonaCwdMount,
+      daytonaAgentMount,
+    ]);
+    if (daytonaCwdResult.status === "rejected") throw daytonaCwdResult.reason;
+    if (daytonaAgentResult.status === "rejected") throw daytonaAgentResult.reason;
 
     // Restore the agent's own tools (`agent-files/.tools/`) now that both agent-mount paths
     // have settled and before the session opens, so a venv or a binary the model saved in an
@@ -1261,6 +1317,10 @@ async function acquireEnvironmentOnce(
           // Owner-authored startup code runs unattended only under the posture that also lets
           // a model shell call run unattended.
           runSetup: plan.tools.permissionDefault === "allow",
+          // Local only: a Daytona sandbox is fresh, so there is no local disk to reuse.
+          ...(plan.isDaytona
+            ? {}
+            : { cache: agentToolsCacheFor(environment.projectScopeId, artifactId) }),
         },
         plan.isDaytona
           ? remoteAgentToolsExec(environment.sandbox)
@@ -1304,11 +1364,11 @@ async function acquireEnvironmentOnce(
       isPi: plan.isPi,
       agentMountedPath: environment.agentMountedPath,
       agentMountSkipped: !!agentMountSkipped,
-      // Mirrors prepareWorkspace's materialization split: Pi reads an immutable
-      // `agents/skills/<digest>` snapshot; other harnesses read `.{acpAgent}/skills/<name>`.
+      // Mirrors prepareWorkspace's materialization split: Pi reads the immutable snapshot dir
+      // (`resolvePiSkillSnapshot`); other harnesses read `.{acpAgent}/skills/<name>`.
       skillsPath: plan.workspace.skillDirs.length
         ? plan.isPi
-          ? join(plan.workspace.cwd, "agents", "skills")
+          ? piSkillSnapshot?.dir
           : join(plan.workspace.cwd, `.${plan.acpAgent}`, "skills")
         : undefined,
       toolNames: plan.tools.toolSpecs.map((spec) => spec.name),
@@ -1365,6 +1425,12 @@ async function acquireEnvironmentOnce(
     if (isSubscriptionCodexRun(plan))
       await symlinkCodexSubscriptionAuthFile(plan, logger);
 
+    // Every drive above was mounted by this acquire, seconds ago, so the first turn skips the
+    // refresh of their views (see `refreshDriveViewsAtTurnStart`). A Daytona mount always detaches
+    // and mounts again. A local mount is reused only when an earlier environment failed to unmount
+    // it. With no mount, the refresh has nothing to do anyway. A mid-run remount never sets this.
+    environment.driveViewsFresh = true;
+
     // Pi native transcripts belong to the conversation workspace, not the temporary agent
     // directory that holds credentials, settings, extensions, skills, and system prompts.
     // The cwd mount is already active here on local and Daytona before Pi starts.
@@ -1385,11 +1451,18 @@ async function acquireEnvironmentOnce(
 
     // Probe what this harness supports and branch on capabilities, not on the harness name.
     // HarnessSessionLifecycle owns the stage and its timing mark.
+    const probeCacheKey = capabilityProbeCacheKey(
+      plan.sandboxId,
+      plan.acpAgent,
+      binaryPath,
+      sandboxSnapshotOf(environment.sandbox.sandboxId),
+    );
     const probed = await probeHarness(
       {
         sandbox: environment.sandbox,
         acpAgent: plan.acpAgent,
         timingLog,
+        ...(probeCacheKey ? { cacheKey: probeCacheKey } : {}),
       },
       {
         ...(deps.probeCapabilities
@@ -1473,16 +1546,15 @@ async function acquireEnvironmentOnce(
         : undefined;
     const claudeAppendixMeta: ClaudeSystemPromptMeta | undefined =
       claudeAppendix ? claudeSystemPromptMeta(claudeAppendix) : undefined;
-    // Claude-only: request visible ("summarized") extended-thinking display so the model's
-    // reasoning reaches the runner (and the playground). Without it, recent Claude models
-    // return signature-only thinking and no reasoning surfaces. See `claude-thinking.ts`.
-    const claudeThinking =
-      plan.acpAgent === "claude" ? claudeThinkingMeta() : undefined;
+    // Claude-only SDK options: visible ("summarized") extended thinking, the built-in tools an
+    // Agenta run turns off, and no claude.ai connectors. See `claude-session-options.ts`.
+    const claudeOptions =
+      plan.acpAgent === "claude" ? claudeSessionOptionsMeta() : undefined;
     // Disjoint `_meta` keys (`systemPrompt` vs `claudeCode`), so a shallow merge keeps both.
-    // A future second `claudeCode` producer would need a deep merge here.
+    // `claudeSessionOptionsMeta` is the one `claudeCode` producer; add new options there.
     const claudeMeta =
-      claudeAppendixMeta || claudeThinking
-        ? { ...(claudeAppendixMeta ?? {}), ...(claudeThinking ?? {}) }
+      claudeAppendixMeta || claudeOptions
+        ? { ...(claudeAppendixMeta ?? {}), ...(claudeOptions ?? {}) }
         : undefined;
     const sessionInit = {
       cwd: plan.workspace.cwd,
@@ -1693,7 +1765,11 @@ async function acquireEnvironmentOnce(
       err,
       plan.harness,
       request.modelConnection?.provider,
-      { authFault: () => describeCodexSubscriptionAuthFault(plan), unknownText: plan.unknownErrorText },
+      {
+        authFault: () => describeCodexSubscriptionAuthFault(plan),
+        modelConnection: request.modelConnection,
+        unknownText: plan.unknownErrorText,
+      },
     );
     // Same substitution as the turn path: a hosted subscription run must never be told to add a
     // vault key. Acquire itself makes no model call, but the harness starts here and a dead login

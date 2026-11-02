@@ -10,7 +10,7 @@ import {fetchProjects, type MobileProject} from "@/lib/context"
  * for a project the current user cannot see — callers fall back rather than block on it.
  */
 export const useCurrentProject = (
-    workspaceId: string,
+    _workspaceId: string,
     projectId: string,
 ): MobileProject | undefined => {
     const query = useQuery({
@@ -20,8 +20,8 @@ export const useCurrentProject = (
     })
 
     return query.data?.kind === "ok"
-        ? query.data.projects.find(
-              (project) => project.project_id === projectId && project.workspace_id === workspaceId,
-          )
+        ? // By the project id alone: the route segment can be a legacy workspace id or the
+          // organization id for the same project (workspace removal step 2).
+          query.data.projects.find((project) => project.project_id === projectId)
         : undefined
 }

@@ -31,6 +31,7 @@ from oss.src.tasks.taskiq.shared.broker import (
     prune_idle_consumers,
 )
 
+from entrypoints.access import bootstrap_access
 from entrypoints.channel_adapters import build_channel_adapter_registry
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.events.service import EventsService
@@ -79,6 +80,7 @@ from oss.src.utils.common import is_ee
 from oss.src.utils.env import env
 from oss.src.utils.helpers import warn_deprecated_env_vars, validate_required_env_vars
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.server_tracing import setup_server_tracing
 
 # Guard EE imports so an OSS build needn't import the ee.* package.
 if is_ee():
@@ -92,6 +94,8 @@ if is_ee():
     from ee.src.tasks.asyncio.wallets.worker import DebitWorker
 
 log = get_module_logger(__name__)
+
+setup_server_tracing("agenta-worker-streams")
 
 WALLET_STREAMS_ENABLED = is_ee() and env.wallets.enabled
 
@@ -122,6 +126,7 @@ async def _build_spans_worker(redis_client: Redis) -> StreamConsumer:
         redis_client=redis_client,
         stream_name="streams:spans",
         consumer_group="worker-spans",
+        turns_service=SessionTurnsService(turns_dao=SessionTurnsDAO()),
     )
 
 
@@ -272,6 +277,8 @@ async def main_async() -> int:
 
         if is_ee():
             bootstrap_entitlements_services()
+
+        bootstrap_access()
 
         # The socket timeout outlasts XREADGROUP(block=5000ms), see streams_client_options.
         redis_client = Redis.from_url(

@@ -122,6 +122,9 @@ const ManageHost = ({
                 onDisconnect={async () => {
                     await actions.disconnect(connection.platform, connection.connectionId ?? "")
                 }}
+                onTurnOn={async () => {
+                    await actions.turnOn(connection.platform, connection.connectionId ?? "")
+                }}
             />
             {sentTo ? (
                 <p
@@ -133,6 +136,20 @@ const ManageHost = ({
             ) : null}
         </InlinePanel>
     )
+}
+
+const slackOff: ChannelConnection = {...slackHere, workspaceName: WORKSPACE_NAME, agentOff: true}
+
+/** The binding is off, and the connection stays off until turned on. */
+export const OffUntilTurnedOn: Story = {
+    render: () => <ManageHost connection={slackOff} />,
+    parameters: {
+        docs: {
+            description: {
+                story: "The connection row lists its channels. Turn on is enabled; press it.",
+            },
+        },
+    },
 }
 
 /** Connected here, on the Agenta-hosted Telegram bot. */
@@ -198,7 +215,7 @@ export const GroupChatsDenied: Story = {
     render: () => (
         <ManageHost
             connection={telegramHere}
-            options={{behavior: {"cx-telegram": {dm: true, group: false}}}}
+            options={{behavior: {"cx-telegram": {dm: true, group: false, spaceIds: null}}}}
         />
     ),
     parameters: {
@@ -231,12 +248,19 @@ export const BehaviorSaveFails: Story = {
     },
 }
 
-/** Only two Telegram accounts may talk to the bot. */
-export const AllowedUsers: Story = {
+/** The agent answers only two Telegram accounts. */
+export const Audience: Story = {
     render: () => (
         <ManageHost
             connection={telegramHere}
-            options={{allowedUsers: {"cx-telegram": ["123456789", "987654321"]}}}
+            options={{
+                audience: {
+                    "cx-telegram": [
+                        {id: "123456789", name: null, email: null},
+                        {id: "987654321", name: null, email: null},
+                    ],
+                },
+            }}
         />
     ),
     parameters: {

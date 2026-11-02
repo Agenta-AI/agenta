@@ -18,16 +18,25 @@ const row = (
     id: string,
     {
         updatedAt = daysAgo(1),
-        createdById = "u1",
+        ownerId = "u1",
         ownerName = "You",
         waiting = 0,
     }: {
         updatedAt?: string | null
-        createdById?: string | null
+        ownerId?: string | null
         ownerName?: string
         waiting?: number
     } = {},
-): AgentListRow => ({id, name: id, description: null, updatedAt, ownerName, createdById, waiting})
+): AgentListRow => ({
+    id,
+    name: id,
+    description: null,
+    updatedAt,
+    ownerName,
+    ownerId,
+    isPrivate: false,
+    waiting,
+})
 
 const view = (patch: Partial<AgentListView> = {}): AgentListView => ({
     ...DEFAULT_AGENT_LIST_VIEW,
@@ -54,7 +63,7 @@ describe("isDefaultAgentListView", () => {
 describe("deriveAgentList — filtering", () => {
     // `type` is not a predicate here: the screen fetches ONE roster, so every row already
     // matches it by the time it arrives.
-    const rows = [row("mine", {createdById: "u1"}), row("theirs", {createdById: "u2"})]
+    const rows = [row("mine", {ownerId: "u1"}), row("theirs", {ownerId: "u2"})]
 
     it("narrows to one creator, and `all` keeps everyone", () => {
         expect(ids(deriveAgentList(rows, view({owner: "u1"}), NOW))).toEqual(["mine"])

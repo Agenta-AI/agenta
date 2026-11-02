@@ -31,6 +31,5 @@ export const resolveHomeSurface = ({
 }: HomeSurfaceInput): HomeSurface => {
     if (isError) return "home"
     if (agentCount > 0) return "home"
-    if (isPending) return "loading"
-    return "home"
+    return isPending ? "loading" : "home"
 }

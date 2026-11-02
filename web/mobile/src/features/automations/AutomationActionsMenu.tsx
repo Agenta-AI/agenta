@@ -18,6 +18,7 @@ import {useStartTaskSession} from "../chat/useStartTaskSession"
 import {useConfirmModal} from "../settings/useConfirmModal"
 
 import {testRunBlockedReason} from "./AutomationTestRunButton"
+import {runNowText} from "./runNowText"
 
 /**
  * The automation's own actions — everything that acts on the row rather than on a field.
@@ -66,7 +67,7 @@ export const AutomationActionsMenu = ({
         }
     }, [automation.id, automation.isActive, setActive])
 
-    const onTestRun = useCallback(() => {
+    const onTestRun = useCallback(async () => {
         const instruction = getScheduleMessagePreview(automation.raw.data?.inputs_fields).trim()
         // A menu item has no disabled-with-tooltip state, so the detail button's reasons surface
         // as a toast instead.
@@ -75,9 +76,13 @@ export const AutomationActionsMenu = ({
             message.error(blocked)
             return
         }
+        const text = await runNowText(automation)
+        // Null: the deliveries call failed. Empty: the pills resolved to nothing. Either way
+        // there is no message, so no session opens.
+        if (!text) return
         // Sent on landing, like the detail screen's Run now.
-        void startTask(automation.agentId, instruction)
-    }, [automation.agentId, automation.raw.data?.inputs_fields, startTask])
+        void startTask(automation.agentId, text)
+    }, [automation, startTask])
 
     const onDelete = useCallback(() => {
         confirm({
@@ -124,7 +129,7 @@ export const AutomationActionsMenu = ({
                 <DropdownMenuContent align="end" className="w-[220px]">
                     {surface === "list" ? (
                         <>
-                            <DropdownMenuItem onSelect={onTestRun}>
+                            <DropdownMenuItem onSelect={() => void onTestRun()}>
                                 <Play aria-hidden size={14} />
                                 Run now
                             </DropdownMenuItem>

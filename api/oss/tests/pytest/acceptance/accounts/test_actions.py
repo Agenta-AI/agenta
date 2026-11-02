@@ -130,3 +130,32 @@ class TestTransferOwnership:
             assert body.get("errors"), "Expected error entries for unknown source"
 
         _delete_account_by_email(admin_api, email=email_tgt)
+
+    def test_transfer_to_a_non_member_is_refused(self, admin_api):
+        # The membership resolver denies an owner without an organization row, so
+        # both editions require the target to be a member.
+        uid = uuid4().hex[:12]
+        email_src = f"src4-{uid}@test.agenta.ai"
+        email_tgt = f"tgt4-{uid}@test.agenta.ai"
+        src = _create_account(admin_api, email=email_src)
+        _create_account(admin_api, email=email_tgt)
+        org_id = list(src["organizations"].values())[0]["id"]
+        try:
+            response = admin_api(
+                "POST",
+                "/admin/simple/accounts/transfer-ownership",
+                json={
+                    "organizations": {"org": {"id": org_id}},
+                    "users": {
+                        "source": {"email": email_src},
+                        "target": {"email": email_tgt},
+                    },
+                },
+            )
+            assert response.status_code == 200, response.text
+            body = response.json()
+            assert org_id not in body.get("transferred", [])
+            assert [e["code"] for e in body["errors"]] == ["target_not_member"]
+        finally:
+            _delete_account_by_email(admin_api, email=email_src)
+            _delete_account_by_email(admin_api, email=email_tgt)

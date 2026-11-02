@@ -33,7 +33,8 @@ RUN groupadd --gid 10001 agenta && \
 COPY --chown=agenta:agenta ./services/oss /app/oss/
 COPY --chown=agenta:agenta ./services/entrypoints /app/entrypoints/
 
-ENV PYTHONPATH=/sdks/python:/clients/python
+ENV PYTHONPATH=/sdks/python:/clients/python \
+    GUNICORN_CMD_ARGS="--config python:entrypoints.gunicorn_conf"
 
 USER 10001
 

@@ -1,0 +1,1 @@
+{"title":"Body","body":{"required":true,"content":{"application/json":{"schema":{"properties":{"token":{"type":"string","minLength":1,"title":"Token"}},"additionalProperties":false,"type":"object","required":["token"],"title":"SubscriptionTokenRequest","description":"A token pasted from `claude setup-token`."}}}}}

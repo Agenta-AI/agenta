@@ -93,6 +93,9 @@ sequence.
 
 `agent_end` ends the remaining Pi spans and triggers the final flush.
 
+After the final flush in `agent_settled`, Pi writes an empty `<channelId>.done` marker. The flush
+resolves only after every earlier file of the turn is published, so the marker comes last.
+
 There is no custom span DTO and no JSON or base64 wrapping.
 
 ### PiTraceSpoolConsumer
@@ -110,7 +113,8 @@ It:
 - deletes the final file immediately after pickup;
 - retains the bytes in runner memory while export is in flight;
 - accepts at most four non-empty batches within the size limit, deletes each on pickup, and stops
-  collecting at that limit or the bounded post-prompt drain timeout;
+  collecting at that limit, at the first listing that shows the channel's `.done` marker with every
+  listed file read, or at the bounded post-prompt drain timeout;
 - waits until collection closes before it starts any network request;
 - forwards the collected protobuf bodies to the runner trace export sink in parallel.
 

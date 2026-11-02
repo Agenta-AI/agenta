@@ -34,6 +34,8 @@ export interface SessionRowTarget {
     appId: string | null
     name?: string | null
     archived: boolean
+    /** Sharing: the owner (null = ownerless). */
+    ownerUserId?: string | null
 }
 
 const RENAME = "rename"
@@ -102,8 +104,9 @@ const SessionRowActions = ({
             appId: session.appId,
             name: session.name ?? null,
             archived: session.archived,
+            ownerUserId: session.ownerUserId,
         }),
-        [session.sessionId, session.appId, session.name, session.archived],
+        [session.sessionId, session.appId, session.name, session.archived, session.ownerUserId],
     )
 
     const rename = useInlineRename({
@@ -126,9 +129,20 @@ const SessionRowActions = ({
         return () => window.clearTimeout(timer)
     }, [rename.renaming])
 
-    // The row IS a link — offering "Open" in its own menu restates the click.
-    const entries = useMemo(() => menuItems(target), [menuItems, target])
-    const runAction = useMemo(() => onMenuClick(target), [onMenuClick, target])
+    // The approved session row menu starts with "Open" on every surface (M3 UI design; QA D7):
+    // it opens the row's own link.
+    const rowHref = isValidElement(children)
+        ? (children as ReactElement<{href?: string}>).props.href
+        : undefined
+    const openOptions = useMemo(
+        () => (rowHref ? {onOpen: () => void router.push(rowHref)} : undefined),
+        [rowHref, router],
+    )
+    const entries = useMemo(() => menuItems(target, openOptions), [menuItems, target, openOptions])
+    const runAction = useMemo(
+        () => onMenuClick(target, openOptions),
+        [onMenuClick, target, openOptions],
+    )
 
     const onSelect = useCallback(
         (key: string) => {
@@ -226,8 +240,9 @@ const SessionRowActions = ({
                     event.preventDefault()
                     cancelPendingNav()
                     // Archived rows cannot be renamed — the menu drops the verb, so the
-                    // double-click shortcut into it has to go too.
-                    if (!session.archived) rename.start()
+                    // double-click shortcut into it has to go too. Nor can someone else's chat.
+                    if (!session.archived && entries.some((e) => "key" in e && e.key === "rename"))
+                        rename.start()
                 }}
             >
                 {/* font-normal overrides NavMenu's selected-row `font-medium`, this rail only. */}

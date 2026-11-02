@@ -7,13 +7,13 @@ import pytest
 
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.policy.dtos import GatewayPlane, GatewayTarget
-from oss.src.core.rollout.switches import WalletMode
 from oss.src.utils.context import AuthScope
 
 from ee.src.core.access.entitlements.types import DefaultPlan
 from ee.src.core.wallets import admission as admission_module
 from ee.src.core.wallets.admission import WalletSpendAdmission
 from ee.src.core.wallets.caps import model_call_refused_message
+from ee.tests.pytest.utils.wallets.switch import set_wallets_enabled
 from ee.tests.pytest.utils.measurements.fakes import InMemorySessionTurnHolds, no_plan
 
 _HOBBY = DefaultPlan.CLOUD_V0_HOBBY.value
@@ -53,17 +53,6 @@ def _admission(wallet, holds=None, plan_for=no_plan):
         session_holds=holds or InMemorySessionTurnHolds(),
         plan_for=plan_for,
     )
-
-
-@pytest.fixture
-def mode(monkeypatch):
-    def _set(value: WalletMode) -> None:
-        async def _mode(organization_id, **_kwargs):
-            return value
-
-        monkeypatch.setattr(admission_module, "wallet_mode_for", _mode)
-
-    return _set
 
 
 @pytest.mark.asyncio
@@ -146,8 +135,10 @@ async def test_a_slow_hold_store_falls_back_to_the_balance_check(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_an_off_organization_is_refused_builtin_models_with_its_own_code(mode):
-    mode(WalletMode.OFF)
+async def test_with_the_wallet_off_builtin_models_are_refused_with_their_own_code(
+    monkeypatch,
+):
+    set_wallets_enabled(monkeypatch, False)
     wallet = _Wallet(allowed=True)
     holds = InMemorySessionTurnHolds()
     scope = _scope()
@@ -166,14 +157,3 @@ async def test_an_off_organization_is_refused_builtin_models_with_its_own_code(m
     assert refused.reason == "builtin_models_not_enabled"
     assert refused.message.startswith("Agenta's included models aren't enabled")
     assert wallet.checked == []
-
-
-@pytest.mark.asyncio
-async def test_a_shadow_organization_at_its_floor_is_admitted(mode):
-    mode(WalletMode.SHADOW)
-
-    admitted = await _admission(_Wallet(allowed=False)).admit(
-        scope=_scope(), target=_TARGET, session_id="sess-1"
-    )
-
-    assert admitted.allowed

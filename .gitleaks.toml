@@ -6,6 +6,8 @@ useDefault = true
 
 [allowlist]
 paths = [
+  # URL fixtures such as http://api:8000/api/otlp/v1/traces trip generic-api-key. Not credentials.
+  '''^sdks/python/oss/tests/pytest/unit/test_helpers\.py$''',
   # ------------------------------------------------------- QA RUN RECORDS
   # Gate-run and benchmark result files carry deliberate high-entropy MARKER
   # strings (QA-CWD-*, QA-APPROVE-*) that the release-gate cells write and read
@@ -57,6 +59,16 @@ regexes = [
   # commit it was seen in, so it goes stale every time a lane below is rebased.
   '''sk-live-1234567890abc''',
   '''sk-mine-9876543210xyz''',
+  # Organization credentials (M5) fixtures: synthetic keys named to be obviously fake
+  # (sentinels and digit runs), and a keyword argument the generic rule misreads. Exact
+  # values only, so a real key never matches.
+  '''^sk-m5acc-inherit-0123456789abcdef$''',
+  '''^sk-m5sentinel-owner-dto$''',
+  '''^sk-m5sentinel-0123456789abcdef$''',
+  '''^sk-mis-123456789$''',
+  '''^sk-(proj-)?0123456789(-x)?$''',
+  '''^owner_kind=self\.secret_owner_kind$''',
+  '''^organization_id=None$''',
   # ------------------------------------------------------------ PUBLIC KEYS
   '''phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7''',  # POSTHOG
   '''phc_3urGRy5TL1HhaHnRYL0JSHxJxigRVackhphHtozUmdp''',  # POSTHOG

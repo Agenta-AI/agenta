@@ -707,6 +707,38 @@ describe("buildRunPlan", () => {
     assert.equal(result.error, RESERVED_MCP_SERVER_NAME_MESSAGE);
   });
 
+  it.each(["__proto__", "constructor", "prototype"])(
+    "refuses a user MCP server named '%s'",
+    (name) => {
+      const result = buildRunPlan(
+        {
+          harness: "claude",
+          sandbox: "local",
+          messages: [{ role: "user", content: "hello" }],
+          mcpServers: [
+            {
+              name,
+              connection: {
+                type: "http",
+                url: "https://mcp.example.com/mcp",
+                headers: { "X-Probe-Header": "value" },
+              },
+              policy: { tools: { mode: "all" } },
+            },
+          ],
+        } as AgentRunRequest,
+        { createLocalCwd: () => "/tmp/local-cwd" },
+      );
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.match(result.error, new RegExp(`MCP server name '${name}' is reserved`));
+      assert.equal(
+        (({}) as Record<string, unknown>)["X-Probe-Header"],
+        undefined,
+      );
+    },
+  );
+
   it("accepts a Pi run carrying a registered gateway HTTP MCP server", () => {
     let created = false;
     const result = buildRunPlan(

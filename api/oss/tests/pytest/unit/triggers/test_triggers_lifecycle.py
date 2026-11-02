@@ -4,6 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, call
 from uuid import uuid4
 
 import pytest
+
+from oss.tests.pytest.utils.principals import any_principal
 from fastapi import HTTPException
 
 from oss.src.apis.fastapi.triggers.router import TriggersRouter
@@ -27,6 +29,7 @@ def _subscription(*, is_test=False):
     return TriggerSubscription(
         id=uuid4(),
         created_by_id=uuid4(),
+        principal=any_principal(),
         connection_id=uuid4(),
         trigger_id="ti_lifecycle",
         data=TriggerSubscriptionData(event_key="github.issue.opened"),
@@ -38,6 +41,7 @@ def _schedule():
     return TriggerSchedule(
         id=uuid4(),
         created_by_id=uuid4(),
+        principal=any_principal(),
         data=TriggerScheduleData(event_key="cron.tick", schedule="* * * * *"),
     )
 
@@ -401,6 +405,7 @@ async def test_deleted_configurations_are_rejected_by_edit_and_activation_paths(
             project_id=uuid4(),
             user_id=uuid4(),
             subscription=MagicMock(id=uuid4()),
+            principal=any_principal(),
         )
         is None
     )
@@ -416,6 +421,7 @@ async def test_deleted_configurations_are_rejected_by_edit_and_activation_paths(
             project_id=uuid4(),
             user_id=uuid4(),
             schedule=MagicMock(id=uuid4()),
+            principal=any_principal(),
         )
         is None
     )

@@ -11,6 +11,7 @@ from .tools.errors import ToolResolutionError
 
 __all__ = [
     "AgentRunFailed",
+    "AgentTurnAdmissionRefused",
     "AgentRunnerConfigurationError",
     "SandboxNotAllowedError",
     "LocalSandboxNotAllowedError",
@@ -48,6 +49,11 @@ class AgentRunFailed(RuntimeError):
     `parseGatewayErrorDetail`); absent for every other failure, unchanged from before. When
     present, ``failure_code`` becomes ITS ``code`` (e.g. ``model_not_allowed``) instead of the
     generic default, so a caller matching on `failure_code` gets the real cause.
+
+    A refusal the runner marks ``retryable: false`` fails the same way until the caller changes
+    the request or its configuration (a routing field the connection does not allow, a missing
+    secret, an unknown endpoint), so it carries ``status_code`` 422 and the invoke answers 4xx.
+    Every other failure carries no status and stays 500.
     """
 
     failure_code: str = "agent_run_failed"
@@ -59,6 +65,8 @@ class AgentRunFailed(RuntimeError):
         self.error_detail = error_detail if isinstance(error_detail, dict) else None
         if self.error_detail and isinstance(self.error_detail.get("code"), str):
             self.failure_code = self.error_detail["code"]
+            if self.error_detail.get("retryable") is False:
+                self.status_code = 422
         super().__init__(f"Agent run failed: {message}")
 
 
@@ -89,3 +97,65 @@ class SandboxNotAllowedError(ErrorStatus):
 # Backward-compatible alias: the class was named after the default 'local' provider even
 # though it covers every refused provider (#5575).
 LocalSandboxNotAllowedError = SandboxNotAllowedError
+
+
+# The `errorDetail.code` values the runner puts on a turn it refused at admission
+# (`services/runner/src/sessions/admission.ts`).
+SESSION_TURN_IN_USE_CODE = "session_turn_in_use"
+SESSION_ADMISSION_UNCONFIRMED_CODE = "session_admission_unconfirmed"
+SESSION_ADMISSION_REJECTED_CODE = "session_admission_rejected"
+
+# How long a caller should wait before sending a turn whose admission the platform did not
+# answer. The runner has already asked for about 30 seconds, so the platform is throttling or
+# restarting; a few seconds is enough for the next send to find it again.
+ADMISSION_RETRY_AFTER_SECONDS = 5
+
+
+class AgentTurnAdmissionRefused(AgentRunFailed):
+    """The runner refused the turn before it started, so nothing ran and nothing was sent.
+
+    The runner names why in ``errorDetail.code``, and the invoke answers with the matching status:
+
+    * ``session_turn_in_use``: another turn owns the session. 409.
+    * ``session_admission_unconfirmed``: the platform did not answer the admission (throttled or
+      restarting). 503 with ``Retry-After``.
+    * ``session_admission_rejected``: the platform refused the admission as a request error. 422.
+
+    ``failure_code`` stays ``session_turn_in_use`` for the first two, because that is the code the
+    web chat and the channels inbox read as "not sent, send again". The message is the runner's
+    own sentence, with no prefix, so a client that matches it exactly still does.
+    """
+
+    CODES = frozenset(
+        {
+            SESSION_TURN_IN_USE_CODE,
+            SESSION_ADMISSION_UNCONFIRMED_CODE,
+            SESSION_ADMISSION_REJECTED_CODE,
+        }
+    )
+
+    def __init__(self, message: str, error_detail: Dict[str, Any]) -> None:
+        super().__init__(message, error_detail=error_detail)
+        self.retry_after: Optional[int] = None
+        reason = error_detail.get("code")
+        if reason == SESSION_ADMISSION_REJECTED_CODE:
+            self.status_code = 422
+            self.failure_code = SESSION_ADMISSION_REJECTED_CODE
+        elif reason == SESSION_ADMISSION_UNCONFIRMED_CODE:
+            self.status_code = 503
+            self.retry_after = ADMISSION_RETRY_AFTER_SECONDS
+            self.failure_code = SESSION_TURN_IN_USE_CODE
+        else:
+            self.status_code = 409
+            self.failure_code = SESSION_TURN_IN_USE_CODE
+
+    @classmethod
+    def matches(cls, error_detail: Optional[Dict[str, Any]]) -> bool:
+        if not isinstance(error_detail, dict):
+            return False
+        code = error_detail.get("code")
+        # A non-string code (a list, a dict) is unhashable; it is not ours either way.
+        return isinstance(code, str) and code in cls.CODES
+
+    def __str__(self) -> str:
+        return self.message

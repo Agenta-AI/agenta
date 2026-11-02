@@ -27,6 +27,7 @@ import {extractApiErrorMessage, preserveResponseStatus} from "@agenta/shared/uti
 import isEqual from "fast-deep-equal"
 import {atom, getDefaultStore} from "jotai"
 
+import type {Visibility} from "../../sharing/core/schema"
 import {
     commitWorkflowRevisionApi,
     createWorkflow as createWorkflowApi,
@@ -529,6 +530,8 @@ export interface WorkflowCreateFromEphemeralParams {
     name?: string
     /** Slug for the new workflow. When provided, overrides auto-generation. */
     slug?: string
+    /** Sharing (M3): forwarded to the workflow create body. */
+    visibility?: Visibility
 }
 
 /**
@@ -549,7 +552,7 @@ export interface WorkflowCreateFromEphemeralParams {
 export const createWorkflowFromEphemeralAtom = atom(
     null,
     async (get, set, params: WorkflowCreateFromEphemeralParams): Promise<WorkflowCommitOutcome> => {
-        const {revisionId, commitMessage, name, slug} = params
+        const {revisionId, commitMessage, name, slug, visibility} = params
 
         try {
             const projectId = get(projectIdAtom)
@@ -571,6 +574,7 @@ export const createWorkflowFromEphemeralAtom = atom(
                 flags,
                 message: commitMessage || undefined,
                 data,
+                visibility,
             })
 
             const newRevisionId = newWorkflow.id

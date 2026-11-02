@@ -15,6 +15,11 @@ on:
           - patch
           - minor
           - major
+      version:
+        description: "Exact version X.Y.Z (optional). Overrides release type. Use it for a hotfix while another release branch is still open."
+        required: false
+        default: ""
+        type: string
 
 env:
   UV_VERSION: "0.11.14"
@@ -56,23 +61,41 @@ jobs:
 
       - name: Bump versions and compare
         id: bump_versions
+        env:
+          EXACT_VERSION: ${{ inputs.version }}
         run: |
           BUMP_TYPE=${{ inputs.release-type }}
-          echo "Bumping versions to $BUMP_TYPE"
+          if [ -n "$EXACT_VERSION" ]; then
+            if ! [[ "$EXACT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "Invalid version '$EXACT_VERSION'. Use X.Y.Z, without a leading v."
+              exit 1
+            fi
+            echo "Setting every version to $EXACT_VERSION"
+          else
+            echo "Bumping versions to $BUMP_TYPE"
+          fi
+
+          # An exact version wins over the release type.
+          next_version() {
+            if [ -n "$EXACT_VERSION" ]; then echo "$EXACT_VERSION"; else npx semver "$1" -i "$BUMP_TYPE"; fi
+          }
+          set_python_version() {
+            if [ -n "$EXACT_VERSION" ]; then uv version "$EXACT_VERSION" --short; else uv version --bump "$BUMP_TYPE" --short; fi
+          }
 
           npm install semver -g
 
           echo "Bumping web"
           cd web
           current_version=$(node -p "require('./package.json').version")
-          new_version=$(npx semver "$current_version" -i $BUMP_TYPE)
+          new_version=$(next_version "$current_version")
           npm pkg set version="$new_version"
           WEB_VERSION=$new_version
 
           echo "Bumping web/ee"
           cd ee
           current_version=$(node -p "require('./package.json').version")
-          new_version=$(npx semver "$current_version" -i $BUMP_TYPE)
+          new_version=$(next_version "$current_version")
           npm pkg set version="$new_version"
           EE_VERSION=$new_version
           cd ..
@@ -80,7 +103,7 @@ jobs:
           echo "Bumping web/oss"
           cd oss
           current_version=$(node -p "require('./package.json').version")
-          new_version=$(npx semver "$current_version" -i $BUMP_TYPE)
+          new_version=$(next_version "$current_version")
           npm pkg set version="$new_version"
           OSS_VERSION=$new_version
           cd ..
@@ -88,7 +111,7 @@ jobs:
           echo "Bumping web/mobile"
           cd mobile
           current_version=$(node -p "require('./package.json').version")
-          new_version=$(npx semver "$current_version" -i $BUMP_TYPE)
+          new_version=$(next_version "$current_version")
           npm pkg set version="$new_version"
           MOBILE_VERSION=$new_version
           cd ..
@@ -96,7 +119,7 @@ jobs:
           echo "Bumping web/packages/agenta-api-client"
           cd packages/agenta-api-client
           current_version=$(node -p "require('./package.json').version")
-          new_version=$(npx semver "$current_version" -i $BUMP_TYPE)
+          new_version=$(next_version "$current_version")
           npm pkg set version="$new_version"
           TS_CLIENT_VERSION=$new_version
           cd ../..
@@ -105,28 +128,28 @@ jobs:
 
           echo "Bumping clients/python"
           cd clients/python
-          PY_CLIENT_VERSION=$(uv version --bump "$BUMP_TYPE" --short)
+          PY_CLIENT_VERSION=$(set_python_version)
           cd ../..
 
           echo "Bumping sdks/python"
           cd sdks/python
-          PY_SDK_VERSION=$(uv version --bump "$BUMP_TYPE" --short)
+          PY_SDK_VERSION=$(set_python_version)
           cd ../..
 
           echo "Bumping api"
           cd api
-          API_VERSION=$(uv version --bump "$BUMP_TYPE" --short)
+          API_VERSION=$(set_python_version)
           cd ..
 
           echo "Bumping services"
           cd services
-          SERVICES_VERSION=$(uv version --bump "$BUMP_TYPE" --short)
+          SERVICES_VERSION=$(set_python_version)
           cd ..
 
           echo "Bumping hosting/kubernetes/helm Chart.yaml"
           CHART_FILE=hosting/kubernetes/helm/Chart.yaml
           current_chart_version=$(awk '/^version:/ {print $2; exit}' "$CHART_FILE")
-          new_chart_version=$(npx semver "$current_chart_version" -i $BUMP_TYPE)
+          new_chart_version=$(next_version "$current_chart_version")
           # version is the chart semver; appVersion tracks the app release tag (v-prefixed).
           sed -i.bak -E "s/^version: .*/version: $new_chart_version/" "$CHART_FILE"
           sed -i.bak -E "s/^appVersion: .*/appVersion: \"v$new_chart_version\"/" "$CHART_FILE"
@@ -168,13 +191,35 @@ jobs:
               echo "VERSIONS_MATCH=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Refuse an existing release branch
+        if: steps.bump_versions.outputs.VERSIONS_MATCH == 'true'
+        env:
+          NEW_VERSION: ${{ steps.bump_versions.outputs.NEW_VERSION }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          # create-pull-request would reset an open release branch to this commit.
+          # ls-remote exits 2 when the branch is absent. Any other failure stops the run.
+          status=0
+          git ls-remote --exit-code --heads "https://github.com/$REPOSITORY.git" "release/v$NEW_VERSION" > /dev/null || status=$?
+          if [ "$status" -eq 0 ]; then
+            echo "release/v$NEW_VERSION already exists. Pick another version."
+            exit 1
+          elif [ "$status" -ne 2 ]; then
+            echo "Could not check whether release/v$NEW_VERSION exists (git ls-remote exit $status)."
+            exit 1
+          fi
+
       - name: Create Pull Request
+        id: create-pr
         if: steps.bump_versions.outputs.VERSIONS_MATCH == 'true'
         uses: peter-evans/create-pull-request@v6
         with:
           commit-message: v${{ steps.bump_versions.outputs.NEW_VERSION }}
           author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
           branch: release/v${{ steps.bump_versions.outputs.NEW_VERSION }}
+          # No base here on purpose. With a base other than the checked-out branch, the action
+          # moves only the version commit onto that base, and the new release branch would lose
+          # the fixes of a source release branch that are not on main yet.
           delete-branch: true
           title: "[release] v${{ steps.bump_versions.outputs.NEW_VERSION }}"
           body: |
@@ -192,6 +237,16 @@ jobs:
               - clients/typescript
             - kubernetes
               - kubernetes/helm
+
+      - name: Point the release PR at main
+        # Release PRs always target main, also when the run starts from a release branch.
+        if: steps.create-pr.outputs.pull-request-number != '' && github.ref_name != 'main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.create-pr.outputs.pull-request-number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          gh api -X PATCH "repos/$REPOSITORY/pulls/$PR_NUMBER" -f base=main > /dev/null
 
       - name: Fail if versions don't match
         if: steps.bump_versions.outputs.VERSIONS_MATCH != 'true'

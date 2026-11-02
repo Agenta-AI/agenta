@@ -145,7 +145,87 @@ async def test_frame_ingest_accepts_a_batch_and_publishes_in_order():
     ]
 
 
+async def _frame_answer(*, owner, allowed=True, missing=False, capability=True):
+    """The status a frame of `execution-1` gets, and whether it was published."""
+
+    router = RecordsRouter(records_service=AsyncMock())
+    allow = (
+        AsyncMock(side_effect=allowed)
+        if isinstance(allowed, Exception)
+        else AsyncMock(return_value=allowed)
+    )
+    with (
+        patch(
+            "oss.src.apis.fastapi.sessions.router.check_action_access",
+            new_callable=AsyncMock,
+            return_value=capability,
+        ),
+        patch(
+            "oss.src.apis.fastapi.sessions.router.get_running_owner",
+            new_callable=AsyncMock,
+            return_value=owner,
+        ),
+        patch("oss.src.apis.fastapi.sessions.router.allow_session_write", allow),
+        patch("oss.src.apis.fastapi.sessions.router.allow_resource", allow),
+        patch(
+            "oss.src.apis.fastapi.sessions.router.session_was_missing",
+            return_value=missing,
+        ),
+        patch(
+            "oss.src.apis.fastapi.sessions.router.publish_live_frame",
+            new_callable=AsyncMock,
+        ) as publish,
+    ):
+        try:
+            await router.ingest_record_event(
+                request=_request(uuid4(), uuid4(), uuid4()),
+                body=_frame(execution_id="execution-1"),
+            )
+            status = 200
+        except HTTPException as error:
+            status = error.status_code
+    return status, publish.await_count
+
+
 async def test_frame_ingest_rejects_a_stale_execution():
+    # A newer turn (or a watchdog takeover) holds `running`: a conflict, never 403,
+    # because a runner reads 403 as lost access.
+    assert await _frame_answer(owner="execution-new") == (409, 0)
+
+
+async def test_frame_ingest_after_stop_is_a_conflict_not_access_denied():
+    # A Stop cleared the running owner while the runner still streams the turn.
+    assert await _frame_answer(owner=None) == (409, 0)
+
+
+async def test_frame_ingest_of_a_caller_who_lost_access_stays_403():
+    assert await _frame_answer(owner="execution-1", capability=False) == (403, 0)
+    assert await _frame_answer(owner=None, capability=False) == (403, 0)
+
+
+async def test_frame_ingest_of_a_hidden_session_stays_403():
+    # Running or not, a hidden session answers the one 403 an unknown session answers.
+    assert await _frame_answer(owner="execution-1", allowed=False) == (403, 0)
+    assert await _frame_answer(owner=None, allowed=False) == (403, 0)
+
+
+async def test_frame_ingest_of_an_unknown_session_stays_403():
+    assert await _frame_answer(owner=None, missing=True) == (403, 0)
+
+
+async def test_frame_ingest_of_a_caller_who_may_view_but_not_run_stays_403():
+    denied = HTTPException(status_code=403, detail="resource_denied")
+    assert await _frame_answer(owner="execution-1", allowed=denied) == (403, 0)
+    assert await _frame_answer(owner=None, allowed=denied) == (403, 0)
+
+
+async def test_frame_ingest_of_the_running_turn_publishes():
+    assert await _frame_answer(owner="execution-1") == (200, 1)
+
+
+async def test_frame_ingest_of_a_turn_that_is_not_running_never_takes_the_admission():
+    # The request's one cache read may hold the turn's admission from before the Stop:
+    # the not-running path runs the full session check, never the continuity path.
     router = RecordsRouter(records_service=AsyncMock())
     with (
         patch(
@@ -156,8 +236,18 @@ async def test_frame_ingest_rejects_a_stale_execution():
         patch(
             "oss.src.apis.fastapi.sessions.router.get_running_owner",
             new_callable=AsyncMock,
-            return_value="execution-new",
+            return_value=None,
         ),
+        patch(
+            "oss.src.apis.fastapi.sessions.router.allow_session_write",
+            new_callable=AsyncMock,
+            return_value=True,
+        ) as continuity,
+        patch(
+            "oss.src.apis.fastapi.sessions.router.allow_resource",
+            new_callable=AsyncMock,
+            return_value=False,
+        ) as full_check,
         patch(
             "oss.src.apis.fastapi.sessions.router.publish_live_frame",
             new_callable=AsyncMock,
@@ -166,10 +256,12 @@ async def test_frame_ingest_rejects_a_stale_execution():
         with pytest.raises(HTTPException) as exc_info:
             await router.ingest_record_event(
                 request=_request(uuid4(), uuid4(), uuid4()),
-                body=_frame(execution_id="execution-stale"),
+                body=_frame(execution_id="execution-1"),
             )
 
     assert exc_info.value.status_code == 403
+    continuity.assert_not_awaited()
+    full_check.assert_awaited_once()
     publish.assert_not_awaited()
 
 

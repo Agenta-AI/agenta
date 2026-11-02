@@ -96,6 +96,7 @@ from .dtos import (
 )
 from .errors import (
     AgentRunFailed,
+    AgentTurnAdmissionRefused,
     AgentRunnerConfigurationError,
     LocalSandboxNotAllowedError,
     SandboxNotAllowedError,
@@ -287,6 +288,7 @@ __all__ = [
     "Harness",
     # Errors
     "AgentRunFailed",
+    "AgentTurnAdmissionRefused",
     "AgentRunnerConfigurationError",
     "SandboxNotAllowedError",
     "LocalSandboxNotAllowedError",

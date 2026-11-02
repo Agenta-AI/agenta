@@ -7,6 +7,7 @@
 Run: uv run test_build_snapshot.py
 """
 
+import base64
 import os
 import shutil
 import subprocess
@@ -318,6 +319,60 @@ def test_pi_cost_patch_fails_the_build_when_pi_is_not_installed(tmp_path):
     result = run_pi_cost_patch(tmp_path)
     assert result.returncode == 1
     assert "no global @earendil-works/pi-coding-agent" in result.stderr
+
+
+# --- pi-acp update check -------------------------------------------------------------------
+
+STOCK_PI_ACP = (
+    "function compareSemver(a, b) {\n  return 0;\n}\n"
+    + build_snapshot.PI_ACP_UPDATE_CHECK_ANCHOR
+    + '  try {\n    const piVersion = spawnSync("pi", ["--version"]);\n'
+)
+
+
+def run_pi_acp_patch(tmp_path: Path, monkeypatch, source: str):
+    bundle = tmp_path / "index.js"
+    bundle.write_text(source)
+    monkeypatch.setattr(build_snapshot, "PI_ACP_BUNDLE", str(bundle))
+    blob = build_snapshot.pi_acp_update_check_patch_command().split()[2]
+    script = tmp_path / "patch.mjs"
+    script.write_bytes(base64.b64decode(blob))
+    result = subprocess.run(
+        ["node", str(script)], capture_output=True, text=True, check=False
+    )
+    return result, bundle
+
+
+def test_pi_acp_gate_matches_the_runner_pnpm_patch():
+    patch = (
+        Path(build_snapshot.__file__).resolve().parents[3]
+        / "patches"
+        / "pi-acp@0.0.29.patch"
+    ).read_text()
+    assert "+" + build_snapshot.PI_ACP_UPDATE_CHECK_GATE in patch
+
+
+@needs_node
+def test_pi_acp_patch_makes_the_update_check_opt_in(tmp_path, monkeypatch):
+    result, bundle = run_pi_acp_patch(tmp_path, monkeypatch, STOCK_PI_ACP)
+    assert result.returncode == 0, result.stderr
+    assert bundle.read_text() == STOCK_PI_ACP.replace(
+        build_snapshot.PI_ACP_UPDATE_CHECK_ANCHOR,
+        build_snapshot.PI_ACP_UPDATE_CHECK_ANCHOR
+        + build_snapshot.PI_ACP_UPDATE_CHECK_GATE,
+    )
+    again, _ = run_pi_acp_patch(tmp_path, monkeypatch, bundle.read_text())
+    assert again.returncode == 0, again.stderr
+    assert "already opt-in" in again.stdout
+
+
+@needs_node
+def test_pi_acp_patch_fails_the_build_when_the_anchor_is_missing(tmp_path, monkeypatch):
+    source = STOCK_PI_ACP.replace("buildUpdateNotice", "checkForUpdates")
+    result, bundle = run_pi_acp_patch(tmp_path, monkeypatch, source)
+    assert result.returncode == 1
+    assert "anchor missing" in result.stderr
+    assert bundle.read_text() == source
 
 
 if __name__ == "__main__":
