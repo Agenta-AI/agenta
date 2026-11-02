@@ -20,7 +20,7 @@ git ls-files -o --exclude-standard -z | xargs -0 -r git add -N -- || exit 1
 git diff --check "$BASE" || no "whitespace errors"
 
 # Added lines of source files only, so docs and tooling that name a banned word do not trip the bans.
-ADDED=$(git diff "$BASE" -U0 -- 'web/mobile/src/*.ts' 'web/mobile/src/*.tsx' 'web/packages/*.ts' 'web/packages/*.tsx' \
+ADDED=$(git diff "$BASE" -U0 -- 'web/mobile/src/*.ts' 'web/mobile/src/*.tsx' 'web/mobile/tests/*.ts' 'web/mobile/tests/*.tsx' 'web/packages/*.ts' 'web/packages/*.tsx' \
     | grep -E '^\+' | grep -vE '^\+\+\+' || true)
 FILES=$(git diff "$BASE" --name-only)
 
@@ -86,11 +86,11 @@ echo "PASS: types:check"
 pnpm --filter @agenta/mobile lint >"$OUT/lint" 2>&1 || { no "lint"; tail -30 "$OUT/lint"; exit 1; }
 echo "PASS: lint"
 # Tests related to the changed files (the full suite takes about 15 minutes; CI runs it).
-CHANGED=$(echo "$FILES" | grep -E '^web/mobile/(src|tests)/.*\.(ts|tsx)$' | sed 's#^web/##' || true)
+CHANGED=$(echo "$FILES" | grep -E '^web/(mobile/(src|tests)|packages)/.*\.(ts|tsx)$' | sed -e 's#^web/mobile/##' -e 's#^web/#../#' || true)
 if [ -n "$CHANGED" ]; then
     # shellcheck disable=SC2086
     pnpm --filter @agenta/mobile exec vitest related --run --passWithNoTests --maxWorkers=2 \
-        $(echo "$CHANGED" | sed 's#^mobile/#./#') >"$OUT/test" 2>&1 || { no "unit tests"; tail -30 "$OUT/test"; }
+        $CHANGED >"$OUT/test" 2>&1 || { no "unit tests"; tail -30 "$OUT/test"; }
     tail -10 "$OUT/test"
 fi
 [ "$FAIL" -eq 0 ] && echo "PASS: gate"
