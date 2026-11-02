@@ -588,3 +588,5 @@ export {
 
 export {buildKitDefaultPermission, resolveBuildKitPermissions} from "./buildKitPolicy"
 export {readAgentaTools, writeAgentaTools, type AgentaToolsMap} from "./agentaTools"
+
+export * from "./folder"
