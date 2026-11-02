@@ -37,6 +37,9 @@ type ItemFormView = ComponentType<{
     showMissing?: boolean
 }>
 
+/** Inline skills are saved config, so the playground drawer offers them as a download. */
+const DownloadableSkillFormView: ItemFormView = (props) => <SkillFormView {...props} downloadable />
+
 export interface ItemKindDef {
     kind: ItemKind
     /** The flat config array this kind lives on. */
@@ -140,7 +143,7 @@ export const ITEM_KINDS: Record<ItemKind, ItemKindDef> = {
         noun: "skill",
         emptyLabel: "No skills yet",
         describe: describeSkill,
-        FormView: SkillFormView,
+        FormView: DownloadableSkillFormView,
         // Wider than the default 600 — the skill drawer is two-pane (Files + editor).
         drawerWidth: () => 760,
         drawerTitle: (draft) =>

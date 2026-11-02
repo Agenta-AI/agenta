@@ -64,6 +64,10 @@ import Link from "next/link"
 import {SkillAgentPicker, skillUsageQueryKey} from "./SkillAgentPicker"
 import type {SkillListItem, SkillUsageRef} from "./types"
 
+/** The head-revision query's key; the registry row's Download reads the same cache. */
+export const skillRevisionsQueryKey = (projectId: string, workflowId: string) =>
+    ["skills", "revisions", projectId, workflowId] as const
+
 export interface SkillDetailDrawerProps {
     open: boolean
     onClose: () => void
@@ -105,7 +109,7 @@ export function SkillDetailDrawer({
     const isBuiltin = skill?.origin === "builtin"
 
     const revisionsQuery = useQuery({
-        queryKey: ["skills", "revisions", projectId, workflowId],
+        queryKey: skillRevisionsQueryKey(projectId, workflowId),
         queryFn: () => fetchSkillRevisions({projectId, workflowId}),
         enabled: open && Boolean(projectId && workflowId) && !isBuiltin,
         staleTime: 15_000,
@@ -599,6 +603,7 @@ export function SkillDetailDrawer({
                                 onChange={readOnly ? () => undefined : setDraft}
                                 disabled={readOnly || busy}
                                 showMissing={attempted}
+                                downloadable
                             />
                         </div>
                     )}
