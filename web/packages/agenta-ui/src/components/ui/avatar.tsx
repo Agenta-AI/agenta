@@ -15,7 +15,7 @@ import {cn} from "./utils"
  * antd-shaped convenience wrapper (and the shape `InitialsAvatar` folds into).
  *
  * Measured antd parity (light + dark, app-OVERRIDDEN seed tokens — NOT stock 24/32/40):
- *  - box: small 24 / default 28 / large 34  → `size-control-sm/-/-lg`, plus antd's
+ *  - box: small 24 / default 28 / large 34  → `size-avatar-sm/-/-lg`, plus antd's
  *    `border: 1px solid transparent` (avatar/style/index.js L61) — it insets the image by
  *    1px and shrinks the content box the initials centre in.
  *  - radius: circle 50% (`rounded-control-round`); square SCALES with size —
@@ -42,9 +42,9 @@ const avatarVariants = cva(
             // Dims + default string font per size (AvatarBox overrides font inline for
             // icon/numeric precision). Arbitrary px: no control-scale font key fits.
             size: {
-                small: "size-control-sm text-[12px]",
-                default: "size-control text-[18px]",
-                large: "size-control-lg text-[20px]",
+                small: "size-avatar-sm text-[12px]",
+                default: "size-avatar text-[18px]",
+                large: "size-avatar-lg text-[20px]",
             },
             shape: {
                 circle: "rounded-control-round",

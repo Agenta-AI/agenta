@@ -25,7 +25,9 @@ const FAKE_FACETS: FacetDigests = Object.fromEntries(
 ) as FacetDigests;
 import {
   approvalDecisionForToolCall,
+  changedConfigFields,
   computeCredentialEpoch,
+  configFieldDigests,
   configFingerprint,
   credentialEpochMismatch,
   credentialEpochValid,
@@ -72,7 +74,7 @@ describe("resolvesToLocalProvider (local/remote gate)", () => {
 // hand the pool a fingerprint of its own.
 function fakeEnv(configFp = "cfg") {
   const state = { destroyed: 0, reasons: [] as string[] };
-  const applied = new AppliedState(configFp, FAKE_FACETS);
+  const applied = new AppliedState(configFp, FAKE_FACETS, {});
   let done = false;
   return {
     state,
@@ -163,6 +165,7 @@ describe("readKeepaliveConfig", () => {
     "AGENTA_RUNNER_SESSION_KEEPALIVE",
     "AGENTA_RUNNER_SESSION_TTL_MS",
     "AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS",
+    "AGENTA_RUNNER_SESSION_STOPPED_TTL_MS",
     "AGENTA_RUNNER_SESSION_POOL_MAX",
     "AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS",
     "AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM",
@@ -181,13 +184,25 @@ describe("readKeepaliveConfig", () => {
     }
   });
 
-  it("defaults: on, 60s idle, 5m approval, cap 8", () => {
+  it("defaults: on, 60s idle, 10m approval and stopped, cap 8", () => {
+    // Both human-response windows last 10 minutes so the next action warm-resumes instead of
+    // cold-replaying (mobile approvals plan §4b-4 and Mahmoud's 2026-09-05 Stop decision).
     assert.deepEqual(readKeepaliveConfig("local"), {
       enabled: true,
       ttlMs: 60_000,
-      approvalTtlMs: 300_000,
+      approvalTtlMs: 600_000,
+      stoppedTtlMs: 600_000,
       poolMax: 8,
     });
+  });
+
+  it("approval TTL stays env-overridable, with invalid values falling back", () => {
+    process.env.AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS = "300000";
+    assert.equal(readKeepaliveConfig("local").approvalTtlMs, 300_000);
+    process.env.AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS = "0";
+    assert.equal(readKeepaliveConfig("local").approvalTtlMs, 600_000);
+    process.env.AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS = "nope";
+    assert.equal(readKeepaliveConfig("local").approvalTtlMs, 600_000);
   });
 
   it("reads truthy spellings for the flag and positive ints for the numbers", () => {
@@ -215,6 +230,8 @@ describe("readKeepaliveConfig", () => {
     assert.deepEqual(readKeepaliveConfig("daytona"), {
       enabled: true,
       ttlMs: 120_000,
+      // The stopped sandbox remains billed for this ten-minute human-response window.
+      stoppedTtlMs: 600_000,
       approvalTtlMs: 120_000,
       poolMax: 20,
     });
@@ -225,6 +242,7 @@ describe("readKeepaliveConfig", () => {
       enabled: false,
       ttlMs: 0,
       approvalTtlMs: 0,
+      stoppedTtlMs: 600_000,
       poolMax: 20,
     });
     process.env.AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS = "45000";
@@ -232,6 +250,7 @@ describe("readKeepaliveConfig", () => {
       enabled: true,
       ttlMs: 45_000,
       approvalTtlMs: 45_000,
+      stoppedTtlMs: 600_000,
       poolMax: 20,
     });
     process.env.AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM = "7";
@@ -245,6 +264,92 @@ describe("configFingerprint", () => {
     model: "m1",
     messages: [{ role: "user", content: "hi" }],
   };
+
+  it("names the changed fields on a config mismatch, values never", () => {
+    // The `mismatch (config)` eviction line logs WHICH fields differ; each side is a digest
+    // map, so no config value can reach a log through this path.
+    const before = configFieldDigests(base);
+    const after = configFieldDigests({
+      ...base,
+      permissions: { default: "deny" },
+      mcpServers: [{ name: "gh" }],
+    } as unknown as AgentRunRequest);
+    assert.deepEqual(changedConfigFields(after, before), [
+      "mcpServers",
+      "permissions",
+    ]);
+    assert.deepEqual(changedConfigFields(after, undefined), []);
+    for (const digest of Object.values(after)) {
+      assert.match(digest, /^[0-9a-f]{64}$/);
+    }
+  });
+
+  it("evicts when the agent artifact changes, and ignores the rest of runContext", () => {
+    // Audit finding 4: the artifact id selects the agent mount, which is baked at acquire —
+    // a warm sandbox must never serve a session whose storage folder changed. Every other
+    // runContext field is per-turn metadata and must never evict (the step-1 rule).
+    const withContext = (runContext: unknown): AgentRunRequest =>
+      ({ ...base, runContext }) as AgentRunRequest;
+    const artifactA = withContext({ workflow: { artifact: { id: "art-a" } } });
+    assert.notEqual(
+      configFingerprint(artifactA),
+      configFingerprint(
+        withContext({ workflow: { artifact: { id: "art-b" } } }),
+      ),
+      "a changed artifact id must evict",
+    );
+    assert.notEqual(
+      configFingerprint(base),
+      configFingerprint(artifactA),
+      "absent-to-present must evict too (the mount appears)",
+    );
+    assert.equal(
+      configFingerprint(artifactA),
+      configFingerprint(
+        withContext({
+          workflow: {
+            artifact: { id: "art-a" },
+            revision: { id: "rev-9" },
+            variant: { id: "var-9" },
+          },
+          trace: { trace_id: "xyz" },
+        }),
+      ),
+      "revision/variant/trace identity stays per-turn metadata",
+    );
+  });
+
+  it("excludes platform instructions, so generated guidance never evicts", () => {
+    // Platform text refreshes at environment build. Hashing it would cold every warm session on
+    // each generated guidance change, restoring the exact cost the separate field removed.
+    const a = configFingerprint(base);
+    const b = configFingerprint({
+      ...base,
+      platformInstructions:
+        "For instance, some of the integrations you have: github, slack.",
+    });
+    const c = configFingerprint({
+      ...base,
+      platformInstructions:
+        "For instance, some of the integrations you have: github.",
+    });
+    assert.equal(a, b);
+    assert.equal(b, c);
+  });
+
+  it("excludes turn context, so naming a session never evicts", () => {
+    const a = configFingerprint(base);
+    const unnamed = configFingerprint({
+      ...base,
+      turnContext: "This session has no name yet.",
+    });
+    const named = configFingerprint({
+      ...base,
+      turnContext: 'This session is named "Q3 notes".',
+    });
+    assert.equal(a, unnamed);
+    assert.equal(unnamed, named);
+  });
 
   it("ignores per-turn volatiles and credential values", () => {
     const a = configFingerprint({
@@ -334,8 +439,11 @@ describe("configFingerprint", () => {
     );
   });
 
-  it("changes when resolved model capabilities change", () => {
-    assert.notEqual(
+  it("ignores resolved model capabilities (per-turn data that rides with the model)", () => {
+    // Reversed 2026-08-30 (cold/warm audit finding 2): the modalities are read per turn by the
+    // attachment chain and change WITH the model, so hashing them refused the live setModel
+    // route on every cross-modality switch and rebuilt the sandbox for nothing.
+    assert.equal(
       configFingerprint(base),
       configFingerprint({
         ...base,
@@ -858,7 +966,7 @@ describe("poolKeyFor", () => {
         { sessionId: "s1", runContext: { project: { id: "rc-proj" } } },
         "mount-proj",
       ),
-      { key: "rc-proj:s1", source: "run-context" },
+      { key: "rc-proj:s1", projectId: "rc-proj", source: "run-context" },
     );
   });
   it("uses the run-context project scope even when there is no mount scope", () => {
@@ -867,21 +975,24 @@ describe("poolKeyFor", () => {
         { sessionId: "s1", runContext: { project: { id: "rc-proj" } } },
         undefined,
       ),
-      { key: "rc-proj:s1", source: "run-context" },
+      { key: "rc-proj:s1", projectId: "rc-proj", source: "run-context" },
     );
   });
   it("falls back to the mount scope when the run context has no project", () => {
     assert.deepEqual(poolKeyFor({ sessionId: "s1" }, "mount-proj"), {
       key: "mount-proj:s1",
+      projectId: "mount-proj",
       source: "mount",
     });
+    // A session id may contain a colon; the project is carried, never parsed from the key.
+    assert.equal(poolKeyFor({ sessionId: "chat:42" }, "p")?.projectId, "p");
     // An empty/whitespace run-context id does not count as a scope: fall back to the mount.
     assert.deepEqual(
       poolKeyFor(
         { sessionId: "s1", runContext: { project: { id: "  " } } },
         "mount-proj",
       ),
-      { key: "mount-proj:s1", source: "mount" },
+      { key: "mount-proj:s1", projectId: "mount-proj", source: "mount" },
     );
   });
   it("is null when neither source yields a project scope (never park)", () => {
@@ -1001,7 +1112,7 @@ describe("SessionPool", () => {
   it("strict capacity keeps a stopping seat and awaits teardown before inserting", async () => {
     let releaseTeardown: (() => void) | undefined;
     let teardownCompleted = false;
-    const stoppingApplied = new AppliedState("cfg", FAKE_FACETS);
+    const stoppingApplied = new AppliedState("cfg", FAKE_FACETS, {});
     const stoppingEnv = {
       state: { destroyed: 0, reasons: [] as string[] },
       get appliedState() {
@@ -1075,7 +1186,7 @@ describe("SessionPool", () => {
 
   it("a strict stopping entry cannot be checked out or reparked over", async () => {
     let releaseTeardown: (() => void) | undefined;
-    const envApplied = new AppliedState("cfg", FAKE_FACETS);
+    const envApplied = new AppliedState("cfg", FAKE_FACETS, {});
     const environment = {
       state: { destroyed: 0, reasons: [] as string[] },
       get appliedState() {
@@ -1122,7 +1233,7 @@ describe("SessionPool", () => {
   it("non-strict capacity still frees the seat before teardown completes", async () => {
     let releaseTeardown: (() => void) | undefined;
     let teardownCompleted = false;
-    const nonStrictApplied = new AppliedState("cfg", FAKE_FACETS);
+    const nonStrictApplied = new AppliedState("cfg", FAKE_FACETS, {});
     const environment = {
       state: { destroyed: 0, reasons: [] as string[] },
       get appliedState() {
@@ -1402,7 +1513,7 @@ describe("SessionPool", () => {
     // A's destroy is gated: it does not resolve until we release it, standing in for a slow unmount.
     let releaseADestroy: (() => void) | undefined;
     const aState = { destroyed: 0, reasons: [] as string[] };
-    const aApplied = new AppliedState("cfg", FAKE_FACETS);
+    const aApplied = new AppliedState("cfg", FAKE_FACETS, {});
     const aEnv = {
       state: aState,
       get appliedState() {

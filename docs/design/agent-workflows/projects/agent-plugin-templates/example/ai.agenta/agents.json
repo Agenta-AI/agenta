@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "entry": "outbound",
+  "agents": {
+    "outbound": {
+      "name": "Outbound Prospecting",
+      "description": "Research prospective customers and prepare reviewed outreach drafts.",
+      "instructions": "./ai.agenta/agents/outbound/AGENTS.md",
+      "setup": "./ai.agenta/agents/outbound/SETUP.md",
+      "skills": ["prospect-research"],
+      "connections": [
+        {
+          "key": "mailbox",
+          "required": false,
+          "purpose": "Prepare outreach drafts in a selected mailbox.",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "gmail"
+            },
+            {
+              "kind": "mcp",
+              "server": "mail-drafts"
+            }
+          ],
+          "setup_notes": "Ask whether mailbox access is useful. Let the user choose Gmail or the declared MCP server. If skipped, save Markdown drafts."
+        }
+      ],
+      "automations": [
+        {
+          "key": "weekday-prospects",
+          "name": "Weekday prospect research",
+          "required": false,
+          "trigger": {
+            "type": "schedule",
+            "schedule": "0 9 * * 1-5"
+          },
+          "inputs_fields": {
+            "messages": [
+              {
+                "role": "user",
+                "content": "Research prospects from the saved target profile. Prepare drafts only."
+              }
+            ]
+          },
+          "setup_notes": "Offer this after the user approves a sample. Confirm the time and timezone before activation."
+        }
+      ],
+      "workspace": {
+        "entries": [
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/outbound/files/target-profile.md",
+            "path": "target-profile.md"
+          },
+          {
+            "type": "directory",
+            "path": "reports"
+          }
+        ]
+      }
+    }
+  }
+}

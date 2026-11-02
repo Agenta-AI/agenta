@@ -172,13 +172,6 @@ const CreateEvaluator = ({
         }, 100)
     }, [])
 
-    const normalizeTags = (input: unknown): string[] | undefined => {
-        if (input == null) return undefined
-        if (Array.isArray(input)) return []
-        if (typeof input === "object") return Object.keys(input as Record<string, unknown>)
-        return []
-    }
-
     const toMetrics = (formMetrics: MetricFormData[]): HumanEvaluatorMetric[] =>
         formMetrics.map(({name, type, optional, minimum, maximum, ...rest}) => ({
             name,
@@ -206,7 +199,8 @@ const CreateEvaluator = ({
                         description: values.evaluatorDescription,
                         metrics,
                         meta: evaluatorWithMeta.meta as Record<string, unknown> | undefined,
-                        tags: normalizeTags(evaluatorWithMeta.tags),
+                        // The tag map as stored: the edit replaces it, and it is a map, not a list.
+                        tags: evaluatorWithMeta.tags,
                     })
                     message.success("Evaluator updated successfully")
                     await onSuccess?.(values.evaluatorSlug)

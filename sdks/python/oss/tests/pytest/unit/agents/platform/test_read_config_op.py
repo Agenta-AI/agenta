@@ -1,21 +1,16 @@
 """The `read_config` catalog entry (slice S2).
 
-`read_config` and ordered operations are one feature, the read-then-edit loop, so one flag
-gates both. A deployment never advertises the read without the write it feeds.
+`read_config` and ordered operations are one feature, the read-then-edit loop.
 
-The flag is read at import time, so each state needs its own interpreter. These tests run
-the check in a subprocess rather than reloading the module graph in place, which would
-leave other tests looking at a half-rebuilt catalog.
+The check runs in a subprocess rather than against the already-imported module graph, so
+it sees the catalog exactly as a fresh process builds it.
 """
 
 import json
-import os
 import subprocess
 import sys
 
 import pytest
-
-FLAG = "AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED"
 
 _PROBE = """
 import json
@@ -41,17 +36,11 @@ print(json.dumps(out))
 """
 
 
-def _catalog(flag_value):
-    env = dict(os.environ)
-    if flag_value is None:
-        env.pop(FLAG, None)
-    else:
-        env[FLAG] = flag_value
+def _catalog():
     result = subprocess.run(
         [sys.executable, "-c", _PROBE],
         capture_output=True,
         text=True,
-        env=env,
         check=True,
     )
     return json.loads(result.stdout.strip().splitlines()[-1])
@@ -59,24 +48,12 @@ def _catalog(flag_value):
 
 @pytest.fixture(scope="module")
 def catalog_on():
-    return _catalog("true")
+    return _catalog()
 
 
-@pytest.fixture(scope="module")
-def catalog_off():
-    return _catalog(None)
-
-
-class TestFlagGating:
-    def test_the_op_is_absent_by_default(self, catalog_off):
-        assert catalog_off["present"] is False
-
-    def test_the_op_appears_with_the_flag(self, catalog_on):
+class TestPresence:
+    def test_the_op_is_present(self, catalog_on):
         assert catalog_on["present"] is True
-
-    @pytest.mark.parametrize("value", ["false", "0", "", "no"])
-    def test_only_a_truthy_value_enables_it(self, value):
-        assert _catalog(value)["present"] is False
 
 
 class TestCatalogEntry:

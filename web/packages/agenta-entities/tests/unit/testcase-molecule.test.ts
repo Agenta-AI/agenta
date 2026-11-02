@@ -17,8 +17,8 @@
  * Each test uses a fresh createStore() for full isolation.
  */
 
-import {describe, it, expect} from "vitest"
 import {createStore} from "jotai"
+import {describe, it, expect} from "vitest"
 
 import {testcaseMolecule} from "../../src/testcase/state/molecule"
 

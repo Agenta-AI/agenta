@@ -178,3 +178,19 @@ async def test_http_stream_passes_timeout_to_httpx_client(monkeypatch):
     assert records == [{"kind": "result", "result": {"ok": True}}]
     # The idle bound is handed to httpx, which applies it per-read on the stream.
     assert captured["timeout"] == 7.5
+
+
+def test_the_default_outlasts_the_runner_tool_call_limit_and_grace():
+    """A tool call sends no record while it runs. On Agenta Cloud the runner stops a command
+    at 300 s and its watchdog waits a 120 s grace (run-limits.ts TOOL_CALL_GRACE_MS). A
+    shorter idle timeout here cut every slow command as "agent run failed" before the agent
+    could get its timeout result (v0.122.2 staging QA: cut at 180 s)."""
+    assert ts_runner.DEFAULT_RUNNER_TIMEOUT_SECONDS > 300 + 120
+
+
+def test_the_sandbox_agent_backend_uses_the_transport_default(monkeypatch):
+    from agenta.sdk.agents.adapters.sandbox_agent import SandboxAgentBackend
+
+    backend = SandboxAgentBackend(url="http://runner.invalid:8765")
+
+    assert backend._timeout == ts_runner.RUNNER_TIMEOUT_SECONDS

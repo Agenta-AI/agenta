@@ -1,17 +1,17 @@
-import {useCallback, useRef} from "react"
+import {useCallback} from "react"
 
 import {
-    createEphemeralAppFromTemplate,
-    createWorkflowFromEphemeralAtom,
-    generateSlug,
+    appendSetupPreamble,
+    type AgentSetupSelection,
+    type AgentStarterTemplate,
 } from "@agenta/entities/workflow"
+import {useCreateAgent as useCreateAgentCore} from "@agenta/home-ui"
 import {projectIdAtom} from "@agenta/shared/state"
-import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {App} from "antd"
-import {useAtomValue, useSetAtom, useStore} from "jotai"
+import {useAtomValue, useStore} from "jotai"
 import {useRouter} from "next/router"
 
-import {agentFirstRunSeedAtom} from "@/oss/components/AgentChatSlice/state/firstRunSeed"
+import {addFirstRunSeedAtom} from "@/oss/components/AgentChatSlice/state/firstRunSeed"
 import {registerCreatedAgent} from "@/oss/components/pages/agents/store"
 import {urlAtom} from "@/oss/state/url"
 
@@ -30,16 +30,26 @@ interface CreateAgentParams {
      * The caller then handles placement (e.g. an in-place `setEntityIds` + shallow URL update, no
      * redirect). Omit for the default `router.push` to `/apps/<id>/playground`.
      */
-    onCommitted?: (ids: {appId: string; revisionId: string}) => void
+    onCommitted?: (ids: {appId: string; revisionId: string; sessionId?: string}) => void
     /** Mark the seed as an explicit "go" so the chat auto-sends it once the model is ready (no Start). */
     autoSendSeed?: boolean
+    /**
+     * What the pre-create setup step decided (#6043). Rides along on the seed message so the
+     * builder knows which accounts are ready, which the user declined, and how much it may do
+     * unattended — see `appendSetupPreamble`. Omitted when the step didn't run.
+     */
+    setup?: AgentSetupSelection
+    /** Starter card package to load. Omit for ordinary blank-agent creation. */
+    template?: AgentStarterTemplate
 }
 
 /**
  * Create a new agent and either land in its playground (default) or hand the real ids back to the
- * caller (`onCommitted`). Mints an ephemeral (or commits a provided one), commits it (so it gets a
- * real app id + is classified as an agent), and stashes the first-run seed on the new revision.
- * Default flow navigates to `/apps/<id>/playground`; `onCommitted` lets onboarding commit in place.
+ * caller (`onCommitted`).
+ *
+ * The mint + commit itself is the SHARED core (`@agenta/home-ui`), so every app creates an agent
+ * the same way. What stays here is this app's: the roster-cache refresh, the first-run seed, and
+ * the playground redirect.
  */
 export function useCreateAgent() {
     const {message} = App.useApp()
@@ -47,12 +57,7 @@ export function useCreateAgent() {
     const store = useStore()
     const {baseAppURL} = useAtomValue(urlAtom)
     const projectId = useAtomValue(projectIdAtom)
-    const commitFromEphemeral = useSetAtom(createWorkflowFromEphemeralAtom)
-
-    // Mint+commit is a multi-step async round-trip; a re-entry latch here protects every caller
-    // (home composer, builder template cards, setup drawer) from a rapid double-click minting two
-    // agents — the UI-level disabled/loading guards don't cover the composer path.
-    const inFlightRef = useRef(false)
+    const createAgent = useCreateAgentCore({onError: (text) => message.error(text)})
 
     return useCallback(
         async ({
@@ -61,82 +66,58 @@ export function useCreateAgent() {
             entityId,
             onCommitted,
             autoSendSeed,
+            setup,
+            template,
         }: CreateAgentParams = {}) => {
-            if (inFlightRef.current) return false
-            inFlightRef.current = true
-            try {
-                const agentName = name?.trim() || "New agent"
-                const ephemeralId =
-                    entityId ??
-                    (await createEphemeralAppFromTemplate({
-                        type: "agent",
-                        defaultName: agentName,
-                    }))
-                if (!ephemeralId) {
-                    message.error("Couldn't start agent creation — please retry")
-                    return false
-                }
+            const created = await createAgent({
+                name,
+                entityId,
+                template,
+                initialMessage: seedMessage,
+                setup,
+                // This app has no sharing controls, so every agent it creates stays visible to
+                // the whole project, as it was before sharing existed.
+                visibility: "project",
+            })
+            if (!created) return false
 
-                // Slug must be unique per project — the drawer used to collect a user-typed name, so
-                // without a unique suffix every create collides on the default slug ("agent").
-                const uniqueSuffix = `${Date.now().toString(36)}${Math.floor(Math.random() * 1296)
-                    .toString(36)
-                    .padStart(2, "0")}`
-                const slug = `${generateSlug(agentName) || "agent"}-${uniqueSuffix}`
-                const result = await commitFromEphemeral({
-                    revisionId: ephemeralId,
-                    name: agentName,
-                    slug,
+            const {appId, revisionId} = created
+
+            // The commit only busts the entities-level workflows cache; the agents list (Home's
+            // first-run decision + the agents table) is a separate query and would stay empty.
+            // Scoped to this project so the row can't land in another project's cached list.
+            if (projectId) {
+                void registerCreatedAgent({
+                    projectId,
+                    workflowId: appId,
+                    name: created.name,
+                    createdAt: created.createdAt ?? null,
+                    createdById: created.createdById ?? null,
                 })
-                if (!result.success) {
-                    message.error(extractApiErrorMessage(result.error))
-                    return false
-                }
-
-                const appId = result.workflow?.workflow_id ?? result.workflow?.id
-                const revisionId = result.newRevisionId
-                if (!appId || !revisionId) {
-                    message.error(
-                        "Agent created, but couldn't open its playground — find it under Agents",
-                    )
-                    return false
-                }
-
-                // The commit only busts the entities-level workflows cache; the agents list (Home's
-                // first-run decision + the agents table) is a separate query and would stay empty.
-                // Scoped to this project so the row can't land in another project's cached list.
-                if (projectId) {
-                    void registerCreatedAgent({
-                        projectId,
-                        workflowId: appId,
-                        name: agentName,
-                        createdAt: result.workflow?.created_at ?? null,
-                        createdById: result.workflow?.created_by_id ?? null,
-                    })
-                }
-
-                if (seedMessage?.trim()) {
-                    store.set(agentFirstRunSeedAtom, {
-                        appId,
-                        revisionId,
-                        seedMessage: seedMessage.trim(),
-                        autoSend: autoSendSeed,
-                    })
-                }
-
-                if (onCommitted) {
-                    onCommitted({appId, revisionId})
-                } else {
-                    void router.push(`${baseAppURL}/${appId}/playground?revisions=${revisionId}`)
-                }
-                return true
-            } catch (error) {
-                message.error(extractApiErrorMessage(error))
-                return false
-            } finally {
-                inFlightRef.current = false
             }
+
+            const seed = setup ? appendSetupPreamble(seedMessage ?? "", setup) : (seedMessage ?? "")
+            if (!template && seed.trim()) {
+                store.set(addFirstRunSeedAtom, {
+                    appId,
+                    revisionId,
+                    seedMessage: seed.trim(),
+                    autoSend: autoSendSeed,
+                })
+            }
+
+            if (onCommitted) {
+                onCommitted({appId, revisionId, sessionId: created.sessionId})
+            } else {
+                const session = created.sessionId
+                    ? `&session_id=${encodeURIComponent(created.sessionId)}`
+                    : ""
+                void router.push(
+                    `${baseAppURL}/${appId}/playground?revisions=${revisionId}${session}`,
+                )
+            }
+            return true
         },
-        [message, commitFromEphemeral, store, router, baseAppURL, projectId],
+        [createAgent, projectId, store, router, baseAppURL],
     )
 }

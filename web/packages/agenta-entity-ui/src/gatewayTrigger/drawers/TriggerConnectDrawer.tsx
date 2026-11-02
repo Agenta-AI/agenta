@@ -1,8 +1,12 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
-import {createTriggerConnection, fetchTriggerConnection} from "@agenta/entities/gatewayTrigger"
-import {getAgentaApiUrl, getAgentaWebUrl, queryClient} from "@agenta/shared/api"
-import {generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
+import {
+    createTriggerConnection,
+    fetchTriggerConnection,
+    useTriggerConnectionsQuery,
+} from "@agenta/entities/gatewayTrigger"
+import {getAgentaApiUrl, getAgentaWebUrl, getHostQueryClient} from "@agenta/shared/api"
+import {defaultConnectionName, generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
 import {EnhancedModal, message, ModalContent, ModalFooter} from "@agenta/ui"
 import {
     Divider,
@@ -20,6 +24,8 @@ import {
 } from "@agenta/ui/ui"
 import Image from "next/image"
 
+import {consentPopupFeatures} from "../../shared/consentPopupFeatures"
+
 const DEFAULT_PROVIDER = "composio"
 
 type AuthMode = "oauth" | "api_key"
@@ -33,6 +39,8 @@ interface Props {
     authSchemes: string[]
     onClose: () => void
     onSuccess?: () => void
+    /** A drawer panel to open inside, masking only that drawer. Absent = the page. */
+    container?: HTMLElement | null
 }
 
 function resolveAvailableModes(authSchemes: string[]): AuthMode[] {
@@ -52,6 +60,7 @@ function resolveAvailableModes(authSchemes: string[]): AuthMode[] {
 // `gateway_connections` rows; invalidate both lists so a connection made from
 // triggers shows up on the tools list and vice-versa.
 function invalidateConnections() {
+    const queryClient = getHostQueryClient()
     queryClient.invalidateQueries({queryKey: ["triggers", "connections"]})
     queryClient.invalidateQueries({queryKey: ["tools", "connections"]})
     queryClient.invalidateQueries({queryKey: ["triggers", "catalog"]})
@@ -80,52 +89,55 @@ export default function TriggerConnectDrawer({
     authSchemes,
     onClose,
     onSuccess,
+    container = null,
 }: Props) {
     const [loading, setLoading] = useState(false)
-    const slugTouchedRef = useRef(false)
+    const nameTouchedRef = useRef(false)
     const slugSuffixRef = useRef(randomAlphanumeric(3))
 
-    const buildDefaultSlug = useCallback((name: string) => {
-        return generateDefaultSlug(name, slugSuffixRef.current)
-    }, [])
+    // The slug is derived, not authored. Still sent: the API 500s on a null one.
+    const {connections} = useTriggerConnectionsQuery()
+    const existingCount = connections.filter(
+        (connection) => connection.integration_key === integrationKey,
+    ).length
+    const seedName = defaultConnectionName(integrationName, existingCount)
 
-    // Explicit controlled fields (the antd Form/useForm pair is gone). `slugError` carries
-    // the one antd rule ({required: true, message: "Required"}), checked on submit.
-    const [name, setName] = useState(integrationName)
-    const [slug, setSlug] = useState(() => buildDefaultSlug(integrationName || ""))
-    const [slugError, setSlugError] = useState<string | null>(null)
+    const [name, setName] = useState(seedName)
+    const [nameError, setNameError] = useState<string | null>(null)
+    const slug = generateDefaultSlug(
+        name || integrationName || integrationKey,
+        slugSuffixRef.current,
+    )
 
     const availableModes = resolveAvailableModes(authSchemes)
     const [selectedMode, setSelectedMode] = useState<AuthMode>(availableModes[0] || "oauth")
 
-    // Re-seed per open (was antd `initialValues` + `destroyOnClose` remount semantics):
-    // the state lives on this component, which stays mounted across opens.
+    // Re-seed per open and when the count lands, but never over something the author typed.
     useEffect(() => {
         if (!open) return
-        setName(integrationName)
-        setSlug(buildDefaultSlug(integrationName || ""))
-        slugTouchedRef.current = false
-        setSlugError(null)
-    }, [open, integrationKey, integrationName, buildDefaultSlug])
+        nameTouchedRef.current = false
+        setNameError(null)
+    }, [open, integrationKey])
+    useEffect(() => {
+        if (!nameTouchedRef.current) setName(seedName)
+    }, [seedName])
 
     const handleClose = useCallback(() => {
-        // Was `form.resetFields()`: rewind the controlled fields to their defaults.
-        slugTouchedRef.current = false
+        nameTouchedRef.current = false
         slugSuffixRef.current = randomAlphanumeric(3)
-        setName(integrationName)
-        setSlug(generateDefaultSlug(integrationName || "", slugSuffixRef.current))
-        setSlugError(null)
+        setName(seedName)
+        setNameError(null)
         setLoading(false)
         onClose()
-    }, [integrationName, onClose])
+    }, [seedName, onClose])
 
     const handleSubmit = useCallback(async () => {
-        // Was `form.validateFields()`: the only rule is slug required.
-        if (!slug.trim()) {
-            setSlugError("Required")
+        // The name is now the only authored field, so it carries the validation the slug used to.
+        if (!name.trim() || !slug.trim()) {
+            setNameError("Required")
             return
         }
-        setSlugError(null)
+        setNameError(null)
         try {
             setLoading(true)
 
@@ -151,7 +163,7 @@ export default function TriggerConnectDrawer({
                 const popup = window.open(
                     redirectUrl,
                     "triggers_oauth",
-                    "width=600,height=700,popup=yes",
+                    consentPopupFeatures(window),
                 )
                 if (!popup) {
                     setLoading(false)
@@ -221,6 +233,8 @@ export default function TriggerConnectDrawer({
             footer={null}
             width={480}
             destroyOnClose
+            getContainer={container ?? false}
+            contained={!!container}
         >
             <ModalContent>
                 <div className="flex items-center gap-3">
@@ -249,41 +263,17 @@ export default function TriggerConnectDrawer({
                 <div className="flex flex-col gap-4">
                     <Field
                         label={<LabelTooltip label="Name" tip="Display name for this connection" />}
+                        required
+                        error={nameError}
                     >
                         <Input
                             placeholder={`e.g. My ${integrationName} Account`}
                             value={name}
+                            aria-invalid={nameError ? true : undefined}
                             onChange={(e) => {
+                                nameTouchedRef.current = true
                                 setName(e.target.value)
-                                if (!slugTouchedRef.current) {
-                                    // Was Form.setFieldValue("slug", …) inside onChange —
-                                    // moved onto the direct controlled path.
-                                    setSlug(
-                                        buildDefaultSlug(e.target.value || integrationName || ""),
-                                    )
-                                }
-                            }}
-                        />
-                    </Field>
-
-                    <Field
-                        label={
-                            <LabelTooltip
-                                label="Slug"
-                                tip="Unique identifier — lowercase letters, numbers, and hyphens only"
-                            />
-                        }
-                        required
-                        error={slugError}
-                    >
-                        <Input
-                            placeholder={`e.g. my-${integrationKey}`}
-                            value={slug}
-                            aria-invalid={slugError ? true : undefined}
-                            onChange={(e) => {
-                                slugTouchedRef.current = true
-                                setSlug(e.target.value)
-                                if (slugError && e.target.value.trim()) setSlugError(null)
+                                if (nameError && e.target.value.trim()) setNameError(null)
                             }}
                         />
                     </Field>

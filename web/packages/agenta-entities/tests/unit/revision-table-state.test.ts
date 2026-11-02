@@ -19,8 +19,8 @@
  *   • hasPendingChangesAtomFamily— false initially, true after any op
  */
 
-import {describe, it, expect} from "vitest"
 import {createStore} from "jotai"
+import {describe, it, expect} from "vitest"
 
 import {
     pendingColumnOpsAtomFamily,

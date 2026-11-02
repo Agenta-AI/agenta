@@ -19,7 +19,7 @@ export interface SessionTurnAppendRequest {
     harness_kind: AgentaApi.HarnessKind;
     agent_session_id?: string | null;
     sandbox_id?: string | null;
-    references?: AgentaApi.Reference[] | null;
+    references?: AgentaApi.SessionReference[] | null;
     trace_id?: string | null;
     span_id?: string | null;
     start_time?: string | null;

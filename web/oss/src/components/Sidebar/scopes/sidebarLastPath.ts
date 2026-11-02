@@ -1,4 +1,4 @@
-import {SETTINGS_SIDEBAR_SCOPE_ID} from "./constants"
+import {SETTINGS_SIDEBAR_SCOPE_ID} from "@agenta/navigation"
 
 interface SidebarViewReturnTarget {
     id: string

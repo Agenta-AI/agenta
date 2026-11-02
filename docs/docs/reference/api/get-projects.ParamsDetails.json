@@ -1,0 +1,1 @@
+{"parameters":[{"name":"scope","in":"query","required":false,"schema":{"enum":["member","organization"],"type":"string","default":"member","title":"Scope"}}]}

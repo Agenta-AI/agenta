@@ -16,7 +16,7 @@ import {
 } from "@phosphor-icons/react"
 import {Typography} from "antd"
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 import type {RegistryRevisionRow} from "../../store/registryStore"
 

@@ -3,33 +3,41 @@
 from __future__ import annotations
 
 import os
-from typing import Mapping, Optional, Sequence
+from typing import Dict, List, Mapping, Optional, Sequence
 
 from agenta.sdk.agents.pi_builtins import PI_BUILTIN_TOOL_NAMES
 from agenta.sdk.utils.logging import get_module_logger
 
 from .errors import (
     DuplicateToolNameError,
+    GatewayToolResolutionError,
     MissingToolSecretError,
+    PlatformApiUnavailableError,
     ReservedToolNameError,
     UnsupportedToolProviderError,
 )
 from .interfaces import (
+    GatewayConnectionResolver,
     GatewayToolResolver,
     PlatformToolResolver,
     ToolSecretProvider,
     WorkflowToolResolver,
 )
 from .models import (
+    AGENTA_TOOLS,
+    AgentaToolsConfig,
     BuiltinToolConfig,
     ClientToolConfig,
     ClientToolSpec,
     CodeToolConfig,
     CodeToolSpec,
+    GatewayConnectionToolConfig,
     GatewayToolConfig,
     MissingSecretPolicy,
+    PermissionMode,
     PlatformToolConfig,
     ReferenceToolConfig,
+    ResolvedGatewayPolicy,
     ResolvedToolSet,
     ToolCallback,
     ToolConfig,
@@ -87,11 +95,15 @@ def _build_client_tool_spec(*, tool_config: ClientToolConfig) -> ClientToolSpec:
     )
 
 
-def _check_tool_name(name: str, seen: set[str]) -> None:
+def _reject_reserved_tool_name(name: str) -> None:
     # The harness registers custom tools by name beside its built-ins, so a same-named custom
     # tool would silently replace the built-in the platform activates on every run.
     if name.strip().lower() in PI_BUILTIN_TOOL_NAMES:
         raise ReservedToolNameError(name)
+
+
+def _check_tool_name(name: str, seen: set[str]) -> None:
+    _reject_reserved_tool_name(name)
     if name in seen:
         raise DuplicateToolNameError(name)
     seen.add(name)
@@ -125,14 +137,101 @@ def _validate_declared_config_names(tool_configs: Sequence[ToolConfig]) -> None:
     seen: set[str] = set()
     for tool_config in tool_configs:
         name = _declared_config_name(tool_config)
-        if name is not None:
-            _check_tool_name(name, seen)
+        if name is None:
+            continue
+        if isinstance(tool_config, ReferenceToolConfig):
+            # A reference tool's model-visible name is DERIVED: its workflow slug, sanitized to
+            # the provider's tool-name pattern. Two slugs can therefore arrive here sharing one
+            # name, and the workflow adapter gives them distinct names before they reach the wire
+            # while `_validate_unique_names` still checks the result. Rejecting here would refuse
+            # a pair the adapter handles. The reserved-name check still applies — that one is
+            # about shadowing a built-in.
+            _reject_reserved_tool_name(name)
+            continue
+        _check_tool_name(name, seen)
+
+
+# The playground build kit embeds these client tools for every agent. A revision saved before
+# a tool joined the kit may carry its own copy, embedded by hand, and the playground overlay
+# merges tools by embed slug or by name, so an inline copy or an id-based embed survives next to
+# the kit's entry. Two identical copies are one tool, not a name clash.
+RESERVED_CLIENT_TOOL_NAMES = frozenset(
+    {"request_connection", "request_input", "request_secret"}
+)
+
+
+def _drop_duplicate_reserved_client_tools(
+    tool_configs: Sequence[ToolConfig],
+) -> List[ToolConfig]:
+    """Keep the first of two identical reserved client tools; leave everything else alone.
+
+    Only an exact duplicate is dropped: same reserved name, same description, same input
+    schema. Two DIFFERENT tools that share a reserved name still reach the duplicate check and
+    are refused, because that is a real conflict the author must resolve.
+    """
+    kept: List[ToolConfig] = []
+    seen: Dict[str, ClientToolConfig] = {}
+    for tool_config in tool_configs:
+        if (
+            isinstance(tool_config, ClientToolConfig)
+            and tool_config.name in RESERVED_CLIENT_TOOL_NAMES
+        ):
+            earlier = seen.get(tool_config.name)
+            if earlier is not None and earlier.model_dump() == tool_config.model_dump():
+                log.warning(
+                    "tool %r: a second identical copy of this platform tool was dropped "
+                    "(the build kit already provides it)",
+                    tool_config.name,
+                )
+                continue
+            seen.setdefault(tool_config.name, tool_config)
+        kept.append(tool_config)
+    return kept
+
+
+# Their binding reads the run's session ID, so a run without one cannot call them.
+_SESSION_TOOLS = frozenset({"get_current_session", "rename_session"})
+
+
+def _expand_agenta_tools(
+    tool_configs: Sequence[ToolConfig], *, session_id: Optional[str]
+) -> List[PlatformToolConfig]:
+    """One platform tool per Agenta tool an ``agenta_tools`` entry lists, with its value as the
+    permission. A tool the run already has a platform entry for, the author's own or the
+    playground build kit's, keeps that entry and is not added again."""
+    present = {c.op for c in tool_configs if isinstance(c, PlatformToolConfig)}
+    added: List[PlatformToolConfig] = []
+    for entry in tool_configs:
+        if not isinstance(entry, AgentaToolsConfig):
+            continue
+        for op, permission in entry.tools.items():
+            if op not in AGENTA_TOOLS:
+                log.warning("agenta_tools: %r is not an Agenta tool; ignored", op)
+                continue
+            if op in present or (op in _SESSION_TOOLS and not session_id):
+                continue
+            present.add(op)
+            added.append(PlatformToolConfig(op=op, permission=permission))
+    return added
 
 
 def _validate_unique_names(tool_specs: Sequence[ToolSpec]) -> None:
     seen: set[str] = set()
     for tool_spec in tool_specs:
         _check_tool_name(tool_spec.name, seen)
+
+
+def _dropped_gateway_tool_warning(
+    tool_config: GatewayToolConfig, error: GatewayToolResolutionError
+) -> str:
+    """Message for a gateway tool dropped because it failed to resolve.
+
+    Names the tool (its declared name, else its full reference) and carries the resolver's
+    own reason string, which already names the failing action for the stale-action (404)
+    case. Surfaced as a warning so a dropped tool is never silent.
+    """
+    label = tool_config.name or tool_config.reference
+    return f"gateway tool '{label}' failed to resolve and was dropped: {error}"
 
 
 class ToolResolver:
@@ -143,18 +242,33 @@ class ToolResolver:
         *,
         secret_provider: Optional[ToolSecretProvider] = None,
         gateway_resolver: Optional[GatewayToolResolver] = None,
+        gateway_connection_resolver: Optional[GatewayConnectionResolver] = None,
         workflow_resolver: Optional[WorkflowToolResolver] = None,
         platform_resolver: Optional[PlatformToolResolver] = None,
         missing_secret_policy: MissingSecretPolicy = MissingSecretPolicy.ERROR,
     ) -> None:
         self._secret_provider = secret_provider or EnvironmentToolSecretProvider()
         self._gateway_resolver = gateway_resolver
+        self._gateway_connection_resolver = gateway_connection_resolver
         self._workflow_resolver = workflow_resolver
         self._platform_resolver = platform_resolver
         self._missing_secret_policy = missing_secret_policy
 
-    async def resolve(self, tool_configs: Sequence[ToolConfig]) -> ResolvedToolSet:
+    async def resolve(
+        self,
+        tool_configs: Sequence[ToolConfig],
+        *,
+        # The agent-wide mode the gateway permission compiler applies to an ``inherit``
+        # value. A per-RUN value, so it is an argument here rather than constructor state:
+        # one resolver reused across agents must not pin the first agent's mode. Every
+        # other arm ignores it. ``AgentTemplate.permission_default`` owns the real default;
+        # this one only keeps a resolver usable without an agent template.
+        permission_default: PermissionMode = "allow_reads",
+        session_id: Optional[str] = None,
+    ) -> ResolvedToolSet:
+        tool_configs = _drop_duplicate_reserved_client_tools(tool_configs)
         _validate_declared_config_names(tool_configs)
+        agenta_configs = _expand_agenta_tools(tool_configs, session_id=session_id)
         for tool_config in tool_configs:
             if isinstance(tool_config, BuiltinToolConfig):
                 log.warning(
@@ -177,6 +291,11 @@ class ToolResolver:
             tool_config
             for tool_config in tool_configs
             if isinstance(tool_config, GatewayToolConfig)
+        ]
+        connection_configs = [
+            tool_config
+            for tool_config in tool_configs
+            if isinstance(tool_config, GatewayConnectionToolConfig)
         ]
         reference_configs = [
             tool_config
@@ -203,6 +322,7 @@ class ToolResolver:
         )
 
         tool_specs: list[ToolSpec] = []
+        warnings: list[str] = []
         for tool_config in code_configs:
             missing = [
                 secret_name
@@ -249,22 +369,89 @@ class ToolResolver:
             if self._platform_resolver is None:
                 raise UnsupportedToolProviderError("platform")
             platform_resolution = await self._platform_resolver.resolve(
-                platform_configs
+                platform_configs, permission_default=permission_default
             )
             tool_specs = [*platform_resolution.tool_specs, *tool_specs]
             tool_callback = platform_resolution.tool_callback or tool_callback
 
+        # Resolved apart from the author's platform tools so that a run with no Agenta API, a
+        # standalone SDK run, still starts: it only loses these tools.
+        if agenta_configs:
+            try:
+                if self._platform_resolver is None:
+                    raise PlatformApiUnavailableError("no platform tool resolver")
+                agenta_resolution = await self._platform_resolver.resolve(
+                    agenta_configs, permission_default=permission_default
+                )
+            except PlatformApiUnavailableError as error:
+                warning = f"Agenta tools were skipped: {error}"
+                log.warning("agent: %s", warning)
+                warnings.append(warning)
+            else:
+                tool_specs = [*agenta_resolution.tool_specs, *tool_specs]
+                tool_callback = agenta_resolution.tool_callback or tool_callback
+
         if gateway_configs:
             if self._gateway_resolver is None:
                 raise UnsupportedToolProviderError(gateway_configs[0].provider)
-            gateway_resolution = await self._gateway_resolver.resolve(gateway_configs)
-            tool_specs = [*gateway_resolution.tool_specs, *tool_specs]
-            # Gateway, workflow, and platform callbacks all point at ``{api}/tools/call`` with the
-            # same per-request auth, so the single shared callback is identical; keep one.
-            tool_callback = gateway_resolution.tool_callback or tool_callback
+            # Resolve each gateway tool independently so one dead tool (e.g. a Composio action
+            # that has left the catalog and now 404s) is dropped with a named warning instead of
+            # bricking the whole run. The tools that do resolve are kept and the run proceeds.
+            gateway_specs: list[ToolSpec] = []
+            for gateway_config in gateway_configs:
+                try:
+                    gateway_resolution = await self._gateway_resolver.resolve(
+                        [gateway_config]
+                    )
+                except GatewayToolResolutionError as error:
+                    # Only a per-tool "action not found" (HTTP 404, the F-019 stale-action case)
+                    # is dropped: the backend has told us this specific action left the catalog.
+                    # Any other failure — missing API base, transport error, HTTP 400/500, or a
+                    # malformed backend response — is systemic (it would hit every tool), so it
+                    # must fail the run loudly rather than silently drop every tool.
+                    if error.status != 404:
+                        raise
+                    warning = _dropped_gateway_tool_warning(gateway_config, error)
+                    log.warning("agent: %s", warning)
+                    warnings.append(warning)
+                    continue
+                gateway_specs.extend(gateway_resolution.tool_specs)
+                # Gateway, workflow, and platform callbacks all point at ``{api}/tools/call``
+                # with the same per-request auth, so the single shared callback is identical;
+                # keep one.
+                tool_callback = gateway_resolution.tool_callback or tool_callback
+            tool_specs = [*gateway_specs, *tool_specs]
+
+        # A ``type:"gateway_connection"`` entry covers a whole integration. It never produces a
+        # tool per action: the agent gets the same two derived tools whatever it configures, and
+        # the per-tool decisions ride the run request as the private resolved policy instead. The
+        # branch sits beside the legacy one rather than replacing it, because one revision may
+        # hold both formats for the whole migration window (plan decision 3).
+        gateway_policy: Optional[ResolvedGatewayPolicy] = None
+        if connection_configs:
+            if self._gateway_connection_resolver is None:
+                raise UnsupportedToolProviderError(
+                    connection_configs[0].connection.provider
+                )
+            # One request for every connection entry, not one per entry: the API answers each
+            # with a whole catalog slice, so a second round trip would buy nothing. A failure
+            # here fails the run — unlike the legacy 404 case, there is no single dead action to
+            # drop, and a dropped integration would silently become an unconfigured one.
+            connection_resolution = (
+                await self._gateway_connection_resolver.resolve_connections(
+                    connection_configs,
+                    mode=permission_default,
+                )
+            )
+            tool_specs = [*connection_resolution.tool_specs, *tool_specs]
+            tool_callback = connection_resolution.tool_callback or tool_callback
+            gateway_policy = connection_resolution.gateway_policy
+            warnings.extend(connection_resolution.warnings)
 
         _validate_unique_names(tool_specs)
         return ResolvedToolSet(
             tool_specs=tool_specs,
             tool_callback=tool_callback,
+            warnings=warnings,
+            gateway_policy=gateway_policy,
         )

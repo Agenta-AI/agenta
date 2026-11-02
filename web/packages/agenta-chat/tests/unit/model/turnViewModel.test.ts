@@ -1,0 +1,263 @@
+import type {ToolUIPart, UIMessage} from "ai"
+import {describe, expect, it, vi} from "vitest"
+
+import {splitTurnActivity} from "../../../src/model/activitySteps"
+import {
+    buildTurnViewModels,
+    createExecutedToolIdentityCache,
+    createTurnViewModelCache,
+    toolPartsSignature,
+} from "../../../src/model/turnViewModel"
+
+const user = (id: string, text: string): UIMessage =>
+    ({id, role: "user", parts: [{type: "text", text}]}) as UIMessage
+
+const assistant = (id: string, parts: unknown[]): UIMessage =>
+    ({id, role: "assistant", parts}) as unknown as UIMessage
+
+const toolPart = (toolCallId: string, state: string, input: unknown = {q: 1}) => ({
+    type: "tool-search",
+    toolCallId,
+    state,
+    input,
+})
+
+describe("toolPartsSignature", () => {
+    it("keys on tool-call id + state and ignores streamed text", () => {
+        const parts = [
+            {type: "text", text: "partial"},
+            toolPart("c1", "output-available"),
+            toolPart("c2", "input-available"),
+        ] as UIMessage["parts"]
+        expect(toolPartsSignature(parts)).toBe("c1:output-available|c2:input-available")
+        // More text streaming in does not change the signature.
+        const more = [...parts, {type: "text", text: "more"}] as UIMessage["parts"]
+        expect(toolPartsSignature(more)).toBe(toolPartsSignature(parts))
+    })
+})
+
+describe("createTurnViewModelCache", () => {
+    it("rebuilds an unchanged turn when the client-tool classifier changes", () => {
+        const cache = createTurnViewModelCache()
+        const executedFor = createExecutedToolIdentityCache()
+        const messages = [assistant("a1", [toolPart("c1", "output-available")])]
+        const build = (isClientToolPart: () => boolean) =>
+            buildTurnViewModels(messages, {busy: false, executedFor, cache, isClientToolPart})
+
+        const plain = () => false
+        const first = build(plain)[0]
+        // Same message, same predicate: the cache is what keeps TurnRow's memo holding.
+        expect(build(plain)[0]).toBe(first)
+
+        // A late data-render hint reclassifies an earlier turn; the caller hands over a new
+        // predicate identity, and a stale view model would render the widget as a tool line.
+        const reclassified = build(() => true)[0]
+        expect(reclassified).not.toBe(first)
+        expect(reclassified.items.some((item) => item.kind === "clientTool")).toBe(true)
+        expect(first.items.some((item) => item.kind === "clientTool")).toBe(false)
+        expect(reclassified.hadGate).toBe(true)
+        expect(first.hadGate).toBe(false)
+    })
+})
+
+describe("createExecutedToolIdentityCache", () => {
+    it("reuses the executed set while the signature is stable and recomputes on a state flip", () => {
+        const executedFor = createExecutedToolIdentityCache()
+        const m1 = assistant("a1", [toolPart("c1", "input-available")])
+        const first = executedFor(m1)
+        expect(first.size).toBe(0)
+        // Same signature (text streamed, tools unchanged) → the SAME set instance comes back.
+        const m1b = assistant("a1", [toolPart("c1", "input-available"), {type: "text", text: "x"}])
+        expect(executedFor(m1b)).toBe(first)
+        // The tool settles → new signature → recomputed set now holds the identity.
+        const m1c = assistant("a1", [toolPart("c1", "output-available")])
+        const second = executedFor(m1c)
+        expect(second).not.toBe(first)
+        expect(second.size).toBe(1)
+    })
+})
+
+describe("buildTurnViewModels", () => {
+    it("marks the active turn group and the streaming turn", () => {
+        const messages = [
+            user("u1", "one"),
+            assistant("a1", [{type: "text", text: "first answer"}]),
+            user("u2", "two"),
+            assistant("a2", [{type: "text", text: "streami"}]),
+        ]
+        const turns = buildTurnViewModels(messages, {
+            busy: true,
+            executedFor: createExecutedToolIdentityCache(),
+        })
+        expect(turns.map((t) => t.isActive)).toEqual([false, false, true, true])
+        expect(turns.map((t) => t.isStreamingTurn)).toEqual([false, false, false, true])
+        expect(turns[3].isLast).toBe(true)
+        expect(turns[3].status.hasAnswer).toBe(true)
+    })
+
+    it("never collapses a turn whose only part is an MCP server notice", () => {
+        // The collapse exists to hide a run of turns that said nothing. A notice-only turn said
+        // the one thing that matters — which server did not join, and how to fix it — and it has
+        // no text and no tool call, so every rule that decides "empty" had to learn about it.
+        // Placed AFTER an answerless turn, which is the position that hides a turn (D78).
+        const messages = [
+            user("u1", "use the echo tool"),
+            assistant("a1", []),
+            assistant("a2", []),
+            assistant("a3", [
+                {type: "data-mcp-server-failed", data: {serverName: "mock-mcp"}},
+            ] as unknown as UIMessage["parts"]),
+        ]
+        const turns = buildTurnViewModels(messages, {
+            busy: false,
+            executedFor: createExecutedToolIdentityCache(),
+        })
+
+        // a2 follows an empty turn and says nothing itself, so it collapses. a3 follows an empty
+        // turn too and must NOT, because it is the turn carrying the explanation.
+        expect(turns[2].hidden).toBe(true)
+        expect(turns[3].hidden).toBe(false)
+        expect(turns[3].status.noResponse).toBe(false)
+        expect(turns[3].items.some((item) => item.kind === "mcpNotice")).toBe(true)
+    })
+
+    it("collapses a run of empty no-response turns down to the first", () => {
+        const messages = [
+            user("u1", "go"),
+            assistant("a1", []),
+            assistant("a2", []),
+            assistant("a3", []),
+        ]
+        const turns = buildTurnViewModels(messages, {
+            busy: false,
+            executedFor: createExecutedToolIdentityCache(),
+        })
+        expect(turns[1].status.noResponse).toBe(true)
+        expect(turns[1].hidden).toBe(false) // the first empty turn still shows "no response"
+        expect(turns[2].hidden).toBe(true)
+        expect(turns[3].hidden).toBe(true)
+    })
+
+    it("drops a superseded approval gate once its executed sibling exists", () => {
+        const input = {cmd: "ls"}
+        const messages = [
+            user("u1", "run it"),
+            assistant("a1", [
+                {...toolPart("gate-1", "approval-responded", input)},
+                {...toolPart("exec-1", "output-available", input)},
+            ]),
+        ]
+        const turns = buildTurnViewModels(messages, {
+            busy: false,
+            executedFor: createExecutedToolIdentityCache(),
+        })
+        const items = turns[1].items
+        expect(items).toHaveLength(1)
+        expect(items[0].kind).toBe("tools")
+        const group = items[0] as {kind: "tools"; parts: ToolUIPart[]}
+        expect(group.parts.map((p) => p.toolCallId)).toEqual(["exec-1"])
+        expect(turns[1].hadGate).toBe(true)
+    })
+
+    it("keeps approval history when the activity fold hides a failed tool", () => {
+        const [turn] = buildTurnViewModels(
+            [
+                assistant("a1", [
+                    {
+                        ...toolPart("c1", "output-error"),
+                        errorText: "command failed",
+                        approval: {id: "appr-1", approved: true},
+                    },
+                    {type: "text", text: "The command failed."},
+                ]),
+            ],
+            {busy: false, executedFor: createExecutedToolIdentityCache()},
+        )
+        expect(splitTurnActivity(turn.items).steps).toHaveLength(0)
+        expect(turn.hadGate).toBe(true)
+    })
+
+    it("keeps approval history when consecutive file writes merge into one step", () => {
+        const [turn] = buildTurnViewModels(
+            [
+                assistant("a1", [
+                    {
+                        type: "tool-write",
+                        toolCallId: "c1",
+                        state: "output-available",
+                        input: {file_path: "a.md", content: "a"},
+                        output: "ok",
+                    },
+                    {
+                        type: "tool-write",
+                        toolCallId: "c2",
+                        state: "output-available",
+                        input: {file_path: "b.md", content: "b"},
+                        output: "ok",
+                        approval: {id: "appr-1", approved: true},
+                    },
+                ]),
+            ],
+            {busy: false, executedFor: createExecutedToolIdentityCache()},
+        )
+        expect(splitTurnActivity(turn.items).steps).toHaveLength(1)
+        expect(turn.hadGate).toBe(true)
+    })
+
+    it("does not mark an ungated tool as waiting on the reader", () => {
+        const [turn] = buildTurnViewModels(
+            [assistant("a1", [toolPart("c1", "output-available")])],
+            {busy: false, executedFor: createExecutedToolIdentityCache()},
+        )
+        expect(turn.hadGate).toBe(false)
+    })
+
+    it("splits client-tool parts out of the tool fold via the parameterized predicate", () => {
+        const messages = [
+            user("u1", "connect"),
+            assistant("a1", [
+                toolPart("c1", "output-available", {a: 1}),
+                {
+                    type: "tool-request_connection",
+                    toolCallId: "ct-1",
+                    state: "input-available",
+                    input: {},
+                },
+                toolPart("c2", "output-available", {b: 2}),
+            ]),
+        ]
+        const isClientToolPart = vi.fn(
+            (part: ToolUIPart) => (part.type as string) === "tool-request_connection",
+        )
+        const turns = buildTurnViewModels(messages, {
+            busy: false,
+            executedFor: createExecutedToolIdentityCache(),
+            isClientToolPart,
+        })
+        expect(turns[1].items.map((i) => i.kind)).toEqual(["tools", "clientTool", "tools"])
+        expect(turns[1].hadGate).toBe(true)
+        // The predicate receives the desktop's context shape (streaming + last-message flags).
+        expect(isClientToolPart).toHaveBeenCalledWith(
+            expect.objectContaining({toolCallId: "ct-1"}),
+            {isStreaming: false, isLastMessage: true},
+        )
+    })
+
+    it("surfaces a stamped run error and borrows the paired trace for user turns", () => {
+        const failed = {
+            id: "a1",
+            role: "assistant",
+            parts: [],
+            metadata: {runError: {message: "boom"}, traceId: "tr-1"},
+        } as unknown as UIMessage
+        const turns = buildTurnViewModels([user("u1", "go"), failed], {
+            busy: false,
+            executedFor: createExecutedToolIdentityCache(),
+        })
+        expect(turns[1].status.errorText).toBe("boom")
+        expect(turns[1].status.isError).toBe(true)
+        expect(turns[1].traceId).toBe("tr-1")
+        // The user turn has no trace of its own; it borrows the next assistant turn's.
+        expect(turns[0].turnTraceId).toBe("tr-1")
+    })
+})

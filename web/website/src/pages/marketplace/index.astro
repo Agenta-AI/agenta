@@ -1,0 +1,688 @@
+---
+// Agent Marketplace index: header with featured carousel, filterable catalog, FAQ.
+import Section from "../../components/Section.astro";
+import Site from "../../layouts/Site.astro";
+import SectionTitle from "../../components/SectionTitle.astro";
+import FaqItem from "../../components/FaqItem.astro";
+import AppMark from "../../components/AppMark.astro";
+import Button from "../../components/Button.astro";
+import RunSteps from "../../components/RunSteps.astro";
+import TemplateCard from "../../components/TemplateCard.astro";
+import FilterGroup from "../../components/FilterGroup.astro";
+import "../../styles/marketplace.css";
+import {
+  USE_IT_FOR_FREE_LABEL,
+  templates,
+  useItForFreeUrl,
+} from "../../lib/templates";
+import {
+  MARKETPLACE_FAQ,
+  faqJsonLd,
+  MARKETPLACE_NAME,
+  appFacetsOf,
+  appsOf,
+  categoriesOf,
+  categoryCountOf,
+  joinNames,
+  templatePath,
+} from "../../lib/marketplace";
+
+const categories = ["All", ...categoriesOf(templates)];
+const appFacets = appFacetsOf(templates);
+const APPS_SHOWN = 8;
+const topApps = appFacets.slice(0, 5).map((facet) => facet.app);
+// Templates with an example run take turns in the featured card.
+const featured = templates.filter((template) => template.example);
+---
+
+<Site
+  title={`${MARKETPLACE_NAME} — Agenta`}
+  description="Start from a working agent. Connect your apps, adjust the skills, and let it run. Every template starts in Agenta for free."
+>
+  <Fragment slot="head">
+    <script
+      type="application/ld+json"
+      is:inline
+      set:html={JSON.stringify(faqJsonLd(MARKETPLACE_FAQ))}
+    />
+  </Fragment>
+  <Section class="ag-mkt-hero ag-mkt-herobg ag-pad" data-screen-label="Index header">
+    <div class="ag-mkt-hero__copy">
+      <h1 class="ag-mkt-hero__title">{MARKETPLACE_NAME}</h1>
+      <p class="ag-mkt-hero__sub">
+        Start from a working agent. Connect your apps, adjust the skills, and
+        let it run.
+      </p>
+      {
+        topApps.length > 0 && (
+          <div class="ag-mkt-hero__apps">
+            <div class="ag-appstack" style="--appmark:28px;">
+              {topApps.map((app) => <AppMark app={app} />)}
+            </div>
+            <span>
+              Connects to{" "}
+              {joinNames([
+                ...topApps.slice(0, 3).map((app) => app.name),
+                ...(appFacets.length > 3 ? ["more"] : []),
+              ])}
+            </span>
+          </div>
+        )
+      }
+    </div>
+
+    {
+      featured.length > 0 && (
+        <div class="ag-mkt-feat" data-feat>
+          <div class="ag-mkt-feat__deck" aria-hidden="true" />
+          <div class="ag-mkt-feat__deck ag-mkt-feat__deck--near" aria-hidden="true" />
+          <div class="ag-mkt-feat__card">
+            {featured.map((template, i) => (
+              <article
+                class:list={["ag-mkt-feat__slide", i === 0 && "ag-run--play"]}
+                data-feat-slide={i}
+                aria-current={i === 0 ? "true" : undefined}
+                inert={i > 0}
+                aria-label={template.name}
+              >
+                <div class="ag-mkt-feat__top">
+                  <span class="ag-mkt-feat__eyebrow">
+                    <span class="ag-mkt-dot" aria-hidden="true" />
+                    Featured · {template.category}
+                  </span>
+                </div>
+                <div class="ag-mkt-feat__grid">
+                  <div class="ag-mkt-feat__copy">
+                    <div class="ag-appstack" style="--appmark:32px;">
+                      {appsOf(template).map((app) => <AppMark app={app} />)}
+                    </div>
+                    <h2 class="ag-mkt-feat__name">{template.name}</h2>
+                    <p class="ag-mkt-feat__summary">{template.summary}</p>
+                    <span class="ag-mkt-feat__by">{template.author.name}</span>
+                    <div class="ag-mkt-feat__actions">
+                      <Button variant="contrast" href={useItForFreeUrl(template.key)}>
+                        {USE_IT_FOR_FREE_LABEL}
+                      </Button>
+                      <Button variant="outline" href={templatePath(template.key)}>
+                        Details
+                      </Button>
+                    </div>
+                  </div>
+                  <div class="ag-mkt-feat__run">
+                    {template.example!.status && (
+                      <span class="ag-mkt-feat__status">{template.example!.status}</span>
+                    )}
+                    <RunSteps example={template.example!} clamp />
+                  </div>
+                </div>
+              </article>
+            ))}
+            {featured.length > 1 && (
+              <div class="ag-mkt-feat__dots" role="group" aria-label="Featured templates">
+                {featured.map((template, i) => (
+                  <button
+                    type="button"
+                    class="ag-mkt-feat__pick"
+                    data-feat-pick={i}
+                    aria-label={template.name}
+                    aria-pressed={i === 0 ? "true" : "false"}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )
+    }
+  </Section>
+
+  <Section class="ag-mkt-catalog ag-pad" id="catalog" data-screen-label="Catalog">
+    <aside class="ag-mkt-side" aria-label="Filters">
+      <label class="ag-mkt-search">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"
+          ><circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.5"
+          ></circle><path
+            d="m11 11 3 3"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"></path></svg
+        >
+        <span class="sr-only">Search templates</span>
+        <input
+          type="search"
+          data-mkt-search
+          placeholder="Search"
+          autocomplete="off"
+        />
+        <kbd class="ag-mkt-search__key" aria-hidden="true">/</kbd>
+      </label>
+
+      <FilterGroup label="Category" id="mkt-categories" value="All" single>
+        {
+          categories.map((category) => (
+            <button
+              type="button"
+              class="ag-mkt-row ag-mkt-cat"
+              data-mkt-cat={category}
+              aria-pressed={category === "All" ? "true" : "false"}
+            >
+              <span>{category}</span>
+              <span class="ag-mkt-row__count" data-mkt-count>
+                {categoryCountOf(templates, category)}
+              </span>
+            </button>
+          ))
+        }
+      </FilterGroup>
+
+      {
+        appFacets.length > 0 && (
+          <FilterGroup label="Apps" id="mkt-apps" value="Any">
+            <button type="button" slot="head" class="ag-mkt-group__clear" data-mkt-apps-clear hidden>
+              Clear
+            </button>
+            {appFacets.map(({ app, count }, i) => (
+              <label class="ag-mkt-row ag-mkt-app" data-mkt-app-row hidden={i >= APPS_SHOWN} data-extra={i >= APPS_SHOWN ? "" : undefined}>
+                <input type="checkbox" class="ag-mkt-app__input" value={app.slug} data-mkt-app />
+                <span class="ag-mkt-app__box" aria-hidden="true">
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none"
+                    ><path d="m2 5.2 2 2 4-4.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                </span>
+                <AppMark app={app} size={20} />
+                <span class="ag-mkt-app__name">{app.name}</span>
+                <span class="ag-mkt-row__count" data-mkt-app-count>{count}</span>
+              </label>
+            ))}
+            {appFacets.length > APPS_SHOWN && (
+              <button
+                type="button"
+                class="ag-mkt-group__more"
+                data-mkt-apps-more
+                aria-expanded="false"
+                data-more-label={`Show all ${appFacets.length} apps`}
+              >
+                Show all {appFacets.length} apps
+              </button>
+            )}
+          </FilterGroup>
+        )
+      }
+    </aside>
+
+    <div class="ag-mkt-results">
+      <div class="ag-mkt-results__head">
+        <h2 class="ag-mkt-results__count" data-mkt-result aria-live="polite">
+          {templates.length} templates
+        </h2>
+        <label class="ag-mkt-sort">
+          <span>Sort</span>
+          <select data-mkt-sort>
+            <option value="recommended">Recommended</option>
+            <option value="az">Name A–Z</option>
+          </select>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"
+            ><path d="M2.5 4.25 6 7.75l3.5-3.5" stroke="currentColor" stroke-width="1.5"
+            ></path></svg
+          >
+        </label>
+      </div>
+      <div class="ag-mkt-empty" data-mkt-empty hidden>
+        <p class="ag-mkt-empty__title" data-mkt-empty-title>
+          No templates match these filters
+        </p>
+        <p class="ag-mkt-empty__text">
+          Try an app name like GitHub or Slack, or browse all templates.
+        </p>
+        <button type="button" class="ag-btn ag-btn--outline" data-mkt-clear>
+          Clear filters
+        </button>
+      </div>
+      <div class="ag-tplgrid" data-mkt-grid>
+        {templates.map((template, i) => <TemplateCard template={template} order={i} />)}
+      </div>
+    </div>
+  </Section>
+
+  <Section class="ag-mkt-faq ag-pad" data-screen-label="FAQ">
+    <SectionTitle badge="FAQ" title="Frequently asked questions" />
+    <div class="ag-mkt-faq__list">
+      {
+        MARKETPLACE_FAQ.map((item, i) => (
+          <FaqItem question={item.question} open={i === 0}>
+            {item.answer}
+          </FaqItem>
+        ))
+      }
+    </div>
+  </Section>
+
+  <script>
+    // Featured carousel: the dots pick a slide; each shown slide replays its run.
+    const feat = document.querySelector<HTMLElement>("[data-feat]");
+    const slides = [...document.querySelectorAll<HTMLElement>("[data-feat-slide]")];
+    const picks = [...document.querySelectorAll<HTMLButtonElement>("[data-feat-pick]")];
+    const showSlide = (index: number) => {
+      slides.forEach((slide, i) => {
+        const active = i === index;
+        slide.inert = !active;
+        slide.toggleAttribute("aria-current", active);
+        slide.classList.remove("ag-run--play");
+      });
+      void slides[index]?.offsetWidth;
+      slides[index]?.classList.add("ag-run--play");
+      picks.forEach((other, i) => other.setAttribute("aria-pressed", String(i === index)));
+    };
+    for (const pick of picks) {
+      pick.addEventListener("click", () => showSlide(Number(pick.dataset.featPick)));
+      // The active dot's fill animation is the autoplay clock; its end advances the slide.
+      pick.addEventListener("animationend", () => {
+        showSlide((Number(pick.dataset.featPick) + 1) % slides.length);
+      });
+    }
+    if (feat) {
+      new IntersectionObserver(([entry]) => {
+        feat.toggleAttribute("data-offscreen", !entry.isIntersecting);
+      }).observe(feat);
+    }
+
+    // Catalog filters: search, one category, any of the checked apps, sort.
+    const search = document.querySelector<HTMLInputElement>("[data-mkt-search]");
+    const catButtons = [...document.querySelectorAll<HTMLButtonElement>("[data-mkt-cat]")];
+    const appInputs = [...document.querySelectorAll<HTMLInputElement>("[data-mkt-app]")];
+    const appRows = [...document.querySelectorAll<HTMLElement>("[data-mkt-app-row]")];
+    const appsClear = document.querySelector<HTMLButtonElement>("[data-mkt-apps-clear]");
+    const appsMore = document.querySelector<HTMLButtonElement>("[data-mkt-apps-more]");
+    const sort = document.querySelector<HTMLSelectElement>("[data-mkt-sort]");
+    const grid = document.querySelector<HTMLElement>("[data-mkt-grid]");
+    const cards = [...document.querySelectorAll<HTMLElement>("[data-mkt-grid] [data-template-key]")];
+    const result = document.querySelector<HTMLElement>("[data-mkt-result]");
+    const empty = document.querySelector<HTMLElement>("[data-mkt-empty]");
+    const emptyTitle = document.querySelector<HTMLElement>("[data-mkt-empty-title]");
+    const clear = document.querySelector<HTMLButtonElement>("[data-mkt-clear]");
+
+    const requested = new URLSearchParams(location.search).get("category");
+    let category = catButtons.some((b) => b.dataset.mktCat === requested) ? requested! : "All";
+    let showAllApps = false;
+    // Below 1200px the app list is a scrolling dropdown, so it lists every app.
+    const compact = matchMedia("(max-width: 1199px)");
+    const catValue = document.querySelector("#mkt-categories")?.closest("[data-filter-group]")?.querySelector("[data-filter-value]");
+    const appsValue = document.querySelector("#mkt-apps")?.closest("[data-filter-group]")?.querySelector("[data-filter-value]");
+
+    const appsOfCard = (card: HTMLElement) => (card.dataset.apps ?? "").split(" ");
+    const inCategory = (card: HTMLElement) => category === "All" || card.dataset.category === category;
+
+    const render = () => {
+      const q = (search?.value ?? "").trim().toLowerCase();
+      const picked = appInputs.filter((input) => input.checked).map((input) => input.value);
+      const matchQ = (card: HTMLElement) => !q || (card.dataset.search ?? "").includes(q);
+      const matchApps = (card: HTMLElement) =>
+        picked.length === 0 || appsOfCard(card).some((slug) => picked.includes(slug));
+
+      const base = cards.filter((card) => matchQ(card) && matchApps(card));
+      const shown = base.filter(inCategory);
+      for (const card of cards) card.hidden = !shown.includes(card);
+
+      // Category counts follow search and apps; empty ones hide unless selected.
+      for (const button of catButtons) {
+        const name = button.dataset.mktCat ?? "";
+        const count = name === "All" ? base.length : base.filter((c) => c.dataset.category === name).length;
+        const counter = button.querySelector("[data-mkt-count]");
+        if (counter) counter.textContent = String(count);
+        button.hidden = count === 0 && name !== "All" && name !== category;
+        button.setAttribute("aria-pressed", String(name === category));
+      }
+
+      // App counts follow search and category, not the app filter itself.
+      const appBase = cards.filter((card) => matchQ(card) && inCategory(card));
+      appRows.forEach((row) => {
+        const input = row.querySelector<HTMLInputElement>("[data-mkt-app]")!;
+        const counter = row.querySelector("[data-mkt-app-count]");
+        if (counter) counter.textContent = String(appBase.filter((c) => appsOfCard(c).includes(input.value)).length);
+        row.hidden = !showAllApps && !compact.matches && row.dataset.extra !== undefined && !input.checked;
+      });
+      if (catValue) catValue.textContent = category;
+      if (appsValue) appsValue.textContent = picked.length ? `${picked.length} selected` : "Any";
+      if (appsClear) appsClear.hidden = picked.length === 0;
+      if (appsMore) {
+        appsMore.textContent = showAllApps ? "Show fewer" : (appsMore.dataset.moreLabel ?? "");
+        appsMore.setAttribute("aria-expanded", String(showAllApps));
+      }
+
+      if (result) {
+        const noun = shown.length === 1 ? "template" : "templates";
+        result.textContent = `${shown.length} ${noun}${category === "All" ? "" : ` in ${category}`}`;
+      }
+      if (empty) empty.hidden = shown.length > 0;
+      if (emptyTitle) {
+        emptyTitle.textContent =
+          q && picked.length === 0 && category === "All"
+            ? `No templates match “${search?.value.trim()}”`
+            : "No templates match these filters";
+      }
+    };
+
+    const reorder = () => {
+      const byName = sort?.value === "az";
+      const sorted = cards
+        .slice()
+        .sort((a, b) =>
+          byName
+            ? (a.dataset.name ?? "").localeCompare(b.dataset.name ?? "")
+            : Number(a.dataset.order) - Number(b.dataset.order),
+        );
+      grid?.append(...sorted);
+    };
+
+    search?.addEventListener("input", render);
+    // Keeps ?category= in step with the selection.
+    const setCategory = (next: string) => {
+      category = next;
+      const url = new URL(location.href);
+      if (category === "All") url.searchParams.delete("category");
+      else url.searchParams.set("category", category);
+      history.replaceState(null, "", url);
+    };
+    for (const button of catButtons) {
+      button.addEventListener("click", () => {
+        setCategory(button.dataset.mktCat ?? "All");
+        render();
+      });
+    }
+    for (const input of appInputs) input.addEventListener("change", render);
+    appsClear?.addEventListener("click", () => {
+      for (const input of appInputs) input.checked = false;
+      render();
+    });
+    appsMore?.addEventListener("click", () => {
+      showAllApps = !showAllApps;
+      render();
+    });
+    sort?.addEventListener("change", reorder);
+    compact.addEventListener("change", render);
+    clear?.addEventListener("click", () => {
+      if (search) search.value = "";
+      for (const input of appInputs) input.checked = false;
+      setCategory("All");
+      render();
+      search?.focus();
+    });
+    document.addEventListener("keydown", (event) => {
+      const target = event.target;
+      const typing =
+        target instanceof Element && target.closest("input, textarea, select, [contenteditable]");
+      const chord = event.metaKey || event.ctrlKey || event.altKey;
+      if (event.key === "/" && !chord && !typing && search) {
+        event.preventDefault();
+        search.focus();
+      }
+    });
+    reorder();
+    render();
+  </script>
+
+  <style is:global>
+    .ag-mkt-hero {
+      padding: 88px 64px 96px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 620px);
+      gap: 72px;
+      align-items: center;
+      overflow: hidden;
+    }
+    .ag-mkt-hero__copy {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+    .ag-mkt-hero__title {
+      margin: 0;
+      max-width: 8ch;
+      font: var(--text-display-xl);
+      color: var(--th-text-hi);
+    }
+    .ag-mkt-hero__sub {
+      margin: 0;
+      max-width: 440px;
+      font: var(--text-body-md);
+      color: var(--th-text-body);
+      text-wrap: pretty;
+    }
+    .ag-mkt-hero__apps {
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font: var(--text-caption);
+      color: var(--th-text-body);
+      --stack-ring: var(--th-bg-1);
+    }
+
+    /* Featured card, with two cards fanned out behind it. */
+    .ag-mkt-feat {
+      position: relative;
+      min-width: 0;
+    }
+    .ag-mkt-feat__deck {
+      position: absolute;
+      inset: 18px -14px -18px 14px;
+      border-radius: var(--radius-xl);
+      background: var(--th-bg-1);
+      box-shadow: 0 0 0 1px var(--th-border);
+      transform: rotate(2.2deg);
+      opacity: 0.7;
+    }
+    .ag-mkt-feat__deck--near {
+      inset: 9px -7px -9px 7px;
+      transform: rotate(1.1deg);
+      opacity: 1;
+    }
+    .ag-mkt-feat__card {
+      --feat-dwell: 8s;
+      --feat-ease: cubic-bezier(0.22, 1, 0.36, 1);
+      position: relative;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      row-gap: 20px;
+      padding: 28px;
+      border-radius: var(--radius-xl);
+      background: var(--th-bg-1);
+      box-shadow:
+        0 0 0 1px var(--th-border),
+        var(--th-menu-shadow);
+      --stack-ring: var(--th-bg-1);
+    }
+    /* Slides overlap on subgrid rows, so each row is as tall as its tallest slide. */
+    .ag-mkt-feat__slide {
+      grid-column: 1;
+      grid-row: 1 / -1;
+      display: grid;
+      grid-template-rows: subgrid;
+      opacity: 0;
+      transform: translateY(8px);
+      transition:
+        opacity 0.6s var(--feat-ease),
+        transform 0.6s var(--feat-ease);
+    }
+    .ag-mkt-feat__slide[aria-current] {
+      opacity: 1;
+      transform: none;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .ag-mkt-feat__slide {
+        transform: none;
+        transition: none;
+      }
+    }
+    .ag-mkt-feat__top {
+      min-height: 18px;
+      padding-right: 120px;
+    }
+    .ag-mkt-feat__eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font: var(--text-caption);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--th-text-body);
+    }
+    .ag-mkt-feat__dots {
+      position: absolute;
+      top: 25px;
+      right: 22px;
+      display: flex;
+      align-items: center;
+    }
+    /* A 24px target around a 6px pill. */
+    .ag-mkt-feat__pick {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 12px;
+      height: 24px;
+      padding: 0 3px;
+      border: 0;
+      border-radius: 4px;
+      background: transparent;
+      cursor: pointer;
+    }
+    .ag-mkt-feat__pick::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 3px;
+      background: var(--th-border);
+      transition: width 0.2s ease, background 0.2s ease;
+    }
+    .ag-mkt-feat__pick[aria-pressed="true"]::before {
+      width: 22px;
+      background: var(--th-text-hi);
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .ag-mkt-feat__pick[aria-pressed="true"]::before {
+        background: linear-gradient(var(--th-text-hi), var(--th-text-hi)) 0 0 / 0 100%
+          no-repeat var(--th-border);
+        animation: ag-feat-dwell var(--feat-dwell) linear forwards;
+      }
+      .ag-mkt-feat:hover .ag-mkt-feat__pick::before,
+      .ag-mkt-feat:focus-within .ag-mkt-feat__pick::before,
+      .ag-mkt-feat[data-offscreen] .ag-mkt-feat__pick::before {
+        animation-play-state: paused;
+      }
+    }
+    @keyframes ag-feat-dwell {
+      to {
+        background-size: 100% 100%;
+      }
+    }
+    .ag-mkt-feat__pick:focus-visible {
+      outline: 2px solid var(--th-text-hi);
+      outline-offset: 2px;
+    }
+    .ag-mkt-feat__grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 24px;
+      align-items: stretch;
+    }
+    .ag-mkt-feat__copy {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .ag-mkt-feat__name {
+      margin: 6px 0 0;
+      font: var(--text-display-md);
+      color: var(--th-text-hi);
+    }
+    .ag-mkt-feat__summary {
+      margin: 0;
+      font: var(--text-body-sm);
+      color: var(--th-text-body);
+      text-wrap: pretty;
+    }
+    .ag-mkt-feat__by {
+      font: var(--text-caption);
+      color: var(--th-text-mut);
+    }
+    .ag-mkt-feat__actions {
+      margin-top: auto;
+      padding-top: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .ag-mkt-feat__run {
+      min-height: 220px;
+      padding: 16px;
+      border-radius: var(--radius-lg);
+      background: var(--th-bg-2);
+      box-shadow: inset 0 0 0 1px var(--th-border-subtle);
+      display: flex;
+      flex-direction: column;
+    }
+    .ag-mkt-feat__run .ag-run__reply {
+      margin-top: auto;
+    }
+    .ag-mkt-feat__run .ag-run__steps {
+      margin-bottom: 14px;
+    }
+    .ag-mkt-feat__status {
+      margin-bottom: 10px;
+      font: 500 11px/16px var(--font-mono);
+      color: var(--th-text-mut);
+    }
+
+    .ag-mkt-empty {
+      padding: 64px 0;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .ag-mkt-empty[hidden] {
+      display: none;
+    }
+    .ag-mkt-empty__title {
+      margin: 0;
+      font: var(--text-title);
+      color: var(--th-text-hi);
+    }
+    .ag-mkt-empty__text {
+      margin: 0 0 8px;
+      font: var(--text-body-sm);
+      color: var(--th-text-body);
+    }
+
+
+    @media (max-width: 1199px) {
+      .ag-mkt-hero {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 56px;
+        padding-top: 72px;
+        padding-bottom: 80px;
+      }
+      .ag-mkt-hero__title {
+        max-width: none;
+      }
+    }
+    @media (max-width: 767px) {
+      .ag-mkt-hero {
+        padding-top: 56px;
+        padding-bottom: 64px;
+        gap: 40px;
+      }
+      .ag-mkt-hero__title {
+        font: 300 40px/44px var(--font-display);
+      }
+      .ag-mkt-feat,
+      .ag-mkt-search__key {
+        display: none;
+      }
+      .ag-mkt-empty {
+        padding: 40px 0;
+      }
+    }
+  </style>
+</Site>

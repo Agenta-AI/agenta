@@ -14,12 +14,24 @@
  * `tools__{provider}__{integration}__{action}__{connection}` (see `parseGatewayToolName`), and a
  * custom function tool arrives as its bare `function.name`.
  */
+import {CLIENT_TOOL_NAMES} from "@agenta/shared/clientTools"
 import {parseGatewayToolSlug} from "@agenta/shared/utils"
 
+import {mergeToolPermission} from "./integrationPolicy"
 import {PI_BUILTIN_RULE_NAMES} from "./piPermissions"
-import {parseGatewayTool} from "./toolUtils"
+import {
+    findGatewayConnectionIndex,
+    parseGatewayConnection,
+    setGatewayConnectionPermissions,
+    type GatewayConnectionPermissions,
+    type GatewayConnectionTarget,
+    type GatewayPermission,
+    parseGatewayTool,
+} from "./toolUtils"
 
-export type ToolPermission = "allow" | "ask" | "deny"
+/** A legacy per-tool entry's `permission`. The connection policy's values minus `inherit` and
+ *  `allow_reads`, which only a `gateway_connection` entry can hold. */
+export type ToolPermission = Exclude<GatewayPermission, "inherit" | "allow_reads">
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
     Boolean(v && typeof v === "object" && !Array.isArray(v))
@@ -27,7 +39,7 @@ const isRecord = (v: unknown): v is Record<string, unknown> =>
 const asPermission = (v: unknown): ToolPermission | undefined =>
     v === "allow" || v === "ask" || v === "deny" ? v : undefined
 
-interface TemplateLocation {
+export interface TemplateLocation {
     template: Record<string, unknown>
     /** Rebuild the full `parameters` object from an updated template. */
     wrap: (nextTemplate: Record<string, unknown>) => Record<string, unknown>
@@ -38,7 +50,7 @@ interface TemplateLocation {
  * template). Mirror `buildAgentRequest`'s `withAgentRunDefaults` so a write lands exactly where the
  * run reads from.
  */
-function locateTemplate(parameters: Record<string, unknown>): TemplateLocation {
+export function locateTemplate(parameters: Record<string, unknown>): TemplateLocation {
     if (isRecord(parameters.agent)) {
         const agent = parameters.agent
         return {template: agent, wrap: (next) => ({...parameters, agent: next})}
@@ -100,7 +112,7 @@ export interface GrantableTool {
 // rule editor also offers.
 
 /** Platform ops (overlay-injected). These must ALWAYS gate — never auto-allowable from the card. */
-const PLATFORM_OPS = new Set([
+export const PLATFORM_OPS = new Set([
     "discover_tools",
     "query_workflows",
     "query_spans",
@@ -121,10 +133,11 @@ const PLATFORM_OPS = new Set([
     "resume_schedule",
     "pause_subscription",
     "resume_subscription",
+    "list_channel_destinations",
+    "send_channel_message",
+    "read_channel_messages",
+    "search_channel_messages",
 ])
-
-/** Browser-fulfilled client tools — they carry their own widget/decline UI; never auto-allowable. */
-const CLIENT_TOOLS = new Set(["request_connection", "request_input"])
 
 /** The seven built-ins by lower-cased name, so a gate can be written under its canonical name. */
 const PI_BUILTIN_CANONICAL_NAMES = new Map<string, string>(
@@ -139,7 +152,7 @@ const PI_BUILTIN_CANONICAL_NAMES = new Map<string, string>(
  */
 export function gateRulePattern(toolName: string): string | null {
     if (!toolName) return null
-    if (PLATFORM_OPS.has(toolName) || CLIENT_TOOLS.has(toolName)) return null
+    if (PLATFORM_OPS.has(toolName) || CLIENT_TOOL_NAMES.has(toolName)) return null
     if (toolName.startsWith("mcp__")) return null
     // A built-in reaches the card lower-cased (the run frame's part is `tool-bash`); the rule list
     // reads one way only if both writers use the canonical name.
@@ -287,4 +300,68 @@ export function withToolPermission(
     const nextTools = tools.slice()
     nextTools[i] = entry
     return wrap({...template, tools: nextTools})
+}
+
+// ---------------------------------------------------------------------------
+// The connection policy: an integration's `gateway_connection` entry
+// ---------------------------------------------------------------------------
+//
+// A connection entry governs a whole integration, so it is addressed by provider and integration
+// rather than by a runtime gate name. These are the `parameters`-level counterparts of the array
+// operations in `toolUtils`, for a caller that holds a whole parameters object — the approval card
+// path, the way `withToolPermission` above serves it. The permission drawer edits the agent
+// template directly and goes through `useAgentTools` instead; both end at the same pure operation,
+// so there is one implementation of the write.
+
+function readTools(parameters: unknown): unknown[] {
+    if (!isRecord(parameters)) return []
+    const {template} = locateTemplate(parameters)
+    return Array.isArray(template.tools) ? (template.tools as unknown[]) : []
+}
+
+/** The saved policy of an integration's connection entry, or null when it has none. */
+export function readConnectionPermissions(
+    parameters: unknown,
+    target: GatewayConnectionTarget,
+): GatewayConnectionPermissions | null {
+    const tools = readTools(parameters)
+    const i = findGatewayConnectionIndex(tools, target)
+    if (i < 0) return null
+    return parseGatewayConnection(tools[i])?.permissions ?? null
+}
+
+/** Return a new `parameters` whose connection entry carries `permissions`, or null when the
+ *  integration has no entry, so the caller leaves the config untouched. */
+export function withConnectionPermissions(
+    parameters: unknown,
+    target: GatewayConnectionTarget,
+    permissions: GatewayConnectionPermissions,
+): Record<string, unknown> | null {
+    if (!isRecord(parameters)) return null
+    const {template, wrap} = locateTemplate(parameters)
+    const tools = Array.isArray(template.tools) ? (template.tools as unknown[]) : []
+    if (findGatewayConnectionIndex(tools, target) < 0) return null
+    return wrap({...template, tools: setGatewayConnectionPermissions(tools, target, permissions)})
+}
+
+/**
+ * Set one tool's permission on an integration's connection entry. The entry is saved even when its
+ * value equals the current default: the author set it deliberately, and it survives a later change
+ * of default. That redundancy is intended — it is also what keeps the override count and the Custom
+ * label saying the same thing.
+ */
+export function withConnectionToolPermission(
+    parameters: unknown,
+    target: GatewayConnectionTarget,
+    toolKey: string,
+    permission: GatewayPermission,
+): Record<string, unknown> | null {
+    if (!toolKey) return null
+    const current = readConnectionPermissions(parameters, target)
+    if (!current) return null
+    return withConnectionPermissions(
+        parameters,
+        target,
+        mergeToolPermission(current, toolKey, permission),
+    )
 }

@@ -1,10 +1,4 @@
-/**
- * This script cleans up after Playwright tests.
- * Deletes the ephemeral project created during global-setup (if any),
- * then cleans up model hub secrets.
- */
-
-import {StandardSecretDTO} from "../../oss/src/lib/Types"
+/** Deletes the ephemeral project created during global setup. */
 
 import {existsSync, readFileSync, unlinkSync} from "fs"
 
@@ -22,11 +16,6 @@ function getSessionToken(statePath: string): string | null {
     return state.cookies?.find((c: any) => c.name === "sAccessToken")?.value ?? null
 }
 
-/**
- * Runs after tests complete.
- * 1. Deletes the ephemeral project created during setup (if any).
- * 2. Cleans up model hub secrets (OpenAI keys added during tests).
- */
 /**
  * Derives the API base URL from AGENTA_WEB_URL.
  * The web app may live at a subpath (e.g. /w) but the API is always at /api on the origin.
@@ -49,28 +38,43 @@ async function globalTeardown() {
     const apiURL = getApiURL(baseURL)
     console.log(`[global-teardown] Using api-url: ${apiURL}`)
 
-    // --- Phase 1: Delete ephemeral project ---
     await deleteEphemeralProject(apiURL)
-
-    // --- Phase 2: Clean up model hub secrets ---
-    await cleanupModelHubSecrets(apiURL)
 }
 
 /**
- * Deletes the ephemeral project created during global-setup.
- * Reads project metadata from the runtime metadata file, calls DELETE /api/projects/{id},
- * then removes the metadata file.
+ * Deletes a project only when setup explicitly marked it as ephemeral.
+ * Keeps the metadata after a failed deletion so a later teardown can retry.
  */
-async function deleteEphemeralProject(apiURL: string): Promise<void> {
-    const projectPath = getProjectMetadataPath()
+interface DeleteEphemeralProjectOptions {
+    projectPath?: string
+    statePath?: string
+    fetchFn?: typeof fetch
+}
+
+export async function deleteEphemeralProject(
+    apiURL: string,
+    options: DeleteEphemeralProjectOptions = {},
+): Promise<void> {
+    const projectPath = options.projectPath ?? getProjectMetadataPath()
+    const statePath = options.statePath ?? getStorageStatePath()
+    const fetchFn = options.fetchFn ?? fetch
 
     if (!existsSync(projectPath)) {
         console.log("[global-teardown] No test project metadata found, skipping project cleanup")
         return
     }
 
+    let removeMetadata = false
+
     try {
         const projectData = JSON.parse(readFileSync(projectPath, "utf8"))
+
+        if (projectData.ephemeral !== true) {
+            console.log("[global-teardown] Project is not marked ephemeral, skipping cleanup")
+            removeMetadata = true
+            return
+        }
+
         const projectId = projectData.project_id
         const projectName = projectData.project_name
 
@@ -81,7 +85,6 @@ async function deleteEphemeralProject(apiURL: string): Promise<void> {
 
         console.log(`[global-teardown] Deleting ephemeral project: ${projectName} (${projectId})`)
 
-        const statePath = getStorageStatePath()
         const sessionToken = getSessionToken(statePath)
 
         if (!sessionToken) {
@@ -102,7 +105,7 @@ async function deleteEphemeralProject(apiURL: string): Promise<void> {
             console.log(
                 `[global-teardown] Restoring original default project: ${originalDefaultId}`,
             )
-            const patchResponse = await fetch(`${apiURL}/projects/${originalDefaultId}`, {
+            const patchResponse = await fetchFn(`${apiURL}/projects/${originalDefaultId}`, {
                 method: "PATCH",
                 headers: authHeaders,
                 body: JSON.stringify({make_default: true}),
@@ -113,17 +116,19 @@ async function deleteEphemeralProject(apiURL: string): Promise<void> {
                 console.warn(
                     `[global-teardown] Failed to restore default project (${patchResponse.status})`,
                 )
+                return
             }
         }
 
         // Now delete the ephemeral project
-        const response = await fetch(`${apiURL}/projects/${projectId}`, {
+        const response = await fetchFn(`${apiURL}/projects/${projectId}`, {
             method: "DELETE",
             headers: authHeaders,
         })
 
-        if (response.ok) {
+        if (response.ok || response.status === 404) {
             console.log(`[global-teardown] Deleted ephemeral project: ${projectName}`)
+            removeMetadata = true
         } else {
             const text = await response.text()
             console.warn(
@@ -133,64 +138,18 @@ async function deleteEphemeralProject(apiURL: string): Promise<void> {
     } catch (error) {
         console.warn("[global-teardown] Error deleting ephemeral project:", error)
     } finally {
-        // Always clean up the metadata file
-        try {
-            unlinkSync(projectPath)
-            console.log("[global-teardown] Removed test project metadata")
-        } catch {
-            // Ignore if already deleted
-        }
-    }
-}
-
-/**
- * Cleans up OpenAI model hub secrets that were added during test runs.
- */
-async function cleanupModelHubSecrets(apiURL: string): Promise<void> {
-    try {
-        console.log("[global-teardown] Deleting model hub secrets...")
-        const statePath = getStorageStatePath()
-        const sessionToken = getSessionToken(statePath)
-
-        if (!sessionToken) {
-            console.log(
-                "[global-teardown] No session token in storage state, skipping model hub cleanup",
-            )
-            return
-        }
-
-        console.log(
-            `[teardown] Extracted session token from storage state: ${sessionToken ? "present" : "absent"}`,
-        )
-
-        const secretsResp = await fetch(`${apiURL}/secrets/`, {
-            headers: {Authorization: `Bearer ${sessionToken}`},
-        })
-
-        if (!secretsResp.ok) {
-            console.error("[global-teardown] Failed to fetch secrets", await secretsResp.text())
-            return
-        }
-
-        const secrets = (await secretsResp.json()) as StandardSecretDTO[]
-
-        const openaiSecrets = secrets.filter((s) =>
-            s?.header?.name?.toLowerCase().includes("openai"),
-        )
-
-        for (const secret of openaiSecrets) {
+        if (removeMetadata) {
             try {
-                await fetch(`${apiURL}/secrets/${secret.id}`, {
-                    method: "DELETE",
-                    headers: {Authorization: `Bearer ${sessionToken}`},
-                })
-                console.log(`[global-teardown] Deleted model hub secret ${secret.id}`)
-            } catch (err) {
-                console.error(`[global-teardown] Failed to delete secret ${secret.id}`, err)
+                unlinkSync(projectPath)
+                console.log("[global-teardown] Removed test project metadata")
+            } catch {
+                // Ignore if already deleted
             }
+        } else {
+            console.warn(
+                `[global-teardown] Retained test project metadata for a later cleanup attempt: ${projectPath}`,
+            )
         }
-    } catch (err) {
-        console.error("[global-teardown] Error cleaning up model hub key", err)
     }
 }
 

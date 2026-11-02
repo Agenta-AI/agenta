@@ -95,13 +95,6 @@ export function getRunnableTypeResolver(): RunnableTypeResolver {
     return currentResolver
 }
 
-/**
- * Reset to default resolver (for testing).
- */
-export function resetRunnableTypeResolver(): void {
-    currentResolver = defaultResolver
-}
-
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -118,8 +111,6 @@ export interface BuildEncodedSnapshotResult {
     hasDrafts: boolean
     /** Entity IDs represented in the snapshot input */
     entityIds: string[]
-    /** @deprecated Use `entityIds` */
-    selectionIds?: string[]
     /** Error message if failed */
     error?: string
     /** Warning if snapshot is large */
@@ -170,7 +161,6 @@ const buildEncodedSnapshotAtom = atom(
                 ok: true,
                 hasDrafts: false,
                 entityIds: [],
-                selectionIds: [],
             }
         }
 
@@ -186,7 +176,6 @@ const buildEncodedSnapshotAtom = atom(
                     ok: false,
                     hasDrafts: false,
                     entityIds,
-                    selectionIds: entityIds,
                     error: result.error,
                 }
             }
@@ -204,7 +193,6 @@ const buildEncodedSnapshotAtom = atom(
                 encoded: result.encoded,
                 hasDrafts: hasDrafts || !!hasEphemeralEntities || hasLoadable || hasLocalTestset,
                 entityIds,
-                selectionIds: entityIds,
                 warning: result.warning,
                 length: result.length,
             }
@@ -213,7 +201,6 @@ const buildEncodedSnapshotAtom = atom(
                 ok: false,
                 hasDrafts: false,
                 entityIds,
-                selectionIds: entityIds,
                 error: `Failed to build snapshot: ${err instanceof Error ? err.message : String(err)}`,
             }
         }

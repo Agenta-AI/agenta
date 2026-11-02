@@ -1,0 +1,1 @@
+{"parameters":[{"name":"checkout_session_id","in":"path","required":true,"schema":{"type":"string","title":"Checkout Session Id"}}]}

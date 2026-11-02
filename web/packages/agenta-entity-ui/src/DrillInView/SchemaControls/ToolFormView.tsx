@@ -108,7 +108,7 @@ function ToolBasics({
 
     return (
         <div className="flex flex-col gap-4">
-            <div className="text-[11px] font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+            <div className="text-xs font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
                 Tool details
             </div>
 
@@ -161,7 +161,7 @@ function ToolBasics({
                             aria-label="Allow extra properties"
                             disabled={disabled}
                         />
-                        <span className="text-[11px] text-[var(--ag-colorTextTertiary)]">
+                        <span className="text-xs text-[var(--ag-colorTextTertiary)]">
                             {additionalProperties
                                 ? "Inputs may include keys not listed above."
                                 : "Only the listed parameters are accepted."}
@@ -282,7 +282,7 @@ function CanonicalGatewayToolForm({
                         renamed or removed. Use the JSON view to inspect the raw tool.
                     </span>
                 </div>
-                <pre className="m-0 overflow-auto rounded border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)] p-2 font-mono text-[11px] text-[var(--ag-colorTextSecondary)]">
+                <pre className="m-0 overflow-auto rounded border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)] p-2 font-mono text-xs text-[var(--ag-colorTextSecondary)]">
                     {safeStringify(value)}
                 </pre>
             </div>

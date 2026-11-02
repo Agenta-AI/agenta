@@ -1,4 +1,4 @@
-from sqlalchemy import Select, and_, or_
+from sqlalchemy import Select, and_, func, or_
 
 from oss.src.core.shared.dtos import Windowing
 
@@ -17,16 +17,30 @@ def apply_windowing(
     id_attribute = span_id_attribute or entity_id_attribute or None
     created_at_attribute = DBE.created_at if getattr(DBE, "created_at", None) else None  # type: ignore
     start_time_attribute = DBE.start_time if getattr(DBE, "start_time", None) else None  # type: ignore
+    updated_at_attribute = DBE.updated_at if getattr(DBE, "updated_at", None) else None  # type: ignore
+    # updated_at is nullable (never touched since row creation) — coalesce onto created_at
+    # so "last activity" degrades to "creation time" instead of sorting a never-touched row
+    # first under `DESC` (Postgres puts NULLs first). Mirrors the FE's `activity()` helper
+    # (updated_at ?? created_at).
+    if updated_at_attribute is not None and created_at_attribute is not None:
+        updated_at_attribute = func.coalesce(updated_at_attribute, created_at_attribute)
+    # updated_at rides its own cursor (last-activity ordering); default time_attribute
+    # stays start_time/created_at so unrelated callers are unaffected.
     time_attribute = start_time_attribute or created_at_attribute or None
+    if attribute.lower() == "updated_at" and updated_at_attribute is not None:
+        time_attribute = updated_at_attribute
     # UUID7 -> id ---------------------------------------------------- #
     order_attribute = {
         "id": id_attribute,
         "span_id": span_id_attribute,
         "created_at": created_at_attribute,
         "start_time": start_time_attribute,
+        "updated_at": updated_at_attribute,
     }.get(attribute.lower(), created_at_attribute)
 
-    if not order_attribute or not time_attribute or not id_attribute:
+    # `order_attribute`/`time_attribute` may be a `func.coalesce(...)` expression (no
+    # truthy `__bool__`) rather than a plain column — compare against `None` explicitly.
+    if order_attribute is None or time_attribute is None or id_attribute is None:
         return stmt
     # ---------------------------------------------------------------- #
     ascending_order = order_attribute.asc()  # type: ignore
@@ -93,9 +107,21 @@ def apply_windowing(
     if order_attribute is id_attribute:
         stmt = stmt.order_by(windowing_order)
     else:
-        stmt = stmt.order_by(windowing_order, id_attribute)
+        # Tiebreak direction must match the cursor predicate's direction (`id <` on the
+        # descending branch, `id >` on ascending) — an ASC tiebreak under a DESC cursor
+        # splits a tie group across the page boundary (duplicate/skip rows).
+        id_tiebreak = (
+            id_attribute.desc()
+            if windowing_order == descending_order
+            else id_attribute.asc()  # type: ignore
+        )
+        stmt = stmt.order_by(windowing_order, id_tiebreak)
 
-    if windowing.limit:
-        stmt = stmt.limit(windowing.limit)
+    if windowing.limit is not None:
+        # `if windowing.limit:` was falsy for `0`, which skipped the `.limit(...)`
+        # call entirely and returned every row; a negative value reached Postgres
+        # as a literal `LIMIT -1` and 500'd. Clamp to at least 1 instead — the safe
+        # direction is "too few rows", never "unbounded" or "malformed SQL".
+        stmt = stmt.limit(max(windowing.limit, 1))
 
     return stmt

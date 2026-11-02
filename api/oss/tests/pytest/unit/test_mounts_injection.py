@@ -78,9 +78,11 @@ class _UpsertDAO:
         existing = self._by_slug.get(key)
         if existing is not None:
             return existing
+        mount_id = uuid4()
         mount = Mount(
-            id=uuid4(),
+            id=mount_id,
             project_id=project_id,
+            storage_prefix=f"mounts/{project_id}/{mount_id}",
             slug=mount_create.slug,
             name=mount_create.name,
             session_id=mount_create.session_id,
@@ -221,7 +223,7 @@ class TestSignMountCredentials:
         assert creds.access_key != _MASTER_KEY
         assert creds.secret_key != _MASTER_SECRET
 
-    async def test_short_ttl_by_default(self):
+    async def test_bounded_ttl_by_default(self):
         service, _, storage = _make_service()
         pid, uid = uuid4(), uuid4()
         mount = await service.get_or_create_session_cwd(
@@ -230,8 +232,9 @@ class TestSignMountCredentials:
 
         await service.sign_mount_credentials(project_id=pid, mount_id=mount.id)
 
-        # Minutes, not hours.
-        assert 0 < storage.signed_with["duration_seconds"] <= 3600
+        # Bounded at the 12h default (SeaweedFS's maxSessionLength ceiling; the runner's
+        # 11h run deadline must fit under it — see MountsConfig.credentials_ttl_seconds).
+        assert 0 < storage.signed_with["duration_seconds"] <= 43200
 
     async def test_unavailable_without_storage(self):
         dao = _UpsertDAO()
@@ -566,10 +569,10 @@ class TestMountsCredentialsTtlConfig:
     @pytest.mark.parametrize(
         "value, expected",
         [
-            (None, 3600),
+            (None, 43200),
             ("120", 120),
             # An unset compose passthrough delivers an empty string, not an absent variable.
-            ("", 3600),
+            ("", 43200),
         ],
     )
     def test_credentials_ttl_reads_the_env_at_instantiation(

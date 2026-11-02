@@ -2,7 +2,7 @@
  * LensRail — the three-tab lens selector (build-spec §2), shared by the docked Inspector and the
  * compare-column drawer. Always three tabs; the Raw `{}` toggle lives in the header, not here.
  */
-import {Button, Tooltip} from "antd"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
 
 import type {InspectorLens} from "./state"
 
@@ -36,20 +36,20 @@ export function LensRail({
     return (
         <div className="flex shrink-0 items-center gap-1 border-0 border-b border-solid border-colorSplit px-2 py-1.5">
             {(["timeline", "context", "runtime", "response"] as InspectorLens[]).map((l) => (
-                <Tooltip key={l} title={DESC[l]} placement="bottom" mouseEnterDelay={0.4}>
+                <SimpleTooltip key={l} title={DESC[l]} side="bottom">
                     <Button
-                        type="text"
-                        size="small"
+                        variant="ghost"
+                        size="sm"
                         onClick={() => onChange(l)}
-                        className={`!h-7 !rounded-md !px-2.5 !text-xs ${
+                        className={`h-7 rounded-md px-2.5 text-xs ${
                             lens === l
-                                ? "!bg-[var(--ag-colorPrimaryBg)] !font-medium !text-[var(--ag-colorPrimary)]"
-                                : "!text-[var(--ag-colorTextSecondary)] hover:!bg-[var(--ag-colorFillTertiary)]"
+                                ? "bg-[var(--ag-colorPrimaryBg)] font-medium text-[var(--ag-colorPrimary)] hover:bg-[var(--ag-colorPrimaryBg)]"
+                                : "text-[var(--ag-colorTextSecondary)] hover:bg-[var(--ag-colorFillTertiary)]"
                         }`}
                     >
                         {LABEL[l]}
                     </Button>
-                </Tooltip>
+                </SimpleTooltip>
             ))}
         </div>
     )

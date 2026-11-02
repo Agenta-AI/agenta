@@ -17,6 +17,22 @@ class ProviderNotFoundError(ToolsError):
         super().__init__(f"Provider not found: {provider_key}")
 
 
+class ProviderNotConfiguredError(ToolsError):
+    """Raised when provider_key names a provider this deployment recognizes, but
+    whose adapter was not registered because required configuration (e.g. an API
+    key) is missing. Distinct from ``ProviderNotFoundError`` so the API boundary
+    can tell a self-hoster "set this env var" instead of a bare 404.
+    """
+
+    def __init__(self, provider_key: str, *, env_var: str):
+        self.provider_key = provider_key
+        self.env_var = env_var
+        super().__init__(
+            f"{provider_key} is not configured on this deployment. "
+            f"Set {env_var} to enable it."
+        )
+
+
 class ConnectionNotFoundError(ToolsError):
     """Raised when a connection cannot be found."""
 
@@ -56,6 +72,45 @@ class ActionNotFoundError(ToolsError):
         super().__init__(
             f"Action not found: {provider_key}/{integration_key}/{action_key}"
         )
+
+
+class ToolKeyNotFoundError(ToolsError):
+    """Raised when a requested tool key is absent from its integration's catalog.
+
+    ``suggestions`` holds the closest keys from that same integration, so the model can
+    correct a typo or a key the catalog dropped since the agent was configured.
+    """
+
+    def __init__(
+        self,
+        *,
+        integration_key: str,
+        tool_key: str,
+        suggestions: Optional[List[str]] = None,
+    ):
+        self.integration_key = integration_key
+        self.tool_key = tool_key
+        self.suggestions = suggestions or []
+        super().__init__(f"Unknown tool for {integration_key}: {tool_key}")
+
+
+class ToolNotInIntegrationError(ToolsError):
+    """Raised when a key resembles a tool of some other integration than the named one.
+
+    Distinct from :class:`ToolKeyNotFoundError`: the key is not a near miss of anything
+    in this catalog, so the thing to correct is the integration, not a typo, and there
+    is no useful key to suggest.
+    """
+
+    def __init__(
+        self,
+        *,
+        integration_key: str,
+        tool_key: str,
+    ):
+        self.integration_key = integration_key
+        self.tool_key = tool_key
+        super().__init__(f"{tool_key} is not a tool of {integration_key}")
 
 
 class ConnectionSlugConflictError(ToolsError):

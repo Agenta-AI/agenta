@@ -4,7 +4,7 @@ import {clearPersistedQueryCache} from "@agenta/shared/api/persist"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
-import Session, {signOut} from "supertokens-auth-react/recipe/session"
+import {signOut} from "supertokens-auth-react/recipe/session"
 import {useSessionContext} from "supertokens-auth-react/recipe/session"
 
 import {onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
@@ -67,14 +67,7 @@ export const useSession: () => {
             return
         }
 
-        ;(async () => {
-            try {
-                const userId = await Session.getUserId()
-                setOnboardingStorageUserId(userId)
-            } catch {
-                // ignore user id lookup failures
-            }
-        })()
+        // UserListener scopes preferences from the stable profile uid, not the session id.
     }, [res.loading, (res as any).doesSessionExist, setOnboardingStorageUserId])
 
     return {

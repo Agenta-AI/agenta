@@ -86,7 +86,7 @@ const POPOVER_STYLES = {
 
 const Section = ({title, children}: {title: string; children: ReactNode}) => (
     <section className="flex flex-col gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-colorTextTertiary">
+        <span className="text-xs font-semibold uppercase tracking-wide text-colorTextTertiary">
             {title}
         </span>
         {children}
@@ -535,9 +535,9 @@ const MetricPopoverContent = ({
                 {headlineMetrics.map(({label, value}) => (
                     <div
                         key={label}
-                        className="flex items-center gap-1 rounded-full bg-[var(--ag-c-FFFFFF)] px-3 py-1 text-[11px] shadow-sm"
+                        className="flex items-center gap-1 rounded-full bg-[var(--ag-c-FFFFFF)] px-3 py-1 text-xs shadow-sm"
                     >
-                        <span className="uppercase tracking-wide text-[10px] text-colorTextTertiary">
+                        <span className="uppercase tracking-wide text-[12px] text-colorTextTertiary">
                             {label}
                         </span>
                         <span className="text-[12px] font-semibold text-colorText tabular-nums">
@@ -571,8 +571,8 @@ const MetricPopoverContent = ({
 
     const highlightChip =
         highlightDisplay && !isStringMetricWithoutDistribution ? (
-            <span className="inline-flex items-center gap-1 rounded-full border border-colorBorderSecondary bg-[var(--ag-c-FFFFFF)] px-3 py-1 text-[11px] text-colorText shadow-sm">
-                <span className="uppercase tracking-wide text-[10px] text-colorTextTertiary">
+            <span className="inline-flex items-center gap-1 rounded-full border border-colorBorderSecondary bg-[var(--ag-c-FFFFFF)] px-3 py-1 text-xs text-colorText shadow-sm">
+                <span className="uppercase tracking-wide text-[12px] text-colorTextTertiary">
                     Value
                 </span>
                 {highlightDisplay}
@@ -639,7 +639,7 @@ const MetricPopoverContent = ({
                     {/* {summarySection} */}
                 </>
             ) : (
-                <div className="flex flex-col gap-2 text-[11px] text-colorTextSecondary">
+                <div className="flex flex-col gap-2 text-xs text-colorTextSecondary">
                     {showScenarioValue && scenarioDisplay ? (
                         <Section title="Scenario value">
                             <span className="text-colorText text-xs whitespace-pre-wrap">

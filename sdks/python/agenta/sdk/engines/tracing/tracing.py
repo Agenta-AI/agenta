@@ -6,7 +6,6 @@ from pydantic import BaseModel
 
 
 from opentelemetry.trace import (
-    get_current_span,
     set_tracer_provider,
     get_tracer_provider,
     Status,
@@ -19,6 +18,7 @@ from opentelemetry.sdk.resources import Resource
 
 from agenta.sdk.utils.singleton import Singleton
 from agenta.sdk.utils.exceptions import suppress
+from agenta.sdk.utils.helpers import strip_trailing_api_segment
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.engines.tracing.processors import (
     TraceProcessor,
@@ -29,6 +29,7 @@ from agenta.sdk.engines.tracing.exporters import OTLPExporter
 from agenta.sdk.engines.tracing.spans import CustomSpan
 from agenta.sdk.engines.tracing.conventions import Reference, is_valid_attribute_key
 from agenta.sdk.engines.tracing.propagation import extract, inject
+from agenta.sdk.engines.tracing.server import current_product_span
 from agenta.sdk.utils.cache import TTLLRUCache
 
 import agenta as ag
@@ -125,7 +126,7 @@ class Tracing(metaclass=Singleton):
         _span = None
 
         with suppress():
-            _span = get_current_span()
+            _span = current_product_span()
 
             if _span.is_recording():
                 return CustomSpan(_span)
@@ -298,7 +299,7 @@ class Tracing(metaclass=Singleton):
         Returns:
             SpanContext or None if no active span
         """
-        span = get_current_span()
+        span = current_product_span()
         ctx = span.get_span_context()
         return ctx if ctx and ctx.is_valid else None
 
@@ -384,7 +385,7 @@ class Tracing(metaclass=Singleton):
             )
 
         api_url = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.api_url
-        web_url = api_url.replace("/api", "") if api_url else None
+        web_url = strip_trailing_api_segment(api_url) if api_url else None
 
         (organization_id, workspace_id, project_id) = (
             ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.resolve_scopes()

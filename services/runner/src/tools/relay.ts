@@ -21,6 +21,7 @@
  * runner-side consumer/executor loop. The protocol pieces are re-exported below so
  * existing importers keep compiling.
  */
+import { randomUUID } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
@@ -46,10 +47,25 @@ import {
   resolveEphemeralArgs,
 } from "./direct.ts";
 import type {
+  GatewayPolicy,
   ResolvedToolSpec,
   RunContext,
   ToolCallbackContext,
 } from "../protocol.ts";
+import {
+  filterGatewaySearchResult,
+  gatewayToolUnavailableText,
+  normalizeGatewayPolicy,
+  planGatewayRun,
+  planGatewaySearch,
+  sanitizeGatewayRunError,
+  GATEWAY_RUN_CALL_REF,
+  GATEWAY_SEARCH_CALL_REF,
+  TOOL_SEARCH_UNAVAILABLE_ERROR,
+  type GatewayCallContext,
+  type GatewayToolGate,
+  type NormalizedGatewayPolicy,
+} from "./gateway-policy.ts";
 import type { ClientToolRelay } from "./client-tool-relay.ts";
 import {
   RELAY_POLL_MS,
@@ -350,10 +366,58 @@ export function sandboxRelayHost(
   };
 }
 
-// The relay carries EXECUTION only. Permission gates never ride these files: Claude raises its
-// own ACP gates before a call reaches the relay, and a Pi gate rides the extension's
-// `ctx.ui.confirm` dialog onto the ACP permission plane (Pi approval parking), decided and
-// parked by the runner's permission responder before the extension writes an execute request.
+/**
+ * One resolved gateway call: what actually goes on the wire once the policy has spoken.
+ *
+ * The model's outer arguments are NOT what is sent. `gateway.run` forwards the integration
+ * tool's own arguments and nothing else, and the routing travels beside them as private
+ * context the model can never supply.
+ */
+type GatewayExecution =
+  /** Its SUCCESS body is filtered before the model sees it. */
+  | {
+      kind: "search";
+      args: Record<string, unknown>;
+      context: GatewayCallContext;
+    }
+  /** `integration` names whose catalog the error envelope's suggestions may draw from. */
+  | {
+      kind: "run";
+      args: Record<string, unknown>;
+      context: GatewayCallContext;
+      integration: string;
+    };
+
+/**
+ * Turn-scoped memory of what search last offered the model, kept only so the gate's log line can
+ * report which rank the model then ran, and whether it ran anything without searching at all.
+ * Those two numbers are what say whether search is steering the model or whether it is guessing.
+ * Nothing reads this to make a decision.
+ */
+interface GatewaySearchMemory {
+  /** `integration.TOOL` in the order the model saw them, from the most recent search. */
+  offered: string[];
+  searches: number;
+}
+
+/** The gateway wiring the relay loop hands to each execution. */
+interface GatewaySeam {
+  /** Validated ONCE, when the relay starts. No raw wire policy reaches a decision. */
+  policy: NormalizedGatewayPolicy;
+  gate: GatewayToolGate | undefined;
+  memory: GatewaySearchMemory;
+}
+
+// The relay carries EXECUTION only for every OTHER tool. Permission gates never ride these
+// files: Claude raises its own ACP gates before a call reaches the relay, and a Pi gate rides
+// the extension's `ctx.ui.confirm` dialog onto the ACP permission plane (Pi approval parking),
+// decided and parked by the runner's permission responder before the extension writes an
+// execute request.
+//
+// The two gateway tools are the exception, and they have to be. Their specifications carry the
+// coarse `permission: "allow"` that opens the harness gate, so no dialog anywhere upstream has
+// decided anything about the integration tool the model named — the semantic decision happens
+// HERE, at the seam every delivery path passes through, against the runner's private policy.
 async function executeRelayedTool(
   spec: ResolvedToolSpec,
   req: ExecuteRelayRequest,
@@ -362,6 +426,7 @@ async function executeRelayedTool(
   clientToolRelay: ClientToolRelay | undefined,
   guard: RelayExecutionGuard | undefined,
   authorizer: RelayExecutionAuthorizer | undefined,
+  gateway: GatewaySeam,
   log: ((msg: string) => void) | undefined,
 ): Promise<string | RelayRefusal | typeof PAUSED> {
   if (spec.kind === "client") {
@@ -371,10 +436,11 @@ async function executeRelayedTool(
         `client tool '${spec.name}' is browser-fulfilled and cannot be executed`,
       );
     }
-    const toolCallId = req.toolCallId;
+    // The gate id is the stored interaction token and must stay short, so it is never the
+    // provider's tool-call id, which can run to several KB.
     const request = {
-      id: toolCallId,
-      toolCallId,
+      id: randomUUID(),
+      toolCallId: req.toolCallId,
       toolName: spec.name,
       input: req.args,
       spec,
@@ -388,6 +454,62 @@ async function executeRelayedTool(
       return new RelayRefusal(declinedByUserText(spec.name));
     }
     return JSON.stringify(decision.output ?? {});
+  }
+
+  // The semantic gateway gate. It runs BEFORE the coarse guard and before any callback, so a
+  // denied integration tool never reaches a provider and a forged request file is decided by
+  // exactly the same rule as a harness call.
+  let resolved: GatewayExecution | undefined;
+  if (spec.callRef === GATEWAY_RUN_CALL_REF) {
+    const plan = planGatewayRun(req.args, gateway.policy);
+    if (!plan.ok) {
+      log?.(
+        `[gateway] gate tool=${spec.name} outcome=refused reason=malformed_or_unconfigured`,
+      );
+      return new RelayRefusal(plan.reason);
+    }
+    if (!gateway.gate) {
+      // No gate wired means no way to apply the policy or to ask a human. Fail closed.
+      log?.(
+        `[gateway] gate target=${plan.display} outcome=deny reason=no_gate`,
+      );
+      return new RelayRefusal(gatewayToolUnavailableText());
+    }
+    const verdict = await gateway.gate.onGatewayRun({
+      // A short gate id, for the same reason as the client-tool request above.
+      id: randomUUID(),
+      toolCallId: req.toolCallId,
+      toolName: spec.name,
+      input: req.args,
+      plan,
+    });
+    // rank: where this tool sat in the last filtered search (1-based), or -1 when the model ran
+    // it without search offering it. searches=0 with a run attempt is the "guessed a key" case.
+    const rank = gateway.memory.offered.indexOf(plan.display) + 1;
+    log?.(
+      `[gateway] gate integration=${plan.target.integration} tool=${plan.target.tool} ` +
+        `permission=${plan.permission} outcome=${verdict.kind} ` +
+        `rank=${rank > 0 ? rank : -1} searches=${gateway.memory.searches}`,
+    );
+    if (verdict.kind === "deny") return new RelayRefusal(verdict.reason);
+    if (verdict.kind === "pendingApproval") {
+      gateway.gate.onPause?.();
+      return PAUSED;
+    }
+    resolved = {
+      kind: "run",
+      args: plan.target.arguments,
+      context: plan.context,
+      integration: plan.target.integration,
+    };
+  } else if (spec.callRef === GATEWAY_SEARCH_CALL_REF) {
+    // Rejected here rather than at the API: only the runner holds the configured set.
+    const plan = planGatewaySearch(req.args, gateway.policy);
+    if (!plan.ok) {
+      log?.(`[gateway] search outcome=refused`);
+      return new RelayRefusal(plan.reason);
+    }
+    resolved = { kind: "search", args: plan.arguments, context: plan.context };
   }
 
   // Client tools keep their own browser-fulfilled pause semantics above; everything else is
@@ -410,11 +532,21 @@ async function executeRelayedTool(
       { ...req, args: verdict.args },
       callback,
       runContext,
+      gateway,
+      resolved,
       log,
     );
   }
 
-  return executeAllowedRelayedTool(spec, req, callback, runContext, log);
+  return executeAllowedRelayedTool(
+    spec,
+    req,
+    callback,
+    runContext,
+    gateway,
+    resolved,
+    log,
+  );
 }
 
 async function executeAllowedRelayedTool(
@@ -422,8 +554,10 @@ async function executeAllowedRelayedTool(
   req: ExecuteRelayRequest,
   callback: ToolCallbackContext | undefined,
   runContext: RunContext | undefined,
+  gateway: GatewaySeam,
+  resolved: GatewayExecution | undefined,
   log?: (msg: string) => void,
-): Promise<string> {
+): Promise<string | RelayRefusal> {
   assertRequiredArguments(spec, req.args);
   if (spec.kind === "code") {
     // Code execution was removed (F-010). Refused up front in `buildRunPlan`; this inline throw
@@ -432,6 +566,84 @@ async function executeAllowedRelayedTool(
   }
   if (!callback?.endpoint) {
     throw new Error(`missing toolCallback endpoint for '${spec.name}'`);
+  }
+  if (resolved) {
+    let text: string;
+    try {
+      text = await callAgentaTool(
+        callback.endpoint,
+        callback.authorization,
+        spec.callRef ?? "",
+        req.toolCallId,
+        resolved.args,
+        {
+          timeoutMs: spec.timeoutMs,
+          runKind: runContext?.run?.kind,
+          context: resolved.context,
+          // `gateway.run` only, and only for the error envelope: the API builds close-key
+          // suggestions from the whole catalog and cannot know what this agent denied.
+          ...(resolved.kind === "run"
+            ? {
+                sanitizeErrorContent: (content: string) =>
+                  sanitizeGatewayRunError(
+                    content,
+                    resolved.integration,
+                    gateway.policy,
+                  ),
+              }
+            : {}),
+        },
+      );
+    } catch (err) {
+      // A `gateway.run` failure keeps its provider detail — that detail is what lets the model
+      // correct a rejected but well-formed request, and its suggestion list was sanitized above.
+      if (resolved.kind === "run") throw err;
+      // A `gateway.search` failure does NOT. Every non-result search body becomes the one fixed
+      // envelope, whatever the API said: a business-level failure throws out of `callAgentaTool`
+      // before the filter can run, and its detail is the API's own text — which can name a
+      // toolkit this agent never configured, or carry routing the model must not see. This is
+      // the same envelope the unparsable-body path writes, so "search did not work" has exactly
+      // one shape.
+      gateway.memory.searches += 1;
+      gateway.memory.offered = [];
+      log?.(
+        `[gateway] search outcome=failed reason=callback_error ` +
+          `envelope=${TOOL_SEARCH_UNAVAILABLE_ERROR.code}`,
+      );
+      return new RelayRefusal(JSON.stringify(TOOL_SEARCH_UNAVAILABLE_ERROR));
+    }
+    // `gateway.run` on success stays a pass-through. Only search results are transformed.
+    if (resolved.kind === "run") return text;
+    // The filter used to be incapable of throwing on a well-formed body — a bad one became
+    // `unparsable` internally. The schema-prose redaction added a recursive walk, so a
+    // pathologically nested schema can now raise. A throw here would escape the seam as a raw
+    // error, which contradicts this function's own contract that every non-result search body
+    // becomes the one fixed envelope. Catch anything the filter grows, not just this.
+    let outcome: ReturnType<typeof filterGatewaySearchResult>;
+    try {
+      outcome = filterGatewaySearchResult(text, gateway.policy);
+    } catch (err) {
+      gateway.memory.searches += 1;
+      gateway.memory.offered = [];
+      log?.(
+        `[gateway] search outcome=failed reason=filter_error ` +
+          `envelope=${TOOL_SEARCH_UNAVAILABLE_ERROR.code} ` +
+          `detail=${String(err instanceof Error ? err.message : err).slice(0, 120)}`,
+      );
+      return new RelayRefusal(JSON.stringify(TOOL_SEARCH_UNAVAILABLE_ERROR));
+    }
+    gateway.memory.searches += 1;
+    gateway.memory.offered = outcome.offered;
+    log?.(
+      `[gateway] search results=${outcome.total} kept=${outcome.kept} ` +
+        `unconfigured=${outcome.drops.unconfigured} unknown=${outcome.drops.unknownTool} ` +
+        `denied=${outcome.drops.denied} schema=${outcome.drops.schema} ` +
+        `capped=${outcome.drops.capped} unparsable=${outcome.unparsable}`,
+    );
+    // An unparsable body is a search failure too, and reads as one: same envelope, same
+    // `ok: false` framing, so the model never sees a failure dressed as an empty success.
+    if (outcome.unparsable) return new RelayRefusal(outcome.payload);
+    return outcome.payload;
   }
   // Drop the model-authored arguments that are for the human only (today: the ephemeral per-call
   // `description`, R12). This runs BEFORE the dispatch fork so both modes strip identically, and
@@ -464,7 +676,10 @@ async function executeAllowedRelayedTool(
   // `callRef`, so this is checked before the gateway fallback. `runContext` fills the
   // `call.context` bindings server-side (direct-call tools, Phase 3a), hidden from the model.
   if (spec.call) {
-    const body = assembleBody(spec.call, dispatchArgs, runContext);
+    const callContext: RunContext | undefined = req.toolCallId
+      ? { ...runContext, tool: { call_id: req.toolCallId } }
+      : runContext;
+    const body = assembleBody(spec.call, dispatchArgs, callContext, spec.name);
     const url = directCallUrl(callback.endpoint, spec.call, body);
     // Path params were just substituted into the URL from this same body; strip them so a
     // POST handler whose request model expects the identifier only in the route (e.g.
@@ -602,6 +817,18 @@ export function startToolRelay(
     writePausedAnswer?: boolean;
     /** Runs after the guard, for every harness. See `RelayExecutionAuthorizer`. */
     authorizer?: RelayExecutionAuthorizer;
+    /**
+     * The turn's abort signal, forwarded to the wake source's `wait` (M11).
+     *
+     * `RelayActivitySource.wait` has always declared `signal`, and no caller passed one — so an
+     * aborted turn was only unblocked by the `close()` in `stop()`, and a wait parked on the 30s
+     * safety poll held on until then. Passing it lets an abort unblock the wait on its own.
+     */
+    signal?: AbortSignal;
+    /** The run's private compiled gateway policy. Absent when the agent configures none. */
+    gatewayPolicy?: GatewayPolicy;
+    /** The pause-capable gateway gate. Absent means a gateway call fails closed. */
+    gatewayGate?: GatewayToolGate;
   },
 ): { ready: Promise<void>; stop: () => Promise<void> } {
   let active = true;
@@ -613,6 +840,16 @@ export function startToolRelay(
   // stat (a daemon round-trip on Daytona) is skipped entirely.
   const telemetry = opts?.log !== undefined;
   const seen = new Set<string>();
+  // One memory per relay, which is one per turn. Measurement only; see `GatewaySearchMemory`.
+  const gatewayMemory: GatewaySearchMemory = { offered: [], searches: 0 };
+  // Validate the whole policy once per turn, not once per decision: every consumer takes the
+  // normalized value, so an entry with broken routing, or a permission that is not one of the
+  // three, cannot be reached from anywhere. See `normalizeGatewayPolicy`.
+  const gatewaySeam: GatewaySeam = {
+    policy: normalizeGatewayPolicy(opts?.gatewayPolicy),
+    gate: opts?.gatewayGate,
+    memory: gatewayMemory,
+  };
   // Request names whose delete-on-pickup remove rejected: retried (best-effort,
   // concurrently) on each later list pass until the listing no longer shows them, so
   // a lingering picked-up file cannot insta-wake watch windows forever.
@@ -653,6 +890,7 @@ export function startToolRelay(
         clientToolRelay,
         guard,
         opts?.authorizer,
+        gatewaySeam,
         opts?.log,
       );
       if (text instanceof RelayRefusal) {
@@ -744,15 +982,48 @@ export function startToolRelay(
     activitySource: RelayActivitySource,
     timeoutMs: number,
   ): Promise<"activity" | "timeout" | "closed"> => {
+    // The turn's signal, not the loop's own stop: `stop()` closes the source, which every
+    // implementation already honours. This is the other way a wait should end early (M11).
     let timer: ReturnType<typeof setTimeout> | undefined;
     const bound = new Promise<"timeout">((resolve) => {
       timer = setTimeout(() => resolve("timeout"), timeoutMs + 1_000);
     });
     try {
-      return await Promise.race([activitySource.wait({ timeoutMs }), bound]);
+      return await Promise.race([
+        activitySource.wait({ timeoutMs, signal: opts?.signal }),
+        bound,
+      ]);
     } finally {
       clearTimeout(timer);
     }
+  };
+
+  // Floor under every wake-source wait. A source is free to resolve instantly, and some do
+  // it forever: an aborted turn makes both sources answer "closed" on sight. Without a
+  // floor the iteration then awaits nothing but microtasks, the event loop never reaches
+  // its timer and I/O phases, and the `stop()` that would end this loop can never be
+  // scheduled. An "activity" wake is exempt — a request is waiting and picking it up
+  // without a poll interval is the whole point of the watch — unless the caller already
+  // saw a wake produce nothing, which is the one way "activity" could spin the loop too.
+  // The floor is capped by the wait's own timeout, so a wait that ran its course adds
+  // nothing, and by the poll delay, so a closed source cannot pin `stop()` on the 30 s
+  // safety wait.
+  const waitWithFloor = async (
+    activitySource: RelayActivitySource,
+    timeoutMs: number,
+    floorMs: number,
+    floorActivity: boolean,
+  ): Promise<"activity" | "timeout" | "closed"> => {
+    const startedAt = Date.now();
+    const outcome = await boundedWait(activitySource, timeoutMs);
+    // `stop()` already cleared `active` and closed the source, which is what resolved this
+    // wait. There is no next iteration to spin, so flooring here would only make every
+    // turn's teardown (and every cancel behind it) wait out a poll delay it never used to.
+    if (!active) return outcome;
+    if (outcome === "activity" && !floorActivity) return outcome;
+    const remaining = Math.min(timeoutMs, floorMs) - (Date.now() - startedAt);
+    if (remaining > 0) await sleep(remaining);
+    return outcome;
   };
 
   // Hop 2 wake source (plan decision 3). Undefined (no capability, or the remote watch
@@ -818,15 +1089,35 @@ export function startToolRelay(
           source.noteMiss?.();
         }
         idlePolls = sawNew ? 0 : idlePolls + 1;
-        if (source && source.isHealthy() && source.suspendsPolling) {
+        // An aborted turn makes every source answer wait() instantly while isHealthy()
+        // keeps saying true — only `stop()` closes a source, and `stop()` is exactly what
+        // the starved event loop can no longer run. So the signal disqualifies the source
+        // here too, and the loop falls to the sleep branch below: a real timer, a real
+        // yield. Waiting is what the source is for, and after an abort it cannot wait.
+        const sourceUsable =
+          source !== undefined &&
+          source.isHealthy() &&
+          opts?.signal?.aborted !== true;
+        const floorMs = relayPollDelayMs(idlePolls);
+        // The wake that led into this pass claimed a request and none was there, so the
+        // next one has to earn its exemption from the floor.
+        const floorActivity = lastWaitOutcome === "activity" && !sawNew;
+        if (source && sourceUsable && source.suspendsPolling) {
           // Healthy remote watch: the watch exec's completion is the wake; the remote
           // poll is suspended and only the 30 s safety poll remains (plan decision 6).
-          lastWaitOutcome = await boundedWait(source, RELAY_SAFETY_POLL_MS);
-        } else if (source && source.isHealthy()) {
+          lastWaitOutcome = await waitWithFloor(
+            source,
+            RELAY_SAFETY_POLL_MS,
+            floorMs,
+            floorActivity,
+          );
+        } else if (source && sourceUsable) {
           // Local watch: shortens the sleep only; the poll cadence is unchanged.
-          lastWaitOutcome = await boundedWait(
+          lastWaitOutcome = await waitWithFloor(
             source,
             relayPollDelayMs(idlePolls),
+            floorMs,
+            floorActivity,
           );
         } else {
           // Classic loop, byte for byte (no source, demoted, or closed).

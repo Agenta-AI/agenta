@@ -1,0 +1,63 @@
+---
+id: verify-whatsapp-webhook
+title: "Verify Whatsapp Webhook"
+description: "Meta's subscription check: echo `hub.challenge` as plain text when"
+sidebar_label: "Verify Whatsapp Webhook"
+hide_title: true
+hide_table_of_contents: true
+api: eJztVMtuGzEM/BWCl16Eddrjnhq0RRukBYL0dUiMhJbpleA1pUpcu66x/15IfsTJvbf6YogciUNyZneo1GVs7/CdIxHuM04Nzjnb5KP6INjiF1Z6lSEPs1MUrGO7bIGtC/DohlljHfU9S8ePQBliT15A+bfCxrHcS8WsOfnF9kHDkuURfAZ1DPUEBD8dab6MEWwQYVurOJI5z8FrvpcQOZGG1MC3062slDTDxqurb0UXhEGG1YwTXL03sHHeOojeLmuxeyn5swIawIZVpMRAHXnJ2sAH64KXDrpEohkkqPPSGZgNCiT3MshSwkYOFHyGxIsh8xxyqCS+334GkrzhlCFIv4VFSKUFKJf23HKDBvcN+SBXc2zxMJtNmQLF+LDhmQthiQYT5xgkc8Z2h28uLsrf8wV9HazlnBdDD7cHMBq0QZRFC7wsYlJ3Uk7ZOl5RjW8jY4tZk5cOx/IzuGJ1oVDqWNFgJHXY4sQe9DE5UpzwmkXzBA1mTmtORUY7HFJf4BQ9juZ4dKoxt5MJD43twzBvqGNRasjvgdPyhh2S12195PLm6pq3n5jmnLC9m54Dvhb6+2k8h536oeiveYsGhVblfDmoC8n/qdNGg2UM6Pa3SsdeFqFe99pXfCUHlzdX+NILz1JlwmTrhI+VahrNi7afukWDvCJfksq0envK4GiKBvK+zEXzurkooRiyrkjOSvyoQtnbhWKEnyehPGO6e9r/fwP/GwMf1HZmrvGw+N3BNXd4dA0aPPqmSKA6Bw2Wj60LWQt0t5tR5u+pH8cS/jVwKmaYGlxT8jQr0rybjuao3OKTJW+L6qzlWLy6pn54SWl65uiPH77hOP4FTKIYbQ==
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Verify Whatsapp Webhook"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/channels/whatsapp/events/"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Meta's subscription check: echo `hub.challenge` as plain text when
+`hub.verify_token` is the token a WhatsApp connection handed its
+operator. The token starts with the phone number ID, which picks the
+one connection to compare against. Echoing grants nothing, but an
+unknown token is refused so the URL answers only for its own numbers.
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./verify-whatsapp-webhook.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./verify-whatsapp-webhook.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

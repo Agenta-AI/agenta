@@ -3,20 +3,20 @@
 import type * as AgentaApi from "../index.js";
 
 /**
- * A heartbeat's outcome: the reconciled stream plus the session's actual owner replica.
+ * A heartbeat's outcome: the reconciled stream and whether this turn is still current.
  *
- * `replica_id` is the replica that currently holds the affinity key after the claim
- * (this caller if it won or already held it, another replica otherwise). The runner reads
- * it to refuse serving a local sandbox session it does not own.
+ * `replica_id` echoes the caller's own id. A runner of the previous release reads it, so it
+ * stays for one release.
  *
- * `stream` is None when a losing replica heartbeats a session that has no row yet: it may
- * not create or stamp one, since that row belongs to the owner.
+ * `stream` is None when a refused beat names a session that has no row yet: it may not
+ * create or stamp one, since that row belongs to the turn's own runner.
  *
  * `is_current_turn` (W7.4) is False when this turn_id's alive/running lock was gone or
  * reassigned at the moment of this beat — i.e. a cancel/steer/kill interrupted this turn
  * since the last heartbeat. The runner's watchdog reads this to abort the in-flight run;
  * without it a cancel that raced a heartbeat's nx=True re-acquire would silently re-arm the
- * SAME lock under the SAME turn_id and the interruption would never surface.
+ * SAME lock under the SAME turn_id and the interruption would never surface. It is also
+ * False when the turn is bound to another runner pod.
  */
 export interface SessionHeartbeatResult {
     stream?: (AgentaApi.SessionStream | null) | undefined;

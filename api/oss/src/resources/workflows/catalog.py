@@ -9,6 +9,7 @@ from oss.src.core.workflows.dtos import (
     WorkflowCatalogPreset,
 )
 from agenta.sdk.utils.types import CATALOG_TYPES
+from agenta.sdk.agents import UNLISTED_HARNESS_KINDS
 from agenta.sdk.agents.capabilities import harness_catalog_document
 from agenta.sdk.engines.running.catalog import (
     get_all_catalog_templates,
@@ -250,9 +251,12 @@ def _harness_record(key: str, record: dict) -> WorkflowCatalogHarness:
 
 
 def get_workflow_catalog_harnesses() -> list[WorkflowCatalogHarness]:
+    # Unlisted harnesses (the test-only mock) stay out of the list the web builds its pickers
+    # from; fetching one by id below still works.
     return [
         _harness_record(key, record)
         for key, record in harness_catalog_document().items()
+        if key not in UNLISTED_HARNESS_KINDS
     ]
 
 

@@ -2,6 +2,7 @@ import React, {useCallback, useEffect, useMemo, useState} from "react"
 
 import {
     PROVIDER_AUTH_REQUIREMENTS,
+    fieldNoteForKind,
     PROVIDER_FIELDS,
     PROVIDER_KINDS,
     PROVIDER_LABELS,
@@ -11,7 +12,9 @@ import {
 } from "@agenta/entities/secret"
 import type {LlmProvider} from "@agenta/shared/types"
 import {isSlugInputValid} from "@agenta/shared/utils"
-import {LabelInput} from "@agenta/ui"
+// Subpath, not the root barrel: that one re-exports InfiniteVirtualTable, which imports antd —
+// and this form now renders on the mobile app, where antd must never be bundled.
+import {LabelInput} from "@agenta/ui/components/presentational"
 import {SelectLLMProviderBase, capitalize, type ProviderGroup} from "@agenta/ui/select-llm-provider"
 import {Button, Textarea} from "@agenta/ui/ui"
 import {Plus, WarningCircle} from "@phosphor-icons/react"
@@ -205,7 +208,7 @@ const CustomProviderForm = ({
                     return !field.model || field.model.includes(normalizedProviderKind)
                 }
                 return true
-            }),
+            }).map((field) => ({...field, note: fieldNoteForKind(field, normalizedProviderKind)})),
         [shouldFilter, normalizedProviderKind],
     )
 

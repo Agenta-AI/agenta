@@ -91,6 +91,9 @@ class WireConnection(_WireModel):
 
     mode: Literal["agenta", "self_managed"] = "agenta"
     slug: Optional[str] = None
+    # Whose connection `slug` names (M5); omitted for the project's. Routing does not
+    # depend on it: the resolved route already points at the organization namespace.
+    scope: Optional[Literal["project", "organization"]] = None
 
 
 class WireCredentialBinding(_WireModel):
@@ -100,12 +103,65 @@ class WireCredentialBinding(_WireModel):
     name: str
 
 
+class WireSandboxCredential(_WireModel):
+    """One resolved credential delivered to the sandbox environment."""
+
+    binding: WireCredentialBinding
+    value: str
+
+
 class WireCredential(_WireModel):
     """One model credential, its binding, and its consumer usage contract."""
 
     binding: WireCredentialBinding
     value: str
     usage: Literal["opaque_http", "local_use"]
+
+
+class WireSubscriptionLogin(_WireModel):
+    """The harness's own OAuth credential file, as the runner writes it to disk.
+
+    Mirrors ``SubscriptionLogin`` in ``protocol.ts``: the four fields below are required there,
+    and ``extra="allow"`` carries the provider's own keys the same way its index signature does.
+    A login that is missing one of them is not one the runner can sign in with, so the schema
+    says so rather than describing an open bag.
+    """
+
+    type: str
+    access: str
+    refresh: str
+    expires: int
+    account_id: Optional[str] = Field(default=None, alias="accountId")
+
+
+class WireSubscription(_WireModel):
+    """The hosted subscription login delivered with a runtime-provided connection.
+
+    Not a credential binding: ``login`` is the harness's own OAuth credential file, which the
+    runner writes to disk before the session starts and reads back after a turn. ``version``
+    and ``generation`` order two logins; the runner pushes a newer login home against
+    ``version`` and folds ``generation`` into the warm-session fingerprint.
+
+    Every field is required, as in ``protocol.ts``. A default of ``0`` on either counter would
+    let a producer that forgot one emit a real generation and a real version by accident.
+    """
+
+    id: str
+    slug: str
+    provider: str
+    version: int
+    generation: int
+    login: WireSubscriptionLogin
+
+
+class WireSubscriptionFence(_WireModel):
+    """The marker sent in ``subscription`` beside an organization subscription login (M5).
+
+    A runner older than M5 does not read ``organizationSubscription``; it reads this marker
+    as an unusable subscription and refuses the run instead of using an operator login.
+    """
+
+    fence: Literal["organization"]
 
 
 class WireModelConnection(_WireModel):
@@ -119,6 +175,14 @@ class WireModelConnection(_WireModel):
     )
     environment: Optional[Dict[str, str]] = None
     credentials: List[WireCredential] = Field(default_factory=list)
+    subscription: Optional[Union[WireSubscription, WireSubscriptionFence]] = None
+    # An organization's subscription login (M5). The runner uses it like a project login;
+    # `subscription` then holds the fence.
+    organization_subscription: Optional[WireSubscription] = Field(
+        default=None, alias="organizationSubscription"
+    )
+    # "gemini" when the gateway route also serves Google's native protocol; omitted otherwise.
+    protocol: Optional[str] = None
 
 
 class WireModelCapabilities(_WireModel):
@@ -150,6 +214,7 @@ class WireChatMessage(_WireModel):
 
     role: str
     content: Union[str, List[WireContentBlock]] = ""
+    display_content: Optional[str] = None
 
 
 class WirePropagation(_WireModel):
@@ -321,6 +386,41 @@ class WireResolvedToolSpec(_WireModel):
     permission: Optional[str] = None
 
 
+class WireGatewayTool(_WireModel):
+    """One compiled tool decision inside ``gatewayPolicy`` (contracts section 5).
+
+    ``readOnly`` is TRI-STATE: ``true`` is a read, ``false`` is a write, and ``null`` is
+    unknown because the provider catalog carries no hint. The producer emits the key with a
+    null value rather than dropping it, and the TypeScript mirror declares
+    ``boolean | null``, so a missing key and a null value cannot come to mean different
+    things on the two sides.
+    """
+
+    permission: Literal["allow", "ask", "deny"]
+    read_only: Optional[bool] = Field(default=None, alias="readOnly")
+
+
+class WireGatewayIntegration(_WireModel):
+    """One configured integration inside ``gatewayPolicy``: its routing plus its tool table."""
+
+    provider: str
+    connection: str
+    toolkit_version: str = Field(alias="toolkitVersion")
+    tools: Dict[str, WireGatewayTool] = Field(default_factory=dict)
+
+
+class WireGatewayPolicy(_WireModel):
+    """The private compiled gateway policy (``gatewayPolicy`` on the request).
+
+    Read only by the runner, which gates ``gateway.run`` and filters ``gateway.search``
+    results against it. It never reaches the harness or the sandbox, and ``inherit`` never
+    crosses this boundary: the SDK compiler has already applied it. Omitted entirely when the
+    agent has no ``gateway_connection`` entry.
+    """
+
+    integrations: Dict[str, WireGatewayIntegration] = Field(default_factory=dict)
+
+
 class WirePermissionRule(_WireModel):
     pattern: str
     permission: str
@@ -466,7 +566,7 @@ class WireRunRequest(_WireModel):
 
     Every field is optional on the wire (the contract is implicitly all-optional), so the schema
     expresses "optional" while the producer's omit-when-empty behavior stays in ``wire.py`` and
-    is pinned by the golden fixtures. The harness selects the agent (``pi_core`` / ``pi_agenta``
+    is pinned by the golden fixtures. The harness selects the agent (``pi_core``
     / ``claude``); there is no engine selector on the wire (A3 removed the legacy backend).
     """
 
@@ -475,10 +575,14 @@ class WireRunRequest(_WireModel):
     harness: Optional[str] = None
     sandbox: Optional[str] = None
     session_id: Optional[str] = Field(default=None, alias="sessionId")
+    detached: Optional[bool] = None
     # Session-owned (detached) turn identity: the runner uses these to own the alive lock and
     # persist the transcript independently of any client connection. Omitted on ad-hoc runs.
     turn_id: Optional[str] = Field(default=None, alias="turnId")
     project_id: Optional[str] = Field(default=None, alias="projectId")
+    # Stable id of the durable continuation command that caused this run. The runner admits one
+    # execution per id even when delivery is retried.
+    control_command_id: Optional[str] = Field(default=None, alias="controlCommandId")
     agents_md: Optional[str] = Field(default=None, alias="agentsMd")
     # Model id stays scalar. The author's connection CHOICE and what that choice RESOLVED to are
     # two separate fields: `connection` is non-secret routing config the runner reads directly,
@@ -487,6 +591,9 @@ class WireRunRequest(_WireModel):
     connection: Optional[WireConnection] = None
     model_connection: Optional[WireModelConnection] = Field(
         default=None, alias="modelConnection"
+    )
+    sandbox_credentials: Optional[List[WireSandboxCredential]] = Field(
+        default=None, alias="sandboxCredentials"
     )
     harness_mode: Optional[str] = Field(default=None, alias="harnessMode")
     # Resolved model input modalities. Omitted when the resolver cannot determine them.
@@ -503,6 +610,10 @@ class WireRunRequest(_WireModel):
     # The run's own context (trace + variant identity), refreshed per turn; consumed only by a
     # tool's ``call.context`` binding at dispatch (direct-call tools, Phase 3a). Omitted when unset.
     run_context: Optional[WireRunContext] = Field(default=None, alias="runContext")
+    # The agent's display name, the session name, and whether this is the first turn. Rendered
+    # into ``platformInstructions`` by the SDK, so the runner reads it from there and never from
+    # here. Excluded from lifecycle identity, like ``platformInstructions`` itself.
+    turn_context: Optional[str] = Field(default=None, alias="turnContext")
     # Tools + skills.
     tools: Optional[List[str]] = None
     custom_tools: Optional[List[WireResolvedToolSpec]] = Field(
@@ -515,6 +626,16 @@ class WireRunRequest(_WireModel):
     skills: Optional[List[WireSkill]] = None
     # Policy + prompt overrides + files.
     permissions: Optional[WirePermissions] = None
+    # The private compiled policy for the agent's gateway connections. Top level, because both
+    # derived tools read the same table. Omitted when the agent configures no connection.
+    gateway_policy: Optional[WireGatewayPolicy] = Field(
+        default=None, alias="gatewayPolicy"
+    )
+    # Agenta-owned static and configuration-derived guidance. The runner selects the existing
+    # harness delivery channel. Excluded from lifecycle identity, like legacy gateway guidance.
+    platform_instructions: Optional[str] = Field(
+        default=None, alias="platformInstructions"
+    )
     system_prompt: Optional[str] = Field(default=None, alias="systemPrompt")
     append_system_prompt: Optional[str] = Field(
         default=None, alias="appendSystemPrompt"
@@ -524,6 +645,12 @@ class WireRunRequest(_WireModel):
     )
     harness_files: Optional[List[WireHarnessFile]] = Field(
         default=None, alias="harnessFiles"
+    )
+    # The post-hydration config this turn runs, opaque to the runner: it echoes the blob onto
+    # the interaction row of any HITL gate the turn parks, so the answering client can replay
+    # the exact config instead of re-hydrating references. Session runs only.
+    effective_parameters: Optional[Dict[str, Any]] = Field(
+        default=None, alias="effectiveParameters"
     )
 
 

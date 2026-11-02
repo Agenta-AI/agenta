@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "entry": "incident-responder",
+  "agents": {
+    "incident-responder": {
+      "name": "Incident responder",
+      "description": "Watches your alerts. Gathers related context and logs, summarizes the likely cause, and pages the on-call engineer.",
+      "instructions": "./ai.agenta/agents/incident-responder/AGENTS.md",
+      "setup": "./ai.agenta/agents/incident-responder/SETUP.md",
+      "connections": [
+        {
+          "key": "read-the-errors",
+          "required": true,
+          "purpose": "Read the errors",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "sentry"
+            }
+          ],
+          "setup_notes": "Read alerts & issues"
+        },
+        {
+          "key": "notify-or-page",
+          "required": true,
+          "purpose": "Notify or page",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "slack"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "pagerduty"
+            }
+          ],
+          "setup_notes": "Post the incident summary"
+        },
+        {
+          "key": "read-extra-context",
+          "required": false,
+          "purpose": "Read extra context",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "datadog"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "newrelic"
+            }
+          ],
+          "setup_notes": "Read extra context"
+        }
+      ]
+    }
+  }
+}

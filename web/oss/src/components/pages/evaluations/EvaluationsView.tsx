@@ -22,7 +22,6 @@ import {
 } from "@/oss/components/EvaluationRunsTablePOC"
 import {evaluationRunsTableContextSetterAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/context"
 import {evaluationRunsTypeFiltersAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/view"
-import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {useQueryParamState} from "@/oss/state/appState"
 import {projectIdAtom} from "@/oss/state/project"
 
@@ -171,20 +170,6 @@ const EvaluationTabs = ({scope, tabItems, tabColorMap, appId}: EvaluationTabsPro
             router.events.off("routeChangeError", handleFinish)
         }
     }, [router.events])
-
-    const tabLabel = useMemo(
-        () => tabItems.find((item) => item.key === displayedTab)?.label ?? "Evaluations",
-        [displayedTab, tabItems],
-    )
-
-    useBreadcrumbsEffect(
-        {
-            breadcrumbs: {appPage: {label: tabLabel}},
-            type: "append",
-            condition: true,
-        },
-        [tabLabel, router.asPath],
-    )
 
     const tabIndicatorColor = useMemo(
         () => tabColorMap[displayedTab] ?? "#dbeafe",

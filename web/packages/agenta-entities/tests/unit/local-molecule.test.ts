@@ -11,14 +11,14 @@
  * Tests use a simple "Tag" type to keep fixtures readable.
  */
 
-import {describe, it, expect, vi} from "vitest"
 import {createStore} from "jotai"
+import {describe, it, expect, vi} from "vitest"
 
 import {createLocalMolecule} from "../../src/shared/molecule/createLocalMolecule"
 
 // ── Fixture type ──────────────────────────────────────────────────────────────
 
-type Tag = {
+interface Tag {
     label: string
     color: string
 }

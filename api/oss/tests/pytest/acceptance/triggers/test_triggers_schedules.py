@@ -10,9 +10,11 @@ Requires a running API.
 
 from uuid import uuid4
 
+import pytest
+
 
 def _create_workflow(authed_api):
-    """Build a workflow + variant + committed revision; return its slug."""
+    """Build a workflow + variant + committed revision; return (slug, id)."""
     slug = f"sched-wf-{uuid4().hex[:8]}"
 
     wf = authed_api(
@@ -48,10 +50,10 @@ def _create_workflow(authed_api):
         },
     )
     assert commit.status_code == 200, commit.text
-    return slug
+    return slug, workflow_id
 
 
-def _schedule_payload(*, name=None, schedule="*/5 * * * *", workflow_slug=None):
+def _schedule_payload(*, name=None, schedule="*/30 * * * *", workflow_slug=None):
     slug = uuid4().hex[:8]
     data = {
         "event_key": "cron.tick",
@@ -123,6 +125,19 @@ class TestTriggerSchedulesValidation:
         )
         assert response.status_code == 422, response.text
 
+    @pytest.mark.parametrize(
+        "schedule", ["* * * * *", "*/5 * * * *", "0,1 * * * *", "0,1 0 31 1 *"]
+    )
+    def test_schedule_below_frequency_floor_is_rejected(self, authed_api, schedule):
+        """Every fire starts a billed agent run, so the API refuses a cadence
+        tighter than the floor and says so in the response body."""
+        response = authed_api(
+            "POST", "/triggers/schedules/", json=_schedule_payload(schedule=schedule)
+        )
+        assert response.status_code == 422, response.text
+        detail = response.json()["detail"]
+        assert "at most once every" in detail, detail
+
     def test_unresolvable_workflow_reference_is_rejected(self, authed_api):
         payload = _schedule_payload()
         payload["schedule"]["data"]["references"] = {
@@ -130,6 +145,26 @@ class TestTriggerSchedulesValidation:
         }
         response = authed_api("POST", "/triggers/schedules/", json=payload)
         assert response.status_code == 422, response.text
+
+    def test_slug_that_disagrees_with_the_id_is_rejected(self, authed_api):
+        """An application id with another artifact's slug is a client error.
+
+        The web once sent the revision's opaque slug next to the artifact id. The
+        API must answer 422 and name the mismatch, not 500.
+        """
+        workflow_slug, workflow_id = _create_workflow(authed_api)
+        wrong_slug = uuid4().hex[-12:]
+        payload = _schedule_payload()
+        payload["schedule"]["data"]["references"] = {
+            "application": {"id": workflow_id, "slug": wrong_slug}
+        }
+
+        response = authed_api("POST", "/triggers/schedules/", json=payload)
+
+        assert response.status_code == 422, response.text
+        detail = response.json()["detail"]
+        assert wrong_slug in detail, detail
+        assert workflow_slug in detail, detail
 
 
 # ---------------------------------------------------------------------------
@@ -139,7 +174,7 @@ class TestTriggerSchedulesValidation:
 
 class TestTriggerSchedulesLifecycle:
     def test_create_list_stop_start_edit_delete(self, authed_api):
-        workflow_slug = _create_workflow(authed_api)
+        workflow_slug, _ = _create_workflow(authed_api)
 
         # CREATE — active by default, bound to a real workflow
         create = authed_api(
@@ -150,7 +185,7 @@ class TestTriggerSchedulesLifecycle:
         assert create.status_code == 200, create.text
         sched = create.json()["schedule"]
         schedule_id = sched["id"]
-        assert sched["data"]["schedule"] == "*/5 * * * *"
+        assert sched["data"]["schedule"] == "*/30 * * * *"
         assert sched["flags"]["is_active"] is True
         # The bound reference is stored VERBATIM, not pinned to a resolved
         # revision: a bare artifact slug means "resolve latest at trigger time",
@@ -205,4 +240,44 @@ class TestTriggerSchedulesLifecycle:
         assert delete.status_code == 204
 
         fetch = authed_api("GET", f"/triggers/schedules/{schedule_id}")
-        assert fetch.status_code == 404
+        assert fetch.status_code == 200, fetch.text
+        fetched = fetch.json()
+        assert fetched["count"] == 1
+        historical = fetched["schedule"]
+        assert historical["id"] == schedule_id
+        assert historical["name"] == edited["name"]
+        assert historical["description"] == edited["description"]
+        assert historical["data"] == edited["data"]
+        assert historical["flags"] == edited["flags"]
+        assert historical["deleted_at"] is not None
+        assert historical["deleted_by_id"] is not None
+
+        list_response = authed_api("GET", "/triggers/schedules/")
+        assert list_response.status_code == 200, list_response.text
+        listing = list_response.json()
+        assert all(item["id"] != schedule_id for item in listing["schedules"])
+        query_response = authed_api(
+            "POST",
+            "/triggers/schedules/query",
+            json={"schedule": {"name": edited["name"]}},
+        )
+        assert query_response.status_code == 200, query_response.text
+        query = query_response.json()
+        assert all(item["id"] != schedule_id for item in query["schedules"])
+
+        rejected_edit = authed_api(
+            "PUT",
+            f"/triggers/schedules/{schedule_id}",
+            json={
+                "schedule": {
+                    "id": schedule_id,
+                    "name": historical["name"],
+                    "description": historical["description"],
+                    "data": historical["data"],
+                    "flags": historical["flags"],
+                }
+            },
+        )
+        assert rejected_edit.status_code == 404, rejected_edit.text
+        rejected_start = authed_api("POST", f"/triggers/schedules/{schedule_id}/start")
+        assert rejected_start.status_code == 404, rejected_start.text

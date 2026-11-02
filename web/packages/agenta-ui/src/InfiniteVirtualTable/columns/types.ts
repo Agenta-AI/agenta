@@ -1,6 +1,6 @@
 import type {Key, ReactNode} from "react"
 
-import type {ColumnsType, ColumnType} from "antd/es/table"
+import type {ColumnDef, ColumnDefs} from "../columnDef"
 
 export interface TableColumnCell<Row extends object> {
     render: (row: Row, rowIndex: number) => ReactNode
@@ -25,16 +25,16 @@ export interface TableColumnConfig<Row extends object> {
     visibilityTitle?: ReactNode
     cell?: TableColumnCell<Row>
     children?: TableColumnConfig<Row>[]
-    columnProps?: Partial<ColumnsType<Row>[number]>
-    shouldCellUpdate?: ColumnsType<Row>[number]["shouldCellUpdate"]
+    columnProps?: Partial<ColumnDefs<Row>[number]>
+    shouldCellUpdate?: ColumnDefs<Row>[number]["shouldCellUpdate"]
     exportLabel?: string
     exportEnabled?: boolean
-    exportDataIndex?: ColumnType<Row>["dataIndex"]
-    exportValue?: (row: Row, column?: ColumnsType<Row>[number], columnIndex?: number) => unknown
+    exportDataIndex?: ColumnDef<Row>["dataIndex"]
+    exportValue?: (row: Row, column?: ColumnDefs<Row>[number], columnIndex?: number) => unknown
     exportFormatter?: (
         value: unknown,
         row: Row,
-        column?: ColumnsType<Row>[number],
+        column?: ColumnDefs<Row>[number],
         columnIndex?: number,
     ) => string | undefined
     exportMetadata?: unknown
@@ -44,4 +44,4 @@ export type TableColumnGroup<Row extends object> = TableColumnConfig<Row> | Tabl
 
 export type TableColumnsBuilder<Row extends object> = (
     config: TableColumnGroup<Row>[],
-) => ColumnsType<Row>
+) => ColumnDefs<Row>

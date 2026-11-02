@@ -164,7 +164,7 @@ Uses the same `authed_api` / `wait_for_response` patterns as existing E2E tests.
 
 ### Phase 5: Run E2E Tests Against Deployed Worktree
 
-Run the E2E tests against the deployed instance at `http://144.76.237.122:8480`.
+Run the E2E tests against the deployed instance at `http://<dev-host>:8480`.
 
 ### Phase 6: Integration Docs
 
@@ -189,7 +189,7 @@ The example already exists and works. Minor refinements:
 
 ### Phase 8: Live Verification
 
-Run the real Vercel AI SDK example against the deployed worktree (`http://144.76.237.122:8480`) so the user can visually verify that inputs, outputs, model, and token panels are now populated.
+Run the real Vercel AI SDK example against the deployed worktree (`http://<dev-host>:8480`) so the user can visually verify that inputs, outputs, model, and token panels are now populated.
 
 ---
 

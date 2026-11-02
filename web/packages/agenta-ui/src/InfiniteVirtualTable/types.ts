@@ -1,11 +1,12 @@
 import type {Key, ReactNode} from "react"
 
-import type {ColumnsType, ColumnType, ColumnGroupType, TableProps} from "antd/es/table"
+import type {TableProps} from "antd/es/table"
 import type {Getter} from "jotai"
 import type {Store} from "jotai/vanilla/store"
 
 import type {ChipVariant} from "../type-chip/TypeChip"
 
+import type {ColumnDef, ColumnDefs, ColumnGroupDef} from "./columnDef"
 import type {VisibilityRegistrationHandler} from "./components/ColumnVisibilityHeader"
 import type {ColumnTypeInfo} from "./utils/detectColumnTypes"
 
@@ -37,9 +38,9 @@ export interface ExtendedColumnProps<RecordType> {
 }
 
 /**
- * Extended column type combining Ant Design's ColumnType with custom props
+ * Extended column type combining Ant Design's ColumnDef with custom props
  */
-export type ExtendedColumn<RecordType> = (ColumnType<RecordType> | ColumnGroupType<RecordType>) &
+export type ExtendedColumn<RecordType> = (ColumnDef<RecordType> | ColumnGroupDef<RecordType>) &
     ExtendedColumnProps<RecordType>
 
 /**
@@ -47,15 +48,15 @@ export type ExtendedColumn<RecordType> = (ColumnType<RecordType> | ColumnGroupTy
  */
 export const isColumnGroup = <RecordType>(
     column: ExtendedColumn<RecordType>,
-): column is ColumnGroupType<RecordType> & ExtendedColumnProps<RecordType> => {
+): column is ColumnGroupDef<RecordType> & ExtendedColumnProps<RecordType> => {
     return "children" in column && Array.isArray(column.children) && column.children.length > 0
 }
 
 /**
- * Safely cast ColumnsType to ExtendedColumn array
+ * Safely cast ColumnDefs to ExtendedColumn array
  */
 export const asExtendedColumns = <RecordType>(
-    columns: ColumnsType<RecordType>,
+    columns: ColumnDefs<RecordType>,
 ): ExtendedColumn<RecordType>[] => {
     return columns as ExtendedColumn<RecordType>[]
 }
@@ -118,7 +119,7 @@ export interface ColumnVisibilityState<RecordType> {
     toggleColumn: (key: Key) => void
     toggleTree: (key: Key) => void
     reset: () => void
-    visibleColumns: ColumnsType<RecordType>
+    visibleColumns: ColumnDefs<RecordType>
     columnTree: ColumnTreeNode[]
     version: number
 }
@@ -351,7 +352,7 @@ export interface TypeChipConfig<RecordType> {
 }
 
 export interface InfiniteVirtualTableProps<RecordType, ExpandedChildType = unknown> {
-    columns: ColumnsType<RecordType>
+    columns: ColumnDefs<RecordType>
     dataSource: RecordType[]
     loadMore: () => void
     rowKey: TableProps<RecordType>["rowKey"]

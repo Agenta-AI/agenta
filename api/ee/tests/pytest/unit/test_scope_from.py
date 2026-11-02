@@ -73,7 +73,6 @@ def test_scope_from_org_id_returns_org_only_scope():
     MeterScope; every finer dim is None."""
     s = scope_from(organization_id=ORG)
     assert s == MeterScope(organization_id=ORG)
-    assert s.workspace_id is None
     assert s.project_id is None
     assert s.user_id is None
 
@@ -113,20 +112,11 @@ def test_scope_from_ambient_org_projection(auth_context):
     assert s == MeterScope(organization_id=ORG)
 
 
-def test_scope_from_ambient_workspace(auth_context):
-    """Workspace granularity includes org + workspace; project/user nulled."""
-    s = scope_from(scope=Scope.WORKSPACE)
-    assert s == MeterScope(organization_id=ORG, workspace_id=WS)
-    assert s.project_id is None
-    assert s.user_id is None
-
-
 def test_scope_from_ambient_project(auth_context):
     """Project granularity adds project; user nulled."""
     s = scope_from(scope=Scope.PROJECT)
     assert s == MeterScope(
         organization_id=ORG,
-        workspace_id=WS,
         project_id=PRJ,
     )
     assert s.user_id is None
@@ -137,7 +127,6 @@ def test_scope_from_ambient_user(auth_context):
     s = scope_from(scope=Scope.USER)
     assert s == MeterScope(
         organization_id=ORG,
-        workspace_id=WS,
         project_id=PRJ,
         user_id=USR,
     )
@@ -154,11 +143,10 @@ def test_scope_from_ambient_user(auth_context):
     [
         (None, {"organization_id"}),
         (Scope.ORGANIZATION, {"organization_id"}),
-        (Scope.WORKSPACE, {"organization_id", "workspace_id"}),
-        (Scope.PROJECT, {"organization_id", "workspace_id", "project_id"}),
+        (Scope.PROJECT, {"organization_id", "project_id"}),
         (
             Scope.USER,
-            {"organization_id", "workspace_id", "project_id", "user_id"},
+            {"organization_id", "project_id", "user_id"},
         ),
     ],
 )
@@ -169,7 +157,7 @@ def test_scope_granularity_populates_expected_dims(auth_context, scope, expected
     s = scope_from(scope=scope)
     actually_set = {
         name
-        for name in ("organization_id", "workspace_id", "project_id", "user_id")
+        for name in ("organization_id", "project_id", "user_id")
         if getattr(s, name) is not None
     }
     assert actually_set == expected_set

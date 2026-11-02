@@ -1,33 +1,40 @@
-import {useMemo, useState, type FC} from "react"
+import {useCallback, useState, type FC} from "react"
 
-import {GearSix, Plus} from "@phosphor-icons/react"
-import {Button, Input, Space, Spin, Table, Tag, Typography} from "antd"
-import {ColumnsType} from "antd/es/table"
+import type {WorkspaceMember} from "@agenta/entities/organization"
+import {removeFromWorkspace, resendInviteToWorkspace} from "@agenta/entities/organization"
+import {resetPassword} from "@agenta/entities/profile"
+import {MembersPage} from "@agenta/settings-ui"
+import {isEE, isEmailInvitationsEnabled} from "@agenta/shared/api"
+import {message} from "@agenta/ui/app-message"
 import dynamic from "next/dynamic"
 
+import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {useWorkspacePermissions} from "@/oss/hooks/useWorkspacePermissions"
-import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
-import {isEmailInvitationsEnabled, isEE} from "@/oss/lib/helpers/isEE"
 import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
-import {getUsernameFromEmail} from "@/oss/lib/helpers/utils"
-import {WorkspaceMember} from "@/oss/lib/Types"
+import {updateUsername} from "@/oss/services/profile"
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
 import {useWorkspaceMembers} from "@/oss/state/workspace"
 
-import AvatarWithLabel from "./assets/AvatarWithLabel"
-import {Actions, Roles} from "./cellRenderers"
+import {Roles} from "./cellRenderers"
 
+const GenerateResetLinkModal = dynamic(() => import("./Modals/GenerateResetLinkModal"), {
+    ssr: false,
+})
+const PasswordResetLinkModal = dynamic(() => import("./Modals/PasswordResetLinkModal"), {
+    ssr: false,
+})
 const InvitedUserLinkModal = dynamic(() => import("./Modals/InvitedUserLinkModal"), {ssr: false})
 const InviteUsersModal = dynamic(() => import("./Modals/InviteUsersModal"), {ssr: false})
 
+/** OSS binding: the shared members table with this app's antd dialogs and its role editor. */
 const WorkspaceManage: FC = () => {
-    const {user: signedInUser} = useProfileData()
+    const {user: signedInUser, refetch: refetchProfile} = useProfileData()
     const {selectedOrg, loading, refetch} = useOrgData()
-    const {filteredMembers, searchTerm, setSearchTerm} = useWorkspaceMembers()
+    const {members} = useWorkspaceMembers()
     const {hasRBAC} = useEntitlements()
-    const {canInviteMembers} = useWorkspacePermissions()
+    const {canInviteMembers, canRemoveMembers, canModifyRoles} = useWorkspacePermissions()
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
     const [isInvitedUserLinkModalOpen, setIsInvitedUserLinkModalOpen] = useState(false)
     const [invitedUserData, setInvitedUserData] = useState<{email: string; uri: string}>({
@@ -35,149 +42,141 @@ const WorkspaceManage: FC = () => {
         uri: "",
     })
     const [queryInviteModalOpen, setQueryInviteModalOpen] = useQueryParam("inviteModal")
+    const [resendingEmail, setResendingEmail] = useState<string | null>(null)
+    const [resetTarget, setResetTarget] = useState<{id: string; username?: string} | null>(null)
+    const [generateResetLinkOpen, setGenerateResetLinkOpen] = useState(false)
+    const [resetLinkOpen, setResetLinkOpen] = useState(false)
+    const [resetLink, setResetLink] = useState("")
+    const [resetLoading, setResetLoading] = useState(false)
+
+    // Mirrors the backend RESET_PASSWORD permission, granted with invite/role-modify rights.
+    const canResetPassword = canInviteMembers || canModifyRoles
 
     const organizationId = selectedOrg?.id
     const workspaceId = selectedOrg?.default_workspace?.id
 
-    const columns = useMemo(
-        () =>
-            (
-                [
-                    {
-                        dataIndex: ["user", "username"],
-                        key: "username",
-                        title: "Name",
-                        onHeaderCell: () => ({
-                            style: {minWidth: 180},
-                        }),
-                        render: (_, member) => {
-                            const {user} = member
-                            const name = user.username || getUsernameFromEmail(user.email)
-                            return (
-                                <Space>
-                                    <AvatarWithLabel name={name} />
-                                    {user.email === signedInUser?.email && (
-                                        <Tag color="processing">you</Tag>
-                                    )}
-                                </Space>
-                            )
-                        },
-                    },
-                    {
-                        dataIndex: ["user", "email"],
-                        key: "email",
-                        title: "Email",
-                        render: (_, member) => (
-                            <span className="font-mono text-xs">{member.user?.email}</span>
-                        ),
-                    },
-                    !isEE() || hasRBAC
-                        ? {
-                              dataIndex: "roles",
-                              key: "role",
-                              title: "Roles",
-                              render: (_, member) => (
-                                  <Roles
-                                      member={member}
-                                      signedInUser={signedInUser!}
-                                      organizationId={organizationId!}
-                                      workspaceId={workspaceId!}
-                                  />
-                              ),
-                          }
-                        : null,
-                    {
-                        dataIndex: ["user", "created_at"],
-                        key: "created_at",
-                        title: "Creation Date",
-                        onHeaderCell: () => ({
-                            style: {minWidth: 160},
-                        }),
-                        render: (_, member) => {
-                            const {user} = member
-
-                            const isMember = !("status" in user) || user.status === "member"
-                            let color = "warning"
-                            let text = "Invitation Pending"
-                            if (user.status === "expired") {
-                                color = "error"
-                                text = "Invitation Expired"
-                            }
-                            return (
-                                <Space orientation="vertical">
-                                    <Typography.Text>
-                                        {formatDay({date: user.created_at})}
-                                    </Typography.Text>
-                                    {!isMember && <Tag color={color}>{text}</Tag>}
-                                </Space>
-                            )
-                        },
-                    },
-                    {
-                        title: <GearSix size={16} />,
-                        key: "key",
-                        width: 61,
-                        fixed: "right",
-                        align: "center",
-                        render: (_, member) => {
-                            const isSelf =
-                                member.user?.id === signedInUser?.id ||
-                                member.user?.email === signedInUser?.email
-                            const isOwner = member.user?.id === selectedOrg?.owner_id
-                            return (
-                                <Actions
-                                    member={member}
-                                    hidden={!isSelf && isOwner}
-                                    selfMenu={isSelf}
-                                    organizationId={organizationId!}
-                                    workspaceId={workspaceId!}
-                                    onResendInvite={(data: any) => {
-                                        if (!isEmailInvitationsEnabled() && data.uri) {
-                                            setInvitedUserData(data)
-                                            setIsInvitedUserLinkModalOpen(true)
-                                        }
-                                    }}
-                                />
-                            )
-                        },
-                    },
-                ] as ColumnsType<WorkspaceMember>
-            ).filter(Boolean),
-        [selectedOrg?.id],
+    const handleResendInvite = useCallback(
+        (record: WorkspaceMember) => {
+            const {user} = record
+            if (!organizationId || !user.email || !workspaceId) return
+            setResendingEmail(user.email)
+            resendInviteToWorkspace({organizationId, workspaceId, email: user.email})
+                .then((res) => {
+                    if (!isEmailInvitationsEnabled() && typeof res.url === "string") {
+                        setInvitedUserData({email: user.email!, uri: res.url})
+                        setIsInvitedUserLinkModalOpen(true)
+                    } else {
+                        message.success("Invitation sent!")
+                    }
+                })
+                .then(() => refetch())
+                .catch(console.error)
+                .finally(() => setResendingEmail(null))
+        },
+        [organizationId, workspaceId, refetch],
     )
 
+    const handleRemove = useCallback(
+        (record: WorkspaceMember) => {
+            const {user} = record
+            if (!organizationId || !user.email || !workspaceId) return
+            AlertPopup({
+                title: "Remove member",
+                message: `Are you sure you want to remove ${user.username} from this organization?`,
+                okText: "Remove",
+                onOk: () =>
+                    removeFromWorkspace(
+                        {organizationId, workspaceId, email: user.email},
+                        true,
+                    ).then(() => refetch()),
+            })
+        },
+        [organizationId, workspaceId, refetch],
+    )
+
+    const handleRename = useCallback(
+        async (_member: WorkspaceMember, name: string) => {
+            try {
+                await updateUsername(name)
+            } catch (error) {
+                const detail = (error as {response?: {data?: {detail?: string}}})?.response?.data
+                    ?.detail
+                throw new Error(
+                    detail || (error as {message?: string})?.message || "Unable to update username",
+                )
+            }
+            await Promise.all([refetchProfile(), refetch()])
+        },
+        [refetchProfile, refetch],
+    )
+
+    const handleResetPassword = useCallback(async () => {
+        if (!resetTarget) return
+        setResetLoading(true)
+        try {
+            const link = await resetPassword(resetTarget.id)
+            setGenerateResetLinkOpen(false)
+            setResetLink(link)
+            setResetLinkOpen(true)
+        } catch (error) {
+            const detail = (error as {response?: {data?: {detail?: string}}})?.response?.data
+                ?.detail
+            message.error(
+                detail ||
+                    (error as {message?: string})?.message ||
+                    "Unable to generate reset password link",
+            )
+        } finally {
+            setResetLoading(false)
+        }
+    }, [resetTarget])
+
     return (
-        <section className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-                {canInviteMembers && (
-                    <Button
-                        type="primary"
-                        icon={<Plus size={14} className="mt-0.2" />}
-                        onClick={() => setIsInviteModalOpen(true)}
-                    >
-                        Invite Members
-                    </Button>
-                )}
+        <MembersPage
+            members={members}
+            loading={loading}
+            signedInUser={signedInUser}
+            ownerId={selectedOrg?.owner_id}
+            canInviteMembers={canInviteMembers}
+            canRemoveMembers={canRemoveMembers}
+            canResetPassword={canResetPassword}
+            resendingEmail={resendingEmail}
+            // The role editor writes through antd's Select, so it stays with this host.
+            renderRoleCell={
+                !isEE() || hasRBAC
+                    ? (member) => (
+                          <Roles
+                              member={member}
+                              signedInUser={signedInUser!}
+                              organizationId={organizationId!}
+                              workspaceId={workspaceId!}
+                          />
+                      )
+                    : undefined
+            }
+            onInvite={() => setIsInviteModalOpen(true)}
+            onResendInvite={handleResendInvite}
+            onRemove={handleRemove}
+            onRenameSelf={handleRename}
+            onResetPassword={(member) => {
+                setResetTarget({id: member.user.id, username: member.user.username})
+                setGenerateResetLinkOpen(true)
+            }}
+        >
+            <GenerateResetLinkModal
+                open={generateResetLinkOpen}
+                username={resetTarget?.username}
+                onCancel={() => setGenerateResetLinkOpen(false)}
+                onOk={handleResetPassword}
+                confirmLoading={resetLoading}
+            />
 
-                <Input.Search
-                    placeholder="Search"
-                    className="w-[400px]"
-                    allowClear
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
-            </div>
-
-            <Spin spinning={loading}>
-                <Table<WorkspaceMember>
-                    dataSource={filteredMembers}
-                    rowKey={(record) => record.user.id}
-                    columns={columns}
-                    pagination={false}
-                    bordered
-                    scroll={{x: true}}
-                />
-            </Spin>
+            <PasswordResetLinkModal
+                open={resetLinkOpen}
+                username={resetTarget?.username}
+                generatedLink={resetLink}
+                onCancel={() => setResetLinkOpen(false)}
+            />
 
             <InviteUsersModal
                 setQueryInviteModalOpen={setQueryInviteModalOpen}
@@ -201,7 +200,7 @@ const WorkspaceManage: FC = () => {
                     invitedUserData={invitedUserData}
                 />
             )}
-        </section>
+        </MembersPage>
     )
 }
 

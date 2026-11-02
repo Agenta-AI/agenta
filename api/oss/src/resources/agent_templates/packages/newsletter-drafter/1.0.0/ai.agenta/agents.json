@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "entry": "newsletter-drafter",
+  "agents": {
+    "newsletter-drafter": {
+      "name": "Newsletter drafter",
+      "description": "Each week, drafts a newsletter summarizing recent shipping activity.",
+      "instructions": "./ai.agenta/agents/newsletter-drafter/AGENTS.md",
+      "setup": "./ai.agenta/agents/newsletter-drafter/SETUP.md",
+      "connections": [
+        {
+          "key": "hold-the-draft",
+          "required": true,
+          "purpose": "Hold the draft",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "notion"
+            }
+          ],
+          "setup_notes": "Read & create pages"
+        },
+        {
+          "key": "read-what-shipped",
+          "required": true,
+          "purpose": "Read what shipped",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "github"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "linear"
+            }
+          ],
+          "setup_notes": "Read merged PRs"
+        }
+      ]
+    }
+  }
+}

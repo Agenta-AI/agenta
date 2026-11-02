@@ -6,7 +6,7 @@
 
 import type {LlmProvider} from "@agenta/shared/types"
 
-import {STANDARD_PROVIDER_KINDS} from "./types"
+import {LlmEndpointProtocol, STANDARD_PROVIDER_KINDS} from "./types"
 
 /**
  * Render metadata attached to a `PROVIDER_FIELDS` item, e.g.
@@ -22,6 +22,11 @@ export interface ProviderFieldConfig {
     label: string
     placeholder: string
     note?: string
+    /**
+     * Per-kind override of `note`, for fields whose hint is only true of one provider. A kind
+     * absent here falls back to `note`; a field with neither shows none.
+     */
+    notesByKind?: Record<string, string>
     required?: boolean
     model?: string[]
     attributes?: ProviderFieldAttributes
@@ -35,6 +40,10 @@ export const CUSTOM_PROVIDER_KIND_FAMILIES: Record<string, readonly string[] | "
     sagemaker: "*",
     custom: "*",
 }
+
+/** A field's hint for one provider kind: the per-kind override when it has one, else the shared note. */
+export const fieldNoteForKind = (field: ProviderFieldConfig, kind: string): string | undefined =>
+    field.notesByKind ? field.notesByKind[kind] : field.note
 
 export const PROVIDER_FIELDS: ProviderFieldConfig[] = [
     {
@@ -56,7 +65,12 @@ export const PROVIDER_FIELDS: ProviderFieldConfig[] = [
         key: "apiBaseUrl",
         label: "API base URL",
         placeholder: "Enter API base URL",
-        note: "Include version (e.g. /v1) in the base URL (e.g. https://api.openai.com/v1)",
+        // No shared note: the OpenAI-style `/v1` example is true of an OpenAI-compatible endpoint
+        // and misleading under Azure (a resource endpoint) or Vertex (project + location).
+        notesByKind: {
+            custom: "Include the version path, e.g. /v1.",
+            azure: "Your resource endpoint, e.g. https://YOUR-RESOURCE.openai.azure.com",
+        },
         model: ["azure", "vertex_ai", "custom"],
         required: false,
     },
@@ -134,6 +148,42 @@ export const PROVIDER_FIELDS: ProviderFieldConfig[] = [
         attributes: {kind: "text", type: "password"},
     },
 ]
+
+/** One option of a declarative choice control. */
+export interface ProviderChoiceOption {
+    value: string
+    label: string
+}
+
+/** A choice the card asks for that is not a credential — today, the endpoint's protocol. */
+export interface ProviderChoiceFieldConfig {
+    key: string
+    label: string
+    options: ProviderChoiceOption[]
+}
+
+/**
+ * The protocol an endpoint speaks.
+ *
+ * Two options, because a third would change nothing: the relay serves all three route suffixes on
+ * any custom endpoint, and only the OpenAI-vs-Anthropic family changes behaviour.
+ */
+/**
+ * What the protocol control starts on. The form always writes a protocol, so a record saved through
+ * the card declares one even when the user never touched the control — which is what narrows it.
+ * A record that predates the field declares nothing, and nothing here supplies a value for it.
+ */
+export const DEFAULT_ENDPOINT_PROTOCOL: LlmEndpointProtocol = LlmEndpointProtocol.Openai
+
+// TODO(copy: owner)
+export const ENDPOINT_PROTOCOL_FIELD: ProviderChoiceFieldConfig = {
+    key: "protocol",
+    label: "Protocol",
+    options: [
+        {value: LlmEndpointProtocol.Openai, label: "OpenAI-compatible"},
+        {value: LlmEndpointProtocol.Anthropic, label: "Anthropic Messages"},
+    ],
+}
 
 /**
  * Per-provider credential requirement, declared as alternative sets: a config is valid when at

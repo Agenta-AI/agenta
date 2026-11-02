@@ -4,7 +4,9 @@ import {PushpinFilled} from "@ant-design/icons"
 import {Tag} from "antd"
 import clsx from "clsx"
 
-import {getComparisonColor, getComparisonSolidColor} from "../atoms/compare"
+import {useChartSeries} from "@/oss/lib/hooks/useChartSeries"
+
+import {getComparisonColor} from "../atoms/compare"
 
 interface EvaluationRunTagProps {
     label: string
@@ -27,7 +29,10 @@ const EvaluationRunTag = ({
 }: EvaluationRunTagProps) => {
     const resolvedCompareIndex = compareIndex ?? 0
     const resolvedIsBaseRun = isBaseRun ?? resolvedCompareIndex === 0
-    const tagColor = getComparisonSolidColor(resolvedCompareIndex)
+    // Solid series color resolved for the active theme (plain hex — see atoms/compare.ts on why
+    // solids can't be CSS vars); the tint background still routes through vars.
+    const series = useChartSeries()
+    const tagColor = series[resolvedCompareIndex] ?? series[0]
     const tagBg = getComparisonColor(resolvedCompareIndex)
 
     return (

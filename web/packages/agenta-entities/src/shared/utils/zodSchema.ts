@@ -7,12 +7,11 @@
  * ## Key Concepts
  *
  * - **Schema Set**: A collection of related schemas (base, create, update, local)
- * - **Local Entity Factory**: Creates validated local entities with defaults
  * - **Safe Parsing**: Consistent error handling across the codebase
  *
  * @example
  * ```typescript
- * import { createEntitySchemaSet, createLocalEntityFactory } from '@agenta/entities'
+ * import { createEntitySchemaSet } from '@agenta/entities'
  *
  * // Create schema variants for an entity
  * const testcaseSchemas = createEntitySchemaSet({
@@ -20,10 +19,6 @@
  *   serverFields: ['created_at', 'updated_at'],
  *   idGenerator: () => `new-${Date.now()}`,
  * })
- *
- * // Create local entities with validation
- * const createTestcase = createLocalEntityFactory(testcaseSchemas.local)
- * const testcase = createTestcase({ data: { country: 'USA' } })
  * ```
  */
 
@@ -185,96 +180,6 @@ export function createEntitySchemaSet<TBase extends z.ZodRawShape>(
 }
 
 // ============================================================================
-// LOCAL ENTITY FACTORY
-// ============================================================================
-
-/**
- * Create a factory function for creating validated local entities.
- *
- * The factory:
- * - Validates input against the schema
- * - Applies defaults for missing fields
- * - Generates an ID if not provided
- * - Returns a SafeParseResult with detailed errors
- *
- * @example
- * ```typescript
- * const createTestcase = createLocalEntityFactory(testcaseSchemas.local)
- *
- * // Create with partial data - rest gets defaults
- * const result = createTestcase({ data: { country: 'USA' } })
- * if (result.success) {
- *   console.log(result.data) // Full entity with ID and defaults
- * } else {
- *   console.log(result.errors) // Validation errors
- * }
- *
- * // Create with no data - all defaults
- * const empty = createTestcase()
- * ```
- */
-export function createLocalEntityFactory<T>(schema: z.ZodType<T>): LocalEntityFactory<T> {
-    return (input?: Partial<T>): SafeParseResult<T> => {
-        const result = safeParseWithErrors(schema, input ?? {})
-
-        // Log in development
-        if (process.env.NODE_ENV !== "production") {
-            if (result.success) {
-                console.log(
-                    "[LocalEntityFactory] Created entity:",
-                    (result.data as {id?: string})?.id,
-                )
-            } else {
-                console.error("[LocalEntityFactory] Validation failed:", result.errors)
-            }
-        }
-
-        return result
-    }
-}
-
-/**
- * Create a factory that also tracks created IDs.
- * Useful for molecules that need to track local entity IDs.
- *
- * @example
- * ```typescript
- * const { create, getCreatedIds, clearCreatedIds } = createTrackedEntityFactory(schema)
- *
- * create({ data: { name: 'Test 1' } })
- * create({ data: { name: 'Test 2' } })
- *
- * console.log(getCreatedIds()) // ['local-123', 'local-456']
- * clearCreatedIds() // Reset tracking
- * ```
- */
-export function createTrackedEntityFactory<T extends {id: string}>(
-    schema: z.ZodType<T>,
-): {
-    create: LocalEntityFactory<T>
-    getCreatedIds: () => string[]
-    clearCreatedIds: () => void
-} {
-    const createdIds: string[] = []
-
-    const create: LocalEntityFactory<T> = (input?: Partial<T>) => {
-        const result = safeParseWithErrors(schema, input ?? {})
-        if (result.success && result.data) {
-            createdIds.push(result.data.id)
-        }
-        return result
-    }
-
-    return {
-        create,
-        getCreatedIds: () => [...createdIds],
-        clearCreatedIds: () => {
-            createdIds.length = 0
-        },
-    }
-}
-
-// ============================================================================
 // SAFE PARSING UTILITIES
 // ============================================================================
 
@@ -370,30 +275,6 @@ export function safeParseWithLogging<T>(
     return null
 }
 
-/**
- * Parse or throw with a custom error message.
- *
- * @example
- * ```typescript
- * const testcase = parseOrThrow(
- *   testcaseSchema,
- *   data,
- *   'Invalid testcase data from API'
- * )
- * ```
- */
-export function parseOrThrow<T>(schema: z.ZodType<T>, data: unknown, errorMessage?: string): T {
-    const result = schema.safeParse(data)
-
-    if (result.success) {
-        return result.data
-    }
-
-    const message = errorMessage ?? "Validation failed"
-    const details = result.error.flatten()
-    throw new Error(`${message}: ${JSON.stringify(details)}`)
-}
-
 // ============================================================================
 // SCHEMA COMPOSITION UTILITIES
 // ============================================================================
@@ -416,88 +297,6 @@ function applyDefaults<T extends z.ZodRawShape>(
         }
         return {...defaults, ...input}
     }, schema) as z.ZodType<z.infer<z.ZodObject<T>>>
-}
-
-/**
- * Create a response schema that wraps entities in a standard format.
- *
- * @example
- * ```typescript
- * const testcasesResponseSchema = createPaginatedResponseSchema(
- *   testcaseSchema,
- *   'testcases'
- * )
- *
- * // Parses: { count: 10, testcases: [...], windowing: {...} }
- * ```
- */
-export function createPaginatedResponseSchema<T extends z.ZodTypeAny>(
-    entitySchema: T,
-    entityKey: string,
-): z.ZodType<
-    {
-        count: number
-        windowing?: {
-            newest?: string | null
-            oldest?: string | null
-            next?: string | null
-            limit?: number | null
-            [key: string]: unknown
-        } | null
-    } & Record<string, z.infer<T>[]>
-> {
-    const schema = z.object({
-        count: z.number(),
-        [entityKey]: z.array(entitySchema),
-        windowing: z
-            .object({
-                newest: z.string().nullable().optional(),
-                oldest: z.string().nullable().optional(),
-                next: z.string().nullable().optional(),
-                limit: z.number().nullable().optional(),
-            })
-            .passthrough()
-            .nullable()
-            .optional(),
-    })
-
-    return schema as unknown as z.ZodType<
-        {
-            count: number
-            windowing?: {
-                newest?: string | null
-                oldest?: string | null
-                next?: string | null
-                limit?: number | null
-                [key: string]: unknown
-            } | null
-        } & Record<string, z.infer<T>[]>
-    >
-}
-
-/**
- * Create a schema for batch operations.
- *
- * @example
- * ```typescript
- * const batchUpdateSchema = createBatchOperationSchema(
- *   testcaseSchemas.update,
- *   'update'
- * )
- *
- * // Validates: { items: [{ id: '1', data: {...} }] }
- * ```
- */
-export function createBatchOperationSchema<
-    T extends z.ZodTypeAny,
-    TOperation extends "create" | "update" | "delete",
->(itemSchema: T, operation: TOperation): z.ZodType<{items: z.infer<T>[]; operation?: TOperation}> {
-    const schema = z.object({
-        items: z.array(itemSchema),
-        operation: z.literal(operation).optional(),
-    })
-
-    return schema as unknown as z.ZodType<{items: z.infer<T>[]; operation?: TOperation}>
 }
 
 // ============================================================================
@@ -547,27 +346,3 @@ export const jsonValueSchema: z.ZodType<unknown> = z.lazy(() =>
         z.array(jsonValueSchema),
     ]),
 )
-
-// ============================================================================
-// TYPE HELPERS
-// ============================================================================
-
-/**
- * Extract the inferred type from a schema set's base schema
- */
-export type InferBase<T extends EntitySchemaSet<z.ZodRawShape>> = T["types"]["Base"]
-
-/**
- * Extract the create input type from a schema set
- */
-export type InferCreate<T extends EntitySchemaSet<z.ZodRawShape>> = T["types"]["Create"]
-
-/**
- * Extract the update input type from a schema set
- */
-export type InferUpdate<T extends EntitySchemaSet<z.ZodRawShape>> = T["types"]["Update"]
-
-/**
- * Extract the local entity type from a schema set
- */
-export type InferLocal<T extends EntitySchemaSet<z.ZodRawShape>> = T["types"]["Local"]

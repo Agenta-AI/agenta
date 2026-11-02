@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "entry": "uptime-reporter",
+  "agents": {
+    "uptime-reporter": {
+      "name": "Uptime reporter",
+      "description": "Posts a daily summary of uptime and error rates to Slack.",
+      "instructions": "./ai.agenta/agents/uptime-reporter/AGENTS.md",
+      "setup": "./ai.agenta/agents/uptime-reporter/SETUP.md",
+      "connections": [
+        {
+          "key": "read-the-errors",
+          "required": true,
+          "purpose": "Read the errors",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "sentry"
+            }
+          ],
+          "setup_notes": "Read issues"
+        },
+        {
+          "key": "post-the-report",
+          "required": true,
+          "purpose": "Post the report",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "slack"
+            }
+          ],
+          "setup_notes": "Post the daily summary"
+        },
+        {
+          "key": "read-uptime-context",
+          "required": false,
+          "purpose": "Read uptime context",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "datadog"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "newrelic"
+            }
+          ],
+          "setup_notes": "Read uptime context"
+        }
+      ]
+    }
+  }
+}

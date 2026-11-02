@@ -1,0 +1,491 @@
+/**
+ * The connection detail drawer, which two fixes landed in and nothing guarded.
+ *
+ * M4: a tool list is fetched per connection and arrives whenever it arrives, so opening a
+ * second connection while the first is still in flight used to render the first one's tools
+ * under the second one's name. The guard is an identity check on the answer, and the only way
+ * to observe it is to keep the first fetch in flight while the drawer moves on — a stub that
+ * resolves immediately decides that race before the product does.
+ *
+ * And the tool list's failure is a sentence a person can read with a Retry beside it, not a
+ * prompt to reauthorize: the server is connected, and what failed is the listing.
+ *
+ * The drawer renders through a portal, so every query here goes to the document rather than to
+ * the host node.
+ */
+import {act, createElement} from "react"
+
+import {McpProtocolError, type MCPEndpoint} from "@agenta/entities/mcpEndpoint"
+import {createRoot} from "react-dom/client"
+import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
+
+const {listMcpTools, editMcpEndpoint} = vi.hoisted(() => ({
+    listMcpTools: vi.fn(),
+    editMcpEndpoint: vi.fn(),
+}))
+
+// The component imports the api module directly, so the package barrel is the wrong seam.
+vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("../../../agenta-entities/src/mcpEndpoint/api/api")>()),
+    listMcpTools,
+    editMcpEndpoint,
+}))
+
+vi.mock("@agenta/shared/api", () => ({getAgentaApiUrl: () => "https://api.example.test"}))
+
+vi.mock("jotai", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("jotai")>()),
+    useAtomValue: () => "project-1",
+    useSetAtom: () => async () => undefined,
+}))
+
+import McpConnectionDetail from "../../src/mcpEndpoint/McpConnectionDetail"
+
+let host: HTMLDivElement
+let root: ReturnType<typeof createRoot>
+
+const connected = (overrides: Partial<MCPEndpoint> = {}): MCPEndpoint =>
+    ({
+        id: "mcp-1",
+        slug: "acme",
+        name: "Acme",
+        auth_mode: "oauth",
+        namespace: "custom",
+        secret_id: "grant-1",
+        data: {route: {base_url: "https://mcp.acme.test"}},
+        ...overrides,
+    }) as MCPEndpoint
+
+const settle = async () => {
+    for (let i = 0; i < 6; i++) {
+        await act(async () => {
+            await Promise.resolve()
+        })
+    }
+}
+
+const open = async (endpoint: MCPEndpoint | null) => {
+    await act(async () => {
+        root.render(
+            createElement(McpConnectionDetail, {
+                endpoint,
+                onClose: () => undefined,
+                onReconnect: () => undefined,
+                onDisconnect: () => undefined,
+            }),
+        )
+    })
+    await settle()
+}
+
+/** The drawer's text, portal included. */
+const text = (): string => (document.body.textContent ?? "").replace(/\s+/g, " ").trim()
+
+const toolNames = (): string[] =>
+    [...document.querySelectorAll('[data-testid="mcp-tool"]')].map(
+        (node) => node.querySelector("span")?.textContent ?? "",
+    )
+
+const button = (label: string) =>
+    [...document.querySelectorAll("button")].find((candidate) => candidate.textContent === label)
+
+beforeEach(() => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
+    listMcpTools.mockReset()
+    editMcpEndpoint.mockReset()
+    host = document.createElement("div")
+    document.body.appendChild(host)
+    root = createRoot(host)
+})
+
+afterEach(async () => {
+    await act(async () => root.unmount())
+    host.remove()
+    document.body.innerHTML = ""
+    vi.unstubAllGlobals()
+})
+
+describe("McpConnectionDetail on a phone", () => {
+    it("is a dialog that shrinks to the phone width and caps at 520px", async () => {
+        listMcpTools.mockResolvedValue([{name: "search"}])
+        await open(connected())
+
+        const panel = document.querySelector('[role="dialog"]')
+        expect(panel, "no dialog panel").not.toBeNull()
+        expect(panel!.className).toContain("w-full")
+        expect(panel!.className).toContain("max-w-[520px]")
+    })
+})
+
+describe("McpConnectionDetail: whose tools are on screen", () => {
+    it("lists the tools of the connection it was opened for", async () => {
+        listMcpTools.mockResolvedValue([{name: "search", description: "Search the corpus"}])
+        await open(connected())
+
+        expect(toolNames()).toEqual(["search"])
+        expect(listMcpTools).toHaveBeenCalledWith("acme", "project-1")
+    })
+
+    it("never shows one connection's tools under another connection's name", async () => {
+        // Held in flight on purpose: with an instant answer the first fetch settles before the
+        // drawer can move on, and the race the guard exists for never happens.
+        let answerFirst!: (tools: unknown[]) => void
+        listMcpTools.mockImplementationOnce(
+            () =>
+                new Promise((resolve) => {
+                    answerFirst = resolve as (tools: unknown[]) => void
+                }),
+        )
+        listMcpTools.mockResolvedValueOnce([{name: "deploy"}])
+
+        await open(connected())
+        await open(connected({id: "mcp-2", slug: "beta", name: "Beta"}))
+        await act(async () => {
+            answerFirst([{name: "search"}])
+        })
+        await settle()
+
+        expect(text()).toContain("Beta")
+        expect(toolNames()).toEqual(["deploy"])
+    })
+
+    it("asks again from scratch when the drawer moves to another connection", async () => {
+        listMcpTools.mockResolvedValue([{name: "search"}])
+        await open(connected())
+        await open(connected({id: "mcp-2", slug: "beta", name: "Beta"}))
+
+        expect(listMcpTools.mock.calls.map((call) => call[0])).toEqual(["acme", "beta"])
+    })
+
+    it("names a pending OAuth connection as its row in the list does", async () => {
+        // No grant and no check: the row says Not signed in, and the panel said Needs
+        // authorization for the same state.
+        await open(connected({secret_id: null}))
+
+        expect(text()).toContain("Not signed in")
+        expect(text()).not.toContain("Needs authorization")
+    })
+
+    it("says the server has to be connected before it can report tools", async () => {
+        // The same drawer straight after a disconnect: the status is read from the row it is
+        // showing now, so the previous connection's tools are neither listed nor re-fetched.
+        await open(connected({secret_id: null, flags: {is_valid: false}}))
+
+        expect(text()).toContain("Connect this server to see the tools it exposes.")
+        expect(toolNames()).toEqual([])
+        expect(listMcpTools).not.toHaveBeenCalled()
+    })
+
+    it("asks for a new sign-in when the relay could not renew the old one", async () => {
+        // The relay marked the connection, and the list behind the drawer is refreshed to
+        // learn it. The gateway's "Authorization required for custom/..." is not the
+        // person's sentence.
+        listMcpTools.mockRejectedValue(
+            new McpProtocolError("Authorization required for custom/acme", "auth_required", 409),
+        )
+        const onChanged = vi.fn()
+        const render = async (endpoint: MCPEndpoint) => {
+            await act(async () => {
+                root.render(
+                    createElement(McpConnectionDetail, {
+                        endpoint,
+                        onClose: () => undefined,
+                        onReconnect: () => undefined,
+                        onDisconnect: () => undefined,
+                        onChanged,
+                    }),
+                )
+            })
+            await settle()
+        }
+        await render(connected())
+
+        expect(text()).toContain("Sign in again to keep using this connection.")
+        expect(text()).not.toContain("Authorization required")
+        expect(onChanged).toHaveBeenCalled()
+
+        // The refreshed endpoint is the authority on the connection's state.
+        await render(connected({flags: {is_valid: false}}))
+
+        expect(text()).toContain("Sign in again to keep using this connection.")
+        expect(text()).toContain("Login expired")
+    })
+
+    it("shows the connection working when a valid update follows a failed sign-in", async () => {
+        // Another tab signed in again. The same connection arrives valid, and nothing left
+        // over from the failure overrides it.
+        listMcpTools.mockRejectedValueOnce(
+            new McpProtocolError("Authorization required for custom/acme", "auth_required", 409),
+        )
+        listMcpTools.mockResolvedValue([{name: "create_issue", description: "File an issue"}])
+        await open(connected())
+        expect(text()).toContain("Sign in again to keep using this connection.")
+
+        await open(connected({flags: {is_valid: true}}))
+
+        expect(text()).not.toContain("Login expired")
+        expect(text()).not.toContain("Sign in again")
+        expect(toolNames()).toEqual(["create_issue"])
+    })
+})
+
+describe("McpConnectionDetail: finding one tool among many", () => {
+    /** Enough tools that the filter appears at all, with one worth hunting for. */
+    const many = Array.from({length: 40}, (_, index) => ({
+        name: `tool_${index}`,
+        description: index === 7 ? "File a new issue in a team" : "Does a thing",
+    }))
+
+    /** Type into the filter box the way a person does, through the real input event. */
+    const typeFilter = async (value: string) => {
+        const box = document.querySelector<HTMLInputElement>('[aria-label="Filter tools"]')!
+        await act(async () => {
+            const setter = Object.getOwnPropertyDescriptor(
+                window.HTMLInputElement.prototype,
+                "value",
+            )!.set!
+            setter.call(box, value)
+            box.dispatchEvent(new Event("input", {bubbles: true}))
+        })
+        await settle()
+    }
+
+    it("offers a filter once there are enough tools to hunt through", async () => {
+        listMcpTools.mockResolvedValue(many)
+        await open(connected())
+
+        expect(document.querySelector('[aria-label="Filter tools"]')).not.toBeNull()
+    })
+
+    it("does not put a filter above a handful", async () => {
+        listMcpTools.mockResolvedValue([{name: "search"}, {name: "deploy"}])
+        await open(connected())
+
+        expect(document.querySelector('[aria-label="Filter tools"]')).toBeNull()
+    })
+
+    it("narrows the rows to what was typed, by name or by what the tool does", async () => {
+        listMcpTools.mockResolvedValue(many)
+        await open(connected())
+
+        await typeFilter("issue")
+
+        // tool_7 matches on its description, which this drawer renders, so the result reads.
+        expect(toolNames()).toEqual(["tool_7"])
+    })
+
+    it("says the query matched nothing rather than looking like a server with no tools", async () => {
+        listMcpTools.mockResolvedValue(many)
+        await open(connected())
+
+        await typeFilter("nothing-matches-this")
+
+        expect(text()).toContain("No tool here matches that")
+        expect(text()).not.toContain("This server exposes no tools yet")
+    })
+
+    it("clears the query when another connection is opened", async () => {
+        // The box is only offered above eight tools, so a query carried into a shorter
+        // catalogue applies with nothing on screen to undo it: the second connection then
+        // reports fewer tools than it has, or none at all.
+        listMcpTools.mockResolvedValueOnce(many)
+        listMcpTools.mockResolvedValueOnce([{name: "deploy"}])
+
+        await open(connected())
+        await typeFilter("issue")
+        expect(toolNames()).toEqual(["tool_7"])
+
+        await open(connected({id: "mcp-2", slug: "beta", name: "Beta"}))
+
+        expect(document.querySelector('[aria-label="Filter tools"]')).toBeNull()
+        expect(toolNames()).toEqual(["deploy"])
+    })
+
+    it("restores the whole list when the query is cleared", async () => {
+        listMcpTools.mockResolvedValue(many)
+        await open(connected())
+
+        await typeFilter("issue")
+        await typeFilter("")
+
+        expect(toolNames()).toHaveLength(40)
+    })
+})
+
+describe("McpConnectionDetail: a tool list that could not be read", () => {
+    it("states the failure and offers to try the listing again", async () => {
+        listMcpTools.mockRejectedValueOnce(new Error("The gateway timed out."))
+        await open(connected())
+
+        expect(text()).toContain("The gateway timed out.")
+        // Connected, with a listing problem: nothing here suggests reauthorizing.
+        expect(text()).not.toContain("Login expired")
+        expect(button("Retry tools")).toBeTruthy()
+    })
+
+    it("falls back to a readable sentence when the failure carried no message", async () => {
+        listMcpTools.mockRejectedValueOnce(new Error(""))
+        await open(connected())
+
+        expect(text()).toContain("The tool list could not be read.")
+    })
+
+    it("lists the tools once a retry succeeds", async () => {
+        listMcpTools.mockRejectedValueOnce(new Error("The gateway timed out."))
+        listMcpTools.mockResolvedValueOnce([{name: "search"}])
+        await open(connected())
+
+        await act(async () => {
+            button("Retry tools")?.dispatchEvent(new MouseEvent("click", {bubbles: true}))
+        })
+        await settle()
+
+        expect(toolNames()).toEqual(["search"])
+        expect(text()).not.toContain("The gateway timed out.")
+    })
+
+    it("does not put a stale failure under the connection that replaced it", async () => {
+        let failFirst!: (error: Error) => void
+        listMcpTools.mockImplementationOnce(
+            () =>
+                new Promise((_resolve, reject) => {
+                    failFirst = reject
+                }),
+        )
+        listMcpTools.mockResolvedValueOnce([{name: "deploy"}])
+
+        await open(connected())
+        await open(connected({id: "mcp-2", slug: "beta", name: "Beta"}))
+        await act(async () => {
+            failFirst(new Error("The gateway timed out."))
+        })
+        await settle()
+
+        expect(text()).not.toContain("The gateway timed out.")
+        expect(toolNames()).toEqual(["deploy"])
+    })
+})
+
+describe("McpConnectionDetail: renaming", () => {
+    const typeName = async (value: string) => {
+        const box = document.querySelector<HTMLInputElement>('[aria-label="Connection name"]')!
+        await act(async () => {
+            const setter = Object.getOwnPropertyDescriptor(
+                window.HTMLInputElement.prototype,
+                "value",
+            )!.set!
+            setter.call(box, value)
+            box.dispatchEvent(new Event("input", {bubbles: true}))
+        })
+        await settle()
+    }
+
+    const pressEnter = async () => {
+        const box = document.querySelector<HTMLInputElement>('[aria-label="Connection name"]')!
+        await act(async () => {
+            box.dispatchEvent(new KeyboardEvent("keydown", {key: "Enter", bubbles: true}))
+        })
+    }
+
+    it("sends one rename when Enter is pressed again while the save is in flight", async () => {
+        listMcpTools.mockResolvedValue([])
+        // Held in flight, so the second Enter lands while the first save is still pending.
+        let finishSave!: () => void
+        editMcpEndpoint.mockImplementation(
+            () =>
+                new Promise<void>((resolve) => {
+                    finishSave = resolve
+                }),
+        )
+        await open(connected())
+        await typeName("Acme Prod")
+
+        await pressEnter()
+        await pressEnter()
+        await act(async () => {
+            finishSave()
+        })
+        await settle()
+
+        expect(editMcpEndpoint).toHaveBeenCalledTimes(1)
+    })
+})
+
+describe("McpConnectionDetail: the authentication", () => {
+    it("says how the connection signs in and opens the sheet that changes it", async () => {
+        listMcpTools.mockResolvedValue([])
+        const onReconnect = vi.fn()
+        const endpoint = connected({auth_mode: "api_key"})
+        await act(async () => {
+            root.render(
+                createElement(McpConnectionDetail, {
+                    endpoint,
+                    onClose: () => undefined,
+                    onReconnect,
+                    onDisconnect: () => undefined,
+                }),
+            )
+        })
+        await settle()
+
+        expect(text()).toMatch(/Authentication\s*API key/)
+        await act(async () => {
+            button("Change")?.dispatchEvent(new MouseEvent("click", {bubbles: true}))
+        })
+        expect(onReconnect).toHaveBeenCalledWith(endpoint)
+    })
+})
+
+describe("McpConnectionDetail: a member without the write permission", () => {
+    const openAs = async (
+        endpoint: MCPEndpoint,
+        props: {readOnly?: boolean; canListTools?: boolean},
+    ) => {
+        await act(async () => {
+            root.render(
+                createElement(McpConnectionDetail, {
+                    endpoint,
+                    onClose: () => undefined,
+                    onReconnect: () => undefined,
+                    onDisconnect: () => undefined,
+                    ...props,
+                }),
+            )
+        })
+        await settle()
+    }
+
+    it("offers no Reconnect, Disconnect, Change or Save, and locks the name", async () => {
+        listMcpTools.mockResolvedValue([{name: "search", description: "Find things"}])
+        await openAs(connected(), {readOnly: true})
+
+        for (const label of ["Reconnect", "Connect", "Disconnect", "Change", "Save"]) {
+            expect(button(label)).toBeUndefined()
+        }
+        expect(button("Close")).toBeTruthy()
+        const input = document.querySelector(
+            'input[aria-label="Connection name"]',
+        ) as HTMLInputElement
+        expect(input.readOnly).toBe(true)
+        // Reading the tools is a separate permission; read-only alone still lists them.
+        expect(toolNames()).toEqual(["search"])
+    })
+
+    it("does not ask for the tool list when the member may not read it", async () => {
+        listMcpTools.mockResolvedValue([{name: "search"}])
+        await openAs(connected(), {readOnly: true, canListTools: false})
+
+        expect(listMcpTools).not.toHaveBeenCalled()
+        expect(text()).not.toContain("Tools")
+        expect(text()).not.toContain("Couldn't read this server's tools")
+    })
+
+    it("keeps every action for a member who holds the permissions", async () => {
+        listMcpTools.mockResolvedValue([])
+        await openAs(connected(), {})
+
+        for (const label of ["Reconnect", "Disconnect", "Change", "Save"]) {
+            expect(button(label)).toBeTruthy()
+        }
+    })
+})

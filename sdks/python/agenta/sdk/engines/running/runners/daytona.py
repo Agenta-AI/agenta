@@ -1,12 +1,19 @@
 import os
 import json
+import math
+import base64
+import threading
 from contextlib import contextmanager
 from typing import Any, Dict, Generator, Union, Optional, TYPE_CHECKING
 
 import httpx
 
 import agenta as ag
-from agenta.sdk.engines.running.runners.base import CodeRunner, normalize_result
+from agenta.sdk.engines.running.runners.base import (
+    CodeRunner,
+    get_code_sandbox_timeout,
+    normalize_result,
+)
 from agenta.sdk.contexts.running import RunningContext
 from agenta.sdk.utils.cache import TTLLRUCache
 from agenta.sdk.utils.lazy import _load_daytona
@@ -76,6 +83,79 @@ def _extract_error_message(error_text: str) -> str:
     return error_text[:200] if len(error_text) > 200 else error_text
 
 
+def _secret_token_claims(credentials: str) -> Optional[Dict[str, Any]]:
+    """The payload of a ``Secret`` credential, read without verifying it.
+
+    Only used to check what a token we were just handed carries. Nothing here trusts the
+    payload for authorization; the API verifies every token it receives.
+    """
+    try:
+        payload = credentials[len("Secret ") :].split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        claims = json.loads(base64.urlsafe_b64decode(payload.encode("ascii")))
+    except Exception:  # pylint: disable=broad-except
+        return None
+    return claims if isinstance(claims, dict) else None
+
+
+def _carries_grants(claims: Optional[Dict[str, Any]]) -> bool:
+    """Whether a Secret token's claims hold more than the user's own scope."""
+    return claims is None or bool(claims.get("grants")) or "aud" in claims
+
+
+def _sandbox_credentials(credentials: str, api_url: str) -> str:
+    """The credential the evaluator code in the sandbox may hold.
+
+    The credential this service runs with can carry grants (secret-resolve), which let it
+    read write-only vault values and exchange for a platform-run gateway token. The code in
+    the sandbox is written by the user, so it gets the same scope without any grant: the
+    API re-mints the token with ``without_grants``. If the API does not return a token
+    without grants (an older API that ignores the parameter, or any error), the run fails
+    rather than hand the sandbox the grant-bearing token or silently run without one.
+    The local and restricted runners run in this process and are not covered by this.
+    """
+    if not credentials.startswith("Secret "):
+        # Only a Secret token can carry grants. An ApiKey is the user's own key.
+        return credentials
+
+    if not _carries_grants(_secret_token_claims(credentials)):
+        return credentials
+
+    narrowed = None
+    reason = "no API URL is configured"
+    if api_url:
+        try:
+            response = httpx.get(
+                f"{api_url.rstrip('/')}/access/permissions/check",
+                headers={"Authorization": credentials},
+                params={
+                    "action": "run_service",
+                    "resource_type": "service",
+                    "without_grants": "true",
+                },
+                timeout=10.0,
+            )
+            if response.is_success:
+                narrowed = response.json().get("credentials")
+                reason = "the API did not return a credential without grants"
+            else:
+                reason = f"the API answered HTTP {response.status_code}"
+        except Exception as exc:  # pylint: disable=broad-except
+            reason = f"the request to the API failed ({type(exc).__name__})"
+
+    if (
+        not isinstance(narrowed, str)
+        or not narrowed.startswith("Secret ")
+        or _carries_grants(_secret_token_claims(narrowed))
+    ):
+        log.warning("Daytona: no sandbox credential: %s", reason)
+        raise RuntimeError(
+            f"Could not get a credential for the evaluator sandbox: {reason}."
+        )
+
+    return narrowed
+
+
 class DaytonaRunner(CodeRunner):
     """Remote code runner using Daytona sandbox for execution."""
 
@@ -86,6 +166,9 @@ class DaytonaRunner(CodeRunner):
     # only by ID. Cache the (name, target) -> id mapping for a day to avoid
     # listing snapshots on every sandbox create.
     _snapshot_id_cache: TTLLRUCache = TTLLRUCache(capacity=32, ttl=86400)
+
+    # Runs start from many threads at once. Build the client only once.
+    _client_lock = threading.Lock()
 
     def __new__(cls):
         """Singleton pattern to reuse Daytona client and sandbox."""
@@ -119,6 +202,11 @@ class DaytonaRunner(CodeRunner):
         if self.daytona is not None:
             return
 
+        with self._client_lock:
+            if self.daytona is None:
+                self._create_client()
+
+    def _create_client(self) -> None:
         try:
             Daytona, DaytonaConfig, _, _ = _load_daytona()
 
@@ -167,10 +255,14 @@ class DaytonaRunner(CodeRunner):
             "together_ai": "TOGETHERAI_API_KEY",
             "openrouter": "OPENROUTER_API_KEY",
             "gemini": "GEMINI_API_KEY",
+            "xai": "XAI_API_KEY",
         }
 
-        # Extract provider keys from secrets
+        # Extract provider keys from secrets. A write-only key never goes in: the code in
+        # the sandbox is written by the user, and it could read the key back from its env.
         for secret in secrets:
+            if secret.get("write_only"):
+                continue
             if secret.get("kind") == "provider_key":
                 secret_data = secret.get("data", {})
                 provider_kind = secret_data.get("kind")
@@ -268,10 +360,9 @@ class DaytonaRunner(CodeRunner):
                 #
                 or ""
             )
-            agenta_credentials = (
-                RunningContext.get().credentials
-                #
-                or ""
+            agenta_credentials = _sandbox_credentials(
+                RunningContext.get().credentials or "",
+                agenta_api_url,
             )
             agenta_api_key = (
                 agenta_credentials[7:]
@@ -413,7 +504,12 @@ class DaytonaRunner(CodeRunner):
                 )
 
                 # Execute the code in the Daytona sandbox
-                response = sandbox.process.code_run(wrapped_code)
+                # The caller stops waiting at the same timeout. Passing it here
+                # also stops the remote run, so the thread and sandbox are freed.
+                response = sandbox.process.code_run(
+                    wrapped_code,
+                    timeout=math.ceil(get_code_sandbox_timeout()),
+                )
                 response_stdout = response.result if hasattr(response, "result") else ""
                 response_exit_code = getattr(response, "exit_code", 0)
                 response_error = getattr(response, "error", None) or getattr(

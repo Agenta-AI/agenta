@@ -18,6 +18,10 @@ policy) and `render` (optional), discriminated by `type`:
 { "type": "gateway", "provider": "composio", "integration": "github",
   "action": "create_issue", "connection": "my-gh", "name": null }
 
+{ "type": "gateway_connection",
+  "connection": { "provider": "composio", "integration": "github", "slug": "my-gh" },
+  "policy": { "permissions": { "default": "allow", "tools": {} } } }
+
 { "type": "code", "name": "fx", "runtime": "python",   // "python" | "node"
   "script": "...", "input_schema": {}, "secrets": ["API_KEY"] }
 
@@ -77,6 +81,10 @@ config (not markers); `resolve_tools` owns the tool-specific mapping.
 
 Each resolved spec also carries `read_only`, `permission`, and `render`.
 
+A `gateway_connection` is different from the legacy `gateway` entry. It resolves to the
+shared `search_tools` and `run_tool` callback specs plus a private `ResolvedGatewayPolicy`.
+The policy is not part of either spec and never enters a harness config.
+
 ## Permission derivation
 
 A tool's authored `permission` travels as is. `ToolSpec.to_wire()` sends only the author's
@@ -109,6 +117,10 @@ secret; their provider key stays server-side and the call routes back through `/
 - `sdks/python/agenta/sdk/agents/tools/compat.py`: coerces legacy/typed tool dicts (a
   `type: "reference"` or `type: "platform"` dict parses straight into its config model).
 - `sdks/python/agenta/sdk/agents/platform/gateway.py`: gateway resolution to a `call_ref`.
+- `sdks/python/agenta/sdk/agents/tools/interfaces.py`: separate `GatewayToolResolver` and
+  `GatewayConnectionResolver` ports for legacy actions and integration-level connections.
+- `sdks/python/agenta/sdk/agents/tools/resolver.py`: combines resolved specs, callbacks, and
+  the private gateway policy into `ResolvedToolSet`.
 - `sdks/python/agenta/sdk/agents/platform/workflow.py`: `type: "reference"` workflow resolution to
   a `workflow.{axis}.*` callback spec.
 - `sdks/python/agenta/sdk/agents/platform/op_catalog.py`: the platform-op catalog (the typed `op`
@@ -142,6 +154,12 @@ description + schema live in `op_catalog.py` (the SDK must not import the API).
 - **Secret injection for code tools.** Secrets ride `env` and are resolved once at parse time.
 - **Gateway call references.** The `call_ref` format is a paired contract with the tool
   endpoint.
+- **Gateway resolver roles.** Legacy action resolution and integration-level connection
+  resolution return different semantic results and remain separate ports, even when one
+  platform adapter implements both.
+- **Gateway policy ownership.** `ResolvedToolSet` and neutral `SessionConfig` carry it to the
+  backend. Harness templates receive only integration names for guidance and never own or
+  serialize runner policy.
 - **Workflow call references.** A `type: "reference"` tool's `call_ref` is
   `workflow.variant.{slug}[.{version}]` or `workflow.environment.{environment}.{slug}`. The
   server-side `/tools/call` routes by the `tools.*` vs `workflow.*` prefix; keep the SDK

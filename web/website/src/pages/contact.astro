@@ -1,0 +1,186 @@
+---
+import Badge from "../components/Badge.astro";
+import Section from "../components/Section.astro";
+import Site from "../layouts/Site.astro";
+
+// Contact page — the live site has no standalone /contact (returns 404; footer
+// "Contact" links to /imprint instead). This page consolidates contact details
+// from the Impressum and adds the Book-a-demo CTA so users landing here get a
+// clear next action without needing to parse legal text.
+
+const DEMO_URL =
+  "https://cal.com/mahmoud-mabrouk-ogzgey/demo?duration=30";
+---
+
+<Site
+  title="Contact — Agenta"
+  description="Get in touch with the Agenta team. Book a 30-minute demo, email us, or join the community on GitHub, Slack, and LinkedIn."
+  showCta={false}
+  cta={{
+    title: "Ready to see Agenta in action?",
+    body: "Book a 30-minute demo and we'll walk you through the platform.",
+    primaryLabel: "Book a demo",
+    primaryHref: DEMO_URL,
+    secondaryLabel: "Get started free",
+    secondaryHref: "https://cloud.agenta.ai/",
+  }}
+>
+  <!-- ══ HERO ══════════════════════════════════════════════════════════ -->
+  <Section tone="flat"
+    style="background:var(--ct-hero-bg);border-bottom:1px solid var(--th-section-border);"
+  >
+    <div
+      style="max-width:860px;margin:0 auto;padding:96px 32px 80px;"
+    >
+      <Badge style="margin-bottom:24px;">Contact</Badge>
+      <h1
+        class="ag-h1"
+        style="margin:0 0 16px;font:var(--text-display-lg);color:var(--th-text-hi);text-wrap:pretty;"
+      >
+        Get in touch
+      </h1>
+      <p
+        style="margin:0;font:var(--text-body-md);color:var(--th-text-body);max-width:540px;text-wrap:pretty;"
+      >
+        Book a demo, reach us by email, or find us on the channels below.
+      </p>
+    </div>
+  </Section>
+
+  <!-- ══ CONTENT ═══════════════════════════════════════════════════════ -->
+  <Section tone="flat" style="background:var(--ct-body-bg);padding:64px 32px 96px;">
+    <div
+      style="max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:32px;"
+    >
+
+      <!-- Book a demo panel -->
+      <div
+        class="ag-info-panel"
+        style="border:1px solid var(--th-border-subtle);padding:40px 40px 40px;background:var(--ct-panel-bg);display:flex;flex-direction:column;gap:20px;"
+      >
+        <div>
+          <h2
+            style="margin:0 0 8px;font:300 28px/1.15 var(--font-display,'GT Alpina',serif);color:var(--th-text-hi);"
+          >
+            Book a demo
+          </h2>
+          <p style="margin:0;font:var(--text-body-md);color:var(--th-text-body);">
+            30 minutes. We'll show you how Agenta fits your LLM workflow and answer
+            any questions you have.
+          </p>
+        </div>
+
+        <a
+          href={DEMO_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="ag-btn ag-btn--primary"
+          style="align-self:flex-start;"
+        >
+          Book a 30-minute demo
+        </a>
+      </div>
+
+      <!-- Direct contact panel -->
+      <div
+        class="ag-info-panel"
+        style="border:1px solid var(--th-border-subtle);padding:40px 40px 36px;background:var(--ct-panel-bg);"
+      >
+        <h2
+          style="margin:0 0 24px;font:300 28px/1.15 var(--font-display,'GT Alpina',serif);color:var(--th-text-hi);"
+        >
+          Direct contact
+        </h2>
+
+        <dl
+          class="ag-deflist"
+          style="display:grid;grid-template-columns:160px 1fr;gap:12px 24px;font:var(--text-body-md);color:var(--th-text-body);margin:0;"
+        >
+          <dt style="color:var(--th-text-dim);font:var(--text-label);">Email</dt>
+          <dd style="margin:0;overflow-wrap:anywhere;">
+            <a
+              href="mailto:team@agenta.ai"
+              style="color:var(--th-text-body);text-decoration:none;"
+            >
+              team@agenta.ai
+            </a>
+          </dd>
+
+          <dt style="color:var(--th-text-dim);font:var(--text-label);">Phone</dt>
+          <dd style="margin:0;overflow-wrap:anywhere;">
+            <a
+              href="tel:+4915231036519"
+              style="color:var(--th-text-body);text-decoration:none;"
+            >
+              +49-(0)-152-31036519
+            </a>
+          </dd>
+
+          <dt style="color:var(--th-text-dim);font:var(--text-label);">Address</dt>
+          <dd style="margin:0;overflow-wrap:anywhere;">
+            Agentatech UG (haftungsbeschränkt)<br />
+            c/o betahaus, Rudi-Dutschke-Straße 23<br />
+            10969 Berlin, Germany
+          </dd>
+        </dl>
+      </div>
+
+      <!-- Community channels panel -->
+      <div
+        class="ag-info-panel"
+        style="border:1px solid var(--th-border-subtle);padding:40px 40px 36px;background:var(--ct-panel-bg);"
+      >
+        <h2
+          style="margin:0 0 24px;font:300 28px/1.15 var(--font-display,'GT Alpina',serif);color:var(--th-text-hi);"
+        >
+          Community
+        </h2>
+
+        <div style="display:flex;flex-wrap:wrap;gap:12px;">
+          <a
+            href="https://github.com/Agenta-AI/agenta"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="ag-btn ag-btn--outline"
+          >
+            GitHub
+          </a>
+          <a
+            href="https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="ag-btn ag-btn--outline"
+          >
+            Slack Community
+          </a>
+          <a
+            href="https://www.linkedin.com/company/agenta-ai"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="ag-btn ag-btn--outline"
+          >
+            LinkedIn
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </Section>
+</Site>
+
+<style is:global>
+  /* Theme-conditional values where the dark literal has no matching --th-*
+     token. Light per the light-theme spec (white panels, paper-scale cards);
+     dark = this page's previous literals, verbatim. Buttons are the shared
+     .ag-btn. */
+  :root {
+    --ct-hero-bg: var(--th-bg-1);
+    --ct-body-bg: var(--th-bg-1);
+    --ct-panel-bg: var(--paper-50);
+  }
+  [data-theme="dark"] {
+    --ct-hero-bg: #0e0d0f;
+    --ct-body-bg: #0a0a0b;
+    --ct-panel-bg: #100f11;
+  }
+</style>

@@ -4,7 +4,8 @@ import type * as AgentaApi from "../../../index.js";
 
 export type ToolResolveRequestToolsItem =
     | AgentaApi.ToolResolveRequestToolsItem.Builtin
-    | AgentaApi.ToolResolveRequestToolsItem.Gateway;
+    | AgentaApi.ToolResolveRequestToolsItem.Gateway
+    | AgentaApi.ToolResolveRequestToolsItem.GatewayConnection;
 
 export namespace ToolResolveRequestToolsItem {
     export interface Builtin extends AgentaApi.BuiltinToolConfig {
@@ -13,5 +14,9 @@ export namespace ToolResolveRequestToolsItem {
 
     export interface Gateway extends AgentaApi.GatewayToolConfig {
         type: "gateway";
+    }
+
+    export interface GatewayConnection extends AgentaApi.GatewayConnectionToolConfig {
+        type: "gateway_connection";
     }
 }

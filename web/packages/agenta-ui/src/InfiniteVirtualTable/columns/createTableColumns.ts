@@ -1,13 +1,12 @@
 import type {ReactNode} from "react"
 
-import type {ColumnsType} from "antd/es/table"
-
 import {cn} from "../../utils/styles"
+import type {ColumnDefs} from "../columnDef"
 
 import type {TableColumnConfig, TableColumnGroup, TableColumnCell} from "./types"
 
-type ColumnWithChildren<Row extends object> = ColumnsType<Row>[number] & {
-    children?: ColumnsType<Row>
+type ColumnWithChildren<Row extends object> = ColumnDefs<Row>[number] & {
+    children?: ColumnDefs<Row>
 }
 
 /**
@@ -23,11 +22,11 @@ interface ExtendedColumnProps<Row extends object> {
     exportLabel?: string
     exportEnabled?: boolean
     exportDataIndex?: unknown
-    exportValue?: (row: Row, column?: ColumnsType<Row>[number], columnIndex?: number) => unknown
+    exportValue?: (row: Row, column?: ColumnDefs<Row>[number], columnIndex?: number) => unknown
     exportFormatter?: (
         value: unknown,
         row: Row,
-        column?: ColumnsType<Row>[number],
+        column?: ColumnDefs<Row>[number],
         columnIndex?: number,
     ) => string | undefined
     exportMetadata?: unknown
@@ -35,7 +34,7 @@ interface ExtendedColumnProps<Row extends object> {
 
 type ExtendedColumn<Row extends object> = ColumnWithChildren<Row> & ExtendedColumnProps<Row>
 
-type OnHeaderCell<Row extends object> = ColumnsType<Row>[number]["onHeaderCell"]
+type OnHeaderCell<Row extends object> = ColumnDefs<Row>[number]["onHeaderCell"]
 type OnHeaderCellArgs<Row extends object> = Parameters<NonNullable<OnHeaderCell<Row>>>
 type OnHeaderCellResult<Row extends object> = ReturnType<NonNullable<OnHeaderCell<Row>>>
 
@@ -60,7 +59,7 @@ const resolveTitle = <Row extends object>(
 }
 
 const applyCellRenderer = <Row extends object>(
-    column: ColumnsType<Row>[number],
+    column: ColumnDefs<Row>[number],
     cell?: TableColumnCell<Row>,
 ) => {
     if (!cell) return
@@ -72,7 +71,7 @@ const applyCellRenderer = <Row extends object>(
 const buildColumn = <Row extends object>(
     config: TableColumnConfig<Row>,
     depth = 0,
-): ColumnsType<Row>[number] => {
+): ColumnDefs<Row>[number] => {
     const column: ExtendedColumn<Row> = {
         key: config.key,
         title: resolveTitle(config, depth),
@@ -163,4 +162,4 @@ const buildColumn = <Row extends object>(
 
 export const createTableColumns = <Row extends object>(
     groups: TableColumnGroup<Row>[],
-): ColumnsType<Row> => normalizeGroups(groups).map((config) => buildColumn(config))
+): ColumnDefs<Row> => normalizeGroups(groups).map((config) => buildColumn(config))

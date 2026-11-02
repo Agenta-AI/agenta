@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 from genson import SchemaBuilder
 
+from oss.src.core.access.dtos import PrincipalRef
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.shared.dtos import Reference, Windowing, Tags, Meta
@@ -114,6 +115,12 @@ from oss.src.core.evaluations.runtime.runner import TaskiqEvaluationTaskRunner
 from oss.src.core.evaluations.runtime.types import RunSlice
 from oss.src.core.evaluations.runtime.operations import SliceOperations
 
+from oss.src.core.access.principals import (
+    access_denied_error,
+    missing_principal_error,
+)
+from oss.src.core.access.types import AccessDenied, MissingPrincipal
+from oss.src.core.evaluations.run_access import require_evaluation_run_access
 
 log = get_module_logger(__name__)
 
@@ -301,6 +308,39 @@ class EvaluationsService:
                     )
                     continue
 
+                # Each tick rechecks the run's principal. A run without one, or whose
+                # principal lost access, is closed: it never runs again.
+                try:
+                    await require_evaluation_run_access(project_id=project_id, run=run)
+                except (MissingPrincipal, AccessDenied) as refusal:
+                    log.info(
+                        "[LIVE] Closing live run: access refused.",
+                        project_id=project_id,
+                        run_id=run.id,
+                        code=(
+                            "missing_principal"
+                            if isinstance(refusal, MissingPrincipal)
+                            else "access_denied"
+                        ),
+                    )
+                    await self._close_live_run(
+                        project_id=project_id,
+                        user_id=user_id,
+                        run=run,
+                        refusal=(
+                            missing_principal_error(
+                                next_step="Start the evaluation again."
+                            )
+                            if isinstance(refusal, MissingPrincipal)
+                            else access_denied_error(
+                                decision=refusal.decision,
+                                principal_kind=run.principal.kind,
+                                project_id=project_id,
+                            )
+                        ),
+                    )
+                    continue
+
                 log.info(
                     "[LIVE] Dispatching...",
                     project_id=project_id,
@@ -375,10 +415,20 @@ class EvaluationsService:
         project_id: UUID,
         user_id: UUID,
         run: EvaluationRun,
+        refusal: Optional[Any] = None,  # an AgentError
     ) -> None:
+        """Close a live run. A run closed because its principal may no longer run it
+        (`refusal`) also ends FAILURE, with the refusal in `meta.closed_reason`."""
+
         flags = run.flags.model_copy() if run.flags else EvaluationRunFlags()
         flags.is_active = False
         flags.is_closed = True
+        meta = run.meta
+        if refusal is not None:
+            meta = {
+                **(dict(run.meta) if run.meta else {}),
+                "closed_reason": refusal.model_dump(exclude_none=True),
+            }
 
         await self.edit_run(
             project_id=project_id,
@@ -392,9 +442,9 @@ class EvaluationsService:
                 #
                 flags=flags,
                 tags=run.tags,
-                meta=run.meta,
+                meta=meta,
                 #
-                status=run.status,
+                status=EvaluationStatus.FAILURE if refusal is not None else run.status,
                 #
                 data=run.data,
             ),
@@ -670,7 +720,9 @@ class EvaluationsService:
         user_id: UUID,
         #
         run: EvaluationRunCreate,
+        principal: PrincipalRef,
     ) -> Optional[EvaluationRun]:
+        """`principal` is the caller: the run executes as it."""
         run.version = CURRENT_VERSION
 
         created_run = await self.evaluations_dao.create_run(
@@ -678,6 +730,7 @@ class EvaluationsService:
             user_id=user_id,
             #
             run=run,
+            principal=principal,
         )
         if created_run:
             # Create is edit from an empty graph: no prior steps to prune.
@@ -696,6 +749,7 @@ class EvaluationsService:
         user_id: UUID,
         #
         runs: List[EvaluationRunCreate],
+        principal: PrincipalRef,
     ) -> List[EvaluationRun]:
         for run in runs:
             run.version = CURRENT_VERSION
@@ -705,6 +759,7 @@ class EvaluationsService:
             user_id=user_id,
             #
             runs=runs,
+            principal=principal,
         )
         return [
             await self._reconcile_run(
@@ -715,6 +770,26 @@ class EvaluationsService:
             )
             for created_run in created_runs
         ]
+
+    async def set_run_principal(
+        self,
+        *,
+        project_id: UUID,
+        run_id: UUID,
+        principal: PrincipalRef,
+        user_id: Optional[UUID] = None,
+        open_only: bool = False,
+    ) -> bool:
+        """An explicit start or rerun, or a step save that changes no step: the run
+        executes as the caller from now on. With `open_only`, a closed run is left as
+        it is. Returns whether the run changed."""
+        return await self.evaluations_dao.set_run_principal(
+            project_id=project_id,
+            run_id=run_id,
+            principal=principal,
+            user_id=user_id,
+            open_only=open_only,
+        )
 
     async def fetch_run(
         self,
@@ -749,6 +824,7 @@ class EvaluationsService:
         user_id: UUID,
         #
         run: EvaluationRunEdit,
+        principal: Optional[PrincipalRef] = None,
     ) -> Optional[EvaluationRun]:
         run.version = CURRENT_VERSION
 
@@ -762,6 +838,7 @@ class EvaluationsService:
             user_id=user_id,
             #
             run=run,
+            **({"principal": principal} if principal is not None else {}),
         )
         if edited_run:
             edited_run = await self._reconcile_run(
@@ -779,7 +856,10 @@ class EvaluationsService:
         user_id: UUID,
         #
         runs: List[EvaluationRunEdit],
+        principal: PrincipalRef,
     ) -> List[EvaluationRun]:
+        """The editor (`principal`) becomes each run's executing principal in the same
+        write."""
         for run in runs:
             run.version = CURRENT_VERSION
 
@@ -796,6 +876,7 @@ class EvaluationsService:
             user_id=user_id,
             #
             runs=runs,
+            principal=principal,
         )
         return [
             await self._reconcile_run(
@@ -2269,6 +2350,7 @@ class SimpleEvaluationsService:
         user_id: UUID,
         #
         evaluation: SimpleEvaluationCreate,
+        principal: PrincipalRef,
     ) -> Optional[SimpleEvaluation]:
         evaluation.flags = evaluation.flags or SimpleEvaluationFlags(
             is_closed=False,
@@ -2344,6 +2426,7 @@ class SimpleEvaluationsService:
                 user_id=user_id,
                 #
                 run=run_create,
+                principal=principal,
             )
 
             if not run or not run.id:
@@ -2400,7 +2483,10 @@ class SimpleEvaluationsService:
         user_id: UUID,
         #
         evaluation: SimpleEvaluationEdit,
+        principal: PrincipalRef,
     ) -> Optional[SimpleEvaluation]:
+        """The editor (`principal`) becomes the run's executing principal in the
+        same write; the restart of an active run keeps it."""
         evaluation.flags = evaluation.flags or SimpleEvaluationFlags(
             is_closed=False,
             is_live=False,
@@ -2519,6 +2605,7 @@ class SimpleEvaluationsService:
                 user_id=user_id,
                 #
                 run=run_edit,
+                principal=principal,
             )
 
             if not run:
@@ -2637,7 +2724,10 @@ class SimpleEvaluationsService:
         evaluation_id: UUID,
         #
         just_created: Optional[bool] = None,
+        principal: Optional[PrincipalRef] = None,
     ) -> Optional[SimpleEvaluation]:
+        """`principal` is set by an explicit start (the route passes the caller); an
+        edit's internal restart passes None, which keeps the stored principal."""
         try:
             _evaluation = await self.fetch(
                 project_id=project_id,
@@ -2654,6 +2744,19 @@ class SimpleEvaluationsService:
             if not _evaluation.data:
                 _evaluation.data = SimpleEvaluationData()
 
+            # An explicit start sets the principal in the activation UPDATE below. A
+            # start that activates nothing (a live run without query steps) sets it
+            # with its own UPDATE.
+            if principal is not None and not (
+                not _evaluation.flags.is_live or _evaluation.data.query_steps
+            ):
+                await self.evaluations_service.set_run_principal(
+                    project_id=project_id,
+                    run_id=evaluation_id,
+                    principal=principal,
+                    user_id=user_id,
+                )
+
             if _evaluation.flags.is_live and _evaluation.data.query_steps:
                 run = await self._activate_evaluation_run(
                     project_id=project_id,
@@ -2662,6 +2765,7 @@ class SimpleEvaluationsService:
                     run_id=_evaluation.id,
                     #
                     just_created=just_created,
+                    principal=principal,
                 )
 
                 if not run or not run.id:
@@ -2680,6 +2784,7 @@ class SimpleEvaluationsService:
                     run_id=_evaluation.id,
                     #
                     just_created=just_created,
+                    principal=principal,
                 )
 
                 if not run or not run.id:
@@ -2905,7 +3010,10 @@ class SimpleEvaluationsService:
         step_keys: Optional[List[str]] = None,
         repeat_idxs: Optional[List[int]] = None,
         overwrite: bool = False,
+        principal: PrincipalRef,
     ) -> bool:
+        """An explicit rerun: the run executes as `principal` (the caller) from now
+        on."""
         if self.evaluations_task_runner is None:
             log.warning(
                 "[EVAL] Taskiq client missing; cannot dispatch run slice",
@@ -2949,6 +3057,8 @@ class SimpleEvaluationsService:
                 #
                 data=run.data,
             ),
+            # The rerun's principal, in this same UPDATE.
+            principal=principal,
         )
 
         # Mirror the re-activation at the scenario level so per-scenario status indicators
@@ -3118,11 +3228,14 @@ class SimpleEvaluationsService:
         #
         run: EvaluationRun,
         new_data: EvaluationRunData,
+        principal: PrincipalRef,
     ) -> Optional[EvaluationRun]:
-        """Persist a new `data` payload for `run`, preserving every other field."""
+        """Persist a new `data` payload for `run`, preserving every other field. The
+        editor (`principal`) becomes the run's executing principal in the same write."""
         return await self.evaluations_service.edit_run(
             project_id=project_id,
             user_id=user_id,
+            principal=principal,
             run=EvaluationRunEdit(
                 id=run.id,
                 name=run.name,
@@ -3133,6 +3246,31 @@ class SimpleEvaluationsService:
                 flags=run.flags,
                 data=new_data,
             ),
+        )
+
+    async def _set_editor(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run: EvaluationRun,
+        principal: PrincipalRef,
+    ) -> EvaluationRun:
+        """A save that changes no step still makes the editor the run's executing
+        principal. Only the principal is written, never the fetched snapshot, so a
+        concurrent save's steps stay. A closed run refuses the save, as an edit does.
+        Returns the run as stored after the write."""
+        if not await self.evaluations_service.set_run_principal(
+            project_id=project_id,
+            run_id=run.id,
+            principal=principal,
+            user_id=user_id,
+            open_only=True,
+        ):
+            raise EvaluationClosedConflict(run_id=run.id)
+        return await self.evaluations_service.fetch_run(
+            project_id=project_id, run_id=run.id
         )
 
     async def add_scenarios(
@@ -3213,6 +3351,7 @@ class SimpleEvaluationsService:
         #
         run_id: UUID,
         steps: List[EvaluationRunDataStep],
+        principal: PrincipalRef,
     ) -> Optional[EvaluationRun]:
         """Append steps to the run (width dimension).
 
@@ -3227,14 +3366,14 @@ class SimpleEvaluationsService:
         )
         if not run or not run.data:
             return None
-        if not steps:
-            return run
 
         existing = list(run.data.steps or [])
         existing_keys = {step.key for step in existing}
         fresh = [step for step in steps if step.key not in existing_keys]
         if not fresh:
-            return run
+            return await self._set_editor(
+                project_id=project_id, user_id=user_id, run=run, principal=principal
+            )
 
         new_data = run.data.model_copy(update={"steps": existing + fresh})
         return await self._edit_run_data(
@@ -3242,6 +3381,7 @@ class SimpleEvaluationsService:
             user_id=user_id,
             run=run,
             new_data=new_data,
+            principal=principal,
         )
 
     async def remove_steps(
@@ -3252,6 +3392,7 @@ class SimpleEvaluationsService:
         #
         run_id: UUID,
         step_keys: List[str],
+        principal: PrincipalRef,
     ) -> Optional[EvaluationRun]:
         """Drop steps from the run by key (width dimension).
 
@@ -3265,13 +3406,13 @@ class SimpleEvaluationsService:
         )
         if not run or not run.data:
             return None
-        if not step_keys:
-            return run
 
         drop = set(step_keys)
         kept = [step for step in (run.data.steps or []) if step.key not in drop]
         if len(kept) == len(run.data.steps or []):
-            return run
+            return await self._set_editor(
+                project_id=project_id, user_id=user_id, run=run, principal=principal
+            )
 
         new_data = run.data.model_copy(update={"steps": kept})
         return await self._edit_run_data(
@@ -3279,6 +3420,7 @@ class SimpleEvaluationsService:
             user_id=user_id,
             run=run,
             new_data=new_data,
+            principal=principal,
         )
 
     async def set_repeats(
@@ -3289,6 +3431,7 @@ class SimpleEvaluationsService:
         #
         run_id: UUID,
         repeats: int,
+        principal: PrincipalRef,
     ) -> Optional[EvaluationRun]:
         """Set the run's repeat (depth) dimension.
 
@@ -3309,6 +3452,7 @@ class SimpleEvaluationsService:
             user_id=user_id,
             run=run,
             new_data=new_data,
+            principal=principal,
         )
 
     async def close(
@@ -4021,6 +4165,7 @@ class SimpleEvaluationsService:
         run_id: UUID,
         #
         just_created: Optional[bool] = None,
+        principal: Optional[PrincipalRef] = None,
     ) -> Optional[EvaluationRun]:
         run = await self.evaluations_service.fetch_run(
             project_id=project_id,
@@ -4060,6 +4205,7 @@ class SimpleEvaluationsService:
                 #
                 data=run.data,
             ),
+            **({"principal": principal} if principal is not None else {}),
         )
 
         return run
@@ -4294,6 +4440,7 @@ class SimpleQueuesService:
         user_id: UUID,
         #
         queue: SimpleQueueCreate,
+        principal: PrincipalRef,
     ) -> Optional[SimpleQueue]:
         if not queue.data:
             return None
@@ -4347,6 +4494,7 @@ class SimpleQueuesService:
         run = await self.evaluations_service.create_run(
             project_id=project_id,
             user_id=user_id,
+            principal=principal,
             #
             run=EvaluationRunCreate(
                 name=queue.name,

@@ -9,8 +9,8 @@
   </a>
   
 <div align="center">
-  <strong> <h1> The open-source workspace for building and running agents </h1></strong>
-  Build agents that automate your work by chatting with them. Share them with your team, connect them to the apps you use, and run them in the background.
+  <strong> <h1> The open-source workspace for your agents and your team </h1></strong>
+  Build AI coworkers by chatting. Share them with your team. Talk to them in Slack, WhatsApp or Telegram.
 </div>
 
 </div>
@@ -73,41 +73,55 @@ Agenta is an open-source workspace where you build specialized agents that autom
 
 You build agents by chatting with them. You describe the work, connect the apps they need, and improve them through feedback.
 
-You can work with your agents directly in chat and share them with your team.
+You can work with your agents in the web app, or talk to them where you already are: **Slack**, **Telegram** or **WhatsApp Business**.
 
-For recurring work, you can build background agents. These agents run on a schedule or when an event occurs.
+For recurring work, you can create automations. Your agents run on a schedule or when an event occurs in a connected app, and you can see what every run did.
 
 ## Why use Agenta?
 
-### Use your Claude or ChatGPT subscription
+Agenta is the wrong tool if you are looking for:
 
-When you self-host Agenta, you can run agents locally with your existing Claude or ChatGPT subscription. You do not need to move every task to metered API billing.
+- **an agentic development environment** for writing code, like ocra, Claude Code or OpenCode.
+  
+  *Agenta is built for the work around and beyond code: IT ops, GTM, HR, legal, finance, support...*
+- **a single-user personal assistant**, like openclaw or Hermes.
+  
+  *Agenta is built for teams: agents are shared, multi-user, and run where the team works (e.g. Slack).*
+- **a low-code workflow builder**, like n8n or Zapier.
+  
+  *In Agenta you do not draw workflows. You build autonomous agents that figure out the steps and solve problems on their own.*
 
-### Choose your harness and model
+Agenta is built for work, with professionals in mind from day one. That means:
 
-Switch harnesses and models without rebuilding your agent. Agenta already supports almost any model, whether self-hosted or accessed through an API. Agenta supports Claude Code and Pi as harnesses today, with [more harnesses planned](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme).
-
-### Build with open agent standards
-
-Define your agent with `AGENTS.md`, skills, and MCP servers. You can bring skills and MCP servers from the agent ecosystem into Agenta.
-
-### Make your agents more reliable over time
-
-Agenta traces every run and keeps a version history of each agent configuration. Use this history to understand failures, compare changes, and improve your agents over time.
+1. **Multiplayer by default.** Give your team (or customers) access, set roles, and share agents and chat sessions.
+2. **Transparent.** You see each agent's configuration, its versions, and every change.
+3. **Controllable, with you in the loop.** You set exact permissions per agent: which tools it can use, and whether it can read or write with them. You decide what it does on its own and what goes through you first.
+4. **Secure.** Each session runs in its own sandbox, isolated from every other. Model credentials are never seen by the agent.
+5. **Auditable.** Every run is traced. Every cost is tracked.
+6. **Yours.** Open source, self-hostable, on your models, with your data on your servers.
+7. **For technical and non-technical teammates.** You build agents by chatting, so anyone on the team can build them and work with them, not only engineers.
 
 ## Features
 
-**Workspaces for you and your agents.** Work with your agent on files in a shared workspace. Together, you can write documents, organize research, or maintain a wiki.
+**Talk to your agents in Slack, Telegram or WhatsApp.** Your team and your clients use agents from the chat apps they already have, with no new tool to learn. The web app works on your phone too.
 
-**Human approval and permissions.** Specify permissions for each tool. Choose which actions background agents can run automatically, which need your approval, and which are blocked.
+**Use your Claude or ChatGPT subscription.** Run agents on the subscription you already pay for, instead of metered API billing.
 
-**Background agents.** Run agents on a schedule or start them when an event occurs in a connected app.
+**Use any model.** Hosted models through an API, or self-hosted models with Ollama. Pick a cheap model for routine jobs and a strong one where it matters, and see what each agent costs.
 
-**Tracing, usage, and cost.** Inspect every model and tool call. Track model requests, token usage, and estimated costs for each agent.
+**Agents that learn.** Correct an agent once and it remembers. Agents keep memory, create and refine their own skills, and update their own instructions, so they need less supervision every week.
 
-**Team access.** The open-source version lets you share agents with your team and control access by role.
+**Automations.** Run agents on a schedule or when an event occurs in a connected app. See the history of every run, and continue a run's session to fix or improve it.
 
-**Integrations.** Connect your agents to the applications you use through MCP, or integrate with more than 1,000 apps through Composio, including Gmail, Slack, Notion, and GitHub.
+**Each agent has its own computer.** A browser and a file system, so agents can work on any website and any file, not only on apps that have an integration.
+
+**Integrations.** Connect your agents through MCP, or to more than 1,000 apps through Composio, including Gmail, Slack, Notion, and GitHub. Add your own secrets for the tools that need them.
+
+**Workspaces for you and your agents.** Work together on files in a shared workspace: documents, research, a wiki, with comments and previews. Agents can also build small apps, like a board or a form, for your team to use.
+
+**Teams of agents.** Agents can call other agents and hand work to each other, so one coworker can coordinate specialists.
+
+**Skills and templates.** Start from templates, bring in skills from the agent ecosystem, and grow your own skill library over time.
 
 ## Get started
 
@@ -136,62 +150,6 @@ Paste this into your agent and it will walk you through setup and testing:
 
 For more details, read the [self-hosting documentation](https://agenta.ai/docs/self-host/quick-start?utm_source=github&utm_medium=referral&utm_campaign=readme).
 
-## Roadmap
-
-**Harnesses**
-
-- [x] Claude Code
-- [x] Pi
-- [ ] Codex
-- [ ] Gemini
-- [ ] OpenCode
-- [ ] [Create an issue to prioritize yours](https://github.com/Agenta-AI/agenta/issues)
-
-**Models**
-
-- [x] OpenAI
-- [x] Anthropic
-- [x] OpenRouter
-- [x] Mistral AI
-- [x] Cohere
-- [x] Anyscale
-- [x] Perplexity AI
-- [x] DeepInfra
-- [x] Together AI
-- [x] Groq
-- [x] Google Gemini
-- [x] Azure
-- [x] AWS Bedrock
-- [x] MiniMax
-- [x] OpenAI-compatible models
-- [x] Self-hosted models (Ollama)
-- [ ] [Create an issue to prioritize yours](https://github.com/Agenta-AI/agenta/issues)
-
-**Agent runtimes**
-
-- [x] Local runtime
-- [x] Daytona sandboxes
-- [x] Docker sandboxes
-- [ ] E2B sandboxes
-- [ ] AgentComputer
-- [ ] Vercel
-- [ ] Cloudflare
-- [ ] Modal
-- [ ] BoxLite
-- [ ] [Create an issue to prioritize yours](https://github.com/Agenta-AI/agenta/issues)
-
-**Features**
-
-- [x] Schedules
-- [x] Events from connected apps
-- [x] MCP servers (API key + unauthenticated)
-- [ ] Generic webhook triggers
-- [ ] Additional MCP transports (OAuth)
-- [ ] Channels (Slack, Telegram, Discord, Teams)
-- [ ] Mobile version
-
-See the [complete roadmap](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme). Want to help with one of these items? [Open a discussion](https://github.com/Agenta-AI/agenta/discussions) or contribute.
-
 ## How Agenta compares
 
 ### n8n, Activepieces, and Zapier
@@ -204,7 +162,11 @@ Claude Cowork provides a workspace built around Claude. Agenta is open source an
 
 ### Claude Code, Codex, Pi, and OpenCode
 
-These coding agents provide the execution layer that plans work and uses tools. Agenta adds the shared workspace around that execution layer: files, team access, triggers, versions, and traces. Agenta supports Claude Code and Pi today. Support for more harnesses is on the roadmap.
+These coding agents provide the execution layer that plans work and uses tools. Agenta adds the shared workspace around that execution layer: files, team access, triggers, versions, and traces. Agenta supports Claude Code, Pi, and Codex today. Support for more harnesses is on the roadmap.
+
+## Roadmap
+
+See the [complete roadmap](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme). Want to help with one of these items? [Open a discussion](https://github.com/Agenta-AI/agenta/discussions) or contribute.
 
 ## Community and contributing
 

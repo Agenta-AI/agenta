@@ -708,6 +708,14 @@ class TestAttributeMapUpdates:
 
         assert features.metrics["unit.tokens.cache_read"] == 2304
 
+    def test_reported_cost_mapped(self, adapter):
+        """A harness or gateway that measured the real cost reports it here."""
+        bag = _make_bag({"gen_ai.usage.cost": 0.004242})
+        features = SpanFeatures()
+        adapter.process(bag, features)
+
+        assert features.metrics["unit.costs.total"] == 0.004242
+
     def test_provider_name_mapped(self, adapter):
         bag = _make_bag({"gen_ai.provider.name": "openai"})
         features = SpanFeatures()

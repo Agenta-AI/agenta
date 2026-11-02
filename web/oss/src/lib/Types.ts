@@ -1,3 +1,4 @@
+import type {Filter, FilterConditions, FilterValue} from "@agenta/observability"
 import type {GlobalToken} from "antd"
 import type {StaticImageData} from "next/image"
 
@@ -17,35 +18,6 @@ export type SnakeToCamelCaseKeys<T> = T extends readonly any[]
 export type SnakeToCamelCase<S extends string> = S extends `${infer T}_${infer U}`
     ? `${T}${Capitalize<SnakeToCamelCase<U>>}`
     : S
-
-export interface WorkspaceRole {
-    role_description: string
-    role_name: string
-}
-
-export interface WorkspaceUser {
-    id: string
-    email: string
-    username: string
-    status: "member" | "pending" | "expired"
-    created_at: string
-}
-
-export interface WorkspaceMember {
-    user: WorkspaceUser
-    roles: (WorkspaceRole & {permissions: string[]})[]
-}
-
-export interface Workspace {
-    id: string
-    name: string
-    description: string
-    created_at: string
-    updated_at: string
-    organization: string
-    type: "default"
-    members: WorkspaceMember[]
-}
 
 export type JSSTheme = GlobalToken & {isDark: boolean; fontWeightMedium: number}
 
@@ -141,67 +113,9 @@ export interface Environment {
     updated_at?: string | null
 }
 
-export type FilterValue =
-    | string
-    | number
-    | boolean
-    | Record<string, any>
-    | (string | number | boolean | Record<string, any>)[]
-
-export interface Filter {
-    field: string
-    key?: string
-    operator: FilterConditions
-    value: FilterValue
-    isPermanent?: boolean
-}
-
-export type FilterConditions =
-    | "contains"
-    | "matches"
-    | "like"
-    | "startswith"
-    | "endswith"
-    | "exists"
-    | "not_exists"
-    | "eq"
-    | "neq"
-    | "gt"
-    | "lt"
-    | "gte"
-    | "lte"
-    | "between"
-    | "in"
-    | "not_in"
-    | "is"
-    | "is_not"
-    | "btwn"
-    | ""
-
-export interface OrganizationFlags {
-    is_demo: boolean
-    is_personal: boolean
-    allow_email: boolean
-    allow_social: boolean
-    allow_sso: boolean
-    allow_root: boolean
-    domains_only: boolean
-    auto_join: boolean
-}
-
-export interface Org {
-    id: string
-    slug?: string
-    name?: string
-    description?: string
-    flags: OrganizationFlags
-    owner_id: string
-}
-
-export type OrgDetails = Org & {
-    default_workspace: Workspace
-    workspaces: string[]
-}
+// The filter model belongs to the observability query layer; re-exported here
+// (type-only, so nothing lands in the bundle) for the app's existing callers.
+export type {Filter, FilterConditions, FilterValue}
 
 export interface AuthErrorMsgType {
     message: string

@@ -59,6 +59,20 @@ describe("buildRunPlan", () => {
     assert.equal(created, false);
   });
 
+  it("refuses a non-string harness instead of running it as Pi", () => {
+    // `/stream` decodes with an unchecked JSON.parse, so `null`/`0`/`false` can land here. The
+    // lifecycle router classifies those `unknown` (fail closed); the plan must not quietly
+    // default them to Pi and diverge (Codex review of the harness-normalizer change).
+    for (const junk of [null, 0, false, {}]) {
+      const result = buildRunPlan({
+        harness: junk,
+        messages: [{ role: "user", content: "hi" }],
+      } as never);
+      assert.equal(result.ok, false, JSON.stringify(junk));
+      if (!result.ok) assert.match(result.error, /harness/i);
+    }
+  });
+
   it("accepts an attachment-only current user turn", () => {
     const result = buildRunPlan(
       {
@@ -343,6 +357,7 @@ describe("buildRunPlan", () => {
           (log ?? (() => {}))("resolved alpha");
           return {
             skills: [{ name: "alpha", dir: "/skills/alpha" }],
+            dropped: [],
             cleanup: () => {},
           };
         },
@@ -356,13 +371,21 @@ describe("buildRunPlan", () => {
     assert.equal(result.plan.acpAgent, "pi");
     assert.equal(result.plan.sandboxId, "local");
     assert.equal(result.plan.workspace.cwd, "/tmp/local-cwd");
-    // The relay dir + usage capture are ephemeral runner files kept OFF the (possibly geesefs)
-    // cwd: an ephemeral sibling whose leaf is the cwd basename.
-    assert.ok(!result.plan.workspace.relayDir.startsWith(result.plan.workspace.cwd));
-    assert.ok(result.plan.workspace.relayDir.endsWith("/agenta/relay/local-cwd"));
+    // Relay and telemetry are ephemeral runner files kept OFF the (possibly geesefs) cwd.
+    assert.ok(
+      !result.plan.workspace.relayDir.startsWith(result.plan.workspace.cwd),
+    );
+    assert.ok(
+      result.plan.workspace.relayDir.endsWith("/agenta/relay/local-cwd"),
+    );
+    assert.ok(
+      result.plan.workspace.telemetryDir.endsWith(
+        "/agenta/telemetry/local-cwd",
+      ),
+    );
     assert.equal(
       result.plan.workspace.usageOutPath,
-      `${result.plan.workspace.relayDir}/.agenta-usage.json`,
+      `${result.plan.workspace.telemetryDir}/.agenta-usage.json`,
     );
     assert.equal(result.plan.prompt.text, " ship it ");
     assert.equal(result.plan.prompt.agentsMd, "instructions");
@@ -370,7 +393,9 @@ describe("buildRunPlan", () => {
     assert.equal(result.plan.prompt.appendSystemPrompt, "append");
     assert.equal(result.plan.prompt.hasSystemPrompt, true);
     assert.equal(result.plan.credentials.hasApiKey, true);
-    assert.deepEqual(result.plan.credentials.modelEnvironment, { OPENAI_API_KEY: "key" });
+    assert.deepEqual(result.plan.credentials.modelEnvironment, {
+      OPENAI_API_KEY: "key",
+    });
     assert.equal(result.plan.workspace.sourcePiAgentDir, "/tmp/pi-agent");
     assert.deepEqual(
       result.plan.tools.executableToolSpecs.map((tool) => tool.name),
@@ -682,10 +707,39 @@ describe("buildRunPlan", () => {
     assert.equal(result.error, RESERVED_MCP_SERVER_NAME_MESSAGE);
   });
 
-  it("errors LOUD on a Pi run carrying a user HTTP MCP server (F-032 silent-drop fix)", () => {
-    // The core of F-032: an http user MCP on Pi previously passed the stdio gate, then
-    // buildSessionMcpServers returned [] for Pi -> the server was dropped with NO log and an
-    // HTTP 200. It must now fail loud, not silently succeed. Fails before any cwd is created.
+  it.each(["__proto__", "constructor", "prototype"])(
+    "refuses a user MCP server named '%s'",
+    (name) => {
+      const result = buildRunPlan(
+        {
+          harness: "claude",
+          sandbox: "local",
+          messages: [{ role: "user", content: "hello" }],
+          mcpServers: [
+            {
+              name,
+              connection: {
+                type: "http",
+                url: "https://mcp.example.com/mcp",
+                headers: { "X-Probe-Header": "value" },
+              },
+              policy: { tools: { mode: "all" } },
+            },
+          ],
+        } as AgentRunRequest,
+        { createLocalCwd: () => "/tmp/local-cwd" },
+      );
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.match(result.error, new RegExp(`MCP server name '${name}' is reserved`));
+      assert.equal(
+        (({}) as Record<string, unknown>)["X-Probe-Header"],
+        undefined,
+      );
+    },
+  );
+
+  it("accepts a Pi run carrying a registered gateway HTTP MCP server", () => {
     let created = false;
     const result = buildRunPlan(
       {
@@ -694,8 +748,18 @@ describe("buildRunPlan", () => {
         messages: [{ role: "user", content: "hello" }],
         mcpServers: [
           {
-            name: "linear",
-            connection: { type: "http", url: "https://mcp.linear.app/sse" },
+            name: "mock",
+            connection: {
+              type: "http",
+              url: "https://api.example.test/gateways/mcps/standard/mock",
+              credentials: [
+                {
+                  binding: { kind: "header", name: "X-AG-Credentials" },
+                  value: "short-lived-gateway-token",
+                  usage: "opaque_http",
+                },
+              ],
+            },
             policy: { tools: { mode: "all" } },
           },
         ],
@@ -708,14 +772,46 @@ describe("buildRunPlan", () => {
       },
     );
 
+    assert.equal(result.ok, true);
+    assert.equal(created, true);
+  });
+
+  it("rejects a direct Pi MCP URL before creating a cwd", () => {
+    let created = false;
+    const result = buildRunPlan(
+      {
+        harness: "pi_agenta",
+        sandbox: "local",
+        messages: [{ role: "user", content: "hello" }],
+        mcpServers: [
+          {
+            name: "direct",
+            connection: {
+              type: "http",
+              url: "https://mcp.example.test/mcp",
+              credentials: [
+                {
+                  binding: { kind: "header", name: "X-AG-Credentials" },
+                  value: "short-lived-gateway-token",
+                  usage: "opaque_http",
+                },
+              ],
+            },
+            policy: { tools: { mode: "all" } },
+          },
+        ],
+      } as AgentRunRequest,
+      {
+        createLocalCwd: () => {
+          created = true;
+          return "/tmp/local-cwd";
+        },
+      },
+    );
     assert.equal(result.ok, false);
     if (result.ok) return;
-    assert.match(result.error, /not supported on the Pi harness/);
-    assert.equal(
-      created,
-      false,
-      "fails before any cwd is created (up-front gate)",
-    );
+    assert.match(result.error, /registered Agenta gateway route/);
+    assert.equal(created, false);
   });
 
   it("allows a non-Pi (claude) run with a user HTTP MCP server (Pi gate is Pi-only)", () => {
@@ -760,9 +856,14 @@ describe("buildRunPlan", () => {
         result.plan.workspace.toolMcpDir,
         "/home/sandbox/agenta/tool-mcp/agenta-fixed",
       );
-      assert.notEqual(result.plan.workspace.toolMcpDir, result.plan.workspace.relayDir);
+      assert.notEqual(
+        result.plan.workspace.toolMcpDir,
+        result.plan.workspace.relayDir,
+      );
       assert.ok(
-        !result.plan.workspace.toolMcpDir.startsWith(`${result.plan.workspace.relayDir}/`),
+        !result.plan.workspace.toolMcpDir.startsWith(
+          `${result.plan.workspace.relayDir}/`,
+        ),
         "the shim dir is never nested inside the relay dir (the relay loop sweeps it)",
       );
       assert.equal(
@@ -894,7 +995,10 @@ describe("buildRunPlan", () => {
         result.plan.tools.executableToolSpecs.map((tool) => tool.name),
         ["server_tool"],
       );
-      assert.equal(result.plan.tools.clientToolPauseDisposition, "cold-acknowledge");
+      assert.equal(
+        result.plan.tools.clientToolPauseDisposition,
+        "cold-acknowledge",
+      );
     });
 
     it("allows claude x daytona x client-ONLY tools (the shim advertises them and the relay parks)", () => {
@@ -1102,6 +1206,7 @@ describe("buildRunPlan", () => {
         resolveSkillDirs: (_skills, log) => {
           (log ?? (() => {}))("resolved claude skills");
           return {
+            dropped: [],
             skills: [
               { name: "alpha", dir: "/skills/alpha" },
               { name: "beta", dir: "/skills/beta" },
@@ -1182,8 +1287,14 @@ describe("buildRunPlan", () => {
     // The FULL materialized environment sets hasApiKey: on a Daytona Secrets run the opaque key
     // leaves the plaintext env for the secret plan, but the harness still receives its binding.
     assert.equal(result.plan.credentials.hasApiKey, true);
-    assert.equal(result.plan.credentials.modelEnvironment.ANTHROPIC_API_KEY, undefined);
-    assert.equal(result.plan.credentials.daytonaSecretPlan?.candidates.length, 1);
+    assert.equal(
+      result.plan.credentials.modelEnvironment.ANTHROPIC_API_KEY,
+      undefined,
+    );
+    assert.equal(
+      result.plan.credentials.daytonaSecretPlan?.candidates.length,
+      1,
+    );
     // The resolved credentialMode is carried onto the plan (drives clear-then-apply).
     assert.equal(result.plan.credentials.credentialMode, "env");
     assert.equal(result.plan.prompt.systemPrompt, undefined);
@@ -1224,8 +1335,14 @@ describe("buildRunPlan", () => {
     const flagOn = buildRunPlan(localUseRequest, deps);
     assert.equal(flagOn.ok, true);
     if (!flagOn.ok) return;
-    assert.ok(flagOn.plan.credentials.daytonaSecretPlan, "flag on keeps the empty plan");
-    assert.equal(flagOn.plan.credentials.daytonaSecretPlan.candidates.length, 0);
+    assert.ok(
+      flagOn.plan.credentials.daytonaSecretPlan,
+      "flag on keeps the empty plan",
+    );
+    assert.equal(
+      flagOn.plan.credentials.daytonaSecretPlan.candidates.length,
+      0,
+    );
     // local_use values still reach sandbox create as plaintext env (by design).
     assert.equal(
       flagOn.plan.credentials.modelEnvironment.AWS_ACCESS_KEY_ID,
@@ -1305,10 +1422,17 @@ describe("buildRunPlan durableCwd (prefix-derived cwd)", () => {
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.equal(result.plan.workspace.cwd, "/tmp/agenta/mounts/proj-1/mount-abc");
+    assert.equal(
+      result.plan.workspace.cwd,
+      "/tmp/agenta/mounts/proj-1/mount-abc",
+    );
     // Relay dir is an ephemeral sibling (leaf = cwd basename), NOT inside the durable mount.
-    assert.ok(!result.plan.workspace.relayDir.startsWith(result.plan.workspace.cwd));
-    assert.ok(result.plan.workspace.relayDir.endsWith("/agenta/relay/mount-abc"));
+    assert.ok(
+      !result.plan.workspace.relayDir.startsWith(result.plan.workspace.cwd),
+    );
+    assert.ok(
+      result.plan.workspace.relayDir.endsWith("/agenta/relay/mount-abc"),
+    );
     // createLocalCwd received the durableCwd value.
     assert.deepEqual(localCwdCalls, ["/tmp/agenta/mounts/proj-1/mount-abc"]);
   });
@@ -1360,7 +1484,10 @@ describe("buildRunPlan durableCwd (prefix-derived cwd)", () => {
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.equal(result.plan.workspace.cwd, "/tmp/agenta-sandbox-agent-ephemeral");
+    assert.equal(
+      result.plan.workspace.cwd,
+      "/tmp/agenta-sandbox-agent-ephemeral",
+    );
     assert.deepEqual(localCwdCalls, [undefined]);
   });
 
@@ -1460,6 +1587,31 @@ describe("buildRunPlan runtime_provided (subscription) gates", () => {
       if (result.ok) return;
       assert.equal(result.error, LOCAL_SUBSCRIPTION_MOUNT_MISSING_MESSAGE);
     });
+  });
+
+  it("accepts a local mock runtime_provided run with no subscription mount", () => {
+    withEnv(
+      {
+        PI_CODING_AGENT_DIR: undefined,
+        CLAUDE_CONFIG_DIR: undefined,
+        CODEX_HOME: undefined,
+      },
+      () => {
+        const result = buildRunPlan({
+          harness: "mock",
+          sandbox: "local",
+          messages: [{ role: "user", content: "hello" }],
+          modelConnection: {
+            provider: "mock",
+            deployment: "direct",
+            credentialMode: "runtime_provided",
+            credentials: [],
+          },
+        });
+
+        assert.equal(result.ok, true, result.ok ? "" : result.error);
+      },
+    );
   });
 
   it("accepts a local Codex runtime_provided run when CODEX_HOME names a mount", () => {
@@ -1565,7 +1717,10 @@ describe("buildRunPlan runtime_provided (subscription) gates", () => {
       assert.equal(result.ok, true);
       if (!result.ok) return;
       assert.equal(result.plan.credentials.credentialMode, "runtime_provided");
-      assert.equal(result.plan.workspace.sourcePiAgentDir, "/agenta/harness/pi");
+      assert.equal(
+        result.plan.workspace.sourcePiAgentDir,
+        "/agenta/harness/pi",
+      );
     });
   });
 
@@ -1780,5 +1935,155 @@ describe("modelConnection validation", () => {
     );
     assert.equal(result.ok, false);
     if (!result.ok) assert.match(result.error, /modelConnection object/);
+  });
+});
+
+describe("platform instructions splice", () => {
+  const base = {
+    harness: "pi_core",
+    messages: [{ role: "user", content: "hi" }],
+  } as unknown as AgentRunRequest;
+  const deps = { createLocalCwd: () => "local-cwd" };
+
+  it("rejects a non-string platform instructions value", () => {
+    const result = buildRunPlan(
+      { ...base, platformInstructions: null } as unknown as AgentRunRequest,
+      deps,
+    );
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.match(result.error, /must be a string/);
+  });
+
+  it("splices platform instructions ahead of the authored append prompt for Pi", () => {
+    const result = buildRunPlan(
+      {
+        ...base,
+        appendSystemPrompt: "Be terse.",
+        platformInstructions: "## Connected integrations\nuse search_tools",
+      },
+      deps,
+    );
+    assert.equal(result.ok, true);
+    assert.equal(
+      result.ok && result.plan.prompt.appendSystemPrompt,
+      "## Connected integrations\nuse search_tools\n\nBe terse.",
+    );
+  });
+
+  it("carries platform instructions alone when Pi has no authored append prompt", () => {
+    const result = buildRunPlan(
+      {
+        ...base,
+        platformInstructions: "guide",
+      },
+      deps,
+    );
+    assert.equal(result.ok, true);
+    assert.equal(result.ok && result.plan.prompt.appendSystemPrompt, "guide");
+    assert.equal(result.ok && result.plan.prompt.hasSystemPrompt, true);
+  });
+
+  for (const harness of ["claude", "codex"]) {
+    it(`splices into authored instructions for ${harness}`, () => {
+      const result = buildRunPlan(
+        {
+          ...base,
+          harness,
+          agentsMd: "My rules.",
+          appendSystemPrompt: "Pi only.",
+          platformInstructions: "guide",
+        },
+        deps,
+      );
+      assert.equal(result.ok, true);
+      assert.equal(
+        result.ok && result.plan.prompt.agentsMd,
+        "guide\n\nMy rules.",
+      );
+      assert.equal(
+        result.ok && result.plan.prompt.appendSystemPrompt,
+        undefined,
+      );
+    });
+  }
+
+  it("prefers the new field over legacy guidance without duplicating it", () => {
+    const result = buildRunPlan(
+      {
+        ...base,
+        appendSystemPrompt: "Author text.",
+        platformInstructions: "new platform text",
+        gatewayGuidance: {
+          text: "legacy gateway text",
+          carrier: "appendSystemPrompt",
+        },
+      },
+      deps,
+    );
+    assert.equal(result.ok, true);
+    assert.equal(
+      result.ok && result.plan.prompt.appendSystemPrompt,
+      "new platform text\n\nAuthor text.",
+    );
+  });
+
+  it("treats an explicitly empty new field as authoritative over legacy guidance", () => {
+    const result = buildRunPlan(
+      {
+        ...base,
+        appendSystemPrompt: "Author text.",
+        platformInstructions: "   ",
+        gatewayGuidance: {
+          text: "legacy gateway text",
+          carrier: "appendSystemPrompt",
+        },
+      },
+      deps,
+    );
+    assert.equal(result.ok, true);
+    assert.equal(
+      result.ok && result.plan.prompt.appendSystemPrompt,
+      "Author text.",
+    );
+  });
+
+  for (const [harness, legacyCarrier, effectiveCarrier] of [
+    ["pi_core", "agentsMd", "appendSystemPrompt"],
+    ["claude", "appendSystemPrompt", "agentsMd"],
+  ] as const) {
+    it(`accepts legacy guidance but infers the carrier for ${harness}`, () => {
+      const result = buildRunPlan(
+        {
+          ...base,
+          harness,
+          gatewayGuidance: { text: "legacy", carrier: legacyCarrier },
+        },
+        deps,
+      );
+      assert.equal(result.ok, true);
+      assert.equal(result.ok && result.plan.prompt[effectiveCarrier], "legacy");
+      assert.equal(
+        result.ok &&
+          result.plan.prompt[
+            effectiveCarrier === "agentsMd" ? "appendSystemPrompt" : "agentsMd"
+          ],
+        undefined,
+      );
+    });
+  }
+
+  it("leaves prompts untouched without platform instructions", () => {
+    const result = buildRunPlan(
+      {
+        ...base,
+        appendSystemPrompt: "Be terse.",
+      } as unknown as AgentRunRequest,
+      deps,
+    );
+    assert.equal(result.ok, true);
+    assert.equal(
+      result.ok && result.plan.prompt.appendSystemPrompt,
+      "Be terse.",
+    );
   });
 });

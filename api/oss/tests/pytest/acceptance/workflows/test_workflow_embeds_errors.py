@@ -410,6 +410,7 @@ class TestWorkflowEmbedsCircular:
         # ASSERT ---------------------------------------------------------------
         # Should detect circular reference
         assert response.status_code == 400
+        assert "Circular embed detected" in response.json()["detail"]
         # ----------------------------------------------------------------------
 
     def test_circular_reference_chain(self, authed_api):
@@ -568,6 +569,7 @@ class TestWorkflowEmbedsCircular:
         # ASSERT ---------------------------------------------------------------
         # Should detect circular reference
         assert response.status_code == 400
+        assert "Circular embed detected" in response.json()["detail"]
         # ----------------------------------------------------------------------
 
 

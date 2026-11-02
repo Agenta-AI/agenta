@@ -1,5 +1,7 @@
+import {userAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
-import {atomFamily, atomWithStorage} from "jotai/utils"
+import {atomWithStorage} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 import {onboardingStorageUserIdAtom} from "../atoms"
 
@@ -94,37 +96,9 @@ export const hasSeenCloseTooltipAtom = atom(
 export const openWidgetAtom = atom(null, async (get, set) => {
     let userId = get(onboardingStorageUserIdAtom)
 
-    if (!userId && typeof window !== "undefined") {
-        try {
-            const mod = await import("supertokens-auth-react/recipe/session")
-            const Session = mod.default
-
-            try {
-                userId = await Session.getUserId()
-            } catch {
-                // ignore user id lookup failures
-            }
-
-            if (!userId) {
-                try {
-                    const payload = await Session.getAccessTokenPayloadSecurely()
-                    userId =
-                        typeof payload?.user_id === "string"
-                            ? payload.user_id
-                            : typeof payload?.sub === "string"
-                              ? payload.sub
-                              : null
-                } catch {
-                    // ignore payload lookup failures
-                }
-            }
-
-            if (typeof userId === "string" && userId) {
-                set(onboardingStorageUserIdAtom, userId)
-            }
-        } catch {
-            // ignore user id lookup failures
-        }
+    if (!userId) {
+        userId = get(userAtom)?.uid ?? null
+        if (userId) set(onboardingStorageUserIdAtom, userId)
     }
 
     if (!userId) return

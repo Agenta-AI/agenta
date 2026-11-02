@@ -1,13 +1,23 @@
+import logging
+from os import getenv
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.types import ASGIApp
 from starlette.middleware.base import BaseHTTPMiddleware
 
 import agenta as ag
-from agenta.sdk.utils.logging import get_module_logger
+from agenta.sdk.utils.logging import (
+    AGENTA_LOG_FORMAT,
+    GOOGLE_CLOUD_PROJECT,
+    JsonFormatter,
+    capture_warnings_as_json,
+    get_module_logger,
+)
 from agenta.sdk.decorators.routing import (
     create_app,
     apply_invoke_prelude,
+    admit_session_input,
     handle_invoke_success,
     handle_invoke_failure,
     handle_inspect_success,
@@ -16,7 +26,13 @@ from agenta.sdk.decorators.routing import (
 from agenta.sdk.decorators.running import invoke_workflow, inspect_workflow
 from agenta.sdk.models.workflows import WorkflowInvokeRequest, WorkflowInspectRequest
 from agenta.sdk.contexts.routing import RoutingContext, routing_context_manager
+from agenta.sdk.engines.tracing.server import instrument_fastapi, setup_server_tracing
 from agenta.sdk.litellm.mocks import MOCKS
+from agenta.sdk.middlewares.running.vault import (
+    drop_host_aws_credentials,
+    env_provider_keys_enabled,
+    hold_env_provider_keys,
+)
 from oss.src.managed import (
     builtin_auto_ai_critique_app,
     builtin_auto_contains_all_app,
@@ -45,11 +61,45 @@ from oss.src.chat import chat_v0_app
 from oss.src.completion import completion_v0_app
 from oss.src.agent import agent_v0_app
 from entrypoints.legacy import register_legacy_routes
+from entrypoints.prefix import strip_prefix_outermost
 
 
 ag.init()
 
 log = get_module_logger(__name__)
+
+# gunicorn and uvicorn log through their own stdlib handlers, outside structlog
+if AGENTA_LOG_FORMAT == "json":
+    for name in (
+        "gunicorn.error",
+        "gunicorn.access",
+        "uvicorn.error",
+        "uvicorn.access",
+    ):
+        for handler in logging.getLogger(name).handlers:
+            handler.setFormatter(JsonFormatter(GOOGLE_CLOUD_PROJECT))
+    capture_warnings_as_json(GOOGLE_CLOUD_PROJECT)
+
+# A call that carries no provider key of its own must not pick one up from this process's
+# environment. The keys stay available to requests only where the vault allows them.
+_held_env_provider_keys = hold_env_provider_keys()
+if _held_env_provider_keys and not env_provider_keys_enabled():
+    log.warning(
+        "Provider keys in the services environment are not used: requests run on the "
+        "project's own keys. Set AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED=true to let "
+        "every project use them.",
+        names=_held_env_provider_keys,
+    )
+
+_dropped_host_aws_credentials = drop_host_aws_credentials()
+if _dropped_host_aws_credentials:
+    log.warning(
+        "AWS credentials in the services environment are not used: Bedrock and "
+        "SageMaker calls run on the connection's own credentials. Set "
+        "AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED=true to let connections without "
+        "keys use them.",
+        names=_dropped_host_aws_credentials,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -85,6 +135,9 @@ async def services_invoke(req: Request, request: WorkflowInvokeRequest):
     credentials = req.state.auth.get("credentials")
     apply_invoke_prelude(req, request)
     try:
+        admission_response = await admit_session_input(req, request, credentials)
+        if admission_response is not None:
+            return admission_response
         response = await invoke_workflow(request=request, credentials=credentials)
         return await handle_invoke_success(req, response)
     except Exception as exception:
@@ -112,6 +165,11 @@ app = FastAPI(
 )
 
 
+def _extra_allowed_origins() -> list:
+    raw = getenv("AGENTA_SERVICES_ALLOWED_ORIGINS", "")
+    return [origin.strip() for origin in raw.split(",") if origin.strip()]
+
+
 app.add_middleware(MockMiddleware)
 
 app.add_middleware(
@@ -121,6 +179,9 @@ app.add_middleware(
         "http://localhost:3001",
         "http://0.0.0.0:3000",
         "http://0.0.0.0:3001",
+        # A dev stack may serve the web app from a different origin than this service, and the
+        # browser then needs that origin allowed here. Comma-separated; empty everywhere else.
+        *_extra_allowed_origins(),
     ],
     allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
@@ -170,6 +231,20 @@ app.mount("/auto_semantic_similarity/v0", builtin_auto_semantic_similarity_app)
 #
 # Mount dispatch LAST so "/" only catches /invoke and /inspect after specific mounts
 app.mount("/", services_app)
+
+
+# Off unless AGENTA_SERVER_TRACING_ENDPOINT is set; separate from product tracing.
+if setup_server_tracing(
+    service_name="agenta-services",
+    endpoint=getenv("AGENTA_SERVER_TRACING_ENDPOINT"),
+    sample_ratio=getenv("AGENTA_SERVER_TRACING_SAMPLE_RATIO"),
+):
+    instrument_fastapi(app)
+
+# Outermost, after the instrumentation: a managed ingress forwards the public `/services`
+# prefix verbatim, so normalize the path before anything else looks at it, the request
+# span's route lookup included.
+strip_prefix_outermost(app)
 
 
 if __name__ == "__main__":

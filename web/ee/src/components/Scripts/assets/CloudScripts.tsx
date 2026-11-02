@@ -1,23 +1,25 @@
 import {useEffect} from "react"
 
 import {ChatboxColors, Crisp} from "crisp-sdk-web"
+import {useAtomValue} from "jotai"
 import Script from "next/script"
 
 import {ThemeMode, useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
+import {liveChatAllowedAtom} from "@/oss/state/access/atoms"
 
 const CloudScripts = () => {
     const {appTheme} = useAppTheme()
+    // Paid plans only: configuring Crisp is what loads it.
+    const isCrispEnabled = useAtomValue(liveChatAllowedAtom)
 
     useEffect(() => {
-        const isCrispEnabled = !!getEnv("NEXT_PUBLIC_CRISP_WEBSITE_ID")
-
         if (!isCrispEnabled) {
             return
         }
 
         Crisp.configure(getEnv("NEXT_PUBLIC_CRISP_WEBSITE_ID"))
-    }, [])
+    }, [isCrispEnabled])
 
     // The Crisp chatbox renders in its own cross-origin iframe, so we can't style
     // its light/dark useCrispChat from our CSS, and crisp-sdk-web exposes no runtime
@@ -30,8 +32,6 @@ const CloudScripts = () => {
     // visitor's *system* color scheme — the SDK has no API to bind it to our
     // in-app theme toggle, so this accent tweak is the only code-side lever.
     useEffect(() => {
-        const isCrispEnabled = !!getEnv("NEXT_PUBLIC_CRISP_WEBSITE_ID")
-
         if (!isCrispEnabled) {
             return
         }
@@ -39,7 +39,7 @@ const CloudScripts = () => {
         Crisp.setColorTheme(
             appTheme === ThemeMode.Dark ? ChatboxColors.Black : ChatboxColors.Default,
         )
-    }, [appTheme])
+    }, [appTheme, isCrispEnabled])
 
     return (
         <Script

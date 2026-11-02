@@ -20,3 +20,15 @@ export const stripTrailingSlashes = (s: string): string => {
 
 /** Strip leading AND trailing slashes (equivalent to `.replace(/^\/+|\/+$/g, "")`, ReDoS-safe). */
 export const trimSlashes = (s: string): string => stripTrailingSlashes(stripLeadingSlashes(s))
+
+/** The folder that holds `path` (`""` at the mount root). */
+export const parentFolderOf = (path: string): string => {
+    const i = path.lastIndexOf("/")
+    return i < 0 ? "" : path.slice(0, i)
+}
+
+/** The entry a one-level folder listing holds at exactly `path`, or null. */
+export const listedEntryAt = <T extends {path: string}>(
+    entries: readonly T[],
+    path: string,
+): T | null => entries.find((entry) => stripTrailingSlashes(entry.path) === path) ?? null

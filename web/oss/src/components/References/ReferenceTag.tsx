@@ -197,10 +197,10 @@ const ReferenceHovercard = ({
                     <meta.Icon size={13} weight={meta.iconWeight} />
                 </span>
                 <div className="min-w-0 flex-1">
-                    <div className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-colorTextTertiary">
+                    <div className="text-[12px] font-semibold uppercase tracking-[0.05em] text-colorTextTertiary">
                         {meta.label}
                     </div>
-                    <div className="break-words text-[12.5px] font-medium leading-[1.4] text-colorText">
+                    <div className="break-words text-xs font-medium leading-[1.4] text-colorText">
                         {name}
                     </div>
                 </div>
@@ -211,7 +211,7 @@ const ReferenceHovercard = ({
                 <div className="flex flex-col px-3 pb-2 pt-1.5">
                     {rows.map((row) => (
                         <div key={row.label} className="flex min-h-6 items-center gap-2 py-1">
-                            <span className="w-[76px] shrink-0 text-[11px] text-colorTextTertiary">
+                            <span className="w-[76px] shrink-0 text-xs text-colorTextTertiary">
                                 {row.label}
                             </span>
                             <span
@@ -219,8 +219,8 @@ const ReferenceHovercard = ({
                                 className={clsx(
                                     "min-w-0 flex-1 truncate",
                                     row.mono
-                                        ? "font-mono text-[11px] text-colorTextSecondary"
-                                        : "text-[11.5px] text-colorText",
+                                        ? "font-mono text-xs text-colorTextSecondary"
+                                        : "text-xs text-colorText",
                                 )}
                             >
                                 {row.value}
@@ -237,7 +237,7 @@ const ReferenceHovercard = ({
             <div className="flex items-center justify-between gap-2 rounded-b-lg border-0 border-t border-solid border-colorBorderSecondary bg-zinc-1 px-3 py-[7px]">
                 <button
                     type="button"
-                    className="flex cursor-pointer items-center gap-[5px] rounded border-0 bg-transparent px-1.5 py-[3px] text-[11.5px] text-colorTextSecondary hover:bg-colorFillSecondary hover:text-colorText"
+                    className="flex cursor-pointer items-center gap-[5px] rounded border-0 bg-transparent px-1.5 py-[3px] text-xs text-colorTextSecondary hover:bg-colorFillSecondary hover:text-colorText"
                     onClick={() => {
                         void copyToClipboard(
                             JSON.stringify(buildReferenceJson(kind, identifiers), null, 2),
@@ -253,7 +253,7 @@ const ReferenceHovercard = ({
                 {linked ? (
                     <button
                         type="button"
-                        className="flex cursor-pointer items-center gap-[5px] rounded border-0 bg-transparent px-1.5 py-[3px] text-[11.5px] text-colorTextSecondary hover:bg-colorFillSecondary hover:text-colorText"
+                        className="flex cursor-pointer items-center gap-[5px] rounded border-0 bg-transparent px-1.5 py-[3px] text-xs text-colorTextSecondary hover:bg-colorFillSecondary hover:text-colorText"
                         onClick={onOpenLink}
                     >
                         <ArrowSquareOut size={12} />
@@ -339,7 +339,7 @@ const ReferenceTag = ({
                 // not reserve space (it would read as a dead gap before the pill).
                 // It truncates to the name's width on hover; the hovercard has it
                 // in full.
-                className="w-0 min-w-full self-center truncate font-mono text-[11px] opacity-0 transition-opacity duration-150 ease-in-out group-hover/refchip:opacity-100 [grid-area:1/1]"
+                className="w-0 min-w-full self-center truncate font-mono text-xs opacity-0 transition-opacity duration-150 ease-in-out group-hover/refchip:opacity-100 [grid-area:1/1]"
             >
                 {slug}
             </span>
@@ -404,7 +404,7 @@ const ReferenceTag = ({
             ) : null}
             {nameNode}
             {version != null ? (
-                <span className="shrink-0 rounded-[3px] bg-white/70 px-[5px] py-px font-mono text-[10.5px] leading-[14px] dark:bg-white/10">
+                <span className="shrink-0 rounded-[3px] bg-white/70 px-[5px] py-px font-mono text-[12px] leading-[14px] dark:bg-white/10">
                     v{version}
                 </span>
             ) : null}

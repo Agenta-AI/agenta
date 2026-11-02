@@ -4,7 +4,7 @@
  * Pure map + policy logic, no sandbox-agent imports: exercised directly against
  * `SessionContinuityStore` instances (never the process-wide singleton, to keep tests
  * isolated). Covers record/read-back, the per-harness staleness guard including the
- * double-switch scenario, and the local-runner ownership guard.
+ * double-switch scenario.
  */
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
@@ -14,9 +14,6 @@ import {
   nextTurnIndex,
   isHarnessLoadEligible,
   eligibleAgentSessionId,
-  isLocalRunnerEligible,
-  assertLocalRunnerOwnership,
-  LocalSandboxNotOwnerError,
 } from "../../src/engines/sandbox_agent/session-continuity.ts";
 
 describe("SessionContinuityStore basics", () => {
@@ -41,7 +38,11 @@ describe("SessionContinuityStore basics", () => {
     const store = new SessionContinuityStore();
     store.record("sess-1", "claude", "agent-1", 3);
     store.record("sess-1", "pi", "agent-2", 1);
-    assert.equal(store.latestTurn("sess-1"), 3, "latest stays at the higher turn index");
+    assert.equal(
+      store.latestTurn("sess-1"),
+      3,
+      "latest stays at the higher turn index",
+    );
     assert.deepEqual(store.get("sess-1", "pi"), {
       agentSessionId: "agent-2",
       turnIndex: 1,
@@ -106,7 +107,10 @@ describe("record/read-back", () => {
   it("an empty store: eligibleAgentSessionId is undefined (cold path taken)", () => {
     const store = new SessionContinuityStore();
     assert.equal(isHarnessLoadEligible("sess-new", "claude", store), false);
-    assert.equal(eligibleAgentSessionId("sess-new", "claude", store), undefined);
+    assert.equal(
+      eligibleAgentSessionId("sess-new", "claude", store),
+      undefined,
+    );
   });
 });
 
@@ -182,49 +186,5 @@ describe("per-harness staleness guard", () => {
       "claude's file is two turns stale (codex then pi-claude ran since)",
     );
     assert.equal(eligibleAgentSessionId("sess-1", "claude", store), undefined);
-  });
-});
-
-// --- local multi-runner fails loudly --- //
-
-describe("isLocalRunnerEligible", () => {
-  it("is eligible when no owner is known yet (nothing to conflict with)", () => {
-    assert.equal(isLocalRunnerEligible(undefined, "replica-a"), true);
-  });
-
-  it("is eligible when the owner IS this replica", () => {
-    assert.equal(isLocalRunnerEligible("replica-a", "replica-a"), true);
-  });
-
-  it("is NOT eligible when a known owner is a DIFFERENT replica", () => {
-    assert.equal(isLocalRunnerEligible("replica-a", "replica-b"), false);
-  });
-});
-
-describe("assertLocalRunnerOwnership", () => {
-  it("is a no-op (never throws) when the owner is undefined", () => {
-    assert.doesNotThrow(() =>
-      assertLocalRunnerOwnership("sess-1", "replica-a", undefined),
-    );
-  });
-
-  it("is a no-op when the owner equals the caller's replica id", () => {
-    assert.doesNotThrow(() =>
-      assertLocalRunnerOwnership("sess-1", "replica-a", "replica-a"),
-    );
-  });
-
-  it("throws LocalSandboxNotOwnerError with the right fields when a KNOWN owner disagrees", () => {
-    assert.throws(
-      () => assertLocalRunnerOwnership("sess-1", "replica-b", "replica-a"),
-      (err: unknown) => {
-        assert.ok(err instanceof LocalSandboxNotOwnerError);
-        assert.equal(err.sessionId, "sess-1");
-        assert.equal(err.replicaId, "replica-b");
-        assert.equal(err.ownerReplicaId, "replica-a");
-        assert.match(err.message, /local sandbox requires a single runner/);
-        return true;
-      },
-    );
   });
 });

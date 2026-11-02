@@ -56,7 +56,6 @@ from .sdk.utils.preinit import PreInitObject  # noqa: F401
 # `agenta.Message` already names the prompt message type; import the agents one from
 # `agenta.sdk.agents` when needed.
 from .sdk.agents import (  # noqa: F401
-    AgentaHarness,
     AgentTemplate,
     ClaudeHarness,
     Environment,

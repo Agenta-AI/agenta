@@ -1,6 +1,8 @@
 import {PageLayout} from "@agenta/ui"
+import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {ArrowLeft} from "@phosphor-icons/react"
 import {Button} from "antd"
+import clsx from "clsx"
 import {useRouter} from "next/router"
 
 import ApplicationManagementSection from "@/oss/components/pages/app-management/components/ApplicationManagementSection"
@@ -24,7 +26,7 @@ export default function ArchivedAgentsPage() {
     )
 
     return (
-        <PageLayout title={title} className="grow min-h-0">
+        <PageLayout title={title} className={clsx(pageContentWidthClass, "grow min-h-0")}>
             <ApplicationManagementSection mode="archived" agentScope />
         </PageLayout>
     )

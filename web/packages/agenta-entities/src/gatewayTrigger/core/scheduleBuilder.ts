@@ -16,7 +16,7 @@
  * schedules are a separate concern that needs a backend tz field.
  */
 
-import {describeCron, validateCron} from "./cron"
+import {describeCron, nextCronRuns, validateCron} from "./cron"
 
 export type CronCadence = "hourly" | "daily" | "weekly" | "monthly" | "custom"
 
@@ -148,28 +148,95 @@ export function timesFormCleanGrid(times: CronTimeOfDay[]): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// description (the friendly "next runs" summary line)
+// description — the cadence phrase, the collapsed summary, and the next run
 // ---------------------------------------------------------------------------
 
 const DAY_ABBR = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+const MONTH_ABBR = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+]
 
-export function describeBuilder(state: ScheduleBuilderState): string {
+/**
+ * The cadence on its own, with no run times — "Weekdays", "Every 3h at :00",
+ * "Monthly on the 1st". Drives the cadence chips and feeds {@link summarizeSchedule}.
+ */
+export function describeCadence(state: ScheduleBuilderState): string {
     switch (state.cadence) {
         case "custom":
-            return describeCron(state.cron)
+            return state.cron.trim() || describeCron(state.cron)
         case "hourly": {
             const n = clampInt(state.everyNHours, 1, 23)
-            const m = state.times[0]?.minute ?? 0
-            const at = m === 0 ? "" : ` at :${pad2(m)}`
-            return `${n <= 1 ? "Every hour" : `Every ${n} hours`}${at} (UTC)`
+            return `Every ${n}h at :${pad2(state.times[0]?.minute ?? 0)}`
         }
         case "daily":
-            return `Every day at ${timesPhrase(state.times)} (UTC)`
+            return "Daily"
         case "weekly":
-            return `${daysPhrase(state.weekdays)} at ${timesPhrase(state.times)} (UTC)`
+            return daysPhrase(state.weekdays)
         case "monthly":
-            return `Monthly on ${ordinalList(state.daysOfMonth)} at ${timesPhrase(state.times)} (UTC)`
+            return `Monthly on ${ordinalList(state.daysOfMonth)}`
     }
+}
+
+/**
+ * The collapsed schedule row — "Weekdays at 09:00 UTC". Hourly already carries its
+ * minute in the cadence phrase, and a raw expression speaks for itself, so neither
+ * repeats the times.
+ */
+export function summarizeSchedule(state: ScheduleBuilderState): string {
+    const cadence = describeCadence(state)
+    if (state.cadence === "custom") return cadence
+    if (state.cadence === "hourly") return `${cadence} UTC`
+    return `${cadence} at ${timesPhrase(state.times)} UTC`
+}
+
+/**
+ * "Next run Mon 17 Aug, 09:00 UTC · in 2 days" — the hint under the schedule row.
+ * Hourly appends its daily run count, which is the number people actually check.
+ * Empty when the expression has no computable next run, so the caller can fall back.
+ */
+export function formatNextRun(
+    cron: string,
+    state?: ScheduleBuilderState,
+    from: Date = new Date(),
+): string {
+    const next = nextCronRuns(cron, 1, from)[0]
+    if (!next) return ""
+
+    const when = `${DAY_ABBR[next.getUTCDay()]} ${next.getUTCDate()} ${MONTH_ABBR[next.getUTCMonth()]}`
+    const time = `${pad2(next.getUTCHours())}:${pad2(next.getUTCMinutes())}`
+    let line = `Next run ${when}, ${time} UTC · ${relativeFrom(next, from)}`
+
+    if (state?.cadence === "hourly") {
+        const perDay = Math.ceil(24 / clampInt(state.everyNHours, 1, 23))
+        line += ` · ${plural(perDay, "run")} a day`
+    }
+    return line
+}
+
+/**
+ * The Name placeholder — "Weekdays 09:00 — daily-update". A cadence that carries its
+ * own time (hourly) or is a raw expression (custom) skips the time segment.
+ */
+export function suggestScheduleName(
+    state: ScheduleBuilderState,
+    agentName?: string | null,
+): string {
+    const carriesOwnTime = state.cadence === "hourly" || state.cadence === "custom"
+    const cadence = describeCadence(state)
+    const withTime = carriesOwnTime ? cadence : `${cadence} ${timesPhrase(state.times)}`
+    const agent = agentName?.trim()
+    return agent ? `${withTime} — ${agent}` : withTime
 }
 
 // ---------------------------------------------------------------------------
@@ -234,18 +301,30 @@ function pad2(n: number): string {
 }
 
 function timesPhrase(times: CronTimeOfDay[]): string {
-    return joinAnd(sortedTimes(times).map((t) => `${pad2(t.hour)}:${pad2(t.minute)}`))
+    return joinCapped(sortedTimes(times).map((t) => `${pad2(t.hour)}:${pad2(t.minute)}`))
 }
 
 function daysPhrase(days: number[]): string {
     const ds = sortedUnique(days)
     if (ds.length === 7) return "Every day"
-    if (ds.length === 5 && [1, 2, 3, 4, 5].every((d) => ds.includes(d))) return "Every weekday"
-    return joinAnd(ds.map((d) => DAY_ABBR[d]))
+    if (ds.length === 5 && [1, 2, 3, 4, 5].every((d) => ds.includes(d))) return "Weekdays"
+    return joinCapped(ds.map((d) => DAY_ABBR[d]))
+}
+
+function plural(n: number, word: string): string {
+    return `${n} ${word}${n === 1 ? "" : "s"}`
+}
+
+/** "in 40 minutes" / "in 3 hours" / "in 2 days", coarsening as the gap grows. */
+function relativeFrom(target: Date, from: Date): string {
+    const minutes = Math.max(1, Math.round((target.getTime() - from.getTime()) / 60_000))
+    if (minutes < 60) return `in ${plural(minutes, "minute")}`
+    if (minutes < 1440) return `in ${plural(Math.round(minutes / 60), "hour")}`
+    return `in ${plural(Math.round(minutes / 1440), "day")}`
 }
 
 function ordinalList(days: number[]): string {
-    return `the ${joinAnd(sortedUnique(days).map(ordinal))}`
+    return `the ${joinCapped(sortedUnique(days).map(ordinal))}`
 }
 
 function ordinal(n: number): string {
@@ -258,4 +337,16 @@ function joinAnd(items: string[]): string {
     if (items.length <= 1) return items[0] ?? ""
     if (items.length === 2) return `${items[0]} and ${items[1]}`
     return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`
+}
+
+/**
+ * Join a short list in prose, but keep the result bounded: a monthly schedule can select 31 days,
+ * and spelling every one out grows the collapsed summary until it truncates mid-word. Past
+ * {@link LIST_CAP} entries the tail becomes a count.
+ */
+const LIST_CAP = 3
+
+function joinCapped(items: string[]): string {
+    if (items.length <= LIST_CAP) return joinAnd(items)
+    return `${items.slice(0, LIST_CAP).join(", ")} +${items.length - LIST_CAP}`
 }

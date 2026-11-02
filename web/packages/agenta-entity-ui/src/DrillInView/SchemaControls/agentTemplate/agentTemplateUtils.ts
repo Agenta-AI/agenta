@@ -21,12 +21,17 @@ export function enumLabel(schema: SchemaProperty | undefined, value: unknown): s
     return v
 }
 
-/** "3 tools" / "1 server" / "None" — the count line shown in a collapsed section header. */
+/** "3 tools" / "1 server" — the count line in a section header; empty when there are none. */
 export const countSummary = (n: number, noun: string): string =>
-    n > 0 ? `${n} ${noun}${n === 1 ? "" : "s"}` : "None"
+    n > 0 ? `${n} ${noun}${n === 1 ? "" : "s"}` : ""
 
 /** Deep-clone a config item so drawer edits don't alias the committed config object. */
 export function cloneItem(item: unknown): Record<string, unknown> {
     if (!item || typeof item !== "object") return {}
     return JSON.parse(JSON.stringify(item)) as Record<string, unknown>
+}
+
+/** Resolve the effective harness kind, matching the execution layer's default. */
+export function effectiveHarnessValue(harness: Record<string, unknown>): string {
+    return typeof harness.kind === "string" ? harness.kind : "pi_core"
 }

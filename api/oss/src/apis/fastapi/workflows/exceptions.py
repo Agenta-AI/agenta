@@ -9,17 +9,17 @@ from functools import wraps
 
 from fastapi import HTTPException
 
+from oss.src.apis.fastapi.sharing.utils import agent_creation_failed_exception
 from oss.src.core.embeds.exceptions import (
-    CircularEmbedError,
-    EmbedNotFoundError,
-    MaxDepthExceededError,
-    MaxEmbedsExceededError,
-    MixedEntityTypesError,
+    EmbedError,
     NonEmbeddableWorkflowReferenceError,
-    PathExtractionError,
-    UnsupportedReferenceTypeError,
 )
-from oss.src.core.workflows.types import StaticWorkflowSlug
+from oss.src.core.sharing.types import AgentCreationFailed
+from oss.src.core.workflows.types import (
+    InvalidAgentConnectionError,
+    InvalidAgentInstructionsError,
+    StaticWorkflowSlug,
+)
 
 
 class StaticWorkflowSlugException(HTTPException):
@@ -38,68 +38,43 @@ class NonEmbeddableWorkflowReferenceException(HTTPException):
         super().__init__(status_code=400, detail=message)
 
 
-class CircularEmbedException(HTTPException):
-    def __init__(self, message: str = "Circular embed detected."):
+class EmbedException(HTTPException):
+    # Every embed resolution error (cycle, depth or count limit, missing or unsupported
+    # reference, mixed families, bad path) comes from the request's configuration.
+    def __init__(self, message: str = "The embedded references could not be resolved."):
         super().__init__(status_code=400, detail=message)
 
 
-class MaxDepthExceededException(HTTPException):
-    def __init__(self, message: str = "Max embed depth exceeded."):
-        super().__init__(status_code=400, detail=message)
+class InvalidAgentInstructionsException(HTTPException):
+    # 422, like the harness refusal on the commit route: the request is well-formed, the
+    # configuration in it is not.
+    def __init__(self, error: InvalidAgentInstructionsError):
+        super().__init__(status_code=422, detail=error.to_detail())
 
 
-class MaxEmbedsExceededException(HTTPException):
-    def __init__(self, message: str = "Max embed count exceeded."):
-        super().__init__(status_code=400, detail=message)
-
-
-class EmbedNotFoundException(HTTPException):
-    def __init__(self, message: str = "Referenced entity not found."):
-        super().__init__(status_code=400, detail=message)
-
-
-class UnsupportedReferenceTypeException(HTTPException):
-    def __init__(self, message: str = "Unsupported reference type."):
-        super().__init__(status_code=400, detail=message)
-
-
-class MixedEntityTypesException(HTTPException):
-    def __init__(self, message: str = "References span multiple entity families."):
-        super().__init__(status_code=400, detail=message)
-
-
-class PathExtractionException(HTTPException):
-    def __init__(self, message: str = "Path not found in configuration."):
-        super().__init__(status_code=400, detail=message)
+class InvalidAgentConnectionException(HTTPException):
+    def __init__(self, error: InvalidAgentConnectionError):
+        super().__init__(status_code=422, detail=error.to_detail())
 
 
 def handle_workflow_exceptions():
-    """Return a decorator that translates workflow-domain errors into typed HTTP 400 exceptions."""
-
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
-            """Await the wrapped route handler, converting known domain errors to HTTP exceptions."""
             try:
                 return await func(*args, **kwargs)
             except StaticWorkflowSlug as e:
                 raise StaticWorkflowSlugException(message=e.message) from e
             except NonEmbeddableWorkflowReferenceError as e:
                 raise NonEmbeddableWorkflowReferenceException(message=str(e)) from e
-            except CircularEmbedError as e:
-                raise CircularEmbedException(message=str(e)) from e
-            except MaxDepthExceededError as e:
-                raise MaxDepthExceededException(message=str(e)) from e
-            except MaxEmbedsExceededError as e:
-                raise MaxEmbedsExceededException(message=str(e)) from e
-            except EmbedNotFoundError as e:
-                raise EmbedNotFoundException(message=str(e)) from e
-            except UnsupportedReferenceTypeError as e:
-                raise UnsupportedReferenceTypeException(message=str(e)) from e
-            except MixedEntityTypesError as e:
-                raise MixedEntityTypesException(message=str(e)) from e
-            except PathExtractionError as e:
-                raise PathExtractionException(message=str(e)) from e
+            except EmbedError as e:
+                raise EmbedException(message=str(e)) from e
+            except InvalidAgentInstructionsError as e:
+                raise InvalidAgentInstructionsException(e) from e
+            except InvalidAgentConnectionError as e:
+                raise InvalidAgentConnectionException(e) from e
+            except AgentCreationFailed as e:
+                raise agent_creation_failed_exception(e) from e
 
         return wrapper
 

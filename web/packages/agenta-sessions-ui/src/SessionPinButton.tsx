@@ -1,0 +1,47 @@
+import {PushPinIcon} from "@phosphor-icons/react"
+import clsx from "clsx"
+
+import {Tip} from "./assets/Tip"
+
+/**
+ * Pin and unpin as ONE control: a pinned row keeps the same pin, filled, and its tooltip reads
+ * "Unpin". A separate unpin glyph made the pinned state look like a fault to undo.
+ */
+export const SessionPinButton = ({
+    pinned,
+    onToggle,
+    revealOnHover = true,
+    tooltip = true,
+    className,
+}: {
+    pinned: boolean
+    onToggle: () => void
+    /** Web reveals an unpinned row's pin on hover; touch has no hover, so it stays visible there. */
+    revealOnHover?: boolean
+    /** Off where the pin sits inside a row that already tips (the aria-label still names it). */
+    tooltip?: boolean
+    className?: string
+}) => {
+    const button = (
+        <button
+            type="button"
+            aria-label={pinned ? "Unpin session" : "Pin session"}
+            onClick={(event) => {
+                event.stopPropagation()
+                onToggle()
+            }}
+            className={clsx(
+                "relative shrink-0 cursor-pointer border-0 bg-transparent p-0 text-colorTextTertiary",
+                // Transparent ::after hit extender around the unchanged 14px icon — absolute, so
+                // the trailing controls' h-5 box and the row do not grow. Wider on touch, where
+                // there is no cursor to aim with: ~38px against the ~26px a mouse gets.
+                "after:absolute after:inset-[-12px] after:content-[''] [@media(hover:hover)]:after:inset-[-6px]",
+                !pinned && revealOnHover && "opacity-0 focus:opacity-100 group-hover:opacity-100",
+                className,
+            )}
+        >
+            <PushPinIcon size={14} weight={pinned ? "fill" : "regular"} />
+        </button>
+    )
+    return tooltip ? <Tip title={pinned ? "Unpin" : "Pin"}>{button}</Tip> : button
+}

@@ -80,13 +80,13 @@ export const V2Card = ({
 )
 
 export const CountBadge = ({children}: PropsWithChildren) => (
-    <span className="shrink-0 rounded-[9px] bg-colorFillSecondary px-[7px] py-px font-mono text-[10.5px] leading-4 text-colorTextSecondary">
+    <span className="shrink-0 rounded-[9px] bg-colorFillSecondary px-[7px] py-px font-mono text-[12px] leading-4 text-colorTextSecondary">
         {children}
     </span>
 )
 
 export const DiffersBadge = () => (
-    <span className="shrink-0 rounded-[9px] bg-[#fffbe6] px-[7px] py-px text-[10.5px] font-semibold leading-4 text-[#d48806] dark:bg-[#2b2611]">
+    <span className="shrink-0 rounded-[9px] bg-[#fffbe6] px-[7px] py-px text-[12px] font-semibold leading-4 text-[#d48806] dark:bg-[#2b2611]">
         differs
     </span>
 )

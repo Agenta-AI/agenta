@@ -103,7 +103,7 @@ def _build_restricted_globals() -> Dict[str, Any]:
 
 
 class RestrictedRunner(CodeRunner):
-    """Default code runner: executes evaluator code in an in-process RestrictedPython sandbox."""
+    """Opt-in code runner: executes evaluator code in-process with RestrictedPython. Not an isolation boundary."""
 
     def run(
         self,
@@ -144,7 +144,7 @@ class RestrictedRunner(CodeRunner):
         # (AGENTA_SERVICES_CODE_SANDBOX_RUNNER=daytona).
         if runtime != "python":
             raise ValueError(
-                f"Runtime '{runtime}' is not supported by the default sandbox. "
+                f"Runtime '{runtime}' is not supported by the restricted runner. "
                 "JavaScript and TypeScript evaluators require the Daytona runner. "
                 "Set AGENTA_SERVICES_CODE_SANDBOX_RUNNER=daytona, or change the "
                 "runtime to 'python'."

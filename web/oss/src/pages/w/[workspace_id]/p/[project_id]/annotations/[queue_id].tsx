@@ -8,16 +8,13 @@ import {
     type MetricPopoverWrapperProps,
 } from "@agenta/annotation-ui/context"
 import AnnotationSession from "@agenta/annotation-ui/session"
+import {openTraceDrawerAtom, setTraceDrawerActiveSpanAtom} from "@agenta/observability/traceDrawer"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import AnnotationTestcaseContent from "@/oss/components/Annotations/AnnotationTestcaseContent"
 import AnnotationTraceContent from "@/oss/components/Annotations/AnnotationTraceContent"
 import MetricDetailsPreviewPopover from "@/oss/components/Evaluations/components/MetricDetailsPreviewPopover"
-import {
-    openTraceDrawerAtom,
-    setTraceDrawerActiveSpanAtom,
-} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import useURL from "@/oss/hooks/useURL"
 import {useAppNavigation, useQueryParamState} from "@/oss/state/appState"

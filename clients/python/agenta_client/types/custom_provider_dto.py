@@ -13,12 +13,16 @@ class CustomProviderDto(UniversalBaseModel):
     kind: CustomProviderKind
     provider: CustomProviderSettingsDto
     models: typing.List[CustomModelSettingsDto]
+    harnesses: typing.Optional[typing.List[str]] = None
     provider_slug: typing.Optional[str] = None
     model_keys: typing.Optional[typing.List[str]] = None
-    
+
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
+            extra="allow", frozen=True
+        )  # type: ignore # Pydantic v2
     else:
+
         class Config:
             frozen = True
             smart_union = True

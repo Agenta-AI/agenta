@@ -9,7 +9,7 @@ import {
     useToolConnectionQuery,
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
-import {getAgentaApiUrl, getAgentaWebUrl, queryClient} from "@agenta/shared/api"
+import {getAgentaApiUrl, getAgentaWebUrl, getHostQueryClient} from "@agenta/shared/api"
 import {dayjs} from "@agenta/shared/utils"
 import {modal} from "@agenta/ui/app-message"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
@@ -17,6 +17,7 @@ import {Divider, LoadingButton, Spinner} from "@agenta/ui/ui"
 import {ArrowClockwise, Play, Trash, XCircle} from "@phosphor-icons/react"
 import {useAtom, useSetAtom} from "jotai"
 
+import {consentPopupFeatures} from "../../shared/consentPopupFeatures"
 import ConnectionStatusBadge from "../components/ConnectionStatusBadge"
 
 function formatCreatedAt(value: string | null | undefined): string {
@@ -63,7 +64,7 @@ export default function ConnectionManagerDrawer() {
     const setConnectionInCache = useCallback(
         (nextConnection: ToolConnection | null) => {
             if (!connectionId) return
-            queryClient.setQueryData(["tools", "connections", connectionId], {
+            getHostQueryClient().setQueryData(["tools", "connections", connectionId], {
                 count: nextConnection ? 1 : 0,
                 connection: nextConnection,
             })
@@ -83,7 +84,7 @@ export default function ConnectionManagerDrawer() {
                 const popup = window.open(
                     redirectUrl,
                     "tools_oauth_refresh",
-                    "width=600,height=700,popup=yes",
+                    consentPopupFeatures(window),
                 )
 
                 if (!popup) {

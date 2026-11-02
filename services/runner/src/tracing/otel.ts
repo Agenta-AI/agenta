@@ -1,6 +1,6 @@
 /**
- * agenta-otel — a Pi extension that turns Pi's `pi.on(...)` lifecycle events into
- * OpenTelemetry spans and exports them (OTLP/HTTP protobuf) to Agenta.
+ * agenta-otel turns Pi lifecycle events into OpenTelemetry spans. Runner tracing may
+ * export through HTTP; Pi injects a serialized-byte transport so the runner owns export.
  *
  * This is the service build of the WP-1 POC extension
  * (docs/design/agent-workflows/scratch/wp-1-pi-tracing/poc/agenta-otel.ts). It keeps the
@@ -16,10 +16,9 @@
  *      remote span, so the whole agent run joins the same trace as the `/invoke`
  *      request — the agent's work becomes part of the response trace, the way
  *      completion/chat nest their LLM spans under the workflow span.
- *   3. Per-trace export target. The OTLP endpoint and `Authorization` header come
- *      from the run config (the caller's host + credentials), falling back to env.
- *      Each trace is exported with its own target, so a shared process can serve
- *      more than one project.
+ *   3. Per-run export destination. Runner tracing can supply an HTTP endpoint and
+ *      authorization provider. Pi supplies only a serialized-byte transport, so no
+ *      endpoint or export credential crosses into the Pi process.
  *
  * Span tree (per user prompt), unchanged from the POC:
  *   invoke_agent            (openinference.span.kind = AGENT)
@@ -27,11 +26,12 @@
  *       chat <model>        (LLM)   — the provider request for that turn
  *       execute_tool <name> (TOOL)  — each tool the turn ran
  *
- * Config (read lazily from the environment for the fallback target):
+ * Runner HTTP fallback config (read lazily from the environment):
  *   AGENTA_API_INTERNAL_URL, AGENTA_API_URL  — fallback exporter endpoint
  *   AGENTA_CREDENTIALS                       — per-run caller credential (no static API key)
  *   OTEL_SERVICE_NAME            — resource service.name (default "pi-agent")
  */
+import { createOutputBudget } from "./output-budget.ts";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
   context,
@@ -46,6 +46,7 @@ import {
 } from "@opentelemetry/api";
 import { ExportResultCode } from "@opentelemetry/core";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
+import { ProtobufTraceSerializer } from "@opentelemetry/otlp-transformer";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import type {
   ReadableSpan,
@@ -55,8 +56,17 @@ import type {
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 
-import type { AgentEvent, AgentUsage, EmitEvent } from "../protocol.ts";
+import type {
+  AgentEvent,
+  AgentUsage,
+  EmitEvent,
+  ModelTokenUsage,
+} from "../protocol.ts";
+import { acpToolName } from "../acp-tool-name.ts";
 import type { Redactor } from "../redaction.ts";
+import { configuredApiBase, envApiUrl } from "../apiBase.ts";
+import { logExportProblem } from "./export-diagnostics.ts";
+import { createStreamTrace } from "./stream-trace.ts";
 
 /** Machine-readable prefix on a sibling force-settle result (see TOOL_NOT_EXECUTED_PAUSED). The
  *  responder keys off this to keep the deferral out of the client-output store, and the web widget
@@ -79,8 +89,37 @@ export const INTERRUPTED_BY_USER =
 // Shared, process-wide tracing infrastructure
 // ---------------------------------------------------------------------------
 
-/** Where a trace's spans are shipped: an OTLP endpoint and an Authorization header. */
-interface ExportTarget {
+export type AuthorizationProvider = () => string | undefined;
+
+/** One complete OTLP request body produced from a parent-first trace batch. */
+export interface SerializedTraceBatch {
+  body: Uint8Array;
+  traceId: string;
+  spanCount: number;
+}
+
+/** Bundle-safe destination for Pi-produced OTLP bytes, such as its atomic file publisher. */
+export interface SerializedTraceBatchTransport {
+  export(batch: SerializedTraceBatch): void | Promise<void>;
+}
+
+/** Where a trace's spans are shipped. The credential is read only when the batch is sent. */
+interface HttpExportTarget {
+  kind: "http";
+  endpoint: string;
+  authorization: AuthorizationProvider;
+}
+
+/** A non-network target used inside Pi to publish a standard serialized OTLP request. */
+interface SerializedExportTarget {
+  kind: "serialized";
+  transport: SerializedTraceBatchTransport;
+}
+
+type ExportTarget = HttpExportTarget | SerializedExportTarget;
+
+/** The target material resolved for one concrete export attempt. */
+interface ResolvedExportTarget {
   endpoint: string;
   authorization?: string;
 }
@@ -182,12 +221,16 @@ function redactSpan(span: ReadableSpan, redactors: Iterable<Redactor>): void {
     }
     const status = span.status as { message?: string };
     if (typeof status.message === "string") {
-      status.message = redactor.redactString(status.message, "spans") ?? status.message;
+      status.message =
+        redactor.redactString(status.message, "spans") ?? status.message;
     }
   }
 }
 
-function redactAttributes(attrs: Record<string, unknown>, redactor: Redactor): void {
+function redactAttributes(
+  attrs: Record<string, unknown>,
+  redactor: Redactor,
+): void {
   for (const [key, value] of Object.entries(attrs)) {
     if (typeof value === "string") {
       attrs[key] = redactor.redactString(value, "spans");
@@ -200,58 +243,376 @@ function redactAttributes(attrs: Record<string, unknown>, redactor: Redactor): v
   }
 }
 
-/** Cache one exporter per distinct endpoint+auth so we do not rebuild per export. */
-const exporterCache = new Map<string, OTLPTraceExporter>();
-
-function targetKey(target: ExportTarget): string {
-  return `${target.endpoint}\n${target.authorization ?? ""}`;
+interface ExporterCacheEntry {
+  authorization?: string;
+  exporter: OTLPTraceExporter;
+  activeExports: number;
+  retired: boolean;
+  shutdown?: Promise<void>;
 }
 
-function getExporter(target: ExportTarget): OTLPTraceExporter {
-  const key = targetKey(target);
-  let exporter = exporterCache.get(key);
-  if (!exporter) {
-    exporter = new OTLPTraceExporter({
+/** Cache the current exporter per endpoint and retire it safely when the credential rotates. */
+const exporterCache = new Map<string, ExporterCacheEntry>();
+/** Only retired exporters with an active request remain here, so rotation cannot grow it unbounded. */
+const retiringExporters = new Set<ExporterCacheEntry>();
+
+function shutdownExporter(entry: ExporterCacheEntry): Promise<void> {
+  entry.shutdown ??= entry.exporter.shutdown();
+  return entry.shutdown;
+}
+
+function retireExporter(entry: ExporterCacheEntry): void {
+  entry.retired = true;
+  if (entry.activeExports === 0) {
+    void shutdownExporter(entry).catch(() => {});
+    return;
+  }
+  retiringExporters.add(entry);
+}
+
+function completeExport(entry: ExporterCacheEntry): void {
+  entry.activeExports -= 1;
+  if (!entry.retired || entry.activeExports !== 0) return;
+  retiringExporters.delete(entry);
+  void shutdownExporter(entry).catch(() => {});
+}
+
+function getExporter(target: ResolvedExportTarget): ExporterCacheEntry {
+  const cached = exporterCache.get(target.endpoint);
+  if (cached && cached.authorization === target.authorization) return cached;
+
+  const entry: ExporterCacheEntry = {
+    authorization: target.authorization,
+    exporter: new OTLPTraceExporter({
       url: target.endpoint,
       headers: target.authorization
         ? { Authorization: target.authorization }
         : {},
       timeoutMillis: 10_000,
-    });
-    exporterCache.set(key, exporter);
-  }
-  return exporter;
+    }),
+    activeExports: 0,
+    retired: false,
+  };
+  if (cached) retireExporter(cached);
+  exporterCache.set(target.endpoint, entry);
+  return entry;
 }
 
+const CLOUD_API_BASE = "https://cloud.agenta.ai/api";
+
 /** Fallback target from env, used when a trace was started without an explicit one. */
-function defaultTarget(): ExportTarget {
+function defaultTarget(): HttpExportTarget {
   // Internal direct hop first, then the public `.../api` base, then cloud.
   const base =
-    (
-      process.env.AGENTA_API_INTERNAL_URL ?? process.env.AGENTA_API_URL
-    )?.replace(/\/+$/, "") || "https://cloud.agenta.ai/api";
+    configuredApiBase()?.replace(/\/+$/, "") || CLOUD_API_BASE;
   // The per-run caller credential rides the request (each explicit trace target carries its own
-  // authorization; local Pi's OTLP bearer is written to a 0600 file). The runner holds no static
+  // authorization; Pi's runner-owned exporter receives it only at send time). The runner holds no static
   // platform key: it must not carry an `AGENTA_API_KEY` a local harness could read from /proc and
   // reuse (interface.md section 2). The scheme-tagged ephemeral `AGENTA_CREDENTIALS` (a
-  // `Secret ...` from `/check`, used verbatim) is the only fallback; absent it, export unauthed.
-  const credentials = process.env.AGENTA_CREDENTIALS || "";
+  // `Secret ...` from `/check`, used verbatim) is the only fallback; absent it, `flush` skips
+  // the export rather than sending Agenta an unauthenticated one (see `isAgentaIngest`).
   return {
+    kind: "http",
     endpoint: `${base}/otlp/v1/traces`,
-    authorization: credentials || undefined,
+    authorization: () => process.env.AGENTA_CREDENTIALS || undefined,
   };
 }
 
+/** Add the runner's live platform credential as the fallback for a blank request credential. */
+export function platformAuthorizationProvider(
+  configured?: string | AuthorizationProvider,
+): AuthorizationProvider {
+  const configuredProvider =
+    typeof configured === "function" ? configured : () => configured;
+  const fallbackAuthorization = defaultTarget().authorization;
+  return () => {
+    const resolved = configuredProvider();
+    return resolved?.trim() ? resolved : fallbackAuthorization();
+  };
+}
+
+/** Resolve the trace endpoint exactly as the runner's ordinary span exporter does. */
+export function resolveOtlpTraceEndpoint(endpoint?: string): string {
+  return endpoint?.trim() || defaultTarget().endpoint;
+}
+
 /**
- * Buffer a trace's spans and export them in ONE OTLP batch. Agenta computes
- * cumulative (rolled-up) token/cost metrics per ingest batch, so a trace split
- * across batches loses the root aggregation. Two completion signals:
+ * Does this endpoint speak Agenta's own ingest, which always requires a credential? Only there
+ * is a credential-less export pointless — a caller may instead aim a run at a third-party
+ * collector (a local OTel collector, Jaeger, a host behind network auth), and those accept
+ * unauthenticated spans, so those must still be sent.
+ *
+ * Both configured bases count, not only the one `defaultTarget` picked: a run can be handed the
+ * public URL while the runner's own hop is internal. The endpoint must equal one of the ingest
+ * URLs a configured base serves (see `ingestUrlsForBase`), and nothing else: a third-party
+ * collector may share the Agenta host behind a different proxy path.
+ */
+/**
+ * Host names that all denote THIS deployment's own API host.
+ *
+ * A service running in bridge mode cannot reach the host through `localhost` — that name resolves
+ * to its own container — so the SDK rewrites a configured `localhost`/`0.0.0.0` API URL to
+ * `host.docker.internal` before using it (`agenta/sdk/utils/helpers.py`, `parse_url`). The endpoint
+ * that then arrives on a run request names a DIFFERENT alias than the base configured here, and
+ * comparing them verbatim says "this is somebody else's collector" about the deployment's own
+ * ingest. The credential is withheld on that basis and every session call the runner makes comes
+ * back 401 — with nothing in the message pointing at a hostname.
+ *
+ * Folding the aliases together does not widen who gets the credential: the endpoint must still
+ * equal one of the operator-configured API bases, port and path included. Only the spelling of the
+ * local host is treated as interchangeable, which is the same equivalence the SDK's rewrite asserts.
+ */
+const LOCAL_HOST_ALIASES = new Set([
+  "localhost",
+  "127.0.0.1",
+  "0.0.0.0",
+  "[::1]",
+  "::1",
+  "host.docker.internal",
+]);
+
+/**
+ * One comparable spelling of a parsed URL: scheme, host (local aliases folded), port, and path.
+ *
+ * The path is passed in, so a caller can compare a base's parsed authority against a path it
+ * builds itself without ever re-parsing text it assembled. See `ingestUrlsForBase`.
+ */
+function normalizeIngestParts(url: URL, pathname: string): string {
+  const path = pathname.replace(/\/+$/, "") || "/";
+  const host = LOCAL_HOST_ALIASES.has(url.hostname)
+    ? "__local__"
+    : url.hostname;
+  const port = url.port ? `:${url.port}` : "";
+  return `${url.protocol}//${host}${port}${path}`;
+}
+
+/** One comparable spelling of a URL, or undefined when it does not parse. */
+function normalizeIngestUrl(value: string): string | undefined {
+  try {
+    const url = new URL(value);
+    return normalizeIngestParts(url, url.pathname);
+  } catch {
+    return undefined;
+  }
+}
+
+/** The path Agenta's api serves OTLP traces on, under any number of leading `/api` segments. */
+const TRACE_PATH = "/otlp/v1/traces";
+
+/**
+ * Every ingest URL one configured base serves, as comparable spellings.
+ *
+ * `<base>/otlp/v1/traces` always counts: it is what the runner's own fallback exporter builds
+ * (`defaultTarget`). A dispatched run's endpoint comes from the SDK instead, which drops a
+ * trailing `/api` from the base and then appends its own (`sdks/python/agenta/sdk/utils/init.py`).
+ * So a base written WITHOUT that suffix — `AGENTA_API_INTERNAL_URL=http://agenta-api:8000`, the
+ * shape every compose file uses and the natural value for the Helm chart's optional
+ * `agenta.apiInternalUrl` — arrives with an extra `/api` segment on the wire. Accepting only the
+ * first spelling called that endpoint a third-party collector, withheld the run credential, and
+ * turned session calls into HTTP 401. The api strips leading `/api` segments in a loop
+ * (`api/oss/src/middlewares/prefix.py`), so both spellings reach the same route.
+ *
+ * A base that ALREADY ends in `/api` gets no second candidate. The SDK reproduces such a base
+ * exactly, so nothing needs the extra shape, and the base's root sibling must stay foreign: a
+ * shared ingress can route `/api/*` to Agenta and `/otlp/v1/traces` to somebody else's collector.
+ * The api's prefix strip cannot argue otherwise, because it runs AFTER the proxy picked a backend.
+ *
+ * Every candidate is built from the PARSED base's authority and path, never from its raw text. A
+ * textual `replace(/\/api$/, "")` turns `http://api` into `http:/`, and appending the trace path
+ * to that manufactures a different host — `http://otlp/v1/traces`, which the allowlist then
+ * accepts. An allowlist must never invent an origin it was not given.
+ */
+function ingestUrlsForBase(base: string): string[] {
+  let url: URL;
+  try {
+    url = new URL(base);
+  } catch {
+    return [];
+  }
+  const path = url.pathname.replace(/\/+$/, "");
+  const paths = path.endsWith("/api")
+    ? [`${path}${TRACE_PATH}`]
+    : [`${path}${TRACE_PATH}`, `${path}/api${TRACE_PATH}`];
+  return paths.map((candidate) => normalizeIngestParts(url, candidate));
+}
+
+export function isAgentaIngest(endpoint: string): boolean {
+  const normalizedEndpoint = normalizeIngestUrl(endpoint);
+  if (!normalizedEndpoint) return false;
+  return configuredIngestBases().some((base) =>
+    ingestUrlsForBase(base).includes(normalizedEndpoint),
+  );
+}
+
+/** Hosts the platform rewrites to `host.docker.internal` before it dispatches a run. */
+const BRIDGE_REWRITTEN_HOSTS = new Set(["localhost", "0.0.0.0"]);
+
+/**
+ * The same base the platform would hand a dispatched run, or undefined when it rewrites nothing.
+ *
+ * A self-hoster's natural `AGENTA_API_URL` is a localhost URL, but a sandboxed run cannot reach
+ * the host that way from inside its own container, so the trace endpoint is rewritten to
+ * `host.docker.internal` on the way out. The runner reads only the raw env value, so the
+ * configured base and the endpoint it is handed can never string-match, and every run of such a
+ * deployment loses its platform credential.
+ *
+ * The authority for that rewrite is `parse_url` in `sdks/python/agenta/sdk/utils/helpers.py`, NOT
+ * the api's same-named twin in `api/oss/src/utils/helpers.py`. The endpoint on the wire is
+ * `ag.tracing.otlp_url`, which the agent service derives through the SDK's copy; the api's copy
+ * shapes the service URL a run is POSTed to. The two differ, and the differences are what the
+ * limits below are about.
+ *
+ * The mirror is deliberately exact: same scheme, port, and path, and only the two hosts the
+ * rewrite touches. Three things it deliberately does NOT do:
+ *
+ *   - `127.0.0.1` earns no alias HERE. Neither copy of `parse_url` rewrites it, so that
+ *     deployment already matches its own raw base and the bridge form is a pair the platform
+ *     cannot produce. It is admitted anyway, one layer up: `isAgentaIngest` folds every
+ *     local-host spelling into one host (#6392), which subsumes this mirror entirely. This
+ *     function is kept because it is the record of WHICH rewrite the platform actually performs,
+ *     and because it names the bridge form in `configuredIngestBases()` so a rejection message
+ *     lists the host the operator will see on the wire.
+ *   - A scheme-less base earns no alias, because it cannot help. The SDK's `parse_url` does no
+ *     scheme defaulting (unlike the api's), so a scheme-less `AGENTA_API_URL` yields an equally
+ *     scheme-less ENDPOINT, which `new URL` reads as an opaque `localhost:`-scheme path. Both
+ *     sides are then unparseable and no aliasing here can make them agree. Such a deployment is
+ *     broken further upstream — the OTLP exporter target itself is malformed — and the fix is
+ *     scheme defaulting in the SDK's `parse_url`, not a wider allowlist.
+ *   - The alias is not gated on the docker network mode, even though the rewrite is: the SDK's
+ *     `parse_url` rewrites only when `DOCKER_NETWORK_MODE` is exactly `bridge`, so in `host` mode
+ *     (and when the var is unset) the platform dispatches the unrewritten localhost endpoint,
+ *     which the raw base already matches, and this alias is merely unused. Gating it is not
+ *     possible and would not be safe: the runner's environment carries no `DOCKER_NETWORK_MODE`
+ *     (it takes no `env_file` by design, and the var is absent from its `environment:` block in
+ *     every compose file), so the runner cannot tell "unset" from "bridge, but invisible to me" —
+ *     and those two need OPPOSITE answers. A mode-gated alias would read "unset" and emit
+ *     nothing on exactly the bridge deployments this exists to fix.
+ *
+ * What that last point leaves is a residual width: in host mode the allowlist also admits
+ * `host.docker.internal` on the configured port, an endpoint the platform will not dispatch
+ * there. It is not an attack surface. The endpoint is always platform-dispatched — the runner
+ * reads it from the run request the agent service builds — and reaching the runner directly needs
+ * `AGENTA_RUNNER_TOKEN` inside the compose network, where a forged request carries its own
+ * credential anyway. The only real exposure is a third-party collector on the docker host at the
+ * exact port of the configured Agenta api, which in practice is that api.
+ */
+function bridgeRewrittenBase(base: string): string | undefined {
+  let url: URL;
+  try {
+    url = new URL(base);
+  } catch {
+    return undefined;
+  }
+  if (!BRIDGE_REWRITTEN_HOSTS.has(url.hostname)) return undefined;
+  url.hostname = "host.docker.internal";
+  return url.toString().replace(/\/+$/, "");
+}
+
+/** The api bases `isAgentaIngest` accepts, in precedence order. Exported so a rejection can name
+ * what it compared against — the failure is always a configuration gap, never a code path. */
+export function configuredIngestBases(): string[] {
+  const configured = [
+    envApiUrl("AGENTA_API_INTERNAL_URL"),
+    envApiUrl("AGENTA_API_URL"),
+    CLOUD_API_BASE,
+  ].filter((base): base is string => Boolean(base));
+
+  return configured.flatMap((base) => {
+    const bridged = bridgeRewrittenBase(base);
+    return bridged ? [base, bridged] : [base];
+  });
+}
+
+/**
+ * Has the operator told this runner its platform's PUBLIC api base?
+ *
+ * Only `AGENTA_API_URL` counts. `AGENTA_API_INTERNAL_URL` is the in-network hop and never appears
+ * in a dispatched run's trace endpoint, so it cannot settle whether a public-looking endpoint is
+ * this platform or someone else's collector. Cloud is self-describing: a runner reaching the cloud
+ * api needs no operator input, so the built-in cloud base counts as configured.
+ */
+export function publicApiBaseConfigured(): boolean {
+  return Boolean(
+    envApiUrl("AGENTA_API_URL") ||
+    envApiUrl("AGENTA_API_INTERNAL_URL")?.startsWith(CLOUD_API_BASE),
+  );
+}
+
+/**
+ * Size budget of one OTLP request body. Agenta's ingest rejects a body above 10 MB with a 413 and
+ * drops every span in it, so a trace is split into requests within this budget, with a margin
+ * under the server limit. One span larger than the budget still goes out, alone (see
+ * `chunkTraceBatch`).
+ */
+export const OTLP_MAX_REQUEST_BYTES = 5 * 1024 * 1024;
+
+/** Protobuf size of one span sent alone. Summed per request, this overcounts the resource and
+ * scope envelope that each extra span shares, so a request packed by it stays under its budget. */
+function spanRequestBytes(span: ReadableSpan): number {
+  try {
+    return ProtobufTraceSerializer.serializeRequest([span])?.byteLength ?? 0;
+  } catch {
+    // Sizing is an estimate: a span the serializer rejects fails again, and is logged, at export.
+    return 0;
+  }
+}
+
+/**
+ * Split spans into parent-first requests of at most `maxBytes` each. The one exception is a span
+ * larger than `maxBytes`: it goes alone in its own request, so if the ingest rejects it, it does
+ * not take its siblings down with it.
+ */
+export function chunkTraceBatch(
+  spans: ReadableSpan[],
+  maxBytes: number = OTLP_MAX_REQUEST_BYTES,
+  sizeOf: (span: ReadableSpan) => number = spanRequestBytes,
+): ReadableSpan[][] {
+  const chunks: ReadableSpan[][] = [];
+  let current: ReadableSpan[] = [];
+  let currentBytes = 0;
+  for (const span of orderParentFirst(spans)) {
+    const bytes = sizeOf(span);
+    if (current.length > 0 && currentBytes + bytes > maxBytes) {
+      chunks.push(current);
+      current = [];
+      currentBytes = 0;
+    }
+    current.push(span);
+    currentBytes += bytes;
+  }
+  if (current.length > 0) chunks.push(current);
+  return chunks;
+}
+
+/**
+ * Buffer a trace's spans and export them when the trace completes. Two completion signals:
  *   - the root span ends (standalone run: invoke_agent IS the root), or
  *   - the run flushes explicitly by trace id (cross-boundary run: invoke_agent
  *     has a remote parent that never ends in this process, so root-end never fires).
+ * A trace whose buffered spans reach `OTLP_MAX_REQUEST_BYTES` is also flushed early, and every
+ * flush is split into requests within that size (one oversized span aside), so a long run no
+ * longer sends one request the ingest rejects as too large. Agenta (v0.121.4 and later) recomputes a trace's cumulative
+ * token/cost metrics from all its stored spans, so a trace sent in several requests keeps its
+ * root aggregation.
  */
+/** The runner's own tracers. The provider is registered globally, so any library that traces
+ * through the OpenTelemetry API writes into it too: the Daytona SDK wraps each call in a span,
+ * and the in-process engine polls a running command about once a second. Those spans belong to
+ * no run, carry no credential, and are dropped here instead of reaching an export. */
+const PI_TRACER = "agenta-pi-otel";
+const SANDBOX_AGENT_TRACER = "agenta-sandbox-agent-otel";
+const RUNNER_TRACERS = new Set([PI_TRACER, SANDBOX_AGENT_TRACER]);
+
 class TraceBatchProcessor implements SpanProcessor {
   private readonly buffers = new Map<string, ReadableSpan[]>();
+  /** traceId -> estimated protobuf bytes of the buffered spans (see `spanRequestBytes`). */
+  private readonly bufferedBytes = new Map<string, number>();
+  /** traceId -> the trace's last queued export. A trace's exports run one after another, so a
+   * long run's early flushes never stack up concurrent requests, and its final flush resolves
+   * only after every earlier one. */
+  private readonly exportTails = new Map<string, Promise<void>>();
+
+  constructor(private readonly maxRequestBytes: number) {}
 
   // Tag every span with the run id ambient in its start context (see `withRunId`), so a later
   // flush can tell which run produced it — concurrent runs sharing a trace id may have DIFFERENT
@@ -263,25 +624,61 @@ class TraceBatchProcessor implements SpanProcessor {
   }
 
   onEnd(span: ReadableSpan): void {
+    if (!RUNNER_TRACERS.has(span.instrumentationScope.name)) {
+      spanRunIds.delete(span.spanContext().spanId);
+      return;
+    }
     const traceId = span.spanContext().traceId;
+    const spanBytes = spanRequestBytes(span);
+    // A trace that already fills a request is sent before this span would overflow it, so a
+    // long run does not hold its whole trace until the end.
+    if (
+      (this.bufferedBytes.get(traceId) ?? 0) + spanBytes >
+      this.maxRequestBytes
+    ) {
+      void this.flush(traceId);
+    }
     const spans = this.buffers.get(traceId) ?? [];
     spans.push(span);
     this.buffers.set(traceId, spans);
+    this.bufferedBytes.set(
+      traceId,
+      (this.bufferedBytes.get(traceId) ?? 0) + spanBytes,
+    );
     // No parent in this process => this is the local root and the trace is done.
     if (!span.parentSpanContext?.spanId) {
-      this.flush(traceId);
+      void this.flush(traceId);
     }
   }
 
   /** Export and drop one trace's buffered spans, split into one sub-batch PER RUN and shipped to
-   * that run's own target (two runs sharing a trace id may have different endpoint/auth). Resolves
-   * once every sub-batch's export returns. Does NOT clear the trace's registered redactors or
-   * per-run targets for runs other than the ones this batch just exported — those live until each
-   * registered run releases (see `releaseRunRedactor`/`releaseRunTarget`), since a later batch on
-   * the same trace id can still be emitted by another still-running run sharing the trace. */
+   * that run's own target (two runs sharing a trace id may have different endpoint/auth). Each
+   * sub-batch is sent as parent-first requests of at most `maxRequestBytes`, one after another,
+   * after every earlier export of this trace. Resolves once all of them return.
+   * Does NOT clear the trace's registered redactors or per-run targets for runs other than the
+   * ones this batch just exported — those live until each registered run releases (see
+   * `releaseRunRedactor`/`releaseRunTarget`), since a later batch on the same trace id can still
+   * be emitted by another still-running run sharing the trace. */
   flush(traceId: string): Promise<void> {
+    const send = this.takeBuffered(traceId);
+    const previous = this.exportTails.get(traceId);
+    if (!send) return previous ?? Promise.resolve();
+    // With nothing queued, start now: the export reads its credential at flush time.
+    const tail = (previous ? previous.then(send) : send()).catch(() => {});
+    this.exportTails.set(traceId, tail);
+    void tail.then(() => {
+      if (this.exportTails.get(traceId) === tail)
+        this.exportTails.delete(traceId);
+    });
+    return tail;
+  }
+
+  /** Take one trace's buffered spans now, so spans that end later go to the next flush, and
+   * return the function that sends them. Redaction and run grouping happen here, at take time. */
+  private takeBuffered(traceId: string): (() => Promise<void>) | undefined {
     const spans = this.buffers.get(traceId);
-    if (!spans || spans.length === 0) return Promise.resolve();
+    this.bufferedBytes.delete(traceId);
+    if (!spans || spans.length === 0) return undefined;
     this.buffers.delete(traceId);
 
     // Redact at the sink: the last point before the spans leave the process. Apply every
@@ -301,59 +698,160 @@ class TraceBatchProcessor implements SpanProcessor {
       groups.set(runId, group);
     }
 
-    return Promise.all(
-      [...groups.entries()].map(([runId, group]) => {
-        // Fall back to the env default only for a span whose OWN run's target is unknown
-        // (untagged span, or the run already released) — never to another run's target, or a
-        // batch could still land on an unintended endpoint/auth.
-        const target = (runId ? byRun?.get(runId) : undefined) ?? defaultTarget();
-        return new Promise<void>((resolve) => {
+    const sends = [...groups.entries()].map(([runId, group]) => {
+      // Fall back to the env default only for a span whose OWN run's target is unknown
+      // (untagged span, or the run already released) — never to another run's target, or a
+      // batch could still land on an unintended endpoint/auth.
+      const target = (runId ? byRun?.get(runId) : undefined) ?? defaultTarget();
+      return async () => {
+        for (const chunk of chunkTraceBatch(group, this.maxRequestBytes))
+          await this.exportChunk(traceId, target, chunk, redactors);
+      };
+    });
+    return () => Promise.all(sends.map((send) => send())).then(() => undefined);
+  }
+
+  /** Send one request of a trace to its run's target. Best effort: it never rejects. */
+  private exportChunk(
+    traceId: string,
+    target: ExportTarget,
+    spans: ReadableSpan[],
+    redactors: Set<Redactor> | undefined,
+  ): Promise<void> {
+    if (target.kind === "serialized") {
+      try {
+        const body = serializeTraceBatch(spans);
+        if (!body) throw new Error("OTLP trace serialization returned no body");
+        return Promise.resolve(
+          target.transport.export({
+            body,
+            traceId,
+            spanCount: spans.length,
+          }),
+        ).catch((error) => {
+          logSerializedTransportProblem(
+            traceId,
+            spans.length,
+            error,
+            redactors,
+          );
+        });
+      } catch (error) {
+        logSerializedTransportProblem(traceId, spans.length, error, redactors);
+        return Promise.resolve();
+      }
+    }
+    const ordered = orderParentFirst(spans);
+    let resolvedTarget: ResolvedExportTarget;
+    try {
+      resolvedTarget = {
+        endpoint: target.endpoint,
+        authorization: target.authorization(),
+      };
+    } catch (error) {
+      logExportProblem({
+        traceId,
+        endpoint: target.endpoint,
+        authorization: undefined,
+        spans: spans.length,
+        redactors,
+        outcome: "threw",
+        error,
+      });
+      return Promise.resolve();
+    }
+    const problem = {
+      traceId,
+      endpoint: resolvedTarget.endpoint,
+      authorization: resolvedTarget.authorization,
+      spans: spans.length,
+      redactors,
+    };
+    if (
+      !resolvedTarget.authorization?.trim() &&
+      isAgentaIngest(resolvedTarget.endpoint)
+    ) {
+      // Agenta's ingest rejects an unauthenticated export, so sending one buys nothing and
+      // reports as a 401 that reads like a BAD credential. Say the credential is missing
+      // instead, and drop the batch here.
+      logExportProblem({ ...problem, outcome: "skipped" });
+      return Promise.resolve();
+    }
+    return new Promise<void>((resolve) => {
+      let entry: ExporterCacheEntry | undefined;
+      let exportSettled = false;
+      const settleExport = (): void => {
+        if (!exportSettled && entry) {
+          exportSettled = true;
+          completeExport(entry);
+        }
+        resolve();
+      };
+      try {
+        entry = getExporter(resolvedTarget);
+        entry.activeExports += 1;
+        entry.exporter.export(ordered, (result) => {
           try {
-            getExporter(target).export(orderParentFirst(group), (result) => {
-              if (result.code === ExportResultCode.FAILED)
-                console.error(
-                  "otel: trace export failed",
-                  traceId,
-                  result.error,
-                );
-              resolve();
-            });
-          } catch (err) {
-            // A synchronous export throw (e.g. misconfigured exporter) must stay best-effort:
-            // flush() is awaited without a catch, so a reject here would break the run.
-            console.error("otel: trace export threw", traceId, err);
-            resolve();
+            if (result.code === ExportResultCode.FAILED)
+              logExportProblem({
+                ...problem,
+                outcome: "failed",
+                error: result.error,
+              });
+          } finally {
+            settleExport();
           }
         });
-      }),
-    ).then(() => undefined);
+      } catch (err) {
+        // A synchronous export throw (e.g. misconfigured exporter) must stay best-effort:
+        // flush() is awaited without a catch, so a reject here would break the run.
+        settleExport();
+        logExportProblem({ ...problem, outcome: "threw", error: err });
+      }
+    });
   }
 
   forceFlush(): Promise<void> {
+    const traceIds = new Set([
+      ...this.buffers.keys(),
+      ...this.exportTails.keys(),
+    ]);
     return Promise.all(
-      [...this.buffers.keys()].map((traceId) => this.flush(traceId)),
+      [...traceIds].map((traceId) => this.flush(traceId)),
     ).then(() => undefined);
   }
 
   shutdown(): Promise<void> {
     return this.forceFlush().then(async () => {
       await Promise.all(
-        [...exporterCache.values()].map((exporter) => exporter.shutdown()),
+        [...exporterCache.values(), ...retiringExporters].map((entry) =>
+          shutdownExporter(entry),
+        ),
       );
     });
   }
 }
+
+/**
+ * The most attributes one span keeps. The SDK default is 128, and the SDK drops every attribute
+ * set past the limit without a word. A chat span gets its input messages at request time and its
+ * output, usage, finish reason, and cost at the end, so a long context used to push out exactly
+ * the figures that matter. The input messages have their own, smaller budget
+ * (`INPUT_MESSAGES_MAX_ATTRIBUTES`), which keeps this limit out of reach.
+ */
+const SPAN_ATTRIBUTE_COUNT_LIMIT = 1024;
 
 let provider: NodeTracerProvider | undefined;
 let processor: TraceBatchProcessor | undefined;
 
 function ensureProvider(): void {
   if (provider) return;
-  processor = new TraceBatchProcessor();
+  processor = new TraceBatchProcessor(OTLP_MAX_REQUEST_BYTES);
   provider = new NodeTracerProvider({
     resource: resourceFromAttributes({
       [ATTR_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME || "pi-agent",
     }),
+    spanLimits: { attributeCountLimit: SPAN_ATTRIBUTE_COUNT_LIMIT },
     spanProcessors: [processor],
   });
   provider.register();
@@ -380,10 +878,10 @@ export async function flushTrace(
 }
 
 /**
- * Order spans parent-before-child (preorder DFS). Agenta stores timestamps at
- * millisecond resolution and builds its roll-up tree by sorting on start_time,
- * attaching a span only if its parent is already seen. A parent-first request
- * order keeps parents ahead of children on same-millisecond ties.
+ * Order spans parent-before-child (preorder DFS) within one batch. Across a trace's batches a
+ * child can leave before its parent, which is still running. Agenta's ingest does not need this
+ * order: it builds each request's tree by parent id and recomputes a trace's totals from all its
+ * stored spans.
  */
 function orderParentFirst(spans: ReadableSpan[]): ReadableSpan[] {
   const byId = new Map(spans.map((s) => [s.spanContext().spanId, s]));
@@ -414,6 +912,28 @@ function orderParentFirst(spans: ReadableSpan[]): ReadableSpan[] {
   return ordered;
 }
 
+/** Serialize one complete trace batch in the exact parent-first order Agenta ingest expects. */
+export function serializeTraceBatch(
+  spans: ReadableSpan[],
+): Uint8Array | undefined {
+  return ProtobufTraceSerializer.serializeRequest(orderParentFirst(spans));
+}
+
+function logSerializedTransportProblem(
+  traceId: string,
+  spanCount: number,
+  error: unknown,
+  redactors?: Iterable<Redactor>,
+): void {
+  let message = error instanceof Error ? error.message : String(error);
+  for (const redactor of redactors ?? [])
+    message = redactor.redactString(message, "stderr") ?? message;
+  console.error(
+    "otel: serialized trace transport threw",
+    JSON.stringify({ traceId, spans: spanCount, error: message.slice(0, 200) }),
+  );
+}
+
 /** Build a parent Context from a W3C traceparent string, or undefined if absent/invalid. */
 function parentContext(traceparent?: string): Context | undefined {
   if (!traceparent) return undefined;
@@ -439,14 +959,20 @@ function parentContext(traceparent?: string): Context | undefined {
 
 /** One run's tracing config. Mutated by the runner after the session is created. */
 export interface RunConfig {
+  /** False when this warm Pi turn did not receive a valid runner control file. */
+  enabled?: boolean;
   /** OTLP traces endpoint for this run's trace (falls back to env). */
   endpoint?: string;
   /** Authorization header value for the OTLP export (falls back to env ApiKey). */
   authorization?: string;
+  /** Optional bundle-safe Pi transport that receives raw OTLP bytes instead of sending HTTP. */
+  serializedBatchTransport?: SerializedTraceBatchTransport;
   /** W3C traceparent from the caller; nests invoke_agent under that span. */
   traceparent?: string;
   /** W3C baggage from the caller (carried for future use). */
   baggage?: string;
+  /** Durable turn id stamped as runner metadata when supplied. */
+  turnId?: string;
   /** Drop prompt/completion/tool I/O from spans when false. */
   captureContent: boolean;
   /** Pi session id, set after createAgentSession so spans carry session.id. */
@@ -461,8 +987,12 @@ export interface RunConfig {
    * extension owns the agent span (the runner's sandbox-agent otel is span-less there).
    */
   skills?: string[];
+  /** "name: reason" per skill that did NOT materialize; stamped beside `skills` (F-029). */
+  skillsDropped?: string[];
   /** Per-run known-value redactor; scrubs the run's live secrets from exported spans. */
   redactor?: Redactor;
+  /** True when a custom model connection serves this turn (see CUSTOM_CONNECTION). */
+  customConnection?: boolean;
   /** Filled by the extension on agent_start so the runner can flush/return it. */
   traceId?: string;
 }
@@ -514,29 +1044,111 @@ function emitMessages(
   prefix: string,
   messages: any[],
   capture: boolean,
+  budget?: AttributeBudget,
 ): void {
   if (!capture || !Array.isArray(messages)) return;
   messages.forEach((m, i) => {
-    const base = `${prefix}.${i}.message`;
-    span.setAttribute(`${base}.role`, oiRole(m.role));
-    const text = messageText(m);
-    if (text) span.setAttribute(`${base}.content`, text);
-    if (m.role === "toolResult" && m.toolCallId)
-      span.setAttribute(`${base}.tool_call_id`, m.toolCallId);
-    if (Array.isArray(m.content)) {
-      m.content
-        .filter((b: any) => b?.type === "toolCall")
-        .forEach((call: any, j: number) => {
-          const tc = `${base}.tool_calls.${j}.tool_call`;
-          if (call.id) span.setAttribute(`${tc}.id`, call.id);
-          span.setAttribute(`${tc}.function.name`, call.name);
-          span.setAttribute(
-            `${tc}.function.arguments`,
-            JSON.stringify(call.arguments ?? {}),
-          );
-        });
+    for (const [key, value] of messageAttributes(m, `${prefix}.${i}.message`)) {
+      if (!budget) {
+        span.setAttribute(key, value);
+        continue;
+      }
+      // With a budget, every attribute spends from it and a value is clipped to what is left,
+      // so no message, however large, can take the span past the budget.
+      if (budget.attributes <= 0) return;
+      const clipped = clipToBytes(value, budget.bytes);
+      budget.attributes -= 1;
+      budget.bytes -= Buffer.byteLength(clipped);
+      span.setAttribute(key, clipped);
     }
   });
+}
+
+/** The OpenInference attributes of one message, in emission order. */
+function* messageAttributes(m: any, base: string): Generator<[string, string]> {
+  if (typeof m?.role === "string") yield [`${base}.role`, oiRole(m.role)];
+  const text = messageText(m);
+  if (text) yield [`${base}.content`, text];
+  if (m?.role === "toolResult" && m.toolCallId)
+    yield [`${base}.tool_call_id`, String(m.toolCallId)];
+  if (!Array.isArray(m?.content)) return;
+  const calls = m.content.filter((b: any) => b?.type === "toolCall");
+  for (const [j, call] of calls.entries()) {
+    const tc = `${base}.tool_calls.${j}.tool_call`;
+    if (call.id) yield [`${tc}.id`, String(call.id)];
+    if (typeof call.name === "string") yield [`${tc}.function.name`, call.name];
+    yield [`${tc}.function.arguments`, JSON.stringify(call.arguments ?? {})];
+  }
+}
+
+/**
+ * Budget for the context copied onto a chat span as `llm.input_messages.*`. Every model call
+ * carries the whole conversation so far, and a run's trace goes to Agenta in one OTLP request
+ * with a size cap, so an unbounded copy grows with the square of the run length. The span keeps
+ * the latest messages that fit the budget, oldest first. The newest message is always kept, cut
+ * to the budget when it alone is larger.
+ */
+const INPUT_MESSAGES_MAX_ATTRIBUTES = 256;
+const INPUT_MESSAGES_MAX_BYTES = 32_000;
+
+interface AttributeBudget {
+  attributes: number;
+  bytes: number;
+}
+
+/** Cut `text` to at most `maxBytes` UTF-8 bytes, never inside a character. */
+function clipToBytes(text: string, maxBytes: number): string {
+  if (Buffer.byteLength(text) <= maxBytes) return text;
+  if (maxBytes <= 0) return "";
+  const cut = Buffer.from(text).subarray(0, maxBytes).toString("utf8");
+  return cut.endsWith("\uFFFD") ? cut.slice(0, -1) : cut;
+}
+
+/** The attributes and UTF-8 bytes `emitMessages` writes for one message. */
+function messageFootprint(m: any): AttributeBudget {
+  const footprint = { attributes: 0, bytes: 0 };
+  for (const [, value] of messageAttributes(m, "")) {
+    footprint.attributes += 1;
+    footprint.bytes += Buffer.byteLength(value);
+  }
+  return footprint;
+}
+
+/** The latest messages that fit the input budget, in their original order (at least one). */
+function latestMessagesWithinBudget(messages: any[]): any[] {
+  let attributes = 0;
+  let bytes = 0;
+  let start = messages.length;
+  while (start > 0) {
+    const footprint = messageFootprint(messages[start - 1]);
+    const fits =
+      attributes + footprint.attributes <= INPUT_MESSAGES_MAX_ATTRIBUTES &&
+      bytes + footprint.bytes <= INPUT_MESSAGES_MAX_BYTES;
+    if (!fits && start < messages.length) break;
+    attributes += footprint.attributes;
+    bytes += footprint.bytes;
+    start -= 1;
+  }
+  return messages.slice(start);
+}
+
+/** Emit a model call's input context within the input budget (see above). */
+function emitInputMessages(
+  span: Span,
+  messages: any[],
+  capture: boolean,
+): void {
+  if (!capture || !Array.isArray(messages)) return;
+  emitMessages(
+    span,
+    "llm.input_messages",
+    latestMessagesWithinBudget(messages),
+    capture,
+    {
+      attributes: INPUT_MESSAGES_MAX_ATTRIBUTES,
+      bytes: INPUT_MESSAGES_MAX_BYTES,
+    },
+  );
 }
 
 function toolResultText(result: any): string {
@@ -560,6 +1172,36 @@ function lastAssistantText(messages: any): string {
   return "";
 }
 
+/**
+ * The TTL of a span's cache writes, which Anthropic bills at different rates. Claude Code writes
+ * 1-hour entries, and claude-agent-acp reports only the total written, so the runner stamps "1h"
+ * on a Claude chat span that wrote cache. Absent means the 5-minute TTL, the Anthropic default.
+ */
+const CACHE_WRITE_TTL = "agenta.usage.cache_write_ttl";
+
+/**
+ * Declares which token contract a span's `gen_ai.usage.input_tokens` follows.
+ *
+ * The runner writes `false`: its input count is EXCLUSIVE — uncached input only, with
+ * `gen_ai.usage.cache_read.input_tokens` and `gen_ai.usage.cache_creation.input_tokens`
+ * reported beside it rather than inside it. The OpenTelemetry GenAI contract means the
+ * opposite (input already includes cached tokens), and pricing derives ordinary input by
+ * subtracting the cache details from the count it is given. Agenta ingests OTLP from
+ * third-party instrumentation as well as from this runner, so without this marker the two
+ * contracts are indistinguishable and one of them is mispriced. An ABSENT marker means
+ * inclusive, the OpenTelemetry meaning; every span this runner gives an input token count
+ * carries the marker.
+ */
+const INPUT_TOKENS_INCLUDES_CACHE = "agenta.usage.input_tokens_includes_cache";
+
+/**
+ * Marks a model span whose model a custom model connection serves: the user's own gateway or
+ * OpenAI-compatible deployment (see `servedByCustomConnection`). Such an endpoint
+ * charges what it charges, so the bare model id on the span must not be priced at the public
+ * provider rate. Set to `true` only on those spans; absent means a standard provider route.
+ */
+export const CUSTOM_CONNECTION = "agenta.model.custom_connection";
+
 /** Fill an LLM span from a finished assistant message (model, tokens, finish, output). */
 /** Returns the error message when the assistant turn failed (stopReason/errorMessage), else
  * undefined — so the caller can emit a matching `error` event, not just stamp the span. */
@@ -581,6 +1223,7 @@ function applyAssistant(
   const u = msg.usage;
   if (u) {
     // Current GenAI names (mapped by Agenta's logfire adapter) ...
+    span.setAttribute(INPUT_TOKENS_INCLUDES_CACHE, false);
     span.setAttribute("gen_ai.usage.input_tokens", u.input ?? 0);
     span.setAttribute("gen_ai.usage.output_tokens", u.output ?? 0);
     // ... and legacy names (mapped by Agenta's semconv.py). Emit both so token
@@ -602,8 +1245,48 @@ function applyAssistant(
       );
     if (u.cost?.total != null)
       span.setAttribute("gen_ai.usage.cost", u.cost.total);
+    // The runner's pi-ai build patch (src/tools/pi-provider-cost-patch.ts) puts the provider's
+    // billed charge (OpenRouter usage.cost) in cost.total and marks it. Name the source on the
+    // span, so a reader can tell a billed charge from Pi's price-table estimate.
+    if (typeof u.cost?.total === "number" && u.cost.source === "provider")
+      span.setAttribute("agenta.usage.cost_source", "provider");
   }
 
+  // Pi keeps transport details outside errorMessage. Preserve a bounded allowlist,
+  // never provider payloads or headers, even when conversation capture is disabled.
+  for (const diagnostic of (Array.isArray(msg.diagnostics)
+    ? msg.diagnostics
+    : []
+  ).slice(-8)) {
+    if (diagnostic?.type !== "provider_transport_failure") continue;
+    const attributes: Record<string, string | number | boolean> = {};
+    for (const [prefix, source, keys] of [
+      ["error", diagnostic.error, ["name", "message", "code"]],
+      [
+        "transport",
+        diagnostic.details,
+        [
+          "configuredTransport",
+          "fallbackTransport",
+          "eventsEmitted",
+          "phase",
+          "requestBytes",
+        ],
+      ],
+    ] as const) {
+      for (const key of keys) {
+        const value = source?.[key];
+        if (typeof value === "string")
+          attributes[`${prefix}.${key}`] = value.slice(0, 2000);
+        else if (
+          typeof value === "boolean" ||
+          (typeof value === "number" && Number.isFinite(value))
+        )
+          attributes[`${prefix}.${key}`] = value;
+      }
+    }
+    span.addEvent("provider_transport_failure", attributes);
+  }
   emitMessages(span, "llm.output_messages", [msg], capture);
   if (msg.stopReason === "error" || msg.errorMessage) {
     span.setStatus({ code: SpanStatusCode.ERROR, message: msg.errorMessage });
@@ -621,10 +1304,12 @@ export interface AgentaOtel {
   register: (pi: ExtensionAPI) => void;
   /** Mutable config; set sessionId/provider/requestModel after the session exists. */
   config: RunConfig;
+  /** Replace all per-turn Pi state and reset usage before a warm prompt begins. */
+  beginTurn: (next: Partial<RunConfig>) => void;
   /** Flush this run's trace to Agenta. Await before the process/response ends. */
   flush: () => Promise<void>;
   /** Run totals (tokens + cost) summed across turns, for roll-up onto the parent. */
-  usage: () => { input: number; output: number; total: number; cost: number };
+  usage: () => AgentUsage;
 }
 
 /**
@@ -638,18 +1323,24 @@ export function createAgentaOtel(
   ensureProvider();
 
   const config: RunConfig = {
+    enabled: init.enabled,
     endpoint: init.endpoint,
     authorization: init.authorization,
+    serializedBatchTransport: init.serializedBatchTransport,
     traceparent: init.traceparent,
+    baggage: init.baggage,
     captureContent: init.captureContent !== false,
     sessionId: init.sessionId,
+    turnId: init.turnId,
     provider: init.provider,
     requestModel: init.requestModel,
     skills: init.skills,
+    skillsDropped: init.skillsDropped,
     redactor: init.redactor,
+    customConnection: init.customConnection,
   };
 
-  const tracer = trace.getTracer("agenta-pi-otel", "0.1.0");
+  const tracer = trace.getTracer(PI_TRACER, "0.1.0");
   const runId = mintRunId();
 
   // Per-run span state — closure-scoped so concurrent runs never collide.
@@ -659,12 +1350,41 @@ export function createAgentaOtel(
   let currentTurn: { span: Span; ctx: Context; index?: number } | undefined;
   let llmSpan: Span | undefined;
   let lastContextMessages: any[] | undefined;
+  let lastAgentMessages: any[] | undefined;
   const toolSpans = new Map<string, Span>();
   // Run totals, summed across every assistant turn. Stamped on the agent span and
   // returned so the caller can roll them up onto the workflow span in its own process
-  // (the agent and workflow spans are exported in separate OTLP batches, so Agenta's
-  // per-batch cumulative roll-up cannot bridge them on its own).
+  // (the agent and workflow spans are exported in separate OTLP batches, and an Agenta
+  // API before v0.121.4 rolls up each batch on its own, so it cannot bridge them).
   const runUsage = { input: 0, output: 0, total: 0, cost: 0 };
+  // Whether ANY turn reported a cost. Without it a run the harness never priced is
+  // indistinguishable from one it priced at zero, and the sum below would report the second.
+  let costReported = false;
+
+  // Whether Pi has no price for the model of the current call: a models.json model registered
+  // without a cost table, which Pi fills with zeros (the built-in gateway model is one). Its
+  // zero cost is not a measured price.
+  let modelUnpriced = false;
+
+  /**
+   * On a custom connection Pi's cost is its public price-table estimate, not what the user's
+   * endpoint charges, and for a model Pi has no price for it is a zero that measures nothing. In
+   * both cases it leaves the span and the run usage, so the platform prices the tokens (or leaves
+   * a custom connection unpriced). A provider-billed charge (the pi-ai cost patch marks it
+   * `source: "provider"`) stays.
+   */
+  function withoutUnmeasuredCost(msg: any): any {
+    const cost = msg?.usage?.cost;
+    if (
+      !(config.customConnection || modelUnpriced) ||
+      !cost ||
+      cost.source === "provider"
+    ) {
+      return msg;
+    }
+    const { cost: _estimate, ...usage } = msg.usage;
+    return { ...msg, usage };
+  }
 
   function accumulateUsage(msg: any): void {
     const u = msg?.usage;
@@ -674,7 +1394,35 @@ export function createAgentaOtel(
     runUsage.input += input;
     runUsage.output += output;
     runUsage.total += u.totalTokens ?? input + output;
-    if (u.cost?.total != null) runUsage.cost += u.cost.total;
+    if (u.cost?.total != null) {
+      runUsage.cost += u.cost.total;
+      costReported = true;
+    }
+  }
+
+  function beginTurn(next: Partial<RunConfig>): void {
+    config.enabled = next.enabled;
+    config.endpoint = next.endpoint;
+    config.authorization = next.authorization;
+    config.serializedBatchTransport = next.serializedBatchTransport;
+    config.traceparent = next.traceparent;
+    config.baggage = next.baggage;
+    config.captureContent = next.captureContent !== false;
+    config.sessionId = next.sessionId;
+    config.turnId = next.turnId;
+    config.provider = next.provider;
+    config.requestModel = next.requestModel;
+    config.skills = next.skills;
+    config.skillsDropped = next.skillsDropped;
+    config.redactor = next.redactor;
+    config.customConnection = next.customConnection;
+    config.traceId = undefined;
+    lastAgentMessages = undefined;
+    runUsage.input = 0;
+    runUsage.output = 0;
+    runUsage.total = 0;
+    runUsage.cost = 0;
+    costReported = false;
   }
 
   const register = (pi: ExtensionAPI): void => {
@@ -683,6 +1431,8 @@ export function createAgentaOtel(
     });
 
     pi.on("agent_start", async () => {
+      // Retries and compaction start another attempt within the same user turn.
+      if (config.enabled === false || agentSpan) return;
       // Nest under the caller's workflow span when a traceparent was supplied,
       // so the whole run joins the /invoke trace; otherwise start a fresh root.
       // Tag the run id onto the start context BEFORE creating the root span, so onStart
@@ -699,15 +1449,20 @@ export function createAgentaOtel(
       // `ag.meta.*` namespace, so a local-Pi trace shows the surfaced skills (not just the author
       // config echoed elsewhere) AND Agenta's OTel ingest keeps them in a first-class `ag.*` bucket
       // rather than relocating an unrecognized `ag.agent.*` key to `ag.unsupported.*`. The set is
-      // passed from the runner via AGENTA_AGENT_SKILLS_LOADED.
+      // passed from the runner through the per-turn trace control.
       if (config.skills && config.skills.length > 0) {
         agentSpan.setAttribute("ag.meta.skills.loaded", config.skills);
         agentSpan.setAttribute("ag.meta.skills.count", config.skills.length);
+      }
+      if (config.skillsDropped && config.skillsDropped.length > 0) {
+        agentSpan.setAttribute("ag.meta.skills.dropped", config.skillsDropped);
       }
       if (config.sessionId) {
         agentSpan.setAttribute("session.id", config.sessionId);
         agentSpan.setAttribute("gen_ai.conversation.id", config.sessionId);
       }
+      if (config.turnId)
+        agentSpan.setAttribute("ag.meta.turn.id", config.turnId);
       setInputs(
         agentSpan,
         { prompt: pendingPrompt ?? "" },
@@ -716,10 +1471,21 @@ export function createAgentaOtel(
 
       const traceId = agentSpan.spanContext().traceId;
       config.traceId = traceId;
-      registerRunTarget(traceId, runId, {
-        endpoint: config.endpoint ?? defaultTarget().endpoint,
-        authorization: config.authorization ?? defaultTarget().authorization,
-      });
+      registerRunTarget(
+        traceId,
+        runId,
+        config.serializedBatchTransport
+          ? {
+              kind: "serialized",
+              transport: config.serializedBatchTransport,
+            }
+          : {
+              kind: "http",
+              endpoint: config.endpoint ?? defaultTarget().endpoint,
+              authorization: () =>
+                config.authorization ?? defaultTarget().authorization(),
+            },
+      );
       if (config.redactor) registerRunRedactor(traceId, config.redactor);
       agentCtx = trace.setSpan(parent, agentSpan);
     });
@@ -730,6 +1496,7 @@ export function createAgentaOtel(
     });
 
     pi.on("turn_start", async (event: any) => {
+      if (config.enabled === false) return;
       const parent = agentCtx ?? context.active();
       const name =
         event?.turnIndex != null ? `turn ${event.turnIndex}` : "turn";
@@ -745,9 +1512,11 @@ export function createAgentaOtel(
     });
 
     pi.on("before_provider_request", async (_event: any, ctx: any) => {
+      if (config.enabled === false) return;
       const parent = currentTurn?.ctx ?? agentCtx ?? context.active();
       const modelId = config.requestModel ?? ctx?.model?.id;
       const providerName = config.provider ?? ctx?.model?.provider;
+      modelUnpriced = hasZeroPriceTable(ctx?.model);
       llmSpan = tracer.startSpan(
         modelId ? `chat ${modelId}` : "chat",
         undefined,
@@ -757,25 +1526,24 @@ export function createAgentaOtel(
       llmSpan.setAttribute("gen_ai.operation.name", "chat");
       if (providerName) llmSpan.setAttribute("gen_ai.system", providerName);
       if (modelId) llmSpan.setAttribute("gen_ai.request.model", modelId);
+      if (config.customConnection)
+        llmSpan.setAttribute(CUSTOM_CONNECTION, true);
       if (lastContextMessages)
-        emitMessages(
-          llmSpan,
-          "llm.input_messages",
-          lastContextMessages,
-          config.captureContent,
-        );
+        emitInputMessages(llmSpan, lastContextMessages, config.captureContent);
     });
 
     pi.on("message_end", async (event: any) => {
-      const msg = event?.message;
-      if (!msg || msg.role !== "assistant" || !llmSpan) return;
-      applyAssistant(llmSpan, msg, config.captureContent);
+      const msg = withoutUnmeasuredCost(event?.message);
+      if (!msg || msg.role !== "assistant") return;
       accumulateUsage(msg);
+      if (!llmSpan) return;
+      applyAssistant(llmSpan, msg, config.captureContent);
       llmSpan.end();
       llmSpan = undefined;
     });
 
     pi.on("tool_execution_start", async (event: any) => {
+      if (config.enabled === false) return;
       const parent = currentTurn?.ctx ?? agentCtx ?? context.active();
       const name = event?.toolName
         ? `execute_tool ${event.toolName}`
@@ -810,8 +1578,9 @@ export function createAgentaOtel(
       // Safety net: if the LLM span is still open (no assistant message_end seen),
       // close it from the turn's assistant message.
       if (llmSpan && event?.message) {
-        applyAssistant(llmSpan, event.message, config.captureContent);
-        accumulateUsage(event.message);
+        const msg = withoutUnmeasuredCost(event.message);
+        applyAssistant(llmSpan, msg, config.captureContent);
+        accumulateUsage(msg);
         llmSpan.end();
         llmSpan = undefined;
       }
@@ -822,26 +1591,40 @@ export function createAgentaOtel(
     });
 
     pi.on("agent_end", async (event: any) => {
+      lastAgentMessages = event?.messages;
+    });
+
+    pi.on("agent_settled", async () => {
       if (!agentSpan) return;
+      // Cancellation may skip message_end, tool_execution_end, and turn_end. Close every child
+      // before the agent root so the one native batch contains all partial work Pi still holds.
+      if (llmSpan) {
+        llmSpan.end();
+        llmSpan = undefined;
+      }
+      for (const span of toolSpans.values()) span.end();
+      toolSpans.clear();
+      if (currentTurn) {
+        currentTurn.span.end();
+        currentTurn = undefined;
+      }
       setOutput(
         agentSpan,
-        lastAssistantText(event?.messages),
+        lastAssistantText(lastAgentMessages),
         config.captureContent,
       );
-      // Stamp the run total on the agent span so it shows the agent's tokens/cost even
-      // though Agenta cannot roll the per-turn LLM spans up across batches.
-      if (runUsage.total > 0) {
-        agentSpan.setAttribute("gen_ai.usage.input_tokens", runUsage.input);
-        agentSpan.setAttribute("gen_ai.usage.output_tokens", runUsage.output);
-        agentSpan.setAttribute("gen_ai.usage.prompt_tokens", runUsage.input);
-        agentSpan.setAttribute(
-          "gen_ai.usage.completion_tokens",
-          runUsage.output,
-        );
-        agentSpan.setAttribute("gen_ai.usage.total_tokens", runUsage.total);
-        if (runUsage.cost > 0)
-          agentSpan.setAttribute("gen_ai.usage.cost", runUsage.cost);
+      const finalAssistant = lastAgentMessages?.findLast(
+        (message: any) => message?.role === "assistant",
+      );
+      if (finalAssistant?.stopReason === "error") {
+        agentSpan.setStatus({
+          code: SpanStatusCode.ERROR,
+          message: finalAssistant.errorMessage,
+        });
       }
+      // Each `chat` span owns its own tokens and cost. Ingest reads `gen_ai.usage.*` as the
+      // span's incremental value and rolls children up into the parent, so repeating the run
+      // total here would count it twice.
       agentSpan.end();
       agentSpan = undefined;
       agentCtx = undefined;
@@ -852,9 +1635,31 @@ export function createAgentaOtel(
   return {
     register,
     config,
+    beginTurn,
     flush: () => flushTrace(config.traceId, config.redactor, runId),
-    usage: () => ({ ...runUsage }),
+    // The usage writeback (`extensions/agenta.ts`) serializes this straight onto the wire, so
+    // an unreported cost has to leave the key off rather than ship the running sum's 0.
+    usage: () => (costReported ? { ...runUsage } : stripCost(runUsage)),
   };
+}
+
+/** Whether a Pi model carries a cost table whose every rate is zero (Pi's default for a model
+ * registered without one). A model with no table at all is not judged. */
+function hasZeroPriceTable(model: any): boolean {
+  const cost = model?.cost;
+  if (!cost || typeof cost !== "object") return false;
+  return ["input", "output", "cacheRead", "cacheWrite"].every(
+    (rate) => cost[rate] == null || cost[rate] === 0,
+  );
+}
+
+/** Drop the cost key, so an unpriced run reads as unknown rather than measured-free. */
+function stripCost(usage: {
+  input: number;
+  output: number;
+  total: number;
+}): AgentUsage {
+  return { input: usage.input, output: usage.output, total: usage.total };
 }
 
 // ---------------------------------------------------------------------------
@@ -921,6 +1726,48 @@ function acpToolContentText(content: any): string {
       .join("");
   }
   return "";
+}
+
+/** JSON of a value, treating "no information" serializations as absent. */
+function jsonText(value: unknown): string {
+  try {
+    const text = JSON.stringify(value);
+    if (!text || text === "{}" || text === "[]" || text === "null") return "";
+    return text;
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Text of an OBJECT `rawOutput`. codex-acp never sends a `content` array on the update that
+ * completes a tool call — it sends a plain object whose shape depends on the tool: shell/exec
+ * `{formatted_output, exit_code}`, an MCP call `{result, error}` (result being an MCP
+ * CallToolResult carrying `content[]`), the unified exec path `{output}`. `acpToolContentText`
+ * reads none of those and returns "", which is why every codex tool result — successes and
+ * failures alike — stored and streamed empty.
+ *
+ * Candidates are tried in that order and an empty one falls through to the next, so a failed MCP
+ * call (`{result: null, error: "..."}`) carries its real error message; an object with no known
+ * key serializes whole, so a completed call is never silently empty.
+ */
+function acpRawOutputText(raw: any): string {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return "";
+  for (const key of ["formatted_output", "result", "output", "error"]) {
+    const value = raw[key];
+    if (typeof value === "string") {
+      if (value) return value;
+      continue;
+    }
+    if (value && typeof value === "object") {
+      const text =
+        acpToolContentText(value.content) || acpToolContentText(value);
+      if (text) return text;
+      const json = jsonText(value);
+      if (json) return json;
+    }
+  }
+  return jsonText(raw);
 }
 
 /**
@@ -1033,18 +1880,34 @@ function splitModel(model?: string): { provider?: string; id?: string } {
   return { provider: model.slice(0, slash), id: model.slice(slash + 1) };
 }
 
-export interface SandboxAgentOtelInit extends Partial<RunConfig> {
+export interface SandboxAgentOtelInit extends Omit<
+  Partial<RunConfig>,
+  "authorization" | "serializedBatchTransport"
+> {
+  /**
+   * Authorization for the OTLP exporter. The runner supplies a provider so a long-lived turn
+   * uses the latest session credential when it exports. A string remains accepted for local
+   * callers and focused tests.
+   */
+  authorization?: string | AuthorizationProvider;
   captureContent?: boolean;
   /** Harness id ("pi" / "claude"); becomes gen_ai.agent.name. */
   harness?: string;
   /** Resolved model id ("openai-codex/gpt-5.5"); set on the LLM span. */
   model?: string;
   /**
+   * True when the user's own model connection serves the run (`servedByCustomConnection`), so
+   * the model spans say so (see CUSTOM_CONNECTION).
+   */
+  customConnection?: boolean;
+  /**
    * Skill names actually materialized for this run — BOTH the author-supplied skills and the
    * forced Agenta platform `_agenta.*` skills the server injected. Stamped on the agent span so
    * a trace shows which skills loaded (F-029), not just the author config echoed elsewhere.
    */
   skills?: string[];
+  /** "name: reason" per skill that did NOT materialize; stamped beside `skills`. */
+  skillsDropped?: string[];
   /**
    * Emit the span tree from the ACP event stream. Default true. Set false when the
    * harness instruments itself (e.g. Pi via the agenta extension propagates the trace
@@ -1060,13 +1923,24 @@ export interface SandboxAgentOtelInit extends Partial<RunConfig> {
    * `events[]`. This split is what keeps a delta'd block from being re-sent in full.
    */
   emit?: EmitEvent;
+  /**
+   * Called for every sign of progress the turn shows, with or without `emit`: each event the run
+   * records, plus, on the one-shot path where text and reasoning are coalesced instead of
+   * recorded, each text chunk past the startup banner and each reasoning chunk. The run limits
+   * read it, so a non-streaming turn that is answering never looks stalled.
+   */
+  onProgress?: () => void;
+  /** Stop the turn through the engine's existing run-limit cancellation path. */
+  onOutputLimit?: (reason: string) => void;
 }
 
 export interface SandboxAgentOtel {
   /** Start the invoke_agent (AGENT) span as a child of the caller's traceparent. */
   start(input: { prompt?: string; messages?: any[]; sessionId?: string }): void;
   /** Feed one ACP `session/update` payload (the `update` object). */
-  handleUpdate(update: any): void;
+  handleUpdate(update: any, admitted?: boolean): void;
+  /** Admit a raw update before the engine retains correlation, timer or pause state. */
+  admitUpdate(update: any): boolean;
   /**
    * Record an event the ACP stream does not carry (e.g. an `interaction_request` raised via
    * the permission callback). Routes through the same choke point as stream events, so it
@@ -1084,6 +1958,8 @@ export interface SandboxAgentOtel {
   recordError(message: string, provider?: string): void;
   /** Set final run usage before finish/flush so events and exported spans carry final totals. */
   setUsage(usage: AgentUsage | undefined): void;
+  /** The turn's token counts (with cache reads and writes) for the model span. Not on the wire. */
+  setTokenDetail(tokens: ModelTokenUsage | undefined): void;
   /** Flush this run's trace to Agenta (invoke_agent has a remote parent). */
   flush(): Promise<void>;
   /** Trace id of the run (the caller's trace when a traceparent was passed). */
@@ -1121,10 +1997,14 @@ export function createSandboxAgentOtel(
   const capture = init.captureContent !== false;
   const emitSpans = init.emitSpans !== false;
   const endpoint = init.endpoint ?? defaultTarget().endpoint;
-  const authorization = init.authorization ?? defaultTarget().authorization;
+  // A run whose request carries no authorization header resolves to an empty value, not to
+  // undefined. The shared provider keeps runner and Pi export behavior identical.
+  const authorization = platformAuthorizationProvider(init.authorization);
   const { provider, id: modelId } = splitModel(init.model);
-  const tracer = trace.getTracer("agenta-sandbox-agent-otel", "0.1.0");
+  const customConnection = init.customConnection === true;
+  const tracer = trace.getTracer(SANDBOX_AGENT_TRACER, "0.1.0");
   const runId = mintRunId();
+  const streamTrace = createStreamTrace({ harness: init.harness });
 
   let agentSpan: Span | undefined;
   let agentCtx: Context | undefined;
@@ -1132,10 +2012,18 @@ export function createSandboxAgentOtel(
   let turnCtx: Context | undefined;
   let llmSpan: Span | undefined;
   let runTraceId: string | undefined;
+  let standaloneErrorRecorded = false;
   let accumulated = "";
   let reasoningAccumulated = "";
   let usage: AgentUsage | undefined;
+  // Set once the engine hands over the turn's final usage; a later stream reading must not replace it.
+  let usageSettled = false;
+  let tokenDetail: ModelTokenUsage | undefined;
   const events: AgentEvent[] = [];
+  const outputBudget = createOutputBudget(init.onOutputLimit);
+  let finished = false;
+  const admitUpdate = (update: any): boolean =>
+    !finished && outputBudget.accept(update);
   // `inputJson` is the serialized form of the last-RECORDED input for the call, so a later
   // `tool_call_update` can refresh the recorded args whenever they genuinely change.
   const toolSpans = new Map<
@@ -1151,8 +2039,10 @@ export function createSandboxAgentOtel(
   // result log and, on the streaming path, flushes the event the moment it is built — so
   // the live order is byte-identical to `events[]`. A sink failure never aborts the run.
   const sink = init.emit;
+  const onProgress = init.onProgress ?? (() => {});
   function record(event: AgentEvent): void {
     events.push(event);
+    onProgress();
     if (sink) {
       try {
         sink(event);
@@ -1162,20 +2052,77 @@ export function createSandboxAgentOtel(
     }
   }
 
-  function stampUsage(span: Span, u: AgentUsage | undefined): void {
-    if (!u) return;
-    span.setAttribute("gen_ai.usage.input_tokens", u.input);
-    span.setAttribute("gen_ai.usage.output_tokens", u.output);
-    span.setAttribute("gen_ai.usage.prompt_tokens", u.input);
-    span.setAttribute("gen_ai.usage.completion_tokens", u.output);
-    span.setAttribute("gen_ai.usage.total_tokens", u.total);
-    if (u.cost > 0) span.setAttribute("gen_ai.usage.cost", u.cost);
+  /**
+   * Stamp token counts on a LEAF model span, the one span that owns them. Input is exclusive of
+   * cache (see INPUT_TOKENS_INCLUDES_CACHE); cache reads and writes ride beside it.
+   */
+  function stampTokens(span: Span, t: ModelTokenUsage): void {
+    const total = t.input + t.output + t.cacheRead + t.cacheWrite;
+    // All zeros is the absence of a measurement, not a measured zero.
+    if (total <= 0) return;
+    span.setAttribute(INPUT_TOKENS_INCLUDES_CACHE, false);
+    span.setAttribute("gen_ai.usage.input_tokens", t.input);
+    span.setAttribute("gen_ai.usage.output_tokens", t.output);
+    span.setAttribute("gen_ai.usage.prompt_tokens", t.input);
+    span.setAttribute("gen_ai.usage.completion_tokens", t.output);
+    span.setAttribute("gen_ai.usage.total_tokens", total);
+    span.setAttribute("gen_ai.usage.cache_read.input_tokens", t.cacheRead);
+    span.setAttribute("gen_ai.usage.cache_creation.input_tokens", t.cacheWrite);
   }
 
+  /**
+   * Stamp the turn's usage on its chat span: the tokens of every model call in the turn, summed,
+   * and the harness cost when it reported one (Claude's turn share). The span stands for many
+   * calls, so without a cost the platform prices the sum as one request. Codex reports neither a
+   * cost nor per-call counts, so a Codex turn whose calls together cross a long-context price tier
+   * is priced at that tier: a known limit.
+   */
+  function stampModelUsage(span: Span): void {
+    const tokens =
+      tokenDetail ??
+      (usage
+        ? {
+            input: usage.input,
+            output: usage.output,
+            cacheRead: 0,
+            cacheWrite: 0,
+          }
+        : undefined);
+    if (tokens) stampTokens(span, tokens);
+    if (init.harness === "claude" && tokens && tokens.cacheWrite > 0)
+      span.setAttribute(CACHE_WRITE_TTL, "1h");
+    if (usage?.cost != null) span.setAttribute("gen_ai.usage.cost", usage.cost);
+  }
+
+  function setTokenDetail(tokens: ModelTokenUsage | undefined): void {
+    tokenDetail = tokens;
+  }
+
+  /**
+   * Set the run's final usage. With token detail set (call `setTokenDetail` first), the usage
+   * reports the counts the model span carries: every model call of the turn, and cache reads and
+   * writes in the total. A harness that traces its own spans (Pi) keeps the usage it reported.
+   */
   function setUsage(finalUsage: AgentUsage | undefined): void {
-    if (!finalUsage) return;
-    usage = finalUsage;
-    const event: AgentEvent = { type: "usage", ...finalUsage };
+    usageSettled = true;
+    const t = emitSpans ? tokenDetail : undefined;
+    let merged: AgentUsage | undefined = t
+      ? {
+          ...finalUsage,
+          input: t.input,
+          output: t.output,
+          total: t.input + t.output + t.cacheRead + t.cacheWrite,
+        }
+      : finalUsage;
+    // Claude's cost is its public price-table estimate, not what a custom connection charges. A
+    // self-tracing harness (Pi) already left its estimate out and keeps a provider-billed charge.
+    if (merged && customConnection && emitSpans) {
+      const { cost: _estimate, ...tokens } = merged;
+      merged = tokens;
+    }
+    if (!merged) return;
+    usage = merged;
+    const event: AgentEvent = { type: "usage", ...merged };
     if (!sink) {
       const index = events.findLastIndex((e) => e.type === "usage");
       if (index !== -1) {
@@ -1214,12 +2161,14 @@ export function createSandboxAgentOtel(
     if (textBlockId === undefined) return;
     record({ type: "message_end", id: textBlockId });
     textBlockId = undefined;
+    streamTrace?.closeBlock("message");
   }
 
   function closeReasoning(): void {
     if (reasoningBlockId === undefined) return;
     record({ type: "thought_end", id: reasoningBlockId });
     reasoningBlockId = undefined;
+    streamTrace?.closeBlock("thought");
   }
 
   /** Open (if needed) the assistant text block and emit the pure delta up to `target`. */
@@ -1233,7 +2182,10 @@ export function createSandboxAgentOtel(
       textBlockId = nextId("msg");
       record({ type: "message_start", id: textBlockId });
     }
-    record({ type: "message_delta", id: textBlockId, delta });
+    // V8 slices can retain the whole growing source string. Own only this delta's
+    // code units before events, persistence and live queues keep it past this callback.
+    const ownedDelta = Buffer.from(delta, "utf16le").toString("utf16le");
+    record({ type: "message_delta", id: textBlockId, delta: ownedDelta });
     textEmitted = target.startsWith(textEmitted) ? target : textEmitted + delta;
     anyTextDelta = true;
   }
@@ -1257,6 +2209,21 @@ export function createSandboxAgentOtel(
     if (body) streamText(body);
   }
 
+  /**
+   * The one-shot path's progress signal for assistant text, which it coalesces instead of
+   * recording. Matches the streaming path: the startup banner is not progress, so nothing counts
+   * until the banner region resolves and real text follows it. After that, every chunk counts.
+   */
+  let oneShotTextStarted = false;
+  function noteOneShotTextProgress(): void {
+    if (!oneShotTextStarted) {
+      const { body, settled } = splitLeadingBanner(accumulated);
+      if (!settled || !body) return;
+      oneShotTextStarted = true;
+    }
+    onProgress();
+  }
+
   /** Open (if needed) the reasoning block and emit the pure delta up to `target`. */
   function streamReasoning(target: string): void {
     closeText(); // a reasoning chunk ends any open text run
@@ -1268,7 +2235,8 @@ export function createSandboxAgentOtel(
       reasoningBlockId = nextId("reason");
       record({ type: "thought_start", id: reasoningBlockId });
     }
-    record({ type: "thought_delta", id: reasoningBlockId, delta });
+    const ownedDelta = Buffer.from(delta, "utf16le").toString("utf16le");
+    record({ type: "thought_delta", id: reasoningBlockId, delta: ownedDelta });
     reasoningEmitted = target.startsWith(reasoningEmitted)
       ? target
       : reasoningEmitted + delta;
@@ -1305,6 +2273,9 @@ export function createSandboxAgentOtel(
       agentSpan.setAttribute("ag.meta.skills.loaded", init.skills);
       agentSpan.setAttribute("ag.meta.skills.count", init.skills.length);
     }
+    if (init.skillsDropped && init.skillsDropped.length > 0) {
+      agentSpan.setAttribute("ag.meta.skills.dropped", init.skillsDropped);
+    }
     const sessionId = input.sessionId ?? init.sessionId;
     if (sessionId) {
       agentSpan.setAttribute("session.id", sessionId);
@@ -1313,7 +2284,11 @@ export function createSandboxAgentOtel(
     setInputs(agentSpan, { prompt: input.prompt ?? "" }, capture);
 
     runTraceId = agentSpan.spanContext().traceId;
-    registerRunTarget(runTraceId, runId, { endpoint, authorization });
+    registerRunTarget(runTraceId, runId, {
+      kind: "http",
+      endpoint,
+      authorization,
+    });
     if (init.redactor) registerRunRedactor(runTraceId, init.redactor);
     agentCtx = trace.setSpan(parent, agentSpan);
 
@@ -1331,6 +2306,7 @@ export function createSandboxAgentOtel(
     llmSpan.setAttribute("gen_ai.operation.name", "chat");
     if (provider) llmSpan.setAttribute("gen_ai.system", provider);
     if (modelId) llmSpan.setAttribute("gen_ai.request.model", modelId);
+    if (customConnection) llmSpan.setAttribute(CUSTOM_CONNECTION, true);
     if (init.harness === "codex" && modelId) {
       // Codex-only: codex-acp reports no response model and its ACP usage carries no cost, so stamp the
       // resolved model as the response model too; the platform cost calculator reads ag.meta.response.model.
@@ -1341,34 +2317,55 @@ export function createSandboxAgentOtel(
       input.messages && input.messages.length
         ? input.messages
         : [{ role: "user", content: input.prompt ?? "" }];
-    emitMessages(llmSpan, "llm.input_messages", inputMessages, capture);
+    emitInputMessages(llmSpan, inputMessages, capture);
   }
 
-  function handleUpdate(update: any): void {
+  function handleUpdate(update: any, admitted = false): void {
     const kind = update?.sessionUpdate;
-    if (!kind) return;
+    if (!kind || finished || (!admitted && !admitUpdate(update))) return;
+
+    // Pi retrying a failed model call (the runner's pi-acp patch): progress for the run limits,
+    // so a slow provider is not taken for a stuck harness, and nothing the person reads.
+    if (kind === "session_info_update") {
+      if (typeof update._meta?.piAcp?.retrying === "boolean") onProgress();
+      return;
+    }
 
     if (kind === "agent_message_chunk") {
       const t = acpBlockText(update.content);
       if (!t) return;
       // Pi streams pure deltas; Claude streams deltas plus a cumulative snapshot.
       // Replace when a chunk is a superset of what we have, append otherwise.
-      if (t.startsWith(accumulated)) accumulated = t;
+      const messageSnapshot = t.startsWith(accumulated);
+      // Measure the NEW tail, not the chunk: a snapshot provider would otherwise report the
+      // whole accumulated answer as this delta's size.
+      streamTrace?.record(
+        "message",
+        messageSnapshot ? t.length - accumulated.length : t.length,
+      );
+      if (messageSnapshot) accumulated = t;
       else accumulated += t;
       // Live deltas run independent of span emission (text, not a span), so they flow even
       // when the harness self-instruments (emitSpans=false). `accumulated` is the cumulative
       // text, so the pure delta is its tail past what we already sent — minus the leading
       // startup banner, which is held back until the body begins (see streamAssistantText).
       if (sink) streamAssistantText();
+      else noteOneShotTextProgress();
       return;
     }
 
     if (kind === "agent_thought_chunk") {
       const t = acpBlockText(update.content);
       if (!t) return;
-      if (t.startsWith(reasoningAccumulated)) reasoningAccumulated = t;
+      const thoughtSnapshot = t.startsWith(reasoningAccumulated);
+      streamTrace?.record(
+        "thought",
+        thoughtSnapshot ? t.length - reasoningAccumulated.length : t.length,
+      );
+      if (thoughtSnapshot) reasoningAccumulated = t;
       else reasoningAccumulated += t;
       if (sink) streamReasoning(reasoningAccumulated);
+      else onProgress();
       return;
     }
 
@@ -1379,7 +2376,8 @@ export function createSandboxAgentOtel(
       // clean across text -> tool -> text interleaving). No-op on the one-shot path.
       closeText();
       closeReasoning();
-      const name = update.title || update.kind || "tool";
+      const name =
+        acpToolName(update) || update.title || update.kind || "tool";
       let span: Span | undefined;
       if (emitSpans && turnCtx) {
         span = tracer.startSpan(`execute_tool ${name}`, undefined, turnCtx);
@@ -1446,18 +2444,25 @@ export function createSandboxAgentOtel(
     }
 
     if (kind === "usage_update") {
-      // ACP usage_update carries only `used` (context tokens) and `cost.amount`. The
-      // per-call input/output split is NOT on the stream; it rides on the PromptResponse,
-      // which the sandbox-agent engine reads. Keep total + cost here and leave the split to the caller.
+      // ACP usage_update carries `used` and `cost.amount`. `used` is the agent's CONTEXT-WINDOW
+      // occupancy at this point in the turn, NOT the tokens this run spent, so it is dropped:
+      // reporting it as a total produced runs shaped `input 0 / output 0 / total <context size>`.
+      // The token split is not on the stream at all; it rides on the PromptResponse, which the
+      // sandbox-agent engine reads and hands back through `setUsage`. Cost is the only run total
+      // here, so an update without one carries nothing worth recording.
+      // The ACP HTTP client reads notifications from SSE and the prompt response from the POST
+      // body, so a reading can land after the engine settled the turn's usage.
       const cost = update.cost?.amount;
-      const total = update.used;
+      if (typeof cost !== "number" || usageSettled) return;
       usage = {
         input: usage?.input ?? 0,
         output: usage?.output ?? 0,
-        total: typeof total === "number" ? total : usage?.total ?? 0,
-        cost: typeof cost === "number" ? cost : usage?.cost ?? 0,
+        total: usage?.total ?? 0,
+        cost,
       };
-      record({ type: "usage", ...usage });
+      // Claude's figure is the whole session's running total, not this turn's. The engine turns
+      // it into the turn's share at the end (`setUsage`), so do not show it live.
+      if (init.harness !== "claude") record({ type: "usage", ...usage });
     }
   }
 
@@ -1470,7 +2475,8 @@ export function createSandboxAgentOtel(
     if (status !== "completed" && status !== "failed") return;
     const out =
       acpToolContentText(update.content) ||
-      acpToolContentText(update.rawOutput);
+      acpToolContentText(update.rawOutput) ||
+      acpRawOutputText(update.rawOutput);
     if (entry.span) {
       setOutput(entry.span, out, capture);
       if (status === "failed")
@@ -1517,10 +2523,11 @@ export function createSandboxAgentOtel(
    * Two cases:
    *  - This tracer owns the agent span (emitSpans=true: Claude / gateway / Daytona) — stamp it
    *    directly, before finish() ends it.
-   *  - The harness self-instruments (emitSpans=false: local Pi emits its own spans in another
-   *    process, which never carry the error and are already flushed) — emit a standalone error
+   *  - The harness self-instruments (emitSpans=false: Pi emits its own spans in another process)
+   *    and no valid native batch was received — emit a standalone error
    *    span as a child of the caller's traceparent, so the error still reaches the /invoke trace.
-   * Idempotent and best-effort: a second call or a tracing failure must never break the run.
+   * The standalone fallback is idempotent and best-effort: a second call or a tracing failure
+   * must never break the run.
    */
   function recordError(message: string, errorProvider?: string): void {
     const text = message || "agent run failed";
@@ -1540,10 +2547,12 @@ export function createSandboxAgentOtel(
         stamp(agentSpan);
         return;
       }
-      // No owned span (harness self-instruments). Emit a standalone error span under the
-      // caller's traceparent so the failure is visible in the /invoke trace. Tag the run id
-      // onto the start context first, same as the emitSpans=true root, so onStart attributes
-      // this span to THIS run (concurrent runs sharing the trace id may have different targets).
+      // No owned span (harness self-instruments). Emit one standalone error span under the
+      // caller's traceparent so the failure is visible in the /invoke trace.
+      if (standaloneErrorRecorded) return;
+      standaloneErrorRecorded = true;
+      // Tag the run id onto the start context first, same as the emitSpans=true root, so onStart
+      // attributes this span to THIS run (concurrent runs may have different targets).
       const parent = withRunId(
         parentContext(init.traceparent) ?? context.active(),
         runId,
@@ -1552,12 +2561,23 @@ export function createSandboxAgentOtel(
       errSpan.setAttribute("openinference.span.kind", "AGENT");
       errSpan.setAttribute("gen_ai.operation.name", "invoke_agent");
       errSpan.setAttribute("gen_ai.agent.name", init.harness ?? "agent");
+      if (usage && usage.total > 0)
+        stampTokens(errSpan, {
+          input: usage.input,
+          output: usage.output,
+          cacheRead: 0,
+          cacheWrite: 0,
+        });
       stamp(errSpan);
       // The standalone span shares the caller's trace id; make sure the run reports it so the
       // engine flushes this trace (a self-instrumenting run otherwise only tracked it from the
       // traceparent, which is the same id — but set it defensively if it was never resolved).
       runTraceId = runTraceId ?? errSpan.spanContext().traceId;
-      registerRunTarget(runTraceId, runId, { endpoint, authorization });
+      registerRunTarget(runTraceId, runId, {
+        kind: "http",
+        endpoint,
+        authorization,
+      });
       // Register BEFORE end(): a root span with no in-process parent flushes synchronously
       // on end(), so the redactor/target must already be in their accumulators or this batch
       // escapes raw / falls back to the wrong target.
@@ -1570,6 +2590,8 @@ export function createSandboxAgentOtel(
 
   function finish(stopReason?: string): string {
     const text = stripStartupBanner(accumulated.trim());
+    if (finished) return text;
+    finished = true;
     // The event log is independent of span emission, so build its tail either way.
     closeText();
     closeReasoning();
@@ -1592,11 +2614,18 @@ export function createSandboxAgentOtel(
     }
     // Stamp the run's trace id on the turn's terminal event so a persisted transcript can link a
     // replayed turn back to its trace (undefined only in span-less mode with no valid traceparent).
-    // Mark a paused turn's terminal record so a cold reload can tell a pause from a real turn
+    // Mark a non-completing turn's terminal record so a cold reload can tell it from a real turn
     // boundary (the FE adoption heuristic and hydration read this). A completed turn omits it.
+    //
+    // These non-completing outcomes must remain distinguishable from a normal finish in Postgres.
+    // Keep an explicit allowlist so arbitrary harness reasons cannot leak into the record contract.
     record({
       type: "done",
-      ...(stopReason === "paused" ? { stopReason: "paused" } : {}),
+      ...(stopReason === "paused" ||
+      stopReason === "cancelled" ||
+      stopReason === "error"
+        ? { stopReason }
+        : {}),
       ...(runTraceId ? { traceId: runTraceId } : {}),
     });
     if (!emitSpans) return text;
@@ -1607,7 +2636,7 @@ export function createSandboxAgentOtel(
         [{ role: "assistant", content: text }],
         capture,
       );
-      stampUsage(llmSpan, usage);
+      stampModelUsage(llmSpan);
       llmSpan.end();
       llmSpan = undefined;
     }
@@ -1619,7 +2648,7 @@ export function createSandboxAgentOtel(
     }
     if (agentSpan) {
       setOutput(agentSpan, text, capture);
-      stampUsage(agentSpan, usage);
+      // The `chat` spans above own this run's usage; ingest rolls them up into this span.
       agentSpan.end();
       agentSpan = undefined;
     }
@@ -1631,10 +2660,23 @@ export function createSandboxAgentOtel(
   return {
     start,
     handleUpdate,
-    emitEvent: record,
+    admitUpdate,
+    emitEvent: (event) => {
+      if (finished) return;
+      // Error/done are engine-authored terminal records, not model output. Preserve them
+      // after a breach so the turn has one visible, durable ending.
+      if (
+        event.type === "error" ||
+        event.type === "done" ||
+        outputBudget.accept(event)
+      ) {
+        record(event);
+      }
+    },
     finish,
     recordError,
     setUsage,
+    setTokenDetail,
     flush: () => flushTrace(runTraceId, init.redactor, runId),
     traceId: () => runTraceId,
     output: () => accumulated,

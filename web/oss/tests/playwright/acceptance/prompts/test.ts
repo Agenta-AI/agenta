@@ -79,32 +79,33 @@ const testWithPromptsFixtures = baseTest.extend<PromptsFixtures>({
                 return payload.includes(promptName)
             })
 
-            const createButton = drawer.getByRole("button", {name: "Create", exact: true}).first()
-            await expect(createButton).toBeVisible({timeout: 15000})
-            await expect(createButton).toBeEnabled({timeout: 15000})
-            await createButton.click()
-
-            // The modal no longer wraps its buttons in a `.ant-modal-footer`
-            // div (migrated off the raw antd Modal footer), so filter by the
-            // "Create" button itself rather than the footer wrapper.
-            const confirmModal = page
-                .locator(".ant-modal-wrap")
-                .filter({has: page.getByRole("button", {name: "Create", exact: true})})
-                .last()
-            const confirmButton = confirmModal.getByRole("button", {
-                name: "Create",
+            const confirmModal = page.getByRole("dialog", {
+                name: "Create changes",
                 exact: true,
             })
-            await expect(confirmModal).toBeVisible({timeout: 15000})
-            await expect(confirmButton).toBeVisible({timeout: 15000})
-            await expect(confirmButton).toBeEnabled({timeout: 15000})
-            await confirmButton.click({force: true})
+            const [createPromptResponse] = await Promise.all([
+                createPromptPromise,
+                (async () => {
+                    const createButton = drawer
+                        .getByRole("button", {name: "Create", exact: true})
+                        .first()
+                    await expect(createButton).toBeVisible({timeout: 15000})
+                    await expect(createButton).toBeEnabled({timeout: 15000})
+                    await createButton.click()
 
-            const createPromptResponse = await createPromptPromise
+                    const confirmButton = confirmModal.getByRole("button", {
+                        name: "Create",
+                        exact: true,
+                    })
+                    await expect(confirmModal).toBeVisible({timeout: 15000})
+                    await expect(confirmButton).toBeVisible({timeout: 15000})
+                    await expect(confirmButton).toBeEnabled({timeout: 15000})
+                    await confirmButton.click({force: true})
+                })(),
+            ])
+
             expect(createPromptResponse.ok()).toBe(true)
-            await expect(page.locator(".ant-modal-wrap:visible")).toHaveCount(0, {
-                timeout: 15000,
-            })
+            await expect(confirmModal).toBeHidden({timeout: 15000})
         })
     },
 

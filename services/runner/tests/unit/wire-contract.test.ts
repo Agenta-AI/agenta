@@ -37,6 +37,7 @@ const KNOWN_REQUEST_KEYS = [
   "sessionId",
   "agentsMd",
   "model",
+  "connection",
   "harnessMode",
   "modelCapabilities",
   "modelConnection",
@@ -49,13 +50,20 @@ const KNOWN_REQUEST_KEYS = [
   "mcpServers",
   "toolCallback",
   "permissions",
+  "gatewayPolicy",
+  "platformInstructions",
+  "turnContext",
   "systemPrompt",
   "appendSystemPrompt",
   "skills",
   "sandboxPermission",
+  "sandboxCredentials",
   "harnessFiles",
   "turnId",
+  "detached",
   "projectId",
+  "controlCommandId",
+  "effectiveParameters",
 ] as const;
 
 // COMPILE-TIME drift guard: every wire key must be a field of AgentRunRequest. Drop or rename
@@ -64,12 +72,35 @@ const _requestKeysExistOnType: readonly (keyof AgentRunRequest)[] =
   KNOWN_REQUEST_KEYS;
 void _requestKeysExistOnType;
 
+// qa.md case C27: the TS declaration must accept exactly the object the Python producer
+// emits, `readOnly: null` included. Declaring `boolean | undefined` instead of
+// `boolean | null` stops `tsc` on this assignment, which is the drift the case exists to
+// catch. The runtime half is `gateway connection request` below, which asserts the real
+// Python golden deep-equals this fixture, so the two languages cannot drift apart silently:
+// the type says what TS accepts, and the fixture says what Python actually sent.
+const GATEWAY_POLICY: NonNullable<AgentRunRequest["gatewayPolicy"]> = {
+  integrations: {
+    github: {
+      provider: "composio",
+      connection: "github-work",
+      toolkitVersion: "20250827_00",
+      tools: {
+        GET_ISSUE: { permission: "allow", readOnly: true },
+        CREATE_ISSUE: { permission: "ask", readOnly: false },
+        RUN_WORKFLOW: { permission: "deny", readOnly: null },
+      },
+    },
+  },
+};
+
 describe("wire contract: requests (vs Python golden)", () => {
   for (const name of [
     "run_request.pi_core.json",
     "run_request.claude.json",
     "run_request.codex.json",
     "run_request.attachment.json",
+    "run_request.gateway_connection.json",
+    "run_request.subscription_connection.json",
   ]) {
     it(`${name}: every top-level key is known to AgentRunRequest`, () => {
       const req = loadGolden(name) as Record<string, unknown>;
@@ -102,6 +133,11 @@ describe("wire contract: requests (vs Python golden)", () => {
   it("pi request: shape, tool axes, and the runner helpers", () => {
     const req = loadGolden("run_request.pi_core.json") as AgentRunRequest;
     assert.equal(req.harness, "pi_core");
+    assert.equal(
+      req.turnContext,
+      '## This session\n\nThis session is named "Q3 notes".',
+    );
+    assert.equal("sessionContext" in req, false);
     assert.ok(Array.isArray(req.messages));
     // The serializer emits `messages` only; the runner derives the latest turn.
     assert.equal(resolvePromptText(req), "hi");
@@ -204,6 +240,15 @@ describe("wire contract: requests (vs Python golden)", () => {
     assert.equal(req.sandboxPermission!.enforcement, "strict");
     // Pi renders no harness config files, so the generic `harnessFiles` is absent.
     assert.equal(req.harnessFiles, undefined);
+    // The turn's effective config reaches the runner opaquely; it is echoed onto any gate this
+    // turn parks so an out-of-band answer replays THIS config (effective-turn-config plan, T3).
+    assert.deepEqual(req.effectiveParameters, {
+      agent: {
+        instructions: "You are a helpful assistant.",
+        llm: { model: "openai-codex/gpt-5.5", provider: "openai" },
+        runner: { permissions: { default: "allow_reads" } },
+      },
+    });
   });
 
   it("claude request: gates tool use, no prompt overrides, null session id", () => {
@@ -245,11 +290,70 @@ describe("wire contract: requests (vs Python golden)", () => {
     assert.equal(skill.disableModelInvocation, true);
     assert.equal(skill.files![0].path, "scripts/draft.py");
     assert.equal(skill.files![0].executable, true);
+    // A non-session run can never park a gate, so the SDK does not stamp its effective config.
+    assert.equal(req.effectiveParameters, undefined);
     // sessionId is null on the wire, so the runner falls back to its ephemeral id.
     assert.equal(
       resolveRunSessionId(req, "runner-ephemeral"),
       "runner-ephemeral",
     );
+  });
+
+  it("gateway connection request: the private policy arrives exactly as Python sent it", () => {
+    const req = loadGolden(
+      "run_request.gateway_connection.json",
+    ) as AgentRunRequest;
+    // The real Python payload against the type-checked TS fixture. A rename, a dropped
+    // `readOnly`, or a permission the TS union does not list fails here or at `tsc`.
+    assert.deepEqual(req.gatewayPolicy, GATEWAY_POLICY);
+    // `readOnly` is tri-state: null is a REAL value (the catalog carries no hint) and must
+    // not arrive as an absent key. `deepEqual` treats the two alike, so check it directly.
+    const tools = req.gatewayPolicy!.integrations.github.tools;
+    assert.ok(
+      "readOnly" in tools.RUN_WORKFLOW,
+      "an unknown read-only hint must ride the wire as an explicit null, not a dropped key",
+    );
+    assert.equal(tools.RUN_WORKFLOW.readOnly, null);
+    // The two derived tools ride the ordinary custom-tool seam; only the policy is new.
+    assert.deepEqual(
+      req.customTools!.map((tool) => tool.callRef),
+      ["gateway.search", "gateway.run"],
+    );
+    // Both carry the coarse `allow` that only opens the harness gate. The authorization
+    // boundary is the semantic gate on `gateway.run`, which reads the policy above.
+    assert.deepEqual(
+      req.customTools!.map((tool) => tool.permission),
+      ["allow", "allow"],
+    );
+  });
+
+  it("subscription connection request: the login arrives exactly as Python sent it", () => {
+    const req = loadGolden(
+      "run_request.subscription_connection.json",
+    ) as AgentRunRequest;
+    // The author's choice rides `connection`; the resolved login rides `modelConnection`.
+    assert.deepEqual(req.connection, { mode: "self_managed", slug: "chatgpt" });
+    assert.equal(req.modelConnection?.credentialMode, "runtime_provided");
+    // A hosted subscription run carries NO credential entry: the harness signs in from the login.
+    assert.deepEqual(req.modelConnection?.credentials, []);
+    const subscription = req.modelConnection?.subscription;
+    assert.ok(
+      subscription,
+      "the subscription block is what makes this run hosted",
+    );
+    // Nested, field by field: a rename or a dropped counter on either side fails here or at `tsc`.
+    assert.equal(subscription.id, "0199-secret-id");
+    assert.equal(subscription.slug, "chatgpt");
+    assert.equal(subscription.provider, "chatgpt");
+    assert.equal(subscription.version, 3);
+    assert.equal(subscription.generation, 1);
+    assert.deepEqual(subscription.login, {
+      type: "oauth",
+      access: "access-token",
+      refresh: "refresh-token",
+      expires: 1789000000000,
+      accountId: "acct-1",
+    });
   });
 
   it("codex request: no Pi built-ins, file-free managed auth provider block, managed key", () => {
@@ -339,6 +443,7 @@ describe("wire contract: results (vs Python golden)", () => {
     assert.equal(res.sessionId, "sess-42");
     assert.equal(res.model, "gpt-5.5");
     assert.equal(res.traceId, "trace-abc");
+    assert.equal(res.sandbox, "inprocess");
     // Capabilities come back camelCase; every key must be known to HarnessCapabilities.
     for (const key of Object.keys(res.capabilities)) {
       assert.ok(
@@ -357,10 +462,39 @@ describe("wire contract: results (vs Python golden)", () => {
     assert.equal(res.error, "model exploded");
   });
 
+  it("error result with errorDetail: a gateway refusal survives structured (WP13)", () => {
+    const res = loadGolden("run_result.error_detail.json") as AgentRunResult;
+    assert.equal(res.ok, false);
+    assert.equal(res.errorDetail?.code, "model_not_allowed");
+    assert.equal(res.errorDetail?.retryable, false);
+    assert.equal(
+      res.errorDetail?.next_step,
+      "choose a model the connection allows",
+    );
+    assert.deepEqual(res.errorDetail?.details, {
+      type: "invalid_request_error",
+    });
+  });
+
   it("minimal ok result: bare success is valid", () => {
     const res = { ok: true } as AgentRunResult;
     assert.equal(res.ok, true);
     assert.equal(res.output, undefined);
     assert.equal(res.capabilities, undefined);
+  });
+});
+
+describe("message display contract", () => {
+  it("keeps full model input regardless of display override", () => {
+    const messages = loadGolden("message_display.json") as NonNullable<
+      AgentRunRequest["messages"]
+    >;
+    assert.equal(messages[1].display_content, "Request");
+    assert.equal(messages[2].display_content, null);
+    assert.equal(messages[3].display_content, "");
+    assert.equal(Object.hasOwn(messages[0], "display_content"), false);
+    for (const message of messages) {
+      assert.equal(resolvePromptText({ messages: [message] }), message.content);
+    }
   });
 });

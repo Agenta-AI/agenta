@@ -20,6 +20,52 @@ function rec(
 }
 
 describe("reconstructMessages", () => {
+  it("keeps completed actions and text after execution_lost instead of forgetting them", () => {
+    const turn = { turn_id: "crashed-turn" };
+    const records = [
+      rec("user", { type: "message", text: "create the document" }, turn),
+      rec("agent", { type: "tool_call", id: "write", name: "create_document", input: { title: "Notes" } }, turn),
+      rec("agent", { type: "tool_result", id: "write", output: { document_id: "doc-123" } }, turn),
+      rec("agent", { type: "message", text: "Created doc-123." }, turn),
+      rec("agent", { type: "error", code: "execution_lost", message: "Runner disconnected" }, turn),
+    ];
+    const messages = reconstructMessages(records);
+    assert.equal(messages.length, 2);
+    const blocks = messages[1].content as ContentBlock[];
+    assert.deepEqual(blocks.map((block) => block.type), ["tool_call", "tool_result", "text", "text"]);
+    assert.match(blocks[3].text!, /unknown outcome/);
+    assert.deepEqual(blocks[1].output, { document_id: "doc-123" });
+    assert.equal(blocks[2].text, "Created doc-123.");
+  });
+  it("keeps the work of a turn a time limit ended, and closes its open tool call", () => {
+    const turn = { turn_id: "long-turn" };
+    const records = [
+      rec("user", { type: "message", text: "fix the lock icon" }, turn),
+      rec("agent", { type: "tool_call", id: "clone", name: "bash", input: { command: "git clone" } }, turn),
+      rec("agent", { type: "tool_result", id: "clone", output: "cloned" }, turn),
+      rec("agent", { type: "tool_call", id: "lint", name: "bash", input: { command: "pnpm lint-fix" } }, turn),
+      rec("agent", { type: "error", code: "run_total_time_limit", message: "This turn ran longer than 45 minutes" }, turn),
+      rec("user", { type: "message", text: "continue" }),
+    ];
+    const messages = reconstructMessages(records);
+    assert.deepEqual(messages.map((message) => message.role), ["user", "assistant", "user"]);
+    const blocks = messages[1].content as ContentBlock[];
+    assert.deepEqual(blocks.map((block) => block.type), ["tool_call", "tool_result", "tool_call", "tool_result", "text"]);
+    assert.equal(blocks[1].output, "cloned");
+    assert.equal(blocks[3].toolCallId, "lint");
+    assert.match(blocks[4].text!, /unknown outcome/);
+  });
+
+  it("still drops the work of a turn the provider refused", () => {
+    const turn = { turn_id: "refused-turn" };
+    const messages = reconstructMessages([
+      rec("user", { type: "message", text: "check the pricing" }, turn),
+      rec("agent", { type: "tool_result", id: "x", output: "refused content" }, turn),
+      rec("agent", { type: "error", code: "provider_error", message: "refused" }, turn),
+    ]);
+    assert.deepEqual(messages, [{ role: "user", content: "check the pricing" }]);
+  });
+
   it("folds a simple user→assistant text exchange", () => {
     const out = reconstructMessages([
       rec("user", { type: "message", text: "hi" }),
@@ -53,7 +99,12 @@ describe("reconstructMessages", () => {
     const out = reconstructMessages([
       rec("user", { type: "message", text: "search" }),
       rec("agent", { type: "message", text: "let me look" }),
-      rec("agent", { type: "tool_call", id: "c1", name: "web_search", input: { q: "x" } }),
+      rec("agent", {
+        type: "tool_call",
+        id: "c1",
+        name: "web_search",
+        input: { q: "x" },
+      }),
       rec("agent", { type: "tool_result", id: "c1", output: "found" }),
       rec("agent", { type: "message", text: "done" }),
     ]);
@@ -79,7 +130,12 @@ describe("reconstructMessages", () => {
   it("keeps a still-parked tool_call (no result yet) so a later HITL answer can bind", () => {
     const out = reconstructMessages([
       rec("user", { type: "message", text: "delete it" }),
-      rec("agent", { type: "tool_call", id: "gate1", name: "delete_file", input: { p: "/x" } }),
+      rec("agent", {
+        type: "tool_call",
+        id: "gate1",
+        name: "delete_file",
+        input: { p: "/x" },
+      }),
       // gate paused — no tool_result recorded for gate1
     ]);
     const blocks = out[1].content as ContentBlock[];
@@ -94,7 +150,11 @@ describe("reconstructMessages", () => {
       rec("agent", { type: "thought", text: "thinking..." }),
       rec("agent", { type: "message", text: "answer" }),
       rec("agent", { type: "usage", input: 10, output: 5 }),
-      rec("agent", { type: "interaction_request", id: "i1", kind: "user_approval" }),
+      rec("agent", {
+        type: "interaction_request",
+        id: "i1",
+        kind: "user_approval",
+      }),
       rec("agent", { type: "done", stopReason: "end_turn" }),
     ]);
     assert.deepEqual(out, [
@@ -103,12 +163,60 @@ describe("reconstructMessages", () => {
     ]);
   });
 
-  it("renders an error event as assistant text", () => {
+  it("keeps a failed turn's question and drops what the agent did in it, by its turn id", () => {
+    // Session 53da670e: the provider refused a tool result about its own model. Replaying the
+    // tool result and the refusal text made every later turn fail too. The person's question
+    // stays, so "continue" after a failure still has something to continue. The same rule as the
+    // in-process rollback (`InProcessAcpSession.rollbackFailedTurn`).
     const out = reconstructMessages([
-      rec("user", { type: "message", text: "go" }),
-      rec("agent", { type: "error", message: "boom" }),
+      rec("user", { type: "message", text: "hi" }, { turn_id: "t1" }),
+      rec("agent", { type: "message", text: "hello" }, { turn_id: "t1" }),
+      rec("user", { type: "message", text: "check the pricing" }, { turn_id: "t2" }),
+      rec("agent", { type: "tool_call", id: "c1", name: "bash", input: { command: "curl" } }, { turn_id: "t2" }),
+      rec("agent", { type: "tool_result", id: "c1", output: "Mercury is a diffusion LLM" }, { turn_id: "t2" }),
+      rec("agent", { type: "error", message: "Upstream error from Inception: I'm sorry" }, { turn_id: "t2" }),
+      rec("user", { type: "message", text: "hello?" }, { turn_id: "t3" }),
+      rec("agent", { type: "error", message: "Upstream error from Inception: I'm sorry" }, { turn_id: "t3" }),
+      rec("user", { type: "message", text: "thanks" }, { turn_id: "t4" }),
+      rec("agent", { type: "message", text: "welcome" }, { turn_id: "t4" }),
     ]);
-    assert.deepEqual(out[1], { role: "assistant", content: "[error: boom]" });
+    assert.deepEqual(out, [
+      { role: "user", content: "hi" },
+      { role: "assistant", content: "hello" },
+      { role: "user", content: "check the pricing" },
+      { role: "user", content: "hello?" },
+      { role: "user", content: "thanks" },
+      { role: "assistant", content: "welcome" },
+    ]);
+    assert.doesNotMatch(JSON.stringify(out), /Mercury|Inception|error/);
+  });
+
+  it("drops what the agent did in a failed turn by its user-message span when records carry no turn id", () => {
+    const out = reconstructMessages([
+      rec("user", { type: "message", text: "q1" }),
+      rec("agent", { type: "message", text: "a1" }),
+      rec("user", { type: "message", text: "go" }),
+      rec("agent", { type: "message", text: "partial" }),
+      rec("agent", { type: "tool_call", id: "c2", name: "bash", input: {} }),
+      rec("agent", { type: "tool_result", id: "c2", output: "secret-ish output" }),
+      rec("agent", { type: "error", message: "boom" }),
+      rec("user", { type: "message", text: "q3" }),
+      rec("agent", { type: "tool_call", id: "c3", name: "bash", input: {} }),
+      rec("agent", { type: "tool_result", id: "c3", output: "kept" }),
+    ]);
+    assert.deepEqual(out, [
+      { role: "user", content: "q1" },
+      { role: "assistant", content: "a1" },
+      { role: "user", content: "go" },
+      { role: "user", content: "q3" },
+      {
+        role: "assistant",
+        content: [
+          { type: "tool_call", toolCallId: "c3", toolName: "bash", input: {} },
+          { type: "tool_result", toolCallId: "c3", toolName: "bash", output: "kept", isError: undefined },
+        ],
+      },
+    ]);
   });
 
   it("ignores malformed / typeless attribute rows", () => {
@@ -161,4 +269,20 @@ describe("reconstructMessages", () => {
       },
     ]);
   });
+});
+
+it("restores full execution text exactly once despite a display override", () => {
+  for (const display_content of [undefined, null, "Visible", ""]) {
+    const full = "Visible\nTemplate-supplied setup guidance: COBALT-47";
+    const messages = reconstructMessages([
+      rec("user", { type: "message", text: full, display_content }),
+      rec("agent", { type: "message", text: "Ready" }),
+      rec("user", { type: "message", text: "Follow up" }),
+    ]);
+    assert.deepEqual(messages, [
+      { role: "user", content: full },
+      { role: "assistant", content: "Ready" },
+      { role: "user", content: "Follow up" },
+    ]);
+  }
 });

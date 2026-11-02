@@ -174,7 +174,7 @@ def _rest(composio: Composio) -> Any:
     import httpx  # local: only the webhook commands need raw REST
 
     return httpx.Client(
-        base_url=os.getenv("COMPOSIO_API_URL", "https://backend.composio.dev/api/v3"),
+        base_url=os.getenv("COMPOSIO_API_URL", "https://backend.composio.dev/api/v3.1"),
         headers={
             "x-api-key": os.environ["COMPOSIO_API_KEY"],
             "Content-Type": "application/json",
@@ -332,7 +332,7 @@ def cmd_converge(composio: Composio) -> None:
             "Set AGENTA_WEBHOOK_URL to a registration target for the convergence run"
         )
     n = int(os.getenv("CONTAINERS", "6"))
-    base = os.getenv("COMPOSIO_API_URL", "https://backend.composio.dev/api/v3")
+    base = os.getenv("COMPOSIO_API_URL", "https://backend.composio.dev/api/v3.1")
     key = os.environ["COMPOSIO_API_KEY"]
     headers = {"x-api-key": key, "Content-Type": "application/json"}
     cache = _SharedCache()

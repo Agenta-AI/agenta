@@ -17,17 +17,32 @@ export type TimelineEventType =
     | "error"
     | "other"
 
-/** Colors + chip labels per event type (build-spec §5). */
-export const EVENT_META: Record<TimelineEventType, {dot: string; chip: string}> = {
-    message: {dot: "#9aa0a6", chip: "message"},
-    thought: {dot: "#b98cff", chip: "thought"},
-    tool_call: {dot: "#7fb0ff", chip: "tool_call"},
-    tool_result: {dot: "#4fd1b5", chip: "tool_result"},
-    interaction_request: {dot: "#e0b050", chip: "interaction"},
-    done: {dot: "#8fd07a", chip: "done"},
-    error: {dot: "#f0857c", chip: "error"},
-    other: {dot: "#9aa0a6", chip: "event"},
+/** A tone rendered as both the dot fill and the chip label, so light needs a text-safe step. */
+export interface EventTone {
+    light: string
+    dark: string
 }
+
+/**
+ * Colors + chip labels per event type (build-spec §5; recolor spec's categorical set). The dark
+ * values are the spec verbatim. Light takes the deep steps, because the same color paints the chip
+ * LABEL and the mid steps (#8CCFFF/#54B5FA/#BCBCBC) fail body-text contrast on white — so tool
+ * result lands on the olive deep step to stay distinct from tool call's navy.
+ */
+export const EVENT_META: Record<TimelineEventType, {dot: EventTone; chip: string}> = {
+    message: {dot: {light: "#616161", dark: "#BCBCBC"}, chip: "message"},
+    thought: {dot: {light: "#616161", dark: "#BCBCBC"}, chip: "thought"},
+    tool_call: {dot: {light: "#113955", dark: "#8CCFFF"}, chip: "tool_call"},
+    tool_result: {dot: {light: "#5E5E08", dark: "#54B5FA"}, chip: "tool_result"},
+    interaction_request: {dot: {light: "#8A6400", dark: "#EBC96A"}, chip: "interaction"},
+    done: {dot: {light: "#2E7D3A", dark: "#8FBF7A"}, chip: "done"},
+    error: {dot: {light: "#B33F38", dark: "#FF8E8C"}, chip: "error"},
+    other: {dot: {light: "#616161", dark: "#BCBCBC"}, chip: "event"},
+}
+
+/** Resolve a tone for the active theme. Stays a plain hex — callers append an alpha suffix. */
+export const eventTone = (tone: EventTone, isDark: boolean): string =>
+    isDark ? tone.dark : tone.light
 
 const KNOWN: TimelineEventType[] = [
     "message",
@@ -61,7 +76,8 @@ export interface TimelineEvent {
     at: number | null
     /** 1-based turn this event belongs to. */
     turn: number
-    /** Human tool label for tool_call/tool_result rows (filled by the view via resolveToolDisplay). */
+    /** The tool a tool_call/tool_result row is about. A result record carries only its id, so this
+     * is paired back from the call it answers. */
     toolName?: string
 }
 
@@ -98,9 +114,18 @@ export function buildTimeline(records: SessionRecord[] | null | undefined): {
         return (a.event_index ?? 0) - (b.event_index ?? 0)
     })
     const events: TimelineEvent[] = []
+    // A tool_result carries only the call's id, so its name is remembered from the call.
+    const nameByCallId = new Map<string, string>()
     let turn = 1
     for (const record of sorted) {
         const type = recordEventType(record)
+        const payload =
+            record.payload && typeof record.payload === "object"
+                ? (record.payload as {id?: unknown; name?: unknown})
+                : undefined
+        const callId = typeof payload?.id === "string" ? payload.id : undefined
+        const name = typeof payload?.name === "string" ? payload.name : undefined
+        if (type === "tool_call" && callId && name) nameByCallId.set(callId, name)
         events.push({
             id: record.id,
             index: record.event_index ?? events.length,
@@ -109,6 +134,7 @@ export function buildTimeline(records: SessionRecord[] | null | undefined): {
             payload: record.payload,
             at: toMs(record.created_at),
             turn,
+            toolName: type === "tool_result" && callId ? nameByCallId.get(callId) : undefined,
         })
         if (type === "done") turn += 1
     }

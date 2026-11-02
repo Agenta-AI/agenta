@@ -511,7 +511,7 @@ export function VariableCard({
                                 {shapeConflicts.map((c, i) => (
                                     <span key={c.key}>
                                         {i > 0 ? ", " : ""}
-                                        <code className="font-mono text-[11px] bg-[var(--ag-colorBgContainer)] border border-solid border-[var(--ag-colorWarning)] text-[var(--ag-colorTextHeading)] px-1 rounded">
+                                        <code className="font-mono text-xs bg-[var(--ag-colorBgContainer)] border border-solid border-[var(--ag-colorWarning)] text-[var(--ag-colorTextHeading)] px-1 rounded">
                                             {c.key}
                                         </code>
                                     </span>
@@ -596,10 +596,10 @@ function StashedPathsFooter({variableName, paths}: StashedPathsFooterProps) {
                 <div className="flex flex-col gap-1 pl-2 border-l-2 border-solid border-[var(--ag-colorBorderSecondary)]">
                     {paths.map((p) => (
                         <div key={p.path} className="flex items-baseline gap-2 text-[12px] py-0.5">
-                            <code className="font-mono text-[11px] text-[var(--ag-c-1677FF)] shrink-0">
+                            <code className="font-mono text-xs text-[var(--ag-c-1677FF)] shrink-0">
                                 {variableName}.{p.path}
                             </code>
-                            <span className="text-[var(--ag-rgba-051729-55)] truncate font-mono text-[11px]">
+                            <span className="text-[var(--ag-rgba-051729-55)] truncate font-mono text-xs">
                                 {previewValue(p.value)}
                             </span>
                         </div>

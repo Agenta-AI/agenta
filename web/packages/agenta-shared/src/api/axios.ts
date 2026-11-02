@@ -110,3 +110,65 @@ export function resetAxiosConfig(): void {
 }
 
 export default axios
+
+// ─── Auth token accessor ─────────────────────────────────────────────────────────────────────
+// The axios interceptor covers every request that goes through this instance, but a few paths
+// cannot: a streaming download writes into a FileSystemWritableFileStream, which needs a raw
+// `fetch` and therefore the bearer token in hand. Apps register their own getter (the desktop's
+// supertokens-auth-react session, mobile's supertokens-web-js one) so package code never imports
+// an auth library.
+let authTokenProvider: (() => Promise<string | undefined>) | null = null
+
+/** Register the app's bearer-token getter. Call once at startup, beside {@link configureAxios}. */
+export function configureAuthToken(provider: () => Promise<string | undefined>): void {
+    authTokenProvider = provider
+}
+
+/** The current bearer token, or undefined when unauthenticated / unconfigured. */
+export async function getAuthToken(): Promise<string | undefined> {
+    if (!authTokenProvider) return undefined
+    try {
+        return await authTokenProvider()
+    } catch {
+        return undefined
+    }
+}
+
+/**
+ * Request flags the app's response interceptor reads. Declared here so callers can set them
+ * without an `as any` cast — the desktop's interceptor owns the behaviour, this only types it.
+ */
+declare module "axios" {
+    interface AxiosRequestConfig {
+        /** Skip the global error toast; the caller handles the failure itself. */
+        _ignoreError?: boolean
+        /** Do not redirect to the auth-upgrade flow on a 401/403. */
+        _skipAuthUpgradeRedirect?: boolean
+    }
+}
+
+/**
+ * The MCP data plane: the one route where a 401 is somebody else's answer.
+ *
+ * Everything else under the API domain answers 401 when OUR session has expired, which is
+ * what the session library refreshes and retries on. This route relays a call to a server the
+ * person chose, and that server's 401 means the credential THEY supplied was refused. The two
+ * are indistinguishable at the transport, so the library refreshed and retried a rejected API
+ * key ten times and handed the journey a mangled failure with no status on it: the screen that
+ * exists to say "the server rejected this key (401)" could never be reached, and the sheet
+ * reported an unreachable server instead (round 6d, D175).
+ *
+ * Excluding it from interception costs nothing here: the session is carried in cookies on the
+ * same origin, so the browser attaches it either way, and this route is a POST that no
+ * refresh would have helped.
+ */
+const MCP_RELAY_PATH = "/gateways/mcps/custom/"
+
+export const isMcpRelayUrl = (url: string): boolean => {
+    if (!url) return false
+    try {
+        return new URL(url, "http://relative.invalid").pathname.includes(MCP_RELAY_PATH)
+    } catch {
+        return url.includes(MCP_RELAY_PATH)
+    }
+}

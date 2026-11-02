@@ -17,6 +17,22 @@ class ProviderNotFoundError(TriggersError):
         super().__init__(f"Provider not found: {provider_key}")
 
 
+class ProviderNotConfiguredError(TriggersError):
+    """Raised when provider_key names a provider this deployment recognizes, but
+    whose adapter was not registered because required configuration (e.g. an API
+    key) is missing. Distinct from ``ProviderNotFoundError`` so the API boundary
+    can tell a self-hoster "set this env var" instead of a bare 404.
+    """
+
+    def __init__(self, provider_key: str, *, env_var: str):
+        self.provider_key = provider_key
+        self.env_var = env_var
+        super().__init__(
+            f"{provider_key} is not configured on this deployment. "
+            f"Set {env_var} to enable it."
+        )
+
+
 class SubscriptionNotFoundError(TriggersError):
     """Raised when a subscription_id does not exist in the project."""
 

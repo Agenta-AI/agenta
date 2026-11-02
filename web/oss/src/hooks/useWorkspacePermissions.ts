@@ -1,6 +1,7 @@
 import {useMemo} from "react"
 
-import {isEE} from "@/oss/lib/helpers/isEE"
+import {isEE} from "@agenta/shared/api"
+
 import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
 
 import {useProjectPermissions} from "./useProjectPermissions"

@@ -31,21 +31,35 @@ export AGENTA_BASE=https://your-stack.example.com   # deployment origin
 export AGENTA_PROJECT_ID=...                         # target project
 export AGENTA_API_KEY=...                            # project API key
 
-uv run resources/qa_product.py --all --custom-slug <vault-slug> --require-store  # everything
+uv run resources/qa_product.py --all --custom-slug <vault-slug> --custom-name "<display-name>" --require-store  # everything
 uv run resources/qa_product.py --cell P1                         # one cell
 uv run resources/qa_product.py --cell C1 --only chat              # one journey
 uv run resources/qa_product.py --cell S2 --only warm --only cold1 --require-store  # continuity
 ```
 
+**EXPORT the three variables, do not just set them.** The driver falls back to an env FILE when
+`AGENTA_*` is absent from its environment, which is helpful interactively and dangerous in a
+release run: a credentials file of bare `KEY=value` lines sourced with `. file` sets the shell
+only, the child `uv run` process inherits nothing, and the driver silently runs the whole gate
+against WHATEVER DEPLOYMENT the fallback file names. The failure surfaces as `401 Invalid
+credentials` from a stage whose key you just watched answer 200, or worse as a green run
+recorded against the wrong stack. Use `set -a` around the source, or `export` each variable,
+and confirm the stage in the results before trusting them. (Cost a staging gate run on
+2026-08-28; the fallback degrades to "wrong deployment", never to "no credentials".)
+
 Paths are relative to this skill's directory. The deployment's vault must hold the provider keys
 the cells use (Anthropic / OpenAI / OpenRouter). If the three env vars are unset the driver stops
 immediately and names exactly what is missing; a legacy `--env-file <path>` fallback also exists.
-`--all` includes cell P2 (a custom OpenAI-compatible provider), which needs a vault slug passed
-via `--custom-slug`; the driver fails fast if it's missing. Cells S1, S2 and C1 additionally need
+`--all` includes cells P2, P2b, and P3 (a custom OpenAI-compatible provider, with P2 and P2b
+running locally and P3 on Daytona), which need a vault slug passed via `--custom-slug`; the driver fails
+fast if it's missing. `--custom-name` is also required because `model_keys` is built from the
+display name rather than the stable slug. Custom-provider cells skip the credential-rotation
+journey because their value is write-only and cannot be safely restored. Cells S1, S2 and C1
+additionally need
 the subscription sidecar logged in on the target deployment — see `resources/coverage.md` for what
-each cell requires. The Daytona cells (C2, C4) additionally need the runner's Daytona API key to
-have permission to manage Secrets, because credential hiding is on by default; without it those
-cells fail at sandbox creation with an error naming the permission.
+each cell requires. The Daytona cells (C2, C4, P3, X2) additionally run the `secret_opaque`
+journey and need the runner's Daytona API key to manage Secrets, because credential hiding is on
+by default; without it those cells fail at sandbox creation with an error naming the permission.
 
 **The one flag a release conductor must not skip past.** The continuity journeys
 (`warm`, `cold1`, `cold2`) only mean anything on a **store-backed** deployment: with no object
@@ -54,6 +68,85 @@ default and FAIL with `--require-store`. Run the gate against a deployment with 
 configured and pass `--require-store`, or the greenest possible run still says nothing about
 durability. `cold2` additionally needs an operator hook that SIGKILLs the runner replica
 (`--cold2-replace-cmd`) and SKIPs without it.
+
+**Write that hook to kill AND start, and do not shorten it.** The kill has to be a SIGKILL,
+because on SIGTERM the runner runs its shutdown handler and destroys every sandbox it owns,
+including the session the journey wants to resume. The start has to be explicit, because Docker
+treats an operator-issued kill as a manual stop and skips the `always` restart policy: a hook
+that kills and then waits for the container to come back on its own waits forever. So the hook
+is a kill, an explicit start, and a wait for health before it returns:
+
+```bash
+cat > /tmp/replace-runner.sh <<'SH'
+set -eu
+R=<runner>
+docker kill -s KILL "$R"
+docker start "$R"
+for _ in $(seq 60); do
+  [ "$(docker inspect -f '{{.State.Health.Status}}' "$R")" = healthy ] && exit 0
+  sleep 2
+done
+echo "runner $R never reached healthy: $(docker inspect -f '{{.State.Status}}/{{.State.Health.Status}}' "$R")" >&2
+exit 1
+SH
+chmod +x /tmp/replace-runner.sh
+export AGENTA_QA_RUNNER_REPLACE_CMD=/tmp/replace-runner.sh
+```
+
+Bound the health wait and exit non-zero when it lapses, as above. The driver caps the hook at
+180 seconds and reports the timeout, but a hook that spins silently until that cap burns the
+budget and tells you nothing; a hook that gives up at 120 seconds and prints the container's
+actual status tells you whether the replacement crashed, is still starting, or came back
+unhealthy.
+
+This is not theoretical. A hook without the explicit start left the runner down for about seven
+minutes mid-gate on 2026-09-10, and every cell after it failed for a reason that had nothing to
+do with what it was testing. With the start and the health wait, later cold2 and hook cells
+restored the runner in about forty seconds each. The same rule governs the session-control hook
+cells, and `DockerComposeHooks.kill_runner` already implements it as `compose restart -t 0`
+rather than a bare kill, with `ensure_runner_healthy` in a `finally` as the backstop.
+
+**The cells that end with a human step: H1 and H2.** They test the HOSTED subscription connection
+— the user's own ChatGPT subscription, signed in once through the product and delivered to
+whichever sandbox runs the turn. S1 and S2 read a login the operator mounted into the runner by
+hand, so they prove the self-hosted case only, and nothing else in the matrix sees the store, the
+delivery, the refresh push-back, or the per-project isolation. Both cells need a connected
+subscription in the target project and SKIP, with the reason, when there is none. Their `refresh`
+journey expires the stored login itself and needs the stack for that (`--db-container`,
+`--stack-env` for the crypt key, and `--redis-container` so the API's cached vault read does not
+hide the expiry), and their `dead` journey needs a reachable runner replica (`--runner`). Run
+`dead` LAST:
+proving the failure a user meets means killing the login, and only a person can sign in again.
+For a release that changes subscription login storage or publication, `--release-base` forces the
+`refresh` journey even when `--only` names another journey. A successful chat alone does not prove
+that the rotated login reached the durable vault.
+The `relogin_needed` journey always SKIPs and its reason carries the steps. Full runbook and
+ordering: `resources/coverage.md`.
+
+**The flag that makes the gate fit the release: `--release-base`.** The matrix is fixed, so
+without it a release that reworked a subsystem gets exactly the coverage of a release that did
+not touch it. Pass the ref the release branches from, and the driver reads the release's own
+changed paths, matches them against the rules in `resources/path_triggers.py`, and makes the
+cells those rules name MANDATORY for this run:
+
+```bash
+uv run resources/qa_product.py --all --release-base origin/main --require-store   # every release run
+uv run resources/path_triggers.py --release-base origin/main                      # preview only, runs nothing
+```
+
+A mandatory cell that lives in `qa_product.py` is added to the run even when `--cell` did not ask
+for it. A mandatory cell that is a standalone `matrix_*.py` script is a separate process the
+driver cannot observe, so it is printed, written to `mandatory.json`, and listed in `summary.md`
+under "Mandatory for this release" — **the release is not green until each of those has a recorded
+result of its own.** If a rule names a cell that does not exist, the driver stops before running
+anything and says so: the release changed code a rule protects and the coverage was never
+written, which is the one outcome that must never read as green. Add `--changed-path` to state
+paths by hand where the checkout is not the release branch. With no `--release-base` and no
+`--changed-path` nothing changes, so every existing invocation behaves exactly as before.
+
+Adding a rule is one line in `PATH_TRIGGERS` (a glob, and the cells it makes mandatory) plus the
+cell it names. Matching is `fnmatch` over the whole repo-relative path, so `*` crosses directory
+separators and `a/b/*` covers the whole subtree; write `**` so a subtree rule reads as one.
 
 **Reading the result.** Each journey prints `PASS`, `FAIL`, or `SKIP` with a one-line reason, and
 a per-cell markdown table lands with the full JSON in `./qa-gate-runs/<timestamp>/` (override the
@@ -66,6 +159,45 @@ summary line, not green.** State it as "N passed, M skipped OF WHICH k are untes
 name the k. A commit-lock race test skipping for want of a reachable Postgres is exactly how a
 one-line syntax error (`SET LOCAL lock_timeout` with a bind parameter, which Postgres rejects
 outright) survived 1911 green tests before a human hit it as his first live action.
+
+**The two journeys that run many things at once: `burst` and `crosstalk`.** Every other journey
+drives one run at a time, so the gate only ever saw faults that reproduce on a quiet deployment.
+The credential-delivery fault of AGE-4249 does not: about one production first message in five
+failed because some fresh Daytona sandboxes start without their Secret substitution wiring, and
+per cold sandbox that is roughly an 8 percent fault. `burst` sends 16 first messages at the same
+time on 16 brand new sessions, so the run buys 16 cold starts instead of one. `crosstalk` runs 3
+two-turn conversations with long output beside 2 approval flows, and checks that no stream carries
+another session's nonce, except on the codex harness, where the gate rides a platform tool with
+empty arguments, so the approval command carries no nonce and isolation is not checked there
+(`nonce_checked=false`). Both are Daytona-only by default and skip elsewhere; both report the
+runner's stable error code per run, so a `credential_delivery_failed` names itself.
+
+```bash
+uv run resources/qa_product.py --cell C4 --only burst --only crosstalk
+uv run resources/qa_product.py --cell C4 --only burst --burst-size 24         # more cold starts
+uv run resources/qa_product.py --cell C3 --only crosstalk --concurrency-everywhere  # local too
+uv run resources/test_qa_product_concurrency.py                               # offline tests
+```
+
+**Read a green burst honestly.** At an 8 percent per-cold-start fault rate, 8 runs miss the fault
+51 percent of the time, 16 miss it 26 percent, and two Daytona cells at 16 miss it about 7 percent.
+A PASS is a sample, not an all-clear, and the result says so in its own reason line. A FAIL is
+proof.
+
+Each concurrent run holds its own Daytona sandbox, about 5 GiB of the organization's disk, and a
+parked sandbox keeps counting until its auto-delete window closes, so a burst of 16 is about 80
+GiB in flight. The counts are `--burst-size` (default 16), `--crosstalk-conversations` (default 3)
+and `--crosstalk-approvals` (default 2). The cap is 32 concurrent runs: 32 for the burst size, and
+32 for the two crosstalk counts TOGETHER, because what costs disk is what runs at once. When the
+provider refuses on capacity the journey reports SKIP with a loud reason, never a PASS or a FAIL,
+because nothing about the product was measured. `--concurrency-timeout` (default 300s) bounds one
+TURN and rides into the stream as an absolute deadline, so a two-turn crosstalk run gets twice
+that and a stream that never ends is abandoned rather than followed.
+
+A release that changes `services/runner/src/engines/sandbox_agent/**` or
+`services/runner/src/providers/daytona*` makes the Daytona cells C2, C4 and X2 mandatory through
+`path_triggers.py`, and forces `burst` and `crosstalk` into the run even when `--only` named
+something else. That is how these journeys reach a release that needs them.
 
 **Before a human gets a deployment URL, run `resources/qa_commit_approval.py` too.** It is not
 part of `qa_product.py`'s cell × journey matrix — none of that matrix's journeys drive a live turn
@@ -103,6 +235,173 @@ cell, promoted after the platform-guidance fix closed that exact gap; it reuses 
 the same way the separate one-shot benchmark (Tier B) does — check there before writing a new
 mechanism-blind cell from scratch, to avoid duplicating scaffolding.
 
+## Session control cells
+
+`resources/session_control.py` is a second, standalone driver: sixteen cells that cover Stop,
+durable commands, and the runner's recovery paths (park/resume, watchdog quarantine). It drives
+the same product endpoint and asserts on the same wire, but it needs its own account bootstrap,
+so it runs as a separate process rather than as `qa_product.py` cells. See
+`resources/path_triggers.py` for the exact mandatory-cell mechanism.
+
+**These cells are MANDATORY** — run them, not just the standing gate — whenever the release diff
+touches any of:
+
+- `services/runner/src/sessions/**`
+- `services/runner/src/engines/sandbox_agent/**`
+- `api/oss/src/core/sessions/**`
+- `api/oss/src/tasks/asyncio/sessions/**`
+- `api/oss/src/apis/fastapi/sessions/**`
+
+Run every cell with one line:
+
+```bash
+uv run resources/session_control.py --cells all --harness pi_core --sandbox local
+```
+
+Add `--project <docker-compose project name>` to run the eight cells that need direct Docker and
+Postgres access (`sandbox-gone`, `records-outage`, `restart-after-stop`, `runner-gone`,
+`runner-gone-late`, `post-stop-row`, `codex-child`, `stale-tail`) and the abort-log subcheck inside
+`stop-after-finish`. Without `--project`, those eight cells SKIP with a named reason. The
+`stop-after-finish` HTTP check still runs, but only its abort-log subcheck is unavailable. The
+other eight cells
+(`stop-warm`, `double-send`, `stale-stop`, `stop-approval`, `stop-after-finish`,
+`repeat-stop`, `concurrent-stops`, `stop-during-completion`) run over HTTP alone against any
+deployment. Add
+`--resume <path to a prior run's results.json>` to pick a lost run back up: any cell already
+recorded there is loaded instead of re-run.
+
+Results land in a timestamped folder under `~/agenta-qa-evidence/` (override with
+`AGENTA_QA_RUNS_DIR`), as `results.json` and `summary.md` — the same PASS/FAIL/SKIP shape as the
+rest of the gate. When a release path makes session control mandatory, pass that artifact to the
+standing gate with `--session-control-results <path>`: a missing or incomplete artifact stops the
+gate before the matrix runs, and a recorded FAIL makes the final gate exit nonzero.
+
+**Environment, by name.** Same three-variable discipline as the rest of the gate, no env-file
+fallback:
+
+- `AGENTA_BASE` — the deployment origin.
+- `AGENTA_ADMIN_KEY` — mints the ephemeral account this driver runs under. Lives in
+  `~/.agenta-qa-secrets.env`.
+- `QA_OPENAI_API_KEY` — stocked into that account's vault so the `pi_core` and `codex` harnesses
+  have a provider key. Lives in `~/.agenta-qa-openai.env`.
+- `ANTHROPIC_API_KEY` — only required for `--harness claude`, stocked into the same vault the
+  same way. Lives in `~/.agenta-qa-secrets.env`. A pi_core- or codex-only run does not need it.
+
+**Run `--harness claude` on a custom connection** (for example when the Anthropic key has no
+credit). Set these, and `ANTHROPIC_API_KEY` is no longer needed:
+
+- `AGENTA_QA_CLAUDE_MODEL` — the model key, `<connection name>/custom/<model slug>`, e.g.
+  `orclaude/custom/anthropic/claude-haiku-4.5`.
+- `AGENTA_QA_CLAUDE_PROVIDER` — the protocol the connection speaks; default `anthropic`.
+- `AGENTA_QA_CLAUDE_CONNECTION_SLUG` — the vault slug the agent config names.
+- `AGENTA_QA_CLAUDE_CUSTOM_URL` and `AGENTA_QA_CLAUDE_CUSTOM_KEY` — the connection's base URL
+  and key (for OpenRouter: `https://openrouter.ai/api` and `OPENROUTER_API_KEY` from
+  `~/.agenta-qa-secrets.env`).
+
+The driver mints a fresh account on every run, so a slug copied from another project's vault does
+not exist there. Bootstrap creates the custom connection in the minted vault under the slug you
+give, from the model key, URL and key. `AGENTA_QA_CLAUDE_MODEL` and `AGENTA_QA_CLAUDE_PROVIDER`
+also work alone, to change the model on the vault Anthropic key. `results.json` records the model
+the run used.
+
+**The long-turn prompt is not a bare `sleep N`.** Claude Code refuses a standalone long sleep
+(`Blocked: standalone sleep 45 ... use run_in_background`), the turn ends in seconds, and a later
+Stop gets 409 `current: none`. The cells ask for `timeout N tail -f /dev/null; echo <codeword>`,
+which runs in the foreground for N seconds.
+
+**`stop-approval` asks for a mutating command.** Claude Code auto-approves a read-only command such
+as a bare `echo` whatever the permission policy says, so no approval parks and the cell fails with
+`no pending approval was seen before the Stop`. `runner.kind` is not the cause: the SDK reads only
+`runner.permissions.default`.
+
+A Daytona run additionally needs a Secrets-capable Daytona key on the runner; the key in most
+session env files returns 403 on the Secrets endpoint, so check that before trusting a Daytona
+result.
+
+**`stop-approval` sends an `Idempotency-Key`, and it has to (fixed after the v0.117.0 run).** The
+cell answers an approval after a Stop and asserts the answer is refused with a 409. The durable
+approval path validates the `Idempotency-Key` header BEFORE it decides whether the execution is
+still continuable, so an answer without that header comes back 422 and can never reach the 409.
+A real browser always sends one, so nothing user-facing was ever affected — but for one release
+this read as a product FAIL on a stage where the product was fine, and clearing it cost a
+hand-run diagnostic. The cell now sends a stable key derived from the interaction id, a 422 there
+names the missing header in its own failure line, and two tests in `test_session_control.py` pin
+both halves. The general lesson is wider than this cell: when a gate asserts a specific status
+code on a durable endpoint, send the headers the browser sends, or the assertion measures the
+validation layer instead of the behavior.
+
+## Running the gate against a preview stage
+
+The cells were written on a dev box, where the operator's own Claude and Codex logins are mounted
+and the local sandbox is free. A cloud stage is neither of those things, and the mismatch does not
+announce itself as an environment problem — it arrives as a red cell that reads like a release
+regression. Three facts, all measured on the v0.117.0 preview stages, settle most of it.
+
+**Each stage runs exactly one kind of sandbox, and they are opposites.** oss.preview is
+local-sandbox-only by design, the OSS default posture, and refuses Daytona. Staging is the mirror
+image: it refuses the LOCAL sandbox with a 403 naming
+`AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS`. So no local-sandbox cell can run on staging at all, and
+no Daytona cell can run on oss.preview. For the hosted-subscription pair that means H1, which is
+local, can only run on oss.preview, and H2, which is Daytona, can only run on staging. The reverse
+pairing cannot be made to work by fixing anything.
+
+**Pre-flight Daytona with one cheap sandbox create before planning around it.** The organization's
+availability changes with its credit balance, and a suspended organization 403s at sandbox create,
+which looks nothing like the cell's subject. One probe cell answers the question for the whole run.
+
+**The managed provider keys on a stage may be out of credit.** Both stages' vault Anthropic and
+OpenAI keys were exhausted during the v0.117.0 run, so every managed-key cell was blocked on
+billing rather than on the product, and the Claude legs of several scripts could not run at all.
+The funded path on those stages was the custom OpenAI-compatible connection fronting OpenRouter.
+Check the vault before scheduling cells around it, and read an exhausted-key red as blocked
+coverage, never as a pass and never as a regression.
+
+**Overriding the cell shape without touching an assertion.** `qa_matrix_lib.agent_config` and
+`qa_commit_approval.py` default to Claude on the operator's mounted subscription on a local
+sandbox, which no stage can serve; left alone they die with `runtime_provided local run requires a
+mounted subscription`. Both now read the shape from the environment, the same way
+`matrix_gw1_gateway_tools.py` always has, so the client-tool cell (`matrix_l4_*`) and the
+commit-approval script run on any stage:
+
+```bash
+export AGENTA_QA_HARNESS=pi_core            # claude | pi_core | codex
+export AGENTA_QA_SANDBOX=daytona            # local | daytona
+export AGENTA_QA_CONNECTION_MODE=agenta     # agenta (vault) | self_managed (operator login)
+export AGENTA_QA_CONNECTION_SLUG=<vault slug>
+export AGENTA_QA_MODEL=<model id>
+export AGENTA_QA_PROVIDER=<provider>
+```
+
+Read the resulting passes for what they are. A green client-tool round trip on pi_core against a
+real provider proves that surface on that harness; it is not evidence about the claude harness,
+which no remote stage can currently run.
+
+**Eight session-control cells cannot run on a cloud stage at all.** The hook cells
+(`sandbox-gone`, `records-outage`, `restart-after-stop`, `runner-gone`, `runner-gone-late`,
+`post-stop-row`, `codex-child`, `stale-tail`) need `--project`, a docker-compose project on the
+same host as the runner. Plan them against the local stack from the start rather than discovering
+it mid-run.
+
+### Calling the runner's `/run` directly
+
+Most cells drive the product endpoint, which is the point. A few diagnostics post to the runner's
+own `/run`, and that contract moved in v0.117.0:
+
+- The runner requires a shared token, sent as an `X-Agenta-Runner-Token` header and matching the
+  stack's `AGENTA_RUNNER_TOKEN`. Without it the container refuses to start at all.
+- A top-level `credentialMode` is rejected outright with "Legacy top-level model credential fields
+  are not supported". The credential now rides a `modelConnection` object carrying `provider`,
+  `deployment`, `credentialMode` and `credentials`.
+- A single fresh user message is the last-message-only shape, so the runner tries to rebuild the
+  conversation from the durable record log and fails with "record log is unreadable". Send a short
+  multi-turn history instead. This bites direct callers only; the product endpoint carries the
+  transcript itself.
+- `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini` and `gpt-5.3-codex-spark` are refused by ChatGPT accounts
+  ("not supported when using Codex with a ChatGPT account"). Use `gpt-5.6-luna` for subscription
+  cells.
+- The runner's health endpoint advertises `pi_core` and `claude` only. `codex` dispatches and
+  answers normally; the list is a stale hardcoded constant. No cell should gate on it.
+
 ## When results lie
 
 The runtime **fails open**: a component can break, get logged, and the turn still succeeds with a
@@ -119,18 +418,35 @@ proves nothing about the durable working directory (LESSONS #16).
   approve, deny, commit, warm, cold1, cold2, mcp) with a one-line meaning for each, the continuity
   tiers and their method, and a table of what each cell needs beyond the three env vars.
 - `resources/LESSONS.md` — the traps. Read before writing or trusting any agent QA test.
-- `resources/qa_product.py` — the gate driver (cells × journeys). **Currently broken**: two
-  unresolved git merge conflicts sit inside the `CELLS` dict (P2/P3 definitions), a SyntaxError
-  that fails the whole file on import, not just those cells. Needs a human to pick the correct
-  side per cell before this driver runs again; do not resolve it blind.
+- `resources/qa_product.py` — the gate driver (cells × journeys).
+- `resources/matrix_gw1_gateway_tools.py` — **[coached, with one mechanism-blind leg]** the
+  gateway tool surface against a real provider: search filters by policy (the denied key never
+  reaches the model), an allowed tool executes unattended with a genuine provider result, and an
+  ask-tier tool parks with the right stored identity and is answered through the **interactions
+  API** — the durable plane a reloaded browser uses, which no other cell covers. The fixed
+  matrix proves approvals with a builtin, so nothing else notices when the compiled policy and
+  the enforced policy drift apart. Defaults to the no-auth `text_to_pdf` connection; `--integration`
+  and `--connection` point it elsewhere. SKIPs, naming the fixture, when no valid connection
+  exists, and SKIPs rather than failing the release when the model provider itself errors.
+  Made mandatory by the gateway rule in `path_triggers.py`.
+- `resources/path_triggers.py` — the path-scoped rules: one dict mapping a path glob to the cells
+  a release must run when its diff touches that glob, plus the two functions the driver calls.
+  Runs standalone as a preview (`--release-base <ref>`). Add a rule here whenever new coverage is
+  only meaningful for changes in one part of the tree.
 - `resources/qa_probe.py` — a one-turn wire probe: `uv run resources/qa_probe.py` confirms the
   product path answers at all before running the full gate.
 - `resources/qa_commit_approval.py` — **[coached]** the mandatory pre-handoff commit-approval
-  round trip (see above). Self-contained; does not import `qa_product.py`, so it still runs
-  while that file is broken.
+  round trip (see above). Self-contained; does not import `qa_product.py`. Its default shape is
+  Claude on the operator subscription on a local sandbox, which no preview stage can serve — the
+  `AGENTA_QA_*` variables under "Running the gate against a preview stage" move it.
 - `resources/qa_matrix_lib.py` — shared helpers (session/turn plumbing, workflow/revision REST
   calls, the multi-round approval loop) for the `matrix_w*.py` adversarial cells below. Import
-  only, no CLI.
+  only, no CLI. It also holds the two cross-cutting invariants every cell should fold into its
+  verdict — `check_no_blank_success_on_refusal` and `check_no_silent_turn` (see below). **If you
+  write a new cell, wire `check_no_silent_turn` into its PASS condition.** `agent_config` reads
+  its model, provider, connection mode and slug, harness and sandbox from the `AGENTA_QA_*`
+  variables, so a cell that builds its config through it runs on a cloud stage unchanged; a cell
+  that hardcodes its own config dict does not, and every one of those is deliberate.
 - `resources/matrix_w3.py` — **[coached, with a narrow mechanism-blind sliver]** two sessions,
   disjoint edits; session B is given a stale `base_revision_id` and ZERO coaching on recovery.
   Two-tier pass: autonomous correct recovery passes outright; a model that diagnoses the 409
@@ -169,6 +485,14 @@ proves nothing about the durable working directory (LESSONS #16).
   output actually carries the real marker content (not hallucinated), and the commit lands with
   it. Verified PASS 3/3 runs after the tunnel-seat fix (2026-08-06); this line was absent on
   every attempt before that fix landed.
+- `resources/matrix_t9_agent_tools.py` — **[coached]** T9: the runner restores the agent's own
+  tools from `agent-files/.tools/` before a session (`agent-tools-setup.ts`). Plants a
+  `setup.sh` and a `bin/qa-tool` through the mounts API, opens a fresh session, and asserts the
+  first tool call is the exact probe and its output payload carries both planted tokens, plus a
+  line `setup.sh` appended to `agent-files/.tools/runs.log`, read back through the mounts API
+  with no model in the loop, plus the `agent_tools_setup` stage for THIS session in the runner
+  log when `--runner-container` is given. `--sandbox local|daytona`, `--harness pi_core|claude`.
+  Mandatory (via `path_triggers.py`) when the restore step or the sandbox image recipes change.
 - `resources/matrix_w7_per_harness.py` — **[coached]** matrix_w7.py's exact scenario run
   identically on all three harnesses (claude, codex, pi_core), each classified PASS/FAIL/SKIP
   independently. Exists because W7 originally ran on Claude only, and that scenario-coverage gap
@@ -206,6 +530,21 @@ proves nothing about the durable working directory (LESSONS #16).
   A reliable deterministic trigger (e.g. a genuine cold-resume stale-approval replay, or a crafted
   duplicate `toolCallId`) is an open follow-up; until then, treat any SKIP from this cell as "the
   invariant was not tested this run," never as green.
+- `qa_matrix_lib.check_no_silent_turn(turns)` — **[mechanism-level invariant; no cell of its
+  own]** no turn may come back completely bare: no text, no tool call, no approval gate, no file
+  or data payload, and no error. That combination is a swallowed provider failure (ASD-EST100) —
+  the model call is rejected, the error is dropped on the way back, and the turn is reported as a
+  clean empty finish, so the user sees a blank bubble with no reason anywhere. It matters most in
+  cells whose PASS depends on something NOT appearing (no error, no leak, no blank success): a
+  turn that produced nothing satisfies those by doing nothing at all. Its content definition
+  deliberately mirrors `content_parts_emitted` in the product's own Vercel egress
+  (`sdks/python/agenta/sdk/agents/adapters/vercel/stream.py`) — reasoning does NOT count, so a
+  turn that only thought is still a violation. Wired into `matrix_w7*.py`, `matrix_t8_saved_files.py`,
+  `matrix_b1_builtin_find.py`, `matrix_invariant_commit_auth_refusal.py`,
+  `matrix_l3_abandoned_approval.py`, `matrix_w3.py`, `matrix_w4.py` and `matrix_w5.py` as
+  `... and not silent["violations"]`; add the same conjunct to any new cell. The one thing a cell
+  must exclude itself is a turn it deliberately aborted or interrupted, which legitimately ends
+  bare — `matrix_w5.py` shows the pattern (it checks only its post-interrupt turns).
 - `resources/matrix_g1_guidance_discovery.py` — **[mechanism-blind]** does the platform guidance
   actually change what the model does? The trial prompt is Mahmoud's own verbatim phrasing from
   the live session that found the bug ("can you add gstack-autoplan skill to your skills (i saved
@@ -278,10 +617,13 @@ ever reaches the stream. An empty ledger FAILS a cell; missing evidence is not e
 
 - `resources/matrix_l1_lifecycle_routes.py` — **MANDATORY. [mechanism-blind]** the routing matrix
   itself: for each kind of mid-conversation config change, assert the route the runner took. One
-  sandbox id = applied in place, two = rebuilt. Blocks on the four unambiguous cases (no change
-  must stay warm; an instructions edit, a permissions edit and a tool-catalog edit must escalate)
-  and reports the `model` case rather than guessing at a deployment's connection shape. This is
-  the cell that would have caught the `cold1` rot described below.
+  sandbox id = applied in place, two = rebuilt. Blocks on six cases: no change must stay warm; an
+  instructions edit, a permissions edit and a tool-catalog edit must escalate; and a
+  same-connection model switch must stay warm on BOTH claude and pi_core. The pi_core model case
+  (added 2026-08-29) is the standing trap for the wire-spelling bug class: the router once keyed
+  its table on the bare "pi" literal while the wire carries "pi_core", every playground model
+  switch silently rebuilt, and the claude-only case could not see it (#6364). This is the cell
+  that would have caught the `cold1` rot described below.
 - `resources/matrix_l2_approval_across_config_change.py` — **MANDATORY. [coached]** the killer
   combination: an approval answered while a config change rides along in the SAME request. It is
   the regression test for the applied-state bug (the pool used to stamp the INCOMING fingerprint
@@ -310,6 +652,26 @@ ever reaches the stream. An empty ledger FAILS a cell; missing evidence is not e
   the sandbox count, which is two today: a client-tool pause is deliberately not parkable
   (`"warm-hold": RESERVED, not built`, #5384), so every client-tool round trip currently costs a
   rebuild. If that number ever reads one, the warm hold landed and the docstring needs updating.
+  It builds its config through `agent_config`, so the `AGENTA_QA_*` variables point it at a
+  cloud stage; it passed on pi_core over Daytona on staging and over the local sandbox on
+  oss.preview during the v0.117.0 run, and two sandboxes per round trip is still what it records.
+- `resources/matrix_n1_session_context.py` — **MANDATORY. [journey, with two controls]** the
+  per-turn session facts on the path the PRODUCT uses. Renames a session between two turns and
+  asks the agent for the name, asks the agent for its own display name, and posts a forged
+  `meta.session_context` that the service must ignore. Every expected value carries a random
+  token minted for the run and spoken nowhere in the conversation, so a transcript-derived
+  answer cannot match; the second ask is the exact shape of #6661, because by then the FIRST
+  name is in the transcript and the current one is only in the stored header. This is the one
+  cell that asserts on model prose, and it does so because nothing else can: `turnContext` is a
+  prompt string on the service-to-runner payload, the runner logs nothing, and it is
+  deliberately kept out of `request.messages` and out of persisted input. Two controls keep a
+  FAIL honest — an echo probe (a model that cannot repeat a literal token makes the cell report
+  INCONCLUSIVE) and a read-back of the stored header after every rename. Mandatory (via
+  `path_triggers.py`) when the SDK session-context module, the platform-prompt renderer, the
+  agent handler, or the API's session-context resolver changes. **The gate could not see this
+  class at all before v0.115.3**: #6661 shipped green because the API stamped the facts in its
+  invoke prelude, which never runs for a playground turn, and no cell renamed a session
+  mid-conversation or asserted on the facts.
 
 **Finding the lifecycle cells surfaced (2026-08-06, claude on local, reproduced 3×) — FIXED:** the
 `workspaceFiles` live route rewrote the instruction file and advanced applied state, but the
@@ -359,6 +721,44 @@ environment is destroyed with the approval still pending — "gate pending → e
 without any intervening user turn and without touching the message history. Answering afterwards
 lands on a pool miss and takes the cold decision-map path, which is exactly the state
 `shouldRegateStaleApproval` guards. Worth a spike before concluding this needs a runner-side hook.
+- `resources/matrix_r1_two_replicas.py` — **[coached] runner replicas.** Needs a stack with TWO
+  runner containers and `--project <compose project>` plus `--stack-env <env file>` (runner token,
+  Daytona key). It decides which container served each turn from the containers' own logs
+  (`heartbeat OK session=<s> turn=<t>`, `hit-continue`), the turn ledger, the runner-token
+  streams read (`runner_replica_id`) and `session_commands.claimed_by`, never from the stream.
+  Phase 1 cells (`--cells phase1`): `warm-holder`, `approval-warm` (answered through the respond
+  route like `web/mobile`), `queued-input`, `stop-on-b`, `kill-from-non-holder`,
+  `duplicate-turn-id` (direct `/run` on both container addresses, mock harness) and
+  `inprocess-warm`. Phase 2 cells kill, stop or recreate a runner and SKIP without
+  `--allow-destructive`; `identity-mismatch` also needs `--worktree`, `--recreate-license`,
+  `--recreate-stage` and `--recreate-env-file` (no stack-specific defaults). **A release record
+  needs BOTH phases: `--cells all --allow-destructive`.** A phase-1-only run is partial
+  coverage, and a run where every selected cell SKIPs exits 2, never 0. Two traps it encodes:
+  Claude Code refuses a standalone `sleep N`, so its
+  long turns run `timeout N tail -f /dev/null`; and a queued input must carry only the trailing
+  user message, as the browser sends it, or the runner sees a history mismatch and goes cold.
+  `--subscription hosted` (plus `--subscription-slug`, `--subscription-sandbox daytona|inprocess`,
+  `--pi-model`) runs the six routing cells on Pi with the project's hosted ChatGPT connection
+  and SKIPs them all when that connection is not `ready`; `--subscription mounted` is the
+  operator's Pi login mounted into the runners, `inprocess` only. The other cells SKIP under a
+  subscription shape. Under
+  `hosted`, `hosted-both-pods` (phase 1), `hosted-refresh-across-pods` and
+  `hosted-restart-reconnect` (phase 2) check the hosted login itself on both pods from the pods'
+  `event=subscription.materialize|publish` lines and the row's `login_version` /
+  `login_generation`: both pods run on the login the request delivers, one refresh is pushed
+  back once and reused by the other pod, and a restarted pod needs no device login.
+  `--daytona-harness pi_core` runs the Daytona cells on Pi with the `--custom-name` /
+  `--custom-model` connection instead of Claude Code. `--kube-namespace <ns>` (with
+  `--kube-context`, `--kubeconfig`, `--kube-release`, optional `--kube-secret`) runs against a
+  Helm release with two runner pods: logs are followed per pod from the run start, Postgres is
+  read with `psql` inside an api pod, posts to a pod go through `kubectl port-forward`. There,
+  kill is a force pod delete (the Deployment starts a new pod, so the follow-up may run on B or
+  A's replacement), the drain is a graceful pod delete, `identity-mismatch` SKIPs, and two
+  kube-only phase 2 cells run: `rollout-during-turn` (`rollout restart` under a long turn) and
+  `drain-node-parked-approval` (cordon and drain A's node with a runner-only pod selector, through
+  the PodDisruptionBudget; always uncordoned).
+  Mandatory (via `path_triggers.py`) when the turn binding, Stop routing, follow-up routing, Kill
+  by label, or the drain changes.
 - `resources/qa_longctx.py` — optional long-context / Gmail / concurrent-session probes. Needs
   live Gmail and GitHub Composio connections in the target project; skip it otherwise.
 - `resources/seeds/` — representative green `results.json` files kept as regression-seed references.
@@ -369,6 +769,10 @@ Before committing any resource script, run the repo-pinned ruff (`uv run --no-sy
 then `uv run --no-sync ruff check` from the repo root covers it) — not `uvx`, whose pulled
 version has different defaults and produces a false block. Unformatted resource files break the
 repo-wide format CI job.
+
+When you add a cell, ask whether it is only meaningful for changes in one part of the tree. If it
+is, add the rule to `resources/path_triggers.py` in the same change. A cell whose subsystem can be
+rewritten without anyone remembering to run it is coverage on paper.
 
 Release-night findings and the full evidence history are archived in
 `docs/design/agent-workflows/projects/qa/` (STATUS.md, findings.md, matrix.md).

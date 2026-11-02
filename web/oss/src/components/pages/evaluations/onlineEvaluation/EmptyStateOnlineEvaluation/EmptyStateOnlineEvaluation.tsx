@@ -1,6 +1,6 @@
+import {EmptyState} from "@agenta/ui/components/presentational"
 import {Lightning} from "@phosphor-icons/react"
 
-import EmptyState from "@/oss/components/EmptyState"
 import {EMPTY_STATE_VIDEOS} from "@/oss/components/EmptyState/videos"
 
 const EmptyStateOnlineEvaluation = ({onCreateEvaluation}: {onCreateEvaluation: () => void}) => {

@@ -13,6 +13,7 @@ from agenta.sdk.agents.tools import (
     coerce_tool_configs,
     GatewayToolConfig,
     GatewayToolResolution,
+    GatewayToolResolutionError,
     MissingSecretPolicy,
     MissingToolSecretError,
     PlatformToolConfig,
@@ -91,6 +92,8 @@ class FakePlatformResolver:
     async def resolve(
         self,
         tools: Sequence[PlatformToolConfig],
+        *,
+        permission_default: str = "allow_reads",
     ) -> GatewayToolResolution:
         return GatewayToolResolution(
             tool_specs=[
@@ -164,6 +167,71 @@ async def test_gateway_metadata_survives_resolution():
     )
     spec = resolved.tool_specs[0]
     assert spec.render == {"kind": "component", "component": "User"}
+
+
+class PartialGatewayResolver(FakeGatewayResolver):
+    """Resolves like the fake, but raises for any tool whose action is in ``dead_actions``.
+
+    Models the platform ``/tools/resolve`` 404 for a Composio action that has left the
+    catalog. Because the resolver is now called once per tool, one dead action fails only
+    its own resolution.
+    """
+
+    def __init__(self, dead_actions: Sequence[str]):
+        self.dead_actions = set(dead_actions)
+
+    async def resolve(
+        self,
+        tools: Sequence[GatewayToolConfig],
+    ) -> GatewayToolResolution:
+        for tool in tools:
+            if tool.action in self.dead_actions:
+                raise GatewayToolResolutionError(
+                    f"Gateway tool resolution failed: Action not found: "
+                    f"composio/{tool.integration}/{tool.action} (HTTP 404)",
+                    status=404,
+                )
+        return await super().resolve(tools)
+
+
+async def test_one_dead_gateway_tool_is_dropped_and_the_rest_resolve(caplog):
+    # A gateway agent with two Composio tools where one action 404s must not brick the run:
+    # the good tool resolves, the dead one is dropped with a warning that names it.
+    resolver = ToolResolver(
+        gateway_resolver=PartialGatewayResolver(dead_actions=["COMMIT_MULTIPLE_FILES"])
+    )
+    with caplog.at_level("WARNING"):
+        resolved = await resolver.resolve(
+            [
+                GatewayToolConfig(
+                    integration="github", action="GET_USER", connection="c1"
+                ),
+                GatewayToolConfig(
+                    integration="github",
+                    action="COMMIT_MULTIPLE_FILES",
+                    connection="c1",
+                ),
+            ]
+        )
+
+    names = [spec.name for spec in resolved.tool_specs]
+    assert names == ["github__GET_USER"]  # the good tool survived; the dead one is gone
+
+    assert len(resolved.warnings) == 1
+    warning = resolved.warnings[0]
+    # The warning names the dropped tool (by its reference) and carries the backend's 404 reason.
+    assert "tools.composio.github.COMMIT_MULTIPLE_FILES.c1" in warning
+    assert "Action not found: composio/github/COMMIT_MULTIPLE_FILES" in warning
+    # And it is also emitted to the logs, so a degraded resolution is never silent.
+    assert any("COMMIT_MULTIPLE_FILES" in r.message for r in caplog.records)
+
+
+async def test_a_clean_gateway_resolution_carries_no_warnings():
+    resolved = await ToolResolver(gateway_resolver=FakeGatewayResolver()).resolve(
+        [GatewayToolConfig(integration="github", action="GET_USER", connection="c1")]
+    )
+    assert resolved.warnings == []
+    assert [spec.name for spec in resolved.tool_specs] == ["github__GET_USER"]
 
 
 async def test_authored_permission_lands_on_resolved_code_spec_wire():
@@ -295,8 +363,15 @@ async def test_reserved_gateway_name_fails_before_adapter_call():
 
 
 async def test_a_bare_tool_name_string_is_ignored_too():
-    # `coerce_tool_config` turns a bare string into a BuiltinToolConfig.
-    resolved = await ToolResolver().resolve(coerce_tool_configs(["read"]))
+    # `coerce_tool_configs` turns a bare string into a BuiltinToolConfig.
+    # Pass `.tool_configs` — the parse result itself is not a sequence of configs
+    # (iterating the pydantic model yields field tuples, so resolve would not see
+    # the coerced BuiltinToolConfig and would pass for the wrong reason).
+    parsed = coerce_tool_configs(["read"])
+    assert len(parsed.tool_configs) == 1
+    assert isinstance(parsed.tool_configs[0], BuiltinToolConfig)
+
+    resolved = await ToolResolver().resolve(parsed.tool_configs)
 
     assert resolved.tool_specs == []
 
@@ -382,3 +457,27 @@ async def test_reference_and_gateway_share_one_callback():
     call_refs = {spec.call_ref for spec in resolved.tool_specs}
     assert "workflow.variant.wf" in call_refs
     assert resolved.tool_callback is not None
+
+
+async def test_identical_reserved_client_tools_collapse_to_one():
+    # A revision saved before `request_secret` joined the build kit may carry its own copy of
+    # the tool, and the playground overlay merges by embed slug or by name, so an inline copy
+    # survives beside the kit's entry. Two identical copies are one tool, not a name clash.
+    spec = ClientToolConfig(
+        name="request_secret",
+        description="Pause the run and ask the user to configure a custom secret.",
+        input_schema={"type": "object", "properties": {"name": {"type": "string"}}},
+    )
+    resolved = await ToolResolver().resolve([spec, spec.model_copy()])
+    names = [tool.name for tool in resolved.tool_specs]
+    assert names == ["request_secret"]
+
+
+async def test_different_tools_sharing_a_reserved_name_are_still_refused():
+    with pytest.raises(DuplicateToolNameError):
+        await ToolResolver().resolve(
+            [
+                ClientToolConfig(name="request_input", description="one"),
+                ClientToolConfig(name="request_input", description="two"),
+            ]
+        )

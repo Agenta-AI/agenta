@@ -9,5 +9,4 @@ export interface ProjectsResponse {
     project_name: string;
     is_default_project?: boolean | undefined;
     user_role?: (string | null) | undefined;
-    is_demo?: (boolean | null) | undefined;
 }

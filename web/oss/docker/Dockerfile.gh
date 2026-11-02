@@ -20,7 +20,7 @@ RUN PNPM_VERSION=$(node -p "require('./package.json').packageManager.split('@')[
 
 FROM base AS builder
 
-ENV NODE_OPTIONS="--max_old_space_size=4096"
+ENV NODE_OPTIONS="--max_old_space_size=8192"
 ENV TURBO_CACHE_DIR="/app/.turbo"
 
 COPY docker/run-turbo-build.sh /usr/local/bin/run-turbo-build.sh

@@ -54,7 +54,6 @@ export type {
     ExecutionResult,
     // Execution types
     ExecutionStatus,
-    ExtendedPathInfo,
     ExtraColumn,
     InputMapping,
     // Connection types
@@ -66,8 +65,6 @@ export type {
     PlaygroundAction,
     // Node types
     PlaygroundNode,
-    // State types
-    PlaygroundState,
     RowExecutionResult,
     RunnableData,
     // Runnable types
@@ -107,7 +104,6 @@ export type {
     ExecutionState,
     ExecutionStep,
     InitSessionsPayload,
-    PlaygroundTestResult,
     RunResult,
     RunStatus,
     RunStepPayload,
@@ -188,8 +184,15 @@ export {
     isPendingClientToolInteraction,
     type LiveAgentInteraction,
 } from "./execution"
+export {approvalResolution, isResumeSend, type ChatStatusLike} from "./execution"
 export {buildRenderMap, renderKindFor, type RenderHintLike} from "./execution"
-export {canReleaseQueuedMessage, isHitlPending} from "./execution"
+export {
+    approvalContinuationSettled,
+    canReleaseQueuedMessage,
+    hasRunningApprovalContinuation,
+    isHitlPending,
+    messageHasPendingHitl,
+} from "./execution"
 export {
     appendCapped,
     buildTurnCapture,
@@ -241,107 +244,63 @@ export {
 } from "./execution"
 
 // Chat types
-export {createInitialFlatChatState, SHARED_SESSION_ID} from "./chat"
+export {SHARED_SESSION_ID} from "./chat"
 export type {
     AddMessagePayload,
     AddUserMessagePayload,
     ChatMessage,
-    ChatMessageNode,
     ClearSessionResponsesPayload,
     CompleteExecutionPayload,
     DeleteMessagePayload,
-    DerivedTurn,
     FailExecutionPayload,
-    FlatChatState,
     MessageExecution,
     MessageExecutionStatus,
     MessageTarget,
     PatchMessagePayload,
     RemoveMessagesPayload,
     SimpleChatMessage,
-    StartExecutionPayload,
     TruncateChatPayload,
     UpdateMessagePayload,
 } from "./chat"
 
 // Chat atoms
-export {
-    executionByMessageIdAtomFamily,
-    messageAtomFamily,
-    messageCountAtomFamily,
-    messageExecutionAtomFamily,
-    messageIdsAtomFamily,
-    messagesByIdAtomFamily,
-    orderedMessagesAtomFamily,
-} from "./chat"
+export {executionByMessageIdAtomFamily, messageIdsAtomFamily, messagesByIdAtomFamily} from "./chat"
 
 // Chat reducer actions
 export {
     // CRUD
     addMessageAtom,
     addMessagesAtom,
-    addMessagesWithContextAtom,
     addMessageWithContextAtom,
     // Domain-level (turn-aware)
     addUserMessageAtom,
     // Context-aware
     addUserMessageWithContextAtom,
-    cancelMessageExecutionAtom,
     clearAllMessagesAtom,
     clearAllMessagesWithContextAtom,
     clearSessionResponsesAtom,
     clearSessionResponsesWithContextAtom,
     completeMessageExecutionAtom,
-    deleteMessageAtom,
     deleteMessageWithContextAtom,
-    // Session operations
-    duplicateSessionResponsesAtom,
-    duplicateSessionResponsesWithContextAtom,
     failMessageExecutionAtom,
     generateMessageId,
-    patchMessageAtom,
     patchMessageWithContextAtom,
-    removeMessagesAtom,
-    removeMessagesWithContextAtom,
-    // Execution lifecycle
-    startMessageExecutionAtom,
-    truncateAfterMessageAtom,
-    truncateAfterMessageWithContextAtom,
-    truncateChatAtom,
     truncateChatWithContextAtom,
-    updateMessageAtom,
-    updateMessageWithContextAtom,
 } from "./chat"
 
 // Chat selectors
 export {
-    activeSessionIdsFromMessagesAtomFamily,
-    apiHistoryBeforeMessageAtomFamily,
-    apiHistoryForSessionAtomFamily,
-    buildApiHistory,
-    derivedTurnsAtomFamily,
-    derivedTurnsWithContextAtom,
-    executionByMessageIdWithContextAtom,
-    groupMessagesIntoTurns,
-    isAnySessionRunningAtomFamily,
-    isSessionRunningAtomFamily,
-    messageCountWithContextAtom,
     messageIdsWithContextAtom,
     messagesByIdWithContextAtom,
-    messagesForSessionAtomFamily,
     sharedMessageIdsAtomFamily,
     sharedMessageIdsWithContextAtom,
 } from "./chat"
-
-// Chat utilities
-export {messageHasContent, messageHasToolCalls} from "./chat"
 
 // Testset import mutation
 export {
     extractAndLoadChatMessagesAtom,
     type ExtractChatMessagesParams,
 } from "./helpers/extractAndLoadChatMessages"
-export {loadTestsetNormalizedMutationAtom} from "./helpers/loadTestsetNormalizedMutation"
 export {
     extractCanonicalTestcaseRow,
     normalizeTestcaseRowsForLoad,
@@ -358,7 +317,6 @@ export {syncChatMessagesToEntityAtom} from "./helpers/syncChatMessagesToEntity"
 export {
     applyPendingHydration,
     applyPendingHydrationsForRevision,
-    clearPendingHydrations,
     entitySelectorController,
     executionController,
     executionItemController,
@@ -370,7 +328,6 @@ export {
     pendingHydrationsAtom,
     playgroundController,
     playgroundSnapshotController,
-    resetRunnableTypeResolver,
     setOnSelectionChangeCallback,
     setRunnableTypeResolver,
     setSelectionUpdateCallback,
@@ -389,31 +346,6 @@ export type {
     SnapshotSelectionInput,
     UrlComponents,
 } from "./controllers"
-
-// ============================================================================
-// CONTEXT (Public)
-// ============================================================================
-
-export {
-    PlaygroundEntityProvider,
-    usePlaygroundEntities,
-    usePlaygroundEntitiesOptional,
-} from "./context"
-
-export type {
-    AppRevisionActions,
-    AppRevisionCommitPayload,
-    AppRevisionCreateVariantPayload,
-    AppRevisionCrudResult,
-    AppRevisionListSelectors,
-    AppRevisionRawData,
-    EntityQueryState,
-    EntityRevisionSelectors,
-    EvaluatorRawData,
-    EvaluatorSelectors,
-    PlaygroundEntityProviders,
-    SettingsPreset,
-} from "./context"
 
 // ============================================================================
 // INTERNAL ATOMS (for controller implementation only)
@@ -445,8 +377,6 @@ export {
     playgroundCapabilityModeAtom,
     playgroundModeOverrideAtom,
     playgroundNodesAtom,
-    primaryEntityIdAtom,
-    primaryNodeAtom,
     selectedNodeIdAtom,
     testsetModalOpenAtom,
     type PlaygroundMode,
@@ -457,3 +387,16 @@ export {
 // ============================================================================
 
 export {buildAssistantMessage, buildUserMessage} from "./helpers/messageFactory"
+export {
+    agentAutoCommitStatusAtomFamily,
+    agentAutoCommitErrorAtomFamily,
+    agentAutoCommitScheduledAtomFamily,
+    flushAgentAutoCommitAtom,
+    registerAgentAutoCommitHandler,
+    buildVersionRows,
+    buildRevertMessage,
+    revertAgentRevisionAtom,
+    REVERT_MESSAGE_PREFIX,
+    watchLatestVersion,
+} from "./execution"
+export type {AgentVersionRow, LatestVersion, RevertAgentRevisionParams} from "./execution"

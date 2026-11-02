@@ -82,16 +82,20 @@ A resolved callback spec can carry an optional `call` descriptor instead of a `c
 mirrored in `wire_models.py` and pinned by the golden `/run` fixtures). When present it tells the
 runner to call an Agenta endpoint **directly** — reusing the run's `toolCallback.authorization`,
 with `path` an absolute path from the Agenta origin (derived from `toolCallback.endpoint`) — rather
-than posting back through `/tools/call`. Shape: `{ method: "GET"|"POST", path, body?, context?,
-args_into? }`. A spec carries `call` XOR `call_ref`.
+than posting back through `/tools/call`. Shape: `{ method: "GET"|"POST"|"PUT"|"DELETE", path,
+body?, context?, args_into? }` (the runner's explicit method allowlist; `POST` and `PUT` carry
+the assembled JSON body). A spec carries `call` XOR `call_ref`.
 
 The runner assembles the request body (`tools/direct.ts` `assembleBody`) in three layers, later
 wins: the model's args (at `args_into`, else the root) → the static `body` → the `context`
 binding. `context` maps a body path to a `"$ctx.<dotted.path>"` token, which the runner resolves
 against the per-turn `runContext` blob on the `/run` request (`service-to-agent-runner.md`) and
 deep-sets LAST — so a self-targeting tool's own trace/variant is filled server-side and the model
-can never set or override a bound field. A token that does not resolve is skipped (the field stays
-unset); deep-set is prototype-pollution-safe.
+can never set or override a bound field. A token that does not resolve fails the call with an
+error naming the binding and the tool (fail-closed — e.g. `rename_session` outside a session);
+deep-set is prototype-pollution-safe. Before binding, the runner augments its dispatch copy of
+the blob with `session.id` (the live session id it owns), the one runner-filled key in the
+namespace — see `service-to-agent-runner.md`.
 
 **Status (direct-call tools):** wired end to end for endpoint-mode platform ops. The SDK
 platform-op resolver emits `call` (and `call.context` for self-targeting ops such as

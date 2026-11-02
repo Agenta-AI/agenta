@@ -80,11 +80,6 @@ export function getStatusSeverity(status: ExecutionStatus): StatusSeverity {
     return "default"
 }
 
-/**
- * @deprecated Use `getStatusSeverity` instead. This alias exists for backwards compatibility.
- */
-export const getStatusColor = getStatusSeverity
-
 // ============================================================================
 // STATUS INFERENCE
 // ============================================================================

@@ -10,6 +10,32 @@
  * — preventing a circular dependency. Consumers that need the enum import it
  * directly from `@agenta/entities/secret`.
  */
+/**
+ * The sign-in facts a hosted subscription row carries.
+ *
+ * The login itself never leaves the vault, so the row reports only how usable it is. `loginState`
+ * stays a plain string: an API that grows a fourth state must not make the row unreadable, and the
+ * readers here treat anything but `ready` as "sign in needed".
+ */
+export interface SubscriptionLoginFacts {
+    /** The product family behind the connection (`chatgpt`). */
+    provider: string
+    /** `pending_login`, `ready`, or `needs_login`. */
+    loginState: string
+    /** Bumps on every stored login change, a pushed refresh included. */
+    loginVersion?: number
+    /** Bumps only on a new device login. */
+    loginGeneration?: number
+    /** Why the last run found the login unusable; shown next to Sign in again. */
+    loginError?: string | null
+}
+
+/**
+ * Who owns an account: the project, the organization, or the person (`user`), whose accounts
+ * work in every project. A route that takes fewer owners narrows it with `Exclude`.
+ */
+export type OwnerKind = "project" | "organization" | "user"
+
 export interface LlmProvider {
     title?: string
     key?: string
@@ -27,7 +53,38 @@ export interface LlmProvider {
     sessionToken?: string
     bearerToken?: string
     models?: string[]
+    /** Provider-supplied display names keyed by model id. */
+    modelNames?: Record<string, string>
     modelKeys?: string[]
+    /**
+     * The stored record's stable slug — the connection's identity, which the credential
+     * resolvers match on. Absent on records created before named connections; those stay
+     * addressable by their provider family (standard) or their name (custom).
+     */
+    slug?: string
+    /** The connection's user-visible name (e.g. "OpenAI 2"), independent of its identity. */
+    displayName?: string
+    /** Harnesses this connection may drive; absent means any harness Agenta supports. */
+    harnesses?: string[]
+    /** The row is write-only: the vault stores its value but never returns it. */
+    writeOnly?: boolean
+    /** Whether the vault holds a credential for this row. The only presence check a write-only row has. */
+    hasKey?: boolean
+    /** Masked credential (`sk-****9Qa`) a write-only row carries in place of its value. */
+    keyPreview?: string
+    /** Public management policy for the row; internal manager identity is never exposed. */
+    managementPolicy?: string
+    /** Present only on a `subscription_provider` row: how usable its stored sign-in is. */
+    subscription?: SubscriptionLoginFacts
+    /**
+     * Whose row this is. `organization` marks an organization connection the project may use,
+     * `user` one of the caller's own secrets; absent is the project's own row.
+     */
+    ownerKind?: Exclude<OwnerKind, "project">
+    /** An organization row read by its admin: every project of the organization, or selected ones. */
+    availability?: "all_projects" | "selected_projects"
+    /** An organization row read by its admin, limited to selected projects: their ids. */
+    selectedProjectIds?: string[]
     id?: string
     type?: string
     created_at?: string

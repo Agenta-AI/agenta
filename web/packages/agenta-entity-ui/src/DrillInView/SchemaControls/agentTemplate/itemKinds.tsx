@@ -5,17 +5,19 @@
  */
 import type {ComponentType, ReactNode} from "react"
 
+import {readMcpConnectionSlug} from "@agenta/entities/mcpEndpoint"
 import {GraduationCap, Plugs, Wrench} from "@phosphor-icons/react"
 
-import type {ConfigItemView} from "../ConfigItemDrawer"
 import {McpServerFormView} from "../McpServerFormView"
 import {SkillFormView} from "../SkillFormView"
+import {skillDraftError} from "../skillName"
 import {ToolFormView} from "../ToolFormView"
-import {parseGatewayTool} from "../toolUtils"
+import {parseGatewayEntry} from "../toolUtils"
 
 import {
     describeMcp,
     describeSkill,
+    describeSubagent,
     describeTool,
     isEmbedRefSkill,
     isFunctionTool,
@@ -31,6 +33,8 @@ type ItemFormView = ComponentType<{
     value: Record<string, unknown>
     onChange: (next: Record<string, unknown>) => void
     disabled?: boolean
+    /** Paint the empty required fields. Only the skill form reads it; the others ignore it. */
+    showMissing?: boolean
 }>
 
 export interface ItemKindDef {
@@ -49,14 +53,14 @@ export interface ItemKindDef {
     FormView: ItemFormView
     /** Drawer header title for the current draft. */
     drawerTitle: (draft: Record<string, unknown>) => string
-    /** Wider drawer for kinds that need it (skills are two-pane). */
-    drawerWidth?: number
-    /** Full-bleed body so the Form can lay out its own master/detail (the tool parameter editor). */
-    formFlush?: boolean
-    /** Default Form/JSON view when opening an existing item. */
-    editView: (item: unknown) => ConfigItemView
-    /** Items with no structured form open JSON-only (no Form/JSON toggle). */
+    /** Wider drawer. Per ITEM: one kind holds both a two-pane editor and a plain panel. */
+    drawerWidth?: (item: Record<string, unknown>) => number | undefined
+    /** Full-bleed body, for a Form that lays out its own master/detail. Per ITEM, as above. */
+    formFlush?: (item: Record<string, unknown>) => boolean
+    /** Items with no structured form show their raw JSON instead. */
     jsonOnly: (item: Record<string, unknown>) => boolean
+    /** The item's form already states its identity, so the drawer drops its header chrome. */
+    statesOwnIdentity?: (item: Record<string, unknown>) => boolean
     /** Read-only items (e.g. static `__ag__*` skills) — viewable but not editable. */
     isReadOnly: (item: unknown) => boolean
     /** Seed for a fresh "create" draft. */
@@ -74,22 +78,26 @@ export const ITEM_KINDS: Record<ItemKind, ItemKindDef> = {
         emptyLabel: "No tools yet",
         describe: describeTool,
         FormView: ToolFormView,
-        // Two-panel parameter master/detail — needs width + a full-bleed body.
-        drawerWidth: 800,
-        formFlush: true,
+        // Only the two-pane parameter editor wants width and its own padding.
+        drawerWidth: (draft) => (isReferenceTool(draft) ? undefined : 800),
+        formFlush: (draft) => !isReferenceTool(draft),
         drawerTitle: (draft) => {
+            // A subagent's header is the agent's NAME. describeTool would call it a workflow.
+            if (isReferenceTool(draft)) return describeSubagent(draft).name
             const name = describeTool(draft).name
             return name && name !== "Tool" ? name : "New tool"
         },
-        // Function, workflow-reference, and gateway tools (either encoding) have a structured Form;
-        // only bare builtin/provider tools (a naked `type`) stay JSON-only. A canonical gateway
-        // object opens the Form via `parseGatewayTool`; a legacy one is already a function tool.
-        editView: (item) =>
-            isFunctionTool(item) || isReferenceTool(item) || parseGatewayTool(item)
-                ? "form"
-                : "json",
-        jsonOnly: (draft) =>
-            !isFunctionTool(draft) && !isReferenceTool(draft) && !parseGatewayTool(draft),
+        // Function, workflow-reference, and gateway ACTION tools (either encoding) have a
+        // structured Form. Bare builtin/provider tools (a naked `type`) stay JSON-only, and so
+        // does an integration entry: it is edited in the permission drawer, so a reader who does
+        // reach it here (a diff row, a raw inspection) gets the JSON rather than an empty form.
+        jsonOnly: (draft) => {
+            const entry = parseGatewayEntry(draft)
+            if (entry?.kind === "connection") return true
+            return !(isFunctionTool(draft) || isReferenceTool(draft) || entry)
+        },
+        // A subagent's detail states its own identity and hides the raw entry.
+        statesOwnIdentity: (draft) => isReferenceTool(draft),
         isReadOnly: () => false,
         // Unused for tools: creation seeds from the picker (buildInlineFunctionTool), not this.
         createSeed: () => ({}),
@@ -104,45 +112,25 @@ export const ITEM_KINDS: Record<ItemKind, ItemKindDef> = {
         field: "mcps",
         icon: <Plugs size={16} />,
         noun: "server",
-        emptyLabel: "No MCPs yet",
+        emptyLabel: "No MCP servers yet",
         describe: describeMcp,
         FormView: McpServerFormView,
         drawerTitle: (draft) => String(draft.name ?? "").trim() || "New MCP server",
-        editView: () => "form",
         jsonOnly: () => false,
         isReadOnly: () => false,
+        // An empty reference, not an empty server: the form picks one, it does not author
+        // one. The old http/url seed is still read on saved items but never written.
         createSeed: () => ({
             name: "",
-            connection: {
-                type: "http",
-                url: "",
-                credentials: {type: "none"},
-            },
+            connection: {type: "gateway", namespace: "custom", slug: ""},
             policy: {tools: {mode: "all"}},
         }),
         draftInvalid: (draft) => {
+            // Valid means it points at a connection and carries a usable tool prefix. The
+            // URL and the credential are the connection's business now, not the item's.
             const name = String(draft.name ?? "").trim()
             const validName = /^[A-Za-z0-9._-]{1,128}$/.test(name)
-            const connection =
-                draft.connection && typeof draft.connection === "object"
-                    ? (draft.connection as Record<string, unknown>)
-                    : {}
-            const url = String(connection.url ?? "").trim()
-            const credentials =
-                connection.credentials && typeof connection.credentials === "object"
-                    ? (connection.credentials as Record<string, unknown>)
-                    : {}
-            const headers =
-                credentials.headers && typeof credentials.headers === "object"
-                    ? (credentials.headers as Record<string, unknown>)
-                    : {}
-            const missingSecretHeader =
-                credentials.type === "header_secret_refs" &&
-                !Object.entries(headers).some(
-                    ([headerName, secretSlug]) =>
-                        headerName.trim() && String(secretSlug ?? "").trim(),
-                )
-            return !validName || !url || missingSecretHeader
+            return !validName || !readMcpConnectionSlug(draft)
         },
     },
     skill: {
@@ -154,16 +142,15 @@ export const ITEM_KINDS: Record<ItemKind, ItemKindDef> = {
         describe: describeSkill,
         FormView: SkillFormView,
         // Wider than the default 600 — the skill drawer is two-pane (Files + editor).
-        drawerWidth: 760,
+        drawerWidth: () => 760,
         drawerTitle: (draft) =>
             isEmbedRefSkill(draft)
                 ? "Skill reference"
                 : String(draft.name ?? "").trim() || "New skill",
-        editView: (item) => (isEmbedRefSkill(item) ? "json" : "form"),
         jsonOnly: (draft) => isEmbedRefSkill(draft),
         isReadOnly: (item) => isStaticSkill(item),
         createSeed: () => ({name: "", description: "", body: ""}),
-        // `@ag.embed` skill references carry no name and are always valid (they round-trip as-is).
-        draftInvalid: (draft) => !isEmbedRefSkill(draft) && !String(draft.name ?? "").trim(),
+        // `@ag.embed` references round-trip as-is; everything else must pass the SDK's own rules.
+        draftInvalid: (draft) => !isEmbedRefSkill(draft) && skillDraftError(draft) !== undefined,
     },
 }

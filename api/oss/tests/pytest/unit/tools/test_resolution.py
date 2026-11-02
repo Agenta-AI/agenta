@@ -113,11 +113,9 @@ async def test_get_action_derives_read_only_from_tags(monkeypatch):
         return {"name": "Get user", "tags": ["readOnlyHint"]}
 
     monkeypatch.setattr(adapter, "_get", _get)
-    monkeypatch.setattr(
-        adapter,
-        "_to_composio_slug",
-        lambda **_: "GITHUB_GET_USER",
-    )
 
-    action = await adapter.get_action(integration_key="github", action_key="GET_USER")
+    action = await adapter.get_action(
+        action_key="GET_USER",
+        provider_action_id="GITHUB_GET_USER",
+    )
     assert action.read_only is True

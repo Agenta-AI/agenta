@@ -31,6 +31,7 @@
 import {z} from "zod"
 
 import {createEntitySchemaSet, timestampFieldsSchema, auditFieldsSchema} from "../../shared"
+import {accessPolicySchema} from "../../sharing/core/schema"
 
 // ============================================================================
 // JSON SCHEMAS SUB-SCHEMA
@@ -48,8 +49,6 @@ export const jsonSchemasSchema = z
     })
     .nullable()
     .optional()
-
-export type JsonSchemas = z.infer<typeof jsonSchemasSchema>
 
 // ============================================================================
 // WORKFLOW FLAGS
@@ -148,6 +147,8 @@ export interface WorkflowQueryFlags {
     is_evaluator?: boolean
     is_agent?: boolean
     is_snippet?: boolean
+    // Revision-level role flag (matched against head revisions server-side)
+    is_skill?: boolean
 }
 
 // ============================================================================
@@ -329,6 +330,10 @@ export const workflowSchema = z
         // Alias IDs (backward compat)
         variant_id: z.string().nullable().optional(),
         revision_id: z.string().nullable().optional(),
+
+        // The agent's access policy: on list queries (`POST /workflows/query`) and on create;
+        // direct reads leave it out. No `agent_access` row reads as project-visible, no owner.
+        access: accessPolicySchema.nullable().optional(),
     })
     .merge(timestampFieldsSchema)
     .merge(auditFieldsSchema)
@@ -349,6 +354,7 @@ export const workflowSchemas = createEntitySchemaSet({
         "deleted_by_id",
         "variant_id",
         "revision_id",
+        "access",
     ],
     localDefaults: {
         slug: null,
@@ -383,10 +389,6 @@ export const workflowSchemas = createEntitySchemaSet({
         data: null,
     },
 })
-
-export type CreateWorkflow = typeof workflowSchemas.types.Create
-export type UpdateWorkflow = typeof workflowSchemas.types.Update
-export type LocalWorkflow = typeof workflowSchemas.types.Local
 
 // ============================================================================
 // WORKFLOW VARIANT SCHEMA (for 3-level selection hierarchy)
@@ -457,8 +459,6 @@ export const windowingResponseSchema = z
     })
     .nullable()
     .optional()
-
-export type WindowingResponse = z.infer<typeof windowingResponseSchema>
 
 /**
  * Multiple workflows response wrapper.
@@ -753,11 +753,6 @@ export function getWorkflowTypeLabel(typeKey: string | null | undefined): string
  * @deprecated Use `parseWorkflowKeyFromUri` instead.
  */
 export const parseEvaluatorKeyFromUri = parseWorkflowKeyFromUri
-
-/**
- * @deprecated Use `buildWorkflowUri` instead.
- */
-export const buildEvaluatorUri = buildWorkflowUri
 
 // ============================================================================
 // EVALUATOR KEY NORMALIZATION

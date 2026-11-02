@@ -2,9 +2,8 @@
  * Seam that lets the runner rebuild prior conversation from the durable record log instead of
  * trusting a full inbound history — the server side of "client sends only the last message".
  *
- * Flag-gated (`AGENTA_SESSIONS_RECONSTRUCT`, ON unless set to the literal "false") and a strict
- * no-op until BOTH the flag is on AND the client actually sent a minimal history
- * (`carriesMinimalHistory`). When it does not apply, the inbound history is left untouched.
+ * A strict no-op unless the client actually sent a minimal history (`carriesMinimalHistory`).
+ * When it does not apply, the inbound history is left untouched.
  *
  * When it DOES apply it is no longer best-effort, because the client kept no copy of the
  * conversation: an unreadable log, or one known to have dropped a record, fails the turn rather
@@ -20,7 +19,17 @@
 import type { AgentRunRequest, ChatMessage } from "../../protocol.ts";
 import { fetchSessionRecords } from "../../sessions/records-query.ts";
 import { recordsIncomplete } from "../../sessions/persist.ts";
+import {
+  accessDenied,
+  accessDeniedError,
+  noteAccessDenied,
+} from "../../sessions/access-denied.ts";
 import { reconstructMessages } from "../../sessions/reconstruct.ts";
+import {
+  SESSION_RECORDS_INCOMPLETE_CODE,
+  SESSION_RECORDS_INCOMPLETE_MESSAGE,
+  withPublicCode,
+} from "./errors.ts";
 import {
   carriesApprovalReplyOnly,
   carriesMinimalHistory,
@@ -30,11 +39,13 @@ export interface ReconstructHistoryOptions {
   restore?: (messages: ChatMessage[]) => Promise<ChatMessage[]>;
 }
 
-// Compose passes `${AGENTA_SESSIONS_RECONSTRUCT:-}`, so an empty value must mean on just like an
-// absent value. Only the literal "false" disables reconstruction.
-function reconstructEnabled(): boolean {
+function isLegacyWholeBodyTruncation(row: { attributes?: unknown }): boolean {
+  const attributes = row.attributes;
   return (
-    String(process.env.AGENTA_SESSIONS_RECONSTRUCT ?? "").trim().toLowerCase() !== "false"
+    !!attributes &&
+    typeof attributes === "object" &&
+    (attributes as { _truncated?: unknown })._truncated === true &&
+    !("type" in attributes)
   );
 }
 
@@ -65,9 +76,9 @@ export async function reconstructHistoryIfNeeded(
     );
   };
 
-  if (!reconstructEnabled() || !sessionId) {
+  if (!sessionId) {
     if (approvalReplyOnly) {
-      refuse(!sessionId ? "no session id" : "reconstruction is disabled");
+      refuse("no session id");
     }
     return null;
   }
@@ -82,24 +93,47 @@ export async function reconstructHistoryIfNeeded(
   // The client kept no copy of the conversation, so there is no history to fall back to. Answering
   // anyway would silently produce an agent that forgot everything, which reads as a correct reply.
   // Fail the turn instead: `runTurn`'s catch turns this into an error result the caller can see.
-  if (recordsIncomplete(sessionId)) {
-    throw new Error(
-      `session ${sessionId} lost a durable record; refusing to rebuild an incomplete conversation`,
+  // It carries its own code, because a resend fails the same way: the user needs a new session.
+  const incomplete = (): never => {
+    log?.(
+      `[reconstruct] session=${sessionId} lost a durable record; refusing to rebuild an incomplete conversation`,
     );
-  }
+    throw withPublicCode(
+      new Error(SESSION_RECORDS_INCOMPLETE_MESSAGE),
+      SESSION_RECORDS_INCOMPLETE_CODE,
+    );
+  };
+  // The caller lost access while the turn started: say that, not "unreadable".
+  if (accessDenied(sessionId, request.turnId)) throw accessDeniedError();
+  if (recordsIncomplete(sessionId)) incomplete();
 
-  const records = await fetchSessionRecords(sessionId, auth);
-  if (!records) {
+  let recordLog: Awaited<ReturnType<typeof fetchSessionRecords>>;
+  try {
+    recordLog = await fetchSessionRecords(sessionId, auth);
+  } catch (err) {
+    // Only the 403 throws (`access_denied`); every other failure returns null below.
+    noteAccessDenied(sessionId, request.turnId, "records-query");
+    throw err;
+  }
+  if (!recordLog) {
     throw new Error(
       `session ${sessionId} record log is unreadable; cannot rebuild the conversation`,
     );
   }
+  // Reported by whichever runner dropped the record, so this holds on every runner.
+  if (recordLog.recordsIncomplete) incomplete();
+  const records = recordLog.records;
 
   // Drop this turn's own records: the inbound message already carries the current prompt.
   const currentTurnId = request.turnId?.trim();
   const prior = currentTurnId
     ? records.filter((row) => row.turn_id !== currentTurnId)
     : records;
+  if (prior.some(isLegacyWholeBodyTruncation)) {
+    throw new Error(
+      `session ${sessionId} contains a truncated durable record; refusing to rebuild an incomplete conversation`,
+    );
+  }
   // Reachable in practice: a caller that builds its answer from the durable interaction row can
   // echo the row's stored `turn_id`, which drops exactly the turn that parked.
   if (prior.length === 0) {

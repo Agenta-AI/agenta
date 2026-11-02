@@ -1,0 +1,70 @@
+---
+id: list-skill-referenced-by
+title: "List Skill Referenced By"
+description: "The agents referencing this skill, with `mode` 'latest' (follows the"
+sidebar_label: "List Skill Referenced By"
+hide_title: true
+hide_table_of_contents: true
+api: eJzNVk1z2zYQ/SuYPcUzqKR6euKpSpppNElbj62kB1kjw+RSRAwSDLCUo3D43zsLfoiyYiWTXHqyxd19WLx9+8gaSG09RCu4edDGeFhLSNDHTpekbQERLDMUaosFeeEwRYdFrIutoEx74blGikdNmbjLbYJ34haMIvR0C+JFao2xj15QhrdFhiq5ENaJWyh1UWDCGQ532mtbDNDYgbUpmx06Dt9dTECCLdEp7mqRQARGe9qEBjZDcbK534OEUjmVI6Hji9VQqBwhgjZXJyBB88VKRRlIcPip0g4TiMhVKMHHGeYKohpoX4Y6crrYgoTUulwRRFBVAYU0GU4IzIlFAk2zZjxf2sKjZ4jL2Yz/HDN6U8Uxep9WRlx3ySAhtgVhQZyuytLoOFx1+tFzTT1qq3RMBOn2hNhWbVHXrS4It+hG7b0KGTzWVFWGIJo13OWYsqgGTZj7U/gw+c2jdQ+psY/MHj8s9v+kgdrzFDVyyCgqY4Dp6buaM7D4twMO7MnuNG+q7bljvg17wwgDXjv/n8H7mxEaCSzxrymjz/6L4yOmu13g0mNB/2g7VwFFfOhQmkb2qfb+I8b0VJXvvdrigjCHQ6ZyTu1HideDFMTL/bj71fqb+Ifal/tBy03Ddb9dXp5K/4MyOgnCFq+ds+7HdZ8gKW3OKNfY+Cj6HXT3u9Osn2frnW0bDHLw27NqQM/0H6h/PjWQIZYcbdieyqrd6S68CA8aCTF9HsGczOQVc/mZvqqLg8+tAjdt+13eSGKHEbUTep6KP9oRnBPJm+Xy6gSw1UeOlFk28i1S8GzKIIJpcGk/rXu3bqYHq/oluLtHt+utvXKGi1SpwxzbnxlR6aPpFKtJbGyVTIINqInSbeKaMeLKadoHkPnV4i3u36BK0AXVjxJuWH6toI7ThiGoUr9F7qt7zcwryqzTX1qVdO+arK1qwnBTO55tcBgl5lcLePrqPQrxnqg4yKI/KYRBPrn24bYgAfOwJUCo8t+HCA91cCKYTX6dzIJHWU+5KkZHvNOeRPt+O7WJUav1YY3/Rx8M3YR4JaalUTosbSCr7vS2ar8KPEiIRt8Hx5JbS8isZ0OEur5XHt870zT8+FOFjjW0lrBTTqt7nuiqhkR7/j+BKFXG4xmyXlx3a3khnmu411nBrO+UqfgXSHjA/firJphW1ou47sLzOMaSRoUnHstqH3bxz9dLaJr/ADNAc3A=
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"List Skill Referenced By"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/skills/{skill_id}/referenced-by"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+The agents referencing this skill, with `mode` "latest" (follows the
+head) or "pinned" (revision reference with `pinned_version`).
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./list-skill-referenced-by.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./list-skill-referenced-by.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./list-skill-referenced-by.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

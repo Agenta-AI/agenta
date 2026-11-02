@@ -585,6 +585,383 @@ class TestResolverMiddlewareEmbedGate:
             TracingContext.reset(token)
 
 
+class _FakeAsyncClient:
+    """Queues canned responses for successive `httpx.AsyncClient().post()` calls."""
+
+    def __init__(self, post_mock):
+        self._post_mock = post_mock
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def post(self, *args, **kwargs):
+        return await self._post_mock(*args, **kwargs)
+
+
+def _json_response(payload):
+    response = MagicMock()
+    response.raise_for_status = MagicMock()
+    response.json = MagicMock(return_value=payload)
+    return response
+
+
+class TestArchivedReferenceGuard:
+    """resolve_references_with_info must never resolve an archived workflow,
+    application, evaluator, or revision into a live invoke."""
+
+    @pytest.mark.asyncio
+    async def test_sends_include_archived_false_on_the_primary_retrieve(self):
+        from agenta.sdk.models.workflows import WorkflowInvokeRequest
+
+        request = WorkflowInvokeRequest(references={"workflow": {"slug": "my-wf"}})
+        post_mock = AsyncMock(return_value=_json_response({"workflow_revision": None}))
+        fake_async_api = MagicMock()
+        fake_async_api._client_wrapper._base_url = "http://api.test"
+
+        with (
+            patch.object(ag, "async_api", fake_async_api),
+            patch(
+                "agenta.sdk.middlewares.running.resolver.httpx.AsyncClient",
+                return_value=_FakeAsyncClient(post_mock),
+            ),
+        ):
+            result = await resolve_references_with_info(
+                request=request, credentials="test-creds"
+            )
+
+        assert result == (None, None, None)
+        # Primary retrieve, then the archived probe: both miss, no fallback for a bare workflow ref.
+        assert post_mock.await_count == 2
+        assert post_mock.await_args_list[0].kwargs["json"]["include_archived"] is False
+        assert post_mock.await_args_list[1].kwargs["json"]["include_archived"] is True
+
+    @pytest.mark.asyncio
+    async def test_raises_archived_error_when_only_the_probe_finds_it(self):
+        from agenta.sdk.models.workflows import WorkflowInvokeRequest
+        from agenta.sdk.engines.running.errors import ArchivedReferenceV0Error
+
+        request = WorkflowInvokeRequest(references={"workflow": {"slug": "my-wf"}})
+        post_mock = AsyncMock(
+            side_effect=[
+                _json_response({"workflow_revision": None}),
+                _json_response({"workflow_revision": {"data": {"uri": "test://uri"}}}),
+            ]
+        )
+        fake_async_api = MagicMock()
+        fake_async_api._client_wrapper._base_url = "http://api.test"
+
+        with (
+            patch.object(ag, "async_api", fake_async_api),
+            patch(
+                "agenta.sdk.middlewares.running.resolver.httpx.AsyncClient",
+                return_value=_FakeAsyncClient(post_mock),
+            ),
+        ):
+            with pytest.raises(ArchivedReferenceV0Error):
+                await resolve_references_with_info(
+                    request=request, credentials="test-creds"
+                )
+
+        assert post_mock.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_genuine_miss_returns_none_without_raising(self):
+        from agenta.sdk.models.workflows import WorkflowInvokeRequest
+
+        request = WorkflowInvokeRequest(
+            references={"workflow": {"slug": "does-not-exist"}}
+        )
+        post_mock = AsyncMock(return_value=_json_response({"workflow_revision": None}))
+        fake_async_api = MagicMock()
+        fake_async_api._client_wrapper._base_url = "http://api.test"
+
+        with (
+            patch.object(ag, "async_api", fake_async_api),
+            patch(
+                "agenta.sdk.middlewares.running.resolver.httpx.AsyncClient",
+                return_value=_FakeAsyncClient(post_mock),
+            ),
+        ):
+            result = await resolve_references_with_info(
+                request=request, credentials="test-creds"
+            )
+
+        # Both the direct retrieve and the archived probe missed: a genuine not-found,
+        # not an archived hit, so no exception.
+        assert result == (None, None, None)
+
+    @pytest.mark.asyncio
+    async def test_application_retrieve_and_its_workflow_fallback_both_exclude_archived(
+        self,
+    ):
+        from agenta.sdk.models.workflows import WorkflowInvokeRequest
+
+        request = WorkflowInvokeRequest(references={"application": {"slug": "my-app"}})
+        post_mock = AsyncMock(
+            side_effect=[
+                _json_response({"application_revision": None}),
+                _json_response({"workflow_revision": None}),
+                _json_response({"application_revision": None}),
+            ]
+        )
+        fake_async_api = MagicMock()
+        fake_async_api._client_wrapper._base_url = "http://api.test"
+
+        with (
+            patch.object(ag, "async_api", fake_async_api),
+            patch(
+                "agenta.sdk.middlewares.running.resolver.httpx.AsyncClient",
+                return_value=_FakeAsyncClient(post_mock),
+            ),
+        ):
+            result = await resolve_references_with_info(
+                request=request, credentials="test-creds"
+            )
+
+        assert result == (None, None, None)
+        # Primary /applications retrieve, its /workflows compatibility fallback, then the probe.
+        assert post_mock.await_count == 3
+        primary_body, fallback_body, probe_body = (
+            call.kwargs["json"] for call in post_mock.await_args_list
+        )
+        assert primary_body["include_archived"] is False
+        assert fallback_body["include_archived"] is False
+        assert probe_body["include_archived"] is True
+
+
+class TestResolverMiddlewareHydrationIntent:
+    """Tests for WHEN reference hydration fires.
+
+    A service process pre-seeds `RunningContext.revision` with the decorator's REGISTERED
+    DEFAULT configuration, so `resolve_revision` always returns a fully-configured
+    revision. Hydration intent must therefore be read off the CALLER's request only:
+    references + no inline `data.parameters` + no `data.revision` means hydrate.
+    Reading it off the resolved revision made every references-only invoke (the mobile
+    resume shape) silently run the service default instead of the referenced revision.
+    """
+
+    # The registered default the decorator pre-seeds onto RunningContext.revision.
+    DEFAULT_REVISION = {
+        "data": {
+            "uri": "test://uri",
+            "parameters": {"model": "registered-default-model"},
+        }
+    }
+
+    @staticmethod
+    def _running_ctx_with_default():
+        from agenta.sdk.contexts.running import RunningContext
+
+        return RunningContext(
+            credentials="test-creds",
+            revision=TestResolverMiddlewareHydrationIntent.DEFAULT_REVISION,
+        )
+
+    async def _run(self, request, *, hydrated=None):
+        """Run the middleware with a decorator-seeded RunningContext.
+
+        `hydrated` is what `resolve_references_with_info` returns as the revision;
+        None models a hydration failure (the resolver swallows API errors).
+        """
+        from agenta.sdk.contexts.running import running_context_manager
+        from agenta.sdk.middlewares.running.resolver import ResolverMiddleware
+
+        with (
+            patch(
+                "agenta.sdk.middlewares.running.resolver.resolve_references_with_info",
+                new_callable=AsyncMock,
+                return_value=(hydrated, {}, None),
+            ) as mock_resolve_references,
+            patch(
+                "agenta.sdk.middlewares.running.resolver.resolve_handler",
+                new_callable=AsyncMock,
+                return_value=MagicMock(),
+            ),
+            patch(
+                "agenta.sdk.middlewares.running.resolver.resolve_embeds",
+                new_callable=AsyncMock,
+            ),
+            running_context_manager(self._running_ctx_with_default()),
+            tracing_context_manager(TracingContext()),
+        ):
+            await ResolverMiddleware()(request, AsyncMock(return_value="result"))
+            return mock_resolve_references
+
+    @pytest.mark.asyncio
+    async def test_references_only_hydrates_over_registered_default(self):
+        """
+        The mobile resume shape: references, no data.parameters, no data.revision.
+        Hydration MUST fire and the referenced revision's config MUST win over the
+        registered default sitting on RunningContext.
+        """
+        from agenta.sdk.models.workflows import (
+            WorkflowInvokeRequest,
+            WorkflowRequestData,
+            WorkflowRevisionData,
+        )
+
+        request = WorkflowInvokeRequest(
+            credentials="test-creds",
+            references={
+                "workflow": {"slug": "my-agent"},
+                "workflow_revision": {"id": "019faa90-c0b6-7310-9ab1-a31268c2163e"},
+            },
+            data=WorkflowRequestData(inputs={"messages": []}),
+        )
+        referenced_params = {"model": "anthropic/claude-haiku-4-5"}
+
+        mock_resolve_references = await self._run(
+            request,
+            hydrated=WorkflowRevisionData(
+                uri="test://uri",
+                parameters=referenced_params,
+            ),
+        )
+
+        mock_resolve_references.assert_called_once()
+        assert request.data.parameters == referenced_params
+
+    @pytest.mark.asyncio
+    async def test_inline_parameters_skip_hydration(self):
+        """Desktop parity: an inline config is caller intent, so references are not
+        hydrated and the inline parameters drive the run untouched."""
+        from agenta.sdk.models.workflows import (
+            WorkflowInvokeRequest,
+            WorkflowRequestData,
+        )
+
+        inline_params = {"model": "caller-supplied-model"}
+        request = WorkflowInvokeRequest(
+            credentials="test-creds",
+            references={"workflow": {"slug": "my-agent"}},
+            data=WorkflowRequestData(parameters=inline_params),
+        )
+
+        mock_resolve_references = await self._run(request)
+
+        mock_resolve_references.assert_not_called()
+        assert request.data.parameters == inline_params
+
+    @pytest.mark.asyncio
+    async def test_data_revision_skips_hydration(self):
+        """A caller-supplied `data.revision` is a materialised config: no hydration."""
+        from agenta.sdk.models.workflows import (
+            WorkflowInvokeRequest,
+            WorkflowRequestData,
+        )
+
+        revision_params = {"model": "caller-supplied-revision-model"}
+        request = WorkflowInvokeRequest(
+            credentials="test-creds",
+            references={"workflow": {"slug": "my-agent"}},
+            data=WorkflowRequestData(
+                revision={"data": {"uri": "test://uri", "parameters": revision_params}},
+            ),
+        )
+
+        mock_resolve_references = await self._run(request)
+
+        mock_resolve_references.assert_not_called()
+        assert request.data.parameters == revision_params
+
+    @pytest.mark.asyncio
+    async def test_hydration_failure_falls_back_to_registered_default(self):
+        """
+        When hydration is attempted but yields nothing (API error — the resolver
+        swallows it and returns None), the run must not crash: it falls back to the
+        revision already on the context, seeded with the registered default config.
+        """
+        from agenta.sdk.models.workflows import (
+            WorkflowInvokeRequest,
+            WorkflowRequestData,
+        )
+
+        request = WorkflowInvokeRequest(
+            credentials="test-creds",
+            references={"workflow": {"slug": "my-agent"}},
+            data=WorkflowRequestData(inputs={"messages": []}),
+        )
+
+        mock_resolve_references = await self._run(request, hydrated=None)
+
+        mock_resolve_references.assert_called_once()
+        assert request.data.parameters == self.DEFAULT_REVISION["data"]["parameters"]
+
+    @pytest.mark.asyncio
+    async def test_no_references_never_hydrates(self):
+        """No references at all: nothing to hydrate from, registered default applies."""
+        from agenta.sdk.models.workflows import (
+            WorkflowInvokeRequest,
+            WorkflowRequestData,
+        )
+
+        request = WorkflowInvokeRequest(
+            credentials="test-creds",
+            data=WorkflowRequestData(inputs={"messages": []}),
+        )
+
+        mock_resolve_references = await self._run(request)
+
+        mock_resolve_references.assert_not_called()
+        assert request.data.parameters == self.DEFAULT_REVISION["data"]["parameters"]
+
+
+class TestCallerSuppliedConfiguration:
+    """Unit tests for the caller-intent predicate behind hydration."""
+
+    @staticmethod
+    def _request(**data_kwargs):
+        from agenta.sdk.models.workflows import (
+            WorkflowInvokeRequest,
+            WorkflowRequestData,
+        )
+
+        return WorkflowInvokeRequest(
+            data=WorkflowRequestData(**data_kwargs) if data_kwargs else None,
+        )
+
+    def test_no_data_is_not_caller_supplied(self):
+        from agenta.sdk.middlewares.running.resolver import (
+            _caller_supplied_configuration,
+        )
+
+        assert _caller_supplied_configuration(self._request()) is False
+
+    def test_inputs_only_is_not_caller_supplied(self):
+        from agenta.sdk.middlewares.running.resolver import (
+            _caller_supplied_configuration,
+        )
+
+        request = self._request(inputs={"messages": []})
+        assert _caller_supplied_configuration(request) is False
+
+    def test_empty_parameters_are_not_caller_supplied(self):
+        from agenta.sdk.middlewares.running.resolver import (
+            _caller_supplied_configuration,
+        )
+
+        assert _caller_supplied_configuration(self._request(parameters={})) is False
+
+    def test_parameters_are_caller_supplied(self):
+        from agenta.sdk.middlewares.running.resolver import (
+            _caller_supplied_configuration,
+        )
+
+        request = self._request(parameters={"model": "gpt-4"})
+        assert _caller_supplied_configuration(request) is True
+
+    def test_revision_is_caller_supplied(self):
+        from agenta.sdk.middlewares.running.resolver import (
+            _caller_supplied_configuration,
+        )
+
+        request = self._request(revision={"data": {"uri": "test://uri"}})
+        assert _caller_supplied_configuration(request) is True
+
+
 class TestResolverReferenceValidation:
     @pytest.mark.asyncio
     async def test_rejects_competing_application_and_evaluator_refs(self):
@@ -837,3 +1214,68 @@ class TestResolverMiddlewareTracingParameters:
             await mw(request, call_next)
 
             assert TracingContext.get().parameters == resolved_params
+
+
+class TestResolveEmbedsRefusal:
+    """The API refuses an embed in the caller's configuration: the invoke answers 4xx."""
+
+    _PARAMETERS = {
+        "skills": [
+            {
+                "@ag.embed": {
+                    "@ag.references": {"workflow_revision": {"slug": "__ag__static"}},
+                }
+            }
+        ]
+    }
+
+    async def _resolve_against(self, status_code: int, body: dict):
+        import httpx
+
+        from agenta.sdk.middlewares.running.resolver import resolve_embeds
+
+        real_client = httpx.AsyncClient
+        transport = httpx.MockTransport(
+            lambda request: httpx.Response(status_code, json=body)
+        )
+        fake_async_api = MagicMock()
+        fake_async_api._client_wrapper._base_url = "http://api.test"
+
+        with (
+            patch.object(ag, "async_api", fake_async_api),
+            patch(
+                "agenta.sdk.middlewares.running.resolver.httpx.AsyncClient",
+                side_effect=lambda **kwargs: real_client(transport=transport),
+            ),
+        ):
+            return await resolve_embeds(
+                parameters=self._PARAMETERS, credentials="test-creds"
+            )
+
+    @pytest.mark.asyncio
+    async def test_api_refusal_keeps_its_status_and_detail(self):
+        import json
+
+        from agenta.sdk.decorators.routing import handle_invoke_failure
+
+        with pytest.raises(Exception) as raised:
+            await self._resolve_against(
+                400, {"detail": "This static workflow cannot be embedded."}
+            )
+
+        response = await handle_invoke_failure(raised.value)
+        body = json.loads(bytes(response.body))
+
+        assert response.status_code == 400
+        assert body["status"]["message"] == "This static workflow cannot be embedded."
+
+    @pytest.mark.asyncio
+    async def test_api_server_fault_stays_a_server_error(self):
+        from agenta.sdk.decorators.routing import handle_invoke_failure
+
+        with pytest.raises(Exception) as raised:
+            await self._resolve_against(500, {"detail": "Internal Server Error"})
+
+        response = await handle_invoke_failure(raised.value)
+
+        assert response.status_code == 500

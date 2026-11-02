@@ -5,14 +5,14 @@
  * skill / instruction file). Presentational: a ghost icon button with a tooltip, nothing else.
  *
  * `forwardRef` + prop spread so it can BE the trigger of a Popover/DropdownMenu (Radix `asChild`
- * injects `onClick`, `aria-expanded`, and a positioning ref) — the same contract `AddTextLink`
- * already carries for the empty-state links.
+ * injects `onClick`, `aria-expanded`, and a positioning ref).
  *
  * Migrated from antd `Tooltip title` + `Button type="text" icon`. A disabled button swallows
  * pointer events, so the disabled case keeps antd's `<span>` wrapper as the tooltip trigger.
  */
 import {forwardRef, type ButtonHTMLAttributes, type ReactNode} from "react"
 
+import {cn} from "@agenta/ui/styles"
 import {Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
 
@@ -24,7 +24,10 @@ export interface SectionAddButtonProps extends ButtonHTMLAttributes<HTMLButtonEl
 }
 
 export const SectionAddButton = forwardRef<HTMLButtonElement, SectionAddButtonProps>(
-    function SectionAddButton({label, tooltip, disabled, type = "button", ...rest}, ref) {
+    function SectionAddButton(
+        {label, tooltip, disabled, type = "button", className, ...rest},
+        ref,
+    ) {
         const button = (
             <Button
                 ref={ref}
@@ -33,6 +36,11 @@ export const SectionAddButton = forwardRef<HTMLButtonElement, SectionAddButtonPr
                 size="icon"
                 aria-label={label}
                 disabled={disabled}
+                // Quieter than the row title at rest; full strength on hover or while open.
+                className={cn(
+                    "!text-colorTextTertiary hover:!text-colorText aria-expanded:!text-colorText",
+                    className,
+                )}
                 {...rest}
             >
                 <Plus size={16} />

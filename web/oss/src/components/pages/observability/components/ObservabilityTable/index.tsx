@@ -1,24 +1,24 @@
-import {type Key, type ReactNode, useCallback, useEffect, useMemo, useState} from "react"
+import {type Key, type ReactNode, useCallback, useEffect, useMemo, useState, useRef} from "react"
 
-import {InfiniteVirtualTableFeatureShell} from "@agenta/ui/table"
-import type {TableFeaturePagination, TableScopeConfig} from "@agenta/ui/table"
-import {useAtomValue, useSetAtom, useStore} from "jotai"
-import dynamic from "next/dynamic"
-
-import {setTraceDrawerActiveSpanAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
-import {isNewUserAtom} from "@/oss/lib/onboarding"
-import {onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
-import {TraceSpanNode} from "@/oss/services/tracing/types"
-import {useQueryParamState} from "@/oss/state/appState"
-import {annotationEvaluatorSlugsAtom, useObservability} from "@/oss/state/newObservability"
-import {hasReceivedTracesAtom} from "@/oss/state/newObservability/atoms/controls"
-
+import {setTraceDrawerActiveSpanAtom} from "@agenta/observability/traceDrawer"
+import {AUTO_REFRESH_INTERVAL} from "@agenta/observability-ui"
 import {
     getDefaultHiddenObservabilityColumnKeys,
     getObservabilityColumns,
-    type TraceRow,
-} from "../../assets/getObservabilityColumns"
-import {AUTO_REFRESH_INTERVAL} from "../../constants"
+    ObservabilityTracesTable,
+    useEvaluatorSlugs,
+    type ObservabilityTraceRow as TraceRow,
+} from "@agenta/observability-ui"
+import type {TableScopeConfig} from "@agenta/ui/table"
+import {useAtomValue, useSetAtom, useStore} from "jotai"
+import dynamic from "next/dynamic"
+
+import {isNewUserAtom} from "@/oss/lib/onboarding"
+import {onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
+import {TraceSpanNode} from "@/oss/services/tracing/types"
+import {useAppNavigation, useQueryParamState} from "@/oss/state/appState"
+import {useObservability} from "@/oss/state/observability"
+import {hasReceivedTracesAtom} from "@/oss/state/observability"
 
 const ObservabilityHeader = dynamic(() => import("../ObservabilityHeader"), {ssr: false})
 const EmptyObservability = dynamic(() => import("../EmptyObservability"), {ssr: false})
@@ -29,38 +29,10 @@ const TestsetDrawer = dynamic(
     },
 )
 
-const collectEvaluatorSlugsFromTraces = (traces: TraceSpanNode[]) => {
-    const slugs = new Set<string>()
-
-    const visit = (node?: TraceSpanNode) => {
-        if (!node) return
-
-        const metrics = (node as TraceSpanNode & {aggregatedEvaluatorMetrics?: Record<string, any>})
-            ?.aggregatedEvaluatorMetrics
-        if (metrics && typeof metrics === "object") {
-            Object.keys(metrics).forEach((slug) => {
-                if (slug) {
-                    slugs.add(slug)
-                }
-            })
-        }
-
-        const children = (node as TraceSpanNode & {children?: TraceSpanNode[]})?.children
-        if (Array.isArray(children)) {
-            children.forEach((child) => visit(child as TraceSpanNode))
-        }
-    }
-
-    traces.forEach((trace) => visit(trace))
-
-    return Array.from(slugs)
-}
-
 const ObservabilityTable = () => {
     const store = useStore()
     const {
         traces,
-        traceCount,
         isLoading,
         traceTabs,
         selectedTraceId,
@@ -72,9 +44,6 @@ const ObservabilityTable = () => {
         selectedNode,
         setSelectedNode,
         activeTrace,
-        fetchMoreTraces,
-        hasMoreTraces,
-        isFetchingMore,
         autoRefresh,
         fetchAnnotations,
         resetTracePages,
@@ -87,7 +56,6 @@ const ObservabilityTable = () => {
     const onboardingStorageUserId = useAtomValue(onboardingStorageUserIdAtom)
     const hasReceivedTraces = useAtomValue(hasReceivedTracesAtom)
     const setHasReceivedTraces = useSetAtom(hasReceivedTracesAtom)
-    const annotationEvaluatorSlugs = useAtomValue(annotationEvaluatorSlugsAtom)
 
     const [traceParamValue, setTraceParam] = useQueryParamState("trace")
     const traceParam = Array.isArray(traceParamValue)
@@ -99,25 +67,17 @@ const ObservabilityTable = () => {
         ? (spanParamValue[0] ?? "")
         : ((spanParamValue as string | undefined) ?? "")
 
+    const {patchQuery} = useAppNavigation()
+    // The trace id whose params the row click has already queued. The effect below also pushes
+    // `selectedTraceId` into the URL, and it reads a `traceParam` that is still stale at that
+    // point — so it fired a SECOND navigation ~50ms behind the click's, in the same tick. Next
+    // cancels the first when the second arrives (`Router.replace` returned false), and the
+    // survivor landed with only one of the two params. One writer per gesture.
+    const requestedTraceRef = useRef<string | null>(null)
+
     const [refreshTrigger, setRefreshTrigger] = useState(0)
-    const traceEvaluatorSlugs = useMemo(() => collectEvaluatorSlugsFromTraces(traces), [traces])
-
-    const evaluatorSlugs = useMemo(() => {
-        if (!annotationEvaluatorSlugs.length && !traceEvaluatorSlugs.length) return []
-
-        const present = new Set(traceEvaluatorSlugs)
-        const ordered: string[] = []
-
-        annotationEvaluatorSlugs.forEach((slug) => {
-            if (present.has(slug)) {
-                ordered.push(slug)
-                present.delete(slug)
-            }
-        })
-
-        const remaining = Array.from(present).sort()
-        return [...ordered, ...remaining]
-    }, [annotationEvaluatorSlugs, traceEvaluatorSlugs])
+    // One derivation, in the package, so /m gets the same columns.
+    const evaluatorSlugs = useEvaluatorSlugs()
 
     const columns = useMemo(() => getObservabilityColumns({evaluatorSlugs}), [evaluatorSlugs])
     const defaultHiddenColumnKeys = useMemo(
@@ -136,11 +96,18 @@ const ObservabilityTable = () => {
     )
 
     useEffect(() => {
+        // The URL has caught up with the row click — stop treating that selection as in flight.
+        if (traceParam && requestedTraceRef.current === traceParam) requestedTraceRef.current = null
         if (traceParam && traceParam !== selectedTraceId) {
             setSelectedTraceId(traceParam)
             return
         }
         if (!traceParam && !selectedTraceId) {
+            // A row click whose params have not landed in `traceParam` yet reads exactly like
+            // "nothing is selected", and this branch then wiped `?span=` — 300ms after the click
+            // put both params on the URL. The drawer opens off `?trace=`, so the clear closed it
+            // again: click, flash, gone. Hold off while a selection is in flight.
+            if (requestedTraceRef.current) return
             setTraceDrawerActiveSpan(null)
             setSpanParam(undefined, {shallow: true})
         }
@@ -155,6 +122,9 @@ const ObservabilityTable = () => {
 
     useEffect(() => {
         if (!selectedTraceId || selectedTraceId === traceParam) return
+        // Already queued by the row click, params and all — writing it again here is the
+        // navigation that cancels that one.
+        if (requestedTraceRef.current === selectedTraceId) return
         setTraceParam(selectedTraceId, {shallow: true})
     }, [selectedTraceId, traceParam, setTraceParam])
 
@@ -207,21 +177,17 @@ const ObservabilityTable = () => {
 
             setSelectedTraceId(targetTraceId)
             setTraceDrawerActiveSpan(targetSpanId || null)
-            setTraceParam(targetTraceId)
-            if (targetSpanId) {
-                setSpanParam(targetSpanId)
-            } else {
-                setSpanParam(undefined)
-            }
+            // ONE navigation for both params. They used to go as two back-to-back
+            // `useQueryParamState` writes, and `requestNavigationAtom` is a single slot: the
+            // second command replaced the first before the listener ran, and both
+            // `Router.replace` calls built their query from a `Router.query` the other had not
+            // committed yet. The pair raced, the survivor lost the other's key, and the drawer —
+            // which opens off `?trace=` via `syncTraceStateFromUrl` — opened and closed again as
+            // the param appeared and vanished.
+            requestedTraceRef.current = targetTraceId
+            patchQuery({trace: targetTraceId, span: targetSpanId || undefined})
         },
-        [
-            setSelectedNode,
-            traceTabs,
-            setSelectedTraceId,
-            setTraceDrawerActiveSpan,
-            setTraceParam,
-            setSpanParam,
-        ],
+        [setSelectedNode, traceTabs, setSelectedTraceId, setTraceDrawerActiveSpan, patchQuery],
     )
 
     const rowSelection = useMemo(
@@ -247,25 +213,7 @@ const ObservabilityTable = () => {
     )
 
     const showTableLoading = isLoading && traces.length === 0
-    const isEmptyState = traces.length === 0 && !isLoading && !isRateLimited
     const showOnboarding = isNewUser && !hasReceivedTraces
-
-    // Build pagination object expected by InfiniteVirtualTableFeatureShell
-    const pagination: TableFeaturePagination<TraceRow> = useMemo(
-        () => ({
-            rows: traces as TraceRow[],
-            loadNextPage: () => fetchMoreTraces(),
-            resetPages: resetTracePages,
-            paginationInfo: {
-                hasMore: hasMoreTraces,
-                nextCursor: null,
-                nextOffset: null,
-                isFetching: isFetchingMore,
-                totalCount: traceCount,
-            },
-        }),
-        [traces, fetchMoreTraces, resetTracePages, hasMoreTraces, isFetchingMore, traceCount],
-    )
 
     useEffect(() => {
         if (onboardingStorageUserId && traces.length > 0 && !hasReceivedTraces) {
@@ -284,30 +232,29 @@ const ObservabilityTable = () => {
 
             {isRateLimited ? (
                 <EmptyObservability rateLimited rateLimitMessage={rateLimitMessage} />
-            ) : isEmptyState ? (
-                <EmptyObservability showOnboarding={showOnboarding} />
             ) : (
-                <InfiniteVirtualTableFeatureShell<TraceRow>
+                // The empty state renders INSIDE the table rather than replacing it, so the
+                // header and its controls stay put instead of vanishing with the rows.
+                <ObservabilityTracesTable
                     tableScope={tableScope}
-                    columns={columns}
-                    rowKey={(record) => record.span_id || record.key || ""}
-                    pagination={pagination}
+                    evaluatorSlugs={evaluatorSlugs}
                     resizableColumns
                     enableExport={false}
                     useSettingsDropdown={false}
                     store={store}
-                    className="flex-1 min-h-0 [&_.ant-table-thead_tr:nth-child(2)]:hidden"
+                    className="flex-1 min-h-0 [&_.avt-thead_tr:nth-child(2)]:hidden"
                     rowSelection={{
                         selectedRowKeys,
                         type: "checkbox",
                         ...rowSelection,
                     }}
                     tableProps={{
-                        bordered: true,
+                        locale: {
+                            emptyText: <EmptyObservability showOnboarding={showOnboarding} />,
+                        },
                         loading: showTableLoading,
-                        sticky: true,
                         style: {cursor: "pointer"},
-                        onRow: (record, index) => ({
+                        onRow: (record: TraceRow, index?: number) => ({
                             onClick: () => handleTraceRowClick(record),
                             "data-tour": index === 0 ? "trace-row" : undefined,
                         }),

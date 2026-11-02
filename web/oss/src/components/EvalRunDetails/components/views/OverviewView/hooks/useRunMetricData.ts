@@ -14,9 +14,9 @@ import {
     type RunLevelMetricSelection,
 } from "@/oss/components/Evaluations/atoms/runMetrics"
 import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
+import {useChartSeries} from "@/oss/lib/hooks/useChartSeries"
 import type {BasicStats} from "@/oss/lib/metricUtils"
 
-import {COMPARISON_SOLID_COLORS} from "../../../../atoms/compare"
 import {runDisplayNameAtomFamily, runStatusAtomFamily} from "../../../../atoms/runDerived"
 import {INVOCATION_METRIC_KEYS, INVOCATION_METRIC_LABELS} from "../constants"
 import {
@@ -133,9 +133,6 @@ export interface RunMetricData {
     temporalSeriesByMetric: Record<string, TemporalMetricPoint[]>
 }
 
-/** Use unified comparison colors for consistent run distinction across views */
-const DEFAULT_COLORS = COMPARISON_SOLID_COLORS
-
 export const useRunMetricData = (runIds: string[]): RunMetricData => {
     const orderedRunIds = useMemo(() => runIds.filter((id): id is string => Boolean(id)), [runIds])
     const baseRunId = orderedRunIds[0] ?? null
@@ -168,13 +165,16 @@ export const useRunMetricData = (runIds: string[]): RunMetricData => {
 
     const temporalSeriesByMetric = useMemo(() => temporalSeriesRaw ?? {}, [temporalSeriesRaw])
 
+    // Resolved here rather than in a module const: these are plain hex on SVG fill/stroke, so the
+    // active theme has to pick the set. Every run color in the overview flows from this map.
+    const seriesColors = useChartSeries()
     const runColorMap = useMemo(() => {
         const map = new Map<string, string>()
         orderedRunIds.forEach((runId, index) => {
-            map.set(runId, DEFAULT_COLORS[index % DEFAULT_COLORS.length] ?? DEFAULT_COLORS[0])
+            map.set(runId, seriesColors[index % seriesColors.length] ?? seriesColors[0])
         })
         return map
-    }, [orderedRunIds])
+    }, [orderedRunIds, seriesColors])
 
     const evaluatorQueryAtom = useMemo(
         () =>

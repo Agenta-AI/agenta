@@ -1,0 +1,197 @@
+import {
+    formatCurrency,
+    formatLatency,
+    formatTokenUsage,
+    splitTokenUsage,
+} from "@agenta/shared/utils"
+import {dayjs} from "@agenta/shared/utils/dateTime"
+import {atom} from "jotai"
+import {atomFamily} from "jotai-family"
+
+import type {TraceSpanNode} from "../core/traceSpan"
+
+// Minimal runtime shape of `attributes.ag` (backend extra="allow" data).
+interface AgMetricBuckets {
+    total?: number
+    prompt?: number
+    completion?: number
+    [key: string]: unknown
+}
+
+interface AgAttributes {
+    metrics?: {
+        tokens?: {cumulative?: AgMetricBuckets; incremental?: AgMetricBuckets}
+        costs?: {cumulative?: AgMetricBuckets; incremental?: AgMetricBuckets}
+        duration?: {cumulative?: number}
+        [key: string]: unknown
+    }
+    data?: {
+        inputs?: unknown
+        outputs?: unknown
+        internals?: unknown
+        parameters?: unknown
+        [key: string]: unknown
+    }
+    meta?: {
+        configuration?: unknown
+        usage?: {input_tokens_includes_cache?: boolean | string}
+        [key: string]: unknown
+    }
+    node?: {type?: string; [key: string]: unknown}
+    [key: string]: unknown
+}
+
+const getAg = (span?: TraceSpanNode) => span?.attributes?.ag as AgAttributes | undefined
+
+// Metric extraction helpers ----------------------------------------------------
+const getTokenMetrics = (span?: TraceSpanNode) => getAg(span)?.metrics?.tokens ?? null
+
+export const getTokens = (span?: TraceSpanNode) => {
+    const tokens = getTokenMetrics(span)
+    return tokens?.cumulative?.total ?? tokens?.incremental?.total ?? null
+}
+
+const getPromptTokens = (span?: TraceSpanNode) => {
+    const tokens = getTokenMetrics(span)
+    return tokens?.cumulative?.prompt ?? tokens?.incremental?.prompt ?? null
+}
+
+const getCompletionTokens = (span?: TraceSpanNode) => {
+    const tokens = getTokenMetrics(span)
+    return tokens?.cumulative?.completion ?? tokens?.incremental?.completion ?? null
+}
+
+/**
+ * The span's tokens as input, cache read, cache write and output, or null without cache counts.
+ * Reads one bucket, the roll-up when the span has one, so the parts add up to its total.
+ */
+export const getTokenBreakdown = (span?: TraceSpanNode) => {
+    const tokens = getTokenMetrics(span)
+    const bucket = tokens?.cumulative ?? tokens?.incremental
+    if (!bucket) return null
+    const num = (value: unknown) => (typeof value === "number" ? value : undefined)
+    return splitTokenUsage({
+        prompt: num(bucket.prompt),
+        completion: num(bucket.completion),
+        cacheRead: num(bucket.cache_read),
+        cacheWrite: num(bucket.cache_creation),
+        total: num(bucket.total),
+        inputIncludesCache: getAg(span)?.meta?.usage?.input_tokens_includes_cache,
+    })
+}
+
+export const getCost = (span?: TraceSpanNode) => {
+    const costs = getAg(span)?.metrics?.costs
+    return costs?.cumulative?.total ?? costs?.incremental?.total ?? null
+}
+
+export const getLatency = (span?: TraceSpanNode) =>
+    getAg(span)?.metrics?.duration?.cumulative ?? null
+
+export const getTraceInputs = (span?: TraceSpanNode) => getAg(span)?.data?.inputs ?? null
+
+// A streamed agent run's ROOT span returns a generator, so its `ag.data.outputs` is the
+// generator object's repr (`<async_generator object ... at 0x...>`), not the reply — the span
+// is closed before the stream produces text. The real assistant output lives on the nested
+// `agent`-type span (`invoke_agent`).
+const GENERATOR_REPR = /^<(?:async_)?generator object/
+
+const spanOutputs = (span: TraceSpanNode): unknown => getAg(span)?.data?.outputs
+
+export const getTraceOutputs = (span?: TraceSpanNode): unknown => {
+    if (!span) return null
+    // Prefer the nested agent span's output (the assistant's reply) over the root's generator.
+    let agentOutput: unknown
+    const visit = (node: TraceSpanNode) => {
+        if (agentOutput !== undefined) return
+        if (node.span_type === "agent") {
+            const out = spanOutputs(node)
+            if (out !== undefined && out !== null) agentOutput = out
+        }
+        node.children?.forEach((child) => visit(child as TraceSpanNode))
+    }
+    visit(span)
+    if (agentOutput !== undefined) return agentOutput
+
+    const own = spanOutputs(span) ?? null
+    return typeof own === "string" && GENERATOR_REPR.test(own) ? null : own
+}
+
+// General attribute helpers ----------------------------------------------------
+const getAgMetaConfiguration = (span?: TraceSpanNode) => getAg(span)?.meta?.configuration ?? null
+
+export const getAgData = (span?: TraceSpanNode) => getAg(span)?.data ?? null
+
+export const getAgDataInputs = (span?: TraceSpanNode) => getAgData(span)?.inputs ?? null
+
+export const getAgDataOutputs = (span?: TraceSpanNode) => getAgData(span)?.outputs ?? null
+
+const getAgDataInternals = (span?: TraceSpanNode) => getAgData(span)?.internals ?? null
+
+const getAgDataParameters = (span?: TraceSpanNode) => getAgData(span)?.parameters ?? null
+
+const getAgNodeType = (span?: TraceSpanNode) => getAg(span)?.node?.type ?? null
+
+const getSpanException = (span?: TraceSpanNode) =>
+    span?.events?.find((event) => event.name === "exception") ?? null
+
+// Raw metric selectors ---------------------------------------------------------
+export const spanStartTimeAtomFamily = atomFamily((span?: TraceSpanNode) =>
+    atom(() => dayjs(span?.start_time).utc().format("DD/MM/YYYY, hh:mm:ss A")),
+)
+
+export const spanEndTimeAtomFamily = atomFamily((span?: TraceSpanNode) =>
+    atom(() => dayjs(span?.end_time).utc().format("DD/MM/YYYY, hh:mm:ss A")),
+)
+
+export const spanMetaConfigurationAtomFamily = atomFamily((span?: TraceSpanNode) =>
+    atom(() => getAgMetaConfiguration(span)),
+)
+
+export const spanDataInputsAtomFamily = atomFamily((span?: TraceSpanNode) =>
+    atom(() => getAgDataInputs(span)),
+)
+
+export const spanDataOutputsAtomFamily = atomFamily((span?: TraceSpanNode) =>
+    atom(() => getAgDataOutputs(span)),
+)
+
+export const spanDataInternalsAtomFamily = atomFamily((span?: TraceSpanNode) =>
+    atom(() => getAgDataInternals(span)),
+)
+
+export const spanDataParametersAtomFamily = atomFamily((span?: TraceSpanNode) =>
+    atom(() => getAgDataParameters(span)),
+)
+
+export const spanNodeTypeAtomFamily = atomFamily((span?: TraceSpanNode) =>
+    atom(() => getAgNodeType(span)),
+)
+
+export const spanExceptionAtomFamily = atomFamily((span?: TraceSpanNode) =>
+    atom(() => getSpanException(span)),
+)
+
+// Formatted metric selectors ---------------------------------------------------
+export const formattedSpanTokensAtomFamily = atomFamily((span?: TraceSpanNode) =>
+    atom(() => formatTokenUsage(getTokens(span))),
+)
+
+export const formattedSpanPromptTokensAtomFamily = atomFamily((span?: TraceSpanNode) =>
+    atom(() => formatTokenUsage(getPromptTokens(span))),
+)
+
+export const formattedSpanCompletionTokensAtomFamily = atomFamily((span?: TraceSpanNode) =>
+    atom(() => formatTokenUsage(getCompletionTokens(span))),
+)
+
+export const formattedSpanCostAtomFamily = atomFamily((span?: TraceSpanNode) =>
+    atom(() => formatCurrency(getCost(span))),
+)
+
+export const formattedSpanLatencyAtomFamily = atomFamily((span?: TraceSpanNode) =>
+    atom(() => {
+        const latency = getLatency(span)
+        return formatLatency(latency != null ? latency / 1000 : null)
+    }),
+)

@@ -7,8 +7,8 @@
  * - `hasMore` (based on cursor presence)
  * - `displayLabel` (e.g., "12 of 40", "12+", "12 of 40+")
  *
- * This module supports both paginated/infinite lists and regular lists,
- * correctly including local additions/deletions in the count summary.
+ * It supports paginated/infinite lists, correctly including local
+ * additions/deletions in the count summary.
  *
  * ## Usage
  *
@@ -27,22 +27,11 @@
  * // counts.displayLabel -> "35+" or "35 of 100+"
  * ```
  *
- * ### Regular Lists (non-paginated)
- *
- * ```ts
- * import { createListCountsAtom } from '@agenta/entities/shared'
- *
- * const countsAtom = createListCountsAtom(myListAtom)
- * const counts = useAtomValue(countsAtom)
- * // counts.displayLabel -> "12"
- * ```
- *
  * @module listCounts
  */
 
 import type {Atom} from "jotai"
 import {atom} from "jotai"
-import {atomFamily} from "jotai-family"
 
 import type {
     BaseTableMeta,
@@ -330,175 +319,4 @@ export function createPaginatedListCountsAtom<
             formatLabelShort,
         })
     })
-}
-
-/**
- * Create a list counts atom family for paginated stores.
- *
- * This is useful when you need to create counts atoms for multiple scopes
- * and want to cache them efficiently.
- *
- * @param store - The paginated entity store
- * @param config - Optional configuration for count computation
- * @returns Atom family that produces EntityListCounts atoms
- *
- * @example
- * ```ts
- * const countsFamily = createPaginatedListCountsAtomFamily(
- *   testcasePaginatedStore,
- *   { totalCountMode: 'unknown' }
- * )
- *
- * // In component:
- * const countsAtom = useMemo(
- *   () => countsFamily({ scopeId, pageSize: 50 }),
- *   [scopeId]
- * )
- * const counts = useAtomValue(countsAtom)
- * ```
- */
-export function createPaginatedListCountsAtomFamily<
-    TRow extends InfiniteTableRowBase,
-    TApiRow,
-    TMeta extends BaseTableMeta,
->(
-    store: PaginatedEntityStore<TRow, TApiRow, TMeta>,
-    config: ListCountsConfig = {},
-): (params: PaginatedControllerParams) => Atom<EntityListCounts> {
-    const paramsKey = (params: PaginatedControllerParams) => `${params.scopeId}:${params.pageSize}`
-
-    return atomFamily(
-        (params: PaginatedControllerParams) => createPaginatedListCountsAtom(store, params, config),
-        (a, b) => paramsKey(a) === paramsKey(b),
-    )
-}
-
-// ============================================================================
-// REGULAR LIST COUNTS
-// ============================================================================
-
-/**
- * Create a list counts atom for a regular (non-paginated) list.
- *
- * For regular lists:
- * - `totalCount` equals `loadedCount`
- * - `hasMore` is always false
- * - `isTotalKnown` is always true
- *
- * @param listAtom - Atom providing the list data
- * @param config - Optional configuration
- * @returns Atom that produces EntityListCounts
- *
- * @example
- * ```ts
- * const countsAtom = createListCountsAtom(myListAtom)
- * const counts = useAtomValue(countsAtom)
- * console.log(counts.displayLabel) // "12"
- * ```
- */
-export function createListCountsAtom<TRow extends InfiniteTableRowBase>(
-    listAtom: Atom<TRow[]>,
-    config: Pick<ListCountsConfig, "isRowCountable" | "formatLabel" | "formatLabelShort"> = {},
-): Atom<EntityListCounts> {
-    const {isRowCountable = defaultIsRowCountable, formatLabel, formatLabelShort} = config
-
-    return atom((get) => {
-        const rows = get(listAtom)
-        const loadedCount = rows.filter(isRowCountable).length
-
-        return computeListCounts({
-            loadedCount,
-            totalCount: loadedCount,
-            hasMore: false,
-            totalCountMode: "total",
-            formatLabel,
-            formatLabelShort,
-        })
-    })
-}
-
-/**
- * Create a list counts atom from raw pagination state.
- *
- * This is useful when you have direct access to pagination state
- * (e.g., from a custom store or hook) rather than a PaginatedEntityStore.
- *
- * @param rowsAtom - Atom providing the rows
- * @param paginationAtom - Atom providing the pagination state
- * @param config - Optional configuration
- * @returns Atom that produces EntityListCounts
- *
- * @example
- * ```ts
- * const countsAtom = createListCountsFromPaginationAtom(
- *   myRowsAtom,
- *   myPaginationAtom,
- *   { totalCountMode: 'unknown' }
- * )
- * ```
- */
-export function createListCountsFromPaginationAtom<TRow extends InfiniteTableRowBase>(
-    rowsAtom: Atom<TRow[]>,
-    paginationAtom: Atom<PaginationState>,
-    config: ListCountsConfig = {},
-): Atom<EntityListCounts> {
-    const {
-        totalCountMode = "unknown",
-        isRowCountable = defaultIsRowCountable,
-        formatLabel,
-        formatLabelShort,
-    } = config
-
-    return atom((get) => {
-        const rows = get(rowsAtom)
-        const pagination = get(paginationAtom)
-
-        const loadedCount = rows.filter(isRowCountable).length
-        const hasMore = hasMorePages(pagination)
-
-        return computeListCounts({
-            loadedCount,
-            totalCount: pagination.totalCount,
-            hasMore,
-            totalCountMode,
-            formatLabel,
-            formatLabelShort,
-        })
-    })
-}
-
-// ============================================================================
-// UTILITY ATOMS
-// ============================================================================
-
-/**
- * Create a simple display label atom from a list counts atom.
- *
- * This is a convenience wrapper when you only need the display label.
- *
- * @param countsAtom - Atom providing EntityListCounts
- * @returns Atom that produces the display label string
- */
-export function createDisplayLabelAtom(countsAtom: Atom<EntityListCounts>): Atom<string> {
-    return atom((get) => get(countsAtom).displayLabel)
-}
-
-/**
- * Create a short display label atom from a list counts atom.
- *
- * @param countsAtom - Atom providing EntityListCounts
- * @returns Atom that produces the short display label string
- */
-export function createDisplayLabelShortAtom(countsAtom: Atom<EntityListCounts>): Atom<string> {
-    return atom((get) => get(countsAtom).displayLabelShort)
-}
-
-/**
- * Create a hasMore atom from a list counts atom.
- *
- * @param countsAtom - Atom providing EntityListCounts
- * @returns Atom that produces the hasMore boolean
- */
-export function createHasMoreAtom(countsAtom: Atom<EntityListCounts>): Atom<boolean> {
-    return atom((get) => get(countsAtom).hasMore)
 }

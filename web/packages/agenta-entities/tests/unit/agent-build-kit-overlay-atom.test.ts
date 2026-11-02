@@ -1,5 +1,5 @@
-import {QueryClient} from "@tanstack/react-query"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
+import {QueryClient} from "@tanstack/react-query"
 import {createStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 import {beforeEach, describe, expect, it, vi} from "vitest"
@@ -188,7 +188,7 @@ describe("workflowAgentTemplateOverlayAtomFamily", () => {
 
         const overlay = store.get(workflowAgentTemplateOverlayAtomFamily("rev-agent-fallback"))
 
-        expect(overlay).toEqual(FALLBACK_OVERLAY)
+        expect(overlay).toEqual({...FALLBACK_OVERLAY, op_access: {}})
     })
 
     it("uses the per-app fallback when the slug fetch errors and workflow_id exists", async () => {
@@ -213,7 +213,7 @@ describe("workflowAgentTemplateOverlayAtomFamily", () => {
                 workflowAgentTemplateOverlayAtomFamily("rev-agent-error-fallback"),
             )
 
-            expect(overlay).toEqual(FALLBACK_OVERLAY)
+            expect(overlay).toEqual({...FALLBACK_OVERLAY, op_access: {}})
         } finally {
             unsubscribe()
         }

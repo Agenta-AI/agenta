@@ -1,109 +1,79 @@
-from os import environ
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
-
 from agenta.sdk.agents.adapters.agenta_builtins import (
     BUILD_AN_AGENT_SLUG,
     GETTING_STARTED_WITH_AGENTA_SLUG,
 )
-from agenta.sdk.agents.platform.workflow import REQUEST_CONNECTION_WORKFLOW_SLUG
 from agenta.sdk.agents.dtos import AgentTemplate
 from agenta.sdk.agents.platform import AgentaPlatformToolResolver, PlatformConnection
 from agenta.sdk.agents.platform.op_catalog import PLATFORM_OPS
+from agenta.sdk.agents.platform.workflow import (
+    REQUEST_CONNECTION_WORKFLOW_SLUG,
+    REQUEST_SECRET_WORKFLOW_SLUG,
+)
 from agenta.sdk.agents.tools.models import ClientToolConfig, PlatformToolConfig
-
 from oss.src.apis.fastapi.applications import router as applications_router_module
 from oss.src.apis.fastapi.applications.overlay import (
     DEFAULT_BUILD_KIT_OPS,
     build_agent_template_overlay,
 )
-from oss.src.core.workflows.build_kit import (
-    BUILD_KIT_WORKFLOW_SLUG,
-    REQUEST_INPUT_WORKFLOW_SLUG,
-    build_agent_template_overlay as build_core_agent_template_overlay,
-)
 from oss.src.apis.fastapi.applications.router import SimpleApplicationsRouter
 from oss.src.core.applications.dtos import SimpleApplication
 from oss.src.core.embeds.service import EmbedsService
+from oss.src.core.workflows.build_kit import (
+    BUILD_KIT_WORKFLOW_SLUG,
+    REQUEST_INPUT_WORKFLOW_SLUG,
+)
+from oss.src.core.workflows.build_kit import (
+    build_agent_template_overlay as build_core_agent_template_overlay,
+)
 from oss.src.core.workflows.dtos import WorkflowRevision, WorkflowRevisionData
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.static_catalog import StaticWorkflowCatalog
 
-# The build kit has two shapes, one per state of the ordered-operations switch: with the
-# switch on, the catalog defines `read_config` and the kit carries the read half of the
-# read-then-edit loop. Both are written out in full, and the switch is read here rather
-# than through the catalog, so this stays a statement about the flag instead of a copy of
-# the code it checks.
-EXPECTED_BUILD_KIT_OPS_WITHOUT_READ_CONFIG = (
-    "discover_tools",
-    "commit_revision",
-    "annotate_trace",
-    "query_spans",
-    "test_run",
-    "discover_triggers",
-    "create_schedule",
-    "create_subscription",
-    "list_schedules",
-    "list_deliveries",
-    "test_subscription",
-    "remove_schedule",
-    "remove_subscription",
-)
-
 EXPECTED_BUILD_KIT_OPS_WITH_READ_CONFIG = (
     "discover_tools",
+    "search_skills",
+    "check_skill_updates",
+    "apply_skill_update",
     "read_config",
     "commit_revision",
-    "annotate_trace",
-    "query_spans",
     "test_run",
+    "get_current_session",
+    "rename_session",
+    "rename_agent",
     "discover_triggers",
     "create_schedule",
     "create_subscription",
     "list_schedules",
     "list_deliveries",
     "test_subscription",
+    "list_subscriptions",
     "remove_schedule",
     "remove_subscription",
+    "list_starters",
+    "create_app",
+    "validate_template",
 )
 
 
-def _ordered_operations_enabled() -> bool:
-    # Spelled out rather than imported, so the expectation cannot move with the code under
-    # test. The accepted spellings are pinned equal in
-    # `unit/workflows/test_ordered_operations_flag.py`.
-    return environ.get(
-        "AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED", ""
-    ).strip().lower() in {
-        "true",
-        "1",
-        "t",
-        "y",
-        "yes",
-        "on",
-        "enable",
-        "enabled",
-    }
-
-
-EXPECTED_DEFAULT_BUILD_KIT_OPS = (
-    EXPECTED_BUILD_KIT_OPS_WITH_READ_CONFIG
-    if _ordered_operations_enabled()
-    else EXPECTED_BUILD_KIT_OPS_WITHOUT_READ_CONFIG
-)
+EXPECTED_DEFAULT_BUILD_KIT_OPS = EXPECTED_BUILD_KIT_OPS_WITH_READ_CONFIG
 
 CUT_BUILD_KIT_OPS = (
+    "annotate_trace",
+    "query_spans",
     "pause_schedule",
     "resume_schedule",
     "pause_subscription",
     "resume_subscription",
     "query_workflows",
     "list_connections",
-    "list_subscriptions",
 )
+
+EXPECTED_BUILD_KIT_PERMISSIONS = {op: "allow" for op in EXPECTED_DEFAULT_BUILD_KIT_OPS}
 
 
 def _embed_slug(entry: dict) -> str | None:
@@ -125,9 +95,17 @@ def test_agent_template_overlay_tools_list_is_pinned():
         slug=REQUEST_CONNECTION_WORKFLOW_SLUG
     )
     request_input = catalog.retrieve_revision(slug=REQUEST_INPUT_WORKFLOW_SLUG)
+    request_secret = catalog.retrieve_revision(slug=REQUEST_SECRET_WORKFLOW_SLUG)
 
     assert overlay["tools"] == [
-        *[{"type": "platform", "op": op_name} for op_name in DEFAULT_BUILD_KIT_OPS],
+        *[
+            {
+                "type": "platform",
+                "op": op_name,
+                "permission": EXPECTED_BUILD_KIT_PERMISSIONS[op_name],
+            }
+            for op_name in DEFAULT_BUILD_KIT_OPS
+        ],
         {
             "@ag.embed": {
                 "@ag.references": {
@@ -144,6 +122,13 @@ def test_agent_template_overlay_tools_list_is_pinned():
             },
             "name": request_input.name,
         },
+        {
+            "@ag.embed": {
+                "@ag.references": {"workflow": {"slug": REQUEST_SECRET_WORKFLOW_SLUG}},
+                "@ag.selector": {"path": "parameters.tool"},
+            },
+            "name": request_secret.name,
+        },
     ]
 
 
@@ -159,7 +144,12 @@ def test_agent_template_overlay_contains_platform_ops_playbook_skill_and_permiss
     assert set(DEFAULT_BUILD_KIT_OPS) <= set(PLATFORM_OPS)
     assert set(DEFAULT_BUILD_KIT_OPS).isdisjoint(CUT_BUILD_KIT_OPS)
     assert platform_tools == [
-        {"type": "platform", "op": op_name} for op_name in DEFAULT_BUILD_KIT_OPS
+        {
+            "type": "platform",
+            "op": op_name,
+            "permission": EXPECTED_BUILD_KIT_PERMISSIONS[op_name],
+        }
+        for op_name in DEFAULT_BUILD_KIT_OPS
     ]
 
     authoring_skill = StaticWorkflowCatalog().retrieve_revision(
@@ -172,7 +162,21 @@ def test_agent_template_overlay_contains_platform_ops_playbook_skill_and_permiss
                 "@ag.references": {"workflow": {"slug": BUILD_AN_AGENT_SLUG}},
                 "@ag.selector": {"path": "parameters.skill"},
             },
-        }
+        },
+        {
+            "name": "agenta-apps",
+            "@ag.embed": {
+                "@ag.references": {"workflow": {"slug": "__ag__agenta_apps"}},
+                "@ag.selector": {"path": "parameters.skill"},
+            },
+        },
+        {
+            "name": "create-template",
+            "@ag.embed": {
+                "@ag.references": {"workflow": {"slug": "__ag__create_template"}},
+                "@ag.selector": {"path": "parameters.skill"},
+            },
+        },
     ]
     assert GETTING_STARTED_WITH_AGENTA_SLUG not in {
         _embed_slug(skill) for skill in overlay["skills"]
@@ -212,6 +216,7 @@ def test_agent_template_overlay_includes_only_allowlisted_static_tool_embeds():
     assert tool_embed_slugs == {
         REQUEST_CONNECTION_WORKFLOW_SLUG,
         REQUEST_INPUT_WORKFLOW_SLUG,
+        REQUEST_SECRET_WORKFLOW_SLUG,
     }
 
 
@@ -325,15 +330,25 @@ async def test_resolved_build_kit_overlay_parses_through_from_params():
         tool for tool in template.tools if isinstance(tool, ClientToolConfig)
     ]
     assert [tool.op for tool in platform_ops] == list(DEFAULT_BUILD_KIT_OPS)
+    assert {tool.op: tool.permission for tool in platform_ops} == {
+        op: EXPECTED_BUILD_KIT_PERMISSIONS[op] for op in EXPECTED_DEFAULT_BUILD_KIT_OPS
+    }
     # The reserved static embeds must coerce to client tools, not builtins.
     assert [tool.name for tool in client_tools] == [
         "request_connection",
         "request_input",
+        "request_secret",
     ]
     assert client_tools[0].render == {"kind": "connect"}
     # The elicitation tool (interaction kinds M1) carries its REQUIRED render.kind.
     assert client_tools[1].render == {"kind": "elicitation"}
-    assert [skill.name for skill in template.skills] == ["build-an-agent"]
+    # The secret request opens the secret dock, so it carries its own render.kind.
+    assert client_tools[2].render == {"kind": "secret"}
+    assert [skill.name for skill in template.skills] == [
+        "build-an-agent",
+        "agenta-apps",
+        "create-template",
+    ]
 
 
 @pytest.mark.asyncio

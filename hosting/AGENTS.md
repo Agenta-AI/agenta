@@ -46,6 +46,21 @@ subscription logins. Because `run.sh` assembles the same set every time, a routi
 - `--compose-file <name>` appends an extra file (repeatable; bare name resolves in the edition
   dir like `-e`, or pass a path). Appended after the auto-included ones.
 
+### The mobile web app (`/m`) — always on
+
+`/m` ships with every deployment, and there is no switch to leave it out. Every stack starts
+the `web-mobile` service; the compose files carry no profile for it and no env key is needed.
+Traefik routes ``Path(`/m`) || PathPrefix(`/m/`)`` to it; the nginx proxy has the same two
+`location` blocks. The only run without it is a backend-only one (`--no-web` /
+`--web-mode none`), which starts neither web app.
+
+The gate has no switch either. A phone on a desktop route goes to `/m`, a user with Classic mode
+off goes to `/m` for the pages it has, a user with Classic mode on who opens `/m` goes back to
+`/w`, and a desktop browser may open `/m`. `AGENTA_MOBILE_GATE`, `AGENTA_MOBILE_REVERSE_GATE`
+and `AGENTA_MOBILE_ENABLED` are gone, and so is `run.sh --no-mobile`; a stale value in an env
+file changes nothing. The dev stack pays a second Next dev server for `web-mobile` (about
+0.5-1GB RAM).
+
 ### Restart one service (surgical)
 
 `run.sh --recreate <service>` and `--rebuild <service>` are the blessed entry point for

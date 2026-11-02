@@ -58,6 +58,8 @@ export default function AlertPopup({
         },
         icon: null,
         okType: "primary",
+        // The renderer top-pins anything that omits this.
+        centered: true,
         ...ModalProps,
     })
 }

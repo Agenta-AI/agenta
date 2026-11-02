@@ -146,6 +146,7 @@ load_openapi() {
   strip_endpoints_by_tag "${fern_dir}/openapi/openapi.json" "Admin"
   strip_endpoints_by_tag "${fern_dir}/openapi/openapi.json" "Deprecated"
   strip_endpoints_marked_deprecated "${fern_dir}/openapi/openapi.json"
+  pin_default_server "${fern_dir}/openapi/openapi.json"
 
   log "OpenAPI spec ready"
 
@@ -204,6 +205,25 @@ strip_endpoints_marked_deprecated() {
     )
     | .paths |= with_entries(select(.value | length > 0))
   ' "${spec_file}" > "${tmp_file}"
+  mv "${tmp_file}" "${spec_file}"
+}
+
+# Fern turns the spec's first `servers` entry into the clients' default base
+# URL. Which entries a served spec carries depends on the host that served it
+# (a spec dumped in-process, or fetched from a dev box, names that host), so
+# pin the relative "/api" the committed clients ship with; callers always pass
+# their own host at runtime.
+pin_default_server() {
+  local spec_file="$1"
+
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "jq is not installed. Install it with: brew install jq or apt install jq" >&2
+    exit 1
+  fi
+
+  log "pinning the default server to /api in ${spec_file}"
+  local tmp_file="${spec_file}.tmp"
+  jq '.servers = [{"url": "/api"}]' "${spec_file}" > "${tmp_file}"
   mv "${tmp_file}" "${spec_file}"
 }
 
@@ -357,6 +377,9 @@ dependencies = [
     "pydantic>=2,<3",
 ]
 
+[dependency-groups]
+dev = ["pytest>=8,<9"]
+
 [tool.uv.build-backend]
 module-name = "agenta_client"
 module-root = ""
@@ -455,7 +478,14 @@ generate_python() {
     find "${types_dir}" -name "*.py.bak" -delete
   }
 
+  protect_provider_credentials_repr() {
+    local credentials_file="$1"
+    log "excluding provider credentials from generated model display"
+    python3 "${SCRIPT_DIR}/protect_provider_credentials.py" "${credentials_file}"
+  }
+
   fix_recursive_types_in_dir "${target_dir}"
+  protect_provider_credentials_repr "${target_dir}/types/provider_credentials.py"
 
   log "generated Python client in ${target_dir}"
 }

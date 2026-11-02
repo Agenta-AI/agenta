@@ -43,3 +43,9 @@ class MountDBA(
         String,
         nullable=True,
     )
+
+    # Namespace-relative object-key prefix, written once at insert.
+    storage_prefix = Column(
+        String,
+        nullable=False,
+    )

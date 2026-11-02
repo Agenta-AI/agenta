@@ -1,46 +1,64 @@
 import {useMemo} from "react"
 
-import {useAtomValue} from "jotai"
-
-import SidePanelSubscriptionInfo from "@/oss/components/SidePanel/Subscription"
-import {homeNavHighlightedAtom} from "@/oss/state/onboarding"
-
-import ProjectOrgSwitcher from "../components/ProjectOrgSwitcher"
-import SidebarLogo from "../components/SidebarLogo"
 import type {
     SidebarScope,
     SidebarSection,
     SidebarSelection,
     SidebarSlotContext,
-} from "../engine/types"
+} from "@agenta/navigation"
+import {HOME_SIDEBAR_KEY, MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "@agenta/navigation"
+import {SessionSearchPalette, SidebarLogo} from "@agenta/navigation-ui"
+import {atom, useAtomValue} from "jotai"
+
+import useURL from "@/oss/hooks/useURL"
+import {appStateSnapshotAtom} from "@/oss/state/appState"
+import {homeNavHighlightedAtom} from "@/oss/state/onboarding"
+
+import ProjectOrgSwitcher from "../components/ProjectOrgSwitcher"
+import SidebarToggleButton from "../components/SidebarToggleButton"
+import {activePlaygroundSessionIdAtom} from "../dynamic/localSessionRefs"
 import {useSidebarConfig} from "../hooks/useSidebarConfig"
 
 import {useSidebarBottomSection} from "./bottomSection"
-import {HOME_SIDEBAR_KEY, MAIN_SIDEBAR_SCOPE_ID} from "./constants"
 
-const MainSidebarHeader = ({collapsed}: SidebarSlotContext) => <SidebarLogo collapsed={collapsed} />
-
-const MainSidebarFooter = ({collapsed}: SidebarSlotContext) =>
-    collapsed ? null : (
-        <div className="mx-auto">
-            <SidePanelSubscriptionInfo />
-        </div>
-    )
-
-const MainSidebarAfterBottom = ({collapsed}: SidebarSlotContext) => (
-    <ProjectOrgSwitcher collapsed={collapsed} />
+const MainSidebarHeader = ({collapsed}: SidebarSlotContext) => (
+    <SidebarLogo collapsed={collapsed} toggle={<SidebarToggleButton />} />
 )
+
+// The palette is a modal with one owner: mounted here, it exists exactly where the Sessions
+// group that opens it does, rather than in every scope's shell.
+const MainSidebarAfterBottom = ({collapsed}: SidebarSlotContext) => {
+    const {projectURL} = useURL()
+    return (
+        <>
+            <ProjectOrgSwitcher collapsed={collapsed} />
+            <SessionSearchPalette projectURL={projectURL} />
+        </>
+    )
+}
+
+// The open session is a fact about the playground, not about where you are: the tab list is
+// persisted per agent, so off that route the pin outranked the row the route itself selects (#6389).
+const playgroundRouteAtom = atom((get) => get(appStateSnapshotAtom).restPath[0] === "playground")
 
 // During onboarding the route is the ephemeral playground, but Home IS the surface — pin it selected.
 const useMainSidebarSelection = (): SidebarSelection => {
     const highlightHome = useAtomValue(homeNavHighlightedAtom)
-    return useMemo(
-        () =>
-            highlightHome
-                ? {mode: "route", selectedKeyOverride: HOME_SIDEBAR_KEY}
-                : {mode: "route"},
-        [highlightHome],
-    )
+    // A session row links to its AGENT's playground, so the route cannot tell the two apart and
+    // the agent row won every tie. Pin the open session instead; when that row is not rendered
+    // (its group collapsed, or filtered out) the shell selects nothing rather than the agent.
+    const activeSessionId = useAtomValue(activePlaygroundSessionIdAtom)
+    const onPlaygroundRoute = useAtomValue(playgroundRouteAtom)
+    return useMemo(() => {
+        if (highlightHome) return {mode: "route", selectedKeyOverride: HOME_SIDEBAR_KEY}
+        if (onPlaygroundRoute && activeSessionId) {
+            return {
+                mode: "route",
+                selectedKeyOverride: `${SESSIONS_SIDEBAR_KEY}-${activeSessionId}`,
+            }
+        }
+        return {mode: "route"}
+    }, [activeSessionId, highlightHome, onPlaygroundRoute])
 }
 
 const useMainSidebarSections = (): SidebarSection[] => {
@@ -64,6 +82,5 @@ export const mainSidebarScope: SidebarScope = {
     useSelection: useMainSidebarSelection,
     useSections: useMainSidebarSections,
     header: MainSidebarHeader,
-    footer: MainSidebarFooter,
     afterBottom: MainSidebarAfterBottom,
 }

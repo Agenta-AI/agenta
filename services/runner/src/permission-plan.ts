@@ -102,11 +102,25 @@ const PI_BUILTIN_CANONICAL_NAMES = new Map<string, PiBuiltinIdentity>(
   }),
 );
 
+/**
+ * The operator kill-switch for incident response, read LIVE at decision time.
+ *
+ * Read live, and not from the plan, for two reasons. The plan is built once at run start, so an
+ * operator who flips the switch mid-incident does not reach a run already in flight. And the
+ * plan's `default` is only consulted after an explicit specification permission has been ruled
+ * out, so a switch that only replaces the default is beaten by any authored `allow`. Both were
+ * live holes: see `effectivePermission`, which now checks this FIRST.
+ */
+export function operatorDenyActive(): boolean {
+  return process.env.SANDBOX_AGENT_DENY_PERMISSIONS === "true";
+}
+
 export function permissionsFromRequest(
   request: AgentRunRequest,
 ): PermissionPlan {
-  // Operator kill-switch for incident response: deny wins over every authored request.
-  if (process.env.SANDBOX_AGENT_DENY_PERMISSIONS === "true") {
+  // Belt and braces: the switch also collapses the plan, so a reader that never reaches
+  // `effectivePermission` (a settings renderer, a log line) sees the incident state too.
+  if (operatorDenyActive()) {
     return { default: "deny", rules: [] };
   }
 
@@ -134,6 +148,10 @@ export function effectivePermission(
   gate: GateDescriptor,
   plan: PermissionPlan,
 ): ToolPermission {
+  // First-class, top priority, and above the authored specification permission. An operator
+  // turning this on during an incident must stop a tool the author explicitly allowed; reading
+  // it here rather than from the plan also reaches a run that started before the flip.
+  if (operatorDenyActive()) return "deny";
   if (gate.specPermission !== undefined) return gate.specPermission;
   if (gate.serverPermission !== undefined) return gate.serverPermission;
 
@@ -141,6 +159,23 @@ export function effectivePermission(
   if (rulePermission !== undefined) return rulePermission;
 
   return defaultPermission(plan.default, gate);
+}
+
+/**
+ * The permission ladder for a BROWSER-FULFILLED client tool.
+ *
+ * Deliberately not `effectivePermission`: this ladder treats `allow` and `ask` alike (both mean
+ * "forward to the browser") and collapses every non-`deny` default to `allow`, because a client
+ * tool's own pause IS its approval. It lives here anyway, beside the ladder it differs from, so
+ * that a rule which must hold for EVERY tool family — the operator kill-switch is the one that
+ * exists today — has one place to be written rather than two modules to remember.
+ */
+export function clientToolPermission(
+  gate: GateDescriptor,
+  plan: PermissionPlan,
+): ToolPermission {
+  if (operatorDenyActive()) return "deny";
+  return gate.specPermission ?? (plan.default === "deny" ? "deny" : "allow");
 }
 
 export function decide(
@@ -310,7 +345,7 @@ function isPermissionMode(value: unknown): value is PermissionMode {
   return (PERMISSION_MODES as readonly unknown[]).includes(value);
 }
 
-function isToolPermission(value: unknown): value is ToolPermission {
+export function isToolPermission(value: unknown): value is ToolPermission {
   return (TOOL_PERMISSIONS as readonly unknown[]).includes(value);
 }
 

@@ -1,19 +1,21 @@
 import {useCallback, useMemo, useState} from "react"
 
-import {InitialsAvatar} from "@agenta/ui"
-import {EnhancedModal} from "@agenta/ui/components/modal"
-import {ArrowsLeftRight, CopyIcon, Trash} from "@phosphor-icons/react"
-import {useMutation} from "@tanstack/react-query"
-import {App, Button, Form, Input, Select, Typography} from "antd"
-import clsx from "clsx"
-
-import {getUsernameFromEmail} from "@/oss/lib/helpers/utils"
-import type {OrgDetails} from "@/oss/lib/Types"
+import type {Org, OrgDetails} from "@agenta/entities/organization"
 import {
+    createOrganization,
     deleteOrganization,
     transferOrganizationOwnership,
     updateOrganization,
-} from "@/oss/services/organization/api"
+} from "@agenta/entities/organization"
+import {OrganizationsPage} from "@agenta/settings-ui"
+import {InitialsAvatar} from "@agenta/ui"
+import {EnhancedModal} from "@agenta/ui/components/modal"
+import {Trash} from "@phosphor-icons/react"
+import {useMutation} from "@tanstack/react-query"
+import {App, Form, Input, Select, Typography} from "antd"
+import clsx from "clsx"
+
+import {getUsernameFromEmail} from "@/oss/lib/helpers/utils"
 import {resetOrganizationData, useOrgData} from "@/oss/state/org"
 import {clearWorkspaceOrgCache} from "@/oss/state/org/selectors/org"
 import {useProfileData} from "@/oss/state/profile"
@@ -29,40 +31,24 @@ const formatErrorMessage = (detail: unknown, fallback: string) => {
     return fallback
 }
 
-interface SettingsSectionProps {
-    title: string
-    description: string
-    children: React.ReactNode
-}
-
-const SettingsSection = ({title, description, children}: SettingsSectionProps) => (
-    <section className="flex flex-col gap-3">
-        <div className="flex flex-col gap-1">
-            <Typography.Title level={5} className="!mb-0">
-                {title}
-            </Typography.Title>
-            <Typography.Text type="secondary">{description}</Typography.Text>
-        </div>
-        {children}
-    </section>
-)
-
+/** OSS binding: the shared organizations table with this app's antd dialogs. */
 const OrganizationGeneral = () => {
     const {message} = App.useApp()
-    const {selectedOrg, orgs, changeSelectedOrg, refetch} = useOrgData()
+    const {orgs, selectedOrg, changeSelectedOrg, refetch, loading} = useOrgData()
     const {user} = useProfileData()
     const {members: workspaceMembers} = useWorkspaceMembers()
 
-    const organizationId = selectedOrg?.id ?? ""
-    const organizationName = selectedOrg?.name ?? ""
-
-    const [renameForm] = Form.useForm<{name: string}>()
-    const [newOwnerId, setNewOwnerId] = useState<string | null>(null)
+    const [activeOrg, setActiveOrg] = useState<Org | null>(null)
+    const [isCreateModalOpen, setCreateModalOpen] = useState(false)
     const [isTransferModalOpen, setTransferModalOpen] = useState(false)
     const [isDeleteModalOpen, setDeleteModalOpen] = useState(false)
+    const [newOwnerId, setNewOwnerId] = useState<string | null>(null)
     const [deleteConfirmInput, setDeleteConfirmInput] = useState("")
 
-    const isDeleteNameMatch = Boolean(organizationName) && deleteConfirmInput === organizationName
+    const [createForm] = Form.useForm<{name: string}>()
+
+    const isDeleteNameMatch =
+        Boolean(activeOrg?.name) && deleteConfirmInput === (activeOrg?.name ?? "")
 
     const transferOwnerOptions = useMemo(
         () =>
@@ -94,25 +80,28 @@ const OrganizationGeneral = () => {
 
     const selectedNewOwner = newOwnerId ? transferOwnerOptionByValue.get(newOwnerId) : undefined
 
-    const renameMutation = useMutation({
-        mutationFn: ({name}: {name: string}) => updateOrganization(organizationId, {name}),
+    const createMutation = useMutation({
+        mutationFn: ({name}: {name: string}) => createOrganization({name}),
         onSuccess: async () => {
-            message.success("Organization renamed")
+            message.success("Organization created")
+            createForm.resetFields()
+            setCreateModalOpen(false)
             await refetch()
         },
         onError: (error: any) => {
             const detail = error?.response?.data?.detail || error?.message
-            message.error(formatErrorMessage(detail, "Unable to rename organization"))
+            message.error(formatErrorMessage(detail, "Unable to create organization"))
         },
     })
 
     const transferMutation = useMutation({
-        mutationFn: ({ownerId}: {ownerId: string}) =>
-            transferOrganizationOwnership(organizationId, ownerId),
+        mutationFn: ({id, ownerId}: {id: string; ownerId: string}) =>
+            transferOrganizationOwnership(id, ownerId),
         onSuccess: async () => {
             message.success("Ownership transferred")
             setTransferModalOpen(false)
             setNewOwnerId(null)
+            setActiveOrg(null)
             await refetch()
             resetOrganizationData()
             resetProjectData()
@@ -124,47 +113,35 @@ const OrganizationGeneral = () => {
     })
 
     const deleteMutation = useMutation({
-        mutationFn: () => deleteOrganization(organizationId),
+        mutationFn: (id: string) => deleteOrganization(id),
         onError: (error: any) => {
             const detail = error?.response?.data?.detail || error?.message
             message.error(formatErrorMessage(detail, "Unable to delete organization"))
         },
     })
 
-    const copyOrganizationId = useCallback(async () => {
-        if (!organizationId) return
-        if (typeof navigator === "undefined" || !navigator?.clipboard) {
-            message.error("Clipboard not supported")
-            return
-        }
-        try {
-            await navigator.clipboard.writeText(organizationId)
-            message.success("Organization ID copied")
-        } catch {
-            message.error("Failed to copy organization ID")
-        }
-    }, [message, organizationId])
-
     const handleDelete = useCallback(async () => {
-        if (!organizationId || !isDeleteNameMatch) return
+        if (!activeOrg?.id || !isDeleteNameMatch) return
 
         // antd hands onOk straight to the OK button's onClick, so a rejection here would
         // escape as an unhandled promise; the mutation's onError already surfaces it.
         try {
-            await deleteMutation.mutateAsync()
+            await deleteMutation.mutateAsync(activeOrg.id)
         } catch {
             return
         }
         message.success("Organization deleted")
 
-        // Latent: GET /organizations list omits default_workspace (details-only field) — typed as-is.
+        // Latent: GET /organizations list omits default_workspace (details-only field).
         const deletedWorkspaceId =
-            (selectedOrg as Partial<OrgDetails> | undefined)?.default_workspace?.id || null
+            activeOrg.id === selectedOrg?.id
+                ? ((selectedOrg as Partial<OrgDetails> | undefined)?.default_workspace?.id ?? null)
+                : null
         clearWorkspaceOrgCache(deletedWorkspaceId)
         clearLastUsedProjectId(deletedWorkspaceId)
 
-        const remainingOrgs = orgs.filter((org) => org.id !== organizationId)
-        if (remainingOrgs.length > 0) {
+        const remainingOrgs = (orgs ?? []).filter((org) => org.id !== activeOrg.id)
+        if (activeOrg.id === selectedOrg?.id && remainingOrgs.length > 0) {
             await changeSelectedOrg(remainingOrgs[0].id)
         }
 
@@ -174,66 +151,91 @@ const OrganizationGeneral = () => {
 
         setDeleteModalOpen(false)
         setDeleteConfirmInput("")
+        setActiveOrg(null)
     }, [
+        activeOrg,
         changeSelectedOrg,
         deleteMutation,
         isDeleteNameMatch,
         message,
-        organizationId,
         orgs,
         refetch,
         selectedOrg,
     ])
 
     return (
-        <div className="flex max-w-[640px] flex-col gap-8">
-            <SettingsSection
-                title="Organization name"
-                description="This name appears in the sidebar and anywhere your organization is referenced."
+        <OrganizationsPage
+            organizations={orgs ?? []}
+            loading={loading}
+            selectedOrgId={selectedOrg?.id}
+            currentUserId={user?.id}
+            onSwitch={(org) => changeSelectedOrg(org.id)}
+            onCreate={() => setCreateModalOpen(true)}
+            onRename={async (org, name) => {
+                try {
+                    await updateOrganization(org.id, {name})
+                } catch (error: any) {
+                    const detail = error?.response?.data?.detail || error?.message
+                    throw new Error(formatErrorMessage(detail, "Unable to rename organization"))
+                }
+                await refetch()
+            }}
+            onTransferOwnership={(org) => {
+                setActiveOrg(org)
+                setNewOwnerId(null)
+                setTransferModalOpen(true)
+            }}
+            onLeave={() => message.info("Ask an organization owner to remove you from Members.")}
+            onDelete={(org) => {
+                setActiveOrg(org)
+                setDeleteConfirmInput("")
+                setDeleteModalOpen(true)
+            }}
+        >
+            <EnhancedModal
+                title="New organization"
+                open={isCreateModalOpen}
+                okText="Create"
+                onCancel={() => {
+                    setCreateModalOpen(false)
+                    createForm.resetFields()
+                }}
+                onOk={() => createForm.submit()}
+                confirmLoading={createMutation.isPending}
             >
                 <Form
-                    form={renameForm}
+                    form={createForm}
                     layout="vertical"
-                    // Remount on org switch so the field shows the organization you are looking at.
-                    key={organizationId}
-                    initialValues={{name: organizationName}}
-                    onFinish={({name}) => renameMutation.mutate({name: name.trim()})}
-                    className="flex items-start gap-2"
+                    onFinish={({name}) => createMutation.mutate({name: name.trim()})}
                 >
                     <Form.Item
+                        label="Organization name"
                         name="name"
-                        className="!mb-0 flex-1"
                         rules={[{required: true, message: "Please enter an organization name"}]}
                     >
-                        <Input placeholder="Organization name" />
+                        <Input placeholder="e.g. Acme AI" autoFocus />
                     </Form.Item>
-                    <Button type="primary" htmlType="submit" loading={renameMutation.isPending}>
-                        Save
-                    </Button>
                 </Form>
-            </SettingsSection>
+            </EnhancedModal>
 
-            <SettingsSection
-                title="Organization ID"
-                description="Use this identifier when referencing your organization in the API or with support."
-            >
-                <div className="flex items-center gap-2">
-                    <Input value={organizationId} readOnly className="flex-1 font-mono" />
-                    <Button
-                        icon={<CopyIcon size={14} />}
-                        disabled={!organizationId}
-                        onClick={copyOrganizationId}
-                    >
-                        Copy
-                    </Button>
-                </div>
-            </SettingsSection>
-
-            <SettingsSection
+            <EnhancedModal
                 title="Transfer ownership"
-                description="Hand this organization to another member. They get full administrative rights and you lose them."
+                open={isTransferModalOpen}
+                okText="Transfer"
+                okButtonProps={{disabled: !newOwnerId}}
+                onCancel={() => {
+                    setTransferModalOpen(false)
+                    setActiveOrg(null)
+                    setNewOwnerId(null)
+                }}
+                onOk={() => {
+                    if (!newOwnerId || !activeOrg) return
+                    transferMutation.mutate({id: activeOrg.id, ownerId: newOwnerId})
+                }}
+                confirmLoading={transferMutation.isPending}
+                width={450}
             >
-                <div className="flex items-start gap-2">
+                <div className="flex flex-col gap-3">
                     <Select
                         placeholder={
                             transferOwnerOptions.length
@@ -244,7 +246,6 @@ const OrganizationGeneral = () => {
                         optionFilterProp="label"
                         options={transferOwnerOptions}
                         disabled={!transferOwnerOptions.length}
-                        className="flex-1"
                         popupClassName="[&_.ant-select-item-option-content]:overflow-visible"
                         value={newOwnerId}
                         onChange={(value) => setNewOwnerId(value ? String(value) : null)}
@@ -258,12 +259,9 @@ const OrganizationGeneral = () => {
                                 <div className="flex w-full min-w-0 items-center gap-2">
                                     <span className="truncate font-normal">{data.displayName}</span>
                                     {data.email ? (
-                                        <>
-                                            <span className="text-gray-400">·</span>
-                                            <span className="shrink-0 rounded bg-gray-100 px-2 py-0.5 font-mono text-xs font-normal">
-                                                {data.email}
-                                            </span>
-                                        </>
+                                        <span className="shrink-0 rounded bg-colorFillQuaternary px-2 py-0.5 font-mono text-xs font-normal">
+                                            {data.email}
+                                        </span>
                                     ) : null}
                                 </div>
                             )
@@ -274,7 +272,8 @@ const OrganizationGeneral = () => {
                                 <div
                                     className={clsx(
                                         "grid w-full grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-3 px-2 py-2",
-                                        !isLast && "border-b border-gray-100",
+                                        !isLast &&
+                                            "border-0 border-b border-solid border-colorBorderSecondary",
                                     )}
                                 >
                                     <InitialsAvatar size="small" name={option.data.displayName} />
@@ -290,64 +289,12 @@ const OrganizationGeneral = () => {
                             )
                         }}
                     />
-                    <Button
-                        icon={<ArrowsLeftRight size={14} />}
-                        disabled={!newOwnerId}
-                        onClick={() => setTransferModalOpen(true)}
-                    >
-                        Transfer
-                    </Button>
+                    <Typography.Paragraph className="!mb-0">
+                        {selectedNewOwner?.displayName ?? "The new owner"} gains full administrative
+                        rights over <Typography.Text strong>{activeOrg?.name}</Typography.Text>. You
+                        keep your membership but lose owner access.
+                    </Typography.Paragraph>
                 </div>
-            </SettingsSection>
-
-            <SettingsSection
-                title="Delete organization"
-                description="Permanently delete this organization and everything inside it."
-            >
-                <div className="flex flex-col gap-3 rounded-lg border border-[var(--ant-color-error-border)] bg-[var(--ant-color-error-bg)] px-4 py-3">
-                    <div className="flex flex-col gap-1">
-                        <Typography.Text strong className="!text-[var(--ant-color-error)]">
-                            This action cannot be undone.
-                        </Typography.Text>
-                        <Typography.Paragraph className="!mb-0 text-[var(--ant-color-text)]">
-                            Deletes {organizationName || "this organization"}, including all
-                            workspaces, projects, applications, and data.
-                        </Typography.Paragraph>
-                    </div>
-                    <div>
-                        <Button
-                            danger
-                            type="primary"
-                            icon={<Trash size={14} />}
-                            disabled={!organizationId}
-                            onClick={() => {
-                                setDeleteConfirmInput("")
-                                setDeleteModalOpen(true)
-                            }}
-                        >
-                            Delete organization
-                        </Button>
-                    </div>
-                </div>
-            </SettingsSection>
-
-            <EnhancedModal
-                title="Transfer ownership"
-                open={isTransferModalOpen}
-                okText="Transfer"
-                onCancel={() => setTransferModalOpen(false)}
-                onOk={() => {
-                    if (!newOwnerId) return
-                    transferMutation.mutate({ownerId: newOwnerId})
-                }}
-                confirmLoading={transferMutation.isPending}
-                width={450}
-            >
-                <Typography.Paragraph className="!mb-0">
-                    {selectedNewOwner?.displayName ?? "This member"} becomes the owner of{" "}
-                    <Typography.Text strong>{organizationName}</Typography.Text> and gains full
-                    administrative rights. You keep your membership but lose owner access.
-                </Typography.Paragraph>
             </EnhancedModal>
 
             <EnhancedModal
@@ -364,6 +311,7 @@ const OrganizationGeneral = () => {
                     if (deleteMutation.isPending) return
                     setDeleteModalOpen(false)
                     setDeleteConfirmInput("")
+                    setActiveOrg(null)
                 }}
                 onOk={handleDelete}
                 confirmLoading={deleteMutation.isPending}
@@ -377,7 +325,7 @@ const OrganizationGeneral = () => {
                             </Typography.Text>
                             <Typography.Paragraph className="!mb-0 text-[var(--ant-color-text)]">
                                 Permanently deletes{" "}
-                                <Typography.Text strong>{organizationName}</Typography.Text>,
+                                <Typography.Text strong>{activeOrg?.name}</Typography.Text>,
                                 including all workspaces, projects, applications, and data.
                             </Typography.Paragraph>
                         </div>
@@ -390,7 +338,7 @@ const OrganizationGeneral = () => {
                                 code
                                 className="!border-[var(--ant-color-error-border)] !bg-[var(--ant-color-error-bg)] !text-[var(--ant-color-error)]"
                             >
-                                {organizationName}
+                                {activeOrg?.name}
                             </Typography.Text>
                             <span>to confirm:</span>
                         </div>
@@ -406,7 +354,7 @@ const OrganizationGeneral = () => {
                     </div>
                 </div>
             </EnhancedModal>
-        </div>
+        </OrganizationsPage>
     )
 }
 

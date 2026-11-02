@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "entry": "onboarding-buddy",
+  "agents": {
+    "onboarding-buddy": {
+      "name": "Onboarding buddy",
+      "description": "Answers new-hire questions by searching your internal wiki, on mention.",
+      "instructions": "./ai.agenta/agents/onboarding-buddy/AGENTS.md",
+      "setup": "./ai.agenta/agents/onboarding-buddy/SETUP.md",
+      "connections": [
+        {
+          "key": "read-the-onboarding-material",
+          "required": true,
+          "purpose": "Read the onboarding material",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "notion"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "confluence"
+            }
+          ],
+          "setup_notes": "Read pages"
+        },
+        {
+          "key": "reply-to-the-new-starter",
+          "required": true,
+          "purpose": "Reply to the new starter",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "slack"
+            }
+          ],
+          "setup_notes": "Answer @mentions in-thread"
+        }
+      ]
+    }
+  }
+}

@@ -4,7 +4,7 @@
  * Short-lived, prefix-scoped credentials for a single mount.
  *
  * Signed API-side from the store's STS endpoint; the master key never leaves the
- * API. Scoped to `<bucket>/<project_id>/<mount_id>/*` and expires within minutes,
+ * API. Scoped to `[<namespace>/]<storage_prefix>/*` and expires within minutes,
  * so a leak grants only this mount's prefix for a short window.
  */
 export interface MountCredentials {

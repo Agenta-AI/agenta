@@ -17,7 +17,6 @@ import {useAppId} from "@/oss/hooks/useAppId"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
-import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 import {useQueryParamState} from "@/oss/state/appState"
 import {useAppEnvironments} from "@/oss/state/environment/useAppEnvironments"
@@ -125,26 +124,6 @@ const VariantsDashboard = () => {
             router.prefetch(`${baseAppURL}/${appId}/playground`).catch(() => {})
         }
     }, [appId, baseAppURL, router])
-
-    const registryHref = useMemo(() => {
-        if (!appId || !baseAppURL) return null
-        return `${baseAppURL}/${appId}/variants`
-    }, [appId, baseAppURL])
-
-    const tabBreadcrumbLabel = activeTab === "deployments" ? "Deployments" : "Variants"
-
-    useBreadcrumbsEffect(
-        {
-            breadcrumbs: {
-                appPage: {
-                    label: "Registry",
-                    ...(registryHref ? {href: registryHref} : {}),
-                },
-                appPageDetail: {label: tabBreadcrumbLabel},
-            },
-        },
-        [registryHref, tabBreadcrumbLabel],
-    )
 
     // Sync selected environment ID to the deployment store's filter atom
     useEffect(() => {

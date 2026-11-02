@@ -15,6 +15,7 @@ export {
     type RevisionDeltaPreview,
 } from "./revisionDelta"
 export {buildCommitSummaryMessage} from "./summaryMessage"
+export {gatewayPermissionLabel, scalarKeyLabel, scalarValueLabel} from "./scalarLabels"
 export {parseGatewayToolName, type ParsedToolName} from "./gatewayName"
 export type {
     AgentConfigView,

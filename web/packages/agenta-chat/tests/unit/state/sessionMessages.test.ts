@@ -1,0 +1,254 @@
+// @vitest-environment jsdom
+import type {UIMessage} from "ai"
+import {createStore} from "jotai"
+import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
+
+import {
+    dropSessionMessagesAtom,
+    isSessionStreamingAtomFamily,
+    persistSessionMessagesAtom,
+    sessionMessagesAtom,
+    sessionRecordCountsReadAtom,
+    sessionStatusAtomFamily,
+    sessionStatusesAtom,
+    setSessionStatusAtom,
+    holdSessionStatusAtom,
+    trackOwnedRunAtom,
+} from "../../../src/state/sessionMessages"
+
+const MESSAGES_KEY = "agenta:agent-chat:messages:v2"
+const COUNTS_KEY = "agenta:agent-chat:record-counts:v2"
+
+const msg = (id: string, text: string): UIMessage =>
+    ({id, role: "user", parts: [{type: "text", text}]}) as UIMessage
+
+const quotaError = () => new DOMException("quota", "QuotaExceededError")
+
+/** Fail `localStorage.setItem` for the messages key while it holds more than `maxSessions`. */
+const failMessagesWriteOverQuota = (maxSessions: number) => {
+    const real = Storage.prototype.setItem
+    return vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (
+        this: Storage,
+        key: string,
+        value: string,
+    ) {
+        if (key === MESSAGES_KEY && Object.keys(JSON.parse(value)).length > maxSessions) {
+            throw quotaError()
+        }
+        real.call(this, key, value)
+    })
+}
+
+describe("sessionMessages state", () => {
+    beforeEach(() => {
+        localStorage.clear()
+    })
+    afterEach(() => {
+        vi.restoreAllMocks()
+    })
+
+    it("persists a session's messages under its id", () => {
+        const store = createStore()
+        store.set(persistSessionMessagesAtom, {id: "s1", messages: [msg("m1", "hello")]})
+        expect(store.get(sessionMessagesAtom)["s1"]).toHaveLength(1)
+        // A later settle replaces that session's slice without touching others.
+        store.set(persistSessionMessagesAtom, {id: "s2", messages: [msg("m2", "other")]})
+        store.set(persistSessionMessagesAtom, {
+            id: "s1",
+            messages: [msg("m1", "hello"), msg("m3", "again")],
+        })
+        expect(store.get(sessionMessagesAtom)["s1"]).toHaveLength(2)
+        expect(store.get(sessionMessagesAtom)["s2"]).toHaveLength(1)
+    })
+
+    // The OSS original deliberately strips jotai's cross-tab `storage` subscribe: an incoming
+    // replacement unmounted a streaming conversation and orphaned its `useChat` stream mid-turn.
+    // Both copies write the SAME key, so the package must not re-enable it.
+    it("does not sync across browser tabs — a foreign storage event never replaces the store", () => {
+        const store = createStore()
+        const unsub = store.sub(sessionMessagesAtom, () => {})
+        store.set(persistSessionMessagesAtom, {id: "s1", messages: [msg("m1", "mine")]})
+
+        // Another browser tab writes the shared key, then the browser fires `storage` here.
+        const foreign = JSON.stringify({s9: [msg("m9", "theirs")]})
+        localStorage.setItem(MESSAGES_KEY, foreign)
+        window.dispatchEvent(
+            new StorageEvent("storage", {
+                key: MESSAGES_KEY,
+                newValue: foreign,
+                storageArea: localStorage,
+            }),
+        )
+
+        expect(store.get(sessionMessagesAtom)["s1"]).toHaveLength(1)
+        expect(store.get(sessionMessagesAtom)["s9"]).toBeUndefined()
+        unsub()
+    })
+
+    it("files the record watermark alongside the transcript it was built from", () => {
+        const store = createStore()
+        store.set(persistSessionMessagesAtom, {
+            id: "s1",
+            messages: [msg("m1", "hello")],
+            recordCount: 7,
+        })
+        expect(store.get(sessionRecordCountsReadAtom)["s1"]).toBe(7)
+        expect(JSON.parse(localStorage.getItem(COUNTS_KEY) ?? "{}")["s1"]).toBe(7)
+    })
+
+    // A locally-streamed transcript has no known server record count; clearing the watermark makes
+    // the next open re-sync from the durable log instead of trusting a stale number.
+    it("clears the watermark when a settle persists without a record count", () => {
+        const store = createStore()
+        store.set(persistSessionMessagesAtom, {
+            id: "s1",
+            messages: [msg("m1", "hello")],
+            recordCount: 7,
+        })
+        store.set(persistSessionMessagesAtom, {id: "s1", messages: [msg("m1", "hello")]})
+        expect(store.get(sessionRecordCountsReadAtom)["s1"]).toBeUndefined()
+    })
+
+    it("drops a forgotten session's transcript and watermark together", () => {
+        const store = createStore()
+        store.set(persistSessionMessagesAtom, {
+            id: "s1",
+            messages: [msg("m1", "a")],
+            recordCount: 3,
+        })
+        store.set(persistSessionMessagesAtom, {
+            id: "s2",
+            messages: [msg("m2", "b")],
+            recordCount: 4,
+        })
+        store.set(dropSessionMessagesAtom, ["s1"])
+        expect(store.get(sessionMessagesAtom)["s1"]).toBeUndefined()
+        expect(store.get(sessionRecordCountsReadAtom)["s1"]).toBeUndefined()
+        expect(store.get(sessionMessagesAtom)["s2"]).toHaveLength(1)
+        expect(store.get(sessionRecordCountsReadAtom)["s2"]).toBe(4)
+    })
+
+    it("sheds an evicted session's watermark with its transcript when the store overflows", () => {
+        const store = createStore()
+        store.set(persistSessionMessagesAtom, {
+            id: "old",
+            messages: [msg("m1", "a")],
+            recordCount: 3,
+        })
+        // Only one session fits from here on, so persisting `new` evicts `old`.
+        failMessagesWriteOverQuota(1)
+        store.set(persistSessionMessagesAtom, {
+            id: "new",
+            messages: [msg("m2", "b")],
+            recordCount: 5,
+        })
+        expect(store.get(sessionMessagesAtom)["old"]).toBeUndefined()
+        expect(store.get(sessionRecordCountsReadAtom)["old"]).toBeUndefined()
+        expect(store.get(sessionMessagesAtom)["new"]).toHaveLength(1)
+        expect(store.get(sessionRecordCountsReadAtom)["new"]).toBe(5)
+    })
+
+    // The persisted store still holds the OLD messages, so filing the NEW watermark against them
+    // would make `shouldAdoptServerTranscript` reject the complete server log forever.
+    it("drops the watermark when even the active session will not fit", () => {
+        const store = createStore()
+        store.set(persistSessionMessagesAtom, {
+            id: "s1",
+            messages: [msg("m1", "a")],
+            recordCount: 3,
+        })
+        failMessagesWriteOverQuota(0)
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+        store.set(persistSessionMessagesAtom, {
+            id: "s1",
+            messages: [msg("m2", "b")],
+            recordCount: 9,
+        })
+        expect(store.get(sessionRecordCountsReadAtom)["s1"]).toBeUndefined()
+        expect(warn).toHaveBeenCalled()
+    })
+
+    it("run status defaults to idle, stores non-idle, and clears on idle", () => {
+        const store = createStore()
+        expect(store.get(sessionStatusAtomFamily("sx"))).toBe("idle")
+        store.set(setSessionStatusAtom, {id: "sx", status: "running"})
+        expect(store.get(sessionStatusAtomFamily("sx"))).toBe("running")
+        expect(store.get(isSessionStreamingAtomFamily("sx"))).toBe(true)
+        store.set(setSessionStatusAtom, {id: "sx", status: "awaiting"})
+        expect(store.get(sessionStatusAtomFamily("sx"))).toBe("awaiting")
+        expect(store.get(isSessionStreamingAtomFamily("sx"))).toBe(false)
+        // Idle is stored as absence (clear-on-unmount semantics).
+        store.set(setSessionStatusAtom, {id: "sx", status: "idle"})
+        expect(store.get(sessionStatusAtomFamily("sx"))).toBe("idle")
+    })
+
+    it("statuses record lists only non-idle sessions and notifies only on a change", () => {
+        const store = createStore()
+        const heard: Record<string, string>[] = []
+        store.sub(sessionStatusesAtom, () => heard.push(store.get(sessionStatusesAtom)))
+        store.set(setSessionStatusAtom, {id: "a", status: "running"})
+        store.set(setSessionStatusAtom, {id: "a", status: "running"})
+        store.set(setSessionStatusAtom, {id: "b", status: "error"})
+        store.set(setSessionStatusAtom, {id: "a", status: "idle"})
+        expect(heard).toEqual([{a: "running"}, {a: "running", b: "error"}, {b: "error"}])
+    })
+
+    it("counts a run this tab owns until its last stream closes, under the mount's own status", () => {
+        const store = createStore()
+        store.set(trackOwnedRunAtom, {id: "s1", open: true})
+        store.set(trackOwnedRunAtom, {id: "s1", open: true})
+        expect(store.get(sessionStatusAtomFamily("s1"))).toBe("running")
+        expect(store.get(sessionStatusesAtom)).toEqual({s1: "running"})
+        store.set(setSessionStatusAtom, {id: "s1", status: "error"})
+        expect(store.get(sessionStatusesAtom)).toEqual({s1: "error"})
+        store.set(setSessionStatusAtom, {id: "s1", status: "idle"})
+        store.set(trackOwnedRunAtom, {id: "s1", open: false})
+        expect(store.get(sessionStatusAtomFamily("s1"))).toBe("running")
+        store.set(trackOwnedRunAtom, {id: "s1", open: false})
+        expect(store.get(sessionStatusAtomFamily("s1"))).toBe("idle")
+        expect(store.get(sessionStatusesAtom)).toEqual({})
+    })
+
+    it("holds a run that closed on an open ask as awaiting until the session moves on", () => {
+        const store = createStore()
+        const status = () => store.get(sessionStatusAtomFamily("s1"))
+        store.set(trackOwnedRunAtom, {id: "s1", open: true})
+        store.set(trackOwnedRunAtom, {id: "s1", open: false, held: "awaiting"})
+        expect(status()).toBe("awaiting")
+        expect(store.get(sessionStatusesAtom)).toEqual({s1: "awaiting"})
+        store.set(trackOwnedRunAtom, {id: "s1", open: true})
+        expect(status()).toBe("running")
+        store.set(trackOwnedRunAtom, {id: "s1", open: false})
+        expect(status()).toBe("idle")
+    })
+
+    it("lets a mounted conversation take over a held wait, and its answer clear it", () => {
+        const store = createStore()
+        const status = () => store.get(sessionStatusAtomFamily("s1"))
+        store.set(holdSessionStatusAtom, {id: "s1", status: "awaiting"})
+        expect(status()).toBe("awaiting")
+        store.set(setSessionStatusAtom, {id: "s1", status: "running"})
+        expect(status()).toBe("running")
+        store.set(setSessionStatusAtom, {id: "s1", status: "idle"})
+        expect(status()).toBe("idle")
+        expect(store.get(sessionStatusesAtom)).toEqual({})
+    })
+
+    it("forgets a held wait when the session is dropped", () => {
+        const store = createStore()
+        store.set(holdSessionStatusAtom, {id: "s1", status: "awaiting"})
+        store.set(dropSessionMessagesAtom, ["s1"])
+        expect(store.get(sessionStatusAtomFamily("s1"))).toBe("idle")
+    })
+
+    it("holds a refused run as error until the next run opens", () => {
+        const store = createStore()
+        const status = () => store.get(sessionStatusAtomFamily("s1"))
+        store.set(trackOwnedRunAtom, {id: "s1", open: true})
+        store.set(trackOwnedRunAtom, {id: "s1", open: false, held: "error"})
+        expect(status()).toBe("error")
+        expect(store.get(sessionStatusesAtom)).toEqual({s1: "error"})
+        store.set(trackOwnedRunAtom, {id: "s1", open: true})
+        expect(status()).toBe("running")
+    })
+})

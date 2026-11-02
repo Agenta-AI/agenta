@@ -1,0 +1,67 @@
+---
+import Badge from "../components/Badge.astro";
+import Section from "../components/Section.astro";
+import Site from "../layouts/Site.astro";
+import Button from "../components/Button.astro";
+
+// Custom 404. Cloudflare serves this for any unknown path (wrangler.jsonc sets
+// `not_found_handling: "404-page"`). On-brand dark page reusing the Site chrome
+// (nav + footer) so visitors who hit a dead link still get the full site frame
+// and clear ways back. No CTA band here — the links below are the next action.
+//
+// noindex: a 404 must never be indexed even if a crawler reaches it.
+---
+
+<Site
+  title="Page not found — Agenta"
+  description="The page you were looking for doesn't exist. Head back to the Agenta homepage, blog, or docs."
+  showCta={false}
+>
+  <Fragment slot="head">
+    <meta name="robots" content="noindex, follow" />
+  </Fragment>
+
+  <Section
+    class="ag-pad"
+    style="background:var(--nf-bg);padding:120px 24px 132px;text-align:center;"
+  >
+    <div
+      style="max-width:640px;margin:0 auto;display:flex;flex-direction:column;align-items:center;gap:24px;"
+    >
+      <Badge variant="yellow">404</Badge>
+      <h1
+        class="ag-h1"
+        style="margin:0;font:var(--text-display-xl);color:var(--th-text-hi);text-wrap:pretty;"
+      >
+        This page ran off.
+      </h1>
+      <p
+        style="margin:0;font:var(--text-body-md);color:var(--th-text-body);max-width:480px;text-wrap:pretty;"
+      >
+        The page you were looking for doesn't exist or has moved. Let's get you
+        back on track.
+      </p>
+
+      <div
+        style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:8px;"
+      >
+        <Button href="/" variant="primary">Back to home</Button>
+        <Button href="/blog" variant="outline">Read the blog</Button>
+        <Button href="https://agenta.ai/docs" variant="dark" external
+          >Browse the docs</Button
+        >
+      </div>
+    </div>
+  </Section>
+</Site>
+
+<style is:global>
+  /* The band colour is the only page-local token; the chip is the shared
+     yellow Badge. Dark = this page's previous literal, verbatim. */
+  :root {
+    --nf-bg: var(--th-bg-1);
+  }
+  [data-theme="dark"] {
+    --nf-bg: #0e0d0f;
+  }
+</style>

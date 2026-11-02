@@ -121,7 +121,7 @@ export function CodeBlockLanguageMenu({editable = true}: {editable?: boolean}) {
                         options={options}
                         onChange={(lang) => lang && setLanguage(m.key, lang)}
                         variant="ghost"
-                        className="h-6 min-w-[96px] text-[11px]"
+                        className="h-6 min-w-[96px] text-xs"
                         contentClassName="w-auto min-w-[160px]"
                     />
                 </div>

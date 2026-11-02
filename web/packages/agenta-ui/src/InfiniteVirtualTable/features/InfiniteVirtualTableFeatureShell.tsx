@@ -2,11 +2,13 @@ import type {CSSProperties, Key, ReactNode} from "react"
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {Export, Trash} from "@phosphor-icons/react"
-import type {MenuProps} from "antd"
-import {Grid, Pagination, Tabs, Tooltip} from "antd"
 
 import {Button} from "../../components/ui/button"
 import {LoadingButton} from "../../components/ui/button-composed"
+import {Pagination} from "../../components/ui/pagination"
+import {Tabs, TabsList, TabsTrigger} from "../../components/ui/tabs"
+import {SimpleTooltip} from "../../components/ui/tooltip-composed"
+import {useIsNarrowScreen} from "../../hooks/useMediaQuery"
 import {cn} from "../../utils/styles"
 import ColumnVisibilityPopoverContent from "../components/columnVisibility/ColumnVisibilityPopoverContent"
 import TableSettingsDropdown from "../components/columnVisibility/TableSettingsDropdown"
@@ -17,6 +19,7 @@ import {useRowHeightFeature, type RowHeightFeatureConfig} from "../hooks/useRowH
 import useTableExport, {type TableExportOptions} from "../hooks/useTableExport"
 import {useTypeChipFeature} from "../hooks/useTypeChipFeature"
 import InfiniteVirtualTable from "../InfiniteVirtualTable"
+import type {TableMenuItem} from "../tableMenu"
 import type {
     ColumnVisibilityMenuRenderer,
     ColumnVisibilityState,
@@ -137,6 +140,11 @@ export interface InfiniteVirtualTableFeatureProps<Row extends InfiniteTableRowBa
     containerClassName?: string
     tableClassName?: string
     autoHeight?: boolean
+    /**
+     * When autoHeight is false and the table is empty, floor the body to this height so the
+     * empty state has room to render. Defaults to 240px.
+     */
+    emptyMinHeight?: number
     rowHeight?: number
     fallbackControlsHeight?: number
     fallbackHeaderHeight?: number
@@ -180,7 +188,7 @@ export interface InfiniteVirtualTableFeatureProps<Row extends InfiniteTableRowBa
      * Additional menu items for the settings dropdown.
      * Only used when useSettingsDropdown is true.
      */
-    settingsDropdownMenuItems?: MenuProps["items"]
+    settingsDropdownMenuItems?: TableMenuItem[]
     keyboardShortcuts?: InfiniteVirtualTableProps<Row>["keyboardShortcuts"]
     /**
      * Configuration for expandable rows.
@@ -248,6 +256,8 @@ export interface InfiniteVirtualTableFeatureProps<Row extends InfiniteTableRowBa
 const DEFAULT_ROW_HEIGHT = 48
 const DEFAULT_CONTROLS_HEIGHT = 72
 const DEFAULT_TABLE_HEADER_HEIGHT = 48
+// Fixed-height tables collapse to one row when empty; give the empty state room to render.
+const DEFAULT_EMPTY_BODY_HEIGHT = 300
 
 interface ColumnVisibilityRendererContext {
     scopeId: string | null
@@ -295,6 +305,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         containerClassName,
         tableClassName,
         autoHeight = true,
+        emptyMinHeight = DEFAULT_EMPTY_BODY_HEIGHT,
         rowHeight: rowHeightProp = DEFAULT_ROW_HEIGHT,
         fallbackControlsHeight = DEFAULT_CONTROLS_HEIGHT,
         fallbackHeaderHeight = DEFAULT_TABLE_HEADER_HEIGHT,
@@ -337,12 +348,12 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
     const rowHeight = rowHeightFeature?.heightPx ?? rowHeightProp
 
     // Combine settings dropdown menu items with built-in table feature items
-    const combinedSettingsDropdownMenuItems = useMemo<MenuProps["items"]>(() => {
+    const combinedSettingsDropdownMenuItems = useMemo<TableMenuItem[] | undefined>(() => {
         const menuGroups = [
             typeChipFeature.menuItems,
             rowHeightFeature?.menuItems,
             settingsDropdownMenuItems,
-        ].filter((items): items is NonNullable<MenuProps["items"]> => Boolean(items?.length))
+        ].filter((items): items is TableMenuItem[] => Boolean(items?.length))
 
         if (!menuGroups.length) return undefined
 
@@ -352,8 +363,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
     }, [rowHeightFeature?.menuItems, settingsDropdownMenuItems, typeChipFeature.menuItems])
 
     // Responsive breakpoints for built-in action buttons
-    const screens = Grid.useBreakpoint()
-    const isNarrowScreen = !screens.lg
+    const isNarrowScreen = useIsNarrowScreen()
 
     // Hide built-in export/delete buttons when settings dropdown is active
     // (either forced via prop or responsive narrow screen)
@@ -429,7 +439,12 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
     const visibleRowCount = isPaginated
         ? paginatedSlice?.rows.length || uiPageSize
         : pagination.rows.length || pageSize
-    const bodyHeight = effectiveAutoHeight ? null : rowHeight * Math.max(visibleRowCount, 1)
+    const rowCount = isPaginated ? (paginatedSlice?.rows.length ?? 0) : pagination.rows.length
+    const bodyHeight = effectiveAutoHeight
+        ? null
+        : rowCount === 0
+          ? Math.max(rowHeight * Math.max(visibleRowCount, 1), emptyMinHeight)
+          : rowHeight * Math.max(visibleRowCount, 1)
     const headerHeight = resolvedControlsHeight + resolvedTableHeaderHeight + 32
     // Pagination bar: py-2 (16px) + antd Pagination (~32px) = ~48px
     const paginationBarHeight = isPaginated ? 48 : 0
@@ -527,7 +542,12 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
             </Button>
         )
         if (disabled && disabledTooltip) {
-            return <Tooltip title={disabledTooltip}>{button}</Tooltip>
+            // A disabled button swallows pointer events, so the tooltip needs a wrapper.
+            return (
+                <SimpleTooltip title={disabledTooltip}>
+                    <span>{button}</span>
+                </SimpleTooltip>
+            )
         }
         return button
     }, [deleteAction, hideBuiltInButtons])
@@ -549,9 +569,9 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         )
         if (disabled && disabledTooltip) {
             return (
-                <Tooltip title={disabledTooltip}>
+                <SimpleTooltip title={disabledTooltip}>
                     <span>{button}</span>
-                </Tooltip>
+                </SimpleTooltip>
             )
         }
         return button
@@ -682,16 +702,20 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
                         : undefined
                 }
             >
+                {/* Tab bar only: the table below is the panel, so there is no TabsContent. */}
                 <Tabs
                     className="min-w-[320px]"
-                    activeKey={tabs.activeKey}
-                    items={tabs.items.map((item) => ({
-                        key: item.key,
-                        label: item.label,
-                    }))}
-                    onChange={tabs.onChange}
-                    destroyOnHidden
-                />
+                    value={tabs.activeKey}
+                    onValueChange={tabs.onChange}
+                >
+                    <TabsList>
+                        {tabs.items.map((item) => (
+                            <TabsTrigger key={item.key} value={item.key}>
+                                {item.label}
+                            </TabsTrigger>
+                        ))}
+                    </TabsList>
+                </Tabs>
             </div>
         )
     }, [tabs, headerExtra])

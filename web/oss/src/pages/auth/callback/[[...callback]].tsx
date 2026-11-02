@@ -1,5 +1,11 @@
 import {useEffect, useRef, useState} from "react"
 
+import {
+    claimOAuthCode,
+    isTurnstileEnabled,
+    OAUTH_CODE_USED_MESSAGE,
+    setPendingTurnstileToken,
+} from "@agenta/auth"
 import {Alert, Spin} from "antd"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -8,7 +14,6 @@ import {signInAndUp} from "supertokens-auth-react/recipe/thirdparty"
 
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import usePostAuthRedirect from "@/oss/hooks/usePostAuthRedirect"
-import {isTurnstileEnabled, setPendingTurnstileToken} from "@/oss/lib/helpers/auth/turnstile"
 import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
 import {AuthErrorMsgType} from "@/oss/lib/Types"
 import {mergeSessionIdentities} from "@/oss/services/auth/api"
@@ -16,7 +21,10 @@ import {authFlowAtom} from "@/oss/state/session"
 import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
 
 const Auth = dynamic(() => import("../[[...path]]"), {ssr: false})
-const TurnstileWidget = dynamic(() => import("@/oss/components/pages/auth/Turnstile"), {ssr: false})
+const TurnstileWidget = dynamic(
+    () => import("@agenta/auth-ui").then((mod) => mod.TurnstileWidget),
+    {ssr: false},
+)
 
 const Callback = () => {
     const router = useRouter()
@@ -25,11 +33,14 @@ const Callback = () => {
     const hasHandledCallback = useRef(false)
     const setAuthFlow = useSetAtom(authFlowAtom)
     const [turnstileReady, setTurnstileReady] = useState(!isTurnstileEnabled())
+    // Once the exchange fails, the sign-in form under the spinner is the way to retry.
+    const [failed, setFailed] = useState(false)
 
     const state = router.query.state as string
     const code = router.query.code as string
 
     const handleAuthError = (err: unknown) => {
+        setFailed(true)
         if ((err as any)?.isSuperTokensGeneralError === true) {
             setMessage({message: (err as any).message, type: "error"})
         } else if (isBackendAvailabilityIssue(err)) {
@@ -51,6 +62,12 @@ const Callback = () => {
             return
         }
         hasHandledCallback.current = true
+        // Read the URL, not router.query: this can run before the router is ready.
+        if (!claimOAuthCode(new URLSearchParams(window.location.search).get("code"))) {
+            setFailed(true)
+            setMessage({message: OAUTH_CODE_USED_MESSAGE, type: "error"})
+            return
+        }
         setAuthFlow("authing")
         try {
             console.log("[AUTH-CALLBACK] Starting third-party callback", {
@@ -150,7 +167,7 @@ const Callback = () => {
 
     return (
         <>
-            <Spin spinning={true} className="!max-h-screen">
+            <Spin spinning={!failed} className="!max-h-screen">
                 <Auth />
             </Spin>
 

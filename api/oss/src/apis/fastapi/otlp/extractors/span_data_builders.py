@@ -9,6 +9,7 @@ from oss.src.apis.fastapi.otlp.extractors.canonical_attributes import (
 )
 
 from oss.src.core.otel.dtos import OTelSpanDTO
+from oss.src.apis.fastapi.otlp.utils.serialization import json_parse_loses_data
 from oss.src.core.tracing.dtos import OTelSpan, OTelFlatSpan, OTelEvent, OTelLink
 from oss.src.core.tracing.utils.parsing import (
     parse_trace_id_to_uuid,
@@ -40,6 +41,52 @@ def _transform_legacy_references(attributes: dict[str, Any]) -> dict[str, Any]:
             del attributes[old_key]
 
     return attributes
+
+
+# ingest parses these fields from JSON text, see initialize_ag_attributes
+_JSON_PARSED_TARGETS = {"ag.data.inputs", "ag.data.parameters", "ag.data.internals"}
+
+
+def _drop_mapped_sources(
+    attributes: dict[str, Any],
+    mapped_sources: dict[str, tuple[str, Any]],
+) -> None:
+    """Drop raw keys whose content is stored, unchanged, under an ag.* key."""
+    if not mapped_sources:
+        return
+
+    keys = set(attributes)
+    parents = set()
+    for key in keys:
+        parts = key.split(".")
+        parents.update(".".join(parts[:i]) for i in range(1, len(parts)))
+
+    for source, (target, value) in mapped_sources.items():
+        if source not in attributes or target not in attributes:
+            continue
+        if attributes[target] != value:
+            continue
+        # unmarshalling lets an ancestor or a descendant key overwrite a value,
+        # so keep the raw key when either side takes part in such a conflict
+        if _has_path_conflict(target, keys, parents):
+            continue
+        if _has_path_conflict(source, keys, parents):
+            continue
+        if (
+            target in _JSON_PARSED_TARGETS
+            and isinstance(value, str)
+            and json_parse_loses_data(value)
+        ):
+            continue
+
+        del attributes[source]
+
+
+def _has_path_conflict(key: str, keys: set[str], parents: set[str]) -> bool:
+    if key in parents:
+        return True
+    parts = key.split(".")
+    return any(".".join(parts[:i]) in keys for i in range(1, len(parts)))
 
 
 class SpanDataBuilder(ABC):
@@ -182,6 +229,8 @@ class OTelFlatSpanBuilder(SpanDataBuilder):
         if "acc.duration.total" in features.metrics:
             del attributes["ag.metrics.acc.duration.total"]
         ## ---------------------------------------------------------------------
+
+        _drop_mapped_sources(attributes, features.mapped_sources)
 
         # ----------------------------------------------------------------------
 

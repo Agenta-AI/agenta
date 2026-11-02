@@ -1,4 +1,6 @@
 from typing import Optional, List, TYPE_CHECKING
+from oss.src.core.sharing.dtos import AgentReadScope
+from oss.src.core.git.dtos import RevisionGrouping
 from uuid import UUID, uuid4
 
 if TYPE_CHECKING:
@@ -32,7 +34,10 @@ from oss.src.core.git.types import (
     validate_variant_refs_sufficient,
     validate_retrieve_refs_consistent,
 )
-from oss.src.core.workflows.service import WorkflowsService
+from oss.src.core.workflows.service import (
+    WorkflowsService,
+    _reject_unreadable_agent_instructions,
+)
 
 # Resolution is now handled by EmbedsService
 from oss.src.core.embeds.dtos import ResolutionInfo, ErrorPolicy
@@ -236,6 +241,7 @@ class ApplicationsService:
         self,
         *,
         project_id: UUID,
+        read_scope: AgentReadScope,
         #
         application_query: Optional[ApplicationQuery] = None,
         #
@@ -263,6 +269,7 @@ class ApplicationsService:
 
         workflows = await self.workflows_service.query_workflows(
             project_id=project_id,
+            read_scope=read_scope,
             #
             workflow_query=workflow_query,
             #
@@ -436,6 +443,7 @@ class ApplicationsService:
         self,
         *,
         project_id: UUID,
+        read_scope: AgentReadScope,
         #
         application_variant_query: Optional[ApplicationVariantQuery] = None,
         #
@@ -458,6 +466,7 @@ class ApplicationsService:
 
         workflow_variants = await self.workflows_service.query_workflow_variants(
             project_id=project_id,
+            read_scope=read_scope,
             #
             workflow_variant_query=workflow_variant_query,
             #
@@ -609,6 +618,8 @@ class ApplicationsService:
         application_revision_ref: Optional[Reference] = None,
         #
         resolve: bool = False,
+        #
+        include_archived: Optional[bool] = True,
     ) -> tuple[
         Optional[ApplicationRevision],
         Optional[ResolutionInfo],
@@ -677,6 +688,8 @@ class ApplicationsService:
                 application_ref=application_ref,
                 application_variant_ref=application_variant_ref,
                 application_revision_ref=application_revision_ref,
+                #
+                include_archived=include_archived,
             )
             application_revision, resolution_info = result if result else (None, None)
         else:
@@ -686,6 +699,8 @@ class ApplicationsService:
                 application_ref=application_ref,
                 application_variant_ref=application_variant_ref,
                 application_revision_ref=application_revision_ref,
+                #
+                include_archived=include_archived,
             )
             resolution_info = None
 
@@ -797,6 +812,7 @@ class ApplicationsService:
         self,
         *,
         project_id: UUID,
+        read_scope: AgentReadScope,
         #
         application_revision_query: Optional[ApplicationRevisionQuery] = None,
         #
@@ -805,6 +821,8 @@ class ApplicationsService:
         application_revision_refs: Optional[List[Reference]] = None,
         #
         include_archived: Optional[bool] = None,
+        #
+        grouping: Optional[RevisionGrouping] = None,
         #
         windowing: Optional[Windowing] = None,
     ) -> List[ApplicationRevision]:
@@ -820,6 +838,7 @@ class ApplicationsService:
 
         workflow_revisions = await self.workflows_service.query_workflow_revisions(
             project_id=project_id,
+            read_scope=read_scope,
             #
             workflow_revision_query=workflow_revision_query,
             #
@@ -828,6 +847,8 @@ class ApplicationsService:
             workflow_revision_refs=application_revision_refs,
             #
             include_archived=include_archived,
+            #
+            grouping=grouping,
             #
             windowing=windowing,
         )
@@ -855,6 +876,8 @@ class ApplicationsService:
         application_revision_commit: ApplicationRevisionCommit,
         #
         initial: bool = False,
+        #
+        first_agent_owner_user_id: Optional[UUID] = None,
     ) -> Optional[ApplicationRevision]:
         workflow_revision_commit = WorkflowRevisionCommit(
             **application_revision_commit.model_dump(
@@ -871,6 +894,8 @@ class ApplicationsService:
             initial=initial,
             #
             emit=False,
+            #
+            first_agent_owner_user_id=first_agent_owner_user_id,
         )
 
         if not workflow_revision:
@@ -1059,7 +1084,13 @@ class SimpleApplicationsService:
         simple_application_create: SimpleApplicationCreate,
         #
         application_id: Optional[UUID] = None,
+        #
+        first_agent_owner_user_id: Optional[UUID] = None,
     ) -> Optional[SimpleApplication]:
+        # Before the artifact exists: refusing only at the final commit would leave the
+        # artifact, variant, and blank revision behind.
+        _reject_unreadable_agent_instructions(simple_application_create.data)
+
         simple_application_flags = (
             SimpleApplicationFlags(**_dump_flags(simple_application_create.flags))
             if simple_application_create.flags
@@ -1148,6 +1179,7 @@ class SimpleApplicationsService:
             project_id=project_id,
             user_id=user_id,
             application_revision_commit=application_revision_commit,
+            first_agent_owner_user_id=first_agent_owner_user_id,
         )
 
         if application_revision is None:
@@ -1176,6 +1208,7 @@ class SimpleApplicationsService:
                 project_id=project_id,
                 user_id=user_id,
                 application_revision_commit=application_revision_commit,
+                first_agent_owner_user_id=first_agent_owner_user_id,
             )
         )
 
@@ -1293,7 +1326,12 @@ class SimpleApplicationsService:
         user_id: UUID,
         #
         simple_application_edit: SimpleApplicationEdit,
+        #
+        first_agent_owner_user_id: Optional[UUID] = None,
     ) -> Optional[SimpleApplication]:
+        # Before any write: a refusal at the final commit would leave earlier writes behind.
+        _reject_unreadable_agent_instructions(simple_application_edit.data)
+
         application = await self.applications_service.fetch_application(
             project_id=project_id,
             #
@@ -1389,6 +1427,7 @@ class SimpleApplicationsService:
                     project_id=project_id,
                     user_id=user_id,
                     application_revision_commit=application_revision_commit,
+                    first_agent_owner_user_id=first_agent_owner_user_id,
                 )
             )
         else:
@@ -1487,6 +1526,7 @@ class SimpleApplicationsService:
         self,
         *,
         project_id: UUID,
+        read_scope: AgentReadScope,
         #
         simple_application_query: Optional[SimpleApplicationQuery] = None,
         #
@@ -1516,6 +1556,7 @@ class SimpleApplicationsService:
 
         applications = await self.applications_service.query_applications(
             project_id=project_id,
+            read_scope=read_scope,
             #
             application_query=application_query,
             #

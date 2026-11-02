@@ -223,6 +223,7 @@ export interface BuildClientToolRelayInput {
     toolName: string | undefined,
     toolArgs: unknown,
     kind: "user_approval" | "client_tool",
+    toolCallId?: string,
   ) => void;
   /** Non-Pi harness (Claude): maps the call to its real ACP tool-call id. Omit for Pi (the
    *  relay-minted id is already exact). The relay resolves the id ONCE per pending call and
@@ -300,6 +301,7 @@ export function buildClientToolRelay({
         request.toolName,
         request.input,
         "client_tool",
+        correlatedId,
       );
       return "pendingApproval";
     },

@@ -229,3 +229,98 @@ async def test_retrieve_workflow_revision_with_resolve_returns_resolution_info()
     assert resolution_info.depth_reached == 0
     assert retrieval_info is not None
     assert retrieval_info.references["workflow_revision"].id == revision_id
+
+
+@pytest.mark.asyncio
+async def test_retrieve_workflow_revision_threads_include_archived_false_to_dao():
+    artifact_id = uuid4()
+    variant_id = uuid4()
+    revision_id = uuid4()
+
+    workflows_dao = AsyncMock()
+    workflows_dao.fetch_revision.return_value = _make_workflow_revision(
+        artifact_id=artifact_id,
+        variant_id=variant_id,
+        revision_id=revision_id,
+    )
+    workflows_dao.fetch_artifact.return_value = _make_workflow(artifact_id=artifact_id)
+
+    service = WorkflowsService(workflows_dao=workflows_dao)
+
+    await service.retrieve_workflow_revision(
+        project_id=uuid4(),
+        workflow_variant_ref=Reference(id=variant_id),
+        include_archived=False,
+    )
+
+    assert workflows_dao.fetch_revision.call_args.kwargs["include_archived"] is False
+
+
+@pytest.mark.asyncio
+async def test_retrieve_workflow_revision_defaults_include_archived_true():
+    """Pins today's behaviour: an omitted `include_archived` must not start
+    excluding archived revisions for existing callers."""
+    artifact_id = uuid4()
+    variant_id = uuid4()
+    revision_id = uuid4()
+
+    workflows_dao = AsyncMock()
+    workflows_dao.fetch_revision.return_value = _make_workflow_revision(
+        artifact_id=artifact_id,
+        variant_id=variant_id,
+        revision_id=revision_id,
+    )
+    workflows_dao.fetch_artifact.return_value = _make_workflow(artifact_id=artifact_id)
+
+    service = WorkflowsService(workflows_dao=workflows_dao)
+
+    await service.retrieve_workflow_revision(
+        project_id=uuid4(),
+        workflow_variant_ref=Reference(id=variant_id),
+    )
+
+    assert workflows_dao.fetch_revision.call_args.kwargs["include_archived"] is True
+
+
+@pytest.mark.asyncio
+async def test_retrieve_workflow_revision_resolve_threads_include_archived_to_embeds():
+    artifact_id = uuid4()
+    variant_id = uuid4()
+    revision_id = uuid4()
+
+    workflows_dao = AsyncMock()
+    workflows_dao.fetch_revision.return_value = _make_workflow_revision(
+        artifact_id=artifact_id,
+        variant_id=variant_id,
+        revision_id=revision_id,
+    )
+    workflows_dao.fetch_artifact.return_value = _make_workflow(artifact_id=artifact_id)
+
+    embeds_service = AsyncMock()
+    embeds_service.resolve_configuration.return_value = (
+        {"url": "https://example.test/run"},
+        ResolutionInfo(
+            references_used=[],
+            depth_reached=0,
+            embeds_resolved=0,
+            errors=[],
+        ),
+    )
+
+    service = WorkflowsService(
+        workflows_dao=workflows_dao,
+        embeds_service=embeds_service,
+    )
+
+    await service.retrieve_workflow_revision(
+        project_id=uuid4(),
+        workflow_variant_ref=Reference(id=variant_id),
+        resolve=True,
+        include_archived=False,
+    )
+
+    assert workflows_dao.fetch_revision.call_args.kwargs["include_archived"] is False
+    assert (
+        embeds_service.resolve_configuration.call_args.kwargs["include_archived"]
+        is False
+    )

@@ -1,50 +1,31 @@
 import {FC} from "react"
 
-import {Lock} from "@phosphor-icons/react"
-import {Card, Typography} from "antd"
+import {isBillingEnabled} from "@agenta/shared/api"
 import {useAtomValue} from "jotai"
 import Link from "next/link"
 
-import {isBillingEnabled} from "@/oss/lib/helpers/isEE"
 import {appIdentifiersAtom} from "@/oss/state/appState/atoms"
 
-const {Title, Text} = Typography
-
-interface UpgradePromptProps {
-    title: string
-    description: string
-}
-
-export const UpgradePrompt: FC<UpgradePromptProps> = ({title, description}) => {
-    const identifiers = useAtomValue(appIdentifiersAtom)
-    const workspaceId = identifiers.workspaceId
-    const projectId = identifiers.projectId
-    const showBillingLink = isBillingEnabled()
+/**
+ * The "Upgrade plan →" link for a locked section.
+ *
+ * Only the link lives here: the panel around it is `AccessUpgradeNotice` in
+ * `@agenta/settings-ui`, which renders ONE card for however many of the three features the
+ * plan excludes. Routing and billing availability stay in the app, which is why the package
+ * takes this as a slot rather than building the href itself.
+ */
+export const UpgradePlanLink: FC = () => {
+    const {workspaceId, projectId} = useAtomValue(appIdentifiersAtom)
+    if (!isBillingEnabled() || !workspaceId || !projectId) return null
 
     return (
-        <Card>
-            <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
-                <div className="mb-4 p-4 rounded-full bg-[var(--ant-color-fill-quaternary)]">
-                    <Lock size={32} className="text-[var(--ant-color-text-tertiary)]" />
-                </div>
-                <Title level={1} className="!text-lg !mb-2">
-                    {title}
-                </Title>
-                <Text type="secondary" className="!text-base mb-4 max-w-md block">
-                    {description}
-                </Text>
-                <Text type="secondary" className="!text-sm">
-                    Available on <strong>Business</strong> and <strong>Enterprise</strong> plans.{" "}
-                    {showBillingLink && workspaceId && projectId && (
-                        <Link
-                            href={`/w/${workspaceId}/p/${projectId}/settings?tab=billing&upgrade=true`}
-                            className="font-medium"
-                        >
-                            Upgrade plan →
-                        </Link>
-                    )}
-                </Text>
-            </div>
-        </Card>
+        <Link
+            href={`/w/${workspaceId}/p/${projectId}/settings?tab=billing&upgrade=true`}
+            className="font-medium"
+        >
+            Upgrade plan →
+        </Link>
     )
 }
+
+export default UpgradePlanLink

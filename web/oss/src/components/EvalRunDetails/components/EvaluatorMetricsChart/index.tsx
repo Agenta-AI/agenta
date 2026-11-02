@@ -236,7 +236,7 @@ const EvaluatorMetricsChart = ({
 
     const baseSeriesKey = "base"
     const resolvedRunName = runDisplayName ?? runId
-    const resolvedBaseColor = baseColor ?? "#4096FF"
+    const resolvedBaseColor = baseColor ?? "var(--ag-chart-series-0)"
 
     const booleanChartData = useMemo(() => {
         if (!isBooleanMetric) return []

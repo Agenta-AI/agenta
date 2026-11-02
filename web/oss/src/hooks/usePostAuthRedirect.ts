@@ -1,21 +1,19 @@
 import {useCallback, useMemo} from "react"
 
+import {clearLastSsoOrgSlug, readLastSsoOrgSlug, writeLastAuthMethod} from "@agenta/auth"
+import {fetchAllOrgsList} from "@agenta/entities/organization"
+import {isEE} from "@agenta/shared/api"
+import {navSimplifiedDefaultAtom} from "@agenta/shared/state"
 import {getDefaultStore, useSetAtom, type Atom} from "jotai"
 import {useRouter} from "next/router"
 import Session, {signOut} from "supertokens-auth-react/recipe/session"
 import {useLocalStorage} from "usehooks-ts"
 
-import {writeLastAuthMethod} from "@/oss/components/pages/auth/assets/lastAuthMethod"
 import {queryClient} from "@/oss/lib/api/queryClient"
 import {filterOrgsByAuthMethod} from "@/oss/lib/helpers/authMethodFilter"
-import {isEE} from "@/oss/lib/helpers/isEE"
-import {
-    isNewUserAtom,
-    navSimplifiedDefaultAtom,
-    onboardingStorageUserIdAtom,
-} from "@/oss/lib/onboarding/atoms"
+import {isNewUserAtom, onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
+import {migrateSessionPreferences} from "@/oss/lib/onboarding/storage"
 import {mergeSessionIdentities} from "@/oss/services/auth/api"
-import {fetchAllOrgsList} from "@/oss/services/organization/api"
 import {orgsAtom, useOrgData} from "@/oss/state/org"
 import {resolvePreferredWorkspaceId, resolveWorkspaceIdForOrg} from "@/oss/state/org/selectors/org"
 import {useProfileData} from "@/oss/state/profile"
@@ -56,7 +54,6 @@ const usePostAuthRedirect = () => {
     const setAuthFlow = useSetAtom(authFlowAtom)
     const [invite] = useLocalStorage<Record<string, unknown>>("invite", {})
     const authUpgradeOrgKey = "authUpgradeOrgId"
-    const lastSsoOrgSlugKey = "lastSsoOrgSlug"
     const setIsNewUser = useSetAtom(isNewUserAtom)
     const setNavSimplifiedDefault = useSetAtom(navSimplifiedDefaultAtom)
     const setOnboardingStorageUserId = useSetAtom(onboardingStorageUserIdAtom)
@@ -77,10 +74,27 @@ const usePostAuthRedirect = () => {
     const derivedIsInvitedUser = hasInviteFromQuery || hasInviteFromStorage
 
     const resetAuthState = useCallback(async () => {
-        await resetProfileData()
+        const profile = await resetProfileData()
+        const profileUid = profile.data?.uid
+        if (profileUid) {
+            try {
+                migrateSessionPreferences(await Session.getUserId(), profileUid)
+            } catch {
+                // Preference migration must not block sign-in.
+            }
+            setOnboardingStorageUserId(profileUid)
+        } else {
+            // Keep sign-up writes scoped; UserListener migrates them once the profile lands.
+            try {
+                const sessionUserId = await Session.getUserId()
+                setOnboardingStorageUserId((current) => current ?? sessionUserId)
+            } catch {
+                // ignore user id lookup failures
+            }
+        }
         await resetOrganizationData()
         await resetProjectData()
-    }, [resetProfileData, resetOrganizationData, resetProjectData])
+    }, [resetProfileData, resetOrganizationData, resetProjectData, setOnboardingStorageUserId])
 
     const handleAuthSuccess = useCallback(
         async (authResult: AuthUserLike, options?: HandleAuthSuccessOptions) => {
@@ -94,29 +108,12 @@ const usePostAuthRedirect = () => {
             // Read is_new_user from session payload (set by backend overrides)
             let isNewUser = false
             let payload: any = null
-            let sessionUserId: string | null = null
             try {
                 payload = await Session.getAccessTokenPayloadSecurely()
                 isNewUser = Boolean(payload?.is_new_user)
-                sessionUserId =
-                    typeof payload?.user_id === "string"
-                        ? payload.user_id
-                        : typeof payload?.sub === "string"
-                          ? payload.sub
-                          : null
             } catch {
                 // Fallback to createdNewRecipeUser if payload unavailable (EE only)
                 isNewUser = isEE() && Boolean(authResult?.createdNewRecipeUser)
-            }
-
-            try {
-                sessionUserId = sessionUserId || (await Session.getUserId())
-            } catch {
-                // ignore user id lookup failures
-            }
-
-            if (sessionUserId) {
-                setOnboardingStorageUserId(sessionUserId)
             }
 
             console.log("[post-auth] handleAuthSuccess", {
@@ -218,10 +215,7 @@ const usePostAuthRedirect = () => {
 
                 // Get session identities to filter orgs by auth method compatibility
                 let sessionIdentities: string[] = []
-                let lastSsoSlug =
-                    typeof window !== "undefined"
-                        ? window.localStorage.getItem(lastSsoOrgSlugKey)
-                        : null
+                let lastSsoSlug = readLastSsoOrgSlug()
 
                 try {
                     const payload = await Session.getAccessTokenPayloadSecurely()
@@ -232,9 +226,7 @@ const usePostAuthRedirect = () => {
                         : null
                     if (!ssoIdentity) {
                         // Social/email logins should not reuse a stale SSO target from storage.
-                        if (typeof window !== "undefined") {
-                            window.localStorage.removeItem(lastSsoOrgSlugKey)
-                        }
+                        clearLastSsoOrgSlug()
                         lastSsoSlug = null
                     } else if (!lastSsoSlug) {
                         const [, orgSlug] = ssoIdentity.split(":")
@@ -266,13 +258,13 @@ const usePostAuthRedirect = () => {
                         // If we just completed an SSO flow, prefer the SSO org over Personal.
                         // This avoids a brief redirect to Personal that can trigger
                         // "requires email/social" when the session only has sso:*.
-                        window.localStorage.removeItem(lastSsoOrgSlugKey)
+                        clearLastSsoOrgSlug()
                         await router.replace(await orgWorkspacePath(match.id))
                         return
                     }
                     if (match?.id && !match.flags?.allow_sso) {
                         // SSO succeeded but the org is not SSO-enabled: sign out and return to /auth.
-                        window.localStorage.removeItem(lastSsoOrgSlugKey)
+                        clearLastSsoOrgSlug()
                         const query = new URLSearchParams({
                             auth_error: "sso_denied",
                             auth_message:

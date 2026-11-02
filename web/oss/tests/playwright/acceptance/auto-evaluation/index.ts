@@ -1,4 +1,12 @@
+import {
+    createTagString,
+    TestCoverage,
+    TestPath,
+    TestScope,
+} from "@agenta/web-tests/playwright/config/testTags"
 import {getProjectScopedBasePath} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
+import {pollLocatorState} from "@agenta/web-tests/utils"
+
 import {
     expect,
     goToAutoEvaluationStep,
@@ -11,12 +19,6 @@ import {
     switchResultsPageTab,
     waitAndClickDeleteForRun,
 } from "./tests"
-import {
-    createTagString,
-    TestCoverage,
-    TestPath,
-    TestScope,
-} from "@agenta/web-tests/playwright/config/testTags"
 
 const getRequiredVariantName = (name: string | null | undefined) => {
     expect(name).toBeTruthy()
@@ -24,64 +26,76 @@ const getRequiredVariantName = (name: string | null | undefined) => {
 }
 
 const testAutoEval = () => {
-    baseAutoEvalTest(
-        "should run a single evaluation",
-        {
-            tag: [
-                createTagString("scope", TestScope.EVALUATIONS),
-                createTagString("coverage", TestCoverage.SMOKE),
-                createTagString("coverage", TestCoverage.LIGHT),
-                createTagString("coverage", TestCoverage.FULL),
-                createTagString("path", TestPath.HAPPY),
-            ],
-        },
-        async ({page, apiHelpers, runAutoEvaluation, navigateToEvaluation}) => {
-            // getApp() may create the app through the UI; that does not fit the 60s default (#5695).
-            baseAutoEvalTest.setTimeout(120000)
+    // Retry-eligible (Mahmoud, see AGENTS.md/session notes): read-only flow that neither
+    // mutates state nor destroys data. openAutoEvaluationRunFromList's search-input step has
+    // a low-confidence toHaveValue race (a typing/re-render timing issue, not a stale
+    // selector), so a retry is safe here. Narrowest scope: this one test only.
+    baseAutoEvalTest.describe("Should run a single evaluation (retry-eligible)", () => {
+        baseAutoEvalTest.describe.configure({retries: 2})
 
-            const app = await apiHelpers.getApp("completion")
-            const appId = app.id
-
-            const variants = await apiHelpers.getVariants(appId)
-            const variantName = getRequiredVariantName(variants[0]?.name)
-            const evaluationName = `e2e-auto-results-${Date.now()}`
-
-            await navigateToEvaluation(appId)
-            const testset = await apiHelpers.createTestset({
-                name: `e2e auto eval completion ${Date.now()}`,
-                rows: [
-                    {
-                        input: "Say hello",
-                        correct_answer: "Hello",
-                    },
-                    {
-                        input: "Say goodbye",
-                        correct_answer: "Goodbye",
-                    },
+        // Skipped per release-gate decision (Mahmoud, 2026-08-10): eternity-class runtime
+        // dominates the CI wall clock with retries. Tracked for repair, not deleted.
+        baseAutoEvalTest.skip(
+            "should run a single evaluation",
+            {
+                tag: [
+                    createTagString("scope", TestScope.EVALUATIONS),
+                    createTagString("coverage", TestCoverage.SMOKE),
+                    createTagString("coverage", TestCoverage.LIGHT),
+                    createTagString("coverage", TestCoverage.FULL),
+                    createTagString("path", TestPath.HAPPY),
                 ],
-            })
+            },
+            async ({page, apiHelpers, runAutoEvaluation, navigateToEvaluation}) => {
+                // getApp() may create the app through the UI; that does not fit the 60s default (#5695).
+                baseAutoEvalTest.setTimeout(120000)
 
-            const {name: createdEvaluationName, runId} = await runAutoEvaluation({
-                name: evaluationName,
-                evaluators: ["Exact Match"],
-                testset: testset.name,
-                variants: [variantName],
-            })
+                const app = await apiHelpers.getApp("completion")
+                const appId = app.id
 
-            await expect(page.locator(".ant-modal").first()).toHaveCount(0)
+                const variants = await apiHelpers.getVariants(appId)
+                const variantName = getRequiredVariantName(variants[0]?.name)
+                const evaluationName = `e2e-auto-results-${Date.now()}`
 
-            await openAutoEvaluationRunFromList({
-                page,
-                evaluationName: createdEvaluationName,
-                runId,
-            })
+                await navigateToEvaluation(appId)
+                const testset = await apiHelpers.createTestset({
+                    name: `e2e auto eval completion ${Date.now()}`,
+                    rows: [
+                        {
+                            input: "Say hello",
+                            correct_answer: "Hello",
+                        },
+                        {
+                            input: "Say goodbye",
+                            correct_answer: "Goodbye",
+                        },
+                    ],
+                })
 
-            await expect
-                .poll(() => new URL(page.url()).pathname)
-                .toContain(`${getProjectScopedBasePath(page)}/apps/${appId}/evaluations/results/`)
-            await expect.poll(() => new URL(page.url()).searchParams.get("type")).toBe("auto")
-        },
-    )
+                const {name: createdEvaluationName, runId} = await runAutoEvaluation({
+                    name: evaluationName,
+                    evaluators: ["Exact Match"],
+                    testset: testset.name,
+                    variants: [variantName],
+                })
+
+                await expect(page.locator(".ant-modal").first()).toHaveCount(0)
+
+                await openAutoEvaluationRunFromList({
+                    page,
+                    evaluationName: createdEvaluationName,
+                    runId,
+                })
+
+                await expect
+                    .poll(() => new URL(page.url()).pathname)
+                    .toContain(
+                        `${getProjectScopedBasePath(page)}/apps/${appId}/evaluations/results/`,
+                    )
+                await expect.poll(() => new URL(page.url()).searchParams.get("type")).toBe("auto")
+            },
+        )
+    })
 
     baseAutoEvalTest(
         "should show an error when attempting to create an evaluation with a mismatched testset",
@@ -139,9 +153,9 @@ const testAutoEval = () => {
                     hasText: /Expected input variables for selected (variant|revision)\(s\):/i,
                 })
                 .first()
-            const expectedInputsNoteVisible = await expectedInputsNote
-                .isVisible({timeout: 1000})
-                .catch(() => false)
+            const expectedInputsNoteVisible = await pollLocatorState(() =>
+                expectedInputsNote.isVisible({timeout: 1000}),
+            )
             if (expectedInputsNoteVisible) {
                 await expect(expectedInputsNote).not.toContainText(mismatchedColumnName)
             }

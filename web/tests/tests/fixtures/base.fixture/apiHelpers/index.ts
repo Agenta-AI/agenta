@@ -5,27 +5,20 @@ import {expect, Page, Response} from "@playwright/test"
 import {EvaluationRun} from "../../../../../oss/src/lib/hooks/usePreviewEvaluations/types"
 import {SnakeToCamelCaseKeys, testset} from "../../../../../oss/src/lib/Types"
 import {getProjectMetadataPath} from "../../../../playwright/config/runtime.ts"
+import {pollLocatorState} from "../../../../utils"
 import {UseFn} from "../../types"
 import {FixtureContext} from "../types"
 
-import type {ApiHandlerOptions, ApiHelpers, CreateTestsetInput, CreatedTestset} from "./types"
+import type {
+    ApiHandlerOptions,
+    ApiHelpers,
+    APP_TYPE,
+    CreateTestsetInput,
+    CreatedTestset,
+    ListAppsItem,
+} from "./types"
 
-type APP_TYPE = "completion" | "chat" | "custom"
 type CREATABLE_APP_TYPE = Exclude<APP_TYPE, "custom">
-
-interface ListAppsItem {
-    id: string
-    name: string
-    app_type: APP_TYPE
-    flags: {
-        is_chat?: boolean
-        is_custom?: boolean
-        is_application?: boolean
-        is_evaluator?: boolean
-    } | null
-    created_at: string | null
-    [key: string]: any
-}
 
 interface ApiVariant {
     id: string
@@ -44,6 +37,14 @@ interface ApiVariant {
 }
 
 const latestRevisionIdByAppId = new Map<string, string>()
+
+export interface AppRevision {
+    workflow_id?: string | null
+    flags?: ListAppsItem["flags"]
+    version?: string | null
+    created_at?: string | null
+    updated_at?: string | null
+}
 
 interface TestProjectMetadata {
     project_id?: string
@@ -208,15 +209,12 @@ const waitForMatchingResponses = async (
 }
 
 const confirmCreateEntityModal = async (page: Page) => {
-    // The commit-confirmation modal no longer wraps its buttons in a
-    // `.ant-modal-footer` div (migrated off the raw antd Modal footer), so
-    // filter by the "Create" button itself rather than the footer wrapper.
-    const confirmModal = page
-        .locator(".ant-modal-wrap")
-        .filter({
-            has: page.getByRole("button", {name: "Create", exact: true}),
-        })
-        .last()
+    // Match the dialog by role, not by a component-library class. `EnhancedModal` —
+    // which `EntityCommitModal` renders through — is now a facade over the @agenta/ui
+    // (Radix) `Dialog`, so no `.ant-modal-wrap` exists in this tree any more. Radix
+    // `aria-hidden`s the rest of the document while the modal is open (including the
+    // antd drawer that launched it), so exactly one dialog resolves here.
+    const confirmModal = page.getByRole("dialog", {name: "Create changes", exact: true})
     const confirmButton = confirmModal.getByRole("button", {
         name: "Create",
         exact: true,
@@ -254,10 +252,9 @@ const openCreateAppDrawerForType = async (page: Page, type: CREATABLE_APP_TYPE) 
         // The "New prompt" entry opens a Chat/Completion/Agent submenu on
         // hover (antd Menu's default triggerSubMenuAction) — click alone
         // won't reveal it.
-        const menuItemVisible = await newPromptMenuItem
-            .waitFor({state: "visible", timeout: 4000})
-            .then(() => true)
-            .catch(() => false)
+        const menuItemVisible = await pollLocatorState(() =>
+            newPromptMenuItem.waitFor({state: "visible", timeout: 4000}).then(() => true),
+        )
 
         if (!menuItemVisible) {
             await page.keyboard.press("Escape").catch(() => undefined)
@@ -266,10 +263,9 @@ const openCreateAppDrawerForType = async (page: Page, type: CREATABLE_APP_TYPE) 
 
         await newPromptMenuItem.hover()
 
-        const typeSelectorVisible = await typeSelector
-            .waitFor({state: "visible", timeout: 4000})
-            .then(() => true)
-            .catch(() => false)
+        const typeSelectorVisible = await pollLocatorState(() =>
+            typeSelector.waitFor({state: "visible", timeout: 4000}).then(() => true),
+        )
 
         if (!typeSelectorVisible) {
             await page.keyboard.press("Escape").catch(() => undefined)
@@ -278,10 +274,9 @@ const openCreateAppDrawerForType = async (page: Page, type: CREATABLE_APP_TYPE) 
 
         await typeSelector.click()
 
-        const drawerOpened = await drawer
-            .waitFor({state: "visible", timeout: 8000})
-            .then(() => true)
-            .catch(() => false)
+        const drawerOpened = await pollLocatorState(() =>
+            drawer.waitFor({state: "visible", timeout: 8000}).then(() => true),
+        )
 
         if (drawerOpened) {
             return drawer
@@ -367,34 +362,28 @@ async function createApp(page: Page, type: APP_TYPE): Promise<ListAppsItem> {
             response.request().method() === "POST",
         2,
     )
+    const [workflowResponse, variantResponse, revisionResponses] = await Promise.all([
+        createWorkflowPromise,
+        createVariantPromise,
+        revisionCommitsPromise,
+        (async () => {
+            const createButton = drawer.getByRole("button", {name: "Create", exact: true}).first()
+            await expect(createButton).toBeEnabled({timeout: 15000})
+            await createButton.click()
+            await confirmCreateEntityModal(page)
+        })(),
+    ])
 
-    // CommitVariantChangesButton shows "Create" (not "Commit") for ephemeral local-* entities.
-    // Use exact:true + drawer scope to avoid matching "Create New Prompt" in the background.
-    const createButton = drawer.getByRole("button", {name: "Create", exact: true}).first()
-    await expect(createButton).toBeVisible({timeout: 15000})
-    await expect(createButton).toBeEnabled({timeout: 15000})
-    await createButton.click()
-
-    // Clicking "Create" opens CommitVariantChangesModal (EntityCommitModal with
-    // actionLabel="Create"). Wait for the modal submit button before clicking:
-    // Locator.isVisible() is an immediate snapshot and can race the antd modal render.
-    await confirmCreateEntityModal(page)
-
-    // Wait for workflow creation
-    const workflowResponse = await createWorkflowPromise
     expect(workflowResponse.ok()).toBe(true)
     const createdApp = (await workflowResponse.json()) as {workflow: ListAppsItem}
     const createdWorkflow = createdApp.workflow
     expect(createdWorkflow.id).toBeTruthy()
 
-    // Wait for variant creation
-    const variantResponse = await createVariantPromise
     expect(variantResponse.ok()).toBe(true)
     const variantData = await variantResponse.json()
     expect(variantData.workflow_variant?.id).toBeTruthy()
 
-    // Wait for both revision commits
-    const [seedResponse, dataResponse] = await revisionCommitsPromise
+    const [seedResponse, dataResponse] = revisionResponses
     expect(seedResponse.ok()).toBe(true)
     expect(dataResponse.ok()).toBe(true)
 
@@ -410,33 +399,91 @@ async function createApp(page: Page, type: APP_TYPE): Promise<ListAppsItem> {
     } as ListAppsItem
 }
 
-export const getApp = async (page: Page, type: APP_TYPE = "completion") => {
-    const appsResponse = waitForApiResponse<{workflows: ListAppsItem[]; count: number}>(page, {
-        route: "/workflows/query",
-        method: "POST",
-    })
+const revisionRecencyScore = (revision: AppRevision): number => {
+    const createdAt = revision.created_at ? Date.parse(revision.created_at) : 0
+    const updatedAt = revision.updated_at ? Date.parse(revision.updated_at) : 0
+    return createdAt || updatedAt || Number(revision.version ?? 0)
+}
 
+export const selectLatestAppRevisions = (revisions: AppRevision[]): Map<string, AppRevision> => {
+    const latestByAppId = new Map<string, AppRevision>()
+
+    for (const revision of revisions) {
+        const appId = revision.workflow_id
+        if (!appId || revision.version === "0") continue
+
+        const current = latestByAppId.get(appId)
+        if (!current || revisionRecencyScore(revision) > revisionRecencyScore(current)) {
+            latestByAppId.set(appId, revision)
+        }
+    }
+
+    return latestByAppId
+}
+
+const getLatestAppRevisions = async (
+    page: Page,
+    apps: ListAppsItem[],
+): Promise<Map<string, AppRevision>> => {
+    if (!apps.length) return new Map()
+
+    const queryUrl = new URL(`${getApiURL(page)}/workflows/revisions/query`)
+    queryUrl.searchParams.set("project_id", getProjectId(page))
+
+    const response = await page.request.post(queryUrl.toString(), {
+        data: {workflow_refs: apps.map(({id}) => ({id}))},
+    })
+    if (!response.ok()) {
+        const body = await response.text().catch(() => "<unreadable>")
+        throw new Error(
+            `getLatestAppRevisions failed: HTTP ${response.status()} ${response.statusText()}.\n` +
+                `URL: ${queryUrl.toString()}\n` +
+                `Response body: ${body}`,
+        )
+    }
+
+    const data = (await response.json()) as {workflow_revisions?: AppRevision[]}
+    return selectLatestAppRevisions(data.workflow_revisions ?? [])
+}
+
+export const appMatchesType = (
+    app: ListAppsItem,
+    type: APP_TYPE,
+    latestRevision?: {flags?: ListAppsItem["flags"]},
+): boolean => {
+    if (!latestRevision) return false
+    const flags = {...(app.flags ?? {}), ...(latestRevision?.flags ?? {})}
+    if (flags.is_agent) return false
+    if (type === "chat") return !!flags.is_chat
+    if (type === "custom") return !!flags.is_custom
+    return !flags.is_chat && !flags.is_custom && !flags.is_evaluator
+}
+
+export const getApp = async (page: Page, type: APP_TYPE = "completion") => {
     const projectBasePath = getProjectScopedBasePath(page)
     await page.goto(`${projectBasePath}/prompts`, {waitUntil: "domcontentloaded"})
     await page.waitForURL("**/prompts", {waitUntil: "domcontentloaded"})
 
-    const data = await appsResponse
+    // A background query from the previous document can finish during navigation.
+    // Read fixture data through the request context, whose response survives that navigation.
+    const queryUrl = new URL(`${getApiURL(page)}/workflows/query`)
+    queryUrl.searchParams.set("project_id", getProjectId(page))
+    const response = await page.request.post(queryUrl.toString(), {data: {}})
+    expect(response.ok()).toBe(true)
+    const data = (await response.json()) as {workflows: ListAppsItem[]; count: number}
     const apps = data.workflows ?? []
 
     expect(Array.isArray(apps)).toBe(true)
 
-    const appMatchesType = (app: ListAppsItem) => {
-        if (type === "chat") return !!app.flags?.is_chat
-        if (type === "custom") return !!app.flags?.is_custom
-        // completion: exclude evaluator apps, which also lack is_chat/is_custom
-        return !app.flags?.is_chat && !app.flags?.is_custom && !app.flags?.is_evaluator
-    }
+    const latestRevisions = await getLatestAppRevisions(page, apps)
 
     let targetApp
     if (!apps.length) {
         targetApp = await createApp(page, type)
     } else if (type) {
-        const app = apps.find(appMatchesType)
+        const app = apps.find((candidate) =>
+            appMatchesType(candidate, type, latestRevisions.get(candidate.id)),
+        )
         if (!app) {
             targetApp = await createApp(page, type)
         } else {
@@ -453,6 +500,21 @@ export const getApp = async (page: Page, type: APP_TYPE = "completion") => {
     }
 
     return targetApp
+}
+
+export const archiveApp = async (page: Page, appId: string): Promise<void> => {
+    const archiveUrl = new URL(`${getApiURL(page)}/workflows/${appId}/archive`)
+    archiveUrl.searchParams.set("project_id", getProjectId(page))
+
+    const response = await page.request.post(archiveUrl.toString(), {data: {}})
+    if (!response.ok()) {
+        const body = await response.text().catch(() => "<unreadable>")
+        throw new Error(
+            `archiveApp('${appId}') failed: HTTP ${response.status()} ${response.statusText()}.\n` +
+                `URL: ${archiveUrl.toString()}\n` +
+                `Response body: ${body}`,
+        )
+    }
 }
 
 export const getAppById = async (page: Page, appId: string) => {
@@ -666,6 +728,9 @@ export const apiHelpers = () => {
             },
             getApp: async (type?: APP_TYPE): Promise<ListAppsItem> => {
                 return await getApp(page, type)
+            },
+            archiveApp: async (appId: string): Promise<void> => {
+                await archiveApp(page, appId)
             },
             getAppById: async (appId: string): Promise<ListAppsItem> => {
                 return await getAppById(page, appId)

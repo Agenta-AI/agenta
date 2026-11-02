@@ -3,8 +3,8 @@
  *
  * Write atoms for managing the flat message-based chat state:
  * - Message CRUD (add, update, remove, bulk operations)
- * - Execution lifecycle (start, complete, fail, cancel)
- * - Session operations (clear responses for re-run, duplicate for compare)
+ * - Execution lifecycle (complete, fail)
+ * - Clearing session responses for re-runs
  * - Context-aware atoms (auto-inject loadableId)
  *
  * @module chat/messageReducer
@@ -31,10 +31,8 @@ import type {
     CompleteExecutionPayload,
     DeleteMessagePayload,
     FailExecutionPayload,
-    MessageExecution,
     PatchMessagePayload,
     RemoveMessagesPayload,
-    StartExecutionPayload,
     TruncateChatPayload,
     UpdateMessagePayload,
 } from "./messageTypes"
@@ -134,7 +132,7 @@ export const addMessagesAtom = atom(
 /**
  * Update a message's content (partial merge).
  */
-export const updateMessageAtom = atom(
+const updateMessageAtom = atom(
     null,
     (get, set, payload: {loadableId: string} & UpdateMessagePayload) => {
         const {loadableId, messageId, updates} = payload
@@ -156,7 +154,7 @@ export const updateMessageAtom = atom(
  * Remove messages by ID.
  * Also cleans up their execution state.
  */
-export const removeMessagesAtom = atom(
+const removeMessagesAtom = atom(
     null,
     (get, set, payload: {loadableId: string} & RemoveMessagesPayload) => {
         const {loadableId, messageIds: toRemove} = payload
@@ -227,26 +225,6 @@ export const clearSessionResponsesAtom = atom(
 )
 
 /**
- * Truncate conversation after a message (inclusive — the message is kept).
- * Removes all messages after the specified position.
- */
-export const truncateAfterMessageAtom = atom(
-    null,
-    (get, set, payload: {loadableId: string; messageId: string}) => {
-        const {loadableId, messageId} = payload
-        const ids = get(messageIdsAtomFamily(loadableId))
-        const idx = ids.indexOf(messageId)
-        if (idx < 0) return
-
-        const toRemove = ids.slice(idx + 1)
-        if (toRemove.length === 0) return
-
-        set(removeMessagesAtom, {loadableId, messageIds: toRemove})
-        // Note: sync happens inside removeMessagesAtom
-    },
-)
-
-/**
  * Clear all messages for a loadable.
  */
 export const clearAllMessagesAtom = atom(null, (_get, set, payload: {loadableId: string}) => {
@@ -259,26 +237,6 @@ export const clearAllMessagesAtom = atom(null, (_get, set, payload: {loadableId:
 // ============================================================================
 // EXECUTION LIFECYCLE
 // ============================================================================
-
-/**
- * Mark a response message as running.
- */
-export const startMessageExecutionAtom = atom(
-    null,
-    (get, set, payload: {loadableId: string} & StartExecutionPayload) => {
-        const {loadableId, messageId, runId} = payload
-        const execMap = get(executionByMessageIdAtomFamily(loadableId))
-
-        set(executionByMessageIdAtomFamily(loadableId), {
-            ...execMap,
-            [messageId]: {
-                status: "running",
-                runId,
-                startedAt: Date.now(),
-            },
-        })
-    },
-)
 
 /**
  * Mark a response message as complete.
@@ -326,100 +284,6 @@ export const failMessageExecutionAtom = atom(
     },
 )
 
-/**
- * Mark a response message as cancelled.
- */
-export const cancelMessageExecutionAtom = atom(
-    null,
-    (get, set, payload: {loadableId: string; messageId: string}) => {
-        const {loadableId, messageId} = payload
-        const execMap = get(executionByMessageIdAtomFamily(loadableId))
-        const existing = execMap[messageId]
-
-        set(executionByMessageIdAtomFamily(loadableId), {
-            ...execMap,
-            [messageId]: {
-                ...existing,
-                status: "cancelled",
-                completedAt: Date.now(),
-            },
-        })
-    },
-)
-
-// ============================================================================
-// SESSION OPERATIONS
-// ============================================================================
-
-/**
- * Duplicate responses from one session to another.
- *
- * Used when adding a new entity in compare mode — seeds the new session
- * with cloned responses from an existing session.
- */
-export const duplicateSessionResponsesAtom = atom(
-    null,
-    (
-        get,
-        set,
-        payload: {
-            loadableId: string
-            sourceSessionId: string
-            targetSessionId: string
-        },
-    ) => {
-        const {loadableId, sourceSessionId, targetSessionId} = payload
-        if (!sourceSessionId || !targetSessionId || sourceSessionId === targetSessionId) return
-
-        const ids = get(messageIdsAtomFamily(loadableId))
-        const byId = get(messagesByIdAtomFamily(loadableId))
-        const execMap = get(executionByMessageIdAtomFamily(loadableId))
-
-        const newMessages: ChatMessage[] = []
-        const newExecEntries: Record<string, MessageExecution> = {}
-
-        for (const id of ids) {
-            const msg = byId[id]
-            if (!msg || msg.sessionId !== sourceSessionId) continue
-
-            const cloneId = generateMessageId()
-            const cloned: ChatMessage = {
-                ...structuredClone(msg),
-                id: cloneId,
-                sessionId: targetSessionId,
-            }
-            newMessages.push(cloned)
-
-            // Clone execution state if present
-            const exec = execMap[id]
-            if (exec) {
-                newExecEntries[cloneId] = structuredClone(exec)
-            }
-        }
-
-        if (newMessages.length === 0) return
-
-        // Add cloned messages (append — ordering will be handled by derived turns)
-        const updatedById = {...byId}
-        const newIds: string[] = []
-        for (const msg of newMessages) {
-            const msgId = msg.id as string
-            updatedById[msgId] = msg
-            newIds.push(msgId)
-        }
-
-        set(messageIdsAtomFamily(loadableId), [...ids, ...newIds])
-        set(messagesByIdAtomFamily(loadableId), updatedById)
-
-        if (Object.keys(newExecEntries).length > 0) {
-            set(executionByMessageIdAtomFamily(loadableId), {
-                ...execMap,
-                ...newExecEntries,
-            })
-        }
-    },
-)
-
 // ============================================================================
 // DOMAIN-LEVEL ACTIONS (turn-aware operations)
 // ============================================================================
@@ -448,7 +312,7 @@ export const addUserMessageAtom = atom(
  * Truncate chat after a given turn (inclusive — the specified turn and
  * its session-scoped children are kept, everything after is removed).
  */
-export const truncateChatAtom = atom(
+const truncateChatAtom = atom(
     null,
     (get, set, payload: {loadableId: string} & TruncateChatPayload) => {
         const {loadableId, afterTurnId} = payload
@@ -520,7 +384,7 @@ function resolveTargetMessageId(
  * Patch a specific message by target (parentId + role + session).
  * Uses updateMessageAtom for updates and removeMessagesAtom for deletes.
  */
-export const patchMessageAtom = atom(
+const patchMessageAtom = atom(
     null,
     (get, set, payload: {loadableId: string} & PatchMessagePayload) => {
         const {loadableId, target, updater} = payload
@@ -556,7 +420,7 @@ export const patchMessageAtom = atom(
  * removes messages from the SAME session from this position onward,
  * preserving other entities' responses and shared user messages.
  */
-export const deleteMessageAtom = atom(
+const deleteMessageAtom = atom(
     null,
     (get, set, payload: {loadableId: string} & DeleteMessagePayload) => {
         const {loadableId, target} = payload
@@ -707,33 +571,6 @@ export const addMessageWithContextAtom = atom(null, (get, set, payload: AddMessa
     return set(addMessageAtom, {...payload, loadableId})
 })
 
-export const addMessagesWithContextAtom = atom(
-    null,
-    (get, set, payload: {messages: ChatMessage[]; afterMessageId?: string}) => {
-        const loadableId = get(derivedLoadableIdAtom)
-        if (!loadableId) return
-        set(addMessagesAtom, {...payload, loadableId})
-    },
-)
-
-export const updateMessageWithContextAtom = atom(
-    null,
-    (get, set, payload: UpdateMessagePayload) => {
-        const loadableId = get(derivedLoadableIdAtom)
-        if (!loadableId) return
-        set(updateMessageAtom, {...payload, loadableId})
-    },
-)
-
-export const removeMessagesWithContextAtom = atom(
-    null,
-    (get, set, payload: RemoveMessagesPayload) => {
-        const loadableId = get(derivedLoadableIdAtom)
-        if (!loadableId) return
-        set(removeMessagesAtom, {...payload, loadableId})
-    },
-)
-
 export const clearSessionResponsesWithContextAtom = atom(
     null,
     (get, set, payload: ClearSessionResponsesPayload) => {
@@ -743,30 +580,8 @@ export const clearSessionResponsesWithContextAtom = atom(
     },
 )
 
-export const truncateAfterMessageWithContextAtom = atom(
-    null,
-    (get, set, payload: {messageId: string}) => {
-        const loadableId = get(derivedLoadableIdAtom)
-        if (!loadableId) return
-        set(truncateAfterMessageAtom, {...payload, loadableId})
-    },
-)
-
 export const clearAllMessagesWithContextAtom = atom(null, (get, set) => {
     const loadableId = get(derivedLoadableIdAtom)
     if (!loadableId) return
     set(clearAllMessagesAtom, {loadableId})
 })
-
-export const duplicateSessionResponsesWithContextAtom = atom(
-    null,
-    (get, set, payload: {sourceRevisionId: string; targetRevisionId: string}) => {
-        const loadableId = get(derivedLoadableIdAtom)
-        if (!loadableId) return
-        set(duplicateSessionResponsesAtom, {
-            loadableId,
-            sourceSessionId: `sess:${payload.sourceRevisionId}`,
-            targetSessionId: `sess:${payload.targetRevisionId}`,
-        })
-    },
-)

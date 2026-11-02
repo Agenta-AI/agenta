@@ -1,0 +1,180 @@
+---
+title: "Track your competitors while you sleep"
+sidebar_label: "Track your competitors"
+description: "Build an agent that researches your competitors every Monday and emails you a digest of their launches, pricing changes, and news."
+---
+
+```mdx-code-block
+import Image from "@theme/IdealImage";
+```
+
+This agent watches your competitors. Every Monday it researches what they shipped, what they changed, and anything else you should know, then emails you a digest.
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/c3iVw0MBZTE"
+  title="Build an agent that tracks your competitors while you sleep"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+  allowFullScreen
+></iframe>
+
+## What you need
+
+- An Agenta account. [Agenta Cloud](https://cloud.agenta.ai) is the quickest way to start.
+- A Gmail account, to receive the digest.
+
+## Step 1: Describe the agent
+
+Open a new agent. The playground shows the agent's configuration on the left and the chat on the right.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/tutorials/competitor-tracker/01-new-agent.png")}
+  alt="A new agent in the playground, with templates and the chat box asking what you want to build"
+  loading="lazy"
+/>
+
+Describe the job in the chat:
+
+```text
+I want to build an agent that creates a weekly digest about my competitors,
+with information about new features, funding, and anything relevant that I
+should know. To get started, go to our website and try to figure out what we
+do and who our competitors are.
+```
+
+Before you send it, open `Permissions` and set the policy to `Allow all`. The agent then runs its tools without asking you each time. This is safe here because the agent has no access to any app yet. To learn more, see [Control what an agent can do](/guides/control-what-an-agent-can-do).
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/tutorials/competitor-tracker/02-permissions.png")}
+  alt="The Permissions policy menu, with the options Allow reads, Allow all, Ask, and Deny all"
+  loading="lazy"
+/>
+
+## Step 2: Let the agent research your market
+
+The agent reads its context and asks for your company website. Enter it and accept.
+
+The agent opens your website, works out what you do, and lists your competitors. It also proposes what to track for each one: launches, funding, pricing, integrations, partnerships, positioning, and notable customer wins. If the list looks right, confirm it.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/tutorials/competitor-tracker/03-competitors-found.png")}
+  alt="The agent's summary of the company and the competitors it found, after a web search"
+  loading="lazy"
+/>
+
+The agent then asks you to connect a web search tool, Composio Search, so it can find news about your competitors. Connect it.
+
+Next, it asks when the digest should run. Answer in plain words:
+
+```text
+I want to have it each week on Monday at 10:00 in Berlin time.
+```
+
+## Step 3: Read and edit the instructions
+
+While the agent works, look at its configuration. An agent has a model, which it runs on, and instructions. The instructions are the most important part: they tell the agent what its job is.
+
+Everything you chat about changes the agent's own configuration. You told it that it is now a competitor analysis agent, so it updates its instructions, adds the tools it needs, and adds a schedule.
+
+Open `Instructions` to read what it wrote. It starts with something like *You are the weekly competitor-intelligence agent for Agenta* and lists what to research on every run.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/tutorials/competitor-tracker/04-instructions.png")}
+  alt="The agent's AGENTS.md open in the editor, describing what to research on every scheduled run"
+  loading="lazy"
+/>
+
+You have full visibility into what the agent will do, and you can change it. For example, if you do not care about funding rounds, add a line:
+
+```text
+Ignore any funding information. Focus on product features.
+```
+
+Click `Commit` to save the change as a new version. The agent uses the new instructions from now on.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/tutorials/competitor-tracker/05-commit.png")}
+  alt="The Commit dialog, showing the edited instructions and a commit message"
+  loading="lazy"
+/>
+
+To learn more, see [Write your agent's instructions](/guides/write-your-agents-instructions).
+
+## Step 4: Check the schedule
+
+The agent also added a schedule. Open it under `Schedules`. Every Monday it sends the agent a message, *Prepare this week's concise competitor intelligence digest*, and the agent does the research.
+
+:::note
+Schedules run in UTC, so the agent converts the time you asked for. 10:00 in Berlin is 08:00 UTC in summer and 09:00 UTC in winter. The schedule does not change for daylight saving time.
+:::
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/tutorials/competitor-tracker/06-schedule.png")}
+  alt="The Monday Competitor Digest schedule, set to Mondays at 08:00 UTC, with the message it sends to the agent"
+  loading="lazy"
+/>
+
+## Step 5: Send the digest by email
+
+So far, each run creates a new chat with the digest. To get it by email instead, add Gmail. Go to `Tools`, click `+`, choose a third-party integration, and select `Gmail`. If Gmail is not connected yet, click `Connect an account` first.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/tutorials/competitor-tracker/07-add-gmail.png")}
+  alt="The Add app tools dialog with Gmail selected from the connected apps"
+  loading="lazy"
+/>
+
+Then ask the agent:
+
+```text
+Please send this digest by email each time after you write it.
+```
+
+The agent asks for your email address, adds the Gmail tool it needs to send email, and updates its instructions: when the digest is complete, send it to your email.
+
+The permission policy is still `Allow all`, so the agent now sends email without asking you. To approve each email before it is sent, open the Gmail integration and set its permission to `Ask for write and delete`. A scheduled run then waits for your approval before it sends the digest. To learn more, see [Control what an agent can do](/guides/control-what-an-agent-can-do).
+
+## Step 6: Test it without waiting for Monday
+
+You do not have to wait until Monday to see if it works. In `Schedules`, click the `⋯` menu next to the schedule and choose `Run in playground`.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/tutorials/competitor-tracker/08-run-in-playground.png")}
+  alt="The schedule's menu open, with Run in playground, View deliveries, Edit, Pause, and Delete"
+  loading="lazy"
+/>
+
+This simulates a full run. The message that is normally sent on Monday is sent now, and the agent does all the research.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/tutorials/competitor-tracker/09-digest.png")}
+  alt="The weekly competitor digest in the chat, with each update, why it matters, and the sources"
+  loading="lazy"
+/>
+
+When it finishes, the digest arrives in your inbox. You will get one every week.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/tutorials/competitor-tracker/10-digest-email.png")}
+  alt="The competitor digest delivered as an email in Gmail"
+  loading="lazy"
+/>
+
+To learn more, see [Create an automation](/guides/create-an-automation).
+
+## Next steps
+
+- [Build your first AI coworker](/tutorials/build-your-first-ai-coworker): how instructions, tools, and skills fit together.
+- [Build an inbound outreach agent](/tutorials/build-an-inbound-outreach-agent): a larger agent built step by step, with human approval in Slack.

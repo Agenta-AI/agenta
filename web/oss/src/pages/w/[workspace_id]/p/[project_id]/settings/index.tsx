@@ -1,29 +1,30 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo} from "react"
 
-import {PageLayout} from "@agenta/ui"
-import {Link} from "@phosphor-icons/react"
-import {Tag, Tooltip} from "antd"
+import {
+    getSettingsTabVariant,
+    DEFAULT_SETTINGS_TAB,
+    getSettingsTabDescription,
+    getSettingsTabDocs,
+    getSettingsTabLabel,
+    resolveSettingsTab,
+} from "@agenta/settings"
+import {SettingsPageShell} from "@agenta/settings-ui"
+import {Tag} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
-import {
-    DEFAULT_SETTINGS_TAB,
-    getSettingsTabLabel,
-    resolveSettingsTab,
-} from "@/oss/components/pages/settings/assets/navigation"
 import {useSettingsAccess} from "@/oss/components/pages/settings/hooks/useSettingsAccess"
 import PageTitle from "@/oss/components/PageTitle"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
-import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
-import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {useOrgData} from "@/oss/state/org"
 import {useProjectData} from "@/oss/state/project"
 import {settingsTabAtom} from "@/oss/state/settings"
 
-const Secrets = dynamic(() => import("@/oss/components/pages/settings/Secrets/Secrets"), {
-    ssr: false,
-})
+const AIProviders = dynamic(
+    () => import("@/oss/components/pages/settings/AIProviders/AIProviders"),
+    {ssr: false},
+)
 const Vault = dynamic(() => import("@/oss/components/pages/settings/Vault/Vault"), {
     ssr: false,
 })
@@ -32,6 +33,9 @@ const WorkspaceManage = dynamic(
     {ssr: false},
 )
 const APIKeys = dynamic(() => import("@/oss/components/pages/settings/APIKeys/APIKeys"), {
+    ssr: false,
+})
+const Analytics = dynamic(() => import("@/oss/components/pages/settings/Analytics/Analytics"), {
     ssr: false,
 })
 const Billing = dynamic(() => import("@/oss/components/pages/settings/Billing"), {
@@ -46,7 +50,7 @@ const Tools = dynamic(() => import("@/oss/components/pages/settings/Tools/Tools"
     ssr: false,
 })
 
-const Triggers = dynamic(() => import("@/oss/components/pages/settings/Triggers/Triggers"), {
+const Channels = dynamic(() => import("@/oss/components/pages/settings/Channels/Channels"), {
     ssr: false,
 })
 
@@ -68,14 +72,26 @@ const Webhooks = dynamic(() => import("@/oss/components/pages/settings/Webhooks/
     ssr: false,
 })
 
-const FeatureFlags = dynamic(
-    () => import("@/oss/components/pages/settings/FeatureFlags/FeatureFlags"),
+const MCPEndpoints = dynamic(
+    () => import("@/oss/components/pages/settings/MCPEndpoints/MCPEndpoints"),
+    {ssr: false},
+)
+
+const Preferences = dynamic(
+    () => import("@/oss/components/pages/settings/Preferences/Preferences"),
     {ssr: false},
 )
 
 interface SettingsProps {
     AuditLogComponent?: React.ComponentType
 }
+
+/** Tabs that render a form rather than a table, so they cap at 640 instead of 1120. */
+
+/**
+ * Tabs whose table is wider than the 1120 cap every other table tab gets — the Audit Log
+ * carries a timestamp, a dotted event type and a full UUID on one row.
+ */
 
 export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
     const [tabQuery] = useQueryParam("tab", undefined, "replace")
@@ -84,58 +100,27 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
     const {selectedOrg} = useOrgData()
     const settingsAccess = useSettingsAccess()
     const resolvedTab = resolveSettingsTab(tab, settingsAccess)
-    const resolvedTabLabel = getSettingsTabLabel(resolvedTab, settingsAccess)
     const {project} = useProjectData()
     const {redirectUrl} = useURL()
-    const [isOrgIdCopied, setIsOrgIdCopied] = useState(false)
     const settingsKey = `${selectedOrg?.id ?? "org"}:${project?.project_id ?? "project"}`
-
-    useEffect(() => {
-        if (project?.is_demo) {
-            redirectUrl()
-        }
-    }, [project, redirectUrl])
-
-    const handleCopyOrgId = useCallback(async () => {
-        if (!selectedOrg?.id) return
-        await copyToClipboard(selectedOrg.id, false)
-        setIsOrgIdCopied(true)
-        setTimeout(() => setIsOrgIdCopied(false), 2000)
-    }, [selectedOrg?.id])
-
-    const breadcrumbs = useMemo(() => {
-        return {
-            settings: {
-                label: resolvedTabLabel,
-            },
-        }
-    }, [resolvedTabLabel])
-
-    useBreadcrumbsEffect({breadcrumbs, type: "new", condition: !!tab}, [
-        tab,
-        resolvedTab,
-        resolvedTabLabel,
-    ])
 
     const isDemoOrg = selectedOrg?.flags?.is_demo ?? false
 
+    useEffect(() => {
+        if (project && isDemoOrg) {
+            redirectUrl()
+        }
+    }, [project, isDemoOrg, redirectUrl])
+
+    // The org ID has its own column now; the title only carries the demo marker.
     const buildOrganizationTitle = useCallback(
         (label: string) => (
             <div className="flex items-center gap-2">
                 <span>{label}</span>
-                <Tooltip title={isOrgIdCopied ? "Copied!" : "Click to copy organization ID"}>
-                    <Tag
-                        className="cursor-pointer flex items-center gap-1"
-                        onClick={handleCopyOrgId}
-                    >
-                        <Link size={14} weight="bold" />
-                        <span>Organization ID</span>
-                    </Tag>
-                </Tooltip>
                 {isDemoOrg && <Tag className="bg-[var(--ag-c-0517290F)] m-0 font-normal">demo</Tag>}
             </div>
         ),
-        [handleCopyOrgId, isDemoOrg, isOrgIdCopied],
+        [isDemoOrg],
     )
 
     const {content, title} = useMemo(() => {
@@ -155,18 +140,26 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                     ),
                 }
             case "llms":
-                return {content: <Secrets />, title: getSettingsTabLabel("llms", settingsAccess)}
+                return {
+                    content: <AIProviders />,
+                    title: getSettingsTabLabel("llms", settingsAccess),
+                }
             case "secrets":
                 return {content: <Vault />, title: getSettingsTabLabel("secrets", settingsAccess)}
             case "tools":
                 return {content: <Tools />, title: getSettingsTabLabel("tools", settingsAccess)}
-            case "triggers":
+            case "channels":
                 return {
-                    content: <Triggers />,
-                    title: getSettingsTabLabel("triggers", settingsAccess),
+                    content: <Channels />,
+                    title: getSettingsTabLabel("channels", settingsAccess),
                 }
             case "apiKeys":
                 return {content: <APIKeys />, title: getSettingsTabLabel("apiKeys", settingsAccess)}
+            case "analytics":
+                return {
+                    content: <Analytics />,
+                    title: getSettingsTabLabel("analytics", settingsAccess),
+                }
             case "billing":
                 return {
                     content: <Billing />,
@@ -176,6 +169,11 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                 return {
                     content: <Webhooks />,
                     title: getSettingsTabLabel("webhooks", settingsAccess),
+                }
+            case "mcpEndpoints":
+                return {
+                    content: <MCPEndpoints />,
+                    title: getSettingsTabLabel("mcpEndpoints", settingsAccess),
                 }
             case "auditLog":
                 return {
@@ -192,10 +190,10 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                     content: <DeleteAccount />,
                     title: getSettingsTabLabel("account", settingsAccess),
                 }
-            case "featureFlags":
+            case "preferences":
                 return {
-                    content: <FeatureFlags />,
-                    title: getSettingsTabLabel("featureFlags", settingsAccess),
+                    content: <Preferences />,
+                    title: getSettingsTabLabel("preferences", settingsAccess),
                 }
             default:
                 return {
@@ -208,16 +206,15 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
     return (
         <>
             <PageTitle title="Settings" />
-            <PageLayout
+            <SettingsPageShell
                 key={settingsKey}
                 title={title}
-                // The Audit Log tab hosts a full-height InfiniteVirtualTable, which
-                // needs a bounded parent so it scrolls internally instead of growing
-                // the page. Other tabs keep PageLayout's default `min-h-full` flow.
-                className={resolvedTab === "auditLog" ? "h-full min-h-0" : undefined}
+                description={getSettingsTabDescription(resolvedTab, settingsAccess)}
+                docs={getSettingsTabDocs(resolvedTab)}
+                variant={getSettingsTabVariant(resolvedTab)}
             >
                 {content}
-            </PageLayout>
+            </SettingsPageShell>
         </>
     )
 }

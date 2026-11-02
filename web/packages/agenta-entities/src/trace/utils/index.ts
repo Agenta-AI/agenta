@@ -14,17 +14,13 @@ export {
     // Span data extraction
     extractInputs,
     extractOutputs,
-    extractInternals,
     extractAgData,
-    spanToTraceData,
-    extractTestsetData,
     // Batch operations
     collectPathsFromSpans,
-    collectDataPathsFromSpans,
-    pathsToSelectOptions,
     // Auto-mapping
     COLUMN_NAME_MAPPINGS,
     getSuggestedColumnName,
-    generateMappingSuggestions,
     matchColumnsWithSuggestions,
 } from "./selectors"
+
+export {getNodeById} from "./nodeTree"

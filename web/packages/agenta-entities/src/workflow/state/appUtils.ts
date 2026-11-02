@@ -14,12 +14,14 @@
 
 import {getEnabledSandboxProviders} from "@agenta/shared/api"
 import {catalogPersister} from "@agenta/shared/api/persist"
-import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
+import {projectIdAtom, sessionAtom, userAtom} from "@agenta/shared/state"
 import type {QueryKey} from "@tanstack/react-query"
 import {atom, getDefaultStore} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {syncPromptInputKeysInParameters} from "../../runnable/utils"
+import {resolveAgentModelSelection} from "../../secret/core"
+import {subscriptionPairModelsAtom} from "../../secret/state"
 import {generateLocalId} from "../../shared"
 import type {WorkflowCatalogTemplate, WorkflowCatalogTemplatesResponse} from "../api"
 import {fetchWorkflowCatalogTemplates, inspectWorkflow} from "../api"
@@ -27,10 +29,16 @@ import type {Workflow} from "../core"
 import {buildWorkflowUri, parseWorkflowKeyFromUri} from "../core"
 
 import {
-    applyAgentCreationPrefs,
+    applyAgentModelSelection,
     agentCreationPrefsAtom,
     ensureEnabledSandbox,
+    selectionFromAgentCreationPrefs,
 } from "./agentCreationPrefs"
+import {
+    reportAgentCreationFailure,
+    type AgentCreationFailureDetails,
+} from "./agentCreationTelemetry"
+import {loadAgentModelCandidates} from "./agentModelCandidates"
 import {buildServiceUrlFromUri} from "./helpers"
 import {workflowLocalServerDataAtomFamily} from "./store"
 
@@ -90,6 +98,7 @@ export interface CreateEphemeralAppFromTemplateParams {
 }
 
 const capitalize = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s)
+const USER_HYDRATION_TIMEOUT_MS = 10_000
 
 /**
  * Match a template to the requested app type. The catalog returns templates
@@ -115,6 +124,35 @@ function matchTemplateForType(
     )
 }
 
+/** Wait for auth hydration instead of turning a pending user into a terminal creation failure. */
+async function waitForAgentCreationUserId(signal?: AbortSignal): Promise<string | null> {
+    const store = getDefaultStore()
+    const current = store.get(userAtom)?.id
+    if (current) return current
+    if (signal?.aborted) return null
+
+    return new Promise((resolve) => {
+        let unsubscribe: () => void = () => undefined
+        let timeout: ReturnType<typeof setTimeout> | undefined
+        const finish = (userId: string | null) => {
+            unsubscribe()
+            if (timeout) clearTimeout(timeout)
+            signal?.removeEventListener("abort", onAbort)
+            resolve(userId)
+        }
+        const onAbort = () => finish(null)
+        unsubscribe = store.sub(userAtom, () => {
+            const userId = store.get(userAtom)?.id
+            if (userId) finish(userId)
+        })
+        signal?.addEventListener("abort", onAbort, {once: true})
+        // Close the subscribe/read race if hydration landed between the first read and `sub`.
+        const hydrated = store.get(userAtom)?.id
+        if (hydrated) finish(hydrated)
+        else timeout = setTimeout(() => finish(null), USER_HYDRATION_TIMEOUT_MS)
+    })
+}
+
 /**
  * Create a local-only application workflow entity from a built-in catalog
  * template (chat or completion). Mirrors `createEvaluatorFromTemplate` —
@@ -137,12 +175,24 @@ export async function createEphemeralAppFromTemplate({
     signal,
     deferInspect = false,
 }: CreateEphemeralAppFromTemplateParams): Promise<string | null> {
-    if (signal?.aborted) return null
-
+    const startedAt = Date.now()
     const store = getDefaultStore()
     const projectId = store.get(projectIdAtom)
 
-    if (!projectId) return null
+    // Every exit below hands the caller the same generic sentence, so record which one it was.
+    const fail = (details: AgentCreationFailureDetails): null => {
+        reportAgentCreationFailure({
+            ...details,
+            type,
+            elapsed_ms: Date.now() - startedAt,
+            ...(projectId ? {project_id: projectId} : {}),
+        })
+        return null
+    }
+
+    if (signal?.aborted) return fail({reason: "aborted", stage: "entry"})
+
+    if (!projectId) return fail({reason: "no_project"})
 
     // Read cached templates first (fast path — atom may already be populated
     // by a mounted dropdown). Fall back to a direct fetch if empty.
@@ -150,17 +200,17 @@ export async function createEphemeralAppFromTemplate({
     if (templates.length === 0) {
         try {
             const response = await fetchWorkflowCatalogTemplates({isApplication: true})
-            if (signal?.aborted) return null
+            if (signal?.aborted) return fail({reason: "aborted", stage: "templates_fetch"})
             templates = response.templates ?? []
         } catch {
-            return null
+            return fail({reason: "templates_fetch_failed"})
         }
     }
 
     const template = matchTemplateForType(templates, type)
-    if (!template) return null
+    if (!template) return fail({reason: "no_template"})
 
-    if (signal?.aborted) return null
+    if (signal?.aborted) return fail({reason: "aborted", stage: "template_match"})
 
     // Fall back to building the URI from the requested `type` (e.g. "chat",
     // "completion") rather than `template.key`. The catalog can return keys
@@ -190,23 +240,43 @@ export async function createEphemeralAppFromTemplate({
         (syncPromptInputKeysInParameters(rawParameters) as Record<string, unknown> | undefined) ??
         rawParameters
 
-    // New agents default to the user's last-used harness/model/connection instead of only the
-    // template default. Both agent-create paths (home composer + onboarding) mint through this one
-    // factory, so overlaying here covers both without duplicating the logic at each call site.
+    // Both agent-create paths (home composer + onboarding) use this resolver. The static v0 template
+    // route is only a replaceable placeholder: complete last-used, managed, and deterministic-first
+    // candidates take precedence in that order.
     if (type === "agent") {
-        const agentPrefs = store.get(agentCreationPrefsAtom)
+        const userId = await waitForAgentCreationUserId(signal)
+        if (signal?.aborted) return fail({reason: "aborted", stage: "user_wait"})
+        if (!userId) return fail({reason: "user_timeout"})
         const agentConfig =
             parameters.agent &&
             typeof parameters.agent === "object" &&
             !Array.isArray(parameters.agent)
                 ? (parameters.agent as Record<string, unknown>)
                 : {}
+        const candidateState = await loadAgentModelCandidates({
+            projectId,
+            userId,
+            pairModelSelection: store.get(subscriptionPairModelsAtom),
+        })
+        if (signal?.aborted) return fail({reason: "aborted", stage: "candidate_load"})
+        if (candidateState.status !== "ready")
+            return fail({
+                reason: "sources_not_ready",
+                candidate_count: candidateState.candidates.length,
+                ...candidateState.sources,
+            })
+        const selected = resolveAgentModelSelection({
+            candidates: candidateState.candidates,
+            last: selectionFromAgentCreationPrefs(store.get(agentCreationPrefsAtom)),
+        })
+        const resolvedAgent = selected
+            ? applyAgentModelSelection(agentConfig, selected)
+            : agentConfig
         // Seed a deployment-valid sandbox before commit so a daytona-only deployment doesn't
         // commit an unrunnable `local` default and then show a phantom Advanced draft on open.
-        const withPrefs = applyAgentCreationPrefs(agentConfig, agentPrefs)
         parameters = {
             ...parameters,
-            agent: ensureEnabledSandbox(withPrefs, getEnabledSandboxProviders()),
+            agent: ensureEnabledSandbox(resolvedAgent, getEnabledSandboxProviders()),
         }
     }
 
@@ -287,7 +357,7 @@ export async function createEphemeralAppFromTemplate({
     try {
         const serviceUrl = buildServiceUrlFromUri(uri)
         const inspectData = await inspectWorkflow(uri, projectId, serviceUrl)
-        if (signal?.aborted) return null
+        if (signal?.aborted) return fail({reason: "aborted", stage: "inspect"})
         const inspectSchemas = inspectData?.revision?.data?.schemas
         if (inspectSchemas) {
             schemas = {
@@ -300,7 +370,7 @@ export async function createEphemeralAppFromTemplate({
         // Inspect failed — proceed with catalog schemas (or empty).
     }
 
-    if (signal?.aborted) return null
+    if (signal?.aborted) return fail({reason: "aborted", stage: "before_seed"})
 
     store.set(workflowLocalServerDataAtomFamily(localId), buildWorkflow(schemas))
 

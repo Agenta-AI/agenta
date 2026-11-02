@@ -2,8 +2,9 @@ from enum import Enum
 from typing import Any, Dict, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
+from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.shared.dtos import Identifier, Lifecycle, Reference, Selector
 
 
@@ -43,6 +44,11 @@ class SessionInteractionData(BaseModel):
     references: Optional[Dict[str, Reference]] = None
     selector: Optional[Selector] = None
     resolution: Optional[Dict[str, Any]] = None
+    # The effective config the gated turn was running, stamped by the runner. Replaying it as
+    # the resume's `data.parameters` suppresses reference hydration and reproduces the turn
+    # (tool permissions included) instead of running the referenced variant's HEAD revision.
+    # Absent on rows written before this field existed; those resume via `references` alone.
+    parameters: Optional[Dict[str, Any]] = None
 
 
 class SessionInteractionFlags(BaseModel):
@@ -66,6 +72,9 @@ class SessionInteraction(Identifier, Lifecycle):
     flags: SessionInteractionFlags = SessionInteractionFlags()
     tags: Optional[Dict[str, Any]] = None
     meta: Optional[Dict[str, Any]] = None
+    # The run envelope this work continues under (M2). Internal: never in a response
+    # (`exclude=True`), and copied, never dumped, between services.
+    run_envelope: Optional[RunEnvelope] = Field(default=None, exclude=True)
 
 
 class SessionInteractionCreate(BaseModel):
@@ -78,6 +87,8 @@ class SessionInteractionCreate(BaseModel):
     flags: SessionInteractionFlags = SessionInteractionFlags()
     tags: Optional[Dict[str, Any]] = None
     meta: Optional[Dict[str, Any]] = None
+    # Server-set by the service; not part of the request body model.
+    run_envelope: Optional[RunEnvelope] = Field(default=None, exclude=True)
 
 
 class SessionInteractionTransition(BaseModel):

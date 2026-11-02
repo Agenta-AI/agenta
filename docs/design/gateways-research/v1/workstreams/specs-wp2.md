@@ -1,0 +1,376 @@
+# WP2 — Secret resolution
+
+Delivers `SecretsResolver`, the one class both gateways call to turn a `SecretRef`
+into a `(secret, owner, payer)` triple. Pure logic wrapped around one existing service —
+`VaultService` — so nothing here talks to Postgres directly. Owns
+`core/gateways/policy/resolution.py` only.
+
+This is the signature `plan.md` calls out as the one thing the seed had to get right:
+`resolve()` takes the owner from the outset (D10) even though today only the project
+answers. WP2 fills in behavior; it does not touch the signature — that is frozen by the
+seed commit in `core/gateways/policy/interfaces.py`.
+
+## What this is NOT
+
+- **Not the vault.** `VaultService` (`core/secrets/services.py`) already exists; WP2
+  composes it, never reimplements encryption or storage.
+- **Not the permission or entitlement check.** `authorize()` on
+  `GatewayPolicyService` is WP3's; WP2's `resolve()` is called only *after* WP3 (or a
+  caller mimicking it) has already decided the call is allowed. `resolve()` never checks
+  a permission and never raises `PolicyDeniedError`.
+- **Not the brokered (`builtin`, MCP) path.** A Composio-backed MCP endpoint's secret
+  lives at the broker and never enters the vault — `MCPBrokeredAuth` carries the
+  `gateway_connections` row directly, never `ResolvedSecret`. `resolve()` is never
+  called for that namespace; routing around it with a third `SecretRef` arm was
+  rejected in `entities.md` §7.2 and must not be reintroduced here.
+- **Not the OAuth client.** An OAuth MCP endpoint's secret is a `BoundSecretRef` like any
+  other — `resolve()` only reads it; it never mints, refreshes, or exchanges a token. That
+  is WP17.
+- **Not the two new secret kinds.** `oauth_provider`/`oauth_grant` (WP16) do not exist yet
+  when this package lands (wave 1, before C2). Once WP16+WP17 land, an
+  `oauth_grant` secret is just another vault row a `BoundSecretRef` can point at —
+  `resolve()` needs no change to reach it. Nothing in WP2 blocks on WP16.
+
+## Files
+
+New:
+- `api/oss/src/core/gateways/policy/resolution.py` — `SecretsResolver`, implementing
+  `SecretsResolverInterface` (seed-owned, `core/gateways/policy/interfaces.py` —
+  imported, never edited).
+
+Edited: none. WP2 adds one construction line to `api/entrypoints/routers.py` at the IM1
+merge (below); it does not commit that file.
+
+## Interface (reproduce verbatim, seed-owned)
+
+From `core/gateways/policy/interfaces.py` (`entities.md` §7.2):
+
+```python
+class SecretsResolverInterface(ABC):
+    """One lookup, called by both planes. Mockable (D23): the mock resolver
+    answers from a dict and never touches the vault."""
+
+    @abstractmethod
+    async def resolve(
+        self,
+        *,
+        scope: AuthScope,
+        #
+        ref: SecretRef,
+        mode: SecretMode,
+    ) -> ResolvedSecret:
+        """Resolve one secret for one call.
+
+        The mode logic, in full (secrets.md):
+          PROJECT_ONLY  -> the project secret; SecretNotFoundError(PROJECT) if absent.
+          USER_REQUIRED -> the (project, user) secret; SecretNotFoundError(USER)
+                           if absent — NEVER falls back.
+          USER_OPTIONAL -> the (project, user) secret if present, else the
+                           project's; SecretNotFoundError(USER) naming the
+                           narrower owner if neither exists.
+
+        Until user-owned secrets ship, the user arm of every mode finds nothing
+        and the modes degrade to project lookup or failure — behaviourally
+        today's world, with the signature already right.
+
+        By ref arm:
+          ProviderKeyRef -> scan the project's provider_key / custom_provider
+                            secrets for the provider, as the SDK's settings
+                            builder does today (models.md).
+          BoundSecretRef -> VaultService.get_secret_by_id, scoped to the project.
+                            Also how an OAuth MCP endpoint resolves its secret:
+                            the caller passes BoundSecretRef(secret_id=
+                            endpoint.secret_id) at mode=PROJECT_ONLY.
+
+        Raises, never returns None: no path silently yields "no secret",
+        and the exceptions carry which owner is missing so the boundary can
+        build the connect affordance."""
+        ...
+
+    @abstractmethod
+    async def available_provider_keys(self, *, scope: AuthScope) -> Set[str]:
+        """Provider keys with a resolvable project-owned secret. Names only,
+        never a value — an existence test that must not read a secret."""
+        ...
+```
+
+**The second method is R2's ruling, added at kickoff.** D20 makes a generated `builtin`
+endpoint exist for a project exactly when a provider key exists for it, so
+`LLMGatewayService.list_endpoints` (WP7) needs to ask that question — and it has no vault
+dependency, by design. Handing the service a `VaultService` would give it two secret
+seams and defeat the port; calling `resolve()` once per provider and catching
+`SecretNotFoundError` is control flow by exception plus eleven vault reads per list.
+Existence of a secret is a secret-layer question, so it belongs on the secret
+port.
+
+Implement it over the same scan `ProviderKeyRef` uses — the project's `provider_key` and
+`custom_provider` secrets — returning the set of provider names found. It returns names,
+never secret values, and it never raises for "none found": the empty set is the correct
+answer, unlike `resolve()`, which raises because a caller asking to resolve has already
+committed to needing one.
+
+## DTOs used (reproduce verbatim, seed-owned — `core/gateways/policy/dtos.py`)
+
+```python
+class SecretMode(str, Enum):
+    USER_OPTIONAL = "user_optional"
+    USER_REQUIRED = "user_required"
+    PROJECT_ONLY = "project_only"
+
+class SecretOwnerKind(str, Enum):
+    PROJECT = "project"
+    USER = "user"
+
+class SecretOwner(BaseModel):
+    kind: SecretOwnerKind
+    user_id: Optional[UUID] = None    # set exactly when kind is USER
+
+class SecretOrigin(str, Enum):
+    VAULT = "vault"
+    LOCAL = "local"
+
+class ProviderKeyRef(BaseModel):
+    provider_key: str
+
+class BoundSecretRef(BaseModel):
+    secret_id: UUID
+
+SecretRef = Union[ProviderKeyRef, BoundSecretRef]
+
+class ResolvedSecret(BaseModel):
+    secret: SecretResponseDTO         # decrypted, from VaultService
+    owner: SecretOwner
+    origin: SecretOrigin
+```
+
+`SecretResponseDTO` is `core/secrets/dtos.py`'s existing response type — WP2 imports it,
+never redefines it. `origin` is currently always `SecretOrigin.VAULT` for every path
+`resolve()` can reach in this scope: nothing in wave 1 has a `LOCAL`-origin secret to
+return (that distinction belongs to the parallel bring-your-own-secrets work, `secrets.md`
+§"secret_origin"). Set it to `VAULT` unconditionally; do not invent a `LOCAL` branch.
+
+## Exceptions used (reproduce verbatim, seed-owned — `core/gateways/policy/types.py`)
+
+```python
+class SecretNotFoundError(GatewaysError):
+    def __init__(self, *, mode: SecretMode, missing: SecretOwnerKind, target: str): ...
+
+class SecretInvalidError(GatewaysError):
+    def __init__(self, *, target: str, detail: Optional[str] = None): ...
+```
+
+`target` is a caller-supplied string identifying what was being resolved for — WP2 does
+not have a `GatewayTarget` in `resolve()`'s signature, so it builds this string itself
+from the `SecretRef` it was given (e.g. `f"provider:{ref.provider_key}"`,
+`f"secret:{ref.secret_id}"`). This is not named anywhere
+in `entities.md` beyond "target" as a parameter name on the exception constructors — pick
+a stable, greppable format per ref arm and keep it consistent across both.
+
+## Implementation, by ref arm
+
+### `BoundSecretRef` — custom endpoints, and OAuth MCP endpoints
+
+The simple case. `mode` still governs owner selection even though a bound secret has no
+owner axis of its own today — `VaultService.get_secret_by_id` takes only
+`project_id`/`organization_id`, so in this scope the mode parameter is honored for
+consistency (the signature promise) rather than because it changes behavior yet:
+
+```python
+secret = await self.vault_service.get_secret_by_id(
+    ref.secret_id, project_id=scope.project_id,
+)
+if secret is None:
+    raise SecretNotFoundError(
+        mode=mode, missing=SecretOwnerKind.PROJECT, target=f"secret:{ref.secret_id}",
+    )
+return ResolvedSecret(
+    secret=secret,
+    owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
+    origin=SecretOrigin.VAULT,
+)
+```
+
+Note `get_secret_by_id`'s real signature is `get_secret_by_id(self, secret_id: UUID,
+project_id: UUID | None = None, organization_id: UUID | None = None)` —
+`secret_id` is positional in `VaultService`, not keyword-only. Call it positionally; do
+not assume `VaultService`'s own convention matches the gateways domain's keyword-only
+house rule, because it predates it.
+
+An OAuth MCP endpoint resolves through this same branch: WP9 builds
+`BoundSecretRef(secret_id=endpoint.secret_id)` and calls `resolve()` at
+`mode=SecretMode.PROJECT_ONLY` — the endpoint's `secret_id` column is the project-level
+answer, so there is nothing endpoint- or OAuth-specific for this package to know.
+
+**Every call into `VaultService` must be wrapped in `set_data_encryption_key`
+(`core/secrets/context.py`)** — the underlying DAO raises `ValueError` without it
+(`get_data_encryption_key()`'s explicit check). `VaultService`'s own public methods
+already open this context internally (see `services.py::get_secret_by_id`), so
+`SecretsResolver` does **not** need to open it a second time around
+`vault_service.get_secret_by_id(...)` — confirm this against `core/secrets/services.py`
+before assuming otherwise; wrapping twice is harmless (the context manager nests) but
+redundant, and *not* wrapping when calling `secrets_dao` directly (WP2 must not do this —
+it only calls through `VaultService`) would raise.
+
+### `ProviderKeyRef` — standard LLM endpoints
+
+No column indexes "the provider's key" — this is a scan, matching what the SDK's
+provider-settings builder already does client-side. **Precedent to study before writing
+this branch:** `sdks/python/agenta/sdk/agents/platform/connections.py` —
+`_provider_key_candidate()` (a `provider_key`-kind secret is identified by
+`data.kind == provider` with the key itself at `settings.key`, i.e. `SecretDTO(kind=
+PROVIDER_KEY, data=StandardProviderDTO(kind=<provider>, provider=StandardProviderSettingsDTO(key=...)))`)
+and `_custom_provider_candidate()` (a `custom_provider`-kind secret matches when its
+`data.kind` — a `CustomProviderKind` — equals the target provider). WP2 replicates the
+*matching* rule these two functions encode, over `VaultService.list_secrets`, not the
+whole candidate-selection/priority machinery in that file (which also handles model
+allowlists, endpoints and env vars — out of scope for a secret lookup):
+
+```python
+secrets = await self.vault_service.list_secrets(project_id=scope.project_id)
+match = next(
+    (s for s in secrets if s.kind == SecretKind.PROVIDER_KEY
+     and s.data.kind == ref.provider_key), None,
+) or next(
+    (s for s in secrets if s.kind == SecretKind.CUSTOM_PROVIDER
+     and s.data.kind == ref.provider_key), None,
+)
+if match is None:
+    raise SecretNotFoundError(
+        mode=mode, missing=SecretOwnerKind.PROJECT,
+        target=f"provider:{ref.provider_key}",
+    )
+```
+
+`provider_key`-kind secrets take priority over `custom_provider`-kind matches when both
+exist for the same provider — this mirrors `_catalog`'s ordering in the cited module
+(provider_key candidates are the "standard" match; custom_provider is the fallback for a
+reseller or self-hosted deployment claiming the same provider family). If two secrets of
+the *same* kind match the same provider, behavior is undefined upstream too (the SDK
+picks by list order); do not invent a tie-break rule beyond "first match" — flag it if a
+reviewer wants one, do not silently add priority logic not present in the cited
+precedent.
+
+## The mode table, written out in full (do not abbreviate in code)
+
+For **every** ref arm, the same three-way branch on `mode` (`secrets.md`, `entities.md`
+§7.2):
+
+| `mode` | behavior | on failure |
+| --- | --- | --- |
+| `PROJECT_ONLY` | look up the project-owned secret only; never consult `scope.user_id` | `SecretNotFoundError(mode=PROJECT_ONLY, missing=PROJECT, target=...)` |
+| `USER_REQUIRED` | look up `(project, scope.user_id)` only; **never** fall back to the project's | `SecretNotFoundError(mode=USER_REQUIRED, missing=USER, target=...)` |
+| `USER_OPTIONAL` | look up `(project, scope.user_id)`; if absent, look up the project's | `SecretNotFoundError(mode=USER_OPTIONAL, missing=USER, target=...)` — names the **narrower** owner even though the project lookup was also tried |
+
+For `BoundSecretRef` and `ProviderKeyRef` there is no `(project, user)`
+lookup to perform yet — no owner column exists on a bound-secret or provider-key lookup
+until user-owned secrets ship (`../out-of-scope.md`). So for both ref arms all three modes
+currently degrade to the same project-only lookup **behaviorally**, but the branch must
+still be written for all three modes explicitly (not collapsed into a single code path)
+so the day a user-owned vault row exists, only the per-arm lookup changes and the mode
+dispatch does not move. This is D10's entire point, applied at the one seam that will
+actually change: write the `if mode == SecretMode.USER_REQUIRED: ...` branches now
+even though today they read from a table with no user-owned rows.
+
+## Contracts this package must honour
+
+- **Never returns `None`.** Every failure path raises `SecretNotFoundError` or
+  `SecretInvalidError`; a bare `return None` or silently constructing a
+  `ResolvedSecret` with an empty secret is the exact failure `secrets.md` names as
+  disallowed ("failure is never silent and never a fallback to 'no secret'").
+- **`USER_REQUIRED` never falls back**, on any ref arm. A implementation that tries the
+  project secret "just in case" after a `USER_REQUIRED` miss is a silent privilege
+  escalation risk (an agent could act as the organization when it should have failed) —
+  this is the one rule in this package most worth a dedicated test per ref arm.
+- **The exceptions name which owner is missing**, not just that resolution failed —
+  `missing=SecretOwnerKind.USER` vs `.PROJECT` is what lets the boundary (later
+  packages) build `needs_auth` for "you must connect" versus an administrator-facing
+  message for "the project has no key." Getting this backwards silently degrades the UX
+  without failing any test that only checks "an exception was raised."
+- **`builtin`-namespace MCP targets never call `resolve()`.** If a future caller passes a
+  `BoundSecretRef` for a builtin (brokered) endpoint, that is a caller bug (§4.4, D27) —
+  `resolve()` has no endpoint-namespace context in any ref arm and is not expected to
+  detect this; the namespace check is the caller's responsibility (WP9's service), not
+  this package's.
+- **Constructor takes `vault_service` by keyword**, matching the
+  entrypoint wiring in `entities.md` §9: `SecretsResolver(vault_service=vault_service)`.
+  This exact call is the only place this constructor's shape is written down in the
+  design; treat it as authoritative.
+
+## Tests
+
+**Unit (no services running, run now).** This is the point of the spec's framing —
+`resolve()` is pure orchestration over one port, trivially mockable, so every case
+below runs with a dict-backed mock `VaultService`, no Postgres, no encryption key:
+
+`api/oss/tests/pytest/unit/gateways/test_gateways_resolution.py`
+
+- `BoundSecretRef`, secret exists → `ResolvedSecret` with
+  `owner.kind == PROJECT`, `origin == VAULT`.
+- `BoundSecretRef`, secret does not exist (any mode) → `SecretNotFoundError` with
+  `missing == PROJECT`.
+- `ProviderKeyRef`, a `provider_key`-kind secret matches → resolves it.
+- `ProviderKeyRef`, no `provider_key`-kind match but a `custom_provider`-kind match
+  exists → resolves the `custom_provider` one (fallback order).
+- `ProviderKeyRef`, both kinds match the same provider → resolves the `provider_key`-kind
+  one (priority order).
+- `ProviderKeyRef`, no match of either kind → `SecretNotFoundError` with
+  `missing == PROJECT`.
+- `BoundSecretRef` at each of the three `SecretMode` values, secret exists → resolves it
+  with `owner.kind == PROJECT` in every case (no ref arm has a live per-user secret in
+  this scope, §"mode table" above) — the test that catches a mode dispatch that was
+  collapsed into a single code path instead of written out per §"mode table".
+- Every `SecretNotFoundError` raised across the cases above carries a `target` string
+  that is non-empty and reproducible from the input `ref` (assert the format is stable,
+  not just present).
+
+**Integration:** none required for this package specifically — `VaultService` is fully
+mock in the unit suite above, and there is no direct database or Redis touch anywhere in
+`resolution.py`. If a reviewer wants one end-to-end sanity check against a real
+`VaultService`, it belongs in a cross-package integration suite, not in this package's
+own test file.
+
+## `api/entrypoints/routers.py` diff (apply at the IM1 merge)
+
+```python
+from oss.src.core.gateways.policy.resolution import SecretsResolver
+
+secret_resolver = SecretsResolver(vault_service=vault_service)
+```
+
+(`entities.md` §9 wiring block.)
+
+## Checkpoint
+
+Feeds **IM1**, then **C1** through WP6 and WP8 (both call `resolve()` on the
+relay path).
+
+Exit condition, verbatim from `plan.md`: *"each resolution mode behaves as specified and
+no path silently returns no secret."*
+
+WP2 is done when: every case in the Tests section above passes; grep over
+`resolution.py` confirms every `return` statement either returns a `ResolvedSecret`
+or is unreachable, and every early-exit path is a `raise`; and a `USER_REQUIRED` lookup
+with only a project-owned secret present raises rather than resolving, verified by
+code-path inspection on both ref arms (behaviorally inert today, but present, since
+neither arm has a live per-user secret in this scope).
+
+## Out of scope
+
+- `core/gateways/policy/service.py` (`GatewayPolicyService.authorize`, `.record`) — WP3.
+- The OAuth client and token refresh that mint the `oauth_grant` secret an MCP endpoint's
+  `secret_id` eventually points at — WP17.
+- `VaultService` itself and the two new secret kinds — WP16 adds the kinds; `services.py`
+  is pre-existing and not touched.
+- A third `SecretRef` arm narrowing resolution to a per-user row — removed from scope,
+  see `../out-of-scope.md`.
+
+## Missing from the design, needs a ruling
+
+- **The tie-break when two secrets of the same kind match the same provider under
+  `ProviderKeyRef`.** `entities.md` and the cited SDK precedent both leave this
+  undefined (the precedent resolves it by list order via `VaultService.list_secrets`'s
+  return order, which is not documented as stable). Not blocking — "first match in
+  return order" is a reasonable default and matches existing client-side behavior — but
+  it is not written down anywhere as a deliberate choice, and a future admin UI that lets
+  a project hold two `provider_key` secrets for one provider would need this resolved
+  properly rather than inherited by accident.

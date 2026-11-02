@@ -69,3 +69,62 @@ def _stub_event_publishing(request, monkeypatch):
         _noop_publish,
         raising=False,
     )
+
+
+@pytest.fixture(autouse=True)
+def _allow_resource_checks(request, monkeypatch):
+    """Route tests that are not about sharing run with every agent and session
+    allowed: the routes' resource checks and the embedded agent check answer
+    ALLOWED, and the capability checks (`check_action_access`, which those tests
+    stub) decide as before.
+
+    Tests of the resource checks themselves opt out with
+    `@pytest.mark.real_resource_checks`.
+    """
+    if request.node.get_closest_marker("real_resource_checks"):
+        return
+
+    from oss.src.apis.fastapi.sharing.utils import ResourceCheck  # noqa: PLC0415
+
+    async def _allowed(*_args, **_kwargs):
+        return ResourceCheck.ALLOWED
+
+    async def _route_check(request=None, *_args, action=None, **_kwargs):
+        # A session route makes ONE decision (capability and resource together, M3
+        # latency fix): a test that stubs the capability check (`check_action_access`
+        # in the sessions router) gets the route's answer for a missing capability.
+        import oss.src.apis.fastapi.sessions.router as sessions_router  # noqa: PLC0415
+
+        capability = getattr(sessions_router, "check_action_access", None)
+        if hasattr(capability, "assert_awaited") and request is not None:
+            if not await capability(
+                user_uid=str(request.state.user_id),
+                project_id=str(request.state.project_id),
+                permission=action,
+            ):
+                return ResourceCheck.NO_CAPABILITY
+        return ResourceCheck.ALLOWED
+
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.sharing.utils.check_resource", _route_check, raising=False
+    )
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.sessions.router.check_resource_for",
+        _allowed,
+        raising=False,
+    )
+
+    async def _write_allowed(*_args, **_kwargs):
+        return True
+
+    monkeypatch.setattr(
+        "oss.src.core.embeds.service.embedded_agent_visible",
+        _write_allowed,
+        raising=False,
+    )
+
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.sessions.router.allow_session_write",
+        _write_allowed,
+        raising=False,
+    )

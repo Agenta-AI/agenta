@@ -1,5 +1,10 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
+import {NotFoundScreen} from "@agenta/auth-ui"
+import {workflowLatestRevisionQueryAtomFamily} from "@agenta/entities/workflow"
+import {SETTINGS_SIDEBAR_SCOPE_ID} from "@agenta/navigation"
+import {ProjectWatch} from "@agenta/sessions/watch"
+import {useVisualViewportHeight} from "@agenta/ui/hooks"
 import {ConfigProvider, Layout, Modal, theme} from "antd"
 import clsx from "clsx"
 import {atom} from "jotai"
@@ -9,29 +14,33 @@ import {eagerAtom} from "jotai-eager"
 import {useRouter} from "next/router"
 import {ErrorBoundary} from "react-error-boundary"
 
-import {currentAppAtom} from "@/oss/state/app"
+import useIsomorphicLayoutEffect from "@/oss/hooks/useIsomorphicLayoutEffect"
+import {refreshSession} from "@/oss/lib/helpers/auth/refreshSession"
+import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 import {appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
-import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
-import {getProjectValues, useProjectData} from "@/oss/state/project"
+import {layoutFullHeightRequestAtom} from "@/oss/state/layout/fullHeight"
+import {cacheWorkspaceOrgPair, selectedOrgAtom} from "@/oss/state/org/selectors/org"
+import {getProjectValues, routeContextAtom, useProjectData} from "@/oss/state/project"
 import {
     cacheLastUsedProjectId,
     demoReturnHintDismissedAtom,
     demoReturnHintPendingAtom,
     lastNonDemoProjectAtom,
 } from "@/oss/state/project/selectors/project"
+import {canonicalWorkspacePath} from "@/oss/state/project/selectors/routeContext"
 import {urlAtom} from "@/oss/state/url"
+import {playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
 
 import CustomWorkflowBanner from "../CustomWorkflow/CustomWorkflowBanner"
 import ProtectedRoute from "../ProtectedRoute/ProtectedRoute"
-import {SETTINGS_SIDEBAR_SCOPE_ID} from "../Sidebar/scopes/constants"
 import {resolveSidebarLastPath} from "../Sidebar/scopes/sidebarLastPath"
 import {resolveSidebarView} from "../Sidebar/scopes/viewRegistry"
 import type {SidebarView} from "../Sidebar/types"
 
-import BreadcrumbContainer from "./assets/Breadcrumbs"
 import {useStyles} from "./assets/styles"
 import AuthUpgradeHost from "./AuthUpgradeHost"
 import ErrorFallback from "./ErrorFallback"
+import MaintenanceNoticeBar, {useMaintenanceNotice} from "./MaintenanceNotice"
 import PostHogThemeCapture from "./PostHogThemeCapture"
 import {SidebarIsland} from "./SidebarIsland"
 import {useAppTheme} from "./ThemeContextProvider"
@@ -61,16 +70,12 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
     const isAnnotations = pathname.includes("/annotations")
     const isRegistry = pathname.includes("/variants")
     const isObservability = pathname.includes("/observability") || pathname.includes("/traces")
-    // The Audit Log settings tab hosts a full-height InfiniteVirtualTable.
-    // Scoped to the `tab` query param so other settings tabs keep the default
-    // (content-flow) layout.
-    const tab = Array.isArray(query.tab) ? query.tab[0] : query.tab
-    const isAuditLog = pathname.includes("/settings") && tab === "auditLog"
     // The agent-templates gallery has its own fixed header + rail with an
     // internally-scrolling card grid, so it needs the bounded full-height frame.
     const isAgentTemplates = pathname.includes("/agent-templates")
     // Covers /agents and /agents/archived, both full-height InfiniteVirtualTable pages.
     const isAgents = pathname.includes("/agents")
+    const isSessions = pathname.includes("/sessions")
 
     return {
         isAuthRoute:
@@ -88,9 +93,12 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
             isAnnotations ||
             isRegistry ||
             isObservability ||
-            isAuditLog ||
             isAgentTemplates ||
-            isAgents,
+            isAgents ||
+            isSessions ||
+            // Asked for by the page — see `layoutFullHeightRequestAtom`. Home is one of these:
+            // its returning branch scrolls with the page, its first-run branch asks for the frame.
+            get(layoutFullHeightRequestAtom),
     }
 })
 
@@ -168,6 +176,13 @@ const appRouteSliceAtom = selectAtom(
 // String-valued so org/app churn inside urlAtom doesn't re-render AppWithVariants
 const baseAppURLAtom = eagerAtom((get) => get(urlAtom).baseAppURL)
 
+// True once the type lookup has given its final answer, even when that answer is nothing.
+const agentTypeSettledAtom = atom((get) => {
+    const appId = get(routerAppIdAtom)
+    if (!appId) return true
+    return !get(workflowLatestRevisionQueryAtomFamily(appId)).isPending
+})
+
 type StyleClasses = ReturnType<typeof useStyles>
 
 const {Content} = Layout
@@ -201,10 +216,21 @@ const AppWithVariants = memo(
         const isAnnotations = appState.pathname.includes("/annotations")
         const lastBasePathRef = useRef<string | null>(null)
         const lastNonSettingsPathRef = useRef<string | null>(null)
+        // Same signal the playground shell reads, so sidebar and content commit together.
+        const agentState = useAtomValue(playgroundEarlyAgentStateAtom)
+        const agentTypeSettled = useAtomValue(agentTypeSettledAtom)
+        const currentSidebarViewIdRef = useRef<string | undefined>(undefined)
         const activeSidebarView = resolveSidebarView({
             pathname: appState.pathname,
             routeLayer: appState.routeLayer,
+            agentState,
+            agentTypeSettled,
+            currentViewId: currentSidebarViewIdRef.current,
         })
+        // Update only after commit so abandoned renders cannot change the visible view.
+        useIsomorphicLayoutEffect(() => {
+            currentSidebarViewIdRef.current = activeSidebarView.id
+        }, [activeSidebarView.id])
 
         useEffect(() => {
             if (activeSidebarView.isBase) {
@@ -229,8 +255,10 @@ const AppWithVariants = memo(
             }
         }, [activeSidebarView.id, sidebarLastPath])
 
-        const currentApp = useAtomValue(currentAppAtom)
         const {project} = useProjectData()
+        // Projects carry no demo flag any more; the demo workspace is an organization flag.
+        const selectedOrg = useAtomValue(selectedOrgAtom)
+        const isDemoWorkspace = Boolean(project && selectedOrg?.flags?.is_demo)
         const lastNonDemoProject = useAtomValue(lastNonDemoProjectAtom)
         const [demoReturnHintPending, setDemoReturnHintPending] = useAtom(demoReturnHintPendingAtom)
         const [demoReturnHintDismissed, setDemoReturnHintDismissed] = useAtom(
@@ -240,7 +268,7 @@ const AppWithVariants = memo(
         const navigate = useSetAtom(requestNavigationAtom)
 
         useEffect(() => {
-            if (project?.is_demo) return
+            if (isDemoWorkspace) return
             if (!demoReturnHintPending) return
             if (demoReturnHintDismissed) {
                 setDemoReturnHintPending(false)
@@ -251,7 +279,7 @@ const AppWithVariants = memo(
         }, [
             demoReturnHintDismissed,
             demoReturnHintPending,
-            project?.is_demo,
+            isDemoWorkspace,
             setDemoReturnHintPending,
         ])
 
@@ -259,6 +287,14 @@ const AppWithVariants = memo(
             setDemoReturnModalOpen(false)
             setDemoReturnHintDismissed(true)
         }, [setDemoReturnHintDismissed])
+
+        // The maintenance notice is a fixed bar like the demo one, so the page has to
+        // know whether it takes space. The bar reports its own dismissal rather than
+        // this component duplicating the localStorage read.
+        const maintenanceNotice = useMaintenanceNotice()
+        const [maintenanceDismissed, setMaintenanceDismissed] = useState(true)
+        const topBarsHeight =
+            (isDemoWorkspace ? 38 : 0) + (maintenanceNotice && !maintenanceDismissed ? 38 : 0)
 
         // Stable theme object so antd cssinjs doesn't re-evaluate per parent render
         const contentThemeConfig = useMemo(
@@ -293,7 +329,16 @@ const AppWithVariants = memo(
         }, [demoReturnHintDismissed, lastNonDemoProject, navigate, setDemoReturnHintPending])
 
         return (
-            <div className={clsx([{"flex flex-col grow min-h-0": isFullHeight}])}>
+            <div
+                className={clsx([
+                    {"flex flex-col grow min-h-0": isFullHeight},
+                    // Every fixed bar above covers what the page pins to the viewport top,
+                    // so sticky content offsets itself by their TOTAL height. Two bars can
+                    // show at once, and one of them covering the other is a layout bug.
+                    topBarsHeight === 38 && "[--ag-top-bars-h:38px]",
+                    topBarsHeight === 76 && "[--ag-top-bars-h:76px]",
+                ])}
+            >
                 <Modal
                     title="Want to revisit the demo?"
                     open={isDemoReturnModalOpen}
@@ -308,9 +353,22 @@ const AppWithVariants = memo(
                     </p>
                 </Modal>
                 <AuthUpgradeHost />
-                {project?.is_demo && (
+                {maintenanceNotice ? (
+                    <MaintenanceNoticeBar
+                        notice={maintenanceNotice}
+                        onDismissedChange={setMaintenanceDismissed}
+                    />
+                ) : null}
+                {isDemoWorkspace && (
                     <>
-                        <div className="fixed top-0 left-0 right-0 z-[9999] flex items-center justify-center gap-1.5 h-[38px] bg-[var(--ag-c-1C2C3D)] text-white text-sm font-medium">
+                        <div
+                            className={clsx([
+                                "fixed left-0 right-0 z-[9999] flex items-center justify-center gap-1.5 h-[38px] bg-[var(--ag-c-1C2C3D)] text-white text-sm font-medium",
+                                // Both bars are fixed, so the second one sits BELOW the
+                                // first instead of on top of it.
+                                maintenanceNotice && !maintenanceDismissed ? "top-[38px]" : "top-0",
+                            ])}
+                        >
                             You're viewing the demo workspace.
                             <button
                                 type="button"
@@ -334,10 +392,6 @@ const AppWithVariants = memo(
                                 },
                             ])}
                         >
-                            <BreadcrumbContainer
-                                appTheme={appTheme}
-                                appName={currentApp?.name ?? currentApp?.slug ?? ""}
-                            />
                             {/* ONE stable tree for both app and non-app routes: the layout flags
                                 (committed at routeChangeComplete, AFTER the destination page has
                                 rendered) may flip a beat after a client-side nav — as CLASSNAME
@@ -360,6 +414,11 @@ const AppWithVariants = memo(
                                                 "pb-0 mb-8": !isFullHeight,
                                                 "h-[calc(100%-30px)]": !isFullHeight && !isAppRoute,
                                                 "flex flex-col min-h-0 grow": isFullHeight,
+                                                // The shared content style carries a 2rem bottom
+                                                // margin for flowing pages. A full-height page
+                                                // fills the frame, so that margin is pure dead
+                                                // space under it.
+                                                "[&.ant-layout-content]:!mb-0": isFullHeight,
                                                 "h-full": isFullHeight && !isAppRoute,
                                                 "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
                                                     isPlayground ||
@@ -371,7 +430,7 @@ const AppWithVariants = memo(
                                             <ConfigProvider theme={contentThemeConfig}>
                                                 <div
                                                     className={clsx("w-full", {
-                                                        "flex min-h-0 flex-col gap-6 h-[calc(100dvh-75px)] overflow-hidden":
+                                                        "flex min-h-0 flex-col gap-6 h-[calc(var(--ag-viewport-height,100dvh)-29px)] overflow-hidden":
                                                             isFullHeight,
                                                         "flex flex-col":
                                                             !isFullHeight && !isAppRoute,
@@ -397,21 +456,51 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const classes = useStyles({themeMode: appTheme})
     const {isHumanEval, isPlayground, isAppRoute, isAuthRoute, isEvaluator, isFullHeight} =
         useCommittedLayoutFlags()
+    // From the router, not the flags atom: that atom is keyed on the parsed URL and goes
+    // stale on the hop off a 404. /404 renders bare like the auth screens.
+    const router = useRouter()
+    // An address naming a workspace or project that does not exist is a 404, and it is owned here
+    // rather than per page: every route under /w carries those ids, so one guard covers them all.
+    const {isNotFound: isRouteNotFound, canonicalWorkspaceId} = useAtomValue(routeContextAtom)
+    const isBareRoute = isAuthRoute || router.pathname === "/404" || isRouteNotFound
+
+    // A legacy workspace id in the address: replace it once with the project's organization id.
+    // From the browser's address, not `router.asPath`: before the router is ready, asPath still
+    // holds the route pattern (`[project_id]`), and the rewrite must keep the ids and the query.
+    useEffect(() => {
+        if (!canonicalWorkspaceId || !router.isReady || typeof window === "undefined") return
+        const {pathname, search, hash} = window.location
+        const next = canonicalWorkspacePath(`${pathname}${search}${hash}`, canonicalWorkspaceId)
+        if (next) void router.replace(next)
+        // `router` is stable for the page; the target id and readiness are what change.
+    }, [canonicalWorkspaceId, router.isReady])
+
+    // One owner for the whole app. A phone keyboard opens over the page, so every frame sized
+    // against the layout viewport hides its bottom edge behind it. This publishes the visible
+    // height as `--ag-viewport-height`, and each full-height frame reads it with a `100dvh`
+    // fallback. Mounting it here rather than per page means the playground, the agent overview,
+    // sessions, annotations and the auth screens are all covered by one call. Idle on desktop.
+    useVisualViewportHeight()
 
     const [, contextHolder] = Modal.useModal()
 
     return (
         <>
             <PostHogThemeCapture />
-            {typeof window === "undefined" ? null : isAuthRoute ? (
+            {typeof window === "undefined" ? null : isBareRoute ? (
                 <Layout className={classes.layout}>
                     <ErrorBoundary FallbackComponent={ErrorFallback}>
-                        {children}
+                        {isRouteNotFound ? (
+                            <NotFoundScreen onBack={() => router.back()} path={router.asPath} />
+                        ) : (
+                            children
+                        )}
                         {contextHolder}
                     </ErrorBoundary>
                 </Layout>
             ) : (
                 <ProtectedRoute shell="app">
+                    <ProjectWatch refreshSession={refreshSession} />
                     <AppWithVariants
                         isAppRoute={isAppRoute}
                         classes={classes}

@@ -19,8 +19,9 @@ from __future__ import annotations
 
 import asyncio
 from abc import ABC, abstractmethod
-from typing import ClassVar, FrozenSet, Mapping, Optional, Sequence
+from typing import Any, ClassVar, Dict, FrozenSet, Mapping, Optional, Sequence
 
+from .platform_instructions import session_context_guidance
 from .dtos import (
     AgentResult,
     EventSink,
@@ -33,6 +34,7 @@ from .dtos import (
 )
 from .errors import UnsupportedHarnessError
 from .streaming import AgentStream
+from .tools.models import ResolvedGatewayPolicy
 
 
 # ---------------------------------------------------------------------------
@@ -128,9 +130,24 @@ class Backend(ABC):
         secrets: Optional[Mapping[str, str]] = None,
         trace: Optional[TraceContext] = None,
         run_context: Optional[RunContext] = None,
+        turn_context: Optional[str] = None,
         session_id: Optional[str] = None,
+        detached: bool = False,
+        turn_id: Optional[str] = None,
+        project_id: Optional[str] = None,
+        control_command_id: Optional[str] = None,
+        effective_parameters: Optional[Dict[str, Any]] = None,
+        gateway_policy: Optional[ResolvedGatewayPolicy] = None,
+        runner_address: Optional[str] = None,
+        runner_replica_id: Optional[str] = None,
     ) -> Session:
-        """Open a session in ``sandbox`` for an already-harness-shaped ``config``."""
+        """Open a session in ``sandbox`` for an already-harness-shaped ``config``.
+
+        ``runner_address`` is the runner pod that ran the session's last turn, for a backend
+        that reaches its runner over a network. A hint only: the backend keeps the address it
+        was built with as the fallback. ``runner_replica_id`` is that pod's replica id, which
+        the backend checks against the pod before it uses the address.
+        """
 
 
 # ---------------------------------------------------------------------------
@@ -197,7 +214,27 @@ class Environment:
             ),
             trace=session_config.trace,
             run_context=session_config.run_context,
+            turn_context=session_context_guidance(
+                session_config.session_context,
+                [spec.name for spec in session_config.tool_specs],
+            ),
             session_id=session_config.session_id,
+            detached=session_config.detached,
+            turn_id=session_config.turn_id,
+            project_id=session_config.project_id,
+            control_command_id=session_config.control_command_id,
+            effective_parameters=session_config.effective_parameters,
+            gateway_policy=session_config.gateway_policy,
+            runner_address=(
+                session_config.session_context.runner_address
+                if session_config.session_context
+                else None
+            ),
+            runner_replica_id=(
+                session_config.session_context.runner_replica_id
+                if session_config.session_context
+                else None
+            ),
         )
 
 

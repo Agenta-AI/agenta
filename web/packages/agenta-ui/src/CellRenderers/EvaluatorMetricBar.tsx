@@ -14,13 +14,25 @@ import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../compo
 
 import type {BasicStats, FrequencyEntry} from "./metricUtils"
 
-const SEGMENT_COLORS = ["#10b981", "#94a3b8", "#d1d5db", "#e5e7eb"]
-const LABEL_COLORS = ["#0f766e", "#475467", "#475467", "#475467"]
+// Categorical set, assigned in fixed order and cycling. Steps 0/1/2 are the shared chart series
+// (palette.ts `chartSeries`); the last is the unfilled remainder, which is not a series.
+const SEGMENT_COLORS = [
+    "var(--ag-chart-series-0)",
+    "var(--ag-chart-series-1)",
+    "var(--ag-chart-series-4)",
+    "var(--ag-chart-track)",
+]
+const LABEL_COLORS = [
+    "light-dark(#5E0908, #D1D151)",
+    "light-dark(#113955, #8CCFFF)",
+    "light-dark(#616161, #BCBCBC)",
+    "light-dark(#616161, #BCBCBC)",
+]
 
-const TRUE_SEGMENT_COLOR = "#389e0d"
-const TRUE_LABEL_COLOR = "#389e0d"
-const FALSE_SEGMENT_COLOR = "#bdc7d1"
-const FALSE_LABEL_COLOR = "#586673"
+const TRUE_SEGMENT_COLOR = "var(--ag-status-success-text)"
+const TRUE_LABEL_COLOR = TRUE_SEGMENT_COLOR
+const FALSE_SEGMENT_COLOR = "var(--ag-chart-track)"
+const FALSE_LABEL_COLOR = "light-dark(#616161, #BCBCBC)"
 
 const normalizeBoolLabel = (label: unknown) => label?.toString().toLowerCase()
 
@@ -122,7 +134,7 @@ const BooleanBar = memo(function BooleanBar({
                     style={{width: `${trueSeg.ratio * 100}%`}}
                 >
                     <span
-                        className="text-[10px] leading-[18px] whitespace-nowrap"
+                        className="text-[12px] leading-[18px] whitespace-nowrap"
                         style={{color: TRUE_LABEL_COLOR}}
                     >
                         true
@@ -149,7 +161,7 @@ const BooleanBar = memo(function BooleanBar({
                     style={{width: `${falseSeg.ratio * 100}%`}}
                 >
                     <span
-                        className="text-[10px] leading-[18px] whitespace-nowrap"
+                        className="text-[12px] leading-[18px] whitespace-nowrap"
                         style={{color: FALSE_LABEL_COLOR}}
                     >
                         false
@@ -271,7 +283,7 @@ const EvaluatorMetricBar = memo(
                     ))}
                 </div>
                 <div
-                    className="flex w-full items-center justify-between gap-1 gap-y-1 text-[11px] leading-tight text-gray-600"
+                    className="flex w-full items-center justify-between gap-1 gap-y-1 text-xs leading-tight text-gray-600"
                     style={{width: "100%", maxWidth: width}}
                 >
                     {legendEntries.map((entry, index) => (
@@ -287,7 +299,7 @@ const EvaluatorMetricBar = memo(
                                 }}
                             />
                             <span className="font-medium max-w-[5rem] truncate">{entry.label}</span>
-                            <span className="text-[10px] text-gray-500">
+                            <span className="text-[12px] text-gray-500">
                                 {Formatter.format(entry.percent)}%
                             </span>
                         </div>

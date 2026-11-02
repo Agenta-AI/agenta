@@ -14,8 +14,7 @@ up and put it on a branch.
 You are the orchestrator. You do not write the whole feature yourself in one pass. You drive
 the feature through phases and spin a narrow subagent for each phase, handing it full
 context. You stay in the loop between phases, read each result, update the plan, and decide
-the next move. This mirrors the subagent discipline in the `agent-workflows-qa` skill: every
-fixer is followed by a reviewer, and every fix is followed by a retest.
+the next move. Every fixer is followed by a reviewer, and every fix is followed by a retest.
 
 ## Precondition: a plan workspace exists
 
@@ -37,7 +36,7 @@ plan-feature  ->  [ implement-feature ]  ->  write-pr-description (when you open
    Phase 1  implement        (implementer subagent: smallest correct change)
    Phase 2  review           (reviewer subagent: root cause, no regression)
    Phase 3  debug end to end (debug subagent, loop)   -> debug-local-deployment skill
-   Phase 4  tests            (test subagent, loop)     -> agent-workflows-qa + agent-replay-test
+   Phase 4  tests            (test subagent, loop)     -> agent-release-gate + agent-replay-test
    Phase 5  document + PR draft (docs subagent)        -> write-docs + write-pr-description (Context + Scope/risk + How to QA)
    Phase 6  stacked branch   (GitButler)               -> but (publish Phase 5 PR body on push)
 ```
@@ -133,21 +132,26 @@ section below for when to stop trying and escalate instead.
 Now make it stay working. Spin a test subagent that improves coverage and runs the suite,
 then loops until green. Use the real project test targets, never throwaway scripts.
 
-For agent-workflows changes, the bar is the QA matrix from the `agent-workflows-qa` skill.
-"Test with daytona / local pi / claude, using both the SDK and the UI" maps to its axes:
+For agent-workflows changes, the bar is the `agent-release-gate` skill. It drives the same
+product endpoint the playground drives and asserts on the SSE frames and real side effects, so
+it runs against any deployment. Read `.agents/skills/agent-release-gate/resources/coverage.md`
+for its cells and journeys, and for which cells are valid before testing one. Do not test
+cells that cannot exist.
 
-- **Environment**: `E1` service + in-process Pi, `E2` service + Rivet local, `E3` service +
-  Rivet Daytona, `E4` local SDK script. E3 is the daytona cell. E1 or E2 is the local-pi
-  cell. E4 is the SDK path.
-- **Harness**: `pi`, `agenta`, `claude`. The claude cell needs an `anthropic` provider key in
-  the target project's vault, and claude always forces the Rivet backend.
-- **Surface**: the SDK (E4, a script that pulls config and runs on the host) and the UI (the
-  playground, driven with the `mcp__chrome-devtools__*` tools against the live deployment).
+"Test with daytona / local pi / claude, using both the SDK and the UI" maps to it like this:
 
-Force each capability with a token the model cannot guess (a constant inside a code tool, a
-value from `uname -m`, a record only the MCP server has) so a pass proves the capability ran,
-not just that the agent answered. Consult `qa/matrix.md` for which cells are valid before
-testing one. Do not test cells that cannot exist.
+- **Harness and sandbox**: the gate's cells cross the harness (`pi_core`, `claude`, `codex`)
+  with the sandbox (`local`, `daytona`) and the auth mode. For example, C3 is Pi on `local`,
+  C4 is Pi on `daytona`, and C2 is claude on `daytona`. Each cell needs the provider key or the
+  subscription login that `coverage.md` lists for it.
+- **Surface**: the gate runs one layer below the UI and does not run a host SDK script. When
+  the change touches those surfaces, test them separately: the UI (the playground, driven with
+  the `mcp__chrome-devtools__*` tools against the live deployment) and the SDK (a script that
+  pulls config and runs on the host).
+
+When you test by hand, force each capability with a token the model cannot guess (a constant
+inside a code tool, a value from `uname -m`, a record only the MCP server has) so a pass proves
+the capability ran, not just that the agent answered.
 
 When a matrix cell is green and worth keeping green, pin it with the `agent-replay-test` skill:
 capture one real `/run`, redact the volatile fields, and write a replay test that exercises
@@ -235,7 +239,7 @@ The debug loop and the test loop can run away. Bound them.
 
 - Set a cap before you start (for example three rounds). If a round makes no progress, stop
   looping.
-- When stuck, triage with the `agent-workflows-qa` tree: fix-now only for a small change with
+- When stuck, triage: fix-now only for a small change with
   an obvious home and no design question; otherwise **defer** (write a `defer-todo` finding
   with a clean repro) or **escalate** to the user (a repo restructure, a security surface, a
   new config the user must decide). When in doubt between fix-now and defer, defer.
@@ -250,6 +254,6 @@ The debug loop and the test loop can run away. Bound them.
 | 1 Implement | area `AGENTS.md`, area skills; `design-interfaces` (contract changes); `ruff` / `pnpm lint-fix` |
 | 2 Review | reviewer subagent; optional user-run `/code-review ultra` |
 | 3 Debug e2e | `debug-local-deployment` |
-| 4 Tests | `agent-workflows-qa`, `agent-replay-test` |
+| 4 Tests | `agent-release-gate`, `agent-replay-test` |
 | 5 Document + PR draft | `keep-docs-in-sync` (contract/interface changes), `write-docs`, `style-editing`, `defer-todo`, `write-pr-description` (with Context + Scope/risk + How to QA) |
 | 6 Branch | `but` (GitButler); publish the Phase 5 PR body on push |

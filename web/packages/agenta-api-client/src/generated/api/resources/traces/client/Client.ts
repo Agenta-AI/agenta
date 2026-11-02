@@ -90,7 +90,7 @@ export class TracesClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -174,7 +174,7 @@ export class TracesClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -210,7 +210,20 @@ export class TracesClient {
      *
      * ## Response
      *
-     * Returns `{count, traces: [...]}`. For the per-trace map shape
+     * Returns `{count, traces: [...], windowing}`. One response holds at most
+     * one page: 100 traces when `windowing.limit` is not set, and never more
+     * than 1000 (the server settings `AGENTA_API_TRACING_QUERY_DEFAULT_LIMIT`
+     * and `AGENTA_API_TRACING_QUERY_MAX_LIMIT`). `windowing` is present when
+     * the page is full: send it as `windowing` to read the next page. A
+     * trace with matching spans on both sides of a page boundary can appear
+     * on both pages; deduplicate by `trace_id`. A query that filters only on
+     * `trace_id` returns those traces whole, with no limit.
+     *
+     * Span `attributes` leave out `ag.data.parameters.agent.skills` (the
+     * skill text of an agent run), except when the query filters only on
+     * `trace_id`. `GET /traces/{trace_id}` returns it too.
+     *
+     * For the per-trace map shape
      * keyed by `trace_id`, call `POST /tracing/spans/query` with
      * `focus="trace"`.
      *
@@ -267,7 +280,7 @@ export class TracesClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -343,7 +356,7 @@ export class TracesClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -426,7 +439,7 @@ export class TracesClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -495,7 +508,7 @@ export class TracesClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -578,7 +591,7 @@ export class TracesClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -614,7 +627,18 @@ export class TracesClient {
      *
      * ## Response
      *
-     * Returns `{count, spans}`. For the nested per-trace shape, call
+     * Returns `{count, spans, windowing}`. One response holds at most one
+     * page: 100 spans when `windowing.limit` is not set, and never more than
+     * 1000 (the server settings `AGENTA_API_TRACING_QUERY_DEFAULT_LIMIT` and
+     * `AGENTA_API_TRACING_QUERY_MAX_LIMIT`). `windowing` is present when the page
+     * is full: send it as `windowing` to read the next page.
+     *
+     * Span `attributes` leave out `ag.data.parameters.agent.skills` (the
+     * skill text of an agent run). `GET /spans/{trace_id}/{span_id}`,
+     * `GET /traces/{trace_id}` and a query that filters only on `trace_id`
+     * return it.
+     *
+     * For the nested per-trace shape, call
      * `POST /traces/query` or `POST /tracing/spans/query` with
      * `focus="trace"` instead.
      *
@@ -671,7 +695,7 @@ export class TracesClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -691,6 +715,7 @@ export class TracesClient {
      * @param {TracesClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
+     * @throws {@link AgentaApi.GatewayTimeoutError}
      *
      * @example
      *     await client.traces.querySpansAnalytics()
@@ -748,9 +773,11 @@ export class TracesClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
+                case 504:
+                    throw new AgentaApi.GatewayTimeoutError(_response.error.body as unknown, _response.rawResponse);
                 default:
                     throw new errors.AgentaApiError({
                         statusCode: _response.error.statusCode,
@@ -817,7 +844,7 @@ export class TracesClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -886,7 +913,7 @@ export class TracesClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -962,7 +989,7 @@ export class TracesClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1079,7 +1106,7 @@ export class TracesClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1156,7 +1183,7 @@ export class TracesClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1233,7 +1260,7 @@ export class TracesClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1319,7 +1346,7 @@ export class TracesClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1402,7 +1429,7 @@ export class TracesClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:

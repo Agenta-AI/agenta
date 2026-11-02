@@ -1,4 +1,4 @@
-import {Alert} from "@agenta/ui/ui"
+import {Alert, Button} from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {Alert as AntAlert} from "antd"
 
@@ -100,6 +100,62 @@ export const AntdVsAgenta: Story = {
                 a={<AntAlert type="info" message="Plain message" />}
                 s={<Alert type="info" message="Plain message" />}
             />
+        </div>
+    ),
+}
+
+// The trailing-control layout: a message and a control on one line. antd has no equivalent prop
+// (its `action` lives on the antd Alert too, but the app's Alert had no slot at all), so this is
+// a single-column story rather than a parity grid.
+export const WithAction: Story = {
+    parameters: {
+        docs: {
+            description: {
+                story: "`action` renders a trailing control on the alert's own line. It never wraps, so a long message reflows around it instead of pushing it onto a second line.",
+            },
+        },
+    },
+    render: () => (
+        <div className="flex max-w-[560px] flex-col gap-3">
+            <div className="w-[520px]" data-vrt-subject>
+                <Alert
+                    type="warning"
+                    showIcon
+                    message="This server's login expired"
+                    action={
+                        <Button size="sm" variant="outline">
+                            Reconnect
+                        </Button>
+                    }
+                />
+            </div>
+            <div className="w-[520px]" data-vrt-subject>
+                <Alert
+                    banner
+                    type="warning"
+                    showIcon
+                    message="This server's login expired. Its tools are unavailable until you reconnect."
+                    action={
+                        <Button size="sm" variant="outline">
+                            Reconnect
+                        </Button>
+                    }
+                />
+            </div>
+            <div className="w-[520px]" data-vrt-subject>
+                <Alert
+                    type="error"
+                    showIcon
+                    message="Could not reach the server"
+                    description="The address did not resolve, or the server did not answer in time."
+                    action={
+                        <Button size="sm" variant="outline">
+                            Retry
+                        </Button>
+                    }
+                    closable
+                />
+            </div>
         </div>
     ),
 }

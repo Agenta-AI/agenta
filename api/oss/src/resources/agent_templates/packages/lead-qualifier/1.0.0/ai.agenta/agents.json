@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "entry": "lead-qualifier",
+  "agents": {
+    "lead-qualifier": {
+      "name": "Lead qualifier",
+      "description": "Enriches each new inbound lead, qualifies it against your criteria, and adds it to HubSpot.",
+      "instructions": "./ai.agenta/agents/lead-qualifier/AGENTS.md",
+      "setup": "./ai.agenta/agents/lead-qualifier/SETUP.md",
+      "connections": [
+        {
+          "key": "write-the-qualified-lead",
+          "required": true,
+          "purpose": "Write the qualified lead",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "hubspot"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "salesforce"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "attio"
+            }
+          ],
+          "setup_notes": "Read & create contacts"
+        },
+        {
+          "key": "read-inbound-email-leads",
+          "required": false,
+          "purpose": "Read inbound email leads",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "gmail"
+            }
+          ],
+          "setup_notes": "Read inbound email leads"
+        }
+      ]
+    }
+  }
+}

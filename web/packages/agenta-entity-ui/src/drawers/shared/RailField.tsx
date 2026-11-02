@@ -9,8 +9,9 @@
  * The content is capped at `max-w-prose` so inputs in a section panel keep a readable width instead
  * of stretching the full drawer. Styling uses antd semantic tokens (`--ag-color*`) only — dark-safe.
  */
-import type {ReactNode} from "react"
+import {createContext, useContext, type ReactNode} from "react"
 
+import {cn} from "@agenta/ui/styles"
 import {
     Button,
     Popover,
@@ -26,6 +27,19 @@ import {ArrowCounterClockwise, Info} from "@phosphor-icons/react"
 import {useChangedDetail, useChangedPath, useRevertPath} from "./ChangedPathsContext"
 import {useIsPathVisible} from "./FocusPathsContext"
 
+/** How a {@link RailField} lays its label out: two-column rail, or label above the control. */
+const FieldLayoutContext = createContext<"rail" | "stacked">("rail")
+
+export function FieldLayoutProvider({
+    layout,
+    children,
+}: {
+    layout: "rail" | "stacked"
+    children: ReactNode
+}) {
+    return <FieldLayoutContext.Provider value={layout}>{children}</FieldLayoutContext.Provider>
+}
+
 export interface RailFieldProps {
     label: ReactNode
     /** Vertical alignment of the label against the content. @default "top" */
@@ -37,6 +51,8 @@ export interface RailFieldProps {
      * something did. Opt-in: without a path (or a provider) the row renders exactly as before.
      */
     path?: string
+    /** Drop the `max-w-prose` cap — for full-width lists rather than form inputs. @default false */
+    wide?: boolean
     children: ReactNode
 }
 
@@ -94,7 +110,7 @@ function ChangedDetail({
     const {text, muted} = formatCommitted(before)
     return (
         <div className="flex w-[200px] flex-col gap-2">
-            <div className="text-[11px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+            <div className="text-xs uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
                 Committed value
             </div>
             <div
@@ -116,44 +132,70 @@ function ChangedDetail({
     )
 }
 
-export function RailField({label, align = "top", path, children}: RailFieldProps) {
+export function RailField({label, align = "top", path, wide, children}: RailFieldProps) {
+    const layout = useContext(FieldLayoutContext)
     const changed = useChangedPath(path)
     const detail = useChangedDetail(path)
     const revert = useRevertPath(path)
     // Focus filter (see FocusPathsContext): each row self-filters on its own `path`.
     const visible = useIsPathVisible(path)
     if (!visible) return null
+    const stacked = layout === "stacked"
+    // The change shows as emphasis + a colorInfo dotted underline, so both states share one box.
+    const labelNode = changed ? (
+        <Popover>
+            <PopoverTrigger asChild>
+                {/* A real button, so the keyboard can reach the change detail and its Restore. */}
+                <button
+                    type="button"
+                    className="cursor-pointer border-0 bg-transparent p-0 font-[inherit] text-inherit underline decoration-[var(--ag-colorInfo)] decoration-dotted underline-offset-4 outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                >
+                    {label}
+                </button>
+            </PopoverTrigger>
+            {/* antd Popover chrome: elevated panel with 12px inner padding. */}
+            <PopoverContent side="top" align="start" className="p-3">
+                <ChangedDetail before={detail?.before} onRevert={revert} />
+            </PopoverContent>
+        </Popover>
+    ) : (
+        label
+    )
+
+    // Stacked = the trigger drawers' flat field stack; `align`/`wide` are rail-only knobs.
+    if (stacked) {
+        return (
+            <div className="flex flex-col gap-1.5">
+                <span
+                    className={`text-xs ${
+                        changed
+                            ? "text-[var(--ag-colorText)]"
+                            : "text-[var(--ag-colorTextDescription)]"
+                    }`}
+                >
+                    {labelNode}
+                </span>
+                <div className="flex min-w-0 flex-col">{children}</div>
+            </div>
+        )
+    }
+
     return (
-        <div className="flex gap-3">
+        // Below sm the 116px label column left the control a few dozen px, so the label stacks.
+        <div className="flex flex-col gap-1.5 sm:flex-row sm:gap-3">
             <div
-                className={`box-border w-[116px] shrink-0 px-2.5 text-xs ${
-                    align === "center" ? "self-center" : "pt-1.5"
+                className={`box-border w-full px-0 text-xs sm:w-[116px] sm:shrink-0 sm:px-2.5 ${
+                    align === "center" ? "sm:self-center" : "sm:pt-1.5"
                 } ${changed ? "text-[var(--ag-colorText)]" : "text-[var(--ag-colorTextSecondary)]"}`}
             >
-                {/* The label carries the change via emphasis (colorTextSecondary → colorText) plus a
-                    colorInfo dotted underline — no marker glyph, so changed and unchanged rows share
-                    the same box. */}
-                {changed ? (
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            {/* role=button makes the Radix aria-haspopup/expanded attrs valid here. */}
-                            <span
-                                role="button"
-                                className="cursor-pointer underline decoration-[var(--ag-colorInfo)] decoration-dotted underline-offset-4"
-                            >
-                                {label}
-                            </span>
-                        </PopoverTrigger>
-                        {/* antd Popover chrome: elevated panel with 12px inner padding. */}
-                        <PopoverContent side="top" align="start" className="p-3">
-                            <ChangedDetail before={detail?.before} onRevert={revert} />
-                        </PopoverContent>
-                    </Popover>
-                ) : (
-                    label
-                )}
+                {labelNode}
             </div>
-            <div className="flex min-w-0 max-w-prose flex-1 flex-col border-0 border-l border-solid border-[var(--ag-colorBorderSecondary)] pl-3">
+            <div
+                className={cn(
+                    "flex min-w-0 flex-1 flex-col border-0 border-solid border-[var(--ag-colorBorderSecondary)] sm:border-l sm:pl-3",
+                    !wide && "max-w-prose",
+                )}
+            >
                 {children}
             </div>
         </div>

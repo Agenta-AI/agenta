@@ -374,12 +374,13 @@ export function Combobox({
                                     onClick={() => commit(row.option)}
                                     className={cn(
                                         // antd option geometry: min-h 28px, 4px×12px padding, selected weight 600.
-                                        "flex w-full cursor-pointer select-none items-center justify-between gap-2 box-border min-h-control rounded-control-sm px-3 py-1 text-field-md",
+                                        "flex w-full cursor-pointer select-none items-center justify-between gap-2 box-border min-h-control-sm rounded-control-sm px-3 py-1 text-field-md",
                                         // antd: selected row = controlItemBgActive (always); a
                                         // non-selected active/hovered row = controlItemBgHover.
+                                        // `accent`, not `muted`: in dark, muted is the popover's own fill.
                                         row.option.value === value
                                             ? "bg-controlItemBgActive font-semibold"
-                                            : "data-[active=true]:bg-muted",
+                                            : "data-[active=true]:bg-accent",
                                         row.option.disabled && "pointer-events-none text-disabled",
                                     )}
                                 >

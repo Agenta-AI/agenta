@@ -1,0 +1,137 @@
+import {describe, expect, it} from "vitest"
+
+import {
+    agentConfigSummary,
+    mcpSummaryDetail,
+    prettifyKind,
+} from "../../src/agent/agentConfigSummary"
+
+// The shape below is a real stored revision's `parameters`, trimmed.
+const parameters = {
+    agent: {
+        llm: {model: "gpt-5.6-luna", provider: "openai"},
+        mcps: [],
+        tools: [{name: "bash"}, {name: "read"}],
+        runner: {kind: "sidecar", permissions: {default: "allow_reads"}},
+        harness: {kind: "pi_core"},
+        sandbox: {kind: "local"},
+        instructions: {agents_md: "You are a friendly agent.\n\n- Greet the user warmly."},
+    },
+}
+
+describe("agentConfigSummary", () => {
+    it("reads the facts a row can state", () => {
+        // 10 words, not 9: the markdown bullet counts. This is "how long is the brief", not billing.
+        expect(agentConfigSummary(parameters)).toEqual({
+            model: "gpt-5.6-luna",
+            harness: "Pi core",
+            instructionWords: 10,
+            instructions: "You are a friendly agent.\n\n- Greet the user warmly.",
+            tools: 2,
+            integrationKeys: [],
+            mcps: 0,
+            skills: 0,
+            skillNames: [],
+            sandbox: "Local",
+            permissions: "Allow reads",
+        })
+    })
+
+    it("does not count the Agenta tools entry as a tool", () => {
+        const tools = [{name: "bash"}, {type: "agenta_tools", tools: {rename_session: "allow"}}]
+        expect(agentConfigSummary({agent: {tools}}).tools).toBe(1)
+    })
+
+    it("accepts the agent object directly, not just the parameters wrapper", () => {
+        expect(agentConfigSummary(parameters.agent).model).toBe("gpt-5.6-luna")
+    })
+
+    it("reports absence rather than throwing", () => {
+        // A revision written before a field existed, or an agent that never set one.
+        for (const input of [undefined, null, {}, {agent: {}}, "nonsense", []]) {
+            const summary = agentConfigSummary(input)
+            expect(summary.model).toBeNull()
+            expect(summary.harness).toBeNull()
+            expect(summary.instructionWords).toBeNull()
+            expect(summary.tools).toBe(0)
+        }
+    })
+
+    it("counts only real words in the brief", () => {
+        expect(
+            agentConfigSummary({agent: {instructions: {agents_md: "  one   two \n three "}}})
+                .instructionWords,
+        ).toBe(3)
+        expect(
+            agentConfigSummary({agent: {instructions: {agents_md: "   "}}}).instructionWords,
+        ).toBeNull()
+    })
+
+    it("hands the brief over raw", () => {
+        // `InstructionsFileRow` strips the markdown itself, so flattening here would be a second
+        // preview implementation that could drift from the panel's.
+        expect(
+            agentConfigSummary({agent: {instructions: {agents_md: "Title\n\n- one\n- two"}}})
+                .instructions,
+        ).toBe("Title\n\n- one\n- two")
+        expect(agentConfigSummary({}).instructions).toBeNull()
+    })
+
+    it("does not invent friendly names for kinds it doesn't know", () => {
+        expect(prettifyKind("claude_code")).toBe("Claude code")
+        expect(prettifyKind("some-future-kind")).toBe("Some future kind")
+        expect(prettifyKind(null)).toBeNull()
+    })
+})
+
+describe("integrationKeys", () => {
+    it("names the integration behind each gateway connection, once", () => {
+        const summary = agentConfigSummary({
+            agent: {
+                tools: [
+                    {type: "gateway_connection", connection: {integration: "linear"}},
+                    {type: "gateway_connection", connection: {integration: "github"}},
+                    {type: "gateway_connection", connection: {integration: "linear"}},
+                    {name: "bash"},
+                ],
+            },
+        })
+        expect(summary.tools).toBe(4)
+        expect(summary.integrationKeys).toEqual(["linear", "github"])
+    })
+})
+
+describe("skillNames", () => {
+    it("names embed refs by sibling name, falls back to the referenced slug", () => {
+        const summary = agentConfigSummary({
+            agent: {
+                skills: [
+                    {
+                        "@ag.embed": {"@ag.references": {workflow: {slug: "pdf-tools"}}},
+                        name: "PDF tools",
+                    },
+                    {"@ag.embed": {"@ag.references": {workflow_revision: {slug: "csv-checker"}}}},
+                    {name: "inline-skill", body: "..."},
+                    {"@ag.embed": {}},
+                ],
+            },
+        })
+        expect(summary.skills).toBe(4)
+        expect(summary.skillNames).toEqual(["PDF tools", "csv-checker", "inline-skill"])
+    })
+})
+
+describe("mcpSummaryDetail", () => {
+    // The mobile card is a fork of the shared one and drifted back to "connected" once
+    // already. Both now call this, so the wording cannot differ between the two apps.
+    it("counts servers and never claims they are connected", () => {
+        expect(mcpSummaryDetail(2)).toBe("2 configured")
+        expect(mcpSummaryDetail(1)).toBe("1 configured")
+        expect(mcpSummaryDetail(2)).not.toMatch(/connected/i)
+    })
+
+    it("offers the action only where there is an editor to reach", () => {
+        expect(mcpSummaryDetail(0, {canEdit: true})).toBe("Connect a server")
+        expect(mcpSummaryDetail(0)).toBe("None configured")
+    })
+})

@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "entry": "oncall-briefer",
+  "agents": {
+    "oncall-briefer": {
+      "name": "On-call briefer",
+      "description": "Every morning, briefs the on-call engineer with all open incidents and their status.",
+      "instructions": "./ai.agenta/agents/oncall-briefer/AGENTS.md",
+      "setup": "./ai.agenta/agents/oncall-briefer/SETUP.md",
+      "connections": [
+        {
+          "key": "read-the-errors",
+          "required": true,
+          "purpose": "Read the errors",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "sentry"
+            }
+          ],
+          "setup_notes": "Read issues"
+        },
+        {
+          "key": "post-the-brief",
+          "required": true,
+          "purpose": "Post the brief",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "slack"
+            }
+          ],
+          "setup_notes": "Post the on-call briefing"
+        },
+        {
+          "key": "name-the-on-call-engineer",
+          "required": false,
+          "purpose": "Name the on-call engineer",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "pagerduty"
+            }
+          ],
+          "setup_notes": "Name the on-call engineer"
+        }
+      ]
+    }
+  }
+}

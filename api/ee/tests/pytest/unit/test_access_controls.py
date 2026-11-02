@@ -60,9 +60,7 @@ class TestDefaults:
         # Organization scope has no permission concept today; it stays at the
         # minima while workspace and project expose the code-default DefaultRole set.
         assert {r["role"] for r in controls.get_roles("organization")} == {
-            RequiredRole.OWNER.value,
-            RequiredRole.ADMIN.value,
-            RequiredRole.VIEWER.value,
+            role.value for role in RequiredRole
         }
 
     def test_project_default_mirrors_workspace_role_set(self):
@@ -211,10 +209,10 @@ class TestParseRolesOverride:
 
         # Project: minima + override (env overrides REPLACE default extras in
         # the overridden scope).
-        assert prj_sclugs == ["owner", "admin", "viewer", "reviewer"]
-        assert wrk_sclugs == ["owner", "admin", "viewer", "reviewer"]
+        assert prj_sclugs == ["owner", "admin", "member", "viewer", "reviewer"]
+        assert wrk_sclugs == ["owner", "admin", "member", "viewer", "reviewer"]
         # Organization: untouched (minima-only by default).
-        assert org_slugs == ["owner", "admin", "viewer"]
+        assert org_slugs == ["owner", "admin", "member", "viewer"]
 
     def test_empty_dict_rejected(self):
         with pytest.raises(ValueError, match="non-empty"):
@@ -280,7 +278,7 @@ class TestParseRolesOverride:
         )
         slugs = [r["role"] for r in result["organization"]]
         # Minima are always re-applied at the front of each scope, in order.
-        assert slugs[:3] == ["owner", "admin", "viewer"]
+        assert slugs[:4] == ["owner", "admin", "member", "viewer"]
         assert "auditor" in slugs
 
 

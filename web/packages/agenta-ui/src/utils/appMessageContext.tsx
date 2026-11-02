@@ -2,7 +2,7 @@
  * AppMessageContext - Static message/modal/notification services for the app
  *
  * A self-contained toast / confirm-modal / notification service built on the `@agenta/ui`
- * primitives (`Toast`, `Notification`, `AlertDialog`). It exposes the same imperative,
+ * primitives (Sonner's `Toaster`, `Notification`, `AlertDialog`). It exposes the same imperative,
  * module-level singletons the Ant Design `App.useApp()` facade used to export, so it can be
  * called from anywhere — atoms, hooks, interceptors, plain modules — not just components.
  *

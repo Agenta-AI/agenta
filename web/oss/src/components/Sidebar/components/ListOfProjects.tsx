@@ -1,5 +1,8 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
+import type {OrgDetails} from "@agenta/entities/organization"
+import {createProject, deleteProject, patchProject} from "@agenta/entities/project"
+import type {ProjectsResponse} from "@agenta/entities/project"
 import {InitialsAvatar} from "@agenta/ui"
 import {CopyIcon, PencilSimple, Plus, Star, Trash} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
@@ -10,9 +13,6 @@ import {useRouter} from "next/router"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {buildProjectSwitchHref} from "@/oss/lib/navigation/projectSwitchHref"
-import type {OrgDetails} from "@/oss/lib/Types"
-import {createProject, deleteProject, patchProject} from "@/oss/services/project"
-import type {ProjectsResponse} from "@/oss/services/project/types"
 import {appIdentifiersAtom} from "@/oss/state/appState"
 import {useOrgData} from "@/oss/state/org"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
@@ -242,9 +242,6 @@ const ListOfProjects = ({
 
             const defaultProject = candidates.find((proj) => proj.is_default_project)
             if (defaultProject) return defaultProject
-
-            const nonDemoProject = candidates.find((proj) => !proj.is_demo)
-            if (nonDemoProject) return nonDemoProject
 
             return candidates[0]
         },

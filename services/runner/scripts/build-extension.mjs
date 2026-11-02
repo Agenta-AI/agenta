@@ -27,6 +27,8 @@ const FORBIDDEN_SERVER_SYMBOLS = [
   "daytonaRelayActivitySource",
   "startToolRelay",
   "deleteFsEntry",
+  "createPiTraceSpoolConsumer",
+  "exportOtlpBytes",
 ];
 
 async function assertBundleSafe(outfile) {

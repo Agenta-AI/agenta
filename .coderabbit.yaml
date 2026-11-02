@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
+# CodeRabbit only auto-reviews PRs whose base is the default branch, so every PR into a
+# release/* branch was skipped ("Auto reviews are disabled on base/target branches other
+# than the default branch") — which is most of the review traffic during a release.
+#
+# `inheritance: true` is load-bearing, not decoration. Configuration sources do NOT merge
+# by default: a repo config file replaces the whole Organization UI configuration, and any
+# field it omits falls through to CodeRabbit's schema defaults rather than to our org
+# settings. Without it this two-line file would silently reset ~20 org choices (the chill
+# profile, collapsed walkthroughs, the disabled poem, slop detection, finishing touches).
+# With it, this file adds the base branches and changes nothing else.
+inheritance: true
+
+reviews:
+  auto_review:
+    # The default branch is always reviewed; these are additional. Regex, so this covers
+    # release/v0.112.0 and every release branch after it.
+    base_branches:
+      - "release/.*"

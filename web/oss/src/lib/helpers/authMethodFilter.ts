@@ -1,5 +1,4 @@
-import type {Org} from "@/oss/lib/Types"
-
+import type {Org} from "@agenta/entities/organization"
 /**
  * Determines which authentication method type the user used based on session identities
  */

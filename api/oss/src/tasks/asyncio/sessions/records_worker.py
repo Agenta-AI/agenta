@@ -2,9 +2,18 @@ from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
 from redis.asyncio import Redis
+from sqlalchemy.exc import DataError, DBAPIError, IntegrityError
 
+from oss.src.core.sessions.interactions.service import SessionInteractionsService
+from oss.src.core.sessions.records.dtos import SessionRecord, TERMINAL_RECORD_TYPE
+from oss.src.tasks.asyncio.sessions.streaming import publish_turn_ended
 from oss.src.core.sessions.records.service import RecordsService
-from oss.src.core.sessions.records.streaming import deserialize_record
+from oss.src.core.sessions.records.events import durable_events_from_records
+from oss.src.core.sessions.records.streaming import (
+    deserialize_record,
+    publish_durable_event,
+)
+from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
@@ -16,6 +25,107 @@ if is_ee():
     from ee.src.core.access.entitlements.types import Counter
 
 
+# The marker the runner stamps on its terminal record when the turn stopped to wait for a
+# human instead of finishing (services/runner/src/tracing/otel.ts: the field is written ONLY
+# for a pause and omitted on every other stop reason).
+PAUSED_STOP_REASON = "paused"
+ROW_REJECTION_ERRORS = (DataError, IntegrityError)
+
+# Postgres SQLSTATE class 22, "data exception": the value itself cannot be represented — a NUL
+# (U+0000) inside a `jsonb` body, a bad UTF-8 sequence, a numeric overflow. It is always a
+# property of the row and never of the connection, so retrying the same bytes can only fail
+# again.
+DATA_EXCEPTION_SQLSTATE_CLASS = "22"
+
+# Bound on the `__cause__` walk below. The chain we unwrap is two links deep
+# (DBAPIError -> dialect Error -> driver error); anything longer is a surprise, not a row
+# rejection, and must not cost an unbounded loop on the ingest path.
+_MAX_CAUSE_DEPTH = 5
+
+
+def _sqlstate(exc: Optional[BaseException]) -> Optional[str]:
+    """The Postgres error code a driver exception carries, whichever name it uses for it."""
+    for attribute in ("sqlstate", "pgcode"):
+        code = getattr(exc, attribute, None)
+        if isinstance(code, str) and code:
+            return code
+    return None
+
+
+def is_row_rejection(failure: BaseException) -> bool:
+    """Whether Postgres rejected the ROW, as opposed to failing the call for any other reason.
+
+    A row rejection is permanent: it isolates and quarantines the offending record. Everything
+    else (connection loss, timeout, an unknown error) must stay pending for Redis reclaim,
+    because treating an outage as permanent is precisely the silent record loss this worker
+    exists to prevent.
+
+    SQLAlchemy's classification is not sufficient on its own. Its asyncpg dialect wraps some
+    driver errors in its own generic `AsyncAdapt_asyncpg_dbapi.Error`, which it then cannot map
+    to a typed subclass, so they surface as a bare `DBAPIError`: an
+    `asyncpg.exceptions.UntranslatableCharacterError` (SQLSTATE 22P05 — a NUL in a record body)
+    arrived as `DBAPIError` and not `DataError`, and so was read as "not known to be permanent"
+    and redelivered every 30s forever. Testing `DBAPIError` itself would be wrong, since
+    `OperationalError` and `InterfaceError` are subclasses of it too, so unwrap to the driver
+    exception and ask Postgres's own SQLSTATE class instead.
+    """
+    if isinstance(failure, ROW_REJECTION_ERRORS):
+        return True
+    if not isinstance(failure, DBAPIError):
+        return False
+    cause: Optional[BaseException] = getattr(failure, "orig", None)
+    for _ in range(_MAX_CAUSE_DEPTH):
+        if cause is None:
+            return False
+        code = _sqlstate(cause)
+        if code is not None:
+            return code.startswith(DATA_EXCEPTION_SQLSTATE_CLASS)
+        cause = cause.__cause__
+    return False
+
+
+def terminal_turns_in_batch(events: List[Any]) -> List[Tuple[str, str]]:
+    """`(session_id, turn_id)` for every turn that reached a terminal `done` in
+    this batch, PAUSED ones included, each pair once, in batch order. Keyed by
+    the pair and not the session: one committed batch can hold the terminal
+    records of two turns of one session (a park and its continuation), and a
+    dict on session_id would keep only the later one, so the earlier turn's
+    outbox result would never render. The channels outbox folds and renders a
+    turn only on a turn-ended signal; `complete_turn` emits one for a turn the
+    desktop completes, but a PARKED turn (never completes) and an approval
+    CONTINUATION (a detached run) both miss it, so the channels card would
+    never draw. Publishing from here is post-commit, so the record is durable
+    before the outbox reads it; `streams:sessions` is consumed only by the
+    channels outbox, which dedups by (turn_id, index), so a turn that also ends
+    through `complete_turn` just edits the same message."""
+    terminal: List[Tuple[str, str]] = []
+    for record in events:
+        if record.record_type == TERMINAL_RECORD_TYPE and record.turn_id:
+            pair = (str(record.session_id), str(record.turn_id))
+            if pair not in terminal:
+                terminal.append(pair)
+    return terminal
+
+
+def finished_turns_in_batch(events: List[Any]) -> Dict[str, str]:
+    """`session_id -> turn_id` for every turn in this batch that FINISHED without pausing.
+
+    A gate row exists only because a turn paused for a human, so a turn whose terminal record
+    carries no pause marker is holding no gate — and neither is its session, whose live process
+    is gone. That is the reconciliation trigger. The last finished turn per session wins, and the
+    caller cancels only that turn's own gates.
+    """
+    finished: Dict[str, str] = {}
+    for msg in events:
+        record = msg.record_event
+        if record.record_type != TERMINAL_RECORD_TYPE or not record.turn_id:
+            continue
+        if (record.attributes or {}).get("stopReason") == PAUSED_STOP_REASON:
+            continue
+        finished[record.session_id] = record.turn_id
+    return finished
+
+
 class RecordsWorker(StreamConsumer):
     """
     Worker for record ingestion via dedicated Redis stream.
@@ -24,12 +134,18 @@ class RecordsWorker(StreamConsumer):
     Consumer group: worker-records
 
     Flow:
-    1. Read batch from stream (XREADGROUP) — StreamConsumer
+    1. Read batch from stream (XREADGROUP), or reclaim unacknowledged entries — StreamConsumer
     2. Deserialize messages
     3. Group by project_id
     4. EE: L2 quota check per org (Counter.RECORDS_INGESTED)
     5. Append record events to DB
-    6. ACK + DEL messages — StreamConsumer
+    6. Reconcile HITL gates orphaned by a finished turn
+    7. ACK + DEL only the messages whose Postgres write committed — StreamConsumer
+
+    A message id leaves this worker in the acknowledged list for exactly three reasons: its
+    write committed, it could not be decoded, or its org is over quota. Everything else stays
+    pending so the reclaim pass writes it later. Acknowledging before the write, which is what
+    this worker used to do, turned every Postgres failure into permanent silent record loss.
     """
 
     log_prefix = "[RECORDS]"
@@ -45,6 +161,10 @@ class RecordsWorker(StreamConsumer):
         max_block_ms: int = 5000,
         max_delay_ms: int = 250,
         max_batch_mb: int = 50,
+        watch_publisher: Optional[SessionsWatchPublisherInterface] = None,
+        interactions_service: Optional[SessionInteractionsService] = None,
+        reclaim_min_idle_ms: int = 30_000,
+        max_deliveries: int = 5,
     ):
         super().__init__(
             redis_client=redis_client,
@@ -55,16 +175,189 @@ class RecordsWorker(StreamConsumer):
             max_block_ms=max_block_ms,
             max_delay_ms=max_delay_ms,
             max_batch_mb=max_batch_mb,
+            # Records are the durable transcript. A pending entry that is never redelivered is
+            # a lost turn, so this worker always runs the reclaim pass.
+            reclaim_pending=True,
+            reclaim_min_idle_ms=reclaim_min_idle_ms,
+            max_deliveries=max_deliveries,
         )
         self.service = service
+        self.watch_publisher = watch_publisher
+        # Absent disables gate reconciliation (minimal test compositions), which only loses the
+        # safety net — never the append.
+        self.interactions_service = interactions_service
+        self._permanent_failure_ids: set[bytes] = set()
+
+    async def reconcile_orphaned_gates(
+        self,
+        *,
+        project_id: UUID,
+        events: List[Any],
+    ) -> None:
+        """Safety net: no HITL gate may outlive its turn.
+
+        A `session_interactions` row is created only when a turn pauses for a human. Once a turn
+        reaches its terminal record WITHOUT pausing, no process is holding a gate for that
+        session, so any row still `pending` can never be answered — yet both inboxes keep
+        offering it forever. That is the orphaned gate. Cancel those rows here, at the one place
+        that sees every turn's terminal record.
+
+        A legitimately parked gate is protected twice:
+
+        * a terminal record carrying the pause marker is skipped outright — that turn IS the
+          live park, and its gate is exactly what the human is being asked to answer;
+        * the cancel is scoped to the finished turn's OWN gates. A newer turn carries a
+          different `turn_id`, so no interleaving can put its live park in range — this worker
+          may lag arbitrarily far behind the stream and still never cancel underneath a turn
+          that is parked right now. Prior turns' leftovers are not this sweep's job: the runner
+          clears them at turn start through `/sessions/interactions/cancel-stale`.
+
+        The cancel fans out on the watch plane (the service publishes on a non-zero count), so a
+        client sitting on a stuck approval drops it without a reload. Best effort throughout — a
+        failure here must never re-drive the record append.
+        """
+        if self.interactions_service is None:
+            return
+
+        for session_id, turn_id in finished_turns_in_batch(events).items():
+            try:
+                cancelled = await self.interactions_service.cancel_session_pending(
+                    project_id=project_id,
+                    session_id=session_id,
+                    only_turn_id=str(turn_id),
+                )
+                if cancelled:
+                    log.info(
+                        "[RECORDS] Cancelled gates orphaned by a finished turn",
+                        project_id=str(project_id),
+                        session_id=session_id,
+                        turn_id=str(turn_id),
+                        cancelled=cancelled,
+                    )
+            except Exception:
+                log.warning(
+                    "[RECORDS] Gate reconciliation failed",
+                    project_id=str(project_id),
+                    session_id=session_id,
+                    exc_info=True,
+                )
+
+    def describe_message(self, data: Dict[bytes, bytes]) -> Optional[str]:
+        """`session:record:type` for the dropped-message log, so a loss is traceable."""
+        try:
+            record = deserialize_record(payload=data[b"data"]).record_event
+            return f"{record.session_id}:{record.record_id}:{record.record_type}"
+        except Exception:
+            return None
+
+    def is_permanent_failure(
+        self,
+        msg_id: bytes,
+        data: Dict[bytes, bytes],
+    ) -> bool:
+        return msg_id in self._permanent_failure_ids
+
+    async def _append(
+        self,
+        *,
+        project_id: UUID,
+        entries: List[Tuple[bytes, Any]],
+    ) -> Tuple[List[SessionRecord], Optional[Exception]]:
+        """One `append_many` call. Returns committed rows and any failure."""
+        try:
+            results = await self.service.append_many(
+                events=[msg.record_event for _, msg in entries],
+            )
+            quarantined = [
+                row
+                for row in results
+                if getattr(row, "quarantined_at", None) is not None
+            ]
+            if quarantined:
+                log.warning(
+                    "[RECORDS] Quarantined late records for settled turns",
+                    project_id=str(project_id),
+                    quarantined=len(quarantined),
+                    appended=len(results),
+                    turns=sorted(
+                        {f"{row.session_id}:{row.turn_id}" for row in quarantined}
+                    ),
+                )
+            return results, None
+        except Exception as exc:
+            log.error(
+                "[RECORDS] Failed to append event batch",
+                project_id=str(project_id),
+                size=len(entries),
+                exc_info=True,
+            )
+            return [], exc
+
+    async def _append_committed(
+        self,
+        *,
+        project_id: UUID,
+        entries: List[Tuple[bytes, Any]],
+    ) -> Tuple[List[SessionRecord], List[bytes]]:
+        """Write a project group and report the rows and message ids that are durable.
+
+        `append_many` is one statement in one transaction, so a row-specific database rejection
+        takes the whole group down with it. Only that failure class triggers one-record writes to
+        isolate the rejected row. Connection, timeout, and unknown failures leave the entire
+        group pending for Redis reclaim instead of multiplying calls during an outage.
+        """
+        results, failure = await self._append(project_id=project_id, entries=entries)
+        if failure is None:
+            self._permanent_failure_ids.difference_update(
+                msg_id for msg_id, _ in entries
+            )
+            return results, [msg_id for msg_id, _ in entries]
+
+        if not is_row_rejection(failure):
+            return [], []
+
+        if len(entries) == 1:
+            self._permanent_failure_ids.add(entries[0][0])
+            return [], []
+
+        log.warning(
+            "[RECORDS] Batch append failed, retrying one record at a time",
+            project_id=str(project_id),
+            size=len(entries),
+        )
+
+        committed_records: List[SessionRecord] = []
+        committed_ids: List[bytes] = []
+        for entry in entries:
+            results, failure = await self._append(
+                project_id=project_id, entries=[entry]
+            )
+            if failure is None:
+                committed_records.extend(results)
+                committed_ids.append(entry[0])
+                self._permanent_failure_ids.discard(entry[0])
+            elif is_row_rejection(failure):
+                self._permanent_failure_ids.add(entry[0])
+
+        log.warning(
+            "[RECORDS] Retry finished",
+            project_id=str(project_id),
+            committed=len(committed_ids),
+            pending=len(entries) - len(committed_ids),
+        )
+        return committed_records, committed_ids
 
     async def process_batch(
         self,
         batch: List[Tuple[bytes, Dict[bytes, bytes]]],
     ) -> Tuple[int, List[bytes]]:
-        """Process batch — deserialize, group by org for EE quota, append to DB."""
+        """Process batch — deserialize, group by org for EE quota, append to DB.
+
+        The returned ids are acknowledged and deleted by the consumer loop, so an id only goes
+        in once its rows are committed, or once this worker has decided to drop it on purpose.
+        """
         groups: Dict[UUID, Dict[str, Any]] = {}
-        processed_ids: List[bytes] = []
+        acked_ids: List[bytes] = []
         batch_bytes = 0
 
         for msg_id, data in batch:
@@ -73,6 +366,8 @@ class RecordsWorker(StreamConsumer):
 
                 batch_bytes += len(payload)
                 if batch_bytes > self.max_batch_mb * 1024 * 1024:
+                    # The rest of the batch stays unacknowledged and comes back through the
+                    # reclaim pass, rather than being silently skipped.
                     break
 
                 msg = deserialize_record(payload=payload)
@@ -81,23 +376,28 @@ class RecordsWorker(StreamConsumer):
                     group = {
                         "organization_id": msg.organization_id,
                         "project_id": msg.project_id,
-                        "events": [],
+                        "entries": [],
                     }
                     groups[msg.project_id] = group
-                group["events"].append(msg)
-                processed_ids.append(msg_id)
+                group["entries"].append((msg_id, msg))
             except Exception:
                 log.error(
                     "[RECORDS] Failed to deserialize message",
                     msg_id=repr(msg_id),
                     exc_info=True,
                 )
-                processed_ids.append(msg_id)
+                # A message that does not decode will not decode on redelivery either, so
+                # acknowledge it instead of letting it hold the pending list. Counted as a loss.
+                self.dropped_messages += 1
+                acked_ids.append(msg_id)
 
         batches = list(groups.values())
         total_appended = 0
 
         org_allowed: Dict[UUID, bool] = {}
+        # Orgs whose quota question could not be answered. Their records are not over quota,
+        # they are unmetered, so they wait for the next delivery instead of being dropped.
+        org_deferred: set = set()
         events_per_org: Dict[UUID, int] = {}
 
         if is_ee():
@@ -106,7 +406,7 @@ class RecordsWorker(StreamConsumer):
                 if org_id is None:
                     continue
                 events_per_org[org_id] = events_per_org.get(org_id, 0) + len(
-                    project_batch["events"]
+                    project_batch["entries"]
                 )
 
             for org_id, delta in events_per_org.items():
@@ -127,6 +427,7 @@ class RecordsWorker(StreamConsumer):
                         exc_info=True,
                     )
                     org_allowed[org_id] = False
+                    org_deferred.add(org_id)
                     continue
 
                 if not quota_allowed:
@@ -142,19 +443,109 @@ class RecordsWorker(StreamConsumer):
 
         for project_batch in batches:
             org_id = project_batch["organization_id"]
+            entries: List[Tuple[bytes, Any]] = project_batch["entries"]
+
             if is_ee() and org_id and not org_allowed.get(org_id, True):
+                if org_id in org_deferred:
+                    # The meter was unreachable, not exceeded. Leave the entries pending so a
+                    # transient entitlements outage does not delete a conversation.
+                    continue
+                # An over-quota org is a deliberate product drop, so acknowledging is correct.
+                # Count it, because it is still a record the transcript will never have.
+                self.dropped_messages += len(entries)
+                acked_ids.extend(msg_id for msg_id, _ in entries)
                 continue
 
-            try:
-                results = await self.service.append_many(
-                    events=[msg.record_event for msg in project_batch["events"]],
+            results, committed_ids = await self._append_committed(
+                project_id=project_batch["project_id"],
+                entries=entries,
+            )
+            total_appended += len(results)
+            acked_ids.extend(committed_ids)
+
+            if not committed_ids:
+                continue
+
+            committed = set(committed_ids)
+            committed_events = [msg for msg_id, msg in entries if msg_id in committed]
+            results_by_session: Dict[str, List[SessionRecord]] = {}
+            for result in results:
+                if isinstance(result, SessionRecord):
+                    results_by_session.setdefault(result.session_id, []).append(result)
+
+            for session_results in results_by_session.values():
+                # Live events carry this batch's committed maximum; replay/ready uses the
+                # authoritative session cursor and may therefore be higher.
+                watermark = max(
+                    (result.sequence or 0 for result in session_results), default=0
                 )
-                total_appended += len(results)
-            except Exception:
-                log.error(
-                    "[RECORDS] Failed to append event batch",
+                visible_results = [
+                    result
+                    for result in session_results
+                    if result.quarantined_at is None
+                ]
+                for event in durable_events_from_records(
+                    visible_results, watermark=watermark
+                ):
+                    await publish_durable_event(
+                        organization_id=project_batch["organization_id"],
+                        project_id=project_batch["project_id"],
+                        event=event,
+                    )
+
+            # Strictly post-append, and BEFORE the relay tee: a client woken by the records
+            # notification below must already see the cancelled gate, not re-render it.
+            await self.reconcile_orphaned_gates(
+                project_id=project_batch["project_id"],
+                events=committed_events,
+            )
+            # Post-commit: tell the channels outbox which turns settled, so it
+            # folds and renders them (a parked turn's approval card, or an
+            # approval continuation's answer). Built from the committed
+            # SessionRecords, not the raw stream messages. See
+            # terminal_turns_in_batch.
+            unpublished = 0
+            for session_id, turn_id in terminal_turns_in_batch(
+                [r for r in results if isinstance(r, SessionRecord)]
+            ):
+                published = await publish_turn_ended(
+                    project_id=UUID(str(project_batch["project_id"])),
+                    session_id=session_id,
+                    turn_id=turn_id,
+                )
+                if not published:
+                    unpublished += 1
+            if unpublished:
+                # The rows are committed, but the only signal that renders a
+                # parked turn's card (or a continuation's answer) did not go
+                # out. Leave this project batch unacknowledged: the append is
+                # an upsert, so the redelivery re-publishes and writes nothing
+                # new.
+                held = set(committed_ids)
+                acked_ids = [msg_id for msg_id in acked_ids if msg_id not in held]
+                log.warning(
+                    "[RECORDS] turn_ended publish failed; batch left unacknowledged",
                     project_id=str(project_batch["project_id"]),
-                    exc_info=True,
+                    unpublished=unpublished,
                 )
 
-        return total_appended, processed_ids
+            # Relay tee (M3): strictly post-append so a notified client that
+            # revalidates always sees the new rows. One publish per distinct
+            # session in the project batch; failures never re-drive the append.
+            if self.watch_publisher is not None:
+                project_id = str(project_batch["project_id"])
+                session_ids = {msg.record_event.session_id for msg in committed_events}
+                for session_id in sorted(session_ids):
+                    try:
+                        await self.watch_publisher.records_changed(
+                            project_id=project_id,
+                            session_id=session_id,
+                        )
+                    except Exception:
+                        log.warning(
+                            "[RECORDS] Watch publish failed",
+                            project_id=project_id,
+                            session_id=session_id,
+                        )
+
+        return total_appended, acked_ids

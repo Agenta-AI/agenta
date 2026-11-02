@@ -91,7 +91,7 @@ created_at / updated_at / deleted_at + …_by_id columns
 | Env Var | Default | Required |
 |---------|---------|----------|
 | `COMPOSIO_API_KEY` | — | Yes — presence enables Composio automatically |
-| `COMPOSIO_API_URL` | `https://backend.composio.dev/api/v3` | No |
+| `COMPOSIO_API_URL` | `https://backend.composio.dev/api/v3.1` | No |
 
 ---
 

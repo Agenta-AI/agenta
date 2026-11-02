@@ -58,6 +58,7 @@ from oss.src.core.tracing.dtos import (
     MetricSpec,
     QueryFocusConflictError,
     FilteringException,
+    AnalyticsQueryTimeoutError,
 )
 from oss.src.core.shared.dtos import Link
 
@@ -69,6 +70,16 @@ log = get_module_logger(__name__)
 
 if is_ee():
     from ee.src.core.access.entitlements.service import check_entitlements, Counter
+
+
+ANALYTICS_ERROR_RESPONSES = {
+    status.HTTP_504_GATEWAY_TIMEOUT: {
+        "description": (
+            "The analytics query ran past the database statement timeout. "
+            "`detail` carries a message; retry with a shorter time range."
+        ),
+    },
+}
 
 
 class TracingRouter:
@@ -123,6 +134,7 @@ class TracingRouter:
             status_code=status.HTTP_200_OK,
             response_model=AnalyticsResponse,
             response_model_exclude_none=True,
+            responses=ANALYTICS_ERROR_RESPONSES,
             deprecated=True,
         )
 
@@ -327,7 +339,16 @@ class TracingRouter:
           filtering across all spans regardless of hierarchy.
 
         Use `oldest` / `newest` (unix seconds) to window the query and
-        `limit` to cap the number of traces/spans returned.
+        `limit` to cap the number of traces/spans returned. One response holds
+        at most one page: 100 rows when `limit` is not set, and never more than
+        1000 (the server settings `AGENTA_API_TRACING_QUERY_DEFAULT_LIMIT` and
+        `AGENTA_API_TRACING_QUERY_MAX_LIMIT`). When the page is full, the
+        response has a `windowing` object: send it as `windowing` to read the
+        next page.
+
+        Span `attributes` here leave out `ag.data.parameters.agent.skills` (the
+        skill text of an agent run). To read a whole trace, filter only on
+        `trace_id`, or call `GET /traces/{trace_id}`.
 
         The response preserves the Agenta `ag.*` attribute namespace and
         includes computed metrics (`ag.metrics.duration`, `ag.metrics.tokens`,
@@ -355,8 +376,14 @@ class TracingRouter:
             pass
 
         merged_query = self.service.merge_queries(query, query_from_body)
+        merged_query.windowing = self.service.bound_query_windowing(
+            merged_query.windowing
+        )
         try:
-            spans_or_traces = await self.service.query_spans_or_traces(
+            (
+                spans_or_traces,
+                next_windowing,
+            ) = await self.service.query_spans_or_traces_page(
                 project_id=UUID(request.state.project_id),
                 query=merged_query,
             )
@@ -409,6 +436,7 @@ class TracingRouter:
             count=count,
             spans=spans,
             traces=traces,
+            windowing=next_windowing,
         )
 
         if spans:
@@ -447,8 +475,13 @@ class TracingRouter:
 
         - `filtering` — same shape as the query endpoint, scoped to the spans
           that contribute to the analytics.
-        - `windowing` — `oldest`/`newest` for the time range and `interval`
-          for bucket width (in seconds).
+        - `windowing` — `oldest`/`newest` for the time range (matched against
+          each span's `start_time`), `interval` for bucket width (in minutes),
+          and an optional `rate` to sample a share of the traces. Figures
+          describe the sample only. When `interval` is set, buckets with no spans are returned empty.
+        - `formatting.focus` — `trace` (default) summarizes root spans only,
+          which carry the cumulative metrics of their trace. `span`
+          summarizes every span.
         - `specs` — a list of `MetricSpec` entries describing which
           attributes to summarize and how. Each spec declares a `type`
           (`numeric/continuous`, `numeric/discrete`, `binary`,
@@ -462,6 +495,12 @@ class TracingRouter:
         `metrics` dict keyed by spec path. See [Tracing — the ag.*
         namespace](/reference/api-guide/tracing#the-ag-attribute-namespace)
         for the cumulative/incremental metric layout on each span.
+
+        ## Errors
+
+        - `504` — the query ran past the database statement timeout. Retry
+          with a shorter time range. Other failures still return an empty
+          result.
         """
         if not await check_action_access(  # type: ignore
             user_uid=request.state.user_id,
@@ -489,11 +528,17 @@ class TracingRouter:
             analytics_from_body,
         )
 
-        buckets = await self.service.analytics(
-            project_id=UUID(request.state.project_id),
-            query=query,
-            specs=specs,
-        )
+        try:
+            buckets = await self.service.analytics(
+                project_id=UUID(request.state.project_id),
+                query=query,
+                specs=specs,
+            )
+        except AnalyticsQueryTimeoutError as e:
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail=e.message,
+            ) from e
 
         return AnalyticsResponse(
             count=len(buckets),
@@ -960,6 +1005,7 @@ class SpansRouter:
             status_code=status.HTTP_200_OK,
             response_model=AnalyticsResponse,
             response_model_exclude_none=True,
+            responses=ANALYTICS_ERROR_RESPONSES,
         )
 
         self.router.add_api_route(
@@ -1060,7 +1106,18 @@ class SpansRouter:
 
         ## Response
 
-        Returns `{count, spans}`. For the nested per-trace shape, call
+        Returns `{count, spans, windowing}`. One response holds at most one
+        page: 100 spans when `windowing.limit` is not set, and never more than
+        1000 (the server settings `AGENTA_API_TRACING_QUERY_DEFAULT_LIMIT` and
+        `AGENTA_API_TRACING_QUERY_MAX_LIMIT`). `windowing` is present when the page
+        is full: send it as `windowing` to read the next page.
+
+        Span `attributes` leave out `ag.data.parameters.agent.skills` (the
+        skill text of an agent run). `GET /spans/{trace_id}/{span_id}`,
+        `GET /traces/{trace_id}` and a query that filters only on `trace_id`
+        return it.
+
+        For the nested per-trace shape, call
         `POST /traces/query` or `POST /tracing/spans/query` with
         `focus="trace"` instead.
         """
@@ -1110,8 +1167,11 @@ class SpansRouter:
         if query is None:
             return SpansResponse()
 
+        # Bound after the merge, so a saved query revision keeps its own limit.
+        query.windowing = self.service.bound_query_windowing(query.windowing)
+
         try:
-            spans = await self.service.query_spans(
+            spans, next_windowing = await self.service.query_spans_page(
                 project_id=project_id,
                 #
                 query=query,
@@ -1142,6 +1202,7 @@ class SpansRouter:
         return SpansResponse(
             count=len(spans),
             spans=spans,
+            windowing=next_windowing,
         )
 
     @intercept_exceptions()
@@ -1301,11 +1362,17 @@ class SpansRouter:
             analytics_from_body,
         )
 
-        buckets = await self.service.analytics(
-            project_id=UUID(request.state.project_id),
-            query=query,
-            specs=specs,
-        )
+        try:
+            buckets = await self.service.analytics(
+                project_id=UUID(request.state.project_id),
+                query=query,
+                specs=specs,
+            )
+        except AnalyticsQueryTimeoutError as e:
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail=e.message,
+            ) from e
 
         return AnalyticsResponse(
             count=len(buckets),
@@ -1520,7 +1587,20 @@ class TracesRouter:
 
         ## Response
 
-        Returns `{count, traces: [...]}`. For the per-trace map shape
+        Returns `{count, traces: [...], windowing}`. One response holds at most
+        one page: 100 traces when `windowing.limit` is not set, and never more
+        than 1000 (the server settings `AGENTA_API_TRACING_QUERY_DEFAULT_LIMIT`
+        and `AGENTA_API_TRACING_QUERY_MAX_LIMIT`). `windowing` is present when
+        the page is full: send it as `windowing` to read the next page. A
+        trace with matching spans on both sides of a page boundary can appear
+        on both pages; deduplicate by `trace_id`. A query that filters only on
+        `trace_id` returns those traces whole, with no limit.
+
+        Span `attributes` leave out `ag.data.parameters.agent.skills` (the
+        skill text of an agent run), except when the query filters only on
+        `trace_id`. `GET /traces/{trace_id}` returns it too.
+
+        For the per-trace map shape
         keyed by `trace_id`, call `POST /tracing/spans/query` with
         `focus="trace"`.
         """
@@ -1570,8 +1650,11 @@ class TracesRouter:
         if query is None:
             return TracesResponse()
 
+        # Bound after the merge, so a saved query revision keeps its own limit.
+        query.windowing = self.service.bound_query_windowing(query.windowing)
+
         try:
-            traces = await self.service.query_traces(
+            traces, next_windowing = await self.service.query_traces_page(
                 project_id=project_id,
                 #
                 query=query,
@@ -1590,7 +1673,11 @@ class TracesRouter:
                     detail="You have reached your trace retrieval quota for this period.",
                 )
 
-        traces_response = TracesResponse(count=len(traces), traces=traces)
+        traces_response = TracesResponse(
+            count=len(traces),
+            traces=traces,
+            windowing=next_windowing,
+        )
 
         trace_ids = [
             getattr(trace, "trace_id", None) for trace in (traces_response.traces or [])

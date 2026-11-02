@@ -6,7 +6,7 @@
  * Each helper returns a `rollback` closure that restores the prior cache state.
  */
 
-import {queryClient} from "@agenta/shared/api"
+import {getHostQueryClient} from "@agenta/shared/api"
 
 import type {
     TriggerSchedule,
@@ -29,6 +29,7 @@ function withActiveFlag<T extends Entity>(entity: T, active: boolean): T {
 // --- Schedules ---
 
 export function applyScheduleActiveOptimistic(scheduleId: string, active: boolean): () => void {
+    const queryClient = getHostQueryClient()
     const listKey = ["triggers", "schedules"]
     const detailKey = ["triggers", "schedules", "detail", scheduleId]
 
@@ -62,6 +63,7 @@ export function applySubscriptionActiveOptimistic(
     subscriptionId: string,
     active: boolean,
 ): () => void {
+    const queryClient = getHostQueryClient()
     const listKey = ["triggers", "subscriptions"]
     const detailKey = ["triggers", "subscriptions", "detail", subscriptionId]
 

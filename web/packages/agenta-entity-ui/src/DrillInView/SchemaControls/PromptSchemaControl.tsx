@@ -498,11 +498,13 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
     )
 
     if (!hasMessagesField) {
-        return <div className={cn("min-h-[260px]", className)} />
+        return (
+            <div className={cn("min-h-[260px]", className)} data-testid="prompt-schema-control" />
+        )
     }
 
     return (
-        <div className={cn("flex flex-col gap-3", className)}>
+        <div className={cn("flex flex-col gap-3", className)} data-testid="prompt-schema-control">
             {/* Messages list */}
             <ChatMessageList
                 messages={messages}
@@ -669,7 +671,7 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                         message={
                             <span className="text-[12px]">
                                 Switching from{" "}
-                                <code className="font-mono text-[11px] bg-chip px-1 rounded">
+                                <code className="font-mono text-xs bg-chip px-1 rounded">
                                     {originalTemplateFormatRef.current}
                                 </code>{" "}
                                 is permanent — once you commit, you won&apos;t be able to switch

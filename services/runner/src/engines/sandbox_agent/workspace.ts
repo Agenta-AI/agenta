@@ -26,7 +26,7 @@ export interface PrepareWorkspaceInput {
   plan: Pick<RunPlan, "isDaytona" | "isPi" | "acpAgent"> & {
     workspace: Pick<
       RunPlanWorkspace,
-      "cwd" | "relayDir" | "harnessFiles" | "skillDirs"
+      "cwd" | "relayDir" | "telemetryDir" | "harnessFiles" | "skillDirs"
     >;
     tools: Pick<RunPlanTools, "useToolRelay">;
     prompt: Pick<RunPlanPrompt, "agentsMd">;
@@ -38,7 +38,7 @@ export interface PrepareWorkspaceInput {
  * Prepare the run cwd, relay directory, the instructions memory file, generic `harnessFiles`,
  * and harness skill packages for local or Daytona runs. `harnessFiles` are written blind: the
  * Python harness adapter already rendered them. Skills stay resolved inline packages on the
- * wire; Pi loads one immutable `agents/skills/<digest>` snapshot, while Claude loads project-local
+ * wire; Pi loads one immutable snapshot dir (`resolvePiSkillSnapshot`), while Claude loads project-local
  * `.claude/skills/<name>` directories from the cwd.
  *
  * The instructions (`agentsMd`) filename is harness-aware. Claude runs through
@@ -85,6 +85,13 @@ export async function prepareWorkspace({
           log(`tool relay dir mkdir skipped: ${err.message}`);
         });
     }
+    if (plan.isPi) {
+      await sandbox
+        .mkdirFs({ path: plan.workspace.telemetryDir })
+        .catch((err: Error) => {
+          log(`telemetry dir mkdir skipped: ${err.message}`);
+        });
+    }
     if (plan.prompt.agentsMd) {
       await sandbox.writeFsFile(
         { path: `${plan.workspace.cwd}/${instructionsFile}` },
@@ -123,11 +130,16 @@ export async function prepareWorkspace({
   // that fallback exists before writing CLAUDE.md/AGENTS.md or any harness files into it.
   mkdirSync(plan.workspace.cwd, { recursive: true });
 
+  if (plan.isPi) mkdirSync(plan.workspace.telemetryDir, { recursive: true });
+
   if (plan.tools.useToolRelay) {
     // Clear stale .req.json from a prior turn: relayDir is keyed on the durable cwd and
     // is never otherwise cleared, so an old request would be re-picked-up by the fresh `seen` set.
     rmSync(plan.workspace.relayDir, { recursive: true, force: true });
-    mkdirSync(plan.workspace.relayDir, { recursive: true });
+    // Owner-only: a session's tool requests and results are not readable by another user on the
+    // runner host. The environment's teardown deletes the folder.
+    mkdirSync(dirname(plan.workspace.relayDir), { recursive: true });
+    mkdirSync(plan.workspace.relayDir, { mode: 0o700 });
   }
   if (plan.prompt.agentsMd)
     writeFileSync(
@@ -140,7 +152,7 @@ export async function prepareWorkspace({
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, file.content, "utf-8");
   }
-  if (piSkillSnapshot) materializeLocalPiSkillSnapshot(piSkillSnapshot);
+  if (piSkillSnapshot) materializeLocalPiSkillSnapshot(piSkillSnapshot, log);
   if (projectSkillRoot) {
     for (const skill of plan.workspace.skillDirs) {
       const dest = join(plan.workspace.cwd, projectSkillRoot, skill.name);

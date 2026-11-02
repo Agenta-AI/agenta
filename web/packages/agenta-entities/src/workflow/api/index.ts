@@ -18,6 +18,7 @@ export {
     AGENT_BUILD_KIT_WORKFLOW_SLUG,
     fetchAgentBuildKitOverlay,
     type AgentBuildKitOverlay,
+    fetchAgentaToolsAccess,
     // Fetch (single revision by ID)
     fetchWorkflowRevisionById,
     // Inspect (resolve full schema including inputs)
@@ -26,9 +27,6 @@ export {
     // Simple application fetch (carries the playground build-kit overlay)
     fetchSimpleApplication,
     type SimpleApplicationFetchResponse,
-    // Interface schemas fetch (builtin workflow fallback)
-    fetchInterfaceSchemas,
-    type InterfaceSchemasResponse,
     // OpenAPI schema fetch (app workflow fallback)
     fetchWorkflowAppOpenApiSchema,
     type AppOpenApiSchemas,
@@ -37,6 +35,7 @@ export {
     // Create
     createWorkflow,
     type CreateWorkflowPayload,
+    type WorkflowRoleFlags,
     // Create Variant
     createWorkflowVariantApi,
     type CreateWorkflowVariantPayload,
@@ -52,12 +51,14 @@ export {
     archiveWorkflowRevision,
     unarchiveWorkflow,
     // Batch
+    fetchWorkflowAgentFlags,
     fetchWorkflowsBatch,
     fetchWorkflowRevisionsByIdsBatch,
     // Schema
     fetchAgTypeSchema,
     // Harness capabilities catalog
     fetchHarnessCapabilities,
+    fetchBuiltinModelEndpoints,
     // Catalog
     fetchWorkflowCatalogTemplates,
     type WorkflowCatalogTemplate,
@@ -65,6 +66,35 @@ export {
     type WorkflowCatalogFlags,
     type WorkflowCatalogTemplatesResponse,
 } from "./api"
+
+export {
+    loadAgentTemplate,
+    queryAgentTemplates,
+    scanAgentTemplateSource,
+    validateAgentTemplate,
+    type AgentTemplateEntry,
+    type AgentTemplateLoadRequest,
+    type AgentTemplateLoadResult,
+    type AgentTemplateRepositoryScan,
+    type AgentTemplateSource,
+    type AgentTemplateSourcePin,
+    type AgentTemplatesQuery,
+    type AgentTemplateValidationIssue,
+    type AgentTemplateValidationResult,
+    type InternalAgentTemplateSource,
+    type SessionFileAgentTemplateSource,
+    type UploadAgentTemplateSource,
+} from "./agentTemplates"
+
+// Runner subscription status (agent service, direct call)
+export {
+    fetchSubscriptionStatus,
+    SUBSCRIPTION_RUNNER_STATES,
+    SUBSCRIPTION_HARNESS_STATES,
+    type SubscriptionRunnerState,
+    type SubscriptionHarnessState,
+    type SubscriptionStatusResponse,
+} from "./subscriptionStatus"
 
 // Create from template (legacy endpoint orchestration)
 export {
@@ -84,7 +114,5 @@ export {
     type EvaluatorCatalogPreset,
     type EvaluatorCatalogPresetsResponse,
     /** @deprecated Use EvaluatorCatalogTemplate */
-    type EvaluatorTemplate,
     /** @deprecated Use EvaluatorCatalogTemplatesResponse */
-    type EvaluatorTemplatesResponse,
 } from "./templates"

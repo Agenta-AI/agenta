@@ -4,12 +4,9 @@ import {
     SharedGenerationResultUtils as EntitySharedGenerationResultUtils,
     type SharedGenerationResultUtilsProps as EntitySharedGenerationResultUtilsProps,
 } from "@agenta/entity-ui"
+import {openTraceDrawerAtom, setTraceDrawerActiveSpanAtom} from "@agenta/observability/traceDrawer"
 import {getDefaultStore} from "jotai"
 
-import {
-    openTraceDrawerAtom,
-    setTraceDrawerActiveSpanAtom,
-} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import {requestNavigationAtom} from "@/oss/state/appState"
 
 const globalStore = getDefaultStore()

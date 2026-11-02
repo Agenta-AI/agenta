@@ -98,6 +98,32 @@ curl -X POST "$AGENTA_HOST/api/applications/query" \
   -d '{"windowing": {"limit": 20, "next": "01925f3a-..."}}'
 ```
 
+### Span and trace queries
+
+`POST /spans/query`, `POST /traces/query` and the legacy `POST /tracing/spans/query` always return one page:
+
+- With no `windowing.limit`, a page holds 100 spans (or 100 traces with `focus: "trace"`).
+- A `windowing.limit` above 1000 is lowered to 1000.
+- When a page is full, the response has a `windowing` object. Send that whole object as `windowing` in the next request, and stop when a response has no `windowing`. If the last page is exactly full, the request after it returns an empty page.
+
+```json
+{
+  "count": 100,
+  "spans": [ /* 100 spans, newest first */ ],
+  "windowing": {
+    "newest": "2026-10-11T09:12:44.120000Z",
+    "next": "019fa4a7-3c9b-7d92-956e-a8f7a12733fa",
+    "limit": 100
+  }
+}
+```
+
+A self-hosted deployment can change both numbers with `AGENTA_API_TRACING_QUERY_DEFAULT_LIMIT` and `AGENTA_API_TRACING_QUERY_MAX_LIMIT` (see the [configuration reference](/self-host/configuration)).
+
+With `focus: "trace"`, a trace whose matching spans fall on both sides of a page boundary can appear on two pages. Deduplicate by `trace_id`.
+
+The span `attributes` in these lists leave out `ag.data.parameters.agent.skills`, the skill text of an agent run. To read a whole trace, call `GET /traces/{trace_id}`, or send a query whose only filter is `trace_id`. Such a query returns the matching traces whole, with no limit.
+
 ## Archive and unarchive
 
 Resources that support history are soft-deleted via `/archive` and restored via `/unarchive`:

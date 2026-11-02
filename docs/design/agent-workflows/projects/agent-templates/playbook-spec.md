@@ -25,11 +25,10 @@ free-text asks that match no card.
 Only fields the agent genuinely cannot proceed without. Keep to one to four. Secrets never
 go here; they go to request_connection.
 
-## Researchable context (ask, defaulting to "figure it out")
-- <field>: the agent can discover this. Offer an enum including a "Use your best judgment"
-  or "Figure it out from what's connected" option and set it as the `default`; the built-in
-  Other… option covers custom values. Note the trade-off in the description: handing it over
-  is faster than the agent researching it.
+## Researchable context (do not ask; figure it out and state the assumption)
+- <field>: what the agent looks up, and what it assumes when the lookup is inconclusive.
+  Never a question and never an enum. The platform prompt forbids asking for a detail the
+  agent can look up or default, so this section names the lookup and the fallback assumption.
 
 ## Explore first (read before proposing)
 - Which read tools to discover_tools and wire.
@@ -89,9 +88,10 @@ elicitation form supports real defaults and two richer field shapes
   so a form whose proposals are right is accepted in one click. The default must match the
   declared type. An empty default (`""`/`[]`) means "no proposal" and is stripped.
   **Date/date-time fields ignore defaults** — do not set them there.
-- **Researchable context: set the "Figure it out" enum option as the `default`.** Enum options
-  are suggestions, not a hard constraint — every enum renders a built-in "Other…" free-text
-  escape hatch, so keep option lists short and likely.
+- **Researchable context never becomes a form field.** The agent looks the value up and states
+  the assumption it fell back on, so nothing in that section reaches `request_input`. Enum
+  options elsewhere are suggestions, not a hard constraint — every enum renders a built-in
+  "Other…" free-text escape hatch, so keep option lists short and likely.
 - **Multi-pick questions** use `{type: "array", items: {type: "string", enum: [...]}}` — the
   one admitted array shape; the answer is an array of strings.
 - **Context-ful options** use `oneOf: [{const, title, description}]` (single fields and array

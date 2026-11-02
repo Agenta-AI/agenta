@@ -4,7 +4,7 @@
  * Right-hand drawer chrome for a whole config SECTION (Model & harness, Advanced) — as opposed to
  * the per-item `ConfigItemDrawer`. The accordion header opens it; the body is whatever the host
  * passes as children. The host owns the draft model (snapshot the config on open, restore on
- * Cancel), so this is pure chrome: header (icon + title), a scrollable body, and Cancel/Save.
+ * Cancel), so this is pure chrome: header (title), a scrollable body, and Cancel/Save.
  *
  * Built on the shared `EnhancedDrawer`.
  */
@@ -13,6 +13,8 @@ import {type ReactNode, useCallback, useState} from "react"
 import {EnhancedModal} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Button} from "@agenta/ui/ui"
+
+import {SectionDrawerPanelContext} from "./sectionDrawerPanel"
 
 export interface SectionDrawerProps {
     open: boolean
@@ -24,7 +26,8 @@ export interface SectionDrawerProps {
     // When true, closing via scrim/X asks for confirmation instead of discarding silently.
     dirty?: boolean
     width?: number
-    footerNote?: ReactNode
+    /** Body padding; a rail body passes a flush top so it starts right under the header. */
+    bodyPadding?: string
     children: ReactNode
 }
 
@@ -37,10 +40,11 @@ export function SectionDrawer({
     disabled = false,
     dirty = false,
     width = 720,
-    footerNote = "Draft — applies on save",
+    bodyPadding = "16px 12px",
     children,
 }: SectionDrawerProps) {
     const [confirmOpen, setConfirmOpen] = useState(false)
+    const [panel, setPanel] = useState<HTMLDivElement | null>(null)
     // Scrim/X close: guard with a confirm when dirty; the footer Cancel button bypasses this.
     const handleRequestClose = useCallback(() => {
         if (dirty) {
@@ -57,8 +61,7 @@ export function SectionDrawer({
                 onClose={handleRequestClose}
                 placement="right"
                 width={width}
-                // Explicit Cancel/Save only — an outside click must not silently keep an edit.
-                closeOnLayoutClick={false}
+                panelRef={setPanel}
                 destroyOnClose
                 title={
                     <div className="flex min-w-0 items-center gap-2">
@@ -67,25 +70,22 @@ export function SectionDrawer({
                     </div>
                 }
                 footer={
-                    <div className="flex items-center justify-between gap-3">
-                        <span className="min-w-0 truncate text-xs text-[var(--ag-c-97A4B0,#97a4b0)]">
-                            {footerNote}
-                        </span>
-                        <div className="flex shrink-0 items-center gap-2">
-                            <Button variant="outline" onClick={onCancel}>
-                                Cancel
-                            </Button>
-                            <Button onClick={onSave} disabled={disabled}>
-                                Save
-                            </Button>
-                        </div>
+                    <div className="flex items-center justify-end gap-2">
+                        <Button variant="outline" onClick={onCancel}>
+                            Cancel
+                        </Button>
+                        <Button onClick={onSave} disabled={disabled}>
+                            Save
+                        </Button>
                     </div>
                 }
                 // The body itself doesn't scroll — the content (a full-height flex row) gives each
                 // panel its own overflow, so the left and right panels scroll independently.
-                styles={{body: {padding: 16, overflow: "hidden"}}}
+                styles={{body: {padding: bodyPadding, overflow: "hidden"}}}
             >
-                {children}
+                <SectionDrawerPanelContext.Provider value={panel}>
+                    {children}
+                </SectionDrawerPanelContext.Provider>
             </EnhancedDrawer>
             <EnhancedModal
                 open={confirmOpen}

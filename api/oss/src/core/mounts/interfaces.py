@@ -15,7 +15,10 @@ class MountsDAOInterface(ABC):
         user_id: UUID,
         #
         mount_create: MountCreate,
-    ) -> Mount: ...
+    ) -> Mount:
+        """Insert a mount. A new row stores `organization_storage_prefix(organization_id=<the
+        project's organization>, mount_id=<new id>)`, written in the same insert."""
+        ...
 
     @abstractmethod
     async def upsert_mount(
@@ -25,7 +28,11 @@ class MountsDAOInterface(ABC):
         user_id: UUID,
         #
         mount_create: MountCreate,
-    ) -> Mount: ...
+    ) -> Mount:
+        """Insert or re-bind a mount by `(project_id, slug)`. A new row stores
+        `organization_storage_prefix(...)`, written in the same statement, as in `create_mount`;
+        the existing row and its prefix win on conflict."""
+        ...
 
     @abstractmethod
     async def fetch_mount(

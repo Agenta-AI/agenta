@@ -97,7 +97,7 @@ class OTLPRouter:
 
         Binary protobuf only (`Content-Type: application/x-protobuf`).
         JSON OTLP is not accepted. Requests larger than the configured
-        batch limit (default 4 MB, see `OTLP_MAX_BATCH_BYTES`) return
+        batch limit (default 10 MB, see `AGENTA_OTLP_MAX_BATCH_BYTES`) return
         `413 Request Entity Too Large`.
 
         ## Response

@@ -104,6 +104,8 @@ describe("createSandboxAgentOtel state machine", () => {
   it("scenario 2: one-shot (no emit) coalesces text/thought and keeps structured events", () => {
     const run = createSandboxAgentOtel({ harness: "claude", model: "anthropic/x" });
     drive(run);
+    // Claude's live cost is a session running total, so the engine hands back the turn's usage.
+    run.setUsage({ input: 10, output: 5, total: 15, cost: 0.01 });
     const finalText = run.finish();
     const events = run.events();
 

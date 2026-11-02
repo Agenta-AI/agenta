@@ -1,0 +1,75 @@
+import {ApprovalCard} from "@agenta/chat/components"
+import type {PendingApproval} from "@agenta/chat/model"
+
+import {ContentRail} from "@/components/ContentRail"
+
+import {isSteerEnabled} from "./steer"
+import type {ApprovalActions} from "./useApprovalActions"
+
+/**
+ * Bottom-anchored human-in-the-loop dock — the SAME `ApprovalCard` the desktop dock renders
+ * (eyebrow, one-sentence ask, detail toggle, always-allow), in touch sizing. This wrapper
+ * is only the mobile adapter: the safe-area footer shell and how a response actually fires
+ * (the engine for plain approve/deny + Approve all; the detached resume for a steer note). It
+ * sits outside the transcript scroller so a paused run can never scroll out of reach.
+ *
+ * Batch deny rides the detached dispatcher; where a host supplies none, Deny steps gate by gate.
+ */
+export const ApprovalDock = ({
+    approvals,
+    actions,
+    entityId,
+    bottomMost = true,
+    readOnly = false,
+    readOnlyNote,
+}: {
+    /** Pending gates for the paused turn (index 0 is acted on first). */
+    approvals: PendingApproval[]
+    actions: ApprovalActions
+    /** The agent revision — enables "always allow" (a draft-config grant); absent on replay. */
+    entityId?: string
+    /** False when the composer renders below — only the bottom-most element pads the safe area. */
+    bottomMost?: boolean
+    /** The reader cannot answer (no `can_send`, or not known yet): the card shows, but answers
+     *  nothing, and no shortcut or tap reaches `actions`. */
+    readOnly?: boolean
+    /** Shown in place of the actions while read-only (it names who can answer). */
+    readOnlyNote?: string | null
+}) => {
+    const locked = readOnly || Boolean(readOnlyNote)
+    const busy = actions.phase === "resuming"
+    const answered = actions.phase === "answered" || actions.phase === "recoverable"
+
+    if (approvals.length === 0) return null
+    return (
+        <div
+            className={`bg-background shrink-0 px-3 pt-3 ${
+                // When the composer sits below it brings its own top padding, so only the
+                // bottom-most dock pads the safe area — a full pb here just doubles the gap.
+                bottomMost ? "pb-[calc(0.75rem+env(safe-area-inset-bottom))]" : "pb-0"
+            }`}
+        >
+            <ContentRail>
+                <ApprovalCard
+                    approvals={approvals}
+                    responding={busy}
+                    answered={answered}
+                    recoverable={actions.phase === "recoverable"}
+                    entityId={entityId}
+                    steerEnabled={isSteerEnabled()}
+                    touch
+                    readOnly={locked}
+                    readOnlyNote={readOnlyNote}
+                    errorText={actions.phase === "error" ? actions.errorText : null}
+                    onRespond={({approvalId, approved, message}) => {
+                        if (!locked) actions.respond({approvalId, approved, message})
+                    }}
+                    onApproveAll={() => {
+                        if (!locked) actions.approveAll()
+                    }}
+                    onDenyAll={actions.denyAll && !locked ? () => actions.denyAll?.() : undefined}
+                />
+            </ContentRail>
+        </div>
+    )
+}

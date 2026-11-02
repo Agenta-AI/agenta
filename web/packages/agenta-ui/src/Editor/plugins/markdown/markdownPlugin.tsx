@@ -22,6 +22,7 @@ import {
     PASTE_COMMAND,
     $getSelection,
     $isRangeSelection,
+    $setSelection,
     COMMAND_PRIORITY_HIGH,
     type ElementNode,
 } from "lexical"
@@ -134,6 +135,7 @@ const MarkdownPlugin = ({
                     reusable: true,
                 }
                 setEditorLargeDocumentFlag(editor, isLargeRichTextDocument(markdownSource))
+                const focused = editor.getRootElement()?.contains(document.activeElement) ?? false
                 if (isLargeRichTextDocument(markdownSource)) {
                     importMarkdownWithHtmlBatches(editor, markdownSource)
                 } else {
@@ -144,6 +146,9 @@ const MarkdownPlugin = ({
                         true,
                     )
                 }
+                // The import ends with a caret that the code highlighter then drags into the last
+                // code block; an unfocused editor would grab focus and scroll there, so it keeps none.
+                if (!focused) $setSelection(null)
                 setMarkdownView(false)
                 return
             }

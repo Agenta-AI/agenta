@@ -23,6 +23,7 @@ from agenta.sdk.agents import (
     SandboxNotAllowedError,
 )
 
+from agenta.sdk.agents.fold import assistant_text
 from agenta.sdk.agents.handler import (
     AgentComposition,
     make_agent_handler,
@@ -48,6 +49,10 @@ from oss.src.agent.config import (
     runner_dir,
     runner_url,
     sandbox_provider_enabled,
+)
+from oss.src.agent.runtime_status import (
+    SubscriptionStatusResponse,
+    subscription_status,
 )
 from oss.src.agent.schemas import AGENT_SCHEMAS
 from oss.src.agent.tools import resolve_mcp_servers, resolve_tools
@@ -153,7 +158,10 @@ def create_agent_app():
     # copies of the conversation under `ag.data.inputs` (inputs.messages, request.data.
     # inputs.messages) plus a duplicate of `ag.data.parameters`. Only `messages` is signal.
     register_handler(
-        instrument(ignore_inputs=["request", "inputs", "parameters"])(_agent),
+        instrument(
+            ignore_inputs=["request", "inputs", "parameters"],
+            stream_output=assistant_text,
+        )(_agent),
         uri=AGENT_URI,
     )
     register_interface(
@@ -162,6 +170,17 @@ def create_agent_app():
     )
     routed = ag.workflow(uri=AGENT_URI, schemas=AGENT_SCHEMAS)(_agent)
     ag.route("/", app=app, flags={"is_chat": True})(routed)
+    # Deployment state, not a run — but it is registered on the SAME app object as `/invoke`
+    # (`ag.route("/")` adds its routes here rather than mounting a sub-app), so it inherits
+    # that app's middleware stack: `AuthMiddleware` rejects an unauthenticated caller before
+    # the handler runs, with the same permission check a run gets.
+    app.add_api_route(
+        "/runtime/subscription-status",
+        subscription_status,
+        methods=["POST"],
+        response_model=SubscriptionStatusResponse,
+        response_model_exclude_none=True,
+    )
     return app
 
 

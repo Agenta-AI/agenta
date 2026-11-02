@@ -84,6 +84,9 @@ export function createAcquireContext(
     get runAgentDir() {
       return environment.runAgentDir;
     },
+    get piPromptDir() {
+      return environment.piPromptDir;
+    },
     get durableCwdSafeToDelete() {
       return environment.durableCwdSafeToDelete;
     },
@@ -185,9 +188,6 @@ export function createAcquireContext(
     },
     setRunAgentDir(dir) {
       environment.runAgentDir = dir;
-    },
-    setOtlpAuthFilePath(path) {
-      environment.otlpAuthFilePath = path;
     },
     setCodexSqliteHome(dir) {
       environment.codexSqliteHome = dir;

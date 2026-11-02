@@ -1,4 +1,5 @@
-import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
+import {AnnotationDto} from "@agenta/entities/annotation/dto"
+
 import {getProfileValues} from "@/oss/state/profile"
 
 export const isAnnotationCreatedByCurrentUser = (annotation: AnnotationDto) => {

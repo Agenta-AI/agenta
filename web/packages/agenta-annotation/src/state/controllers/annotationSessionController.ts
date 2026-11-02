@@ -64,7 +64,7 @@ import {
     type TraceSpan,
 } from "@agenta/entities/trace"
 import {workflowDetailQueryAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
-import {axios, getAgentaApiUrl, queryClient} from "@agenta/shared/api"
+import {axios, getAgentaApiUrl, getHostQueryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {atom, type Getter, type Setter} from "jotai"
@@ -1941,7 +1941,7 @@ async function invalidateScenarioAnnotations(
                 runId,
                 scenarioIds: [scenarioId],
             })
-            queryClient.setQueryData(["scenarioSteps", runId, scenarioId], freshSteps)
+            getHostQueryClient().setQueryData(["scenarioSteps", runId, scenarioId], freshSteps)
         } catch {
             freshSteps = null
         }
@@ -1982,7 +1982,7 @@ async function invalidateScenarioAnnotations(
                 response.annotations ?? [],
                 fallbackAnnotations,
             )
-            queryClient.setQueryData(
+            getHostQueryClient().setQueryData(
                 ["scenarioAnnotations", scenarioId, annotationTraceIds],
                 annotations,
             )
@@ -2020,7 +2020,7 @@ async function invalidateScenarioAnnotations(
                     filterQueueScopedAnnotations(response.annotations ?? [], queueId),
                     fallbackAnnotations,
                 )
-                queryClient.setQueryData(
+                getHostQueryClient().setQueryData(
                     [
                         "scenarioAnnotationsByTestcase",
                         scenarioId,
@@ -3192,6 +3192,7 @@ const addScenariosToTestsetAtom = atom(
                 if (committedTestsetId) {
                     set(lastUsedTestsetIdAtom, committedTestsetId)
                 }
+                const queryClient = getHostQueryClient()
                 queryClient.invalidateQueries({queryKey: ["testsets-list"]})
                 if (committedTestsetId) {
                     queryClient.invalidateQueries({queryKey: ["testset"], exact: false})

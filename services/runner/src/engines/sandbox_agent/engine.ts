@@ -3,29 +3,130 @@ import {
   type AgentRunResult,
   type EmitEvent,
 } from "../../protocol.ts";
+import { parseGatewayErrorDetail } from "../../gateway-error.ts";
+import { isCooperativeCancelAbort } from "../../sessions/stop-signal.ts";
 import { acquireEnvironment } from "./environment.ts";
+import { runCredential } from "./runtime-policy.ts";
+import { loadDurableDecisions } from "../../sessions/interactions.ts";
 import { runTurn } from "./run-turn.ts";
+import { normalizeRequestModel } from "./model.ts";
+import { TURN_INDEX_TAKEN_CODE } from "./errors.ts";
 import {
   type RunTurnOptions,
   type SandboxAgentDeps,
 } from "./runtime-contracts.ts";
+import type { TeardownReason } from "./teardown.ts";
+
+/** Every `AgentRunResult` this engine returns passes through here: the one choke point where a
+ * gateway refusal recoverable from the harness's error text (`gateway-error.ts`) gets attached,
+ * regardless of which of `runTurn`'s several failure paths produced it. */
+export function withGatewayErrorDetail(result: AgentRunResult): AgentRunResult {
+  if (result.ok || result.errorDetail || !result.error) return result;
+  const errorDetail = parseGatewayErrorDetail(result.error);
+  return errorDetail ? { ...result, errorDetail } : result;
+}
 
 /**
- * Whether a completed turn's environment may be parked: never on abort, client disconnect,
- * pause, or failure. Session-owned streams survive disconnect WITHOUT aborting the run signal
- * (server policy), so the disconnect check needs the separate `clientGone` flag. A wedged
- * sandbox that failed its turn must be destroyed, not reconnected on the next one.
+ * The turn-start write found the turn's index already written by another runner, so the turn
+ * ended before its prompt. The conversation is stale, not the environment: tear it down as
+ * `continuity-invalid`, which parks, and never retry it cold.
+ */
+export function isTurnIndexTaken(result: AgentRunResult): boolean {
+  return result.errorDetail?.code === TURN_INDEX_TAKEN_CODE;
+}
+
+/**
+ * Whether a completed turn's environment may be parked: never on client disconnect, pause, or
+ * failure. Session-owned streams survive disconnect WITHOUT aborting the run signal (server
+ * policy), so the disconnect check needs the separate `clientGone` flag. A wedged sandbox that
+ * failed its turn must be destroyed, not reconnected on the next one.
+ *
+ * A USER STOP IS THE ONE ABORT THAT MAY PARK. Stop and Delete are different operations: Stop
+ * keeps the session, the sandbox, and the harness session resumable. Three things must all be
+ * true, and each answers a different question:
+ *
+ *  - `isCooperativeCancelAbort(signal)` — WAS this abort a cooperative Stop? The signal is
+ *    labelled at the one call site that means it (`server.ts`, the heartbeat interrupt). Reading
+ *    `signal.aborted` alone cannot answer this, and inferring it from the stop reason would let
+ *    any future `controller.abort()` park a sandbox nobody checked. See `sessions/stop-signal.ts`.
+ *    A shutdown cancel carries its own label and parks the same way; the shutdown's teardown
+ *    step then deletes the parked sandbox.
+ *  - `result.stopReason === "cancelled"` — did the TURN actually end as a cancel?
+ *  - `result.cancelSettled` — did the HARNESS confirm it stopped? See `cancel-turn.ts`.
+ *
+ * Every other abort leaves the environment in an unknown state and still destroys.
+ *
+ * A SETTLED USER STOP IS CHECKED BEFORE `clientGone`, AND THAT ORDER IS THE WHOLE POINT.
+ * `clientGone` used to be read first, which read well and broke the product on every real Stop.
+ * The browser's Stop button aborts its own chat stream in the SAME tick it sends the durable
+ * cancel command (`web/oss/src/components/AgentChatSlice/hooks/useAgentChatSession.ts`,
+ * `handleStop`), so the disconnect and the labelled abort always arrive together. With the
+ * disconnect read first, every Stop fell into the destroy branch: the sandbox was deleted, the
+ * native harness session went with it, and the next message replayed cold. Observed on the
+ * increment-6 stack on 2026-09-04, three Stops, three evictions, no warm park.
+ *
+ * The disconnect rule loses nothing it was written for. It exists so an UNATTENDED session is
+ * never kept warm on a guess, and a Stop is not a guess: it is an authenticated command the API
+ * recorded durably, from a user who is still on the page and about to type. Every other
+ * disconnect — mid-turn tab close, a dropped connection, a failed turn — still destroys, and the
+ * parked entry still expires on its own TTL.
  */
 export function shouldPark(
   result: AgentRunResult,
   signal: AbortSignal | undefined,
   clientGone: (() => boolean) | undefined,
 ): boolean {
-  if (signal?.aborted) return false; // aborted run: destroy, do not park
+  // The harness is idle and the sandbox is worth keeping warm, whatever the stream did.
+  const settledUserStop =
+    isCooperativeCancelAbort(signal) &&
+    result.ok === true &&
+    result.stopReason === "cancelled" &&
+    result.cancelSettled === true;
+  if (settledUserStop) return true;
   if (clientGone?.()) return false; // client disconnected mid-turn: destroy, do not park
+  if (signal?.aborted) return false; // any other abort: unknown state, destroy
   if (!result.ok) return false; // failed turn: teardown as today
   if (result.stopReason === "paused") return false; // a plain pause never parks
   return true;
+}
+
+/**
+ * Why an environment is torn down once its turn ends: the one-turn paths always tear down, the
+ * warm path only when the turn does not park. `result` is undefined when `runTurn` threw, which
+ * is a failed turn: destroy. A resumable sandbox parks on the `shouldPark` policy.
+ */
+export function turnTeardownReason(
+  result: AgentRunResult | undefined,
+  resumable: boolean,
+  signal: AbortSignal | undefined,
+  clientGone: (() => boolean) | undefined,
+): TeardownReason {
+  if (resumable && result !== undefined && shouldPark(result, signal, clientGone)) {
+    return "clean-resumable";
+  }
+  if (signal?.aborted || clientGone?.()) return "aborted";
+  if (result && isTurnIndexTaken(result)) return "continuity-invalid";
+  return "failed-turn";
+}
+
+/**
+ * Why the keep-alive engine's `runCold` tears its environment down. The coordinator calls
+ * `runCold` only for a run it cannot pool: one with no session id, or no project scope to key a
+ * pool entry on. Such a sandbox must never stop instead of delete. A stopped sandbox with no pool
+ * entry has no owner: the shutdown sweep does not see it, no later turn is keyed to it, and its
+ * Daytona Secrets live only as long as the process-local cleanup timer, which a restart drops.
+ *
+ * So every ending maps to a reason that deletes. An abort and a failure keep their names for the
+ * log, a turn another runner already wrote included; every other ending is `unpooled`.
+ */
+export function unpooledTeardownReason(
+  result: AgentRunResult | undefined,
+  signal: AbortSignal | undefined,
+  clientGone: (() => boolean) | undefined,
+): TeardownReason {
+  if (signal?.aborted || clientGone?.()) return "aborted";
+  if (result === undefined || !result.ok) return "failed-turn";
+  return "unpooled";
 }
 
 /**
@@ -38,30 +139,46 @@ export async function runSandboxAgent(
   emit?: EmitEvent,
   signal?: AbortSignal,
   deps: SandboxAgentDeps = {},
-  turnOptions: Pick<RunTurnOptions, "credential"> = {},
+  turnOptions: Pick<RunTurnOptions, "credential" | "seededDecisions"> = {},
 ): Promise<AgentRunResult> {
-  const acquired = await acquireEnvironment(request, deps, signal);
-  if (!acquired.ok) return { ok: false, error: acquired.error };
+  normalizeRequestModel(request);
+  const acquired = await acquireEnvironment(
+    request,
+    deps,
+    signal,
+    undefined,
+    emit,
+  );
+  if (!acquired.ok)
+    return withGatewayErrorDetail({ ok: false, error: acquired.error });
   const env = acquired.env;
   let result: AgentRunResult | undefined;
   try {
     result = await runTurn(env, request, emit, signal, {
       loaded: env.loadedFromContinuity,
+      nativeHistoryVerified: env.nativeHistoryVerified,
       ...turnOptions,
+      // After the spread so a caller-supplied set wins, and short-circuited so we never CLAIM
+      // rows the spread would then discard — a claimed row is spent even if it is thrown away.
+      // Read + claim BEFORE the turn: runTurn must not suspend before its responder is wired.
+      seededDecisions:
+        turnOptions.seededDecisions ??
+        (await loadDurableDecisions(
+          env.sessionId,
+          runCredential(request),
+          env.logger,
+        )),
     });
+    result = withGatewayErrorDetail(result);
     return result;
   } finally {
-    // `result` is undefined when runTurn threw: a failed turn, so destroy.
-    const cleanResumable =
-      env.resumable &&
-      result !== undefined &&
-      shouldPark(result, signal, undefined);
+    const reason = turnTeardownReason(result, env.resumable, signal, undefined);
     await env.destroy({
-      reason: cleanResumable
-        ? "clean-resumable"
-        : signal?.aborted
-          ? "aborted"
-          : "failed-turn",
+      // A settled Stop parks under its own reason, so the log says WHY the sandbox survived.
+      reason:
+        reason === "clean-resumable" && result?.stopReason === "cancelled"
+          ? "cancelled"
+          : reason,
     });
   }
 }

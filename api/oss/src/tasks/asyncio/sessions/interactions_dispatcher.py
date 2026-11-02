@@ -1,8 +1,62 @@
-from typing import Any, Callable, Optional
+"""Respond-via-invoke: turn a stored human answer into a detached workflow run.
+
+For a ``user_approval`` interaction the dispatcher composes the runner-visible
+resume conversation SERVER-SIDE (mobile approvals plan, M2.1): it replays the
+session's durable records into wire messages and appends the approval envelope
+``{approved, interactionToken}`` as a ``tool_result`` block bound to the gated
+``toolCallId`` — the exact shape the runner's decision map reads
+(``services/runner/src/responder.ts`` ``storedApprovalDecisionOf`` /
+``session-identity.ts`` ``approvalDecisionForToolCall``). The client payload
+stays minimal: ``{approved: bool, tool_call_id?, message?}``.
+
+Agent ``client_tool`` answers replay the same conversation with their structured output or
+error as the tool result. Other interaction kinds retain ``data.inputs = answer``.
+
+The resume also carries the gated turn's own config when the runner stamped one on the row
+(``data.parameters``): sending it inline suppresses reference hydration in the SDK resolver,
+so the run continues under the config the gate was raised against rather than the referenced
+variant's HEAD revision. A row written before that field existed has none, and the body is
+byte-identical to the references-only one this dispatcher has always sent.
+
+``references`` are not decoration on this request: they are how the invoke finds a service to
+call at all (``WorkflowsService._ensure_request_revision`` resolves them into
+``data.revision``, and ``_get_service_url`` reads the URL off it). A gate row whose
+``data.references`` is empty therefore produces an invoke with no service URL, which fails
+``Workflow revision has no runnable service URL.`` on every redelivery. The same identity is
+also recorded on the session's turn and stream rows, so this dispatcher falls back to those
+before giving up.
+"""
+
+from typing import Any, Callable, Dict, List, Optional
 from uuid import UUID
 
-from oss.src.core.sessions.interactions.dtos import SessionInteractionData
+from oss.src.core.access.dtos import (
+    RunApproval,
+    RunEnvelope,
+)
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.principals import resumed_envelope
+from oss.src.core.access.service import get_access_service
+from oss.src.core.access.types import AccessDenied, MissingEnvelope
+from oss.src.core.sessions.interactions.dtos import (
+    SessionInteraction,
+    SessionInteractionData,
+    SessionInteractionKind,
+    SessionInteractionStatus,
+    SessionInteractionTransition,
+)
+from oss.src.core.sessions.interactions.types import InteractionNotFound
+from oss.src.core.sessions.interactions.references import (
+    keyed_references as keyed_references,
+    resolve_interaction_references,
+)
+from oss.src.core.sessions.records.dtos import SessionRecord
+from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
+from oss.src.core.sessions.streams.service import SessionStreamsService
+from oss.src.core.sessions.turns.service import SessionTurnsService
+from oss.src.core.sharing.admission import APPROVAL_RESUME_BOUNDARY, RunAdmission
+from oss.src.core.sharing.types import AdmissionDenied
 from oss.src.core.workflows.dtos import (
     WorkflowServiceRequest,
     WorkflowServiceRequestData,
@@ -14,6 +68,291 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 
+def _user_attachment_blocks(attributes: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Attachment blocks for one user record, in the runner's wire shape.
+
+    Keys the runner omits when absent are omitted here too: a `null` filename is not the same
+    wire value as no filename.
+    """
+    blocks: List[Dict[str, Any]] = []
+    for attachment in attributes.get("attachments") or []:
+        if not isinstance(attachment, dict):
+            continue
+        attachment_id = attachment.get("attachmentId")
+        if not isinstance(attachment_id, str) or not attachment_id:
+            continue
+        block: Dict[str, Any] = {"type": "attachment", "attachmentId": attachment_id}
+        for wire_key, stored_key in (
+            ("filename", "filename"),
+            ("mimeType", "mediaType"),
+            ("size", "size"),
+        ):
+            value = attachment.get(stored_key)
+            if value is not None:
+                block[wire_key] = value
+        blocks.append(block)
+    return blocks
+
+
+def build_wire_messages(records: List[SessionRecord]) -> List[Dict[str, Any]]:
+    """Replay durable session records into runner wire messages.
+
+    Mirrors the frontend's ``transcriptToMessages`` grouping: a ``user`` record opens a
+    user message; a contiguous run of agent records folds into one assistant message whose
+    content blocks carry text and resolved tool turns. Non-conversation records (thoughts,
+    usage, errors, interaction bookkeeping) are skipped — they are renderable history, not
+    replayable conversation.
+    """
+    messages: List[Dict[str, Any]] = []
+    assistant_blocks: Optional[List[Dict[str, Any]]] = None
+    # A tool_result record stores only the call id, but the runner's cold replay renders each
+    # result as "[<toolName> returned: ...]" and matches approval nudges by tool name
+    # (`approvalRenderHints`). Carry the name forward from the call, exactly as the runner's own
+    # `reconstructMessages` does — without it every replayed result is an anonymous "tool".
+    call_names: Dict[str, str] = {}
+
+    def close_assistant() -> None:
+        nonlocal assistant_blocks
+        assistant_blocks = None
+
+    def assistant() -> List[Dict[str, Any]]:
+        nonlocal assistant_blocks
+        if assistant_blocks is None:
+            assistant_blocks = []
+            messages.append({"role": "assistant", "content": assistant_blocks})
+        return assistant_blocks
+
+    for record in records:
+        attributes = record.attributes or {}
+        record_type = record.record_type or attributes.get("type")
+
+        if record.record_source == "user":
+            raw_text = attributes.get("text")
+            text = raw_text if isinstance(raw_text, str) else ""
+            attachments = _user_attachment_blocks(attributes)
+            if not text and not attachments:
+                continue
+            close_assistant()
+            # Attachments ride the user record and rebuild as blocks followed by exactly one
+            # text block, matching `services/runner/src/sessions/reconstruct.ts`. A turn that
+            # was only files still replays: dropping it would hand the model a different
+            # context than the one the human approved against.
+            content: Any = (
+                [*attachments, {"type": "text", "text": text}] if attachments else text
+            )
+            messages.append({"role": "user", "content": content})
+            continue
+
+        if record_type == "message":
+            text = attributes.get("text")
+            if isinstance(text, str) and text:
+                assistant().append({"type": "text", "text": text})
+        elif record_type == "tool_call":
+            block: Dict[str, Any] = {"type": "tool_call"}
+            if attributes.get("id"):
+                block["toolCallId"] = attributes["id"]
+            if attributes.get("name"):
+                block["toolName"] = attributes["name"]
+                if attributes.get("id"):
+                    call_names[attributes["id"]] = attributes["name"]
+            if attributes.get("input") is not None:
+                block["input"] = attributes["input"]
+            assistant().append(block)
+        elif record_type == "tool_result":
+            block = {"type": "tool_result"}
+            if attributes.get("id"):
+                block["toolCallId"] = attributes["id"]
+                if attributes["id"] in call_names:
+                    block["toolName"] = call_names[attributes["id"]]
+            output = attributes.get("data")
+            if output is None:
+                output = attributes.get("output")
+            if output is not None:
+                block["output"] = output
+            if attributes.get("isError") is not None:
+                block["isError"] = attributes["isError"]
+            assistant().append(block)
+        # Everything else (thought, usage, error, done, data, file, interaction_request,
+        # interaction_response) is not part of the replayable conversation.
+
+    return messages
+
+
+def resolve_gated_tool_call_id(
+    records: List[SessionRecord],
+    interaction: SessionInteraction,
+    answer: Dict[str, Any],
+) -> str:
+    """The tool-call id the envelope must bind to.
+
+    Precedence: the client's explicit ``tool_call_id``; else the persisted
+    ``interaction_request`` record whose event id is the interaction token (its payload
+    carries the gated ``toolCallId``); else the id stored on the gate row itself; else the
+    token (the runner's event id falls back to the tool-call id when the permission id is
+    empty, so this stays a valid anchor for the synthesized-history path).
+
+    The row is consulted before the token because warm-resume matching is strict on
+    ``toolCallId``: whenever record replay lags or comes back empty, the token would miss the
+    parked gate and drop an answerable turn to a cold replay for no reason. The row carries the
+    harness call id from the moment the gate was created (`buildInteractionData`), so it is
+    available even when no record is.
+
+    A client ``tool_call_id`` equal to the token is treated as absent: the app answers with the
+    approval id it rendered, which is the token, and binding the envelope to it would add a
+    tool call the harness never made, so the runner's history fingerprint would evict the
+    parked sandbox. When the token really is the harness id (the runner's fallback above, or a
+    relay-minted id), every lookup below returns that same id.
+    """
+    explicit = answer.get("tool_call_id")
+    if isinstance(explicit, str) and explicit and explicit != interaction.token:
+        return explicit
+
+    for record in records:
+        attributes = record.attributes or {}
+        record_type = record.record_type or attributes.get("type")
+        if record_type != "interaction_request":
+            continue
+        if attributes.get("id") != interaction.token:
+            continue
+        payload = attributes.get("payload") or {}
+        tool_call_id = payload.get("toolCallId")
+        if isinstance(tool_call_id, str) and tool_call_id:
+            return tool_call_id
+
+    stored_request = getattr(interaction.data, "request", None)
+    stored = getattr(stored_request, "tool_call_id", None)
+    if isinstance(stored, str) and stored:
+        return stored
+
+    return interaction.token
+
+
+def _gated_call_shape(
+    records: List[SessionRecord],
+    interaction: SessionInteraction,
+) -> Dict[str, Any]:
+    """Recover the gated call's name+args (the runner's cold-replay anchor)."""
+    for record in records:
+        attributes = record.attributes or {}
+        record_type = record.record_type or attributes.get("type")
+        if record_type != "interaction_request":
+            continue
+        if attributes.get("id") != interaction.token:
+            continue
+        tool_call = (attributes.get("payload") or {}).get("toolCall") or {}
+        name = tool_call.get("resolvedName") or tool_call.get("title")
+        args = tool_call.get("rawInput")
+        if name or args is not None:
+            return {"name": name, "args": args}
+
+    data: Optional[SessionInteractionData] = interaction.data
+    request = data.request if data else None
+    if request is None:
+        return {"name": None, "args": None}
+    return {"name": request.tool, "args": request.args}
+
+
+def _is_agent_interaction_answer(interaction: SessionInteraction, answer: Any) -> bool:
+    if not isinstance(answer, dict):
+        return False
+    return (
+        interaction.kind == SessionInteractionKind.user_approval
+        and isinstance(answer.get("approved"), bool)
+    ) or (
+        interaction.kind == SessionInteractionKind.client_tool
+        and answer.get("outcome") in ("completed", "error")
+    )
+
+
+def compose_approval_messages(
+    records: List[SessionRecord],
+    interaction: SessionInteraction,
+    answer: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    return compose_approval_messages_many(records, [(interaction, answer)])
+
+
+def compose_approval_messages_many(
+    records: List[SessionRecord],
+    interaction_answers: List[tuple[SessionInteraction, Dict[str, Any]]],
+) -> List[Dict[str, Any]]:
+    """The full resume conversation: replayed history + the approval envelope.
+
+    The envelope rides as a ``tool_result`` block on the LAST assistant message (never a
+    new user message — the runner's history fingerprint counts user prompts, and the
+    envelope's tool-call id dedupes against the already-present ``tool_call`` block, so a
+    warm-parked sandbox still fingerprint-matches and resumes live). An optional
+    deny-with-redirect ``message`` is appended as a trailing user message, which the
+    fingerprint's prior-conversation slice excludes.
+
+    Where that note is DELIVERED is asymmetric, and verified live (2026-07-30). A warm resume
+    answers the parked harness gate on the still-pending original prompt and sends no new
+    prompt (``run-turn.ts``: the resume branch reuses the parked ``promptPromise``), so the
+    note never reaches the model — only a cold replay closes the replayed transcript with it.
+    Fingerprint parity therefore makes the note undeliverable in the common case; mobile's
+    steer control stays flag-gated off until the runner can carry a redirect in-band with the
+    denial (#5444). The note is still persisted as a user record either way.
+    """
+    messages = build_wire_messages(records)
+    notes: List[str] = []
+    for interaction, answer in interaction_answers:
+        gated_id = resolve_gated_tool_call_id(records, interaction, answer)
+        gated_call = next(
+            (
+                block
+                for message in messages
+                if isinstance(message.get("content"), list)
+                for block in message["content"]
+                if block.get("type") == "tool_call"
+                and block.get("toolCallId") == gated_id
+            ),
+            None,
+        )
+        shape = _gated_call_shape(records, interaction)
+        if gated_call is None:
+            # No durable tool_call record (e.g. records unavailable): synthesize the anchor the
+            # runner's call-shape index needs to bind the envelope to name+args.
+            gated_call = {"type": "tool_call", "toolCallId": gated_id}
+            if shape.get("name"):
+                gated_call["toolName"] = shape["name"]
+            if shape.get("args") is not None:
+                gated_call["input"] = shape["args"]
+            messages.append({"role": "assistant", "content": [gated_call]})
+
+        envelope: Dict[str, Any] = {"type": "tool_result", "toolCallId": gated_id}
+        if interaction.kind == SessionInteractionKind.client_tool:
+            is_error = answer.get("outcome") == "error"
+            envelope["output"] = (
+                answer.get("error") if is_error else answer.get("output", {})
+            )
+            envelope["isError"] = is_error
+        else:
+            envelope["output"] = {
+                "approved": bool(answer.get("approved")),
+                "interactionToken": interaction.token,
+            }
+        gated_name = gated_call.get("toolName") or shape.get("name")
+        if gated_name:
+            envelope["toolName"] = gated_name
+        tail = messages[-1] if messages else None
+        if (
+            tail is not None
+            and tail.get("role") == "assistant"
+            and isinstance(tail.get("content"), list)
+        ):
+            tail["content"].append(envelope)
+        else:
+            messages.append({"role": "assistant", "content": [envelope]})
+
+        note = answer.get("message")
+        if isinstance(note, str) and note.strip():
+            notes.append(note)
+
+    messages.extend({"role": "user", "content": note} for note in notes)
+
+    return messages
+
+
 class InteractionsDispatcher:
     """Respond-via-invoke logic. When dispatch_fn is supplied, fires detached (no blocking await)."""
 
@@ -22,11 +361,47 @@ class InteractionsDispatcher:
         *,
         workflows_service: WorkflowsService,
         interactions_service: SessionInteractionsService,
+        run_admission: RunAdmission,
+        records_service: Optional[RecordsService] = None,
+        turns_service: Optional[SessionTurnsService] = None,
+        streams_service: Optional[SessionStreamsService] = None,
         dispatch_fn: Optional[Callable] = None,
     ) -> None:
         self.workflows_service = workflows_service
         self.interactions_service = interactions_service
+        # Every resume is admitted (the session and the agent of the resumed turn)
+        # right before it is invoked.
+        self.run_admission = run_admission
+        self.records_service = records_service
+        # Read-only, for the resume's reference fallback: the identity a session recorded on its
+        # turn and stream rows when the gate row carries none.
+        self.turns_service = turns_service
+        self.streams_service = streams_service
         self._dispatch_fn = dispatch_fn
+
+    async def _compose_inputs(
+        self,
+        *,
+        project_id: UUID,
+        interaction: SessionInteraction,
+        answer: Any,
+    ) -> Dict[str, Any]:
+        if _is_agent_interaction_answer(interaction, answer):
+            records: List[SessionRecord] = []
+            if self.records_service is not None:
+                try:
+                    records = await self.records_service.get_records(
+                        project_id=project_id,
+                        session_id=interaction.session_id,
+                    )
+                except Exception as e:  # degrade to synthesized-anchor replay
+                    log.warning(
+                        "[interactions] records replay unavailable for "
+                        f"session={interaction.session_id}: {e}"
+                    )
+            return {"messages": compose_approval_messages(records, interaction, answer)}
+
+        return answer if isinstance(answer, dict) else {"value": answer}
 
     async def respond(
         self,
@@ -36,41 +411,197 @@ class InteractionsDispatcher:
         #
         interaction_id: UUID,
         answer: Any,
+        approved_by: RunApproval,
+        control_command_id: Optional[UUID] = None,
+        continuation_execution_id: Optional[str] = None,
     ) -> None:
+        """Rebuild the resumed envelope from the interaction row. The approver is
+        `approved_by`, from the trusted caller; it is never rebuilt from a user id.
+
+        A refusal is terminal and is not raised, so no task retry repeats it: a row
+        without an envelope (parked before M2) or a principal that lost access cancels
+        the turn's pending interactions and runs nothing."""
+
         interaction = await self.interactions_service.fetch_interaction(
             project_id=project_id,
             interaction_id=interaction_id,
         )
+        try:
+            if interaction is None or interaction.run_envelope is None:
+                raise MissingEnvelope()
+            envelope = resumed_envelope(
+                asked=interaction.run_envelope,
+                run_id=continuation_execution_id,
+                approved_by=approved_by,
+            )
+            # The resume runs as the asked run's principal: recheck it now.
+            await get_access_service().require(
+                envelope=envelope, action=Permission.RUN_SESSIONS
+            )
+        except (MissingEnvelope, AccessDenied) as refusal:
+            await self._refuse_response(
+                project_id=project_id,
+                interaction=interaction,
+                code=(
+                    "missing_envelope"
+                    if isinstance(refusal, MissingEnvelope)
+                    else "access_denied"
+                ),
+            )
+            return
+        try:
+            await self.respond_many(
+                project_id=project_id,
+                user_id=user_id,
+                interaction_answers=[(interaction_id, answer)],
+                envelope=envelope,
+                control_command_id=control_command_id,
+                continuation_execution_id=continuation_execution_id,
+            )
+        except AdmissionDenied:
+            # The principal may no longer run the session or the agent: terminal, as
+            # a refused recheck above.
+            await self._refuse_response(
+                project_id=project_id,
+                interaction=interaction,
+                code="access_denied",
+            )
+
+    async def _refuse_response(
+        self,
+        *,
+        project_id: UUID,
+        interaction: Optional[SessionInteraction],
+        code: str,
+    ) -> None:
+        log.info(
+            "[interactions] response refused",
+            project_id=str(project_id),
+            interaction_id=str(interaction.id) if interaction else None,
+            code=code,
+        )
+        if interaction is None:
+            return
+        if interaction.turn_id:
+            await self.interactions_service.cancel_session_pending(
+                project_id=project_id,
+                session_id=interaction.session_id,
+                only_turn_id=interaction.turn_id,
+            )
+            return
+        # No turn: cancel this interaction only.
+        try:
+            await self.interactions_service.transition_interaction(
+                transition=SessionInteractionTransition(
+                    project_id=project_id,
+                    session_id=interaction.session_id,
+                    token=interaction.token,
+                    status=SessionInteractionStatus.cancelled,
+                )
+            )
+        except InteractionNotFound:
+            # Already terminal: nothing is waiting on it.
+            return
+
+    async def respond_many(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        interaction_answers: List[tuple[UUID, Any]],
+        envelope: RunEnvelope,
+        control_command_id: Optional[UUID] = None,
+        continuation_execution_id: Optional[str] = None,
+    ) -> None:
+        resolved = [
+            (
+                await self.interactions_service.fetch_interaction(
+                    project_id=project_id,
+                    interaction_id=interaction_id,
+                ),
+                answer,
+            )
+            for interaction_id, answer in interaction_answers
+        ]
+        interaction, first_answer = resolved[0]
 
         data: Optional[SessionInteractionData] = interaction.data
-        references = (
-            {k: v.model_dump(mode="json") for k, v in data.references.items()}
-            if data and data.references
-            else None
+        references = await resolve_interaction_references(
+            project_id=project_id,
+            interaction=interaction,
+            turns_service=self.turns_service,
+            streams_service=self.streams_service,
         )
         selector = (
             data.selector.model_dump(mode="json") if data and data.selector else None
         )
-        inputs = answer if isinstance(answer, dict) else {"value": answer}
+        if all(_is_agent_interaction_answer(item, answer) for item, answer in resolved):
+            records: List[SessionRecord] = []
+            if self.records_service is not None:
+                try:
+                    records = await self.records_service.get_records(
+                        project_id=project_id,
+                        session_id=interaction.session_id,
+                    )
+                except Exception as e:  # degrade to synthesized-anchor replay
+                    log.warning(
+                        "[interactions] records replay unavailable for "
+                        f"session={interaction.session_id}: {e}"
+                    )
+            inputs = {"messages": compose_approval_messages_many(records, resolved)}
+        else:
+            inputs = await self._compose_inputs(
+                project_id=project_id,
+                interaction=interaction,
+                answer=first_answer,
+            )
+        # The effective config the gated turn ran under, when the runner stamped one. Sending it
+        # INLINE is what makes the resume correct: the resolver decides hydration purely from
+        # what the caller sent (`_caller_supplied_configuration`), so inline parameters suppress
+        # it and the run continues under the gated turn's own config instead of the referenced
+        # variant's HEAD revision. References still ride along (attribution + the fallback for a
+        # pre-change row, which has no parameters and keeps today's hydrating body verbatim).
+        parameters = data.parameters if data else None
 
         invoke_request = WorkflowServiceRequest(
             references=references,
             selector=selector,
-            data=WorkflowServiceRequestData(inputs=inputs),
+            data=WorkflowServiceRequestData(inputs=inputs, parameters=parameters),
             session_id=interaction.session_id,
+        )
+        if control_command_id is not None:
+            invoke_request.meta = {
+                **(invoke_request.meta or {}),
+                "control_command_id": str(control_command_id),
+            }
+
+        # Raises `AdmissionDenied` (an `AccessDenied`): a command's delivery settles it
+        # terminally, `respond` cancels the turn's interactions. Resolves the target
+        # once and leaves it on the request, so the invoke runs what was checked.
+        await self.run_admission.admit_request(
+            envelope=envelope,
+            session_id=interaction.session_id,
+            project_id=project_id,
+            request=invoke_request,
+            boundary=APPROVAL_RESUME_BOUNDARY,
         )
 
         if self._dispatch_fn is not None:
             # Detached path: hand off to the runner, return immediately.
-            await self._dispatch_fn(
-                project_id=project_id,
-                user_id=user_id,
-                request=invoke_request,
-            )
+            kwargs = {
+                "project_id": project_id,
+                "user_id": user_id,
+                "request": invoke_request,
+                "envelope": envelope,
+            }
+            if continuation_execution_id is not None:
+                kwargs["run_id"] = continuation_execution_id
+            await self._dispatch_fn(**kwargs)
             return
 
         await self.workflows_service.invoke_workflow(
             project_id=project_id,
             user_id=user_id,
             request=invoke_request,
+            envelope=envelope,
         )

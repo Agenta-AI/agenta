@@ -1,6 +1,8 @@
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, Optional, List, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from oss.src.core.git.dtos import RevisionGrouping, validate_revision_grouping
 
 from oss.src.core.shared.dtos import (
     Reference,
@@ -342,10 +344,37 @@ class ApplicationRevisionQueryRequest(BaseModel):
         description="When `true`, include archived revisions. Defaults to `false`.",
     )
     #
+    grouping: Optional[RevisionGrouping] = Field(
+        default=None,
+        description=(
+            "Divide matching revisions by artifact or variant and select one "
+            "revision from each group."
+        ),
+    )
+    #
     windowing: Optional[Windowing] = Field(
         default=None,
         description="Cursor pagination and time-range controls.",
     )
+
+    @model_validator(mode="after")
+    def _validate_grouping(self):
+        validate_revision_grouping(
+            grouping=self.grouping,
+            artifact_refs=self.application_refs,
+            variant_refs=self.application_variant_refs,
+            revision_refs=self.application_revision_refs,
+            windowing=self.windowing,
+        )
+        if (
+            self.grouping
+            and self.application_revision
+            and self.application_revision.flags
+        ):
+            raise ValueError(
+                "grouping cannot be combined with application revision flags"
+            )
+        return self
 
 
 class ApplicationRevisionCommitRequest(BaseModel):
@@ -434,6 +463,10 @@ class ApplicationRevisionRetrieveRequest(BaseModel):
             "When `true`, resolve embedded references in the returned "
             "revision's `data` (for example, snippet references)."
         ),
+    )
+    include_archived: Optional[bool] = Field(
+        default=None,
+        description="When false, an archived application, variant, or revision resolves to nothing.",
     )
 
 
@@ -626,6 +659,8 @@ class AgentTemplateOverlay(BaseModel):
 
 class PlaygroundBuildKitContext(BaseModel):
     """Read-only playground build-kit context for one inspect/fetch response."""
+
+    op_access: Dict[str, Literal["read", "write"]] = Field(default_factory=dict)
 
     agent_template_overlay: Optional[AgentTemplateOverlay] = Field(
         default=None,

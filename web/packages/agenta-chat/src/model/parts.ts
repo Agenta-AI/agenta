@@ -1,0 +1,64 @@
+import type {ToolUIPart, UIMessage} from "ai"
+
+import {isReadableMcpServerNoticePart} from "./mcpServerNotice"
+
+export const isToolPart = (type: string) => type.startsWith("tool-") || type === "dynamic-tool"
+
+/** Dedup key for a tool call. Stringifies its input, which can be large — call it sparingly. */
+export const toolIdentity = (p: ToolUIPart): string => {
+    let inputKey = ""
+    try {
+        inputKey = JSON.stringify((p as {input?: unknown}).input ?? null)
+    } catch {
+        inputKey = ""
+    }
+    return `${p.type}::${inputKey}`
+}
+
+/** A part the transcript actually renders — non-empty text/reasoning, files, sources, tools,
+ * and the notice card for a server that did not join. */
+export const isVisiblePart = (p: UIMessage["parts"][number]): boolean =>
+    (p.type === "text" && Boolean((p as {text?: string}).text?.trim())) ||
+    (p.type === "reasoning" && Boolean((p as {text?: string}).text?.trim())) ||
+    p.type === "file" ||
+    p.type === "source-url" ||
+    isReadableMcpServerNoticePart(p) ||
+    p.type.startsWith("tool-") ||
+    p.type === "dynamic-tool"
+
+/** A settled assistant turn with no content at all — no answer, reasoning, tool, file, or
+ * source part. Mirrors AgentMessage's `!hasContent`; used to collapse a run of "no response"
+ * bubbles (e.g. repeated failed runs) down to the first one. */
+export const isEmptyAssistantTurn = (m: UIMessage): boolean =>
+    m.role === "assistant" && !m.parts.some(isVisiblePart)
+
+/** Display titles older runners stored as tool names; the runner now records the real name. */
+const LEGACY_TOOL_NAMES = new Map([["Preparing file…", "Write"]])
+
+/** Wire name of a tool part. `dynamic-tool` carries it on `toolName`; typed parts encode it as
+ * `tool-<name>`. */
+export const partToolName = (part: ToolUIPart): string => {
+    // `dynamic-tool` parts reach here via the grouping cast in AgentMessage but sit outside
+    // ToolUIPart's static union — read `type` as a string.
+    const type = part.type as string
+    const name =
+        type === "dynamic-tool"
+            ? (part as {toolName?: string}).toolName || "tool"
+            : type.replace(/^tool-/, "")
+    return LEGACY_TOOL_NAMES.get(name) ?? name
+}
+
+/** Assistant message id → its 1-based turn number (records/turns align 1:1 with the assistant
+ * messages — one per `done`). Built once per message set: the per-message scan it replaces was
+ * O(n) inside a render loop, so the transcript paid O(n²) on every streamed commit. */
+export const assistantTurnNumbers = (messages: UIMessage[]): Map<string, number> => {
+    const turns = new Map<string, number>()
+    let n = 0
+    for (const m of messages) {
+        if (m.role === "assistant") {
+            n += 1
+            turns.set(m.id, n)
+        }
+    }
+    return turns
+}

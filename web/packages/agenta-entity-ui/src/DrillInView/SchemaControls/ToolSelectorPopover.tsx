@@ -246,7 +246,7 @@ function SectionHeader({icon, title, right}: {icon: ReactNode; title: string; ri
         <div className="flex items-center justify-between px-2 py-1">
             <div className="flex items-center gap-1.5 min-w-0">
                 <span className="text-zinc-500 flex items-center">{icon}</span>
-                <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+                <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">
                     {title}
                 </span>
             </div>
@@ -319,7 +319,7 @@ function GatewayConnectionRowWithHook({
                     )}
                     <div className="min-w-0 flex flex-col leading-tight">
                         <span className="text-xs truncate">{label}</span>
-                        <span className="text-[10px] text-zinc-400 truncate">
+                        <span className="text-[12px] text-zinc-400 truncate">
                             {connection.slug}
                         </span>
                     </div>
@@ -361,7 +361,7 @@ function GatewayConnectionRowFallback({
                     )}
                     <div className="min-w-0 flex flex-col leading-tight">
                         <span className="text-xs truncate">{label}</span>
-                        <span className="text-[10px] text-zinc-400 truncate">
+                        <span className="text-[12px] text-zinc-400 truncate">
                             {connection.slug}
                         </span>
                     </div>
@@ -523,7 +523,7 @@ function GatewayActionsPaneHeaderWithHook({
     const info = useIntegrationInfo(connection.integration_key)
     const label = info.name || connection.integration_key.replace(/_/g, " ")
     return (
-        <div className="px-2 pt-1 pb-0.5 text-[11px] text-zinc-500 truncate">
+        <div className="px-2 pt-1 pb-0.5 text-xs text-zinc-500 truncate">
             {label} / {connection.slug}
         </div>
     )
@@ -539,7 +539,7 @@ function GatewayActionsPaneHeaderFallback({
     const info = renderIntegrationInfo?.(connection.integration_key)
     const label = info?.name || connection.integration_key.replace(/_/g, " ")
     return (
-        <div className="px-2 pt-1 pb-0.5 text-[11px] text-zinc-500 truncate">
+        <div className="px-2 pt-1 pb-0.5 text-xs text-zinc-500 truncate">
             {label} / {connection.slug}
         </div>
     )
@@ -665,7 +665,7 @@ function GatewayActionsPane({
                     onValueChange={onRightSearchChange}
                     allowClear
                 />
-                <div className="mt-1 text-[10px] text-zinc-400">{total} actions</div>
+                <div className="mt-1 text-[12px] text-zinc-400">{total} actions</div>
             </div>
 
             <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-1">
@@ -716,7 +716,7 @@ function GatewayActionsPane({
                                     >
                                         <span className="min-w-0 flex-1 flex flex-col leading-tight">
                                             <span className="text-xs truncate">{action.name}</span>
-                                            <span className="text-[10px] text-zinc-400 truncate">
+                                            <span className="text-[12px] text-zinc-400 truncate">
                                                 {action.key}
                                             </span>
                                         </span>
@@ -853,8 +853,8 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
     }, [resetAndClose, onReferenceWorkflow])
 
     const content = (
-        <div className="flex h-[360px] min-w-[460px] bg-[var(--ag-c-FFFFFF)] rounded-lg overflow-hidden border border-solid border-[var(--ag-rgba-051729-06)] shadow-sm">
-            <div className="flex w-[232px] flex-col min-h-0 border-0 border-r border-solid border-[var(--ag-rgba-051729-06)]">
+        <div className="flex h-[360px] w-[min(460px,calc(100vw-1.5rem))] bg-[var(--ag-c-FFFFFF)] rounded-lg overflow-hidden border border-solid border-[var(--ag-rgba-051729-06)] shadow-sm sm:w-auto sm:min-w-[460px]">
+            <div className="flex w-1/2 flex-col min-h-0 border-0 border-r border-solid border-[var(--ag-rgba-051729-06)] sm:w-[232px]">
                 <div className="shrink-0 px-2 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
                     <InputAffix
                         variant="ghost"
@@ -998,7 +998,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                                 </Button>
                             }
                         />
-                        <div className="px-2 pb-1 text-[11px] text-zinc-400">
+                        <div className="px-2 pb-1 text-xs text-zinc-400">
                             Create in-line function tool
                         </div>
                     </div>
@@ -1020,7 +1020,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                                     </Button>
                                 }
                             />
-                            <div className="px-2 pb-1 text-[11px] text-zinc-400">
+                            <div className="px-2 pb-1 text-xs text-zinc-400">
                                 Run a workflow as a tool
                             </div>
                         </div>
@@ -1028,7 +1028,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                 </div>
             </div>
 
-            <div className="w-[232px] h-full bg-[var(--ag-c-FFFFFF)]">
+            <div className="w-1/2 h-full bg-[var(--ag-c-FFFFFF)] sm:w-[232px]">
                 {activeBuiltinProvider ? (
                     <BuiltinToolsPane
                         provider={activeBuiltinProvider}

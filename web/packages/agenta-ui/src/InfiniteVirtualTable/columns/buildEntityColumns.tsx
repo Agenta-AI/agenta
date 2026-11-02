@@ -2,7 +2,7 @@
  * Entity Column Builder
  *
  * Converts entity column definitions (any type extending `GroupableColumn`) into
- * Ant Design `ColumnsType` using the `groupColumns` utility and `SmartCellContent`
+ * Ant Design `ColumnDefs` using the `groupColumns` utility and `SmartCellContent`
  * for default cell rendering.
  *
  * This helper standardizes column building for entity tables, reducing boilerplate
@@ -33,7 +33,6 @@
 import type {ReactNode} from "react"
 
 import {getValueAtStringPath} from "@agenta/shared/utils"
-import type {ColumnType, ColumnsType} from "antd/es/table"
 
 import {SmartCellContent} from "../../CellRenderers"
 import {
@@ -41,6 +40,7 @@ import {
     type GroupColumnsOptions,
     groupColumns,
 } from "../../utils/groupColumns"
+import type {ColumnDef, ColumnDefs} from "../columnDef"
 
 // ============================================================================
 // TYPES
@@ -125,7 +125,7 @@ const DEFAULT_COLUMN_WIDTH = 150
  * Build Ant Design table columns from entity column definitions.
  *
  * Converts `GroupableColumn[]` (or any subtype like `EntityColumnDef`) into
- * `ColumnsType` using the `groupColumns` utility. Uses `SmartCellContent` as
+ * `ColumnDefs` using the `groupColumns` utility. Uses `SmartCellContent` as
  * the default cell renderer with path-based value extraction.
  *
  * @template TRow - Row data type
@@ -133,7 +133,7 @@ const DEFAULT_COLUMN_WIDTH = 150
  *
  * @param columns - Array of column definitions
  * @param options - Configuration for rendering, grouping, and width
- * @returns Ant Design ColumnsType ready for table rendering
+ * @returns Ant Design ColumnDefs ready for table rendering
  *
  * @example
  * ```typescript
@@ -156,7 +156,7 @@ const DEFAULT_COLUMN_WIDTH = 150
 export function buildEntityColumns<
     TRow,
     TColumn extends GroupableColumn & {width?: number} = GroupableColumn & {width?: number},
->(columns: TColumn[], options: BuildEntityColumnsOptions<TRow, TColumn>): ColumnsType<TRow> {
+>(columns: TColumn[], options: BuildEntityColumnsOptions<TRow, TColumn>): ColumnDefs<TRow> {
     const {
         getRowData,
         getCellValue,
@@ -165,7 +165,7 @@ export function buildEntityColumns<
         renderCell,
     } = options
 
-    const createColumnDef = (col: TColumn, displayName: string): ColumnType<TRow> => ({
+    const createColumnDef = (col: TColumn, displayName: string): ColumnDef<TRow> => ({
         key: col.key,
         title: displayName,
         width: col.width ?? defaultWidth,

@@ -15,7 +15,17 @@ import {
     TestSpeedType,
 } from "@agenta/web-tests/playwright/config/testTags"
 
+import type {Page} from "@playwright/test"
+
 const scenarios = createScenarios(test)
+
+/**
+ * The testcase edit drawer. It renders through `EnhancedDrawer` — a facade over the
+ * @agenta/ui (Radix) `Sheet` — so it is a `role="dialog"` node with no `.ant-drawer`
+ * wrapper and no separate `.ant-drawer-body` element; field lookups scope to the
+ * dialog itself. (The commit modals in this file are matched separately.)
+ */
+const testcaseDrawer = (page: Page) => page.getByRole("dialog")
 
 const smokeTags = buildAcceptanceTags({
     scope: [TestScope.DATASETS],
@@ -82,9 +92,9 @@ const testsetTests = () => {
                     // Close the drawer so the Commit button is accessible.
                     // The drawer has closeIcon={null} — no X button. Use the footer "Cancel" button.
                     // "Cancel" on an unedited new row just calls onClose() without discarding.
-                    await expect(page.locator(".ant-drawer")).toBeVisible({timeout: 5000})
-                    await page.locator(".ant-drawer").getByRole("button", {name: "Cancel"}).click()
-                    await expect(page.locator(".ant-drawer")).toBeHidden({timeout: 5000})
+                    await expect(testcaseDrawer(page)).toBeVisible({timeout: 5000})
+                    await testcaseDrawer(page).getByRole("button", {name: "Cancel"}).click()
+                    await expect(testcaseDrawer(page)).toBeHidden({timeout: 5000})
 
                     // Commit the new testset
                     await page.getByRole("button", {name: "Commit"}).click()
@@ -199,15 +209,12 @@ const testsetTests = () => {
                     })
 
                     // Click a data row cell to open the TestcaseEditDrawer
-                    const cell = page
-                        .locator(".ant-table-cell")
-                        .filter({hasText: "original value"})
-                        .first()
+                    const cell = page.getByRole("cell", {name: "original value", exact: true})
                     await expect(cell).toBeVisible({timeout: 10000})
                     await cell.click()
 
                     // Wait for the edit drawer to open
-                    const drawerBody = page.locator(".ant-drawer-body")
+                    const drawerBody = testcaseDrawer(page)
                     await expect(drawerBody).toBeVisible({timeout: 10000})
 
                     // Find the contenteditable Lexical editor field in the drawer
@@ -228,12 +235,12 @@ const testsetTests = () => {
                     // Lexical onChange has fired and updated the draft atom (hasSessionDirty=true).
                     // Wait for it to be enabled before clicking — this implicitly confirms the
                     // draft was updated.
-                    const applyButton = page
-                        .locator(".ant-drawer")
-                        .getByRole("button", {name: "Apply and Continue Editing"})
+                    const applyButton = testcaseDrawer(page).getByRole("button", {
+                        name: "Apply and Continue Editing",
+                    })
                     await expect(applyButton).toBeEnabled({timeout: 5000})
                     await applyButton.click()
-                    await expect(page.locator(".ant-drawer")).toBeHidden({timeout: 5000})
+                    await expect(testcaseDrawer(page)).toBeHidden({timeout: 5000})
 
                     // Commit the changes
                     await page.getByRole("button", {name: "Commit"}).click()
@@ -298,44 +305,41 @@ const testsetTests = () => {
                     await expect(page.locator("th").filter({hasText: "input"}).first()).toBeVisible(
                         {timeout: 10000},
                     )
-                    await expect(page.locator(".ant-table-tbody")).toContainText("existing row", {
-                        timeout: 10000,
-                    })
+                    await expect(
+                        page.getByRole("row").filter({hasText: "existing row"}).first(),
+                    ).toBeVisible({timeout: 10000})
 
                     // Add a new row (auto-opens the edit drawer for the new row)
                     await page.getByRole("button", {name: "Add row"}).click()
 
                     // The drawer opens for the new row. We must edit the Lexical field in a way
                     // that reliably updates its EditorState before closing the drawer.
-                    await expect(page.locator(".ant-drawer")).toBeVisible({timeout: 5000})
-                    await expect(page.locator(".ant-drawer-body")).not.toContainText(
-                        "No items to display",
-                        {timeout: 5000},
-                    )
-                    const newRowField = page
-                        .locator(".ant-drawer-body")
+                    await expect(testcaseDrawer(page)).toBeVisible({timeout: 5000})
+                    await expect(testcaseDrawer(page)).not.toContainText("No items to display", {
+                        timeout: 5000,
+                    })
+                    const newRowField = testcaseDrawer(page)
                         .locator('[contenteditable="true"], input, textarea')
                         .first()
                     await expect(newRowField).toBeVisible({timeout: 5000})
                     await newRowField.fill("new-row-value")
                     await expect(newRowField).toContainText("new-row-value", {timeout: 5000})
 
-                    const newRowApplyBtn = page
-                        .locator(".ant-drawer")
-                        .getByRole("button", {name: "Apply and Continue Editing"})
+                    const newRowApplyBtn = testcaseDrawer(page).getByRole("button", {
+                        name: "Apply and Continue Editing",
+                    })
                     await expect(newRowApplyBtn).toBeEnabled({timeout: 5000})
                     await newRowApplyBtn.click()
-                    await expect(page.locator(".ant-drawer")).toBeHidden({timeout: 5000})
+                    await expect(testcaseDrawer(page)).toBeHidden({timeout: 5000})
 
                     await expect(
                         page.locator("[data-row-key]").filter({hasText: "new-row-value"}).first(),
                     ).toBeVisible({timeout: 5000})
 
-                    // Add a new column — the button has a PlusOutlined (anticon-plus) icon and
-                    // sits in the table header before the column-visibility gear button.
-                    // ant-table-cell-fix-right may not be applied without horizontal scroll,
-                    // so locate by the AntD icon class which is unique in the thead.
-                    await page.locator(".ant-table-thead .anticon-plus").click()
+                    await page
+                        .getByRole("columnheader")
+                        .getByRole("button", {name: "plus", exact: true})
+                        .click()
 
                     const addColumnModal = page
                         .locator(".ant-modal")

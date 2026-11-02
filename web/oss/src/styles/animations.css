@@ -33,11 +33,11 @@
 @keyframes colorChange {
     0%,
     25% {
-        stroke: #36cfc9;
+        stroke: light-dark(#113955, #8ccfff);
     }
     26%,
     100% {
-        stroke: #d6dee6;
+        stroke: light-dark(#e5e5e3, #333333);
     }
 }
 
