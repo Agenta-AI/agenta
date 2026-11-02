@@ -55,7 +55,10 @@ function responderReturning(verdict: ClientToolVerdict): Responder {
 }
 
 /** A seam harness: fake pause controller + captured events/interactions. */
-function seam(verdict: ClientToolVerdict, opts: { index?: boolean } = {}) {
+function seam(
+  verdict: ClientToolVerdict,
+  opts: { index?: boolean; forceSettled?: string[] } = {},
+) {
   const events: AgentEvent[] = [];
   const pausedToolCalls: string[] = [];
   const recorded: Array<{
@@ -68,7 +71,10 @@ function seam(verdict: ClientToolVerdict, opts: { index?: boolean } = {}) {
   const index = opts.index ? createToolCallCorrelationIndex() : undefined;
   const relay = buildClientToolRelay({
     responder: responderReturning(verdict),
-    run: { emitEvent: (e) => events.push(e) },
+    run: {
+      emitEvent: (e) => events.push(e),
+      wasForceSettled: (id) => (opts.forceSettled ?? []).includes(id),
+    },
     pause: {
       markPausedToolCall: (id) => pausedToolCalls.push(id),
       pause: () => {
@@ -249,6 +255,18 @@ describe("emitClientToolInteraction", () => {
 });
 
 describe("buildClientToolRelay", () => {
+  it("does not park a call the pause already closed as not executed", async () => {
+    // Two connections in one step: the first parks and pauses the turn, the runner closes the
+    // second as not executed, and only then does the second reach the relay. Parking it would
+    // leave a pending durable row that no card answers, and the turn would never continue.
+    const s = seam({ kind: "pendingApproval" }, { forceSettled: ["tc-1"] });
+    const outcome = await s.relay.onClientTool(req);
+    assert.equal(outcome, "pendingApproval");
+    assert.deepEqual(s.events, []);
+    assert.deepEqual(s.pausedToolCalls, []);
+    assert.deepEqual(s.recorded, []);
+  });
+
   it("on pendingApproval: emits the interaction, marks the paused call, records it, returns pendingApproval", async () => {
     const s = seam({ kind: "pendingApproval" });
     const outcome = await s.relay.onClientTool(req);
@@ -343,7 +361,7 @@ describe("buildClientToolRelay", () => {
           return { kind: "deny" } as const;
         },
       },
-      run: { emitEvent: () => {} },
+      run: { emitEvent: () => {}, wasForceSettled: () => false },
       pause: { markPausedToolCall: () => {}, pause: () => {} },
       recordPendingInteraction: () => {},
     });
@@ -408,7 +426,7 @@ describe("buildClientToolRelay with the real responder (history-driven)", () => 
     );
     const relay = buildClientToolRelay({
       responder,
-      run: { emitEvent: (e) => events.push(e) },
+      run: { emitEvent: (e) => events.push(e), wasForceSettled: () => false },
       pause: { markPausedToolCall: (id) => paused.push(id), pause: () => {} },
       recordPendingInteraction: () => {},
     });

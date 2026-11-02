@@ -233,6 +233,9 @@ export function fakeHarness(options: FakeOptions = {}) {
     openToolCallIds() {
       return [];
     },
+    wasForceSettled() {
+      return false;
+    },
     traceId() {
       return "trace-1";
     },

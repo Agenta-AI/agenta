@@ -446,6 +446,61 @@ describe("attachPermissionResponder", () => {
     ]);
   });
 
+  it("a gate for a call the pause already closed parks nothing and sends no reply", async () => {
+    // Two calls in one step: the first parks and pauses the turn, the runner closes the second
+    // as not executed, and only then does the second's gate arrive. A card or a durable row for
+    // it would wait on a call the transcript already closed.
+    const replies: Array<{ id: string; reply: string }> = [];
+    const { session, emit } = makeSession(async (id, reply) => {
+      replies.push({ id, reply });
+    });
+    const events: AgentEvent[] = [];
+    const created: string[] = [];
+    const pausedToolCalls: string[] = [];
+    let pauses = 0;
+
+    attachPermissionResponder({
+      session,
+      run: {
+        emitEvent: (event) => events.push(event),
+        wasForceSettled: (id) => id === "tool-closed",
+      },
+      responder: fakeResponder(
+        { kind: "pendingApproval" },
+        { kind: "pendingApproval" },
+      ),
+      toolSpecsByName: specsByName([CLIENT_SPEC]),
+      onPause: () => {
+        pauses += 1;
+      },
+      onCreateInteraction: (token) => {
+        created.push(token);
+      },
+      onPausedToolCall: (id) => {
+        pausedToolCalls.push(id);
+      },
+    });
+    emit({
+      id: "client-closed",
+      toolCall: {
+        toolCallId: "tool-closed",
+        title: "mcp__agenta-tools__request_connection",
+        rawInput: { integration: "gmail" },
+      },
+    });
+    emit({
+      id: "perm-closed",
+      toolCall: { toolCallId: "tool-closed", name: "edit", input: { path: "a" } },
+    });
+    await flushPromises();
+
+    assert.deepEqual(replies, []);
+    assert.deepEqual(events, []);
+    assert.deepEqual(created, []);
+    assert.deepEqual(pausedToolCalls, []);
+    assert.equal(pauses, 2);
+  });
+
   it("client tool stored output replies instead of forwarding", async () => {
     const replies: Array<{ id: string; reply: string }> = [];
     const { session, emit } = makeSession(async (id, reply) => {

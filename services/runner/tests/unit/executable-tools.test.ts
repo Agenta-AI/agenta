@@ -69,6 +69,7 @@ function seam(
   history?: AgentRunRequest,
   withIndex = false,
   executionGrants?: ApprovedExecutionGrants,
+  forceSettled: string[] = [],
 ) {
   const events: AgentEvent[] = [];
   const pausedToolCalls: string[] = [];
@@ -92,7 +93,10 @@ function seam(
   );
   const gate = buildExecutableToolGate({
     responder,
-    run: { emitEvent: (event) => events.push(event) },
+    run: {
+      emitEvent: (event) => events.push(event),
+      wasForceSettled: (id) => forceSettled.includes(id),
+    },
     pause: {
       markPausedToolCall: (id) => pausedToolCalls.push(id),
       pause: () => {
@@ -138,6 +142,23 @@ describe("buildExecutableToolGate", () => {
     });
     assert.deepEqual(s.events, []);
     assert.deepEqual(s.pausedToolCalls, []);
+  });
+
+  it("raises no card for an ask tool the pause already closed as not executed", async () => {
+    const s = seam(request.spec, undefined, true, undefined, ["acp-call-1"]);
+    s.toolCallIndex!.record({
+      sessionUpdate: "tool_call",
+      toolCallId: "acp-call-1",
+      title: "mcp.agenta-tools.publish",
+      rawInput: input,
+    });
+
+    assert.deepEqual(await s.gate.onExecutableTool(s.request), {
+      kind: "pendingApproval",
+    });
+    assert.deepEqual(s.events, []);
+    assert.deepEqual(s.pausedToolCalls, []);
+    assert.deepEqual(s.recorded, []);
   });
 
   it("parks an undecided ask tool with the user_approval payload and pause callback", async () => {

@@ -15,14 +15,14 @@ import type {
 import type { ToolCallCorrelationIndex } from "./client-tools.ts";
 import {
   raiseApproval,
-  type EmitRun,
+  type ParkRun,
   type PauseLike,
   type RecordPendingInteraction,
 } from "./seam-approval.ts";
 
 export interface BuildExecutableToolGateInput {
   responder: Responder;
-  run: EmitRun;
+  run: ParkRun;
   pause: PauseLike;
   recordPendingInteraction: RecordPendingInteraction;
   toolCallIndex?: ToolCallCorrelationIndex;

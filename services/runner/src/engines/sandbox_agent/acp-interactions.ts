@@ -48,6 +48,8 @@ export interface AttachPermissionResponderInput {
     events?: () => AgentEvent[];
     /** Flag the gated call as a deny so its closing failed result projects `tool-output-denied`. */
     markToolCallDenied?: (toolCallId: string | undefined) => void;
+    /** Whether the pause already closed this call as not executed (see `ParkRun`). */
+    wasForceSettled?: (toolCallId: string) => boolean;
   };
   responder: Responder;
   /** The ACP adapter in this run, used only where permission frame contracts differ. */
@@ -275,6 +277,11 @@ export function attachPermissionResponder({
     // count every pending gate. Each gate emits its own card: there is no per-turn cap, so N
     // gated calls in one turn all render and all park (the plural approval path).
     const toolCallId = stringValue(req?.toolCall?.toolCallId);
+    // The pause already closed this call as not executed; the agent asks again next turn.
+    if (toolCallId && run.wasForceSettled?.(toolCallId)) {
+      onPause?.();
+      return;
+    }
     onUserApprovalGate?.({
       permissionId: id,
       toolCallId: toolCallId ?? "",
@@ -389,10 +396,15 @@ export function attachPermissionResponder({
     gate: GateDescriptor,
     spec: ResolvedToolSpec,
   ): void => {
+    const toolCallId = stringValue(req?.toolCall?.toolCallId);
+    // The pause already closed this call as not executed; the agent asks again next turn.
+    if (toolCallId && run.wasForceSettled?.(toolCallId)) {
+      onPause?.();
+      return;
+    }
     // A client-tool ACP pause cannot be answered on the live session across a turn boundary, so
     // flag the turn non-parkable: a turn that mixes this with an approval gate stays cold.
     onNonParkablePause?.();
-    const toolCallId = stringValue(req?.toolCall?.toolCallId);
     const eventId = interactionEventId(id, toolCallId);
     if (toolCallId) onPausedToolCall?.(toolCallId);
     run.emitEvent({

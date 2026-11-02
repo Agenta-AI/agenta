@@ -22,6 +22,16 @@ import type { ToolCallCorrelationIndex } from "./client-tools.ts";
 
 export type EmitRun = { emitEvent: (event: AgentEvent) => void };
 
+/**
+ * The run surface a seam needs to park a call. `wasForceSettled` closes a race: once one call
+ * pauses the turn, the runner closes every other open call as not executed, and a sibling whose
+ * gate arrives just after that must not park. Parking it would seed a durable row for a call the
+ * transcript already closed, and the turn would wait on that row forever.
+ */
+export type ParkRun = EmitRun & {
+  wasForceSettled(toolCallId: string): boolean;
+};
+
 /** The pause-controller surface a seam needs (see `PendingApprovalPauseController`). */
 export interface PauseLike {
   markPausedToolCall(toolCallId: string): void;
@@ -38,7 +48,7 @@ export type RecordPendingInteraction = (
 ) => void;
 
 export interface RaiseApprovalInput {
-  run: EmitRun;
+  run: ParkRun;
   pause: PauseLike;
   recordPendingInteraction: RecordPendingInteraction;
   /** Non-Pi harnesses: maps the call to the real ACP tool-call id the card attaches to. */
@@ -59,7 +69,8 @@ export interface RaiseApprovalInput {
 
 /**
  * Emit the approval card, mark the call paused, and seed the durable row. Returns the correlated
- * tool-call id the card attached to, which the caller may need for its own bookkeeping.
+ * tool-call id the card attached to, which the caller may need for its own bookkeeping. A call
+ * the runner already closed as not executed raises nothing (see `ParkRun`).
  */
 export function raiseApproval(input: RaiseApprovalInput): string {
   const {
@@ -76,6 +87,7 @@ export function raiseApproval(input: RaiseApprovalInput): string {
 
   const correlatedId =
     toolCallIndex?.lookup(toolName, args) ?? input.toolCallId;
+  if (run.wasForceSettled(correlatedId)) return correlatedId;
   pause.markPausedToolCall(correlatedId);
   run.emitEvent({
     type: "interaction_request",

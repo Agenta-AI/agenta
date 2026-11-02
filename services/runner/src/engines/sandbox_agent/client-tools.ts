@@ -17,6 +17,7 @@
 import type { AgentEvent, RenderHint } from "../../protocol.ts";
 import type { GateDescriptor } from "../../permission-plan.ts";
 import { approvedCallKey, type Responder } from "../../responder.ts";
+import type { ParkRun } from "./seam-approval.ts";
 import type {
   ClientToolRelay,
   ClientToolRelayRequest,
@@ -208,7 +209,7 @@ interface PauseLike {
 
 export interface BuildClientToolRelayInput {
   responder: Responder;
-  run: EmitRun;
+  run: ParkRun;
   /** The turn-ender: `pause()` cancels the prompt; `markPausedToolCall` suppresses late frames. */
   pause: PauseLike;
   /**
@@ -280,6 +281,14 @@ export function buildClientToolRelay({
       const correlatedId =
         toolCallIndex?.lookup(request.toolName, request.input) ??
         request.toolCallId;
+      // The runner already closed this call as not executed (another call paused the turn first),
+      // so the agent asks again next turn. Parking it would leave a durable row nothing answers.
+      if (run.wasForceSettled(correlatedId)) {
+        log(
+          `[client-tool] ${request.toolName} id=${correlatedId} already closed by the pause; not parked`,
+        );
+        return "pendingApproval";
+      }
       // Every pending client tool parks its OWN widget: browser-fulfilled client tools are
       // independent surfaces — an agent may request several connections in one turn, and each must
       // render. Approval gates now behave the same way (no per-turn cap). The turn still ends
