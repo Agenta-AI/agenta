@@ -16,7 +16,7 @@
 import {useCallback, useMemo, useRef, useState} from "react"
 
 import {AgentChip} from "@agenta/entity-ui/agent"
-import {SkillFormView} from "@agenta/entity-ui/drill-in"
+import {SkillFormSkeleton, SkillFormView} from "@agenta/entity-ui/drill-in"
 import {
     archiveSkill,
     commitSkillRevision,
@@ -499,6 +499,11 @@ export function SkillDetailDrawer({
                 placement="right"
                 width={width}
                 destroyOnClose
+                bodyFallback={
+                    <div className="flex min-h-0 flex-1 flex-col p-4">
+                        <SkillFormSkeleton />
+                    </div>
+                }
                 title={title}
                 extra={actions}
                 styles={{
@@ -570,9 +575,7 @@ export function SkillDetailDrawer({
                             </span>
                         </div>
                     ) : revisionsQuery.isPending ? (
-                        <div className="flex flex-1 items-center justify-center">
-                            <Spinner size="small" />
-                        </div>
+                        <SkillFormSkeleton />
                     ) : revisionsQuery.isError ? (
                         // A failed load must not read as an empty skill with a dead Save.
                         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
