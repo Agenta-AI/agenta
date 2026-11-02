@@ -341,6 +341,14 @@ class ConnectionsDAO(ConnectionsDAOInterface):
             if not dbe:
                 return None
 
+            rows = []
+            if owner is not None:
+                # The default moves in this same transaction, so the sign-in never stores
+                # a valid connection without settling the default.
+                rows = await self._lock_integration_rows(
+                    session, owner=owner, connection_id=dbe.id
+                )
+
             flags = {**(dbe.flags or {})}
             flags["is_valid"] = True
             flags["is_active"] = True
@@ -349,19 +357,15 @@ class ConnectionsDAO(ConnectionsDAOInterface):
 
             dbe.updated_at = datetime.now(timezone.utc)
 
+            if owner is not None and not any(
+                row.is_default and (row.flags or {}).get("is_valid") for row in rows
+            ):
+                await self._move_default(session, rows=rows, dbe=dbe, owner=owner)
+
             await session.commit()
             await session.refresh(dbe)
 
-            connection = map_connection_dbe_to_dto(dbe=dbe)
-
-        if owner is not None and not connection.is_default:
-            connection = (
-                await self._make_default(
-                    owner=owner, connection_id=connection.id, keep_valid_default=True
-                )
-                or connection
-            )
-        return connection
+            return map_connection_dbe_to_dto(dbe=dbe)
 
     @suppress_exceptions(default=None)
     async def find_connection_by_provider_id(
@@ -408,52 +412,60 @@ class ConnectionsDAO(ConnectionsDAOInterface):
     ) -> Optional[Connection]:
         """One transaction: clear the person's old default of the integration, then set
         this connection. None when the connection is not the person's."""
-        return await self._make_default(
-            owner=owner, connection_id=connection_id, keep_valid_default=False
-        )
-
-    async def _make_default(
-        self, *, owner: SecretOwner, connection_id: UUID, keep_valid_default: bool
-    ) -> Optional[Connection]:
-        """With `keep_valid_default`, a valid default of another connection stays.
-
-        Every connection of the person for that integration is locked first, so two calls
-        at once run one after the other instead of both clearing and both setting."""
-        owner_filter = self._owner_filter(project_id=None, owner=owner)
         async with self.engine.session() as session:
-            target = (
-                select(
-                    self.ConnectionDBE.provider_key,
-                    self.ConnectionDBE.integration_key,
-                )
-                .filter(*owner_filter, self.ConnectionDBE.id == connection_id)
-                .subquery()
+            rows = await self._lock_integration_rows(
+                session, owner=owner, connection_id=connection_id
             )
-            result = await session.execute(
-                select(self.ConnectionDBE)
-                .filter(
-                    *owner_filter,
-                    self.ConnectionDBE.provider_key == target.c.provider_key,
-                    self.ConnectionDBE.integration_key == target.c.integration_key,
-                )
-                .order_by(self.ConnectionDBE.id)
-                .with_for_update(of=self.ConnectionDBE)
-            )
-            rows = list(result.scalars())
             dbe = next((row for row in rows if row.id == connection_id), None)
             if dbe is None:
                 return None
-            keep = keep_valid_default and any(
-                row.is_default and (row.flags or {}).get("is_valid") for row in rows
-            )
-            if not dbe.is_default and not keep:
-                for row in rows:
-                    if row.is_default:
-                        row.is_default = False
-                await session.flush()
-                dbe.is_default = True
-                dbe.updated_at = datetime.now(timezone.utc)
-                dbe.updated_by_id = owner.id
+            if not dbe.is_default:
+                await self._move_default(session, rows=rows, dbe=dbe, owner=owner)
                 await session.commit()
                 await session.refresh(dbe)
             return map_connection_dbe_to_dto(dbe=dbe)
+
+    async def _lock_integration_rows(
+        self, session, *, owner: SecretOwner, connection_id: UUID
+    ) -> List[ConnectionDBE]:
+        """Lock every connection of the person for the integration of `connection_id`, so
+        two default changes at once run one after the other instead of both clearing and
+        both setting. Empty when the connection is not the person's."""
+        owner_filter = self._owner_filter(project_id=None, owner=owner)
+        target = (
+            select(
+                self.ConnectionDBE.provider_key,
+                self.ConnectionDBE.integration_key,
+            )
+            .filter(*owner_filter, self.ConnectionDBE.id == connection_id)
+            .subquery()
+        )
+        result = await session.execute(
+            select(self.ConnectionDBE)
+            .filter(
+                *owner_filter,
+                self.ConnectionDBE.provider_key == target.c.provider_key,
+                self.ConnectionDBE.integration_key == target.c.integration_key,
+            )
+            .order_by(self.ConnectionDBE.id)
+            .with_for_update(of=self.ConnectionDBE)
+            .execution_options(populate_existing=True)
+        )
+        return list(result.scalars())
+
+    async def _move_default(
+        self,
+        session,
+        *,
+        rows: List[ConnectionDBE],
+        dbe: ConnectionDBE,
+        owner: SecretOwner,
+    ) -> None:
+        """Clear the default among the locked `rows`, then set it on `dbe`."""
+        for row in rows:
+            if row.is_default:
+                row.is_default = False
+        await session.flush()
+        dbe.is_default = True
+        dbe.updated_at = datetime.now(timezone.utc)
+        dbe.updated_by_id = owner.id
