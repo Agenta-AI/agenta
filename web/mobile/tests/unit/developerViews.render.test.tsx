@@ -8,8 +8,12 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {developerNavItems} from "@/features/developer/developerNavItems"
-import {developerViewPreviewAtomFamily} from "@/features/developer/developerViewAccess"
+import {
+    developerViewPreviewAtomFamily,
+    isDeveloperViewEnabled,
+} from "@/features/developer/developerViewAccess"
 import {DeveloperViewGate} from "@/features/developer/DeveloperViewGate"
+import type {DeveloperView} from "@/features/developer/developerViews"
 
 import {TEST_DEVELOPER_VIEWS} from "./developerViewFixtures"
 
@@ -121,6 +125,21 @@ describe("developer views", () => {
             expect(host.querySelector("[data-testid=not-found]")).not.toBeNull()
             act(() => store.set(developerViewPreviewAtomFamily("lab-preview"), true))
             expect(host.querySelector("[data-testid=view]")).not.toBeNull()
+        })
+    })
+
+    describe("endpoints view", () => {
+        it("Endpoints route shows not found while the view is hidden", async () => {
+            const actual = await vi.importActual<{DEVELOPER_VIEWS: readonly DeveloperView[]}>(
+                "@/features/developer/developerViews",
+            )
+            const endpoints = actual.DEVELOPER_VIEWS.find((view) => view.id === "endpoints")
+            expect(endpoints).toBeDefined()
+            expect(endpoints!.stage).toBe("hidden")
+            expect(endpoints!.routes?.[0]).toBe("/endpoints")
+            expect(
+                isDeveloperViewEnabled(endpoints!, {previewOptedIn: false, forcedIds: new Set()}),
+            ).toBe(false)
         })
     })
 })
