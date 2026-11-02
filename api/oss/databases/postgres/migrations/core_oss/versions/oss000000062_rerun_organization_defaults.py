@@ -21,8 +21,8 @@ Every changed project id is printed (ids only). One-way like oss000000053: `down
 does nothing; restore the pre-release dump of `projects` to undo it. Data only, so the
 migration gate reports no finding.
 
-Revision ID: oss000000055
-Revises: oss000000053
+Revision ID: oss000000062
+Revises: oss000000061
 Create Date: 2026-10-28 00:00:00.000000
 
 """
@@ -33,8 +33,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "oss000000055"
-down_revision: Union[str, None] = "oss000000053"
+revision: str = "oss000000062"
+down_revision: Union[str, None] = "oss000000061"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

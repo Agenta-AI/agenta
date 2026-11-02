@@ -17,8 +17,8 @@ Idempotent: a rerun finds no row with a workspace. One-way like ee0000000007:
 `downgrade()` does nothing; restore the pre-release dump of `meters` to undo it. Data
 only, so the migration gate reports no finding.
 
-Revision ID: ee0000000008
-Revises: ee0000000007
+Revision ID: ee0000000009
+Revises: ee0000000008
 Create Date: 2026-10-28 00:00:00.000000
 """
 
@@ -29,8 +29,8 @@ from typing import Sequence, Union
 from alembic import op
 from sqlalchemy import text
 
-revision: str = "ee0000000008"
-down_revision: Union[str, None] = "ee0000000007"
+revision: str = "ee0000000009"
+down_revision: Union[str, None] = "ee0000000008"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

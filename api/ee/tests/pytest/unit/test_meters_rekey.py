@@ -229,7 +229,7 @@ def _sql(statement) -> str:
 
 
 async def test_fetch_names_no_workspace_column():
-    # Step 2b: ee0000000008 folded every row with a workspace; reads name none.
+    # Step 2b: ee0000000009 folded every row with a workspace; reads name none.
     session = _Session()
     dao = MetersDAO(engine=_Engine(session))
     await dao.fetch(

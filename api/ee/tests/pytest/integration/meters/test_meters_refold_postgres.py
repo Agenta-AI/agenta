@@ -1,8 +1,8 @@
-"""Revision `ee0000000008` (step 2b fold of meter rows that still carry a workspace).
+"""Revision `ee0000000009` (step 2b fold of meter rows that still carry a workspace).
 
 ee0000000007 moved every row with a workspace. During the step 2 rollout, step-1 pods
 could still write a per-user `TRACES_RETRIEVED` row under its old id (a straggler).
-ee0000000008 reruns the same walk, so the straggler is added into the re-keyed row and
+ee0000000009 reruns the same walk, so the straggler is added into the re-keyed row and
 no row keeps a workspace before step 2b code stops reading the column.
 
 Each case seeds its own organization and limits the walk to it.
@@ -39,8 +39,8 @@ _VERSIONS = (
 
 @functools.lru_cache(maxsize=1)
 def _revision():
-    path = _VERSIONS / "ee0000000008_refold_meters_without_workspace.py"
-    spec = importlib.util.spec_from_file_location("_revision_ee008", path)
+    path = _VERSIONS / "ee0000000009_refold_meters_without_workspace.py"
+    spec = importlib.util.spec_from_file_location("_revision_ee009", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -78,18 +78,18 @@ async def org():
     await delete_seeded_organization(seeded)
 
 
-def test_ee008_follows_ee007_and_reuses_its_run():
+def test_ee009_follows_ee008_and_reuses_ee007_run():
     revision = _revision()
     assert (revision.revision, revision.down_revision) == (
+        "ee0000000009",
         "ee0000000008",
-        "ee0000000007",
     )
     step_2 = revision._step_2_revision()
     assert step_2.revision == "ee0000000007"
     assert callable(step_2.run)
 
 
-async def test_ee008_folds_a_straggler_into_the_rekeyed_row(org):
+async def test_ee009_folds_a_straggler_into_the_rekeyed_row(org):
     # ee0000000007 already moved the row: it has the step-2 id and no workspace.
     await _insert(org=org.id, wrk=None, prj=org.prj, usr=org.usr, value=40, synced=30)
     # A step-1 pod counted three more reads under the old id after the move.
@@ -103,7 +103,7 @@ async def test_ee008_folds_a_straggler_into_the_rekeyed_row(org):
     assert counts["rows"] == 1
 
 
-async def test_ee008_leaves_no_row_with_a_workspace_and_is_idempotent(org):
+async def test_ee009_leaves_no_row_with_a_workspace_and_is_idempotent(org):
     await _insert(org=org.id, wrk=None, prj=org.prj, usr=org.usr, value=4, synced=4)
     await _insert(org=org.id, wrk=uuid4(), prj=org.prj, usr=org.usr, value=2, synced=0)
     await _run([org.id])
@@ -114,7 +114,7 @@ async def test_ee008_leaves_no_row_with_a_workspace_and_is_idempotent(org):
     assert await _meters(org.id) == after_first
 
 
-async def test_ee008_without_stragglers_changes_nothing(org):
+async def test_ee009_without_stragglers_changes_nothing(org):
     await _insert(org=org.id, wrk=None, prj=org.prj, usr=org.usr, value=9, synced=5)
     before = await _meters(org.id)
     counts = await _run([org.id])
@@ -122,7 +122,7 @@ async def test_ee008_without_stragglers_changes_nothing(org):
     assert await _meters(org.id) == before
 
 
-def test_ee008_upgrade_runs_ee007_in_an_autocommit_block(monkeypatch):
+def test_ee009_upgrade_runs_ee007_in_an_autocommit_block(monkeypatch):
     revision = _revision()
     calls = []
 

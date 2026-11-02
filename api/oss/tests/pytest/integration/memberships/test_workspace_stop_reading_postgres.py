@@ -1,6 +1,6 @@
 """Workspace removal step 2b ("stop reading") against a migrated Postgres.
 
-Revision `oss000000055` reruns the repair and the one-default consolidation of
+Revision `oss000000062` reruns the repair and the one-default consolidation of
 `oss000000053`: pods of the step-1 release could write a second default or a
 cross-organization workspace during the step 2 rollout, and from step 2b on no reader
 looks at `workspaces` or `projects.workspace_id` to pick between them.
@@ -29,7 +29,7 @@ from oss.tests.pytest.utils.membership_seed import (
 
 pytestmark = pytest.mark.integration
 
-_REVISION = "oss000000055_rerun_organization_defaults.py"
+_REVISION = "oss000000062_rerun_organization_defaults.py"
 _STEP_2_REVISION = "oss000000053_switch_projects_to_organization_defaults.py"
 
 
@@ -78,18 +78,18 @@ async def _defaults(connection, organization_id):
     return [row.id for row in rows]
 
 
-def test_055_follows_053_and_reuses_its_switch():
+def test_062_follows_061_and_reuses_053_switch():
     revision = _revision()
     assert (revision.revision, revision.down_revision) == (
-        "oss000000055",
-        "oss000000053",
+        "oss000000062",
+        "oss000000061",
     )
     step_2 = revision._step_2_revision()
     assert step_2.revision == "oss000000053"
     assert callable(step_2.switch)
 
 
-async def test_055_clears_a_second_default_written_after_053():
+async def test_062_clears_a_second_default_written_after_053():
     seeded = await _multi_default_organization()
     try:
         async with rolled_back_connection(organizations=[seeded]) as connection:
@@ -110,7 +110,7 @@ async def test_055_clears_a_second_default_written_after_053():
         await delete_seeded_organization(seeded)
 
 
-async def test_055_repairs_a_cross_organization_project_written_after_053():
+async def test_062_repairs_a_cross_organization_project_written_after_053():
     seeded = await seed_organization(members={"m": "editor"}, workspaces=2)
     other = await seed_organization(members={"owner": "owner"})
     seeded.extra_organization_ids.append(other.organization_id)
@@ -137,7 +137,7 @@ async def test_055_repairs_a_cross_organization_project_written_after_053():
         await delete_seeded_organization(seeded)
 
 
-async def test_055_is_idempotent_and_changes_nothing_after_053(capsys):
+async def test_062_is_idempotent_and_changes_nothing_after_053(capsys):
     seeded = await _multi_default_organization()
     try:
         async with rolled_back_connection(organizations=[seeded]) as connection:
@@ -154,7 +154,7 @@ async def test_055_is_idempotent_and_changes_nothing_after_053(capsys):
         await delete_seeded_organization(seeded)
 
 
-async def test_055_downgrade_is_a_noop():
+async def test_062_downgrade_is_a_noop():
     seeded = await _multi_default_organization()
     try:
         async with rolled_back_connection(organizations=[seeded]) as connection:
@@ -167,7 +167,7 @@ async def test_055_downgrade_is_a_noop():
         await delete_seeded_organization(seeded)
 
 
-async def test_readers_after_055_answer_the_d11_default_without_workspaces(
+async def test_readers_after_062_answer_the_d11_default_without_workspaces(
     monkeypatch,
 ):
     """After the rerun, the 2b readers (no workspace join) answer the same project the
