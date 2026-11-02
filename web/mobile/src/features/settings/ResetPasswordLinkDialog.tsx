@@ -17,8 +17,11 @@ import {Check, Copy} from "@phosphor-icons/react"
 export interface ResetPasswordLinkDialogProps {
     /** The member whose link is being minted; null closes the dialog. */
     target: WorkspaceMember | null
-    /** Resolves to the one-time link. Rejections show only the server's safe message. */
-    onRequest: (member: WorkspaceMember) => Promise<string>
+    /**
+     * Resolves to the one-time link, or to null when the server emailed it instead.
+     * Rejections show only the server's safe message.
+     */
+    onRequest: (member: WorkspaceMember) => Promise<string | null>
     onClose: () => void
 }
 
@@ -35,6 +38,7 @@ export const ResetPasswordLinkDialog = ({
     onClose,
 }: ResetPasswordLinkDialogProps) => {
     const [link, setLink] = useState<string | null>(null)
+    const [emailed, setEmailed] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
     const [copied, setCopied] = useState(false)
@@ -45,6 +49,7 @@ export const ResetPasswordLinkDialog = ({
     useEffect(() => {
         sequence.current += 1
         setLink(null)
+        setEmailed(false)
         setError(null)
         setCopied(false)
         setLoading(false)
@@ -58,7 +63,9 @@ export const ResetPasswordLinkDialog = ({
         setLoading(true)
         void onRequest(target)
             .then((value) => {
-                if (sequence.current === run) setLink(value)
+                if (sequence.current !== run) return
+                if (value === null) setEmailed(true)
+                else setLink(value)
             })
             .catch((cause: unknown) => {
                 if (sequence.current === run) setError(extractApiErrorMessage(cause))
@@ -76,9 +83,11 @@ export const ResetPasswordLinkDialog = ({
                 <DialogHeader>
                     <DialogTitle>Reset password link</DialogTitle>
                     <DialogDescription>
-                        {link
-                            ? `Share this one-time link with ${name}. It cannot be retrieved again after you close this.`
-                            : `Generate a one-time link that lets ${name} set a new password.`}
+                        {emailed
+                            ? `We emailed the reset link to ${name}.`
+                            : link
+                              ? `Share this one-time link with ${name}. It cannot be retrieved again after you close this.`
+                              : `Generate a one-time link that lets ${name} set a new password.`}
                     </DialogDescription>
                 </DialogHeader>
                 {loading ? (
@@ -100,9 +109,9 @@ export const ResetPasswordLinkDialog = ({
                 ) : null}
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose}>
-                        {link ? "Close" : "Cancel"}
+                        {link || emailed ? "Close" : "Cancel"}
                     </Button>
-                    {!link ? (
+                    {!link && !emailed ? (
                         <Button onClick={generate} disabled={loading}>
                             Generate link
                         </Button>

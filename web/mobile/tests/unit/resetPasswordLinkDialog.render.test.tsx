@@ -100,6 +100,17 @@ describe("ResetPasswordLinkDialog", () => {
         expect(document.body.textContent).toContain(LINK)
     })
 
+    it("says the link was emailed when the server sends no link", async () => {
+        mount(member, vi.fn().mockResolvedValue(null))
+        await generate()
+        await flush()
+
+        expect(document.body.textContent).toContain("We emailed the reset link to Alice.")
+        expect(button("Copy")).toBeUndefined()
+        expect(button("Generate link")).toBeUndefined()
+        expect(document.querySelector("[role=alert]")).toBeNull()
+    })
+
     it("copies the link", async () => {
         copy.mockResolvedValue(true)
         mount(member)

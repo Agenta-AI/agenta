@@ -9,7 +9,7 @@ import {
     inviteToWorkspace,
     removeFromWorkspace,
 } from "@agenta/entities/organization"
-import {resetPassword, updateUsername, useProfile} from "@agenta/entities/profile"
+import {requestPasswordReset, updateUsername, useProfile} from "@agenta/entities/profile"
 import {MembersPage} from "@agenta/settings-ui"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {
@@ -274,7 +274,7 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
 
             <ResetPasswordLinkDialog
                 target={resetTarget}
-                onRequest={(member) => resetPassword(member.user.id)}
+                onRequest={(member) => requestPasswordReset(member.user.id)}
                 onClose={() => setResetTarget(null)}
             />
 

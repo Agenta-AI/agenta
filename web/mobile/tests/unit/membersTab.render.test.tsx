@@ -43,7 +43,7 @@ vi.mock("@agenta/entities/organization", () => ({
 vi.mock("@agenta/entities/profile", () => ({
     useProfile: () => ({user: state.signedIn}),
     updateUsername: state.updateUsername,
-    resetPassword: state.resetPassword,
+    requestPasswordReset: state.resetPassword,
 }))
 
 import {MembersTab} from "@/features/settings/MembersTab"

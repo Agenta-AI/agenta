@@ -17,12 +17,14 @@ const MEMBER: WorkspaceMember = {
 
 const LINK = "https://app.example.invalid/reset/one-time-link"
 
-const resolvedRequest: (member: WorkspaceMember) => Promise<string> = async () => LINK
+const resolvedRequest: (member: WorkspaceMember) => Promise<string | null> = async () => LINK
 
-const pendingRequest: (member: WorkspaceMember) => Promise<string> = () =>
+const emailedRequest: (member: WorkspaceMember) => Promise<string | null> = async () => null
+
+const pendingRequest: (member: WorkspaceMember) => Promise<string | null> = () =>
     new Promise(() => undefined)
 
-const failedRequest: (member: WorkspaceMember) => Promise<string> = async () => {
+const failedRequest: (member: WorkspaceMember) => Promise<string | null> = async () => {
     throw {
         statusCode: 403,
         body: {detail: "The organization owner's password cannot be reset this way."},
@@ -83,6 +85,19 @@ export const Resolved: Story = {
         const screen = within(canvasElement.ownerDocument.body)
         await expect(await screen.findByText(LINK)).toBeInTheDocument()
         await expect(screen.getByRole("button", {name: "Copy"})).toBeInTheDocument()
+    },
+}
+
+/** A deployment with email enabled sends the link itself, so no link is shown. */
+export const Emailed: Story = {
+    args: {onRequest: emailedRequest},
+    play: async ({canvasElement}) => {
+        await generate(canvasElement)
+        const screen = within(canvasElement.ownerDocument.body)
+        await expect(
+            await screen.findByText("We emailed the reset link to Alice."),
+        ).toBeInTheDocument()
+        await expect(screen.queryByRole("button", {name: "Copy"})).not.toBeInTheDocument()
     },
 }
 
