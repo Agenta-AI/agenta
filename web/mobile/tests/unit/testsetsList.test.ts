@@ -2,12 +2,14 @@
 import {act, createElement} from "react"
 
 import {queryTestsetsPage, type Testset} from "@agenta/entities/testset"
+import {message} from "@agenta/ui/app-message"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {useTestsetsList} from "@/features/testsets/list/useTestsetsList"
 
+vi.mock("@agenta/ui/app-message", () => ({message: {error: vi.fn()}}))
 vi.mock("@agenta/entities/testset", () => ({
     queryTestsetsPage: vi.fn(),
 }))
@@ -117,5 +119,22 @@ describe("Testsets list", () => {
 
         expect(result().isPending).toBe(false)
         expect(result().testsets).toEqual([])
+    })
+
+    it("A failed Load more says so and keeps the loaded testsets", async () => {
+        vi.mocked(queryTestsetsPage)
+            .mockResolvedValueOnce({testsets: [alpha], nextCursor: "c1"})
+            .mockRejectedValueOnce(new Error("boom"))
+
+        await renderProbe("")
+        await settle(() => expect(result().testsets).toHaveLength(1))
+        await act(async () => {
+            result().loadMore()
+        })
+        await settle(() =>
+            expect(message.error).toHaveBeenCalledWith("Couldn't load more test sets"),
+        )
+
+        expect(result().testsets).toEqual([alpha])
     })
 })

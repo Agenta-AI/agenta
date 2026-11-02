@@ -36,7 +36,7 @@ export const TestsetRowMenu = ({
     const {onOpen, onExport, onClone, onRename, onArchive} = actions
     const showClone = canEdit && Boolean(onClone)
     const showRename = canEdit && Boolean(onRename)
-    const showSeparator = showClone || showRename || canExport || canEdit
+    const showSeparator = showClone || showRename || canExport
 
     return (
         <DropdownMenu>

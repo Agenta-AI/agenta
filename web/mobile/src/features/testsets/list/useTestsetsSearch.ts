@@ -7,28 +7,33 @@ export const SEARCH_DEBOUNCE_MS = 300
 /**
  * The list's search term, kept in the URL as `?q=` so a reload keeps it and a fresh visit opens
  * unfiltered. The box shows what the reader types at once; the URL, and so the request, follows
- * after a pause.
+ * after a pause. A change to the URL that this hook did not make (a cold load, Back) replaces
+ * the box.
  */
 export function useTestsetsSearch() {
     const router = useRouter()
     const urlTerm = typeof router.query.q === "string" ? router.query.q : ""
     const [draft, setDraft] = useState(urlTerm)
-    const seeded = useRef(router.isReady)
+    // Every value this hook wrote, so a late echo of an older write is not taken for a Back.
+    const written = useRef(new Set<string>([urlTerm]))
 
-    // A cold load has no query until the router is ready: take the URL's term once, then the
-    // reader owns the box.
     useEffect(() => {
-        if (seeded.current || !router.isReady) return
-        seeded.current = true
+        if (written.current.has(urlTerm)) return
+        written.current.add(urlTerm)
         setDraft(urlTerm)
-    }, [router.isReady, urlTerm])
+    }, [urlTerm])
 
     useEffect(() => {
-        if (!router.isReady || draft === urlTerm) return
+        if (!router.isReady || draft.trim() === urlTerm.trim()) return
         const timer = setTimeout(() => {
             const {q: _previous, ...rest} = router.query
-            const query = draft.trim() ? {...rest, q: draft} : rest
-            void router.replace({pathname: router.pathname, query}, undefined, {shallow: true})
+            const next = draft.trim()
+            written.current.add(next)
+            void router.replace(
+                {pathname: router.pathname, query: next ? {...rest, q: next} : rest},
+                undefined,
+                {shallow: true},
+            )
         }, SEARCH_DEBOUNCE_MS)
         return () => clearTimeout(timer)
     }, [draft, router, urlTerm])

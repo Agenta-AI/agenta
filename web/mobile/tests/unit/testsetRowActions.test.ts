@@ -155,6 +155,19 @@ describe("Testset row actions", () => {
         expect(invalidate).toHaveBeenCalledWith({queryKey: ["testsets"]})
     })
 
+    it("Archive keeps the dialog open when the row is busy opening", async () => {
+        let finish: (value: never) => void = () => undefined
+        vi.mocked(fetchLatestRevision).mockReturnValue(new Promise((resolve) => (finish = resolve)))
+        vi.mocked(fetchEvaluationRunIdsUsingTestsets).mockResolvedValue([])
+
+        await act(async () => void actions().openLatest(row))
+        await act(async () => {
+            await expect(actions().archive(row)).rejects.toThrow("This test set is busy")
+        })
+        expect(testsetMolecule.lifecycle.archive).not.toHaveBeenCalled()
+        await act(async () => finish({id: "rev-1", version: 1} as never))
+    })
+
     it("A failed archive shows Couldn't archive this test set", async () => {
         vi.mocked(fetchEvaluationRunIdsUsingTestsets).mockResolvedValue([])
         vi.mocked(testsetMolecule.lifecycle.archive).mockRejectedValue(

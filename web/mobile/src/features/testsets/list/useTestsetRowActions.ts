@@ -10,13 +10,10 @@ import {message} from "@agenta/ui/app-message"
 import {useQueryClient} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
-export type TestsetExportFormat = "csv" | "json"
+import type {TestsetExportFormat, TestsetRow} from "./testsetRowTypes"
 
 /** What an action needs of a row. */
-export interface TestsetRowRef {
-    id: string
-    name: string
-}
+type TestsetRowRef = Pick<TestsetRow, "id" | "name">
 
 /** The file name an export saves as: the name with every unsafe character turned into `-`. */
 export const exportFileName = (name: string, format: TestsetExportFormat): string =>
@@ -30,6 +27,7 @@ const inUseMessage = (count: number): string => {
 /** Thrown for the one refusal the reader can act on; its message is safe to show. */
 class TestsetInUseError extends Error {}
 
+const ROW_BUSY = "This test set is busy. Try again in a moment"
 const ARCHIVE_FAILED = "Couldn't archive this test set"
 
 /**
@@ -103,7 +101,7 @@ export function useTestsetRowActions({projectId, base}: {projectId: string; base
 
     const archive = useCallback(
         async (row: TestsetRowRef): Promise<void> => {
-            await guarded(row.id, async () => {
+            const done = await guarded(row.id, async () => {
                 try {
                     const runIds = await fetchEvaluationRunIdsUsingTestsets({
                         projectId,
@@ -117,7 +115,10 @@ export function useTestsetRowActions({projectId, base}: {projectId: string; base
                 }
                 message.success("Testset archived")
                 await queryClient.invalidateQueries({queryKey: ["testsets"]})
+                return true
             })
+            // The row was busy (opening or exporting): say so, or the dialog would close as if it worked.
+            if (!done) throw new Error(ROW_BUSY)
         },
         [guarded, projectId, queryClient],
     )

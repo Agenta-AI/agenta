@@ -58,33 +58,34 @@ export const TestsetsListScreen = ({
     const clearSearch = useCallback(() => setDraft(""), [setDraft])
     const createHandler = canEdit ? onCreate : undefined
 
-    const body = list.isError ? (
-        // A failed fetch must not read as an empty project.
-        <LoadError framed title="Could not load test sets" onRetry={list.refetch} />
-    ) : (
-        <TestsetsTable
-            rows={list.testsets}
-            commitMessages={commitMessages}
-            isLoading={list.isPending}
-            empty={
-                term ? (
-                    <TestsetsNoMatch term={term} onClear={clearSearch} />
-                ) : (
-                    <TestsetsEmpty onCreate={createHandler} />
-                )
-            }
-            hasMore={list.hasMore}
-            isLoadingMore={list.isLoadingMore}
-            onLoadMore={list.loadMore}
-            canEdit={canEdit}
-            canExport={canExport}
-            isBusy={actions.isBusy}
-            isAnyBusy={actions.isAnyBusy}
-            onOpen={(row) => void actions.openLatest(row)}
-            onExport={(row, format) => void actions.exportTestset(row, format)}
-            onArchive={actions.archive}
-        />
-    )
+    const body =
+        list.isError && list.testsets.length === 0 ? (
+            // A failed fetch must not read as an empty project. A failed Load more keeps the rows.
+            <LoadError framed title="Could not load test sets" onRetry={list.refetch} />
+        ) : (
+            <TestsetsTable
+                rows={list.testsets}
+                commitMessages={commitMessages}
+                isLoading={list.isPending}
+                empty={
+                    term ? (
+                        <TestsetsNoMatch term={term} onClear={clearSearch} />
+                    ) : (
+                        <TestsetsEmpty onCreate={createHandler} />
+                    )
+                }
+                hasMore={list.hasMore}
+                isLoadingMore={list.isLoadingMore}
+                onLoadMore={list.loadMore}
+                canEdit={canEdit}
+                canExport={canExport}
+                isBusy={actions.isBusy}
+                isAnyBusy={actions.isAnyBusy}
+                onOpen={(row) => void actions.openLatest(row)}
+                onExport={(row, format) => void actions.exportTestset(row, format)}
+                onArchive={actions.archive}
+            />
+        )
 
     return (
         <>

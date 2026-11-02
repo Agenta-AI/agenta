@@ -1,4 +1,5 @@
 import {queryTestsetsPage} from "@agenta/entities/testset"
+import {message} from "@agenta/ui/app-message"
 import {useInfiniteQuery} from "@tanstack/react-query"
 
 export const TESTSETS_PAGE_SIZE = 50
@@ -39,7 +40,9 @@ export function useTestsetsList({projectId, search}: UseTestsetsListParams) {
 
     const loadMore = () => {
         if (!hasNextPage || isFetchingNextPage) return
-        void fetchNextPage()
+        void fetchNextPage().then((result) => {
+            if (result.isError) message.error("Couldn't load more test sets")
+        })
     }
 
     return {

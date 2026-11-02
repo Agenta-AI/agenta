@@ -146,6 +146,23 @@ describe("Testsets list screen", () => {
         expect(state.list.refetch).toHaveBeenCalled()
     })
 
+    it("A failed Load more keeps the rows already loaded", async () => {
+        state.list = {...state.list, isError: true, testsets: [{id: "t1", name: "Alpha set"}]}
+        await mount(<TestsetsListScreen workspaceId="ws" projectId="pr" />)
+        expect(host.textContent).toContain("Alpha set")
+        expect(host.textContent).not.toContain("Could not load test sets")
+    })
+
+    it("The search box follows a Back to another term", async () => {
+        state.query = {...state.query, q: "beta"}
+        await mount(<TestsetsListScreen workspaceId="ws" projectId="pr" />)
+        state.query = {workspace_id: "ws", project_id: "pr"}
+        await mount(<TestsetsListScreen workspaceId="ws" projectId="pr" />)
+        await act(async () => void vi.advanceTimersByTime(400))
+        expect(host.querySelector<HTMLInputElement>('input[aria-label="Search"]')?.value).toBe("")
+        expect(state.replace).not.toHaveBeenCalled()
+    })
+
     it("An empty project says so, and a search with no result offers Clear search", async () => {
         await mount(<TestsetsListScreen workspaceId="ws" projectId="pr" />)
         expect(host.textContent).toContain("No test sets yet")
