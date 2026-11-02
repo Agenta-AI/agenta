@@ -1,3 +1,4 @@
+import {Plugs as PlugsIcon} from "@phosphor-icons/react"
 import type {Icon} from "@phosphor-icons/react"
 
 /**
@@ -49,4 +50,13 @@ export interface DeveloperView {
  * a view's screen loads only from its own route page, so listing it here adds nothing to the
  * pages every user opens.
  */
-export const DEVELOPER_VIEWS: readonly DeveloperView[] = []
+export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
+    {
+        id: "endpoints",
+        label: "Endpoints",
+        description: "Code to call an app and fetch its config, per environment.",
+        routes: ["/endpoints"],
+        nav: {icon: PlugsIcon, section: "developer"},
+        stage: "hidden",
+    },
+]
