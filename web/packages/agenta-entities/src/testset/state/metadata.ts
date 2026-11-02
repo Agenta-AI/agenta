@@ -47,7 +47,8 @@ export const testsetRevisionHeaderAtomFamily = atomFamily((revisionId: string) =
             }
         }
 
-        const testset = get(testsetMolecule.query(revision.testset_id)).data
+        const testsetQuery = get(testsetMolecule.query(revision.testset_id))
+        const testset = testsetQuery.data
 
         return {
             data: {
@@ -62,8 +63,8 @@ export const testsetRevisionHeaderAtomFamily = atomFamily((revisionId: string) =
                 createdAt: revision.created_at ?? undefined,
                 updatedAt: revision.updated_at ?? undefined,
             },
-            isPending: revisionQuery.isPending,
-            isError: revisionQuery.isError,
+            isPending: revisionQuery.isPending || testsetQuery.isPending,
+            isError: revisionQuery.isError || testsetQuery.isError,
         }
     }),
 )

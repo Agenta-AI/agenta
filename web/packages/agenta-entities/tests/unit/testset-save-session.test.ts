@@ -96,6 +96,17 @@ describe("testsetRevisionHeaderAtomFamily", () => {
         )
     })
 
+    it("Header metadata is pending while the testset loads", () => {
+        queryClient.setQueryData(["revision", PROJECT, REVISION], {
+            id: REVISION,
+            testset_id: TESTSET,
+            version: 1,
+        })
+        const state = store.get(testsetRevisionHeaderAtomFamily(REVISION))
+        expect(state.data?.testsetName).toBe("")
+        expect(state.isPending).toBe(true)
+    })
+
     it("Header metadata is pending while the revision loads", () => {
         const state = store.get(testsetRevisionHeaderAtomFamily("rev-not-loaded"))
         expect(state.data).toBeNull()

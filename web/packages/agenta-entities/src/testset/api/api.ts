@@ -288,7 +288,7 @@ export async function fetchTestsetsList({
 
 /**
  * Fetch one page of testsets, newest first.
- * Uses POST /testsets/query. The name filter goes in the body. Errors throw.
+ * The name filter goes in the request body. Errors throw (no silent empty page).
  */
 export async function queryTestsetsPage(params: {
     projectId: string
@@ -300,17 +300,16 @@ export async function queryTestsetsPage(params: {
     const {projectId, limit, cursor, name, includeArchived = false} = params
     const trimmedName = name?.trim()
 
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/testsets/query`,
+    const data = await getTestsetsClient().queryTestsets(
         {
             windowing: {limit, order: "descending", ...(cursor ? {next: cursor} : {})},
             include_archived: includeArchived,
             ...(trimmedName ? {testset: {name: trimmedName}} : {}),
         },
-        {params: {project_id: projectId}},
+        {queryParams: {project_id: projectId}},
     )
 
-    const validated = testsetsResponseSchema.parse(response.data)
+    const validated = testsetsResponseSchema.parse(data)
     return {testsets: validated.testsets, nextCursor: validated.windowing?.next ?? null}
 }
 

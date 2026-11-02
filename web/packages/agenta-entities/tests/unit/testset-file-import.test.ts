@@ -78,3 +78,9 @@ describe("Testset file import", () => {
         expect(result).toEqual({ok: true, rows: []})
     })
 })
+
+describe("CSV parse keeps field whitespace", () => {
+    it("CSV parse keeps spaces inside fields but drops rows that are only spaces", () => {
+        expect(parseCsvRows('prompt\n"  hello  "\n   \n')).toEqual([["prompt"], ["  hello  "]])
+    })
+})

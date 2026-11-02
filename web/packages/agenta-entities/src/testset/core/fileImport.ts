@@ -23,12 +23,12 @@ export function detectTestsetFileType(fileName: string): TestsetFileType | null 
 }
 
 /**
- * Parse CSV text into rows of trimmed fields.
+ * Parse CSV text into rows of fields. Field whitespace is kept, as the server keeps it.
  *
  * - Quoted fields may contain commas and line breaks.
  * - A doubled quote inside a quoted field becomes one quote.
  * - Rows end with \r\n, \n, or a lone \r.
- * - Rows where every field is empty are dropped.
+ * - Rows where every field is empty or blank are dropped.
  */
 export function parseCsvRows(text: string): string[][] {
     const rows: string[][] = []
@@ -37,11 +37,11 @@ export function parseCsvRows(text: string): string[][] {
     let inQuotes = false
 
     const endField = () => {
-        row.push(field.trim())
+        row.push(field)
         field = ""
     }
     const endRow = () => {
-        if (row.some((value) => value !== "")) rows.push(row)
+        if (row.some((value) => value.trim() !== "")) rows.push(row)
         row = []
     }
 

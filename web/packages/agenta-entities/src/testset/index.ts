@@ -138,8 +138,8 @@ export {
     // File upload
     uploadTestsetFile,
     uploadTestsetRevisionFile,
-    // In-use check
-    fetchTestsetsInUse,
+    // Evaluation runs that use a Testset
+    fetchEvaluationRunIdsUsingTestsets,
     // File download
     downloadTestset,
     downloadRevision,
