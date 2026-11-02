@@ -114,14 +114,19 @@ describe("useObservabilityAppScope", () => {
         )
 
         expect(store.get(observabilityScopeAtom)).toEqual({appId: "app-1", routeAppId: "app-1"})
+        // A mounted query never sees a project wide scope during the replay.
+        expect(seen.every((scope) => scope.appId === "app-1")).toBe(true)
     })
 
-    it("Leaving the screen resets the scope", () => {
+    it("Leaving the screen resets the scope", async () => {
         const seen: ObservabilityScope[] = []
         render(<Screen routeAppId="app-1" enabled seen={seen} />)
         expect(store.get(observabilityScopeAtom).appId).toBe("app-1")
 
         render(null)
+        await act(async () => {
+            await Promise.resolve()
+        })
 
         expect(store.get(observabilityScopeAtom)).toEqual(PROJECT_WIDE)
     })

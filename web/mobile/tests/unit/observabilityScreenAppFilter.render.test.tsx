@@ -7,18 +7,20 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
-const {router, viewEnabled} = vi.hoisted(() => ({
+const {router, viewEnabled, canEnable} = vi.hoisted(() => ({
     router: {
         pathname: "/w/[workspace_id]/p/[project_id]/observability",
         query: {} as Record<string, string>,
         replace: vi.fn(),
     },
     viewEnabled: {current: false as boolean | null},
+    canEnable: {current: true},
 }))
 
 vi.mock("next/router", () => ({useRouter: () => router}))
 vi.mock("@/features/developer/developerViewAccess", () => ({
     useDeveloperViewEnabled: () => viewEnabled.current,
+    canDeveloperViewBeEnabled: () => canEnable.current,
 }))
 vi.mock("@agenta/observability", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/observability")>()),
@@ -100,6 +102,7 @@ describe("ObservabilityScreen app filter", () => {
         router.query = {workspace_id: "ws", project_id: "pr"}
         router.replace.mockClear()
         viewEnabled.current = true
+        canEnable.current = true
         window.history.replaceState(null, "", "/")
         store = createStore()
         host = document.createElement("div")
@@ -134,6 +137,16 @@ describe("ObservabilityScreen app filter", () => {
         mount()
 
         expect(host.innerHTML).toBe("")
+        expect(store.get(observabilityScopeAtom)).toEqual({appId: null, routeAppId: null})
+    })
+
+    it("A view that cannot be on renders the content at once, without waiting for the user", () => {
+        viewEnabled.current = null
+        canEnable.current = false
+        router.query = {...router.query, app: "app-1"}
+        mount()
+
+        expect(host.innerHTML).not.toBe("")
         expect(store.get(observabilityScopeAtom)).toEqual({appId: null, routeAppId: null})
     })
 

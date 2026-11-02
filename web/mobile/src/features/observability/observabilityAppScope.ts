@@ -26,6 +26,9 @@ export const setObservabilityAppInUrl = (router: NextRouter, appId: string | nul
     void router.replace({pathname: router.pathname, query}, undefined, {shallow: true})
 }
 
+/** Counts screen setups, so a reset queued by a cleanup can tell a later setup ran first. */
+let scopeGeneration = 0
+
 /**
  * Scopes the traces and sessions queries to `routeAppId` while `enabled`.
  *
@@ -43,8 +46,18 @@ export const useObservabilityAppScope = (routeAppId: string | null, enabled: boo
         if (store.get(observabilityAppIdAtom) !== appId) store.set(observabilityAppIdAtom, appId)
     }
 
-    // Leaving the screen puts the scope back to project wide.
-    useEffect(() => () => store.set(observabilityAppIdAtom, null), [store])
+    // Leaving the screen puts the scope back to project wide. The reset waits a microtask, and a
+    // screen that sets up again before then (the StrictMode replay) cancels it, so the mounted
+    // queries never see a project wide scope while the screen is still there.
+    useEffect(() => {
+        scopeGeneration += 1
+        return () => {
+            const generation = scopeGeneration
+            queueMicrotask(() => {
+                if (generation === scopeGeneration) store.set(observabilityAppIdAtom, null)
+            })
+        }
+    }, [store])
 
     // Sets the scope again after mount: React StrictMode runs every cleanup, then every setup, so
     // the cleanup above alone would leave the queries project wide under a picker that names an
