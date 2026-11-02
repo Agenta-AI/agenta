@@ -11,7 +11,9 @@ export {
     configureTraceDrawerReferences,
     getTraceDrawerReferences,
     type AddToQueuePopoverSlotProps,
+    type TraceDrawerPickerSlots,
     type TraceDrawerReferenceSlots,
+    type TraceDrawerSlots,
 } from "./referenceSlots"
 export {default as EvaluatorDetailsPopover} from "./EvaluatorDetailsPopover"
 export {default as TraceAnnotations} from "./TraceAnnotations"

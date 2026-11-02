@@ -63,6 +63,14 @@ export interface TraceDrawerReferenceSlots {
      */
     AddToTestsetButton: ComponentType<ActionSlotProps>
     AnnotateDrawerButton: ComponentType<ActionSlotProps>
+}
+
+/**
+ * Slots the drawer takes beyond the reference labels and sibling-drawer actions. Kept out of
+ * `TraceDrawerReferenceSlots` so a host that types its registrations against that interface
+ * (`TraceDrawerReferenceSlots[keyof TraceDrawerReferenceSlots]`) is not forced to widen them.
+ */
+export interface TraceDrawerPickerSlots {
     /**
      * The "add to annotation queue" picker. The default is the antd popover, loaded on first
      * render only. A host that cannot ship antd (`/m`) registers its own picker, and its bundle
@@ -70,6 +78,8 @@ export interface TraceDrawerReferenceSlots {
      */
     AddToQueuePopover: ComponentType<AddToQueuePopoverSlotProps>
 }
+
+export type TraceDrawerSlots = TraceDrawerReferenceSlots & TraceDrawerPickerSlots
 
 /** Renders the label text alone — enough to read the reference, with no lookup behaviour. */
 const PlainReference: ComponentType<ReferenceLabelProps> = ({label}) => (
@@ -84,7 +94,7 @@ const DefaultAddToQueuePopover: ComponentType<AddToQueuePopoverSlotProps> = dyna
     {ssr: false},
 )
 
-const slots: TraceDrawerReferenceSlots = {
+const slots: TraceDrawerSlots = {
     TraceSpanDrillInView: NoSlot,
     PrettyJsonView: NoSlot,
     AddToTestsetButton: NoSlot,
@@ -104,9 +114,9 @@ const slots: TraceDrawerReferenceSlots = {
  * @example
  * configureTraceDrawerReferences({ApplicationReferenceLabel, TestsetTag, ...})
  */
-export const configureTraceDrawerReferences = (next: Partial<TraceDrawerReferenceSlots>) => {
+export const configureTraceDrawerReferences = (next: Partial<TraceDrawerSlots>) => {
     Object.assign(slots, next)
 }
 
 /** The registered slots. Read at render time so a late registration still takes effect. */
-export const getTraceDrawerReferences = (): TraceDrawerReferenceSlots => slots
+export const getTraceDrawerReferences = (): TraceDrawerSlots => slots
