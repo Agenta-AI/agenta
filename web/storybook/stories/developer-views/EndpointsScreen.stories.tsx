@@ -15,7 +15,7 @@ const meta = {
     parameters: {layout: "padded"},
     decorators: [
         (Story) => (
-            <div className="mx-auto max-w-3xl">
+            <div className="mx-auto max-w-3xl text-foreground">
                 <Story />
             </div>
         ),
