@@ -69,7 +69,7 @@ def _parse_roles_override(decoded: Any) -> Dict[str, List[Dict[str, Any]]]:
     `workspace`, `project`. Missing scopes fall back to the code-default
     minima for that scope. Within an overridden scope:
 
-      - `owner`, `admin`, `viewer` are reserved slugs; if present, they're
+      - `owner`, `admin`, `member`, `viewer` are reserved slugs; if present, they're
         rejected with a clear error so application invariants stay intact. The
         minima for that scope are re-applied after parsing.
       - Other roles are validated (known permissions, no duplicates) and
@@ -86,11 +86,7 @@ def _parse_roles_override(decoded: Any) -> Dict[str, List[Dict[str, Any]]]:
     # when only `project` is overridden).
     result: Dict[str, List[Dict[str, Any]]] = _default_roles()
 
-    reserved = {
-        RequiredRole.OWNER.value,
-        RequiredRole.ADMIN.value,
-        RequiredRole.VIEWER.value,
-    }
+    reserved = {role.value for role in RequiredRole}
 
     for scope, roles in decoded.items():
         if scope not in SCOPES:
@@ -149,12 +145,7 @@ def _parse_roles_override(decoded: Any) -> Dict[str, List[Dict[str, Any]]]:
         project_extras = [
             entry
             for entry in result["project"]
-            if entry["role"]
-            not in {
-                RequiredRole.OWNER.value,
-                RequiredRole.ADMIN.value,
-                RequiredRole.VIEWER.value,
-            }
+            if entry["role"] not in {role.value for role in RequiredRole}
         ]
         result["workspace"] = _minima_for("workspace") + project_extras
 
@@ -222,11 +213,7 @@ def _parse_roles_overlay(decoded: Any) -> Dict[str, _RoleOverlayEntry]:
         # Project-focused shortcut: top-level dict is keyed by role slug.
         project_payload = decoded
 
-    reserved = {
-        RequiredRole.OWNER.value,
-        RequiredRole.ADMIN.value,
-        RequiredRole.VIEWER.value,
-    }
+    reserved = {role.value for role in RequiredRole}
     entries: Dict[str, _RoleOverlayEntry] = {}
     for slug, patch in project_payload.items():
         if not slug or not isinstance(slug, str):

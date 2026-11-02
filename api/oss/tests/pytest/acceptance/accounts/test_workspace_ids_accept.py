@@ -39,7 +39,7 @@ def test_role_routes_accept_the_organization_id(admin_api, team):
         f"/workspaces/{org}/roles/",
         params=params,
         headers=team.headers("owner"),
-        json={"email": team.emails["m"], "role": "editor", "organization_id": org},
+        json={"email": team.emails["m"], "role": "admin", "organization_id": org},
     )
     assert resp.status_code == 200, resp.text
     mine = [
@@ -47,7 +47,7 @@ def test_role_routes_accept_the_organization_id(admin_api, team):
         for p in _projects(admin_api, team.keys["m"])
         if p["project_id"] == team.project_id
     ]
-    assert mine and mine[0]["user_role"] == "editor"
+    assert mine and mine[0]["user_role"] == "admin"
 
     resp = admin_api(
         "DELETE",
@@ -71,7 +71,7 @@ def test_invite_and_resend_accept_the_organization_id(admin_api, team):
         path,
         params={"project_id": team.project_id},
         headers=team.headers("owner"),
-        json=[{"email": email, "roles": ["viewer"]}],
+        json=[{"email": email, "roles": ["member"]}],
     )
     assert resp.status_code == 200, resp.text
     resp = admin_api(
@@ -92,7 +92,7 @@ def test_invite_refuses_another_organization(admin_api, team):
             f"/organizations/{team.organization_id}/workspaces/{other.organization_id}/invite",
             params={"project_id": team.project_id},
             headers=team.headers("owner"),
-            json=[{"email": unique_email("invitee"), "roles": ["viewer"]}],
+            json=[{"email": unique_email("invitee"), "roles": ["member"]}],
         )
         assert resp.status_code == 404, resp.text
     finally:
@@ -129,7 +129,7 @@ def test_accept_invitation_refuses_another_organization(admin_api, team):
             f"/organizations/{team.organization_id}/workspaces/{team.workspace_id}/invite",
             params={"project_id": team.project_id},
             headers=team.headers("owner"),
-            json=[{"email": email, "roles": ["viewer"]}],
+            json=[{"email": email, "roles": ["member"]}],
         )
         assert resp.status_code == 200, resp.text
         link = parse_qs(urlparse(resp.json()["url"]).query)

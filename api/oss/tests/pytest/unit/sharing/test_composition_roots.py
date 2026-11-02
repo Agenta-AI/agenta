@@ -82,7 +82,7 @@ async def _bob_is_denied_a_private_session() -> None:
     for user in (alice, bob):
         principals.human(user)
     access_service._principals = principals
-    access_service._rbac = RecordingRbac()
+    access_service._rbac_entitlement = RecordingRbac()
     sharing_dao = InMemorySharingDAO()
     sharing_service._dao = sharing_dao
     state = sharing_dao.add_session(
@@ -166,7 +166,7 @@ def test_access_service_requires_resource_policy():
                 memberships_dao=InMemoryMembershipsDAO(),
                 policy=MembershipPolicy.ORGANIZATION_WIDE,
             ),
-            rbac=RecordingRbac(),
+            rbac_entitlement=RecordingRbac(),
             principals=InMemoryPrincipalsDAO(),
         )
 

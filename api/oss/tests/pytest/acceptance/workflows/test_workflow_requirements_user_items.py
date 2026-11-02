@@ -4,10 +4,16 @@
 callers here use an API key, which is not a person: every "user" item has no account and
 no fix, and only a "user" model login blocks a run.
 
+With `AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED` off (the default), the run leaves every
+"user" item out and a "user" model login is a model to change. Tests for one mode skip
+on a deployment in the other.
+
 Requires a running API.
 """
 
 from uuid import uuid4
+
+import pytest
 
 _GMAIL = {
     "type": "gateway_connection",
@@ -91,6 +97,22 @@ def _requirements(authed_api, **body):
     return response.json()
 
 
+def _personal_accounts_enabled(authed_api) -> bool:
+    # Gate on the server: the runner's env need not match the API's, and no route shows
+    # the flag to an API key. Any other answer fails rather than skips.
+    body = _requirements(authed_api, parameters=_agent(_USER_LOGIN_MODEL))
+    keys = [item["key"] for item in body["requirements"]]
+    assert keys in (["subscription:user/claude"], ["model:anthropic/haiku"]), keys
+    return keys == ["subscription:user/claude"]
+
+
+def _require_personal_accounts(authed_api, enabled: bool):
+    if _personal_accounts_enabled(authed_api) != enabled:
+        pytest.skip(
+            f"personal accounts are {'off' if enabled else 'on'} on this deployment"
+        )
+
+
 def _schedule(authed_api, workflow_slug):
     response = authed_api(
         "POST",
@@ -113,6 +135,7 @@ def _schedule(authed_api, workflow_slug):
 
 class TestRequirementsOfUserItems:
     def test_each_user_item_needs_a_personal_account(self, authed_api):
+        _require_personal_accounts(authed_api, True)
         _, _, revision_id = _commit_agent(
             authed_api,
             _agent(
@@ -149,11 +172,31 @@ class TestRequirementsOfUserItems:
             "agent.tools[1].connection",
         ]
 
+    def test_with_personal_accounts_off_user_items_are_left_out(self, authed_api):
+        _require_personal_accounts(authed_api, False)
+        _, _, revision_id = _commit_agent(
+            authed_api,
+            _agent(
+                _USER_LOGIN_MODEL,
+                tools=[_GMAIL],
+                mcps=[_LINEAR],
+                sandbox={"credentials": [_TOKEN]},
+            ),
+        )
+
+        body = _requirements(authed_api, workflow_revision_ref={"id": revision_id})
+
+        assert body["status"] == "needs_setup"
+        [model] = body["requirements"]
+        assert model["key"] == "model:anthropic/haiku"
+        assert model["reason"] == "not_available"
+
     def test_an_agent_without_user_items_is_unchanged(self, authed_api):
         body = _requirements(authed_api, parameters=_agent(_OPERATOR_MODEL))
         assert body == {"count": 0, "status": "ready", "requirements": []}
 
     def test_a_draft_names_its_agent_with_workflow_id(self, authed_api):
+        _require_personal_accounts(authed_api, True)
         _, workflow_id, _ = _commit_agent(authed_api, _agent(_OPERATOR_MODEL))
         body = _requirements(
             authed_api,
@@ -178,6 +221,7 @@ class TestRequirementsOfUserItems:
 
 class TestTurnOnCheckOfUserItems:
     def test_a_user_login_refuses_the_turn_on(self, authed_api):
+        enabled = _personal_accounts_enabled(authed_api)
         slug, _, _ = _commit_agent(authed_api, _agent(_USER_LOGIN_MODEL))
         schedule_id = _schedule(authed_api, slug)
 
@@ -187,8 +231,11 @@ class TestTurnOnCheckOfUserItems:
         detail = response.json()["detail"]
         assert detail["code"] == "agent_needs_setup"
         [login] = detail["details"]["requirements"]
-        assert login["key"] == "subscription:user/claude"
-        assert login["account_source"] == "user"
+        if enabled:
+            assert login["key"] == "subscription:user/claude"
+            assert login["account_source"] == "user"
+        else:
+            assert login["key"] == "model:anthropic/haiku"
 
     def test_other_user_items_never_block_the_turn_on(self, authed_api):
         slug, _, _ = _commit_agent(
