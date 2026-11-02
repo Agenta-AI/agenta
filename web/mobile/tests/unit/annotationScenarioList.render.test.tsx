@@ -11,7 +11,7 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
-const fixture = vi.hoisted(() => ({toast: {success: vi.fn(), error: vi.fn()}}))
+const fixture = vi.hoisted(() => ({toast: {success: vi.fn(), error: vi.fn()}, wide: true}))
 
 vi.mock("@agenta/annotation", async (importOriginal) => {
     const fake = await import("../support/annotationSessionFake")
@@ -47,6 +47,7 @@ vi.mock("@agenta/observability/traceDrawer", async () => {
     return {openTraceDrawerAtom: atom(null, () => undefined)}
 })
 vi.mock("@agenta/ui/app-message", () => ({message: fixture.toast}))
+vi.mock("@agenta/ui/hooks", () => ({useMediaQuery: () => fixture.wide}))
 vi.mock("@agenta/ui/ui", async (importOriginal) => {
     const actual = await importOriginal<typeof import("@agenta/ui/ui")>()
     const Pass = ({children}: {children?: React.ReactNode}) => <>{children}</>
@@ -134,6 +135,7 @@ const findButton = (scope: ParentNode, label: string) =>
 
 beforeEach(() => {
     vi.clearAllMocks()
+    fixture.wide = true
     resetSession({
         scenarioRecords: [{id: "s-1"}, {id: "s-2"}],
         traceRefs: {
@@ -163,6 +165,16 @@ describe("the All Annotations tab", () => {
         expect(rows()[0].textContent).toContain("run trace-1")
         expect(rows()[1].textContent).toContain("Success")
         expect(rows()[1].textContent).toContain("friendly:")
+        expect(rows()[1].textContent).toContain("very polite")
+    })
+
+    it("On a phone the metrics sit under the item, not in a column", async () => {
+        fixture.wide = false
+        await render()
+        const headers = Array.from(host.querySelectorAll("[role=columnheader]")).map(
+            (h) => h.textContent,
+        )
+        expect(headers).not.toContain("Tone")
         expect(rows()[1].textContent).toContain("very polite")
     })
 

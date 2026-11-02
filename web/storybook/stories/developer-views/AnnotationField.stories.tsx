@@ -18,7 +18,7 @@ const Frame = ({
 }) => {
     const [value, setValue] = useState<unknown>(field.value)
     return (
-        <div className="w-[400px] rounded-lg border border-solid border-border bg-background p-3">
+        <div className="w-[min(400px,calc(100vw-32px))] rounded-lg border border-solid border-border bg-background p-3">
             <AnnotationField
                 fieldKey={fieldKey}
                 field={{...field, value}}

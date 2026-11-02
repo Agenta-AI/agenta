@@ -1,7 +1,13 @@
 import {projectPermissionQueryKey} from "@agenta/entities/access"
+import {
+    configureTraceDrawerReferences,
+    type TraceDrawerReferenceSlots,
+} from "@agenta/observability-ui/traceDrawer"
 import type {QueryKey} from "@tanstack/react-query"
 import type {Getter, Setter} from "jotai"
 
+import {TracePrettyJson} from "../../mobile/src/features/observability/TracePrettyJson"
+import {TraceSpanPanel} from "../../mobile/src/features/observability/TraceSpanPanel"
 import {
     handlers,
     initialSessionState,
@@ -240,4 +246,16 @@ export const testcaseQueueState = (patch: Partial<FakeSessionState> = {}): FakeS
             ]),
         ),
         ...patch,
+    })
+
+type TraceSlot = TraceDrawerReferenceSlots["TraceSpanDrillInView"]
+
+/**
+ * The trace overview draws its data through slots that /m fills at app start
+ * (`registerTraceDrawerSlots`). A story has no app start, so it fills the same two slots.
+ */
+export const registerStoryTraceSlots = () =>
+    configureTraceDrawerReferences({
+        TraceSpanDrillInView: TraceSpanPanel as unknown as TraceSlot,
+        PrettyJsonView: TracePrettyJson as unknown as TraceSlot,
     })

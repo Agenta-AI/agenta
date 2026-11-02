@@ -1,6 +1,7 @@
 import {useMemo, useState} from "react"
 
 import {annotationSessionController, type SessionView} from "@agenta/annotation"
+import {useMediaQuery} from "@agenta/ui/hooks"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {
     LoadingButton,
@@ -40,6 +41,15 @@ const TRAILING_COLUMNS: ListTableColumn[] = [
     {key: "status", label: "Status", width: "96px"},
     {key: "actions", label: "Actions", srOnly: true, width: "24px"},
 ]
+/** A phone keeps the item and its status; the metrics sit under the item. */
+const NARROW_COLUMNS: ListTableColumn[] = [
+    {key: "select", label: "Select", srOnly: true, width: "24px"},
+    {key: "index", label: "#", width: "40px"},
+    {key: "item", label: "Item", width: "minmax(0,1fr)"},
+    {key: "status", label: "Status", width: "76px"},
+    {key: "actions", label: "Actions", srOnly: true, width: "24px"},
+]
+const WIDE_QUERY = "(min-width: 640px)"
 
 /**
  * Every item of the queue in one list: search, a status filter, a selection for Add to Testset, a
@@ -52,6 +62,8 @@ export const ScenarioListTab = ({
     queueId: string
     onViewChange: (view: SessionView) => void
 }) => {
+    // Asked as "wide?" because the hook starts false before it reads the viewport.
+    const narrow = !useMediaQuery(WIDE_QUERY)
     const [search, setSearch] = useState("")
     const [status, setStatus] = useState<string | null>(null)
     const [sheetScenarioId, setSheetScenarioId] = useState<string | null>(null)
@@ -134,8 +146,8 @@ export const ScenarioListTab = ({
                 </LoadingButton>
             </div>
             <ListTable
-                columns={columns}
-                minWidth={columns.length > 6 ? 900 : 640}
+                columns={narrow ? NARROW_COLUMNS : columns}
+                minWidth={narrow ? 0 : columns.length > 6 ? 900 : 640}
                 density="compact"
                 groups={[{key: "all", label: null, rows}]}
                 rowKey={(row) => row.scenarioId}
@@ -149,6 +161,7 @@ export const ScenarioListTab = ({
                     <ScenarioListRow
                         row={row}
                         columns={evaluatorColumns}
+                        narrow={narrow}
                         selected={selected.has(row.scenarioId)}
                         onSelectedChange={(isSelected) => toggleSelected(row, isSelected)}
                         onAnnotate={() => setSheetScenarioId(row.scenarioId)}

@@ -32,11 +32,13 @@ const OwnClicks = ({children, className}: {children: ReactNode; className?: stri
 
 /**
  * One item's cells, in column order: the checkbox, the position with a status mark, the item, one
- * cell per evaluator, the status and the menu.
+ * cell per evaluator, the status and the menu. On a phone the metrics go under the item instead of
+ * into columns of their own.
  */
 export const ScenarioListRow = ({
     row,
     columns,
+    narrow,
     selected,
     onSelectedChange,
     onAnnotate,
@@ -44,6 +46,7 @@ export const ScenarioListRow = ({
 }: {
     row: ScenarioRow
     columns: EvaluatorColumn[]
+    narrow: boolean
     selected: boolean
     onSelectedChange: (selected: boolean) => void
     onAnnotate: () => void
@@ -70,14 +73,29 @@ export const ScenarioListRow = ({
                 {row.index + 1}
             </span>
         </SimpleTooltip>
-        <ScenarioItemCell scenarioId={row.scenarioId} />
-        {columns.map((column) => (
-            <ScenarioEvaluatorCell
-                key={column.key}
-                scenarioId={row.scenarioId}
-                metrics={column.metrics}
-            />
-        ))}
+        {narrow ? (
+            <span className="flex min-w-0 flex-col gap-1">
+                <ScenarioItemCell scenarioId={row.scenarioId} />
+                {columns.map((column) => (
+                    <ScenarioEvaluatorCell
+                        key={column.key}
+                        scenarioId={row.scenarioId}
+                        metrics={column.metrics}
+                    />
+                ))}
+            </span>
+        ) : (
+            <>
+                <ScenarioItemCell scenarioId={row.scenarioId} />
+                {columns.map((column) => (
+                    <ScenarioEvaluatorCell
+                        key={column.key}
+                        scenarioId={row.scenarioId}
+                        metrics={column.metrics}
+                    />
+                ))}
+            </>
+        )}
         <span className="flex">
             <ScenarioStatusBadge status={row.status} />
         </span>

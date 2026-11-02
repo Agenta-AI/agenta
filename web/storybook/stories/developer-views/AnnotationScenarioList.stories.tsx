@@ -5,6 +5,7 @@ import {ScenarioListTab} from "../../../mobile/src/features/annotations/Scenario
 import type {StoryScope} from "../../.storybook/decorators/withAgentaData"
 import {
     installStoryHandlers,
+    registerStoryTraceSlots,
     sessionStateAtom,
     STORY_TRACES,
     testcaseQueueState,
@@ -14,6 +15,7 @@ import {
 } from "../../fixtures/annotationSession"
 
 installStoryHandlers()
+registerStoryTraceSlots()
 
 const Frame = () => (
     <div className="flex h-[720px] max-h-dvh w-full flex-col bg-background">

@@ -36,7 +36,7 @@ export const AnnotateScenarioSheet = ({
     return (
         <Sheet open={scenarioId !== null} onOpenChange={(next) => !next && onClose()}>
             <SheetContent
-                side="right"
+                side="responsive"
                 style={SHEET_WIDTH}
                 className="flex flex-col overflow-hidden"
             >

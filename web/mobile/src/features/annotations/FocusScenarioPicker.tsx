@@ -43,13 +43,13 @@ export const FocusScenarioPicker = ({scenarioId}: {scenarioId: string}) => {
         })
 
     return (
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 items-center gap-1 sm:gap-2">
             <Select
                 value={index >= 0 ? String(index) : ""}
                 onValueChange={(next) => navigateToIndex(Number(next))}
                 disabled={focusIds.length === 0}
             >
-                <SelectTrigger size="sm" aria-label="Go to item" className="min-w-[88px]">
+                <SelectTrigger size="sm" aria-label="Go to item" className="min-w-[72px]">
                     <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

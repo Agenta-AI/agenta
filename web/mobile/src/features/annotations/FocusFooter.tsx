@@ -42,14 +42,14 @@ export const FocusFooter = ({
     })
 
     return (
-        <div className="flex w-full min-w-0 items-center justify-between gap-2 sm:gap-4">
+        <div className="flex w-full min-w-0 items-center justify-between gap-1.5 sm:gap-4">
             <FocusScenarioPicker scenarioId={scenarioId} />
-            <div className="flex shrink-0 items-center gap-2 lg:gap-4">
+            <div className="flex shrink-0 items-center gap-1 sm:gap-2 lg:gap-4">
                 <FocusSwitches compact={!wide} />
-                <div className="flex items-center gap-1.5 sm:gap-2">
+                <div className="flex items-center gap-1 sm:gap-2">
                     <Button
                         type="button"
-                        size="sm"
+                        size={wide ? "sm" : "icon-sm"}
                         variant="outline"
                         disabled={!hasPrev}
                         onClick={() => navigatePrev()}
@@ -64,7 +64,7 @@ export const FocusFooter = ({
                     </Button>
                     <Button
                         type="button"
-                        size="sm"
+                        size={wide ? "sm" : "icon-sm"}
                         variant="outline"
                         disabled={!hasNext}
                         onClick={() => navigateNext()}
@@ -82,7 +82,7 @@ export const FocusFooter = ({
                         <span className="inline-flex">
                             <LoadingButton
                                 type="button"
-                                size="sm"
+                                size={wide ? "sm" : "icon-sm"}
                                 variant="outline"
                                 loading={isExporting}
                                 disabled={Boolean(addDisabledReason)}
