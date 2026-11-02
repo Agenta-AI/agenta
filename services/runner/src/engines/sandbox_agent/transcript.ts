@@ -7,7 +7,7 @@ import {
   resolvePromptText,
   userTurnCarriesContent,
 } from "../../protocol.ts";
-import { approvalDecisionOf } from "../../responder.ts";
+import { approvalDecisionOf, approvedCallKey } from "../../responder.ts";
 import { headCut, tailCut } from "../../text-cut.ts";
 import { attachmentMention } from "./attachments.ts";
 import {
@@ -60,24 +60,93 @@ export function approvalRenderHints(
     content: string | ContentBlock[] | undefined;
   }[],
 ): Map<ContentBlock, ApprovalRenderHint> {
+  const callShapeById = new Map<string, { name?: string; input?: unknown }>();
+  for (const message of history) {
+    const content = message?.content;
+    if (!Array.isArray(content)) continue;
+    for (const block of content) {
+      if (block?.type === "tool_call" && block.toolCallId) {
+        callShapeById.set(block.toolCallId, {
+          name: block.toolName,
+          input: block.input,
+        });
+      }
+    }
+  }
+
+  const callKeyOf = (block: ContentBlock): string | undefined => {
+    const shape = block.toolCallId
+      ? callShapeById.get(block.toolCallId)
+      : undefined;
+    const name = block.toolName ?? shape?.name;
+    const input = block.input ?? shape?.input;
+    return approvedCallKey(name, input);
+  };
+
   const toolResults: {
     block: ContentBlock;
     toolName: string | undefined;
+    key: string | undefined;
     decision: ReturnType<typeof approvalDecisionOf>;
   }[] = [];
 
   for (const message of history) {
-    const content = message.content;
+    const content = message?.content;
     if (!Array.isArray(content)) continue;
     for (const block of content) {
       if (block?.type !== "tool_result") continue;
+      const shape = block.toolCallId
+        ? callShapeById.get(block.toolCallId)
+        : undefined;
+      const toolName = block.toolName ?? shape?.name;
       toolResults.push({
         block,
-        toolName: block.toolName,
+        toolName,
+        key: callKeyOf(block),
         decision: approvalDecisionOf(block),
       });
     }
   }
+
+  const blockInput = (block: ContentBlock): unknown => {
+    if (block.input !== undefined) return block.input;
+    if (block.toolCallId && callShapeById.has(block.toolCallId)) {
+      return callShapeById.get(block.toolCallId)?.input;
+    }
+    return undefined;
+  };
+
+  const hasSpecificInput = (block: ContentBlock): boolean => {
+    return blockInput(block) !== undefined;
+  };
+
+  const isPauseSentinel = (block: ContentBlock): boolean => {
+    return (
+      typeof block.output === "string" &&
+      (block.output.startsWith(DEFERRED_NOT_EXECUTED_PREFIX) ||
+        block.output === APPROVED_EXECUTION_RESULT_UNKNOWN)
+    );
+  };
+
+  const matchesExecution = (
+    entry: (typeof toolResults)[number],
+    later: (typeof toolResults)[number],
+  ): boolean => {
+    if (
+      entry.block.toolCallId &&
+      later.block.toolCallId &&
+      entry.block.toolCallId === later.block.toolCallId
+    ) {
+      return true;
+    }
+    if (hasSpecificInput(entry.block) && hasSpecificInput(later.block)) {
+      return entry.key !== undefined && entry.key === later.key;
+    }
+    return (
+      entry.toolName !== undefined &&
+      entry.toolName === later.toolName
+    );
+  };
 
   const hints = new Map<ContentBlock, ApprovalRenderHint>();
   const unresolved = new Map<
@@ -89,22 +158,27 @@ export function approvalRenderHints(
     const entry = toolResults[index];
     if (entry.decision !== "allow") continue;
 
-    // Rendering only: use tool-name proximity to suppress stale nudges. The actual approval
-    // decision store still matches on name + canonical args and never consumes by name alone.
     const hasLaterRealResult = toolResults
       .slice(index + 1)
       .some(
         (later) =>
-          later.toolName === entry.toolName && later.decision === undefined,
+          later.decision === undefined &&
+          !isPauseSentinel(later.block) &&
+          matchesExecution(entry, later),
       );
     if (hasLaterRealResult) {
       hints.set(entry.block, "executed");
       continue;
     }
 
-    const list = unresolved.get(entry.toolName) ?? [];
+    const bucketKey =
+      entry.key ??
+      (entry.block.toolCallId
+        ? `${entry.toolName}#${entry.block.toolCallId}`
+        : entry.toolName);
+    const list = unresolved.get(bucketKey) ?? [];
     list.push({ block: entry.block, index });
-    unresolved.set(entry.toolName, list);
+    unresolved.set(bucketKey, list);
   }
 
   for (const list of unresolved.values()) {

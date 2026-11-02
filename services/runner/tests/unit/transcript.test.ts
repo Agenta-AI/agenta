@@ -10,6 +10,7 @@ import type { AgentRunRequest, ContentBlock } from "../../src/protocol.ts";
 import { isWellFormed } from "../utils/well-formed.ts";
 import {
   APPROVED_EXECUTION_RESULT_UNKNOWN,
+  DEFERRED_NOT_EXECUTED_PREFIX,
   TOOL_NOT_EXECUTED_PAUSED,
 } from "../../src/tracing/otel.ts";
 
@@ -536,6 +537,121 @@ describe("buildTurnText approval transcript hints", () => {
       transcript,
       /DENIED mcp__agenta-tools__commit_revision; executed below/,
     );
+  });
+
+  it("keeps all distinct parallel tool approvals pending when inputs differ (#7951)", () => {
+    const paths = Array.from({ length: 14 }, (_, i) => `src/file_${i}.ts`);
+    const content: ContentBlock[] = [];
+    for (let i = 0; i < paths.length; i++) {
+      content.push({
+        type: "tool_call",
+        toolCallId: `call-${i}`,
+        toolName: "read_file",
+        input: { path: paths[i] },
+      });
+      content.push({
+        type: "tool_result",
+        toolCallId: `call-${i}`,
+        toolName: "read_file",
+        output: { approved: true },
+      });
+    }
+
+    const transcript = turnTextFor([
+      {
+        role: "assistant",
+        content,
+      },
+    ]);
+
+    const callsToRun = transcript.match(/Call the tool again/g) ?? [];
+    assert.equal(callsToRun.length, 14);
+    assert.doesNotMatch(transcript, /approved read_file earlier/);
+    assert.doesNotMatch(transcript, /executed below/);
+  });
+
+  it("settles only the executed call when one of multiple parallel approvals completes (#7951)", () => {
+    const paths = ["src/a.ts", "src/b.ts", "src/c.ts"];
+    const content: ContentBlock[] = [];
+    for (let i = 0; i < paths.length; i++) {
+      content.push({
+        type: "tool_call",
+        toolCallId: `call-${i}`,
+        toolName: "read_file",
+        input: { path: paths[i] },
+      });
+      content.push({
+        type: "tool_result",
+        toolCallId: `call-${i}`,
+        toolName: "read_file",
+        output: { approved: true },
+      });
+    }
+
+    const transcript = turnTextFor([
+      {
+        role: "assistant",
+        content,
+      },
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool_call",
+            toolCallId: "call-exec-1",
+            toolName: "read_file",
+            input: { path: "src/b.ts" },
+          },
+          {
+            type: "tool_result",
+            toolCallId: "call-exec-1",
+            toolName: "read_file",
+            output: { content: "export const b = 2;" },
+          },
+        ],
+      },
+    ]);
+
+    const callsToRun = transcript.match(/Call the tool again/g) ?? [];
+    assert.equal(callsToRun.length, 2);
+    const executed = transcript.match(/executed below/g) ?? [];
+    assert.equal(executed.length, 1);
+  });
+
+  it("does not treat a pause terminalization sentinel as an execution result (#7951)", () => {
+    const transcript = turnTextFor([
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool_call",
+            toolCallId: "call-1",
+            toolName: COMMIT_TOOL,
+            input: { name: "draft" },
+          },
+          {
+            type: "tool_result",
+            toolCallId: "call-1",
+            toolName: COMMIT_TOOL,
+            output: { approved: true },
+          },
+        ],
+      },
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool_result",
+            toolCallId: "call-1",
+            toolName: COMMIT_TOOL,
+            output: `${DEFERRED_NOT_EXECUTED_PREFIX} turn paused`,
+          },
+        ],
+      },
+    ]);
+
+    assert.doesNotMatch(transcript, /executed below/);
+    assert.match(transcript, /Call the tool again/);
   });
 
   it("keeps preflight tolerant of unverified attachment display fields", () => {
