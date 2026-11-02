@@ -74,10 +74,10 @@ done <<< "$FILES"
 
 [ "$FAIL" -eq 0 ] || exit 1
 
-# 8. Types, lint, related tests. Types run on the second machine when its helper exists.
+# 8. Types, lint, related tests. Set GATE_HEAVY_RUNNER to a command that takes the repo root and a
+# command (for example a script that runs it on another machine) to move the type check off this one.
 ROOT=$PWD
-REMOTE="$HOME/agenta-build-m-views/tools/remote.sh"
-heavy() { if [ -x "$REMOTE" ]; then "$REMOTE" "$ROOT" "$@"; else "$@"; fi; }
+heavy() { if [ -n "${GATE_HEAVY_RUNNER:-}" ]; then "$GATE_HEAVY_RUNNER" "$ROOT" "$@"; else "$@"; fi; }
 OUT=$(mktemp -d)
 cd web || exit 1
 
@@ -90,7 +90,7 @@ CHANGED=$(echo "$FILES" | grep -E '^web/(mobile/(src|tests)|packages)/.*\.(ts|ts
 if [ -n "$CHANGED" ]; then
     # shellcheck disable=SC2086
     pnpm --filter @agenta/mobile exec vitest related --run --passWithNoTests --maxWorkers=2 \
-        $CHANGED >"$OUT/test" 2>&1 || { no "unit tests"; tail -30 "$OUT/test"; }
+        $CHANGED >"$OUT/test" 2>&1 || { no "unit tests"; tail -30 "$OUT/test"; exit 1; }
     tail -10 "$OUT/test"
 fi
 [ "$FAIL" -eq 0 ] && echo "PASS: gate"
