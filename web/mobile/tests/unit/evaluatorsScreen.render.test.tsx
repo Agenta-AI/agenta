@@ -176,6 +176,12 @@ describe("EvaluatorsScreen", () => {
         expect(text()).not.toContain("Exact match check")
     })
 
+    it("A row with no tags still fills every column", async () => {
+        await mount()
+        const row = host.querySelector('[role="button"]')
+        expect(row?.children).toHaveLength(headers().length)
+    })
+
     it("Revisions are grouped under their evaluator", async () => {
         await mount()
         expect(text()).toContain("Exact match check v3")

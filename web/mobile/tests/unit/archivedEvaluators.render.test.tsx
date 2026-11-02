@@ -161,6 +161,13 @@ describe("ArchivedEvaluatorsScreen", () => {
         )
     })
 
+    it("A row with no tags still fills every column", async () => {
+        await mount()
+        const row = host.querySelector('[role="button"]')
+        const headers = host.querySelectorAll('[role="columnheader"]')
+        expect(row?.children).toHaveLength(headers.length)
+    })
+
     it("The archived page can switch to human evaluators", async () => {
         await mount()
         expect(text()).not.toContain("Archived rating")

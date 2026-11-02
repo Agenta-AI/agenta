@@ -1,6 +1,10 @@
-/** The first three names as small tags, then "+N". Template categories and feedback keys use it. */
+/**
+ * The first three names as small tags, then "+N". Template categories and feedback keys use it.
+ * With no names it still draws its cell: a row is a grid, and a missing cell would shift every
+ * column after it one track to the left.
+ */
 export const EvaluatorKeyTags = ({names}: {names: readonly string[]}) => {
-    if (names.length === 0) return null
+    if (names.length === 0) return <span />
     return (
         <span className="flex min-w-0 flex-wrap items-center gap-1 overflow-hidden">
             {names.slice(0, 3).map((name) => (
