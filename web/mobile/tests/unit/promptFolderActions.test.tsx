@@ -142,7 +142,7 @@ describe("usePromptFolderActions", () => {
         expect(openFolder).not.toHaveBeenCalled()
     })
 
-    it("Moving a prompt shows App moved and refetches prompts", async () => {
+    it("Moving a prompt shows Prompt moved and refetches prompts", async () => {
         mount()
         await act(async () => {
             await latest.movePrompt({id: "p1", folder_id: null}, "f3")
@@ -152,7 +152,7 @@ describe("usePromptFolderActions", () => {
             workflowId: "p1",
             folderId: "f3",
         })
-        expect(toast.success).toHaveBeenCalledWith("App moved")
+        expect(toast.success).toHaveBeenCalledWith("Prompt moved")
         expect(invalidatedKeys()).toContain("workflows")
     })
 
@@ -166,13 +166,13 @@ describe("usePromptFolderActions", () => {
         expect(api.moveFolder).not.toHaveBeenCalled()
     })
 
-    it("Archiving a prompt shows App archived", async () => {
+    it("Archiving a prompt shows Prompt archived", async () => {
         mount()
         await act(async () => {
             await latest.archivePrompt({id: "p1"})
         })
         expect(api.archiveWorkflow).toHaveBeenCalledWith(PROJECT_ID, "p1")
-        expect(toast.success).toHaveBeenCalledWith("App archived")
+        expect(toast.success).toHaveBeenCalledWith("Prompt archived")
     })
 
     it("Renaming a prompt sends the name and the description", async () => {

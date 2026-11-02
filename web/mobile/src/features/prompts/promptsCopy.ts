@@ -60,8 +60,8 @@ export const promptsCopy = {
         folderRenamed: "Folder renamed",
         folderMoved: "Folder moved",
         folderDeleted: "Folder deleted",
-        appMoved: "App moved",
-        appArchived: "App archived",
+        appMoved: "Prompt moved",
+        appArchived: "Prompt archived",
     },
     guard: {
         noDestination: "Select a destination folder",
@@ -76,7 +76,7 @@ export const promptsCopy = {
         deleteFolder: "Couldn't delete the folder",
         movePrompt: "Couldn't move this prompt",
         renamePrompt: "Couldn't rename this prompt",
-        archivePrompt: "Failed to archive app",
+        archivePrompt: "Couldn't archive this prompt",
     },
     states: {
         loadErrorTitle: "Could not load prompts",
