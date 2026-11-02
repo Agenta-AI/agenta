@@ -258,11 +258,9 @@ function DrawerTitle({
 function RemoveFromAgent({
     connectionName,
     onRemove,
-    disabled,
 }: {
     connectionName: string
     onRemove: () => void
-    disabled?: boolean
 }) {
     const [confirming, setConfirming] = useState(false)
 
@@ -282,7 +280,6 @@ function RemoveFromAgent({
         // the app's focus ring, and this is the destructive control.
         <Button
             variant="ghost"
-            disabled={disabled}
             onClick={() => setConfirming(true)}
             className="-ml-2 px-2 font-normal !text-colorError hover:bg-[color-mix(in_srgb,var(--ag-colorError)_10%,transparent)]"
         >
@@ -352,6 +349,9 @@ export default function McpPermissionDrawer({
     )
 
     const loginLapsed = status !== "connected"
+    // A person who may not edit the agent cannot reconnect either. They get the tool list's own
+    // answer (usually "no access") rather than a sign-in they cannot finish.
+    const askToReconnect = loginLapsed && !disabled
 
     /**
      * Tools that hold a permission the filter now hides.
@@ -487,7 +487,7 @@ export default function McpPermissionDrawer({
         }
         // The banner above already names the problem and carries Reconnect. A second, differently
         // worded ask for the same sign-in would read as two problems.
-        if (loginLapsed) return null
+        if (askToReconnect) return null
         if (tools.status !== "failed") return null
         return (
             <ToolsEmpty
@@ -508,7 +508,7 @@ export default function McpPermissionDrawer({
                 }
             />
         )
-    }, [disabled, loadTools, loginLapsed, onReconnect, slug, tools])
+    }, [askToReconnect, disabled, loadTools, onReconnect, slug, tools])
 
     const catalog = useMemo<PermissionDrawerCatalog>(() => {
         if (!slug) return {status: "error", tools: [], complete: false, errorNode}
@@ -593,18 +593,14 @@ export default function McpPermissionDrawer({
                 lockedTool: (toolKey) =>
                     isToolHidden(policy, toolKey) ? HIDDEN_TOOL_REASON : null,
                 rowValue,
-                banner: loginLapsed ? (
+                banner: askToReconnect ? (
                     <LoginExpiredBanner connectionName={name} onReconnect={onReconnect} />
                 ) : null,
                 controlsDisabled: loginLapsed,
                 footNote,
                 footerStart:
-                    onRemove && !readOnly ? (
-                        <RemoveFromAgent
-                            connectionName={name}
-                            onRemove={onRemove}
-                            disabled={disabled}
-                        />
+                    onRemove && !readOnly && !disabled ? (
+                        <RemoveFromAgent connectionName={name} onRemove={onRemove} />
                     ) : null,
                 readOnly,
             }}
