@@ -78,7 +78,7 @@ const put = (key: string, value: unknown) => values.set(key, atom(value))
 const revision = (overrides: Record<string, unknown> = {}) => ({
     id: "rev-1",
     version: 3,
-    slug: "fallback-slug",
+    slug: "4f2a9c1e",
     workflow_id: "wf-1",
     created_at: "2026-01-02T10:00:00Z",
     created_by_id: "user-1",
@@ -149,6 +149,11 @@ describe("RevisionDetails", () => {
         expect(valueOf("Type")).toBe("Exact Match")
         expect(valueOf("Slug")).toBe("exact-match-slug")
         expect(labelTexts()).not.toContain("Variant")
+
+        // Until the workflow slug is known, the row stays hidden: the revision slug is an opaque id.
+        put("artifactSlug:rev-1", null)
+        await render({revisionId: "rev-1", kind: "evaluator"})
+        expect(labelTexts()).not.toContain("Slug")
     })
 
     it("The note row shows only when the revision has a message", async () => {
