@@ -5,6 +5,7 @@ import type {TestcaseDataConfig} from "@agenta/entities/testcase"
 import {
     changesSummaryAtom,
     clearChangesAtom,
+    fetchRevisionWithTestcases,
     hasUnsavedChangesAtom,
     revisionMolecule,
     saveNewTestsetAtom,
@@ -14,7 +15,7 @@ import {
     type TestsetRevisionHeaderState,
 } from "@agenta/entities/testset"
 import {message} from "@agenta/ui/app-message"
-import {atom, useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {isTestsetRouteId, NEW_TESTSET_ROUTE_ID} from "./testsetRouteId"
 
@@ -24,22 +25,53 @@ const SAVE_FAILED = "Failed to save changes"
 
 /** Why a column name was refused. An unchanged rename is not an error: it changes nothing. */
 export type ColumnNameRefusal = "empty" | "duplicate" | "unchanged"
+/** Why a column change was not made, with the sentence that tells the reader. */
+export type ColumnChangeFailure = "rowChanges" | "columnsUnknown" | "failed"
 /**
- * Why a column edit waits for a save. Renames stay simple until the next save: a column is
- * renamed at most once, a column added in this session is not renamed, and the old and new
- * names of a pending rename are not used again. The save state supports only these cases.
+ * The result of a column change. On a saved test set the change is saved at once as a new
+ * version, and `revisionId` is that version, for the page to open. On a new test set nothing is
+ * saved yet and `revisionId` is null.
  */
-export type ColumnEditUntilSave = "renamed" | "added" | "pendingRenameName"
 export type ColumnEdit =
-    | {ok: true}
+    | {ok: true; revisionId: string | null}
     | {ok: false; reason: ColumnNameRefusal}
-    | {ok: false; reason: ColumnEditUntilSave; message: string}
+    | {ok: false; reason: ColumnChangeFailure; message: string}
 
-const RENAMED_MESSAGE = "Save first to rename this column again"
-const ADDED_MESSAGE =
-    "Save first to rename a new column, or delete it and add it again with the new name"
-const pendingRenameNameMessage = (name: string, rename: {oldKey: string; newKey: string}) =>
-    `The name "${name}" is part of the unsaved rename of "${rename.oldKey}" to "${rename.newKey}". Save first to use it.`
+const ROW_CHANGES_FIRST = "Save or discard your row changes first"
+const COLUMNS_UNKNOWN = "Could not check the column names. Try again."
+
+type ColumnChange =
+    | {kind: "add"; columnKey: string}
+    | {kind: "rename"; oldKey: string; newKey: string}
+    | {kind: "remove"; columnKey: string}
+
+const columnSavedMessage = (change: ColumnChange) =>
+    change.kind === "add"
+        ? `Added column "${change.columnKey}" and saved a new version`
+        : change.kind === "rename"
+          ? `Renamed column "${change.oldKey}" to "${change.newKey}" and saved a new version`
+          : `Deleted column "${change.columnKey}" and saved a new version`
+
+/**
+ * Every column name in the saved revision. The table reads its columns from the first rows
+ * only, so a name used only by later rows is found here and nowhere else.
+ */
+const savedColumnKeys = async (projectId: string, revisionId: string): Promise<Set<string>> => {
+    const revision = await fetchRevisionWithTestcases({id: revisionId, projectId})
+    if (!revision) throw new Error("The revision was not found")
+    const ids = revision.data?.testcase_ids
+    const testcases = revision.data?.testcases ?? (ids?.length === 0 ? [] : null)
+    // Every row must be here: a missing row could hold the name being checked.
+    if (!Array.isArray(testcases) || (ids && ids.length !== testcases.length)) {
+        throw new Error("The revision did not return all its testcases")
+    }
+    const keys = new Set<string>()
+    for (const testcase of testcases) {
+        const data = (testcase as {data?: Record<string, unknown> | null}).data
+        if (data) for (const key of Object.keys(data)) keys.add(key)
+    }
+    return keys
+}
 
 /**
  * The edit session of one test set page, over the package state.
@@ -119,7 +151,6 @@ export function useTestsetEditor({
     }, [notFound, serverIds, setServerIds])
 
     const columns = useAtomValue(testcaseDataController.selectors.columns(tableConfig))
-    const pendingOps = useAtomValue(revisionMolecule.atoms.pendingColumnOps(routeId))
     const changesSummary = useAtomValue(changesSummaryAtom)
     const hasUnsavedChanges = useAtomValue(hasUnsavedChangesAtom)
 
@@ -131,13 +162,8 @@ export function useTestsetEditor({
     const discardRevisionDraft = useSetAtom(revisionMolecule.actions.discard)
     const saveSaved = useSetAtom(saveTestsetAtom)
     const saveNew = useSetAtom(saveNewTestsetAtom)
+    const store = useStore()
     const [isSaving, setIsSaving] = useState(false)
-
-    const knownColumnKeys = useCallback((): Set<string> => {
-        const keys = new Set(columns.map((column) => column.key))
-        for (const key of pendingOps.add) keys.add(key)
-        return keys
-    }, [columns, pendingOps.add])
 
     const addRow = useCallback(
         (): string | null => addRowAtom({data: {}})?.id ?? null,
@@ -151,80 +177,174 @@ export function useTestsetEditor({
         [deleteRowsAtom],
     )
 
-    /** The pending rename that uses `name` as its old or new name, if any. */
-    const renameUsingName = useCallback(
-        (name: string) =>
-            pendingOps.rename.find((rename) => rename.oldKey === name || rename.newKey === name),
-        [pendingOps.rename],
+    // A column change on a saved test set is saved at once, alone. Mixed with unsaved row edits
+    // in one commit, the server applies it to rows the page has not loaded and the row edits
+    // can bring back or drop values. So column changes wait until the rows are saved.
+    const columnEditBlocked = !isNew && hasUnsavedChanges ? ROW_CHANGES_FIRST : null
+
+    /**
+     * Rewrites the unsaved rows of a new test set for a column change. A new test set has no
+     * saved rows, so its rows hold every value and the change is made in them directly.
+     */
+    const rewriteNewRows = useCallback(
+        (rewrite: (data: Record<string, unknown>) => Record<string, unknown> | null) => {
+            for (const id of store.get(testcaseMolecule.newIds)) {
+                const data = store.get(testcaseMolecule.atoms.draft(id))?.data
+                const updates = data ? rewrite(data) : null
+                if (updates) store.set(testcaseMolecule.actions.update, id, {data: updates})
+            }
+        },
+        [store],
     )
 
-    /** Why the column cannot be renamed before the next save, or null when it can. */
-    const renameRefusal = useCallback(
-        (columnKey: string): ColumnEdit | null => {
-            if (pendingOps.add.includes(columnKey)) {
-                return {ok: false, reason: "added", message: ADDED_MESSAGE}
+    /** Makes the change on a new test set: in the column list and in every unsaved row. */
+    const changeNewColumns = useCallback(
+        (change: ColumnChange) => {
+            const ops = store.get(revisionMolecule.atoms.pendingColumnOps(routeId))
+            if (change.kind === "add") {
+                addColumnReducer({revisionId: routeId, columnKey: change.columnKey})
+                return
             }
-            if (pendingOps.rename.some((rename) => rename.newKey === columnKey)) {
-                return {ok: false, reason: "renamed", message: RENAMED_MESSAGE}
+            if (change.kind === "remove") {
+                removeColumnReducer({revisionId: routeId, columnKey: change.columnKey})
+                rewriteNewRows((data) =>
+                    change.columnKey in data ? {[change.columnKey]: undefined} : null,
+                )
+                return
             }
-            return null
+            const {oldKey, newKey} = change
+            if (ops.add.includes(oldKey)) {
+                renameColumnReducer({revisionId: routeId, oldKey, newKey})
+            } else {
+                addColumnReducer({revisionId: routeId, columnKey: newKey})
+            }
+            rewriteNewRows((data) =>
+                oldKey in data ? {[oldKey]: undefined, [newKey]: data[oldKey]} : null,
+            )
         },
-        [pendingOps.add, pendingOps.rename],
+        [
+            addColumnReducer,
+            removeColumnReducer,
+            renameColumnReducer,
+            rewriteNewRows,
+            routeId,
+            store,
+        ],
     )
 
-    /** The sentence that says why a rename is turned off for the column, or null. */
-    const renameBlocked = useCallback(
-        (columnKey: string): string | null => {
-            const refusal = renameRefusal(columnKey)
-            return refusal && "message" in refusal ? refusal.message : null
+    /**
+     * Saves one column change on a saved test set as a new version, with no row in it.
+     * A failure drops the change, so it is never sent later with row edits.
+     */
+    const saveColumnChange = useCallback(
+        async (change: ColumnChange): Promise<ColumnEdit> => {
+            if (!revisionId) return {ok: false, reason: "failed", message: SAVE_FAILED}
+            if (store.get(hasUnsavedChangesAtom)) {
+                return {ok: false, reason: "rowChanges", message: ROW_CHANGES_FIRST}
+            }
+            setIsSaving(true)
+            try {
+                if (change.kind !== "remove") {
+                    let saved: Set<string>
+                    try {
+                        saved = await savedColumnKeys(projectId, revisionId)
+                    } catch (cause) {
+                        console.error("Reading the test set columns failed", cause)
+                        return {ok: false, reason: "columnsUnknown", message: COLUMNS_UNKNOWN}
+                    }
+                    const name = change.kind === "add" ? change.columnKey : change.newKey
+                    if (saved.has(name)) return {ok: false, reason: "duplicate"}
+                }
+                // A row edit made while the names were read waits for its own save.
+                if (store.get(hasUnsavedChangesAtom)) {
+                    return {ok: false, reason: "rowChanges", message: ROW_CHANGES_FIRST}
+                }
+                if (change.kind === "add") {
+                    addColumnReducer({revisionId, columnKey: change.columnKey})
+                } else if (change.kind === "rename") {
+                    renameColumnReducer({revisionId, oldKey: change.oldKey, newKey: change.newKey})
+                } else {
+                    removeColumnReducer({revisionId, columnKey: change.columnKey})
+                }
+                const result = await saveSaved({
+                    projectId,
+                    testsetId: header?.testsetId ?? "",
+                    revisionId,
+                })
+                if (!result.success || !result.newRevisionId) {
+                    clearChanges()
+                    if (result.error) console.error("Saving the column change failed", result.error)
+                    message.error(SAVE_FAILED)
+                    return {ok: false, reason: "failed", message: SAVE_FAILED}
+                }
+                message.success(columnSavedMessage(change))
+                return {ok: true, revisionId: result.newRevisionId}
+            } catch (cause) {
+                clearChanges()
+                console.error("Saving the column change failed", cause)
+                message.error(SAVE_FAILED)
+                return {ok: false, reason: "failed", message: SAVE_FAILED}
+            } finally {
+                setIsSaving(false)
+            }
         },
-        [renameRefusal],
+        [
+            addColumnReducer,
+            clearChanges,
+            header?.testsetId,
+            projectId,
+            removeColumnReducer,
+            renameColumnReducer,
+            revisionId,
+            saveSaved,
+            store,
+        ],
     )
+
+    const applyColumnChange = useCallback(
+        async (change: ColumnChange): Promise<ColumnEdit> => {
+            if (isNew) {
+                changeNewColumns(change)
+                return {ok: true, revisionId: null}
+            }
+            return saveColumnChange(change)
+        },
+        [changeNewColumns, isNew, saveColumnChange],
+    )
+
+    /** The column names the page knows without a request: the loaded rows and new columns. */
+    const loadedColumnKeys = useCallback((): Set<string> => {
+        const keys = new Set(columns.map((column) => column.key))
+        for (const key of store.get(revisionMolecule.atoms.pendingColumnOps(routeId)).add) {
+            keys.add(key)
+        }
+        return keys
+    }, [columns, routeId, store])
 
     const addColumn = useCallback(
-        (name: string): ColumnEdit => {
+        async (name: string): Promise<ColumnEdit> => {
             const columnKey = name.trim()
             if (!columnKey) return {ok: false, reason: "empty"}
-            if (knownColumnKeys().has(columnKey)) return {ok: false, reason: "duplicate"}
-            const rename = renameUsingName(columnKey)
-            if (rename) {
-                return {
-                    ok: false,
-                    reason: "pendingRenameName",
-                    message: pendingRenameNameMessage(columnKey, rename),
-                }
-            }
-            addColumnReducer({revisionId: routeId, columnKey})
-            return {ok: true}
+            if (loadedColumnKeys().has(columnKey)) return {ok: false, reason: "duplicate"}
+            return applyColumnChange({kind: "add", columnKey})
         },
-        [addColumnReducer, knownColumnKeys, renameUsingName, routeId],
+        [applyColumnChange, loadedColumnKeys],
     )
 
     const renameColumn = useCallback(
-        (oldKey: string, name: string): ColumnEdit => {
-            const blocked = renameRefusal(oldKey)
-            if (blocked) return blocked
+        async (oldKey: string, name: string): Promise<ColumnEdit> => {
             const newKey = name.trim()
             if (!newKey) return {ok: false, reason: "empty"}
             if (newKey === oldKey) return {ok: false, reason: "unchanged"}
-            if (knownColumnKeys().has(newKey)) return {ok: false, reason: "duplicate"}
-            const rename = renameUsingName(newKey)
-            if (rename) {
-                return {
-                    ok: false,
-                    reason: "pendingRenameName",
-                    message: pendingRenameNameMessage(newKey, rename),
-                }
-            }
-            renameColumnReducer({revisionId: routeId, oldKey, newKey})
-            return {ok: true}
+            if (loadedColumnKeys().has(newKey)) return {ok: false, reason: "duplicate"}
+            return applyColumnChange({kind: "rename", oldKey, newKey})
         },
-        [knownColumnKeys, renameColumnReducer, renameRefusal, renameUsingName, routeId],
+        [applyColumnChange, loadedColumnKeys],
     )
 
     const deleteColumn = useCallback(
-        (columnKey: string) => removeColumnReducer({revisionId: routeId, columnKey}),
-        [removeColumnReducer, routeId],
+        (columnKey: string): Promise<ColumnEdit> => applyColumnChange({kind: "remove", columnKey}),
+        [applyColumnChange],
     )
 
     /** Drops every unsaved row, column and edit, and the draft of the revision itself. */
@@ -304,8 +424,8 @@ export function useTestsetEditor({
         deleteRows,
         addColumn,
         renameColumn,
-        renameBlocked,
         deleteColumn,
+        columnEditBlocked,
         discard,
         commit,
         isSaving,

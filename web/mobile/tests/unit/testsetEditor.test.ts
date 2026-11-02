@@ -109,26 +109,30 @@ describe("useTestsetEditor", () => {
         expect(editor().header).toBeNull()
     })
 
-    it("Add column refuses an empty name and a duplicate name", () => {
-        mount(REVISION)
+    it("Add column on a new test set refuses an empty name and a duplicate name", async () => {
+        mount("new", "Greeting checks")
 
-        expect(run(() => editor().addColumn("   "))).toEqual({ok: false, reason: "empty"})
-        expect(run(() => editor().addColumn(" country "))).toEqual({ok: true})
-        expect(run(() => editor().addColumn("country"))).toEqual({ok: false, reason: "duplicate"})
-        expect(store.get(revisionMolecule.atoms.pendingColumnOps(REVISION)).add).toEqual([
-            "country",
-        ])
-        expect(editor().hasUnsavedChanges).toBe(true)
+        expect(await act(() => editor().addColumn("   "))).toEqual({ok: false, reason: "empty"})
+        expect(await act(() => editor().addColumn(" country "))).toEqual({
+            ok: true,
+            revisionId: null,
+        })
+        expect(await act(() => editor().addColumn("country"))).toEqual({
+            ok: false,
+            reason: "duplicate",
+        })
+        expect(store.get(revisionMolecule.atoms.pendingColumnOps("new")).add).toEqual(["country"])
+        expect(saves.saved).not.toHaveBeenCalled()
     })
 
     it("Commit on a saved testset returns the new revision id", async () => {
         saves.saved.mockResolvedValue({success: true, newRevisionId: "rev-3"})
         mount(REVISION)
-        run(() => editor().addColumn("country"))
+        run(() => editor().addRow())
 
         let id: string | null = null
         await act(async () => {
-            id = await editor().commit("  Added a column ")
+            id = await editor().commit("  Added a row ")
         })
 
         expect(id).toBe("rev-3")
@@ -136,7 +140,7 @@ describe("useTestsetEditor", () => {
             projectId: "pr",
             testsetId: "set-1",
             revisionId: REVISION,
-            commitMessage: "Added a column",
+            commitMessage: "Added a row",
         })
     })
 
@@ -160,30 +164,40 @@ describe("useTestsetEditor", () => {
         expect(saves.saved).not.toHaveBeenCalled()
     })
 
-    it("Discard clears rows, columns and the revision draft", () => {
+    it("Discard clears rows and the revision draft", () => {
         mount(REVISION)
         const rowId = run(() => editor().addRow())
-        run(() => editor().addColumn("country"))
         act(() => {
             store.set(revisionMolecule.actions.update, REVISION, {message: "draft"})
         })
         expect(rowId?.startsWith("new-")).toBe(true)
         expect(editor().changesSummary.newTestcases).toBe(1)
+
+        act(() => editor().discard())
+
+        expect(editor().hasUnsavedChanges).toBe(false)
+        expect(store.get(testcaseMolecule.newIds)).toEqual([])
+        expect(store.get(revisionMolecule.atoms.draft(REVISION))).toBeNull()
+    })
+
+    it("Discard on a new test set clears its rows and columns", async () => {
+        mount("new", "Greeting checks")
+        run(() => editor().addRow())
+        await act(() => editor().addColumn("country"))
         expect(editor().changesSummary.addedColumns).toBe(1)
 
         act(() => editor().discard())
 
         expect(editor().hasUnsavedChanges).toBe(false)
         expect(store.get(testcaseMolecule.newIds)).toEqual([])
-        expect(store.get(revisionMolecule.atoms.pendingColumnOps(REVISION)).add).toEqual([])
-        expect(store.get(revisionMolecule.atoms.draft(REVISION))).toBeNull()
+        expect(store.get(revisionMolecule.atoms.pendingColumnOps("new")).add).toEqual([])
     })
 
     it("A failed commit keeps the changes and returns no id", async () => {
         saves.saved.mockResolvedValue({success: false, error: new Error("boom")})
         const errors = vi.spyOn(console, "error").mockImplementation(() => undefined)
         mount(REVISION)
-        run(() => editor().addColumn("country"))
+        run(() => editor().addRow())
 
         let id: string | null = "unset"
         await act(async () => {

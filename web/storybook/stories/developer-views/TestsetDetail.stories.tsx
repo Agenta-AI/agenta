@@ -3,6 +3,11 @@ import {useState} from "react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {expect, fn, userEvent, within} from "storybook/test"
 
+import {
+    AddColumnButton,
+    ColumnDialog,
+    type ColumnDialogStep,
+} from "../../../mobile/src/features/testsets/detail/ColumnDialogs"
 import {CommitTestsetDialog} from "../../../mobile/src/features/testsets/detail/CommitTestsetDialog"
 import {LeavePrompt} from "../../../mobile/src/features/testsets/detail/LeavePrompt"
 import {
@@ -163,4 +168,63 @@ export const LeavePromptSaved: Story = {
 export const LeavePromptNew: Story = {
     args: base,
     render: () => <LeavePromptStory isNew />,
+}
+
+const ColumnDialogStory = ({
+    step,
+    savesVersion,
+}: {
+    step: ColumnDialogStep
+    savesVersion: boolean
+}) => {
+    const [open, setOpen] = useState(true)
+    return (
+        <ColumnDialog
+            step={open ? step : null}
+            savesVersion={savesVersion}
+            onClose={() => setOpen(false)}
+            onSubmit={async (name) =>
+                name === "question"
+                    ? {ok: false, reason: "duplicate"}
+                    : {ok: true, revisionId: null}
+            }
+            onDone={() => setOpen(false)}
+        />
+    )
+}
+
+export const ColumnAddSaved: Story = {
+    args: base,
+    render: () => <ColumnDialogStory step={{kind: "add"}} savesVersion />,
+}
+
+export const ColumnRenameSaved: Story = {
+    args: base,
+    render: () => <ColumnDialogStory step={{kind: "rename", columnKey: "answer"}} savesVersion />,
+}
+
+export const ColumnDeleteSaved: Story = {
+    args: base,
+    render: () => <ColumnDialogStory step={{kind: "delete", columnKey: "answer"}} savesVersion />,
+}
+
+export const ColumnRenameNewTestset: Story = {
+    args: base,
+    render: () => (
+        <ColumnDialogStory step={{kind: "rename", columnKey: "answer"}} savesVersion={false} />
+    ),
+}
+
+export const ColumnActionsBlocked: Story = {
+    args: base,
+    render: () => (
+        <AddColumnButton blockedReason="Save or discard your row changes first" onClick={noop} />
+    ),
+    play: async ({canvasElement}) => {
+        const canvas = within(canvasElement)
+        await expect(canvas.getByRole("button", {name: "Add column"})).toBeDisabled()
+        await userEvent.hover(
+            canvas.getByRole("button", {name: "Add column"}).parentElement ?? canvasElement,
+        )
+    },
 }
