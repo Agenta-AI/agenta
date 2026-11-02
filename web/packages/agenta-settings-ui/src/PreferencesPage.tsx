@@ -95,10 +95,24 @@ export const usePreferenceBindings = (): Record<PreferenceKey, PreferenceBinding
     }
 }
 
+/**
+ * A row only one host shows, placed after the shared rows of a {@link PREFERENCE_SECTIONS}
+ * section. `/m` lists its developer views in preview this way; `/w` passes none.
+ */
+export interface HostPreferenceItem {
+    /** The `key` of the section it joins. */
+    section: string
+    key: string
+    title: string
+    description: string
+    binding: PreferenceBinding
+}
+
 export interface PreferencesPageProps {
     theme: ThemePickerProps
     /** Rows without a binding are not rendered; a section left empty is dropped. */
     bindings?: PreferenceBindings
+    hostItems?: readonly HostPreferenceItem[]
 }
 
 /**
@@ -107,17 +121,22 @@ export interface PreferencesPageProps {
  * Theme is a per-viewer choice both apps show the same way; the switches share storage across
  * apps, so a choice made in `/m` holds on the desktop and the other way round.
  */
-export const PreferencesPage = ({theme, bindings = {}}: PreferencesPageProps) => (
+export const PreferencesPage = ({theme, bindings = {}, hostItems = []}: PreferencesPageProps) => (
     <div className="flex flex-col gap-8">
         <SettingsSection title="Appearance" framed={false}>
             <ThemePicker {...theme} />
         </SettingsSection>
 
         {PREFERENCE_SECTIONS.map((section) => {
-            const rows = section.items.flatMap((item) => {
-                const binding = bindings[item.key]
-                return binding ? [{item, binding}] : []
-            })
+            const rows = [
+                ...section.items.flatMap((item) => {
+                    const binding = bindings[item.key]
+                    return binding ? [{item, binding}] : []
+                }),
+                ...hostItems
+                    .filter((item) => item.section === section.key)
+                    .map((item) => ({item, binding: item.binding})),
+            ]
             if (rows.length === 0) return null
             return (
                 <SettingsSection

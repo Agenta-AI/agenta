@@ -10,6 +10,7 @@ export {
     PREFERENCE_SECTIONS,
     usePreferenceBindings,
     type PreferencesPageProps,
+    type HostPreferenceItem,
     type PreferenceBinding,
     type PreferenceBindings,
     type PreferenceItem,
