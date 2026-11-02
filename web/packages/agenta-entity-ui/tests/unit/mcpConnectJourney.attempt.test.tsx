@@ -23,18 +23,24 @@ const {
     deleteMcpEndpoint,
     editMcpEndpoint,
     beginMcpConnect,
+    cancelMcpConnectAttempt,
     discoverMcpConnect,
+    fetchMcpConnectAttempt,
     listMcpTools,
     queryMcpEndpoints,
+    recordMcpEndpointCheck,
 } = vi.hoisted(() => ({
     probeMcpUrl: vi.fn(),
     createMcpEndpoint: vi.fn(),
     deleteMcpEndpoint: vi.fn(),
     editMcpEndpoint: vi.fn(),
     beginMcpConnect: vi.fn(),
+    cancelMcpConnectAttempt: vi.fn(),
     discoverMcpConnect: vi.fn(),
+    fetchMcpConnectAttempt: vi.fn(),
     listMcpTools: vi.fn(),
     queryMcpEndpoints: vi.fn(),
+    recordMcpEndpointCheck: vi.fn(),
 }))
 
 vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOriginal) => ({
@@ -44,17 +50,23 @@ vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOrigina
     deleteMcpEndpoint,
     editMcpEndpoint,
     beginMcpConnect,
+    cancelMcpConnectAttempt,
     discoverMcpConnect,
+    fetchMcpConnectAttempt,
     listMcpTools,
     queryMcpEndpoints,
+    recordMcpEndpointCheck,
 }))
 
 vi.mock("@agenta/shared/api", () => ({getAgentaApiUrl: () => "https://api.example.test/api"}))
 
+// The hook's only setter is the endpoint list refresh.
+const refreshEndpoints = vi.hoisted(() => vi.fn(async () => undefined))
+
 vi.mock("jotai", async (importOriginal) => ({
     ...(await importOriginal<typeof import("jotai")>()),
     useAtomValue: () => "project-1",
-    useSetAtom: () => async () => undefined,
+    useSetAtom: () => refreshEndpoints,
 }))
 
 type Journey = ReturnType<typeof useMcpConnectJourney>
@@ -63,9 +75,9 @@ let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>
 let journey: Journey
 
-const mountJourney = async () => {
+const mountJourney = async (options: Parameters<typeof useMcpConnectJourney>[0] = {}) => {
     const Probe = () => {
-        journey = useMcpConnectJourney({})
+        journey = useMcpConnectJourney(options)
         return null
     }
     await act(async () => {
@@ -105,7 +117,13 @@ beforeEach(() => {
         endpoint: {id: "mcp-1", slug: "acme-7mx", name: "Acme", auth_mode: "oauth"},
     })
     deleteMcpEndpoint.mockResolvedValue(undefined)
-    beginMcpConnect.mockResolvedValue({count: 1, redirect_url: "https://issuer.test/authorize"})
+    beginMcpConnect.mockResolvedValue({
+        count: 1,
+        redirect_url: "https://issuer.test/authorize",
+        attempt_id: "attempt-1",
+        expires_in: 600,
+    })
+    cancelMcpConnectAttempt.mockResolvedValue(undefined)
     discoverMcpConnect.mockResolvedValue({count: 1, scopes_offered: ["tools:list"]})
     queryMcpEndpoints.mockResolvedValue({count: 0, endpoints: []})
     host = document.createElement("div")
@@ -523,7 +541,7 @@ describe("leaving one address for another", () => {
         await act(async () => journey.setUrl("https://mcp.elsewhere.test/"))
         await settle()
 
-        expect(deleteMcpEndpoint).toHaveBeenCalledWith("mcp-1", "project-1")
+        expect(deleteMcpEndpoint).toHaveBeenCalledWith("mcp-1", "project-1", "oauth")
         expect(journey.state.endpointId).toBeNull()
 
         createMcpEndpoint.mockResolvedValue({
@@ -615,6 +633,173 @@ describe("a step that comes back to an abandoned attempt", () => {
         // A failure is no more welcome than a success on a dead attempt: it would put an error
         // under a dialog the person has already left.
         expect(journey.state.status).toBe("checking_url")
+    })
+})
+
+describe("the server-side consent attempt", () => {
+    const reachConsent = async (popup: Window | null) => {
+        await mountJourney()
+        await act(async () => journey.setUrl("https://mcp.acme.test/"))
+        await act(async () => {
+            await journey.submitUrl("https://mcp.acme.test/")
+        })
+        await act(async () => journey.setName("Acme"))
+        await act(async () => {
+            await journey.submitName()
+        })
+        await settle()
+        await act(async () => {
+            await journey.submitScopes(popup)
+        })
+    }
+
+    it("cancels the attempt on the server when the person cancels the consent", async () => {
+        await reachConsent(fakePopup())
+
+        await act(async () => journey.cancelConsent())
+
+        // Otherwise a late callback still exchanges its code and binds the grant.
+        expect(cancelMcpConnectAttempt).toHaveBeenCalledWith("mcp-1", "attempt-1", "project-1")
+    })
+
+    it("cancels the attempt when the whole journey is cancelled", async () => {
+        await reachConsent(fakePopup())
+
+        await act(async () => {
+            await journey.cancel()
+        })
+
+        expect(cancelMcpConnectAttempt).toHaveBeenCalledWith("mcp-1", "attempt-1", "project-1")
+    })
+
+    it("lets the server keep a pending row that another tab took over", async () => {
+        // Another tab reconnected the row with a key while this sheet waited. Which row goes
+        // is decided under the connection's lock, so the delete names the mode this sheet
+        // made the row in, and the server's refusal ends the cancel quietly.
+        await reachConsent(fakePopup())
+        deleteMcpEndpoint.mockRejectedValueOnce({response: {status: 409}})
+
+        await act(async () => {
+            await journey.cancel()
+        })
+
+        expect(deleteMcpEndpoint).toHaveBeenCalledWith("mcp-1", "project-1", "oauth")
+        expect(cancelMcpConnectAttempt).toHaveBeenCalledWith("mcp-1", "attempt-1", "project-1")
+    })
+
+    it("refreshes the list after a refused delete, so the kept row shows without a reload", async () => {
+        await reachConsent(fakePopup())
+        refreshEndpoints.mockClear()
+        deleteMcpEndpoint.mockRejectedValueOnce({response: {status: 409}})
+
+        await act(async () => {
+            await journey.cancel()
+        })
+
+        expect(refreshEndpoints).toHaveBeenCalledTimes(1)
+    })
+
+    it("cancels its own attempt before it asks to delete the pending row", async () => {
+        // The server keeps a row while any sign-in is in flight on it, so another tab's
+        // sign-in survives this cancel. This sheet's own attempt must be gone by then.
+        await reachConsent(fakePopup())
+        const order: string[] = []
+        cancelMcpConnectAttempt.mockImplementationOnce(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 10))
+            order.push("attempt cancelled")
+        })
+        deleteMcpEndpoint.mockImplementationOnce(async () => {
+            order.push("delete row")
+        })
+
+        await act(async () => {
+            await journey.cancel()
+        })
+
+        expect(order).toEqual(["attempt cancelled", "delete row"])
+    })
+
+    it("cancels the last attempt when a new window replaces it", async () => {
+        await reachConsent(fakePopup())
+        await act(async () => journey.cancelConsent())
+        cancelMcpConnectAttempt.mockClear()
+        beginMcpConnect.mockResolvedValueOnce({
+            count: 1,
+            redirect_url: "https://issuer.test/authorize",
+            attempt_id: "attempt-2",
+            expires_in: 600,
+        })
+
+        await act(async () => {
+            await journey.submitScopes(fakePopup())
+        })
+        await act(async () => journey.cancelConsent())
+
+        expect(cancelMcpConnectAttempt).toHaveBeenCalledTimes(1)
+        expect(cancelMcpConnectAttempt).toHaveBeenCalledWith("mcp-1", "attempt-2", "project-1")
+    })
+
+    it("cancels nothing once the attempt succeeded", async () => {
+        const listeners = vi.spyOn(window, "addEventListener")
+        await reachConsent(fakePopup())
+        const handler = listeners.mock.calls.find(([type]) => type === "message")?.[1] as (
+            event: MessageEvent,
+        ) => void
+        await act(async () => {
+            handler({
+                data: {type: "mcp:oauth:connected", success: true, attempt_id: "attempt-1"},
+                origin: "https://api.example.test",
+            } as MessageEvent)
+        })
+
+        await act(async () => journey.abandonAttempt())
+
+        expect(cancelMcpConnectAttempt).not.toHaveBeenCalled()
+        listeners.mockRestore()
+    })
+
+    it("checks a signed-in connection before it says connected, so its row says Checked", async () => {
+        const listeners = vi.spyOn(window, "addEventListener")
+        listMcpTools.mockResolvedValue([{name: "echo"}])
+        await reachConsent(fakePopup())
+        const handler = listeners.mock.calls.find(([type]) => type === "message")?.[1] as (
+            event: MessageEvent,
+        ) => void
+        await act(async () => {
+            handler({
+                data: {type: "mcp:oauth:connected", success: true, attempt_id: "attempt-1"},
+                origin: "https://api.example.test",
+            } as MessageEvent)
+        })
+        await act(async () => {
+            await journey.finish()
+        })
+
+        expect(listMcpTools).toHaveBeenCalledWith("acme-7mx", "project-1")
+        expect(recordMcpEndpointCheck).toHaveBeenCalledWith("mcp-1", {ok: true}, "project-1")
+        expect(journey.state.status).toBe("connected")
+        listeners.mockRestore()
+    })
+
+    it("asks the server how the attempt ended when the window closes without a message", async () => {
+        vi.useFakeTimers({toFake: ["setInterval", "clearInterval"]})
+        fetchMcpConnectAttempt.mockResolvedValue({
+            count: 1,
+            attempt: {id: "attempt-1", status: "failed", error: "User declined"},
+        })
+        const popup = {closed: false, close: vi.fn(), location: {href: ""}}
+        await reachConsent(popup as never)
+
+        popup.closed = true
+        await act(async () => {
+            vi.advanceTimersByTime(1_000)
+        })
+        await settle()
+
+        expect(fetchMcpConnectAttempt).toHaveBeenCalledWith("mcp-1", "attempt-1", "project-1")
+        // The provider's words, not "window closed".
+        expect(journey.state.error).toBe("User declined")
+        vi.useRealTimers()
     })
 })
 
@@ -755,7 +940,12 @@ describe("the popup contract", () => {
         ) => void
         await act(async () => {
             handler({
-                data: {type: "mcp:oauth:connected", success: true, endpoint_id: "mcp-1"},
+                data: {
+                    type: "mcp:oauth:connected",
+                    success: true,
+                    endpoint_id: "mcp-1",
+                    attempt_id: "attempt-1",
+                },
                 origin: "https://evil.test",
             } as MessageEvent)
         })
@@ -763,7 +953,12 @@ describe("the popup contract", () => {
 
         await act(async () => {
             handler({
-                data: {type: "mcp:oauth:connected", success: true, endpoint_id: "mcp-1"},
+                data: {
+                    type: "mcp:oauth:connected",
+                    success: true,
+                    endpoint_id: "mcp-1",
+                    attempt_id: "attempt-1",
+                },
                 origin: "https://api.example.test",
             } as MessageEvent)
         })
@@ -774,8 +969,7 @@ describe("the popup contract", () => {
 describe("the URL check has an end", () => {
     it("gives up on a server that never answers, and keeps the address", async () => {
         // The check is the first thing anyone does here, and a spinner with no end is
-        // indistinguishable from a broken dialog. The probe's own deadline is twice this
-        // one, so without a client bound the wait is twenty seconds of nothing.
+        // indistinguishable from a broken dialog.
         //
         // The clock is faked only across the wait itself, and only `setTimeout`: React
         // flushes its own work on the same timers, so a test that fakes them around its
@@ -804,6 +998,92 @@ describe("the URL check has an end", () => {
         // Nothing was learned, so nothing is claimed: the failure screen falls back to the
         // unreachable wording rather than reading a cause it does not have.
         expect(journey.state.probe).toBeNull()
+    })
+})
+
+describe("an address that answered with something other than a handshake", () => {
+    it("stops at the address rather than asking for a key", async () => {
+        // The address was reached, so `reachable` is true. Routing on that alone sent a
+        // 404 or a redirect to the key screen, asking for a credential no server would use.
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {
+                reachable: true,
+                auth: {mode: "unknown"},
+                problem: {
+                    cause: "not_an_mcp_server",
+                    message: "The address answered, but not with an MCP handshake (HTTP 404).",
+                    response: {status: 404, body: "<html>Not Found</html>"},
+                },
+            },
+        })
+
+        await mountJourney()
+        await act(async () => journey.setUrl("https://acme.test/"))
+        await act(async () => {
+            await journey.submitUrl("https://acme.test/")
+        })
+
+        expect(journey.state.status).toBe("check_failed")
+        expect(journey.state.error).toBe(
+            "The address answered, but not with an MCP handshake (HTTP 404).",
+        )
+        expect(journey.state.probe?.problem?.cause).toBe("not_an_mcp_server")
+        expect(createMcpEndpoint).not.toHaveBeenCalled()
+    })
+})
+
+describe("an address on the legacy SSE transport", () => {
+    it("stops at the address once the probe proved the transport", async () => {
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {
+                reachable: true,
+                auth: {mode: "unknown"},
+                problem: {
+                    cause: "unsupported_transport",
+                    message:
+                        "This address uses the older SSE transport, which Agenta does not support.",
+                    response: {status: 405, body: "Method Not Allowed"},
+                },
+            },
+        })
+
+        await mountJourney()
+        await act(async () => journey.setUrl("https://mcp.acme.test/events"))
+        await act(async () => {
+            await journey.submitUrl("https://mcp.acme.test/events")
+        })
+
+        expect(journey.state.status).toBe("check_failed")
+        expect(journey.state.probe?.problem?.cause).toBe("unsupported_transport")
+        expect(createMcpEndpoint).not.toHaveBeenCalled()
+    })
+
+    it("goes on to sign in where the address only suggests it", async () => {
+        // A Streamable HTTP server may live at an /sse address. A 401 there proves nothing,
+        // so the probe warns and the journey carries on to credential entry.
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {
+                reachable: true,
+                auth: {mode: "unknown", challenge_status: 401, challenge_schemes: ["Bearer"]},
+                legacy_transport_suspected: true,
+                problem: {
+                    cause: "auth_undiscoverable",
+                    message: "The server requires authorization.",
+                },
+            },
+        })
+
+        await mountJourney()
+        await act(async () => journey.setUrl("https://mcp.acme.test/sse"))
+        await act(async () => {
+            await journey.submitUrl("https://mcp.acme.test/sse")
+        })
+
+        expect(journey.state.status).not.toBe("check_failed")
+        expect(journey.state.probe?.legacy_transport_suspected).toBe(true)
     })
 })
 
@@ -846,7 +1126,10 @@ describe("a credential the server refused", () => {
         expect(journey.state.endpointId).toBe("mcp-1")
 
         await act(async () => {
-            await journey.submitManualCredential({headerName: "X-Api-Key", secretId: "wrong"})
+            await journey.submitManualCredential({
+                binding: {kind: "header", name: "X-Api-Key"},
+                secretId: "wrong",
+            })
         })
         await settle()
 
@@ -856,5 +1139,429 @@ describe("a credential the server refused", () => {
         // writing another credential onto the one that was refused.
         expect(journey.state.endpointId).toBeNull()
         expect(journey.state.createdHere).toBe(false)
+    })
+})
+
+describe("a pasted address that already carries the key", () => {
+    it("keeps the bound query parameter out of the stored row, on create and on edit", async () => {
+        // The relay adds the parameter at request time. Copying the pasted URL into the row
+        // kept the key in plain text in the endpoint's `base_url` (Codex review, PR 5).
+        const pasted = "https://mcp.exa.test/mcp?exaApiKey=test-key-one&debug=on"
+        const stored = "https://mcp.exa.test/mcp?debug=on"
+        const binding = {kind: "query" as const, name: "exaApiKey"}
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {reachable: true, server_name: "Exa", auth: {mode: "none"}},
+        })
+        editMcpEndpoint.mockResolvedValue({count: 1, endpoint: {id: "mcp-1", slug: "exa"}})
+        queryMcpEndpoints.mockResolvedValue({
+            count: 1,
+            endpoints: [
+                {
+                    id: "mcp-1",
+                    slug: "exa",
+                    name: "Exa",
+                    auth_mode: "api_key",
+                    data: {route: {base_url: stored}},
+                },
+            ],
+        })
+        listMcpTools.mockResolvedValue({tools: []})
+
+        await mountJourney()
+        await act(async () => journey.setUrl(pasted))
+        await act(async () => {
+            await journey.submitUrl(pasted)
+        })
+        await act(async () => journey.setName("Exa"))
+        await act(async () => journey.selectAuthMode("api_key"))
+        await act(async () => {
+            await journey.submitName(binding)
+        })
+        expect(createMcpEndpoint.mock.calls.at(-1)?.[0].data.route.base_url).toBe(stored)
+
+        await act(async () => {
+            await journey.submitManualCredential({binding, secretId: "sec-1"})
+        })
+        const route = editMcpEndpoint.mock.calls.at(-1)?.[0].data.route
+        expect(route.base_url).toBe(stored)
+        expect(route.credential_binding).toEqual({...binding, prefix: null})
+    })
+})
+
+describe("an address with {secret}", () => {
+    // Firecrawl takes the key as a path segment. The address does not exist without it, so
+    // it is checked with the chosen secret, named by its id, and never anonymously.
+    const firecrawl = "https://mcp.firecrawl.dev/{secret}/v2/mcp"
+    const binding = {kind: "url" as const}
+
+    const submitFirecrawl = async () => {
+        await mountJourney()
+        await act(async () => journey.setUrl(firecrawl))
+        await act(async () => {
+            await journey.submitUrl(firecrawl)
+        })
+    }
+
+    it("skips the anonymous check and asks for the key", async () => {
+        await submitFirecrawl()
+
+        expect(probeMcpUrl).not.toHaveBeenCalled()
+        expect(journey.state.status).toBe("naming")
+        expect(journey.state.authMode).toBe("api_key")
+    })
+
+    it("checks the address with the chosen secret, then stores it with the placeholder", async () => {
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {reachable: true, server_name: "Firecrawl", auth: {mode: "none"}},
+        })
+        await submitFirecrawl()
+        await act(async () => {
+            await journey.submitName(binding, "sec-1")
+        })
+
+        expect(probeMcpUrl).toHaveBeenCalledWith(firecrawl, "project-1", "sec-1", binding)
+        const route = createMcpEndpoint.mock.calls.at(-1)?.[0].data.route
+        expect(route).toEqual({base_url: firecrawl, credential_binding: binding})
+        expect(journey.state.status).toBe("manual_auth")
+    })
+
+    it("reads a server still asking for authorization as a refused key, and makes no row", async () => {
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {
+                reachable: true,
+                auth: {mode: "unknown", challenge_status: 401, challenge_schemes: []},
+                problem: {cause: "auth_undiscoverable", message: "requires authorization"},
+            },
+        })
+        await submitFirecrawl()
+        await act(async () => {
+            await journey.submitName(binding, "sec-1")
+        })
+
+        expect(createMcpEndpoint).not.toHaveBeenCalled()
+        expect(journey.state.status).toBe("verify_failed")
+        expect(journey.state.failureStatus).toBe(401)
+    })
+})
+
+describe("the authentication the person selects", () => {
+    // The probe found OAuth (the default stub). The person's choice is what the row is
+    // created in, and the probe is only where the choice started.
+    const probed = async () => {
+        await mountJourney()
+        await act(async () => journey.setUrl("https://api.githubcopilot.test/mcp"))
+        await act(async () => {
+            await journey.submitUrl("https://api.githubcopilot.test/mcp")
+        })
+        await act(async () => journey.setName("GitHub"))
+    }
+
+    it("creates the row with a key on a server whose probe found OAuth", async () => {
+        await probed()
+        expect(journey.state.authMode).toBe("oauth")
+
+        await act(async () => journey.selectAuthMode("api_key"))
+        await act(async () => {
+            await journey.submitName()
+        })
+
+        expect(createMcpEndpoint).toHaveBeenCalledWith(
+            expect.objectContaining({auth_mode: "api_key"}),
+            "project-1",
+        )
+        expect(journey.state.status).toBe("manual_auth")
+        expect(journey.expectsConsent).toBe(false)
+        expect(discoverMcpConnect).not.toHaveBeenCalled()
+    })
+
+    it("deletes the pending row made in the old mode", async () => {
+        await probed()
+        await act(async () => {
+            await journey.submitName()
+        })
+        expect(createMcpEndpoint).toHaveBeenCalledWith(
+            expect.objectContaining({auth_mode: "oauth"}),
+            "project-1",
+        )
+
+        await act(async () => journey.selectAuthMode("none"))
+        await settle()
+
+        expect(deleteMcpEndpoint).toHaveBeenCalledWith("mcp-1", "project-1", "oauth")
+        expect(journey.state.status).toBe("naming")
+        expect(journey.state.endpointId).toBeNull()
+    })
+
+    it("switches a saved connection on its own row, keeping its tools and its secret", async () => {
+        // The detail panel reaches this through Reconnect. The row's id, slug and tool filter
+        // stay, and the vault secret is let go rather than deleted.
+        const stored = {
+            id: "mcp-9",
+            slug: "github",
+            name: "GitHub",
+            auth_mode: "oauth",
+            secret_id: "grant-1",
+            data: {
+                route: {base_url: "https://api.githubcopilot.test/mcp"},
+                tools: {allowlist: ["search"]},
+            },
+            flags: {is_valid: true},
+        }
+        queryMcpEndpoints.mockResolvedValue({count: 1, endpoints: [stored]})
+        editMcpEndpoint.mockResolvedValue({count: 1, endpoint: stored})
+
+        await mountJourney({
+            reconnect: {
+                id: "mcp-9",
+                slug: "github",
+                name: "GitHub",
+                url: "https://api.githubcopilot.test/mcp",
+                authMode: "oauth",
+            },
+        })
+        // The saved address publishes OAuth, so None is checked: asked without a key, the
+        // server answers.
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {reachable: true, server_name: "GitHub", auth: {mode: "none"}},
+        })
+        await act(async () => journey.selectAuthMode("none"))
+        expect(journey.state.status).toBe("manual_auth")
+        await act(async () => {
+            await journey.skipAuthentication()
+        })
+
+        // No secret and no binding: the check asks for a handshake without a key.
+        expect(probeMcpUrl).toHaveBeenLastCalledWith(
+            "https://api.githubcopilot.test/mcp",
+            "project-1",
+            undefined,
+            undefined,
+        )
+        expect(editMcpEndpoint).toHaveBeenCalledWith(
+            {...stored, auth_mode: "none", secret_id: null},
+            "project-1",
+        )
+        expect(deleteMcpEndpoint).not.toHaveBeenCalled()
+        expect(journey.state.status).toBe("saving")
+    })
+
+    it("writes nothing when the sheet closes while the saved row is being read", async () => {
+        const read = deferred<unknown>()
+        queryMcpEndpoints.mockReturnValue(read.promise)
+
+        await mountJourney({
+            reconnect: {
+                id: "mcp-9",
+                slug: "github",
+                name: "GitHub",
+                url: "https://api.githubcopilot.test/mcp",
+                authMode: "api_key",
+            },
+        })
+        await act(async () => journey.selectAuthMode("none"))
+        let skipped: Promise<void> = Promise.resolve()
+        await act(async () => {
+            skipped = journey.skipAuthentication()
+        })
+        await act(async () => {
+            await journey.cancel()
+        })
+        await act(async () => {
+            read.release({
+                count: 1,
+                endpoints: [
+                    {
+                        id: "mcp-9",
+                        slug: "github",
+                        auth_mode: "api_key",
+                        secret_id: "key-1",
+                        data: {route: {base_url: "https://api.githubcopilot.test/mcp"}},
+                    },
+                ],
+            })
+            await skipped
+        })
+
+        expect(editMcpEndpoint).not.toHaveBeenCalled()
+        expect(listMcpTools).not.toHaveBeenCalled()
+    })
+})
+
+describe("None chosen over what the server suggested", () => {
+    const refused = Object.assign(new Error("Request failed with status code 401"), {
+        response: {status: 401, data: {detail: "The server requires authorization."}},
+    })
+
+    it("asks the server before success, and keeps the sheet open on its refusal", async () => {
+        // The probe found OAuth. Choosing None is a claim only the server can confirm.
+        listMcpTools.mockRejectedValue(refused)
+        await mountJourney()
+        await act(async () => journey.setUrl("https://mcp.acme.test/"))
+        await act(async () => {
+            await journey.submitUrl("https://mcp.acme.test/")
+        })
+        await act(async () => journey.setName("Acme"))
+        await act(async () => journey.selectAuthMode("none"))
+        await act(async () => {
+            await journey.submitName()
+        })
+        await settle()
+
+        expect(createMcpEndpoint).toHaveBeenCalledWith(
+            expect.objectContaining({auth_mode: "none"}),
+            "project-1",
+        )
+        expect(listMcpTools).toHaveBeenCalledWith("acme-7mx", "project-1")
+        expect(journey.state.status).toBe("verify_failed")
+        expect(journey.state.failureStatus).toBe(401)
+        // The pending row made for a connection that does not work goes with the refusal.
+        expect(deleteMcpEndpoint).toHaveBeenCalledWith("mcp-1", "project-1")
+    })
+
+    it("needs no second asking where the probe found no sign-in", async () => {
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {reachable: true, server_name: "Acme", auth: {mode: "none", scopes_offered: []}},
+        })
+        await mountJourney()
+        await act(async () => journey.setUrl("https://mcp.acme.test/"))
+        await act(async () => {
+            await journey.submitUrl("https://mcp.acme.test/")
+        })
+        await act(async () => journey.setName("Acme"))
+        await act(async () => {
+            await journey.submitName()
+        })
+
+        expect(listMcpTools).not.toHaveBeenCalled()
+        expect(journey.state.status).toBe("saving")
+    })
+})
+
+describe("the OAuth app the person entered", () => {
+    const connectWith = async (client?: {
+        clientId?: string
+        clientSecretId?: string | null
+        authMethod?: "client_secret_basic" | "client_secret_post" | "none"
+    }) => {
+        await mountJourney()
+        await act(async () => journey.setUrl("https://mcp.acme.test/"))
+        await act(async () => {
+            await journey.submitUrl("https://mcp.acme.test/")
+        })
+        await act(async () => journey.setName("Acme"))
+        if (client) await act(async () => journey.setOauthClient(client))
+        await act(async () => {
+            await journey.submitName()
+        })
+        await settle()
+        await act(async () => {
+            await journey.submitScopes(fakePopup())
+        })
+    }
+
+    it("goes with the row's first write, before the provider is asked", async () => {
+        await connectWith({clientId: "app-from-github", clientSecretId: "secret-1"})
+
+        expect(createMcpEndpoint).toHaveBeenCalledWith(
+            expect.objectContaining({
+                data: expect.objectContaining({
+                    oauth_config: {
+                        client_id: "app-from-github",
+                        client_secret_id: "secret-1",
+                        token_endpoint_auth_method: "client_secret_post",
+                        scopes: [],
+                    },
+                }),
+            }),
+            "project-1",
+        )
+        expect(beginMcpConnect).toHaveBeenCalledOnce()
+    })
+
+    it("writes nothing when the row already holds what is on screen", async () => {
+        // The probe and the discovery offer the same scopes, so the settings the create
+        // sent are the settings consent uses.
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {
+                reachable: true,
+                server_name: "Acme",
+                auth: {mode: "oauth", scopes_offered: ["tools:list"]},
+            },
+        })
+
+        await connectWith()
+
+        expect(createMcpEndpoint).toHaveBeenCalledWith(
+            expect.objectContaining({
+                data: expect.objectContaining({
+                    oauth_config: {
+                        client_id: null,
+                        client_secret_id: null,
+                        token_endpoint_auth_method: null,
+                        scopes: ["tools:list"],
+                    },
+                }),
+            }),
+            "project-1",
+        )
+        expect(queryMcpEndpoints).not.toHaveBeenCalled()
+        expect(editMcpEndpoint).not.toHaveBeenCalled()
+        expect(beginMcpConnect).toHaveBeenCalledOnce()
+    })
+
+    it("saves a Basic-authenticated app with its secret, and a changed secret again", async () => {
+        const row = {
+            id: "mcp-1",
+            slug: "acme-7mx",
+            name: "Acme",
+            auth_mode: "oauth",
+            data: {route: {base_url: "https://mcp.acme.test/"}},
+        }
+        queryMcpEndpoints.mockResolvedValue({count: 1, endpoints: [row]})
+        editMcpEndpoint.mockResolvedValue({count: 1, endpoint: row})
+
+        await connectWith({
+            clientId: "app-from-github",
+            clientSecretId: "secret-1",
+            authMethod: "client_secret_basic",
+        })
+        const saved = (config: Record<string, unknown>) =>
+            expect(editMcpEndpoint).toHaveBeenLastCalledWith(
+                expect.objectContaining({
+                    data: expect.objectContaining({oauth_config: config}),
+                }),
+                "project-1",
+            )
+        expect(createMcpEndpoint).toHaveBeenCalledWith(
+            expect.objectContaining({
+                data: expect.objectContaining({
+                    oauth_config: {
+                        client_id: "app-from-github",
+                        client_secret_id: "secret-1",
+                        token_endpoint_auth_method: "client_secret_basic",
+                        scopes: [],
+                    },
+                }),
+            }),
+            "project-1",
+        )
+        expect(editMcpEndpoint).not.toHaveBeenCalled()
+
+        await act(async () => journey.setOauthClient({clientSecretId: "secret-2"}))
+        await act(async () => {
+            await journey.submitScopes(fakePopup())
+        })
+        saved({
+            client_id: "app-from-github",
+            client_secret_id: "secret-2",
+            token_endpoint_auth_method: "client_secret_basic",
+            scopes: [],
+        })
     })
 })

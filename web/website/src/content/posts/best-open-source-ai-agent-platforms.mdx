@@ -1,0 +1,287 @@
+---
+title: "7 Best Open-Source AI Agent Platforms in 2026 (Compared)"
+slug: best-open-source-ai-agent-platforms
+date: 2026-10-23
+author: "Mahmoud Mabrouk"
+category: "Article"
+image: "/blog/best-open-source-ai-agent-platforms/hero.webp"
+imageAlt: "7 Best Open-Source AI Agent Platforms in 2026"
+description: "Compare the 7 best open-source and self-hosted AI agent platforms in 2026: Agenta, Dify, n8n, OpenHands, Langflow, LibreChat, and CrewAI across target users, licenses, sandboxes, and pricing."
+tags:
+  - AI Agents
+  - Open Source
+  - Self-Hosted AI
+  - AI Coworkers
+  - Developer Tools
+featured: false
+draft: false
+---
+
+The best open-source AI agent platforms in 2026 are **[Agenta](https://agenta.ai)**, **[Dify](https://dify.ai)**, **[n8n](https://n8n.io)**, **[OpenHands](https://openhands.dev)**, **[Langflow](https://langflow.org)**, **[LibreChat](https://librechat.ai)**, and **[CrewAI](https://crewai.com)**.
+
+Choosing the right platform comes down to three questions that generic GitHub roundups often gloss over:
+
+1. **Who on your team is actually going to build and use the agents?** Most open-source repositories are built exclusively for software engineers writing Python code ([CrewAI](https://github.com/crewAIInc/crewAI), [OpenHands](https://github.com/All-Hands-AI/OpenHands)) or technical builders wiring node-and-edge API graphs and JSON payloads ([Langflow](https://github.com/langflow-ai/langflow), [n8n](https://github.com/n8n-io/n8n), [Dify](https://github.com/langgenius/dify)). By contrast, an **[open-source AI coworker platform](https://agenta.ai)** like **Agenta** is designed so **entire teams, especially non-technical teammates in marketing, operations, customer support, sales, product, and agencies, can build their own customized agents and automate recurring work in plain language** without writing code or debugging flowcharts.
+2. **What kind of agent runtime are you deploying?** Agenta runs every agent on a real coding and execution harness ([Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview), [Codex](https://github.com/openai/codex), or [Pi](https://agenta.ai/docs/concepts/harnesses-and-models)) with its own isolated sandbox computer and browser, persistent shared agent files alongside temporary session files, reusable skills, 1,000+ integrations, and direct deployment to Slack, Telegram, WhatsApp, or [website embeds](https://agenta.ai/docs/guides/embed-an-agent). Visual studios like Dify, n8n, and Langflow execute directed node graphs; OpenHands runs developer containers for GitHub pull requests; LibreChat provides a self-hosted chat portal; and CrewAI is a Python SDK.
+3. **Is the license truly permissive open source or source-available?** Under the [Open Source Initiative (OSI) Open Source Definition](https://opensource.org/osd) (see [Choose a License](https://choosealicense.com/licenses/) for a comparison of permissive vs. restrictive terms), **Agenta**, **OpenHands**, **Langflow**, **LibreChat**, and **CrewAI** (core library) use the permissive **[MIT License](https://opensource.org/license/mit)**. **Dify** uses a [modified Apache 2.0 license](https://github.com/langgenius/dify/blob/main/LICENSE) that restricts multi-tenant commercial hosting and branding removal, while **n8n** uses the [fair-code](https://faircode.io/) [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md).
+
+| Platform                               | Primary Users & Builders                           | License & Stack                                                                                          | Sandbox, Harness & Memory                                                                                             | Cloud & Self-Hosted Pricing                                                                                                           |
+| :------------------------------------- | :------------------------------------------------- | :------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------ |
+| **[Agenta](https://agenta.ai)**        | Non-technical teams (marketing, ops, support) & IT | **[MIT License](https://opensource.org/license/mit)** (Docker Compose, Helm)                             | Claude Code, Codex & Pi harnesses; isolated sandbox computer + browser; persistent shared agent files + session files | Self-hosted Free forever; Cloud Hobby **$0**, Starter **$29/mo** (unlimited users), Business **$299/mo**                              |
+| **[Dify](https://dify.ai)**            | AI engineers & technical product builders          | **[Modified Apache 2.0](https://github.com/langgenius/dify/blob/main/LICENSE)** (Docker Compose, Helm)   | Workflow state variables, built-in vector RAG pipeline, sandboxed code node                                           | Self-hosted Community Free; Cloud Sandbox **$0**, Professional **$59/mo**, Team **$159/mo**                                           |
+| **[n8n](https://n8n.io)**              | Technical ops, RevOps & backend engineers          | **[Sustainable Use](https://github.com/n8n-io/n8n/blob/master/LICENSE.md)** fair-code (Docker, npm, K8s) | Execution payload state, memory sub-nodes, JS/Python code nodes                                                       | Self-hosted Community Free (internal use); Cloud Starter **EUR 20/mo**, Pro **EUR 50/mo**; Business **EUR 667/mo** (self-hosted only) |
+| **[OpenHands](https://openhands.dev)** | Software engineers & DevOps teams                  | **[MIT License](https://opensource.org/license/mit)** (Docker, Kubernetes)                               | Per-run Docker container runtime with bash shell, browser, and Git workspace                                          | Self-hosted Agent Canvas Free (BYOK); self-hosted Teams **$499/mo** (up to 10 users); Enterprise custom                               |
+| **[Langflow](https://langflow.org)**   | Python developers & AI engineers                   | **[MIT License](https://opensource.org/license/mit)** (Docker, uv, pip, K8s)                             | Flow state, vector store connectors, Python component execution                                                       | Self-hosted Free forever; free Langflow Cloud account; IBM Elite Support for Langflow (contact sales)                                 |
+| **[LibreChat](https://librechat.ai)**  | Employees chatting with LLMs (managed by IT)       | **[MIT License](https://opensource.org/license/mit)** (Docker Compose, Helm)                             | Conversation history, RAG file search, optional Code Interpreter API sandbox                                          | Self-hosted Free forever (bring your own API keys; optional paid Code Interpreter API)                                                |
+| **[CrewAI](https://crewai.com)**       | Python developers writing backend code             | **[MIT License](https://opensource.org/license/mit)** core (Python pip / uv)                             | Unified `Memory` API (LanceDB by default) + optional Docker code execution                                            | Open-source SDK Free; CrewAI AMP Cloud Basic **$0** (50 runs/mo), Enterprise custom                                                   |
+
+---
+
+## How Open-Source AI Agent Platforms Split by End User, Architecture, and License
+
+The phrase "open-source AI agent platform" gets applied to everything from a Python package with zero user interface to a full team workspace where non-developers automate daily operations. Before comparing individual repositories, it helps to look at **who can actually build and run agents in each tool**, how the underlying runtime works, and what the license allows.
+
+![How Open-Source AI Agent Platforms Split by Architecture](/blog/best-open-source-ai-agent-platforms/open-source-agent-platform-architectures.webp)
+
+### 1. Five Categories by End User and Architecture
+
+- **[Open-Source AI Coworker Platforms](https://agenta.ai) ([Agenta](https://agenta.ai)):** Built so **anyone on a team, especially non-developers in marketing, operations, support, sales, product, or agencies, can build customized agents and automate work in plain language** without depending on an engineering queue. Under the hood, every agent runs on a full execution harness ([Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview), [Codex](https://agenta.ai/docs/changelog/codex-harness), or [Pi](https://agenta.ai/docs/concepts/harnesses-and-models)) with its own computer and browser sandbox, reads and writes [persistent shared agent files](https://agenta.ai/docs/concepts/files-and-knowledge) across sessions alongside temporary session files, follows plain-language instructions and reusable skills, connects to 1,000+ apps and [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) servers, runs on schedules or event triggers, pauses for human approval on sensitive actions, and meets teammates in the web workspace, Slack, Telegram, WhatsApp, or an [embedded website widget](https://agenta.ai/docs/guides/embed-an-agent).
+- **Visual Workflow & LLM App Studios ([Dify](https://dify.ai), [n8n](https://n8n.io), [Langflow](https://langflow.org)):** Built around a visual node-and-edge canvas primarily for **AI engineers, technical ops builders, and developers**. You wire triggers, prompt blocks, retrieval steps, conditional routers, and JSON API calls into a directed graph. They work well when a technical builder wants to inspect a deterministic pipeline or expose a flow as an HTTP endpoint, but non-technical teammates often struggle to build or debug multi-step node graphs on their own.
+- **Autonomous Software Engineering Sandboxes ([OpenHands](https://openhands.dev)):** Purpose-built for **software developers** writing code, running test suites, inspecting terminal output, and opening pull requests on GitHub or GitLab inside a containerized development environment.
+- **Self-Hosted Multi-Model Chat Workspaces ([LibreChat](https://librechat.ai)):** Designed as a private, self-hosted alternative to ChatGPT Business where **IT teams** host a central chat portal and employees chat with multiple model providers and attach MCP tools, though without webhook triggers or shared agent file drives, and with only experimental scheduled runs.
+- **Code-First Multi-Agent Frameworks ([CrewAI](https://crewai.com)):** Python libraries strictly for **software engineers** who define agent roles, tasks, and handoff flows in code and build their own application UI, authentication, and hosting stack around them.
+
+### 2. Permissive Open Source vs. Source-Available Licensing
+
+When engineering, security, or legal teams audit a repository for self-hosting or product embedding, the difference between an [OSI-approved open-source license](https://opensource.org/osd) and a [source-available or fair-code license](https://faircode.io/) determines what you can legally run in production (see [GitHub's Choose a License guide](https://choosealicense.com/licenses/) for a breakdown of standard open-source licenses):
+
+- **[MIT License](https://opensource.org/license/mit) ([Agenta](https://github.com/Agenta-AI/agenta/blob/main/LICENSE), [OpenHands](https://github.com/All-Hands-AI/OpenHands/blob/main/LICENSE), [Langflow](https://github.com/langflow-ai/langflow/blob/main/LICENSE), [LibreChat](https://github.com/danny-avila/LibreChat/blob/main/LICENSE), [CrewAI core](https://github.com/crewAIInc/crewAI/blob/main/LICENSE)):** One of the most permissive OSI-approved open-source licenses. You can self-host internally, modify the source code, embed the platform inside commercial products, or run it across multiple organizations without multi-tenant or commercial restrictions.
+- **[Modified Apache 2.0 / Dify Open Source License](https://github.com/langgenius/dify/blob/main/LICENSE) ([Dify](https://github.com/langgenius/dify)):** While based on the standard [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0), Dify adds two commercial conditions that make it source-available rather than OSI-compliant open source: you cannot operate Dify as a multi-tenant commercial service for third parties without written authorization from LangGenius, and you cannot remove or alter the Dify logo or copyright notices in the console.
+- **[Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md) ([n8n](https://github.com/n8n-io/n8n)):** A [fair-code](https://faircode.io/) source-available license. You can self-host n8n for free for internal business operations using your own credentials, rapid prototyping, or non-commercial work, but you cannot host n8n for customers, charge users to access n8n workflows, or embed it into a commercial SaaS product without purchasing a commercial [n8n Embed](https://docs.n8n.io/deploy/host-n8n/deploy-as-an-oem-integration) license.
+
+---
+
+## The 7 Best Open-Source AI Agent Platforms in 2026
+
+### 1. Agenta: Best Open-Source AI Coworker Platform for Teams to Build Custom Agents and Automate Work
+
+![Agenta Open-Source AI Coworker and Agent Platform](/blog/best-open-source-ai-agent-platforms/agenta.webp)
+
+[Agenta](https://agenta.ai) ([`Agenta-AI/agenta`](https://github.com/Agenta-AI/agenta) on GitHub) is an **[open-source AI coworker platform](https://agenta.ai)** released under the permissive **[MIT License](https://opensource.org/license/mit)** (see also how it compares as an [open-source Claude Cowork alternative](/blog/open-source-claude-cowork-alternative)).
+
+The biggest difference between Agenta and other open-source agent projects is **who can use it to get work done**. Developer frameworks like CrewAI require a Python engineer for every change, and visual workflow tools like n8n, Dify, and Langflow require wiring API nodes, JSON schemas, and routers on a canvas. Agenta is built so **any team member, especially people who are not developers, can build their own customized agents and automate recurring workflows in plain language**. A marketer can create an SEO content coworker that researches keywords and opens pull requests; an operations or support lead can set up an agent that triages incoming requests, checks internal docs, and posts a daily digest in Slack; and engineering still gets full open-source control, execution traces, and self-hosting freedom.
+
+Instead of wiring brittle flowcharts, teammates configure and refine agents in natural conversation or directly in the workspace. Every agent runs on a battle-tested **[agent harness](https://agenta.ai/docs/concepts/harnesses-and-models)**, supporting **[Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview)**, **[Codex](https://github.com/openai/codex)** ([Agenta Codex harness](https://agenta.ai/docs/changelog/codex-harness)), and **[Pi](https://agenta.ai/docs/concepts/harnesses-and-models)** across models from Anthropic, OpenAI, Google, and custom gateways, and receives its own **isolated sandboxed computer and headless browser**. Rather than losing context after every chat turn or stuffing everything into a fragile prompt window, each agent has a **[two-tier file system](https://agenta.ai/docs/concepts/files-and-knowledge)**:
+
+- **Temporary session files:** A working desk for the task in front of you, such as a CSV uploaded for a single analysis, intermediate scripts, or scratch exports.
+- **Persistent shared agent files (AI Drive):** A durable folder shared across every session for that agent, holding brand guidelines, research reports, playbooks, and reference docs that carry institutional knowledge forward without bloating every prompt turn unless opened.
+
+#### Key Capabilities
+
+- **Built for non-technical and technical teammates alike:** Anyone can create or customize an agent by describing its role, goals, and standing memory in plain-language instructions, or simply asking the agent in chat to remember a preference, learn a new skill, or set up a schedule.
+- **Three first-class harnesses ([Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview), [Codex](https://agenta.ai/docs/changelog/codex-harness), and [Pi](https://agenta.ai/docs/concepts/harnesses-and-models)):** Choose the right agent loop and model for the job. Each run gets a real shell, file system, and headless [Playwright](https://playwright.dev/) browser to inspect pages, run scripts, generate charts or images, and build interactive workspace apps.
+- **1,000+ integrations and [MCP](https://modelcontextprotocol.io/) servers:** Connect agents in a couple of clicks to GitHub, Slack, Google Workspace, Notion, Linear, HubSpot, search engines, and custom **Model Context Protocol (MCP)** servers with shared team connections.
+- **Interactive, scheduled, and event-triggered automation:** Collaborate with agents live in chat, put recurring jobs on a cron schedule (with a visual schedule builder), or trigger agents automatically from external app and webhook events.
+- **Granular tool permissions and human approvals:** Set per-tool execution policies (`allow`, `ask`, or `deny`) so agents handle research, drafting, and sandbox work autonomously while pausing for a human click before sending external emails, posting to customer channels, or modifying production systems.
+- **Multi-surface publishing (Web, Slack, Telegram, WhatsApp, and Website Embed):** Teammates can work with agents in the shared Agenta web workspace, tag them in **Slack**, **Telegram**, or **WhatsApp**, or embed an agent directly into an external website, client portal, or internal dashboard via `Publish > Embed` ([Embed an Agent guide](https://agenta.ai/docs/guides/embed-an-agent)) with domain allowlists, custom branding, and per-user `visitorKey` and page context passing.
+- **Built-in observability, versioning, and evaluations:** Every run records full execution traces, tool calls, errors, and model spend insights ([Plans and Credits](https://agenta.ai/docs/administration/billing/plans-and-credits)), paired with versioned configuration history and side-by-side playground testing.
+
+#### Self-Hosting & Pricing
+
+- **Self-Hosted Open Source (Free forever, [MIT License](https://github.com/Agenta-AI/agenta/blob/main/LICENSE)):** Deploy the full studio, API, agent runner, and datastores on your own infrastructure via **[Docker Compose](https://docs.docker.com/compose/)** or **[Kubernetes Helm](https://helm.sh/)** ([Self-hosting overview](https://agenta.ai/docs/self-host/overview)). You can also install the Agenta self-hosting skill (`npx skills add Agenta-AI/agenta-skills`) so your coding agent walks you through setup. Self-hosted Agenta supports **unlimited users, projects, agents, schedules, and triggers**, with two sandbox execution modes: local container execution (which also lets you use your own Claude, Codex/ChatGPT, or Pi subscription) or isolated cloud sandboxes via **[Daytona](https://www.daytona.io/)** for multi-user deployments.
+- **[Agenta Cloud](https://agenta.ai/pricing):**
+  - **Hobby ($0 forever):** 500 bonus credits at signup, 75 free credits a day (on up to 10 days a month), 2 concurrent tasks, 1 project, and 2 team members.
+  - **Starter ($29/month):** 2,900 monthly credits plus 75 daily free credits, ability to buy extra credits ($10 per 1,000 credits), 20 concurrent tasks (up to 4 hours per task), unlimited projects, unlimited schedules and triggers, and **unlimited team members with no per-seat fee**.
+  - **Business ($299/month):** 32,000 monthly credits, 50 concurrent tasks (up to 11 hours per task), unlimited team members, SSO, role-based access control, SOC 2 Type II report, and priority support in a private Slack channel.
+  - **Enterprise (Custom):** Available for both Cloud and Self-Hosted deployments, adding audit logs, custom domains, custom data retention, deployment support, and custom SLAs.
+
+**Best for:** Business, marketing, operations, product, and engineering teams that want an MIT-licensed, self-hostable (or flat-rate cloud) [open-source AI coworker platform](https://agenta.ai) where non-developers and developers alike can build custom agents, automate recurring tasks, and deploy them across Slack, Telegram, WhatsApp, and website embeds.
+
+---
+
+### 2. Dify: Best Visual LLM Application Studio and RAG Workflow Builder
+
+![Dify Open-Source Visual LLM Application Studio](/blog/best-open-source-ai-agent-platforms/dify.webp)
+
+[Dify](https://dify.ai) ([`langgenius/dify`](https://github.com/langgenius/dify) on GitHub) is a widely deployed visual LLM application platform. It gives AI engineers and technical product builders a drag-and-drop canvas for assembling **Chatflows** (conversational apps) and **Workflows** (batch or API-triggered pipelines) alongside a built-in Retrieval-Augmented Generation (RAG) ingestion engine ([Dify documentation](https://docs.dify.ai/)).
+
+Where Agenta enables non-technical teammates to spin up autonomous coworkers with a sandboxed computer and shared file drive in plain language, Dify is structured as an engineering studio for wiring prompt nodes, knowledge base lookups, conditional branches, and HTTP tool calls into structured pipelines that can be published as web apps or REST APIs.
+
+#### Key Capabilities
+
+- **Visual workflow and chatflow canvas:** Connect LLM nodes, knowledge retrieval blocks, question classifiers, iteration loops, and sandboxed Python/JavaScript code blocks on a visual graph.
+- **Built-in RAG pipeline:** Extract, chunk, embed, and index PDFs, Notion pages, and web pages into vector databases (such as [Weaviate](https://weaviate.io/), [Qdrant](https://qdrant.tech/), Milvus, or pgvector) with hybrid search and reranking.
+- **Agent nodes and MCP support:** Configure function-calling or ReAct agent nodes inside a workflow with access to Dify plugins and external [MCP](https://modelcontextprotocol.io/) tools.
+- **Prompt IDE and backend-as-a-service APIs:** Test prompts across hundreds of models (OpenAI, Anthropic, local [Ollama](https://ollama.com/), vLLM) and expose any flow via REST API keys.
+
+#### License, Self-Hosting & Pricing
+
+- **License caveat:** Dify uses the **[Dify Open Source License](https://github.com/langgenius/dify/blob/main/LICENSE)**, which is [Apache 2.0](https://www.apache.org/licenses/LICENSE-2.0) modified with additional commercial restrictions. You may self-host Dify internally, but you **cannot** use the code to operate a multi-tenant environment for third parties without written authorization from LangGenius, and you cannot remove Dify branding or copyright notices in the console.
+- **Self-Hosting:** Free Community Edition deployed via [Docker Compose](https://docs.dify.ai/getting-started/install-self-hosted/docker-compose) or community Kubernetes Helm charts.
+- **[Dify Cloud Pricing](https://dify.ai/pricing):**
+  - **Sandbox:** Free (200 OpenAI message credits, 1 team member, 5 apps).
+  - **Professional:** **$59/workspace/month** (3 team members, 50 apps, 5,000 message credits).
+  - **Team:** **$159/workspace/month** (50 team members, 200 apps, 10,000 message credits).
+  - **Enterprise:** Custom pricing for multi-tenant, SSO, and branding removal licenses.
+
+**Best for:** Technical product and AI engineering teams building structured RAG pipelines and visual node-based LLM workflows for internal use who do not need permissive MIT multi-tenant licensing or a persistent sandbox computer per agent.
+
+---
+
+### 3. n8n: Best Self-Hosted Workflow Automation Platform with AI Agent Nodes
+
+![n8n Self-Hosted Workflow Automation and AI Agent Nodes](/blog/best-open-source-ai-agent-platforms/n8n.webp)
+
+[n8n](https://n8n.io) ([`n8n-io/n8n`](https://github.com/n8n-io/n8n) on GitHub) is a self-hostable workflow automation platform that bridges traditional deterministic SaaS integrations with [LangChain](https://www.langchain.com/)-powered [AI agent nodes](https://docs.n8n.io/advanced-ai/). It is built primarily for technical operations engineers, RevOps builders, and developers who are comfortable inspecting JSON payloads, configuring webhook schemas, and connecting 400+ business APIs in a step-by-step sequence.
+
+#### Key Capabilities
+
+- **400+ native integration nodes:** Trigger workflows from webhooks, cron schedules, form submissions, or app events, and transform JSON payloads between steps.
+- **AI Agent and sub-node architecture:** Attach an AI Agent node to a model provider, a memory sub-node (such as Redis, Postgres chat history, or window buffer), and tool sub-nodes on the same visual canvas.
+- **Inline JavaScript and Python steps:** Inspect JSON inputs and outputs between every node and write custom data transformation code when built-in connectors fall short.
+- **Self-hosted AI starter kit:** Ships a [Docker Compose starter kit](https://github.com/n8n-io/self-hosted-ai-starter-kit) that bundles n8n with local [Ollama](https://ollama.com/), [Qdrant](https://qdrant.tech/), and Postgres for local experimentation.
+
+#### License, Self-Hosting & Pricing
+
+- **License caveat:** n8n is **not** [OSI-approved open source](https://opensource.org/osd). It uses the **[Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md)** (a [fair-code](https://faircode.io/) source-available license). You can self-host n8n for free for internal business automation using your own credentials, but you are prohibited from offering n8n as a hosted service, charging external users to access workflows, or embedding n8n into a commercial product without purchasing an [n8n Embed license](https://docs.n8n.io/deploy/host-n8n/deploy-as-an-oem-integration).
+- **Self-Hosting:** Community Edition is free to run via [Docker](https://docs.n8n.io/hosting/installation/docker/), Docker Compose, npm, or Kubernetes.
+- **[n8n Cloud Pricing](https://n8n.io/pricing/):** Priced by monthly workflow executions (with unlimited users and workflows):
+  - **Starter:** **EUR 20/month** (billed annually, 2,500 workflow executions).
+  - **Pro:** **EUR 50/month** (billed annually, 10,000 workflow executions).
+- **Self-Hosted Business Plan:** **EUR 667/month** (billed annually, 40,000 workflow executions, SSO, Git version control, environments). n8n offers this plan for self-hosted deployments only.
+
+**Best for:** Technical operations and backend engineers automating deterministic API pipelines where an AI agent node is one step inside a structured integration flow.
+
+---
+
+### 4. OpenHands: Best Open-Source Autonomous Coding and Software Engineering Platform
+
+![OpenHands Autonomous Software Engineering Agent Platform](/blog/best-open-source-ai-agent-platforms/openhands.webp)
+
+[OpenHands](https://openhands.dev) ([`All-Hands-AI/OpenHands`](https://github.com/All-Hands-AI/OpenHands) on GitHub, formerly OpenDevin) is an **[MIT-licensed](https://github.com/All-Hands-AI/OpenHands/blob/main/LICENSE)** platform built specifically for software engineers and autonomous coding agents ([OpenHands documentation](https://docs.all-hands.dev/)). While an [open-source AI coworker platform](https://agenta.ai) like Agenta serves both business teams and technical teams across marketing, operations, research, and coding, OpenHands is dedicated strictly to developer tasks: writing code, debugging repositories, running shell commands, and resolving GitHub or GitLab issues.
+
+#### Key Capabilities
+
+- **Containerized developer runtime:** Every coding session launches an isolated Docker sandbox equipped with a bash shell, file editor, package managers, and a headless browser.
+- **GitHub, GitLab, and Bitbucket native workflows:** Trigger OpenHands from repository issues, pull request comments, or Slack to reproduce bugs, run unit tests, and push commits to a branch.
+- **Model-agnostic coding harness:** Works with Anthropic Claude, OpenAI, Google Gemini, OpenRouter, or self-hosted coding models via [LiteLLM](https://docs.litellm.ai/).
+- **CLI, Web GUI, and SDK:** Run interactive coding sessions locally in your browser or terminal, or orchestrate headless batch evaluation and refactoring jobs via the Python SDK and REST API.
+
+#### License, Self-Hosting & Pricing
+
+- **License:** **[MIT License](https://opensource.org/license/mit)** for the core OpenHands repository (`All-Hands-AI/OpenHands`).
+- **Self-Hosting:** Free to run locally or on a dedicated server with Docker.
+- **[OpenHands Pricing](https://openhands.dev/pricing):** All plans are self-hosted.
+  - **Agent Canvas:** **$0**, open source, runs on your laptop or a shared VM with your own model API keys.
+  - **Teams:** **$499/month** for up to 10 users (+$50/month per extra seat), self-hosted, with multi-user identity, RBAC, SSO, and built-in integrations.
+  - **Enterprise:** Custom pricing for unlimited users, an enterprise agreement, and SLA-based support.
+
+**Best for:** Software engineering teams looking for an MIT-licensed, self-hostable coding agent to automate repository maintenance, test writing, and pull request workflows.
+
+---
+
+### 5. Langflow: Best MIT-Licensed Visual Graph Builder for LangChain and MCP
+
+![Langflow Visual Python Graph Builder for AI Agents](/blog/best-open-source-ai-agent-platforms/langflow.webp)
+
+[Langflow](https://langflow.org) ([`langflow-ai/langflow`](https://github.com/langflow-ai/langflow) on GitHub) is an **[MIT-licensed](https://github.com/langflow-ai/langflow/blob/main/LICENSE)**, Python-based visual builder for [LangChain](https://www.langchain.com/) and [LangGraph](https://www.langchain.com/langgraph) components ([Langflow documentation](https://docs.langflow.org/)). For AI engineers and Python developers who want a visual drag-and-drop canvas like Dify or n8n without source-available license restrictions, Langflow provides a permissive open-source alternative. Because every node maps directly to Python component parameters, it is geared toward developers rather than non-technical business users.
+
+#### Key Capabilities
+
+- **Visual Python component canvas:** Every node on the Langflow canvas corresponds to a Python class that you can inspect and edit directly in the browser, making it easy for developers to drop down into custom Python logic without leaving the visual graph.
+- **Native [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) support:** Langflow acts as both an **MCP client** (consuming external MCP tools inside agent flows) and an **MCP server** (automatically exposing any flow you build as an MCP tool for other agents).
+- **Multi-agent and RAG orchestration:** Wire sequential or hierarchical agent flows alongside vector database connectors (Astra DB, [Chroma](https://www.trychroma.com/), Pinecone, [Qdrant](https://qdrant.tech/), PGVector) and test them in an interactive playground.
+- **Deploy as an API:** Export flows as JSON or serve them as FastAPI endpoints for custom frontend applications.
+
+#### License, Self-Hosting & Pricing
+
+- **License:** **[MIT License](https://opensource.org/license/mit)** (OSI-approved permissive open source, backed by DataStax/IBM).
+- **Self-Hosting:** Free forever via Docker, `uv pip install langflow`, or Kubernetes Helm charts.
+- **Managed Cloud and Support:** Teams can self-host Langflow for free, sign up for a free [Langflow Cloud](https://www.langflow.org/) account, or publish flows to IBM watsonx Orchestrate. IBM sells **[IBM Elite Support for Langflow](https://www.ibm.com/products/langflow)** as a separate offering with SLAs; it does not publish a price.
+
+**Best for:** Python developers and AI engineers who want an MIT-licensed visual graph builder to prototype LangChain/LangGraph pipelines and expose them as REST APIs or MCP servers.
+
+---
+
+### 6. LibreChat: Best Self-Hosted Multi-Model Chat Workspace with MCP
+
+![LibreChat Open-Source Multi-Model Chat Workspace](/blog/best-open-source-ai-agent-platforms/librechat.webp)
+
+[LibreChat](https://librechat.ai) ([`danny-avila/LibreChat`](https://github.com/danny-avila/LibreChat) on GitHub) is an **[MIT-licensed](https://github.com/danny-avila/LibreChat/blob/main/LICENSE)**, self-hosted chat platform designed as an open-source replacement for ChatGPT Plus and ChatGPT Business ([LibreChat documentation](https://www.librechat.ai/docs)). Rather than paying per-seat SaaS subscriptions for every employee, IT teams deploy LibreChat internally and connect their own API keys for OpenAI, Anthropic, Google Gemini, AWS Bedrock, Azure OpenAI, OpenRouter, or local [Ollama](https://ollama.com/) models.
+
+#### Key Capabilities
+
+- **Unified multi-model chat UI:** Employees can switch models mid-conversation, fork chat branches, search past conversations, and render interactive React/HTML/Mermaid **Artifacts** side by side with the chat.
+- **No-code Agents and [MCP](https://modelcontextprotocol.io/) integration:** Build conversational assistants inside LibreChat with system instructions, file search (RAG), and tools connected via the **Model Context Protocol (MCP)**.
+- **Code Interpreter API:** Optional sandboxed execution environment for running Python, Node.js, Go, C++, Java, PHP, Rust, and Fortran snippets generated during a chat session.
+- **Enterprise authentication included in OSS:** Supports OAuth2, OpenID Connect (OIDC), LDAP, SAML, and multi-user token balance limits out of the box in the free MIT repository.
+
+#### License, Self-Hosting & Pricing
+
+- **License:** **[MIT License](https://opensource.org/license/mit)**.
+- **Self-Hosting & Pricing:** 100% free to self-host via [Docker Compose](https://www.librechat.ai/docs/local/docker) or Kubernetes Helm. You pay only for the underlying model API tokens you consume (plus an optional paid subscription if you use LibreChat's hosted [Code Interpreter API](https://code.librechat.ai/) instead of your own runtime).
+- **Trade-offs compared to an [open-source AI coworker platform](https://agenta.ai):** LibreChat is built around reactive, user-initiated chat sessions. Its Scheduled Chats feature can start saved agents on a cron schedule, but it is experimental and disabled by default. It does not natively provide external webhook event triggers, human-in-the-loop tool approval gates, persistent shared agent file drives across autonomous tasks, or multi-channel publishing to Slack, Telegram, WhatsApp, and website embeds.
+
+**Best for:** IT and platform teams that want a free, MIT-licensed internal ChatGPT portal over their own model API keys and MCP servers.
+
+---
+
+### 7. CrewAI: Best MIT-Licensed Python Framework for Role-Based Multi-Agent Crews
+
+![CrewAI Multi-Agent Python Orchestration Framework](/blog/best-open-source-ai-agent-platforms/crewai.webp)
+
+[CrewAI](https://crewai.com) ([`crewAIInc/crewAI`](https://github.com/crewAIInc/crewAI) on GitHub) is a popular **[MIT-licensed](https://github.com/crewAIInc/crewAI/blob/main/LICENSE)** Python framework for software engineers who prefer writing multi-agent systems in code ([CrewAI documentation](https://docs.crewai.com/)) rather than giving business users a ready-to-use workspace. It organizes agents around two primitives: **Crews** (autonomous teams of agents with defined `role`, `goal`, and `backstory` attributes that collaborate on tasks) and **Flows** (deterministic, event-driven Python orchestration using `@start`, `@listen`, and `@router` decorators).
+
+#### Key Capabilities
+
+- **Role-based task delegation in Python:** Define specialized agents (such as a Researcher, Analyst, and Writer) in Python and YAML that hand off structured Pydantic outputs or delegate sub-tasks sequentially or hierarchically.
+- **Unified memory:** A single [`Memory`](https://docs.crewai.com/en/concepts/memory) API replaces the older separate short-term, long-term, and entity memory types. It uses an LLM to score and organize memories and stores them in LanceDB by default.
+- **Event-driven Flows:** Combine deterministic Python control flow with autonomous multi-agent crews inside a single backend application.
+- **Docker code execution tool:** Agents can optionally execute generated Python scripts inside a local Docker container when `allow_code_execution=True` is enabled.
+
+#### License, Self-Hosting & Pricing
+
+- **License:** **[MIT License](https://opensource.org/license/mit)** for the open-source Python SDK (`crewAIInc/crewAI`).
+- **Self-Hosting:** Free Python library (`pip install crewai` or `uv add crewai`) that developers package and deploy inside their own FastAPI services, background workers, or Kubernetes pods. Non-developers cannot use CrewAI directly without an engineering team building an interface around it, or purchasing CrewAI's commercial cloud.
+- **[CrewAI AMP (Commercial Cloud)](https://www.crewai.com/pricing):** If you want a visual control plane, tracing UI, and managed deployment on top of the open-source library, CrewAI offers its commercial AMP platform with a free **Basic** tier (50 executions/month) and custom **Enterprise** contracts.
+
+**Best for:** Python engineering teams building custom multi-agent backend services who want to write orchestration logic in code and build their own user interface, file storage, and channel integrations.
+
+---
+
+## How to Choose the Right Open-Source AI Agent Platform
+
+When narrowing down these seven open-source projects, evaluate them across three practical dimensions: **who on your team needs to build and run the agents**, **license permissiveness ([OSI MIT](https://opensource.org/license/mit) vs. [source-available](https://faircode.io/))**, and **whether your agents need a real sandbox computer and persistent shared files**.
+
+![Open-Source License and Deployment Selection Matrix](/blog/best-open-source-ai-agent-platforms/open-source-license-and-deployment-matrix.webp)
+
+1. **Choose [Agenta](https://agenta.ai) if you want an [open-source AI coworker platform](https://agenta.ai) that empowers both non-technical teammates and engineers to build custom agents and automate work.** Agenta is the only [MIT-licensed](https://github.com/Agenta-AI/agenta/blob/main/LICENSE) platform in this group where marketers, operations leads, support teams, and founders can configure customized agents in plain language while running on real execution harnesses ([Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview), [Codex](https://agenta.ai/docs/changelog/codex-harness), and [Pi](https://agenta.ai/docs/concepts/harnesses-and-models)) with an isolated sandbox computer and browser, [persistent shared agent files](https://agenta.ai/docs/concepts/files-and-knowledge), reusable skills, 1,000+ integrations and [MCP](https://modelcontextprotocol.io/) servers, cron and event triggers, human approvals, and native publishing to the web workspace, Slack, Telegram, WhatsApp, and [website embeds](https://agenta.ai/docs/guides/embed-an-agent). You can [self-host it for free](https://agenta.ai/docs/self-host/overview) via Docker Compose or Helm, or run on [Agenta Cloud](https://agenta.ai/pricing) for $29/month on Starter with unlimited team members and no per-seat fee.
+2. **Choose [Dify](https://dify.ai) or [Langflow](https://langflow.org) if your AI engineers want a visual node-and-edge graph builder for RAG and LLM pipelines.** Pick **Langflow** when you require a permissive **[MIT License](https://opensource.org/license/mit)** and deep Python/MCP component customization; pick **Dify** when you want an out-of-the-box RAG studio and your use case fits within Dify's [modified Apache 2.0 single-tenant restrictions](https://github.com/langgenius/dify/blob/main/LICENSE).
+3. **Choose [n8n](https://n8n.io) if your technical ops team builds workflows that are 80% deterministic SaaS automation and 20% AI steps.** As long as your deployment complies with n8n's fair-code [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md) (internal business automation rather than commercial resale), n8n's 400+ connectors make webhook-to-API plumbing fast and predictable.
+4. **Choose [OpenHands](https://openhands.dev) if your users are software engineers automating code changes and GitHub pull requests.** Its Docker runtime and repository integrations are tailored specifically for software development tasks.
+5. **Choose [LibreChat](https://librechat.ai) if you only need a self-hosted multi-model chat UI for employees.** It replaces per-seat ChatGPT subscriptions with an internal chat portal over your own API keys and MCP tools.
+6. **Choose [CrewAI](https://crewai.com) if your Python developers want a code library rather than an end-user workspace.** It gives engineers clean Python abstractions for multi-agent crews when they plan to build their own UI, storage, and triggers around it.
+
+---
+
+## Frequently Asked Questions
+
+### Which AI agent platforms are truly open source under the MIT license?
+
+Among the leading platforms in 2026, **[Agenta](https://github.com/Agenta-AI/agenta)**, **[OpenHands](https://github.com/All-Hands-AI/OpenHands)**, **[Langflow](https://github.com/langflow-ai/langflow)**, **[LibreChat](https://github.com/danny-avila/LibreChat)**, and **[CrewAI](https://github.com/crewAIInc/crewAI)** (core Python framework) are released under the [OSI-approved](https://opensource.org/osd) **[MIT License](https://opensource.org/license/mit)**. This allows teams to self-host, modify the source code, and integrate the software into commercial environments without multi-tenant or fair-code restrictions.
+
+### Which open-source AI agent platform is best for non-technical teams?
+
+**[Agenta](https://agenta.ai)** is the best open-source platform when non-technical or cross-functional teams (such as marketing, operations, customer support, sales, product, or agencies) need to build and customize their own agents without writing Python code or wiring complex node graphs. Users configure agents in plain language or through conversation in chat, teach them reusable skills, connect 1,000+ apps, set up schedules or triggers, and use them in the web workspace, Slack, Telegram, WhatsApp, or embedded website widgets.
+
+### Are Dify and n8n open source?
+
+Both projects publish their source code on GitHub and can be self-hosted for internal use, but neither uses an [OSI-approved open-source license](https://opensource.org/osd). **Dify** uses the [Dify Open Source License](https://github.com/langgenius/dify/blob/main/LICENSE) (a modified [Apache 2.0 license](https://www.apache.org/licenses/LICENSE-2.0) that prohibits operating a multi-tenant commercial service for third parties or removing Dify branding without a commercial license). **n8n** uses the [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), a [fair-code](https://faircode.io/) license that permits internal business use with your own credentials but restricts commercial hosting, reselling, or paid product embedding.
+
+### Which agent harnesses does Agenta support?
+
+Agenta supports three first-class [agent harnesses](https://agenta.ai/docs/concepts/harnesses-and-models): **[Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview)**, **[Codex](https://github.com/openai/codex)** ([Agenta Codex harness](https://agenta.ai/docs/changelog/codex-harness)), and **[Pi](https://agenta.ai/docs/concepts/harnesses-and-models)**. Each harness runs inside an isolated sandboxed computer with a filesystem, shell, and headless browser, and can be paired with models from Anthropic, OpenAI, Google, or your own self-managed subscriptions when self-hosting.
+
+### Can I self-host Agenta with Docker Compose or Kubernetes?
+
+Yes. The open-source edition of [Agenta](https://agenta.ai/docs/self-host/overview) is free forever under the [MIT License](https://github.com/Agenta-AI/agenta/blob/main/LICENSE) and runs the studio, API, agent runner, and datastores on your own infrastructure via **[Docker Compose](https://docs.docker.com/compose/)** or the official **[Kubernetes Helm chart](https://helm.sh/)**. Self-hosted deployments have no user, project, agent, or automation limits, and can execute agents either locally inside the runner container (including with your own Claude, Codex/ChatGPT, or Pi subscription) or inside isolated cloud sandboxes via [Daytona](https://www.daytona.io/).

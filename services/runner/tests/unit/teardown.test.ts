@@ -24,6 +24,8 @@ describe("sandbox teardown disposition", () => {
       ["runtime-incompatible", "delete"],
       ["sandbox-incompatible", "delete"],
       ["clean-resumable", "stop"],
+      // A turn outside the keep-alive pool: no pool entry would own a stopped sandbox.
+      ["unpooled", "delete"],
       ["idle-expiry", "stop"],
       ["capacity-eviction", "stop"],
       ["shutdown-in-flight", "delete"],

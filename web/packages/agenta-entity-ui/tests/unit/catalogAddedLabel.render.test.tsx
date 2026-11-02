@@ -102,6 +102,7 @@ describe("the Added label on the catalog drawers", () => {
                     },
                 ],
                 onAddIntegration: vi.fn(),
+                onAddPersonalIntegration: vi.fn(),
             }),
         )
 

@@ -17,4 +17,5 @@ export interface Evaluator {
     deleted_by_id?: (string | null) | undefined;
     slug?: (string | null) | undefined;
     id?: (string | null) | undefined;
+    access?: (AgentaApi.AccessPolicy | null) | undefined;
 }

@@ -133,7 +133,9 @@ export class SandboxGoneError extends Error {
  */
 export function httpLivenessProbe(url: string): () => Promise<unknown> {
   return async () => {
-    const response = await fetch(url, { method: "GET" });
+    // A 3xx is an answer, so it counts as alive; following it would send the runner's request
+    // wherever the sandbox points.
+    const response = await fetch(url, { method: "GET", redirect: "manual" });
     const bodyText =
       response.status >= 400
         ? await response.text().catch(() => "")

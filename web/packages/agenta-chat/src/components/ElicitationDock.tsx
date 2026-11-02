@@ -7,9 +7,10 @@
  *  - **The card never moves the composer.** Every state renders into the same `CARD_MIN_H` box, and
  *    every slot holds its space whether or not it has content: the nav renders disabled on the first
  *    and last question, the counter is tabular, and the error line is permanently mounted and merely
- *    empty. A `return null` on any branch, or a slot that only appears when filled, reintroduces the
- *    shift. The stepper cluster is decided by the FORM, not by the state, so a one-question form
- *    drops it outright without ever moving mid-answer.
+ *    empty. A `return null` on any live branch, or a slot that only appears when filled, reintroduces
+ *    the shift. An unrenderable payload never reaches the card (see `useElicitationDock`). The
+ *    stepper cluster is decided by the FORM, not by the state, so a one-question form drops it
+ *    outright without ever moving mid-answer.
  *  - **It docks like its siblings.** It sits between `ApprovalDock` and `ConnectionDock`, in that
  *    order, because that is also the keyboard precedence (approval > elicitation > connect).
  *
@@ -25,12 +26,11 @@ import {
     buildElicitationSteps,
     formatStepValue,
     parseElicitationPayload,
-    parseSecretRefusal,
     serializeElicitationContent,
     type ElicitationRequestPayload,
 } from "@agenta/shared/utils"
 import {Button, LoadingButton} from "@agenta/ui/ui"
-import {CaretLeft, CaretRight, CircleNotch, Prohibit, Question, X} from "@phosphor-icons/react"
+import {CaretLeft, CaretRight, CircleNotch, Question, X} from "@phosphor-icons/react"
 
 import type {ClientToolOutputHandler} from "../clientTools/ClientToolPart"
 import type {ElicitationDockState} from "../hooks/useElicitationDock"
@@ -67,13 +67,6 @@ export interface ElicitationDockProps {
     active?: boolean
     className?: string
 }
-
-/** A settled or unrenderable card still holds the box while the host animates the collapse. */
-const Shell = ({children, className}: {children: React.ReactNode; className?: string}) => (
-    <div className={`${CARD_SURFACE} ${className ?? ""}`} style={{minHeight: CARD_MIN_H}}>
-        {children}
-    </div>
-)
 
 export const ElicitationDock = ({
     elicits,
@@ -157,15 +150,8 @@ const ElicitationCard = ({
         [onOutput, meta.toolName, meta.toolCallId],
     )
 
-    if (!parsed.ok) {
-        return (
-            <RefusalPanel
-                reason={parsed.reason}
-                submitting={submitting}
-                onSkip={() => settle(toOutput(buildCancelResult("Dismissed the request.")))}
-            />
-        )
-    }
+    // Unreachable: the dock never fronts an unrenderable payload. Guards the type only.
+    if (!parsed.ok) return null
 
     return (
         <LiveCard
@@ -184,49 +170,6 @@ const ElicitationCard = ({
 
 const toOutput = (result: {action: string; content?: unknown; humanFriendlyMessage?: string}) =>
     result as unknown as Record<string, unknown>
-
-/**
- * A payload the dialect refuses. The dock has already settled it (see `useElicitationDock`), so this
- * panel is transient — the durable explanation is the transcript row. It holds the box meanwhile.
- */
-const RefusalPanel = ({
-    reason,
-    submitting,
-    onSkip,
-}: {
-    reason: string
-    submitting: boolean
-    onSkip: () => void
-}) => {
-    const secret = parseSecretRefusal(reason)
-    return (
-        <Shell>
-            <Eyebrow />
-            <div className="flex flex-1 flex-col gap-1.5">
-                <div className="flex items-start gap-2">
-                    <Prohibit size={14} className="mt-0.5 shrink-0 text-colorWarning" />
-                    <div className="flex min-w-0 flex-col gap-0.5">
-                        <span className="text-[13px] font-medium">
-                            {secret
-                                ? `This request asked for ${secret.property} — forms never carry secrets.`
-                                : "This request couldn't be shown as a form."}
-                        </span>
-                        <span className="text-xs text-colorTextSecondary">
-                            {secret
-                                ? "Connect the credential instead; the agent resumes as soon as it lands."
-                                : reason}
-                        </span>
-                    </div>
-                </div>
-            </div>
-            <div className="flex flex-row-reverse items-center gap-2">
-                <LoadingButton variant="ghost" loading={submitting} onClick={onSkip}>
-                    Skip
-                </LoadingButton>
-            </div>
-        </Shell>
-    )
-}
 
 /** Same icon size and gap as ApprovalCard's eyebrow: the two docks stack, so a difference reads
  * as a mistake rather than a distinction. */

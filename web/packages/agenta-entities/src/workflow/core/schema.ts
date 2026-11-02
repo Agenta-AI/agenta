@@ -31,6 +31,7 @@
 import {z} from "zod"
 
 import {createEntitySchemaSet, timestampFieldsSchema, auditFieldsSchema} from "../../shared"
+import {accessPolicySchema} from "../../sharing/core/schema"
 
 // ============================================================================
 // JSON SCHEMAS SUB-SCHEMA
@@ -329,6 +330,10 @@ export const workflowSchema = z
         // Alias IDs (backward compat)
         variant_id: z.string().nullable().optional(),
         revision_id: z.string().nullable().optional(),
+
+        // The agent's access policy: on list queries (`POST /workflows/query`) and on create;
+        // direct reads leave it out. No `agent_access` row reads as project-visible, no owner.
+        access: accessPolicySchema.nullable().optional(),
     })
     .merge(timestampFieldsSchema)
     .merge(auditFieldsSchema)
@@ -349,6 +354,7 @@ export const workflowSchemas = createEntitySchemaSet({
         "deleted_by_id",
         "variant_id",
         "revision_id",
+        "access",
     ],
     localDefaults: {
         slug: null,

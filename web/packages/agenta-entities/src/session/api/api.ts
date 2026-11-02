@@ -11,6 +11,7 @@
 import {z} from "zod"
 
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
+import type {Visibility} from "../../sharing/core/schema"
 import {
     mountFileContentResponseSchema,
     pendingInputAdmissionResponseSchema,
@@ -22,11 +23,11 @@ import {
     sessionCancelExecutionResponseSchema,
     sessionSnapshotSchema,
     sessionsQueryResponseSchema,
-    sessionStreamCommandResponseSchema,
     sessionStreamSchema,
     sessionMountsResponseSchema,
     sessionStreamResponseSchema,
     sessionStreamsResponseSchema,
+    sessionTurnsResponseSchema,
     type MountFile,
     type Mount,
     type SessionInteraction,
@@ -37,7 +38,7 @@ import {
     type SessionExpansion,
     type SessionOrigin,
     type SessionStream,
-    type SessionStreamCommandResponse,
+    type SessionTurn,
     type SessionsQueryResponse,
     type SessionWindowing,
 } from "../core/schema"
@@ -808,6 +809,11 @@ export interface SetSessionHeaderParams {
      * means nobody knows yet and dropping it would lose a name for no reason.
      */
     onRefused?: () => void
+    /**
+     * The visibility a header call that CREATES the session asks for. The server ignores it
+     * on an existing session and drops a `private` it cannot give an owner.
+     */
+    visibility?: Visibility
 }
 
 /**
@@ -824,6 +830,7 @@ export async function setSessionHeader({
     abortSignal,
     nameSource,
     onRefused,
+    visibility,
 }: SetSessionHeaderParams): Promise<boolean> {
     if (!projectId || !sessionId) return false
 
@@ -836,6 +843,8 @@ export async function setSessionHeader({
     // body.
     const request = projectScopedRequest(projectId, appId, abortSignal)
     if (nameSource) request.queryParams.name_source = nameSource
+    // `visibility` is a query parameter of the header route too (the body is the header).
+    if (visibility) request.queryParams.visibility = visibility
 
     // A 409 is the documented answer when an automatic name would replace one a person
     // controls. It is an expected outcome rather than a fault, so it is not logged as one.
@@ -880,49 +889,6 @@ export async function fetchSessionStream({
     return validated?.stream ?? null
 }
 
-export interface CommandSessionStreamParams extends SessionScopedParams {
-    /** Steal the run lock from whoever holds it. */
-    force?: boolean
-    /** Fire-and-forget: start the run without holding a connection. */
-    detached?: boolean
-}
-
-/**
- * CONTROL-PLANE call to start/resume/steer/cancel a run (the prompt × force matrix). Returns
- * a handle (`{mode, turn_id, watcher_id, …}`), NOT the token stream — the v6 chunk stream is
- * delivered out-of-band (see the agent-chat transport). Use `force` to steal the lock,
- * `detached` for fire-and-forget.
- *
- * FOLLOWUP(sessions,lifecycle): steer/attach remain unwired in the user-facing desktop chat;
- * cancel IS consumed by the mobile StopButton (cooperative ≤30s; clean "cancelled" settle
- * arrives with the agent-cancel-steer runner work). There's still no live-turn re-watch.
- * See docs/designs/sessions/frontend-integration.md.
- */
-export async function commandSessionStream({
-    sessionId,
-    projectId,
-    appId,
-    abortSignal,
-    force,
-    detached,
-}: CommandSessionStreamParams): Promise<SessionStreamCommandResponse | null> {
-    if (!projectId || !sessionId) return null
-
-    // The prompt→request.data (inputs) mapping is defined by the sessions feature owner when the send path gets wired (see PR #5375 body).
-    const data = await callFern("[commandSessionStream]", () =>
-        getSessionsClient().setSessionStream(
-            {session_id: sessionId, force, detached},
-            projectScopedRequest(projectId, appId, abortSignal),
-        ),
-    )
-    if (!data) return null
-
-    return (
-        safeParseWithLogging(sessionStreamCommandResponseSchema, data, "[commandSessionStream]") ??
-        null
-    )
-}
-
 /**
  * KILL — end a session: collapse the stream nest, force-clear the runner's alive lock (its
  * existing teardown signal, so the sandbox tears down), mark the row ended, and cancel every
@@ -944,81 +910,6 @@ export async function killSession({
         ),
     )
     return data !== null
-}
-
-/** Stop keeps accepted, idle, stale, and failed outcomes distinct. */
-export interface CancelSessionStreamParams extends SessionScopedParams {
-    /** The server cancels this observed execution or nothing. */
-    expectedExecutionId?: string
-}
-
-export type CancelSessionOutcome =
-    | {status: "cancelled"; response: SessionStreamCommandResponse | null}
-    | {status: "idle"}
-    /** The server refused: another turn holds the session, or the Stop arrived too late. */
-    | {status: "stale"; message: string}
-    | {status: "failed"; message: string}
-
-const STALE_CANCEL_FALLBACK =
-    "That run had already finished. The session is running something else now."
-const FAILED_CANCEL_FALLBACK = "Could not stop the run. It may still be running."
-
-/** The response envelope's error message, when it is there. */
-const cancelErrorMessage = (error: unknown, fallback: string): string => {
-    const detail = (error as {body?: {detail?: unknown}} | null)?.body?.detail
-    if (typeof detail === "string") return detail
-    const message = (detail as {message?: unknown} | null)?.message
-    if (typeof message === "string") return message
-    return error instanceof Error && error.message ? error.message : fallback
-}
-
-/** Stop the current turn and preserve the server outcome for the caller. */
-export async function cancelSessionStream({
-    sessionId,
-    projectId,
-    appId,
-    abortSignal,
-    expectedExecutionId,
-}: CancelSessionStreamParams): Promise<CancelSessionOutcome> {
-    if (!projectId || !sessionId) return {status: "failed", message: FAILED_CANCEL_FALLBACK}
-
-    try {
-        const data = await getSessionsClient().setSessionStream(
-            {
-                session_id: sessionId,
-                // Omission selects the server's arrival-time guard.
-                ...(expectedExecutionId ? {expected_execution_id: expectedExecutionId} : {}),
-            },
-            projectScopedRequest(projectId, appId, abortSignal),
-        )
-        const response =
-            safeParseWithLogging(
-                sessionStreamCommandResponseSchema,
-                data,
-                "[cancelSessionStream]",
-            ) ?? null
-        if (!response || !response.cancelled_turn_ids) {
-            return {status: "failed", message: FAILED_CANCEL_FALLBACK}
-        }
-        if (response.cancelled_turn_ids.length === 0) return {status: "idle"}
-        return {
-            status: "cancelled",
-            response,
-        }
-    } catch (error) {
-        if (isAbortError(error)) throw error
-        if (isInteractionConflict(error)) {
-            return {
-                status: "stale",
-                message: cancelErrorMessage(error, STALE_CANCEL_FALLBACK),
-            }
-        }
-        console.error(
-            "[cancelSessionStream] failed:",
-            error instanceof Error ? error.message : String(error),
-        )
-        return {status: "failed", message: cancelErrorMessage(error, FAILED_CANCEL_FALLBACK)}
-    }
 }
 
 /**
@@ -1311,6 +1202,33 @@ export async function queryMountDir({
     return validated?.files ?? null
 }
 
+/** One raw folder level (no git pruning, no counts). A missing folder (404) is `null`; any other
+ * failure throws, so the query retries it instead of caching "no file here" for every mention. */
+export async function listMountFolder({
+    mountId,
+    projectId,
+    appId,
+    abortSignal,
+    path,
+}: Omit<MountFilesParams, "lowPriority">): Promise<MountFile[] | null> {
+    if (!projectId || !mountId) return null
+
+    let data
+    try {
+        // maxRetries 0: the query owns the retries.
+        data = await getLowPriorityMountsClient().getMountFiles(
+            {mount_id: mountId, path: path || undefined, depth: 1},
+            projectScopedRequest(projectId, appId, abortSignal, 0),
+        )
+    } catch (error) {
+        if (isNotFound(error)) return null
+        throw error
+    }
+
+    const validated = safeParseWithLogging(mountFileListResponseSchema, data, "[listMountFolder]")
+    return validated?.files ?? null
+}
+
 /** Read one mount file's text content (`?read=<path>`). Returns `null` on failure/missing scope. */
 export async function readMountFile({
     mountId,
@@ -1443,4 +1361,28 @@ export async function cancelSessionExecution({
         )
         return null
     }
+}
+
+/**
+ * A session's turns, with their usage. One read per session: the chat takes each turn's
+ * tokens, cost and latency from these rows instead of reading the trace. `null` on failure.
+ */
+export async function querySessionTurns({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+}: SessionScopedParams): Promise<SessionTurn[] | null> {
+    if (!projectId || !sessionId) return null
+
+    const data = await callFern("[querySessionTurns]", () =>
+        getSessionsClient().queryTurns(
+            {query: {session_id: sessionId}},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    if (!data) return null
+
+    const parsed = safeParseWithLogging(sessionTurnsResponseSchema, data, "[querySessionTurns]")
+    return parsed ? (parsed.turns ?? []) : null
 }

@@ -20,6 +20,7 @@ from oss.src.core.sessions.streams.dtos import SessionStreamQuery
 from oss.src.dbs.postgres.sessions.streams import dao as dao_module
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
 from oss.src.dbs.postgres.shared.utils import apply_windowing
+from oss.tests.pytest.utils.sharing import PROJECT_SESSION_SCOPE
 
 COALESCE_EXPR = "coalesce(session_streams.updated_at, session_streams.created_at)"
 
@@ -196,6 +197,7 @@ async def test_dao_query_fallback_orders_by_coalesced_updated_at(monkeypatch):
     monkeypatch.setattr(dao_module, "get_transactions_engine", lambda: mock_engine)
 
     await dao_module.SessionStreamsDAO().query(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=uuid4(),
         filter=SessionStreamQuery(),
         windowing=None,

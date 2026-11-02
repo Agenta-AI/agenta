@@ -52,6 +52,20 @@ PRICE_MAP_ADDITIONS: Dict[str, Tuple[str, Dict[str, float]]] = {
             "cache_creation_input_token_cost_above_1hr": 4e-06,
         },
     ),
+    # Anthropic list price for prompts up to 100,000 tokens: $0.10 input, $0.50 output,
+    # $0.01 cache read, $0.125 cache write (5-minute), $0.20 cache write (1-hour) per
+    # million tokens. Prompts over 100,000 tokens pay $0.50 / $2.50, which the price map
+    # cannot express, so those requests are under-priced here.
+    "claude-haiku-5-5": (
+        "claude-haiku-4-5",
+        {
+            "input_cost_per_token": 1e-07,
+            "output_cost_per_token": 5e-07,
+            "cache_read_input_token_cost": 1e-08,
+            "cache_creation_input_token_cost": 1.25e-07,
+            "cache_creation_input_token_cost_above_1hr": 2e-07,
+        },
+    ),
 }
 
 

@@ -444,7 +444,7 @@ describe("mount unit: the seam (lifecycle migration, step 5 / S7b)", () => {
     const source = SRC("engines/sandbox_agent/environment.ts");
     for (const call of [
       'mountLocalDurableCwd("initial")',
-      "mountLocalAgentCwd()",
+      "mountLocalAgentCwd(cwdMount)",
       "activateAgentMountGuidance()",
       "reSignAndRemountLocalCwd()",
       "remountLocalCwdAfterRuntimeEnotconn",

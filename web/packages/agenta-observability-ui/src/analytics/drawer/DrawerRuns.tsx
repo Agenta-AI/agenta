@@ -26,7 +26,7 @@ import {ArrowSquareOut, CaretDown, CaretRight, Check} from "@phosphor-icons/reac
 import {useAtomValue} from "jotai"
 
 import {analyticsColor} from "../colors"
-import {clock, monthDay} from "../labels"
+import {UNKNOWN_AGENT, clock, monthDay} from "../labels"
 import {FAILURE_SAMPLE} from "../useAnalyticsData"
 
 const SHOWN = 20
@@ -331,8 +331,18 @@ const RunRow = ({
                     style={{background: analyticsColor(run.failed ? "dotFailed" : "dotOk")}}
                 />
                 <span className="flex min-w-0 flex-col">
-                    <span className="truncate">
-                        {run.agentId ? agentName(run.agentId) : "Unknown agent"}
+                    <span className="flex min-w-0 items-center gap-1.5">
+                        <span className="truncate">
+                            {run.agentId ? agentName(run.agentId) : (run.name ?? UNKNOWN_AGENT)}
+                        </span>
+                        {!run.agentId && run.name ? (
+                            <span
+                                className="shrink-0 rounded border border-solid border-border px-1 text-[10px] leading-4 text-muted-foreground"
+                                title="Traced from outside Agenta: named after its root span"
+                            >
+                                external
+                            </span>
+                        ) : null}
                     </span>
                     {subline && !failedView ? (
                         <span

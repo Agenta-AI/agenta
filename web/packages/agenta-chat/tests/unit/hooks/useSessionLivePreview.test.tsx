@@ -185,12 +185,21 @@ describe("useSessionLivePreview", () => {
         },
     )
 
-    it("does not adopt a commit made while the tab was hidden", async () => {
+    const commitRows = () => {
         const output = {
             status: "committed",
             workflow_revision: {id: "revision-2", workflow_variant_id: "variant-1", version: "2"},
         }
-        const rows = [
+        return [
+            // The log stored the result before its call: the commit must still be found.
+            {
+                ...record("result", {
+                    type: "tool_result",
+                    id: "commit-1",
+                    output: JSON.stringify(output),
+                }),
+                sequence: 2,
+            },
             {
                 ...record("call", {
                     type: "tool_call",
@@ -200,15 +209,10 @@ describe("useSessionLivePreview", () => {
                 }),
                 sequence: 1,
             },
-            {
-                ...record("result", {
-                    type: "tool_result",
-                    id: "commit-1",
-                    output: JSON.stringify(output),
-                }),
-                sequence: 2,
-            },
         ]
+    }
+
+    it("reports a commit made while the tab was hidden when the tab is visible again", async () => {
         mocks.fetchSessionSnapshot.mockResolvedValue({
             session: {flags: {is_running: true}},
             read: {latest_sequence: 0},
@@ -243,10 +247,55 @@ describe("useSessionLivePreview", () => {
             session: {flags: {is_running: false}},
             read: {latest_sequence: 2},
         })
-        mocks.querySessionTranscript.mockResolvedValue(rows)
+        mocks.querySessionTranscript.mockResolvedValue(commitRows())
+        expect(onCommittedRevision).not.toHaveBeenCalled()
         act(() => setVisibility("visible"))
         await waitFor(() => expect(mocks.connectSessionLiveEvents).toHaveBeenCalledTimes(2))
-        expect(onCommittedRevision).not.toHaveBeenCalled()
+        expect(onCommittedRevision).toHaveBeenCalledWith({
+            revisionId: "revision-2",
+            variantId: "variant-1",
+            version: "2",
+        })
+    })
+
+    it("reports a commit made while the reader re-subscribed", async () => {
+        mocks.fetchSessionSnapshot.mockResolvedValue({
+            session: {flags: {is_running: true}},
+            read: {latest_sequence: 0},
+        })
+        mocks.querySessionTranscript.mockResolvedValue([])
+        const onCommittedRevision = vi.fn()
+        const store = createStore()
+        store.set(projectIdAtom, "project-1")
+        const wrapper = ({children}: {children: ReactNode}) =>
+            createElement(Provider, {store}, children)
+        const {rerender} = renderHook(
+            ({visible}: {visible: boolean}) =>
+                useSessionLivePreview({
+                    sessionId: "session-1",
+                    sharedReaderAdvertised: true,
+                    runningElsewhere: false,
+                    sender: true,
+                    visible,
+                    onDisconnect: vi.fn().mockResolvedValue(true),
+                    onCommittedRevision,
+                }),
+            {wrapper, initialProps: {visible: true}},
+        )
+        await waitFor(() => expect(mocks.connectSessionLiveEvents).toHaveBeenCalledOnce())
+
+        // The subscription closes (the pane goes off screen) and the agent commits meanwhile.
+        rerender({visible: false})
+        mocks.fetchSessionSnapshot.mockResolvedValue({
+            session: {flags: {is_running: false}},
+            read: {latest_sequence: 2},
+        })
+        mocks.querySessionTranscript.mockResolvedValue(commitRows())
+        rerender({visible: true})
+        await waitFor(() => expect(mocks.connectSessionLiveEvents).toHaveBeenCalledTimes(2))
+        expect(onCommittedRevision).toHaveBeenCalledWith(
+            expect.objectContaining({revisionId: "revision-2"}),
+        )
     })
 
     it("retires an old approval preview when recovery adopts a newer running turn", async () => {

@@ -22,6 +22,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_serializer, model_validator
 
+from ..accounts import AccountSource
+
 # How a credential connection is named in the agent config. A connection is a portable
 # reference into the vault, never a database id and never a raw secret value. Exactly two
 # modes: ``agenta`` (a vault connection, project-default when ``slug`` is omitted, named when
@@ -29,7 +31,17 @@ from pydantic import BaseModel, Field, field_serializer, model_validator
 # subscription connection whose stored OAuth login Agenta delivers to the run). "The project
 # default" is just ``agenta`` with no slug; there is no separate ``default`` mode.
 ConnectionMode = Literal["agenta", "self_managed"]
-ConnectionNamespace = Literal["standard", "custom", "builtin"]
+# ``organization`` is the namespace of an organization connection (M5). An older runtime
+# whose namespace list lacks it refuses the connection instead of reading its slug as a
+# project connection.
+ConnectionNamespace = Literal["standard", "custom", "builtin", "organization"]
+# Whose connection ``slug`` names: the project's (the default, also when omitted) or the
+# organization's. An organization connection is used only when an agent names it.
+ConnectionScope = Literal["project", "organization"]
+
+# Sent in `subscription` beside an organization subscription login (see
+# `ResolvedConnection.to_wire`). Mirrors `ORGANIZATION_SUBSCRIPTION_FENCE` in the runner.
+ORGANIZATION_SUBSCRIPTION_FENCE = {"fence": "organization"}
 
 # Where a resolved credential comes from, as seen by the harness adapter. ``env`` ships one
 # provider's vars; ``runtime_provided`` injects nothing (the harness owns auth, e.g. an OAuth
@@ -132,12 +144,50 @@ class Connection(BaseModel):
     # slug; set, it is taken as given, because a custom endpoint may share a builtin endpoint's
     # name and the two differ in who pays for the call.
     namespace: Optional[ConnectionNamespace] = None
+    # Whose connection ``slug`` names (M5). Omitted means the project's. ``organization``
+    # needs a slug and namespace ``organization`` (filled in when omitted).
+    scope: Optional[ConnectionScope] = None
+    # Whose login fills the model. ``user`` is the run person's own subscription login, so
+    # it needs mode ``self_managed`` and names no slug. Omitted means ``agent``.
+    account_source: Optional[AccountSource] = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
     @model_validator(mode="after")
     def _namespace_names_a_slug(self) -> "Connection":
+        if self.account_source == "user":
+            if self.mode != "self_managed":
+                raise ValueError(
+                    "account_source 'user' needs mode 'self_managed': a provider key "
+                    "is always the agent's"
+                )
+            if self.slug or self.scope or self.namespace:
+                raise ValueError(
+                    "a connection with account_source 'user' names no slug, scope or "
+                    "namespace"
+                )
+            return self
+        if self.scope == "organization" or self.namespace == "organization":
+            # An organization key or custom provider (mode `agenta`), or an organization
+            # subscription login (mode `self_managed`); both are named by slug.
+            if self.scope != "organization" or not self.slug:
+                raise ValueError(
+                    "an organization connection requires scope 'organization' and a slug"
+                )
+            if self.namespace is None:
+                self.namespace = "organization"
+            if self.namespace != "organization":
+                raise ValueError(
+                    "an organization connection uses namespace 'organization'"
+                )
+            return self
         if self.namespace is not None and (self.mode != "agenta" or not self.slug):
             raise ValueError("a connection namespace requires mode 'agenta' and a slug")
         return self
+
+    @property
+    def is_organization(self) -> bool:
+        return self.scope == "organization"
 
 
 class Endpoint(BaseModel):
@@ -244,6 +294,10 @@ class ResolvedSubscription(BaseModel):
     generation: int = 0
     # The harness-format credential, carried verbatim. Pi's shape today; unknown keys survive.
     login: Dict[str, Any] = Field(default_factory=dict, repr=False)
+    # Whose login it is (M5). An organization login travels as `organizationSubscription`,
+    # a field a runner older than M5 does not read. A new runner uses it like a project
+    # login and sends its refreshes to the organization row.
+    owner: Literal["project", "organization"] = "project"
 
     @model_validator(mode="after")
     def _require_identity_and_login(self) -> "ResolvedSubscription":
@@ -397,6 +451,11 @@ class ResolvedConnection(BaseModel):
     # "not stated" (a resolver that does not track provenance): the runner then treats only a
     # ``custom`` deployment as custom.
     custom_connection: Optional[bool] = None
+    # The protocol the gateway route also serves natively, when a harness that knows it should
+    # speak that instead of the one `provider` implies: "gemini" on the built-in Gemini route
+    # (Google's native `streamGenerateContent`). `endpoint.base_url` stays the OpenAI-compatible
+    # route either way, so a runner that ignores this keeps working.
+    protocol: Optional[str] = None
 
     def _require_effective_https(
         self, subject: str, *, allow_insecure_http: bool = False
@@ -469,11 +528,20 @@ class ResolvedConnection(BaseModel):
         if self.input_modalities is not None:
             wire["modelCapabilities"] = {"inputModalities": list(self.input_modalities)}
         if self.subscription is not None:
-            wire["subscription"] = self.subscription.to_wire()
+            if self.subscription.owner == "organization":
+                wire["organizationSubscription"] = self.subscription.to_wire()
+                # A runner older than M5 does not read `organizationSubscription`. It reads
+                # this marker as an unusable subscription and refuses the run, so it never
+                # falls back to an operator login. An M5 runner accepts it beside the login.
+                wire["subscription"] = dict(ORGANIZATION_SUBSCRIPTION_FENCE)
+            else:
+                wire["subscription"] = self.subscription.to_wire()
         if self.gateway_credentials is not None:
             wire["gatewayCredentials"] = self.gateway_credentials.to_wire()
         if self.custom_connection is not None:
             wire["customConnection"] = self.custom_connection
+        if self.protocol is not None:
+            wire["protocol"] = self.protocol
         return wire
 
 

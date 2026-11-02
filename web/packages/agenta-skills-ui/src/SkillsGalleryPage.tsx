@@ -32,10 +32,7 @@ export interface SkillsGalleryPageProps {
     sections: SkillGallerySection[]
     onOpenSkill: (skill: SkillListItem) => void
     /** The single `+ New skill ▾` action (write / upload / import). */
-    createActions: Pick<
-        NewSkillMenuButtonProps,
-        "onWrite" | "onUpload" | "onImport" | "availability"
-    >
+    createActions: Pick<NewSkillMenuButtonProps, "onWrite" | "onUpload" | "onImport">
     loading?: boolean
     /** Archived skills stay hidden until this is on (they keep their slug reserved). */
     showArchived?: boolean

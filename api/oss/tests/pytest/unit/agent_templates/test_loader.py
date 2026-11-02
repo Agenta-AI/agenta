@@ -48,6 +48,7 @@ from oss.src.core.workflows.dtos import (
     SimpleWorkflowCreateResult,
     WorkflowRevisionData,
 )
+from oss.tests.pytest.utils.principals import make_envelope
 
 
 PROJECT_ID = uuid4()
@@ -227,6 +228,7 @@ class _SimpleWorkflows:
         self.events = events
         self.records = {}
         self.create_calls = 0
+        self.access_calls = []
 
     async def fetch_idempotent_root(
         self, *, project_id, namespace, request_key, component
@@ -255,9 +257,12 @@ class _SimpleWorkflows:
         component,
         simple_workflow_create,
         trusted_meta=None,
+        access=None,
+        first_agent_owner_user_id=None,
     ):
         self.events.append("workflow")
         self.create_calls += 1
+        self.access_calls.append((access, first_agent_owner_user_id))
         workflow_id = resource_identity(project_id, namespace, request_key, component)
         replayed = workflow_id in self.records
         if not replayed:
@@ -311,6 +316,15 @@ class _Starts:
     async def fetch_started(self, *, project_id, request_key):
         started = self.started.get((project_id, request_key))
         return started.model_copy(update={"replayed": True}) if started else None
+
+    # Who may resume a completed start: (envelope, session_id, workflow_id) -> raise.
+    refuse_replay = None
+    replay_checks: list = []
+
+    async def admit_replay(self, *, envelope, session_id, workflow_id):
+        self.replay_checks.append((envelope, session_id, workflow_id))
+        if self.refuse_replay is not None:
+            self.refuse_replay(envelope, session_id, workflow_id)
 
     async def start_once(self, **kwargs):
         self.events.append("session")
@@ -551,6 +565,7 @@ async def test_load_materializes_workspace_before_starting_the_session():
         project_id=PROJECT_ID,
         user_id=USER_ID,
         command=_command(),
+        envelope=make_envelope(),
     )
 
     assert events == [
@@ -581,6 +596,7 @@ async def test_workspace_failure_prevents_handoff_and_retry_recovers():
             project_id=PROJECT_ID,
             user_id=USER_ID,
             command=_command(),
+            envelope=make_envelope(),
         )
     assert starts.calls == []
 
@@ -588,6 +604,7 @@ async def test_workspace_failure_prevents_handoff_and_retry_recovers():
         project_id=PROJECT_ID,
         user_id=USER_ID,
         command=_command(),
+        envelope=make_envelope(),
     )
 
     assert result.replayed is True
@@ -606,11 +623,13 @@ async def test_session_failure_retries_after_all_resources_without_duplicates():
             project_id=PROJECT_ID,
             user_id=USER_ID,
             command=_command(),
+            envelope=make_envelope(),
         )
     result = await loader.load(
         project_id=PROJECT_ID,
         user_id=USER_ID,
         command=_command(),
+        envelope=make_envelope(),
     )
 
     assert result.replayed is True
@@ -629,6 +648,7 @@ async def test_load_replay_pins_source_and_returns_same_public_ids():
         project_id=PROJECT_ID,
         user_id=USER_ID,
         command=command,
+        envelope=make_envelope(),
     )
     resolver.current = ResolvedTemplateSource(
         source=InternalTemplateSource(key="sample"),
@@ -640,6 +660,7 @@ async def test_load_replay_pins_source_and_returns_same_public_ids():
         project_id=PROJECT_ID,
         user_id=USER_ID,
         command=command,
+        envelope=make_envelope(),
     )
 
     assert replay.replayed is True
@@ -678,7 +699,12 @@ async def test_first_message_display_and_run_only_build_kit(enabled):
             "ui_op_permissions": {"remove_schedule": "ask"},
         }
     )
-    await loader.load(project_id=PROJECT_ID, user_id=USER_ID, command=command)
+    await loader.load(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        command=command,
+        envelope=make_envelope(),
+    )
     saved = next(iter(workflows.records.values())).data.parameters["agent"]
     assert len(saved["skills"]) == 1
     assert not any(t.get("name") == "Request input" for t in saved["tools"])
@@ -734,7 +760,12 @@ async def test_staged_attachment_is_copied_to_started_session_before_dispatch():
     command = _command().model_copy(
         update={"staging_session_id": "staging", "attachment_ids": [source_id]}
     )
-    await loader.load(project_id=PROJECT_ID, user_id=USER_ID, command=command)
+    await loader.load(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        command=command,
+        envelope=make_envelope(),
+    )
     attachments.fetch_attachment_content.assert_awaited_once_with(
         project_id=PROJECT_ID,
         session_id="staging",
@@ -766,7 +797,12 @@ async def test_foreign_or_missing_staged_attachment_fails_before_resource_creati
         update={"staging_session_id": "foreign", "attachment_ids": [attachment_id]}
     )
     with pytest.raises(TemplatePackageInvalid, match="unavailable"):
-        await loader.load(project_id=PROJECT_ID, user_id=USER_ID, command=command)
+        await loader.load(
+            project_id=PROJECT_ID,
+            user_id=USER_ID,
+            command=command,
+            envelope=make_envelope(),
+        )
     assert events == []
     assert starts.calls == []
 
@@ -831,6 +867,7 @@ async def test_session_file_load_requires_the_validation_pin_before_any_write():
             project_id=PROJECT_ID,
             user_id=USER_ID,
             command=_session_file_command(pin=False),
+            envelope=make_envelope(),
         )
 
     assert error.value.code == "template_source_pin_required"
@@ -846,6 +883,7 @@ async def test_archive_load_records_package_origin_and_uses_its_key():
         project_id=PROJECT_ID,
         user_id=USER_ID,
         command=_session_file_command(),
+        envelope=make_envelope(),
     )
 
     [workflow] = workflows.records.values()
@@ -863,10 +901,20 @@ async def test_archive_load_records_package_origin_and_uses_its_key():
 async def test_completed_archive_replay_needs_no_source():
     loader, _, skills, workflows, resolver, mounts, starts = _archive_loader()
     command = _session_file_command()
-    first = await loader.load(project_id=PROJECT_ID, user_id=USER_ID, command=command)
+    first = await loader.load(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        command=command,
+        envelope=make_envelope(),
+    )
 
     resolver.unavailable = True
-    replay = await loader.load(project_id=PROJECT_ID, user_id=USER_ID, command=command)
+    replay = await loader.load(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        command=command,
+        envelope=make_envelope(),
+    )
 
     assert replay.replayed is True
     assert replay.model_dump(exclude={"replayed"}) == first.model_dump(
@@ -883,7 +931,10 @@ async def test_completed_archive_replay_needs_no_source():
 async def test_completed_request_with_changed_payload_conflicts_without_source():
     loader, _, _, workflows, resolver, _, starts = _archive_loader()
     await loader.load(
-        project_id=PROJECT_ID, user_id=USER_ID, command=_session_file_command()
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        command=_session_file_command(),
+        envelope=make_envelope(),
     )
 
     for changed in (
@@ -906,7 +957,12 @@ async def test_completed_request_with_changed_payload_conflicts_without_source()
         ),
     ):
         with pytest.raises(TemplateCreateConflict):
-            await loader.load(project_id=PROJECT_ID, user_id=USER_ID, command=changed)
+            await loader.load(
+                project_id=PROJECT_ID,
+                user_id=USER_ID,
+                command=changed,
+                envelope=make_envelope(),
+            )
 
     assert len(resolver.pins) == 1
     assert len(workflows.records) == 1
@@ -920,20 +976,124 @@ async def test_interrupted_archive_load_recovers_only_with_the_stored_bytes():
     )
     command = _session_file_command()
     with pytest.raises(RuntimeError, match="session failure"):
-        await loader.load(project_id=PROJECT_ID, user_id=USER_ID, command=command)
+        await loader.load(
+            project_id=PROJECT_ID,
+            user_id=USER_ID,
+            command=command,
+            envelope=make_envelope(),
+        )
 
     # The file changed after the interruption: recovery refuses the new bytes.
     stored = resolver.snapshots
     resolver.snapshots = {}
     with pytest.raises(TemplateSourceDigestMismatch):
-        await loader.load(project_id=PROJECT_ID, user_id=USER_ID, command=command)
+        await loader.load(
+            project_id=PROJECT_ID,
+            user_id=USER_ID,
+            command=command,
+            envelope=make_envelope(),
+        )
     assert resolver.pins[-1].digest == "sha256:" + "1" * 64
 
     # With the pinned bytes back, the same key finishes without duplicates.
     resolver.snapshots = stored
-    result = await loader.load(project_id=PROJECT_ID, user_id=USER_ID, command=command)
+    result = await loader.load(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        command=command,
+        envelope=make_envelope(),
+    )
 
     assert result.replayed is True
     assert len(workflows.records) == 1
     assert len(skills.records) == 1
     assert len(starts.calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_load_forwards_the_route_policy_to_the_agent_create():
+    from oss.src.core.sharing.dtos import AccessPolicy, Visibility
+
+    loader, _, _, workflows, _, _, _ = _loader()
+    policy = AccessPolicy(visibility=Visibility.PROJECT, owner_user_id=USER_ID)
+
+    await loader.load(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        command=_command(),
+        envelope=make_envelope(),
+        access=policy,
+        first_agent_owner_user_id=USER_ID,
+    )
+
+    assert workflows.access_calls == [(policy, USER_ID)]
+
+
+@pytest.mark.asyncio
+async def test_load_forwards_the_session_policy_to_the_session_start():
+    from oss.src.core.sharing.dtos import AccessPolicy, Visibility
+
+    loader, _, _, _, _, _, starts = _loader()
+    session_access = AccessPolicy(visibility=Visibility.PROJECT, owner_user_id=USER_ID)
+
+    await loader.load(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        command=_command(),
+        envelope=make_envelope(),
+        session_access=session_access,
+    )
+
+    assert starts.calls[0]["access"] == session_access
+
+
+def _hidden_refusal():
+    from oss.src.core.access.dtos import Decision, DecisionReason
+    from oss.src.core.sharing.types import AdmissionDenied
+
+    return AdmissionDenied(
+        decision=Decision(allowed=False, reason=DecisionReason.RESOURCE_DENIED),
+        readable=False,
+        boundary="template_start",
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_completed_replay_is_checked_before_it_returns_stored_ids():
+    """Codex spec check finding 2: a completed load replays from stored records keyed
+    by project and request key only. Another member with the same key and payload, or a
+    former owner after a transfer made the agent private to someone else, must not get
+    the stored workflow and session ids: the replay is admitted (session and agent)
+    before it returns."""
+    from oss.src.core.sharing.types import AdmissionDenied
+
+    loader, _, _, workflows, _, _, starts = _loader()
+    starts.replay_checks = []
+    command = _command()
+    alice = make_envelope()
+    first = await loader.load(
+        project_id=PROJECT_ID, user_id=USER_ID, command=command, envelope=alice
+    )
+
+    # The owner's own replay is admitted and returns the stored ids.
+    replay = await loader.load(
+        project_id=PROJECT_ID, user_id=USER_ID, command=command, envelope=alice
+    )
+    assert replay.replayed is True
+    assert starts.replay_checks[-1] == (alice, first.session_id, first.workflow_id)
+
+    # Another caller (or the former owner after the transfer) is refused: nothing of
+    # the stored load comes back, and nothing new is created.
+    def refuse(envelope, session_id, workflow_id):
+        raise _hidden_refusal()
+
+    starts.refuse_replay = refuse
+    created_before = len(workflows.records)
+    with pytest.raises(AdmissionDenied):
+        await loader.load(
+            project_id=PROJECT_ID,
+            user_id=uuid4(),
+            command=command,
+            envelope=make_envelope(),
+        )
+    assert len(workflows.records) == created_before

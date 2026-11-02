@@ -5,11 +5,13 @@ headers may reach a tenant-configured upstream, which cookie jar an upstream cli
 given, and how a relayed response is checked for the credential the gateway injected.
 """
 
+import json
 from enum import Enum
 from http.cookiejar import CookieJar
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import httpx
+from agenta.sdk.agents.connections.credentials import CREDENTIAL_EXTRAS_KEYS
 from pydantic import BaseModel, Field
 
 
@@ -72,6 +74,9 @@ NON_FORWARDABLE_REQUEST_HEADERS = frozenset(
         "proxy-authorization",
         "cookie",
         "authorization",
+        # The key Google's SDKs send. On the native Gemini door Pi sends a placeholder here;
+        # the gateway authenticates with `x-ag-credentials` and Vertex with the platform's own.
+        "x-goog-api-key",
     }
 )
 
@@ -140,8 +145,10 @@ def no_cookie_jar() -> CookieJar:
 _INJECTED_CREDENTIAL_HEADERS = frozenset({"authorization", "x-api-key", "api-key"})
 
 # Below this length a value is too short to identify anything, and scanning for it would
-# refuse responses over a coincidence.
-_MIN_SCANNED_CREDENTIAL_LENGTH = 8
+# refuse responses over a coincidence. Public because an organization credential must be
+# at least this long (after its surrounding whitespace is removed), so the scan covers
+# every organization value the gateway uses (M5).
+MIN_SCANNED_CREDENTIAL_LENGTH = 8
 
 
 def injected_credential_values(headers: Mapping[str, str]) -> Tuple[bytes, ...]:
@@ -156,9 +163,97 @@ def injected_credential_values(headers: Mapping[str, str]) -> Tuple[bytes, ...]:
             continue
         _, _, remainder = value.partition(" ")
         token = (remainder or value).strip()
-        if len(token) >= _MIN_SCANNED_CREDENTIAL_LENGTH:
+        if len(token) >= MIN_SCANNED_CREDENTIAL_LENGTH:
             values[token.encode()] = None
     return tuple(values)
+
+
+def secret_credential_values(secret: Any) -> Tuple[bytes, ...]:
+    """Every credential value a stored secret holds: its primary `provider.key` and each
+    credential extras value (`CREDENTIAL_EXTRAS_KEYS`), whatever header later carries it.
+
+    For an organization credential the relay scans these as well as the injected headers,
+    so an upstream that echoes any of its values is refused (M5). Organization values are
+    at least `MIN_SCANNED_CREDENTIAL_LENGTH` long by the write rule, so none falls under
+    the scan minimum."""
+    values: Dict[bytes, None] = {}
+    provider = getattr(getattr(secret, "data", None), "provider", None)
+    if provider is None:
+        return ()
+    candidates = [getattr(provider, "key", None)]
+    extras = getattr(provider, "extras", None)
+    if isinstance(extras, dict):
+        candidates.extend(extras.get(key) for key in CREDENTIAL_EXTRAS_KEYS)
+    for value in candidates:
+        if isinstance(value, str):
+            token = value.strip()
+            if len(token) < MIN_SCANNED_CREDENTIAL_LENGTH:
+                continue
+            for form in _echo_forms(token):
+                values[form.encode()] = None
+    return tuple(values)
+
+
+def _echo_forms(token: str) -> Tuple[str, ...]:
+    """The spellings an upstream can echo a value in: raw, and JSON-escaped as a JSON or
+    SSE-JSON body writes it (quotes and backslashes escaped, non-ASCII as `\\uXXXX` or
+    raw, and `/` optionally as `\\/`). The scan is a substring search over bytes, so
+    each spelling is searched for, also across stream chunks."""
+    forms: Dict[str, None] = {token: None}
+    for ensure_ascii in (True, False):
+        escaped = json.dumps(token, ensure_ascii=ensure_ascii)[1:-1]
+        forms[escaped] = None
+        # Go's encoder also escapes <, > and & (HTML-safe) and U+2028 / U+2029, while it
+        # keeps other non-ASCII characters as they are.
+        forms[_go_html_escaped(escaped)] = None
+        # Go with SetEscapeHTML(false): only the line and paragraph separators.
+        forms[_go_separators_escaped(escaped)] = None
+    # .NET System.Text.Json (JavaScriptEncoder.Default) also escapes ", ', +, `, <, >
+    # and & as \uXXXX, with upper-case hex; some encoders write the same in lower case.
+    forms[_dotnet_escaped(token, upper=True)] = None
+    forms[_dotnet_escaped(token, upper=False)] = None
+    for form in list(forms):
+        forms[form.replace("/", "\\/")] = None
+    return tuple(forms)
+
+
+_GO_ESCAPES = {
+    "<": "\\u003c",
+    ">": "\\u003e",
+    "&": "\\u0026",
+    "\u2028": "\\u2028",
+    "\u2029": "\\u2029",
+}
+
+
+_DOTNET_ESCAPED = frozenset("\"'+`<>&")
+
+
+def _dotnet_escaped(token: str, *, upper: bool) -> str:
+    """The spelling `System.Text.Json` writes, built per character so a literal
+    `\\u...` inside the value stays as the encoder writes it (backslash escaped)."""
+    parts = []
+    for character in token:
+        if character in _DOTNET_ESCAPED or ord(character) > 0x7E:
+            escaped = json.dumps(character, ensure_ascii=True)[1:-1]
+            if not escaped.startswith("\\u"):  # `"` is `\"` in Python's spelling
+                escaped = f"\\u{ord(character):04x}"
+            parts.append(
+                escaped.replace("\\u", "\\U").upper().replace("\\U", "\\u")
+                if upper
+                else escaped
+            )
+        else:
+            parts.append(json.dumps(character)[1:-1])
+    return "".join(parts)
+
+
+def _go_separators_escaped(text: str) -> str:
+    return text.replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
+
+
+def _go_html_escaped(text: str) -> str:
+    return "".join(_GO_ESCAPES.get(character, character) for character in text)
 
 
 class CredentialEchoScanner:
@@ -305,6 +400,15 @@ CREDENTIAL_ECHO_NEXT_STEP = (
 )
 
 
+# Typed gateway refusals carry this marker in their message for harness recovery.
+CODE_MARKER_OPEN = "⟦agenta_code:"
+CODE_MARKER_CLOSE = "⟧"
+
+
+def with_code_marker(message: str, code: str) -> str:
+    return f"{message} {CODE_MARKER_OPEN}{code}{CODE_MARKER_CLOSE}"
+
+
 def credential_echo_envelope(*, target: Optional[str] = None) -> Dict[str, Any]:
     """The shared refusal envelope `{code, message, retryable, next_step, details}`.
 
@@ -379,6 +483,8 @@ class GatewayEndpointNamespace(str, Enum):
     BUILTIN = "builtin"  # our account; a provider segment follows (agenta, composio)
     STANDARD = "standard"  # a known shape, the user's secret; generated, never a row
     CUSTOM = "custom"  # a row; configurable
+    # An organization connection an agent named by scope and slug (M5, LLM plane only).
+    ORGANIZATION = "organization"
 
 
 class GatewayEndpointRoute(BaseModel):

@@ -23,7 +23,11 @@ from uuid import UUID
 import yaml
 
 from oss.src.core.mounts.dtos import MountFileContent
-from oss.src.core.mounts.types import MountFileNotFound, MountPreconditionFailed
+from oss.src.core.mounts.types import (
+    MountFileNotFound,
+    MountFileTooLarge,
+    MountPreconditionFailed,
+)
 
 BUNDLE_STARTERS_DIR = Path(__file__).parent / "starters"
 STARTER_SKILL_FILENAME = "SKILL.md"
@@ -314,11 +318,14 @@ class AppsService:
             segments = rel.split("/")
             if len(segments) != 2 or segments[1] != STARTER_SKILL_FILENAME:
                 continue
-            content = await self.mounts_service.read_file(
-                project_id=project_id,
-                mount_id=mount_id,
-                path=f"{AGENT_STARTERS_DIR}/{rel}",
-            )
+            try:
+                content = await self.mounts_service.read_file(
+                    project_id=project_id,
+                    mount_id=mount_id,
+                    path=f"{AGENT_STARTERS_DIR}/{rel}",
+                )
+            except MountFileTooLarge:
+                continue  # an oversized starter must not hide the rest
             try:
                 starters.append(parse_starter_skill(content.content, source="agent"))
             except AppsError:

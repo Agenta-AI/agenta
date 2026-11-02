@@ -134,7 +134,7 @@ describe("mobile TurnRow: an MCP server that did not join the run", () => {
         // appears once the row is expanded, so asserting the absence of the harness sentence let
         // a rendered row through; the whole text is asserted instead, action included.
         expect(textOf(html)).toBe(
-            "mock-mcp needs a new sign-in." +
+            "mock-mcp needs a new sign-in. " +
                 "Its tools fail until someone in the project reconnects." +
                 "Reconnect",
         )

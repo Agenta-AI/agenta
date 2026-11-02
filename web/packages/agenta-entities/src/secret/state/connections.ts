@@ -12,6 +12,11 @@ import {atom} from "jotai"
 import {atomWithMutation} from "jotai-tanstack-query"
 
 import {
+    createOrganizationSecret,
+    setOrganizationSecretProjects,
+    type OrganizationSecretProjects,
+} from "../api/organizationSecrets"
+import {
     probeProvider,
     type ProbeProviderCredentials,
     type ProbeProviderResponse,
@@ -22,12 +27,14 @@ import {
     type ConnectionDraft,
     type ProviderConnection,
 } from "../core/connections"
+import type {SecretOwnerScope} from "../core/types"
 
 import {
     createVaultSecretMutationAtom,
     updateVaultSecretMutationAtom,
     vaultSecretsQueryAtom,
 } from "./atoms"
+import {refreshVaultSecretsAtom} from "./subscriptionLogin"
 
 /** Every connected provider in the project, standard and custom alike. */
 export const providerConnectionsAtom = atom<ProviderConnection[]>((get) =>
@@ -42,10 +49,16 @@ export const providerConnectionsAtom = atom<ProviderConnection[]>((get) =>
  */
 export const probeProviderMutationAtom = atomWithMutation<
     ProbeProviderResponse | null,
-    {projectId: string; kind?: string; provider: ProbeProviderCredentials; secretId?: string}
+    {
+        projectId: string
+        kind?: string
+        provider: ProbeProviderCredentials
+        secretId?: string
+        secretScope?: SecretOwnerScope
+    }
 >(() => ({
-    mutationFn: ({projectId, kind, provider, secretId}) =>
-        probeProvider({projectId, kind, provider, secretId}),
+    mutationFn: ({projectId, kind, provider, secretId, secretScope}) =>
+        probeProvider({projectId, kind, provider, secretId, secretScope}),
 }))
 
 /**
@@ -55,38 +68,89 @@ export const probeProviderMutationAtom = atomWithMutation<
  * an omitted list leaves the connection on Agenta's defaults, while an explicit `[]` offers none.
  * `fallbackName` names a `custom_provider` whose name field was left empty (the API names an
  * unnamed `provider_key` itself, so that one goes out header-less).
+ *
+ * With `organization`, the connection is the organization's: it is created with its projects,
+ * and a change writes the credential and, when they changed, the projects in parallel. Both
+ * lists refresh after any write that landed, also when the other one failed; the failure is
+ * thrown after the refresh, so the caller keeps its unsaved choice on screen.
  */
 export const saveProviderConnectionAtom = atom(
     null,
     async (
         get,
-        _set,
+        set,
         {
             draft,
             fallbackName,
             connectionId,
-        }: {draft: ConnectionDraft; fallbackName: string; connectionId?: string},
+            organization,
+        }: {
+            draft: ConnectionDraft
+            fallbackName: string
+            connectionId?: string
+            organization?: {projects: OrganizationSecretProjects; projectsChanged: boolean}
+        },
     ) => {
         const projectId = get(projectIdAtom)
         if (!projectId) throw new Error("[vault] Missing projectId for saveProviderConnection")
 
         const payload = buildConnectionPayload(draft, fallbackName)
 
-        if (connectionId) {
-            await get(updateVaultSecretMutationAtom).mutateAsync({
+        if (!organization) {
+            if (connectionId) {
+                await get(updateVaultSecretMutationAtom).mutateAsync({
+                    projectId,
+                    secret_id: connectionId,
+                    payload: {
+                        // A header without a name would ask the API to rename the connection to
+                        // nothing; leaving it out keeps the name the record already has.
+                        ...(payload.header?.name ? {header: payload.header} : {}),
+                        secret: payload.secret,
+                    },
+                })
+                return connectionId
+            }
+            const created = await get(createVaultSecretMutationAtom).mutateAsync({
+                projectId,
+                payload,
+            })
+            return created.id ?? null
+        }
+
+        if (!connectionId) {
+            const created = await createOrganizationSecret({
+                projectId,
+                payload,
+                projects: organization.projects,
+            })
+            await set(refreshVaultSecretsAtom)
+            return created.id ?? null
+        }
+
+        const writes: Promise<unknown>[] = [
+            get(updateVaultSecretMutationAtom).mutateAsync({
                 projectId,
                 secret_id: connectionId,
+                scope: "organization",
                 payload: {
-                    // A header without a name would ask the API to rename the connection to
-                    // nothing; leaving it out keeps the name the record already has.
                     ...(payload.header?.name ? {header: payload.header} : {}),
                     secret: payload.secret,
                 },
-            })
-            return connectionId
+            }),
+        ]
+        if (organization.projectsChanged) {
+            writes.push(
+                setOrganizationSecretProjects({
+                    projectId,
+                    secretId: connectionId,
+                    projects: organization.projects,
+                }),
+            )
         }
-
-        const created = await get(createVaultSecretMutationAtom).mutateAsync({projectId, payload})
-        return created.id ?? null
+        const results = await Promise.allSettled(writes)
+        await set(refreshVaultSecretsAtom)
+        const failed = results.find((result) => result.status === "rejected")
+        if (failed) throw (failed as PromiseRejectedResult).reason
+        return connectionId
     },
 )

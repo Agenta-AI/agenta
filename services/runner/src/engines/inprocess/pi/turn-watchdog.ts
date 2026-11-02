@@ -8,8 +8,13 @@
  * a short one when nothing is in flight, and a longer one while a model request, a compaction or
  * a retry back-off is in progress, because a reasoning model may think for minutes without
  * streaming anything.
+ *
+ * A model request starts at `turn_start`, not at the assistant `message_start`: Pi emits
+ * `message_start` only once the provider has answered with headers, and it retries a failed
+ * provider call silently before that. The wait for the first response is model time.
  */
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
+import { withPublicCode } from "../../sandbox_agent/errors.ts";
 
 export interface TurnWatchdogLimits {
   /** Silence allowed between steps, when no model request is in flight. */
@@ -24,6 +29,7 @@ export class TurnSilenceError extends Error {
       `The agent stopped responding: no progress for ${Math.round(silenceMs / 1000)} seconds, so the turn was ended. Send the message again to retry.`,
     );
     this.name = "TurnSilenceError";
+    withPublicCode(this, "run_idle_time_limit");
   }
 }
 
@@ -66,6 +72,9 @@ export class TurnWatchdog {
 
   observe(event: AgentSessionEvent): void {
     switch (event.type) {
+      case "turn_start":
+        this.modelInFlight = true;
+        break;
       case "message_start":
         if (event.message.role === "assistant") this.modelInFlight = true;
         break;

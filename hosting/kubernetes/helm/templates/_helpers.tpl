@@ -221,7 +221,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{/* ================================================================
    Canonical values reader. Helpers/templates that touch renamed
    paths (`agenta.*`, `posthog.*`, `postgres.*`, `supertokens.apiKey`,
-   `sendgrid.*`, `composio.*`, `newrelic.*`, `cloudflare.*`) bind
+   `sendgrid.*`, `composio.*`, `cloudflare.*`) bind
    a local at the top of the helper:
 
        {{- $values := include "agenta.values" . | fromYaml -}}
@@ -1140,7 +1140,6 @@ failureThreshold: 3
 {{- $aiServices := default dict $agenta.aiServices -}}
 {{- $agentaApi := default dict $agenta.api -}}
 {{- $apiCaching := default dict $agentaApi.caching -}}
-{{- $extras := default dict $agenta.extras -}}
 {{- $logging := default dict $agenta.logging -}}
 {{- $otlp := default dict $agenta.otlp -}}
 {{- $agentaServices := default dict $agenta.services -}}
@@ -1154,7 +1153,6 @@ failureThreshold: 3
 {{- $sendgrid := default dict $values.sendgrid -}}
 {{- $composio := default dict $values.composio -}}
 {{- $cf := default dict (default dict $values.cloudflare).turnstile -}}
-{{- $nr := default dict $values.newrelic -}}
 {{- $loops := default dict .Values.loops -}}
 {{- $crisp := default dict .Values.crisp -}}
 {{- $daytona := default dict .Values.daytona -}}
@@ -1337,6 +1335,18 @@ failureThreshold: 3
 - name: AGENTA_ACCESS_BLOCKED_EMAILS
   value: {{ $access.blockedEmails | quote }}
 {{- end }}
+{{- if $access.maxOwnedOrganizations }}
+- name: AGENTA_ACCESS_MAX_OWNED_ORGANIZATIONS
+  value: {{ $access.maxOwnedOrganizations | quote }}
+{{- end }}
+{{- if $access.trustedProxyHops }}
+- name: AGENTA_ACCESS_TRUSTED_PROXY_HOPS
+  value: {{ $access.trustedProxyHops | quote }}
+{{- end }}
+{{- if $access.trustCloudflareIp }}
+- name: AGENTA_ACCESS_TRUST_CLOUDFLARE_IP
+  value: {{ $access.trustCloudflareIp | quote }}
+{{- end }}
 {{- if $access.allowedOwnerEmails }}
 - name: AGENTA_ACCESS_ALLOWED_OWNER_EMAILS
   value: {{ $access.allowedOwnerEmails | quote }}
@@ -1502,13 +1512,6 @@ failureThreshold: 3
 - name: AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED
   value: {{ $svcMiddleware.cachingEnabled | quote }}
 {{- end }}
-{{- /* agenta.extras.demos — EE reads AGENTA_DEMOS for demo workspace seeding */}}
-{{- if $extras.demos }}
-- name: AGENTA_DEMOS
-  value: {{ $extras.demos | quote }}
-- name: AGENTA_EXTRAS_DEMOS
-  value: {{ $extras.demos | quote }}
-{{- end }}
 {{- /* crisp — surfaced as NEXT_PUBLIC_CRISP_WEBSITE_ID to the web container */}}
 {{- if $crisp.websiteId }}
 - name: CRISP_WEBSITE_ID
@@ -1627,14 +1630,6 @@ failureThreshold: 3
       key: COMPOSIO_API_KEY
       optional: true
 {{- end }}
-{{- if $nr.licenseKey }}
-- name: NEWRELIC_LICENSE_KEY
-  valueFrom:
-    secretKeyRef:
-      name: {{ include "agenta.secretName" . }}
-      key: NEWRELIC_LICENSE_KEY
-      optional: true
-{{- end }}
 {{- if $cf.secretKey }}
 - name: CLOUDFLARE_TURNSTILE_SECRET_KEY
   valueFrom:
@@ -1725,15 +1720,20 @@ failureThreshold: 3
        different nodes and zones, so one node carries at most one of them.
 
    A workload with one replica cannot survive its node being cleared, with
-   or without a budget: the budget only defers the eviction. Give any
-   workload that must stay reachable two replicas.
+   or without a budget. Give any workload that must stay reachable two
+   replicas. Every workload therefore gets the same budget,
+   `maxUnavailable: 1`, whatever its replica count: with two or more
+   replicas one pod may go at a time, and with one replica the budget
+   permits the eviction rather than deferring it. A budget that allows zero
+   disruptions over a single pod (`minAvailable: 1`) protects nothing and
+   stops the platform from draining that node for its whole grace period.
 
    `podDisruptionBudgets.enabled` (default true) and
    `topologySpread.enabled` (default true) turn the whole mechanism off for
    an install that manages placement itself. Per workload,
-   `<workload>.pdb.maxUnavailable`, `<workload>.pdb.minAvailable` and
-   `<workload>.pdb.protectSingleton` override the defaults, and
-   `<workload>.topologySpreadConstraints` replaces the generated list.
+   `<workload>.pdb.maxUnavailable` and `<workload>.pdb.minAvailable`
+   override the default, and `<workload>.topologySpreadConstraints` replaces
+   the generated list.
    ================================================================ */}}
 
 {{/* Every schedulable workload: the component label, its values key, and

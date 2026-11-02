@@ -72,4 +72,14 @@ describe("liveCommittedRevisions", () => {
             ),
         ).toEqual([{revisionId: "rev-2", variantId: "var-1", version: "2"}])
     })
+    it("finds a commit whose result the log stored before its call", () => {
+        const [call, result] = records()
+        expect(liveCommittedRevisions([result, call], 23)).toEqual([
+            {
+                revisionId: output.workflow_revision.id,
+                variantId: output.workflow_revision.workflow_variant_id,
+                version: "2",
+            },
+        ])
+    })
 })

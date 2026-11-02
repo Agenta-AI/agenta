@@ -1168,6 +1168,7 @@ class TestConnectionReadsStayOnChannelConnections:
             await service.create_agent(
                 project_id=uuid4(),
                 user_id=uuid4(),
+                guard_user_id=None,
                 agent=ChannelAgentCreate(
                     slug="triage",
                     connection_id=connection_id,
@@ -1274,7 +1275,9 @@ class TestLifecycleRefusals:
         )
 
         assert result is None
-        dao.fetch_agent_by_slug.assert_not_awaited()
+        # stored for later context, never answered
+        dao.attach_event_to_space.assert_awaited_once()
+        dao.create_thread.assert_not_awaited()
 
     async def test_inactive_agent_refuses_like_an_absent_one(self):
         agent = _make_agent(slug="triage", flags=ChannelAgentFlags(is_active=False))
@@ -2083,54 +2086,6 @@ class TestApprovalAnswers:
         assert result.answered_interaction_id is None
 
 
-# --- the connection's sender allow-list ("Allowed users") -------------------- #
-
-
-@pytest.mark.asyncio
-async def test_an_allow_list_drops_senders_outside_it_and_empty_means_everyone():
-    from oss.src.core.channels.service import _sender_allowed
-
-    def conn(allowed):
-        return ChannelConnection(
-            id=uuid4(),
-            slug="c",
-            channel="agenta",
-            external_key=uuid4(),
-            data={"allowed_senders": allowed} if allowed is not None else {},
-            flags=ChannelConnectionFlags(is_verified=True),
-        )
-
-    event = _make_event()  # sender id "U1"
-    assert _sender_allowed(conn(None), event) is True
-    assert _sender_allowed(conn([]), event) is True
-    assert _sender_allowed(conn(["U1"]), event) is True
-    assert _sender_allowed(conn([8883745180]), _make_event()) is False
-    assert _sender_allowed(conn(["U2", "U3"]), event) is False
-
-
-@pytest.mark.asyncio
-async def test_resolve_returns_none_for_a_sender_outside_the_allow_list():
-    dao = _make_fake_dao()
-    dao.fetch_connection = AsyncMock(
-        return_value=ChannelConnection(
-            id=uuid4(),
-            slug="conn-1",
-            channel="agenta",
-            external_key=uuid4(),
-            data={"allowed_senders": ["someone-else"]},
-            flags=ChannelConnectionFlags(is_verified=True),
-        )
-    )
-    adapter = MagicMock()
-    adapter.fetch_capabilities = AsyncMock()
-    service = _make_service(dao=dao, adapter=adapter)
-    result = await service.resolve(
-        project_id=uuid4(), connection_id=uuid4(), event=_make_event()
-    )
-    assert result is None
-    dao.get_or_create_space.assert_not_awaited()  # dropped before provisioning
-
-
 # --- who is speaking ---------------------------------------------------------- #
 
 
@@ -2140,17 +2095,25 @@ def test_attribution_names_the_sender_by_name_username_or_id():
     assert _attribution_part(
         {"id": 1000001, "name": "Test User", "username": "testuser"},
         channel="telegram_hosted",
-    ) == {"type": "text", "text": "From Test User (@testuser, Telegram id 1000001):"}
+    ) == {
+        "type": "text",
+        "text": "From Test User (@testuser, Telegram id 1000001):\n\n",
+    }
     assert _attribution_part(
         {"id": 42, "username": "testuser"}, channel="telegram"
     ) == {
         "type": "text",
-        "text": "From @testuser (Telegram id 42):",
+        "text": "From @testuser (Telegram id 42):\n\n",
     }
     assert _attribution_part({"id": "U1"}, channel="slack") == {
         "type": "text",
-        "text": "From user U1 (Slack id U1):",
+        "text": "From user U1 (Slack id U1):\n\n",
     }
+    # an adapter that names the source itself wins over the channel label
+    assert _attribution_part(
+        {"id": "ab12", "name": "Ana", "platform": "Support widget"},
+        channel="embed",
+    ) == {"type": "text", "text": "From Ana (Support widget id ab12):\n\n"}
     assert _attribution_part({}, channel="slack") is None
     assert _attribution_part({"id": ""}, channel="agenta") is None
 

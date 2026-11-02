@@ -71,3 +71,33 @@ async def test_promoted_input_lookup_keeps_project_and_session_scope(query_engin
         "session_id_1": "session-1",
         "promoted_execution_id_1": "turn-1",
     }
+
+
+async def test_unstarted_trigger_count_keeps_project_scope_and_counts_confirmed_non_starts(
+    query_engine,
+):
+    engine, session = query_engine
+    session.execute.return_value.scalar_one.return_value = 2
+    project, first, second = uuid4(), uuid4(), uuid4()
+
+    count = await ChannelsDAO(engine=engine).count_unstarted_triggers(
+        project_id=project, thread_ids=[first, second]
+    )
+
+    assert count == 2
+    params = session.execute.call_args.args[0].compile().params
+    assert params["project_id_1"] == project
+    assert params["thread_id_1"] == [first, second]
+    # A FAILED start whose response was lost may have run: only these codes count.
+    assert sorted(params["param_1"]) == ["never_sent", "start_rejected"]
+
+
+async def test_unstarted_trigger_count_of_no_threads_is_zero(query_engine):
+    engine, session = query_engine
+    assert (
+        await ChannelsDAO(engine=engine).count_unstarted_triggers(
+            project_id=uuid4(), thread_ids=[]
+        )
+        == 0
+    )
+    session.execute.assert_not_called()

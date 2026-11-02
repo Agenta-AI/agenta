@@ -117,10 +117,13 @@ class _ExecutionSettlements:
         terminal_outcome,
         settled_by,
         settled_at=None,
+        defer_to_stop=False,
     ):
         key = (session_id, execution_id)
         if key in self.rows:
-            if self.rows[key].terminal_outcome is None:
+            if self.rows[key].terminal_outcome is None and not (
+                defer_to_stop and self.rows[key].state == "stopping"
+            ):
                 self.rows[key] = self.rows[key].model_copy(
                     update={
                         "state": "terminal",
@@ -369,8 +372,8 @@ async def test_paused_or_quarantined_done_does_not_complete_a_continuation(monke
     assert _quarantined(service.records_dao)[-1].record_type == "done"
 
 
-@pytest.mark.parametrize("stop_reason", ["cancelled", "error"])
-async def test_non_completing_done_does_not_claim_completion(monkeypatch, stop_reason):
+@pytest.mark.parametrize("stop_reason", ["paused", "cancelled"])
+async def test_non_ending_done_does_not_claim_completion(monkeypatch, stop_reason):
     executions = _ExecutionSettlements()
     executions.rows[(_SESSION, _TURN)] = SessionExecutionSettlement(
         project_id=_PROJECT,
@@ -386,9 +389,6 @@ async def test_non_completing_done_does_not_claim_completion(monkeypatch, stop_r
     )
     assert executions.rows[(_SESSION, _TURN)].terminal_outcome is None
 
-    if stop_reason == "error":
-        return
-
     result = await executions.settle(
         project_id=_PROJECT,
         session_id=_SESSION,
@@ -399,6 +399,51 @@ async def test_non_completing_done_does_not_claim_completion(monkeypatch, stop_r
 
     assert result.won is True
     assert executions.rows[(_SESSION, _TURN)].terminal_outcome == "stopped"
+
+
+async def test_error_done_settles_the_continuation_as_failed(monkeypatch):
+    executions = _ExecutionSettlements()
+    executions.rows[(_SESSION, _TURN)] = SessionExecutionSettlement(
+        project_id=_PROJECT,
+        session_id=_SESSION,
+        execution_id=_TURN,
+        state="running",
+        source_interaction_id=uuid4(),
+    )
+    service = RecordsService(records_dao=_StubDAO(), executions_dao=executions)
+
+    await service.append_many(
+        events=[_event("done", attributes={"type": "done", "stopReason": "error"})]
+    )
+
+    assert executions.rows[(_SESSION, _TURN)].terminal_outcome == "failed"
+    assert executions.rows[(_SESSION, _TURN)].settled_by == "runner"
+
+
+async def test_error_done_leaves_a_stopping_continuation_to_its_stop(monkeypatch):
+    executions = _ExecutionSettlements()
+    executions.rows[(_SESSION, _TURN)] = SessionExecutionSettlement(
+        project_id=_PROJECT,
+        session_id=_SESSION,
+        execution_id=_TURN,
+        state="stopping",
+        source_interaction_id=uuid4(),
+    )
+    service = RecordsService(records_dao=_StubDAO(), executions_dao=executions)
+
+    await service.append_many(
+        events=[_event("done", attributes={"type": "done", "stopReason": "error"})]
+    )
+    assert executions.rows[(_SESSION, _TURN)].terminal_outcome is None
+
+    result = await executions.settle(
+        project_id=_PROJECT,
+        session_id=_SESSION,
+        execution_id=_TURN,
+        terminal_outcome="stopped",
+        settled_by="runner",
+    )
+    assert result.won is True
 
 
 async def test_ingest_marks_the_runners_terminal_record_written(monkeypatch):

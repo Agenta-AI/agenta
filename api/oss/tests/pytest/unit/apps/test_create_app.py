@@ -17,6 +17,7 @@ from oss.src.core.tools.exceptions import (
     PlatformToolHandlerUnavailable,
 )
 from oss.src.core.tools.platform_handlers import dispatch_platform_tool_handler
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 PROJECT = uuid4()
 MOUNT = uuid4()
@@ -333,6 +334,7 @@ def test_tool_definition_hides_the_bound_field_from_the_model():
 
 async def test_dispatch_hands_the_handler_the_routers_mounts_service(fake_mounts):
     result = await dispatch_platform_tool_handler(
+        run_admission=NoopRunAdmission(),
         call_ref=CREATE_APP_CALL_REF,
         arguments={"starter": "board", "dir": "apps/sprint", "session_id": "sess-1"},
         headers=None,
@@ -351,6 +353,7 @@ async def test_dispatch_hands_the_handler_the_routers_mounts_service(fake_mounts
 async def test_dispatch_without_a_mounts_service_is_unavailable():
     with pytest.raises(PlatformToolHandlerUnavailable):
         await dispatch_platform_tool_handler(
+            run_admission=NoopRunAdmission(),
             call_ref=CREATE_APP_CALL_REF,
             arguments={"starter": "board", "dir": "apps/x", "session_id": "sess-1"},
             headers=None,

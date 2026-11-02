@@ -5,15 +5,18 @@ The house triple, matching `triggers/models.py`, plus the connect shapes.
 """
 
 from typing import Any, Dict, List, Optional
+from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from oss.src.core.gateways.mcps.dtos import (
+    MCPCredentialBinding,
     MCPEndpoint,
     MCPEndpointCreate,
     MCPEndpointEdit,
     MCPEndpointQuery,
 )
+from oss.src.core.gateways.mcps.oauth.dtos import MCPOAuthAttemptOutcome
 from oss.src.core.gateways.mcps.probe import MCPServerProbeResult
 from oss.src.core.shared.dtos import Windowing
 
@@ -31,14 +34,47 @@ class MCPEndpointQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
+class MCPUserSignIn(BaseModel):
+    """The caller's own sign-in to a server. `is_ready` has the meaning of
+    `ItemAccount.is_ready`."""
+
+    is_ready: bool
+
+
+class MCPEndpointWithSignIn(MCPEndpoint):
+    # Built from a stored `MCPEndpoint` by the routes that have no sign-in to add.
+    model_config = ConfigDict(from_attributes=True)
+
+    # The caller's own sign-in; null when they have none. Left out for a caller who is no
+    # person, with personal accounts off, and for a server that takes no sign-in.
+    user_sign_in: Optional[MCPUserSignIn] = None
+
+
 class MCPEndpointResponse(BaseModel):
     count: int = 0
-    endpoint: Optional[MCPEndpoint] = None
+    endpoint: Optional[MCPEndpointWithSignIn] = None
 
 
 class MCPEndpointsResponse(BaseModel):
     count: int = 0
-    endpoints: List[MCPEndpoint] = Field(default_factory=list)
+    endpoints: List[MCPEndpointWithSignIn] = Field(default_factory=list)
+
+
+class MCPEndpointCheckRequest(BaseModel):
+    """The result of a check the connect sheet just ran against the connection."""
+
+    ok: bool
+    reason: Optional[str] = Field(
+        default=None,
+        description="Why the check failed. Text past 300 characters is cut, not refused.",
+    )
+
+    @field_validator("reason")
+    @classmethod
+    def clip_reason(cls, reason: Optional[str]) -> Optional[str]:
+        """The reason can carry a server's own error text whole. A long one is cut, not
+        refused, so the failed check is still recorded."""
+        return reason[:300] if reason else reason
 
 
 class MCPConnectRequest(BaseModel):
@@ -46,6 +82,9 @@ class MCPConnectRequest(BaseModel):
     `scopes` present (an empty list is a legal "no scopes") is the begin step."""
 
     scopes: Optional[List[str]] = None
+    # A person's own token for a token server (`owner_kind=user`). Write-only: never
+    # returned, never logged.
+    token: Optional[str] = Field(default=None, repr=False)
 
     @field_validator("scopes")
     @classmethod
@@ -67,18 +106,33 @@ class MCPConnectResponse(BaseModel):
     count: int = 0
     redirect_url: Optional[str] = None
     scopes_offered: List[str] = Field(default_factory=list)
+    # Set with `redirect_url`: the attempt the callback will answer for, and how many
+    # seconds it stays usable.
+    attempt_id: Optional[str] = None
+    expires_in: Optional[int] = None
+
+
+class MCPConnectAttemptResponse(BaseModel):
+    count: int = 0
+    attempt: Optional[MCPOAuthAttemptOutcome] = None
 
 
 class MCPEndpointProbeRequest(BaseModel):
     """Inspect a server URL before an endpoint exists.
 
-    `url` is the only field, and deliberately: the probe routes a request and reports what
-    came back. It takes no name (nothing is being labelled), no slug or id (nothing is
-    being identified), and no credential — there is no endpoint to carry one, and a
-    credential must never be sent to an origin nobody has chosen yet.
+    The probe routes a request and reports what came back. It takes no name (nothing is
+    being labelled), no slug or id (nothing is being identified), and no credential value.
+
+    `secret_id` names a project secret to send the way `credential_binding` says, which
+    is a `{secret}` in the URL's path when it says nothing: that address does not exist
+    without its key. A key sent in a header or the query is how a changed key is checked
+    before a connection saves it. The API reads the value from the vault, so the browser
+    never sends it.
     """
 
     url: str
+    secret_id: Optional[UUID] = None
+    credential_binding: Optional[MCPCredentialBinding] = None
 
 
 class MCPEndpointProbeResponse(BaseModel):

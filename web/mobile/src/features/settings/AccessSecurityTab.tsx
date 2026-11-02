@@ -29,14 +29,14 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
     const access = useMobileSettingsAccess()
     const {organizationId, org, loading, failed, retry} = useSettingsOrg(workspaceId)
     const domains = useQuery({
-        queryKey: ["organization-domains", organizationId],
-        queryFn: () => fetchOrganizationDomains(),
-        enabled: Boolean(organizationId),
+        queryKey: ["organization-domains", organizationId, projectId],
+        queryFn: () => fetchOrganizationDomains(projectId),
+        enabled: Boolean(organizationId && projectId),
     })
     const providers = useQuery({
-        queryKey: ["organization-providers", organizationId],
-        queryFn: () => fetchOrganizationProviders(),
-        enabled: Boolean(organizationId),
+        queryKey: ["organization-providers", organizationId, projectId],
+        queryFn: () => fetchOrganizationProviders(projectId),
+        enabled: Boolean(organizationId && projectId),
     })
     const entitlements = useEntitlements({projectId, enabled: access.isEE})
 

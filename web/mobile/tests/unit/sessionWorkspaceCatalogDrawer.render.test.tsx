@@ -82,11 +82,18 @@ vi.mock("@/features/chat/useStartBlankSession", () => ({
     useStartBlankSession: () => () => undefined,
 }))
 vi.mock("@/features/chat/useTriggerTestRun", () => ({useTriggerTestRun: () => undefined}))
-vi.mock("@agenta/entity-ui/drive", () => ({
-    DriveSessionProvider: ({children}: {children: React.ReactNode}) => children,
-    SessionFilesPane: () => null,
-    useSessionFilesPane: () => ({open: false, close: () => undefined, toggle: () => undefined}),
-}))
+vi.mock("@agenta/entity-ui/drive", async () => {
+    const {atom} = await import("jotai")
+    const {createContext} = await import("react")
+    return {
+        DriveLinkContext: createContext(null),
+        DriveSessionProvider: ({children}: {children: React.ReactNode}) => children,
+        SessionFilesPane: () => null,
+        driveQuickLookAtomFamily: () => atom(null, () => undefined),
+        useCopyText: () => () => undefined,
+        useSessionFilesPane: () => ({open: false, close: () => undefined, toggle: () => undefined}),
+    }
+})
 vi.mock("@agenta/sessions-ui", () => ({
     useRequestSessionTabRename: () => () => undefined,
     useSessionActions: () => ({setArchived: () => undefined}),
@@ -99,6 +106,12 @@ vi.mock("@agenta/sessions/state", async () => {
 })
 vi.mock("@agenta/playground/state", () => ({registerAgentAutoCommitHandler: () => () => undefined}))
 vi.mock("@agenta/ui/shortcuts", () => ({useSessionShortcuts: () => undefined}))
+// The automation drawers load through `dynamic` too. Unmocked, the heavy package can still be
+// importing when the test file ends, which fails the run with a teardown error.
+vi.mock("@agenta/automation-ui", () => ({AutomationDrawer: () => null}))
+vi.mock("@/features/automations/AutomationRunHistoryDrawerHost", () => ({
+    AutomationRunHistoryDrawerHost: () => null,
+}))
 
 import {SessionWorkspace} from "@/features/chat/SessionWorkspace"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =

@@ -26,7 +26,18 @@ MODULES = [
     "oss.src.dbs.postgres.workflows.dbes",
     "oss.src.dbs.postgres.environments.dbes",
     "oss.src.dbs.postgres.evaluations.dbes",
+    "oss.src.dbs.postgres.sharing.dbes",
 ]
+
+# Tables whose spec gives them only part of the lifecycle set, on purpose.
+# `session_grants` (M3): a grant is created or deleted, never edited in place except
+# its role, so it carries `created_at` and `created_by_id` only (interfaces 1.3).
+# `session_trace_tombstones` (M3, defined by the session-trace-privacy design): a
+# tombstone records when its session was deleted, and nothing else changes on it.
+PARTIAL_LIFECYCLE = {
+    "session_grants": {"created_at", "created_by_id"},
+    "session_trace_tombstones": {"deleted_at"},
+}
 
 LIFECYCLE = (
     "created_at",
@@ -50,9 +61,10 @@ def test_lifecycle_columns_complete_and_nullable():
         columns = set(table.columns.keys())
         if not columns & set(LIFECYCLE):
             continue
-        missing = set(LIFECYCLE) - columns
+        expected = PARTIAL_LIFECYCLE.get(table.name, set(LIFECYCLE))
+        missing = expected - columns
         assert not missing, f"{table.name} is missing lifecycle columns: {missing}"
-        for name in LIFECYCLE:
+        for name in expected:
             assert table.columns[name].nullable, f"{table.name}.{name} must be nullable"
 
 

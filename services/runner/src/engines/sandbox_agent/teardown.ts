@@ -40,6 +40,11 @@ export type TeardownReason =
   | "sandbox-incompatible"
   | "continuity-invalid"
   | "clean-resumable"
+  /**
+   * A turn that ran outside the keep-alive pool. No pool entry owns the sandbox, so nothing would
+   * reconnect it, sweep it at shutdown, or delete its Daytona Secrets. Delete it.
+   */
+  | "unpooled"
   | "idle-expiry"
   | "capacity-eviction"
   | "shutdown-in-flight"

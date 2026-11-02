@@ -12,7 +12,6 @@ import {
 vi.mock("@agenta/shared/api", () => ({
     axios: {post: vi.fn(), get: vi.fn()},
     getAgentaApiUrl: vi.fn(() => "https://api.example.test"),
-    getAuthToken: vi.fn(async () => undefined),
 }))
 
 const file = (name: string) => new File([name], name, {type: "text/plain"})

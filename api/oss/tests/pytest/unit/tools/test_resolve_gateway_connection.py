@@ -28,6 +28,7 @@ from oss.src.core.tools.exceptions import (
     ConnectionNotFoundError,
 )
 from oss.src.core.tools.service import ToolsService
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 CONNECTION_ENTRY = {
@@ -136,7 +137,7 @@ def _router(
 
     monkeypatch.setattr("oss.src.apis.fastapi.tools.router.check_action_access", _allow)
 
-    return ToolsRouter(tools_service=service)
+    return ToolsRouter(run_admission=NoopRunAdmission(), tools_service=service)
 
 
 def _request():

@@ -3,7 +3,9 @@
 from typing import Optional
 
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
+from oss.src.core.gateways.llms.dtos import LLMDeploymentKind
 from oss.src.core.gateways.types import GatewaysError
+from oss.src.core.secrets.enums import SecretOwnerKind
 
 
 class LLMEndpointNotFoundError(GatewaysError):
@@ -21,6 +23,22 @@ class LLMModelNotAllowedError(GatewaysError):
         self.namespace = namespace
         self.name = name
         super().__init__(f"Model {model} not allowed on {namespace.value}/{name}")
+
+
+class LLMAgentModelNotAvailableError(GatewaysError):
+    """An agent names a model that its connection does not offer (needs setup).
+
+    Raised while the agent's connection resolves, before the run starts, for a connection
+    with an allowlist of its own (a custom endpoint, an organization custom provider, a
+    built-in model). The relay refuses the same model at call time; resolving it first lets
+    the run stop before a sandbox starts. A standard provider key has no such check.
+    """
+
+    def __init__(self, *, model: str, namespace: GatewayEndpointNamespace, name: str):
+        self.model = model
+        self.namespace = namespace
+        self.name = name
+        super().__init__(f"Model {model} is not offered by {namespace.value}/{name}")
 
 
 class LLMRoutingFieldNotAllowedError(GatewaysError):
@@ -112,7 +130,12 @@ class LLMUpstreamError(GatewaysError):
 
 
 class LLMUpstreamTimeoutError(LLMUpstreamError):
-    """The upstream did not answer in time: a transient failure, worth retrying."""
+    """The upstream did not answer within the gateway's timeout.
+
+    Raised once the route's whole deadline is spent, or once every retry of a stalled
+    streaming attempt (`response_headers_timeout_seconds`) is spent. The deadline itself is never
+    retried: the model that did not answer in time is the one a retry would wait on again.
+    """
 
     def __init__(self, *, provider_key: Optional[str]):
         super().__init__(provider_key=provider_key, detail="upstream timed out")
@@ -149,4 +172,45 @@ class LLMEndpointProviderMissingError(GatewaysError):
         super().__init__(
             f"LLM endpoint {namespace.value}/{name} has no provider, "
             "so no gateway route can be built for it."
+        )
+
+
+# The deployment kinds the LLM gateway serves, written out rather than derived, so adding
+# or removing one is a deliberate edit (a test pins this set against the passthrough auth
+# table, `providers/passthrough/auth.py::_AUTH`). Bedrock is relayed to an endpoint whose
+# model ids differ from the ones people save, so agents on it take the vault path; SageMaker
+# has no fixed request protocol. An organization credential of an unserved deployment could
+# reach a run only in plaintext, so organizations cannot share one (M5).
+LLM_GATEWAY_SERVED_DEPLOYMENT_KINDS = frozenset(
+    {
+        LLMDeploymentKind.DIRECT,
+        LLMDeploymentKind.CUSTOM,
+        LLMDeploymentKind.AZURE,
+        LLMDeploymentKind.VERTEX,
+        LLMDeploymentKind.MOCK,
+    }
+)
+
+
+class LLMNamedConnectionNotFoundError(GatewaysError):
+    """The connection an agent named by scope and slug does not exist where it runs, or is
+    not available to the project (M5). Typed with the scope and slug, so a caller can ask
+    the user to configure the connection rather than show a generic failure."""
+
+    def __init__(self, *, scope: SecretOwnerKind, slug: str):
+        self.scope = scope
+        self.slug = slug
+        super().__init__(
+            f"The {scope.value} connection '{slug}' is not available to this project."
+        )
+
+
+class LLMOrganizationConnectionSlugRequiredError(GatewaysError):
+    """An organization connection is used only when the agent names it: scope
+    `organization` needs a slug, and the namespace (when sent) must be `organization`."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "An organization connection needs scope 'organization' and the connection's "
+            "slug."
         )

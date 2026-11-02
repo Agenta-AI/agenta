@@ -52,23 +52,31 @@ request's `harness` / `sandbox` fields.
 
 ## Output and ingest limits
 
-Each turn admits at most 16 MiB of serialized provider updates and 50,000 updates before
-stopping with `output_limit_exceeded`. Admission happens before tool correlation, pause
-buffers, tracing, record coalescing and live delivery retain the update. The update that
-crosses the limit and later provider updates are rejected. Cleanup can still write the
+The runner limits provider output per step and per turn. A step is one model reply (all
+updates until the next tool call) or one tool call. Each step admits at most 16 MiB of
+serialized provider updates and 50,000 updates. The whole turn admits at most 64 MiB and
+500,000 updates. A breach stops the turn with `output_limit_exceeded` and logs which limit
+tripped (`[output-budget] stopped turn: ...`). Admission happens before tool correlation,
+pause buffers, tracing, record coalescing and live delivery retain the update. The update
+that crosses a limit and later provider updates are rejected. Cleanup can still write the
 terminal error and close accepted message prefixes.
 
-- `AGENTA_RUNNER_OUTPUT_MAX_BYTES`: default `16777216`, range `1024` to `268435456`.
-- `AGENTA_RUNNER_OUTPUT_MAX_EVENTS`: default `50000`, range `1` to `1000000`.
+- `AGENTA_RUNNER_OUTPUT_MAX_BYTES`: per step, default `16777216`, range `1024` to `268435456`.
+- `AGENTA_RUNNER_OUTPUT_MAX_EVENTS`: per step, default `50000`, range `1` to `1000000`.
+- `AGENTA_RUNNER_OUTPUT_MAX_TURN_BYTES`: per turn, default `67108864`, range `1024` to `1073741824`.
+- `AGENTA_RUNNER_OUTPUT_MAX_TURN_EVENTS`: per turn, default `500000`, range `1` to `10000000`.
 - `AGENTA_RECORDS_INGEST_TIMEOUT_MS`: default `30000`, range `1000` to `120000` per attempt.
 - `AGENTA_RECORDS_INGEST_RETRY_BUDGET_MS`: default `180000`, range `0` to `600000`. How long
   one session record retries a 5xx, 429, 408, network error or timeout before it is lost.
   The wait between attempts doubles from 100 ms up to 5 s. Any other 4xx is not retried.
 
-The output budget counts repeated snapshots and metadata, not just new text. It bounds
-admitted output and its downstream backlog, not total heap use or concurrency. A single
-transport frame has already been decoded before admission. Container memory limits and
-restart monitoring remain separate operational safeguards.
+A running tool resends its whole output so far on every progress update, and the runner keeps
+only the final result. So a tool progress update is charged only for the bytes it adds over
+the largest earlier update for the same tool call. The update that completes or fails the call,
+an update with tool arguments, model text and other updates are charged in full, including
+metadata. The budget bounds admitted output and its downstream backlog, not total
+heap use or concurrency. A single transport frame has already been decoded before admission.
+Container memory limits and restart monitoring remain separate operational safeguards.
 
 Ingest retries reuse a record ID and timestamp, including after an ambiguous timeout.
 A record that does not land within the budget, or fails with any other 4xx, is lost. The

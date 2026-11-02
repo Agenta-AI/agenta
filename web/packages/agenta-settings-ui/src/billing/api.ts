@@ -55,18 +55,22 @@ export const cancelBillingSubscription = async (projectId: string): Promise<void
 export const checkoutBillingSubscription = async ({
     plan,
     successUrl,
+    projectId,
 }: {
     plan: string
     successUrl: string
+    projectId: string
 }): Promise<string | null> => {
     const {data} = await axios.post(`${getAgentaApiUrl()}/billing/stripe/checkouts/`, null, {
-        params: {plan, success_url: successUrl},
+        params: {plan, success_url: successUrl, project_id: projectId},
     })
     return data?.checkout_url ?? null
 }
 
 /** Returns the Stripe customer-portal URL — invoices, payment methods, cancellation. */
-export const openBillingPortal = async (): Promise<string | null> => {
-    const {data} = await axios.post(`${getAgentaApiUrl()}/billing/stripe/portals/`)
+export const openBillingPortal = async (projectId: string): Promise<string | null> => {
+    const {data} = await axios.post(`${getAgentaApiUrl()}/billing/stripe/portals/`, null, {
+        params: {project_id: projectId},
+    })
     return data?.portal_url ?? null
 }

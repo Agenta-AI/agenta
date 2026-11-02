@@ -243,9 +243,6 @@ const ListOfProjects = ({
             const defaultProject = candidates.find((proj) => proj.is_default_project)
             if (defaultProject) return defaultProject
 
-            const nonDemoProject = candidates.find((proj) => !proj.is_demo)
-            if (nonDemoProject) return nonDemoProject
-
             return candidates[0]
         },
         [projectsForSelectedOrganization],

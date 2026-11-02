@@ -151,17 +151,12 @@ class ProjectDB(Base):
         ForeignKey("organizations.id", ondelete="CASCADE"),
         nullable=False,
     )
-    workspace_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("workspaces.id", ondelete="CASCADE"),
-        nullable=False,
-    )
+    # Legacy: NULL for projects created after workspace removal step 2; no foreign key
+    # since step 1.
+    workspace_id = Column(UUID(as_uuid=True), nullable=True)
 
     organization = relationship(
         "oss.src.models.db_models.OrganizationDB",
-    )
-    workspace = relationship(
-        "oss.src.models.db_models.WorkspaceDB",
     )
 
 

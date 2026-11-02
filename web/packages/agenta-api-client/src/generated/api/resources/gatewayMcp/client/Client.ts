@@ -560,9 +560,20 @@ export class GatewayMcpClient {
     }
 
     /**
+     * Delete a connection.
+     *
+     * A connect sheet abandoning the row it made sends `pending_auth_mode`, the mode it
+     * made the row in, after it cancelled its own sign-in. The row is then deleted only
+     * while it is still in that mode with no credential bound and no sign-in in flight,
+     * decided under the connection's lock. The answer is 409 only when the row's
+     * `auth_mode` no longer matches `pending_auth_mode`, a credential is bound, or a
+     * sign-in is in flight. A change to another field, such as the name or URL, does not
+     * by itself keep the row.
+     *
      * @param {AgentaApi.DeleteMcpEndpointRequest} request
      * @param {GatewayMcpClient.RequestOptions} requestOptions - Request-specific configuration.
      *
+     * @throws {@link AgentaApi.ConflictError}
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
@@ -581,7 +592,10 @@ export class GatewayMcpClient {
         request: AgentaApi.DeleteMcpEndpointRequest,
         requestOptions?: GatewayMcpClient.RequestOptions,
     ): Promise<core.WithRawResponse<void>> {
-        const { endpoint_id: endpointId } = request;
+        const { endpoint_id: endpointId, pending_auth_mode: pendingAuthMode } = request;
+        const _queryParams: Record<string, unknown> = {
+            pending_auth_mode: pendingAuthMode !== undefined ? pendingAuthMode : undefined,
+        };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -597,7 +611,7 @@ export class GatewayMcpClient {
             ),
             method: "DELETE",
             headers: _headers,
-            queryParameters: requestOptions?.queryParams,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
             maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
             withCredentials: true,
@@ -611,6 +625,8 @@ export class GatewayMcpClient {
 
         if (_response.error.reason === "status-code") {
             switch (_response.error.statusCode) {
+                case 409:
+                    throw new AgentaApi.ConflictError(_response.error.body as unknown, _response.rawResponse);
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
                         _response.error.body as unknown,
@@ -634,9 +650,95 @@ export class GatewayMcpClient {
     }
 
     /**
+     * Record the result of a check the connect sheet ran.
+     *
+     * The connection's row can then say when it was last checked and how that went. The
+     * check itself is the sheet's handshake through the relay; agent calls never write
+     * this.
+     *
+     * @param {AgentaApi.McpEndpointCheckRequest} request
+     * @param {GatewayMcpClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.gatewayMcp.recordMcpEndpointCheck({
+     *         endpoint_id: "endpoint_id",
+     *         ok: true
+     *     })
+     */
+    public recordMcpEndpointCheck(
+        request: AgentaApi.McpEndpointCheckRequest,
+        requestOptions?: GatewayMcpClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.McpEndpointResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__recordMcpEndpointCheck(request, requestOptions));
+    }
+
+    private async __recordMcpEndpointCheck(
+        request: AgentaApi.McpEndpointCheckRequest,
+        requestOptions?: GatewayMcpClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.McpEndpointResponse>> {
+        const { endpoint_id: endpointId, ..._body } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `gateways/mcps/endpoints/${core.url.encodePathParam(endpointId)}/check`,
+            ),
+            method: "POST",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: requestOptions?.queryParams,
+            requestType: "json",
+            body: _body,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.McpEndpointResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as unknown,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "POST",
+            "/gateways/mcps/endpoints/{endpoint_id}/check",
+        );
+    }
+
+    /**
      * One route, two steps. `body.scopes is None` -> discover and cache the
      * checklist onto the row; a list (possibly empty) -> begin and return the
      * authorization redirect.
+     *
+     * `owner_kind=user` is a person's own sign-in instead (`_connect_person`).
      *
      * @param {AgentaApi.McpConnectRequest} request
      * @param {GatewayMcpClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -659,7 +761,10 @@ export class GatewayMcpClient {
         request: AgentaApi.McpConnectRequest,
         requestOptions?: GatewayMcpClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.McpConnectResponse>> {
-        const { endpoint_id: endpointId, ..._body } = request;
+        const { endpoint_id: endpointId, owner_kind: ownerKind, ..._body } = request;
+        const _queryParams: Record<string, unknown> = {
+            owner_kind: ownerKind != null ? ownerKind : undefined,
+        };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -676,7 +781,7 @@ export class GatewayMcpClient {
             method: "POST",
             headers: _headers,
             contentType: "application/json",
-            queryParameters: requestOptions?.queryParams,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
             requestType: "json",
             body: _body,
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
@@ -727,6 +832,9 @@ export class GatewayMcpClient {
      * Idempotent: disconnecting something already disconnected returns the endpoint
      * and changes nothing, so a repeated click or a retried request is not an error.
      *
+     * `owner_kind=user` deletes only the caller's own sign-in, at the slug the server's
+     * mode selects, and leaves the project's alone.
+     *
      * @param {AgentaApi.DisconnectMcpEndpointRequest} request
      * @param {GatewayMcpClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -748,7 +856,10 @@ export class GatewayMcpClient {
         request: AgentaApi.DisconnectMcpEndpointRequest,
         requestOptions?: GatewayMcpClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.McpEndpointResponse>> {
-        const { endpoint_id: endpointId } = request;
+        const { endpoint_id: endpointId, owner_kind: ownerKind } = request;
+        const _queryParams: Record<string, unknown> = {
+            owner_kind: ownerKind != null ? ownerKind : undefined,
+        };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -764,7 +875,7 @@ export class GatewayMcpClient {
             ),
             method: "DELETE",
             headers: _headers,
-            queryParameters: requestOptions?.queryParams,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
             maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
             withCredentials: true,
@@ -797,6 +908,169 @@ export class GatewayMcpClient {
             _response.rawResponse,
             "DELETE",
             "/gateways/mcps/endpoints/{endpoint_id}/connect",
+        );
+    }
+
+    /**
+     * How one consent attempt stands.
+     *
+     * The sheet asks when the popup closes or the wait runs out without a message from
+     * the callback page, which is how a result posted to an opener that is gone, or to
+     * an origin the app is not on, still reaches the person.
+     *
+     * @param {AgentaApi.FetchMcpConnectAttemptRequest} request
+     * @param {GatewayMcpClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.NotFoundError}
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.gatewayMcp.fetchMcpConnectAttempt({
+     *         endpoint_id: "endpoint_id",
+     *         attempt_id: "attempt_id"
+     *     })
+     */
+    public fetchMcpConnectAttempt(
+        request: AgentaApi.FetchMcpConnectAttemptRequest,
+        requestOptions?: GatewayMcpClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.McpConnectAttemptResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__fetchMcpConnectAttempt(request, requestOptions));
+    }
+
+    private async __fetchMcpConnectAttempt(
+        request: AgentaApi.FetchMcpConnectAttemptRequest,
+        requestOptions?: GatewayMcpClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.McpConnectAttemptResponse>> {
+        const { endpoint_id: endpointId, attempt_id: attemptId } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `gateways/mcps/endpoints/${core.url.encodePathParam(endpointId)}/connect/attempts/${core.url.encodePathParam(attemptId)}`,
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.McpConnectAttemptResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 404:
+                    throw new AgentaApi.NotFoundError(_response.error.body as unknown, _response.rawResponse);
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as unknown,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "GET",
+            "/gateways/mcps/endpoints/{endpoint_id}/connect/attempts/{attempt_id}",
+        );
+    }
+
+    /**
+     * Cancel one pending consent attempt. Its callback then writes nothing.
+     *
+     * Idempotent: an attempt already settled, cancelled or swept is left as it is.
+     *
+     * @param {AgentaApi.CancelMcpConnectAttemptRequest} request
+     * @param {GatewayMcpClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.gatewayMcp.cancelMcpConnectAttempt({
+     *         endpoint_id: "endpoint_id",
+     *         attempt_id: "attempt_id"
+     *     })
+     */
+    public cancelMcpConnectAttempt(
+        request: AgentaApi.CancelMcpConnectAttemptRequest,
+        requestOptions?: GatewayMcpClient.RequestOptions,
+    ): core.HttpResponsePromise<void> {
+        return core.HttpResponsePromise.fromPromise(this.__cancelMcpConnectAttempt(request, requestOptions));
+    }
+
+    private async __cancelMcpConnectAttempt(
+        request: AgentaApi.CancelMcpConnectAttemptRequest,
+        requestOptions?: GatewayMcpClient.RequestOptions,
+    ): Promise<core.WithRawResponse<void>> {
+        const { endpoint_id: endpointId, attempt_id: attemptId } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `gateways/mcps/endpoints/${core.url.encodePathParam(endpointId)}/connect/attempts/${core.url.encodePathParam(attemptId)}`,
+            ),
+            method: "DELETE",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: undefined, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as unknown,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "DELETE",
+            "/gateways/mcps/endpoints/{endpoint_id}/connect/attempts/{attempt_id}",
         );
     }
 }

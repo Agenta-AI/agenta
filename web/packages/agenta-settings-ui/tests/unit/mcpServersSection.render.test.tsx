@@ -9,7 +9,6 @@
  * and an open drawer reporting a state the list has already moved past.
  */
 import {getSettingsTabDescription} from "@agenta/settings"
-import {TOUCH_TARGET_MINIMUM_PX, touchTargetHeight} from "@agenta/ui/ui"
 import {act, cleanup, fireEvent, render, screen, within} from "@testing-library/react"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -38,7 +37,11 @@ vi.mock("@agenta/entities/mcpEndpoint", async (importOriginal) => ({
     disconnectMcpEndpointAtom: atoms.disconnect,
 }))
 
-vi.mock("@agenta/entities/secret", () => ({customNamedSecretsAtom: atoms.secrets}))
+vi.mock("@agenta/entities/secret", () => ({
+    customNamedSecretsAtom: atoms.secrets,
+    // Unknown to the jotai stub below, so it reads as personal accounts off: no "Yours" group.
+    personalAccountsAccessAtom: {toString: () => "personalAccessAtom"},
+}))
 
 // The connect journey is a 566-line state machine over the network; the drawer reads the tool
 // list. Neither is this file's subject, so both are stubbed. The drawer stub reports the state
@@ -57,9 +60,21 @@ vi.mock("@agenta/entity-ui/mcpEndpoint", () => ({
         if (open) opened.push(reconnect ?? null)
         return open ? <div data-testid="mcp-connect-journey" /> : null
     },
-    McpConnectionDetail: ({endpoint}: {endpoint: {name?: string; secret_id?: string} | null}) =>
+    McpConnectionDetail: ({
+        endpoint,
+        readOnly,
+        canListTools,
+    }: {
+        endpoint: {name?: string; secret_id?: string} | null
+        readOnly?: boolean
+        canListTools?: boolean
+    }) =>
         endpoint ? (
-            <div data-testid="mcp-connection-detail">
+            <div
+                data-testid="mcp-connection-detail"
+                data-readonly={String(Boolean(readOnly))}
+                data-can-list-tools={String(canListTools)}
+            >
                 {endpoint.name}
                 <span data-testid="detail-secret">{endpoint.secret_id ?? "none"}</span>
             </div>
@@ -114,7 +129,10 @@ interface Endpoint {
     auth_mode: "oauth" | "api_key" | "none"
     secret_id?: string | null
     flags?: {is_valid?: boolean}
-    data: {route: {base_url: string}}
+    data: {
+        route: {base_url: string}
+        check?: {ok: boolean; reason?: string | null; checked_at: string}
+    }
 }
 
 const endpoint = (over: Partial<Endpoint> & Pick<Endpoint, "id" | "name">): Endpoint => ({
@@ -128,12 +146,32 @@ const endpoint = (over: Partial<Endpoint> & Pick<Endpoint, "id" | "name">): Endp
 const LINEAR = endpoint({id: "linear", name: "Linear", auth_mode: "oauth", secret_id: "sec-1"})
 const AXIOM = endpoint({id: "axiom", name: "Axiom", auth_mode: "api_key", secret_id: "sec-2"})
 const MEMORY = endpoint({id: "memory", name: "Memory", auth_mode: "none", secret_id: null})
+// Signed in once, then the provider revoked the grant: the row keeps its handle and the gateway
+// marks it invalid, and the check from that sign-in stays on the row.
 const OCTOLENS = endpoint({
     id: "octolens",
     name: "Octolens",
     auth_mode: "oauth",
-    secret_id: null,
+    secret_id: "sec-3",
+    flags: {is_valid: false},
+    data: {
+        route: {base_url: "https://mcp.octolens.example/mcp"},
+        check: {ok: true, checked_at: "2026-10-14T12:00:00Z"},
+    },
 })
+// Signed in once, then the person pressed Disconnect: the grant is gone and the check stayed.
+const DISCONNECTED = endpoint({
+    id: "disconnected",
+    name: "Disconnected",
+    auth_mode: "oauth",
+    secret_id: null,
+    data: {
+        route: {base_url: "https://mcp.disconnected.example/mcp"},
+        check: {ok: true, checked_at: "2026-10-14T12:00:00Z"},
+    },
+})
+// Made by a connect sheet whose sign-in has not finished.
+const PENDING = endpoint({id: "pending", name: "Pending", auth_mode: "oauth", secret_id: null})
 
 const state: {
     query: {data: Endpoint[] | undefined; isPending: boolean}
@@ -145,10 +183,19 @@ const ALL_SECRETS = [
     {id: "sec-2", name: "axiom_token", slug: "axiom_token"},
 ]
 
-const show = (rows: Endpoint[], options: {isPending?: boolean; readOnly?: boolean} = {}) => {
+const show = (
+    rows: Endpoint[],
+    options: {isPending?: boolean; readOnly?: boolean; canListTools?: boolean} = {},
+) => {
     state.query = {data: rows, isPending: options.isPending ?? false}
     state.secrets = ALL_SECRETS
-    return render(<McpServersSection confirm={confirmSpy} readOnly={options.readOnly} />)
+    return render(
+        <McpServersSection
+            confirm={confirmSpy}
+            readOnly={options.readOnly}
+            canListTools={options.canListTools}
+        />,
+    )
 }
 
 let confirmSpy: ReturnType<typeof vi.fn>
@@ -184,8 +231,9 @@ const openRowMenu = (name: string) => {
 const menuItems = () => screen.getAllByRole("menuitem").map((item) => item.textContent?.trim())
 
 /** The colour the dot and its label carry, which `StatusIndicator` puts on its wrapper. */
+// The indicator sits above the last-check line, in the cell's first column.
 const statusTone = (cell: HTMLElement) =>
-    (cell.firstElementChild as HTMLElement | null)?.className ?? ""
+    (cell.firstElementChild?.firstElementChild as HTMLElement | null)?.className ?? ""
 
 beforeEach(() => {
     opened.length = 0
@@ -247,15 +295,21 @@ describe("the auth cell", () => {
 })
 
 describe("the status cell", () => {
-    it("reads Connected for a usable connection, with no repair offered", () => {
+    it("reads Connected for a usable connection", () => {
         show([LINEAR])
         const cell = screen.getByTestId("mcp-connection-status")
         expect(within(cell).getByText("Connected")).toBeTruthy()
         expect(statusTone(cell)).toContain("text-colorSuccess")
-        expect(within(cell).queryByRole("button", {name: "Reconnect"})).toBeNull()
     })
 
-    it("reads Login expired with an inline Reconnect when the grant is gone", () => {
+    it("reads Not signed in for a connection the person disconnected", () => {
+        show([DISCONNECTED])
+        const cell = screen.getByTestId("mcp-connection-status")
+        expect(within(cell).getByText("Not signed in")).toBeTruthy()
+        expect(within(cell).queryByText("Login expired")).toBeNull()
+    })
+
+    it("reads Login expired when the grant was revoked", () => {
         show([OCTOLENS])
         const cell = screen.getByTestId("mcp-connection-status")
         expect(within(cell).getByText("Login expired")).toBeTruthy()
@@ -263,7 +317,13 @@ describe("the status cell", () => {
         // colour is read as healthy, because the colour is what a scan picks up first.
         expect(statusTone(cell)).toContain("text-colorWarning")
         expect(statusTone(cell)).not.toContain("text-colorSuccess")
-        expect(within(cell).getByRole("button", {name: "Reconnect"})).toBeTruthy()
+    })
+
+    it("reads Not signed in for a connection whose first sign-in is under way", () => {
+        show([PENDING])
+        const cell = screen.getByTestId("mcp-connection-status")
+        expect(within(cell).getByText("Not signed in")).toBeTruthy()
+        expect(statusTone(cell)).toContain("text-colorWarning")
     })
 
     it("reads Login expired for a key the server stopped accepting", () => {
@@ -281,17 +341,47 @@ describe("the status cell", () => {
         expect(screen.queryByText("Needs input")).toBeNull()
     })
 
+    it("says when a connection was last checked, and why a failed check failed", () => {
+        const minutesAgo = (minutes: number) =>
+            new Date(Date.now() - minutes * 60 * 1000).toISOString()
+        show([
+            {
+                ...LINEAR,
+                data: {...LINEAR.data, check: {ok: true, checked_at: minutesAgo(5)}},
+            },
+            {
+                ...AXIOM,
+                data: {
+                    ...AXIOM.data,
+                    check: {
+                        ok: false,
+                        reason: "The server did not accept that credential.",
+                        checked_at: minutesAgo(120),
+                    },
+                },
+            },
+        ])
+        expect(
+            screen.getAllByTestId("mcp-connection-check").map((line) => line.textContent),
+        ).toEqual([
+            "Checked 5m ago",
+            "Check failed 2h ago: The server did not accept that credential.",
+        ])
+    })
+
+    it("shows no check line for a connection nobody has checked", () => {
+        show([LINEAR])
+        expect(screen.queryByTestId("mcp-connection-check")).toBeNull()
+    })
+
     it("opens the reconnect journey without also opening the connection", () => {
         show([OCTOLENS])
+        openRowMenu("Octolens")
         act(() => {
-            fireEvent.click(
-                within(screen.getByTestId("mcp-connection-status")).getByRole("button", {
-                    name: "Reconnect",
-                }),
-            )
+            fireEvent.click(screen.getByRole("menuitem", {name: "Reconnect"}))
         })
         expect(screen.getByTestId("mcp-connect-journey")).toBeTruthy()
-        // The row's own click opens the drawer; the link must not do both.
+        // The row's own click opens the drawer; the menu item must not do both.
         expect(screen.queryByTestId("mcp-connection-detail")).toBeNull()
     })
 })
@@ -335,8 +425,8 @@ describe("the row menu", () => {
     it("hides Disconnect once the grant is already gone", () => {
         // Two rows, and the second is the one asked about: a section that hands over whichever
         // row it finds first passes every single-row fixture ever written (D154).
-        show([LINEAR, OCTOLENS])
-        openRowMenu("Octolens")
+        show([LINEAR, DISCONNECTED])
+        openRowMenu("Disconnected")
         expect(screen.queryByRole("menuitem", {name: "Disconnect"})).toBeNull()
     })
 })
@@ -538,66 +628,32 @@ describe("read-only", () => {
         const row = screen.getByText("Linear").closest('[role="button"]') as HTMLElement
         expect(within(row).queryAllByRole("button")).toHaveLength(0)
     })
-})
 
-describe("touch targets", () => {
-    /** Control heights in px, restated here so this file does not lean on the kit for them. */
-    const SIZE_BY_CLASS_UNDER_TEST: Record<string, number> = {
-        "h-control-xs": 24,
-        "h-control-sm": 28,
-    }
-
-    /**
-     * The reach, derived here rather than asked of the helper.
-     *
-     * D126 shipped because the helper and its reader shared one assumption, so every site test
-     * asserted the class the helper had written rather than the box a finger gets. Reverting both
-     * together still leaves the site packages green for that reason. This case closes that: it reads
-     * the control's own size class, its own border class and its own `after` inset, and does the
-     * arithmetic with numbers written here. It never calls the helper, so a coordinated change to
-     * the helper and the reader cannot keep it passing.
-     *
-     * The size class is the border box and the inset is measured from inside the border, so the box
-     * at the edge a reader can see is `size - 2 x border + 2 x inset`.
-     */
-    const reachOf = (className: string) => {
-        const classes = className.split(/\s+/).filter(Boolean)
-        const size =
-            SIZE_BY_CLASS_UNDER_TEST[classes.find((c) => c in SIZE_BY_CLASS_UNDER_TEST) ?? ""]
-        const border = classes.includes("border-0") ? 0 : classes.includes("border") ? 1 : 0
-        const inset = classes
-            .map((c) => /^after:-inset-y-(?:\[(\d+)px\]|(\d+(?:\.\d+)?))$/.exec(c))
-            .find(Boolean)
-        const px = inset ? Number(inset[1] ?? Number(inset[2]) * 4) : 0
-        return {size, border, inset: px, reach: size - 2 * border + 2 * px}
-    }
-
-    it("gives the status cell's Reconnect a 44px hit area at its 24px height", () => {
-        // The repair offered where the problem is reported, on a phone. 24px is the control
-        // scale's smallest step and the row rhythm needs it, so the reach is an invisible box.
-        show([OCTOLENS])
-
-        const reconnect = screen.getByRole("button", {name: "Reconnect"})
-        expect(reconnect.className).toContain("h-control-xs")
-        expect(touchTargetHeight(reconnect.className)).toBe(TOUCH_TARGET_MINIMUM_PX)
-        // A tall enough control is no use if the cell beside it covers the control itself. At
-        // phone width the status cell's content overran its column and slid this link 49px under
-        // the actions cell, where the row menu's own hit area took 43 of its 70px. The Button
-        // already refuses to shrink, so the status text beside it is what has to give way: that
-        // is what the indicator's own `truncate` was for, and it could not act while the
-        // indicator's automatic minimum was its own text.
-        const indicator = document.querySelector('[data-testid="mcp-connection-status"] span')
-        expect(indicator, "no status indicator").not.toBeNull()
-        expect(indicator!.className).toContain("min-w-0")
+    it("opens the connection read-only, so its detail offers no write either", () => {
+        show([AXIOM], {readOnly: true, canListTools: false})
+        act(() => {
+            fireEvent.click(screen.getByTestId("mcp-connection-name"))
+        })
+        const detail = screen.getByTestId("mcp-connection-detail")
+        expect(detail.dataset.readonly).toBe("true")
+        expect(detail.dataset.canListTools).toBe("false")
     })
 
-    it("measures 44px of reach without asking the helper for it", () => {
-        show([OCTOLENS])
+    it("leaves View tools out of the row menu when the member may not read tools", () => {
+        show([LINEAR], {canListTools: false})
+        openRowMenu("Linear")
+        expect(screen.queryByRole("menuitem", {name: "View tools"})).toBeNull()
+        expect(screen.getByRole("menuitem", {name: "Rename"})).toBeTruthy()
+    })
 
-        const measured = reachOf(screen.getByRole("button", {name: "Reconnect"}).className)
-        expect(measured.size, "not the 24px control this case is about").toBe(24)
-        expect(measured.border, "not the bordered Button this case is about").toBe(1)
-        expect(measured.reach).toBe(44)
+    it("opens the connection writable, with its tools, when nothing is withheld", () => {
+        show([AXIOM])
+        act(() => {
+            fireEvent.click(screen.getByTestId("mcp-connection-name"))
+        })
+        const detail = screen.getByTestId("mcp-connection-detail")
+        expect(detail.dataset.readonly).toBe("false")
+        expect(detail.dataset.canListTools).toBe("true")
     })
 })
 

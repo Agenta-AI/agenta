@@ -6,6 +6,7 @@ vi.mock("@agenta/shared/api", () => ({
 
 import {
     connectSessionLiveEvents,
+    dispatchSessionLiveMessage,
     sessionLiveEventsUrl,
 } from "../../../src/transport/sessionLiveEvents"
 
@@ -109,5 +110,71 @@ describe("sessionLiveEventsUrl", () => {
         expect(sessionLiveEventsUrl("session-1", 4, "")).toBe(
             "https://api.example.test/sessions/session-1/events?after=4",
         )
+    })
+})
+
+describe("dispatchSessionLiveMessage", () => {
+    const handlers = () => ({
+        onFrame: vi.fn(),
+        onEvent: vi.fn(),
+        onReady: vi.fn(),
+        onDisconnect: vi.fn(),
+    })
+
+    it("reads the readiness watermark, keeping the cursor when it is malformed", () => {
+        const h = handlers()
+        dispatchSessionLiveMessage(
+            {event: "ready", data: '{"watermark":9}'},
+            {sessionId: "s", after: 3, ...h},
+        )
+        dispatchSessionLiveMessage({event: "ready", data: "{"}, {sessionId: "s", after: 3, ...h})
+        expect(h.onReady.mock.calls).toEqual([[{watermark: 9}], [{watermark: 3}]])
+    })
+
+    it("asks the caller to close only when the relay says not to reconnect", () => {
+        const h = handlers()
+        expect(
+            dispatchSessionLiveMessage(
+                {event: "relay-close", data: '{"reason":"revoked","reconnect":false}'},
+                {sessionId: "s", after: 0, ...h},
+            ),
+        ).toBe(false)
+        expect(
+            dispatchSessionLiveMessage(
+                {event: "relay-close", data: ""},
+                {sessionId: "s", after: 0, ...h},
+            ),
+        ).toBe(true)
+        expect(h.onDisconnect.mock.calls).toEqual([
+            [{reason: "revoked", reconnect: false}],
+            [{reason: "relay_closed", reconnect: true}],
+        ])
+    })
+
+    it("delivers only this session's events and ignores unknown event names", () => {
+        const h = handlers()
+        const event = {
+            version: 1,
+            kind: "event",
+            session_id: "s",
+            execution_id: "e",
+            frame_or_event_id: "x",
+            sequence: 4,
+            watermark: 4,
+            type: "message.completed",
+            payload: {},
+            created_at: "2026-10-16T00:00:00Z",
+        }
+        dispatchSessionLiveMessage(
+            {event: "message", data: JSON.stringify(event)},
+            {sessionId: "s", after: 0, ...h},
+        )
+        dispatchSessionLiveMessage(
+            {event: "message", data: JSON.stringify({...event, session_id: "other"})},
+            {sessionId: "s", after: 0, ...h},
+        )
+        dispatchSessionLiveMessage({event: "ping", data: "{}"}, {sessionId: "s", after: 0, ...h})
+        expect(h.onEvent).toHaveBeenCalledTimes(1)
+        expect(h.onFrame).not.toHaveBeenCalled()
     })
 })

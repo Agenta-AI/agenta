@@ -1,6 +1,5 @@
 {{- $values := include "agenta.values" . | fromYaml -}}
 {{- $workerStreams := default dict $values.workerStreams -}}
-{{- $newrelic := default dict $values.newrelic -}}
 {{- if eq (include "agenta.workerStreams.enabled" .) "true" }}
 apiVersion: apps/v1
 kind: Deployment
@@ -60,7 +59,7 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          command: {{ if $newrelic.licenseKey }}["newrelic-admin", "run-program", "python", "-m", "entrypoints.worker_streams"]{{ else }}["python", "-m", "entrypoints.worker_streams"]{{ end }}
+          command: ["python", "-m", "entrypoints.worker_streams"]
           env:
             {{- include "agenta.commonEnv" . | nindent 12 }}
             # empty ⇒ all stream loops; see docs/designs/workers-sprawl/specs.md
@@ -111,6 +110,9 @@ spec:
       {{- if $redisCaVolume }}
       volumes:
         {{- $redisCaVolume | nindent 8 }}
+      {{- end }}
+      {{- with $workerStreams.priorityClassName }}
+      priorityClassName: {{ . | quote }}
       {{- end }}
       {{- with $workerStreams.nodeSelector }}
       nodeSelector:

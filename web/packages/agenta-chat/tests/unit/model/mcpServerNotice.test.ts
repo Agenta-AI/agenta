@@ -52,6 +52,19 @@ const UNREACHABLE_NOTICE = {
     message: "MCP server acme failed to connect: handshake_unreachable",
 }
 
+/** The agent names a server the project has no endpoint for, as the gateway refuses it. */
+const NOT_SET_UP_NOTICE = {
+    serverName: "loops",
+    reasonCode: "handshake_http_error",
+    status: 404,
+    message: "MCP server loops failed to connect: 404",
+    detail: {
+        code: "endpoint_not_found",
+        message: "MCP endpoint not found: custom/loops",
+        retryable: false,
+    },
+}
+
 const noticePart = (data: unknown) =>
     ({type: "data-mcp-server-failed", data}) as unknown as UIMessage["parts"][number]
 
@@ -117,6 +130,15 @@ describe("mcpServerNoticeCopy", () => {
         )
         // An absent or blank name falls back rather than rendering an empty subject.
         expect(mcpServerNoticeCopy(notice, "  ").lead).toBe("mock-mcp needs a new sign-in.")
+    })
+
+    it("says a server the project has no endpoint for is not set up, without the path", () => {
+        const notice = readMcpServerNotice(NOT_SET_UP_NOTICE)!
+        expect(notice).toMatchObject({notSetUp: true, needsAuthorization: false})
+        expect(mcpServerNoticeCopy(notice)).toEqual({
+            lead: "loops isn't set up yet, so its tools were skipped.",
+            detail: null,
+        })
     })
 
     it("keeps the run's own sentence, and only it, for a failure it has not classified", () => {

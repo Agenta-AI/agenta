@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 
@@ -9,10 +11,12 @@ from oss.src.utils.common import APIRouter
 from oss.src.models.api.user_models import User
 from oss.src.models.api.user_models import UserUpdate
 from oss.src.services import db_manager, user_service
+from oss.src.core.memberships.service import get_memberships_service
 from oss.src.core.accounts.service import PlatformAdminAccountsService
 from oss.src.core.accounts.errors import (
     AdminError,
     AccountAuthDeletionError,
+    AccountTombstoneError,
     AccountHasMembersError,
     AdminUserNotFoundError,
 )
@@ -138,6 +142,8 @@ async def delete_user_account(request: Request):
         raise HTTPException(status_code=404, detail=exc.message)
     except AccountAuthDeletionError as exc:
         raise HTTPException(status_code=502, detail=exc.message)
+    except AccountTombstoneError as exc:
+        raise HTTPException(status_code=503, detail=exc.message)
     except AdminError as exc:
         raise HTTPException(status_code=400, detail=exc.message)
 
@@ -162,6 +168,21 @@ async def reset_user_password(request: Request, user_id: str):
         return JSONResponse(
             {"detail": error_msg},
             status_code=403,
+        )
+
+    # The permission is checked on this project, so the target must be one of its
+    # members, as the membership resolver decides it.
+    try:
+        is_member = await get_memberships_service().is_member(
+            user_id=UUID(str(user_id)),
+            project_id=UUID(str(request.state.project_id)),
+        )
+    except ValueError:
+        is_member = False
+    if not is_member:
+        return JSONResponse(
+            {"detail": "User not found in this project."},
+            status_code=404,
         )
 
     project = await db_manager.get_project_by_id(request.state.project_id)

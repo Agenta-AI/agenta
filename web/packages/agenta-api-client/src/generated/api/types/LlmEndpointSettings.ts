@@ -3,4 +3,5 @@
 export interface LlmEndpointSettings {
     timeout_seconds?: (number | null) | undefined;
     max_output_tokens?: (number | null) | undefined;
+    response_headers_timeout_seconds?: (number | null) | undefined;
 }

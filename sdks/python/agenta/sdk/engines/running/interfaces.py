@@ -384,19 +384,6 @@ llm_v0_interface = WorkflowRevisionData(
                     },
                     additional_properties=False,
                 ),
-                "files": obj(
-                    properties={
-                        "enabled": scalar(jtype="boolean"),
-                        "read_only": scalar(jtype="boolean"),
-                        "roots": arr(items=scalar(jtype="string")),
-                        "allow_globs": arr(items=scalar(jtype="string")),
-                        "deny_globs": arr(items=scalar(jtype="string")),
-                        "max_file_bytes": scalar(jtype="integer", minimum=0),
-                        "max_total_bytes_per_turn": scalar(jtype="integer", minimum=0),
-                        "include_hidden": scalar(jtype="boolean"),
-                    },
-                    additional_properties=False,
-                ),
                 "tools": semantic_field(
                     x_ag_type_ref="tools",
                     jtype="object",

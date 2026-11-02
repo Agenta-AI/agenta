@@ -12,13 +12,18 @@
 import {
     buildAgentModelCandidates,
     subscriptionPairsFrom,
+    type ProviderConnection,
+    type SecretKind,
     type SubscriptionPair,
 } from "@agenta/entities/secret"
 import {describe, expect, it} from "vitest"
 
 import {buildConnectionPickerRows} from "../../src/DrillInView/SchemaControls/connectionPicker"
 import type {HarnessCapabilitiesMap} from "../../src/DrillInView/SchemaControls/connectionUtils"
-import {harnessSections} from "../../src/DrillInView/SchemaControls/pickerSections"
+import {
+    buildPickerGroupsWithSections,
+    harnessSections,
+} from "../../src/DrillInView/SchemaControls/pickerSections"
 
 /** Pi and Codex both publish the openai family; Claude Code publishes anthropic. */
 const CAPABILITIES: HarnessCapabilitiesMap = {
@@ -76,9 +81,7 @@ describe("subscription rows from the runner's live pairs", () => {
         })
         const rows = rowsFor(pairs)
 
-        expect(rows.map((row) => [row.name, row.key])).toEqual([
-            ["ChatGPT (deployment login)", "subscription:openai"],
-        ])
+        expect(rows.map((row) => [row.name, row.key])).toEqual([["ChatGPT", "subscription:openai"]])
         expect(harnessSections(rows[0]).map((section) => [section.label, section.iconKey])).toEqual(
             [
                 ["Codex", "codex"],
@@ -96,7 +99,7 @@ describe("subscription rows from the runner's live pairs", () => {
         })
         const rows = rowsFor(pairs)
 
-        expect(rows.map((row) => row.name)).toEqual(["ChatGPT (deployment login)"])
+        expect(rows.map((row) => row.name)).toEqual(["ChatGPT"])
         expect(harnessSections(rows[0]).map((section) => section.label)).toEqual(["Codex", "Pi"])
     })
 
@@ -107,9 +110,7 @@ describe("subscription rows from the runner's live pairs", () => {
         })
         const rows = rowsFor(pairs)
 
-        expect(rows.map((row) => [row.name, row.key])).toEqual([
-            ["ChatGPT (deployment login)", "subscription:openai"],
-        ])
+        expect(rows.map((row) => [row.name, row.key])).toEqual([["ChatGPT", "subscription:openai"]])
         expect(harnessSections(rows[0]).map((section) => section.label)).toEqual(["Pi"])
     })
 
@@ -119,10 +120,7 @@ describe("subscription rows from the runner's live pairs", () => {
         })
         const rows = rowsFor(pairs)
 
-        expect(rows.map((row) => row.name)).toEqual([
-            "Claude (deployment login)",
-            "ChatGPT (deployment login)",
-        ])
+        expect(rows.map((row) => row.name)).toEqual(["Claude", "ChatGPT"])
         expect(rows.flatMap((row) => row.models.map((model) => model.modelId))).toEqual([
             "anthropic/claude-fable-5",
             "openai/gpt-5.6-sol",
@@ -134,10 +132,56 @@ describe("subscription rows from the runner's live pairs", () => {
             claude: {state: "ready"},
             codex: {state: "ready"},
         })
-        expect(rowsFor(pairs).map((row) => row.name)).toEqual([
-            "Claude (deployment login)",
-            "ChatGPT (deployment login)",
+        expect(rowsFor(pairs).map((row) => row.name)).toEqual(["Claude", "ChatGPT"])
+    })
+
+    it("names a lone mounted plan by the plan alone, with no source line", () => {
+        const rows = rowsFor(subscriptionPairsFrom({codex: {state: "ready"}}))
+        const [group] = buildPickerGroupsWithSections(rows)
+
+        expect(group).toMatchObject({label: "ChatGPT", tag: "Subscription"})
+        expect(group.caption).toBeUndefined()
+        expect(group.options[0]?.searchCaption).toBe("ChatGPT")
+    })
+
+    it("says where the mounted row comes from when a hosted row has the same plan", () => {
+        // A hosted ChatGPT sign-in and a ChatGPT login set up on the server: two Subscription rows
+        // of one plan, told apart only by the mounted row's second line.
+        const hosted: ProviderConnection = {
+            id: "sub-1",
+            slug: "chatgpt",
+            name: "ChatGPT",
+            kind: "openai",
+            title: "ChatGPT",
+            secretKind: "subscription_provider" as SecretKind,
+            models: ["gpt-5.6-sol"],
+            harnesses: ["pi_core"],
+            hasStoredCredential: true,
+            subscription: {provider: "chatgpt", loginState: "ready"},
+            source: {name: "ChatGPT", provider: "chatgpt"} as ProviderConnection["source"],
+        }
+        const connections = [hosted]
+        const rows = buildConnectionPickerRows({
+            candidates: buildAgentModelCandidates({
+                connections,
+                capabilities: CAPABILITIES,
+                harnessIds: HARNESS_IDS,
+                subscriptionPairs: subscriptionPairsFrom({codex: {state: "ready"}}) ?? [],
+            }),
+            connections,
+            capabilities: CAPABILITIES,
+        })
+        const groups = buildPickerGroupsWithSections(rows)
+
+        expect(groups.map((group) => [group.key, group.label, group.caption])).toEqual([
+            ["sub-1", "ChatGPT", undefined],
+            ["subscription:openai", "ChatGPT", "Set up on the server"],
         ])
+        const mounted = groups.find((group) => group.key === "subscription:openai")!
+        // Flat search has no second line, so its caption keeps the full name.
+        expect(mounted.options[0]?.searchCaption).toBe("ChatGPT (set up on the server)")
+        const hostedGroup = groups.find((group) => group.key === "sub-1")!
+        expect(hostedGroup.options[0]?.searchCaption).toBe("ChatGPT")
     })
 
     it("offers only what the runner reports ready", () => {
@@ -146,7 +190,7 @@ describe("subscription rows from the runner's live pairs", () => {
             codex: {state: "ready"},
             claude: {state: "login_missing"},
         })
-        expect(rowsFor(pairs).map((row) => row.name)).toEqual(["ChatGPT (deployment login)"])
+        expect(rowsFor(pairs).map((row) => row.name)).toEqual(["ChatGPT"])
     })
 
     it("spells each pair's models the way ITS harness does", () => {
@@ -205,6 +249,6 @@ describe("subscription rows from the runner's live pairs", () => {
     it("lets the live answer REMOVE a row the static mapping would have shown", () => {
         // Only Codex is signed in, so the Claude plan the static map assumes is not offered.
         const pairs = subscriptionPairsFrom({codex: {state: "ready"}})
-        expect(rowsFor(pairs).map((row) => row.name)).toEqual(["ChatGPT (deployment login)"])
+        expect(rowsFor(pairs).map((row) => row.name)).toEqual(["ChatGPT"])
     })
 })

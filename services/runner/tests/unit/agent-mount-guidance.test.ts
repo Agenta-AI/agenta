@@ -102,14 +102,13 @@ describe("the delivery channels carry either statement unchanged", () => {
 
 describe("file citation guidance", () => {
   it("asks for a working-directory-relative link and rejects the shapes that do not open", () => {
-    // The client's link gate (`chatFileRefs.tsx`) resolves a path relative to the working
-    // directory and strips only leading and trailing slashes. An absolute sandbox path renders as
-    // inert text, and a bare basename cannot pick one file among several with that name.
+    // The client's link gate (`chatFileRefs.tsx`) opens only files in the session or agent drive,
+    // and a bare basename cannot pick one file among several with that name.
     const text = fileCitationAppendix().text;
     assert.match(text, /Markdown link/);
     assert.match(text, /relative to your working directory/);
     assert.match(text, /agent-files\/report\.md/);
-    assert.match(text, /An absolute path does not open/);
+    assert.match(text, /Link only files in your working directory/);
     assert.match(text, /bare basename/);
     assert.doesNotMatch(text, /full absolute path/);
   });

@@ -19,6 +19,17 @@ class OrganizationCreationNotAllowedError(OrganizationError):
         super().__init__(self.message)
 
 
+class OrganizationLimitReachedError(OrganizationCreationNotAllowedError):
+    """Raised when a user already owns the maximum number of organizations."""
+
+    def __init__(self, email: str, limit: int):
+        self.limit = limit
+        super().__init__(
+            email=email,
+            message=f"You already own {limit} organization(s), the most allowed. Delete one before you create another.",
+        )
+
+
 class LastOrganizationError(OrganizationError):
     """Raised when attempting to delete the user's last organization."""
 

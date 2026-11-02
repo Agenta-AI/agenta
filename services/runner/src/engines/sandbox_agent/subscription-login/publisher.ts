@@ -322,6 +322,11 @@ function authorizationValue(
  * token in its own process. A lost push costs one extra refresh later, unless the runner state dir
  * is also lost with it; see the state-dir note in `run-plan.ts`.
  */
+/** The query that addresses an organization login's row (M5); none for a project's. */
+function ownerQuery(subscription: ModelConnectionSubscription): string {
+  return subscription.owner === "organization" ? "?scope=organization" : "";
+}
+
 async function pushLogin(
   subscription: ModelConnectionSubscription,
   state: SubscriptionPublishState,
@@ -331,7 +336,9 @@ async function pushLogin(
 ): Promise<{ answered: boolean; version?: number }> {
   const log = deps.log ?? defaultLog;
   const doFetch = deps.fetchImpl ?? fetch;
-  const url = `${deps.apiBase}/secrets/${encodeURIComponent(subscription.id)}/subscription-login`;
+  const url =
+    `${deps.apiBase}/secrets/${encodeURIComponent(subscription.id)}/subscription-login` +
+    ownerQuery(subscription);
   const event = {
     connection: subscription.id,
     trigger,
@@ -432,7 +439,9 @@ export async function reportSubscriptionLoginFailure(
 ): Promise<SubscriptionFailureReport> {
   const log = deps.log ?? defaultLog;
   const doFetch = deps.fetchImpl ?? fetch;
-  const url = `${deps.apiBase}/secrets/${encodeURIComponent(subscription.id)}/subscription-login/failure`;
+  const url =
+    `${deps.apiBase}/secrets/${encodeURIComponent(subscription.id)}/subscription-login/failure` +
+    ownerQuery(subscription);
   const event = {
     connection: subscription.id,
     generation: state.generation,

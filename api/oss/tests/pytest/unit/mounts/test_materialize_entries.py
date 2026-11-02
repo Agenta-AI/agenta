@@ -43,9 +43,11 @@ class _MountsDAO:
     async def upsert_mount(self, *, project_id, user_id, mount_create):
         self.upsert_calls += 1
         if self.mount is None:
+            mount_id = uuid4()
             self.mount = Mount(
-                id=uuid4(),
+                id=mount_id,
                 project_id=project_id,
+                storage_prefix=f"mounts/{project_id}/{mount_id}",
                 slug=mount_create.slug,
                 name=mount_create.name,
                 agent_id=mount_create.agent_id,

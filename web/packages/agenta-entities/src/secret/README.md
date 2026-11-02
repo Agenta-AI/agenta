@@ -48,30 +48,30 @@ Bolting on `draft`, `isDirty`, `discard`, or `useController` here would produce 
 1. **Query key identity.** `["vault", "secrets", user?.id, projectId]` — exact tuple. Adding/removing/reordering elements invalidates existing cache entries and risks cache double-up if any transitional shim exists.
 
 2. **Migration atom idempotency.**
-   - `migrateVaultKeysAtom` (the setter) early-returns if `migrating || migrated`. This guarantees that calling it from multiple subscribers does not double-fire the localStorage migration.
-   - The hook's `useEffect` triggers `migrateKeys()` when `user && !migrating && !migrated` — fires exactly once after authentication.
-   - On `!user` (logout), the hook resets the atom to `{migrating: false, migrated: false}` — re-arms migration for the next sign-in in the same session.
-   - Success path: `{migrating: false, migrated: true}`. Failure path: rollback to `{migrating: false, migrated: false}`.
+    - `migrateVaultKeysAtom` (the setter) early-returns if `migrating || migrated`. This guarantees that calling it from multiple subscribers does not double-fire the localStorage migration.
+    - The hook's `useEffect` triggers `migrateKeys()` when `user && !migrating && !migrated` — fires exactly once after authentication.
+    - On `!user` (logout), the hook resets the atom to `{migrating: false, migrated: false}` — re-arms migration for the next sign-in in the same session.
+    - Success path: `{migrating: false, migrated: true}`. Failure path: rollback to `{migrating: false, migrated: false}`.
 
 3. **`useVaultSecret` return shape.**
 
-   ```ts
-   {
-     loading: boolean
-     secrets: LlmProvider[]
-     customRowSecrets: LlmProvider[]
-     mutate: () => Promise<unknown>
-     handleModifyVaultSecret(provider): Promise<void>
-     handleDeleteVaultSecret(provider): Promise<void>
-     handleModifyCustomVaultSecret(provider): Promise<void>
-   }
-   ```
+    ```ts
+    {
+      loading: boolean
+      secrets: LlmProvider[]
+      customRowSecrets: LlmProvider[]
+      mutate: () => Promise<unknown>
+      handleModifyVaultSecret(provider): Promise<void>
+      handleDeleteVaultSecret(provider): Promise<void>
+      handleModifyCustomVaultSecret(provider): Promise<void>
+    }
+    ```
 
 4. **Failure-prone step.** The localStorage-to-vault migration runs once with side effects (writes to server, writes to localStorage backup, removes the legacy key). On a fresh profile with seeded `localStorage[llmAvailableProvidersToken]`, validate that:
-   - It fires exactly once.
-   - It does not re-fire after logout/login in the same session.
-   - On failure, the migration status rolls back so the next mount can retry.
-   - `localStorage[llmAvailableProvidersTokenBackup]` is set after success.
+    - It fires exactly once.
+    - It does not re-fire after logout/login in the same session.
+    - On failure, the migration status rolls back so the next mount can retry.
+    - `localStorage[llmAvailableProvidersTokenBackup]` is set after success.
 
 ## Usage
 

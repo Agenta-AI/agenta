@@ -163,19 +163,18 @@ const config: Config = {
             },
           },
         },
-        // Hidden during the agent-focused docs rework. The tutorials pages and
-        // their sidebar still exist and stay reachable by direct URL.
-        // {
-        //   type: "docSidebar",
-        //   sidebarId: "guidesSidebar",
-        //   position: "left",
-        //   label: "Tutorials",
-        //   customProps: {
-        //     icon: {
-        //       name: "bookOpen",
-        //     },
-        //   },
-        // },
+        {
+          // Plain link: the tutorials only exist in the current version.
+          to: "/tutorials",
+          activeBasePath: "/tutorials",
+          position: "left",
+          label: "Tutorials",
+          customProps: {
+            icon: {
+              name: "bookOpen",
+            },
+          },
+        },
         {
           // Plain link: the REST reference is not versioned, it only exists in
           // the current version.

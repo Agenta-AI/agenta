@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 import pytest_asyncio
@@ -110,8 +110,11 @@ async def test_snapshot_n_followed_by_events_after_n_loses_no_commit():
         )
 
         assert snapshot.latest_sequence == 1
-        assert [event.sequence for event in replay.events] == [3, 6, 7, 9]
-        assert replay.events[0].payload.content == "three"
+        # The runner persists turn completion as a `done` record, and replay reports it as
+        # execution.stopped (sequence 2).
+        assert [event.sequence for event in replay.events] == [2, 3, 6, 7, 9]
+        assert replay.events[0].type == "execution.stopped"
+        assert replay.events[1].payload.content == "three"
         assert replay.events[-1].payload.content == "nine"
         assert replay.events[-1].watermark == 9
         assert replay.watermark == 9
@@ -220,4 +223,67 @@ async def test_legacy_session_replays_ordered_history_and_is_incomplete():
         async with get_analytics_engine().session() as session:
             await session.execute(
                 delete(RecordDBE).where(RecordDBE.project_id == project_id)
+            )
+
+
+async def test_replay_stays_in_sequence_order_when_commit_order_differs_from_send_order():
+    """Live catch-up skips every record at or below the last sequence it sent. If replay
+    followed send order, a call at 2 sent before its result at 1 would move the cursor to
+    2 and drop the result. Replay must keep commit (sequence) order."""
+    project_id = uuid.uuid4()
+    session_id = f"replay-{uuid.uuid4()}"
+    dao = RecordsDAO(engine=get_analytics_engine())
+    sent_at = datetime.now(timezone.utc)
+
+    def tool_event(record_type, record_index, timestamp, attributes):
+        return SessionRecordEvent(
+            project_id=project_id,
+            session_id=session_id,
+            record_id=uuid.uuid4(),
+            turn_id="execution-1",
+            record_index=record_index,
+            timestamp=timestamp,
+            record_type=record_type,
+            record_source="agent",
+            attributes=attributes,
+        )
+
+    call = tool_event(
+        "tool_call", 0, sent_at, {"id": "tool-1", "name": "read", "input": {}}
+    )
+    result = tool_event(
+        "tool_result",
+        1,
+        sent_at + timedelta(milliseconds=5),
+        {"id": "tool-1", "output": "ok"},
+    )
+
+    try:
+        await dao.append(event=result)
+        await dao.append(event=call)
+
+        replay = await dao.get_records_after(
+            project_id=project_id, session_id=session_id, after=0
+        )
+        assert [r.record_id for r in replay.records] == [
+            result.record_id,
+            call.record_id,
+        ]
+        assert [r.sequence for r in replay.records] == [1, 2]
+        assert replay.watermark == 2
+
+        after_one = await dao.get_records_after(
+            project_id=project_id, session_id=session_id, after=1
+        )
+        assert [r.record_id for r in after_one.records] == [call.record_id]
+    finally:
+        async with get_analytics_engine().session() as session:
+            await session.execute(
+                delete(RecordDBE).where(RecordDBE.project_id == project_id)
+            )
+            await session.execute(
+                delete(SessionSequenceCursorDBE).where(
+                    SessionSequenceCursorDBE.project_id == project_id,
+                    SessionSequenceCursorDBE.session_id == session_id,
+                )
             )

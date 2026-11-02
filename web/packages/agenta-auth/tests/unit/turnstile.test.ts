@@ -6,6 +6,7 @@ import {
     getTurnstileSiteKey,
     installTurnstileFetchPatch,
     isTurnstileEnabled,
+    readAuthRejection,
     setPendingTurnstileToken,
     TURNSTILE_HEADER,
 } from "../../src/turnstile"
@@ -96,5 +97,31 @@ describe("installTurnstileFetchPatch", () => {
         setPendingTurnstileToken("   ")
         await window.fetch("https://app.test/api/auth/signinup", {method: "POST"})
         expect(header(calls[0])).toBeNull()
+    })
+})
+
+describe("readAuthRejection", () => {
+    const json = (status: number, body: unknown) =>
+        new Response(JSON.stringify(body), {status, headers: {"Content-Type": "application/json"}})
+
+    it("reads the message from the API's 401 body", async () => {
+        const error = json(401, {detail: {message: "Please complete the security check."}})
+        expect(await readAuthRejection(error)).toBe("Please complete the security check.")
+    })
+
+    it("reads the message from the API's 429 body", async () => {
+        const error = json(429, {
+            detail: {message: "Too many sign-in attempts. Try again in a few minutes."},
+        })
+        expect(await readAuthRejection(error)).toBe(
+            "Too many sign-in attempts. Try again in a few minutes.",
+        )
+    })
+
+    it("ignores other statuses, other shapes, and non-Response errors", async () => {
+        expect(await readAuthRejection(json(500, {detail: {message: "x"}}))).toBeNull()
+        expect(await readAuthRejection(json(401, {detail: "Unauthorized"}))).toBeNull()
+        expect(await readAuthRejection(new Response("not json", {status: 401}))).toBeNull()
+        expect(await readAuthRejection(new Error("network"))).toBeNull()
     })
 })

@@ -7,10 +7,11 @@ import {
     updatePendingSessionInputAtom,
     type PendingInputWriteOutcome,
 } from "@agenta/entities/session"
-import {buildAgentRequest} from "@agenta/playground/agent-chat"
+import {workflowMolecule} from "@agenta/entities/workflow"
+import {buildAgentRequest, isHitlPending} from "@agenta/playground/agent-chat"
 import {projectIdAtom} from "@agenta/shared/state"
 import type {FileUIPart, UIMessage} from "ai"
-import {useAtomValue, useSetAtom} from "jotai"
+import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 
 import {buildRequestWithinDeadline, PREPARE_NOT_READY_MESSAGE} from "../assets/boundedRequest"
 import {outboundUserParts} from "../assets/displayContent"
@@ -18,6 +19,7 @@ import {attachmentIdForPart} from "../assets/files"
 import {reduceSessionPendingInputs, type SessionPendingInputView} from "../assets/pendingInputs"
 import {startupPhaseFromDataPart, type StartupPhase, type TurnStage} from "../assets/startupPhases"
 import {readSendRefusal} from "../model/error"
+import {trackOwnedRunAtom} from "../state/sessionMessages"
 
 import type {QueuedMessage, ServerQueueWriteResult} from "./useAgentChatQueue"
 import {useMountGeneration} from "./useMountGeneration"
@@ -79,8 +81,27 @@ const emptyView = reduceSessionPendingInputs(null)
 
 const RUN_ERROR_FRAME_TYPES = new Set(["error", "data-agent-error"])
 
+/** The slice of a run's parts `isHitlPending` reads: tool calls and their `data-render` hints. */
+interface HitlPart {
+    type?: string
+    state?: string
+    toolCallId?: string
+    providerExecuted?: boolean
+    data?: unknown
+}
+
+const TOOL_CHUNK_STATE: Record<string, string> = {
+    "tool-input-start": "input-streaming",
+    "tool-input-available": "input-available",
+    "tool-approval-request": "approval-requested",
+    "tool-output-available": "output-available",
+    "tool-output-error": "output-error",
+    "tool-output-denied": "output-denied",
+}
+
 type RunFrame =
     | {kind: "accepted"; executionId: string}
+    | {kind: "part"; part: HitlPart}
     | {kind: "error"}
     | {kind: "started"}
     | {kind: "status"; phase: StartupPhase}
@@ -94,6 +115,8 @@ type RunFrame =
 export interface RunAdmission {
     accepted: boolean
     ended: boolean
+    /** The stream closed on an ask or approval the user has not answered yet. */
+    awaiting: boolean
 }
 
 const runFrameFromLine = (line: string): RunFrame => {
@@ -104,8 +127,25 @@ const runFrameFromLine = (line: string): RunFrame => {
             type?: unknown
             data?: {executionId?: unknown}
             messageMetadata?: {turnId?: unknown}
+            toolCallId?: unknown
+            toolName?: unknown
+            providerExecuted?: unknown
         }
         if (typeof frame.type !== "string") return null
+        if (frame.type === "data-render")
+            return {kind: "part", part: {type: frame.type, data: frame.data}}
+        const toolState = TOOL_CHUNK_STATE[frame.type]
+        if (toolState && typeof frame.toolCallId === "string") {
+            return {
+                kind: "part",
+                part: {
+                    ...(typeof frame.toolName === "string" ? {type: `tool-${frame.toolName}`} : {}),
+                    state: toolState,
+                    toolCallId: frame.toolCallId,
+                    ...(frame.providerExecuted === true ? {providerExecuted: true} : {}),
+                },
+            }
+        }
         if (RUN_ERROR_FRAME_TYPES.has(frame.type)) return {kind: "error"}
         const phase = startupPhaseFromDataPart(frame)
         if (phase) return {kind: "status", phase}
@@ -151,12 +191,14 @@ export const readRunAdmission = async (
     const reader = response.body?.getReader()
     if (!reader) {
         watcher?.onFailed?.()
-        return {accepted: false, ended: true}
+        return {accepted: false, ended: true, awaiting: false}
     }
     const decoder = new TextDecoder()
     let buffer = ""
     let accepted = false
     let started = false
+    const toolParts = new Map<string, HitlPart>()
+    const renderParts: HitlPart[] = []
     const scan = (chunk: string): "error" | "accepted" | null => {
         buffer += chunk
         // CR-only and CRLF framing are both valid SSE.
@@ -165,6 +207,13 @@ export const readRunAdmission = async (
         for (const line of lines) {
             const frame = runFrameFromLine(line)
             if (!frame) continue
+            if (frame.kind === "part") {
+                const {part} = frame
+                if (part.toolCallId) {
+                    toolParts.set(part.toolCallId, {...toolParts.get(part.toolCallId), ...part})
+                } else renderParts.push(part)
+                continue
+            }
             // Scanning continues past the turn-id frame, because a detached run names its turn in
             // a frame of its own, and that id is what retires the echo on identity.
             if (frame.kind === "status") {
@@ -196,21 +245,22 @@ export const readRunAdmission = async (
             if (scan(decoder.decode(value, {stream: true})) === "error") {
                 watcher?.onFailed?.()
                 await reader.cancel().catch(() => undefined)
-                return {accepted: false, ended: true}
+                return {accepted: false, ended: true, awaiting: false}
             }
         }
-        // A last frame with no trailing newline is still a frame, and it can be the refusal.
-        if (!accepted && buffer.trim() && scan("\n") === "error") {
+        // A last frame with no trailing newline is still a frame: a refusal, or an ask.
+        if (buffer.trim() && scan("\n") === "error") {
             watcher?.onFailed?.()
-            return {accepted: false, ended: true}
+            return {accepted: false, ended: true, awaiting: false}
         }
     } catch {
         // A dropped connection says nothing about the turn either way: not a failure, and not an
         // ending. A turn that keeps running on the server after the browser's connection fell
         // over still saves its row, and reading the drop as "finished" put "wasn't sent" under it.
-        return {accepted, ended: false}
+        return {accepted, ended: false, awaiting: false}
     }
-    return {accepted, ended: true}
+    const parts = [...toolParts.values(), ...renderParts]
+    return {accepted, ended: true, awaiting: isHitlPending([{role: "assistant", parts}])}
 }
 
 export const parkedInputIdFromBody = (body: unknown): string | null => {
@@ -264,6 +314,7 @@ export const useServerSessionInputs = ({
     const removeInput = useSetAtom(removePendingSessionInputAtom)
     const sendInputNow = useSetAtom(sendPendingSessionInputNowAtom)
     const updateInput = useSetAtom(updatePendingSessionInputAtom)
+    const trackOwnedRun = useSetAtom(trackOwnedRunAtom)
     const [viewState, setViewState] = useState<{
         scope: string
         view: SessionPendingInputView
@@ -271,6 +322,9 @@ export const useServerSessionInputs = ({
     }>(() => ({scope, view: emptyView, seq: 0}))
     const current = viewState.scope === scope
     const view = current ? viewState.view : emptyView
+    // Runs admitted here, per scope, until the re-read after their stream ends reports them.
+    const [ownedRunsByScope, setOwnedRunsByScope] = useState<Record<string, number>>({})
+    const ownedRuns = ownedRunsByScope[scope] ?? 0
     const viewSeq = current ? viewState.seq : 0
     const messagesRef = useRef(messages)
     const entityIdRef = useRef(entityId)
@@ -355,7 +409,11 @@ export const useServerSessionInputs = ({
     // Only the conversation on screen polls: over HTTP/1.1 each hidden pane's poll queued for the
     // same six connections a send needs.
     const tracking =
-        locallyBusy || remotelyBusy || view.executionState !== "idle" || view.queued.length > 0
+        locallyBusy ||
+        remotelyBusy ||
+        ownedRuns > 0 ||
+        view.executionState !== "idle" ||
+        view.queued.length > 0
     useEffect(() => {
         if (!active) return
         const timer = setInterval(
@@ -390,6 +448,14 @@ export const useServerSessionInputs = ({
                 parts: outboundUserParts(message),
             }
             let response: Response
+            // The build reads the workflow with `store.get`, which never subscribes. Once the user
+            // leaves the session nothing else holds it, and a workflow query still loading at that
+            // moment never lands in an atom nobody holds: the send waited out its deadline and
+            // failed, so the message was lost. Held here, the send goes out off screen too.
+            const releaseWorkflow = getDefaultStore().sub(
+                workflowMolecule.selectors.invocationUrl(entityIdRef.current),
+                () => undefined,
+            )
             try {
                 // Bounded, not instant: a null build means the workflow has not loaded its
                 // invocation URL yet, which the first send to a new agent races (#6042).
@@ -400,12 +466,14 @@ export const useServerSessionInputs = ({
                         // Same host as the resume path: the dock can answer a secret ask (#7001).
                         secretSetup: true,
                     }),
-                ).catch((error: unknown) => {
-                    if (error instanceof Error && error.message === PREPARE_NOT_READY_MESSAGE) {
-                        throw new Error("The agent is not ready to accept input.")
-                    }
-                    throw error
-                })
+                )
+                    .catch((error: unknown) => {
+                        if (error instanceof Error && error.message === PREPARE_NOT_READY_MESSAGE) {
+                            throw new Error("The agent is not ready to accept input.")
+                        }
+                        throw error
+                    })
+                    .finally(releaseWorkflow)
                 // The build can wait for the invocation URL. A session switched meanwhile would get
                 // a request mixing the new scope's entity and messages with this send's session
                 // id. Only the scope is checked, not the mount: admission may outlive a remount.
@@ -451,9 +519,24 @@ export const useServerSessionInputs = ({
             // run in the background so the composer can admit Queue/Steer while that run streams.
             // A 200 only proves the request was taken: the turn is accepted when the stream's
             // first frame names it, and a stream that ends without one never started a turn.
+            trackOwnedRun({id: sessionId, open: true})
+            const countOwnedRun = (delta: number) =>
+                setOwnedRunsByScope((counts) => ({
+                    ...counts,
+                    [scope]: (counts[scope] ?? 0) + delta,
+                }))
+            countOwnedRun(1)
+            let released = false
+            const release = () => {
+                if (released) return
+                released = true
+                countOwnedRun(-1)
+            }
+            let refused = false
             void readRunAdmission(response, {
                 ...watcher,
                 onFailed: () => {
+                    refused = true
                     narrate(null)
                     watcher?.onFailed?.()
                 },
@@ -462,10 +545,21 @@ export const useServerSessionInputs = ({
                     if (mount.isCurrent(generation)) onTurnStageRef.current?.(stage)
                 },
             })
+                .then(
+                    (admission) => {
+                        const held = refused ? "error" : admission.awaiting ? "awaiting" : undefined
+                        trackOwnedRun({id: sessionId, open: false, held})
+                        return admission
+                    },
+                    (error: unknown) => {
+                        trackOwnedRun({id: sessionId, open: false})
+                        throw error
+                    },
+                )
                 .then(async ({accepted, ended}) => {
                     watcher?.onTurnNamed?.()
                     if (!mount.isCurrent(generation)) return
-                    await refresh({fresh: true})
+                    await refresh({fresh: true}).finally(release)
                     if (!mount.isCurrent(generation)) return
                     // Settlement WAITS for the re-read it starts. The saved row that retires this
                     // send's echo arrives in that read; reporting before it landed flagged a
@@ -484,9 +578,10 @@ export const useServerSessionInputs = ({
                     if (accepted && ended && reconciled !== false) watcher?.onSettled?.()
                 })
                 .catch(() => watcher?.onTurnNamed?.())
+                .finally(release)
             return "running"
         },
-        [mount, refresh, scope, sessionId],
+        [mount, refresh, scope, sessionId, trackOwnedRun],
     )
 
     // Every write re-reads past itself. `settledSeq` lets an optimistic overlay wait for that read.
@@ -537,7 +632,7 @@ export const useServerSessionInputs = ({
     return {
         executionState: view.executionState,
         // `remotelyBusy` too: `executionState` learns of another browser's run only on the next poll.
-        busy: locallyBusy || remotelyBusy || view.executionState !== "idle",
+        busy: locallyBusy || remotelyBusy || ownedRuns > 0 || view.executionState !== "idle",
         queued: view.queued,
         viewSeq,
         submit,

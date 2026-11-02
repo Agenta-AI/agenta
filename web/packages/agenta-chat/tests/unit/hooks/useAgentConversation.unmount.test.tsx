@@ -73,7 +73,9 @@ vi.mock("../../../src/state/sessionMessages", async (importOriginal) => {
 
 import type {SessionTranscript} from "../../../src/assets/loadSession"
 import {useAgentConversation} from "../../../src/hooks/useAgentConversation"
+import {hasSessionChat, peekSessionChat} from "../../../src/state/sessionChats"
 import {acceptedRunBySession, markSessionFresh} from "../../../src/state/sessionEphemera"
+import {sessionStatusAtomFamily} from "../../../src/state/sessionMessages"
 
 const message = (n: number): UIMessage =>
     ({
@@ -122,11 +124,7 @@ describe.each([
         // Fresh: the hydration and revalidate-on-open effects stay out of the way, so every
         // adoption below is one this test asked for.
         markSessionFresh(sessionId)
-        // A durable send whose turn the runner has accepted. This is the state an unmount
-        // mid-stream actually happens in, and it is what makes mobile PRESERVE the chat across the
-        // remount (`shouldPreserve: () => busyRef.current`). It leaves `localRenderBusyRef` false,
-        // because a shared turn is not a stream this client renders, so adoption stays open — the
-        // combination the blocker needs.
+        // An accepted shared turn: no local stream, so adoption stays open.
         acceptedRunBySession.set(sessionId, "turn-1")
 
         const first = mountConversation(store, sessionId)
@@ -149,10 +147,9 @@ describe.each([
         // The user leaves the session view mid-stream.
         first.unmount()
 
-        // ...and comes back. Same session id, so the registry hands back the SAME chat instance,
-        // which is why the transcript below is still two messages long.
+        // ...and comes back to a fresh chat, since a closed stream is not preserved.
         const second = mountConversation(store, sessionId)
-        expect(second.result.current.messages).toHaveLength(2)
+        expect(second.result.current.messages).toHaveLength(0)
         await act(async () => {
             await second.result.current.revalidate(transcript(6, 6))
         })
@@ -231,5 +228,60 @@ describe.each([
         })
         expect(second.result.current.messages).toHaveLength(6)
         second.unmount()
+    })
+
+    it("releases the chat and retires the status when only an accepted, closed run remains", async () => {
+        const store = createStore()
+        store.set(projectIdAtom, "project-1")
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        acceptedRunBySession.set(sessionId, "turn-1")
+
+        const first = mountConversation(store, sessionId)
+        await waitFor(() => expect(store.get(sessionStatusAtomFamily(sessionId))).toBe("running"))
+        expect(hasSessionChat(sessionId)).toBe(true)
+
+        first.unmount()
+
+        expect(hasSessionChat(sessionId)).toBe(false)
+        expect(store.get(sessionStatusAtomFamily(sessionId))).toBe("idle")
+    })
+
+    it("holds the session awaiting when a chat that outlived its mount finishes on an open ask", async () => {
+        const store = createStore()
+        store.set(projectIdAtom, "project-1")
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+
+        const first = mountConversation(store, sessionId)
+        const chat = peekSessionChat(sessionId)!
+        await act(async () => {
+            void chat.sendMessage({text: "ask me"})
+        })
+        await waitFor(() => expect(first.result.current.status).toBe("submitted"))
+        first.unmount()
+        expect(hasSessionChat(sessionId)).toBe(true)
+
+        const ask = {
+            id: "a1",
+            role: "assistant",
+            parts: [
+                {type: "tool-request_input", toolCallId: "c1", state: "input-available", input: {}},
+            ],
+        } as unknown as UIMessage
+        const {onFinish} = chat as unknown as {onFinish: (event: Record<string, unknown>) => void}
+        act(() =>
+            onFinish({
+                message: ask,
+                messages: [message(1), ask],
+                isAbort: false,
+                isDisconnect: false,
+                isError: false,
+                finishReason: "stop",
+            }),
+        )
+
+        expect(store.get(sessionStatusAtomFamily(sessionId))).toBe("awaiting")
+        expect(hasSessionChat(sessionId)).toBe(false)
     })
 })

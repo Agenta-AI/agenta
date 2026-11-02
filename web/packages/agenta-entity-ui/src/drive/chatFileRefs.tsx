@@ -5,17 +5,22 @@
  *
  *   1. RECORDS pre-seed (free): the session records already carry every path the agent WROTE/edited,
  *      so a mention that tail-matches one is a known file — zero network.
- *   2. On-demand single-file check (anything else, e.g. a file the agent only READ): when the span
- *      scrolls INTO VIEW, read just that ONE path; a 200 means it exists → link (and that read IS
- *      the Quick Look content, so opening it is instant). A 404 leaves it as plain code.
+ *   2. On-demand existence check (anything else, e.g. a file the agent only READ): when the span
+ *      scrolls INTO VIEW, list the ONE folder that holds it (shared by every mention in that folder)
+ *      and link it when the listing holds that exact file. Never reads the file's content: a mention
+ *      of a large video must not download it (#7522). A raster image is confirmed by its preview.
  *
- * Never lists the tree; the on-demand read is viewport-gated and deduped per path. Markdown stays
+ * Never lists the tree; the on-demand check is viewport-gated and deduped per folder. Markdown stays
  * decoupled from Drives — it just calls {@link chatFileResolver}.renderCode.
  */
 import {type ReactNode} from "react"
 
 import {mountFileThumbnailQueryFamily} from "@agenta/entities/drive"
-import {mountFileContentQueryFamily, mountPathMatchesToolPath} from "@agenta/entities/session"
+import {
+    drivePathFromToolPath,
+    mountFileExistsAtomFamily,
+    mountPathMatchesToolPath,
+} from "@agenta/entities/session"
 import {useInView, useSettledValue} from "@agenta/shared/hooks"
 import {useAtomValue} from "jotai"
 
@@ -50,15 +55,25 @@ export const fileCandidate = (text: string): string | null => {
 
 /** True when the record log proves this mention names a written file (tail match). */
 export const knownFromRecords = (byBasename: Map<string, string[]>, candidate: string): boolean => {
-    // Count segments WITHOUT the leading slash: `/README.md` is still a bare basename (#6004).
-    if (!candidate.replace(/^\/+/, "").includes("/")) return false
     const base = candidate.split("/").pop() ?? candidate
-    return Boolean(byBasename.get(base)?.some((t) => mountPathMatchesToolPath(candidate, t)))
+    const written = byBasename.get(base)
+    if (!written) return false
+    // Count segments WITHOUT the leading slash: `/README.md` is still a bare basename (#6004).
+    const bare = candidate.replace(/^\/+/, "")
+    if (!bare.includes("/")) {
+        // A bare name is known only when the agent wrote it at the cwd root, not in a subfolder.
+        return written.some((t) => {
+            const drivePath = drivePathFromToolPath(t)
+            return drivePath?.origin === "session" && drivePath.path === bare
+        })
+    }
+    return written.some((t) => mountPathMatchesToolPath(candidate, t))
 }
 
 const NO_FILE = {mountId: "", path: ""}
 
-/** A mention not known from records: checked once near the viewport; a miss stays plain code. */
+/** A mention not known from records: checked in its folder's listing once near the viewport; a
+ * miss stays plain code. */
 function OnDemandFileRef({candidate, fallback}: {candidate: string; fallback: ReactNode}) {
     const sessionId = useDriveSessionId() ?? ""
     const artifactId = useDriveArtifactId()
@@ -69,11 +84,11 @@ function OnDemandFileRef({candidate, fallback}: {candidate: string; fallback: Re
     const raster = isRasterImage(candidate)
     const target = enabled && resolved ? {mountId: resolved.mount.id, path: resolved.path} : NO_FILE
     // An image is confirmed by the preview read the inline figure and hover card reuse.
-    const text = useAtomValue(mountFileContentQueryFamily(raster ? NO_FILE : target))
+    const exists = useAtomValue(mountFileExistsAtomFamily(raster ? NO_FILE : target))
     const preview = useAtomValue(
         mountFileThumbnailQueryFamily(raster ? {...target, px: CHAT_IMAGE_PREVIEW_PX} : NO_FILE),
     )
-    const found = raster ? Boolean(preview.data) : typeof text.data === "string"
+    const found = raster ? Boolean(preview.data) : Boolean(exists)
     if (found) return <DriveFileInlineRef path={candidate} />
     // Plain code inside a ref'd span so the observer can watch it scroll into view.
     return <span ref={ref}>{fallback}</span>

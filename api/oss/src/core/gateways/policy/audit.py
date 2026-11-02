@@ -37,7 +37,6 @@ def build_gateway_call_attributes(
     """Build non-sensitive audit attributes for one gateway call."""
     attributes: Dict[str, Any] = {
         "organization_id": str(scope.organization_id),
-        "workspace_id": str(scope.workspace_id),
         "project_id": str(scope.project_id),
         "user_id": str(scope.user_id),
         "plane": target.plane.value,
@@ -69,6 +68,10 @@ def build_gateway_call_attributes(
         attributes["duration_ms"] = outcome.duration_ms
     if outcome.origin is not None:
         attributes["secret_origin"] = outcome.origin.value
+    if outcome.owner is not None:
+        # Whose credential answered: a project's own, or an organization connection the
+        # agent named (M5). The kind only; the secret's id and value stay out.
+        attributes["secret_owner_kind"] = outcome.owner.kind.value
     if run_id is not None:
         # The invocation this call belongs to, minted per workflow run and carried into
         # the sandbox-confined gateway credential the caller presents

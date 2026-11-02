@@ -119,6 +119,8 @@ const VARS: Record<string, [string, string]> = {
     colorTextLightSolid: [color(p.text.lightSolid.light), color(p.text.lightSolid.dark)],
     colorSplit: [color(p.border.split.light), color(p.border.split.dark)],
     colorInfo: [color(p.semantic.info.light), color(p.semantic.info.dark)],
+    colorSelection: [color(p.semantic.selection.light), color(p.semantic.selection.dark)],
+    colorSelectionBg: [color(p.semantic.selectionBg.light), color(p.semantic.selectionBg.dark)],
     colorBgLayout: [color(p.surface.layout.light), color(p.surface.layout.dark)],
     colorBgMask: [color(p.surface.mask.light), color(p.surface.mask.dark)],
     colorBgContainerDisabled: [
@@ -310,6 +312,11 @@ const VARS: Record<string, [string, string]> = {
     "ag-run-status-success": [color(p.runStatus.success.light), color(p.runStatus.success.dark)],
     "ag-run-status-warning": [color(p.runStatus.warning.light), color(p.runStatus.warning.dark)],
     "ag-run-status-default": [color(p.runStatus.default.light), color(p.runStatus.default.dark)],
+    "ag-run-status-processing": [
+        color(p.runStatus.processing.light),
+        color(p.runStatus.processing.dark),
+    ],
+    "ag-run-status-error": [color(p.runStatus.error.light), color(p.runStatus.error.dark)],
     // The tinted panel surface, under its desktop name: the shared PanelSection styles itself
     // with `var(--ag-surface-paper)` literally, so /m must publish the same name or every panel
     // header renders on no background at all.

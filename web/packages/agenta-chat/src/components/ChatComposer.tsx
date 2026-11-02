@@ -11,7 +11,12 @@ import {Suspense, lazy, useEffect, useRef, type ReactNode, type RefObject} from 
 
 import {isOverlayOpen} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
-import {registerQuoteSubmit, removeQuote, useStagedQuotes} from "@agenta/ui/quote-selection"
+import {
+    registerQuoteSubmit,
+    removeQuote,
+    revealQuote,
+    useStagedQuotes,
+} from "@agenta/ui/quote-selection"
 import type {RichChatInputHandle, SlashCommandSection} from "@agenta/ui/rich-chat-input"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {Paperclip} from "@phosphor-icons/react"
@@ -23,7 +28,7 @@ import {useFilePalette} from "../hooks/useFilePalette"
 import {useHardwareKeyboard} from "../hooks/useHardwareKeyboard"
 
 import ComposerAttachments from "./ComposerAttachments"
-import ComposerQuotes from "./ComposerQuotes"
+import {QuoteTiles} from "./ComposerQuotes"
 import ComposerRejections from "./ComposerRejections"
 import RecordingWaveform from "./RecordingWaveform"
 import {useStagedFilesViewer} from "./useStagedFilesViewer"
@@ -50,6 +55,8 @@ export interface ChatComposerProps {
     /** How far the editor may grow before it scrolls itself; see RichChatInput. */
     maxHeightClassName?: string
     disabled?: boolean
+    /** Send and Enter are off while typing stays on (an agent whose model needs setup). */
+    sendDisabled?: boolean
     hideSendButton?: boolean
     /**
      * Force the Send/Newline hints on or off. Left unset they follow the device: shown wherever
@@ -60,6 +67,8 @@ export interface ChatComposerProps {
     placeholder?: string
     /** The run is parked on the user (HITL) — new sends will queue. */
     waitingOnUser?: boolean
+    /** The session already has turns: the key hints move from chips into the placeholder. */
+    hasTurns?: boolean
     initialMarkdown?: string
     onChange?: (markdown: string) => void
     /** The send is in flight and has not landed — the button spins and refuses a second press. */
@@ -109,10 +118,12 @@ export const ChatComposer = ({
     className,
     maxHeightClassName,
     disabled,
+    sendDisabled,
     hideSendButton,
     hideShortcutHints,
     placeholder,
     waitingOnUser,
+    hasTurns = false,
     initialMarkdown,
     onChange,
     sending,
@@ -166,7 +177,7 @@ export const ChatComposer = ({
     const submitNowRef = useRef<() => boolean>(() => false)
     submitNowRef.current = () => {
         const editor = editorRef.current
-        if (!editor || disabled || composerDisabled) return false
+        if (!editor || disabled || composerDisabled || sendDisabled) return false
         if (files.length > 0 && !attachmentsSettled) return false
         const text = editor.getMarkdown()
         if (withQuotes(onSubmit)(text) === false) return false
@@ -235,7 +246,7 @@ export const ChatComposer = ({
                 onSubmit={withQuotes(onSubmit)}
                 disabled={disabled}
                 hideSendButton={hideSendButton}
-                hideShortcutHints={hideShortcutHints ?? !hasKeyboard}
+                hideShortcutHints={hideShortcutHints ?? (!hasKeyboard || hasTurns)}
                 // A touch keyboard has no modifier to make a newline with, so its Enter IS the
                 // newline and the send button sends. Enter sends only where Shift/⌘ can be held.
                 submitOnEnter={hasKeyboard}
@@ -247,9 +258,12 @@ export const ChatComposer = ({
                           ? // The parked interaction is docked directly above, so point at it rather
                             // than describing the wait in the abstract.
                             "Answer above, or type to queue a message"
-                          : hasKeyboard
-                            ? "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
-                            : "Ask the agent…")
+                          : !hasTurns
+                            ? "What should we work on?"
+                            : // An ongoing session carries the key hints here instead of as chips.
+                              hasKeyboard
+                              ? "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
+                              : "Ask the agent…")
                 }
                 initialMarkdown={initialMarkdown}
                 slashCommands={slashCommands}
@@ -260,7 +274,7 @@ export const ChatComposer = ({
                 }}
                 // A quote carries a reply on its own, so Send and Enter both send it with no text.
                 sendForceEnabled={files.length > 0 || quotes.length > 0}
-                sendDisabled={files.length > 0 && !attachmentsSettled}
+                sendDisabled={sendDisabled || (files.length > 0 && !attachmentsSettled)}
                 sendDisabledReason={uploadBlockReason}
                 sending={sending}
                 streaming={streaming}
@@ -291,6 +305,10 @@ export const ChatComposer = ({
                                     size="icon"
                                     disabled={!uploadsEnabled || composerDisabled}
                                     onClick={() => fileInputRef.current?.click()}
+                                    // The closing picker's focus has no relatedTarget; no tooltip.
+                                    onFocus={(e) => {
+                                        if (!e.relatedTarget) e.preventDefault()
+                                    }}
                                     aria-label="Attach files"
                                 >
                                     <Paperclip size={16} />
@@ -308,14 +326,7 @@ export const ChatComposer = ({
                 header={
                     <>
                         {headerExtra}
-                        <HeightCollapse open={quotes.length > 0}>
-                            <ComposerQuotes
-                                quotes={quotes}
-                                onRemove={(id) => removeQuote(quoteSessionId, id)}
-                                touch={!hasKeyboard}
-                            />
-                        </HeightCollapse>
-                        <HeightCollapse open={files.length > 0}>
+                        <HeightCollapse open={quotes.length > 0 || files.length > 0}>
                             <ComposerAttachments
                                 files={files}
                                 onRemove={removeFile}
@@ -324,6 +335,15 @@ export const ChatComposer = ({
                                 }
                                 onRetry={uploads.retry}
                                 canRetry={uploads.canRetry}
+                                leading={
+                                    quotes.length > 0 ? (
+                                        <QuoteTiles
+                                            quotes={quotes}
+                                            onRemove={(id) => removeQuote(quoteSessionId, id)}
+                                            onOpen={(id) => revealQuote(quoteSessionId, id)}
+                                        />
+                                    ) : null
+                                }
                             />
                         </HeightCollapse>
                     </>

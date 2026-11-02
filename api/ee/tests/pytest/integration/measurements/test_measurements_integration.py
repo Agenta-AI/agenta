@@ -17,7 +17,7 @@ from sqlalchemy import select
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.llms.dtos import LLMProtocol
 from oss.src.core.gateways.llms.providers.passthrough.adapter import (
-    _StreamUsageReader,
+    _StreamReader,
 )
 from oss.src.core.gateways.policy.dtos import (
     GatewayOutcome,
@@ -465,7 +465,7 @@ async def test_a_cached_messages_stream_is_stored_and_priced_with_its_cache_spli
     )
     # The reader the relay adapter runs over every streamed frame, fed as the relay
     # would feed it (the relay itself is covered in the gateway suite).
-    reader = _StreamUsageReader(LLMProtocol.MESSAGES)
+    reader = _StreamReader(LLMProtocol.MESSAGES)
     for chunk in (head, tail):
         reader.feed(chunk)
     reader.flush()

@@ -97,7 +97,7 @@ def test_attributes_carry_principal_target_decision_outcome():
     target = _llm_target(endpoint_id=uuid4())
     outcome = GatewayOutcome(
         status_code=200,
-        owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
+        owner=SecretOwner(kind=SecretOwnerKind.PROJECT, id=uuid4()),
         origin=SecretOrigin.VAULT,
     )
 
@@ -106,7 +106,7 @@ def test_attributes_carry_principal_target_decision_outcome():
     )
 
     assert attributes["organization_id"] == str(scope.organization_id)
-    assert attributes["workspace_id"] == str(scope.workspace_id)
+    assert "workspace_id" not in attributes
     assert attributes["project_id"] == str(scope.project_id)
     assert attributes["user_id"] == str(scope.user_id)
     assert attributes["plane"] == "llm"
@@ -532,3 +532,33 @@ async def test_relay_result_unaffected_when_publisher_raises(monkeypatch):
     assert result.status_code == 200
     # Draining the body is where record() (and the raising publisher) fires.
     assert [chunk async for chunk in result.body] == [b'{"ok": true}']
+
+
+def test_audit_names_owner_kind_organization():
+    """M5: the kind of the credential's owner, never its id or value."""
+    organization_secret = uuid4()
+    for kind, expected in (
+        (SecretOwnerKind.ORGANIZATION, "organization"),
+        (SecretOwnerKind.PROJECT, "project"),
+    ):
+        attributes = build_gateway_call_attributes(
+            scope=_scope(),
+            target=_llm_target(),
+            decision=_allowed(),
+            outcome=GatewayOutcome(
+                status_code=200,
+                owner=SecretOwner(kind=kind, id=organization_secret),
+                origin=SecretOrigin.VAULT,
+            ),
+        )
+        assert attributes["secret_owner_kind"] == expected
+        assert str(organization_secret) not in str(attributes)
+
+    # A builtin call spends the platform's own credential, which no one owns.
+    builtin = build_gateway_call_attributes(
+        scope=_scope(),
+        target=_llm_target(namespace=GatewayEndpointNamespace.BUILTIN, name="agenta"),
+        decision=_allowed(),
+        outcome=GatewayOutcome(status_code=200, owner=None, origin=SecretOrigin.LOCAL),
+    )
+    assert "secret_owner_kind" not in builtin

@@ -5,7 +5,11 @@
  * Agenta credential; upstream URLs and credentials never enter this configuration.
  */
 
-import { isRecord, mcpToolPermission, normalizeMcpServerPermissions } from "../mcp-permission.ts";
+import {
+  isRecord,
+  mcpToolPermission,
+  normalizeMcpServerPermissions,
+} from "../mcp-permission.ts";
 
 export const PI_GATEWAY_MCP_SERVERS_ENV = "AGENTA_AGENT_GATEWAY_MCP_SERVERS";
 
@@ -103,7 +107,8 @@ export const PI_MCP_TIMEOUT_MARGIN_MS = 5_000;
  * resolved endpoint's budget on the run's MCP wire, which is a change to the contract between the
  * API, the SDK and this client rather than a constant.
  */
-export const PI_MCP_CALL_TIMEOUT_MS = GATEWAY_MCP_BUDGET_MS + PI_MCP_TIMEOUT_MARGIN_MS;
+export const PI_MCP_CALL_TIMEOUT_MS =
+  GATEWAY_MCP_BUDGET_MS + PI_MCP_TIMEOUT_MARGIN_MS;
 
 /**
  * Headers the MCP transport owns, lowercased for case-insensitive comparison (M19).
@@ -183,29 +188,37 @@ export interface PiMcpTool {
  * input: Pi's extension is the trusted client boundary for registered gateway routes.
  */
 export function piGatewayMcpServersFromWire(
-  servers: Array<{
-    name: string;
-    connection: {
-      type: "http";
-      url: string;
-      headers?: Record<string, string>;
-      credentials?: Array<{
-        binding: { kind: "header"; name: string };
-        value: string;
-        usage: "opaque_http";
-      }>;
-    };
-    policy: PiGatewayMcpServer["policy"];
-  }> | undefined,
+  servers:
+    | Array<{
+        name: string;
+        connection: {
+          type: "http";
+          url: string;
+          headers?: Record<string, string>;
+          credentials?: Array<{
+            binding: { kind: "header"; name: string };
+            value: string;
+            usage: "opaque_http";
+          }>;
+        };
+        policy: PiGatewayMcpServer["policy"];
+      }>
+    | undefined,
 ): PiGatewayMcpServer[] {
   return (servers ?? []).map((server) => {
     let parsed: URL;
     try {
       parsed = new URL(server.connection.url);
     } catch {
-      throw new Error(`Pi MCP server '${server.name}' has an invalid gateway URL`);
+      throw new Error(
+        `Pi MCP server '${server.name}' has an invalid gateway URL`,
+      );
     }
-    if (!/^\/(?:api\/)?gateways\/mcps\/(?:builtin|standard|custom)\//.test(parsed.pathname)) {
+    if (
+      !/^\/(?:api\/)?gateways\/mcps\/(?:builtin|standard|custom)\//.test(
+        parsed.pathname,
+      )
+    ) {
       throw new Error(
         `Pi MCP server '${server.name}' must be a registered Agenta gateway route`,
       );
@@ -235,7 +248,12 @@ export function piGatewayMcpServersFromWire(
       ...(server.connection.headers ?? {}),
       [credentials[0].binding.name]: credentials[0].value,
     };
-    return { name: server.name, url: server.connection.url, headers, policy: server.policy };
+    return {
+      name: server.name,
+      url: server.connection.url,
+      headers,
+      policy: server.policy,
+    };
   });
 }
 
@@ -251,14 +269,23 @@ export function piGatewayMcpServersFromWire(
 function allowedGatewayOrigins(): string[] {
   const origins: string[] = [];
   for (const base of [
-    process.env.AGENTA_API_INTERNAL_URL,
-    process.env.AGENTA_API_URL,
+    process.env.AGENTA_API_INTERNAL_URL?.trim(),
+    process.env.AGENTA_API_URL?.trim(),
   ]) {
     if (!base) continue;
+    let url: URL;
     try {
-      origins.push(new URL(base).origin);
+      url = new URL(base);
     } catch {
       // A malformed base configures nothing; it must not widen the check either.
+      continue;
+    }
+    origins.push(url.origin);
+    // The SDK's `parse_url` rewrites a loopback base to `host.docker.internal` when it writes
+    // the gateway URL for a container, so a stack configured with `localhost` sends that form.
+    if (url.hostname === "localhost" || url.hostname === "0.0.0.0") {
+      url.hostname = "host.docker.internal";
+      origins.push(url.origin);
     }
   }
   return origins;
@@ -316,7 +343,10 @@ export function readMcpResponseJson(raw: string, id?: number | string): string {
   const text = raw.trim();
   if (!text) return text;
 
-  const frames = text.split(/\r?\n\r?\n/).map(eventPayload).filter(Boolean);
+  const frames = text
+    .split(/\r?\n\r?\n/)
+    .map(eventPayload)
+    .filter(Boolean);
   // One frame is the ordinary case (a plain JSON body, or a single event) and must behave exactly
   // as it did before: returned whole, so a malformed body reaches the caller's error message
   // rather than being silently dropped as "no frame carried a result".
@@ -481,31 +511,62 @@ class PiHttpMcpClient {
     // caller's params and nothing else. The mock upstream enforces this rule too, so the cell
     // matrix fails rather than the next real server.
     const id = this.nextId++;
-    const response = await this.post({
+    const message = {
       jsonrpc: "2.0",
       id,
       method,
       params: isRecord(params) ? params : {},
-    }, signal, timeoutMs);
+    };
+    let response = await this.post(message, signal, timeoutMs);
+    // A 404 on a request that carried a session id means the server no longer knows the session,
+    // and the transport spec says the client must then start a new one. A server that binds a
+    // session to the access token answers this way after the gateway renews the token. Open a
+    // fresh session once and send the request again; a second 404 is a real failure.
+    if (
+      response.status === 404 &&
+      this.sessionId &&
+      method !== MCP_DISCOVERY_METHOD
+    ) {
+      this.sessionId = undefined;
+      // `initialize` carries no protocol version header; the new session negotiates its own.
+      this.negotiatedVersion = undefined;
+      await this.initialize(signal);
+      response = await this.post(
+        { ...message, id: this.nextId++ },
+        signal,
+        timeoutMs,
+      );
+    }
     if (!response.ok) {
-      throw new PiMcpRequestError(`MCP ${method} failed (${response.status})`, response.status);
+      throw new PiMcpRequestError(
+        `MCP ${method} failed (${response.status})`,
+        response.status,
+      );
     }
     if (response.sessionId) this.sessionId = response.sessionId;
     // The id is handed to the reader so a stream carrying notifications, or another request's
     // answer, resolves to THIS request's frame rather than to whatever arrived last.
     const payload = readJsonResponse(response.text, id);
     if (payload.error) {
-      throw new PiMcpRequestError(payload.error.message ?? `MCP ${method} failed`, response.status);
+      throw new PiMcpRequestError(
+        payload.error.message ?? `MCP ${method} failed`,
+        response.status,
+      );
     }
     return payload.result;
   }
 
-  async discover(): Promise<PiMcpTool[]> {
-    const initialized = await this.request(MCP_DISCOVERY_METHOD, {
-      protocolVersion: MCP_PROTOCOL_VERSION,
-      capabilities: {},
-      clientInfo: { name: "agenta-pi-extension", version: "1" },
-    });
+  /** The handshake: `initialize`, the version the server chose, then `notifications/initialized`. */
+  private async initialize(signal?: AbortSignal): Promise<void> {
+    const initialized = await this.request(
+      MCP_DISCOVERY_METHOD,
+      {
+        protocolVersion: MCP_PROTOCOL_VERSION,
+        capabilities: {},
+        clientInfo: { name: "agenta-pi-extension", version: "1" },
+      },
+      signal,
+    );
     // Echo back what the server chose, not what we asked for: a server is free to answer an
     // older version it supports, and every later request must name the one actually in force.
     this.negotiatedVersion =
@@ -513,6 +574,10 @@ class PiHttpMcpClient {
         ? initialized.protocolVersion
         : MCP_PROTOCOL_VERSION;
     await this.notify("notifications/initialized");
+  }
+
+  async discover(): Promise<PiMcpTool[]> {
+    await this.initialize();
 
     // `tools/list` is PAGINATED: a server that has more to list answers with a `nextCursor`, and
     // the client asks again with it. Reading only the first page silently hid every tool past it,
@@ -522,7 +587,10 @@ class PiHttpMcpClient {
     const tools: PiMcpTool[] = [];
     let cursor: string | undefined;
     for (let page = 0; page < MCP_MAX_TOOL_PAGES; page += 1) {
-      const result = await this.request("tools/list", cursor ? { cursor } : undefined);
+      const result = await this.request(
+        "tools/list",
+        cursor ? { cursor } : undefined,
+      );
       if (!isRecord(result) || !Array.isArray(result.tools)) {
         throw new Error("MCP tools/list returned no tools array");
       }
@@ -530,8 +598,12 @@ class PiHttpMcpClient {
         if (!isRecord(tool) || typeof tool.name !== "string") continue;
         tools.push({
           name: tool.name,
-          ...(typeof tool.description === "string" ? { description: tool.description } : {}),
-          ...(isRecord(tool.inputSchema) ? { inputSchema: tool.inputSchema } : {}),
+          ...(typeof tool.description === "string"
+            ? { description: tool.description }
+            : {}),
+          ...(isRecord(tool.inputSchema)
+            ? { inputSchema: tool.inputSchema }
+            : {}),
         });
       }
       const next = result.nextCursor;
@@ -565,26 +637,44 @@ export function piMcpToolName(serverName: string, toolName: string): string {
   return `mcp__${normalize(serverName)}__${normalize(toolName)}`;
 }
 
-export function parsePiGatewayMcpConfig(raw: string | undefined): PiGatewayMcpServer[] {
+export function parsePiGatewayMcpConfig(
+  raw: string | undefined,
+): PiGatewayMcpServer[] {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw) as unknown;
-    if (!isRecord(parsed) || parsed.version !== 1 || !Array.isArray(parsed.servers)) {
+    if (
+      !isRecord(parsed) ||
+      parsed.version !== 1 ||
+      !Array.isArray(parsed.servers)
+    ) {
       throw new Error("expected {version: 1, servers: []}");
     }
     return parsed.servers.map((server): PiGatewayMcpServer => {
-      if (!isRecord(server) || typeof server.name !== "string" || typeof server.url !== "string" || !isRecord(server.headers) || !isRecord(server.policy)) {
+      if (
+        !isRecord(server) ||
+        typeof server.name !== "string" ||
+        typeof server.url !== "string" ||
+        !isRecord(server.headers) ||
+        !isRecord(server.policy)
+      ) {
         throw new Error("server is malformed");
       }
       return {
         name: server.name,
         url: server.url,
-        headers: Object.fromEntries(Object.entries(server.headers).filter((entry): entry is [string, string] => typeof entry[1] === "string")),
+        headers: Object.fromEntries(
+          Object.entries(server.headers).filter(
+            (entry): entry is [string, string] => typeof entry[1] === "string",
+          ),
+        ),
         policy: server.policy as PiGatewayMcpServer["policy"],
       };
     });
   } catch (error) {
-    throw new Error(`invalid Pi gateway MCP configuration: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(
+      `invalid Pi gateway MCP configuration: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 }
 
@@ -627,7 +717,9 @@ export async function registerPiGatewayMcpTools(
     ours = new Set<string>();
     registeredNamesByPi.set(pi, ours);
   }
-  const registered = new Set((pi.getAllTools?.() ?? []).map((tool) => tool.name));
+  const registered = new Set(
+    (pi.getAllTools?.() ?? []).map((tool) => tool.name),
+  );
   const collisions: string[] = [];
   // Which server each Pi tool name in THIS pass came from. `registered` cannot answer that: it
   // holds names Pi already has, so two servers in one pass that rewrite to the same name both
@@ -645,7 +737,10 @@ export async function registerPiGatewayMcpTools(
     // The same client the registered tools call through, so a tool call reuses the connection
     // its handshake opened rather than opening a second one.
     client: PiHttpMcpClient;
-  } & ({ tools: PiMcpTool[]; error?: undefined } | { tools?: undefined; error: unknown });
+  } & (
+    | { tools: PiMcpTool[]; error?: undefined }
+    | { tools?: undefined; error: unknown }
+  );
   const discoveries = await Promise.all(
     servers.map(async (server): Promise<Discovery> => {
       const client = new PiHttpMcpClient(server);
@@ -665,7 +760,8 @@ export async function registerPiGatewayMcpTools(
       // the server) and less informative: the person saw a generic run failure, never the server
       // name. The runner's acquire-time probe is what tells them; this is the operator's log line.
       const { error } = discovery;
-      const status = error instanceof PiMcpRequestError ? error.status : undefined;
+      const status =
+        error instanceof PiMcpRequestError ? error.status : undefined;
       log(
         `[mcp] warn: server '${server.name}' failed its handshake: ` +
           `status=${status ?? "none"} reason=${error instanceof Error ? error.message : String(error)}`,
@@ -772,14 +868,18 @@ export async function registerPiGatewayMcpTools(
     }
   }
   if (servers.length > 0) {
-    log(`registered gateway MCP tools from ${connected}/${servers.length} server(s)`);
+    log(
+      `registered gateway MCP tools from ${connected}/${servers.length} server(s)`,
+    );
   }
   if (collisions.length > 0) {
     throw new Error(`MCP tool name collision: ${collisions.join(", ")}`);
   }
 }
 
-export function serializePiGatewayMcpConfig(servers: PiGatewayMcpServer[]): string {
+export function serializePiGatewayMcpConfig(
+  servers: PiGatewayMcpServer[],
+): string {
   const config: PiGatewayMcpConfig = { version: 1, servers };
   return JSON.stringify(config);
 }

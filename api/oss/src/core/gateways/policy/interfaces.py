@@ -1,7 +1,7 @@
 """Ports the gateway policy depends on: secret resolution, spend admission, usage."""
 
 from abc import ABC, abstractmethod
-from typing import Dict, Optional, Set
+from typing import TYPE_CHECKING, Dict, Optional, Set
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -15,6 +15,9 @@ from oss.src.core.gateways.policy.dtos import (
     SpendAdmission,
 )
 from oss.src.utils.context import AuthScope
+
+if TYPE_CHECKING:
+    from oss.src.core.secrets.dtos import SecretResponseDTO
 
 
 class NamedProviderConnection(BaseModel):
@@ -68,8 +71,9 @@ class SecretsResolverInterface(ABC):
 
     @abstractmethod
     async def available_provider_keys(self, *, scope: AuthScope) -> Set[str]:
-        """Provider keys with a resolvable project-owned secret. Names only,
-        never a value — an existence test that must not read a secret.
+        """Provider keys with a resolvable secret in the project's own rows. Names only,
+        never a value — an existence test that must not read a secret. An organization
+        connection is used only when an agent names it, so it never counts here.
 
         Same scan as the ProviderKeyRef arm (provider_key + custom_provider),
         returning the provider names found. Unlike resolve() it does NOT raise
@@ -101,6 +105,14 @@ class SecretsResolverInterface(ABC):
         connection is gone (endpoint registration may have failed), so a caller that acts
         on "the connection was deleted" asks the vault itself."""
         raise NotImplementedError
+
+    async def organization_connection(
+        self, *, scope: AuthScope, slug: str
+    ) -> Optional["SecretResponseDTO"]:
+        """The organization row an agent named by scope `organization` and `slug`, when
+        it is available to the project; else None. Only the LLM plane answers one (M5);
+        a resolver without organization connections answers None."""
+        return None
 
 
 class SpendAdmissionInterface(ABC):

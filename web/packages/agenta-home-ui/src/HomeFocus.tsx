@@ -50,6 +50,8 @@ export interface HomeFocusProps {
     }) => void | Promise<void>
     /** Where "Browse all N templates" lands. */
     templatesHref: string
+    /** The host's create menu, beside the list's tabs. */
+    newAction?: ReactNode
     /** A start or a create is in flight and the page has not moved yet. */
     sending?: boolean
     /** The agents list's states — the host's own designed versions. */
@@ -69,8 +71,8 @@ export interface HomeFocusProps {
  * merely informative (next triggers, usage) live on the pages that own them — carried here as
  * summaries they made Home a table of contents for other pages rather than a place to start work.
  *
- * "+ New agent" does not navigate. It flips THIS composer into create mode, so describing an agent
- * and describing a task happen in the same box, one above the same list.
+ * "+ New agent" is the host's create menu. The composer's create mode is for a project with no
+ * agents yet, and for a template picked from the list.
  */
 export const HomeFocus = ({
     className,
@@ -82,6 +84,7 @@ export const HomeFocus = ({
     onStartTask,
     onCreateFromPrompt,
     templatesHref,
+    newAction,
     sending,
     loading,
     loadingSlot,
@@ -131,7 +134,7 @@ export const HomeFocus = ({
         requestAnimationFrame(attempt)
     }, [])
 
-    // "+ New agent" answers "what next" with "type here", so the caret goes there.
+    // Clearing a binding (the dock's ✕, the picker's "New agent") answers with "type here".
     const startCreating = useCallback(() => {
         setBindingChoice({kind: "new"})
         focusSoon()
@@ -221,7 +224,7 @@ export const HomeFocus = ({
                         binding.kind === "template" ? binding.template.key : undefined
                     }
                     templatesHref={templatesHref}
-                    onNew={startCreating}
+                    newAction={newAction}
                     loading={loading}
                     loadingSlot={loadingSlot}
                     emptySlot={emptySlot}

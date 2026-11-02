@@ -99,7 +99,7 @@ describe("readRunAdmission", () => {
         const w = watcher()
         await expect(
             readRunAdmission(streamOf([accepted("turn-4").trimEnd()]), w),
-        ).resolves.toEqual({accepted: true, ended: true})
+        ).resolves.toEqual({accepted: true, ended: true, awaiting: false})
         expect(w.onAccepted).toHaveBeenCalledWith("turn-4")
     })
 
@@ -111,6 +111,7 @@ describe("readRunAdmission", () => {
         await expect(readRunAdmission(streamOf([frame]), w)).resolves.toEqual({
             accepted: false,
             ended: true,
+            awaiting: false,
         })
         expect(w.onFailed).toHaveBeenCalledTimes(1)
     })
@@ -120,11 +121,12 @@ describe("readRunAdmission", () => {
         await expect(readRunAdmission(streamOf([accepted("turn-7")]), ok)).resolves.toEqual({
             accepted: true,
             ended: true,
+            awaiting: false,
         })
         const silent = watcher()
         await expect(
             readRunAdmission(streamOf(['data: {"type":"start"}\n']), silent),
-        ).resolves.toEqual({accepted: false, ended: true})
+        ).resolves.toEqual({accepted: false, ended: true, awaiting: false})
     })
 
     it("reports a connection that dropped after acceptance as not ended", async () => {
@@ -133,7 +135,7 @@ describe("readRunAdmission", () => {
         const w = watcher()
         await expect(
             readRunAdmission(streamOf([accepted("turn-10")], new Error("network")), w),
-        ).resolves.toEqual({accepted: true, ended: false})
+        ).resolves.toEqual({accepted: true, ended: false, awaiting: false})
         expect(w.onAccepted).toHaveBeenCalledWith("turn-10")
         expect(w.onFailed).not.toHaveBeenCalled()
     })
@@ -207,7 +209,7 @@ describe("readRunAdmission", () => {
             w,
         )
         expect(w.onFailed).not.toHaveBeenCalled()
-        expect(result).toEqual({accepted: false, ended: true})
+        expect(result).toEqual({accepted: false, ended: true, awaiting: false})
     })
 
     // The competing-turn refusal in services/runner/src/server.ts persists nothing, and it reaches
@@ -261,7 +263,7 @@ describe("readRunAdmission", () => {
         )
         expect(w.onAccepted).toHaveBeenCalledWith("turn-9")
         expect(w.onFailed).not.toHaveBeenCalled()
-        expect(result).toEqual({accepted: true, ended: true})
+        expect(result).toEqual({accepted: true, ended: true, awaiting: false})
     })
 
     it("does not read a failure after acceptance as a refused send", async () => {
@@ -284,5 +286,49 @@ describe("parkedInputIdFromBody", () => {
         expect(parkedInputIdFromBody({action: "pending"})).toBeNull()
         expect(parkedInputIdFromBody({input: {}})).toBeNull()
         expect(parkedInputIdFromBody({input: {id: 7}})).toBeNull()
+    })
+
+    const chunk = (frame: Record<string, unknown>) => `data: ${JSON.stringify(frame)}\n`
+    const askInput = chunk({
+        type: "tool-input-available",
+        toolCallId: "call-1",
+        toolName: "request_input",
+        input: {question: "Favorite color?"},
+    })
+
+    it("reports a stream that closed on an unanswered client-tool ask as awaiting", async () => {
+        await expect(
+            readRunAdmission(streamOf([accepted("turn-11"), askInput, chunk({type: "finish"})])),
+        ).resolves.toEqual({accepted: true, ended: true, awaiting: true})
+    })
+
+    it("does not report an ask that was answered in the same stream", async () => {
+        const answered = chunk({type: "tool-output-available", toolCallId: "call-1", output: {}})
+        await expect(
+            readRunAdmission(streamOf([accepted("turn-12"), askInput, answered])),
+        ).resolves.toEqual({accepted: true, ended: true, awaiting: false})
+    })
+
+    it("reports a stream that closed on an approval request as awaiting", async () => {
+        const tool = chunk({type: "tool-input-available", toolCallId: "call-2", toolName: "bash"})
+        const ask = chunk({type: "tool-approval-request", toolCallId: "call-2", approvalId: "a-1"})
+        await expect(readRunAdmission(streamOf([accepted("turn-13"), tool, ask]))).resolves.toEqual(
+            {accepted: true, ended: true, awaiting: true},
+        )
+    })
+
+    it("does not count an ordinary server tool as an ask", async () => {
+        const tool = chunk({type: "tool-input-available", toolCallId: "call-3", toolName: "bash"})
+        await expect(readRunAdmission(streamOf([accepted("turn-14"), tool]))).resolves.toEqual({
+            accepted: true,
+            ended: true,
+            awaiting: false,
+        })
+    })
+
+    it("reads an ask in a final frame with no trailing newline", async () => {
+        await expect(
+            readRunAdmission(streamOf([accepted("turn-15"), askInput.trimEnd()])),
+        ).resolves.toEqual({accepted: true, ended: true, awaiting: true})
     })
 })

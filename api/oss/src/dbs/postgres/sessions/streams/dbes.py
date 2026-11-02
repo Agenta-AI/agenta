@@ -1,4 +1,5 @@
 from sqlalchemy import (
+    CheckConstraint,
     Column,
     ForeignKeyConstraint,
     Index,
@@ -7,7 +8,7 @@ from sqlalchemy import (
     TIMESTAMP,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 from oss.src.dbs.postgres.shared.base import Base
 from oss.src.dbs.postgres.shared.dbas import (
@@ -81,6 +82,12 @@ class SessionStreamDBE(
     # heartbeats that restamp the same id never move it.
     turn_started_at = Column(TIMESTAMP(timezone=True), nullable=True)
 
+    # The sharing policy. `visibility` NULL marks a row written by pre-sharing code whose
+    # policy is not assigned yet; it reads as project-visible. New code always writes a
+    # non-null visibility, also for an ownerless row. The owner has no foreign key.
+    visibility = Column(String, nullable=True)
+    owner_user_id = Column(UUID(as_uuid=True), nullable=True)
+
     __table_args__ = (
         ForeignKeyConstraint(
             ["project_id"],
@@ -113,5 +120,15 @@ class SessionStreamDBE(
             "references",
             postgresql_using="gin",
             postgresql_ops={"references": "jsonb_path_ops"},
+        ),
+        CheckConstraint(
+            "(visibility IS NULL OR visibility IN ('private', 'project')) AND "
+            "(visibility IS DISTINCT FROM 'private' OR owner_user_id IS NOT NULL)",
+            name="ck_session_streams_visibility_owner",
+        ),
+        Index(
+            "ix_session_streams_project_id_owner_user_id",
+            "project_id",
+            "owner_user_id",
         ),
     )

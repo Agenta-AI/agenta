@@ -9,6 +9,7 @@
  * catalog) are package-level and already mounted on both. It is styled with the shared kit for
  * the same reason.
  */
+import {mcpReconnectTarget} from "@agenta/entities/mcpEndpoint"
 import {providerConnectionsAtom} from "@agenta/entities/secret"
 import {
     isInteractionEndedOutput,
@@ -85,19 +86,7 @@ const GatewayConnectToolWidget = ({
                     <McpConnectJourney
                         open={!!connectingEndpoint?.id}
                         onClose={onMcpDialogClosed}
-                        reconnect={
-                            connectingEndpoint?.id && connectingEndpoint.slug
-                                ? {
-                                      id: connectingEndpoint.id,
-                                      slug: connectingEndpoint.slug,
-                                      name: connectingEndpoint.name || connectingEndpoint.slug,
-                                      url: connectingEndpoint.data.route.base_url || "",
-                                      authMode: connectingEndpoint.auth_mode,
-                                      credentialHeader:
-                                          connectingEndpoint.data.route.credential_header,
-                                  }
-                                : null
-                        }
+                        reconnect={mcpReconnectTarget(connectingEndpoint)}
                         onConnected={onMcpConnectSuccess}
                     />
                 )}

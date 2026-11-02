@@ -970,6 +970,23 @@ Text comes back exactly as stored, so an `old_text` you copy from it will match.
 larger than the limit is refused, never shortened: the answer then lists `children`, and
 you read one of those instead."""
 
+# Inline, never a $ref: Moonshot (Kimi) rejects a $ref in a tool schema as
+# "infinite recursion", which fails every turn that offers the tool.
+_TARGET_SEGMENT_SCHEMA: Dict[str, Any] = {
+    "oneOf": [
+        {"type": "string", "minLength": 1},
+        {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["list", "key"],
+            "properties": {
+                "list": {"type": "string", "minLength": 1},
+                "key": {"type": "string", "minLength": 1},
+            },
+        },
+    ]
+}
+
 _READ_CONFIG_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
@@ -993,7 +1010,7 @@ _READ_CONFIG_INPUT_SCHEMA: Dict[str, Any] = {
                 "path": {
                     "type": "array",
                     "maxItems": 12,
-                    "items": {"$ref": "#/$defs/read_config_segment"},
+                    "items": _TARGET_SEGMENT_SCHEMA,
                     "description": (
                         "Segments from the configuration root. Omit to read everything."
                     ),
@@ -1007,37 +1024,6 @@ _READ_CONFIG_INPUT_SCHEMA: Dict[str, Any] = {
             "description": "Largest answer to return before refusing. Default 65536.",
         },
     },
-    "$defs": {
-        "read_config_segment": {
-            "oneOf": [
-                {"type": "string", "minLength": 1},
-                {
-                    "type": "object",
-                    "additionalProperties": False,
-                    "required": ["list", "key"],
-                    "properties": {
-                        "list": {"type": "string", "minLength": 1},
-                        "key": {"type": "string", "minLength": 1},
-                    },
-                },
-            ]
-        }
-    },
-}
-
-_TARGET_SEGMENT_SCHEMA: Dict[str, Any] = {
-    "oneOf": [
-        {"type": "string", "minLength": 1},
-        {
-            "type": "object",
-            "additionalProperties": False,
-            "required": ["list", "key"],
-            "properties": {
-                "list": {"type": "string", "minLength": 1},
-                "key": {"type": "string", "minLength": 1},
-            },
-        },
-    ]
 }
 
 _OPERATION_SCHEMA: Dict[str, Any] = {
@@ -1251,9 +1237,10 @@ _TRIGGER_INPUTS_FIELDS_SCHEMA: Dict[str, Any] = {
         "selectors are never interpolated into a larger string, and an unmatched selector "
         "resolves to null. Omit this field to pass the whole fire context through as-is. "
         "Put only the task in `messages`, not schedule/trigger metadata, timing checks, or "
-        "skip-run guards. Configure when to run in the schedule or trigger settings. For "
-        'subscriptions, map event data under a sibling key, e.g. `{"messages": [{"role": "user", '
-        '"content": "Handle this event."}], "payload": "$.event.attributes"}`.'
+        "skip-run guards. Configure when to run in the schedule or trigger settings. The "
+        "agent reads only `messages`. For subscriptions, the event is added to the last "
+        "user message in `messages` by default, so do not map it under a sibling key. "
+        "When this field is omitted, no message carries the event."
     ),
     "anyOf": [
         {"type": "object", "additionalProperties": True},

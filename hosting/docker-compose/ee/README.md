@@ -185,7 +185,7 @@ cp hosting/docker-compose/ee/env.ee.gh.example hosting/docker-compose/ee/.env.ee
 Most optional variables can be left empty. A few are worth calling out:
 
 - **Stripe** (`STRIPE_API_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICING`): Leave all three empty. Billing is disabled when these are unset. The application runs without usage limits.
-- **LLM provider keys** (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.): These power the built-in LLM proxy in the playground. Leave empty if your users will provide their own keys at runtime.
+- **LLM provider keys** (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.): The EE edition does not use these for projects unless you also set `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED=true`. With it set, a project without a saved key for a provider uses these. Leave them empty if your users will provide their own keys at runtime.
 - **SSO / OAuth** (`GOOGLE_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_ID`, etc.): Set a provider's `CLIENT_ID` and `CLIENT_SECRET` to enable it. The frontend auto-detects which providers are configured. Leave empty to use email/password authentication only.
 - **Database** (`POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_URI_*`): The compose stack includes Postgres with working defaults. Override these only if you bring your own database. **Change the default password in production.**
 

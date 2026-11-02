@@ -8,7 +8,7 @@ import {
 import {getAgentaApiUrl, getAgentaWebUrl} from "@agenta/shared/api"
 import {message} from "@agenta/ui/app-message"
 
-const OAUTH_POPUP = "width=600,height=700,popup=yes"
+import {consentPopupFeatures} from "../../shared/consentPopupFeatures"
 
 /**
  * Refreshes a connection: re-runs its provider sign-in when it needs one, else re-validates it.
@@ -23,7 +23,7 @@ export function useRefreshToolConnection() {
             const connectionId = connection.id
             // An OAuth popup opens inside the click, before the await, so it is not blocked.
             const oauth = /oauth/i.test(String(connection.data?.auth_scheme ?? ""))
-            let popup = oauth ? window.open("", "tools_oauth", OAUTH_POPUP) : null
+            let popup = oauth ? window.open("", "tools_oauth", consentPopupFeatures(window)) : null
             try {
                 const result = await handleRefresh(connectionId)
 
@@ -32,7 +32,12 @@ export function useRefreshToolConnection() {
 
                 if (typeof redirectUrl === "string" && redirectUrl) {
                     if (popup) popup.location.href = redirectUrl
-                    else popup = window.open(redirectUrl, "tools_oauth", OAUTH_POPUP)
+                    else
+                        popup = window.open(
+                            redirectUrl,
+                            "tools_oauth",
+                            consentPopupFeatures(window),
+                        )
 
                     // Runs once, whichever exit fires first (the message or the popup closing).
                     let done = false

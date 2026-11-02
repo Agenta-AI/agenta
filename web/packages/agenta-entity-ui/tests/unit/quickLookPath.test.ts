@@ -54,3 +54,25 @@ describe("resolveQuickLookPath", () => {
         expect(resolveQuickLookPath([{path: "notes.md"}], "/notes.md")).toBe("notes.md")
     })
 })
+
+// #7715: the chat hands a relative `agent-files/...` link over as `/agent-files/...`. A folder in it
+// named like a throwaway run dir (`agenta-outreach-agent`) must not cut the path or move it.
+describe("resolveQuickLookPath with a user folder named `agenta-*`", () => {
+    it("keeps the presented agent-files path whole", () => {
+        expect(
+            resolveQuickLookPath([], "/agent-files/agenta-outreach-agent/library/persona.md"),
+        ).toBe("agent-files/agenta-outreach-agent/library/persona.md")
+        expect(
+            resolveQuickLookPath(
+                [{path: "agent-files/README.md"}],
+                "/agent-files/agenta-outreach-agent/README.md",
+            ),
+        ).toBe("agent-files/agenta-outreach-agent/README.md")
+    })
+
+    it("keeps a session path under such a folder whole", () => {
+        expect(
+            resolveQuickLookPath([{path: "notes/agenta-demo/a.md"}], "/notes/agenta-demo/a.md"),
+        ).toBe("notes/agenta-demo/a.md")
+    })
+})

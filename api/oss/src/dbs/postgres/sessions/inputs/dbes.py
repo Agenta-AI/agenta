@@ -31,6 +31,8 @@ class SessionInputDBE(Base, ProjectScopeDBA, LifecycleDBA, IdentifierDBA):
     request_fingerprint = Column(String(64), nullable=False)
     promoted_execution_id = Column(String, nullable=True)
     dispatch_claimed = Column(Boolean, nullable=False, server_default=text("false"))
+    # The admitting request's run envelope (M2); copied onto the continue_input command.
+    run_envelope = Column(JSONB(none_as_null=True), nullable=True)
 
     __table_args__ = (
         ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),

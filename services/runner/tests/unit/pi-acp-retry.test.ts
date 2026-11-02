@@ -77,6 +77,12 @@ describe("Pi adapter retry lifecycle", () => {
     await result;
     expect(settled).toHaveBeenCalledWith("end_turn");
     expect(f.proc.prompt).toHaveBeenCalledTimes(1);
+    // Reported as session state, so the runner counts a retry as progress.
+    expect(
+      f.updates
+        .filter((u) => u.sessionUpdate === "session_info_update" && u._meta.piAcp.retrying !== undefined)
+        .map((u) => u._meta.piAcp.retrying),
+    ).toEqual([true, false]);
     expect(
       f.updates.filter((u) => u.sessionUpdate === "agent_message_chunk"),
     ).toHaveLength(1);

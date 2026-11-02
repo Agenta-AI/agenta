@@ -10,6 +10,7 @@ import json
 from uuid import uuid4
 
 import pytest
+from agenta.sdk.agents.capabilities import CLAUDE_MODEL_ALIASES
 from pydantic import ValidationError
 
 from oss.src.core.secrets.dtos import (
@@ -186,6 +187,22 @@ class TestDefaultTracking:
         assert update.secret.data.models is None
         assert update.secret.data.harnesses is None
 
+    def test_a_default_filled_claude_read_written_back_stores_no_list(self):
+        # Claude has no snapshot entry, so the current defaults alone must normalize.
+        read = _response(_create({"provider": "claude"}).secret.data.model_dump())
+
+        update = UpdateSecretDTO.model_validate(
+            {
+                "secret": {
+                    "kind": "subscription_provider",
+                    "data": read.data.model_dump(mode="json"),
+                }
+            }
+        )
+
+        assert update.secret.data.models is None
+        assert update.secret.data.harnesses is None
+
     def test_the_created_row_persists_neither_list(self):
         dbe = map_secrets_dto_to_dbe(
             project_id=uuid4(),
@@ -331,3 +348,11 @@ class TestPostgresRoundTrip:
         map_secrets_dto_to_dbe_update(secrets_dbe=dbe, update_secret_dto=update)
 
         assert map_secrets_dbe_to_dto(secrets_dbe=dbe).data.login_attempt is None
+
+
+def test_the_claude_model_list_matches_the_sdk_catalog():
+    # The API copies the list rather than importing the SDK's agent catalog, so this pins the copy.
+    assert (
+        SUBSCRIPTION_PROVIDER_MODELS[SubscriptionProviderKind.CLAUDE]
+        == CLAUDE_MODEL_ALIASES
+    )

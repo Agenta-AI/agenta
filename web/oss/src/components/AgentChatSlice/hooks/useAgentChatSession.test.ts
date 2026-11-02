@@ -134,6 +134,7 @@ vi.mock("@agenta/entities/session", () => ({
     resumeSessionContinuationAtom: "resume-session-continuation",
     revalidateSessionMountsAtom: "revalidate-mounts",
     revalidateSessionRecordsAtom: "revalidate-records",
+    revalidateSessionTurnsAtom: "revalidate-turns",
 }))
 
 vi.mock("@agenta/entities/trace", () => ({markTraceAsFresh: vi.fn()}))
@@ -210,6 +211,8 @@ vi.mock("../components/Inspector/invalidate", () => ({
 vi.mock("../state/scope", () => ({useChatScopeKey: () => "scope"}))
 vi.mock("../state/sessions", () => ({
     openSessionIdsAtomFamily: () => "open-sessions",
+    // The /w pre-create is covered in state/sessions.visibility.test.ts; here it passes through.
+    precreateThenInvoke: (_params: unknown, invoke: () => Promise<unknown>) => invoke(),
 }))
 vi.mock("../state/turnCaptures", () => ({
     captureTurnRequestAtom: "capture-request",

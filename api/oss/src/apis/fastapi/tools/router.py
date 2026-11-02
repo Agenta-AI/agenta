@@ -4,7 +4,7 @@ import json
 import re
 from datetime import datetime, timezone
 from functools import wraps
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional, Tuple
 from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
@@ -13,6 +13,17 @@ from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse
 
+from oss.src.core.access.principals import access_denied_error
+from oss.src.core.secrets.dtos import SecretOwner
+from oss.src.apis.fastapi.shared.personal import require_person, signed_in_person
+from oss.src.core.account_choices.policy import personal_accounts_enabled
+from oss.src.core.access.service import get_access_service
+from oss.src.core.access.types import AccessDenied
+from oss.src.core.access.dtos import RunEnvelope
+from oss.src.core.access.principals import child_envelope
+from oss.src.core.sharing.admission import CHILD_RUN_BOUNDARY, RunAdmission
+from oss.src.core.sharing.types import AdmissionDenied
+from oss.src.middlewares.auth import request_run_envelope
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, invalidate_cache, set_cache
@@ -45,6 +56,7 @@ from oss.src.core.tools.dtos import (
     ToolCatalogIntegrationDetails,  # noqa: F401
     #
     ToolCall,
+    ToolConnection,
     ToolResult,
     ToolResultData,
     #
@@ -78,6 +90,12 @@ from oss.src.core.mounts.service import MountsService
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.tools.exceptions import PlatformToolHandlerError
 from oss.src.core.tools.platform_handlers import (
+    COMMIT_REVISION_CALL_REF,
+    CREATE_APP_CALL_REF,
+    LIST_STARTERS_CALL_REF,
+    READ_CONFIG_CALL_REF,
+    required_agent_owner,
+    required_envelope,
     dispatch_platform_tool_handler,
     is_reserved_agenta_call_ref,
     required_elevated_permission,
@@ -92,6 +110,15 @@ from oss.src.utils.env import env
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
+from oss.src.apis.fastapi.sharing.utils import (
+    agent_owner_for_request,
+    allow_agent,
+    allow_resource,
+    artifact_id_of,
+    not_found_exception,
+    session_resource,
+)
+from oss.src.core.access.permissions.types import Permission as _Permission
 
 # A workflow referenced as an agent tool (a ``type:"reference"`` tool) carries this call_ref
 # prefix. Distinct from the Composio 5-segment grammar (``tools.{provider}.{integration}.
@@ -105,6 +132,10 @@ _GATEWAY_SEARCH_CALL_REF = "gateway.search"
 _GATEWAY_RUN_CALL_REF = "gateway.run"
 
 _SLUG_SEGMENT_RE = re.compile(r"[a-zA-Z0-9_-]+")
+
+
+# Whose connections a create or a query acts on: the project's, or the caller's own.
+ConnectionScope = Literal["project", "user"]
 
 log = get_module_logger(__name__)
 
@@ -229,16 +260,168 @@ def _agent_error_result(*, body: ToolCall, error: AgentError) -> ToolCallRespons
     )
 
 
+async def _deny_child_run(
+    *,
+    body: ToolCall,
+    child: RunEnvelope,
+) -> Optional[ToolCallResponse]:
+    """A child run is rechecked as the parent's principal (`RUN_WORKFLOWS`). A refusal
+    is a tool result the model can read, not an HTTP error."""
+
+    try:
+        await get_access_service().require(
+            envelope=child, action=Permission.RUN_WORKFLOWS
+        )
+        return None
+    except AccessDenied as denied:
+        return _agent_error_result(
+            body=body,
+            error=access_denied_error(
+                decision=denied.decision,
+                principal_kind=child.authority.principal.kind,
+                project_id=child.authority.project_id,
+            ),
+        )
+
+
+def _admission_error_result(
+    *,
+    body: ToolCall,
+    child: RunEnvelope,
+    refusal: AdmissionDenied,
+) -> ToolCallResponse:
+    """A child run into an agent its principal may not run: a tool result the model
+    can read (`access_denied`), not an HTTP error."""
+
+    return _agent_error_result(
+        body=body,
+        error=access_denied_error(
+            decision=refusal.decision,
+            principal_kind=child.authority.principal.kind,
+            project_id=child.authority.project_id,
+        ),
+    )
+
+
+# The reserved tools that act on an agent the arguments name (by its variant), with the
+# argument key that carries it, those that read an agent's drive by its artifact id, and
+# those that act on a session's drive. The ids are
+# "bound from the run" by the runner, but a direct caller of /tools/call sets them: each
+# is checked against the item's policy before the handler runs.
+_AGENT_TARGET_KEYS = {
+    READ_CONFIG_CALL_REF: "target",
+    COMMIT_REVISION_CALL_REF: "workflow_revision",
+}
+_SESSION_TARGET_ACTIONS = {
+    CREATE_APP_CALL_REF: _Permission.RUN_SESSIONS,
+}
+# The reserved tools that read an agent's drive by its artifact id.
+_AGENT_ARTIFACT_TARGETS = {LIST_STARTERS_CALL_REF}
+
+
+def _arguments_dict(arguments: Any) -> Optional[dict]:
+    if isinstance(arguments, dict):
+        return dict(arguments)
+    if isinstance(arguments, str):
+        try:
+            parsed = json.loads(arguments)
+        except ValueError:
+            return None
+        return parsed if isinstance(parsed, dict) else None
+    return None
+
+
+async def _checked_reserved_arguments(
+    request: Request,
+    *,
+    call_ref: str,
+    arguments: Any,
+    workflows_service: Any,
+) -> Any:
+    """The arguments the handler runs with, after the policy of the agent or session they
+    name. A hidden agent's variant becomes an id that names nothing, so the handler
+    answers exactly what it answers for an unknown variant. A hidden session answers the
+    canonical not-found body: an unknown id creates its drive, a hidden one must not.
+    Arguments the handler would refuse anyway (not an object, no id) pass unchanged."""
+
+    if call_ref in _AGENT_TARGET_KEYS:
+        parsed = _arguments_dict(arguments)
+        key = _AGENT_TARGET_KEYS[call_ref]
+        target = parsed.get(key) if parsed is not None else None
+        raw = target.get("workflow_variant_id") if isinstance(target, dict) else None
+        try:
+            variant_id = UUID(str(raw)) if raw else None
+        except ValueError:
+            variant_id = None
+        if variant_id is None or workflows_service is None:
+            return arguments
+        variant = await workflows_service.fetch_workflow_variant(
+            project_id=UUID(str(request.state.project_id)),
+            workflow_variant_ref=Reference(id=variant_id),
+        )
+        if variant is None or await allow_agent(
+            request,
+            action=_Permission.VIEW_WORKFLOWS,
+            artifact_id=artifact_id_of(variant),
+        ):
+            return arguments
+        parsed[key] = {**target, "workflow_variant_id": str(uuid4())}
+        return parsed
+
+    if call_ref in _AGENT_ARTIFACT_TARGETS:
+        parsed = _arguments_dict(arguments)
+        raw = parsed.get("artifact_id") if parsed is not None else None
+        if not isinstance(raw, str) or not raw.strip():
+            return arguments
+        try:
+            artifact_id = UUID(raw.strip())
+        except ValueError:
+            return arguments
+        if await allow_agent(
+            request, action=_Permission.VIEW_WORKFLOWS, artifact_id=artifact_id
+        ):
+            return arguments
+        # A hidden agent answers what an agent with no drive answers: the bundle only.
+        parsed.pop("artifact_id", None)
+        return parsed
+
+    if call_ref in _SESSION_TARGET_ACTIONS:
+        parsed = _arguments_dict(arguments)
+        session_id = parsed.get("session_id") if parsed is not None else None
+        if not isinstance(session_id, str) or not session_id.strip():
+            return arguments
+        if not await allow_resource(
+            request,
+            action=_SESSION_TARGET_ACTIONS[call_ref],
+            resource=session_resource(session_id.strip()),
+        ):
+            raise not_found_exception()
+        return arguments
+
+    return arguments
+
+
+def _child_run_envelope(request: Request) -> Optional[RunEnvelope]:
+    """The envelope of a run this request starts as a tool call: the parent's
+    principal, authority and sender; origin `child`; the parent's run id."""
+
+    parent = request_run_envelope(request)
+    return child_envelope(parent=parent) if parent is not None else None
+
+
 class ToolsRouter:
     def __init__(
         self,
         *,
         tools_service: ToolsService,
+        run_admission: RunAdmission,
         workflows_service: Optional[WorkflowsService] = None,
         tracing_service: Optional[TracingService] = None,
         mounts_service: Optional[MountsService] = None,
     ):
         self.tools_service = tools_service
+        # Admits each child run (the parent's principal and the child's agent).
+        self.run_admission = run_admission
         # Used to execute a referenced-workflow (@ag.reference) agent tool server-side: a
         # ``workflow.{slug}[.{version}]`` call_ref routes here instead of the Composio adapter.
         # Optional so a deployment that wires only the tools service still serves gateway tools.
@@ -358,6 +541,14 @@ class ToolsRouter:
             self.revoke_connection,
             methods=["POST"],
             operation_id="revoke_tool_connection",
+            response_model=ToolConnectionResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/connections/{connection_id}/make-default",
+            self.make_default_connection,
+            methods=["POST"],
+            operation_id="make_default_tool_connection",
             response_model=ToolConnectionResponse,
             response_model_exclude_none=True,
         )
@@ -816,8 +1007,22 @@ class ToolsRouter:
         *,
         provider_key: Optional[str] = Query(default=None),
         integration_key: Optional[str] = Query(default=None),
+        scope: ConnectionScope = Query(default="project"),
     ) -> ToolConnectionsResponse:
-        """Query connections with optional filtering."""
+        """Query connections with optional filtering. `scope=user`: the caller's own
+        connections in the request's organization."""
+        if scope == "user":
+            organization_id, user_id = require_person(request)
+            connections = await self.tools_service.query_personal_connections(
+                organization_id=organization_id,
+                user_id=user_id,
+                provider_key=provider_key,
+                integration_key=integration_key,
+            )
+            return ToolConnectionsResponse(
+                count=len(connections), connections=connections
+            )
+
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
@@ -842,15 +1047,25 @@ class ToolsRouter:
         request: Request,
         *,
         body: ToolConnectionCreateRequest,
+        scope: ConnectionScope = Query(default="project"),
     ) -> ToolConnectionResponse:
-        """Create a new tool connection."""
-        has_permission = await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.EDIT_TOOLS,
-        )
-        if not has_permission:
-            raise FORBIDDEN_EXCEPTION
+        """Create a new tool connection. `scope=user`: the caller's own connection, in
+        the request's organization. A person's first connection for an integration
+        becomes their default."""
+        owner: Optional[SecretOwner] = None
+        if scope == "user":
+            organization_id, user_id = require_person(request)
+            owner = SecretOwner.for_user(
+                organization_id=organization_id, user_id=user_id
+            )
+        else:
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_TOOLS,
+            )
+            if not has_permission:
+                raise FORBIDDEN_EXCEPTION
 
         slug = body.connection.slug
         if "." in slug or "__" in slug:
@@ -871,6 +1086,7 @@ class ToolsRouter:
                 user_id=UUID(request.state.user_id),
                 #
                 connection_create=body.connection,
+                owner=owner,
             )
         except ConnectionAdapterError as e:
             # Composio has no managed ("use_composio_managed_auth") auth config for
@@ -903,19 +1119,16 @@ class ToolsRouter:
         request: Request,
         connection_id: UUID,
     ) -> ToolConnectionResponse:
-        """Get a connection by ID."""
-        has_permission = await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.VIEW_TOOLS,
+        """Get a connection by ID: the caller's own, or one of the project's."""
+        owner, connection = await self._connection_owner(
+            request, connection_id, permission=Permission.VIEW_TOOLS
         )
-        if not has_permission:
-            raise FORBIDDEN_EXCEPTION
 
-        connection = await self.tools_service.get_connection(
-            project_id=UUID(request.state.project_id),
-            connection_id=connection_id,
-        )
+        if connection is None:
+            connection = await self.tools_service.get_connection(
+                project_id=UUID(request.state.project_id),
+                connection_id=connection_id,
+            )
         if not connection:
             return JSONResponse(
                 status_code=404,
@@ -933,18 +1146,15 @@ class ToolsRouter:
         request: Request,
         connection_id: UUID,
     ) -> None:
-        """Delete a connection by ID."""
-        has_permission = await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.EDIT_TOOLS,
+        """Delete a connection by ID: the caller's own, or one of the project's."""
+        owner, _ = await self._connection_owner(
+            request, connection_id, permission=Permission.EDIT_TOOLS
         )
-        if not has_permission:
-            raise FORBIDDEN_EXCEPTION
 
         await self.tools_service.delete_connection(
             project_id=UUID(request.state.project_id),
             connection_id=connection_id,
+            owner=owner,
         )
 
     @intercept_exceptions()
@@ -956,18 +1166,15 @@ class ToolsRouter:
         force: bool = Query(default=False),
     ) -> ToolConnectionResponse:
         """Refresh a connection's credentials."""
-        has_permission = await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.EDIT_TOOLS,
+        owner, _ = await self._connection_owner(
+            request, connection_id, permission=Permission.EDIT_TOOLS
         )
-        if not has_permission:
-            raise FORBIDDEN_EXCEPTION
 
         connection = await self.tools_service.refresh_connection(
             project_id=UUID(request.state.project_id),
             connection_id=connection_id,
             force=force,
+            owner=owner,
         )
 
         return ToolConnectionResponse(
@@ -982,23 +1189,67 @@ class ToolsRouter:
         connection_id: UUID,
     ) -> ToolConnectionResponse:
         """Mark a connection invalid locally (does not revoke at the provider)."""
-        has_permission = await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.EDIT_TOOLS,
+        owner, _ = await self._connection_owner(
+            request, connection_id, permission=Permission.EDIT_TOOLS
         )
-        if not has_permission:
-            raise FORBIDDEN_EXCEPTION
 
         connection = await self.tools_service.revoke_connection(
             project_id=UUID(request.state.project_id),
             connection_id=connection_id,
+            owner=owner,
         )
 
         return ToolConnectionResponse(
             count=1,
             connection=connection,
         )
+
+    @intercept_exceptions()
+    async def make_default_connection(
+        self,
+        request: Request,
+        connection_id: UUID,
+    ) -> ToolConnectionResponse:
+        """Make one of the caller's own connections their default for its integration.
+        Only a person has a default."""
+        organization_id, user_id = require_person(request)
+        connection = await self.tools_service.make_default(
+            organization_id=organization_id,
+            user_id=user_id,
+            connection_id=connection_id,
+        )
+        if connection is None:
+            raise HTTPException(
+                status_code=404,
+                detail={"code": "not_found", "message": "Connection not found."},
+            )
+        return ToolConnectionResponse(count=1, connection=connection)
+
+    async def _connection_owner(
+        self, request: Request, connection_id: UUID, *, permission: Permission
+    ) -> Tuple[Optional[SecretOwner], Optional[ToolConnection]]:
+        """Who a by-id route acts for, and the caller's own row when it is one. An id
+        names one row: the caller's own row (a signed-in person; with the switch off that
+        answers 403 `personal_accounts_disabled`), or else a row of the request's project
+        with today's permission (owner None). A row of neither answers 404 in the route."""
+        person = signed_in_person(request)
+        if person is not None:
+            owner = SecretOwner.for_user(organization_id=person[0], user_id=person[1])
+            connection = await self.tools_service.get_connection(
+                project_id=None, connection_id=connection_id, owner=owner
+            )
+            if connection is not None:
+                require_person(request)
+                return owner, connection
+
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=permission,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+        return None, None
 
     async def callback_connection(
         self,
@@ -1073,12 +1324,30 @@ class ToolsRouter:
         # Activate the connection — this is the critical path.
         conn = None
         try:
-            conn = (
-                await self.tools_service.activate_connection_by_provider_connection_id(
+            if state_payload.get("owner") == "user":
+                # A person's own connection: the signed state names the person and their
+                # organization; never a project row. Nothing activates while the
+                # deployment switch is off.
+                if not personal_accounts_enabled():
+                    return HTMLResponse(
+                        status_code=403,
+                        content=_oauth_card(
+                            success=False,
+                            error="Personal accounts are not available here.",
+                            slug=state_slug,
+                            integration_key=state_integration,
+                        ),
+                    )
+                conn = await self.tools_service.activate_personal_connection(
+                    organization_id=UUID(state_payload["organization_id"]),
+                    user_id=UUID(state_payload["user_id"]),
+                    provider_connection_id=connected_account_id,
+                )
+            else:
+                conn = await self.tools_service.activate_connection_by_provider_connection_id(
                     provider_connection_id=connected_account_id,
                     project_id=project_id,
                 )
-            )
             if not conn:
                 log.error("OAuth callback: connection not found for provider ID")
                 return HTMLResponse(
@@ -1190,6 +1459,7 @@ class ToolsRouter:
             resolution = await self.tools_service.resolve_tools(
                 project_id=UUID(request.state.project_id),
                 tools=body.tools,
+                omit_unavailable=body.omit_unavailable,
             )
         except ConnectionNotFoundError as e:
             raise HTTPException(status_code=404, detail=e.message) from e
@@ -1207,6 +1477,7 @@ class ToolsRouter:
             builtins=resolution.builtins,
             custom=resolution.custom,
             gateway_connections=resolution.gateway_connections,
+            unavailable_connections=resolution.unavailable_connections,
         )
 
     @intercept_exceptions()
@@ -1389,17 +1660,37 @@ class ToolsRouter:
             if not has_permission:
                 raise FORBIDDEN_EXCEPTION
 
+        envelope = _child_run_envelope(request)
+        if envelope is not None and required_envelope(call_ref=call_ref):
+            denied = await _deny_child_run(body=body, child=envelope)
+            if denied is not None:
+                return denied
+        arguments = await _checked_reserved_arguments(
+            request,
+            call_ref=call_ref,
+            arguments=body.data.function.arguments,
+            workflows_service=self.workflows_service,
+        )
         try:
             response = await dispatch_platform_tool_handler(
                 call_ref=call_ref,
-                arguments=body.data.function.arguments,
+                arguments=arguments,
                 headers=request.headers,
                 project_id=UUID(request.state.project_id),
                 user_id=UUID(request.state.user_id),
                 workflows_service=self.workflows_service,
                 tracing_service=self.tracing_service,
                 mounts_service=self.mounts_service,
+                envelope=envelope,
+                run_admission=self.run_admission,
+                agent_owner_user_id=(
+                    agent_owner_for_request(request)
+                    if required_agent_owner(call_ref=call_ref)
+                    else None
+                ),
             )
+        except AdmissionDenied as refusal:
+            return _admission_error_result(body=body, child=envelope, refusal=refusal)
         except PlatformToolHandlerError as e:
             raise HTTPException(status_code=e.status_code, detail=e.message) from e
 
@@ -1530,10 +1821,11 @@ class ToolsRouter:
         has already applied the agent's policy; this route checks identity and access.
         """
         context = body.context
+        # A "user" entry names no connection: the run's own claim names the account.
         if context is None or not (
             context.provider
             and context.integration
-            and context.connection
+            and (context.connection or context.account_source == "user")
             and context.tool
             and context.toolkit_version
         ):
@@ -1564,6 +1856,7 @@ class ToolsRouter:
                 tool_key=context.tool,
                 toolkit_version=context.toolkit_version,
                 arguments=arguments,
+                account_source=context.account_source,
             )
         except ToolKeyNotFoundError as e:
             return _agent_error_result(
@@ -1744,11 +2037,34 @@ class ToolsRouter:
             data=WorkflowServiceRequestData(inputs=arguments),
         )
 
+        # The child runs as its parent: same principal and authority, and it names the
+        # parent run.
+        child = _child_run_envelope(request)
+        if child is None:
+            raise HTTPException(status_code=401, detail="Unauthorized")
+        denied = await _deny_child_run(body=body, child=child)
+        if denied is not None:
+            return denied
+        project_id = UUID(request.state.project_id)
+        try:
+            # Resolves the child's target once and leaves it on the request, so the
+            # invoke runs what was checked.
+            await self.run_admission.admit_request(
+                envelope=child,
+                session_id=None,
+                project_id=project_id,
+                request=invoke_request,
+                boundary=CHILD_RUN_BOUNDARY,
+            )
+        except AdmissionDenied as refusal:
+            return _admission_error_result(body=body, child=child, refusal=refusal)
+
         try:
             response = await self.workflows_service.invoke_workflow(
-                project_id=UUID(request.state.project_id),
+                project_id=project_id,
                 user_id=UUID(request.state.user_id),
                 request=invoke_request,
+                envelope=child,
             )
         except Exception as e:
             log.error("Workflow tool invocation failed", exc_info=True)

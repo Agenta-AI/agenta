@@ -284,6 +284,9 @@ spec:
             path: /dev/fuse
             type: CharDevice
       {{- end }}
+      {{- with $runner.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
       {{- with $runner.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

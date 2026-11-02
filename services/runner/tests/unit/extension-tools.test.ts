@@ -16,6 +16,7 @@ import {
   existsSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -30,6 +31,8 @@ import factory, {
 import {
   PI_TRACE_CONTROL_ENV,
   PI_TRACE_CONTROL_VERSION,
+  piTraceDoneFileName,
+  piTraceFileName,
 } from "../../src/tracing/pi-spool-protocol.ts";
 import {
   PI_MODEL_PROVIDER_OVERRIDE_ENV,
@@ -137,13 +140,7 @@ describe("agenta extension model provider override", () => {
       },
     ]);
     assert.equal(pi.registered.length, 0);
-    // Only the Gemini thought-signature hooks, which every active run registers.
-    assert.deepEqual(Object.keys(pi.handlers).sort(), [
-      "before_provider_request",
-      "context",
-      "message_end",
-      "provider_stream_event",
-    ]);
+    assert.deepEqual(pi.handlers, {});
   });
 
   it("carries OUR gateway credential and a placeholder apiKey onto the built-in provider override (WP13 reopen)", () => {
@@ -647,6 +644,12 @@ describe("agenta extension usage publication", () => {
     });
 
     await flush;
+    // The done marker follows the flushed batch, so the runner can stop polling.
+    assert.deepEqual(readdirSync(dir).sort(), [
+      piTraceFileName("a".repeat(32), 0),
+      piTraceDoneFileName("a".repeat(32)),
+      "usage.json",
+    ]);
     rmSync(dir, { recursive: true, force: true });
   });
 });

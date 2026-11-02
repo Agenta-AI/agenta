@@ -535,12 +535,11 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
             // Disconnecting takes the credential and leaves the connection, so one
             // Connect brings it back rather than making a new one.
             //
-            // "Login expired", not the record's own "Needs authorization": a list says whether
-            // a connection works, and a revoked grant and a refused key are the same sentence
-            // to whoever is scanning the table.
+            // "Not signed in", not "Login expired": the person ended this login, so it did not
+            // expire, and a revoked grant is the case that reads "Login expired".
             const row = connectionRow(page, name)
             await expect(row).toBeVisible()
-            await expect(row.getByText("Login expired")).toBeVisible({
+            await expect(row.getByText("Not signed in")).toBeVisible({
                 timeout: 30000,
             })
         })

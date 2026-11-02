@@ -73,11 +73,11 @@
     transition: border-color var(--ifm-transition-fast) ease;
 }
 
-.featureCard:hover {
+a.featureCard:hover {
     border-color: var(--borderdark);
 }
 
-.featureCardHidden {
+.featureCard.featureCardHidden {
     display: none;
 }
 

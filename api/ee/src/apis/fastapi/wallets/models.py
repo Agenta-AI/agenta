@@ -13,7 +13,7 @@ class WalletUsageQueryRequest(BaseModel):
 
 class WalletSummaryResponse(BaseModel):
     summary: WalletUsageSummary
-    # The organization's `wallets-rollout` mode: `off`, `shadow` or `enforce`.
+    # `enforce` with the wallet on (`AGENTA_WALLETS_ENABLED`), else `off`.
     mode: str
 
 

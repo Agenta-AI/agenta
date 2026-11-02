@@ -18,7 +18,10 @@ from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.types import (
     WorkflowDetachedStartFailed,
     WorkflowDetachedStartNeverSent,
+    WorkflowDetachedStartRejected,
 )
+from oss.tests.pytest.utils.principals import make_envelope
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 @pytest.fixture(autouse=True)
@@ -166,6 +169,29 @@ async def test_stream_service_started_rejects_failure_or_malformed_first_record(
             )
 
 
+@pytest.mark.parametrize(
+    "line,rejected",
+    [
+        ('{"kind": "result", "result": {"ok": false, "error": "rejected"}}', True),
+        ('{"type": "error", "data": {"type": "error", "message": "no key"}}', True),
+        ("not-json", False),
+    ],
+)
+async def test_only_a_failure_record_is_a_rejected_start(line, rejected):
+    """A rejection proves the start never ran; a malformed record proves nothing."""
+    response = _FakeStreamResponse(lines=[line])
+    with patch("httpx.AsyncClient", return_value=_FakeAsyncClient(response)):
+        with pytest.raises(WorkflowDetachedStartFailed) as raised:
+            await _service()._stream_service_started(
+                url="http://svc/invoke",
+                credentials="Secret tok",
+                payload={},
+                run_id="run-x",
+                strict_first_record=True,
+            )
+    assert isinstance(raised.value, WorkflowDetachedStartRejected) is rejected
+
+
 async def test_stream_service_started_keeps_legacy_best_effort_for_ordinary_trigger():
     response = _FakeStreamResponse(lines=["not-json"])
     with patch("httpx.AsyncClient", return_value=_FakeAsyncClient(response)):
@@ -299,6 +325,7 @@ async def test_invoke_workflow_detached_returns_run_id_and_threads_meta():
         user_id=user_id,
         request=request,
         run_id="run-fixed",
+        envelope=make_envelope(),
     )
 
     assert result.run_id == "run-fixed"
@@ -329,6 +356,7 @@ async def test_invoke_workflow_detached_enables_strict_handshake_for_control_com
         user_id=uuid4(),
         request=WorkflowServiceRequest(meta={"control_command_id": str(uuid4())}),
         run_id="run-control",
+        envelope=make_envelope(),
     )
 
     assert captured["strict_first_record"] is True
@@ -355,6 +383,7 @@ async def test_invoke_workflow_detached_enables_explicit_strict_start():
         request=WorkflowServiceRequest(),
         run_id="run-strict",
         strict_start=True,
+        envelope=make_envelope(),
     )
 
     assert captured["strict_first_record"] is True
@@ -372,6 +401,7 @@ async def test_invoke_workflow_detached_raises_when_no_service_url():
             project_id=uuid4(),
             user_id=uuid4(),
             request=WorkflowServiceRequest(),
+            envelope=make_envelope(),
         )
 
 
@@ -386,6 +416,7 @@ async def test_invoke_workflow_batch_still_returns_400_when_no_service_url():
         project_id=uuid4(),
         user_id=uuid4(),
         request=WorkflowServiceRequest(),
+        envelope=make_envelope(),
     )
     assert result.status.code == 400
 
@@ -403,6 +434,7 @@ async def test_ordinary_session_invoke_redelivers_recoverable_continuation(monke
         project_id=project_id,
         user_id=uuid4(),
         request=WorkflowServiceRequest(session_id="session-1"),
+        envelope=make_envelope(),
     )
 
     assert result.status.code == 409
@@ -424,6 +456,7 @@ async def test_control_continuation_bypasses_ordinary_send_recovery_hook(monkeyp
         request=WorkflowServiceRequest(
             session_id="session-1", meta={"control_command_id": "command-1"}
         ),
+        envelope=make_envelope(),
     )
 
     assert result.status.code == 400
@@ -441,15 +474,18 @@ def test_dispatch_fn_injected_into_both_consumers():
         return "run-1"
 
     worker = InteractionsDispatcher(
+        run_admission=NoopRunAdmission(),
         workflows_service=SimpleNamespace(),
         interactions_service=SimpleNamespace(),
         dispatch_fn=_dispatch,
     )
     dispatcher = TriggersDispatcher(
+        run_admission=NoopRunAdmission(),
         triggers_dao=SimpleNamespace(),
         session_claims_dao=SimpleNamespace(),
         workflows_service=SimpleNamespace(),
         dispatch_fn=_dispatch,
+        sharing_service=SimpleNamespace(),
     )
     assert worker._dispatch_fn is _dispatch
     assert dispatcher._dispatch_fn is _dispatch
@@ -500,6 +536,8 @@ async def test_a_response_that_never_reached_the_service_is_marked_never_sent(
         # 503 with that header came from the service and the status stops being proof.
         (404, {"x-ag-version": "unknown", "content-type": "application/json"}),
         (503, {"x-ag-version": "0.119.1", "x-ag-trace-id": "tr-1"}),
+        # A run that failed before any output, e.g. a model with no usable credential.
+        (422, {"x-ag-version": "0.122.8", "content-type": "application/json"}),
     ],
 )
 async def test_an_ambiguous_response_stays_an_ordinary_start_failure(
@@ -518,6 +556,10 @@ async def test_an_ambiguous_response_stays_an_ordinary_start_failure(
     # Not redundant: `WorkflowDetachedStartNeverSent` subclasses the type `pytest.raises` is
     # catching, so this is the assertion that tells the two apart.
     assert not isinstance(raised.value, WorkflowDetachedStartNeverSent)
+    # The service's own failure answer ends the run; a gateway's leaves it uncertain.
+    assert isinstance(raised.value, WorkflowDetachedStartRejected) == any(
+        name.startswith("x-ag-") for name in headers
+    )
 
 
 async def test_a_never_sent_response_is_still_an_ordinary_start_failure_to_old_handlers():

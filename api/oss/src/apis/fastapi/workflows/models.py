@@ -1,4 +1,5 @@
 from typing import Any, Literal, Optional, List
+from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -229,6 +230,35 @@ class WorkflowRevisionEditRequest(BaseModel):
             "are immutable — commit a new revision to change them."
         ),
     )
+
+
+class WorkflowRevisionRequirementsQueryRequest(BaseModel):
+    """One agent configuration to check: a saved revision, or an unsaved draft."""
+
+    workflow_revision_ref: Optional[Reference] = Field(
+        default=None,
+        description="The saved revision to check.",
+    )
+    workflow_id: Optional[UUID] = Field(
+        default=None,
+        description=(
+            'The agent an unsaved draft belongs to. With it, the draft\'s `"user"` '
+            "items read the caller's account choices for that agent."
+        ),
+    )
+    parameters: Optional[dict] = Field(
+        default=None,
+        description=(
+            "An unsaved draft's parameters (`{agent: {...}}`), checked instead of a "
+            "saved revision."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _one_source(self) -> "WorkflowRevisionRequirementsQueryRequest":
+        if (self.workflow_revision_ref is None) == (self.parameters is None):
+            raise ValueError("send either workflow_revision_ref or parameters")
+        return self
 
 
 class WorkflowRevisionQueryRequest(BaseModel):

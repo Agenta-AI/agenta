@@ -190,6 +190,14 @@ export const PLAYGROUND_SHORTCUTS: readonly Shortcut[] = [
         key: "S",
         when: "while editing a file",
     },
+    {
+        id: "drive.comment",
+        group: "files",
+        label: "Comment on the preview, or stop",
+        modifiers: ["alt"],
+        key: "M",
+        when: "an HTML, Word, PowerPoint or spreadsheet file is open",
+    },
     // Quote-to-reply — QuoteSelection/useQuoteSelection.ts
     {
         id: "quote.reply",

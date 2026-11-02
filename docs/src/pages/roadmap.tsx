@@ -170,18 +170,19 @@ function FeatureCardClickable({
 }: {
     title: string;
     description?: string;
-    href: string;
+    href?: string;
     labels?: Label[];
     date?: string;
     hidden?: boolean;
     target?: string;
 }) {
+    const Card = href ? 'a' : 'div';
     return (
-        <a
+        <Card
             className={clsx(styles.featureCard, hidden && styles.featureCardHidden)}
             href={href}
-            target={target}
-            rel={target === "_blank" ? "noreferrer noopener" : undefined}
+            target={href ? target : undefined}
+            rel={href && target === "_blank" ? "noreferrer noopener" : undefined}
         >
             <div className={styles.featureTitleRow}>
                 <div className={styles.featureTitleAndDate}>
@@ -197,7 +198,7 @@ function FeatureCardClickable({
                 </div>
             </div>
             {description && <p className={styles.featureDescription}>{description}</p>}
-        </a>
+        </Card>
     );
 }
 
@@ -452,6 +453,7 @@ export default function RoadmapPage() {
 
                     <section className={styles.section}>
                         <SectionHeader id="last-shipped" count={countOf(shipped)}>Last shipped</SectionHeader>
+                        <p className={styles.discussionsIntro}>Recent product highlights. <a href="/docs/changelog">See all updates in the changelog.</a></p>
                         <div className={styles.sectionList}>
                             {shipped.map((f: ShippedFeature) => (
                                 <FeatureCardClickable
@@ -465,8 +467,8 @@ export default function RoadmapPage() {
                                     target="_self"
                                 />
                             ))}
-                            {shipped.length === 0 && (
-                                <div className={styles.empty}>No shipped items listed yet.</div>
+                            {countOf(shipped) === 0 && (
+                                <div className={styles.empty}>No shipped items match this category.</div>
                             )}
                         </div>
                     </section>
@@ -485,13 +487,14 @@ export default function RoadmapPage() {
                                 />
                             ))}
                             {inProgressFeatures.length === 0 && (
-                                <div className={styles.empty}>No in-progress items listed yet.</div>
+                                <div className={styles.empty}>No items are currently listed as in progress.</div>
                             )}
                         </div>
                     </section>
 
                     <section className={styles.section}>
                         <SectionHeader id="planned" count={countOf(plannedFeatures)}>Planned</SectionHeader>
+                        <p className={styles.discussionsIntro}>These are the areas we plan to work on. Scope and timing may change.</p>
                         <div className={styles.sectionList}>
                             {plannedFeatures.map((f: PlannedFeature) => (
                                 <FeatureCardClickable
@@ -503,8 +506,8 @@ export default function RoadmapPage() {
                                     hidden={!matchesCategory(f.labels, category)}
                                 />
                             ))}
-                            {plannedFeatures.length === 0 && (
-                                <div className={styles.empty}>No planned items listed yet.</div>
+                            {countOf(plannedFeatures) === 0 && (
+                                <div className={styles.empty}>No planned items match this category.</div>
                             )}
                         </div>
                     </section>

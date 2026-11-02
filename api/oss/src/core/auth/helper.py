@@ -1,6 +1,8 @@
+import asyncio
 from dataclasses import dataclass
 from typing import Any, Optional, Set
 
+from oss.src.core.auth.emails import fold_gmail_variant
 from oss.src.utils.exceptions import UnauthorizedException
 from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.env import env
@@ -69,7 +71,9 @@ async def _get_posthog_string_entries(feature_flag: str) -> Set[str]:
         return set()
 
     try:
-        flag_entries = posthog.get_feature_flag_payload(
+        # The PostHog client is synchronous; a thread keeps a slow lookup off the event loop.
+        flag_entries = await asyncio.to_thread(
+            posthog.get_feature_flag_payload,
             feature_flag,
             "user distinct id",
         )
@@ -93,6 +97,7 @@ async def _get_posthog_string_entries(feature_flag: str) -> Set[str]:
         namespace="posthog:flags",
         key=cache_key,
         value=sorted(normalized_entries),
+        ttl=env.agenta.access.blocklist_cache_ttl,
     )
 
     return normalized_entries
@@ -133,7 +138,10 @@ def matches_exact_or_subdomain(
 
 
 async def is_auth_info_blocked(auth_info: AuthInfo) -> bool:
-    if auth_info.email in await get_blocked_emails():
+    # Folded on both sides: one blocked Gmail inbox also blocks its dot and `+tag`
+    # variants, which Gmail delivers to the same mailbox. Other domains match exactly.
+    blocked_emails = {fold_gmail_variant(email) for email in await get_blocked_emails()}
+    if fold_gmail_variant(auth_info.email) in blocked_emails:
         return True
 
     domain = auth_info.domain or ""

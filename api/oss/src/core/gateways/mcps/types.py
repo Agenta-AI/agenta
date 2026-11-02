@@ -55,9 +55,14 @@ class MCPToolNotAllowedError(GatewaysError):
 class MCPAuthRequiredError(GatewaysError):
     """No usable OAuth grant is available for the endpoint."""
 
-    def __init__(self, *, requirement: GatewayConnectionRequirement):
+    def __init__(
+        self,
+        *,
+        requirement: GatewayConnectionRequirement,
+        message: Optional[str] = None,
+    ):
         self.requirement = requirement
-        super().__init__(f"Authorization required for {requirement.target}")
+        super().__init__(message or f"Authorization required for {requirement.target}")
 
 
 class MCPScopeInsufficientError(GatewaysError):
@@ -69,11 +74,16 @@ class MCPScopeInsufficientError(GatewaysError):
         target: str,
         scopes: List[str],
         endpoint_id: Optional[UUID] = None,
+        detail: Optional[str] = None,
+        for_person: bool = False,
     ):
         self.target = target
         self.scopes = scopes
         self.endpoint_id = endpoint_id
-        super().__init__(f"Additional scopes required for {target}: {scopes}")
+        # A person's own sign-in asked for more scopes: they repair it themselves.
+        self.for_person = for_person
+        message = f"Additional scopes required for {target}: {scopes}"
+        super().__init__(f"{message}. The server said: {detail}" if detail else message)
 
 
 class MCPUpstreamError(GatewaysError):
@@ -106,6 +116,22 @@ class MCPAgentaToolNotEntitledError(GatewaysError):
         )
 
 
+class MCPConnectionBusyError(GatewaysError):
+    """Another change to this connection held its lock for longer than a change waits."""
+
+    def __init__(self):
+        super().__init__("Another change to this connection is in progress.")
+
+
+class MCPConnectionChangedError(GatewaysError):
+    """A delete meant for an untouched pending connection found one that changed."""
+
+    def __init__(self):
+        super().__init__(
+            "This connection changed after it was created here, so it was kept."
+        )
+
+
 class MCPConnectionNameTakenError(GatewaysError):
     """Another connection in this project already answers to this display name.
 
@@ -127,3 +153,16 @@ class MCPConnectionNameTakenError(GatewaysError):
             "Another connection in this project already uses this name; "
             "pick a different one."
         )
+
+
+class MCPSignInMissingError(GatewaysError):
+    """A "user" item's run has no usable sign-in of the run person for this server.
+
+    Never answered with the project's sign-in instead: a "user" item uses only the run
+    person's own account. The runner then does not register the server for the run.
+    """
+
+    def __init__(self, *, target: str, server_name: Optional[str] = None):
+        self.target = target
+        # The person reads this, so it names the server, never the gateway path.
+        super().__init__(f"Sign in to {server_name or 'this server'} to use it.")

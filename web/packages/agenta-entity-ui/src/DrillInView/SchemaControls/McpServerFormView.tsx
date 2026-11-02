@@ -14,6 +14,7 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {
+    mcpReconnectTarget,
     buildMcpConnectionRef,
     getMcpConnectionState,
     getMcpConnectionStateLabel,
@@ -27,6 +28,7 @@ import {
     toolPrefixFromName,
     type MCPEndpoint,
 } from "@agenta/entities/mcpEndpoint"
+import {needsSetupReasonLabel, requirementForItem} from "@agenta/entities/workflow"
 import {Tag} from "@agenta/ui/components/presentational"
 import {
     Button,
@@ -43,6 +45,9 @@ import {useAtomValue} from "jotai"
 import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
 import McpConnectJourney from "../../mcpEndpoint/McpConnectJourney"
 import McpPermissionDrawer from "../../mcpEndpoint/McpPermissionDrawer"
+
+import {NeedsSetupTag} from "./agentTemplate/NeedsSetupTag"
+import {useAgentRequirements} from "./agentTemplate/useAgentRequirements"
 
 export interface McpServerFormViewProps {
     value: Record<string, unknown>
@@ -61,11 +66,18 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
      */
     const [connecting, setConnecting] = useState<"new" | "reconnect" | null>(null)
     const [permissionsOpen, setPermissionsOpen] = useState(false)
+    // The permission drawer's panel: a reconnect started there opens inside it, not over the page.
+    const [permissionsPanel, setPermissionsPanel] = useState<HTMLDivElement | null>(null)
 
     const endpoints = useMemo(() => endpointsQuery.data ?? [], [endpointsQuery.data])
     const selectedSlug = readMcpConnectionSlug(value)
     const selected = endpoints.find((endpoint) => endpoint.slug === selectedSlug)
     const legacy = isLegacyMcpItem(value)
+    // The saved server the server's check reports as missing or turned off.
+    const requirements = useAgentRequirements()
+    const requirement = requirements
+        ? requirementForItem(requirements, {kinds: ["mcp_server"], slug: selectedSlug})
+        : undefined
 
     /** Point the item at a connection, and freeze the tool prefix from its label. */
     const chooseConnection = useCallback(
@@ -98,7 +110,8 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                     <SelectTrigger className="w-full" aria-label="Connection">
                         <SelectValue
                             placeholder={
-                                selectedSlug && !selected
+                                // An unsaved item the server has not checked keeps the local wording.
+                                selectedSlug && !selected && !requirement
                                     ? "This connection is no longer available"
                                     : "Select a connection"
                             }
@@ -135,7 +148,13 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                 </Select>
             </RailField>
 
-            {selected ? (
+            {requirement ? (
+                <RailField label="Status" align="center">
+                    <NeedsSetupTag reason={needsSetupReasonLabel(requirement.reason)} />
+                </RailField>
+            ) : null}
+
+            {selected && !requirement ? (
                 <RailField label="Status" align="center">
                     <div className="flex min-w-0 items-center gap-2">
                         <Tag
@@ -211,26 +230,17 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                     status={selected ? getMcpConnectionStatus(selected) : undefined}
                     cachedToolCount={selected ? readMcpToolCount(selected) : null}
                     disabled={disabled}
+                    panelRef={setPermissionsPanel}
                 />
             ) : null}
 
             {connecting ? (
                 <McpConnectJourney
                     open
+                    container={permissionsOpen ? permissionsPanel : null}
                     onClose={() => setConnecting(null)}
                     existingNames={endpoints.map((endpoint) => endpoint.name)}
-                    reconnect={
-                        connecting === "reconnect" && selected?.id && selected.slug
-                            ? {
-                                  id: selected.id,
-                                  slug: selected.slug,
-                                  name: selected.name || selected.slug,
-                                  url: selected.data.route.base_url || "",
-                                  authMode: selected.auth_mode,
-                                  credentialHeader: selected.data.route.credential_header,
-                              }
-                            : null
-                    }
+                    reconnect={connecting === "reconnect" ? mcpReconnectTarget(selected) : null}
                     onConnected={({slug, name}) => {
                         // Only a new connection is selected for this agent. A reconnect
                         // renewed the login on the connection this item already names, so

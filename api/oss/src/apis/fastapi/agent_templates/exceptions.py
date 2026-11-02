@@ -45,7 +45,20 @@ def _response(
     )
 
 
-def template_load_error_response(exc: Exception) -> JSONResponse | None:
+_LOAD_UNAVAILABLE_NEXT_STEP = (
+    "Check the public repository URL, the full commit SHA and the "
+    "package directory, then send a corrected request."
+)
+SCAN_UNAVAILABLE_NEXT_STEP = (
+    "Check that the URL names a public GitHub repository, then scan again."
+)
+
+
+def template_load_error_response(
+    exc: Exception,
+    *,
+    unavailable_next_step: str = _LOAD_UNAVAILABLE_NEXT_STEP,
+) -> JSONResponse | None:
     if isinstance(exc, TemplateSourceNotFound):
         return _response(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -68,10 +81,7 @@ def template_load_error_response(exc: Exception) -> JSONResponse | None:
             code="template_source_unavailable",
             message=exc.message,
             details={"reason": exc.code, **exc.details},
-            next_step=(
-                "Check the public repository URL, the full commit SHA and the "
-                "package directory, then send a corrected request."
-            ),
+            next_step=unavailable_next_step,
         )
     if isinstance(exc, TemplateCreateConflict):
         return _response(

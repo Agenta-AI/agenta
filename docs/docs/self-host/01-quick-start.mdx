@@ -34,17 +34,23 @@ cd agenta
 git sparse-checkout set hosting/docker-compose api/oss/databases/postgres api/ee/databases/postgres
 ```
 
-2. Copy configuration and, optionally, edit it:
+2. Copy configuration:
 ```bash
 cp hosting/docker-compose/oss/env.oss.gh.example hosting/docker-compose/oss/.env.oss.gh
 ```
 
-3. Start Agenta:
+3. Set `AGENTA_SERVICES_INTERNAL_KEY` in `hosting/docker-compose/oss/.env.oss.gh`. The example file sets it to `replace-me`, and the API refuses to start with that value. Create a value and replace `replace-me` with it:
+```bash
+openssl rand -hex 32
+```
+See [Configuration](/self-host/configuration#agenta-core) for what the key does.
+
+4. Start Agenta:
 ```bash
 docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh --profile with-web --profile with-traefik up -d
 ```
 
-4. Access Agenta at `http://localhost`.
+5. Access Agenta at `http://localhost`.
 
 :::info Sign-ups are open by default
 Anyone who can reach your instance can sign up and gets their own organization. If people you do not fully trust can reach it, see [Restrict Sign-ups and Organization Creation](/self-host/guides/restrict-organization-creation).

@@ -79,8 +79,12 @@ class SessionExecutionsDAOInterface(ABC):
         settled_by: str,
         settled_at: Optional[datetime] = None,
         transaction: Optional[Any] = None,
+        defer_to_stop: bool = False,
     ) -> SessionExecutionSettlementResult:
-        """Compare-and-set one terminal outcome and return the stored winner."""
+        """Compare-and-set one terminal outcome and return the stored winner.
+
+        `defer_to_stop` leaves an execution a Stop is settling (`stopping`) to that Stop.
+        """
 
     @abstractmethod
     async def query_settled(

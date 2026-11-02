@@ -39,11 +39,27 @@ export interface MediaViewerItem {
     source: MediaViewerSource
 }
 
+const SPREADSHEET_TYPES = new Set([
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-excel.sheet.macroEnabled.12",
+    "application/vnd.ms-excel",
+    "application/vnd.oasis.opendocument.spreadsheet",
+])
+
 const MEDIA_TYPE_KINDS: [test: (type: string) => boolean, kind: DriveFileKind][] = [
     [(t) => t.startsWith("image/"), "image"],
     [(t) => t.startsWith("video/"), "video"],
     [(t) => t.startsWith("audio/"), "audio"],
     [(t) => t === "application/pdf", "pdf"],
+    [(t) => SPREADSHEET_TYPES.has(t), "spreadsheet"],
+    [
+        (t) => t === "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "document",
+    ],
+    [
+        (t) => t === "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "presentation",
+    ],
     [(t) => t === "text/csv" || t === "text/tab-separated-values", "csv"],
     [(t) => t === "text/markdown", "markdown"],
     [(t) => t === "application/json", "json"],
@@ -51,7 +67,7 @@ const MEDIA_TYPE_KINDS: [test: (type: string) => boolean, kind: DriveFileKind][]
 ]
 
 /** The name's extension first (it tells `.py` from plain text), the media type when that fails. */
-const mediaViewerKind = (item: Pick<MediaViewerItem, "name" | "mediaType">) => {
+export const mediaViewerKind = (item: Pick<MediaViewerItem, "name" | "mediaType">) => {
     const byName = resolveDriveFileKind(item.name)
     if (byName !== "other" || !item.mediaType) return byName
     return MEDIA_TYPE_KINDS.find(([test]) => test(item.mediaType ?? ""))?.[1] ?? "other"

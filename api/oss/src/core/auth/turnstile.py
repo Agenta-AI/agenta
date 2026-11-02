@@ -1,3 +1,5 @@
+import ipaddress
+
 import httpx
 
 from supertokens_python.framework.request import BaseRequest
@@ -19,13 +21,45 @@ def is_turnstile_enabled() -> bool:
     return is_ee() and env.cloudflare.turnstile.enabled
 
 
-def get_client_ip(request: BaseRequest) -> str | None:
-    for header_name in ("cf-connecting-ip", "x-forwarded-for", "x-real-ip"):
-        header_value = request.get_header(header_name)
-        if header_value:
-            return header_value.split(",")[0].strip()
+def _normalize_ip(value: str) -> str | None:
+    """Return the canonical spelling of an IP address, or None when it is not one."""
+    try:
+        return str(ipaddress.ip_address(value.strip()))
+    except ValueError:
+        return None
 
-    return None
+
+def get_client_ip(request: BaseRequest) -> str | None:
+    """Return the client IP as the trusted proxies in front of the API saw it.
+
+    `CF-Connecting-IP` counts only when `AGENTA_ACCESS_TRUST_CLOUDFLARE_IP` is on. With
+    `AGENTA_ACCESS_TRUSTED_PROXY_HOPS` set to N, the IP is the Nth X-Forwarded-For entry
+    from the right, because the trusted proxies append there and a client can only add
+    entries on the left. A header shorter than N falls back to its first entry, which is
+    the client when it sent no X-Forwarded-For of its own, so a hop count set too high
+    does not put every client behind one proxy address. Unset, the first entry is used.
+    A value that is not an IP address gives None.
+    """
+    access = env.agenta.access
+
+    if access.trust_cloudflare_ip:
+        cf_ip = (request.get_header("cf-connecting-ip") or "").strip()
+        if cf_ip:
+            return _normalize_ip(cf_ip)
+
+    forwarded = [
+        entry.strip()
+        for entry in (request.get_header("x-forwarded-for") or "").split(",")
+        if entry.strip()
+    ]
+    if forwarded:
+        hops = access.trusted_proxy_hops
+        if hops and len(forwarded) >= hops:
+            return _normalize_ip(forwarded[-hops])
+        return _normalize_ip(forwarded[0])
+
+    real_ip = (request.get_header("x-real-ip") or "").strip()
+    return _normalize_ip(real_ip) if real_ip else None
 
 
 def has_turnstile_token(request: BaseRequest) -> bool:

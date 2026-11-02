@@ -22,7 +22,7 @@ from oss.src.core.evaluators.dtos import (
 from oss.src.core.evaluators.service import EvaluatorsService, SimpleEvaluatorsService
 from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.core.workflows.service import WorkflowsService
-from oss.src.dbs.postgres.git.dao import GitDAO
+from oss.src.dbs.postgres.workflows.dao import WorkflowsDAO
 from oss.src.dbs.postgres.workflows.dbes import (
     WorkflowArtifactDBE,
     WorkflowRevisionDBE,
@@ -87,7 +87,7 @@ _DEFAULT_EVALUATORS: list[dict[str, Any]] = [
 
 
 def _get_simple_evaluators_service() -> SimpleEvaluatorsService:
-    workflows_dao = GitDAO(
+    workflows_dao = WorkflowsDAO(
         ArtifactDBE=WorkflowArtifactDBE,
         VariantDBE=WorkflowVariantDBE,
         RevisionDBE=WorkflowRevisionDBE,

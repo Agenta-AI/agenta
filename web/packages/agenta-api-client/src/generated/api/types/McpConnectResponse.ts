@@ -4,4 +4,6 @@ export interface McpConnectResponse {
     count?: number | undefined;
     redirect_url?: (string | null) | undefined;
     scopes_offered?: string[] | undefined;
+    attempt_id?: (string | null) | undefined;
+    expires_in?: (number | null) | undefined;
 }

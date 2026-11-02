@@ -25,6 +25,8 @@ export interface ActiveModelsSectionProps {
     fetchedAt?: string | null
     onRefetch?: () => void
     refetching?: boolean
+    /** Locked: the list shows what is active, and nothing can be checked, cleared or added. */
+    readOnly?: boolean
 }
 
 // How many rows mount before "Show all N", and whether it belongs: `modelListView`.
@@ -39,6 +41,7 @@ const ActiveModelsSection = ({
     fetchedAt,
     onRefetch,
     refetching,
+    readOnly = false,
 }: ActiveModelsSectionProps) => {
     const [search, setSearch] = useState("")
     const [showAll, setShowAll] = useState(false)
@@ -59,6 +62,7 @@ const ActiveModelsSection = ({
 
     const term = search.trim()
     const canAdd =
+        !readOnly &&
         Boolean(term) &&
         !options.some(
             (option) =>
@@ -80,33 +84,42 @@ const ActiveModelsSection = ({
                         — {activeModelsCount(activeCount, options.length)}
                     </span>
                 </span>
-                <div className="flex items-center gap-2 text-field-sm">
-                    <Button variant="link" size="sm" className="h-auto px-0" onClick={onSelectAll}>
-                        Select all
-                    </Button>
-                    <Button variant="link" size="sm" className="h-auto px-0" onClick={onClear}>
-                        Clear
-                    </Button>
-                </div>
+                {readOnly ? null : (
+                    <div className="flex items-center gap-2 text-field-sm">
+                        <Button
+                            variant="link"
+                            size="sm"
+                            className="h-auto px-0"
+                            onClick={onSelectAll}
+                        >
+                            Select all
+                        </Button>
+                        <Button variant="link" size="sm" className="h-auto px-0" onClick={onClear}>
+                            Clear
+                        </Button>
+                    </div>
+                )}
             </div>
 
-            <InputAffix
-                className="shrink-0"
-                placeholder={
-                    options.length
-                        ? `Search ${options.length} models or add an ID`
-                        : manualPlaceholder
-                }
-                prefix={<MagnifyingGlass size={14} className="text-colorTextTertiary" />}
-                allowClear
-                value={search}
-                onValueChange={setSearch}
-                onKeyDown={(event) => {
-                    if (event.key !== "Enter") return
-                    event.preventDefault()
-                    addTerm()
-                }}
-            />
+            {readOnly ? null : (
+                <InputAffix
+                    className="shrink-0"
+                    placeholder={
+                        options.length
+                            ? `Search ${options.length} models or add an ID`
+                            : manualPlaceholder
+                    }
+                    prefix={<MagnifyingGlass size={14} className="text-colorTextTertiary" />}
+                    allowClear
+                    value={search}
+                    onValueChange={setSearch}
+                    onKeyDown={(event) => {
+                        if (event.key !== "Enter") return
+                        event.preventDefault()
+                        addTerm()
+                    }}
+                />
+            )}
 
             {/* Sized to its rows, so a short list leaves no empty box; a long one scrolls. */}
             <div className="flex max-h-[min(320px,45vh)] flex-col overflow-hidden">
@@ -140,6 +153,7 @@ const ActiveModelsSection = ({
                                 className="flex cursor-pointer items-center gap-2.5 rounded px-2 py-2 hover:bg-colorFillQuaternary"
                             >
                                 <Checkbox
+                                    disabled={readOnly}
                                     checked={option.checked}
                                     onCheckedChange={(next) => onToggle(option.id, next === true)}
                                 />

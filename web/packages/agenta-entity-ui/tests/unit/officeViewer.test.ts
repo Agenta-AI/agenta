@@ -1,0 +1,292 @@
+import {afterEach, describe, expect, it, vi} from "vitest"
+
+import {mediaViewerKind} from "../../src/drive/MediaViewer"
+import {pageAtLine, sectionPageCount} from "../../src/drive/officeViewer/frame/docxPages"
+import {runViewer, sanitizeLinks} from "../../src/drive/officeViewer/frame/runtime"
+import {
+    buildViewerSrcdoc,
+    isOpenableLink,
+    OFFICE_VIEWER_CSP,
+    OFFICE_VIEWER_SANDBOX,
+    openViewerLink,
+    parseHostMessage,
+    parseViewerMessage,
+} from "../../src/drive/officeViewer/protocol"
+
+afterEach(() => vi.restoreAllMocks())
+
+const FRAME = {width: 800, height: 600}
+const RECT = {top: 10, left: 20, width: 100, height: 40}
+
+describe("parseViewerMessage", () => {
+    it("accepts the five frame messages", () => {
+        expect(parseViewerMessage({type: "ready"}, FRAME)).toEqual({type: "ready"})
+        expect(parseViewerMessage({type: "failed", extra: 1}, FRAME)).toEqual({type: "failed"})
+        expect(parseViewerMessage({type: "rendered", slideCount: 3}, FRAME)).toEqual({
+            type: "rendered",
+            slideCount: 3,
+        })
+        expect(parseViewerMessage({type: "slide", index: 2}, FRAME)).toEqual({
+            type: "slide",
+            index: 2,
+        })
+        expect(
+            parseViewerMessage({type: "open-link", url: "https://agenta.ai/docs"}, FRAME),
+        ).toEqual({
+            type: "open-link",
+            url: "https://agenta.ai/docs",
+        })
+    })
+
+    it.each([
+        null,
+        "ready",
+        [{type: "ready"}],
+        {type: "eval", code: "alert(1)"},
+        {type: "rendered"},
+        {type: "rendered", slideCount: -1},
+        {type: "rendered", slideCount: 1.5},
+        {type: "slide", index: "2"},
+        {type: "open-link"},
+        {type: "open-link", url: "javascript:alert(1)"},
+        {type: "open-link", url: "data:text/html,<script>alert(1)</script>"},
+    ])("rejects %j", (data) => {
+        expect(parseViewerMessage(data, FRAME)).toBeNull()
+    })
+})
+
+describe("parseViewerMessage picker messages", () => {
+    it("accepts picked, pick-cancel and pin-rects", () => {
+        const element = {
+            selector: ":scope > :nth-child(2)",
+            tag: "div",
+            page: 3,
+            point: {x: 0.5, y: 0.25},
+        }
+        expect(
+            parseViewerMessage({type: "picked", element, text: "Revenue", rect: RECT}, FRAME),
+        ).toEqual({type: "picked", element, text: "Revenue", rect: RECT})
+        expect(parseViewerMessage({type: "pick-cancel"}, FRAME)).toEqual({type: "pick-cancel"})
+        expect(
+            parseViewerMessage(
+                {
+                    type: "pin-rects",
+                    rects: [
+                        {id: "a", rect: RECT},
+                        {id: "b", rect: null},
+                        {id: "c", rect: {top: 900, left: 0, width: 10, height: 10}},
+                    ],
+                },
+                FRAME,
+            ),
+        ).toEqual({
+            type: "pin-rects",
+            rects: [
+                {id: "a", rect: RECT},
+                {id: "b", rect: null},
+                {id: "c", rect: {top: 900, left: 0, width: 10, height: 10}},
+            ],
+        })
+    })
+
+    it.each([
+        {type: "picked", text: "x", rect: RECT},
+        {
+            type: "picked",
+            element: {selector: "p", tag: "p", point: {x: 0, y: 0}},
+            text: "x",
+            rect: {top: 700, left: 0, width: 10, height: 10},
+        },
+        {
+            type: "picked",
+            element: {selector: "p", tag: "p", page: 0, point: {x: 0, y: 0}},
+            text: "x",
+            rect: RECT,
+        },
+        {type: "pin-rects", rects: "a"},
+    ])("rejects %j", (data) => {
+        expect(parseViewerMessage(data, FRAME)).toBeNull()
+    })
+})
+
+describe("parseHostMessage", () => {
+    it("accepts render with bytes and a layout, goto with an index, and layout", () => {
+        const bytes = new ArrayBuffer(4)
+        expect(parseHostMessage({type: "render", kind: "document", bytes, reflow: true})).toEqual({
+            type: "render",
+            kind: "document",
+            bytes,
+            reflow: true,
+        })
+        expect(parseHostMessage({type: "goto", index: 0})).toEqual({type: "goto", index: 0})
+        expect(parseHostMessage({type: "layout", reflow: false})).toEqual({
+            type: "layout",
+            reflow: false,
+        })
+    })
+
+    it("rejects a render or layout without a boolean reflow", () => {
+        const bytes = new ArrayBuffer(4)
+        expect(parseHostMessage({type: "render", kind: "document", bytes})).toBeNull()
+        expect(parseHostMessage({type: "layout", reflow: "yes"})).toBeNull()
+    })
+
+    it("rejects render without bytes or with an unknown kind", () => {
+        expect(parseHostMessage({type: "render", kind: "document", bytes: "PK"})).toBeNull()
+        expect(
+            parseHostMessage({type: "render", kind: "spreadsheet", bytes: new ArrayBuffer(1)}),
+        ).toBeNull()
+        expect(parseHostMessage({type: "goto", index: -1})).toBeNull()
+    })
+})
+
+describe("links", () => {
+    it.each([
+        ["https://example.com/a?b=1", true],
+        ["http://example.com", true],
+        ["mailto:team@agenta.ai", true],
+        ["javascript:alert(1)", false],
+        ["JAVASCRIPT:alert(1)", false],
+        ["data:text/html,hi", false],
+        ["blob:null/1234", false],
+        ["file:///etc/passwd", false],
+        ["/relative/path", false],
+        ["#heading", false],
+    ])("%s openable: %s", (url, openable) => {
+        expect(isOpenableLink(url)).toBe(openable)
+    })
+
+    it("opens allowed links in a new tab without an opener, and nothing else", () => {
+        const open = vi.spyOn(window, "open").mockReturnValue(null)
+        expect(openViewerLink("https://example.com")).toBe(true)
+        expect(openViewerLink("javascript:alert(1)")).toBe(false)
+        expect(open).toHaveBeenCalledTimes(1)
+        expect(open).toHaveBeenCalledWith("https://example.com", "_blank", "noopener,noreferrer")
+    })
+
+    it("turns script links into plain text and keeps safe ones", () => {
+        const root = document.createElement("div")
+        root.innerHTML =
+            '<a href="javascript:alert(1)" target="_top">bad</a>' +
+            '<a href="https://example.com" target="_blank">good</a>' +
+            '<a href="#toc">anchor</a>'
+        sanitizeLinks(root)
+        const [bad, good, anchor] = Array.from(root.querySelectorAll("a"))
+        expect(bad.hasAttribute("href")).toBe(false)
+        expect(bad.textContent).toBe("bad")
+        expect(good.getAttribute("href")).toBe("https://example.com")
+        expect(good.hasAttribute("target")).toBe(false)
+        expect(anchor.getAttribute("href")).toBe("#toc")
+    })
+})
+
+describe("runViewer", () => {
+    it("runs a layout render only after the render before it finishes", async () => {
+        const calls: boolean[] = []
+        let finishFirst = () => {}
+        const render = vi.fn((_bytes: ArrayBuffer, _root: HTMLElement, {reflow}) => {
+            calls.push(reflow)
+            return calls.length === 1
+                ? new Promise<{slideCount: number}>((done) => {
+                      finishFirst = () => done({slideCount: 1})
+                  })
+                : Promise.resolve({slideCount: 1})
+        })
+        runViewer({kind: "document", render})
+        const send = (data: unknown) =>
+            window.dispatchEvent(new MessageEvent("message", {data, source: window}))
+        send({type: "render", kind: "document", bytes: new ArrayBuffer(1), reflow: true})
+        send({type: "layout", reflow: false})
+        await Promise.resolve()
+        expect(calls).toEqual([true])
+        finishFirst()
+        await vi.waitFor(() => expect(calls).toEqual([true, false]))
+    })
+
+    it("keeps a layout that arrives before the file and renders with it", async () => {
+        const calls: boolean[] = []
+        const render = vi.fn((_bytes: ArrayBuffer, _root: HTMLElement, {reflow}) => {
+            calls.push(reflow)
+            return Promise.resolve({slideCount: 1})
+        })
+        runViewer({kind: "presentation", render})
+        const send = (data: unknown) =>
+            window.dispatchEvent(new MessageEvent("message", {data, source: window}))
+        send({type: "layout", reflow: false})
+        send({type: "render", kind: "presentation", bytes: new ArrayBuffer(1), reflow: true})
+        await vi.waitFor(() => expect(calls).toEqual([false]))
+    })
+})
+
+describe("DOCX page count", () => {
+    it("counts a section that runs past its paper height as several pages", () => {
+        expect(sectionPageCount(1100, 1100)).toBe(1)
+        expect(sectionPageCount(1100.5, 1100)).toBe(1)
+        expect(sectionPageCount(2500, 1100)).toBe(3)
+    })
+
+    it("counts a reflowed section, which has no paper height, as one page", () => {
+        expect(sectionPageCount(5000, 0)).toBe(1)
+        expect(sectionPageCount(5000, Number.NaN)).toBe(1)
+    })
+
+    it("finds the page under the line inside and across sections", () => {
+        // A 2,500px section on 1,100px paper: pages start at 0, 1,100 and 2,200.
+        const sections = [
+            {top: 0, height: 2500, pageHeight: 1100, pages: 3},
+            {top: 2530, height: 1000, pageHeight: 1000, pages: 1},
+        ]
+        expect(pageAtLine(sections, 900)).toBe(0)
+        expect(pageAtLine(sections, 1200)).toBe(1)
+        expect(pageAtLine(sections, 2300)).toBe(2)
+        expect(pageAtLine(sections, 2520)).toBe(2)
+        expect(pageAtLine(sections, 2600)).toBe(3)
+    })
+})
+
+describe("buildViewerSrcdoc", () => {
+    const srcdoc = buildViewerSrcdoc('console.log("</script><script>alert(1)</script>")')
+
+    it("carries the D6 policy and a script-only sandbox", () => {
+        expect(OFFICE_VIEWER_SANDBOX).toBe("allow-scripts")
+        expect(OFFICE_VIEWER_CSP).toBe(
+            "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; " +
+                "img-src data: blob:; font-src data: blob:; connect-src 'none'; frame-src 'none'; " +
+                "object-src 'none'; form-action 'none'",
+        )
+        expect(srcdoc).toContain(
+            `<meta http-equiv="Content-Security-Policy" content="${OFFICE_VIEWER_CSP}">`,
+        )
+        expect(srcdoc).toContain('"allow-scripts"')
+    })
+
+    it("keeps the viewer document inside one script element of the relay", () => {
+        expect(srcdoc.match(/<\/script>/g)).toHaveLength(1)
+        expect(srcdoc.endsWith("</script></body></html>")).toBe(true)
+        const start = srcdoc.indexOf('"\\u003c!doctype')
+        const end = srcdoc.lastIndexOf(', "allow-scripts")')
+        const viewerDoc = JSON.parse(srcdoc.slice(start, end)) as string
+        expect(viewerDoc).toContain(OFFICE_VIEWER_CSP)
+        expect(viewerDoc.match(/<\/script>/g)).toHaveLength(1)
+        expect(viewerDoc).toContain("<\\/script><script>alert(1)<\\/script>")
+    })
+})
+
+describe("mediaViewerKind", () => {
+    it.each([
+        ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "spreadsheet"],
+        ["application/vnd.ms-excel", "spreadsheet"],
+        ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", "document"],
+        [
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "presentation",
+        ],
+        ["application/msword", "other"],
+    ])("an attachment typed %s opens as %s", (mediaType, kind) => {
+        expect(mediaViewerKind({name: "attachment", mediaType})).toBe(kind)
+    })
+
+    it("resolves budget.xlsx by its name", () => {
+        expect(mediaViewerKind({name: "budget.xlsx"})).toBe("spreadsheet")
+    })
+})

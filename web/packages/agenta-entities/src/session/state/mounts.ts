@@ -15,6 +15,7 @@ import {atomFamily} from "jotai-family"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
 import {
+    listMountFolder,
     queryLatestMountFiles,
     queryMountDir,
     queryMountFiles,
@@ -22,6 +23,7 @@ import {
     readMountFile,
     type MountFilesPage,
 } from "../api/api"
+import {parentFolderOf, listedEntryAt} from "../core/pathUtils"
 import type {Mount, MountFile} from "../core/schema"
 
 // Query keys, factored so the revalidate atom and the families can never drift.
@@ -45,6 +47,10 @@ export const mountDirQueryKey = (
     path: string,
     includeGitignored = false,
 ) => ["mounts", "files-dir", projectId, mountId, path, includeGitignored] as const
+
+// Under the `files-dir` prefix so the session revalidation covers it.
+export const mountFolderListingQueryKey = (projectId: string, mountId: string, path: string) =>
+    ["mounts", "files-dir", projectId, mountId, path, "raw"] as const
 
 /** The mounts (drives) bound to one session. */
 export const sessionMountsQueryFamily = atomFamily((sessionId: string) =>
@@ -188,6 +194,38 @@ export const mountDirQueryFamily = atomFamily(
         a.mountId === b.mountId &&
         a.path === b.path &&
         Boolean(a.includeGitignored) === Boolean(b.includeGitignored),
+)
+
+/** ONE raw folder level (no git pruning, no counts), shared by every existence check in it. */
+export const mountFolderListingQueryFamily = atomFamily(
+    ({mountId, path}: {mountId: string; path: string}) =>
+        atomWithQuery<MountFile[] | null>((get) => {
+            const projectId = get(projectIdAtom) ?? ""
+            return {
+                queryKey: mountFolderListingQueryKey(projectId, mountId, path),
+                queryFn: ({signal}) =>
+                    listMountFolder({mountId, projectId, path, abortSignal: signal}),
+                enabled: Boolean(mountId && projectId),
+                staleTime: 30_000,
+                refetchOnWindowFocus: false,
+            }
+        }),
+    (a, b) => a.mountId === b.mountId && a.path === b.path,
+)
+
+/** Whether `path` is a file, from its parent folder's listing; `null` while unknown. */
+export const mountFileExistsAtomFamily = atomFamily(
+    ({mountId, path}: {mountId: string; path: string}) =>
+        atom<boolean | null>((get) => {
+            if (!mountId || !path) return null
+            const listing = get(
+                mountFolderListingQueryFamily({mountId, path: parentFolderOf(path)}),
+            )
+            if (listing.data === undefined) return null
+            const entry = listedEntryAt(listing.data ?? [], path)
+            return Boolean(entry && !entry.is_folder)
+        }),
+    (a, b) => a.mountId === b.mountId && a.path === b.path,
 )
 
 /** One mount file's text content. Bodies can be ~1.5 MB strings, so retention is short:

@@ -18,10 +18,12 @@ from .connections import VaultConnectionResolver
 from .gateway import AgentaGatewayToolResolver
 from .op_catalog import CHANNEL_TOOL_OPS, PLATFORM_OPS, PlatformOp, get_platform_op
 from .platform_tools import AgentaPlatformToolResolver
+from .requirements import unready_mcp_servers
 from .resolve import resolve_connection, resolve_mcp, resolve_secrets, resolve_tools
 from .secrets import (
     AgentaNamedSecretProvider,
     resolve_named_secrets,
+    resolve_user_secrets,
     resolve_provider_keys,
 )
 from .channel_tools import read_channel_tools
@@ -50,10 +52,12 @@ __all__ = [
     "resolve_connection",
     "resolve_mcp",
     "resolve_named_secrets",
+    "resolve_user_secrets",
     "resolve_provider_keys",
     "resolve_secrets",
     "resolve_session_context",
     "resolve_tools",
     "run_optional",
     "session_context_timeout",
+    "unready_mcp_servers",
 ]
