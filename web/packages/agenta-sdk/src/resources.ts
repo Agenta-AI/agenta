@@ -14,6 +14,7 @@ import {ApplicationsClient} from "@agentaai/api-client/resources/applications"
 import {ChannelsClient} from "@agentaai/api-client/resources/channels"
 import {EvaluationsClient} from "@agentaai/api-client/resources/evaluations"
 import {EventsClient} from "@agentaai/api-client/resources/events"
+import {FoldersClient} from "@agentaai/api-client/resources/folders"
 import {GatewayMcpClient} from "@agentaai/api-client/resources/gatewayMcp"
 import {KeysClient} from "@agentaai/api-client/resources/keys"
 import {MountsClient} from "@agentaai/api-client/resources/mounts"
@@ -89,6 +90,11 @@ export function getUsersClient(): UsersClient {
 let _webhooks: WebhooksClient | undefined
 export function getWebhooksClient(): WebhooksClient {
     return (_webhooks ??= new WebhooksClient(buildClientOptions()))
+}
+
+let _folders: FoldersClient | undefined
+export function getFoldersClient(): FoldersClient {
+    return (_folders ??= new FoldersClient(buildClientOptions()))
 }
 
 let _workflows: WorkflowsClient | undefined
