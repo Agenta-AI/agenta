@@ -127,6 +127,8 @@ describe("invoke snippets", () => {
         const snippets = buildInvokeAppSnippets({url, params, isChat: false})
         expect(snippets.python).toContain('"on": True')
         expect(snippets.python).toContain('"off": False')
+        expect(snippets.python).toContain('"none": None')
+        expect(snippets.bash).toContain('"none": null')
         expect(snippets.python).not.toMatch(/\b(true|false|null)\b/)
         expect(snippets.bash).toContain("What'\\''s new?")
         expect(snippets.typescript).toContain('"on": true')

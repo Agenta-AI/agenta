@@ -29,7 +29,8 @@ export const buildAppEndpointParams = ({
     const inputs: Record<string, unknown> = {}
     const properties = inputSchema?.properties as Record<string, unknown> | undefined
     for (const [key, definition] of Object.entries(properties ?? {})) {
-        inputs[key] = (definition as {default?: unknown} | undefined)?.default ?? "add_a_value"
+        const fallback = (definition as {default?: unknown} | undefined)?.default
+        inputs[key] = fallback === undefined ? "add_a_value" : fallback
     }
     if (isChat) inputs.messages = [{role: "user", content: ""}]
     return JSON.stringify(
