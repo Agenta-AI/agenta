@@ -24,7 +24,22 @@ const SAVE_FAILED = "Failed to save changes"
 
 /** Why a column name was refused. An unchanged rename is not an error: it changes nothing. */
 export type ColumnNameRefusal = "empty" | "duplicate" | "unchanged"
-export type ColumnEdit = {ok: true} | {ok: false; reason: ColumnNameRefusal}
+/**
+ * Why a column edit waits for a save. Renames stay simple until the next save: a column is
+ * renamed at most once, a column added in this session is not renamed, and the old and new
+ * names of a pending rename are not used again. The save state supports only these cases.
+ */
+export type ColumnEditUntilSave = "renamed" | "added" | "pendingRenameName"
+export type ColumnEdit =
+    | {ok: true}
+    | {ok: false; reason: ColumnNameRefusal}
+    | {ok: false; reason: ColumnEditUntilSave; message: string}
+
+const RENAMED_MESSAGE = "Save first to rename this column again"
+const ADDED_MESSAGE =
+    "Save first to rename a new column, or delete it and add it again with the new name"
+const pendingRenameNameMessage = (name: string, rename: {oldKey: string; newKey: string}) =>
+    `The name "${name}" is part of the unsaved rename of "${rename.oldKey}" to "${rename.newKey}". Save first to use it.`
 
 /**
  * The edit session of one test set page, over the package state.
@@ -136,27 +151,75 @@ export function useTestsetEditor({
         [deleteRowsAtom],
     )
 
+    /** The pending rename that uses `name` as its old or new name, if any. */
+    const renameUsingName = useCallback(
+        (name: string) =>
+            pendingOps.rename.find((rename) => rename.oldKey === name || rename.newKey === name),
+        [pendingOps.rename],
+    )
+
+    /** Why the column cannot be renamed before the next save, or null when it can. */
+    const renameRefusal = useCallback(
+        (columnKey: string): ColumnEdit | null => {
+            if (pendingOps.add.includes(columnKey)) {
+                return {ok: false, reason: "added", message: ADDED_MESSAGE}
+            }
+            if (pendingOps.rename.some((rename) => rename.newKey === columnKey)) {
+                return {ok: false, reason: "renamed", message: RENAMED_MESSAGE}
+            }
+            return null
+        },
+        [pendingOps.add, pendingOps.rename],
+    )
+
+    /** The sentence that says why a rename is turned off for the column, or null. */
+    const renameBlocked = useCallback(
+        (columnKey: string): string | null => {
+            const refusal = renameRefusal(columnKey)
+            return refusal && "message" in refusal ? refusal.message : null
+        },
+        [renameRefusal],
+    )
+
     const addColumn = useCallback(
         (name: string): ColumnEdit => {
             const columnKey = name.trim()
             if (!columnKey) return {ok: false, reason: "empty"}
             if (knownColumnKeys().has(columnKey)) return {ok: false, reason: "duplicate"}
+            const rename = renameUsingName(columnKey)
+            if (rename) {
+                return {
+                    ok: false,
+                    reason: "pendingRenameName",
+                    message: pendingRenameNameMessage(columnKey, rename),
+                }
+            }
             addColumnReducer({revisionId: routeId, columnKey})
             return {ok: true}
         },
-        [addColumnReducer, knownColumnKeys, routeId],
+        [addColumnReducer, knownColumnKeys, renameUsingName, routeId],
     )
 
     const renameColumn = useCallback(
         (oldKey: string, name: string): ColumnEdit => {
+            const blocked = renameRefusal(oldKey)
+            if (blocked) return blocked
             const newKey = name.trim()
             if (!newKey) return {ok: false, reason: "empty"}
             if (newKey === oldKey) return {ok: false, reason: "unchanged"}
             if (knownColumnKeys().has(newKey)) return {ok: false, reason: "duplicate"}
+            const rename = renameUsingName(newKey)
+            if (rename) {
+                return {
+                    ok: false,
+                    reason: "pendingRenameName",
+                    message: pendingRenameNameMessage(newKey, rename),
+                }
+            }
             renameColumnReducer({revisionId: routeId, oldKey, newKey})
             return {ok: true}
         },
-        [knownColumnKeys, renameColumnReducer, routeId],
+        [knownColumnKeys, renameColumnReducer, renameRefusal, renameUsingName, routeId],
     )
 
     const deleteColumn = useCallback(
@@ -241,6 +304,7 @@ export function useTestsetEditor({
         deleteRows,
         addColumn,
         renameColumn,
+        renameBlocked,
         deleteColumn,
         discard,
         commit,

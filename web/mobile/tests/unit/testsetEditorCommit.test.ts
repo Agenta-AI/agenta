@@ -275,6 +275,162 @@ describe("useTestsetEditor commit over the real package state", () => {
         ])
     })
 
+    it("A rename with edits before and after it sends every row under the new name", async () => {
+        await mount()
+        run(() => store.set(testcaseMolecule.actions.update, "case-1", {data: {answer: "14 days"}}))
+        expect(run(() => editor().renameColumn("answer", "reply"))).toEqual({ok: true})
+        run(() => store.set(testcaseMolecule.actions.update, "case-2", {data: {reply: "No"}}))
+        const rowId = run(() => editor().addRow())
+        run(() =>
+            store.set(testcaseMolecule.actions.update, rowId ?? "", {
+                data: {question: "Is gift wrap free?", reply: "Yes"},
+            }),
+        )
+
+        await commit()
+
+        const delta = commitBody()?.testset_revision.delta
+        expect(delta?.columns).toEqual({replace: [["answer", "reply"]]})
+        expect(delta?.rows?.replace).toEqual([
+            {
+                id: "case-1",
+                data: {question: "What is the refund window?", reply: "14 days"},
+                set_id: TESTSET,
+            },
+            {id: "case-2", data: {question: "Do you ship abroad?", reply: "No"}, set_id: TESTSET},
+        ])
+        expect(delta?.rows?.add).toEqual([
+            {data: {question: "Is gift wrap free?", reply: "Yes"}, set_id: TESTSET},
+        ])
+    })
+
+    it("The old name of a renamed column cannot name a new column before a save", async () => {
+        await mount()
+        run(() => editor().renameColumn("answer", "reply"))
+
+        expect(run(() => editor().addColumn("answer"))).toEqual({
+            ok: false,
+            reason: "pendingRenameName",
+            message:
+                'The name "answer" is part of the unsaved rename of "answer" to "reply". Save first to use it.',
+        })
+        const rowId = run(() => editor().addRow())
+        run(() =>
+            store.set(testcaseMolecule.actions.update, rowId ?? "", {
+                data: {question: "Is gift wrap free?", reply: "No"},
+            }),
+        )
+
+        await commit()
+
+        const delta = commitBody()?.testset_revision.delta
+        expect(delta?.columns).toEqual({replace: [["answer", "reply"]]})
+        expect(delta?.rows?.add).toEqual([
+            {data: {question: "Is gift wrap free?", reply: "No"}, set_id: TESTSET},
+        ])
+    })
+
+    it("The old name of a renamed column cannot be another column's new name", async () => {
+        await mount()
+        run(() => editor().renameColumn("answer", "reply"))
+
+        expect(run(() => editor().renameColumn("question", "answer"))).toMatchObject({
+            ok: false,
+            reason: "pendingRenameName",
+        })
+        expect(store.get(revisionMolecule.atoms.pendingColumnOps(REVISION)).rename).toEqual([
+            {oldKey: "answer", newKey: "reply"},
+        ])
+    })
+
+    it("A renamed column cannot be renamed again before a save", async () => {
+        await mount()
+        run(() => editor().renameColumn("answer", "reply"))
+        run(() => store.set(testcaseMolecule.actions.update, "case-1", {data: {reply: "14 days"}}))
+
+        expect(editor().renameBlocked("reply")).toBe("Save first to rename this column again")
+        expect(editor().renameBlocked("question")).toBeNull()
+        expect(run(() => editor().renameColumn("reply", "response"))).toEqual({
+            ok: false,
+            reason: "renamed",
+            message: "Save first to rename this column again",
+        })
+
+        await commit()
+
+        const delta = commitBody()?.testset_revision.delta
+        expect(delta?.columns).toEqual({replace: [["answer", "reply"]]})
+        expect(delta?.rows?.replace).toEqual([
+            {
+                id: "case-1",
+                data: {question: "What is the refund window?", reply: "14 days"},
+                set_id: TESTSET,
+            },
+        ])
+    })
+
+    it("A column added in this session cannot be renamed before a save", async () => {
+        await mount()
+        run(() => editor().addColumn("country"))
+        const rowId = run(() => editor().addRow())
+        run(() =>
+            store.set(testcaseMolecule.actions.update, rowId ?? "", {
+                data: {question: "Is gift wrap free?", answer: "No", country: "France"},
+            }),
+        )
+
+        const message =
+            "Save first to rename a new column, or delete it and add it again with the new name"
+        expect(editor().renameBlocked("country")).toBe(message)
+        expect(run(() => editor().renameColumn("country", "region"))).toEqual({
+            ok: false,
+            reason: "added",
+            message,
+        })
+
+        await commit()
+
+        const delta = commitBody()?.testset_revision.delta
+        expect(delta?.columns).toEqual({add: ["country"]})
+        expect(delta?.rows?.add).toEqual([
+            {
+                data: {question: "Is gift wrap free?", answer: "No", country: "France"},
+                set_id: TESTSET,
+            },
+        ])
+    })
+
+    it("Discard after a rename sends the next edit under the saved names", async () => {
+        await mount()
+        run(() => store.set(testcaseMolecule.actions.update, "case-1", {data: {answer: "14 days"}}))
+        run(() => editor().renameColumn("answer", "reply"))
+        run(() => editor().addColumn("country"))
+        const rowId = run(() => editor().addRow())
+        run(() => store.set(testcaseMolecule.actions.update, rowId ?? "", {data: {reply: "Yes"}}))
+
+        act(() => editor().discard())
+        await flush()
+
+        expect(editor().hasUnsavedChanges).toBe(false)
+        expect(store.get(revisionMolecule.atoms.pendingColumnOps(REVISION))).toMatchObject({
+            add: [],
+            remove: [],
+            rename: [],
+        })
+        expect(store.get(testcaseMolecule.atoms.draft(rowId ?? ""))).toBeNull()
+        expect(editor().renameBlocked("answer")).toBeNull()
+
+        run(() => store.set(testcaseMolecule.actions.update, "case-2", {data: {answer: "No"}}))
+        await commit()
+
+        const delta = commitBody()?.testset_revision.delta
+        expect(delta?.columns).toBeUndefined()
+        expect(delta?.rows?.replace).toEqual([
+            {id: "case-2", data: {question: "Do you ship abroad?", answer: "No"}, set_id: TESTSET},
+        ])
+        expect(delta?.rows?.add).toBeUndefined()
+    })
+
     it("The column list follows a pending rename and a pending removal", async () => {
         await mount()
         // The same selector the table reads its headers from.
