@@ -1,10 +1,13 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.11, <3.14"
 resolution-markers = [
     "python_full_version >= '3.12'",
     "python_full_version < '3.12'",
 ]
+
+[manifest]
+overrides = [{ name = "certifi", specifier = ">=2026.10.18" }]
 
 [[package]]
 name = "agenta"
@@ -1587,17 +1590,18 @@ wheels = [
 
 [[package]]
 name = "miniopy-async"
-version = "1.21.1"
+version = "1.21.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiofile" },
     { name = "aiohttp" },
     { name = "certifi" },
+    { name = "typing-extensions" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/36/e3/d3a4d59219864a7f3d56fc038767cc480025f08d35acc32478ae09f6fbb9/miniopy_async-1.21.1.tar.gz", hash = "sha256:90f3b323288867ad3ede18f6a9b690fad9e1f6554805cadc108b2ceb2abffb20", size = 64767, upload-time = "2024-08-30T15:33:54.137Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0f/11/1b3f0afce7d5ec786105b98782e792743cc94337202f5e5f485756eb59ba/miniopy_async-1.21.3.tar.gz", hash = "sha256:099c70d136ee43ca680ea628fced0318718254e77751ad3628143d773e9604bb", size = 67042, upload-time = "2025-03-28T05:59:21.904Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fb/b1/2053241883e1ea1ded88652db70a3673bde9b336d399275e8c294d163deb/miniopy_async-1.21.1-py3-none-any.whl", hash = "sha256:3b1db6b15687205e7aa36dcced73b6fd97c7963b534114d74f99ad98223058a9", size = 84132, upload-time = "2024-08-30T15:33:52.49Z" },
+    { url = "https://files.pythonhosted.org/packages/00/50/801ef26f904f449b05e16eb72f25b49d1f34ce631fd114651c09f46b8112/miniopy_async-1.21.3-py3-none-any.whl", hash = "sha256:d5dcbee9043424031b6c642a4eb1c8cd9fad643fbf5747be08fd496beb03a759", size = 87784, upload-time = "2025-03-28T05:59:20.415Z" },
 ]
 
 [[package]]

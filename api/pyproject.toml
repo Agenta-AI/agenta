@@ -76,6 +76,11 @@ dev = [
 
 [tool.uv]
 package = false
+# miniopy-async 1.21.x caps certifi below 2026, which blocks the certifi security fix
+# (GHSA-6q48-6c7w-9gw2). Its code only needs certifi's CA bundle, so lift the cap here.
+# miniopy-async must stay on 1.21.3: 1.21.1 returns a tuple from remove_objects and
+# storage.py iterates it with `async for`.
+override-dependencies = ["certifi>=2026.10.18"]
 
 [tool.uv.sources]
 agenta = { path = "../sdks/python", editable = true }
