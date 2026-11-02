@@ -11,8 +11,11 @@ export interface QueueToDelete {
 
 const FAILURE_TEXT = "Couldn't delete this queue"
 
-/** Delete one queue after a confirm. A second confirm while the request runs sends nothing. */
-export const useQueueDelete = () => {
+/**
+ * Delete one queue after a confirm. A second confirm while the request runs sends nothing.
+ * `onDeleted` runs after a successful delete (the queue page leaves for the list).
+ */
+export const useQueueDelete = ({onDeleted}: {onDeleted?: () => void} = {}) => {
     const deleteQueue = useSetAtom(simpleQueueMolecule.actions.deleteQueue)
     const [target, setTarget] = useState<QueueToDelete | null>(null)
     const [isDeleting, setIsDeleting] = useState(false)
@@ -40,6 +43,7 @@ export const useQueueDelete = () => {
             if (!deleted) throw new Error("The server did not delete the queue")
             message.success("Deleted successfully")
             setTarget(null)
+            onDeleted?.()
         } catch (cause) {
             console.error("Deleting the annotation queue failed", cause)
             setError(FAILURE_TEXT)
@@ -47,7 +51,7 @@ export const useQueueDelete = () => {
             inFlight.current = false
             setIsDeleting(false)
         }
-    }, [deleteQueue, target])
+    }, [deleteQueue, target, onDeleted])
 
     return {target, requestDelete, confirm, cancel, isDeleting, error}
 }

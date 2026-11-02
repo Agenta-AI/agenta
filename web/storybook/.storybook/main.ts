@@ -116,6 +116,19 @@ const config: StorybookConfig = {
             }
         }
         cfg.resolve.alias = alias
+        // The /m annotation queue session screens read two controllers that need a live queue.
+        // Their stories swap in a stand-in, for the files of that one feature folder only.
+        cfg.module.rules.push({
+            test: /mobile[\\/]src[\\/]features[\\/]annotations[\\/]/,
+            resolve: {
+                alias: {
+                    "@agenta/annotation$": path.resolve(
+                        __dirname,
+                        "../fixtures/annotationSession.ts",
+                    ),
+                },
+            },
+        })
         return cfg
     },
 }
