@@ -132,7 +132,7 @@ describe("Testsets list", () => {
             result().loadMore()
         })
         await settle(() =>
-            expect(message.error).toHaveBeenCalledWith("Couldn't load more testsets"),
+            expect(message.error).toHaveBeenCalledWith("Couldn't load more test sets"),
         )
 
         expect(result().testsets).toEqual([alpha])

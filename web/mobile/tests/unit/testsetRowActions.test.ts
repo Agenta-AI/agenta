@@ -84,7 +84,7 @@ describe("Testset row actions", () => {
         await act(async () => actions().openLatest(row))
 
         expect(push).not.toHaveBeenCalled()
-        expect(message.error).toHaveBeenCalledWith("This testset has no saved revision yet")
+        expect(message.error).toHaveBeenCalledWith("This test set has no saved revision yet")
     })
 
     it("Opening a testset that cannot be read shows a plain error and stays", async () => {
@@ -93,7 +93,7 @@ describe("Testset row actions", () => {
         await act(async () => actions().openLatest(row))
 
         expect(push).not.toHaveBeenCalled()
-        expect(message.error).toHaveBeenCalledWith("Couldn't open this testset")
+        expect(message.error).toHaveBeenCalledWith("Couldn't open this test set")
     })
 
     it("Export uses the sanitized name and the chosen format", async () => {
@@ -125,7 +125,7 @@ describe("Testset row actions", () => {
 
         await act(async () => {
             await expect(actions().archive(row)).rejects.toThrow(
-                "The testset is used by 2 evaluations. Archive or delete the evaluations first.",
+                "The test set is used by 2 evaluations. Archive or delete the evaluations first.",
             )
         })
         expect(testsetMolecule.lifecycle.archive).not.toHaveBeenCalled()
@@ -136,7 +136,7 @@ describe("Testset row actions", () => {
 
         await act(async () => {
             await expect(actions().archive(row)).rejects.toThrow(
-                "The testset is used by 1 evaluation. Archive or delete the evaluation first.",
+                "The test set is used by 1 evaluation. Archive or delete the evaluation first.",
             )
         })
     })
@@ -162,20 +162,20 @@ describe("Testset row actions", () => {
 
         await act(async () => void actions().openLatest(row))
         await act(async () => {
-            await expect(actions().archive(row)).rejects.toThrow("This testset is busy")
+            await expect(actions().archive(row)).rejects.toThrow("This test set is busy")
         })
         expect(testsetMolecule.lifecycle.archive).not.toHaveBeenCalled()
         await act(async () => finish({id: "rev-1", version: 1} as never))
     })
 
-    it("A failed archive shows Couldn't archive this testset", async () => {
+    it("A failed archive shows Couldn't archive this test set", async () => {
         vi.mocked(fetchEvaluationRunIdsUsingTestsets).mockResolvedValue([])
         vi.mocked(testsetMolecule.lifecycle.archive).mockRejectedValue(
             new Error("Request failed with 500"),
         )
 
         await act(async () => {
-            await expect(actions().archive(row)).rejects.toThrow("Couldn't archive this testset")
+            await expect(actions().archive(row)).rejects.toThrow("Couldn't archive this test set")
         })
         expect(message.success).not.toHaveBeenCalled()
     })

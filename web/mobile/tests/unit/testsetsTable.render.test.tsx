@@ -109,7 +109,7 @@ describe("Testsets table", () => {
     it("No testsets shows the empty state with Create new testset", async () => {
         const onCreate = vi.fn()
         await mount(<TestsetsEmpty onCreate={onCreate} />)
-        expect(host.textContent).toContain("No testsets yet")
+        expect(host.textContent).toContain("No test sets yet")
         const button = Array.from(host.querySelectorAll("button")).find(
             (b) => b.textContent === "Create new testset",
         )
@@ -125,7 +125,7 @@ describe("Testsets table", () => {
     it("A search with no match offers Clear search", async () => {
         const onClear = vi.fn()
         await mount(<TestsetsNoMatch term="zeta" onClear={onClear} />)
-        expect(host.textContent).toContain("No testsets match “zeta”")
+        expect(host.textContent).toContain("No test sets match “zeta”")
         await act(async () => host.querySelector("button")?.click())
         expect(onClear).toHaveBeenCalled()
     })
@@ -153,7 +153,7 @@ describe("Testsets table", () => {
         await act(async () => item("Archive")?.click())
 
         expect(onArchive).not.toHaveBeenCalled()
-        expect(document.body.textContent).toContain("Archive this testset?")
+        expect(document.body.textContent).toContain("Archive this test set?")
 
         const confirmButton = Array.from(document.querySelectorAll("button")).find(
             (b) => b.textContent === "Archive",
@@ -165,7 +165,7 @@ describe("Testsets table", () => {
     it("A refused archive keeps the dialog open and shows the plain reason", async () => {
         const onArchive = vi.fn(async () => {
             throw new Error(
-                "The testset is used by 1 evaluation. Archive or delete the evaluation first.",
+                "The test set is used by 1 evaluation. Archive or delete the evaluation first.",
             )
         })
         await mount(<TestsetsTable {...props({onArchive})} />)
@@ -176,7 +176,7 @@ describe("Testsets table", () => {
         )
         await act(async () => confirmButton?.click())
 
-        expect(document.body.textContent).toContain("The testset is used by 1 evaluation")
-        expect(document.body.textContent).toContain("Archive this testset?")
+        expect(document.body.textContent).toContain("The test set is used by 1 evaluation")
+        expect(document.body.textContent).toContain("Archive this test set?")
     })
 })

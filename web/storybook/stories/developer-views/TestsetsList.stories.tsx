@@ -96,9 +96,9 @@ export const Filled: Story = {
         await userEvent.click(canvas.getAllByRole("button", {name: "Testset actions"})[0])
         const body = within(canvasElement.ownerDocument.body)
         await userEvent.click(await body.findByRole("menuitem", {name: "Archive"}))
-        await expect(await body.findByText("Archive this testset?")).toBeVisible()
+        await expect(await body.findByText("Archive this test set?")).toBeVisible()
         await userEvent.click(body.getByRole("button", {name: "Archive"}))
-        await waitFor(() => expect(body.queryByText("Archive this testset?")).toBeNull())
+        await waitFor(() => expect(body.queryByText("Archive this test set?")).toBeNull())
     },
 }
 
@@ -121,5 +121,5 @@ export const ReadOnly: Story = {args: {...base, canEdit: false, canExport: false
 
 export const LoadFailed: Story = {
     args: base,
-    render: () => <LoadError framed title="Could not load testsets" onRetry={() => undefined} />,
+    render: () => <LoadError framed title="Could not load test sets" onRetry={() => undefined} />,
 }

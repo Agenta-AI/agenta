@@ -134,11 +134,11 @@ describe("Testsets list screen", () => {
         expect(state.replace).not.toHaveBeenCalled()
     })
 
-    it("A failed load shows Could not load testsets with a retry", async () => {
+    it("A failed load shows Could not load test sets with a retry", async () => {
         state.list = {...state.list, isError: true}
         await mount(<TestsetsListScreen workspaceId="ws" projectId="pr" />)
-        expect(host.textContent).toContain("Could not load testsets")
-        expect(host.textContent).not.toContain("No testsets yet")
+        expect(host.textContent).toContain("Could not load test sets")
+        expect(host.textContent).not.toContain("No test sets yet")
         const retry = Array.from(host.querySelectorAll("button")).find(
             (b) => b.textContent === "Try again",
         )
@@ -150,7 +150,7 @@ describe("Testsets list screen", () => {
         state.list = {...state.list, isError: true, testsets: [{id: "t1", name: "Alpha set"}]}
         await mount(<TestsetsListScreen workspaceId="ws" projectId="pr" />)
         expect(host.textContent).toContain("Alpha set")
-        expect(host.textContent).not.toContain("Could not load testsets")
+        expect(host.textContent).not.toContain("Could not load test sets")
     })
 
     it("The search box follows a Back to another term", async () => {
@@ -165,10 +165,10 @@ describe("Testsets list screen", () => {
 
     it("An empty project says so, and a search with no result offers Clear search", async () => {
         await mount(<TestsetsListScreen workspaceId="ws" projectId="pr" />)
-        expect(host.textContent).toContain("No testsets yet")
+        expect(host.textContent).toContain("No test sets yet")
         state.query = {...state.query, q: "zeta"}
         await mount(<TestsetsListScreen workspaceId="ws" projectId="pr" />)
-        expect(host.textContent).toContain("No testsets match “zeta”")
+        expect(host.textContent).toContain("No test sets match “zeta”")
     })
 
     it("Create new testset shows only to a reader who may edit and has a create flow", async () => {
