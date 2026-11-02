@@ -335,7 +335,10 @@ describe("the copied link while nobody else has access", () => {
 
     it.each([
         ["someone was added", sharing({grants: [{user_id: bob.user_id, role: "viewer"}]})],
-        ["the chat is shared with the project", sharing({policy: {...sharing().policy, visibility: "project"}})],
+        [
+            "the chat is shared with the project",
+            sharing({policy: {...sharing().policy, visibility: "project"}}),
+        ],
     ])("says nothing more once %s", async (_, state) => {
         const onNotify = vi.fn()
         render({sharing: state, onCopyLink: () => true, onNotify})
