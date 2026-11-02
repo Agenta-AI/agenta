@@ -218,6 +218,7 @@ describe("keep-alive engine runCold teardown", () => {
     assert.deepEqual(destroyed, ["failed-turn"]);
   });
 });
+
 describe("keep-alive engine Daytona heartbeat", () => {
   it("refreshes activity during a long turn and stops when the turn finishes", async () => {
     vi.useFakeTimers();
@@ -271,6 +272,54 @@ describe("keep-alive engine Daytona heartbeat", () => {
         callsDuringTurn,
         "Expected heartbeat to stop after the turn finished",
       );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("refreshes activity during a cold turn and stops before the sandbox is deleted", async () => {
+    vi.useFakeTimers();
+
+    const refreshActivity = vi.fn().mockResolvedValue(undefined);
+    let finishTurn!: (result: AgentRunResult) => void;
+    let callsAtDestroy = -1;
+
+    mocks.acquireEnvironment.mockReset();
+    mocks.acquireEnvironment.mockResolvedValue({
+      ok: true,
+      env: {
+        resumable: false,
+        sessionId: undefined,
+        logger: () => {},
+        plan: { isDaytona: true },
+        sandbox: { sandbox: { refreshActivity }, sandboxId: "sandbox-cold" },
+        destroy: async () => {
+          callsAtDestroy = refreshActivity.mock.calls.length;
+        },
+      },
+    });
+    mocks.runTurn.mockReset();
+    mocks.runTurn.mockImplementation(
+      () =>
+        new Promise<AgentRunResult>((resolve) => {
+          finishTurn = resolve;
+        }),
+    );
+
+    try {
+      const coldPromise = makeKeepaliveEngine(() => ({})).runCold(REQUEST);
+
+      await vi.advanceTimersByTimeAsync(20 * 60 * 1000);
+      assert.ok(
+        refreshActivity.mock.calls.length > 0,
+        "Expected activity to refresh while the cold turn was running",
+      );
+
+      finishTurn(COMPLETED);
+      await coldPromise;
+      await vi.advanceTimersByTimeAsync(20 * 60 * 1000);
+
+      assert.equal(refreshActivity.mock.calls.length, callsAtDestroy);
     } finally {
       vi.useRealTimers();
     }
