@@ -63,6 +63,15 @@ const config = [
                     ],
                 },
             ],
+            // `no-restricted-imports` does not see `import(...)`, which `next/dynamic` uses.
+            "no-restricted-syntax": [
+                "error",
+                {
+                    selector: "ImportExpression > Literal[value=/^@agenta\\/annotation-ui(\\/|$)/]",
+                    message:
+                        "@agenta/annotation-ui is built on antd and is banned in web/mobile. Import the annotation state and helpers from @agenta/annotation.",
+                },
+            ],
             "react-hooks/rules-of-hooks": "error",
             "react-hooks/exhaustive-deps": "warn",
             "@typescript-eslint/no-explicit-any": "error",
