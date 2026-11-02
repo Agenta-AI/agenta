@@ -56,7 +56,7 @@ const useProvidersOrganization = (
  */
 export const LlmProvidersTab = ({workspaceId, projectId}: SettingsTabProps) => {
     const organization = useProvidersOrganization(workspaceId, projectId)
-    const {projectSwitch} = useSettingsProjectGroup(workspaceId, projectId, "llms")
+    const {projectSwitch} = useSettingsProjectGroup(workspaceId, projectId)
     return (
         <AIProvidersPage
             organization={organization ?? undefined}
