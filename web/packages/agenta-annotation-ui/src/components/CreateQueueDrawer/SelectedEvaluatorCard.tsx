@@ -9,7 +9,7 @@ import {
     formatHumanMetricLabel,
     getHumanMetrics,
     type WorkflowRevisionLike,
-} from "./EntityEvaluatorSelector"
+} from "../../state/evaluatorSummary"
 
 export interface SelectedEvaluatorCardData {
     revisionId: string

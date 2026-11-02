@@ -12,7 +12,7 @@ import type {KeyboardEvent, PropsWithChildren} from "react"
 
 import {annotationSessionController} from "@agenta/annotation"
 import {simpleQueueMolecule} from "@agenta/entities/simpleQueue"
-import {resolveOutputSchema, resolveParameters, workflowMolecule} from "@agenta/entities/workflow"
+import {resolveOutputSchema, workflowMolecule} from "@agenta/entities/workflow"
 import {EntityDeleteModal} from "@agenta/entity-ui"
 import {Editor} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
@@ -21,6 +21,11 @@ import {Button, Form, Input, Segmented, Skeleton, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigation} from "../../context/AnnotationUIContext"
+import {
+    deriveEvaluatorTypeLabel,
+    extractEvaluatorParameters,
+    parseOutputMetrics,
+} from "../../state/evaluatorSummary"
 import AssignmentsCell from "../AnnotationQueuesView/cells/AssignmentsCell"
 
 const {Text} = Typography
@@ -93,128 +98,6 @@ function EmptyValue() {
 // EVALUATOR HELPERS
 // ============================================================================
 
-/** Format a parameter key into a human-readable label (snake_case/camelCase → Title Case) */
-function formatParameterLabel(value: string): string {
-    const trimmed = value.trim()
-    if (!trimmed) return "Parameter"
-    const withSpaces = trimmed
-        .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-        .replace(/[_-]+/g, " ")
-        .replace(/\s+/g, " ")
-        .trim()
-    if (!withSpaces) return "Parameter"
-    return withSpaces
-        .split(" ")
-        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-        .join(" ")
-}
-
-/** Stringify a parameter value for display */
-function stringifyParamValue(value: unknown): string {
-    if (value == null) return ""
-    if (typeof value === "string") return value
-    if (typeof value === "number" || typeof value === "boolean") return String(value)
-    try {
-        return JSON.stringify(value, null, 2)
-    } catch {
-        return String(value)
-    }
-}
-
-interface OutputMetric {
-    name: string
-    type: string
-    required: boolean
-    description?: string
-}
-
-/** Parse output metrics from a JSON Schema (data.schemas.outputs) */
-function parseOutputMetrics(schema: unknown): OutputMetric[] {
-    if (!schema || typeof schema !== "object") return []
-    const node = schema as Record<string, unknown>
-    const properties = node.properties as Record<string, unknown> | undefined
-    if (!properties || typeof properties !== "object") return []
-
-    const requiredList = Array.isArray(node.required)
-        ? (node.required as unknown[]).map(String)
-        : []
-
-    return Object.entries(properties)
-        .map(([name, definition]) => {
-            if (!definition || typeof definition !== "object") return null
-            const def = definition as Record<string, unknown>
-            // Derive type string
-            let type = "unknown"
-            if (typeof def.type === "string") type = def.type
-            else if (Array.isArray(def.type))
-                type = (def.type as string[]).filter(Boolean).join(" | ")
-            else if (Array.isArray(def.enum))
-                type = `enum(${(def.enum as unknown[]).map(String).join(", ")})`
-
-            const description =
-                typeof def.description === "string" ? def.description.trim() : undefined
-
-            return {name, type, required: requiredList.includes(name), description}
-        })
-        .filter(Boolean) as OutputMetric[]
-}
-
-/** Keys to hide from parameter display */
-const PARAM_KEYS_TO_HIDE = new Set([
-    "messages",
-    "prompt_template",
-    "ag_config",
-    "agconfig",
-    "agConfig",
-])
-
-interface ParameterEntry {
-    key: string
-    label: string
-    displayValue: string
-    isMultiline: boolean
-}
-
-/** Extract displayable parameters from evaluator data. */
-function extractParameters(data: Record<string, unknown> | null | undefined): ParameterEntry[] {
-    const parameters = resolveParameters(data)
-    if (!parameters) return []
-
-    return Object.entries(parameters)
-        .filter(([key, value]) => {
-            if (value === null || value === undefined) return false
-            return !PARAM_KEYS_TO_HIDE.has(key) && !PARAM_KEYS_TO_HIDE.has(key.toLowerCase())
-        })
-        .map(([key, value]) => {
-            const displayValue = stringifyParamValue(value)
-            return {
-                key,
-                label: formatParameterLabel(key),
-                displayValue,
-                isMultiline: displayValue.includes("\n"),
-            }
-        })
-        .filter((entry) => entry.displayValue.trim().length > 0)
-}
-
-/** Derive evaluator type label from URI (e.g. "agenta:builtin:auto_exact_match:v0" → "Exact Match") */
-function deriveTypeLabel(uri: string | null | undefined): string | null {
-    if (!uri) return null
-    // Parse key from URI: agenta:builtin:<key>:v0
-    const parts = uri.split(":")
-    const key = parts.length >= 3 ? parts[2] : null
-    if (!key) return null
-    // Convert to display label
-    const withoutPrefix = key.startsWith("auto_") ? key.slice(5) : key
-    return withoutPrefix
-        .replace(/[_-]+/g, " ")
-        .replace(/\s+/g, " ")
-        .trim()
-        .split(" ")
-        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-        .join(" ")
-}
-
 // ============================================================================
 // READ-ONLY BOX (matches eval run details ReadOnlyBox pattern)
 // ============================================================================
@@ -256,7 +139,7 @@ const EvaluatorCard = memo(function EvaluatorCard({evaluatorId}: {evaluatorId: s
     const version = evaluator?.version
     const description = evaluator?.description
     const uri = evaluator?.data?.uri
-    const typeLabel = deriveTypeLabel(uri)
+    const typeLabel = deriveEvaluatorTypeLabel(uri)
 
     const evaluatorHref = useMemo(() => {
         const base = getProjectBaseUrl()
@@ -264,7 +147,7 @@ const EvaluatorCard = memo(function EvaluatorCard({evaluatorId}: {evaluatorId: s
     }, [evaluatorId])
 
     const paramEntries = useMemo(
-        () => extractParameters(evaluator?.data as Record<string, unknown> | null),
+        () => extractEvaluatorParameters(evaluator?.data as Record<string, unknown> | null),
         [evaluator?.data],
     )
 

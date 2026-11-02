@@ -1,5 +1,8 @@
 import type {ComponentType, ReactNode} from "react"
 
+import type {SimpleQueue} from "@agenta/entities/simpleQueue"
+import dynamic from "next/dynamic"
+
 /**
  * Host slots for the reference labels the trace drawer renders.
  *
@@ -25,6 +28,21 @@ export type DrillInViewProps = Record<string, unknown>
 /** Props the drawer passes to a slotted action button. */
 export type ActionSlotProps = Record<string, unknown>
 
+/** Props every add-to-queue picker takes: the trigger is `children`, the picker opens beside it. */
+export interface AddToQueuePopoverSlotProps {
+    itemType: "traces" | "testcases"
+    /** Item ids for the default add path. Omit when `onQueueSelected` is set. */
+    itemIds?: string[]
+    children: ReactNode
+    disabled?: boolean
+    onItemsAdded?: () => void
+    open?: boolean
+    onOpenChange?: (open: boolean) => void
+    toggleOnTriggerClick?: boolean
+    /** Picker mode: the caller owns the add, so picking a queue only reports it. */
+    onQueueSelected?: (queue: SimpleQueue) => void
+}
+
 export interface TraceDrawerReferenceSlots {
     ApplicationReferenceLabel: ComponentType<ReferenceLabelProps>
     EnvironmentReferenceLabel: ComponentType<ReferenceLabelProps>
@@ -45,6 +63,12 @@ export interface TraceDrawerReferenceSlots {
      */
     AddToTestsetButton: ComponentType<ActionSlotProps>
     AnnotateDrawerButton: ComponentType<ActionSlotProps>
+    /**
+     * The "add to annotation queue" picker. The default is the antd popover, loaded on first
+     * render only. A host that cannot ship antd (`/m`) registers its own picker, and its bundle
+     * then never requests the antd chunk.
+     */
+    AddToQueuePopover: ComponentType<AddToQueuePopoverSlotProps>
 }
 
 /** Renders the label text alone — enough to read the reference, with no lookup behaviour. */
@@ -55,11 +79,17 @@ const PlainReference: ComponentType<ReferenceLabelProps> = ({label}) => (
 /** Renders nothing — an unregistered action is absent, not broken. */
 const NoSlot: ComponentType<ActionSlotProps> = () => null
 
+const DefaultAddToQueuePopover: ComponentType<AddToQueuePopoverSlotProps> = dynamic(
+    () => import("@agenta/annotation-ui/add-to-queue").then((m) => m.default),
+    {ssr: false},
+)
+
 const slots: TraceDrawerReferenceSlots = {
     TraceSpanDrillInView: NoSlot,
     PrettyJsonView: NoSlot,
     AddToTestsetButton: NoSlot,
     AnnotateDrawerButton: NoSlot,
+    AddToQueuePopover: DefaultAddToQueuePopover,
     ApplicationReferenceLabel: PlainReference,
     EnvironmentReferenceLabel: PlainReference,
     EvaluatorReferenceLabel: PlainReference,

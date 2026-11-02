@@ -24,16 +24,7 @@ import {Button, Select, Switch, Tag, Tooltip, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigation} from "../../context"
-
-// ============================================================================
-// HELPERS
-// ============================================================================
-
-/** Truncates an ID to "first8...last4" format for display */
-function truncateId(id: string): string {
-    if (id.length <= 14) return id
-    return `${id.slice(0, 5)}...${id.slice(-5)}`
-}
+import {truncateScenarioId} from "../../state/queueLabels"
 
 // ============================================================================
 // TYPES
@@ -187,7 +178,7 @@ const SessionNavigation = ({scenarioId, queueId, onCompleted}: SessionNavigation
                         title={isTrace ? "Copy trace ID" : "Copy testcase ID"}
                     >
                         <Tag className="!font-mono bg-default flex items-center gap-2">
-                            {truncateId(displayId)} <Copy size={12} />
+                            {truncateScenarioId(displayId)} <Copy size={12} />
                         </Tag>
                     </CopyTooltip>
                 )}

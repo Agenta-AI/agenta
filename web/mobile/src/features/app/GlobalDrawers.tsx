@@ -8,6 +8,10 @@ import {WhatsNewDialog} from "@/features/education/WhatsNewDialog"
 import {bindTraceDrawerSeams} from "@/features/observability/bindTraceDrawerSeams"
 import {registerTraceDrawerSlots} from "@/features/observability/registerTraceDrawerSlots"
 
+// Registered when this module loads, not while rendering: `Component` renders before this
+// component in `_app`, and a screen that read the slots first would get the antd defaults.
+registerTraceDrawerSlots()
+
 /**
  * Drawers any screen can open, mounted once for the whole app.
  *
@@ -17,12 +21,11 @@ import {registerTraceDrawerSlots} from "@/features/observability/registerTraceDr
  * on that page.
  *
  * The router seams move with it: they must be bound wherever the drawer can open, not only where
- * the traces table lives. The data slots are registered here for the same reason.
+ * the traces table lives. The slots are registered here for the same reason.
  */
 export const GlobalDrawers = () => {
     const router = useRouter()
     bindTraceDrawerSeams(router)
-    registerTraceDrawerSlots()
     // The split puts a 320px tree beside a content pane of at least 400px, so it stacks below 720px.
     const wide = useMediaQuery("(min-width: 720px)")
     return (
