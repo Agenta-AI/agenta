@@ -1,4 +1,4 @@
-import {useEffect} from "react"
+import {useEffect, type ReactNode} from "react"
 
 import {appWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {AgentGlyph} from "@agenta/entity-ui/agent"
@@ -13,6 +13,14 @@ export interface AppFilterOption {
     id: string
     name: string
 }
+
+/** One row, also what the closed trigger shows: the icon and the name on one line. */
+const Option = ({icon, name}: {icon: ReactNode; name: string}) => (
+    <span className="flex min-w-0 items-center gap-2">
+        {icon}
+        <span className="truncate">{name}</span>
+    </span>
+)
 
 /**
  * The picker itself: no data of its own, so a story can render every state.
@@ -40,17 +48,20 @@ export const AppFilterSelect = ({
         </SelectTrigger>
         <SelectContent>
             <SelectItem value={ALL_APPS}>
-                <Robot size={ICON} aria-hidden />
-                All apps
+                <Option icon={<Robot size={ICON} aria-hidden />} name="All apps" />
             </SelectItem>
             {apps.map((app) => (
                 <SelectItem key={app.id} value={app.id}>
-                    <AgentGlyph
-                        workflowId={app.id}
-                        size={ICON}
-                        fallback={<Robot size={ICON} aria-hidden />}
+                    <Option
+                        icon={
+                            <AgentGlyph
+                                workflowId={app.id}
+                                size={ICON}
+                                fallback={<Robot size={ICON} aria-hidden />}
+                            />
+                        }
+                        name={app.name}
                     />
-                    {app.name}
                 </SelectItem>
             ))}
         </SelectContent>
