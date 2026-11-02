@@ -42,17 +42,17 @@ export const useChatAccess = ({
     }, [readable, sessionId])
     const hadAccess = accessSessionRef.current === sessionId
 
+    const fresh = isSessionFresh(sessionId)
+    // A chat with no turns has no row, and the fresh marker does not survive a reload. On a route
+    // that names the agent, "no row" is that empty chat: it may send, and the server checks access.
+    const emptyChat = notFound && !hadAccess && Boolean(routeAgentId)
     let blocked: "not_found" | "removed" | null = null
     if (notFound) {
         if (hadAccess) blocked = "removed"
-        else if (!isSessionFresh(sessionId) && !routeAgentId) blocked = "not_found"
+        else if (!fresh && !emptyChat) blocked = "not_found"
     }
 
-    const fresh = isSessionFresh(sessionId)
     const failed = query.isError
-    // A chat with no turns has no row, and the fresh marker does not survive a reload. On a route
-    // that names the agent, "no row" is that empty chat: it may send, and the server checks access.
-    const emptyChat = notFound && Boolean(routeAgentId) && !blocked
     const known = sessionAccessKnown({fresh: fresh || emptyChat, loaded: Boolean(sharing), failed})
     // The row read says whether the chat's agent is hidden from this reader (it polls, so an
     // agent made private while the chat is open is seen within the recheck bound). Null when

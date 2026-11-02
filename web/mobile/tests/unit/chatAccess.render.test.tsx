@@ -151,7 +151,6 @@ describe("until the sharing state of an existing chat is known", () => {
     })
 
     it("an empty chat on its agent's route may send after a reload", async () => {
-        // No turns means no row, and a reload clears the fresh marker.
         rows.querySessionStreams.mockResolvedValue(notFound)
         await mount("empty-after-reload", "agent-1")
         await advance(0)
