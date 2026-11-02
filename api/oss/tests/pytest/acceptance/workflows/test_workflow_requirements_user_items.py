@@ -98,8 +98,12 @@ def _requirements(authed_api, **body):
 
 
 def _personal_accounts_enabled(authed_api) -> bool:
+    # Gate on the server: the runner's env need not match the API's, and no route shows
+    # the flag to an API key. Any other answer fails rather than skips.
     body = _requirements(authed_api, parameters=_agent(_USER_LOGIN_MODEL))
-    return [item["key"] for item in body["requirements"]] != ["model:anthropic/haiku"]
+    keys = [item["key"] for item in body["requirements"]]
+    assert keys in (["subscription:user/claude"], ["model:anthropic/haiku"]), keys
+    return keys == ["subscription:user/claude"]
 
 
 def _require_personal_accounts(authed_api, enabled: bool):
