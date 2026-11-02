@@ -72,8 +72,7 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
     // A reset link only works where members sign in with a password; with email codes the
     // backend has no password recipe and the request fails.
     const passwordSignIn = getEmailSignInMode() === "password"
-    const canResetPassword =
-        useProjectPermission(projectId, "reset_password") && passwordSignIn
+    const canResetPassword = useProjectPermission(projectId, "reset_password") && passwordSignIn
     const canChangeRoles = useProjectPermission(projectId, "modify_user_roles")
     // The remove route requires the admin role itself (or the organization owner), whatever
     // permissions a custom role holds, so this reads the reader's own role.
