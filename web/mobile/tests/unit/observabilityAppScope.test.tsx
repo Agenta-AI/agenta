@@ -107,14 +107,18 @@ describe("useObservabilityAppScope", () => {
 
     it("The scope survives the StrictMode effect replay", () => {
         const seen: ObservabilityScope[] = []
-        render(
-            <StrictMode>
-                <Screen routeAppId="app-1" enabled seen={seen} />
-            </StrictMode>,
+        // StrictMode at the root, as Next renders it: React replays the effects only then.
+        act(() =>
+            root.render(
+                <StrictMode>
+                    <Provider store={store}>
+                        <Screen routeAppId="app-1" enabled seen={seen} />
+                    </Provider>
+                </StrictMode>,
+            ),
         )
 
         expect(store.get(observabilityScopeAtom)).toEqual({appId: "app-1", routeAppId: "app-1"})
-        // A mounted query never sees a project wide scope during the replay.
         expect(seen.every((scope) => scope.appId === "app-1")).toBe(true)
     })
 
