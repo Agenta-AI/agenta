@@ -1,5 +1,5 @@
 import type {Key} from "react"
-import {useCallback, useRef, useState} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
 import {useObservability, useSessions} from "@agenta/observability"
 import {ObservabilityRangePicker, ObservabilityToolbar} from "@agenta/observability-ui"
@@ -8,11 +8,14 @@ import {PageLayout} from "@agenta/ui"
 import {useIsNarrowScreen} from "@agenta/ui/hooks"
 import {useSetAtom} from "jotai"
 import {MessagesSquare, Network} from "lucide-react"
+import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {projectHomeUrl} from "@/lib/context"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
+import {useProjectPermissionState} from "../context/useProjectPermission"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
@@ -68,6 +71,14 @@ export const ObservabilityScreen = ({
 }) => {
     useBindProjectContext(projectId)
     const [tab, setTab] = useState<ObservabilityTab>("traces")
+    // This whole screen is trace content. A role without `view_spans` reads none of it, so the
+    // route itself leads back to the project rather than to a page of refusals.
+    const router = useRouter()
+    const spans = useProjectPermissionState(projectId, "view_spans")
+    useEffect(() => {
+        if (!spans.pending && !spans.allowed)
+            void router.replace(projectHomeUrl({workspaceId, projectId}))
+    }, [spans.allowed, spans.pending, projectId, router, workspaceId])
 
     // No scope binding: the seam's own defaults are project-wide with no workflow, which is
     // exactly this screen. Binding would only re-state them.

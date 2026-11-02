@@ -164,3 +164,32 @@ describe("settings sidebar scopes", () => {
         expect(getSettingsTabLabel("mcpEndpoints", baseAccess)).toBe("MCPs")
     })
 })
+
+describe("tabs a role cannot read", () => {
+    it("hides Analytics when the reader may not read trace content", () => {
+        expect(isSettingsTabVisible("analytics", {...baseAccess, canViewAnalytics: false})).toBe(
+            false,
+        )
+        expect(isSettingsTabVisible("analytics", {...baseAccess, canViewAnalytics: true})).toBe(
+            true,
+        )
+    })
+
+    it("keeps Analytics visible for a host that says nothing about it", () => {
+        expect(isSettingsTabVisible("analytics", baseAccess)).toBe(true)
+    })
+
+    it("shows the plan page to a non-owner who may read billing", () => {
+        expect(
+            isSettingsTabVisible("billing", {
+                ...baseAccess,
+                isOwner: false,
+                canViewBilling: true,
+            }),
+        ).toBe(true)
+    })
+
+    it("falls back to the owner check for a host that says nothing about billing", () => {
+        expect(isSettingsTabVisible("billing", {...baseAccess, isOwner: false})).toBe(false)
+    })
+})

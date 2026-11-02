@@ -12,6 +12,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from oss.src.core.shared.dtos import RunUsage
 from oss.src.core.tracing.dtos import OTelFlatSpan, SpanType
 from oss.src.core.tracing.streaming import serialize_span
 from oss.src.core.tracing.utils.trees import (
@@ -43,7 +44,7 @@ class _StoringService:
         for span_dto in calculate_and_propagate_metrics_by_trace(span_dtos):
             self.spans[span_dto.span_id] = deepcopy(span_dto)
 
-    async def recompute_trace_totals(self, *, project_id, trace_id):
+    async def recompute_trace_totals(self, *, project_id, trace_id, on_root_usage=None):
         self.recomputed.append((project_id, trace_id))
         if self.recompute_failures:
             self.recompute_failures -= 1
@@ -83,9 +84,23 @@ def _message(ids, span_dto):
     return (uuid4().hex.encode(), {b"data": serialize_span(**ids, span_dto=span_dto)})
 
 
-def _worker(service):
+class _Turns:
+    def __init__(self, failures=0):
+        self.written = []
+        self.failures = failures
+
+    async def set_turn_usage_from_trace(self, *, project_id, trace_id, usage):
+        if self.failures:
+            self.failures -= 1
+            raise ConnectionError("core database down")
+        self.written.append((project_id, trace_id, usage))
+        return 1
+
+
+def _worker(service, turns=None):
     return TracingWorker(
         service=service,
+        turns_service=turns or _Turns(),
         redis_client=None,
         stream_name="streams:spans",
         consumer_group="worker-spans",
@@ -171,7 +186,7 @@ class _Session:
         return _Result([])
 
     async def commit(self):
-        pass
+        self.engine.executed.append(("COMMIT", None))
 
 
 class _Engine:
@@ -235,7 +250,7 @@ async def test_dao_writes_only_changed_cumulative_values_in_span_order():
     )
 
     assert "pg_advisory_xact_lock" in str(engine.executed[0][0])
-    update_stmt, params = engine.executed[-1]
+    update_stmt, params = engine.executed[-2]
     assert update_stmt is UPDATE_CUMULATIVE_METRIC_STMT
     assert written == 2
     assert [(p["span_id"], p["metric"]) for p in params] == [
@@ -259,3 +274,110 @@ async def test_dao_skips_a_trace_over_the_span_limit():
 
     assert written is None
     assert len(engine.executed) == 2
+
+
+async def test_dao_hands_on_the_root_usage_before_the_commit():
+    root, child = UUID(int=2), UUID(int=1)
+    rows = [
+        _row(root, None, SpanType.WORKFLOW, 0, None),
+        _row(
+            child,
+            root,
+            SpanType.CHAT,
+            1,
+            {
+                "costs": {"incremental": {"total": 0.02}},
+                "tokens": {"incremental": {"prompt": 10, "completion": 5}},
+            },
+        ),
+    ]
+    engine = _Engine(rows)
+    seen = []
+
+    async def on_root_usage(usage):
+        assert ("COMMIT", None) not in engine.executed
+        seen.append(usage)
+
+    await TracingDAO(engine=engine).recompute_trace_metrics(
+        project_id=uuid4(),
+        trace_id=uuid4(),
+        recompute=recompute_cumulative_metrics,
+        max_spans=10,
+        on_root_usage=on_root_usage,
+    )
+
+    assert len(seen) == 1
+    usage = seen[0]
+    assert (usage.input_tokens, usage.output_tokens, usage.total_tokens) == (10, 5, 15)
+    assert usage.cost == pytest.approx(0.02)
+    assert engine.executed[-1] == ("COMMIT", None)
+
+
+async def test_dao_hands_on_nothing_for_a_trace_without_usage():
+    seen = []
+
+    async def on_root_usage(usage):
+        seen.append(usage)
+
+    await TracingDAO(
+        engine=_Engine([_row(UUID(int=1), None, SpanType.WORKFLOW, 0, None)])
+    ).recompute_trace_metrics(
+        project_id=uuid4(),
+        trace_id=uuid4(),
+        recompute=recompute_cumulative_metrics,
+        max_spans=10,
+        on_root_usage=on_root_usage,
+    )
+
+    assert seen == []
+
+
+class _UsageService(_StoringService):
+    """Hands a fixed root usage on, as the DAO does for a priced trace."""
+
+    def __init__(self, usage):
+        super().__init__()
+        self.usage = usage
+
+    async def recompute_trace_totals(self, *, project_id, trace_id, on_root_usage=None):
+        await super().recompute_trace_totals(project_id=project_id, trace_id=trace_id)
+        if self.usage is not None and on_root_usage is not None:
+            await on_root_usage(usage=self.usage)
+        return 0
+
+
+async def test_a_priced_trace_writes_its_root_usage_to_the_turn():
+    turns = _Turns()
+    usage = RunUsage(input_tokens=3, output_tokens=4, total_tokens=7, cost=0.5)
+    worker = _worker(_UsageService(usage), turns)
+    ids = dict(organization_id=uuid4(), project_id=uuid4(), user_id=uuid4())
+    trace_id = uuid4()
+
+    await worker.process_batch([_message(ids, _span(trace_id, uuid4(), None, 0))])
+
+    assert turns.written == [(ids["project_id"], trace_id, usage)]
+
+
+async def test_an_unpriced_trace_writes_no_turn():
+    turns = _Turns()
+    worker = _worker(_UsageService(None), turns)
+    ids = dict(organization_id=uuid4(), project_id=uuid4(), user_id=uuid4())
+
+    await worker.process_batch([_message(ids, _span(uuid4(), uuid4(), None, 0))])
+
+    assert turns.written == []
+
+
+async def test_a_failed_usage_write_is_retried_with_the_recompute(monkeypatch):
+    monkeypatch.setattr(worker_module, "RECOMPUTE_BACKOFF_S", 0)
+    turns = _Turns(failures=1)
+    usage = RunUsage(cost=0.5)
+    service = _UsageService(usage)
+    worker = _worker(service, turns)
+    ids = dict(organization_id=uuid4(), project_id=uuid4(), user_id=uuid4())
+    trace_id = uuid4()
+
+    await worker.process_batch([_message(ids, _span(trace_id, uuid4(), None, 0))])
+
+    assert len(service.recomputed) == 2
+    assert turns.written == [(ids["project_id"], trace_id, usage)]

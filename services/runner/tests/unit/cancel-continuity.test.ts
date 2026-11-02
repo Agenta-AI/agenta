@@ -65,6 +65,7 @@ function fakeCancellableSandbox(opts: CancelFakeOpts = {}) {
       turnIndex: number;
       agentSessionId?: string;
       endTime: string;
+      usage?: unknown;
     }>,
     cancelled: [] as string[],
     logs: [] as string[],
@@ -156,13 +157,14 @@ function fakeCancellableSandbox(opts: CancelFakeOpts = {}) {
   appendSessionTurn.complete = async (
     sessionId: string,
     turnIndex: number,
-    turn: { agentSessionId?: string; endTime: string },
+    turn: { agentSessionId?: string; endTime: string; usage?: unknown },
   ) => {
     calls.completed.push({
       sessionId,
       turnIndex,
       agentSessionId: turn.agentSessionId,
       endTime: turn.endTime,
+      ...(turn.usage ? { usage: turn.usage } : {}),
     });
   };
 
@@ -295,6 +297,11 @@ describe("a stopped turn's continuity record", () => {
     assert.ok(
       completed.endTime && !Number.isNaN(Date.parse(completed.endTime)),
       "end_time is an ISO instant, not empty",
+    );
+    assert.deepEqual(
+      completed.usage,
+      { input: 0, output: 0, total: 0, cost: 0 },
+      "the completion carries the tracer's settled usage of the turn",
     );
   });
 

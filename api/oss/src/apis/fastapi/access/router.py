@@ -1,5 +1,5 @@
 from hmac import compare_digest
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, List, Optional, Union
 from uuid import UUID
 
 from fastapi import APIRouter, Query, HTTPException, Request
@@ -27,8 +27,10 @@ from oss.src.core.gateways.run_claims import run_accounts
 from oss.src.core.access.context import get_request_access
 from oss.src.core.access.principals import access_denied_error
 from oss.src.core.access.service import get_access_service
+from oss.src.core.access.types import RbacEntitlementUnavailable
 from oss.src.core.access.permissions.controls import SCOPES
 from oss.src.core.access.controls import get_roles
+from oss.src.apis.fastapi.access.models import AccessRolesResponse
 
 if is_ee():
     from ee.src.core.access.entitlements.service import check_entitlements, Counter
@@ -209,15 +211,27 @@ class AccessRouter:
             self.fetch_roles,
             methods=["GET"],
             operation_id="fetch_access_roles",
+            response_model=AccessRolesResponse,
         )
 
     @intercept_exceptions()
-    async def fetch_roles(self) -> Dict[str, List[Dict[str, Any]]]:
-        """Return the effective role catalog per scope (organization,
-        workspace, project). RBAC is an OSS feature, so this is served in both
-        editions; the frontend reads the `workspace` scope for the members UI.
+    async def fetch_roles(self) -> AccessRolesResponse:
+        """Return the effective role catalog per scope (organization, workspace,
+        project), and the offered roles of the caller's organization (`offered`): the
+        roles its invites and role changes may set, and its floor role. The catalog
+        keeps every role, so a stored role that is not offered still has a description
+        and permissions.
         """
-        return {scope: list(get_roles(scope)) for scope in SCOPES}
+        try:
+            offered = await get_access_service().offered_roles(
+                organization_id=get_auth_scope().organization_id
+            )
+        except RbacEntitlementUnavailable as exc:
+            raise HTTPException(status_code=503, detail=exc.message) from exc
+        return AccessRolesResponse(
+            **{scope: list(get_roles(scope)) for scope in SCOPES},
+            offered=offered,
+        )
 
     async def check_permissions(
         self,

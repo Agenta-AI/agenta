@@ -1,6 +1,10 @@
+import {getAccessClient} from "@agenta/sdk/resources"
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {getDefaultStore} from "jotai"
+import {z} from "zod"
+
+import {safeParseWithLogging} from "../shared/utils/zodSchema"
 
 import {toSafeIdSegment} from "./idSegments"
 import type {Workspace, WorkspaceMember, WorkspaceRole} from "./types"
@@ -15,21 +19,45 @@ const getProjectValues = () => ({projectId: getDefaultStore().get(projectIdAtom)
 //  - update: PUT data to server
 //  - delete: DELETE data from server
 
-export const fetchAllWorkspaceRoles = async (ignoreAxiosError = false) => {
-    // Read workspace-scope roles from /access/roles and project to the legacy
-    // `{role_name, role_description}` shape callers expect.
-    const response = await axios.get(`${getAgentaApiUrl()}/access/roles`, {
-        _ignoreError: ignoreAxiosError,
+/** `/access/roles`: the catalog per scope, and the roles this organization may set now. */
+const roleCatalogEntrySchema = z.object({
+    role: z.string(),
+    description: z.string().nullish(),
+    permissions: z.array(z.string()).optional(),
+})
+
+const accessRolesResponseSchema = z.object({
+    project: z.array(roleCatalogEntrySchema),
+    offered: z.object({roles: z.array(z.string()), floor_role: z.string()}),
+})
+
+/**
+ * The roles an invite or a role change may set in this organization, in catalog order.
+ *
+ * The plan decides the list, and it never holds `owner`: ownership moves by transfer only, and
+ * both routes refuse anything the plan does not offer. Each entry keeps the catalog's
+ * description.
+ *
+ * The route answers for the caller's organization, which the request's auth scope names, so the
+ * project rides along: a session with no project is scoped to the default one, which can belong
+ * to another organization.
+ */
+export const fetchOfferedRoles = async (
+    projectId?: string,
+): Promise<Omit<WorkspaceRole, "permissions">[]> => {
+    const raw = await getAccessClient().fetchAccessRoles({
+        queryParams: projectId ? {project_id: projectId} : undefined,
     })
-    const data = response.data as Record<
-        "organization" | "workspace" | "project",
-        {role: string; description?: string | null; permissions: string[]}[]
-    >
-    const workspaceRoles = data?.workspace ?? []
-    return workspaceRoles.map((entry) => ({
-        role_name: entry.role,
-        role_description: entry.description ?? "",
-    })) as Omit<WorkspaceRole, "permissions">[]
+    const data = safeParseWithLogging(accessRolesResponseSchema, raw, "[fetchOfferedRoles]")
+    if (!data) throw new Error("The roles answer did not validate")
+    const offered = new Set(data.offered.roles)
+    // The API offers roles from the project catalog, which the access check reads.
+    return data.project
+        .filter((entry) => offered.has(entry.role))
+        .map((entry) => ({
+            role_name: entry.role,
+            role_description: entry.description ?? "",
+        }))
 }
 
 export const assignWorkspaceRole = async (
