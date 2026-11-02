@@ -841,7 +841,10 @@ async def handle_commit_revision(
     sees the RESULT of an operation. A check here would see only what the agent named, and
     an operation that writes an ancestor object can change a refused path without naming it.
     """
-    from oss.src.core.embeds.exceptions import NonEmbeddableWorkflowReferenceError
+    from oss.src.core.embeds.exceptions import (
+        EmbedReferenceInconsistentError,
+        NonEmbeddableWorkflowReferenceError,
+    )
     from oss.src.core.git.types import CommitLockTimeout, VariantNotFound
     from oss.src.core.workflows.change_set import AGENT_COMMIT_SCOPE, ChangeSetError
     from oss.src.core.workflows.dtos import WorkflowRevisionCommit
@@ -969,6 +972,19 @@ async def handle_commit_revision(
                     "Remove the embedded reference to that workflow and send the commit "
                     "again."
                 ),
+            )
+        )
+    except EmbedReferenceInconsistentError as e:
+        return PlatformHandlerResult.failure(
+            AgentError(
+                code="inconsistent_embed_reference",
+                message=e.message,
+                retryable=False,
+                next_step=(
+                    "Look up the workflow by its slug, then send the embed with that "
+                    "workflow's own id, or with the slug alone."
+                ),
+                details={"slug": e.slug} if e.slug else {},
             )
         )
     except StaticWorkflowSlug as e:
