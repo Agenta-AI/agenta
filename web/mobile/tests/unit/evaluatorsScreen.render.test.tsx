@@ -11,6 +11,7 @@ const noop = vi.hoisted(() => () => undefined)
 const state = vi.hoisted(() => ({
     query: {} as Record<string, string>,
     perms: {} as Record<string, boolean>,
+    recheck: vi.fn(),
     replace: vi.fn(),
 }))
 const api = vi.hoisted(() => ({
@@ -80,6 +81,8 @@ vi.mock("@/features/context/useProjectPermission", () => ({
     useProjectPermissionState: (_project: string, action: string) => ({
         allowed: state.perms[action] ?? true,
         pending: false,
+        failed: false,
+        recheck: state.recheck,
     }),
 }))
 vi.mock("@/components/PageTitle", () => ({PageTitle: () => null}))
@@ -135,6 +138,7 @@ beforeEach(() => {
     window.localStorage.clear()
     state.query = {}
     state.perms = {}
+    state.recheck.mockReset()
     state.replace.mockReset()
     Object.values(api).forEach((mock) => mock.mockReset())
     server = makeEvaluatorServer()
@@ -316,6 +320,13 @@ describe("EvaluatorsScreen", () => {
         expect(text()).toContain("Could not load evaluators")
         expect(api.queryWorkflows).not.toHaveBeenCalled()
         expect(document.querySelector('[data-testid="drawer"]')).toBeNull()
+    })
+
+    it("Try again also runs the view_evaluators lookup again", async () => {
+        state.perms.view_evaluators = false
+        await mount()
+        await act(async () => button(/try again/i)?.click())
+        expect(state.recheck).toHaveBeenCalledTimes(1)
     })
 
     it("A failed load shows a retry", async () => {

@@ -136,6 +136,8 @@ export const EvaluatorsScreen = ({
     const isLoading =
         view.pending || evaluators.isPending || (workflowIds.length > 0 && revisions.isPending)
     const retry = () => {
+        // A failed or refused lookup is asked again too, or the page stays on "Could not load".
+        if (!view.allowed) view.recheck()
         void evaluators.refetch()
         void revisions.refetch()
     }

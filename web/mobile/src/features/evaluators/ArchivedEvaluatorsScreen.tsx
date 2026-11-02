@@ -1,11 +1,13 @@
-import {useMemo, useState} from "react"
+import {useLayoutEffect, useMemo, useState} from "react"
 
+import {workflowIncludeArchivedAtom} from "@agenta/entities/workflow"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableToolbar} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
 import {ArrowLeft} from "@phosphor-icons/react"
+import {useSetAtom} from "jotai"
 import Link from "next/link"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -54,6 +56,12 @@ export const ArchivedEvaluatorsScreen = ({
         enabled: view.allowed,
     })
     const denied = !view.pending && !view.allowed
+    // A revision opened from this list may belong to an archived evaluator: ask for it as such.
+    const setIncludeArchived = useSetAtom(workflowIncludeArchivedAtom)
+    useLayoutEffect(() => {
+        setIncludeArchived(true)
+        return () => setIncludeArchived(false)
+    }, [setIncludeArchived])
     const rows = useMemo(() => archived.entries.map(toArchivedRow), [archived.entries])
     const [, setRevisionId] = useRevisionParam()
     const {restore, restoring} = useRestoreEvaluator()
@@ -96,7 +104,10 @@ export const ArchivedEvaluatorsScreen = ({
                             <LoadError
                                 framed
                                 title="Could not load archived evaluators"
-                                onRetry={() => void archived.refetch()}
+                                onRetry={() => {
+                                    if (!view.allowed) view.recheck()
+                                    void archived.refetch()
+                                }}
                             />
                         ) : (
                             <ArchivedEvaluatorsTable

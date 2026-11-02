@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import {act, createElement, lazy, Suspense, type ComponentType} from "react"
 
+import {workflowIncludeArchivedAtom} from "@agenta/entities/workflow"
 import {setProjectIdAtom} from "@agenta/shared/state"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {createStore, Provider} from "jotai"
@@ -11,6 +12,7 @@ const noop = vi.hoisted(() => () => undefined)
 const state = vi.hoisted(() => ({
     query: {} as Record<string, string>,
     perms: {} as Record<string, boolean>,
+    recheck: vi.fn(),
     replace: vi.fn(),
 }))
 const api = vi.hoisted(() => ({
@@ -68,6 +70,8 @@ vi.mock("@/features/context/useProjectPermission", () => ({
     useProjectPermissionState: (_project: string, action: string) => ({
         allowed: state.perms[action] ?? true,
         pending: false,
+        failed: false,
+        recheck: state.recheck,
     }),
 }))
 vi.mock("@/components/PageTitle", () => ({PageTitle: () => null}))
@@ -81,6 +85,7 @@ import {latestByWorkflow, makeArchivedServer, type EvaluatorServer} from "./eval
 let host: HTMLDivElement
 let root: Root
 let server: EvaluatorServer
+let store = createStore()
 
 const flush = async () => {
     await act(async () => {
@@ -89,7 +94,7 @@ const flush = async () => {
 }
 
 const mount = async () => {
-    const store = createStore()
+    store = createStore()
     store.set(setProjectIdAtom, "pr")
     await act(async () => {
         root.render(
@@ -129,6 +134,7 @@ beforeEach(() => {
     window.localStorage.clear()
     state.query = {}
     state.perms = {}
+    state.recheck.mockReset()
     state.replace.mockReset()
     Object.values(api).forEach((mock) => mock.mockReset())
     server = makeArchivedServer()
@@ -263,6 +269,21 @@ describe("ArchivedEvaluatorsScreen", () => {
         await mount()
         expect(text()).toContain("Could not load archived evaluators")
         expect(api.queryWorkflows).not.toHaveBeenCalled()
+    })
+
+    it("Try again also runs the view_evaluators lookup again", async () => {
+        state.perms.view_evaluators = false
+        await mount()
+        const retry = [...host.querySelectorAll("button")].find((b) =>
+            /try again/i.test(b.textContent ?? ""),
+        )
+        await act(async () => retry?.click())
+        expect(state.recheck).toHaveBeenCalledTimes(1)
+    })
+
+    it("Opens the drawer with archived revisions included", async () => {
+        await mount()
+        expect(store.get(workflowIncludeArchivedAtom)).toBe(true)
     })
 
     it("A failed load shows a retry", async () => {

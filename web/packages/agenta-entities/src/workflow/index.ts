@@ -319,6 +319,7 @@ export {
     type WorkflowListRef,
     // Single entity
     workflowQueryAtomFamily,
+    workflowIncludeArchivedAtom,
     workflowDraftAtomFamily,
     workflowBaseEntityAtomFamily,
     workflowEntityAtomFamily,

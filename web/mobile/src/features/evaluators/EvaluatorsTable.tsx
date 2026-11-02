@@ -35,7 +35,9 @@ const HUMAN_COLUMNS = [
     LAST_MODIFIED,
     col("modifiedBy", "Modified by", "minmax(120px,1fr)"),
 ]
-const NARROW_COLUMNS = [NAME, col("updated", "Last modified", "96px")]
+// The narrow layout has no room for the wide Name minimum; at 390 px it overflowed by about 12 px.
+const NARROW_NAME = col("name", "Name", "minmax(120px,2fr)")
+const NARROW_COLUMNS = [NARROW_NAME, col("updated", "Last modified", "96px")]
 
 /** Tailwind's `sm`. Below it the table shows the name and the last change only. */
 const WIDE_QUERY = "(min-width: 640px)"
