@@ -193,6 +193,8 @@ export {
     resolveScript,
 } from "./core"
 
+export {pickModelName} from "./core/pickModelName"
+
 // Flag query type
 export type {WorkflowQueryFlags} from "./core"
 
