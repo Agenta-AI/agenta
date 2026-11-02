@@ -16,9 +16,12 @@ import {projectHomeUrl} from "@/lib/context"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useProjectPermissionState} from "../context/useProjectPermission"
+import {useDeveloperViewEnabled} from "../developer/developerViewAccess"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
+import {ObservabilityAppFilter} from "./ObservabilityAppFilter"
+import {setObservabilityAppInUrl, useObservabilityAppScope} from "./observabilityAppScope"
 import {SessionsList} from "./SessionsList"
 import {SessionsTable} from "./SessionsTable"
 import {TracesFilters} from "./TracesFilters"
@@ -80,8 +83,16 @@ export const ObservabilityScreen = ({
             void router.replace(projectHomeUrl({workspaceId, projectId}))
     }, [spans.allowed, spans.pending, projectId, router, workspaceId])
 
-    // No scope binding: the seam's own defaults are project-wide with no workflow, which is
-    // exactly this screen. Binding would only re-state them.
+    // Project wide, which is the seam's own default, unless the app filter developer view is on:
+    // then `?app=` scopes the queries and the toolbar gets a picker.
+    const appFilterEnabled = useDeveloperViewEnabled("observability-app-filter") === true
+    const routeAppId = typeof router.query.app === "string" ? router.query.app : null
+    useObservabilityAppScope(routeAppId, appFilterEnabled)
+    const onAppChange = useCallback(
+        (appId: string | null) => setObservabilityAppInUrl(router, appId),
+        [router],
+    )
+    const tracesFilters = tab === "traces" ? <TracesFilters /> : undefined
 
     const isNarrow = useIsNarrowScreen()
     // Selection lives in the table; the narrow card list has none. Anything that acts on a
@@ -135,7 +146,19 @@ export const ObservabilityScreen = ({
                             componentType={tab}
                             onRefresh={onRefresh}
                             sortSlot={<ObservabilityRangePicker />}
-                            filtersSlot={tab === "traces" ? <TracesFilters /> : undefined}
+                            filtersSlot={
+                                appFilterEnabled ? (
+                                    <>
+                                        {tracesFilters}
+                                        <ObservabilityAppFilter
+                                            value={routeAppId}
+                                            onChange={onAppChange}
+                                        />
+                                    </>
+                                ) : (
+                                    tracesFilters
+                                )
+                            }
                             onExport={tab === "traces" ? onExport : undefined}
                             isExporting={isExporting}
                             onDelete={tab === "traces" && showsTable ? onDelete : undefined}

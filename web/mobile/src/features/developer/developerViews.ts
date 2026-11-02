@@ -49,4 +49,12 @@ export interface DeveloperView {
  * a view's screen loads only from its own route page, so listing it here adds nothing to the
  * pages every user opens.
  */
-export const DEVELOPER_VIEWS: readonly DeveloperView[] = []
+export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
+    {
+        id: "observability-app-filter",
+        label: "Filter by app",
+        description:
+            "Filter traces and sessions by app, and open sessions for one agent from a link.",
+        stage: "hidden",
+    },
+]
