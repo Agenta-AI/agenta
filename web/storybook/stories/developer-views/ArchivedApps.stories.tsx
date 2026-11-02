@@ -50,7 +50,7 @@ const FIXTURES: {
         type: "completion",
         createdAt: "2026-07-02T11:00:00Z",
         archivedAt: "2026-10-14T08:20:00Z",
-        archivedById: "user-ana",
+        archivedById: "user-sam",
     },
     {
         key: "invoice",
