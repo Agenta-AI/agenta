@@ -804,7 +804,9 @@ bootstrap_access()
 if is_ee():
     from ee.src.core.secrets.limits import EntitlementProjectLimits
 
-    _project_limits = EntitlementProjectLimits(rbac=get_access_service().rbac)
+    _project_limits = EntitlementProjectLimits(
+        rbac_entitlement=get_access_service().rbac_entitlement
+    )
 else:
     _project_limits = NoProjectLimits()
 

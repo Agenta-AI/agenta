@@ -13,6 +13,9 @@ from oss.src.core.memberships.dtos import OrganizationMember
 from oss.src.core.memberships.types import MemberNotFound, OrganizationOwnerProtected
 import oss.src.routers.workspace_router as workspace_router
 from oss.src.core.access.permissions.types import RequiredRole
+from oss.src.core.access.service import AccessService
+from oss.src.core.access.types import RbacEntitlementUnavailable
+from oss.tests.pytest.utils.memberships import RecordingRbac
 
 
 DENIED = (
@@ -131,10 +134,33 @@ class _MembershipsService:
         )
 
 
+class _UnreadablePlan:
+    async def is_entitled(self, *, organization_id):
+        raise RbacEntitlementUnavailable()
+
+
+def _plan_access(*, entitled):
+    """A real `AccessService` whose only plan answer is `entitled` (None: the plan
+    read fails); the routes read only its offered roles."""
+    return AccessService(
+        memberships=None,
+        rbac_entitlement=(
+            _UnreadablePlan() if entitled is None else RecordingRbac(entitled=entitled)
+        ),
+        principals=None,
+        resource_policy=None,
+    )
+
+
 @pytest.fixture
 def wired(monkeypatch, project):
-    def _wire(service, *, allowed=True):
+    def _wire(service, *, allowed=True, entitled=True):
         monkeypatch.setattr(memberships_module, "_memberships_service", service)
+        monkeypatch.setattr(
+            workspace_router,
+            "get_access_service",
+            lambda: _plan_access(entitled=entitled),
+        )
         monkeypatch.setattr(workspace_router, "check_action_access", _Recorder(allowed))
 
         async def _get_project_by_workspace(workspace_id):
@@ -250,6 +276,88 @@ async def test_assign_role_for_a_non_member_is_404(wired, project):
     assert error.value.detail == "User not found."
 
 
+@pytest.mark.parametrize("role", ["viewer", "editor", "developer", "annotator"])
+async def test_assign_role_refuses_a_role_the_plan_does_not_offer(wired, project, role):
+    service = _MembershipsService(organization_role="member")
+    target = wired(service, entitled=False)
+
+    response = await workspace_router.assign_role_to_user(
+        payload=SimpleNamespace(
+            email=target.email,
+            organization_id=str(project.organization_id),
+            role=role,
+        ),
+        workspace_id=str(project.workspace_id),
+        request=_request(),
+    )
+
+    assert response.status_code == 400
+    assert service.calls == []
+
+
+@pytest.mark.parametrize("entitled", [True, False])
+@pytest.mark.parametrize("role", ["admin", "member"])
+async def test_assign_role_sets_admin_or_member_on_every_plan(
+    wired, project, role, entitled
+):
+    service = _MembershipsService(organization_role="viewer")
+    target = wired(service, entitled=entitled)
+
+    result = await workspace_router.assign_role_to_user(
+        payload=SimpleNamespace(
+            email=target.email,
+            organization_id=str(project.organization_id),
+            role=role,
+        ),
+        workspace_id=str(project.workspace_id),
+        request=_request(),
+    )
+
+    assert result is True
+    assert service.calls[0][1]["role"] == role
+
+
+async def test_unassign_without_rbac_sets_the_member_floor_role(wired, project):
+    service = _MembershipsService(organization_role="admin")
+    target = wired(service, entitled=False)
+
+    result = await workspace_router.unassign_role_from_user(
+        email=target.email,
+        organization_id=str(project.organization_id),
+        role="admin",
+        workspace_id=str(project.workspace_id),
+        request=_request(),
+    )
+
+    assert result is True
+    assert service.calls[0][1]["role"] == "member"
+
+
+async def test_role_writes_stop_when_the_plan_cannot_be_read(wired, project):
+    service = _MembershipsService(organization_role="admin")
+    target = wired(service, entitled=None)
+
+    assigned = await workspace_router.assign_role_to_user(
+        payload=SimpleNamespace(
+            email=target.email,
+            organization_id=str(project.organization_id),
+            role="member",
+        ),
+        workspace_id=str(project.workspace_id),
+        request=_request(),
+    )
+    removed = await workspace_router.unassign_role_from_user(
+        email=target.email,
+        organization_id=str(project.organization_id),
+        role="admin",
+        workspace_id=str(project.workspace_id),
+        request=_request(),
+    )
+
+    assert (assigned.status_code, removed.status_code) == (503, 503)
+    assert service.calls == []
+
+
 async def test_unassign_current_role_sets_viewer(wired, project):
     service = _MembershipsService(organization_role="editor")
     target = wired(service)
@@ -354,10 +462,15 @@ async def test_owner_protected_errors_keep_todays_body_shape(wired, project):
 def auto_join(monkeypatch):
     organization_id = uuid4()
 
-    def _wire(*, already_member: bool):
+    def _wire(*, already_member: bool, entitled: bool = True):
         service = _MembershipsService()
         monkeypatch.setattr(memberships_module, "_memberships_service", service)
         monkeypatch.setattr(auth_service_module, "is_ee", lambda: True)
+        monkeypatch.setattr(
+            auth_service_module,
+            "get_access_service",
+            lambda: _plan_access(entitled=entitled),
+        )
 
         class _Domains:
             async def get_verified_by_slug(self, *, slug):
@@ -392,9 +505,21 @@ async def test_auto_join_does_not_change_an_existing_member_role(auto_join):
     assert service.calls == []
 
 
-async def test_auto_join_adds_a_new_user_as_viewer_in_every_project(auto_join):
+async def test_auto_join_adds_nobody_when_the_plan_cannot_be_read(auto_join):
+    _, wire = auto_join
+    auth, service = wire(already_member=False, entitled=None)
+
+    await auth.enforce_domain_policies(email="new@corp.test", user_id=uuid4())
+
+    assert service.calls == []
+
+
+@pytest.mark.parametrize("entitled, floor_role", [(True, "viewer"), (False, "member")])
+async def test_auto_join_adds_a_new_user_with_the_floor_role_in_every_project(
+    auto_join, entitled, floor_role
+):
     organization_id, wire = auto_join
-    auth, service = wire(already_member=False)
+    auth, service = wire(already_member=False, entitled=entitled)
     user = uuid4()
 
     await auth.enforce_domain_policies(email="new@corp.test", user_id=user)
@@ -405,7 +530,7 @@ async def test_auto_join_adds_a_new_user_as_viewer_in_every_project(auto_join):
             {
                 "organization_id": organization_id,
                 "user_id": user,
-                "role": "viewer",
+                "role": floor_role,
                 "join_all_projects": True,
                 "must_be_absent": True,
                 "actor_user_id": user,
@@ -467,7 +592,7 @@ def invitation(monkeypatch):
     monkeypatch.setattr(db, "get_workspace", _workspace)
     monkeypatch.setattr(db, "update_invitation", _update)
     monkeypatch.setattr(organization_service, "notify_org_admin_invitation", _notify)
-    return SimpleNamespace(user=user, project=project, updates=updates)
+    return SimpleNamespace(user=user, project=project, invite=invite, updates=updates)
 
 
 async def test_invite_accept_writes_through_set_member_role(invitation, monkeypatch):
@@ -494,6 +619,23 @@ async def test_invite_accept_writes_through_set_member_role(invitation, monkeypa
         )
     ]
     assert invitation.updates == [{"user_id": str(invitation.user.id), "used": True}]
+
+
+async def test_an_owner_invitation_is_accepted_as_admin(invitation, monkeypatch):
+    # Only the transfer route makes an owner; an invitation stored as `owner` (OSS has no
+    # migration for them) grants `admin`.
+    invitation.invite.role = "owner"
+    service = _MembershipsService(organization_role=None)
+    monkeypatch.setattr(memberships_module, "_memberships_service", service)
+
+    assert await organization_service.accept_organization_invitation(
+        token="t",
+        organization_id=str(invitation.project.organization_id),
+        email=invitation.user.email,
+        session_email=invitation.user.email,
+    )
+
+    assert service.calls[0][1]["role"] == "admin"
 
 
 async def test_invite_accept_by_someone_else_when_the_invited_email_has_no_account(

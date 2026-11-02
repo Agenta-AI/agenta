@@ -9,7 +9,7 @@ import pytest
 import oss.src.core.access.service as access_module
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
-from oss.src.core.access.rbac import AlwaysEnforcedRbac
+from oss.src.core.access.rbac import NoRbacEntitlement
 from oss.src.core.access.service import AccessService
 from oss.src.core.memberships.dtos import MembershipPolicy
 from oss.src.core.memberships.service import MembershipsService
@@ -178,7 +178,7 @@ def registered_access(monkeypatch):
             "_access_service",
             AccessService(
                 memberships=_service(policy),
-                rbac=AlwaysEnforcedRbac(),
+                rbac_entitlement=NoRbacEntitlement(),
                 principals=HumanPrincipalsDAO(),
                 resource_policy=AllowAllResourcePolicy(),
             ),

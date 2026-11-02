@@ -1,5 +1,6 @@
 import {useCallback} from "react"
 
+import {projectPermissionQueryPrefix} from "@agenta/entities/access"
 import {useRouter} from "next/router"
 
 import {resetAnalytics} from "@/features/analytics/client"
@@ -21,6 +22,9 @@ export const useLogout = () => {
         await resetAnalytics()
         clearLastContext()
         clearTranscriptSnapshots()
+        // Permission answers belong to the person who signed out: the next person in this tab
+        // must be asked again before any gated read (traces included) opens.
+        queryClient.removeQueries({queryKey: projectPermissionQueryPrefix})
         await Promise.all([
             queryClient.invalidateQueries({queryKey: ["profile"]}),
             queryClient.invalidateQueries({queryKey: ["mobile", "projects"]}),

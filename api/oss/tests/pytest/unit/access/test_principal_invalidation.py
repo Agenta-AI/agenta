@@ -393,7 +393,7 @@ async def test_invalidate_user_clears_user_keys_bindings_and_memberships(monkeyp
             memberships_dao=InMemoryMembershipsDAO(),
             policy=MembershipPolicy.PROJECT_ROWS,
         ),
-        rbac=RecordingRbac(),
+        rbac_entitlement=RecordingRbac(),
         principals=PrincipalsDAO(engine=None),  # the real cache delete
         resource_policy=AllowAllResourcePolicy(),
     )
@@ -521,7 +521,7 @@ async def test_invalidate_scope_clears_keys_bindings_and_members_project_wide(
             memberships_dao=InMemoryMembershipsDAO(),
             policy=MembershipPolicy.PROJECT_ROWS,
         ),
-        rbac=RecordingRbac(),
+        rbac_entitlement=RecordingRbac(),
         principals=principals,
         resource_policy=AllowAllResourcePolicy(),
     )

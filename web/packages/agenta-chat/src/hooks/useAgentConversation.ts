@@ -29,6 +29,7 @@ import {
     revalidateSessionMountsAtom,
     revalidateSessionInteractionsAtom,
     revalidateSessionRecordsAtom,
+    revalidateSessionTurnsAtom,
     shouldAdoptServerTranscript,
 } from "@agenta/entities/session"
 import {markTraceAsFresh} from "@agenta/entities/trace"
@@ -111,6 +112,7 @@ import {
     setSessionStatusAtom,
     holdSessionStatusAtom,
 } from "../state/sessionMessages"
+import {refreshSessionTurnsOnTurnEndAtom} from "../state/sessionTurnsRefresh"
 import {clearTurnClockAtom, startTurnClockAtom} from "../state/turnClock"
 
 import {useAgentChatQueue, type QueuedMessage} from "./useAgentChatQueue"
@@ -310,6 +312,9 @@ export const useAgentConversation = ({
     const holdSessionStatus = useSetAtom(holdSessionStatusAtom)
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
+    // The footer's figures: a turn's end and its runner usage land on the session turn.
+    const revalidateSessionTurns = useSetAtom(revalidateSessionTurnsAtom)
+    const refreshSessionTurnsOnTurnEnd = useSetAtom(refreshSessionTurnsOnTurnEndAtom)
     const revalidateSessionInteractions = useSetAtom(revalidateSessionInteractionsAtom)
     const fetchSessionInteractionStates = useSetAtom(fetchSessionInteractionStatesAtom)
     const pruneExpanded = useSetAtom(pruneExpandedAtom)
@@ -492,6 +497,7 @@ export const useAgentConversation = ({
             markTraceAsFresh(getMessageTraceId(message))
             revalidateSessionMounts(sessionId)
             revalidateSessionRecords(sessionId)
+            revalidateSessionTurns(sessionId)
             // The first turn is what creates the durable session row; every later one changes its
             // title, preview and activity. Nothing else tells the session lists, so a brand-new
             // session surfaced only on their next remount past the stale time.
@@ -1097,7 +1103,10 @@ export const useAgentConversation = ({
                     (currentWatermark ?? 0) >= candidateWatermark
                 )
             }
+            // A refresh is how an observer sees another tab's turn end. Only an ended turn reads
+            // the session turns (the footer's figures); a running turn's events do not.
             if (isSessionTranscript(transcript)) {
+                refreshSessionTurnsOnTurnEnd({sessionId, messages: transcript.messages})
                 return adoptOrConfirm(transcript)
             }
             revalidateSessionRecords(sessionId)
@@ -1105,14 +1114,23 @@ export const useAgentConversation = ({
             let refreshed: SessionTranscript | null
             try {
                 refreshed = await loadSessionMessages(sessionId, (fresh) => {
+                    // The returned transcript can be the cached one; this is the fresh read.
+                    refreshSessionTurnsOnTurnEnd({sessionId, messages: fresh.messages})
                     if (adoptOrConfirm(fresh)) adopted = true
                 })
             } catch {
                 return false
             }
+            if (refreshed) refreshSessionTurnsOnTurnEnd({sessionId, messages: refreshed.messages})
             return adoptOrConfirm(refreshed) || adopted
         },
-        [adoptServerTranscript, mount, revalidateSessionRecords, sessionId],
+        [
+            adoptServerTranscript,
+            mount,
+            revalidateSessionRecords,
+            refreshSessionTurnsOnTurnEnd,
+            sessionId,
+        ],
     )
 
     const {
