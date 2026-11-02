@@ -11,6 +11,7 @@ import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {ListTableToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
+import {Button} from "@agenta/ui/ui"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
@@ -82,7 +83,13 @@ export const AgentListScreen = ({
     })
 
     const showArchived = view.type === "archived"
-    const archived = useArchivedAgents({projectId, enabled: showArchived})
+    // Nothing is active and nothing is searched: the project may still hold archived agents, and
+    // the first-run page has no filter bar to reach them with, so they are looked up here too.
+    const noActiveAgents = !query.isPending && !query.isError && (query.data ?? []).length === 0
+    const archived = useArchivedAgents({
+        projectId,
+        enabled: showArchived || (noActiveAgents && !search.trim()),
+    })
     // The project's member roster: the Owner column and the facet both name owners, and neither
     // can from an id alone. An id outside it is a former member.
     const {owners, ownerNames} = useAgentOwners()
@@ -198,7 +205,20 @@ export const AgentListScreen = ({
                 >
                     <div className={`min-w-0 px-4 pb-12 pt-3 ${PAGE_FRAME}`}>
                         {projectEmpty ? (
-                            <FeatureOnboarding guideKey="agents" base={base} />
+                            <>
+                                <FeatureOnboarding guideKey="agents" base={base} />
+                                {archived.agents.length > 0 ? (
+                                    <div className="mt-6 flex justify-center">
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => setView({...view, type: "archived"})}
+                                        >
+                                            View archived agents
+                                        </Button>
+                                    </div>
+                                ) : null}
+                            </>
                         ) : (
                             <>
                                 {/* Search belongs to the list, not to the page: it sits on the
