@@ -1,4 +1,4 @@
-import {Archive, Plugs as PlugsIcon, type Icon} from "@phosphor-icons/react"
+import {Archive, Plugs as PlugsIcon, type Icon, Tray} from "@phosphor-icons/react"
 
 /**
  * How far a developer view has rolled out.
@@ -71,6 +71,14 @@ export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
         label: "Filter by app",
         description:
             "Filter traces and sessions by app, and open sessions for one agent from a link.",
+        stage: "hidden",
+    },
+    {
+        id: "annotation-queues",
+        label: "Annotation queues",
+        description: "Show the Annotation queues page under Developer in the navigation.",
+        routes: ["/annotations", "/annotations/[queue_id]"],
+        nav: {icon: Tray, section: "developer"},
         stage: "hidden",
     },
 ]

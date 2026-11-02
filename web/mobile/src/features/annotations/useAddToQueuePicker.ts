@@ -9,6 +9,7 @@ import type {AddToQueuePopoverSlotProps} from "@agenta/observability-ui/traceDra
 import {dayjs} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 import {useAtomValue, useSetAtom} from "jotai"
+import {useRouter} from "next/router"
 
 import type {PickerQueue} from "./AddToQueuePickerPanel"
 
@@ -27,6 +28,7 @@ export const useAddToQueuePicker = ({
     onQueueSelected,
     onClose,
 }: HookArgs) => {
+    const router = useRouter()
     const queues = useAtomValue(simpleQueuesListDataAtom)
     const listQuery = useAtomValue(simpleQueuesListQueryAtom)
     const addTraces = useSetAtom(simpleQueueMolecule.actions.addTraces)
@@ -46,7 +48,9 @@ export const useAddToQueuePicker = ({
             visible.map((queue) => ({
                 id: queue.id,
                 name: queue.name || "Untitled",
-                updated: queue.updated_at ? `Updated ${dayjs(queue.updated_at).fromNow()}` : "",
+                updated: queue.updated_at
+                    ? `Updated ${dayjs(queue.updated_at).fromNow()}`
+                    : "Updated \u2014",
             })),
         [visible],
     )
@@ -77,15 +81,27 @@ export const useAddToQueuePicker = ({
                         : await addTestcases(queueId, itemIds)
                 if (added) {
                     const label = `${ITEM_LABEL[itemType]}${itemIds.length > 1 ? "s" : ""}`
-                    message.success(
-                        `Added ${itemIds.length} ${label} to "${queue.name || "Untitled"}".`,
-                    )
+                    const workspaceId = router.query.workspace_id
+                    const projectId = router.query.project_id
+                    const base =
+                        typeof workspaceId === "string" && typeof projectId === "string"
+                            ? `/w/${workspaceId}/p/${projectId}`
+                            : null
+                    message.success({
+                        content: `Added ${itemIds.length} ${label} to "${queue.name || "Untitled"}".`,
+                        // The Next router adds the /m base path; a raw location match would not.
+                        onNavigate: base
+                            ? () => void router.push(`${base}/annotations/${queueId}`)
+                            : undefined,
+                        linkText: "View queue",
+                        duration: 5,
+                    })
                     onItemsAdded?.()
                     onClose()
                 }
             } catch (error) {
                 console.error("Adding items to a queue failed", error)
-                message.error("Couldn't add to this queue")
+                message.error("Couldn't add to the queue")
             } finally {
                 setSubmittingId(null)
             }
@@ -99,6 +115,7 @@ export const useAddToQueuePicker = ({
             addTraces,
             addTestcases,
             onItemsAdded,
+            router,
         ],
     )
 

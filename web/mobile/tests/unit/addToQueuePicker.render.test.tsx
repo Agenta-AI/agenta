@@ -18,6 +18,7 @@ const fixture = vi.hoisted(() => ({
     add: vi.fn(),
     success: vi.fn(),
     error: vi.fn(),
+    push: vi.fn(),
 }))
 
 vi.mock("@agenta/entities/simpleQueue", async () => {
@@ -41,6 +42,21 @@ vi.mock("@agenta/entities/simpleQueue", async () => {
     }
 })
 
+vi.mock("@agenta/annotation", async () => {
+    const {atom: makeAtom} = await import("jotai")
+    return {
+        createQueueDrawerDefaultKindAtom: makeAtom<"traces" | "testcases">("traces"),
+        createQueueDrawerOpenAtom: makeAtom(false),
+        createQueueDrawerSelectionAtom: makeAtom<unknown>(null),
+    }
+})
+vi.mock("@/features/developer/developerViewAccess", () => ({
+    useDeveloperViewEnabled: () => true,
+}))
+
+vi.mock("next/router", () => ({
+    useRouter: () => ({query: {workspace_id: "w-1", project_id: "p-1"}, push: fixture.push}),
+}))
 vi.mock("@agenta/ui/app-message", () => ({
     message: {success: fixture.success, error: fixture.error},
 }))
@@ -119,7 +135,12 @@ describe("AddToQueuePicker", () => {
         )
         await act(async () => (triage as HTMLElement).click())
         expect(fixture.add).toHaveBeenCalledWith("q-1", ["t-1", "t-2"])
-        expect(fixture.success).toHaveBeenCalledWith('Added 2 traces to "Triage".')
+        expect(fixture.success).toHaveBeenCalledWith(
+            expect.objectContaining({
+                content: 'Added 2 traces to "Triage".',
+                linkText: "View queue",
+            }),
+        )
         expect(onItemsAdded).toHaveBeenCalled()
         expect(onOpenChange).toHaveBeenCalledWith(false)
     })
@@ -145,7 +166,7 @@ describe("AddToQueuePicker", () => {
             row.textContent?.includes("Triage"),
         )
         await act(async () => (triage as HTMLElement).click())
-        expect(fixture.error).toHaveBeenCalledWith("Couldn't add to this queue")
+        expect(fixture.error).toHaveBeenCalledWith("Couldn't add to the queue")
     })
 
     it("The loading state shows rows that hold the list's shape", async () => {
