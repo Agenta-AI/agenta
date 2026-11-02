@@ -15,7 +15,11 @@ BASE=$(git merge-base "$BASE" HEAD) || exit 2
 FAIL=0
 no() { echo "GATE FAIL: $1"; FAIL=1; }
 
-# Include new, not yet tracked files in the diff.
+# Include new, not yet tracked files in the diff, in a copy of the index so the real index stays as it is.
+TMP_INDEX=$(mktemp)
+trap 'rm -f "$TMP_INDEX"' EXIT
+cp "$(git rev-parse --git-path index)" "$TMP_INDEX"
+export GIT_INDEX_FILE=$TMP_INDEX
 git ls-files -o --exclude-standard -z | xargs -0 -r git add -N -- || exit 1
 git diff --check "$BASE" || no "whitespace errors"
 
@@ -25,11 +29,14 @@ ADDED=$(git diff "$BASE" -U0 -- 'web/mobile/src/*.ts' 'web/mobile/src/*.tsx' 'we
 FILES=$(git diff "$BASE" --name-only)
 
 # 1. Banned imports.
-echo "$ADDED" | grep -qE "from ['\"](antd|@ant-design|lexical|@lexical|@/oss|@agenta/oss|@agenta/ee)" \
-    && no "banned import (antd, @ant-design, lexical, @/oss, @agenta/oss, @agenta/ee)"
+# Lexical is banned in mobile source only: the shared composer in @agenta/ui uses it on purpose.
+echo "$ADDED" | grep -qE "from ['\"](antd|@ant-design|@/oss|@agenta/oss|@agenta/ee)" \
+    && no "banned import (antd, @ant-design, @/oss, @agenta/oss, @agenta/ee)"
+git diff "$BASE" -U0 -- 'web/mobile/src/*.ts' 'web/mobile/src/*.tsx' | grep -E '^\+' \
+    | grep -qE "from ['\"](lexical|@lexical)" && no "banned import (lexical in mobile source)"
 
 # 2. Suppressions and skipped tests.
-echo "$ADDED" | grep -qE "@ts-ignore|@ts-nocheck|eslint-disable|: any\b|as any\b|\.skip\(" \
+echo "$ADDED" | grep -qE "@ts-ignore|@ts-nocheck|@ts-expect-error|eslint-disable|: any\b|as any\b|\.skip(If)?\(" \
     && no "suppression, any, or skipped test"
 
 # 3. Dependency files.
@@ -76,6 +83,7 @@ done <<< "$FILES"
 
 # 8. Types, lint, related tests. Set GATE_HEAVY_RUNNER to a command that takes the repo root and a
 # command (for example a script that runs it on another machine) to move the type check off this one.
+unset GIT_INDEX_FILE
 ROOT=$PWD
 heavy() { if [ -n "${GATE_HEAVY_RUNNER:-}" ]; then "$GATE_HEAVY_RUNNER" "$ROOT" "$@"; else "$@"; fi; }
 OUT=$(mktemp -d)
