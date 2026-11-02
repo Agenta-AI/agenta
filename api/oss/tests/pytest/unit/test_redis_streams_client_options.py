@@ -43,12 +43,13 @@ def test_socket_timeout_outlasts_the_blocking_read():
     assert STREAMS_SOCKET_TIMEOUT * 1000 > max_block_ms
 
 
-def test_client_options_enable_timeout_health_check_and_keepalive():
+def test_client_options_enable_timeout_and_health_check():
     options = streams_client_options()
 
     assert options["socket_timeout"] == STREAMS_SOCKET_TIMEOUT
     assert options["health_check_interval"] == STREAMS_HEALTH_CHECK_INTERVAL
-    assert options["socket_keepalive"] is True
+    # A unix:// connection rejects socket_keepalive.
+    assert "socket_keepalive" not in options
 
 
 async def test_streams_engine_client_is_built_with_the_options(monkeypatch):
@@ -62,7 +63,6 @@ async def test_streams_engine_client_is_built_with_the_options(monkeypatch):
 
     assert kwargs["socket_timeout"] == STREAMS_SOCKET_TIMEOUT
     assert kwargs["health_check_interval"] == STREAMS_HEALTH_CHECK_INTERVAL
-    assert kwargs["socket_keepalive"] is True
 
 
 def test_worker_streams_client_uses_the_shared_options():
@@ -101,3 +101,29 @@ async def test_silent_connection_times_out_instead_of_hanging(monkeypatch):
         await streams.close()
         server.close()
         await server.wait_closed()
+
+
+async def test_failed_accumulation_keeps_the_entries_already_read():
+    # A socket timeout on the second read must not drop the first read's entries:
+    # Redis already delivered them, so a new read with ">" never returns them.
+    first = [(b"1-0", {b"data": b"a"})]
+
+    class _Redis:
+        calls = 0
+
+        async def xreadgroup(self, **kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                return [(b"stream", list(first))]
+            raise RedisTimeoutError("Timeout reading from socket")
+
+    consumer = StreamConsumer(
+        redis_client=_Redis(),
+        stream_name="stream",
+        consumer_group="worker-test",
+        consumer_name="consumer",
+        max_batch_size=10,
+        max_delay_ms=1000,
+    )
+
+    assert await consumer.read_batch() == first

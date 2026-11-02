@@ -91,13 +91,14 @@ class LockEngine:
 STREAMS_SOCKET_TIMEOUT = 15.0
 # Ping idle connections so a dead one is noticed and replaced before it is used.
 STREAMS_HEALTH_CHECK_INTERVAL = 30
+# No socket_keepalive: redis-py already enables it for TCP, and a unix:// URL
+# rejects the option.
 
 
 def streams_client_options() -> Dict[str, Any]:
     return {
         "socket_timeout": STREAMS_SOCKET_TIMEOUT,
         "health_check_interval": STREAMS_HEALTH_CHECK_INTERVAL,
-        "socket_keepalive": True,
     }
 
 
