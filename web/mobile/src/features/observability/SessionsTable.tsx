@@ -7,9 +7,10 @@ import {ObservabilityEmpty, ObservabilityListSkeleton} from "./states/Observabil
  *
  * Phones keep the stacked card list; anything wider gets the real table.
  */
-export const SessionsTable = () => (
+export const SessionsTable = ({onOpenSession}: {onOpenSession: (sessionId: string) => void}) => (
     <ObservabilitySessionsTable
         className="min-h-0 flex-1"
+        onRowClick={(record) => onOpenSession(record.session_id)}
         loadingState={<ObservabilityListSkeleton />}
         emptyState={
             <ObservabilityEmpty
