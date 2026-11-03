@@ -7,7 +7,11 @@ import {
   resolvePromptText,
   userTurnCarriesContent,
 } from "../../protocol.ts";
-import { approvalDecisionOf, approvedCallKey } from "../../responder.ts";
+import {
+  approvalDecisionOf,
+  buildCallShapeIndex,
+  coldReplayKey,
+} from "../../responder.ts";
 import { headCut, tailCut } from "../../text-cut.ts";
 import { attachmentMention } from "./attachments.ts";
 import {
@@ -60,28 +64,18 @@ export function approvalRenderHints(
     content: string | ContentBlock[] | undefined;
   }[],
 ): Map<ContentBlock, ApprovalRenderHint> {
-  const callShapeById = new Map<string, { name?: string; input?: unknown }>();
-  for (const message of history) {
-    const content = message.content;
-    if (!Array.isArray(content)) continue;
-    for (const block of content) {
-      if (block?.type === "tool_call" && block.toolCallId) {
-        callShapeById.set(block.toolCallId, {
-          name: block.toolName,
-          input: block.input,
-        });
-      }
-    }
-  }
+  const callShapeById = buildCallShapeIndex(history);
 
+  // The approval store's key (tool name + canonical args). A result with no args of its own and
+  // no recorded tool_call has an unknown call shape, so it gets no key and matches by name only.
   const callKeyOf = (block: ContentBlock): string | undefined => {
-    const shape = block.toolCallId
-      ? callShapeById.get(block.toolCallId)
-      : undefined;
-    const name = block.toolName ?? shape?.name;
-    const input = block.input ?? shape?.input;
-    if (input === undefined) return undefined;
-    return approvedCallKey(name, input);
+    if (
+      block.input === undefined &&
+      !(block.toolCallId && callShapeById.has(block.toolCallId))
+    ) {
+      return undefined;
+    }
+    return coldReplayKey(block, callShapeById);
   };
 
   const toolResults: {
@@ -116,15 +110,15 @@ export function approvalRenderHints(
     );
   };
 
+  // Rendering only. Match by the approval store's key when both sides have one. Otherwise fall
+  // back to the tool name, so an execution whose call shape is unknown still settles an approval
+  // instead of telling the model to run it again.
   const matchesExecution = (
     entry: (typeof toolResults)[number],
     later: (typeof toolResults)[number],
   ): boolean => {
     if (entry.key !== undefined && later.key !== undefined) {
       return entry.key === later.key;
-    }
-    if (entry.block.toolCallId && later.block.toolCallId) {
-      return entry.block.toolCallId === later.block.toolCallId;
     }
     return entry.toolName !== undefined && entry.toolName === later.toolName;
   };

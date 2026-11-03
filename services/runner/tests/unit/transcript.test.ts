@@ -742,6 +742,78 @@ describe("buildTurnText approval transcript hints", () => {
     assert.equal(executed.length, 1);
   });
 
+  it("settles an approved no-argument call executed under a new call id (#7951)", () => {
+    const transcript = turnTextFor([
+      {
+        role: "assistant",
+        content: [
+          { type: "tool_call", toolCallId: "call-1", toolName: "list_tasks" },
+          {
+            type: "tool_result",
+            toolCallId: "call-1",
+            toolName: "list_tasks",
+            output: { approved: true },
+          },
+        ],
+      },
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool_call",
+            toolCallId: "call-exec-1",
+            toolName: "list_tasks",
+          },
+          {
+            type: "tool_result",
+            toolCallId: "call-exec-1",
+            toolName: "list_tasks",
+            output: { tasks: [] },
+          },
+        ],
+      },
+    ]);
+
+    assert.match(transcript, /executed below/);
+    assert.doesNotMatch(transcript, /Call the tool again/);
+  });
+
+  it("settles an approval by tool name when the execution has no recorded call (#7951)", () => {
+    const transcript = turnTextFor([
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool_call",
+            toolCallId: "call-1",
+            toolName: COMMIT_TOOL,
+            input: { name: "draft" },
+          },
+          {
+            type: "tool_result",
+            toolCallId: "call-1",
+            toolName: COMMIT_TOOL,
+            output: { approved: true },
+          },
+        ],
+      },
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool_result",
+            toolCallId: "call-exec-1",
+            toolName: COMMIT_TOOL,
+            output: { ok: true },
+          },
+        ],
+      },
+    ]);
+
+    assert.match(transcript, /executed below/);
+    assert.doesNotMatch(transcript, /Call the tool again/);
+  });
+
   it("keeps preflight tolerant of unverified attachment display fields", () => {
     assert.equal(
       messageTranscript([
