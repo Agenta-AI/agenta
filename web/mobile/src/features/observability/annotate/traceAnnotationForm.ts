@@ -53,7 +53,9 @@ const createdTime = (annotation: AnnotationDto) => {
     return Number.isNaN(time) ? 0 : time
 }
 
+// An own annotation without its own trace id cannot be updated, so it is not editable.
 const isOwnWebAnnotation = (annotation: AnnotationDto, userId: string) =>
+    Boolean(annotation.trace_id) &&
     annotation.createdById === userId &&
     annotation.channel === "web" &&
     annotation.origin === "human" &&
@@ -98,7 +100,11 @@ export const buildTraceAnnotationSections = ({
     own,
 }: {
     slugs: readonly string[]
-    evaluators: ReadonlyMap<string, {workflowId: string; revision: Workflow}>
+    /** The evaluator name and description come from the workflow, the schema from its revision. */
+    evaluators: ReadonlyMap<
+        string,
+        {workflowId: string; name?: string | null; description?: string | null; revision: Workflow}
+    >
     own: readonly AnnotationDto[]
 }): TraceAnnotationSection[] => {
     const ownBySlug = new Map(own.map((annotation) => [slugOf(annotation), annotation]))
@@ -112,8 +118,8 @@ export const buildTraceAnnotationSections = ({
             {
                 slug,
                 workflowId,
-                name: revision.name || slug,
-                description: revision.description ?? "",
+                name: evaluator.name || revision.name || slug,
+                description: evaluator.description ?? revision.description ?? "",
                 own: ownAnnotation,
                 fields: ownAnnotation
                     ? getMetricsFromAnnotation(ownAnnotation as unknown as Annotation, revision)
@@ -139,6 +145,39 @@ const sameValue = (a: unknown, b: unknown): boolean => {
 
 const isSingleChoice = (field: AnnotationMetricField) => Array.isArray(field.type)
 
+/** The section's fields with the user's edits applied. */
+export const currentFields = (
+    section: TraceAnnotationSection,
+    edits: Record<string, unknown> | undefined,
+): Record<string, AnnotationMetricField> => {
+    if (!edits) return section.fields
+    const fields = {...section.fields}
+    for (const [key, value] of Object.entries(edits)) {
+        if (fields[key]) fields[key] = {...fields[key], value}
+    }
+    return fields
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null && !Array.isArray(value)
+
+/**
+ * The outputs an own annotation saved, flat. The drawer groups them into `metrics`, `notes` and
+ * `extra`; the API stores them flat.
+ */
+const savedOutputsOf = (annotation: AnnotationDto): Record<string, unknown> => {
+    const grouped = (annotation.data?.outputs ?? {}) as Record<string, unknown>
+    const flat: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(grouped)) {
+        if ((key === "metrics" || key === "notes" || key === "extra") && isRecord(value)) {
+            Object.assign(flat, value)
+        } else {
+            flat[key] = value
+        }
+    }
+    return flat
+}
+
 /**
  * Turns the form into the requests a save sends: an update for each own annotation whose values
  * changed, and a create for each new section with at least one value. A section that would be
@@ -152,18 +191,18 @@ export const buildTraceAnnotationWrites = ({
 }: {
     sections: readonly TraceAnnotationSection[]
     values: TraceAnnotationValues
-    traceId: string | undefined
-    spanId: string | undefined
+    traceId: string
+    spanId: string
 }): TraceAnnotationWrites => {
     const writes: TraceAnnotationWrites = {creates: [], updates: [], missingRequired: {}}
 
     for (const section of sections) {
-        const edits = values[section.slug] ?? {}
+        const fields = currentFields(section, values[section.slug])
         const current: Record<string, unknown> = {}
         const saved: Record<string, unknown> = {}
         for (const [key, field] of Object.entries(section.fields)) {
             saved[key] = field.value
-            current[key] = key in edits ? edits[key] : field.value
+            current[key] = fields[key].value
         }
 
         const changed = section.own
@@ -179,15 +218,19 @@ export const buildTraceAnnotationWrites = ({
             continue
         }
 
-        const outputs: Record<string, unknown> = {}
+        // An update keeps the saved outputs the form does not show (a metric a later evaluator
+        // revision removed), because the API replaces the whole outputs object.
+        const outputs: Record<string, unknown> = section.own ? savedOutputsOf(section.own) : {}
         for (const [key, value] of Object.entries(current)) {
-            if (isEmptyValue(value)) continue
+            if (isEmptyValue(value)) {
+                delete outputs[key]
+                continue
+            }
             outputs[key] =
                 value === NONE_OF_THE_ABOVE && isSingleChoice(section.fields[key]) ? null : value
         }
 
-        if (section.own) {
-            if (!section.own.trace_id) continue
+        if (section.own?.trace_id) {
             writes.updates.push({
                 traceId: section.own.trace_id,
                 spanId: section.own.span_id,
@@ -201,9 +244,6 @@ export const buildTraceAnnotationWrites = ({
             continue
         }
 
-        if (!traceId || !spanId) {
-            throw new Error("A new annotation needs the trace and span id of the selected span")
-        }
         writes.creates.push({
             data: {outputs},
             references: {evaluator: {id: section.workflowId, slug: section.slug}},

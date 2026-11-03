@@ -122,6 +122,12 @@ describe("pickEditableAnnotations", () => {
         expect(picked.otherSlugs).toEqual([])
     })
 
+    it("An own annotation without its trace id is not editable", () => {
+        const broken = annotation({trace_id: undefined})
+
+        expect(pickEditableAnnotations({annotations: [broken], userId: ALEX}).own).toEqual([])
+    })
+
     it("Automatic annotations by other sources add no section", () => {
         const auto = annotation({createdById: SAM, origin: "auto", channel: "sdk"})
 
@@ -245,14 +251,54 @@ describe("buildTraceAnnotationWrites", () => {
         expect(writes).toEqual({creates: [], updates: [], missingRequired: {}})
     })
 
-    it("A create without a span id is rejected", () => {
-        expect(() =>
-            buildTraceAnnotationWrites({
-                sections: sectionsFor(),
-                values: {tone: {friendly: true}},
-                traceId: "trace-1",
-                spanId: undefined,
-            }),
-        ).toThrow("span")
+    it("An update keeps saved outputs the form does not show", () => {
+        const own = annotation({
+            data: {outputs: {metrics: {friendly: true}, notes: {comment: "Kind words"}}},
+        })
+
+        const writes = buildTraceAnnotationWrites({
+            sections: sectionsFor([own]),
+            values: {tone: {friendly: false}},
+            traceId: "trace-1",
+            spanId: "span-1",
+        })
+
+        expect(writes.updates[0].annotation.data).toEqual({
+            outputs: {friendly: false, comment: "Kind words"},
+        })
+    })
+
+    it("A cleared own metric is removed from the saved outputs", () => {
+        const own = annotation({data: {outputs: {metrics: {friendly: true}}}})
+
+        const writes = buildTraceAnnotationWrites({
+            sections: sectionsFor([own]),
+            values: {tone: {friendly: null}},
+            traceId: "trace-1",
+            spanId: "span-1",
+        })
+
+        expect(writes.updates[0].annotation.data).toEqual({outputs: {}})
+    })
+
+    it("The section name comes from the workflow, not the revision", () => {
+        const sections = buildTraceAnnotationSections({
+            slugs: ["tone"],
+            evaluators: new Map([
+                [
+                    "tone",
+                    {
+                        workflowId: "wf-tone",
+                        name: "Reply tone",
+                        description: "Tone of the reply",
+                        revision: {...TONE, name: "default"} as Workflow,
+                    },
+                ],
+            ]),
+            own: [],
+        })
+
+        expect(sections[0].name).toBe("Reply tone")
+        expect(sections[0].description).toBe("Tone of the reply")
     })
 })

@@ -4,6 +4,7 @@ import type {Workflow} from "@agenta/entities/workflow"
 import {Checkbox, SearchInput, SimpleTooltip} from "@agenta/ui/ui"
 
 import {SelectEvaluatorsEmpty} from "./states/SelectEvaluatorsEmpty"
+import {SelectEvaluatorsError} from "./states/SelectEvaluatorsError"
 import {SelectEvaluatorsSkeleton} from "./states/SelectEvaluatorsSkeleton"
 
 /**
@@ -13,6 +14,8 @@ import {SelectEvaluatorsSkeleton} from "./states/SelectEvaluatorsSkeleton"
 export const SelectEvaluatorsStep = ({
     evaluators,
     isLoading,
+    loadFailed,
+    onRetry,
     selected,
     lockedSlugs,
     onChange,
@@ -20,6 +23,8 @@ export const SelectEvaluatorsStep = ({
 }: {
     evaluators: readonly Workflow[]
     isLoading: boolean
+    loadFailed: boolean
+    onRetry: () => void
     selected: readonly string[]
     lockedSlugs: readonly string[]
     onChange: (slugs: string[]) => void
@@ -28,6 +33,7 @@ export const SelectEvaluatorsStep = ({
     const [search, setSearch] = useState("")
 
     if (isLoading) return <SelectEvaluatorsSkeleton />
+    if (loadFailed) return <SelectEvaluatorsError onRetry={onRetry} />
     if (evaluators.length === 0) return <SelectEvaluatorsEmpty evaluatorsHref={evaluatorsHref} />
 
     const term = search.trim().toLowerCase()

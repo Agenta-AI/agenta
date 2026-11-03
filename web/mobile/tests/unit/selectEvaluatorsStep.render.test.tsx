@@ -48,6 +48,8 @@ const typeSearch = async (value: string) => {
 const Step = (props: {
     evaluators?: Workflow[]
     isLoading?: boolean
+    loadFailed?: boolean
+    onRetry?: () => void
     lockedSlugs?: string[]
     evaluatorsHref?: string | null
 }) => {
@@ -56,6 +58,8 @@ const Step = (props: {
         <SelectEvaluatorsStep
             evaluators={props.evaluators ?? EVALUATORS}
             isLoading={props.isLoading ?? false}
+            loadFailed={props.loadFailed ?? false}
+            onRetry={props.onRetry ?? (() => undefined)}
             selected={selected}
             lockedSlugs={props.lockedSlugs ?? []}
             onChange={setSelected}
@@ -114,6 +118,19 @@ describe("select evaluators step", () => {
 
         await render(<Step evaluators={[]} evaluatorsHref="/w/ws-1/p/p-1/evaluators?tab=human" />)
         expect(host.querySelector("a")?.textContent).toBe("Open evaluators")
+    })
+
+    it("A failed list load says so and offers to load it again", async () => {
+        const retry = vi.fn()
+        await render(<Step evaluators={[]} loadFailed onRetry={retry} />)
+
+        expect(host.textContent).toContain("Could not load the evaluators")
+        expect(host.textContent).not.toContain("There are no available evaluators")
+        const again = Array.from(host.querySelectorAll("button")).find(
+            (b) => b.textContent === "Try again",
+        )
+        await act(async () => again?.click())
+        expect(retry).toHaveBeenCalledTimes(1)
     })
 
     it("Loading shows a skeleton list", async () => {

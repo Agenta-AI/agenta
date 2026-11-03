@@ -39,7 +39,7 @@ export const TraceAnnotateButton = (props: Record<string, unknown>) => {
                 <PencilSimpleIcon size={14} />
                 {textOf(props.label) ?? "Annotate"}
             </Button>
-            {open ? (
+            {open && traceId && spanId ? (
                 <TraceAnnotateSheet
                     traceId={traceId}
                     spanId={spanId}

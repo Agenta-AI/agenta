@@ -177,7 +177,7 @@ describe("trace annotation form", () => {
                         origin: "human",
                         kind: "adhoc",
                         channel: "web",
-                        meta: {name: "Tone", description: "tone evaluator", tags: ["friendly"]},
+                        meta: {name: "Tone", description: "Tone of the reply", tags: ["friendly"]},
                     },
                 },
                 {params: {project_id: PROJECT}},
@@ -296,6 +296,35 @@ describe("trace annotation form", () => {
         expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual(
             expect.arrayContaining([["trace-drawer-annotations"]]),
         )
+    })
+
+    it("A retry after a partly failed save does not post the landed annotation again", async () => {
+        vi.spyOn(console, "error").mockImplementation(() => undefined)
+        http.post.mockResolvedValueOnce({data: saved}).mockRejectedValueOnce(new Error("Timeout"))
+        await mount({selectedSlugs: ["tone", "score"]})
+        await act(async () => latest.setValue("tone", "friendly", true))
+        await act(async () => latest.setValue("score", "rating", 4))
+        await save()
+        expect(latest.ownSlugs).toEqual(["tone"])
+
+        await save()
+
+        expect(http.post).toHaveBeenCalledTimes(3)
+        const retried = http.post.mock.calls[2][1] as {trace: {references: unknown}}
+        expect(retried.trace.references).toEqual({evaluator: {id: "wf-score", slug: "score"}})
+        expect(http.patch).not.toHaveBeenCalled()
+        expect(onSaved).toHaveBeenCalledTimes(1)
+    })
+
+    it("A picked evaluator that is gone or no longer human is left out", async () => {
+        client.setQueryData(["workflows", "latestRevision", "wf-score", PROJECT], {
+            ...REVISIONS["wf-score"],
+            flags: {is_evaluator: true, is_feedback: false},
+        })
+        await mount({selectedSlugs: ["tone", "score", "removed-evaluator"]})
+
+        expect(latest.sections.map((section) => section.slug)).toEqual(["tone"])
+        expect(latest.hasError).toBe(false)
     })
 
     it("A required empty metric shows Required and sends nothing", async () => {

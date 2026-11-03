@@ -14,11 +14,11 @@ import {atom, useAtomValue} from "jotai"
 
 import {
     buildTraceAnnotationSections,
+    currentFields,
     buildTraceAnnotationWrites,
     pickEditableAnnotations,
     type TraceAnnotationSection,
     type TraceAnnotationValues,
-    type TraceAnnotationWrites,
 } from "./traceAnnotationForm"
 import {useHumanEvaluators} from "./useHumanEvaluators"
 
@@ -44,8 +44,8 @@ export const useTraceAnnotationForm = ({
     selectedSlugs,
     onSaved,
 }: {
-    traceId: string | undefined
-    spanId: string | undefined
+    traceId: string
+    spanId: string
     annotations: readonly AnnotationDto[]
     selectedSlugs: readonly string[]
     onSaved: () => void
@@ -54,37 +54,55 @@ export const useTraceAnnotationForm = ({
     const userId = useAtomValue(activeUserIdAtom)
     const {evaluators: humanEvaluators} = useHumanEvaluators()
     const allEvaluators = useAtomValue(evaluatorsListQueryAtom)
+    // Annotations this sheet created, kept until the drawer refetch lists them, so a retry after
+    // a partly failed save updates them instead of creating them again.
+    const [landed, setLanded] = useState<AnnotationDto[]>([])
 
     const picked = useMemo(
-        () => pickEditableAnnotations({annotations, userId}),
-        [annotations, userId],
+        () => pickEditableAnnotations({annotations: [...annotations, ...landed], userId}),
+        [annotations, landed, userId],
     )
 
-    // Evaluator order (human evaluator list first), and each slug's workflow id: from the
-    // evaluator list, else from the annotation that names it.
+    // Evaluator order (human evaluator list first), and each slug's workflow: from the evaluator
+    // list, else the id from the annotation that names it. A picked slug whose evaluator is gone
+    // (deleted or archived) is left out once the list is known.
+    const listKnown = !allEvaluators.isPending && !allEvaluators.isError
     const targets = useMemo(() => {
         const order = new Map(humanEvaluators.map((item, index) => [item.slug, index]))
-        const ids = new Map<string, string>()
+        const refs = new Map<
+            string,
+            {workflowId: string; name?: string | null; description?: string | null}
+        >()
         for (const ref of allEvaluators.data?.refs ?? []) {
-            if (ref.slug && ref.id) ids.set(ref.slug, ref.id)
+            if (ref.slug && ref.id && !ref.deleted_at) {
+                refs.set(ref.slug, {
+                    workflowId: ref.id,
+                    name: ref.name,
+                    description: ref.description,
+                })
+            }
         }
         for (const annotation of annotations) {
             const ref = annotation.references?.evaluator
-            if (ref?.slug && ref.id && !ids.has(ref.slug)) ids.set(ref.slug, ref.id)
+            if (ref?.slug && ref.id && !refs.has(ref.slug)) refs.set(ref.slug, {workflowId: ref.id})
         }
-        const slugs = [
-            ...new Set([
-                ...picked.own.map((item) => item.references?.evaluator?.slug ?? ""),
-                ...picked.otherSlugs,
-                ...selectedSlugs,
-            ]),
-        ].filter(Boolean)
-        const ordered = slugs
+        const annotated = new Set([
+            ...picked.own.map((item) => item.references?.evaluator?.slug ?? ""),
+            ...picked.otherSlugs,
+        ])
+        const picks = selectedSlugs.filter(
+            (slug) => !annotated.has(slug) && (!listKnown || refs.has(slug)),
+        )
+        return [...annotated, ...picks]
+            .filter(Boolean)
             .map((slug, index) => ({slug, rank: order.get(slug) ?? order.size + index}))
             .sort((a, b) => a.rank - b.rank)
-            .map((item) => item.slug)
-        return ordered.map((slug) => ({slug, workflowId: ids.get(slug) ?? null}))
-    }, [humanEvaluators, allEvaluators.data, annotations, picked, selectedSlugs])
+            .map(({slug}) => ({
+                slug,
+                pickedOnly: !annotated.has(slug),
+                ...(refs.get(slug) ?? {workflowId: null}),
+            }))
+    }, [humanEvaluators, listKnown, allEvaluators.data, annotations, picked, selectedSlugs])
 
     const revisionsAtom = useMemo(
         () =>
@@ -105,7 +123,15 @@ export const useTraceAnnotationForm = ({
 
     const {resolved, isLoading, hasError} = useMemo(() => {
         const result = {
-            resolved: new Map<string, {workflowId: string; revision: Workflow}>(),
+            resolved: new Map<
+                string,
+                {
+                    workflowId: string
+                    name?: string | null
+                    description?: string | null
+                    revision: Workflow
+                }
+            >(),
             isLoading: false,
             hasError: false,
         }
@@ -116,8 +142,16 @@ export const useTraceAnnotationForm = ({
                 continue
             }
             const {data, isPending, isError} = item.query
-            if (data) result.resolved.set(item.slug, {workflowId: item.workflowId, revision: data})
-            else if (isPending && !isError) result.isLoading = true
+            // A picked evaluator that is no longer a human evaluator is dropped quietly.
+            if (data && item.pickedOnly && !data.flags?.is_feedback) continue
+            if (data) {
+                result.resolved.set(item.slug, {
+                    workflowId: item.workflowId,
+                    name: item.name,
+                    description: item.description,
+                    revision: data,
+                })
+            } else if (isPending && !isError) result.isLoading = true
             else result.hasError = true
         }
         return result
@@ -138,18 +172,14 @@ export const useTraceAnnotationForm = ({
     const [isSaving, setIsSaving] = useState(false)
     const savingRef = useRef(false)
 
-    const writes = useMemo<TraceAnnotationWrites | null>(() => {
-        try {
-            return buildTraceAnnotationWrites({sections, values, traceId, spanId})
-        } catch {
-            // No span to link a new annotation to; the Annotate button is disabled then.
-            return null
-        }
-    }, [sections, values, traceId, spanId])
+    const writes = useMemo(
+        () => buildTraceAnnotationWrites({sections, values, traceId, spanId}),
+        [sections, values, traceId, spanId],
+    )
 
     const errors = useMemo(() => {
         const result: Record<string, Record<string, string>> = {}
-        if (!showErrors || !writes) return result
+        if (!showErrors) return result
         for (const [slug, keys] of Object.entries(writes.missingRequired)) {
             result[slug] = Object.fromEntries(keys.map((key) => [key, REQUIRED_TEXT]))
         }
@@ -162,26 +192,19 @@ export const useTraceAnnotationForm = ({
 
     const shownSections = useMemo<TraceAnnotationSection[]>(
         () =>
-            sections.map((section) => {
-                const edits = values[section.slug]
-                if (!edits) return section
-                const fields = {...section.fields}
-                for (const [key, value] of Object.entries(edits)) {
-                    if (fields[key]) fields[key] = {...fields[key], value}
-                }
-                return {...section, fields}
-            }),
+            sections.map((section) => ({
+                ...section,
+                fields: currentFields(section, values[section.slug]),
+            })),
         [sections, values],
     )
 
-    const hasChanges = Boolean(
-        writes &&
+    const hasChanges =
         writes.creates.length + writes.updates.length + Object.keys(writes.missingRequired).length >
-            0,
-    )
+        0
 
     const save = useCallback(async () => {
-        if (savingRef.current || !writes || !projectId) return
+        if (savingRef.current || !projectId) return
         if (Object.keys(writes.missingRequired).length > 0) {
             setShowErrors(true)
             return
@@ -190,14 +213,34 @@ export const useTraceAnnotationForm = ({
 
         savingRef.current = true
         setIsSaving(true)
-        const results = await Promise.allSettled([
-            ...writes.creates.map((payload) => createAnnotation(projectId, payload)),
-            ...writes.updates.map((update) =>
-                updateAnnotation(projectId, update.traceId, update.spanId, {
-                    annotation: update.annotation,
-                }),
+        const [created, updated] = await Promise.all([
+            Promise.allSettled(
+                writes.creates.map((payload) => createAnnotation(projectId, payload)),
+            ),
+            Promise.allSettled(
+                writes.updates.map((update) =>
+                    updateAnnotation(projectId, update.traceId, update.spanId, {
+                        annotation: update.annotation,
+                    }),
+                ),
             ),
         ])
+        const now = new Date().toISOString()
+        const newlyLanded = created.flatMap((result, index) =>
+            result.status === "fulfilled" && result.value?.trace_id
+                ? [
+                      {
+                          ...writes.creates[index],
+                          trace_id: result.value.trace_id,
+                          span_id: result.value.span_id ?? undefined,
+                          createdById: userId ?? undefined,
+                          created_at: now,
+                      } as AnnotationDto,
+                  ]
+                : [],
+        )
+        if (newlyLanded.length > 0) setLanded((previous) => [...previous, ...newlyLanded])
+        const results = [...created, ...updated]
         // Refresh even after a failure: the writes that did land become the user's own
         // annotations, so a retry updates them instead of creating them again.
         const queryClient = getHostQueryClient()
@@ -217,7 +260,7 @@ export const useTraceAnnotationForm = ({
         }
         message.success(SAVE_SUCCESS_TEXT)
         onSaved()
-    }, [writes, projectId, onSaved])
+    }, [writes, projectId, userId, onSaved])
 
     return {
         sections: shownSections,

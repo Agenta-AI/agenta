@@ -39,8 +39,8 @@ export const TraceAnnotateSheet = ({
     annotations,
     onClose,
 }: {
-    traceId: string | undefined
-    spanId: string | undefined
+    traceId: string
+    spanId: string
     annotations: readonly AnnotationDto[]
     onClose: () => void
 }) => {
@@ -139,6 +139,8 @@ export const TraceAnnotateSheet = ({
                             <SelectEvaluatorsStep
                                 evaluators={humanEvaluators.evaluators}
                                 isLoading={humanEvaluators.isLoading}
+                                loadFailed={humanEvaluators.isError}
+                                onRetry={humanEvaluators.retry}
                                 selected={selected}
                                 lockedSlugs={form.ownSlugs}
                                 onChange={setSelected}
