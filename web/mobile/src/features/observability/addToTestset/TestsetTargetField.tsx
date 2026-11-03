@@ -56,7 +56,8 @@ export const TestsetTargetField = ({
                 loading={list.isPending}
                 emptyText="No test sets found"
             />
-            {list.isError ? (
+            {/* A failed refresh of a list already shown is not worth an alert. */}
+            {list.isError && list.data.length === 0 ? (
                 <Alert
                     type="error"
                     showIcon

@@ -268,6 +268,22 @@ describe("add to test set form", () => {
         expect(body.testset_revision.revision_id).toBe("rev-5")
     })
 
+    it("A failed refresh of the columns keeps the columns and the mappings", async () => {
+        await mount()
+        await pickExisting()
+        const before = latest.mappings
+        http.post.mockImplementation(() => Promise.reject(new Error("Network Error")))
+
+        await act(async () => {
+            await client.refetchQueries({queryKey: ["add-to-testset-columns"]})
+        })
+        await settle()
+
+        expect(latest.columns.status).toBe("ready")
+        expect(latest.columns.keys).toEqual(["inputs", "expected"])
+        expect(latest.mappings).toEqual(before)
+    })
+
     it("A test set with no rows needs no confirmation for new columns", async () => {
         routes.rows = []
         await mount()

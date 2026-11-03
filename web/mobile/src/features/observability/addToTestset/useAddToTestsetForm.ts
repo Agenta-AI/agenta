@@ -129,17 +129,20 @@ export const useAddToTestsetForm = ({
             return fetchRevisionColumnKeys({projectId, revisionId: revision.id})
         },
         enabled: Boolean(projectId && testsetId),
-        staleTime: 0,
+        // Read once per pick: a background refresh could only fail and hide the mappings. The
+        // save reads the latest revision again anyway, and closing the sheet drops the entry.
+        staleTime: Infinity,
         gcTime: 0,
         retry: false,
     })
 
+    // Columns already read stay usable even if a later refresh fails.
     const columnsStatus: ColumnsStatus = !testsetId
         ? "idle"
-        : columnsQuery.isError
-          ? "error"
-          : columnsQuery.data
-            ? "ready"
+        : columnsQuery.data
+          ? "ready"
+          : columnsQuery.isError
+            ? "error"
             : "loading"
     const columnKeys = useMemo(() => columnsQuery.data?.keys ?? [], [columnsQuery.data])
 
