@@ -24,7 +24,12 @@ import {
     reconcileRowDataForEntity,
 } from "../helpers/entityInputContract"
 
-import {executionConcurrencyAtom, repetitionCountAtom} from "./atoms"
+import {
+    buildResultKey,
+    executionConcurrencyAtom,
+    repetitionCountAtom,
+    resultsByKeyAtomFamily,
+} from "./atoms"
 import {executionHeadersAtom} from "./executionHeaders"
 import {handleExecutionResultAtom} from "./executionItems"
 import {executeStepForSessionWithExecutionItems} from "./executionRunner"
@@ -296,6 +301,22 @@ export const triggerExecutionAtom = atom(
             }
         }
 
+        // The result this run marked as running. A cancel marks it cancelled, a new run of the row
+        // replaces it, and a move of the first revision takes it elsewhere: from then on the run
+        // is not current, and its replies are dropped.
+        const markedSessionId = isTargetingDownstream
+            ? `sess:${rootEntityId}:${targetNode.entityId}`
+            : sessionId
+        const isCurrent = () => {
+            const marked = get(resultsByKeyAtomFamily(loadableId))[
+                buildResultKey(rowId, markedSessionId)
+            ]
+            return (
+                marked?.runId === runId &&
+                (marked.status === "running" || marked.status === "pending")
+            )
+        }
+
         // Get testcase row data from the loadable
         const displayRowIds = get(loadableController.selectors.displayRowIds(loadableId))
         const testcaseRowId =
@@ -365,10 +386,13 @@ export const triggerExecutionAtom = atom(
                 : connections
 
         const limiter = getSharedConcurrencyLimiter(get(executionConcurrencyAtom))
-        await limiter(() =>
-            executeStepForSessionWithExecutionItems({
+        await limiter(async () => {
+            // Cancelled while it waited for a free slot: it never starts.
+            if (!isCurrent()) return
+            await executeStepForSessionWithExecutionItems({
                 get,
                 set,
+                runId,
                 loadableId,
                 stepId: rowId,
                 session: {
@@ -394,6 +418,7 @@ export const triggerExecutionAtom = atom(
                 lifecycle: {
                     onStart: () => {},
                     onProgress: ({chainProgress, chainResults}) => {
+                        if (!isCurrent()) return
                         // Store chain progress on the root session so
                         // chainExecutionStatusAtomFamily can read which node is active.
                         set(updateChainProgressAtom, {
@@ -448,6 +473,7 @@ export const triggerExecutionAtom = atom(
                         }
                     },
                     onComplete: ({result}) => {
+                        if (!isCurrent()) return
                         // Wrap output in {response: {data: ...}} to match the shape
                         // that deriveToolViewModelFromResult expects (reads result.response.data).
                         // Use result.output (normalized) as data so invoke-format responses
@@ -563,6 +589,7 @@ export const triggerExecutionAtom = atom(
                         qc.invalidateQueries({queryKey: ["tracing"]})
                     },
                     onFail: ({error: err, traceId: lifecycleTraceId}) => {
+                        if (!isCurrent()) return
                         // For targeted downstream runs, fail the target session, not root
                         const failSessionId = isTargetingDownstream
                             ? `sess:${rootEntityId}:${targetNode.entityId}`
@@ -675,8 +702,8 @@ export const triggerExecutionAtom = atom(
                         }
                     },
                 },
-            }),
-        )
+            })
+        })
     },
 )
 

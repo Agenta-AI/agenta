@@ -7,6 +7,7 @@
  * module-level state.
  */
 
+import {loadableController} from "@agenta/entities/loadable"
 import {createStore} from "jotai"
 import {describe, expect, it} from "vitest"
 
@@ -114,6 +115,52 @@ describe("connectAppToEvaluator", () => {
             "row-1:sess:app-c1": "cancelled",
             "row-1:sess:app-c1:eval-c1": "cancelled",
         })
+    })
+})
+
+describe("a connected test set when the app changes", () => {
+    const connectTestset = (store: Store) =>
+        store.set(playgroundController.actions.connectToTestset, {
+            loadableId: store.get(playgroundController.selectors.loadableId()),
+            revisionId: "testset-revision-1",
+            testcases: [{id: "testcase-1", country: "Spain"}],
+            testsetName: "Capitals",
+            testsetId: "testset-1",
+            revisionVersion: 2,
+        })
+    const sourceOf = (store: Store) =>
+        store.get(
+            loadableController.selectors.connectedSource(
+                store.get(playgroundController.selectors.loadableId()),
+            ),
+        )
+
+    it("stays connected when another app is picked, and when the app is disconnected", () => {
+        const store = createStore()
+        openEvaluator(store, "eval-k1")
+        connect(store, "app-k1", "eval-k1")
+        connectTestset(store)
+
+        connect(store, "app-k2", "eval-k1")
+
+        expect(store.get(playgroundController.selectors.loadableId())).toBe(
+            "testset:workflow:app-k2",
+        )
+        expect(sourceOf(store)?.id).toBe("testset-revision-1")
+        expect(
+            store.get(
+                loadableController.selectors.displayRowIds(
+                    store.get(playgroundController.selectors.loadableId()),
+                ),
+            ),
+        ).toEqual(["testcase-1"])
+
+        store.set(evaluatorChainController.actions.disconnectAppFromEvaluator)
+
+        expect(store.get(playgroundController.selectors.loadableId())).toBe(
+            "testset:workflow:eval-k1",
+        )
+        expect(sourceOf(store)?.id).toBe("testset-revision-1")
     })
 })
 

@@ -9,16 +9,24 @@ import {atom, type Getter, type Setter} from "jotai"
 import {playgroundNodesAtom} from "../atoms/playground"
 import {cancelRunningResults} from "../execution"
 import {derivedLoadableIdAtom} from "../execution/selectors"
+import type {EntitySelection} from "../types"
 
-import {playgroundController} from "./playgroundController"
+import {moveLoadableState, playgroundController} from "./playgroundController"
 
 /**
- * Stops every run in flight under the current loadable. A run keeps writing to the loadable and
- * the nodes it started with, so its results would stay "running" in the changed chain.
+ * Makes `entity` the first node. The test cases and the test set connection live under the first
+ * node's loadable, so they move with it. Runs in flight are stopped first: a run keeps writing to
+ * the loadable and the nodes it started with, so its results would stay "running".
  */
-function cancelRunsInFlight(get: Getter, set: Setter) {
-    const loadableId = get(derivedLoadableIdAtom)
-    if (loadableId) cancelRunningResults(get, set, loadableId)
+function replaceFirstNode(get: Getter, set: Setter, entity: EntitySelection): string | null {
+    const oldLoadableId = get(derivedLoadableIdAtom)
+    if (oldLoadableId) cancelRunningResults(get, set, oldLoadableId)
+    const nodeId = set(playgroundController.actions.changePrimaryNode, entity)
+    const newLoadableId = get(derivedLoadableIdAtom)
+    if (oldLoadableId && newLoadableId !== oldLoadableId) {
+        moveLoadableState(get, set, {oldLoadableId, newLoadableId, newEntityId: entity.id})
+    }
+    return nodeId
 }
 
 /**
@@ -37,8 +45,7 @@ const connectAppToEvaluatorAtom = atom(
             evaluatorLabel: string
         },
     ) => {
-        cancelRunsInFlight(get, set)
-        const nodeId = set(playgroundController.actions.changePrimaryNode, {
+        const nodeId = replaceFirstNode(get, set, {
             type: "workflow",
             id: params.appRevisionId,
             label: params.appLabel,
@@ -61,9 +68,8 @@ const connectAppToEvaluatorAtom = atom(
 const disconnectAppFromEvaluatorAtom = atom(null, (get, set) => {
     const evaluator = get(playgroundNodesAtom).find((node) => node.depth > 0)
     if (!evaluator) return
-    cancelRunsInFlight(get, set)
     set(playgroundController.actions.removeNode, evaluator.id)
-    set(playgroundController.actions.changePrimaryNode, {
+    replaceFirstNode(get, set, {
         type: evaluator.entityType,
         id: evaluator.entityId,
         label: evaluator.label ?? evaluator.entityId,

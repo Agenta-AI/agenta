@@ -48,9 +48,19 @@ const ScoreCard = ({
             [rowId, scopedId],
         ),
     ) as StageResult | null
+    // A stage the runner skipped (a required input is missing) is published as a plain success;
+    // the app's own result keeps the stage's real status and the reason.
+    const appResult = useAtomValue(
+        useMemo(
+            () => executionItemController.selectors.fullResult({rowId, entityId: rootEntityId}),
+            [rowId, rootEntityId],
+        ),
+    ) as {chainResults?: Record<string, StageResult>} | null
+    const skipped = appResult?.chainResults?.[node.id]?.status === "skipped"
     const ports = useAtomValue(workflowMolecule.selectors.outputPorts(node.entityId))
     const name = useAtomValue(workflowMolecule.selectors.artifactName(node.entityId))
-    const status = result?.status ?? "idle"
+    const status = skipped ? "skipped" : (result?.status ?? "idle")
+    const error = skipped ? appResult?.chainResults?.[node.id]?.error : result?.error
 
     const body = (() => {
         if (status === "running" || status === "pending") {
@@ -65,7 +75,7 @@ const ScoreCard = ({
                             : "m-0 text-xs italic text-muted-foreground"
                     }
                 >
-                    {result?.error?.message || (status === "error" ? "Error" : "Skipped")}
+                    {error?.message || (status === "error" ? "Error" : "Skipped")}
                 </p>
             )
         }

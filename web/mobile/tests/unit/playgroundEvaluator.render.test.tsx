@@ -153,7 +153,9 @@ http.get.mockImplementation(async (url: string) =>
 )
 
 /** What the services receive. */
-const calls: {url: string; body: Record<string, unknown>}[] = []
+const calls: {url: string; body: Record<string, unknown>; signal?: AbortSignal | null}[] = []
+/** When set, the app's request waits for this promise before it answers. */
+let appGate: Promise<void> | null = null
 
 const store = getDefaultStore()
 let root: Root
@@ -197,8 +199,10 @@ beforeEach(async () => {
     router.replace.mockReset()
     router.replace.mockResolvedValue(true)
     calls.length = 0
+    appGate = null
     vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
-        calls.push({url: String(url), body: JSON.parse(String(init.body))})
+        calls.push({url: String(url), body: JSON.parse(String(init.body)), signal: init.signal})
+        if (appGate && String(url).includes("completion")) await appGate
         const answer = String(url).includes("auto_exact_match")
             ? {data: {outputs: {score: 1, success: true}}, trace_id: "trace-2"}
             : {data: "Paris", trace_id: "trace-1"}
@@ -333,6 +337,71 @@ describe("The evaluator playground", () => {
         expect(store.get(workflowMolecule.selectors.configuration("eval-rev-1"))).toEqual({
             correct_answer_key: "expected_answer",
         })
+    })
+
+    it("Cancel stops the app's request, and its late answer changes nothing", async () => {
+        let release = () => undefined
+        appGate = new Promise<void>((resolve) => {
+            release = resolve
+        })
+        await click("Pick app")
+        await click("Run")
+        expect(calls).toHaveLength(1)
+
+        await click("Cancel")
+        expect(calls[0].signal?.aborted).toBe(true)
+        release()
+        await settle()
+
+        // The evaluator never ran, and the run shows no answer.
+        expect(calls).toHaveLength(1)
+        expect(host.textContent).not.toContain("Paris")
+        expect(button("Run")).toBeDefined()
+    })
+
+    it("A skipped evaluator says why", async () => {
+        const {completeRunAtom, startRunAtom} = await import("@agenta/playground/state")
+        const {executionItemController} = await import("@agenta/playground")
+        await click("Pick app")
+        const nodes = store.get(playgroundController.selectors.nodes())
+        const loadableId = store.get(playgroundController.selectors.loadableId())
+        const [stepId] = store.get(executionItemController.selectors.executionRowIds) as string[]
+        // What a chain run writes when the evaluator lacks a required input.
+        for (const sessionId of ["sess:app-rev-1", "sess:app-rev-1:eval-rev-1"]) {
+            store.set(startRunAtom, {loadableId, stepId, sessionId, runId: "run-1"})
+        }
+        store.set(completeRunAtom, {
+            loadableId,
+            stepId,
+            sessionId: "sess:app-rev-1",
+            result: {
+                output: {response: {data: "Paris"}},
+                chainResults: {
+                    [nodes[1].id]: {
+                        executionId: "skipped-1",
+                        nodeId: nodes[1].id,
+                        nodeLabel: "Exact match",
+                        nodeType: "workflow",
+                        stageIndex: 1,
+                        status: "skipped",
+                        startedAt: "2026-11-01T00:00:00Z",
+                        completedAt: "2026-11-01T00:00:00Z",
+                        error: {message: "Missing required inputs: correct_answer"},
+                        traceId: null,
+                    },
+                },
+            },
+        })
+        store.set(completeRunAtom, {
+            loadableId,
+            stepId,
+            sessionId: "sess:app-rev-1:eval-rev-1",
+            result: {output: {response: {data: undefined}}},
+        })
+        await settle()
+
+        const card = host.querySelector('[data-testid="evaluator-score-eval-rev-1"]')!
+        expect(card.textContent).toBe("Exact matchMissing required inputs: correct_answer")
     })
 
     it("Leaving the page clears the chain", async () => {

@@ -2162,22 +2162,38 @@ function relinkLoadableSessions(
         // commit must move the whole loadable context. Migrating only execution
         // results drops connectedSourceId and makes the connected testset appear
         // disconnected under the new revision.
-        const oldLoadableStateAtom = loadableStateAtomFamily(oldLoadableId)
-        const oldLoadableState = get(oldLoadableStateAtom)
-        set(loadableStateAtomFamily(newLoadableId), {
-            ...oldLoadableState,
-            linkedRunnableId: newEntityId,
-            hiddenTestcaseIds: new Set(oldLoadableState.hiddenTestcaseIds),
-            disabledOutputMappingRowIds: new Set(oldLoadableState.disabledOutputMappingRowIds),
-        })
-
-        // Evict the old family key so future lookups receive fresh default state.
-        // Reset the captured atom as well for any subscribers that still hold it.
-        loadableStateAtomFamily.remove(oldLoadableId)
-        set(oldLoadableStateAtom, get(loadableStateAtomFamily(oldLoadableId)))
+        moveLoadableState(get, set, {oldLoadableId, newLoadableId, newEntityId})
     } else if (execRewrote) {
         set(executionStateAtomFamily(oldLoadableId), nextExecState)
     }
+}
+
+/**
+ * Moves a loadable's test set connection, hidden and deselected rows to another loadable, linked
+ * to `newEntityId`, and resets the old one.
+ */
+export function moveLoadableState(
+    get: Getter,
+    set: Setter,
+    {
+        oldLoadableId,
+        newLoadableId,
+        newEntityId,
+    }: {oldLoadableId: string; newLoadableId: string; newEntityId: string},
+) {
+    const oldLoadableStateAtom = loadableStateAtomFamily(oldLoadableId)
+    const oldLoadableState = get(oldLoadableStateAtom)
+    set(loadableStateAtomFamily(newLoadableId), {
+        ...oldLoadableState,
+        linkedRunnableId: newEntityId,
+        hiddenTestcaseIds: new Set(oldLoadableState.hiddenTestcaseIds),
+        disabledOutputMappingRowIds: new Set(oldLoadableState.disabledOutputMappingRowIds),
+    })
+
+    // Evict the old family key so future lookups receive fresh default state.
+    // Reset the captured atom as well for any subscribers that still hold it.
+    loadableStateAtomFamily.remove(oldLoadableId)
+    set(oldLoadableStateAtom, get(loadableStateAtomFamily(oldLoadableId)))
 }
 
 type PruneStatus = "acted" | "noop" | "unresolved"
