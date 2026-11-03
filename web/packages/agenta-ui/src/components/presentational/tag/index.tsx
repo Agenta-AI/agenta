@@ -184,13 +184,16 @@ function TagImpl({
             {content}
             {showDismiss ? (
                 // antd's close-icon slot: 3px inset (Badge's own gap-1 is 4px) and colorIcon grey.
-                <span
+                // A native button, so the keyboard reaches it; preflight is off, so it is reset here.
+                <button
+                    type="button"
                     title="Discard changes"
-                    className="-ml-px inline-flex cursor-pointer text-colorIcon"
+                    aria-label="Discard changes"
+                    className="-ml-px inline-flex cursor-pointer border-0 bg-transparent p-0 text-colorIcon"
                     onClick={onDismiss}
                 >
                     <X size={12} />
-                </span>
+                </button>
             ) : null}
         </Badge>
     )

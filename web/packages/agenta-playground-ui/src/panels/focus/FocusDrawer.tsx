@@ -44,7 +44,7 @@ export const FocusDrawer = ({renderTraceFooter}: FocusDrawerProps) => {
         () =>
             atom((get) => {
                 if (!entityId) return {variants: []}
-                const name = get(workflowMolecule.selectors.data(entityId))?.name
+                const name = get(workflowMolecule.selectors.variantLabel(entityId))
                 const result = rowId
                     ? get(executionItemController.selectors.fullResult({rowId, entityId}))
                     : null

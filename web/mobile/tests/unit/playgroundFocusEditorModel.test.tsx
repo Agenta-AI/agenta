@@ -126,4 +126,22 @@ describe("The focus drawer form model", () => {
 
         expect(rowData()).toEqual({country: "Spain", notes: "from the test set"})
     })
+
+    it("A number or boolean field stays a number or boolean after the form types text into it", async () => {
+        await seed({country: "France", age: 42, formal: true})
+
+        await act(async () =>
+            model.handleEditorChange({...model.editorValue, age: "43", formal: "false"}),
+        )
+
+        expect(rowData()).toEqual({country: "France", age: 43, formal: false})
+    })
+
+    it("Text that is not a number stays text in a number field", async () => {
+        await seed({age: 42})
+
+        await act(async () => model.handleEditorChange({...model.editorValue, age: "4x"}))
+
+        expect(rowData().age).toBe("4x")
+    })
 })

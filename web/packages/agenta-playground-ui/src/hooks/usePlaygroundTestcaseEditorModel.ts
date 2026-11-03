@@ -28,6 +28,25 @@ const defaultValueForType = (type: string): unknown => {
 const sameValue = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 
 /**
+ * The form types every plain value as text. A number or boolean field must stay one, so text
+ * typed into it goes back to the field's own type: the type of the stored value, else the type
+ * the prompt's port declares.
+ */
+const keepNativeType = (value: unknown, stored: unknown, declared?: string): unknown => {
+    if (typeof value !== "string") return value
+    const type = stored === undefined || stored === null || stored === "" ? declared : typeof stored
+    if (type === "number" || type === "integer") {
+        const number = Number(value)
+        return value.trim() !== "" && Number.isFinite(number) ? number : value
+    }
+    if (type === "boolean") {
+        const lower = value.toLowerCase()
+        return lower === "true" ? true : lower === "false" ? false : value
+    }
+    return value
+}
+
+/**
  * The form of one test case in the focus drawer: the columns the row has, then the columns the
  * prompt references that the row lacks, shown with an empty value so the user can type at once.
  * An edit writes the row's own data plus only the missing columns the user filled in, so opening
@@ -106,11 +125,11 @@ export const usePlaygroundTestcaseEditorModel = (testcaseId: string) => {
             for (const [key, value] of Object.entries(nextValue)) {
                 const isMissing = !(key in existing) && key in suggestedDefaults
                 if (isMissing && sameValue(value, suggestedDefaults[key])) continue
-                data[key] = value
+                data[key] = keepNativeType(value, existing[key], schemaMap[key]?.type)
             }
             updateTestcase(testcaseId, {data})
         },
-        [entityData?.data, suggestedDefaults, testcaseId, updateTestcase],
+        [entityData?.data, schemaMap, suggestedDefaults, testcaseId, updateTestcase],
     )
 
     return {

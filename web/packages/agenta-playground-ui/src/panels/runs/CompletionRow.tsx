@@ -17,7 +17,7 @@ import {RunResult} from "./RunResult"
 export interface CompletionRowProps {
     entityId: string
     rowId: string
-    /** 0-based position, shown as "testcase {n}". */
+    /** 0-based position, shown as "test case {n}". */
     index: number
     canRemove: boolean
     templateFormat?: "mustache" | "curly" | "fstring" | "jinja2"
@@ -65,7 +65,7 @@ export const CompletionRow = memo(
                         <button
                             type="button"
                             aria-expanded={!collapsed}
-                            aria-label={collapsed ? "Expand test case" : "Collapse test case"}
+                            aria-label={`${collapsed ? "Expand" : "Collapse"} test case ${index + 1}`}
                             onClick={() => {
                                 setClicked(true)
                                 setOwn(!collapsed)
@@ -79,7 +79,7 @@ export const CompletionRow = memo(
                             onClick={() => openDetails({rowId, entityId})}
                             className="min-w-0 truncate rounded-md border-0 bg-transparent py-0.5 pl-0 pr-2 text-xs text-foreground"
                         >
-                            {`testcase ${index + 1}`}
+                            {`test case ${index + 1}`}
                         </button>
                     </div>
                     <RowSyncTag rowId={rowId} />

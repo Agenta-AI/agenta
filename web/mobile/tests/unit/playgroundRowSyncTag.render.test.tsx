@@ -160,9 +160,10 @@ describe("The row sync tag", () => {
         await edit(rowIds()[0], "Spain")
         expect(section(0).textContent).toContain("Edited")
 
-        await act(async () =>
-            section(0).querySelector<HTMLElement>('[title="Discard changes"]')!.click(),
-        )
+        // A native button, so the keyboard reaches it.
+        const discard = section(0).querySelector<HTMLElement>('[aria-label="Discard changes"]')!
+        expect(discard.tagName).toBe("BUTTON")
+        await act(async () => discard.click())
         await settle()
 
         expect(section(0).textContent).not.toContain("Edited")
@@ -178,7 +179,7 @@ describe("The row controls that open the focus drawer", () => {
         await click(host, "Test case")
         const second = rowIds()[1]
 
-        await click(section(1), "testcase 2")
+        await click(section(1), "test case 2")
 
         expect(store.get(playgroundFocusDrawerAtom)).toMatchObject({isOpen: true, rowId: second})
         // The label no longer folds the row: only the caret does.
@@ -186,7 +187,7 @@ describe("The row controls that open the focus drawer", () => {
     })
 
     it("The caret folds the row and does not open the drawer", async () => {
-        await click(section(0), "Collapse test case")
+        await click(section(0), "Collapse test case 1")
 
         expect(section(0).querySelector('[aria-expanded="false"]')).not.toBeNull()
         expect(store.get(playgroundFocusDrawerAtom).isOpen).toBe(false)

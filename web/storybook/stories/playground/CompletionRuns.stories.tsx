@@ -76,7 +76,7 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 const ready = async (canvasElement: HTMLElement) => {
-    await within(canvasElement).findByText("testcase 1")
+    await within(canvasElement).findByText("test case 1")
 }
 
 /** One empty test case, before any run. */

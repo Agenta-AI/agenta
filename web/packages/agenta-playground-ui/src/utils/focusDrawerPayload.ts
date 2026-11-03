@@ -32,15 +32,26 @@ export const buildFocusDrawerPayload = ({
     outputs,
 }: FocusDrawerPayload): FocusDrawerPayload => ({inputs, suggestedFields, outputs})
 
-/** An edit of the JSON or YAML view writes back only `inputs`; the rest is read only. */
+/**
+ * An edit of the JSON or YAML view writes back only `inputs`; the rest is read only. The test case
+ * store merges what it gets, so a key the user removed is returned as `undefined` to delete it.
+ */
 export const applyFocusDrawerPayloadEdit = ({
     currentInputs,
     nextPayload,
 }: {
     currentInputs: Record<string, unknown>
     nextPayload: unknown
-}): Record<string, unknown> =>
-    isRecord(nextPayload) && isRecord(nextPayload.inputs) ? nextPayload.inputs : currentInputs
+}): Record<string, unknown> => {
+    if (!isRecord(nextPayload) || !isRecord(nextPayload.inputs)) return currentInputs
+    const inputs = nextPayload.inputs
+    const removed = Object.fromEntries(
+        Object.keys(currentInputs)
+            .filter((key) => !(key in inputs))
+            .map((key) => [key, undefined]),
+    )
+    return {...removed, ...inputs}
+}
 
 export const toFocusDrawerResultPayload = (result: unknown): FocusDrawerResultPayload | null => {
     if (!isRecord(result)) return null

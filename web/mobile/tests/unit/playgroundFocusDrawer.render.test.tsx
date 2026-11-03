@@ -118,6 +118,23 @@ const seedRows = async () => {
     }
     await settle()
 }
+/** Radix opens its menu on pointer down, and it needs a ResizeObserver that jsdom lacks. */
+const switchToJson = async () => {
+    stubResizeObserver()
+    const Pointer = globalThis.PointerEvent ?? MouseEvent
+    await act(async () =>
+        button(dialog()!, "Form")!.dispatchEvent(
+            new Pointer("pointerdown", {bubbles: true, button: 0}),
+        ),
+    )
+    await settle()
+    const option = [
+        ...document.body.querySelectorAll<HTMLElement>('[role="menuitem"], [role="option"]'),
+    ].find((item) => item.textContent === "JSON")
+    expect(option, "a JSON option").toBeDefined()
+    await act(async () => option!.click())
+    await settle()
+}
 const openRow = async (row: string) => {
     await act(async () =>
         store.set(openPlaygroundFocusDrawerAtom, {rowId: row, entityId: entityId()}),
@@ -222,21 +239,7 @@ describe("The focus drawer", () => {
         const first = rowIds()[0]
         await openRow(first)
 
-        // Radix opens its menu on pointer down; jsdom has no ResizeObserver.
-        stubResizeObserver()
-        const Pointer = globalThis.PointerEvent ?? MouseEvent
-        await act(async () =>
-            button(dialog()!, "Form")!.dispatchEvent(
-                new Pointer("pointerdown", {bubbles: true, button: 0}),
-            ),
-        )
-        await settle()
-        const option = [
-            ...document.body.querySelectorAll<HTMLElement>('[role="menuitem"], [role="option"]'),
-        ].find((item) => item.textContent === "JSON")
-        expect(option, "a JSON option").toBeDefined()
-        await act(async () => option!.click())
-        await settle()
+        await switchToJson()
         const editor = dialog()!.querySelector<HTMLTextAreaElement>('[data-testid="editor"]')!
         const payload = JSON.parse(editor.value)
         expect(Object.keys(payload)).toEqual(["inputs", "suggestedFields", "outputs"])
@@ -248,6 +251,28 @@ describe("The focus drawer", () => {
         await settle()
 
         expect(rowValue(first)).toEqual({country: "Peru"})
+    })
+
+    it("Removing a key in the JSON view deletes it from the row", async () => {
+        await seedRows()
+        const first = rowIds()[0]
+        await act(async () =>
+            store.set(executionItemController.actions.setTestcaseCellValue, {
+                testcaseId: first,
+                column: "notes",
+                value: "old",
+            }),
+        )
+        await openRow(first)
+        await switchToJson()
+        const editor = dialog()!.querySelector<HTMLTextAreaElement>('[data-testid="editor"]')!
+        const payload = JSON.parse(editor.value)
+        expect(payload.inputs).toEqual({country: "France", notes: "old"})
+
+        await typeInto(editor, JSON.stringify({...payload, inputs: {country: "France"}}))
+        await settle()
+
+        expect(rowValue(first)).toEqual({country: "France"})
     })
 
     it("Leaving the page closes and resets the drawer", async () => {
