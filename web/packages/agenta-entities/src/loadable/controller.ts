@@ -51,6 +51,8 @@ import {
     deletedEntityIdsAtom,
     markDeletedAtom,
     newEntityIdsAtom,
+    removeNewEntityIdAtom,
+    addNewEntityIdAtom,
     setCurrentRevisionIdAtom,
     clearDeletedIdsAtom,
     testcaseDraftAtomFamily,
@@ -1227,15 +1229,28 @@ const commitChangesAtom = atom(
             throw new Error("Could not determine testset ID from revision")
         }
 
+        // A row added here and then deselected is not part of the commit. It is kept aside, and
+        // comes back if the commit fails.
+        const hiddenNewIds = get(newEntityIdsAtom).filter((id) => state.hiddenTestcaseIds.has(id))
+        for (const id of hiddenNewIds) set(removeNewEntityIdAtom, id)
+
+        const restoreHiddenNewIds = () => {
+            for (const id of hiddenNewIds) set(addNewEntityIdAtom, id)
+        }
+
         // Delegate to saveTestsetAtom which reads from testcaseMolecule
         const result = await set(saveTestsetAtom, {
             projectId,
             testsetId,
             revisionId: state.connectedSourceId,
             commitMessage: message,
+        }).catch((error: unknown) => {
+            restoreHiddenNewIds()
+            throw error
         })
 
         if (!result.success) {
+            restoreHiddenNewIds()
             throw result.error ?? new Error("Commit failed")
         }
 

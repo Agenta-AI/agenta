@@ -402,6 +402,35 @@ describe("Syncing changes", () => {
         expect((rows.replace ?? []).map((row) => row.id)).not.toContain(added)
     })
 
+    it("A row added in the playground and then deselected is not committed", async () => {
+        await pickLoad()
+        await act(async () => store.set(loadableController.actions.addRow, loadableId(), {}))
+        await settle()
+        await editCell(rowIds()[2], "Japan")
+        await editCell(FRANCE, "Spain")
+        act(() => menu().manage())
+        await act(async () =>
+            menu().confirmEdit({revisionId: REVISION, testcaseIds: [FRANCE, ITALY]}),
+        )
+        await settle()
+        expect(rowValues()).toEqual(["Spain", "Italy"])
+
+        await act(async () => {
+            await menu().syncSubmit({
+                entity: {type: "revision", id: REVISION},
+                message: null,
+                mode: "commit",
+            })
+        })
+
+        const rows = (
+            postsTo("/testsets/revisions/commit")[0][1] as {
+                testset_revision: {delta: {rows: {add?: unknown[]}}}
+            }
+        ).testset_revision.delta.rows
+        expect(rows.add).toBeUndefined()
+    })
+
     it("After a commit the menu names the new version", async () => {
         await pickLoad()
         await editCell(FRANCE, "Spain")

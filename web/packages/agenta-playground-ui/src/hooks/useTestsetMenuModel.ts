@@ -44,6 +44,8 @@ export type TestsetMenuDialog =
           /** A chat playground loads one test case, so its drafts cannot be kept. */
           chat: boolean
           payload: ConnectToTestsetPayload
+          /** Switching the chat test case of the connected test set: its edits go first. */
+          discardEdits?: boolean
       }
 
 export interface TestsetMenuModel {
@@ -218,19 +220,53 @@ export const useTestsetMenuModel = (): TestsetMenuModel => {
         [close, dialog, isChat, isConnected, loadableId, open, store],
     )
 
+    /** Drops the unsaved edits, then loads the picked chat test case as saved. */
+    const switchChatCase = useCallback(
+        (payload: ConnectToTestsetPayload) => {
+            store.set(loadableController.actions.discardChanges, payload.loadableId)
+            store.set(playgroundController.actions.connectToTestset, {
+                ...payload,
+                testcases: testcaseData(payload.testcases.flatMap(({id}) => (id ? [id] : []))),
+            })
+        },
+        [store],
+    )
+
     const confirmEdit = useCallback(
         (payload: TestsetEditPayload) => {
             if (!loadableId) return
+            const shown = store.get(loadableController.selectors.displayRowIds(loadableId))
+            const unchanged =
+                payload.revisionId === connectedRevisionId &&
+                payload.testcaseIds.join() === shown.join()
+            // Nothing to change: a reload would drop the chat turns run since the load.
+            if (unchanged) {
+                close()
+                return
+            }
             if (payload.revisionId === connectedRevisionId && isChat) {
                 // A chat playground holds one test case and its conversation: load the new pick
-                // the way a connect does, so the conversation follows it.
-                store.set(playgroundController.actions.connectToTestset, {
+                // the way a connect does, so the conversation follows it. Unsaved edits would be
+                // replaced, so that asks first.
+                const switchPayload: ConnectToTestsetPayload = {
                     loadableId,
                     revisionId: payload.revisionId,
-                    testcases: testcaseData(payload.testcaseIds),
+                    testcases: payload.testcaseIds.map((id) => ({id})),
                     testsetName: connectedSource?.name ?? "",
                     testsetId: connectedTestset?.id ?? null,
-                })
+                }
+                if (hasLocalChanges) {
+                    open({
+                        kind: "keep-drafts",
+                        draftCount: 1,
+                        testsetName: connectedSource?.name ?? null,
+                        chat: true,
+                        payload: switchPayload,
+                        discardEdits: true,
+                    })
+                    return
+                }
+                switchChatCase(switchPayload)
             } else if (payload.revisionId === connectedRevisionId) {
                 store.set(
                     loadableController.actions.updateTestcaseSelection,
@@ -250,15 +286,23 @@ export const useTestsetMenuModel = (): TestsetMenuModel => {
             connectedRevisionId,
             connectedSource?.name,
             connectedTestset?.id,
+            hasLocalChanges,
             isChat,
             loadableId,
+            open,
             store,
+            switchChatCase,
         ],
     )
 
     const confirmKeepDrafts = useCallback(
         (keep: boolean) => {
             if (dialog?.kind !== "keep-drafts") return
+            if (dialog.discardEdits) {
+                switchChatCase(dialog.payload)
+                close()
+                return
+            }
             store.set(
                 keep && !dialog.chat
                     ? playgroundController.actions.connectToTestsetKeepingLocalRows
@@ -267,7 +311,7 @@ export const useTestsetMenuModel = (): TestsetMenuModel => {
             )
             close()
         },
-        [close, dialog, store],
+        [close, dialog, store, switchChatCase],
     )
 
     const resolveUnsaved = useCallback(

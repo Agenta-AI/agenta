@@ -5,7 +5,7 @@
  */
 import {act} from "react"
 
-import {fetchTestcasesPage} from "@agenta/entities/testcase"
+import {fetchTestcasesPage, testcaseMolecule} from "@agenta/entities/testcase"
 import {executionItemController} from "@agenta/playground"
 import {useTestsetMenuModel, type TestsetMenuModel} from "@agenta/playground-ui/hooks"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
@@ -153,6 +153,13 @@ describe("The test set menu in a chat playground", () => {
         await settle()
         expect(userMessages()).toEqual(["A weekend in Lisbon?"])
 
+        // Confirming the same test case keeps the conversation as it is.
+        const before = store.get(executionItemController.selectors.messageIds)
+        act(() => model!.manage())
+        await act(async () => model!.confirmEdit({revisionId: REVISION, testcaseIds: [LISBON]}))
+        await settle()
+        expect(store.get(executionItemController.selectors.messageIds)).toBe(before)
+
         act(() => model!.manage())
         await act(async () => model!.confirmEdit({revisionId: REVISION, testcaseIds: [OSLO]}))
         await settle()
@@ -160,5 +167,46 @@ describe("The test set menu in a chat playground", () => {
         expect(userMessages()).toEqual(["A week in Oslo?"])
         expect(model!.connectedRevisionId).toBe(REVISION)
         expect(model!.label).toBe("Trips (v2)")
+    })
+
+    it("Switching the chat test case with unsaved edits asks before it replaces them", async () => {
+        await act(async () => {
+            await fetchTestcasesPage({projectId, revisionId: REVISION})
+        })
+        await act(async () =>
+            model!.confirmLoad({
+                revisionId: REVISION,
+                testcaseIds: [LISBON],
+                testsetName: "Trips",
+                testsetId: TESTSET,
+                revisionVersion: 2,
+            }),
+        )
+        await settle()
+        await act(async () =>
+            store.set(executionItemController.actions.setTestcaseCellValue, {
+                testcaseId: LISBON,
+                column: "name",
+                value: "Riley",
+            }),
+        )
+        await settle()
+        expect(model!.hasLocalChanges).toBe(true)
+
+        act(() => model!.manage())
+        await act(async () => model!.confirmEdit({revisionId: REVISION, testcaseIds: [OSLO]}))
+        await settle()
+
+        expect(model!.dialog).toMatchObject({kind: "keep-drafts", chat: true})
+        expect(userMessages()).toEqual(["A weekend in Lisbon?"])
+
+        await act(async () => model!.confirmKeepDrafts(false))
+        await settle()
+
+        expect(userMessages()).toEqual(["A week in Oslo?"])
+        expect(model!.hasLocalChanges).toBe(false)
+        expect(
+            (store.get(testcaseMolecule.data(LISBON)) as {data: Record<string, unknown>}).data.name,
+        ).toBe("Alex")
     })
 })
