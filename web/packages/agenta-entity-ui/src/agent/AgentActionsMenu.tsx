@@ -10,8 +10,10 @@ import {
     Broadcast,
     Copy,
     DotsThreeVertical,
+    ArrowCounterClockwise,
     Note,
     PencilSimple,
+    Rocket,
     TextAlignLeft,
 } from "@phosphor-icons/react"
 
@@ -37,6 +39,14 @@ export interface AgentActionsMenuProps {
     onDelete?: () => void
     /** Custom-workflow "Configure" — only the desktop has that flow, so absent means no item. */
     onConfigure?: () => void
+    /** Opens a chat with the agent. Absent means no item. */
+    onOpenPlayground?: () => void
+    /** The agent is archived: Rename, Configure and Archive agent do not apply to it. */
+    archived?: boolean
+    /** Restores an archived agent. Absent means no Restore, for a reader who may not. */
+    onRestore?: () => void
+    /** False hides Archive agent, for a reader who may not archive. Defaults to true. */
+    canArchive?: boolean
     /** Which edge the menu hangs from. A trigger near the right edge wants `end`. */
     align?: "start" | "end"
     /** The close's focus restore. A host whose rename mounts an editor suppresses it here. */
@@ -45,7 +55,7 @@ export interface AgentActionsMenuProps {
 }
 
 /**
- * THE agent kebab: open, rename, copy slug, archive. One definition for the desktop overview
+ * THE agent kebab: open, open in playground, rename, copy slug, archive, and restore for an archived agent. One definition for the desktop overview
  * header and the mobile screens, so they can't offer different verbs for the same object.
  * Copying is entirely the menu's business; open, rename and archive defer to the host — and an
  * entry whose handler is missing is dropped rather than offered dead.
@@ -58,6 +68,10 @@ export const AgentActionsMenu = ({
     onEditDescription,
     onDelete,
     onConfigure,
+    onOpenPlayground,
+    archived = false,
+    onRestore,
+    canArchive = true,
     align = "start",
     onCloseAutoFocus,
     className,
@@ -89,13 +103,19 @@ export const AgentActionsMenu = ({
                         Open configuration
                     </DropdownMenuItem>
                 ) : null}
+                {onOpenPlayground ? (
+                    <DropdownMenuItem onSelect={onOpenPlayground}>
+                        <Rocket size={16} />
+                        Open in playground
+                    </DropdownMenuItem>
+                ) : null}
                 {onPublish ? (
                     <DropdownMenuItem onSelect={onPublish}>
                         <Broadcast size={16} />
                         Publish
                     </DropdownMenuItem>
                 ) : null}
-                {onConfigure ? (
+                {archived ? null : onConfigure ? (
                     <DropdownMenuItem onSelect={onConfigure}>
                         <PencilSimple size={16} />
                         Configure
@@ -118,18 +138,29 @@ export const AgentActionsMenu = ({
                         Copy Slug
                     </DropdownMenuItem>
                 ) : null}
-                {/* Set apart: everything above is reversible in a keystroke, and this one takes
-                    the agent off the roster. */}
-                <DropdownMenuSeparator />
-                {/* Archive, not Delete: the verb behind it has always been `archiveWorkflow`,
-                    and the modal it opens is already titled "Archive". */}
-                <DropdownMenuItem
-                    className="!text-colorError"
-                    onSelect={onDelete ?? (() => actions.remove(agent))}
-                >
-                    <Archive size={16} />
-                    Archive agent
-                </DropdownMenuItem>
+                {archived ? (
+                    onRestore ? (
+                        <DropdownMenuItem onSelect={onRestore}>
+                            <ArrowCounterClockwise size={16} />
+                            Restore
+                        </DropdownMenuItem>
+                    ) : null
+                ) : canArchive ? (
+                    <>
+                        {/* Set apart: everything above is reversible in a keystroke, and this one
+                            takes the agent off the roster. */}
+                        <DropdownMenuSeparator />
+                        {/* Archive, not Delete: the verb behind it has always been
+                            `archiveWorkflow`, and the modal it opens is already titled "Archive". */}
+                        <DropdownMenuItem
+                            className="!text-colorError"
+                            onSelect={onDelete ?? (() => actions.remove(agent))}
+                        >
+                            <Archive size={16} />
+                            Archive agent
+                        </DropdownMenuItem>
+                    </>
+                ) : null}
             </DropdownMenuContent>
         </DropdownMenu>
     )

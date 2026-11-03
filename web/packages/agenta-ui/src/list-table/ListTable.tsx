@@ -69,6 +69,7 @@ export const ListTable = <Row,>({
     cardMinWidth = 240,
     groupActions,
     onOpenRow,
+    canOpenRow,
     wrapRow,
     minWidth = 572,
     loading = false,
@@ -91,8 +92,10 @@ export const ListTable = <Row,>({
     // A grid has no column header, so a stuck heading sits at the scroller's own top.
     const headingTop = groupTop(hideHeader || isGrid)
 
+    // A row that cannot open takes no focus, has no button role and shows no pointer.
+    const opens = (row: Row) => Boolean(onOpenRow) && (canOpenRow?.(row) ?? true)
     const openHandlers = (row: Row) =>
-        onOpenRow
+        onOpenRow && opens(row)
             ? {
                   role: "button" as const,
                   tabIndex: 0,
@@ -330,9 +333,9 @@ export const ListTable = <Row,>({
                                                             // shadow is nearly invisible on a dark
                                                             // surface, so dark mode adds the fill
                                                             // lift a row gets and a deeper shadow.
-                                                            onOpenRow &&
+                                                            opens(row) &&
                                                                 "cursor-pointer transition-[border-color,box-shadow,background-color] hover:border-foreground/30 hover:shadow-[0_3px_14px_rgb(0_0_0/0.07)] dark:hover:bg-accent/40 dark:hover:shadow-[0_4px_16px_rgb(0_0_0/0.5)]",
-                                                            onOpenRow && FOCUS_RING,
+                                                            opens(row) && FOCUS_RING,
                                                         )}
                                                     >
                                                         {renderCard?.(row)}
@@ -373,9 +376,9 @@ export const ListTable = <Row,>({
                                                     "group grid w-full items-center gap-3 rounded-md border-0 bg-transparent text-left",
                                                     rowPad,
                                                     "-mx-3 w-[calc(100%+1.5rem)] px-3",
-                                                    onOpenRow &&
+                                                    opens(row) &&
                                                         "cursor-pointer hover:bg-accent/60",
-                                                    onOpenRow && FOCUS_RING,
+                                                    opens(row) && FOCUS_RING,
                                                 )}
                                                 style={{gridTemplateColumns: grid}}
                                             >

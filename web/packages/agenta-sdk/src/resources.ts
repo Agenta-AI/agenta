@@ -14,9 +14,11 @@ import {ApplicationsClient} from "@agentaai/api-client/resources/applications"
 import {ChannelsClient} from "@agentaai/api-client/resources/channels"
 import {EvaluationsClient} from "@agentaai/api-client/resources/evaluations"
 import {EventsClient} from "@agentaai/api-client/resources/events"
+import {FoldersClient} from "@agentaai/api-client/resources/folders"
 import {GatewayMcpClient} from "@agentaai/api-client/resources/gatewayMcp"
 import {KeysClient} from "@agentaai/api-client/resources/keys"
 import {MountsClient} from "@agentaai/api-client/resources/mounts"
+import {OrganizationsClient} from "@agentaai/api-client/resources/organizations"
 import {ProjectsClient} from "@agentaai/api-client/resources/projects"
 import {SecretsClient} from "@agentaai/api-client/resources/secrets"
 import {SessionsClient} from "@agentaai/api-client/resources/sessions"
@@ -91,6 +93,11 @@ export function getWebhooksClient(): WebhooksClient {
     return (_webhooks ??= new WebhooksClient(buildClientOptions()))
 }
 
+let _folders: FoldersClient | undefined
+export function getFoldersClient(): FoldersClient {
+    return (_folders ??= new FoldersClient(buildClientOptions()))
+}
+
 let _workflows: WorkflowsClient | undefined
 export function getWorkflowsClient(): WorkflowsClient {
     return (_workflows ??= new WorkflowsClient(buildClientOptions()))
@@ -136,6 +143,11 @@ let _sessionsLowPriority: SessionsClient | undefined
  * conversation stream. */
 export function getLowPrioritySessionsClient(): SessionsClient {
     return (_sessionsLowPriority ??= new SessionsClient(withLowPriorityFetch(buildClientOptions())))
+}
+
+let _organizations: OrganizationsClient | undefined
+export function getOrganizationsClient(): OrganizationsClient {
+    return (_organizations ??= new OrganizationsClient(buildClientOptions()))
 }
 
 let _projects: ProjectsClient | undefined

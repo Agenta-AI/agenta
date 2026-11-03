@@ -1,6 +1,10 @@
 import {useEffect, useMemo, useRef} from "react"
 
-import {isSessionFresh} from "@agenta/entities/session"
+import {
+    forgetSessionCreatedHere,
+    isSessionCreatedHere,
+    isSessionFresh,
+} from "@agenta/entities/session"
 
 import {sharingCopy} from "@/lib/sharingCopy"
 
@@ -38,19 +42,28 @@ export const useChatAccess = ({
     const notFound = query.isSuccess && !query.data
     const readable = Boolean(sharing) && !notFound
     useEffect(() => {
-        if (readable) accessSessionRef.current = sessionId
+        if (!readable) return
+        accessSessionRef.current = sessionId
+        // The chat has a row now, and the row decides from here on: a chat whose access is later
+        // removed must not read as an empty chat of our own after a reload.
+        forgetSessionCreatedHere(sessionId)
     }, [readable, sessionId])
     const hadAccess = accessSessionRef.current === sessionId
 
+    const fresh = isSessionFresh(sessionId)
+    // A chat with no turns has no row, and the fresh marker does not survive a reload. A chat this
+    // tab created, on its agent's route, is then that empty chat: it may send. The route's agent
+    // alone does not decide this, because another person's private chat also has no row.
+    const emptyChat =
+        notFound && !hadAccess && Boolean(routeAgentId) && isSessionCreatedHere(sessionId)
     let blocked: "not_found" | "removed" | null = null
     if (notFound) {
         if (hadAccess) blocked = "removed"
-        else if (!isSessionFresh(sessionId) && !routeAgentId) blocked = "not_found"
+        else if (!fresh && !routeAgentId) blocked = "not_found"
     }
 
-    const fresh = isSessionFresh(sessionId)
     const failed = query.isError
-    const known = sessionAccessKnown({fresh, loaded: Boolean(sharing), failed})
+    const known = sessionAccessKnown({fresh: fresh || emptyChat, loaded: Boolean(sharing), failed})
     // The row read says whether the chat's agent is hidden from this reader (it polls, so an
     // agent made private while the chat is open is seen within the recheck bound). Null when
     // the row names no workflow: the agent's own revision read decides then.

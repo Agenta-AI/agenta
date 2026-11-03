@@ -15,7 +15,6 @@ import {queryClient} from "@/lib/queryClient"
 
 const fixture = vi.hoisted(() => ({environments: ["local"]}))
 const projectId = "permissions-test-project"
-const sessionId = "permissions-test-session"
 
 // v0.115.4's DrillInBridgeProvider reads the workspace id off the router to build the "Open agent"
 // href. This suite renders the provider outside a Next app, so stand in the fields it reads.
@@ -100,7 +99,7 @@ async function mount(disabled = false) {
         root.render(
             <QueryClientProvider client={queryClient}>
                 <Provider store={store}>
-                    <DrillInBridgeProvider sessionId={sessionId} projectId={projectId}>
+                    <DrillInBridgeProvider projectId={projectId}>
                         <ConfigField />
                     </DrillInBridgeProvider>
                 </Provider>
@@ -177,6 +176,14 @@ describe("mobile schema-driven agent permissions", () => {
         fixture.environments = ["local", "daytona"]
         await mount()
         await act(async () => store.set(openAgentConfigSectionAtom, "advanced"))
+        // The drawer mounts its body two frames after it opens. Wait for the body.
+        await act(async () => {
+            await vi.waitFor(() => {
+                expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+                    "Execution environment",
+                )
+            })
+        })
         const drawer = document.querySelector('[role="dialog"]')!
         expect(drawer).not.toBeNull()
         expect(drawer.textContent).toContain("Execution environment")

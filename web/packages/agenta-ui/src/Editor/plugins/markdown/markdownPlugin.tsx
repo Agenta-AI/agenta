@@ -158,10 +158,14 @@ const MarkdownPlugin = ({
                     ? cachedMarkdownSource.value
                     : $convertToMarkdownStringCustom(PLAYGROUND_TRANSFORMERS, undefined, true)
 
+            const focused = editor.getRootElement()?.contains(document.activeElement) ?? false
             const codeNode = $createCodeNode("markdown")
             codeNode.append($createTextNode(markdownSource))
             root.clear().append(codeNode)
-            codeNode.selectStart()
+            // A caret makes an unfocused editor grab focus and scroll into view, as every editor
+            // that mounts in markdown view would; only a focused editor keeps one.
+            if (focused) codeNode.selectStart()
+            else $setSelection(null)
 
             markdownSourceCacheRef.current = {
                 value: markdownSource,

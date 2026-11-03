@@ -42,14 +42,14 @@ import {
 import type { ToolCallCorrelationIndex } from "./client-tools.ts";
 import {
   raiseApproval,
-  type EmitRun,
+  type ParkRun,
   type PauseLike,
   type RecordPendingInteraction,
 } from "./seam-approval.ts";
 
 export interface BuildGatewayToolGateInput {
   responder: Responder;
-  run: EmitRun;
+  run: ParkRun;
   pause: PauseLike;
   recordPendingInteraction: RecordPendingInteraction;
   /** Non-Pi harnesses: maps the relay call to the real ACP tool-call id the card attaches to. */
@@ -144,7 +144,7 @@ export function buildGatewayToolGate({
       //
       // Nothing is lost by displaying from the identity: the outer arguments carry `integration`
       // and `tool` inside them, so a card renders `github.CREATE_ISSUE` from its own input.
-      raiseApproval({
+      const raised = raiseApproval({
         run,
         pause,
         recordPendingInteraction,
@@ -164,7 +164,9 @@ export function buildGatewayToolGate({
         // `name` as the identity.
         toolCallExtras: { displayName: plan.display },
       });
-      log(`[gateway] approval target=${plan.display} outcome=pending`);
+      log(
+        `[gateway] approval target=${plan.display} outcome=${raised ? "pending" : "skipped"}`,
+      );
       return { kind: "pendingApproval" };
     },
     onPause: () => pause.pause(),

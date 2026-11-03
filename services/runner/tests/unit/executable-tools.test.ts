@@ -69,6 +69,7 @@ function seam(
   history?: AgentRunRequest,
   withIndex = false,
   executionGrants?: ApprovedExecutionGrants,
+  forceSettled: string[] = [],
 ) {
   const events: AgentEvent[] = [];
   const pausedToolCalls: string[] = [];
@@ -80,6 +81,7 @@ function seam(
     toolCallId: string | undefined;
   }> = [];
   let pauses = 0;
+  let nonParkable = 0;
   const toolCallIndex = withIndex
     ? createToolCallCorrelationIndex()
     : undefined;
@@ -92,7 +94,10 @@ function seam(
   );
   const gate = buildExecutableToolGate({
     responder,
-    run: { emitEvent: (event) => events.push(event) },
+    run: {
+      emitEvent: (event) => events.push(event),
+      wasForceSettled: (id) => forceSettled.includes(id),
+    },
     pause: {
       markPausedToolCall: (id) => pausedToolCalls.push(id),
       pause: () => {
@@ -103,6 +108,9 @@ function seam(
       recorded.push({ token, toolName, args, kind, toolCallId });
     },
     toolCallIndex,
+    onNonParkablePause: () => {
+      nonParkable += 1;
+    },
     permissionPlan,
     executionGrants,
   });
@@ -115,6 +123,7 @@ function seam(
     toolCallIndex,
     executionGrants,
     pauses: () => pauses,
+    nonParkable: () => nonParkable,
   };
 }
 
@@ -138,6 +147,24 @@ describe("buildExecutableToolGate", () => {
     });
     assert.deepEqual(s.events, []);
     assert.deepEqual(s.pausedToolCalls, []);
+  });
+
+  it("raises no card for an ask tool the pause already closed as not executed", async () => {
+    const s = seam(request.spec, undefined, true, undefined, ["acp-call-1"]);
+    s.toolCallIndex!.record({
+      sessionUpdate: "tool_call",
+      toolCallId: "acp-call-1",
+      title: "mcp.agenta-tools.publish",
+      rawInput: input,
+    });
+
+    assert.deepEqual(await s.gate.onExecutableTool(s.request), {
+      kind: "pendingApproval",
+    });
+    assert.deepEqual(s.events, []);
+    assert.deepEqual(s.pausedToolCalls, []);
+    assert.deepEqual(s.recorded, []);
+    assert.equal(s.nonParkable(), 1, "the skipped call ends the turn cold");
   });
 
   it("parks an undecided ask tool with the user_approval payload and pause callback", async () => {
