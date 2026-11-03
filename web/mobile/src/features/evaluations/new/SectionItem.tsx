@@ -20,12 +20,15 @@ export const SectionItem = ({
     value,
     title,
     chips,
+    complete = chips.length > 0,
     disabled,
     children,
 }: {
     value: NewEvaluationSection
     title: string
     chips: SectionChip[]
+    /** Whether the section shows its check. Defaults to "has a pick". */
+    complete?: boolean
     disabled?: boolean
     children: ReactNode
 }) => (
@@ -33,7 +36,7 @@ export const SectionItem = ({
         <AccordionTrigger>
             <span className="flex min-w-0 flex-1 items-center gap-2">
                 <span className="truncate font-medium">{title}</span>
-                {chips.length > 0 ? (
+                {complete ? (
                     <CheckCircle
                         aria-label={`${title} complete`}
                         role="img"

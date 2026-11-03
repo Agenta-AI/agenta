@@ -222,6 +222,7 @@ export const NewEvaluationForm = ({
                             value="settings"
                             title="Advanced Settings"
                             chips={settingsChips}
+                            complete={settingsChips.length === CONCURRENCY_FIELDS.length}
                             disabled={isStarting}
                         >
                             <AdvancedSettingsSection

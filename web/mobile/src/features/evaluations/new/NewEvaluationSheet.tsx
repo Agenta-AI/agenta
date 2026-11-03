@@ -1,14 +1,11 @@
-import type {CSSProperties} from "react"
-
 import {Sheet, SheetContent} from "@agenta/ui/ui"
 
 import {useDeveloperViewEnabled} from "../../developer/developerViewAccess"
 
 import type {DraftRevision, NewEvaluationKind} from "./newEvaluationDraft"
 import {NewEvaluationForm} from "./NewEvaluationForm"
+import {SHEET_FRAME} from "./sheetFrame"
 import {useStartEvaluation} from "./useStartEvaluation"
-
-const SHEET_WIDTH = {"--ag-sheet-responsive-width": "640px"} as CSSProperties
 
 /**
  * The sheet that starts an auto or a human evaluation. It has no route of its own: the runs list
@@ -39,9 +36,7 @@ export const NewEvaluationSheet = ({
     return (
         <Sheet open={kind !== null} onOpenChange={(next) => !next && !isStarting && onClose()}>
             <SheetContent
-                side="right"
-                style={SHEET_WIDTH}
-                className="overflow-hidden"
+                {...SHEET_FRAME}
                 onEscapeKeyDown={(event) => isStarting && event.preventDefault()}
                 onPointerDownOutside={(event) => isStarting && event.preventDefault()}
                 onInteractOutside={(event) => isStarting && event.preventDefault()}

@@ -188,6 +188,11 @@ describe("new evaluation sheet", () => {
         expect(openSection()).toContain("Evaluators")
     })
 
+    it("Advanced Settings shows its check with the default settings", async () => {
+        await mount("auto", "app-1")
+        expect(document.querySelector("[aria-label='Advanced Settings complete']")).not.toBeNull()
+    })
+
     it("The auto name follows the picks", async () => {
         await mount("auto", "app-1")
         await pick("new-evaluation-revision-app-1", {

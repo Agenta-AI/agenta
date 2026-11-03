@@ -7,6 +7,7 @@ import type {
     NewEvaluationDraft,
 } from "../../../mobile/src/features/evaluations/new/newEvaluationDraft"
 import {NewEvaluationForm} from "../../../mobile/src/features/evaluations/new/NewEvaluationForm"
+import {SHEET_FRAME} from "../../../mobile/src/features/evaluations/new/sheetFrame"
 import type {QueryFixtures, StoryScope} from "../../.storybook/decorators/withAgentaData"
 
 /**
@@ -87,7 +88,7 @@ type FormProps = React.ComponentProps<typeof NewEvaluationForm>
 
 const SheetFrame = (props: FormProps) => (
     <Sheet open modal={false}>
-        <SheetContent side="right">
+        <SheetContent {...SHEET_FRAME}>
             <NewEvaluationForm {...props} />
         </SheetContent>
     </Sheet>
