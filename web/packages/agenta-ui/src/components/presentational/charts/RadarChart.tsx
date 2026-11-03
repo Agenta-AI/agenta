@@ -10,7 +10,10 @@ import {
     CHAR_WIDTH,
     formatChartValue,
     nearestRadarAxis,
+    radarDirection,
+    radarLabelAlign,
     radarPoint,
+    radarRadius,
     seriesColor,
     wrapLabel,
 } from "./scale"
@@ -21,6 +24,8 @@ const RINGS = [0.25, 0.5, 0.75, 1]
 const LABEL_GAP = 10
 const LINE_HEIGHT = 13
 const MIN_RADIUS = 24
+/** Space kept free along the edges of the chart. */
+const EDGE = 4
 
 /**
  * One axis per metric with values already normalized to 0..1, one filled polygon per series.
@@ -42,14 +47,19 @@ export function RadarChart({
         formatAxisValue ? formatAxisValue(raw, axis) : formatValue(raw)
     const count = axes.length
     const labels = axes.map((axis) => wrapLabel(axis.name))
-    const labelWidth = Math.max(...labels.flat().map((line) => line.length)) * CHAR_WIDTH
     const cx = frame.width / 2
     const cy = height / 2
     const radius = Math.max(
         MIN_RADIUS,
-        Math.min(
-            height / 2 - LABEL_GAP - LINE_HEIGHT * 2,
-            frame.width / 2 - LABEL_GAP - labelWidth - 4,
+        radarRadius(
+            frame.width - EDGE * 2,
+            height - EDGE * 2,
+            labels.map((lines) => ({
+                width: Math.max(...lines.map((line) => line.length)) * CHAR_WIDTH,
+                // One more line of room above and below: the block starts half a line past the gap.
+                height: (lines.length + 1) * LINE_HEIGHT,
+            })),
+            LABEL_GAP,
         ),
     )
     const at = (index: number, fraction: number) =>
@@ -152,21 +162,18 @@ export function RadarChart({
                 )
             })}
             {axes.map((axis, index) => {
-                const [x, y] = at(index, 1)
-                const dx = x - cx
-                const dy = y - cy
-                const anchor = dx > radius * 0.2 ? "start" : dx < -radius * 0.2 ? "end" : "middle"
+                const [cos, sin] = radarDirection(index, count)
+                const {anchor, vertical} = radarLabelAlign(index, count)
                 const lines = labels[index]
-                // Above the center the block grows upwards, below it grows downwards.
+                // Above the axis end the block grows upwards, below it downwards.
                 const blockShift =
-                    dy < -radius * 0.2
-                        ? -(lines.length - 1) * LINE_HEIGHT
-                        : dy > radius * 0.2
-                          ? LINE_HEIGHT * 0.7
+                    vertical === "above"
+                        ? -(lines.length - 0.5) * LINE_HEIGHT
+                        : vertical === "below"
+                          ? LINE_HEIGHT / 2
                           : (-(lines.length - 1) * LINE_HEIGHT) / 2
-                const offset = LABEL_GAP / radius + 1
-                const lx = cx + dx * offset
-                const ly = cy + dy * offset + blockShift
+                const lx = cx + (radius + LABEL_GAP) * cos
+                const ly = cy + (radius + LABEL_GAP) * sin + blockShift
                 return (
                     <text
                         key={axis.name}

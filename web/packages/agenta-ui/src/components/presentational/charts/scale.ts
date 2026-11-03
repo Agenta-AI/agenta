@@ -175,7 +175,13 @@ export function barPath(x: number, width: number, valueY: number, baseline: numb
     ].join(" ")
 }
 
-/** Point on axis `index` of `count` at `fraction` (0..1) of `radius`. Axis 0 points up, then clockwise. */
+/** Unit direction [cos, sin] of axis `index` of `count`. Axis 0 points up, then clockwise. */
+export function radarDirection(index: number, count: number): [number, number] {
+    const angle = -Math.PI / 2 + (index * 2 * Math.PI) / count
+    return [Math.cos(angle), Math.sin(angle)]
+}
+
+/** Point on axis `index` of `count` at `fraction` (0..1) of `radius`. */
 export function radarPoint(
     cx: number,
     cy: number,
@@ -184,9 +190,50 @@ export function radarPoint(
     count: number,
     fraction: number,
 ): [number, number] {
-    const angle = -Math.PI / 2 + (index * 2 * Math.PI) / count
+    const [cos, sin] = radarDirection(index, count)
     const r = radius * Math.min(1, Math.max(0, fraction))
-    return [cx + r * Math.cos(angle), cy + r * Math.sin(angle)]
+    return [cx + r * cos, cy + r * sin]
+}
+
+/** Axes this close to vertical or horizontal get centered labels. */
+const RADAR_CENTER_ZONE = 0.2
+
+export interface RadarLabelAlign {
+    anchor: "start" | "middle" | "end"
+    vertical: "above" | "center" | "below"
+}
+
+/** Where the label of an axis sits relative to the end of the axis. */
+export function radarLabelAlign(index: number, count: number): RadarLabelAlign {
+    const [cos, sin] = radarDirection(index, count)
+    return {
+        anchor: cos > RADAR_CENTER_ZONE ? "start" : cos < -RADAR_CENTER_ZONE ? "end" : "middle",
+        vertical: sin < -RADAR_CENTER_ZONE ? "above" : sin > RADAR_CENTER_ZONE ? "below" : "center",
+    }
+}
+
+/**
+ * The largest radius at which every axis label, `gap` px past the end of its axis, still fits
+ * inside `width` x `height`. Label sizes are in px; the result can be 0 or less when nothing fits.
+ */
+export function radarRadius(
+    width: number,
+    height: number,
+    labels: readonly {width: number; height: number}[],
+    gap: number,
+): number {
+    let radius = Math.min(width, height) / 2 - gap
+    labels.forEach((label, index) => {
+        const [cos, sin] = radarDirection(index, labels.length).map(Math.abs)
+        const {anchor, vertical} = radarLabelAlign(index, labels.length)
+        const roomX = width / 2 - (anchor === "middle" ? label.width / 2 : label.width)
+        const roomY = height / 2 - (vertical === "center" ? label.height / 2 : label.height)
+        if (cos > 1e-6) radius = Math.min(radius, roomX / cos - gap)
+        else if (roomX < 0) radius = 0
+        if (sin > 1e-6) radius = Math.min(radius, roomY / sin - gap)
+        else if (roomY < 0) radius = 0
+    })
+    return radius
 }
 
 /** Index of the axis nearest to the direction from the center to (`dx`, `dy`). */

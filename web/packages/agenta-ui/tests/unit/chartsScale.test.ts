@@ -10,7 +10,9 @@ import {
     nearestRadarAxis,
     niceDomain,
     niceMax,
+    radarLabelAlign,
     radarPoint,
+    radarRadius,
     spreadIndexes,
     ticks,
     truncate,
@@ -102,6 +104,23 @@ describe("chart scale math", () => {
         expect(nearestRadarAxis(0, -10, 4)).toBe(0)
         expect(nearestRadarAxis(10, 1, 4)).toBe(1)
         expect(nearestRadarAxis(-10, -1, 4)).toBe(3)
+    })
+
+    it("radar labels sit beside side axes and above or below vertical ones", () => {
+        expect(radarLabelAlign(0, 4)).toEqual({anchor: "middle", vertical: "above"})
+        expect(radarLabelAlign(1, 4)).toEqual({anchor: "start", vertical: "center"})
+        expect(radarLabelAlign(2, 4)).toEqual({anchor: "middle", vertical: "below"})
+        expect(radarLabelAlign(3, 4)).toEqual({anchor: "end", vertical: "center"})
+    })
+
+    it("radar radius leaves room for the widest side label and the tallest top label", () => {
+        const label = {width: 60, height: 20}
+        // Four axes in a 300 x 200 box with a 10 px gap: the side labels need 60 px each,
+        // so 150 - 60 - 10 = 80; the top and bottom labels need 20 px, so 100 - 20 - 10 = 70.
+        expect(radarRadius(300, 200, [label, label, label, label], 10)).toBeCloseTo(70)
+        expect(radarRadius(300, 400, [label, label, label, label], 10)).toBeCloseTo(80)
+        // A side label wider than half the box leaves no room.
+        expect(radarRadius(100, 400, [label, {width: 90, height: 20}, label], 10)).toBeLessThan(0)
     })
 
     it("line segments break at null values", () => {
