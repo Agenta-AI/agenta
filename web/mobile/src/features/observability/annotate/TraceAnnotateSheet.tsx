@@ -126,6 +126,19 @@ export const TraceAnnotateSheet = ({
                         Rate the selected span with your human evaluators.
                     </SheetDescription>
                 </SheetHeader>
+                {!selecting && form.storedFailed ? (
+                    <Alert
+                        banner
+                        type="warning"
+                        showIcon
+                        message="Could not load your saved annotations"
+                        action={
+                            <Button variant="outline" size="sm" onClick={form.retryStored}>
+                                Try again
+                            </Button>
+                        }
+                    />
+                ) : null}
                 {!selecting && form.hasError ? (
                     <Alert
                         banner

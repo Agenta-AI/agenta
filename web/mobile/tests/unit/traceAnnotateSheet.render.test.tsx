@@ -97,7 +97,13 @@ const click = async (element: Element | undefined | null) => {
 }
 const title = () => body().querySelector("[data-slot=sheet-title]")?.textContent
 
+let stored: unknown[] = []
+
 const mount = async (annotations: AnnotationDto[] = []) => {
+    stored = annotations.map((item) => ({
+        ...item,
+        data: {outputs: (item.data.outputs as {metrics?: Record<string, unknown>}).metrics},
+    }))
     await act(async () =>
         root.render(
             <QueryClientProvider client={client}>
@@ -116,7 +122,13 @@ beforeEach(() => {
     window.localStorage.clear()
     http.post.mockReset()
     http.patch.mockReset()
-    http.post.mockResolvedValue({data: {trace: null}})
+    stored = []
+    // The sheet reads the user's own annotations as stored (flat outputs) before an update.
+    http.post.mockImplementation((url: string) =>
+        Promise.resolve(
+            url.endsWith("/simple/traces/query") ? {data: {traces: stored}} : {data: {trace: null}},
+        ),
+    )
     http.patch.mockResolvedValue({data: {trace: null}})
     http.success.mockReset()
     http.error.mockReset()

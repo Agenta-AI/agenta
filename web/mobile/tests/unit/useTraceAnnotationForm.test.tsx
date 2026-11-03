@@ -19,7 +19,7 @@ const http = vi.hoisted(() => ({
     success: vi.fn(),
     error: vi.fn(),
     client: null as unknown,
-    stored: [] as unknown[],
+    stored: null as unknown[] | null,
 }))
 
 vi.mock("@agenta/shared/api", async (importOriginal) => {
@@ -93,6 +93,15 @@ const seed = (client: QueryClient, revisions: Record<string, unknown> = REVISION
 
 const saved = {trace: {trace_id: "ann-new", span_id: "ann-span-new", data: {outputs: {}}}}
 
+/** The annotation as the API stores it: flat outputs, where the drawer groups them. */
+const storedCopy = (annotation: AnnotationDto) => {
+    const grouped = (annotation.data.outputs ?? {}) as Record<string, Record<string, unknown>>
+    return {
+        ...annotation,
+        data: {outputs: {...grouped.metrics, ...grouped.notes, ...grouped.extra}},
+    }
+}
+
 const CREATE_URL = "http://api.test/simple/traces/"
 /** The create requests; the form also reads the user's stored annotations with a query. */
 const creates = () => http.post.mock.calls.filter(([url]) => url === CREATE_URL)
@@ -119,6 +128,7 @@ describe("trace annotation form", () => {
         annotations = [],
         selectedSlugs = [],
     }: {annotations?: AnnotationDto[]; selectedSlugs?: string[]} = {}) => {
+        http.stored ??= annotations.map(storedCopy)
         await act(async () => {
             root.render(
                 <QueryClientProvider client={client}>
@@ -137,11 +147,11 @@ describe("trace annotation form", () => {
     beforeEach(() => {
         http.post.mockReset()
         http.patch.mockReset()
-        http.stored = []
+        http.stored = null
         http.post.mockImplementation((url: string) =>
             Promise.resolve(
                 url.endsWith("/simple/traces/query")
-                    ? {data: {count: http.stored.length, traces: http.stored}}
+                    ? {data: {traces: http.stored ?? []}}
                     : {data: saved},
             ),
         )
@@ -344,6 +354,39 @@ describe("trace annotation form", () => {
         expect(http.patch.mock.calls[0][1]).toMatchObject({
             trace: {data: {outputs: {rating: 5, comment: null}}},
         })
+        // The same filter the drawer sends: annotations linked to this span.
+        const query = http.post.mock.calls.find(([url]) =>
+            String(url).endsWith("/simple/traces/query"),
+        )
+        expect(query?.[1]).toEqual({trace: {links: [{trace_id: "trace-1", span_id: "span-1"}]}})
+    })
+
+    it("A failed stored read blocks the update until a retry succeeds", async () => {
+        let failRead = true
+        http.post.mockImplementation((url: string) =>
+            url.endsWith("/simple/traces/query")
+                ? failRead
+                    ? Promise.reject(new Error("Network down"))
+                    : Promise.resolve({
+                          data: {traces: [storedCopy(ownAnnotation("tone", {friendly: true}))]},
+                      })
+                : Promise.resolve({data: saved}),
+        )
+        await mount({annotations: [ownAnnotation("tone", {friendly: true})]})
+        await act(async () => latest.setValue("tone", "friendly", false))
+
+        expect(latest.storedFailed).toBe(true)
+        expect(latest.hasChanges).toBe(false)
+        await save()
+        expect(http.patch).not.toHaveBeenCalled()
+
+        failRead = false
+        await act(async () => {
+            latest.retryStored()
+            await new Promise((resolve) => setTimeout(resolve, 0))
+        })
+        expect(latest.storedFailed).toBe(false)
+        expect(latest.hasChanges).toBe(true)
     })
 
     it("Save waits for the stored annotations", async () => {
@@ -437,6 +480,25 @@ describe("trace annotation form", () => {
         })
 
         expect(human?.evaluators).toEqual([])
+        expect(human?.isError).toBe(true)
+    })
+
+    it("One failed evaluator revision is reported while the others are listed", async () => {
+        client.setQueryData(["workflows", "latestRevision", "wf-score", PROJECT], null)
+        let human: ReturnType<typeof useHumanEvaluators> | undefined
+        const HumanProbe = () => {
+            human = useHumanEvaluators()
+            return null
+        }
+        await act(async () => {
+            root.render(
+                <QueryClientProvider client={client}>
+                    <HumanProbe />
+                </QueryClientProvider>,
+            )
+        })
+
+        expect(human?.evaluators.map((item) => item.slug)).toEqual(["tone"])
         expect(human?.isError).toBe(true)
     })
 })

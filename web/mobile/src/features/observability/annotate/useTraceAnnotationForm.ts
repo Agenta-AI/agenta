@@ -1,7 +1,7 @@
 import {useCallback, useMemo, useRef, useState} from "react"
 
-import {createAnnotation, fetchAnnotation, updateAnnotation} from "@agenta/entities/annotation"
-import type {AnnotationDto} from "@agenta/entities/annotation/dto"
+import {createAnnotation, updateAnnotation} from "@agenta/entities/annotation"
+import {queryAllAnnotations, type AnnotationDto} from "@agenta/entities/annotation/dto"
 import {
     evaluatorsListQueryAtom,
     workflowLatestRevisionQueryAtomFamily,
@@ -63,20 +63,28 @@ export const useTraceAnnotationForm = ({
     // The drawer drops `null` outputs when it groups them, so an update read from it would erase
     // a saved "none of the above". The user's own annotations are read again as the API stores them.
     const hasOwn = Boolean(userId) && annotations.some((item) => item.createdById === userId)
+    // The same request the drawer sends, without its grouping.
     const stored = useQuery({
         queryKey: ["trace-annotate-stored", projectId, traceId, spanId],
-        queryFn: () => fetchAnnotation({projectId: projectId ?? "", traceId, spanId}),
+        queryFn: () =>
+            queryAllAnnotations({
+                projectId: projectId ?? undefined,
+                queries: {annotation: {links: [{trace_id: traceId, span_id: spanId}]}},
+            }),
         enabled: Boolean(projectId) && hasOwn,
         staleTime: 0,
         gcTime: 0,
         retry: false,
     })
-    const storedPending = hasOwn && stored.isPending
 
+    const storedOutputs = useMemo(
+        () =>
+            new Map(
+                (stored.data?.annotations ?? []).map((item) => [item.trace_id, item.data?.outputs]),
+            ),
+        [stored.data],
+    )
     const picked = useMemo(() => {
-        const storedOutputs = new Map(
-            (stored.data?.annotations ?? []).map((item) => [item.trace_id, item.data?.outputs]),
-        )
         const current = annotations
             .filter((item) => !(item.trace_id && savedHere[item.trace_id]))
             .map((item) => {
@@ -87,7 +95,19 @@ export const useTraceAnnotationForm = ({
             annotations: [...current, ...Object.values(savedHere)],
             userId,
         })
-    }, [annotations, stored.data, savedHere, userId])
+    }, [annotations, storedOutputs, savedHere, userId])
+
+    // An update replaces the whole outputs object, so it waits until each own annotation it may
+    // update is known as stored (or was saved by this sheet). A failed read blocks it.
+    const storedPending = hasOwn && stored.isPending
+    const storedMissing =
+        hasOwn &&
+        !stored.isPending &&
+        picked.own.some(
+            (item) =>
+                item.trace_id && !savedHere[item.trace_id] && !storedOutputs.has(item.trace_id),
+        )
+    const storedBlocked = storedPending || storedMissing
 
     // Evaluator order (human evaluator list first), and each slug's workflow: from the evaluator
     // list, else the id from the annotation that names it. A picked slug whose evaluator is gone
@@ -226,12 +246,12 @@ export const useTraceAnnotationForm = ({
     )
 
     const hasChanges =
-        !storedPending &&
+        !storedBlocked &&
         writes.creates.length + writes.updates.length + Object.keys(writes.missingRequired).length >
             0
 
     const save = useCallback(async () => {
-        if (savingRef.current || !projectId || storedPending) return
+        if (savingRef.current || !projectId || storedBlocked) return
         if (Object.keys(writes.missingRequired).length > 0) {
             setShowErrors(true)
             return
@@ -292,7 +312,7 @@ export const useTraceAnnotationForm = ({
         }
         message.success(SAVE_SUCCESS_TEXT)
         onSaved()
-    }, [writes, projectId, storedPending, userId, picked, onSaved])
+    }, [writes, projectId, storedBlocked, userId, picked, onSaved])
 
     return {
         sections: shownSections,
@@ -302,6 +322,9 @@ export const useTraceAnnotationForm = ({
         hasChanges,
         isLoading: isLoading || storedPending,
         hasError,
+        /** The user's saved annotations could not be read; their updates wait for a retry. */
+        storedFailed: storedMissing,
+        retryStored: () => void stored.refetch(),
         isSaving,
         save,
     }

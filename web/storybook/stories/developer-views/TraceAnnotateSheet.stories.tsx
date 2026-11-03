@@ -83,20 +83,48 @@ const ownAnnotation = (slug: Slug, outputs: Record<string, unknown>): Annotation
         created_at: "2026-11-01T10:00:00Z",
     }) as AnnotationDto
 
-type ApiMode = "hang" | "fail"
+type ApiMode = "ok" | "hang" | "fail"
+type AdapterConfig = Parameters<
+    Extract<NonNullable<typeof axios.defaults.adapter>, (...args: never[]) => unknown>
+>[0]
 
-/** Answers every API call the save sends: never (a save in flight) or with a server error. */
-const WithApi = ({mode, children}: {mode: ApiMode; children: ReactNode}) => {
+/**
+ * Answers the API calls of the sheet: the read of the user's stored annotations with the story's
+ * own annotations, and a save with success, never (a save in flight) or a server error.
+ */
+const WithApi = ({
+    mode,
+    annotations,
+    children,
+}: {
+    mode: ApiMode
+    annotations: readonly AnnotationDto[]
+    children: ReactNode
+}) => {
     useState(() => {
-        axios.defaults.adapter = (config) =>
-            mode === "hang"
-                ? new Promise(() => undefined)
-                : Promise.reject(
-                      Object.assign(new Error("Request failed with status code 500"), {
-                          config,
-                          response: {status: 500, data: {detail: "Server error"}},
-                      }),
-                  )
+        const stored = annotations.map((item) => ({
+            ...item,
+            data: {outputs: (item.data.outputs as {metrics?: Record<string, unknown>}).metrics},
+        }))
+        const answer = (config: AdapterConfig, data: unknown) =>
+            Promise.resolve({data, status: 200, statusText: "OK", headers: {}, config})
+        const reject = (config: AdapterConfig) =>
+            Promise.reject(
+                Object.assign(new Error("Request failed with status code 500"), {
+                    config,
+                    response: {status: 500, data: {detail: "Server error"}},
+                }),
+            )
+        axios.defaults.adapter = (config) => {
+            if (config.url?.endsWith("/simple/traces/query")) {
+                return answer(config, {count: stored.length, traces: stored})
+            }
+            if (mode === "hang") return new Promise(() => undefined)
+            if (mode === "fail") return reject(config)
+            return answer(config, {
+                trace: {trace_id: "ann-new", span_id: "ann-span-new", data: {outputs: {}}},
+            })
+        }
         return null
     })
     useEffect(
@@ -122,6 +150,16 @@ const meta = {
         },
     },
     args: {traceId: "trace-1", spanId: "span-1", annotations: [], onClose: () => undefined},
+    decorators: [
+        (Story, {args, parameters}) => (
+            <WithApi
+                mode={(parameters as {api?: ApiMode}).api ?? "ok"}
+                annotations={args.annotations}
+            >
+                <Story />
+            </WithApi>
+        ),
+    ],
 } satisfies Meta<typeof TraceAnnotateSheet>
 
 export default meta
@@ -186,11 +224,7 @@ export const RequiredError: Story = {
 }
 
 export const Saving: Story = {
-    render: (args) => (
-        <WithApi mode="hang">
-            <TraceAnnotateSheet {...args} />
-        </WithApi>
-    ),
+    parameters: {api: "hang"},
     play: async ({canvasElement}) => {
         const screen = await pickTone(canvasElement)
         await userEvent.click(screen.getByRole("button", {name: "Save"}))
@@ -199,11 +233,7 @@ export const Saving: Story = {
 }
 
 export const SaveError: Story = {
-    render: (args) => (
-        <WithApi mode="fail">
-            <TraceAnnotateSheet {...args} />
-        </WithApi>
-    ),
+    parameters: {api: "fail"},
     play: async ({canvasElement}) => {
         const screen = await pickTone(canvasElement)
         await userEvent.click(screen.getByRole("button", {name: "Save"}))

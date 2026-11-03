@@ -62,12 +62,12 @@ describe("pickEditableAnnotations", () => {
         const older = annotation({
             trace_id: "ann-old",
             created_at: "2026-11-01T09:00:00Z",
-            data: {outputs: {metrics: {friendly: false}}},
+            data: {outputs: {friendly: false}},
         })
         const newer = annotation({
             trace_id: "ann-new",
             created_at: "2026-11-01T11:00:00Z",
-            data: {outputs: {metrics: {friendly: true}}},
+            data: {outputs: {friendly: true}},
         })
         const fromSdk = annotation({
             trace_id: "ann-sdk",
@@ -150,7 +150,7 @@ describe("buildTraceAnnotationWrites", () => {
         })
 
     it("Sections follow the given order and fill own values", () => {
-        const sections = sectionsFor([annotation({data: {outputs: {metrics: {friendly: true}}}})])
+        const sections = sectionsFor([annotation({data: {outputs: {friendly: true}}})])
 
         expect(sections.map((section) => section.slug)).toEqual(["tone", "score"])
         expect(sections[0].fields.friendly.value).toBe(true)
@@ -161,7 +161,7 @@ describe("buildTraceAnnotationWrites", () => {
 
     it("A changed own annotation becomes one update that keeps its references and links", () => {
         const own = annotation({
-            data: {outputs: {metrics: {friendly: true}}},
+            data: {outputs: {friendly: true}},
             references: {
                 evaluator: {id: "wf-tone", slug: "tone"},
                 evaluator_revision: {id: "rev-tone", slug: "tone-v2", version: 2},
@@ -239,7 +239,7 @@ describe("buildTraceAnnotationWrites", () => {
     })
 
     it("An unchanged form produces no writes", () => {
-        const own = annotation({data: {outputs: {metrics: {friendly: true}}}})
+        const own = annotation({data: {outputs: {friendly: true}}})
 
         const writes = buildTraceAnnotationWrites({
             sections: sectionsFor([own]),
@@ -253,7 +253,7 @@ describe("buildTraceAnnotationWrites", () => {
 
     it("An update keeps saved outputs the form does not show", () => {
         const own = annotation({
-            data: {outputs: {metrics: {friendly: true}, notes: {comment: "Kind words"}}},
+            data: {outputs: {friendly: true, comment: "Kind words"}},
         })
 
         const writes = buildTraceAnnotationWrites({
@@ -285,7 +285,7 @@ describe("buildTraceAnnotationWrites", () => {
     })
 
     it("A cleared own metric is removed from the saved outputs", () => {
-        const own = annotation({data: {outputs: {metrics: {friendly: true}}}})
+        const own = annotation({data: {outputs: {friendly: true}}})
 
         const writes = buildTraceAnnotationWrites({
             sections: sectionsFor([own]),

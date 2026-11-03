@@ -1,7 +1,7 @@
 import {useState} from "react"
 
 import type {Workflow} from "@agenta/entities/workflow"
-import {Checkbox, SearchInput, SimpleTooltip} from "@agenta/ui/ui"
+import {Alert, Button, Checkbox, SearchInput, SimpleTooltip} from "@agenta/ui/ui"
 
 import {SelectEvaluatorsEmpty} from "./states/SelectEvaluatorsEmpty"
 import {SelectEvaluatorsError} from "./states/SelectEvaluatorsError"
@@ -33,7 +33,7 @@ export const SelectEvaluatorsStep = ({
     const [search, setSearch] = useState("")
 
     if (isLoading) return <SelectEvaluatorsSkeleton />
-    if (loadFailed) return <SelectEvaluatorsError onRetry={onRetry} />
+    if (loadFailed && evaluators.length === 0) return <SelectEvaluatorsError onRetry={onRetry} />
     if (evaluators.length === 0) return <SelectEvaluatorsEmpty evaluatorsHref={evaluatorsHref} />
 
     const term = search.trim().toLowerCase()
@@ -46,6 +46,18 @@ export const SelectEvaluatorsStep = ({
 
     return (
         <div className="flex flex-col gap-3">
+            {loadFailed ? (
+                <Alert
+                    type="warning"
+                    showIcon
+                    message="Some evaluators could not be loaded"
+                    action={
+                        <Button variant="outline" size="sm" onClick={onRetry}>
+                            Try again
+                        </Button>
+                    }
+                />
+            ) : null}
             <SearchInput
                 placeholder="Search"
                 aria-label="Search evaluators"

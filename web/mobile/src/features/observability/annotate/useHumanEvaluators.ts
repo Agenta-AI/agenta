@@ -32,8 +32,8 @@ export const useHumanEvaluators = () => {
     return {
         evaluators,
         isLoading,
-        isError:
-            !isLoading && evaluators.length === 0 && (Boolean(list.isError) || revisionsFailed),
+        // Also when only some revisions failed: the list then misses those evaluators.
+        isError: !isLoading && (Boolean(list.isError) || revisionsFailed),
         retry: () => {
             void list.refetch()
             void getHostQueryClient().invalidateQueries({queryKey: ["workflows", "latestRevision"]})

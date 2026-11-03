@@ -133,6 +133,14 @@ describe("select evaluators step", () => {
         expect(retry).toHaveBeenCalledTimes(1)
     })
 
+    it("Some failed evaluators keep the loaded rows and offer a retry", async () => {
+        await render(<Step loadFailed />)
+
+        expect(rows()).toHaveLength(2)
+        expect(host.textContent).toContain("Some evaluators could not be loaded")
+        expect(host.textContent).toContain("Try again")
+    })
+
     it("Loading shows a skeleton list", async () => {
         await render(<Step evaluators={[]} isLoading />)
         expect(host.querySelector("[aria-label='Loading evaluators']")).not.toBeNull()

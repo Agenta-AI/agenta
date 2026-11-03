@@ -158,25 +158,13 @@ export const currentFields = (
     return fields
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-    typeof value === "object" && value !== null && !Array.isArray(value)
-
 /**
- * The outputs an own annotation saved, flat. The drawer groups them into `metrics`, `notes` and
- * `extra` (and drops `null` values); the API stores them flat.
+ * The outputs an own annotation saved. The form reads own annotations as the API stores them
+ * (flat, with `null` answers), not the drawer's grouped copy.
  */
-const savedOutputsOf = (annotation: AnnotationDto): Record<string, unknown> => {
-    const grouped = (annotation.data?.outputs ?? {}) as Record<string, unknown>
-    const flat: Record<string, unknown> = {}
-    for (const [key, value] of Object.entries(grouped)) {
-        if ((key === "metrics" || key === "notes" || key === "extra") && isRecord(value)) {
-            Object.assign(flat, value)
-        } else {
-            flat[key] = value
-        }
-    }
-    return flat
-}
+const savedOutputsOf = (annotation: AnnotationDto): Record<string, unknown> => ({
+    ...(annotation.data?.outputs ?? {}),
+})
 
 /**
  * Turns the form into the requests a save sends: an update for each own annotation whose values
