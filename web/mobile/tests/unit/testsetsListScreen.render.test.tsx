@@ -200,4 +200,29 @@ describe("Testsets list screen", () => {
             )
         })
     })
+
+    it("A dialog left open closes when the project changes", {timeout: 25000}, async () => {
+        vi.useRealTimers()
+        state.allowed = new Set(["edit_testsets"])
+        const client = new QueryClient()
+        const screen = (projectId: string) => (
+            <QueryClientProvider client={client}>
+                <TestsetsListScreen workspaceId="ws" projectId={projectId} />
+            </QueryClientProvider>
+        )
+        await mount(screen("pr"))
+        const button = Array.from(host.querySelectorAll("button")).find(
+            (item) => item.textContent === "Create new testset",
+        )!
+        await act(async () => button.click())
+        await act(async () => {
+            await vi.waitFor(
+                () => expect(document.body.textContent).toContain("Create new test set"),
+                {timeout: 20000},
+            )
+        })
+
+        await mount(screen("other"))
+        expect(document.body.textContent).not.toContain("Click or drag file to this area")
+    })
 })

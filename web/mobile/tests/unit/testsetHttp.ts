@@ -1,3 +1,5 @@
+import {act} from "react"
+
 import {axios} from "@agenta/shared/api"
 import {vi} from "vitest"
 
@@ -81,7 +83,16 @@ export function polyfillBlobText(): void {
     }
 }
 
-/** Let pending file reads and requests finish, inside `act`. */
-export async function settle(): Promise<void> {
-    await new Promise((resolve) => setTimeout(resolve, 30))
+/**
+ * Wait until `check` stops throwing, flushing React updates between tries. Call it outside `act`.
+ * Use it to wait for the state a step ends in, never for a fixed time.
+ */
+export async function until(check: () => void): Promise<void> {
+    await vi.waitFor(
+        async () => {
+            await act(async () => undefined)
+            check()
+        },
+        {timeout: 3000, interval: 5},
+    )
 }

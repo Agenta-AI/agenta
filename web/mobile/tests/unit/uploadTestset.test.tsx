@@ -7,7 +7,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {UploadTestsetStep} from "@/features/testsets/create/UploadTestsetStep"
 
-import {polyfillBlobText, settle, stubFetchHttp, type RecordedFetch} from "./testsetHttp"
+import {polyfillBlobText, stubFetchHttp, until, type RecordedFetch} from "./testsetHttp"
 
 const push = vi.hoisted(() => vi.fn())
 vi.mock("next/router", () => ({useRouter: () => ({push})}))
@@ -61,8 +61,13 @@ describe("Upload step of the create dialog", () => {
         Object.defineProperty(input, "files", {value: [file], configurable: true})
         await act(async () => {
             input.dispatchEvent(new Event("change", {bubbles: true}))
-            await settle()
         })
+        await until(() =>
+            expect(
+                host.textContent?.includes(file.name) ||
+                    host.querySelector('[role="alert"]') !== null,
+            ).toBe(true),
+        )
     }
     const nameInput = () => host.querySelector<HTMLInputElement>("#upload-testset-name")!
     const typeName = async (value: string) => {
@@ -76,11 +81,14 @@ describe("Upload step of the create dialog", () => {
         Array.from(host.querySelectorAll("button")).find(
             (button) => button.textContent === "Create test set",
         )!
-    const press = (button: HTMLButtonElement) =>
-        act(async () => {
-            button.click()
-            await settle()
-        })
+    const press = async (button: HTMLButtonElement) => {
+        await act(async () => button.click())
+        await until(() =>
+            expect(
+                onClose.mock.calls.length > 0 || host.querySelector('[role="alert"]') !== null,
+            ).toBe(true),
+        )
+    }
     const uploads = (sent: RecordedFetch[]) => sent.filter((item) => item.method === "POST")
 
     it("The name is prefilled from the file name", async () => {
@@ -144,6 +152,18 @@ describe("Upload step of the create dialog", () => {
         )
         expect(host.textContent).not.toContain("bad row")
         expect(onClose).not.toHaveBeenCalled()
+    })
+
+    it("A new file clears the upload error", async () => {
+        stubFetchHttp(() => ({status: 400, data: {detail: "database exploded"}}))
+        await choose(new File(["a,b\n1,2"], "cases.csv"))
+        await press(createButton())
+        expect(host.querySelector('[role="alert"]')).not.toBeNull()
+        await act(async () =>
+            host.querySelector<HTMLButtonElement>('button[aria-label="Remove file"]')!.click(),
+        )
+        await choose(new File(["a,b\n3,4"], "other.csv"))
+        expect(host.querySelector('[role="alert"]')).toBeNull()
     })
 
     it("A 422 that names csvdata shows the malformed message", async () => {

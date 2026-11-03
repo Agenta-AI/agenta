@@ -54,16 +54,23 @@ export const UploadTestsetStep = ({
 }) => {
     const picked = useTestsetFilePick()
     const [name, setName] = useState("")
-    const {upload, pending, error} = useUploadTestset({projectId, base, onDone: onClose})
+    const {upload, pending, error, clearError} = useUploadTestset({
+        projectId,
+        base,
+        onDone: onClose,
+    })
 
     useEffect(() => onPendingChange(pending), [onPendingChange, pending])
 
     const onFile = async (file: File) => {
+        // An error belongs to the file that caused it.
+        clearError()
         // Prefill only from an accepted file, and only an empty name, so a typed name stays.
         if (await picked.pick(file)) setName((current) => current || fileBaseName(file.name))
     }
     const onRemove = () => {
         picked.remove()
+        clearError()
         setName("")
     }
 

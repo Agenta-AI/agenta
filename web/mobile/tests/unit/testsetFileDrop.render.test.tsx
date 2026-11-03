@@ -7,7 +7,7 @@ import {afterEach, beforeEach, describe, expect, it} from "vitest"
 import {TestsetFileDrop} from "@/features/testsets/create/TestsetFileDrop"
 import {useTestsetFilePick} from "@/features/testsets/create/useTestsetFilePick"
 
-import {polyfillBlobText, settle} from "./testsetHttp"
+import {polyfillBlobText, until} from "./testsetHttp"
 polyfillBlobText()
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
@@ -46,8 +46,13 @@ describe("Test set file drop", () => {
         Object.defineProperty(input, "files", {value: [file], configurable: true})
         await act(async () => {
             input.dispatchEvent(new Event("change", {bubbles: true}))
-            await settle()
         })
+        await until(() =>
+            expect(
+                host.textContent?.includes(file.name) ||
+                    host.querySelector('[role="alert"]') !== null,
+            ).toBe(true),
+        )
     }
 
     it("A file with another extension shows Unsupported file format", async () => {
@@ -103,8 +108,8 @@ describe("Test set file drop", () => {
         })
         await act(async () => {
             target.dispatchEvent(drop)
-            await settle()
         })
+        await until(() => expect(host.textContent).toContain("dropped.csv"))
         expect(host.textContent).toContain("dropped.csv")
     })
 })

@@ -1,4 +1,4 @@
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
@@ -33,7 +33,10 @@ const TestsetNameDialog = dynamic(
     {ssr: false},
 )
 
-type OpenDialog = {kind: "create"} | {kind: "clone" | "rename"; testset: TestsetNameTarget}
+type OpenDialog = {projectId: string} & (
+    | {kind: "create"}
+    | {kind: "clone" | "rename"; testset: TestsetNameTarget}
+)
 
 /** The page column, shared with the other lists, so the nav entries line up. */
 const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
@@ -68,9 +71,16 @@ export const TestsetsListScreen = ({
     const ids = useMemo(() => list.testsets.map((testset) => testset.id), [list.testsets])
     const commitMessages = useTestsetCommitMessages({projectId, testsetIds: ids})
     const clearSearch = useCallback(() => setDraft(""), [setDraft])
-    const [dialog, setDialog] = useState<OpenDialog | null>(null)
+    const [openDialog, setDialog] = useState<OpenDialog | null>(null)
+    // A dialog belongs to the project it opened in. Its file and name must not reach another one.
+    const dialog = openDialog?.projectId === projectId ? openDialog : null
     const closeDialog = useCallback(() => setDialog(null), [])
-    const openCreate = useCallback(() => setDialog({kind: "create"}), [])
+    useEffect(() => closeDialog(), [projectId, closeDialog])
+    const existingNames = useMemo(
+        () => list.testsets.map((testset) => testset.name),
+        [list.testsets],
+    )
+    const openCreate = useCallback(() => setDialog({kind: "create", projectId}), [projectId])
     const createHandler = canEdit ? openCreate : undefined
 
     const body =
@@ -99,8 +109,8 @@ export const TestsetsListScreen = ({
                 onOpen={(row) => void actions.openLatest(row)}
                 onExport={(row, format) => void actions.exportTestset(row, format)}
                 onArchive={actions.archive}
-                onClone={(row) => setDialog({kind: "clone", testset: row})}
-                onRename={(row) => setDialog({kind: "rename", testset: row})}
+                onClone={(row) => setDialog({kind: "clone", testset: row, projectId})}
+                onRename={(row) => setDialog({kind: "rename", testset: row, projectId})}
             />
         )
 
@@ -142,11 +152,12 @@ export const TestsetsListScreen = ({
             ) : null}
             {dialog && dialog.kind !== "create" ? (
                 <TestsetNameDialog
-                    key={`${dialog.kind}-${dialog.testset.id}`}
+                    key={`${projectId}-${dialog.kind}-${dialog.testset.id}`}
                     mode={dialog.kind}
                     testset={dialog.testset}
                     projectId={projectId}
                     base={base}
+                    existingNames={existingNames}
                     onClose={closeDialog}
                 />
             ) : null}

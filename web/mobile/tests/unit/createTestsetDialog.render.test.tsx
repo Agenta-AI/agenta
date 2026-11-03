@@ -7,7 +7,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {CreateTestsetDialog} from "@/features/testsets/create/CreateTestsetDialog"
 
-import {polyfillBlobText, settle} from "./testsetHttp"
+import {polyfillBlobText, until} from "./testsetHttp"
 
 vi.mock("next/router", () => ({useRouter: () => ({push: vi.fn()})}))
 // The API step loads a large package; this test only checks that the dialog shows it.
@@ -93,8 +93,8 @@ describe("Create test set dialog", () => {
         })
         await act(async () => {
             input().dispatchEvent(new Event("change", {bubbles: true}))
-            await settle()
         })
+        await until(() => expect(body().textContent).toContain("cases.csv"))
         expect(body().textContent).toContain("cases.csv")
 
         await click(button("Cancel"))

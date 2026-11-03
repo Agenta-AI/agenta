@@ -7,7 +7,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {TestsetNameDialog} from "@/features/testsets/create/TestsetNameDialog"
 
-import {settle, stubAxiosHttp, type RecordedRequest} from "./testsetHttp"
+import {stubAxiosHttp, until, type RecordedRequest} from "./testsetHttp"
 
 const push = vi.hoisted(() => vi.fn())
 vi.mock("next/router", () => ({useRouter: () => ({push})}))
@@ -31,7 +31,7 @@ describe("Test set name dialog", () => {
     let client: QueryClient
     const onClose = vi.fn()
 
-    const mount = (mode: "clone" | "rename") => {
+    const mount = (mode: "clone" | "rename", existingNames: string[] = []) => {
         act(() =>
             root.render(
                 <QueryClientProvider client={client}>
@@ -40,6 +40,7 @@ describe("Test set name dialog", () => {
                         testset={{id: "t-src", name: "Support cases"}}
                         projectId="pr"
                         base={BASE}
+                        existingNames={existingNames}
                         onClose={onClose}
                     />
                 </QueryClientProvider>,
@@ -84,6 +85,31 @@ describe("Test set name dialog", () => {
         expect(document.body.textContent).not.toContain("directly from the web")
     })
 
+    it("A second clone with the default name gets its own name and slug", async () => {
+        const sent = stubAxiosHttp((request) =>
+            request.method === "GET" ? {data: {testset: SOURCE}} : {data: {testset: {id: "t"}}},
+        )
+        mount("clone", ["Support cases", "Support cases (copy)"])
+        expect(input().value).toBe("Support cases (copy 2)")
+        await act(async () => {
+            button("Clone").click()
+        })
+        await until(() => expect(onClose).toHaveBeenCalled())
+        expect(writes(sent)[0].body).toEqual({
+            testset: {
+                slug: "support_cases_copy_2",
+                name: "Support cases (copy 2)",
+                description: "Hard questions",
+                data: SOURCE.data,
+            },
+        })
+    })
+
+    it("The default clone name skips every name whose slug is taken", () => {
+        mount("clone", ["Support cases (copy)", "support cases (COPY 2)", "Support cases (copy 3)"])
+        expect(input().value).toBe("Support cases (copy 4)")
+    })
+
     it("Clone success sends the source data under the new name and goes to the new revision", async () => {
         const sent = stubAxiosHttp((request) =>
             request.method === "GET"
@@ -103,8 +129,8 @@ describe("Test set name dialog", () => {
         await type("Cases v2")
         await act(async () => {
             button("Clone").click()
-            await settle()
         })
+        await until(() => expect(onClose).toHaveBeenCalled())
 
         const [create] = writes(sent)
         expect(create.method).toBe("POST")
@@ -130,8 +156,8 @@ describe("Test set name dialog", () => {
         await type("Cases: v2/final.")
         await act(async () => {
             button("Clone").click()
-            await settle()
         })
+        await until(() => expect(onClose).toHaveBeenCalled())
         expect((writes(sent)[0].body as {testset: {slug: string}}).testset.slug).toBe(
             "cases_v2final",
         )
@@ -143,8 +169,8 @@ describe("Test set name dialog", () => {
         await type("Cases v2")
         await act(async () => {
             button("Clone").click()
-            await settle()
         })
+        await until(() => expect(document.body.querySelector('[role="alert"]')).not.toBeNull())
         expect(document.body.querySelector('[role="alert"]')?.textContent).toBe(
             "Failed to clone the test set. Please try again.",
         )
@@ -159,8 +185,8 @@ describe("Test set name dialog", () => {
         await type("Renamed")
         await act(async () => {
             button("Rename").click()
-            await settle()
         })
+        await until(() => expect(onClose).toHaveBeenCalled())
 
         expect(sent).toHaveLength(1)
         expect(sent[0].method).toBe("PUT")
@@ -176,8 +202,8 @@ describe("Test set name dialog", () => {
         await type("Renamed")
         await act(async () => {
             button("Rename").click()
-            await settle()
         })
+        await until(() => expect(document.body.querySelector('[role="alert"]')).not.toBeNull())
         expect(document.body.querySelector('[role="alert"]')?.textContent).toBe(
             "Failed to rename the test set. Please try again.",
         )
@@ -189,8 +215,8 @@ describe("Test set name dialog", () => {
         mount("rename")
         await act(async () => {
             button("Rename").click()
-            await settle()
         })
+        await until(() => expect(onClose).toHaveBeenCalled())
         expect(sent).toHaveLength(0)
         expect(onClose).toHaveBeenCalled()
     })
@@ -206,19 +232,18 @@ describe("Test set name dialog", () => {
         await type("Renamed")
         await act(async () => {
             button("Rename").click()
-            await settle()
         })
+        await until(() => expect(button("Cancel").disabled).toBe(true))
         expect(button("Cancel").disabled).toBe(true)
         await act(async () => {
             document.dispatchEvent(new KeyboardEvent("keydown", {key: "Escape", bubbles: true}))
-            await settle()
         })
         expect(onClose).not.toHaveBeenCalled()
 
         await act(async () => {
             finish()
-            await settle()
         })
+        await until(() => expect(onClose).toHaveBeenCalledTimes(1))
         expect(onClose).toHaveBeenCalledTimes(1)
     })
 })

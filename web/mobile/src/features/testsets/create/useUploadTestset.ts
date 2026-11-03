@@ -72,5 +72,7 @@ export function useUploadTestset({
         [base, onDone, projectId, queryClient, router],
     )
 
-    return {upload, pending, error}
+    const clearError = useCallback(() => setError(null), [])
+
+    return {upload, pending, error, clearError}
 }
