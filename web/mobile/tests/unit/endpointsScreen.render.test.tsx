@@ -11,6 +11,7 @@ import {
     appsAtom,
     envsQuery,
     fakeEnv,
+    revisionAtom,
     revisionQuery,
     variantsAtom,
     type FakeEnv,
@@ -48,7 +49,7 @@ vi.mock("@agenta/ui/app-message", () => ({message: {error: copyError}}))
 vi.mock("@agenta/entities/workflow", async () => {
     const fixtures = await import("./endpointsScreenFixtures")
     const {atom} = await import("jotai")
-    const select = (key: "url" | "inputSchema" | "isChat") => () =>
+    const select = (key: "url" | "inputPorts" | "isChat") => () =>
         atom((get) => get(fixtures.revisionAtom)[key])
     return {
         appWorkflowsListQueryStateAtom: fixtures.appsAtom,
@@ -57,7 +58,7 @@ vi.mock("@agenta/entities/workflow", async () => {
             atoms: {query: () => fixtures.revisionQuery},
             selectors: {
                 deploymentUrl: select("url"),
-                inputSchema: select("inputSchema"),
+                inputPorts: select("inputPorts"),
                 isChat: select("isChat"),
             },
         },
@@ -240,6 +241,29 @@ describe("EndpointsScreen", () => {
         const config = byTestId("endpoints-config-code")?.textContent ?? ""
         expect(config).toContain('environment_slug="prod-eu"')
         expect(config).not.toContain('"Production"')
+    })
+
+    it("The snippet fills each prompt variable with a placeholder, for completion and chat", () => {
+        ready([fakeEnv("development")])
+        store.set(revisionAtom, {
+            url: "https://api.test/services/completion/invoke",
+            inputPorts: [{key: "country"}],
+            isChat: false,
+        })
+        render()
+        const completion = byTestId("endpoints-invoke-code")?.textContent ?? ""
+        expect(completion).toContain('"inputs": {\n')
+        expect(completion).toContain('"country": "add_a_value"')
+        act(() =>
+            store.set(revisionAtom, {
+                url: "https://api.test/services/chat/invoke",
+                inputPorts: [{key: "country"}],
+                isChat: true,
+            }),
+        )
+        const chat = byTestId("endpoints-invoke-code")?.textContent ?? ""
+        expect(chat).toContain('"country": "add_a_value"')
+        expect(chat).toContain('"role": "user"')
     })
 
     it("A deployed revision still loading shows the skeleton, not a snippet with no URL", () => {

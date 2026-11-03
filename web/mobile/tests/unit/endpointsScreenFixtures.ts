@@ -32,9 +32,9 @@ export const envsQuery = atom<{
 
 export const revisionAtom = atom<{
     url: string | null
-    inputSchema: Record<string, unknown> | null
+    inputPorts: {key: string; schema?: unknown}[]
     isChat: boolean
-}>({url: "https://api.test/services/completion/invoke", inputSchema: null, isChat: false})
+}>({url: "https://api.test/services/completion/invoke", inputPorts: [], isChat: false})
 
 export const fakeEnv = (name: string, slug = name, deployed = true): FakeEnv => ({
     name,
