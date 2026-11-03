@@ -31,20 +31,20 @@ export interface AppEndpointParamsInput {
  * placeholder), a user message for a chat app, and the app and environment references.
  */
 export const buildAppEndpointParams = ({
-    inputs: ports,
+    inputs,
     environmentSlug,
     isChat,
     appSlug,
 }: AppEndpointParamsInput): string => {
-    const inputs: Record<string, unknown> = {}
-    for (const {key, schema} of ports) {
+    const values: Record<string, unknown> = {}
+    for (const {key, schema} of inputs) {
         const fallback = (schema as {default?: unknown} | undefined)?.default
-        inputs[key] = fallback === undefined ? "add_a_value" : fallback
+        values[key] = fallback === undefined ? "add_a_value" : fallback
     }
-    if (isChat) inputs.messages = [{role: "user", content: ""}]
+    if (isChat) values.messages = [{role: "user", content: ""}]
     return JSON.stringify(
         {
-            data: {inputs},
+            data: {inputs: values},
             references: {
                 ...(appSlug ? {application: {slug: appSlug}} : {}),
                 environment: {slug: environmentSlug},
