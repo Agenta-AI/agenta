@@ -39,27 +39,19 @@ export const triggerDeliveriesAtomFamily = atomFamily(
 
 /** How many recent runs a list row counts; one more is read so the row can say "100+". */
 export const RECENT_TRIGGER_DELIVERIES_LIMIT = 100
-const RECENT_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
 
-/** A list row's read: the last 30 days, or the single newest run when those are empty. */
+/** A list row's read: the newest runs, enough to count the last 30 days up to "100+". */
 export const triggerRecentDeliveriesAtomFamily = atomFamily(
     (owner: DeliveriesOwner) =>
         atomWithQuery<TriggerDeliveriesResponse>((get) => {
             const projectId = get(projectIdAtom)
             return {
                 queryKey: ["triggers", "deliveries", "recent", projectId, owner.kind, owner.id],
-                queryFn: async () => {
-                    const recent = await queryTriggerDeliveries(ownerFilter(owner), {
-                        oldest: new Date(Date.now() - RECENT_WINDOW_MS).toISOString(),
+                queryFn: () =>
+                    queryTriggerDeliveries(ownerFilter(owner), {
                         limit: RECENT_TRIGGER_DELIVERIES_LIMIT + 1,
                         order: "descending",
-                    })
-                    if (recent.deliveries.length) return recent
-                    return queryTriggerDeliveries(ownerFilter(owner), {
-                        limit: 1,
-                        order: "descending",
-                    })
-                },
+                    }),
                 staleTime: 15_000,
                 refetchOnWindowFocus: false,
                 enabled: Boolean(projectId && owner.id),
