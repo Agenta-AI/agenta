@@ -1,9 +1,10 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableToolbar} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
+import dynamic from "next/dynamic"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
@@ -12,6 +13,7 @@ import {useBindProjectContext} from "../../context/useBindProjectContext"
 import {useProjectPermission} from "../../context/useProjectPermission"
 import {AppShell} from "../../nav/AppShell"
 import {NavDrawer} from "../../nav/NavDrawer"
+import type {TestsetNameTarget} from "../create/TestsetNameDialog"
 
 import {TestsetsEmpty} from "./states/TestsetsEmpty"
 import {TestsetsNoMatch} from "./states/TestsetsNoMatch"
@@ -21,6 +23,18 @@ import {useTestsetRowActions} from "./useTestsetRowActions"
 import {useTestsetsList} from "./useTestsetsList"
 import {useTestsetsSearch} from "./useTestsetsSearch"
 
+// The dialogs load when a reader opens one, so the list itself stays small.
+const CreateTestsetDialog = dynamic(
+    () => import("../create/CreateTestsetDialog").then((m) => m.CreateTestsetDialog),
+    {ssr: false},
+)
+const TestsetNameDialog = dynamic(
+    () => import("../create/TestsetNameDialog").then((m) => m.TestsetNameDialog),
+    {ssr: false},
+)
+
+type OpenDialog = {kind: "create"} | {kind: "clone" | "rename"; testset: TestsetNameTarget}
+
 /** The page column, shared with the other lists, so the nav entries line up. */
 const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
 
@@ -28,17 +42,15 @@ const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
  * The Testsets list. Search sits in the URL, rows come a page at a time, and each verb a row
  * offers is shown only to a reader who may use it.
  *
- * `onCreate` is the create flow's entry. The screen shows "Create new testset" only when the
- * route page passes it and the reader may edit testsets.
+ * The create button, Clone and Rename show only to a reader who may edit test sets. Each opens
+ * its dialog on this page.
  */
 export const TestsetsListScreen = ({
     workspaceId,
     projectId,
-    onCreate,
 }: {
     workspaceId: string
     projectId: string
-    onCreate?: () => void
 }) => {
     useBindProjectContext(projectId)
     const base = `/w/${workspaceId}/p/${projectId}`
@@ -56,7 +68,10 @@ export const TestsetsListScreen = ({
     const ids = useMemo(() => list.testsets.map((testset) => testset.id), [list.testsets])
     const commitMessages = useTestsetCommitMessages({projectId, testsetIds: ids})
     const clearSearch = useCallback(() => setDraft(""), [setDraft])
-    const createHandler = canEdit ? onCreate : undefined
+    const [dialog, setDialog] = useState<OpenDialog | null>(null)
+    const closeDialog = useCallback(() => setDialog(null), [])
+    const openCreate = useCallback(() => setDialog({kind: "create"}), [])
+    const createHandler = canEdit ? openCreate : undefined
 
     const body =
         list.isError && list.testsets.length === 0 ? (
@@ -84,6 +99,8 @@ export const TestsetsListScreen = ({
                 onOpen={(row) => void actions.openLatest(row)}
                 onExport={(row, format) => void actions.exportTestset(row, format)}
                 onArchive={actions.archive}
+                onClone={(row) => setDialog({kind: "clone", testset: row})}
+                onRename={(row) => setDialog({kind: "rename", testset: row})}
             />
         )
 
@@ -120,6 +137,19 @@ export const TestsetsListScreen = ({
                     </div>
                 </ScreenScaffold>
             </AppShell>
+            {dialog?.kind === "create" ? (
+                <CreateTestsetDialog projectId={projectId} base={base} onClose={closeDialog} />
+            ) : null}
+            {dialog && dialog.kind !== "create" ? (
+                <TestsetNameDialog
+                    key={`${dialog.kind}-${dialog.testset.id}`}
+                    mode={dialog.kind}
+                    testset={dialog.testset}
+                    projectId={projectId}
+                    base={base}
+                    onClose={closeDialog}
+                />
+            ) : null}
         </>
     )
 }

@@ -2,6 +2,7 @@
 import {act, type ReactNode} from "react"
 
 import {activeUserIdAtom} from "@agenta/shared/state"
+import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -171,12 +172,32 @@ describe("Testsets list screen", () => {
         expect(host.textContent).toContain("No test sets match “zeta”")
     })
 
-    it("Create new testset shows only to a reader who may edit and has a create flow", async () => {
-        const onCreate = vi.fn()
-        await mount(<TestsetsListScreen workspaceId="ws" projectId="pr" onCreate={onCreate} />)
+    it("Create new testset shows only to a reader who may edit", async () => {
+        await mount(<TestsetsListScreen workspaceId="ws" projectId="pr" />)
         expect(host.textContent).not.toContain("Create new testset")
         state.allowed = new Set(["edit_testsets"])
-        await mount(<TestsetsListScreen workspaceId="ws" projectId="pr" onCreate={onCreate} />)
+        await mount(<TestsetsListScreen workspaceId="ws" projectId="pr" />)
         expect(host.textContent).toContain("Create new testset")
+    })
+
+    it("Create new testset opens the create dialog", {timeout: 25000}, async () => {
+        vi.useRealTimers()
+        state.allowed = new Set(["edit_testsets"])
+        await mount(
+            <QueryClientProvider client={new QueryClient()}>
+                <TestsetsListScreen workspaceId="ws" projectId="pr" />
+            </QueryClientProvider>,
+        )
+        const button = Array.from(host.querySelectorAll("button")).find(
+            (item) => item.textContent === "Create new testset",
+        )!
+        await act(async () => button.click())
+        // The dialog is a lazy chunk; the first load transforms its files.
+        await act(async () => {
+            await vi.waitFor(
+                () => expect(document.body.textContent).toContain("Create new test set"),
+                {timeout: 20000},
+            )
+        })
     })
 })
