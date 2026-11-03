@@ -587,6 +587,8 @@ function extractJinja2Variables(input: string): string[] {
         return undefined
     }
 
+    const blockSetTargets: string[][] = []
+
     const isBound = (path: string): boolean => {
         const root = path.split(".")[0]
         return scopes.some((scope) => scope.names.has(root))
@@ -640,7 +642,7 @@ function extractJinja2Variables(input: string): string[] {
             if (scopes.length > 1 && (top.block === "if" || top.block === "for")) {
                 top.branches.push(top.names)
                 top.names = new Set()
-                if (keyword === "else") top.hasElse = true
+                if (keyword === "else" && top.block === "if") top.hasElse = true
             }
             addExpression(rest)
             continue
@@ -683,14 +685,24 @@ function extractJinja2Variables(input: string): string[] {
                 // A block assignment can carry a filter: `{% set label | upper %}`.
                 // The target is the part before the filter. Scan from the pipe
                 // so filter arguments still count as inputs.
+                // The body renders before the target is assigned, so the
+                // target binds at `endset`.
                 const filterIndex = findJinjaTopLevelChar(rest, "|")
                 if (filterIndex !== -1) addExpression(rest.slice(filterIndex))
-                bind(parseJinjaTargets(filterIndex === -1 ? rest : rest.slice(0, filterIndex)))
+                open("set")
+                blockSetTargets.push(
+                    parseJinjaTargets(filterIndex === -1 ? rest : rest.slice(0, filterIndex)),
+                )
                 continue
             }
             const targets = parseJinjaTargets(rest.slice(0, equalsIndex))
             addExpression(rest.slice(equalsIndex + 1))
             bind(targets)
+            continue
+        }
+
+        if (keyword === "endset") {
+            if (close("set")) bind(blockSetTargets.pop() ?? [])
             continue
         }
 

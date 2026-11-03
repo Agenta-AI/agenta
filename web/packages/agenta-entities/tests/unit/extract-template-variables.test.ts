@@ -555,6 +555,21 @@ describe("extractTemplateVariables — non-mustache regressions", () => {
             ).toEqual(["prénom", "größe"])
         })
 
+        it("binds a block assignment target after endset", () => {
+            expect(
+                extractTemplateVariables(
+                    "{% set label %}Hello {{ label }}{% endset %}{{ label }}",
+                    "jinja2",
+                ),
+            ).toEqual(["label"])
+            expect(
+                extractTemplateVariables(
+                    "{% set body %}{% set inner = 1 %}{{ inner }}{% endset %}{{ body }}{{ inner }}",
+                    "jinja2",
+                ),
+            ).toEqual(["inner"])
+        })
+
         it("scopes set targets to the if branch that binds them", () => {
             expect(
                 extractTemplateVariables(
