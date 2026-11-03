@@ -13,6 +13,11 @@ import {
     confirmEveryTrace,
     runAddAllMatching,
 } from "../../../mobile/src/features/observability/queueAll/runAddAllMatching"
+import {registerTraceDrawerSlots} from "../../../mobile/src/features/observability/registerTraceDrawerSlots"
+
+// The /m queue picker wraps the Add menu, as in the app. Without it the package falls back to
+// the old popover.
+registerTraceDrawerSlots()
 
 type AdapterConfig = Parameters<
     Extract<NonNullable<typeof axios.defaults.adapter>, (...args: never[]) => unknown>
@@ -141,7 +146,8 @@ const Menu = ({onBeforeOpen}: {onBeforeOpen?: () => Promise<boolean>}) => (
 )
 
 const openMenu = async (canvasElement: HTMLElement) => {
-    await userEvent.click(within(canvasElement).getByRole("button", {name: "Add"}))
+    const add = canvasElement.querySelector<HTMLButtonElement>("button[aria-label='Add']")
+    if (add) await userEvent.click(add)
     return within(canvasElement.ownerDocument.body)
 }
 
