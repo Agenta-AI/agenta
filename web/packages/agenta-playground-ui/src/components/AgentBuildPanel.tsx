@@ -47,6 +47,8 @@ export interface AgentBuildPanelProps {
      * navigates there; absent, the history opens in the deliveries drawer over the panel.
      */
     onOpenRunHistory?: (owner: TriggerOwnerRef) => void
+    /** The reader may not edit this agent: every config and automation control is locked. */
+    disabled?: boolean
     className?: string
 }
 
@@ -69,6 +71,7 @@ export const AgentBuildPanel = memo(
         sticky = true,
         automationDrawer,
         onOpenRunHistory,
+        disabled,
         className,
     }: AgentBuildPanelProps) => {
         const hasPendingHydration = useAtomValue(hasPendingHydrationAtomFamily(revisionId))
@@ -89,6 +92,7 @@ export const AgentBuildPanel = memo(
                         <FieldsDetectionProvider value={EMPTY_FIELDS_DETECTION}>
                             <PlaygroundConfigSection
                                 revisionId={revisionId}
+                                disabled={disabled}
                                 stickyHeaderTop={stickyHeaderTop}
                                 // Hold the panel's real section-row shape while the schema loads,
                                 // instead of the generic prompt-config pulse boxes.
@@ -105,6 +109,7 @@ export const AgentBuildPanel = memo(
                 ) : (
                     <AgentOperationsSections
                         revisionId={revisionId}
+                        disabled={disabled}
                         sticky={sticky}
                         storage={storage}
                         storageHeader={storageHeader}
