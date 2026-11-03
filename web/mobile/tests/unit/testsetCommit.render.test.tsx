@@ -10,7 +10,7 @@ import {TestsetToolbar} from "@/features/testsets/detail/TestsetToolbar"
 
 const router = vi.hoisted(() => ({
     push: vi.fn(),
-    handlers: new Set<(url: string) => void>(),
+    handlers: new Set<(url: string, options: {shallow: boolean}) => void>(),
 }))
 
 vi.mock("next/router", () => ({
@@ -18,9 +18,9 @@ vi.mock("next/router", () => ({
         push: router.push,
         events: {
             // Only the route change start matters here: it is the one the guard can stop.
-            on: (name: string, handler: (url: string) => void) =>
+            on: (name: string, handler: (url: string, options: {shallow: boolean}) => void) =>
                 name === "routeChangeStart" && router.handlers.add(handler),
-            off: (name: string, handler: (url: string) => void) =>
+            off: (name: string, handler: (url: string, options: {shallow: boolean}) => void) =>
                 name === "routeChangeStart" && router.handlers.delete(handler),
             emit: vi.fn(),
         },
@@ -96,7 +96,7 @@ describe("Testset toolbar, commit and leave prompt", () => {
             .at(-1)
     const click = (label: string) => act(async () => button(label)?.click())
     const navigate = (url: string) => {
-        for (const handler of router.handlers) handler(url)
+        for (const handler of router.handlers) handler(url, {shallow: false})
     }
     /** A route change the guard stops: it throws from the handler, inside act for the prompt. */
     const attemptLeave = (url: string): boolean => {
