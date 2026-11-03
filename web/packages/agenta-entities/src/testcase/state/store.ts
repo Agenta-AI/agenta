@@ -492,12 +492,9 @@ const testcaseDraftState = createEntityDraftState<Testcase, Testcase>({
 
         for (const key of Object.keys(serverData)) {
             if (SYSTEM_FIELDS.has(key)) continue
-            if (!(key in draftData)) {
-                const serverValue = serverData[key]
-                if (serverValue !== undefined && serverValue !== null && serverValue !== "") {
-                    return true
-                }
-            }
+            // A key the server row has but the draft dropped is a removal, even
+            // when the server value is null or "".
+            if (!(key in draftData)) return true
         }
 
         return false
@@ -684,12 +681,9 @@ const updatedMatchesOriginal = (updated: Testcase, serverState: Testcase | null)
 
     for (const key of Object.keys(serverData)) {
         if (SYSTEM_FIELDS.has(key)) continue
-        if (!(key in updatedData)) {
-            const serverValue = serverData[key]
-            if (serverValue !== undefined && serverValue !== null && serverValue !== "") {
-                return false
-            }
-        }
+        // A key the server row has but the edit dropped is a removal, even when
+        // the server value is null or "".
+        if (!(key in updatedData)) return false
     }
 
     return true
