@@ -12,6 +12,7 @@ import dynamic from "next/dynamic"
 
 import {PageNotFound} from "@/components/PageNotFound"
 
+import {useFocusScenarioParam} from "./focus/useFocusScenarioParam"
 import {OverviewTab} from "./overview/OverviewTab"
 import {ScenariosSkeleton} from "./scenarios/states/ScenariosSkeleton"
 import {RunDetailsSkeleton} from "./states/RunDetailsSkeleton"
@@ -21,6 +22,12 @@ import {useRunDetailsView, type RunDetailsView} from "./useRunDetailsView"
 const ScenariosTab = dynamic<{runId: string; header: RunHeader}>(
     () => import("./scenarios/ScenariosTab").then((module) => module.ScenariosTab),
     {ssr: false, loading: () => <ScenariosSkeleton />},
+)
+
+// The scenario drawer loads only once a scenario is focused.
+const ScenarioFocusSheet = dynamic<{runId: string; header: RunHeader}>(
+    () => import("./focus/ScenarioFocusSheet").then((module) => module.ScenarioFocusSheet),
+    {ssr: false},
 )
 
 /**
@@ -38,6 +45,7 @@ export const RunDetailsBody = ({runId}: {runId: string}) => {
     const runQuery = useAtomValue(evaluationRunQueryAtomFamily(runId))
     const header = useAtomValue(runHeaderAtomFamily(runId))
     const {tabs, view, setView} = useRunDetailsView(header)
+    const [focusedScenarioId] = useFocusScenarioParam(runId)
 
     if (runQuery.isSuccess && !runQuery.data) return <PageNotFound />
     // A failed refresh keeps the run on screen; only a run that never loaded shows the error.
@@ -70,6 +78,7 @@ export const RunDetailsBody = ({runId}: {runId: string}) => {
                 </TabsList>
             </div>
             <Body runId={runId} header={header} />
+            {focusedScenarioId ? <ScenarioFocusSheet runId={runId} header={header} /> : null}
         </Tabs>
     )
 }
