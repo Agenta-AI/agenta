@@ -10,6 +10,7 @@ import {
     TracesCountCell,
 } from "@agenta/observability-ui"
 
+import {openOnKey} from "./openOnKey"
 import {
     ObservabilityEmpty,
     ObservabilityFiltered,
@@ -39,12 +40,7 @@ const SessionRow = ({
         tabIndex={0}
         className="flex cursor-pointer flex-col gap-1.5 border-0 border-b border-solid border-border px-4 py-3"
         onClick={() => onOpen(sessionId)}
-        onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault()
-                onOpen(sessionId)
-            }
-        }}
+        onKeyDown={openOnKey(() => onOpen(sessionId))}
     >
         <div className="flex items-center justify-between gap-2">
             <SessionIdCell sessionId={sessionId} />

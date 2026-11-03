@@ -9,7 +9,7 @@ import {act} from "react"
 import {traceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {axios} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
-import {QueryClient} from "@tanstack/react-query"
+import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {createStore, Provider} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 import {createRoot, type Root} from "react-dom/client"
@@ -21,18 +21,28 @@ globalThis.ResizeObserver ??= class {
     disconnect = vi.fn()
 } as unknown as typeof ResizeObserver
 
-const {queryTraces, sessions, wide, router} = vi.hoisted(() => ({
+const {queryTraces, sessions, wide, router, members} = vi.hoisted(() => ({
     router: {
         pathname: "/w/[workspace_id]/p/[project_id]/observability",
         query: {} as Record<string, string>,
         replace: vi.fn(),
     },
+    members: {current: [] as {user: {id: string; username: string}}[]},
     queryTraces: vi.fn(),
     sessions: {ids: ["session-a", "session-b", "session-c"]},
     wide: {current: true},
 }))
 
 vi.mock("next/router", () => ({useRouter: () => router}))
+// The members come the way Settings gets them: the workspace's projects, then its organization.
+vi.mock("@agenta/entities/project", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@agenta/entities/project")>()),
+    fetchAllProjects: async () => [{organization_id: "org-1", workspace_id: "ws"}],
+}))
+vi.mock("@agenta/entities/organization", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@agenta/entities/organization")>()),
+    fetchSingleOrg: async () => ({default_workspace: {members: members.current}}),
+}))
 vi.mock("@agenta/sdk/resources", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/sdk/resources")>()),
     getTracesClient: () => ({queryTraces}),
@@ -53,6 +63,7 @@ vi.mock("@agenta/observability-ui/traceDrawer", async (importOriginal) => ({
 }))
 
 import ObservabilitySessionDrawer from "@/features/observability/sessionDrawer/ObservabilitySessionDrawer"
+import {observabilitySessionAnnotatedTracesAtomFamily} from "@/features/observability/sessionDrawer/sessionDrawerQueries"
 
 const TRACE_1 = "11111111-1111-1111-1111-111111111111"
 const TRACE_2 = "22222222-2222-2222-2222-222222222222"
@@ -137,6 +148,7 @@ describe("ObservabilitySessionDrawer", () => {
     let root: Root
     let host: HTMLDivElement
     let store: ReturnType<typeof createStore>
+    let client: QueryClient
     const onSelectSession = vi.fn()
     const scrollIntoView = vi.fn()
 
@@ -150,15 +162,17 @@ describe("ObservabilitySessionDrawer", () => {
         await act(async () => button(label)?.click())
     }
     const shown = (sessionId: string | null = "session-b", spanId: string | null = null) => {
-        router.query = spanId ? {span: spanId} : {}
+        router.query = spanId ? {workspace_id: "ws", span: spanId} : {workspace_id: "ws"}
         return act(async () => {
             root.render(
-                <Provider store={store}>
-                    <ObservabilitySessionDrawer
-                        sessionId={sessionId}
-                        onSelectSession={onSelectSession}
-                    />
-                </Provider>,
+                <QueryClientProvider client={client}>
+                    <Provider store={store}>
+                        <ObservabilitySessionDrawer
+                            sessionId={sessionId}
+                            onSelectSession={onSelectSession}
+                        />
+                    </Provider>
+                </QueryClientProvider>,
             )
         })
     }
@@ -175,7 +189,9 @@ describe("ObservabilitySessionDrawer", () => {
         Element.prototype.scrollIntoView = scrollIntoView
         vi.spyOn(axios, "post").mockResolvedValue({data: {count: 0, traces: []}})
         store = createStore()
-        store.set(queryClientAtom, new QueryClient({defaultOptions: {queries: {retry: false}}}))
+        client = new QueryClient({defaultOptions: {queries: {retry: false}}})
+        store.set(queryClientAtom, client)
+        members.current = []
         store.set(projectIdAtom, "project-1")
         host = document.createElement("div")
         document.body.append(host)
@@ -335,6 +351,30 @@ describe("ObservabilitySessionDrawer", () => {
         await loaded()
         expect(document.querySelector("[data-testid='session-tree']")).toBeNull()
         expect(button("Make the drawer wider")).toBeUndefined()
+    })
+
+    it("Annotation authors show their name, with no member list bound by the test", async () => {
+        members.current = [{user: {id: "user-1", username: "Alex"}}]
+        vi.spyOn(axios, "post").mockResolvedValue({
+            data: {
+                count: 1,
+                traces: [
+                    {
+                        trace_id: "ffffffffffffffffffffffffffffffff",
+                        span_id: "dddddddddddddddd",
+                        created_by_id: "user-1",
+                        links: {invocation: {trace_id: TRACE_1, span_id: "span-one-root"}},
+                    },
+                ],
+            },
+        })
+        await shown("session-members")
+        await until(() => {
+            const annotated = store
+                .get(observabilitySessionAnnotatedTracesAtomFamily("session-members"))
+                .find((trace) => trace.span_id === "span-one-root")
+            expect(annotated?.annotations?.[0]).toMatchObject({createdBy: "Alex"})
+        })
     })
 
     it("Hides the models pill when no trace names a model", async () => {

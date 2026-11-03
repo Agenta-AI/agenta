@@ -5,6 +5,7 @@ import {useMediaQuery} from "@agenta/ui/hooks"
 
 import {SessionDrawerBody} from "./SessionDrawerBody"
 import {SessionDrawerHeader} from "./SessionDrawerHeader"
+import {useSessionDrawerMembers} from "./useSessionDrawerMembers"
 import {useSessionDrawerUrl} from "./useSessionDrawerUrl"
 
 const NORMAL_WIDTH = 1250
@@ -27,6 +28,7 @@ const ObservabilitySessionDrawer = ({
     onSelectSession,
 }: ObservabilitySessionDrawerProps) => {
     const {spanId, close} = useSessionDrawerUrl()
+    useSessionDrawerMembers()
     // Below 720px the panel is as wide as the screen, so the tree has no room and widening does nothing.
     const wide = useMediaQuery("(min-width: 720px)")
     // The tree takes 320px and the annotations 300px more, so they sit beside the messages only
