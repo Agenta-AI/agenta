@@ -89,8 +89,9 @@ interface Toast {
 }
 
 const scan = async (input: AddAllMatchingInput, controller: AbortController) => {
-    const {queue, projectId, appId, onViewQueue} = input
-    const owned = () => current === controller
+    const {queue, projectId, appId, pageSignal, onViewQueue} = input
+    // A newer run, or leaving the page, takes the toast away from this run.
+    const owned = () => current === controller && !pageSignal.aborted
     const query = buildTraceQueryParams(input.filters, input.sort, input.traceTabs)
     const queueName = queue.name || "queue"
     const maxItems = await readQueueCap(projectId)
@@ -145,8 +146,14 @@ const scan = async (input: AddAllMatchingInput, controller: AbortController) => 
             // The queue add has its own rate limit; a 429 there pauses the scan the same way.
             addTraces: (queueId, traceIds) =>
                 withRateLimitRetry(
-                    async () =>
-                        (await addSimpleQueueTraces(projectId, queueId, traceIds)).queue_id ?? null,
+                    async () => {
+                        // The batch sink sends the next batch without asking; stop it here.
+                        controller.signal.throwIfAborted()
+                        return (
+                            (await addSimpleQueueTraces(projectId, queueId, traceIds)).queue_id ??
+                            null
+                        )
+                    },
                     {
                         signal: controller.signal,
                         onRetry: showRateLimited,
@@ -237,6 +244,8 @@ export const runAddAllMatching = async (input: AddAllMatchingInput): Promise<voi
     const stop = () => controller.abort()
     if (input.pageSignal.aborted) stop()
     input.pageSignal.addEventListener("abort", stop, {once: true})
+    // Leaving the page also clears the toast, so no Retry or stale progress is left on the next page.
+    input.pageSignal.addEventListener("abort", () => message.destroy(TOAST_KEY), {once: true})
     try {
         await scan(input, controller)
     } finally {

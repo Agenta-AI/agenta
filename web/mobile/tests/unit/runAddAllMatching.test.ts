@@ -14,7 +14,8 @@ import {getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-const {http, message, modal} = vi.hoisted(() => ({
+const {http, message, modal, billing} = vi.hoisted(() => ({
+    billing: {enabled: false},
     http: {get: vi.fn(), post: vi.fn()},
     message: {open: vi.fn(), destroy: vi.fn()},
     modal: {confirm: vi.fn()},
@@ -22,7 +23,11 @@ const {http, message, modal} = vi.hoisted(() => ({
 
 vi.mock("@agenta/shared/api", async (original) => {
     const actual = await original<typeof import("@agenta/shared/api")>()
-    return {...actual, axios: Object.assign(Object.create(actual.axios), http)}
+    return {
+        ...actual,
+        axios: Object.assign(Object.create(actual.axios), http),
+        isBillingEnabled: () => billing.enabled,
+    }
 })
 vi.mock("@agenta/ui/app-message", () => ({message, modal}))
 
@@ -69,6 +74,8 @@ const stubTraceQuery = () => {
 
 /** The queue add answers like the API: the queue id, or the error the test sets for a call. */
 let addFailures = new Map<number, unknown>()
+/** While set, the first queue add waits for it, so a test can act while a write is in flight. */
+let holdFirstAdd: Promise<void> | null = null
 const addCalls = () =>
     http.post.mock.calls
         .filter(([url]) => /\/simple\/queues\/[^/]+\/traces\/$/.test(String(url)))
@@ -116,14 +123,18 @@ beforeEach(() => {
     pages = []
     traceRequests.length = 0
     holdSecondPage = null
+    holdFirstAdd = null
     addFailures = new Map()
     message.open.mockReset()
     modal.confirm.mockReset()
+    message.destroy.mockReset()
+    billing.enabled = false
     http.get.mockReset()
     http.post.mockReset()
     http.post.mockImplementation(async (url: string) => {
         if (!url.endsWith("/traces/")) return {data: {count: 0, queues: []}}
         const call = addCalls().length
+        if (call === 1 && holdFirstAdd) await holdFirstAdd
         const failure = addFailures.get(call)
         if (failure) throw failure
         return {data: {count: 1, queue_id: url.split("/")[5]}}
@@ -213,6 +224,24 @@ describe("Add all matching to a queue", () => {
             description: `250 traces queued to "Weekly review" before you stopped.`,
         })
         expect(last("success")).toBeUndefined()
+    })
+
+    it("Cancel during a write sends no further batch", async () => {
+        pages = [page(0, 500), []]
+        let release: () => void = () => undefined
+        holdFirstAdd = new Promise((resolve) => (release = resolve))
+
+        const running = runAddAllMatching(input())
+        await vi.waitFor(() => expect(addCalls()).toHaveLength(1))
+        last("loading")?.action?.onClick()
+        release()
+        await running
+
+        expect(addCalls()).toHaveLength(1)
+        expect(last("warning")).toMatchObject({
+            title: "Cancelled",
+            description: `250 traces queued to "Weekly review" before you stopped.`,
+        })
     })
 
     it("A partial failure shows Queue add incomplete with Retry", async () => {
@@ -338,7 +367,7 @@ describe("Add all matching to a queue", () => {
         expect(new Set(message.open.mock.calls.map(([args]) => args.key)).size).toBe(1)
     })
 
-    it("Leaving the page stops the scan", async () => {
+    it("Leaving the page stops the scan and clears its toast", async () => {
         pages = [page(0, 300), page(300, 100), []]
         let release: () => void = () => undefined
         holdSecondPage = new Promise((resolve) => (release = resolve))
@@ -352,7 +381,21 @@ describe("Add all matching to a queue", () => {
 
         expect(traceRequests).toHaveLength(2)
         expect(addCalls()).toHaveLength(1)
-        expect(last("warning")).toMatchObject({title: "Cancelled"})
+        expect(message.destroy).toHaveBeenCalledWith("queue-all-matching")
+        expect(last("warning")).toBeUndefined()
+    })
+
+    it("The cap comes from the plan when billing is on", async () => {
+        billing.enabled = true
+        http.get.mockResolvedValue({data: {plan: "cloud_v0_pro"}})
+        pages = [page(0, 1), []]
+
+        await runAddAllMatching(input())
+
+        expect(http.get).toHaveBeenCalledWith(expect.stringMatching(/\/billing\/subscription$/), {
+            params: {project_id: PROJECT},
+        })
+        expect(shown()[0]).toMatchObject({description: "Queued 0 of up to 2,500 traces…"})
     })
 
     it("A run marks the queue pages stale, so they show the new items", async () => {
