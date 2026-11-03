@@ -223,7 +223,9 @@ export {
 } from "./state/fileActivity"
 export {
     clearSessionFresh,
+    forgetSessionCreatedHere,
     freshSessionIds,
+    isSessionCreatedHere,
     isSessionFresh,
     markSessionFresh,
 } from "./core/freshSessions"

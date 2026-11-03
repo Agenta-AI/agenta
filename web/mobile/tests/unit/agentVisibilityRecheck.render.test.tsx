@@ -30,6 +30,7 @@ vi.mock("@agenta/sdk/resources", () => ({
 const rows = vi.hoisted(() => ({querySessionStreams: vi.fn()}))
 vi.mock("@agenta/entities/session", () => ({
     isSessionFresh: () => false,
+    forgetSessionCreatedHere: () => undefined,
     querySessionStreams: (...args: unknown[]) => rows.querySessionStreams(...args),
 }))
 vi.mock("@agenta/entities/workflow", () => ({
