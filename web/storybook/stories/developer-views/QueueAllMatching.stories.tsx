@@ -7,7 +7,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {useAtomValue} from "jotai"
-import {expect, userEvent, within} from "storybook/test"
+import {expect, userEvent, waitFor, within} from "storybook/test"
 
 import {
     confirmEveryTrace,
@@ -145,9 +145,16 @@ const Menu = ({onBeforeOpen}: {onBeforeOpen?: () => Promise<boolean>}) => (
     />
 )
 
+/** Clicks Add once the lazy queue picker wraps it; a click before that hits a button it replaces. */
 const openMenu = async (canvasElement: HTMLElement) => {
-    const add = canvasElement.querySelector<HTMLButtonElement>("button[aria-label='Add']")
-    if (add) await userEvent.click(add)
+    const add = await waitFor(() => {
+        const button = canvasElement.querySelector<HTMLButtonElement>(
+            "[data-slot='popover-anchor'] button[aria-label='Add']",
+        )
+        if (!button) throw new Error("The queue picker has not loaded yet")
+        return button
+    })
+    await userEvent.click(add)
     return within(canvasElement.ownerDocument.body)
 }
 
