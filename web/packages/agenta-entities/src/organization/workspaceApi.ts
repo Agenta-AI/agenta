@@ -1,4 +1,4 @@
-import {getAccessClient} from "@agenta/sdk/resources"
+import {getAccessClient, getOrganizationsClient} from "@agenta/sdk/resources"
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {getDefaultStore} from "jotai"
@@ -7,7 +7,14 @@ import {z} from "zod"
 import {safeParseWithLogging} from "../shared/utils/zodSchema"
 
 import {toSafeIdSegment} from "./idSegments"
-import type {Workspace, WorkspaceMember, WorkspaceRole} from "./types"
+import type {
+    OrganizationDomain,
+    OrganizationProvider,
+    OrganizationProviderSettings,
+    Workspace,
+    WorkspaceMember,
+    WorkspaceRole,
+} from "./types"
 
 /** The scoping project id — the app layer's `getProjectValues()` is unreachable from a package. */
 const getProjectValues = () => ({projectId: getDefaultStore().get(projectIdAtom) ?? ""})
@@ -244,4 +251,119 @@ export const fetchWorkspaceMembers = async (
         },
     )
     return response.data as WorkspaceMember[]
+}
+
+// ============================================================================
+// Organization access: domains, SSO providers and the immutable slug.
+// ============================================================================
+// These are the Fern-backed equivalents of the legacy axios calls in `api.ts`.
+// The names stay in one object so they do not collide with the existing exports.
+
+const organizationsClient = () => getOrganizationsClient()
+
+export const organizationAccessApi = {
+    fetchOrganizationDomains: async (projectId: string): Promise<OrganizationDomain[]> =>
+        (await organizationsClient().listOrganizationDomains({
+            queryParams: {project_id: projectId},
+        })) as unknown as OrganizationDomain[],
+
+    createOrganizationDomain: async (
+        projectId: string,
+        payload: {domain: string; name?: string; description?: string},
+    ): Promise<OrganizationDomain> =>
+        (await organizationsClient().createOrganizationDomain(payload, {
+            queryParams: {project_id: projectId},
+        })) as unknown as OrganizationDomain,
+
+    verifyOrganizationDomain: async (
+        projectId: string,
+        domainId: string,
+    ): Promise<OrganizationDomain> =>
+        (await organizationsClient().verifyOrganizationDomain(
+            {domain_id: domainId},
+            {queryParams: {project_id: projectId}},
+        )) as unknown as OrganizationDomain,
+
+    refreshOrganizationDomainToken: async (
+        projectId: string,
+        domainId: string,
+    ): Promise<OrganizationDomain> =>
+        (await organizationsClient().refreshOrganizationDomainToken(
+            {domain_id: domainId},
+            {queryParams: {project_id: projectId}},
+        )) as unknown as OrganizationDomain,
+
+    deleteOrganizationDomain: async (projectId: string, domainId: string): Promise<void> => {
+        await organizationsClient().deleteOrganizationDomain(
+            {domain_id: domainId},
+            {queryParams: {project_id: projectId}},
+        )
+    },
+
+    fetchOrganizationProviders: async (projectId: string): Promise<OrganizationProvider[]> =>
+        (await organizationsClient().listOrganizationProviders({
+            queryParams: {project_id: projectId},
+        })) as unknown as OrganizationProvider[],
+
+    createOrganizationProvider: async (
+        projectId: string,
+        payload: {
+            slug: string
+            name?: string
+            description?: string
+            flags?: Record<string, boolean>
+            settings: OrganizationProviderSettings
+        },
+    ): Promise<OrganizationProvider> => {
+        const {settings, ...rest} = payload
+        return (await organizationsClient().createOrganizationProvider(
+            {...rest, settings: {...settings} as Record<string, unknown>},
+            {queryParams: {project_id: projectId}},
+        )) as unknown as OrganizationProvider
+    },
+
+    updateOrganizationProvider: async (
+        projectId: string,
+        providerId: string,
+        payload: {
+            slug?: string
+            name?: string
+            description?: string
+            settings?: OrganizationProviderSettings
+            flags?: Record<string, boolean>
+        },
+    ): Promise<OrganizationProvider> => {
+        const {settings, ...rest} = payload
+        return (await organizationsClient().updateOrganizationProvider(
+            {
+                provider_id: providerId,
+                ...rest,
+                ...(settings ? {settings: {...settings} as Record<string, unknown>} : {}),
+            },
+            {queryParams: {project_id: projectId}},
+        )) as unknown as OrganizationProvider
+    },
+
+    testOrganizationProvider: async (
+        projectId: string,
+        providerId: string,
+    ): Promise<OrganizationProvider> =>
+        (await organizationsClient().testOrganizationProvider(
+            {provider_id: providerId},
+            {queryParams: {project_id: projectId}},
+        )) as unknown as OrganizationProvider,
+
+    deleteOrganizationProvider: async (projectId: string, providerId: string): Promise<void> => {
+        await organizationsClient().deleteOrganizationProvider(
+            {provider_id: providerId},
+            {queryParams: {project_id: projectId}},
+        )
+    },
+
+    updateOrganizationSlug: async (organizationId: string, slug: string): Promise<void> => {
+        await organizationsClient().patchOrganization({
+            organization_id: organizationId,
+            body: {slug},
+        })
+    },
 }

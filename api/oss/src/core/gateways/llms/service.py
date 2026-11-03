@@ -59,7 +59,6 @@ from oss.src.core.gateways.llms.types import (
 )
 from oss.src.core.gateways.policy.dtos import (
     BoundSecretRef,
-    SecretMode,
     SecretRef,
     GatewayOutcome,
     GatewayPlane,
@@ -1101,9 +1100,7 @@ class LLMGatewayService:
         else:
             ref = target.secret_ref()
             secret = (
-                await self.resolver.resolve(
-                    scope=scope, ref=ref, mode=SecretMode.PROJECT_ONLY
-                )
+                await self.resolver.resolve(scope=scope, ref=ref)
                 if ref is not None
                 else None
             )

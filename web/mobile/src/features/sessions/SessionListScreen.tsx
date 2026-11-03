@@ -4,7 +4,6 @@ import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/
 import {
     applySessionScopeAtom,
     resetSessionFiltersAtom,
-    sessionScopeFromRouteQuery,
     sessionSearchAtom,
     useSessionsList,
 } from "@agenta/sessions/state"
@@ -22,6 +21,7 @@ import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {useStartBlankSession} from "@/features/chat/useStartBlankSession"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
+import {useDeveloperViewEnabled} from "../developer/developerViewAccess"
 import {FeatureOnboarding} from "../education/FeatureOnboarding"
 import {HowThisWorksButton} from "../education/HowThisWorksButton"
 import {AppShell} from "../nav/AppShell"
@@ -32,6 +32,7 @@ import {SessionAutomationDrawers} from "./SessionAutomationDrawers"
 import {SessionFilterMenu} from "./SessionFilterMenu"
 import {SessionListTable} from "./SessionListTable"
 import {activityFloorIso, DEFAULT_SESSION_LIST_VIEW, type SessionListView} from "./sessionListView"
+import {sessionScopeFromRoute} from "./sessionRouteScope"
 import {showSessionsOnboarding, useProjectHasSessions} from "./useProjectHasSessions"
 import {useSessionRowMenu} from "./useSessionRowMenu"
 
@@ -54,11 +55,14 @@ export const SessionListScreen = ({
     useBindProjectContext(projectId)
     const base = `/w/${workspaceId}/p/${projectId}`
     // `?mode=automation` — what the agent overview's "Automation runs" card links to, so a cold
-    // load or a pasted link lands on the same set the card was showing. Applied below, once the
-    // search field exists to be cleared with it.
+    // load or a pasted link lands on the same set the card was showing. `?agent=<id>` narrows to
+    // one agent, behind a developer view. Applied below, once the search field exists to be
+    // cleared with it.
     const router = useRouter()
     const applyScope = useSetAtom(applySessionScopeAtom)
     const routeMode = typeof router.query.mode === "string" ? router.query.mode : undefined
+    const routeAgent = typeof router.query.agent === "string" ? router.query.agent : undefined
+    const agentLinkEnabled = useDeveloperViewEnabled("observability-app-filter") === true
 
     // Grouping is a display preference a reader sets once; the filters are a question they were
     // asking at the time, so only the first survives a reload — and the rest live in the shared
@@ -116,14 +120,14 @@ export const SessionListScreen = ({
     }, [resetFilters, search, setView])
 
     useEffect(() => {
-        const scope = sessionScopeFromRouteQuery({mode: routeMode})
+        const scope = sessionScopeFromRoute({mode: routeMode, agent: routeAgent}, agentLinkEnabled)
         if (!scope) return
         applyScope(scope)
         // The scope clears the search ATOM, but a keystroke already on the debounce would land
         // after it and re-narrow the list the route just scoped. The hook cannot see that on its
         // own: the atom was already empty, so its value never changed and nothing told the draft.
         clearSearch()
-    }, [applyScope, clearSearch, routeMode])
+    }, [agentLinkEnabled, applyScope, clearSearch, routeAgent, routeMode])
 
     // The shared row verbs — rename, pin, archive, delete — the same ones the agent overview and
     // the desktop list bind. Without them a row here offers only the pin.

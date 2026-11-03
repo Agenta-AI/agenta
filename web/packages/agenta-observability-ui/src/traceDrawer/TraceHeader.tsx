@@ -26,14 +26,9 @@ import {EnhancedButton, Tag} from "@agenta/ui/components/presentational"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {ArrowLeft, CaretDown, CaretUp} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
-import dynamic from "next/dynamic"
 
+import {getTraceDrawerReferences} from "./referenceSlots"
 import type {NavSource, NavState, TraceHeaderProps} from "./traceHeaderTypes"
-
-const AddToQueuePopover = dynamic(
-    () => import("@agenta/annotation-ui/add-to-queue").then((m) => m.default),
-    {ssr: false},
-)
 
 const TraceHeader = ({
     activeTrace: propActiveTrace,
@@ -467,6 +462,8 @@ const TraceHeader = ({
 
     const displayTrace = propActiveTrace || drawerTraces?.[0]
     const displayTraceId = getTraceIdFromNode(displayTrace) || ""
+
+    const {AddToQueuePopover} = getTraceDrawerReferences()
 
     return (
         <>

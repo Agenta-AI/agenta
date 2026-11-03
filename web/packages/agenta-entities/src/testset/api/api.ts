@@ -287,6 +287,33 @@ export async function fetchTestsetsList({
 }
 
 /**
+ * Fetch one page of testsets, newest first.
+ * The name filter goes in the request body. Errors throw (no silent empty page).
+ */
+export async function queryTestsetsPage(params: {
+    projectId: string
+    limit: number
+    cursor?: string | null
+    name?: string
+    includeArchived?: boolean
+}): Promise<{testsets: Testset[]; nextCursor: string | null}> {
+    const {projectId, limit, cursor, name, includeArchived = false} = params
+    const trimmedName = name?.trim()
+
+    const data = await getTestsetsClient().queryTestsets(
+        {
+            windowing: {limit, order: "descending", ...(cursor ? {next: cursor} : {})},
+            include_archived: includeArchived,
+            ...(trimmedName ? {testset: {name: trimmedName}} : {}),
+        },
+        {queryParams: {project_id: projectId}},
+    )
+
+    const validated = testsetsResponseSchema.parse(data)
+    return {testsets: validated.testsets, nextCursor: validated.windowing?.next ?? null}
+}
+
+/**
  * Fetch multiple testsets by ID in a single API call (metadata only).
  * Uses POST /testsets/query with testset_refs.
  */

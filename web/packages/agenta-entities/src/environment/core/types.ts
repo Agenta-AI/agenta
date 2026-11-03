@@ -34,6 +34,8 @@ export interface EnvironmentRevisionListParams {
     applicationId?: string
     /** Optional message filter — server applies ilike matching */
     message?: string
+    /** Cursor for the next page: the id of the last (oldest) revision of the previous page. */
+    next?: string
 }
 
 /**
