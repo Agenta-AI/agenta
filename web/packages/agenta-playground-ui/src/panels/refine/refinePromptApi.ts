@@ -1,4 +1,5 @@
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
+import {asRecord} from "@agenta/shared/utils"
 
 /** A prompt message as the refine tool reads and returns it: the content is plain text. */
 export interface RefineMessage {
@@ -21,17 +22,12 @@ interface ToolCallResponse {
 
 const TOOL_REFINE_PROMPT = "tools.agenta.api.refine_prompt"
 
-export const asRecord = (value: unknown): Record<string, unknown> =>
-    value && typeof value === "object" && !Array.isArray(value)
-        ? (value as Record<string, unknown>)
-        : {}
-
 /** The tool takes text: content parts join into one string, an image part drops out. */
 const contentText = (content: unknown): string => {
     if (typeof content === "string") return content
     if (Array.isArray(content)) {
         return content
-            .map((part) => (typeof part === "string" ? part : String(asRecord(part).text ?? "")))
+            .map((part) => (typeof part === "string" ? part : String(asRecord(part)?.text ?? "")))
             .filter(Boolean)
             .join("\n")
     }
@@ -41,9 +37,9 @@ const contentText = (content: unknown): string => {
 /** The prompt at `config[promptKey]` in the shape the tool takes, or null without messages. */
 export const toPromptTemplate = (promptValue: unknown): PromptTemplate | null => {
     const prompt = asRecord(promptValue)
-    if (!Array.isArray(prompt.messages) || prompt.messages.length === 0) return null
+    if (!prompt || !Array.isArray(prompt.messages) || prompt.messages.length === 0) return null
     const messages = prompt.messages.map((message) => {
-        const fields = asRecord(message)
+        const fields = asRecord(message) ?? {}
         return {
             role: typeof fields.role === "string" ? fields.role : "user",
             content: contentText(fields.content),

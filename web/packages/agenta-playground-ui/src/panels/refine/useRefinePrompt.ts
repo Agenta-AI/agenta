@@ -1,10 +1,10 @@
-import {useCallback, useState} from "react"
+import {useCallback, useRef, useState} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
-import {generateId} from "@agenta/shared/utils"
+import {asRecord, generateId} from "@agenta/shared/utils"
 import {useStore} from "jotai"
 
-import {asRecord, refinePrompt, toPromptTemplate, type PromptTemplate} from "./refinePromptApi"
+import {refinePrompt, toPromptTemplate, type PromptTemplate} from "./refinePromptApi"
 
 /** One round: what the user asked for and the tool's answer (or the failure message). */
 export interface RefineRound {
@@ -14,12 +14,12 @@ export interface RefineRound {
     failed: boolean
 }
 
-export const REFINE_FAILED = "Couldn't refine the prompt. Try again."
+const REFINE_FAILED = "Couldn't refine the prompt. Try again."
 
 /**
  * The refine conversation for one prompt of one revision. The state lives in the dialog, so it
  * is gone when the dialog closes. Each round refines the result of the round before; `refine`
- * resolves to whether the round worked. `apply` writes the result into the revision's draft (it
+ * ignores a call while a round runs and resolves to whether the round worked. `apply` writes the result into the revision's draft (it
  * saves nothing).
  */
 export function useRefinePrompt(revisionId: string, promptKey: string) {
@@ -29,13 +29,14 @@ export function useRefinePrompt(revisionId: string, promptKey: string) {
     /** The prompt as it was before the first round, for the diff. */
     const [original, setOriginal] = useState<PromptTemplate | null>(null)
     const [working, setWorking] = useState<PromptTemplate | null>(null)
-    /** Grows with each result, so the message editors start again from the new text. */
-    const [version, setVersion] = useState(0)
+    /** Set at once, so a second call in the same tick sees the running round. */
+    const running = useRef(false)
 
     const refine = useCallback(
         async (input: string) => {
             const guidelines = input.trim()
-            if (!guidelines || pending !== null) return false
+            if (!guidelines || running.current) return false
+            running.current = true
             setPending(guidelines)
             const round = {id: generateId(), guidelines}
             try {
@@ -45,7 +46,6 @@ export function useRefinePrompt(revisionId: string, promptKey: string) {
                 const {messages, summary} = await refinePrompt(base, guidelines)
                 setOriginal((current) => current ?? base)
                 setWorking({...base, messages})
-                setVersion((current) => current + 1)
                 setRounds((current) => [...current, {...round, reply: summary, failed: false}])
                 return true
             } catch (error) {
@@ -53,10 +53,11 @@ export function useRefinePrompt(revisionId: string, promptKey: string) {
                 setRounds((current) => [...current, {...round, reply: REFINE_FAILED, failed: true}])
                 return false
             } finally {
+                running.current = false
                 setPending(null)
             }
         },
-        [pending, promptKey, revisionId, store, working],
+        [promptKey, revisionId, store, working],
     )
 
     const editMessage = useCallback((index: number, field: "role" | "content", value: string) => {
@@ -79,8 +80,10 @@ export function useRefinePrompt(revisionId: string, promptKey: string) {
     const apply = useCallback(() => {
         if (!working) return
         const config = store.get(workflowMolecule.selectors.configuration(revisionId)) ?? {}
-        const prompt = asRecord(config[promptKey])
-        const saved = Array.isArray(prompt.messages) ? prompt.messages.map(asRecord) : []
+        const prompt = asRecord(config[promptKey]) ?? {}
+        const saved = Array.isArray(prompt.messages)
+            ? prompt.messages.map((message) => asRecord(message) ?? {})
+            : []
         const keepFields = saved.length === working.messages.length
         const messages = working.messages.map((message, index) =>
             keepFields && saved[index].role === message.role
@@ -92,6 +95,9 @@ export function useRefinePrompt(revisionId: string, promptKey: string) {
             [promptKey]: {...prompt, messages},
         })
     }, [promptKey, revisionId, store, working])
+
+    /** Grows with each result, so the message editors start again from the new text. */
+    const version = rounds.filter((round) => !round.failed).length
 
     return {rounds, pending, original, working, version, refine, editMessage, apply}
 }

@@ -17,6 +17,8 @@ export interface RefinePreviewProps {
     /** Grows with each result, so the editors start again from the new text. */
     version: number
     showDiff: boolean
+    /** A round is running: its result will replace the messages, so they cannot be edited. */
+    busy: boolean
     onEditMessage: (index: number, field: "role" | "content", value: string) => void
 }
 
@@ -27,6 +29,7 @@ export const RefinePreview = ({
     working,
     version,
     showDiff,
+    busy,
     onEditMessage,
 }: RefinePreviewProps) => {
     // Only the messages change, so only they are compared.
@@ -64,6 +67,7 @@ export const RefinePreview = ({
                             id={`refine-preview-${promptKey}-v${version}-${index}`}
                             role={message.role}
                             text={message.content}
+                            disabled={busy}
                             onChangeRole={(value) => onEditMessage(index, "role", value)}
                             onChangeText={(value) => onEditMessage(index, "content", value)}
                             placeholder="Enter message content…"

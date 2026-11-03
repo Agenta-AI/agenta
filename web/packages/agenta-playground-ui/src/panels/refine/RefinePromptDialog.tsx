@@ -47,7 +47,6 @@ export const RefinePromptDialog = ({revisionId, promptKey, onClose}: RefinePromp
     const hasResult = refine.working !== null
 
     const send = async (guidelines: string) => {
-        if (!guidelines.trim() || refine.pending !== null) return
         setInput("")
         if (await refine.refine(guidelines)) setPane("preview")
     }
@@ -133,6 +132,7 @@ export const RefinePromptDialog = ({revisionId, promptKey, onClose}: RefinePromp
                             working={refine.working}
                             version={refine.version}
                             showDiff={showDiff}
+                            busy={refine.pending !== null}
                             onEditMessage={refine.editMessage}
                         />
                         <div className="flex items-center justify-end gap-2 border-0 border-t border-solid border-border px-4 py-3">

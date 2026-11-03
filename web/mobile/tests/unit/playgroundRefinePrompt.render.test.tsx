@@ -60,15 +60,18 @@ vi.mock("@agenta/ui/chat-message", () => ({
     ChatMessageEditor: ({
         role,
         text,
+        disabled,
         onChangeText,
     }: {
         role: string
         text: string
+        disabled?: boolean
         onChangeText?: (value: string) => void
     }) => (
         <textarea
             aria-label={`Refined ${role} message`}
             value={text}
+            disabled={disabled}
             onChange={(event) => onChangeText?.(event.target.value)}
         />
     ),
@@ -422,6 +425,27 @@ describe("Refine prompt", () => {
             role: "user",
             content: "Name the capital of {{country}}.",
         })
+    })
+
+    it("The refined messages cannot be edited while the next round runs", async () => {
+        await openRefine()
+        await refineWith("Be shorter")
+        const editor = () =>
+            dialog()!.querySelector<HTMLTextAreaElement>(
+                'textarea[aria-label="Refined user message"]',
+            )!
+        expect(editor().disabled).toBe(false)
+
+        let release: () => void = () => undefined
+        refineAnswer.hold = new Promise<void>((resolve) => {
+            release = resolve
+        })
+        await refineWith("Use a friendly tone")
+        expect(editor().disabled).toBe(true)
+
+        await act(async () => release())
+        await settle()
+        expect(editor().disabled).toBe(false)
     })
 
     it("The diff compares the saved messages with the refined ones", async () => {
