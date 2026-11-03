@@ -34,8 +34,9 @@ export async function deleteEvaluationRuns({
         params: {project_id: projectId},
         data: {run_ids: runIds},
     })
-    const parsed = deletedRunsResponseSchema.safeParse(response?.data)
-    if (!parsed.success || !runIds.every((id) => parsed.data.run_ids.includes(id))) {
+    // The API returns only the ids it deleted in this call. A retry after the runs are gone
+    // returns an empty list, which is still a confirmed response.
+    if (!deletedRunsResponseSchema.safeParse(response?.data).success) {
         throw new Error("The runs were not deleted.")
     }
 }

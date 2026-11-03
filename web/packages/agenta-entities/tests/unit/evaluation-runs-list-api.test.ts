@@ -258,8 +258,24 @@ describe("run actions", () => {
         expect(deleteMock).not.toHaveBeenCalled()
     })
 
-    it("Delete runs throws when the API does not list every run as deleted", async () => {
-        deleteMock.mockResolvedValue({data: {count: 1, run_ids: ["r1"]}})
+    it("Delete runs passes when the API lists every requested run as deleted", async () => {
+        deleteMock.mockResolvedValue({data: {count: 2, run_ids: ["r1", "r2"]}})
+
+        await expect(
+            deleteEvaluationRuns({projectId: "p1", runIds: ["r1", "r2"]}),
+        ).resolves.toBeUndefined()
+    })
+
+    it("Delete runs passes on a retry when the API returns an empty run_ids list", async () => {
+        deleteMock.mockResolvedValue({data: {count: 0, run_ids: []}})
+
+        await expect(
+            deleteEvaluationRuns({projectId: "p1", runIds: ["r1", "r2"]}),
+        ).resolves.toBeUndefined()
+    })
+
+    it("Delete runs throws when the response has no run_ids", async () => {
+        deleteMock.mockResolvedValue({data: {count: 2}})
 
         await expect(deleteEvaluationRuns({projectId: "p1", runIds: ["r1", "r2"]})).rejects.toThrow(
             "The runs were not deleted.",
