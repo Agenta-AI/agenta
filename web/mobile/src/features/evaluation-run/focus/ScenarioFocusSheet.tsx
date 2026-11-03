@@ -80,7 +80,7 @@ export const ScenarioFocusSheet = ({
             <SheetContent
                 side="responsive"
                 aria-label={noun}
-                className="max-lg:inset-0 max-lg:max-h-none max-lg:rounded-none lg:[--ag-sheet-responsive-width:720px]"
+                className="max-lg:inset-0 max-lg:h-dvh max-lg:max-h-none max-lg:rounded-none lg:[--ag-sheet-responsive-width:720px]"
             >
                 <SheetDescription className="sr-only">{`${noun} of ${header.name}`}</SheetDescription>
                 {current ? null : <SheetTitle className="sr-only">{noun}</SheetTitle>}
