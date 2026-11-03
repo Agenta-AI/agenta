@@ -36,5 +36,6 @@ describe("add to queue slot registration", () => {
         expect(configure).toHaveBeenCalledTimes(1)
         expect(configure.mock.calls[0][0]).toHaveProperty("AddToQueuePopover")
         expect(configure.mock.calls[0][0]).toHaveProperty("AddToTestsetButton")
+        expect(configure.mock.calls[0][0]).toHaveProperty("AnnotateDrawerButton")
     })
 })

@@ -17,9 +17,10 @@ const TraceSpanPanel = dynamic(() => import("./TraceSpanPanel"), {
     loading: TraceSpanPanelSkeleton,
 })
 
-// Every header action (the add-to-queue picker, add to test set) is in one chunk behind one
-// loader, registered under each slot name. The global drawers sit in the app shell, so a static
-// import here would put the actions in every page, and a loader per action would grow the shell.
+// Every header action (the add-to-queue picker, add to test set, annotate) is in one chunk
+// behind one loader, registered under each slot name. The global drawers sit in the app shell, so
+// a static import here would put the actions in every page, and a loader per action would grow
+// the shell.
 const HeaderAction = dynamic<AddToQueuePopoverSlotProps>(
     () => import("./TraceDrawerHeaderActions"),
     {ssr: false},
@@ -32,5 +33,6 @@ export const registerTraceDrawerSlots = () => {
         PrettyJsonView: TracePrettyJson as unknown as Slot,
         AddToQueuePopover: HeaderAction,
         AddToTestsetButton: HeaderAction as unknown as Slot,
+        AnnotateDrawerButton: HeaderAction as unknown as Slot,
     })
 }

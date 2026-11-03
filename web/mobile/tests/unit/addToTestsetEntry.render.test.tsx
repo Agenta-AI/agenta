@@ -19,7 +19,7 @@ const fixture = vi.hoisted(() => ({
 
 vi.mock("@/features/developer/developerViewAccess", () => ({
     useDeveloperViewEnabled: (id: string) =>
-        id === "observability-add-to-testset" ? fixture.viewEnabled : false,
+        id === "observability-actions" ? fixture.viewEnabled : false,
 }))
 vi.mock("@/features/context/useProjectPermission", () => ({
     useProjectPermission: (projectId: string, action: string) => {
@@ -76,7 +76,7 @@ afterEach(async () => {
 
 describe("add to test set entry points", () => {
     it("The view is registered as a hidden feature gate", () => {
-        const view = DEVELOPER_VIEWS.find((item) => item.id === "observability-add-to-testset")
+        const view = DEVELOPER_VIEWS.find((item) => item.id === "observability-actions")
         expect(view?.stage).toBe("hidden")
         expect(view?.routes).toBeUndefined()
     })
