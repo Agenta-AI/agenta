@@ -36,8 +36,8 @@ export const ConfigPanelHeader = ({
         environmentMolecule.atoms.revisionDeployment(isLocalDraft ? "" : revisionId),
     )
     const latestId = useAtomValue(workflowLatestRevisionIdAtomFamily(revision?.workflow_id ?? ""))
-
-    const name = revision?.name ?? ""
+    // The variant's own name: a revision's `name` is unreliable (SDK revisions carry none).
+    const name = useAtomValue(workflowMolecule.selectors.variantLabel(revisionId)) ?? ""
     const version = revision?.version ?? null
     const isLatest = revisionId === latestId
 

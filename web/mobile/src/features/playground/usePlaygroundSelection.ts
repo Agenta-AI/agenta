@@ -2,6 +2,7 @@ import {useCallback, useEffect, useRef} from "react"
 
 import {isLocalDraftId} from "@agenta/entities/shared"
 import {
+    discardLocalServerDataAtom,
     workflowDetailQueryAtomFamily,
     workflowLatestRevisionIdAtomFamily,
     workflowLatestRevisionQueryAtomFamily,
@@ -38,14 +39,13 @@ export interface PlaygroundSelection {
 }
 
 /**
- * The selected ids that can stay: local drafts, ids still loading, ids whose load failed (the
- * screen shows the error), and loaded revisions of this app. An id that loaded with no data, or
- * that belongs to another app, goes.
+ * The selected ids that can stay: ids still loading, ids whose load failed (the screen shows the
+ * error), and revisions and local drafts of this app. An id with no data behind it, or one that
+ * belongs to another app, goes.
  */
 const keptRevisionIdsAtomFamily = atomFamily((appId: string) =>
     atom((get) =>
         get(playgroundController.selectors.entityIds()).filter((id) => {
-            if (isLocalDraftId(id)) return true
             const query = get(workflowMolecule.selectors.query(id))
             if (query.isPending || query.isError) return true
             const workflowId = query.data?.workflow_id
@@ -104,9 +104,16 @@ export const usePlaygroundSelection = ({appId}: {appId: string}): PlaygroundSele
         store.set(playgroundInitializedAtom, true)
         return () => {
             setUpForAppRef.current = null
-            store.set(playgroundController.actions.resetAll)
+            const selected = store.get(playgroundController.selectors.entityIds())
+            // Runs first: they are found through the selection that `resetAll` removes.
             store.set(executionItemController.actions.clearAll)
+            store.set(playgroundController.actions.resetAll)
             store.set(playgroundInitializedAtom, false)
+            // Leaving asked to discard unsaved changes: the drafts go with the page.
+            for (const id of selected) {
+                if (isLocalDraftId(id)) store.set(discardLocalServerDataAtom, id)
+                else store.set(workflowMolecule.actions.discard, id)
+            }
         }
     }, [appId, appUsable, router.isReady, select, store])
 
@@ -161,7 +168,8 @@ export const usePlaygroundSelection = ({appId}: {appId: string}): PlaygroundSele
             // An app with no revision gets the error state, as in the old playground.
             return latestId || latestQuery.isPending ? "loading" : "error"
         }
-        return primaryQuery.isPending ? "loading" : "ready"
+        // A primary that is not a revision of this app is about to be replaced: wait for that.
+        return primaryQuery.isPending || keptIds[0] !== primaryId ? "loading" : "ready"
     })()
     const appKind: PlaygroundAppKind | null =
         status !== "ready" ? null : isEvaluator ? "evaluator" : isAgent ? "agent" : "prompt"

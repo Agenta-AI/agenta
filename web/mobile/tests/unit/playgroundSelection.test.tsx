@@ -6,6 +6,7 @@
  */
 import {act} from "react"
 
+import {createLocalDraftFromWorkflowRevision, workflowMolecule} from "@agenta/entities/workflow"
 import {playgroundController} from "@agenta/playground"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {QueryClient} from "@tanstack/react-query"
@@ -60,6 +61,7 @@ const revisions = [
     revision("rev-2", "app-1", 2),
     revision("rev-x", "app-2", 1),
     revision("rev-a", "agent-app", 1, {is_agent: true}),
+    revision("rev-b", "agent-app", 2, {is_agent: true}),
 ]
 let failRevisions = false
 
@@ -159,13 +161,38 @@ describe("usePlaygroundSelection", () => {
 
     it("Local draft ids are not written to the URL", async () => {
         await mount("app-1", "rev-1")
+        const localId = createLocalDraftFromWorkflowRevision("rev-1")!
         router.replace.mockClear()
 
-        act(() => store.set(playgroundController.actions.setEntityIds, ["rev-1", "local-abc"]))
+        act(() => store.set(playgroundController.actions.setEntityIds, ["rev-1", localId]))
         await settle()
 
+        expect(selection.revisionIds).toEqual(["rev-1", localId])
         expect(router.replace).not.toHaveBeenCalled()
         expect(router.query.revisions).toBe("rev-1")
+    })
+
+    it("A local draft id with no draft behind it is dropped", async () => {
+        await mount("app-1", "local-missing")
+
+        expect(selection.revisionIds).toEqual(["rev-2"])
+        expect(selection.status).toBe("ready")
+    })
+
+    it("A foreign agent revision does not send a prompt app to the agent page", async () => {
+        const kinds: (string | null)[] = []
+        const Recorder = () => {
+            selection = usePlaygroundSelection({appId: "app-1"})
+            kinds.push(selection.appKind)
+            return null
+        }
+        router.query = {workspace_id: "ws-1", project_id: projectId, app_id: "app-1"}
+        router.query.revisions = "rev-b"
+        act(() => root.render(<Recorder />))
+        await settle()
+
+        expect(kinds).not.toContain("agent")
+        expect(selection.revisionIds).toEqual(["rev-2"])
     })
 
     it("An id that does not resolve is dropped and the latest revision is selected", async () => {
@@ -189,6 +216,24 @@ describe("usePlaygroundSelection", () => {
         act(() => root.render(null))
 
         expect(nodes()).toEqual([])
+    })
+
+    it("Leaving discards the drafts it asked about", async () => {
+        await mount("app-1", "rev-1")
+        const localId = createLocalDraftFromWorkflowRevision("rev-1")!
+        act(() => {
+            store.set(playgroundController.actions.setEntityIds, ["rev-1", localId])
+            workflowMolecule.set.update("rev-1", {
+                data: {uri: "agenta:builtin:completion:v0", parameters: {temperature: 0.9}},
+            })
+        })
+        await settle()
+        expect(store.get(workflowMolecule.selectors.isDirty("rev-1"))).toBe(true)
+
+        act(() => root.render(null))
+
+        expect(store.get(workflowMolecule.selectors.isDirty("rev-1"))).toBe(false)
+        expect(store.get(workflowMolecule.selectors.data(localId))).toBeNull()
     })
 
     it("Changing the app clears the previous app's selection", async () => {

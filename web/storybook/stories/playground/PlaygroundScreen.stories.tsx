@@ -52,7 +52,7 @@ const Demo = ({
                 projectId={projectId}
                 appName="Capital finder"
                 revisionId={revisionId}
-                onRevisionCommitted={() => undefined}
+                onWorkflowRevisionCommitted={() => undefined}
             />
         </div>
     )

@@ -44,6 +44,7 @@ vi.mock("@agenta/entities/workflow", async (original) => {
                 ...actual.workflowMolecule.selectors,
                 data: await cached((id) => revisions[id] ?? null),
                 isDirty: await cached((id) => id.startsWith("local-")),
+                variantLabel: await cached((id) => (revisions[id] ? "default" : null)),
             },
         },
     }
@@ -105,8 +106,9 @@ beforeEach(() => {
     Element.prototype.releasePointerCapture = () => undefined
     sectionProps.length = 0
     pending.clear()
-    revisions["rev-1"] = {name: "default", version: 3, workflow_id: "app-1"}
-    revisions["local-1"] = {name: "default", version: 3, workflow_id: "app-1"}
+    // The revision's own name is not the variant's: the header must show the variant label.
+    revisions["rev-1"] = {name: "rev-name", version: 3, workflow_id: "app-1"}
+    revisions["local-1"] = {name: "rev-name", version: 3, workflow_id: "app-1"}
     host = document.createElement("div")
     document.body.append(host)
     root = createRoot(host)
@@ -121,6 +123,7 @@ describe("ConfigPanel", () => {
         render("rev-1")
 
         expect(host.textContent).toContain("default")
+        expect(host.textContent).not.toContain("rev-name")
         expect(host.textContent).toContain("v3")
         expect(host.textContent).not.toContain("Draft")
     })
