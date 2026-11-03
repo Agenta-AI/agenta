@@ -8,8 +8,8 @@ import {useAddToTestsetAccess} from "./useAddToTestsetAccess"
 const AddToTestsetSheet = dynamic(() => import("./AddToTestsetSheet"), {ssr: false})
 
 /**
- * The traces toolbar "Add to testset" action and the sheet it opens. Table row keys are span
- * ids, so the selection goes to the sheet as it is.
+ * The "Add to testset" action and the sheet it opens, for the traces toolbar (the selected rows;
+ * table row keys are span ids) and the trace drawer button (the active span).
  */
 export const useAddToTestsetAction = (projectId: string, selectedSpanIds: readonly string[]) => {
     const allowed = useAddToTestsetAccess(projectId)

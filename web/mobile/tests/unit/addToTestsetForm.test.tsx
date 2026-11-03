@@ -16,6 +16,7 @@ import {afterEach, beforeEach, describe, expect, it, vi, type Mock} from "vitest
 
 const http = vi.hoisted(() => ({
     post: vi.fn(),
+    querySpans: vi.fn(),
     success: vi.fn(),
     error: vi.fn(),
 }))
@@ -28,6 +29,11 @@ vi.mock("@agenta/shared/api", async (importOriginal) => {
         axios: {...actual.axios, post: http.post},
     }
 })
+
+vi.mock("@agenta/sdk/resources", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@agenta/sdk/resources")>()),
+    getTracesClient: () => ({querySpans: http.querySpans}),
+}))
 
 vi.mock("@agenta/ui/app-message", () => ({
     message: {success: http.success, error: http.error},
@@ -137,6 +143,7 @@ describe("add to test set form", () => {
         )
         http.success.mockReset()
         http.error.mockReset()
+        http.querySpans.mockReset()
         routes.latest = "rev-3"
         routes.rows = [{id: "tc-1", data: {inputs: {country: "Peru"}, expected: "Lima"}}]
         routes.commit = () => Promise.resolve({data: {testset_revision: {id: "rev-9"}}})
@@ -355,6 +362,32 @@ describe("add to test set form", () => {
             await latest.submit()
         })
         expect(http.post).not.toHaveBeenCalled()
+    })
+
+    it("Try again fetches a span that failed to load", async () => {
+        // The span query failed before the sheet opened.
+        const query = client
+            .getQueryCache()
+            .build(client, {queryKey: ["span", "project-1", "span-9"]})
+        query.setState({
+            ...query.state,
+            status: "error",
+            error: new Error("The span request failed"),
+            errorUpdatedAt: Date.now(),
+        })
+        http.querySpans.mockResolvedValue({
+            count: 1,
+            spans: [span("span-9", {inputs: {country: "Chile"}, outputs: "Santiago"})],
+        })
+        await mount(["span-9"])
+        expect(latest.status).toBe("error")
+
+        await act(async () => latest.retrySpans())
+        // The span fetcher batches requests for a short window first.
+        await settle(500)
+
+        expect(http.querySpans).toHaveBeenCalledTimes(1)
+        expect(latest.status).toBe("ready")
     })
 
     it("The preview holds the rows the save sends, at most five", async () => {
