@@ -32,7 +32,8 @@ and its number; run `tab <number>` to use it.
 
 ## Signing in, 2FA and CAPTCHA
 
-Never ask for a password and never type one. When a site needs a sign-in, a 2FA code or a
+Never ask for a password and never type one. The browser refuses to type into a password or
+one-time-code field. When a site needs a sign-in, a 2FA code or a
 CAPTCHA, run `wait` with a short reason, for example
 `wait "Please sign in to example.com, then click I'm done."`. Tell the person to click
 **Watch browser** at the top of the chat.

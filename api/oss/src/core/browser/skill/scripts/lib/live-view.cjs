@@ -183,7 +183,8 @@ function createLiveView(session) {
     viewers.add(ws);
     session.lastActivity = Date.now();
     statusMessage().then((m) => send(ws, m)).catch(() => {});
-    if (viewers.size === 1) restartScreencast().catch(() => {});
+    // Every new viewer needs a first frame: Chrome sends none for a page that is not repainting.
+    restartScreencast().catch(() => {});
     ws.on("message", (raw) => {
       session.lastActivity = Date.now();
       let message;

@@ -39,6 +39,9 @@ const PAGES = {
     <a href="/next" target="_blank">Open help</a>
     <p id="out"></p>`,
   "/next": "<title>Help</title><h1>Help page</h1>",
+  "/framed": `<title>Framed</title><h1>Outer page</h1><iframe src="/consent" title="Consent"></iframe>`,
+  "/consent": `<button onclick="this.textContent='Rejected'">Reject all</button><button>Pay with card</button>`,
+  "/login": `<title>Login</title><input aria-label="Email"><input aria-label="Password" type="password"><input aria-label="Code" autocomplete="one-time-code">`,
 };
 
 function serveFixture() {
@@ -159,6 +162,13 @@ test("open, read, click, type, set, tabs, wait and the pay refusal through the r
   });
   await new Promise((resolve) => viewer.on("open", resolve));
   await new Promise((resolve) => setTimeout(resolve, 300));
+  // A second viewer of the same idle page still gets a first frame.
+  const secondViewer = new WebSocket(`ws://127.0.0.1:${port}/live`, { headers: { "x-agenta-browser-token": token } });
+  const secondFrame = new Promise((resolve) =>
+    secondViewer.on("message", (raw) => JSON.parse(String(raw)).type === "frame" && resolve(true)),
+  );
+  assert.equal(await Promise.race([secondFrame, new Promise((r) => setTimeout(() => r(false), 5_000))]), true);
+  secondViewer.close();
   viewer.send(JSON.stringify({ type: "done" }));
   const done = await waiting;
   viewer.close();
@@ -170,6 +180,42 @@ test("open, read, click, type, set, tabs, wait and the pay refusal through the r
   assert.equal(stop.out.trim(), "Stopped.");
   assert.equal(fs.existsSync(path.join(runDir, "token")), false);
   assert.equal(fs.existsSync(path.join(runDir, "pid")), false);
+});
+
+test("refs inside an iframe work and checks hold there; secret fields are never typed into", { skip: !NODE_MODULES && "playwright-core with Chromium is not installed", timeout: 120_000 }, async (t) => {
+  const site = await serveFixture();
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "agenta-browser-frame-"));
+  const env = {
+    ...process.env,
+    NODE_PATH: NODE_MODULES,
+    AGENTA_BROWSER_ALLOW_SHARED_HOST: "1",
+    AGENTA_BROWSER_DIR: path.join(cwd, "run"),
+    AGENTA_BROWSER_PORT: String(await freePort()),
+  };
+  const cli = makeCli(env, cwd);
+  t.after(async () => {
+    await cli("stop");
+    site.close();
+  });
+  const page = await cli("open", `http://127.0.0.1:${site.address().port}/framed`);
+  assert.equal(page.code, 0, page.out);
+  const reject = refOf((await cli("find", "Reject")).out, 'button "Reject all"');
+  assert.match((await cli("read", reject)).out, /button "Reject all"/);
+  const clicked = await cli("click", reject);
+  assert.equal(clicked.code, 0, clicked.out);
+  assert.match((await cli("find", "Rejected")).out, /button "Rejected"/);
+  const pay = refOf((await cli("find", "Pay with")).out, 'button "Pay with card"');
+  const refused = await cli("click", pay);
+  assert.equal(refused.code, 1, refused.out);
+  assert.match(refused.out, /^Error \(needs_approval\)/);
+
+  const login = await cli("open", `http://127.0.0.1:${site.address().port}/login`);
+  assert.equal((await cli("type", refOf(login.out, 'textbox "Email"'), "me@example.com")).code, 0);
+  for (const field of ['textbox "Password"', 'textbox "Code"']) {
+    const typed = await cli("type", refOf(login.out, field), "123456");
+    assert.equal(typed.code, 1, typed.out);
+    assert.match(typed.out, /^Error \(secret_field\)/);
+  }
 });
 
 test("the browser stops by itself when nobody uses it", { skip: !NODE_MODULES && "playwright-core with Chromium is not installed", timeout: 120_000 }, async () => {

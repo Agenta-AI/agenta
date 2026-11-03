@@ -22,7 +22,8 @@ function racer(file, holdMs) {
 
 test("of eight processes racing for the lock, exactly one gets it", async () => {
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "agenta-browser-lock-")), "start.lock");
-  const results = await Promise.all(Array.from({ length: 8 }, () => racer(file, 500)));
+  // Each holds long enough that every racer tries while the winner is alive, even on a loaded machine.
+  const results = await Promise.all(Array.from({ length: 8 }, () => racer(file, 5_000)));
   assert.equal(results.filter((r) => r === "true").length, 1, results.join(","));
 });
 
@@ -31,6 +32,6 @@ test("a lock whose owner died is taken over", async () => {
   assert.equal(await racer(file, 0), "true");
   // The owner exited without releasing.
   assert.equal(fs.existsSync(file), true);
-  const results = await Promise.all(Array.from({ length: 4 }, () => racer(file, 300)));
+  const results = await Promise.all(Array.from({ length: 4 }, () => racer(file, 5_000)));
   assert.equal(results.filter((r) => r === "true").length, 1, results.join(","));
 });

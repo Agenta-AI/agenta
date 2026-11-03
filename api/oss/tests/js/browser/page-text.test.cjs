@@ -43,3 +43,25 @@ test("read --interactive outlines the filtered text, not the whole page", async 
   assert.match(text, /^Page: Shop \(https:\/\/shop\.test\/\)\n\[Outline of a long page \(34,999 chars\)/);
   assert.doesNotMatch(text, /paragraph/);
 });
+
+test("outline splits a part without a ref into its children, which have refs", () => {
+  const lines = [
+    "- generic:",
+    '  - link "Skip to content":',
+    '    - /url: "#main"',
+    '- banner "Site":',
+    '  - link "Home" [ref=e2]',
+    '  - navigation "Menu" [ref=e3]:',
+    "    - link: News",
+    '- main "Articles" [ref=e9]:',
+    ...Array.from({ length: 30 }, (_, i) => `  - paragraph: Article ${i} with some words in it`),
+  ];
+  assert.equal(
+    outline(lines, 5000, 2000),
+    "[Outline of a long page (5,000 chars). Read a part with agenta-browser read <ref>, or act on a control by its role and name.]\n" +
+      '- link "Skip to content" (48 chars)\n' +
+      '- link "Home" [ref=e2] (25 chars)\n' +
+      '- navigation "Menu" [ref=e3] (49 chars)\n' +
+      '- main "Articles" [ref=e9] (1,458 chars)',
+  );
+});

@@ -63,12 +63,17 @@ let targetSeq = 0;
 
 // Pin the element: an aria-ref resolves against the latest page snapshot, which reading a
 // control's label replaces, and a role locator re-resolves to look-alikes after a click.
+// The mark is found in the element's own frame: consent, payment and sign-in widgets live in iframes.
 async function pin(page, locator) {
   const id = `t${++targetSeq}`;
-  await locator.evaluate((el, value) => el.setAttribute("data-agenta-target", value), id, {
-    timeout: ACTION_TIMEOUT_MS,
-  });
-  return page.locator(`[data-agenta-target="${id}"]`);
+  const handle = await locator.elementHandle({ timeout: ACTION_TIMEOUT_MS });
+  try {
+    await handle.evaluate((el, value) => el.setAttribute("data-agenta-target", value), id);
+    const frame = (await handle.ownerFrame()) || page.mainFrame();
+    return frame.locator(`[data-agenta-target="${id}"]`);
+  } finally {
+    await handle.dispose();
+  }
 }
 
 async function resolveRef(page, ref) {
@@ -107,6 +112,18 @@ async function resolveTarget(page, { ref, role, name }) {
 
 const targetName = ({ ref, role, name }) => ref || (name ? `${role} "${name}"` : role);
 
+// Passwords and one-time codes come from the person, in the live view, never from the agent.
+async function refuseSecretField(locator) {
+  const secret = await locator
+    .evaluate(
+      (el) =>
+        el instanceof HTMLInputElement &&
+        (el.type === "password" || /one-time-code/.test(el.autocomplete || "")),
+    )
+    .catch(() => false);
+  if (secret) throw fail("secret_field", "secret field");
+}
+
 const OPS = {
   async navigate(page, { url }) {
     if (url === "back") await page.goBack({ timeout: NAVIGATION_TIMEOUT_MS }).catch(() => {});
@@ -131,7 +148,12 @@ const OPS = {
       }
     }
     await page.waitForLoadState("load", { timeout: 5_000 }).catch(() => {});
-    return pageView(page);
+    // Many sites fill the page from their own API after load; give that a moment, and say so if it is still going.
+    const quiet = await page
+      .waitForLoadState("networkidle", { timeout: 4_000 })
+      .then(() => true, () => false);
+    const view = await pageView(page);
+    return quiet ? view : `[The page may still be loading. If something you expect is missing, run read again.]\n${view}`;
   },
 
   async read_page(page, { filter, ref }) {
@@ -187,6 +209,7 @@ const OPS = {
     // Typing clicks the target first: only a field may be typed into.
     const editable = await locator.isEditable({ timeout: ACTION_TIMEOUT_MS }).catch(() => false);
     if (!editable) throw fail("invalid_arguments", "That element is not a text field.");
+    await refuseSecretField(locator);
     if (submit) await requireIntent(locator, args.intent, "submit");
     const before = await snapshotLines(page);
     await locator.click({ timeout: ACTION_TIMEOUT_MS });
@@ -209,6 +232,7 @@ const OPS = {
   async form_input(page, args) {
     const { value } = args;
     const locator = await resolveTarget(page, args);
+    await refuseSecretField(locator);
     await requireIntent(locator, args.intent, "set");
     const before = await snapshotLines(page);
     const kind = await locator.evaluate((el) =>
@@ -234,6 +258,10 @@ function opError(e) {
       next_step: `Ask the person first. Only after they say yes, run the same command again with --intent ${e.message}.`,
     });
   }
+  if (e.code === "secret_field")
+    return agentError("secret_field", "That is a password or one-time-code field. Nothing was typed.", {
+      next_step: 'Run `agenta-browser wait "<why>"` and ask the person to sign in in the live view.',
+    });
   if (e.code === "site_not_allowed") return agentError("site_not_allowed", `${e.message} cannot be opened.`);
   if (e.code === "page_timeout")
     return agentError("page_timeout", `${e.message} did not start loading in ${NAVIGATION_TIMEOUT_MS / 1000} s.`, {

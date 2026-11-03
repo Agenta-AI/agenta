@@ -78,7 +78,8 @@ function outline(lines, total, partChars = MAX_TEXT_CHARS) {
   const part = (i) => ({
     i,
     size: blockChars(lines, i),
-    kids: childStarts(lines, i),
+    // A `/url:` line is the link's address, not a part of the page.
+    kids: childStarts(lines, i).filter((k) => !/^\s*- \/url:/.test(lines[k])),
   });
   const parts = [];
   for (let j = 0; j < lines.length; j = blockEnd(lines, j))
@@ -87,10 +88,12 @@ function outline(lines, total, partChars = MAX_TEXT_CHARS) {
     const big = parts
       .filter(
         (p) =>
-          p.size > partChars &&
+          // A part without a ref cannot be read by ref, so it is split into its children too.
+          (p.size > partChars || !/\[ref=/.test(lines[p.i])) &&
           p.kids.length &&
           !LIST_ROLES.test(lines[p.i].trimStart()) &&
-          parts.length - 1 + p.kids.length <= MAX_OUTLINE_PARTS,
+          // One child takes the part's place, so it never adds a row past the cap.
+          (p.kids.length === 1 || parts.length - 1 + p.kids.length <= MAX_OUTLINE_PARTS),
       )
       .sort((x, y) => y.size - x.size)[0];
     if (!big) break;
