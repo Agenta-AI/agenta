@@ -267,7 +267,12 @@ async def fetch_browser_live_link(
             return None
         body = response.json()
     except (httpx.HTTPError, ValueError) as e:
-        log.warning("browser.live", outcome="runner_unreachable", error=str(e))
+        # A timeout has an empty message, so the type is what says what happened.
+        log.warning(
+            "browser.live",
+            outcome="runner_unreachable",
+            error=f"{type(e).__name__}: {e}",
+        )
         return None
     url = body.get("url") if isinstance(body, dict) else None
     headers = body.get("headers") if isinstance(body, dict) else None
