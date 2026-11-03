@@ -1,12 +1,20 @@
 /**
  * Evaluation run actions: delete, and stop or resume a live run.
  *
- * Each function throws when the request fails.
+ * Each function throws when the request fails or when the response does not
+ * confirm the action.
  *
  * @packageDocumentation
  */
 
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
+import {z} from "zod"
+
+/** `EvaluationRunIdsResponse`: the run ids the API deleted. */
+const deletedRunsResponseSchema = z.object({run_ids: z.array(z.string())})
+
+/** `SimpleEvaluationResponse`: `evaluation` is null when no run was found. */
+const simpleEvaluationResponseSchema = z.object({evaluation: z.object({id: z.string()})})
 
 export interface EvaluationRunActionParams {
     projectId: string
@@ -22,10 +30,14 @@ export async function deleteEvaluationRuns({
     runIds: string[]
 }): Promise<void> {
     if (runIds.length === 0) return
-    await axios.delete(`${getAgentaApiUrl()}/evaluations/runs/`, {
+    const response = await axios.delete(`${getAgentaApiUrl()}/evaluations/runs/`, {
         params: {project_id: projectId},
         data: {run_ids: runIds},
     })
+    const parsed = deletedRunsResponseSchema.safeParse(response?.data)
+    if (!parsed.success || !runIds.every((id) => parsed.data.run_ids.includes(id))) {
+        throw new Error("The runs were not deleted.")
+    }
 }
 
 /** `POST /simple/evaluations/{runId}/start` */
@@ -33,9 +45,14 @@ export async function startOnlineEvaluation({
     projectId,
     runId,
 }: EvaluationRunActionParams): Promise<void> {
-    await axios.post(`${getAgentaApiUrl()}/simple/evaluations/${runId}/start`, undefined, {
-        params: {project_id: projectId},
-    })
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/simple/evaluations/${runId}/start`,
+        undefined,
+        {params: {project_id: projectId}},
+    )
+    if (!simpleEvaluationResponseSchema.safeParse(response?.data).success) {
+        throw new Error("The evaluation did not start.")
+    }
 }
 
 /** `POST /simple/evaluations/{runId}/stop` */
@@ -43,7 +60,12 @@ export async function stopOnlineEvaluation({
     projectId,
     runId,
 }: EvaluationRunActionParams): Promise<void> {
-    await axios.post(`${getAgentaApiUrl()}/simple/evaluations/${runId}/stop`, undefined, {
-        params: {project_id: projectId},
-    })
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/simple/evaluations/${runId}/stop`,
+        undefined,
+        {params: {project_id: projectId}},
+    )
+    if (!simpleEvaluationResponseSchema.safeParse(response?.data).success) {
+        throw new Error("The evaluation did not stop.")
+    }
 }

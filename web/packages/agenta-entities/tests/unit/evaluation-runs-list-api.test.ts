@@ -155,6 +155,61 @@ describe("queryEvaluationRunsPage", () => {
         expect(result.nextCursor).toBeNull()
     })
 
+    it("Feeding each returned cursor into the next call skips and repeats no run", async () => {
+        const server = [
+            humanRun("h1"),
+            autoRun("a1"),
+            humanRun("h2"),
+            humanRun("h3"),
+            autoRun("a2"),
+            humanRun("h4"),
+            humanRun("h5"),
+        ]
+        // Fake server: a cursor is the id of the last row already read (`id < next`).
+        postMock.mockImplementation(
+            async (_url: string, body: {windowing: Record<string, unknown>}) => {
+                const {limit, next} = body.windowing as {limit: number; next?: string}
+                const start = next ? server.findIndex((run) => run.id === next) + 1 : 0
+                const rows = server.slice(start, start + limit)
+                const more = start + limit < server.length
+                return page(rows, more ? rows[rows.length - 1].id : null)
+            },
+        )
+
+        const seen: string[] = []
+        let cursor: string | null = null
+        for (let guard = 0; guard < 10; guard++) {
+            const result = await queryEvaluationRunsPage({
+                projectId: "p1",
+                limit: 2,
+                kind: "human",
+                cursor,
+            })
+            seen.push(...result.runs.map((run) => run.id))
+            cursor = result.nextCursor
+            if (!cursor) break
+        }
+
+        expect(seen).toEqual(["h1", "h2", "h3", "h4", "h5"])
+    })
+
+    it("Feeding the cursor of an unfiltered page into the next call continues the list", async () => {
+        postMock
+            .mockResolvedValueOnce(page([autoRun("a1"), autoRun("a2")], "a2"))
+            .mockResolvedValueOnce(page([autoRun("a3")], null))
+
+        const first = await queryEvaluationRunsPage({projectId: "p1", limit: 2})
+        const second = await queryEvaluationRunsPage({
+            projectId: "p1",
+            limit: 2,
+            cursor: first.nextCursor,
+        })
+
+        expect(bodyOf(1).windowing).toEqual({limit: 2, order: "descending", next: "a2"})
+        expect([...first.runs, ...second.runs].map((run) => run.id)).toEqual(["a1", "a2", "a3"])
+        expect(second.nextCursor).toBeNull()
+    })
+
     it("App scope drops runs where the app is only an evaluator", async () => {
         const graderRun = makeRun("g1", [
             {type: "invocation", app: "other-app"},
@@ -187,7 +242,7 @@ describe("queryEvaluationRunsPage", () => {
 
 describe("run actions", () => {
     it("Delete runs sends DELETE with the run ids in the body", async () => {
-        deleteMock.mockResolvedValue({})
+        deleteMock.mockResolvedValue({data: {count: 2, run_ids: ["r1", "r2"]}})
 
         await deleteEvaluationRuns({projectId: "p1", runIds: ["r1", "r2"]})
 
@@ -203,8 +258,24 @@ describe("run actions", () => {
         expect(deleteMock).not.toHaveBeenCalled()
     })
 
+    it("Delete runs throws when the API does not list every run as deleted", async () => {
+        deleteMock.mockResolvedValue({data: {count: 1, run_ids: ["r1"]}})
+
+        await expect(deleteEvaluationRuns({projectId: "p1", runIds: ["r1", "r2"]})).rejects.toThrow(
+            "The runs were not deleted.",
+        )
+    })
+
+    it("Delete runs throws when a 200 response has an unexpected body", async () => {
+        deleteMock.mockResolvedValue({data: "<html>proxy page</html>"})
+
+        await expect(deleteEvaluationRuns({projectId: "p1", runIds: ["r1"]})).rejects.toThrow(
+            "The runs were not deleted.",
+        )
+    })
+
     it("Stop and start call the simple evaluation stop and start paths", async () => {
-        postMock.mockResolvedValue({})
+        postMock.mockResolvedValue({data: {count: 1, evaluation: {id: "r1"}}})
 
         await stopOnlineEvaluation({projectId: "p1", runId: "r1"})
         await startOnlineEvaluation({projectId: "p1", runId: "r1"})
@@ -213,6 +284,28 @@ describe("run actions", () => {
             ["https://agenta.test/api/simple/evaluations/r1/stop", {params: {project_id: "p1"}}],
             ["https://agenta.test/api/simple/evaluations/r1/start", {params: {project_id: "p1"}}],
         ])
+    })
+
+    it("Stop and start throw when a 200 response has no evaluation", async () => {
+        postMock.mockResolvedValue({data: {count: 0, evaluation: null}})
+
+        await expect(stopOnlineEvaluation({projectId: "p1", runId: "r1"})).rejects.toThrow(
+            "The evaluation did not stop.",
+        )
+        await expect(startOnlineEvaluation({projectId: "p1", runId: "r1"})).rejects.toThrow(
+            "The evaluation did not start.",
+        )
+    })
+
+    it("Stop and start throw when a 200 response has an unexpected body", async () => {
+        postMock.mockResolvedValue({data: {}})
+
+        await expect(stopOnlineEvaluation({projectId: "p1", runId: "r1"})).rejects.toThrow(
+            "The evaluation did not stop.",
+        )
+        await expect(startOnlineEvaluation({projectId: "p1", runId: "r1"})).rejects.toThrow(
+            "The evaluation did not start.",
+        )
     })
 })
 
