@@ -1,14 +1,5 @@
 // @vitest-environment jsdom
-/**
- * A chat link the reader cannot open (a private chat, or an id that does not exist) shows one
- * plain not-found page. Before, the page kept the workspace around the lock message: the tab
- * strip with the reader's own chats, and after in-app navigation the config pane and agent of the
- * chat opened before it. The page must look the same for a private and an unknown chat, so it
- * never confirms that a chat exists.
- *
- * The screen under test is the real `ChatScreen`; the workspace is a stub that shows which agent
- * and revision it was handed, and the access answer is set per session.
- */
+/** A chat the reader cannot open shows one plain not-found page, the same for a private and an unknown chat. */
 import {act, type ReactNode} from "react"
 
 import {createStore, Provider} from "jotai"
