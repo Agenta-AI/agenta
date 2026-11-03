@@ -19,22 +19,21 @@ import {useRouter} from "next/router"
 
 import {parseRevisionIds} from "./playgroundUrl"
 
-export type PlaygroundSessionStatus =
-    | "loading"
-    | "ready"
-    | "error"
-    | "not-found"
-    | "agent"
-    | "evaluator"
+/** How far the app and its selected revisions have loaded. */
+export type PlaygroundLoadStatus = "loading" | "ready" | "error" | "not-found"
 
-export interface PlaygroundSession {
-    status: PlaygroundSessionStatus
+/** What the app is, from its first selected revision. Null until that revision loads. */
+export type PlaygroundAppKind = "prompt" | "agent" | "evaluator"
+
+export interface PlaygroundSelection {
+    status: PlaygroundLoadStatus
+    appKind: PlaygroundAppKind | null
     /** The app's name, once it has loaded. */
     appName: string | null
-    /** The first selected revision. It anchors the test cases. */
-    primaryId: string | null
-    entityIds: string[]
-    /** Fetches the failed app and revision requests again. */
+    /** The selected revisions, in order. Index 0 anchors the test cases. */
+    revisionIds: string[]
+    primaryRevisionId: string | null
+    /** Fetches this app's failed requests again. */
     retry: () => void
 }
 
@@ -43,7 +42,7 @@ export interface PlaygroundSession {
  * screen shows the error), and loaded revisions of this app. An id that loaded with no data, or
  * that belongs to another app, goes.
  */
-const keptEntityIdsAtomFamily = atomFamily((appId: string) =>
+const keptRevisionIdsAtomFamily = atomFamily((appId: string) =>
     atom((get) =>
         get(playgroundController.selectors.entityIds()).filter((id) => {
             if (isLocalDraftId(id)) return true
@@ -63,7 +62,7 @@ const keptEntityIdsAtomFamily = atomFamily((appId: string) =>
  * and on unmount it clears the playground nodes and runs: the agent session screen uses the same
  * store, so nothing from here may outlive the route.
  */
-export const usePlaygroundSession = ({appId}: {appId: string}): PlaygroundSession => {
+export const usePlaygroundSelection = ({appId}: {appId: string}): PlaygroundSelection => {
     const router = useRouter()
     const routerRef = useRef(router)
     routerRef.current = router
@@ -72,9 +71,10 @@ export const usePlaygroundSession = ({appId}: {appId: string}): PlaygroundSessio
     const detail = useAtomValue(workflowDetailQueryAtomFamily(appId))
     const latestQuery = useAtomValue(workflowLatestRevisionQueryAtomFamily(appId))
     const latestId = useAtomValue(workflowLatestRevisionIdAtomFamily(appId))
-    const entityIds = useAtomValue(playgroundController.selectors.entityIds())
-    const keptIds = useAtomValue(keptEntityIdsAtomFamily(appId))
-    const primaryId = entityIds[0] ?? null
+    // The controller calls the selected revisions "entity ids"; this screen calls them revisions.
+    const revisionIds = useAtomValue(playgroundController.selectors.entityIds())
+    const keptIds = useAtomValue(keptRevisionIdsAtomFamily(appId))
+    const primaryId = revisionIds[0] ?? null
     const primaryQuery = useAtomValue(workflowMolecule.selectors.query(primaryId ?? ""))
     const isEvaluator = useAtomValue(workflowMolecule.selectors.isEvaluator(primaryId ?? ""))
     const isAgent = useAtomValue(workflowMolecule.selectors.isAgent(primaryId ?? ""))
@@ -82,7 +82,7 @@ export const usePlaygroundSession = ({appId}: {appId: string}): PlaygroundSessio
     const appUsable = !!detail.data && !detail.data.deleted_at
     // The app this hook has set up the playground for. Effects read the store, not render values:
     // after an app change they run before the next render.
-    const sessionAppRef = useRef<string | null>(null)
+    const setUpForAppRef = useRef<string | null>(null)
 
     const select = useCallback(
         (ids: string[]) => {
@@ -99,11 +99,11 @@ export const usePlaygroundSession = ({appId}: {appId: string}): PlaygroundSessio
 
     useEffect(() => {
         if (!router.isReady || !appUsable) return
-        sessionAppRef.current = appId
+        setUpForAppRef.current = appId
         select(parseRevisionIds(routerRef.current.query.revisions))
         store.set(playgroundInitializedAtom, true)
         return () => {
-            sessionAppRef.current = null
+            setUpForAppRef.current = null
             store.set(playgroundController.actions.resetAll)
             store.set(executionItemController.actions.clearAll)
             store.set(playgroundInitializedAtom, false)
@@ -112,9 +112,9 @@ export const usePlaygroundSession = ({appId}: {appId: string}): PlaygroundSessio
 
     // Drop ids that are not revisions of this app; with nothing left, take the latest revision.
     useEffect(() => {
-        if (sessionAppRef.current !== appId) return
+        if (setUpForAppRef.current !== appId) return
         const current = store.get(playgroundController.selectors.entityIds())
-        const kept = store.get(keptEntityIdsAtomFamily(appId))
+        const kept = store.get(keptRevisionIdsAtomFamily(appId))
         if (kept.length !== current.length) {
             store.set(playgroundController.actions.setEntityIds, kept)
         }
@@ -125,7 +125,7 @@ export const usePlaygroundSession = ({appId}: {appId: string}): PlaygroundSessio
 
     // Write the selection to `?revisions=`. Local drafts stay out until share links exist.
     useEffect(() => {
-        if (sessionAppRef.current !== appId) return
+        if (setUpForAppRef.current !== appId) return
         const saved = store
             .get(playgroundController.selectors.entityIds())
             .filter((id) => !isLocalDraftId(id))
@@ -136,15 +136,22 @@ export const usePlaygroundSession = ({appId}: {appId: string}): PlaygroundSessio
                 shallow: true,
             })
             .catch(() => undefined)
-    }, [appId, entityIds, store])
+    }, [appId, revisionIds, store])
 
+    // Only this screen's requests: the app, its latest revision, and the selected revisions.
     const retry = useCallback(() => {
         const queryClient = store.get(queryClientAtom)
-        void queryClient.refetchQueries({predicate: (query) => query.state.status === "error"})
-        void queryClient.refetchQueries({queryKey: ["workflows", "latestRevision", appId]})
+        const selected = new Set(store.get(playgroundController.selectors.entityIds()))
+        void queryClient.refetchQueries({
+            predicate: ({queryKey: [scope, kind, a, b]}) =>
+                scope === "workflows" &&
+                ((kind === "detail" && b === appId) ||
+                    (kind === "latestRevision" && a === appId) ||
+                    (kind === "revision" && selected.has(String(a)))),
+        })
     }, [appId, store])
 
-    const status = ((): PlaygroundSessionStatus => {
+    const status = ((): PlaygroundLoadStatus => {
         if (detail.isError || latestQuery.isError || (primaryId && primaryQuery.isError)) {
             return "error"
         }
@@ -154,11 +161,17 @@ export const usePlaygroundSession = ({appId}: {appId: string}): PlaygroundSessio
             // An app with no revision gets the error state, as in the old playground.
             return latestId || latestQuery.isPending ? "loading" : "error"
         }
-        if (primaryQuery.isPending) return "loading"
-        if (isEvaluator) return "evaluator"
-        if (isAgent) return "agent"
-        return "ready"
+        return primaryQuery.isPending ? "loading" : "ready"
     })()
+    const appKind: PlaygroundAppKind | null =
+        status !== "ready" ? null : isEvaluator ? "evaluator" : isAgent ? "agent" : "prompt"
 
-    return {status, appName: detail.data?.name ?? null, primaryId, entityIds, retry}
+    return {
+        status,
+        appKind,
+        appName: detail.data?.name ?? null,
+        revisionIds,
+        primaryRevisionId: primaryId,
+        retry,
+    }
 }

@@ -14,7 +14,7 @@ import {PlaygroundWorkspace} from "./PlaygroundWorkspace"
 import {PlaygroundLoadError} from "./states/PlaygroundLoadError"
 import {PlaygroundSkeleton} from "./states/PlaygroundSkeleton"
 import {usePlaygroundLeaveGuard} from "./usePlaygroundLeaveGuard"
-import {usePlaygroundSession} from "./usePlaygroundSession"
+import {usePlaygroundSelection} from "./usePlaygroundSelection"
 
 /**
  * The prompt playground for one app: the config of the selected revision beside its runs.
@@ -33,47 +33,47 @@ export const PlaygroundScreen = ({
 }) => {
     const router = useRouter()
     const store = useStore()
-    const session = usePlaygroundSession({appId})
+    const selection = usePlaygroundSelection({appId})
     const leaveDialog = usePlaygroundLeaveGuard()
-    const {status, primaryId} = session
+    const {status, appKind, primaryRevisionId} = selection
 
     useEffect(() => {
         preloadEditorPlugins()
     }, [])
 
     useEffect(() => {
-        if (status !== "agent") return
+        if (appKind !== "agent") return
         void router.replace(agentEntryHref(`/w/${workspaceId}/p/${projectId}`, appId))
-    }, [appId, projectId, router, status, workspaceId])
+    }, [appId, appKind, projectId, router, workspaceId])
 
     // A commit makes a new revision: the playground follows it.
     const followCommit = useCallback(
         (revisionId: string) => {
-            if (!primaryId) return
+            if (!primaryRevisionId) return
             store.set(playgroundController.actions.switchEntity, {
-                currentEntityId: primaryId,
+                currentEntityId: primaryRevisionId,
                 newEntityId: revisionId,
             })
         },
-        [primaryId, store],
+        [primaryRevisionId, store],
     )
 
-    if (status === "not-found" || status === "evaluator") return <PageNotFound />
+    if (status === "not-found" || appKind === "evaluator") return <PageNotFound />
 
     return (
         <>
-            <PageTitle title="Playground" context={session.appName ?? undefined} />
+            <PageTitle title="Playground" context={selection.appName ?? undefined} />
             {status === "error" ? (
-                <PlaygroundLoadError onRetry={session.retry} />
-            ) : status !== "ready" || !primaryId ? (
+                <PlaygroundLoadError onRetry={selection.retry} />
+            ) : appKind !== "prompt" || !primaryRevisionId ? (
                 <PlaygroundSkeleton />
             ) : (
                 <PlaygroundWorkspace
                     workspaceId={workspaceId}
                     projectId={projectId}
-                    appName={session.appName}
-                    revisionId={primaryId}
-                    onRevisionCommitted={followCommit}
+                    appName={selection.appName}
+                    revisionId={primaryRevisionId}
+                    onWorkflowRevisionCommitted={followCommit}
                 />
             )}
             {leaveDialog}

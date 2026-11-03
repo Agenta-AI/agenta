@@ -1,2 +1,2 @@
-export {PlaygroundConfigPanel, type PlaygroundConfigPanelProps} from "./PlaygroundConfigPanel"
+export {ConfigPanel, type ConfigPanelProps} from "./ConfigPanel"
 export {ConfigPanelSkeleton} from "./ConfigPanelSkeleton"

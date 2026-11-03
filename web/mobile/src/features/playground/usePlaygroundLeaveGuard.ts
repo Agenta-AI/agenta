@@ -10,10 +10,10 @@ import {useConfirmModal} from "../settings/useConfirmModal"
  * Returns the dialog to render.
  */
 export const usePlaygroundLeaveGuard = () => {
-    const dirty = useLocalDraftWarning()
+    const hasUnsavedOrLocalDrafts = useLocalDraftWarning()
     const {confirm, modal} = useConfirmModal()
     useUnsavedGuard({
-        dirty,
+        dirty: hasUnsavedOrLocalDrafts,
         confirm,
         title: "Discard unsaved changes?",
         message:

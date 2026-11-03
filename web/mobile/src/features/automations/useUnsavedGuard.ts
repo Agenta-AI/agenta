@@ -54,7 +54,9 @@ export const useUnsavedGuard = ({
     useEffect(() => {
         if (!dirty) return
 
-        const onRouteChangeStart = (url: string) => {
+        const onRouteChangeStart = (url: string, {shallow}: {shallow: boolean}) => {
+            // A shallow change stays on this page (a screen writing its own query): nothing is lost.
+            if (shallow) return
             if (bypass.current) {
                 bypass.current = false
                 return

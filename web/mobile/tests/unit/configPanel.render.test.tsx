@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 /**
- * The prompt playground's config panel (`@agenta/playground-ui/panels/config`): its header names
+ * The prompt playground's config panel (`ConfigPanel` in `@agenta/playground-ui/panels/config`): its header names
  * the revision, its view switch drives the config editor, and the editor waits for pending
  * hydration. The editor itself is replaced by a stub that records its props.
  */
 import {act, useState} from "react"
 
 import type {ConfigViewMode} from "@agenta/entity-ui/drill-in"
-import {PlaygroundConfigPanel} from "@agenta/playground-ui/panels/config"
+import {ConfigPanel} from "@agenta/playground-ui/panels/config"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -84,11 +84,7 @@ let host: HTMLDivElement
 const Host = ({revisionId}: {revisionId: string}) => {
     const [viewMode, setViewMode] = useState<ConfigViewMode>("form")
     return (
-        <PlaygroundConfigPanel
-            revisionId={revisionId}
-            viewMode={viewMode}
-            onViewModeChange={setViewMode}
-        />
+        <ConfigPanel revisionId={revisionId} viewMode={viewMode} onViewModeChange={setViewMode} />
     )
 }
 
@@ -120,7 +116,7 @@ afterEach(() => {
     host.remove()
 })
 
-describe("PlaygroundConfigPanel", () => {
+describe("ConfigPanel", () => {
     it("A saved revision shows its variant name and version", () => {
         render("rev-1")
 

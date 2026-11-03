@@ -3,7 +3,7 @@ import {useState} from "react"
 import {createLocalDraftFromWorkflowRevision} from "@agenta/entities/workflow"
 import type {ConfigViewMode} from "@agenta/entity-ui/drill-in"
 import {pendingHydrationsAtom} from "@agenta/playground"
-import {PlaygroundConfigPanel} from "@agenta/playground-ui/panels/config"
+import {ConfigPanel} from "@agenta/playground-ui/panels/config"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {getDefaultStore} from "jotai"
 import {expect, userEvent, waitFor, within} from "storybook/test"
@@ -54,17 +54,13 @@ const Demo = ({
     })
     return (
         <div className="h-[640px] w-full max-w-[720px] overflow-y-auto border border-border bg-background text-foreground">
-            <PlaygroundConfigPanel
-                revisionId={shownId}
-                viewMode={viewMode}
-                onViewModeChange={setViewMode}
-            />
+            <ConfigPanel revisionId={shownId} viewMode={viewMode} onViewModeChange={setViewMode} />
         </div>
     )
 }
 
 const meta = {
-    title: "@agenta/mobile/Developer/Playground/PlaygroundConfigPanel",
+    title: "@agenta/mobile/Developer/Playground/ConfigPanel",
     component: Demo,
     parameters: {
         layout: "padded",

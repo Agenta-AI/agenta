@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * The prompt playground's selection lifecycle (`usePlaygroundSession`), on the real playground
+ * The prompt playground's selection lifecycle (`usePlaygroundSelection`), on the real playground
  * controller and the real workflow queries. Only HTTP is mocked: the workflow endpoints answer
  * from the fixtures below.
  */
@@ -15,9 +15,9 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {
-    usePlaygroundSession,
-    type PlaygroundSession,
-} from "@/features/playground/usePlaygroundSession"
+    usePlaygroundSelection,
+    type PlaygroundSelection,
+} from "@/features/playground/usePlaygroundSelection"
 
 const {http, router} = vi.hoisted(() => ({
     http: {post: vi.fn(), get: vi.fn()},
@@ -55,7 +55,7 @@ const apps: Record<string, object> = {
     "app-2": {id: "app-2", name: "Translator", flags: {}},
     "agent-app": {id: "agent-app", name: "Helper", flags: {}},
 }
-let revisions = [
+const revisions = [
     revision("rev-1", "app-1", 1),
     revision("rev-2", "app-1", 2),
     revision("rev-x", "app-2", 1),
@@ -84,10 +84,10 @@ http.get.mockResolvedValue({data: {}})
 const store = getDefaultStore()
 let root: Root
 let host: HTMLDivElement
-let session: PlaygroundSession
+let selection: PlaygroundSelection
 
 const Harness = ({appId}: {appId: string}) => {
-    session = usePlaygroundSession({appId})
+    selection = usePlaygroundSelection({appId})
     return null
 }
 
@@ -130,20 +130,21 @@ afterEach(() => {
     host.remove()
 })
 
-describe("usePlaygroundSession", () => {
+describe("usePlaygroundSelection", () => {
     it("Revisions in the URL are selected in order", async () => {
         await mount("app-1", "rev-2,rev-1")
 
-        expect(session.entityIds).toEqual(["rev-2", "rev-1"])
-        expect(session.primaryId).toBe("rev-2")
-        expect(session.status).toBe("ready")
+        expect(selection.revisionIds).toEqual(["rev-2", "rev-1"])
+        expect(selection.primaryRevisionId).toBe("rev-2")
+        expect(selection.status).toBe("ready")
+        expect(selection.appKind).toBe("prompt")
     })
 
     it("Without revisions the latest revision is selected", async () => {
         await mount("app-1")
 
-        expect(session.entityIds).toEqual(["rev-2"])
-        expect(session.status).toBe("ready")
+        expect(selection.revisionIds).toEqual(["rev-2"])
+        expect(selection.status).toBe("ready")
     })
 
     it("The selection is written to the revisions query parameter", async () => {
@@ -170,14 +171,14 @@ describe("usePlaygroundSession", () => {
     it("An id that does not resolve is dropped and the latest revision is selected", async () => {
         await mount("app-1", "rev-missing")
 
-        expect(session.entityIds).toEqual(["rev-2"])
+        expect(selection.revisionIds).toEqual(["rev-2"])
         expect(router.query.revisions).toBe("rev-2")
     })
 
     it("A revision of another app is dropped", async () => {
         await mount("app-1", "rev-1,rev-x")
 
-        expect(session.entityIds).toEqual(["rev-1"])
+        expect(selection.revisionIds).toEqual(["rev-1"])
         expect(router.query.revisions).toBe("rev-1")
     })
 
@@ -197,33 +198,33 @@ describe("usePlaygroundSession", () => {
         act(() => root.render(<Harness appId="app-2" />))
         await settle()
 
-        expect(session.entityIds).toEqual(["rev-x"])
+        expect(selection.revisionIds).toEqual(["rev-x"])
         expect(nodes().map((node) => node.entityId)).toEqual(["rev-x"])
     })
 
-    it("An agent app reports agent", async () => {
+    it("An agent app reports the agent kind", async () => {
         await mount("agent-app")
 
-        expect(session.status).toBe("agent")
+        expect(selection.appKind).toBe("agent")
     })
 
     it("An unknown app reports not-found", async () => {
         await mount("app-unknown")
 
-        expect(session.status).toBe("not-found")
+        expect(selection.status).toBe("not-found")
         expect(nodes()).toEqual([])
     })
 
     it("A failed revision load reports error and retry refetches", async () => {
         failRevisions = true
         await mount("app-1", "rev-1")
-        expect(session.status).toBe("error")
+        expect(selection.status).toBe("error")
 
         failRevisions = false
-        act(() => session.retry())
+        act(() => selection.retry())
         await settle()
 
-        expect(session.status).toBe("ready")
-        expect(session.entityIds).toEqual(["rev-1"])
+        expect(selection.status).toBe("ready")
+        expect(selection.revisionIds).toEqual(["rev-1"])
     })
 })

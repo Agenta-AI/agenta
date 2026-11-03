@@ -37,12 +37,11 @@ if (!existsSync(buildManifestPath)) {
     console.error("No build found. Run `pnpm --filter @agenta/mobile exec next build` first.")
     process.exit(1)
 }
-if (!readJson(buildManifestPath).pages[route]) {
+const buildManifest = readJson(buildManifestPath)
+if (!buildManifest.pages[route]) {
     console.error(`The build has no route ${route}.`)
     process.exit(1)
 }
-
-const buildManifest = readJson(buildManifestPath)
 
 // The chunks a page can load: its own, its `next/dynamic` imports, and every chunk those name.
 const reachableFrom = (page) => {

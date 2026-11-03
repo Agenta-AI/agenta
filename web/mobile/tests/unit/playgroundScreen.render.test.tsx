@@ -10,14 +10,15 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {PlaygroundScreen} from "@/features/playground/PlaygroundScreen"
-import type {PlaygroundSession} from "@/features/playground/usePlaygroundSession"
+import type {PlaygroundSelection} from "@/features/playground/usePlaygroundSelection"
 
 const {fixture, router, routeHandlers} = vi.hoisted(() => {
-    const routeHandlers = new Map<string, Set<(url: string) => void>>()
+    type RouteHandler = (url: string, options: {shallow: boolean}) => void
+    const routeHandlers = new Map<string, Set<RouteHandler>>()
     return {
         routeHandlers,
         fixture: {
-            session: {} as PlaygroundSession & {appName: string | null},
+            selection: {} as PlaygroundSelection,
             wide: true,
             dirty: false,
         },
@@ -29,14 +30,14 @@ const {fixture, router, routeHandlers} = vi.hoisted(() => {
             push: vi.fn(async () => true),
             back: vi.fn(),
             events: {
-                on: (name: string, handler: (url: string) => void) => {
+                on: (name: string, handler: RouteHandler) => {
                     if (!routeHandlers.has(name)) routeHandlers.set(name, new Set())
                     routeHandlers.get(name)!.add(handler)
                 },
-                off: (name: string, handler: (url: string) => void) =>
+                off: (name: string, handler: RouteHandler) =>
                     routeHandlers.get(name)?.delete(handler),
-                emit: (name: string, url = "") =>
-                    routeHandlers.get(name)?.forEach((handler) => handler(url)),
+                emit: (name: string, url = "", options = {shallow: false}) =>
+                    routeHandlers.get(name)?.forEach((handler) => handler(url, options)),
             },
         },
     }
@@ -46,8 +47,8 @@ vi.mock("next/router", async (original) => ({
     ...(await original<object>()),
     useRouter: () => router,
 }))
-vi.mock("@/features/playground/usePlaygroundSession", () => ({
-    usePlaygroundSession: () => fixture.session,
+vi.mock("@/features/playground/usePlaygroundSelection", () => ({
+    usePlaygroundSelection: () => fixture.selection,
 }))
 vi.mock("@agenta/ui/hooks", async (original) => ({
     ...(await original<object>()),
@@ -58,7 +59,7 @@ vi.mock("@agenta/playground-ui/hooks", async (original) => ({
     useLocalDraftWarning: () => fixture.dirty,
 }))
 vi.mock("@agenta/playground-ui/panels/config", () => ({
-    PlaygroundConfigPanel: ({revisionId}: {revisionId: string}) => (
+    ConfigPanel: ({revisionId}: {revisionId: string}) => (
         <div data-testid="config-panel">{revisionId}</div>
     ),
     ConfigPanelSkeleton: () => <div data-testid="config-panel-skeleton" />,
@@ -82,11 +83,12 @@ vi.mock("@/components/PageNotFound", () => ({
 let root: Root
 let host: HTMLDivElement
 
-const session = (patch: Partial<PlaygroundSession & {appName: string | null}>) => {
-    fixture.session = {
+const select = (patch: Partial<PlaygroundSelection>) => {
+    fixture.selection = {
         status: "ready",
-        primaryId: "rev-1",
-        entityIds: ["rev-1"],
+        appKind: "prompt",
+        primaryRevisionId: "rev-1",
+        revisionIds: ["rev-1"],
         appName: "Greeter",
         retry: vi.fn(),
         ...patch,
@@ -100,6 +102,8 @@ const render = async () => {
 }
 
 const byTestId = (id: string) => document.querySelector(`[data-testid="${id}"]`)
+/** Shown unless an ancestor pane carries the `hidden` class. */
+const isShown = (id: string) => byTestId(id)?.closest(".hidden") === null
 
 beforeEach(() => {
     Object.assign(globalThis, {IS_REACT_ACT_ENVIRONMENT: true})
@@ -109,7 +113,7 @@ beforeEach(() => {
     routeHandlers.clear()
     router.replace.mockClear()
     router.push.mockClear()
-    session({})
+    select({})
     host = document.createElement("div")
     document.body.append(host)
     root = createRoot(host)
@@ -134,20 +138,22 @@ describe("PlaygroundScreen", () => {
         fixture.wide = false
         await render()
 
-        expect(byTestId("config-panel")).not.toBeNull()
-        expect(byTestId("run-pane-placeholder")).toBeNull()
+        expect(isShown("config-panel")).toBe(true)
+        expect(isShown("run-pane-placeholder")).toBe(false)
 
         const generations = [...host.querySelectorAll<HTMLElement>('[role="radio"]')].find(
             (option) => option.textContent === "Generations",
         )!
         await act(async () => generations.click())
 
-        expect(byTestId("config-panel")).toBeNull()
-        expect(byTestId("run-pane-placeholder")).not.toBeNull()
+        expect(isShown("config-panel")).toBe(false)
+        expect(isShown("run-pane-placeholder")).toBe(true)
+        // Hidden, not unmounted: the config editor keeps its state across the switch.
+        expect(byTestId("config-panel")).not.toBeNull()
     })
 
     it("An agent app is sent to the agent page", async () => {
-        session({status: "agent"})
+        select({appKind: "agent"})
         await render()
 
         expect(router.replace).toHaveBeenCalledWith(
@@ -156,7 +162,7 @@ describe("PlaygroundScreen", () => {
     })
 
     it("An evaluator app shows not found", async () => {
-        session({status: "evaluator"})
+        select({appKind: "evaluator"})
         await render()
 
         expect(byTestId("not-found")).not.toBeNull()
@@ -164,7 +170,7 @@ describe("PlaygroundScreen", () => {
     })
 
     it("A load error shows Something went wrong and Try again refetches", async () => {
-        session({status: "error", primaryId: null, entityIds: []})
+        select({status: "error", appKind: null, primaryRevisionId: null, revisionIds: []})
         await render()
 
         expect(host.textContent).toContain("Something went wrong")
@@ -174,7 +180,7 @@ describe("PlaygroundScreen", () => {
         )!
         await act(async () => retry.click())
 
-        expect(fixture.session.retry).toHaveBeenCalled()
+        expect(fixture.selection.retry).toHaveBeenCalled()
     })
 
     it("Leaving with a dirty revision asks first", async () => {
@@ -195,6 +201,19 @@ describe("PlaygroundScreen", () => {
         expect(document.body.textContent).toContain(
             "You have local draft revisions or unsaved changes that will be lost if you leave.",
         )
+    })
+
+    it("Writing the selection to the URL with a dirty revision does not ask", async () => {
+        fixture.dirty = true
+        await render()
+
+        await act(async () =>
+            router.events.emit("routeChangeStart", "/w/ws-1/p/proj-1/apps/app-1/playground", {
+                shallow: true,
+            }),
+        )
+
+        expect(document.body.textContent).not.toContain("Discard unsaved changes?")
     })
 
     it("Leaving with no changes does not ask", async () => {

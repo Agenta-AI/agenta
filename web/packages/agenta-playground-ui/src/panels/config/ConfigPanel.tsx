@@ -9,7 +9,7 @@ import {ConfigPanelSkeleton} from "./ConfigPanelSkeleton"
 /** The header is 48px tall and sticky, so the config's own section headers stick below it. */
 const HEADER_HEIGHT = 48
 
-export interface PlaygroundConfigPanelProps {
+export interface ConfigPanelProps {
     revisionId: string
     /** Form, JSON or YAML. The screen keeps it, so it lasts while the page is open. */
     viewMode: ConfigViewMode
@@ -23,11 +23,7 @@ export interface PlaygroundConfigPanelProps {
  * The editor waits while a shared link still has draft edits to apply to this revision, so it
  * never shows the saved config first and then jumps.
  */
-export const PlaygroundConfigPanel = ({
-    revisionId,
-    viewMode,
-    onViewModeChange,
-}: PlaygroundConfigPanelProps) => {
+export const ConfigPanel = ({revisionId, viewMode, onViewModeChange}: ConfigPanelProps) => {
     const hasPendingHydration = useAtomValue(hasPendingHydrationAtomFamily(revisionId))
 
     return (

@@ -162,9 +162,10 @@ const config = [
         },
     },
     ...(includePrettierRule ? [eslintPluginPrettier] : []),
-    // The playground panels are what /m renders, and /m ships no antd. Every import path that
-    // reaches antd is banned here. Lint cannot see transitive imports, so
-    // `web/mobile/scripts/speed/antd-in-route.mjs` checks the built playground route as well.
+    // The playground panels are what /m renders, and /m ships no antd. This bans antd itself, the
+    // `@agenta/ui` root, and the `@agenta/playground-ui` paths known to reach antd. Lint cannot
+    // see transitive imports (`@agenta/ui/ui` reaches `@ant-design/icons`, which /m already
+    // ships), so `web/mobile/scripts/speed/antd-in-route.mjs` checks the built playground route.
     {
         // `pnpm --filter @agenta/playground-ui lint` passes this config with `--config`, so its
         // globs resolve from the package folder; a run from `web/packages` sees the longer path.

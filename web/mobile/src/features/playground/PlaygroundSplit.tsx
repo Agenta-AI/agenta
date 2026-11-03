@@ -18,6 +18,9 @@ const CONFIG_MAX_SHARE = 0.7
 /**
  * The config pane and the run pane. From `md` up they sit side by side with a divider to resize
  * them; below `md` one shows at a time, picked with a Configuration / Generations switch.
+ *
+ * Both widths drive the same `SplitPane`, as the agent screen does, so turning a tablet across
+ * `md` never mounts the config editor a second time.
  */
 export const PlaygroundSplit = ({config, runs}: {config: ReactNode; runs: ReactNode}) => {
     const twoPane = useMediaQuery("(min-width: 768px)")
@@ -28,18 +31,21 @@ export const PlaygroundSplit = ({config, runs}: {config: ReactNode; runs: ReactN
 
     useLayoutEffect(() => {
         const frame = frameRef.current
-        if (!twoPane || !frame) return
+        if (!frame) return
         const read = () => setWidth(frame.getBoundingClientRect().width)
         read()
         if (typeof ResizeObserver === "undefined") return
         const observer = new ResizeObserver(read)
         observer.observe(frame)
         return () => observer.disconnect()
-    }, [twoPane])
+    }, [])
 
-    if (!twoPane) {
-        return (
-            <div className="flex min-h-0 flex-1 flex-col">
+    const showConfig = twoPane || pane === "config"
+    const showRuns = twoPane || pane === "runs"
+
+    return (
+        <div className="flex min-h-0 flex-1 flex-col">
+            {twoPane ? null : (
                 <div className="shrink-0 border-b border-border px-4 py-2">
                     <Segmented
                         block
@@ -49,29 +55,26 @@ export const PlaygroundSplit = ({config, runs}: {config: ReactNode; runs: ReactN
                         onChange={(value) => setPane(value as Pane)}
                     />
                 </div>
-                <div className="min-h-0 flex-1 overflow-y-auto">
-                    {pane === "config" ? config : runs}
-                </div>
+            )}
+            <div ref={frameRef} className="min-h-0 flex-1">
+                <SplitPane
+                    className="h-full"
+                    paneSide="start"
+                    paneSize={showConfig ? Math.round(width * (twoPane ? share : 1)) : 0}
+                    paneMin={twoPane ? CONFIG_MIN : 0}
+                    paneMax={twoPane ? Math.round(width * CONFIG_MAX_SHARE) : undefined}
+                    resizable={twoPane}
+                    barHidden={!twoPane}
+                    paneGrow={!twoPane && showConfig}
+                    onResize={(size, total) => {
+                        if (total > 0) setShare(size / total)
+                    }}
+                    paneClassName={showConfig ? "overflow-y-auto" : "hidden"}
+                    fillClassName={showRuns ? "overflow-y-auto" : "hidden"}
+                    pane={config}
+                    fill={runs}
+                />
             </div>
-        )
-    }
-
-    return (
-        <div ref={frameRef} className="min-h-0 flex-1">
-            <SplitPane
-                className="h-full"
-                paneSide="start"
-                paneSize={Math.round(width * share)}
-                paneMin={CONFIG_MIN}
-                paneMax={Math.round(width * CONFIG_MAX_SHARE)}
-                onResize={(size, total) => {
-                    if (total > 0) setShare(size / total)
-                }}
-                paneClassName="overflow-y-auto"
-                fillClassName="overflow-y-auto"
-                pane={config}
-                fill={runs}
-            />
         </div>
     )
 }

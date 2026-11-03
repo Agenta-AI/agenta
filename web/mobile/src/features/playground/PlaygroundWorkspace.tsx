@@ -1,7 +1,7 @@
 import {useState} from "react"
 
 import type {ConfigViewMode} from "@agenta/entity-ui/drill-in"
-import {PlaygroundConfigPanel} from "@agenta/playground-ui/panels/config"
+import {ConfigPanel} from "@agenta/playground-ui/panels/config"
 import dynamic from "next/dynamic"
 
 import {DrillInBridgeProvider} from "../chat/DrillInBridgeProvider"
@@ -18,20 +18,20 @@ const CatalogDrawer = dynamic(
 
 /**
  * The loaded playground: the top bar, then the selected revision's config beside its runs.
- * A commit made in the config calls `onRevisionCommitted` with the new revision.
+ * A commit made in the config calls `onWorkflowRevisionCommitted` with the new revision.
  */
 export const PlaygroundWorkspace = ({
     workspaceId,
     projectId,
     appName,
     revisionId,
-    onRevisionCommitted,
+    onWorkflowRevisionCommitted,
 }: {
     workspaceId: string
     projectId: string
     appName: string | null
     revisionId: string
-    onRevisionCommitted: (revisionId: string) => void
+    onWorkflowRevisionCommitted: (revisionId: string) => void
 }) => {
     // Form, JSON or YAML: kept while the page is open, as in the old playground.
     const [viewMode, setViewMode] = useState<ConfigViewMode>("form")
@@ -43,9 +43,9 @@ export const PlaygroundWorkspace = ({
                 config={
                     <DrillInBridgeProvider
                         projectId={projectId}
-                        onWorkflowRevisionCommitted={onRevisionCommitted}
+                        onWorkflowRevisionCommitted={onWorkflowRevisionCommitted}
                     >
-                        <PlaygroundConfigPanel
+                        <ConfigPanel
                             revisionId={revisionId}
                             viewMode={viewMode}
                             onViewModeChange={setViewMode}
