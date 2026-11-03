@@ -10,6 +10,7 @@ import {act, type ReactNode} from "react"
 
 import {axios} from "@agenta/shared/api"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
+import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -166,9 +167,11 @@ describe("ObservabilityScreen selection actions", () => {
         root = createRoot(host)
         act(() =>
             root.render(
-                <Provider store={store}>
-                    <ObservabilityScreen workspaceId="ws" projectId="pr" />
-                </Provider>,
+                <QueryClientProvider client={new QueryClient()}>
+                    <Provider store={store}>
+                        <ObservabilityScreen workspaceId="ws" projectId="pr" />
+                    </Provider>
+                </QueryClientProvider>,
             ),
         )
     })

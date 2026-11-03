@@ -2,6 +2,7 @@
 import {act, type ReactNode} from "react"
 
 import {observabilityScopeAtom} from "@agenta/observability"
+import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -91,9 +92,11 @@ describe("ObservabilityScreen app filter", () => {
     const mount = () =>
         act(() =>
             root.render(
-                <Provider store={store}>
-                    <ObservabilityScreen workspaceId="ws" projectId="pr" />
-                </Provider>,
+                <QueryClientProvider client={new QueryClient()}>
+                    <Provider store={store}>
+                        <ObservabilityScreen workspaceId="ws" projectId="pr" />
+                    </Provider>
+                </QueryClientProvider>,
             ),
         )
     const click = (label: string) =>
