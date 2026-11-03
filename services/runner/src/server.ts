@@ -181,7 +181,14 @@ import {
   type KillSessionSandboxes,
 } from "./engines/sandbox_agent/kill-by-label.ts";
 import { endAbandonedTurn, noteTurnScope, runAdmittedTurn } from "./metering/turn-admission.ts";
-import { browserLiveLink } from "./browser/live-link.ts";
+import { handleBrowserLiveRoute } from "./browser/live-route.ts";
+import {
+  BodyTooLargeError,
+  normalizeProjectId,
+  readBodyCapped,
+  send,
+  SESSION_SCOPE_BODY_MAX_BYTES,
+} from "./http-io.ts";
 
 /** How long a shutdown waits for interrupted turns to write their terminal records. */
 const SHUTDOWN_TURN_END_BUDGET_MS = 10_000;
@@ -1375,63 +1382,12 @@ async function runAndStreamWithApiBaseResolved(
   res.end();
 }
 
-function send(res: ServerResponse, status: number, body: unknown): void {
-  const payload = JSON.stringify(body);
-  res.writeHead(status, {
-    "content-type": "application/json",
-    "content-length": Buffer.byteLength(payload),
-  });
-  res.end(payload);
-}
-
 async function readBody(req: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
   for await (const chunk of req) {
     chunks.push(chunk as Buffer);
   }
   return Buffer.concat(chunks).toString("utf8");
-}
-
-/**
- * Normalize `/kill`'s `projectId` to `undefined` for both absent and whitespace-only input. A
- * blank string surviving as `""` would make `poolKeyFor` and `destroyInFlightSandboxesForSession`
- * disagree on scope: the former forms no pool key from an empty project id (so keepalive pool
- * entries are NOT destroyed), while the latter treats `""` as "no project filter" and still
- * destroys every in-flight sandbox for the session regardless of project.
- */
-export function normalizeKillProjectId(value: unknown): string | undefined {
-  if (typeof value !== "string") return undefined;
-  const trimmed = value.trim();
-  return trimmed ? trimmed : undefined;
-}
-
-/** `/kill`'s payload is `{ sessionId, projectId }` — a few hundred bytes at most. */
-const KILL_BODY_MAX_BYTES = 16 * 1024;
-
-/** Thrown by `readBodyCapped` when the request exceeds `maxBytes`; the caller maps it to 413. */
-class BodyTooLargeError extends Error {}
-
-/** Same streaming byte-count-and-reject shape as tool-mcp-http.ts's `readBody`, so a caller
- *  cannot force the runner to buffer an arbitrarily large body before JSON parsing. */
-function readBodyCapped(
-  req: IncomingMessage,
-  maxBytes: number,
-): Promise<string> {
-  return new Promise((resolve, reject) => {
-    let size = 0;
-    const chunks: Buffer[] = [];
-    req.on("data", (chunk: Buffer) => {
-      size += chunk.length;
-      if (size > maxBytes) {
-        reject(new BodyTooLargeError("request body too large"));
-        req.destroy();
-        return;
-      }
-      chunks.push(chunk);
-    });
-    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
-    req.on("error", reject);
-  });
 }
 
 /** The route prefix every subscription-login request shares. */
@@ -1755,7 +1711,7 @@ export function createRequestListener(
         // (pool keys are always project-scoped; see `poolKeyFor`).
         let killBody: { sessionId?: unknown; projectId?: unknown };
         try {
-          const raw = await readBodyCapped(req, KILL_BODY_MAX_BYTES);
+          const raw = await readBodyCapped(req, SESSION_SCOPE_BODY_MAX_BYTES);
           killBody = raw.trim() ? JSON.parse(raw) : {};
         } catch (err) {
           if (err instanceof BodyTooLargeError) {
@@ -1770,7 +1726,7 @@ export function createRequestListener(
           typeof killBody.sessionId === "string"
             ? killBody.sessionId.trim()
             : "";
-        const projectId = normalizeKillProjectId(killBody.projectId);
+        const projectId = normalizeProjectId(killBody.projectId);
         if (!sessionId || !projectId) {
           return send(res, 400, {
             ok: false,
@@ -1821,39 +1777,7 @@ export function createRequestListener(
         if (!isAuthorized(req)) {
           return send(res, 401, { ok: false, error: "Unauthorized" });
         }
-        // The answer carries the sandbox's preview token and the browser's own token.
-        res.setHeader("cache-control", "no-store");
-        let liveBody: { sessionId?: unknown; projectId?: unknown };
-        try {
-          const raw = await readBodyCapped(req, KILL_BODY_MAX_BYTES);
-          liveBody = raw.trim() ? JSON.parse(raw) : {};
-        } catch (err) {
-          if (err instanceof BodyTooLargeError) {
-            return send(res, 413, { ok: false, error: err.message });
-          }
-          return send(res, 400, { ok: false, error: "Invalid JSON" });
-        }
-        const sessionId =
-          typeof liveBody.sessionId === "string" ? liveBody.sessionId.trim() : "";
-        const projectId = normalizeKillProjectId(liveBody.projectId);
-        if (!sessionId || !projectId) {
-          return send(res, 400, {
-            ok: false,
-            error: "sessionId and projectId are both required",
-          });
-        }
-        try {
-          const link = await browserLiveLink({ projectId, sessionId });
-          if (!link) {
-            return send(res, 404, { ok: false, error: "No browser is running in this session" });
-          }
-          return send(res, 200, link);
-        } catch (err) {
-          return send(res, 502, {
-            ok: false,
-            error: err instanceof Error ? err.message : "browser lookup failed",
-          });
-        }
+        return await handleBrowserLiveRoute(req, res);
       }
 
       if (req.method === "POST" && req.url === "/cancel") {

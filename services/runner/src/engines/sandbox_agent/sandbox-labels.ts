@@ -23,3 +23,20 @@ export function sessionSandboxLabels(
     ...(sessionId ? { [CONVERSATION_LABEL]: sessionId } : {}),
   };
 }
+
+/**
+ * Whether a listed sandbox carries both labels of this session. The list filter is the
+ * provider's; a caller that acts on the sandbox checks the labels again, because the label pair
+ * is the whole authorization.
+ */
+export function belongsToSession(
+  labels: Readonly<Record<string, string>> | undefined,
+  projectId: string,
+  sessionId: string,
+): boolean {
+  return (
+    Boolean(projectId && sessionId) &&
+    labels?.[PROJECT_LABEL] === projectId &&
+    labels?.[CONVERSATION_LABEL] === sessionId
+  );
+}
