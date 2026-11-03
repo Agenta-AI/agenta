@@ -29,11 +29,22 @@ vi.mock("@agenta/shared/api", async (original) => ({
     ...(await original<object>()),
     axios: http,
 }))
-/** The props of the drawer's data editor, a stub: the drawer's own logic stays real. */
-const drawerEditor = vi.hoisted(() => ({onChange: null as null | ((value: unknown) => void)}))
-vi.mock("@agenta/entity-ui/testcase", () => ({
-    TestcaseDataEditor: (props: {onChange?: (value: unknown) => void}) => {
-        drawerEditor.onChange = props.onChange ?? null
+/**
+ * The JSON code input inside the drawer. Only this Lexical input is a stub: the drawer and the
+ * package `TestcaseDataEditor` around it are real, so their projection and merge run.
+ */
+const jsonInput = vi.hoisted(() => ({
+    text: "",
+    type: null as null | ((text: string) => void),
+}))
+vi.mock("@agenta/ui/drill-in", async (original) => ({
+    ...(await original<object>()),
+    JsonEditorWithLocalState: (props: {
+        initialValue: string
+        onValidChange: (text: string) => void
+    }) => {
+        jsonInput.text = props.initialValue
+        jsonInput.type = props.onValidChange
         return null
     },
 }))
@@ -332,7 +343,8 @@ describe("useTestsetEditor commit over the real package state", () => {
         })
     })
 
-    it("A drawer edit to a saved row is committed with the field it removed", async () => {
+    /** Opens the drawer on a row in the JSON view, as the page does. */
+    const openDrawerJson = async (testcaseId: string) => {
         await mount()
         act(() =>
             root.render(
@@ -341,27 +353,68 @@ describe("useTestsetEditor commit over the real package state", () => {
                     {client: queryClient},
                     createElement(Probe, {routeId: REVISION}),
                     createElement(TestcaseEditorDrawerContent, {
-                        testcaseId: "case-2",
-                        columns: [],
+                        testcaseId,
                         isNewRow: false,
                         viewOnly: false,
                         initialPath: [],
                         onPathChange: () => undefined,
-                        rootViewMode: "form",
+                        rootViewMode: "json",
                         collapseSignal: 0,
                     }),
                 ),
             ),
         )
         await flush()
+    }
 
-        // The reader changes the answer and removes the question.
-        act(() => drawerEditor.onChange?.({answer: "Only to Canada"}))
+    /** Types the given object into the JSON view. */
+    const typeJson = (value: Record<string, unknown>) =>
+        act(() => jsonInput.type?.(JSON.stringify(value, null, 2)))
+
+    it("A JSON edit in the drawer keeps an untouched null field null", async () => {
+        rowsOnServer = [{id: "case-1", data: {question: "Q", answer: null}}]
+        await openDrawerJson("case-1")
+        expect(JSON.parse(jsonInput.text)).toEqual({question: "Q", answer: null})
+
+        typeJson({question: "Q2", answer: null})
         expect(await commit()).toBe(NEW_REVISION)
 
         expect(commitBody()?.testset_revision.delta).toEqual({
             columns: undefined,
-            rows: {replace: [{id: "case-2", data: {answer: "Only to Canada"}, set_id: TESTSET}]},
+            rows: {
+                replace: [{id: "case-1", data: {question: "Q2", answer: null}, set_id: TESTSET}],
+            },
+        })
+    })
+
+    it("A field added in the drawer JSON is saved and a field removed there is dropped", async () => {
+        await openDrawerJson("case-2")
+
+        typeJson({answer: "Only to Canada", region: "North America"})
+        expect(await commit()).toBe(NEW_REVISION)
+
+        expect(commitBody()?.testset_revision.delta).toEqual({
+            columns: undefined,
+            rows: {
+                replace: [
+                    {
+                        id: "case-2",
+                        data: {answer: "Only to Canada", region: "North America"},
+                        set_id: TESTSET,
+                    },
+                ],
+            },
+        })
+    })
+
+    it("A field that only a row past the first 20 has shows in the drawer", async () => {
+        rowsOnServer = manyRows()
+        await openDrawerJson("case-23")
+
+        expect(JSON.parse(jsonInput.text)).toEqual({
+            question: "Question 23",
+            answer: "Yes",
+            reply: "Old reply",
         })
     })
 

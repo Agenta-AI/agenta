@@ -137,10 +137,6 @@ const DrawerOnFirstRow = ({viewOnly}: {viewOnly: boolean}) => {
         <TestcaseEditorDrawer
             testcaseId={id}
             testcaseNumber={1}
-            columns={[
-                {key: "question", label: "question"},
-                {key: "answer", label: "answer"},
-            ]}
             viewOnly={viewOnly}
             hasPrevious={false}
             hasNext

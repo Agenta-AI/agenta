@@ -55,7 +55,6 @@ describe("Testcase drawer", () => {
             root.render(
                 <TestcaseEditorDrawerContent
                     testcaseId={over.testcaseId ?? "case-1"}
-                    columns={[{key: "question", label: "question"}]}
                     isNewRow={over.isNewRow ?? false}
                     viewOnly={over.viewOnly ?? false}
                     initialPath={[]}
@@ -72,7 +71,6 @@ describe("Testcase drawer", () => {
                 <TestcaseEditorDrawer
                     testcaseId="case-1"
                     testcaseNumber={1}
-                    columns={[]}
                     viewOnly={viewOnly}
                     hasPrevious={false}
                     hasNext
@@ -128,7 +126,6 @@ describe("Testcase drawer", () => {
                 <TestcaseEditorDrawer
                     testcaseId={id}
                     testcaseNumber={1}
-                    columns={[]}
                     viewOnly={false}
                     hasPrevious={false}
                     hasNext={false}

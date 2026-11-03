@@ -1,6 +1,6 @@
 import {useCallback} from "react"
 
-import {testcaseMolecule, type Column, type Testcase} from "@agenta/entities/testcase"
+import {testcaseMolecule, type Testcase} from "@agenta/entities/testcase"
 import {TestcaseDrawer, type TestcaseDrawerContentRenderProps} from "@agenta/entity-ui/testcase"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -18,7 +18,6 @@ import {TestcaseEditorDrawerContent} from "./TestcaseEditorDrawerContent"
 export const TestcaseEditorDrawer = ({
     testcaseId,
     testcaseNumber,
-    columns,
     viewOnly,
     hasPrevious,
     hasNext,
@@ -29,7 +28,6 @@ export const TestcaseEditorDrawer = ({
 }: {
     testcaseId: string | null
     testcaseNumber: number | undefined
-    columns: Column[]
     viewOnly: boolean
     hasPrevious: boolean
     hasNext: boolean
@@ -59,13 +57,12 @@ export const TestcaseEditorDrawer = ({
                 <TestcaseEditorDrawerContent
                     key={testcaseId}
                     testcaseId={testcaseId}
-                    columns={columns}
                     isNewRow={isNewRow}
                     viewOnly={viewOnly}
                     {...props}
                 />
             ) : null,
-        [columns, isNewRow, testcaseId, viewOnly],
+        [isNewRow, testcaseId, viewOnly],
     )
 
     return (

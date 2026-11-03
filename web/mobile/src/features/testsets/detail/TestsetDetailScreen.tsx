@@ -102,7 +102,6 @@ export const TestsetDetailScreen = ({
     }, [])
 
     const rows = useAtomValue(testcaseDataController.selectors.rows(editor.tableConfig))
-    const columns = useAtomValue(testcaseDataController.selectors.columns(editor.tableConfig))
     const navigation = useTestcaseDrawerNavigation({
         rows,
         getRowId: rowId,
@@ -189,7 +188,6 @@ export const TestsetDetailScreen = ({
                     testcaseNumber={
                         navigation.currentIndex >= 0 ? navigation.currentIndex + 1 : undefined
                     }
-                    columns={columns}
                     viewOnly={!canEdit || editor.readOnly}
                     hasPrevious={navigation.hasPrevious}
                     hasNext={navigation.hasNext}

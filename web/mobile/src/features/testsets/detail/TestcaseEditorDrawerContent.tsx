@@ -1,11 +1,7 @@
 import {useCallback, useMemo} from "react"
 
-import {testcaseMolecule, type Column} from "@agenta/entities/testcase"
-import {
-    TestcaseDataEditor,
-    type RootDrawerViewMode,
-    type TestcaseDataEditorColumn,
-} from "@agenta/entity-ui/testcase"
+import {testcaseMolecule} from "@agenta/entities/testcase"
+import {TestcaseDataEditor, type RootDrawerViewMode} from "@agenta/entity-ui/testcase"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {replaceDataUpdate} from "./testcaseDataUpdate"
@@ -14,10 +10,13 @@ import {replaceDataUpdate} from "./testcaseDataUpdate"
  * The body of the testcase drawer: the testcase data as a form, JSON or YAML. An edit goes to
  * the unsaved row in the editor state, and the commit saves it with the other changes.
  * A row that is not saved yet carries a note that says so.
+ *
+ * The editor gets no column list. With one, it shows only those columns (the grid reads them
+ * from the first 20 rows), turns null into "" and drops fields added or removed in JSON or YAML.
+ * The value here is the row data alone, so there are no system fields to hide.
  */
 export const TestcaseEditorDrawerContent = ({
     testcaseId,
-    columns,
     isNewRow,
     viewOnly,
     initialPath,
@@ -26,7 +25,6 @@ export const TestcaseEditorDrawerContent = ({
     collapseSignal,
 }: {
     testcaseId: string
-    columns: Column[]
     isNewRow: boolean
     viewOnly: boolean
     initialPath: string[]
@@ -37,16 +35,6 @@ export const TestcaseEditorDrawerContent = ({
     const testcase = useAtomValue(testcaseMolecule.atoms.data(testcaseId))
     const update = useSetAtom(testcaseMolecule.actions.update)
     const value = useMemo(() => testcase?.data ?? {}, [testcase?.data])
-
-    const editorColumns = useMemo<TestcaseDataEditorColumn[]>(
-        () =>
-            columns.map((column) => ({
-                key: column.key,
-                label: column.label ?? column.key,
-                pathMode: column.parentKey ? "nested" : "direct",
-            })),
-        [columns],
-    )
 
     // The editor hands back the whole testcase data.
     const handleChange = useCallback(
@@ -65,7 +53,6 @@ export const TestcaseEditorDrawerContent = ({
                 ) : null}
                 <TestcaseDataEditor
                     value={value}
-                    columns={editorColumns}
                     onChange={viewOnly ? undefined : handleChange}
                     mode={viewOnly ? "view" : "edit"}
                     surface="drawer"
