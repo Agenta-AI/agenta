@@ -1,18 +1,18 @@
-import {useMemo} from "react"
-
-import type {RunReferences} from "@agenta/entities/evaluationRun"
+import {runReferencesAtomFamily} from "@agenta/entities/evaluationRun"
 import {
     workflowArtifactQueryAtomFamily,
     workflowMolecule,
     workflowQueryAtomFamily,
 } from "@agenta/entities/workflow"
 import {atom, useAtomValue} from "jotai"
+import {atomFamily} from "jotai-family"
 
 export interface ApplicationConfig {
     /** The app's name; null while it loads or when it cannot be read. */
     appName: string | null
     appFailed: boolean
     variantName: string | null
+    /** The version the run names, else the stored revision's own. */
     version: number | null
     revisionId: string
     /** The stored revision data, shown as JSON; null while it loads or when it cannot be read. */
@@ -22,35 +22,30 @@ export interface ApplicationConfig {
     customWithoutSchema: boolean
 }
 
-/**
- * What the Application section shows: the app, its variant and its stored revision. Null when the
- * run has no application step. The atom is rebuilt only when an id changes.
- */
-export function useApplicationConfig(references: RunReferences | null): ApplicationConfig | null {
-    const applicationId = references?.applicationId ?? null
-    const revisionId = references?.revisionId ?? null
-    const version = references?.revisionVersion ?? null
+/** What the Application section shows for one run. Null when the run has no application step. */
+const applicationConfigAtomFamily = atomFamily((runId: string) =>
+    atom<ApplicationConfig | null>((get) => {
+        const references = get(runReferencesAtomFamily(runId))
+        const applicationId = references?.applicationId
+        const revisionId = references?.revisionId
+        if (!applicationId || !revisionId) return null
 
-    const configAtom = useMemo(
-        () =>
-            atom<ApplicationConfig | null>((get) => {
-                if (!applicationId || !revisionId) return null
-                const artifact = get(workflowArtifactQueryAtomFamily(applicationId))
-                const revision = get(workflowQueryAtomFamily(revisionId))
-                const stored = revision.data
-                return {
-                    appName: artifact.data?.name ?? null,
-                    appFailed: artifact.isError || (!artifact.isPending && !artifact.data),
-                    variantName: get(workflowMolecule.selectors.variantLabel(revisionId)),
-                    version,
-                    revisionId,
-                    snapshot: stored?.data ?? null,
-                    configFailed: revision.isError || (!revision.isPending && !stored),
-                    customWithoutSchema:
-                        stored?.flags?.is_custom === true && !stored.data?.schemas?.parameters,
-                }
-            }),
-        [applicationId, revisionId, version],
-    )
-    return useAtomValue(configAtom)
-}
+        const artifact = get(workflowArtifactQueryAtomFamily(applicationId))
+        const revision = get(workflowQueryAtomFamily(revisionId))
+        const stored = revision.data
+        return {
+            appName: artifact.data?.name ?? null,
+            appFailed: artifact.isError || (!artifact.isPending && !artifact.data),
+            variantName: get(workflowMolecule.selectors.variantLabel(revisionId)),
+            version: references.revisionVersion ?? stored?.version ?? null,
+            revisionId,
+            snapshot: stored?.data ?? null,
+            configFailed: revision.isError || (!revision.isPending && !stored),
+            customWithoutSchema:
+                stored?.flags?.is_custom === true && !stored.data?.schemas?.parameters,
+        }
+    }),
+)
+
+export const useApplicationConfig = (runId: string) =>
+    useAtomValue(applicationConfigAtomFamily(runId))

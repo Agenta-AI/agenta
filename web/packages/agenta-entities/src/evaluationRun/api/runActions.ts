@@ -74,23 +74,15 @@ export async function stopOnlineEvaluation({
     }
 }
 
-/** The fields the API sets itself. A run sent back with them is read the same as without. */
-const SERVER_FIELDS = [
-    "created_at",
-    "updated_at",
-    "deleted_at",
-    "created_by_id",
-    "updated_by_id",
-    "deleted_by_id",
-] as const
-
 /**
  * Rename a run and set its description: `PATCH /evaluations/runs/{runId}`.
  *
- * The API sets a run's references to null when the edit has no `data`, so this reads the run as
- * the API stores it and sends all of it back with only `name` and `description` changed. The run
- * comes from a fresh read, not from the cached run: the cached run is parsed, and a parse drops
- * the fields the schema does not list.
+ * The API sets a run's references to null when the edit has no `data`. So this reads the run as
+ * the API stores it and sends its `data` back unchanged with the new `name` and `description`.
+ * The run comes from a fresh read, not from the cached run: the cached run is parsed, and a parse
+ * drops the fields the schema does not list. `status`, `flags`, `tags` and `meta` stay out of the
+ * body on purpose. The API keeps a field the edit leaves out, and a copy read a moment ago could
+ * undo a status change made in between. An empty `description` clears it; a missing one would not.
  */
 export async function editEvaluationRunMeta({
     projectId,
@@ -105,10 +97,9 @@ export async function editEvaluationRunMeta({
     if (!stored || typeof stored !== "object" || stored.id !== runId) {
         throw new Error("The run was not found.")
     }
-    const run: Record<string, unknown> = {...stored}
-    for (const field of SERVER_FIELDS) delete run[field]
 
-    const response = await axios.patch(url, {run: {...run, name, description}}, {params})
+    const run = {id: runId, name, description, ...(stored.data ? {data: stored.data} : {})}
+    const response = await axios.patch(url, {run}, {params})
     if (!runResponseSchema.safeParse(response?.data).success) {
         throw new Error("The run was not updated.")
     }

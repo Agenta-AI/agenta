@@ -36,7 +36,9 @@ export const RunSummaryCard = ({
     header: RunHeader
 }) => {
     const run = useAtomValue(evaluationRunQueryAtomFamily(runId)).data
-    const canEdit = useProjectPermission(projectId, "edit_evaluation_runs")
+    // The API refuses to edit a closed run, so the button is not offered on one.
+    const canEdit =
+        useProjectPermission(projectId, "edit_evaluation_runs") && !header.flags.isClosed
     const {save, saving} = useRenameRun(projectId, runId)
     const [editing, setEditing] = useState(false)
 
@@ -51,7 +53,7 @@ export const RunSummaryCard = ({
             {editing ? (
                 <RunRenameForm
                     initialName={name}
-                    initialDescription={header.description ?? ""}
+                    initialDescription={run?.description ?? ""}
                     saving={saving}
                     onSave={async (nextName, nextDescription) => {
                         const saved = await save(nextName, nextDescription)

@@ -224,20 +224,11 @@ describe("run summary card", () => {
         // The whole `data` goes back, including what the package schema does not list, so the
         // API rebuilds the run references from the same steps.
         expect(body.run.data).toEqual(storedData)
-        expect(body.run).toMatchObject({
-            id,
-            name: "Capitals v2",
-            description: "Second pass",
-            status: "evaluation_finished",
-            version: "2025.07.14",
-            flags: {is_live: false, is_active: false, is_closed: false, has_testsets: true},
-            tags: ["geography"],
-            meta: {owner: "team"},
+        // Only the run id, the two edited fields and `data`: the API keeps every field a body
+        // leaves out, so a status or flag change made a moment ago is not undone.
+        expect(body).toEqual({
+            run: {id, name: "Capitals v2", description: "Second pass", data: storedData},
         })
-        // The fields the API sets itself stay out of the body.
-        expect(body.run).not.toHaveProperty("created_at")
-        expect(body.run).not.toHaveProperty("updated_at")
-        expect(body.run).not.toHaveProperty("created_by_id")
         expect(toast.success).toHaveBeenCalledWith("Evaluation run updated")
     })
 
@@ -320,6 +311,37 @@ describe("run summary card", () => {
         await openEditor()
         expect(host.querySelector<HTMLInputElement>(NAME)?.value).toBe("Capitals check")
         expect(http.patch).not.toHaveBeenCalled()
+    })
+
+    it("Save stays disabled until the run has refreshed, so a slow refresh allows no second PATCH", async () => {
+        serveRun()
+        await mount()
+        await openEditor()
+        await typeInto(NAME, "Capitals v2")
+        // From now on the run read is slow: the refresh after the save waits on the gate.
+        let release: () => void = () => undefined
+        const gate = new Promise<void>((resolve) => (release = resolve))
+        const query = http.post.getMockImplementation()
+        http.post.mockImplementation(async (...args: [string, ...unknown[]]) => {
+            if (String(args[0]).endsWith("/evaluations/runs/query")) await gate
+            return query?.(...args)
+        })
+        await act(async () => buttonNamed("Save")?.click())
+        await act(async () => new Promise((resolve) => setTimeout(resolve, 200)))
+        expect(http.patch).toHaveBeenCalledTimes(1)
+        const save = buttonNamed("Save") as HTMLButtonElement | undefined
+        await act(async () => save?.click())
+        expect(http.patch).toHaveBeenCalledTimes(1)
+        release()
+        await flush()
+        expect(host.querySelector(NAME)).toBeNull()
+    })
+
+    it("A closed run has no Edit button", async () => {
+        serveRun({flags: {is_live: false, is_active: false, is_closed: true}})
+        await mount()
+        expect(host.textContent).toContain("Capitals check")
+        expect(buttonNamed("Edit")).toBeUndefined()
     })
 
     it("A reader without edit rights sees no Edit button", async () => {

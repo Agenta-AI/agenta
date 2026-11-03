@@ -1,12 +1,11 @@
-import {useMemo} from "react"
-
-import type {RunReferences} from "@agenta/entities/evaluationRun"
+import {runReferencesAtomFamily} from "@agenta/entities/evaluationRun"
 import {
     workflowArtifactQueryAtomFamily,
     workflowLatestRevisionQueryAtomFamily,
     workflowQueryAtomFamily,
 } from "@agenta/entities/workflow"
 import {atom, useAtomValue} from "jotai"
+import {atomFamily} from "jotai-family"
 
 export interface EvaluatorConfig {
     /** The step key: one evaluator can appear in two steps. */
@@ -27,45 +26,44 @@ export interface EvaluatorConfig {
 }
 
 /**
- * What the Evaluators section shows, one entry per evaluator step. A step without a revision
- * reference shows the evaluator's latest revision and writes nothing to the run. The atom is
- * rebuilt only when an id changes.
+ * What the Evaluators section shows for one run, one entry per evaluator step. A step without a
+ * revision reference shows the evaluator's latest revision and writes nothing to the run.
  */
-export function useEvaluatorConfigs(references: RunReferences | null): EvaluatorConfig[] {
-    const steps = references?.evaluators
-    const stepsKey = JSON.stringify(
-        steps?.map((step) => [step.stepKey, step.evaluatorId, step.revisionId, step.slug]) ?? [],
-    )
+const evaluatorConfigsAtomFamily = atomFamily((runId: string) =>
+    atom<EvaluatorConfig[]>((get) =>
+        (get(runReferencesAtomFamily(runId))?.evaluators ?? []).map((step) => {
+            const {evaluatorId, stepKey, slug} = step
+            const referencedRevisionId = step.revisionId
+            const artifact = get(workflowArtifactQueryAtomFamily(evaluatorId))
+            const latest = referencedRevisionId
+                ? null
+                : get(workflowLatestRevisionQueryAtomFamily(evaluatorId))
+            const revisionId = referencedRevisionId ?? latest?.data?.id ?? null
+            const revision = revisionId ? get(workflowQueryAtomFamily(revisionId)) : null
+            const stored = revision?.data
+            // A query that finished with nothing (a deleted revision) is a failure, not a wait.
+            const settledEmpty = (query: {isPending: boolean; data?: unknown} | null) =>
+                Boolean(query && !query.isPending && !query.data)
+            const failed =
+                artifact.isError ||
+                Boolean(latest?.isError || revision?.isError) ||
+                settledEmpty(latest) ||
+                settledEmpty(revision)
+            return {
+                key: stepKey,
+                name: artifact.data?.name?.trim() || slug || evaluatorId,
+                description: artifact.data?.description?.trim() || null,
+                version: referencedRevisionId ? (stored?.version ?? null) : null,
+                latest: !referencedRevisionId,
+                revisionId,
+                settings: stored?.data?.parameters ?? null,
+                snapshot: stored?.data ?? null,
+                pending: !failed && (artifact.isPending || !stored),
+                failed,
+            }
+        }),
+    ),
+)
 
-    const configsAtom = useMemo(() => {
-        const parsed = JSON.parse(stepsKey) as [string, string, string | null, string | null][]
-        return atom<EvaluatorConfig[]>((get) =>
-            parsed.map(([key, evaluatorId, referencedRevisionId, slug]) => {
-                const artifact = get(workflowArtifactQueryAtomFamily(evaluatorId))
-                const latest = referencedRevisionId
-                    ? null
-                    : get(workflowLatestRevisionQueryAtomFamily(evaluatorId))
-                const revisionId = referencedRevisionId ?? latest?.data?.id ?? null
-                const revision = revisionId ? get(workflowQueryAtomFamily(revisionId)) : null
-                const stored = revision?.data
-                const failed =
-                    artifact.isError ||
-                    Boolean(latest && (latest.isError || (!latest.isPending && !latest.data))) ||
-                    Boolean(revision?.isError)
-                return {
-                    key,
-                    name: artifact.data?.name?.trim() || slug || evaluatorId,
-                    description: artifact.data?.description?.trim() || null,
-                    version: referencedRevisionId ? (stored?.version ?? null) : null,
-                    latest: !referencedRevisionId,
-                    revisionId,
-                    settings: stored?.data?.parameters ?? null,
-                    snapshot: stored?.data ?? null,
-                    pending: !failed && (artifact.isPending || !stored),
-                    failed,
-                }
-            }),
-        )
-    }, [stepsKey])
-    return useAtomValue(configsAtom)
-}
+export const useEvaluatorConfigs = (runId: string) =>
+    useAtomValue(evaluatorConfigsAtomFamily(runId))

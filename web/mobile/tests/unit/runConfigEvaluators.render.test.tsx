@@ -142,7 +142,11 @@ describe("evaluators section", () => {
 })
 
 /** A run with an evaluator step, and the workflow reads that answer for it. */
-function serveRunWithEvaluator(options: {revisionReference: boolean; workflowsFail?: boolean}) {
+function serveRunWithEvaluator(options: {
+    revisionReference: boolean
+    workflowsFail?: boolean
+    revisionDeleted?: boolean
+}) {
     const id = `run-${++runCounter}`
     const run = {
         id,
@@ -189,12 +193,13 @@ function serveRunWithEvaluator(options: {revisionReference: boolean; workflowsFa
             }
         }
         if (url.endsWith("/workflows/revisions/query")) {
-            return {data: {count: 1, workflow_revisions: [revision]}}
+            return {data: {count: 1, workflow_revisions: options.revisionDeleted ? [] : [revision]}}
         }
         return {data: {}}
     })
     http.get.mockImplementation(async (url: string) => {
         if (url.includes("/workflows/revisions/")) {
+            if (options.revisionDeleted) return {data: {count: 0}}
             return {data: {count: 1, workflow_revision: revision}}
         }
         return {data: {}}
@@ -277,6 +282,14 @@ describe("evaluators on the Configuration tab", () => {
         await mountPage()
         expect(host.textContent).toContain("Failed to load evaluator details")
         expect(host.textContent).not.toContain("internal-detail-secret")
+        logged.mockRestore()
+    })
+
+    it("A referenced revision that no longer exists shows Failed to load evaluator details", async () => {
+        serveRunWithEvaluator({revisionReference: true, revisionDeleted: true})
+        const logged = vi.spyOn(console, "error").mockImplementation(() => undefined)
+        await mountPage()
+        expect(host.textContent).toContain("Failed to load evaluator details")
         logged.mockRestore()
     })
 })

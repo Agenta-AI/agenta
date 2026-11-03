@@ -24,8 +24,8 @@ export const ConfigurationTab = ({
     header: RunHeader
 }) => {
     const references = useAtomValue(runReferencesAtomFamily(runId))
-    const application = useApplicationConfig(references)
-    const evaluators = useEvaluatorConfigs(references)
+    const application = useApplicationConfig(runId)
+    const evaluators = useEvaluatorConfigs(runId)
     const testsets = references?.testsets ?? []
 
     const nav: ConfigNavItem[] = [

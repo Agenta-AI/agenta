@@ -25,18 +25,18 @@ export const ConfigJsonDisclosure = ({
             <button
                 type="button"
                 aria-expanded={open}
-                aria-controls={id}
+                aria-controls={open ? id : undefined}
                 onClick={() => setOpen((current) => !current)}
                 className="m-0 inline-flex cursor-pointer items-center gap-1 self-start border-0 bg-transparent p-0 text-sm font-medium text-muted-foreground hover:text-foreground"
             >
                 {open ? <CaretDownIcon aria-hidden /> : <CaretRightIcon aria-hidden />}
                 JSON
             </button>
-            <div id={id} hidden={!open} className="min-w-0">
-                {open ? (
+            {open ? (
+                <div id={id} className="min-w-0">
                     <ConfigJsonViewer id={`config-json-${id.replace(/\W/g, "")}`} value={value} />
-                ) : null}
-            </div>
+                </div>
+            ) : null}
         </div>
     )
 }

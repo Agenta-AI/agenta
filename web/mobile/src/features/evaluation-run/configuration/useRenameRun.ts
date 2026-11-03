@@ -22,28 +22,31 @@ export const useRenameRun = (projectId: string, runId: string) => {
             inFlight.current = true
             setSaving(true)
             try {
-                await editEvaluationRunMeta({
-                    projectId,
-                    runId,
-                    name: name.trim(),
-                    description: description.trim(),
-                })
-            } catch (error) {
-                // The server's text is for the logs. The reader gets one plain sentence.
-                console.error("Renaming an evaluation run failed", error)
-                message.error("Failed to update evaluation run")
-                return false
+                try {
+                    await editEvaluationRunMeta({
+                        projectId,
+                        runId,
+                        name: name.trim(),
+                        description: description.trim(),
+                    })
+                } catch (error) {
+                    // The server's text is for the logs. The reader gets one plain sentence.
+                    console.error("Renaming an evaluation run failed", error)
+                    message.error("Failed to update evaluation run")
+                    return false
+                }
+                message.success("Evaluation run updated")
+                // The page title reads the run query. The runs list reads its own cache. The
+                // guard stays up until both refresh, so a second Save cannot start before then.
+                await Promise.all([
+                    queryClient.invalidateQueries({queryKey: evaluationRunQueryKey(runId)}),
+                    queryClient.invalidateQueries({queryKey: ["evaluation-runs"]}),
+                ])
+                return true
             } finally {
                 inFlight.current = false
                 setSaving(false)
             }
-            message.success("Evaluation run updated")
-            // The page title reads the run query. The runs list reads its own cache.
-            await Promise.all([
-                queryClient.invalidateQueries({queryKey: evaluationRunQueryKey(runId)}),
-                queryClient.invalidateQueries({queryKey: ["evaluation-runs"]}),
-            ])
-            return true
         },
         [projectId, runId, queryClient],
     )
