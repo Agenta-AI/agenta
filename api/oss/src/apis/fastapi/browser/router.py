@@ -2,25 +2,28 @@
 
 `POST /browser/live/status` says whether the session has a running browser. `WS /browser/live`
 relays the person's live view to it: page frames one way; mouse, keys and take-control the other.
+Both are mounted always, so the API schema keeps them; with the browser off they find no browser.
 """
 
 import asyncio
 from contextlib import suppress
-from urllib.parse import urlsplit
+from typing import Awaitable, Callable
 from uuid import UUID
 
 from fastapi import APIRouter, Request, WebSocket
 from pydantic import BaseModel
 from websockets.asyncio.client import ClientConnection, connect
 
+from oss.src.apis.fastapi.shared.utils import is_valid_session_id, web_origin
 from oss.src.apis.fastapi.sharing.utils import (
     ResourceCheck,
     allow_resource,
     check_resource_for,
     session_resource,
 )
+from oss.src.core.access.context import fresh_request_memo
 from oss.src.core.access.permissions.types import Permission
-from oss.src.core.browser.runner_client import fetch_live_link
+from oss.src.core.sessions.streams.runner_client import fetch_browser_live_link
 from oss.src.middlewares.auth import authenticate_connection
 from oss.src.utils.env import env
 from oss.src.utils.exceptions import intercept_exceptions
@@ -28,11 +31,14 @@ from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
 
+_CLOSE_BAD_REQUEST = 4400
 _CLOSE_UNAUTHORIZED = 4401
 _CLOSE_FORBIDDEN = 4403
 _CLOSE_NO_BROWSER = 4404
 # Frames are base64 JPEGs of a 1280x800 viewport.
 _LIVE_MAX_MESSAGE_BYTES = 8 * 1024 * 1024
+# A live view nobody closes would keep the sandbox, and its bill, running.
+_LIVE_MAX_SECONDS = 60 * 60
 
 
 class BrowserLiveStatusRequest(BaseModel):
@@ -43,16 +49,11 @@ class BrowserLiveStatusResponse(BaseModel):
     running: bool
 
 
-def _origin_of(url: str | None) -> str | None:
-    parts = urlsplit(url or "")
-    if not parts.scheme or not parts.netloc:
-        return None
-    return f"{parts.scheme}://{parts.netloc}".lower()
-
-
-def _allowed_origins() -> list[str]:
-    origins = [_origin_of(url) for url in (env.agenta.web_url, *env.agenta.app_origins)]
-    return [origin for origin in origins if origin]
+def _allowed_origins() -> set[str]:
+    # Stricter than CORS on purpose: this socket drives a signed-in browser, so only the app's
+    # own origins may open it, never the preview or localhost defaults CORS also accepts.
+    urls = (env.agenta.web_url, *env.agenta.app_origins)
+    return {origin.lower() for origin in map(web_origin, urls) if origin}
 
 
 class BrowserRouter:
@@ -75,15 +76,21 @@ class BrowserRouter:
         *,
         live_status_request: BrowserLiveStatusRequest,
     ) -> BrowserLiveStatusResponse:
-        if not await allow_resource(
-            request,
-            action=Permission.VIEW_SESSIONS,
-            resource=session_resource(live_status_request.session_id),
+        session_id = live_status_request.session_id.strip()
+        # RUN_SESSIONS, as the live view: a person who cannot drive the browser gets no button.
+        if (
+            not env.browser.enabled
+            or not is_valid_session_id(session_id)
+            or not await allow_resource(
+                request,
+                action=Permission.RUN_SESSIONS,
+                resource=session_resource(session_id),
+            )
         ):
             return BrowserLiveStatusResponse(running=False)
-        link = await fetch_live_link(
+        link = await fetch_browser_live_link(
             project_id=UUID(str(request.state.project_id)),
-            session_id=live_status_request.session_id,
+            session_id=session_id,
         )
         return BrowserLiveStatusResponse(running=link is not None)
 
@@ -92,8 +99,17 @@ class BrowserRouter:
         # Accepted first so the close code reaches the client; nothing relays before the checks pass.
         await websocket.accept()
 
+        if not env.browser.enabled:
+            await websocket.close(code=_CLOSE_NO_BROWSER)
+            return
+
         if websocket.headers.get("origin", "").lower() not in _allowed_origins():
             await websocket.close(code=_CLOSE_FORBIDDEN)
+            return
+
+        session_id = (websocket.query_params.get("session_id") or "").strip()
+        if not is_valid_session_id(session_id):
+            await websocket.close(code=_CLOSE_BAD_REQUEST)
             return
 
         # The HTTP auth middleware does not run for WebSockets, so its checks run here.
@@ -105,43 +121,64 @@ class BrowserRouter:
             await websocket.close(code=_CLOSE_UNAUTHORIZED)
             return
 
-        session_id = (websocket.query_params.get("session_id") or "").strip()
-        if not session_id:
-            await websocket.close(code=_CLOSE_NO_BROWSER)
-            return
-        # The live view takes input: it drives the agent's browser, signed-in sites included.
-        check = await check_resource_for(
-            access=access,
-            action=Permission.RUN_SESSIONS,
-            project_id=project_id,
-            resource=session_resource(session_id),
-        )
-        if check != ResourceCheck.ALLOWED:
-            hidden = check == ResourceCheck.HIDDEN
+        async def check() -> ResourceCheck:
+            # The live view takes input: it drives the agent's browser, signed-in sites included.
+            # A fresh memo makes each recheck read the current grants.
+            with fresh_request_memo():
+                return await check_resource_for(
+                    access=access,
+                    action=Permission.RUN_SESSIONS,
+                    project_id=project_id,
+                    resource=session_resource(session_id),
+                )
+
+        first = await check()
+        if first != ResourceCheck.ALLOWED:
+            hidden = first == ResourceCheck.HIDDEN
             await websocket.close(
                 code=_CLOSE_NO_BROWSER if hidden else _CLOSE_FORBIDDEN
             )
             return
 
-        link = await fetch_live_link(project_id=project_id, session_id=session_id)
+        link = await fetch_browser_live_link(
+            project_id=project_id, session_id=session_id
+        )
         if link is None:
             await websocket.close(code=_CLOSE_NO_BROWSER)
             return
 
+        async def still_allowed() -> None:
+            while True:
+                await asyncio.sleep(env.sessions.live_auth_recheck_seconds)
+                try:
+                    if await check() != ResourceCheck.ALLOWED:
+                        return
+                except Exception as e:  # noqa: BLE001  # pylint: disable=broad-except
+                    # A failed read is not a refusal; the next recheck decides.
+                    log.warning("browser.live", outcome="recheck_failed", error=str(e))
+
+        code = 1000
         try:
             async with connect(
-                link["url"],
-                additional_headers=link["headers"],
+                link.url,
+                additional_headers=link.headers,
                 max_size=_LIVE_MAX_MESSAGE_BYTES,
             ) as upstream:
-                await _relay(websocket, upstream)
+                code = await _relay(websocket, upstream, still_allowed)
         except Exception as e:  # noqa: BLE001  # pylint: disable=broad-except
             log.warning("browser.live", outcome="relay_failed", error=str(e))
         with suppress(Exception):
-            await websocket.close()
+            await websocket.close(code=code)
 
 
-async def _relay(websocket: WebSocket, upstream: ClientConnection) -> None:
+async def _relay(
+    websocket: WebSocket,
+    upstream: ClientConnection,
+    access_revoked: Callable[[], Awaitable[None]],
+) -> int:
+    """Relays both ways until either side closes, `access_revoked` returns, or the view reaches
+    its time limit. Returns the close code for the viewer."""
+
     async def client_to_browser() -> None:
         while True:
             await upstream.send(await websocket.receive_text())
@@ -156,7 +193,13 @@ async def _relay(websocket: WebSocket, upstream: ClientConnection) -> None:
         asyncio.create_task(client_to_browser()),
         asyncio.create_task(browser_to_client()),
     ]
-    _, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+    revoked = asyncio.create_task(access_revoked())
+    done, pending = await asyncio.wait(
+        [*tasks, revoked],
+        timeout=_LIVE_MAX_SECONDS,
+        return_when=asyncio.FIRST_COMPLETED,
+    )
     for task in pending:
         task.cancel()
-    await asyncio.gather(*tasks, return_exceptions=True)
+    await asyncio.gather(*tasks, revoked, return_exceptions=True)
+    return _CLOSE_FORBIDDEN if revoked in done else 1000

@@ -1,5 +1,7 @@
+import re
 from typing import Optional, Tuple, List, Any
 from json import loads
+from urllib.parse import urlsplit
 
 from oss.src.core.shared.dtos import (
     Flags,
@@ -191,3 +193,47 @@ def compute_next_windowing(
             )
 
     return None
+
+
+CORS_ORIGIN_REGEX = r"https://.*\.vercel\.app"
+
+
+def web_origin(web_url: str) -> Optional[str]:
+    """`scheme://host[:port]` of `web_url`, with the default port left out, or None."""
+    parsed = urlsplit(web_url)
+    scheme = parsed.scheme.lower()
+    host = parsed.hostname
+    if scheme not in ("http", "https") or not host:
+        return None
+    if ":" in host:
+        host = f"[{host}]"
+    try:
+        port = parsed.port
+    except ValueError:
+        port = None
+    origin = f"{scheme}://{host}"
+    if port and port != (443 if scheme == "https" else 80):
+        origin = f"{origin}:{port}"
+    return origin
+
+
+def build_cors_origins(web_url: str) -> list[str]:
+    origins = [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://0.0.0.0:3000",
+        "http://0.0.0.0:3001",
+        "https://docs.agenta.ai",
+        "https://agenta.ai",
+    ]
+    origin = web_origin(web_url)
+    if origin and origin not in origins:
+        origins.append(origin)
+    return origins
+
+
+SESSION_ID_RE = re.compile(r"[a-zA-Z0-9_\-]{1,128}")
+
+
+def is_valid_session_id(session_id: str) -> bool:
+    return SESSION_ID_RE.fullmatch(session_id) is not None

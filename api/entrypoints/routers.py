@@ -2,7 +2,6 @@ from contextlib import asynccontextmanager
 import asyncio
 import time
 from pathlib import Path
-from urllib.parse import urlsplit
 
 import agenta as ag
 from fastapi import FastAPI
@@ -229,7 +228,11 @@ from oss.src.apis.fastapi.gateways.mcps.router import MCPGatewayRouter
 from oss.src.apis.fastapi.gateways.mcps.proxy import MCPGatewayProxy
 from oss.src.apis.fastapi.gateways.mcps.oauth_router import MCPOAuthClientMetadataRouter
 
-from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
+from oss.src.apis.fastapi.shared.utils import (
+    CORS_ORIGIN_REGEX,
+    SupportHeadersMiddleware,
+    build_cors_origins,
+)
 
 from oss.src.dbs.postgres.channels.dao import ChannelsDAO
 from oss.src.dbs.postgres.channels.identity_dao import ChannelIdentityDAO
@@ -655,42 +658,12 @@ app.add_middleware(get_supertokens_middleware())
 app.add_middleware(SuperTokensHTTPExceptionMiddleware)
 
 
-def _cors_origins(web_url: str) -> list[str]:
-    origins = [
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://0.0.0.0:3000",
-        "http://0.0.0.0:3001",
-        "https://docs.agenta.ai",
-        "https://agenta.ai",
-    ]
-
-    parsed_web_url = urlsplit(web_url)
-    scheme = parsed_web_url.scheme.lower()
-    host = parsed_web_url.hostname
-    if scheme in ("http", "https") and host:
-        if ":" in host:
-            host = f"[{host}]"
-        try:
-            port = parsed_web_url.port
-        except ValueError:
-            port = None
-        default_port = 443 if scheme == "https" else 80
-        web_origin = f"{scheme}://{host}"
-        if port and port != default_port:
-            web_origin = f"{web_origin}:{port}"
-        if web_origin not in origins:
-            origins.append(web_origin)
-
-    return origins
-
-
-cors_origins = _cors_origins(env.agenta.web_url)
+cors_origins = build_cors_origins(env.agenta.web_url)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
-    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_origin_regex=CORS_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
     # `Idempotency-Key` rides on durable session writes (interaction answers, queued inputs);
@@ -1975,13 +1948,11 @@ app.include_router(
     tags=["Folders"],
 )
 
-# Unmounted while the session browser is off, so every route answers 404.
-if env.browser.enabled:
-    app.include_router(
-        router=BrowserRouter().router,
-        prefix="/browser",
-        tags=["Browser"],
-    )
+app.include_router(
+    router=BrowserRouter().router,
+    prefix="/browser",
+    tags=["Browser"],
+)
 
 app.include_router(
     router=sessions.streams.router,

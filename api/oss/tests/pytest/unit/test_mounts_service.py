@@ -95,6 +95,21 @@ class TestFilePathValidation:
         with pytest.raises(MountPathInvalid):
             validate_file_path("/")
 
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "agent-files/.agenta-browser/state.json",
+            ".agenta-browser/state.json",
+            ".agenta-browser",
+        ],
+    )
+    def test_rejects_the_browser_sign_ins(self, path):
+        with pytest.raises(MountPathInvalid):
+            validate_file_path(path)
+
+    def test_accepts_a_sibling_of_the_browser_folder(self):
+        validate_file_path("agent-files/.agenta-browser-notes.md")
+
     def test_accepts_punctuation_real_filenames_use(self):
         # Denylist, not allowlist: only traversal / control chars are unsafe, so real folder names
         # keep working (route groups, npm scopes, angle brackets, etc.).

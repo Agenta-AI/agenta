@@ -348,6 +348,7 @@ dependencies = [
     { name = "taskiq-redis" },
     { name = "uuid-utils" },
     { name = "uvicorn", extra = ["standard"] },
+    { name = "websockets" },
 ]
 
 [package.dev-dependencies]
@@ -407,6 +408,7 @@ requires-dist = [
     { name = "taskiq-redis", specifier = ">=1,<2" },
     { name = "uuid-utils", specifier = ">=0.17,<0.18" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.51,<0.52" },
+    { name = "websockets", specifier = ">=13,<17" },
 ]
 
 [package.metadata.requires-dev]

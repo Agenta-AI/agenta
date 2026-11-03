@@ -18,6 +18,7 @@ the runner's own orphan sweep / idle-TTL eviction is the fallback net for a miss
 """
 
 from typing import NamedTuple, Optional
+from uuid import UUID
 
 import httpx
 
@@ -230,3 +231,48 @@ async def cancel_runner_execution(
             command_id,
         )
     return RunnerCancelResponse(RunnerCancelResult.accepted, replica_id)
+
+
+_BROWSER_LIVE_TIMEOUT_SECONDS = 15.0
+
+
+class BrowserLiveLink(NamedTuple):
+    """Where the session's browser serves its live view, and the headers the connection needs."""
+
+    url: str
+    headers: dict[str, str]
+
+
+async def fetch_browser_live_link(
+    *, project_id: UUID, session_id: str
+) -> Optional[BrowserLiveLink]:
+    """POST the runner's `/browser/live`. None when no browser is live in the session, the runner
+    is not configured or unreachable, or it answers anything but a well-formed link."""
+    base_url = env.runner.internal_url
+    token = env.runner.token
+    if not base_url or not token:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=_BROWSER_LIVE_TIMEOUT_SECONDS) as client:
+            response = await client.post(
+                base_url.rstrip("/") + "/browser/live",
+                json={"projectId": str(project_id), "sessionId": session_id},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        if response.status_code != 200:
+            if response.status_code != 404:
+                log.warning(
+                    "browser.live", outcome="refused", status=response.status_code
+                )
+            return None
+        body = response.json()
+    except (httpx.HTTPError, ValueError) as e:
+        log.warning("browser.live", outcome="runner_unreachable", error=str(e))
+        return None
+    url = body.get("url") if isinstance(body, dict) else None
+    headers = body.get("headers") if isinstance(body, dict) else None
+    if not isinstance(url, str) or not isinstance(headers, dict):
+        return None
+    return BrowserLiveLink(
+        url=url, headers={str(k): str(v) for k, v in headers.items()}
+    )

@@ -6,6 +6,7 @@ import importlib
 from unittest.mock import patch
 
 import pytest
+from oss.src.apis.fastapi.shared.utils import build_cors_origins
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.apps.handlers import CREATE_APP_CALL_REF, LIST_STARTERS_CALL_REF
 from oss.src.core.tools.platform_handlers import required_elevated_permission
@@ -52,9 +53,7 @@ def _production_cors_kwargs():
 
 
 def _cors_origins(web_url: str):
-    with patch("alembic.script.ScriptDirectory.from_config", return_value=object()):
-        routers = importlib.import_module("entrypoints.routers")
-    return routers._cors_origins(web_url)
+    return build_cors_origins(web_url)
 
 
 def test_cors_allows_the_bridge_headers():
@@ -83,7 +82,7 @@ def test_a_cross_origin_bridge_preflight_passes():
 
 
 def _added_origins(web_url: str) -> set[str]:
-    """The origins `_cors_origins` adds for `web_url`, beyond the built-in defaults."""
+    """The origins `build_cors_origins` adds for `web_url`, beyond the built-in defaults."""
     return set(_cors_origins(web_url)) - set(_cors_origins(""))
 
 
