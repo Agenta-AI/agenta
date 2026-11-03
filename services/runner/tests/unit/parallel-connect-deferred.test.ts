@@ -61,6 +61,9 @@ async function waitFor(
   while (!predicate() && Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, 2));
   }
+  if (!predicate()) {
+    throw new Error(`waitFor: condition not met within ${timeoutMs}ms`);
+  }
 }
 
 let interactionPosts: Array<{
