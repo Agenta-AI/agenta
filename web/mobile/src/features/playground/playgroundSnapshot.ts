@@ -83,11 +83,10 @@ export const snapshotTriggerAtom = atom((get) => [
  * address then would replace the hash with one that has lost them.
  */
 export const hasPendingRestore = (store: Store): boolean => {
-    // The evaluators after the app count too: their drafts are in the snapshot.
-    const ids = new Set([
-        ...store.get(playgroundController.selectors.entityIds()),
-        ...store.get(playgroundController.selectors.nodes()).map((node) => node.entityId),
-    ])
+    // Every node: the evaluators after the app have drafts in the snapshot too.
+    const ids = new Set(
+        store.get(playgroundController.selectors.nodes()).map((node) => node.entityId),
+    )
     for (const pending of store.get(pendingHydrationsAtom).values()) {
         if (ids.has(pending.sourceRevisionId)) return true
         if (pending.placeholderId && ids.has(pending.placeholderId)) return true

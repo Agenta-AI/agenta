@@ -25,7 +25,8 @@ import {
 
 const {http, router, routeListeners} = vi.hoisted(() => ({
     http: {post: vi.fn(), get: vi.fn()},
-    routeListeners: new Set<(url: string, options: {shallow: boolean}) => void>(),
+    /** Router event listeners by event name, as `router.events` keeps them. */
+    routeListeners: new Map<string, Set<(url: string, options: {shallow: boolean}) => void>>(),
     router: {
         isReady: true,
         pathname: "/w/[workspace_id]/p/[project_id]/apps/[app_id]/playground",
@@ -33,10 +34,12 @@ const {http, router, routeListeners} = vi.hoisted(() => ({
         asPath: "/",
         replace: vi.fn(),
         events: {
-            on: (_name: string, listener: (url: string, options: {shallow: boolean}) => void) =>
-                routeListeners.add(listener),
-            off: (_name: string, listener: (url: string, options: {shallow: boolean}) => void) =>
-                routeListeners.delete(listener),
+            on: (name: string, listener: (url: string, options: {shallow: boolean}) => void) => {
+                if (!routeListeners.has(name)) routeListeners.set(name, new Set())
+                routeListeners.get(name)?.add(listener)
+            },
+            off: (name: string, listener: (url: string, options: {shallow: boolean}) => void) =>
+                routeListeners.get(name)?.delete(listener),
         },
     },
 }))
@@ -160,6 +163,12 @@ afterEach(() => {
     act(() => root.unmount())
     host.remove()
 })
+
+/** Emits a router event to the page's listeners. */
+const emitRoute = (name: string, url: string, shallow: boolean) =>
+    act(() => {
+        for (const listener of routeListeners.get(name) ?? []) listener(url, {shallow})
+    })
 
 const snapshotHash = (snapshot: Omit<PlaygroundSnapshot, "v">) => {
     const encoded = encodeSnapshot({v: 2, ...snapshot} as PlaygroundSnapshot)
@@ -350,36 +359,46 @@ describe("a link into the open playground", () => {
             }),
         )
         router.query = {...router.query, revisions: "rev-2"}
-        act(() => {
-            for (const listener of routeListeners) listener("/m/new", {shallow: false})
-        })
+        emitRoute("routeChangeComplete", "/m/new", false)
         await settle()
 
         expect(selection.revisionIds).toEqual(["rev-2"])
         expect(firstRowData()).toEqual([{country: "Chile"}])
     })
 
+    it("A link that changes only the hash replaces what the page showed", async () => {
+        await mount("app-1", "rev-1")
+
+        setHash(
+            snapshotHash({
+                selection: [{kind: "commit", id: "rev-1", runnableType: "workflow"}],
+                drafts: [],
+                localTestset: {rows: [{data: {country: "Kenya"}}], name: null},
+            }),
+        )
+        emitRoute("hashChangeComplete", "/m/hash", false)
+        await settle()
+
+        expect(firstRowData()).toEqual([{country: "Kenya"}])
+    })
+
     it("The page's own address writes do not restart it", async () => {
         await mount("app-1", "rev-1")
         const nodeId = store.get(playgroundController.selectors.nodes())[0]?.id
 
-        act(() => {
-            for (const listener of routeListeners) listener("/m/same", {shallow: true})
-        })
+        emitRoute("routeChangeComplete", "/m/same", true)
         await settle()
 
         expect(store.get(playgroundController.selectors.nodes())[0]?.id).toBe(nodeId)
     })
 
-    it("A shallow address change that drops the hash gets it back", async () => {
+    it("A shallow change of the hash alone that drops it gets it back", async () => {
         await mount("app-1", "rev-1")
         expect(window.location.hash.startsWith("#pgSnapshot=")).toBe(true)
 
         // The trace drawer writes `?trace=` from the search alone.
         setHash("")
-        act(() => {
-            for (const listener of routeListeners) listener("/m/trace", {shallow: true})
-        })
+        emitRoute("hashChangeComplete", "/m/trace", true)
         await settle()
 
         expect(window.location.hash.startsWith("#pgSnapshot=")).toBe(true)

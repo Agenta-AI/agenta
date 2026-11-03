@@ -28,6 +28,9 @@ import {parseRevisionIds, readSnapshotParam, SNAPSHOT_PARAM} from "./playgroundU
 /** How long the address waits after the last edit before it is written. */
 const ADDRESS_WRITE_DELAY_MS = 300
 
+/** The router events that end an address change: a full one, and one of the hash alone. */
+const ADDRESS_EVENTS = ["routeChangeComplete", "hashChangeComplete"] as const
+
 /** How far the app and its selected revisions have loaded. */
 export type PlaygroundLoadStatus = "loading" | "ready" | "error" | "not-found"
 
@@ -124,8 +127,11 @@ export const usePlaygroundSelection = ({appId}: {appId: string}): PlaygroundSele
             if (shallow || `${pathname}${search}${hash}` === setUpAddressRef.current) return
             setVisit((count) => count + 1)
         }
-        events?.on("routeChangeComplete", onVisit)
-        return () => events?.off("routeChangeComplete", onVisit)
+        // A link that changes only the hash ends with `hashChangeComplete` instead.
+        for (const name of ADDRESS_EVENTS) events?.on(name, onVisit)
+        return () => {
+            for (const name of ADDRESS_EVENTS) events?.off(name, onVisit)
+        }
     }, [])
 
     useEffect(() => {
@@ -219,11 +225,11 @@ export const usePlaygroundSelection = ({appId}: {appId: string}): PlaygroundSele
         const unsubscribe = store.sub(snapshotTriggerAtom, schedule)
         // Another writer of the address (the trace drawer's `?trace=`) drops the hash: put it back.
         const events = routerRef.current.events
-        events?.on("routeChangeComplete", schedule)
+        for (const name of ADDRESS_EVENTS) events?.on(name, schedule)
         schedule()
         return () => {
             unsubscribe()
-            events?.off("routeChangeComplete", schedule)
+            for (const name of ADDRESS_EVENTS) events?.off(name, schedule)
             clearTimeout(timer)
         }
     }, [appId, appUsable, router.isReady, store])

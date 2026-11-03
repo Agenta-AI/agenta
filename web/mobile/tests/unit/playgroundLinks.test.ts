@@ -172,7 +172,7 @@ describe("tracePlaygroundTarget", () => {
         expect(snapshot.value?.localTestset?.rows).toEqual([{data: {topic: "tea"}}])
     })
 
-    it("A span that is not an invocation names its type and opens nothing", () => {
+    it("A chat span names its type and opens nothing", () => {
         expect(
             tracePlaygroundTarget({
                 base: BASE,
