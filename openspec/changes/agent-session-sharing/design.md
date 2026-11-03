@@ -77,7 +77,7 @@ Sharing changes publish an event through the existing events stream (`publish_ev
 
 `/m` builds the sharing UI against the design the owner approved on 2026-10-23. That design changes three points of this change:
 
-1. Addition: "Copy share link" in the share dialog footer and in the session row menu. The link gives no access by itself; it opens only for people who can already read the chat, and anyone else sees the not-found page of an unknown chat.
+1. Addition: "Copy share link" in the share dialog footer and in the session row menu. The link gives no access by itself; it opens only for people who can already read the chat, and anyone else sees the not-found page of an unknown chat. While the chat is private with nobody added, the share dialog and the toast after its copy button say that nobody else can open the link yet, and the not-found page stands alone, with no tab strip, no config pane and no agent from the chat opened before it.
 2. Deviation: the share disclosure is one sentence that names the agent's connected accounts and says that the people added will see everything in the chat. It leaves out the trace readers statement on purpose (traces are out of scope until M9). The API still returns the three disclosure flags, and the UI ignores the trace one. The user docs state the trace limit.
 3. Placement: agent privacy is a small dropdown in the playground top bar. The agent overview page is off for now.
 

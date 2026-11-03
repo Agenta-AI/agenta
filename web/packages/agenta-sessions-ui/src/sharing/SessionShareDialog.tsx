@@ -216,7 +216,7 @@ export const SessionShareDialog = ({
 
     const copyLink = async () => {
         if ((await onCopyLink?.()) === false) return
-        onNotify?.(copy.linkCopied)
+        onNotify?.(nobodyAdded ? copy.linkCopiedNobodyYet : copy.linkCopied)
     }
 
     const owner = ownerId ? byId.get(ownerId) : undefined
@@ -517,6 +517,13 @@ export const SessionShareDialog = ({
                                 </div>
                             </div>
                         </section>
+
+                        {onCopyLink && nobodyAdded ? (
+                            <p className="m-0 flex items-start gap-1.5 text-xs text-muted-foreground">
+                                <LinkIcon size={13} className="mt-px shrink-0" aria-hidden />
+                                {copy.linkNobodyYet}
+                            </p>
+                        ) : null}
 
                         {notice === "failed" ? (
                             <Alert type="error" showIcon message={copy.saveFailed} />
