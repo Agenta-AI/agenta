@@ -1,4 +1,4 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useEffect, useMemo, useRef} from "react"
 
 import {testcaseMolecule} from "@agenta/entities/testcase"
 import type {TestcaseDataEditorColumn} from "@agenta/entity-ui/testcase"
@@ -29,12 +29,12 @@ const sameValue = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringi
 
 /**
  * The form types every plain value as text. A number or boolean field must stay one, so text
- * typed into it goes back to the field's own type: the type of the stored value, else the type
- * the prompt's port declares.
+ * typed into it goes back to the field's own type: the type the field had before the user
+ * started typing, else the type the prompt's port declares. A half-typed "fa" is still text, and
+ * the remembered type turns the finished "false" back into a boolean.
  */
-const keepNativeType = (value: unknown, stored: unknown, declared?: string): unknown => {
+const keepNativeType = (value: unknown, type?: string): unknown => {
     if (typeof value !== "string") return value
-    const type = stored === undefined || stored === null || stored === "" ? declared : typeof stored
     if (type === "number" || type === "integer") {
         const number = Number(value)
         return value.trim() !== "" && Number.isFinite(number) ? number : value
@@ -117,6 +117,16 @@ export const usePlaygroundTestcaseEditorModel = (testcaseId: string) => {
         [entityData?.data, suggestedDefaults],
     )
 
+    // The last number or boolean each field held, kept while the user types text into it.
+    const nativeTypes = useRef(new Map<string, string>())
+    useEffect(() => {
+        for (const [key, value] of Object.entries(entityData?.data ?? {})) {
+            if (typeof value === "number" || typeof value === "boolean") {
+                nativeTypes.current.set(`${testcaseId}:${key}`, typeof value)
+            }
+        }
+    }, [entityData?.data, testcaseId])
+
     const updateTestcase = useSetAtom(testcaseMolecule.actions.update)
     const handleEditorChange = useCallback(
         (nextValue: Record<string, unknown>) => {
@@ -125,7 +135,10 @@ export const usePlaygroundTestcaseEditorModel = (testcaseId: string) => {
             for (const [key, value] of Object.entries(nextValue)) {
                 const isMissing = !(key in existing) && key in suggestedDefaults
                 if (isMissing && sameValue(value, suggestedDefaults[key])) continue
-                data[key] = keepNativeType(value, existing[key], schemaMap[key]?.type)
+                data[key] = keepNativeType(
+                    value,
+                    nativeTypes.current.get(`${testcaseId}:${key}`) ?? schemaMap[key]?.type,
+                )
             }
             updateTestcase(testcaseId, {data})
         },

@@ -57,7 +57,8 @@ vi.mock("@agenta/playground-ui/panels/focus", async (original) => {
     loads.focus += 1
     return original()
 })
-// The code editor is Lexical; a textarea stands in for it and reports each edit.
+// The code editor is Lexical; a textarea stands in for it and reports each edit. Like the real
+// editor, it starts over when its initial value changes.
 vi.mock("@agenta/ui/shared-editor", () => ({
     SharedEditor: ({
         initialValue,
@@ -67,6 +68,7 @@ vi.mock("@agenta/ui/shared-editor", () => ({
         handleChange?: (value: string) => void
     }) => (
         <textarea
+            key={initialValue}
             data-testid="editor"
             defaultValue={initialValue}
             readOnly={!handleChange}
@@ -273,6 +275,29 @@ describe("The focus drawer", () => {
         await settle()
 
         expect(rowValue(first)).toEqual({country: "France"})
+    })
+
+    it("A run that ends does not reset an unfinished edit in the JSON view", async () => {
+        await seedRows()
+        const first = rowIds()[0]
+        await openRow(first)
+        await switchToJson()
+        const editor = dialog()!.querySelector<HTMLTextAreaElement>('[data-testid="editor"]')!
+        await typeInto(editor, '{"inputs": {"country": ')
+
+        const loadableId = store.get(playgroundController.selectors.loadableId()) as string
+        await act(async () =>
+            store.set(resultsByKeyAtomFamily(loadableId), {
+                [buildResultKey(first, `sess:${entityId()}`)]: {
+                    status: "success",
+                    output: {response: {data: "Paris"}},
+                } as never,
+            }),
+        )
+        await settle()
+
+        const after = dialog()!.querySelector<HTMLTextAreaElement>('[data-testid="editor"]')!
+        expect(after.value).toBe('{"inputs": {"country": ')
     })
 
     it("Leaving the page closes and resets the drawer", async () => {

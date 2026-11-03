@@ -9,7 +9,7 @@ import {
     type TestcaseDrawerContentRenderProps,
 } from "@agenta/entity-ui/testcase"
 import {executionItemController} from "@agenta/playground"
-import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {usePlaygroundTestcaseEditorModel} from "../../hooks/usePlaygroundTestcaseEditorModel"
 import {closePlaygroundFocusDrawerAtom, playgroundFocusDrawerAtom} from "../../state/focusDrawer"
@@ -61,7 +61,11 @@ export const FocusDrawer = ({renderTraceFooter}: FocusDrawerProps) => {
             }),
         [entityId, rowId],
     )
-    const outputs = useAtomValue(payloadAtom)
+    // The JSON and YAML views show the outputs as they stood when the row opened. A live value
+    // would rebuild the payload when a run ends, and the editor would drop an unfinished edit.
+    // The output under the form stays live.
+    const store = useStore()
+    const outputs = useMemo(() => store.get(payloadAtom), [store, payloadAtom, isOpen])
     const payload = useMemo(
         () =>
             buildFocusDrawerPayload({

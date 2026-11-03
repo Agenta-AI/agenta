@@ -144,4 +144,26 @@ describe("The focus drawer form model", () => {
 
         expect(rowData().age).toBe("4x")
     })
+
+    it("Typing a boolean one character at a time still stores a boolean", async () => {
+        await seed({formal: true})
+
+        for (const typed of ["", "f", "fa", "fal", "fals", "false"]) {
+            await act(async () => model.handleEditorChange({...model.editorValue, formal: typed}))
+            await settle()
+        }
+
+        expect(rowData().formal).toBe(false)
+    })
+
+    it("Clearing a number and typing a new one still stores a number", async () => {
+        await seed({age: 42})
+
+        for (const typed of ["", "5", "57"]) {
+            await act(async () => model.handleEditorChange({...model.editorValue, age: typed}))
+            await settle()
+        }
+
+        expect(rowData().age).toBe(57)
+    })
 })
