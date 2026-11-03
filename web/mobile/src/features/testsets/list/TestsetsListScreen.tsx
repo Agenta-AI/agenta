@@ -74,10 +74,12 @@ export const TestsetsListScreen = ({
     const [openDialog, setDialog] = useState<OpenDialog | null>(null)
     // A dialog belongs to the project it opened in. Its file and name must not reach another one.
     const dialog = openDialog?.projectId === projectId ? openDialog : null
-    const closeDialog = useCallback(() => setDialog(null), [])
-    useEffect(() => closeDialog(), [projectId, closeDialog])
-    const existingNames = useMemo(
-        () => list.testsets.map((testset) => testset.name),
+    useEffect(() => setDialog(null), [projectId])
+    // A request that started in one dialog may finish after another opened. It closes only its own.
+    const closeOnly = (opened: OpenDialog) => () =>
+        setDialog((current) => (current === opened ? null : current))
+    const takenSlugs = useMemo(
+        () => list.testsets.flatMap((testset) => (testset.slug ? [testset.slug] : [])),
         [list.testsets],
     )
     const openCreate = useCallback(() => setDialog({kind: "create", projectId}), [projectId])
@@ -148,7 +150,11 @@ export const TestsetsListScreen = ({
                 </ScreenScaffold>
             </AppShell>
             {dialog?.kind === "create" ? (
-                <CreateTestsetDialog projectId={projectId} base={base} onClose={closeDialog} />
+                <CreateTestsetDialog
+                    projectId={projectId}
+                    base={base}
+                    onClose={closeOnly(dialog)}
+                />
             ) : null}
             {dialog && dialog.kind !== "create" ? (
                 <TestsetNameDialog
@@ -157,8 +163,8 @@ export const TestsetsListScreen = ({
                     testset={dialog.testset}
                     projectId={projectId}
                     base={base}
-                    existingNames={existingNames}
-                    onClose={closeDialog}
+                    takenSlugs={takenSlugs}
+                    onClose={closeOnly(dialog)}
                 />
             ) : null}
         </>

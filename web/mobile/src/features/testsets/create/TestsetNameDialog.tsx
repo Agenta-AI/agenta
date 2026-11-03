@@ -20,15 +20,15 @@ export const TestsetNameDialog = ({
     testset,
     projectId,
     base,
-    existingNames = [],
+    takenSlugs = [],
     onClose,
 }: {
     mode: "clone" | "rename"
     testset: TestsetNameTarget
     projectId: string
     base: string
-    /** The names of the test sets that exist, so a clone starts with a name that is free. */
-    existingNames?: readonly string[]
+    /** The slugs of the test sets that exist, so a clone starts with a name that is free. */
+    takenSlugs?: readonly string[]
     onClose: () => void
 }) => {
     const {clone, rename} = useTestsetNameActions({projectId, base})
@@ -37,7 +37,7 @@ export const TestsetNameDialog = ({
     const isClone = mode === "clone"
     // Fixed when the dialog opens, so a list refresh does not change the name under the reader.
     const [initialName] = useState(() =>
-        isClone ? defaultCloneName(testset.name, existingNames) : testset.name,
+        isClone ? defaultCloneName(testset.name, takenSlugs) : testset.name,
     )
 
     const submit = async (name: string) => {

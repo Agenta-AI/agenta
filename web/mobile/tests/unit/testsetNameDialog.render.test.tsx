@@ -31,7 +31,7 @@ describe("Test set name dialog", () => {
     let client: QueryClient
     const onClose = vi.fn()
 
-    const mount = (mode: "clone" | "rename", existingNames: string[] = []) => {
+    const mount = (mode: "clone" | "rename", takenSlugs: string[] = []) => {
         act(() =>
             root.render(
                 <QueryClientProvider client={client}>
@@ -40,7 +40,7 @@ describe("Test set name dialog", () => {
                         testset={{id: "t-src", name: "Support cases"}}
                         projectId="pr"
                         base={BASE}
-                        existingNames={existingNames}
+                        takenSlugs={takenSlugs}
                         onClose={onClose}
                     />
                 </QueryClientProvider>,
@@ -89,7 +89,7 @@ describe("Test set name dialog", () => {
         const sent = stubAxiosHttp((request) =>
             request.method === "GET" ? {data: {testset: SOURCE}} : {data: {testset: {id: "t"}}},
         )
-        mount("clone", ["Support cases", "Support cases (copy)"])
+        mount("clone", ["support_cases", "support_cases_copy"])
         expect(input().value).toBe("Support cases (copy 2)")
         await act(async () => {
             button("Clone").click()
@@ -105,8 +105,24 @@ describe("Test set name dialog", () => {
         })
     })
 
+    it("A renamed test set keeps its old slug, so the clone name looks at slugs, not names", async () => {
+        // "Support cases (copy 2)" was renamed to "Support cases (copy)" and kept slug support_cases_copy_2.
+        const sent = stubAxiosHttp((request) =>
+            request.method === "GET" ? {data: {testset: SOURCE}} : {data: {testset: {id: "t"}}},
+        )
+        mount("clone", ["support_cases_copy_2"])
+        expect(input().value).toBe("Support cases (copy)")
+        await act(async () => {
+            button("Clone").click()
+        })
+        await until(() => expect(onClose).toHaveBeenCalled())
+        expect((writes(sent)[0].body as {testset: {slug: string}}).testset.slug).toBe(
+            "support_cases_copy",
+        )
+    })
+
     it("The default clone name skips every name whose slug is taken", () => {
-        mount("clone", ["Support cases (copy)", "support cases (COPY 2)", "Support cases (copy 3)"])
+        mount("clone", ["support_cases_copy", "support_cases_copy_2", "support_cases_copy_3"])
         expect(input().value).toBe("Support cases (copy 4)")
     })
 
