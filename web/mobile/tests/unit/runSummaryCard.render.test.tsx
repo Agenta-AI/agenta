@@ -33,8 +33,7 @@ vi.mock("next/router", () => ({
         back: vi.fn(),
     }),
 }))
-const toast = vi.hoisted(() => ({success: vi.fn(), error: vi.fn()}))
-vi.mock("@agenta/ui/app-message", () => ({message: toast}))
+vi.mock("@agenta/ui/app-message", () => ({message: {success: vi.fn(), error: vi.fn()}}))
 const permission = vi.hoisted(() => ({allowed: true}))
 vi.mock("@/features/context/useProjectPermission", () => ({
     useProjectPermission: () => permission.allowed,
@@ -117,10 +116,6 @@ function serveRun(overrides: Record<string, unknown> = {}) {
         if (url.endsWith(`/evaluations/runs/${id}`)) return {data: {count: 1, run: stored}}
         return {data: {}}
     })
-    http.patch.mockImplementation(async (url: string, body: {run: Record<string, unknown>}) => {
-        stored = {...stored, ...body.run}
-        return {data: {count: 1, run: stored}}
-    })
     router.query = {
         workspace_id: "ws",
         project_id: "pr",
@@ -158,24 +153,6 @@ async function mount() {
 const buttonNamed = (name: string) =>
     [...host.querySelectorAll("button")].find((button) => button.textContent?.trim() === name)
 
-/** Type into a controlled field the way a user does. */
-async function typeInto(selector: string, value: string) {
-    const field = host.querySelector<HTMLInputElement | HTMLTextAreaElement>(selector)
-    if (!field) throw new Error(`no field ${selector}`)
-    const proto = field instanceof HTMLTextAreaElement ? HTMLTextAreaElement : HTMLInputElement
-    await act(async () => {
-        Object.getOwnPropertyDescriptor(proto.prototype, "value")?.set?.call(field, value)
-        field.dispatchEvent(new Event("input", {bubbles: true}))
-    })
-}
-
-const NAME = 'input[placeholder="Run name"]'
-const DESCRIPTION = 'textarea[placeholder="Description (optional)"]'
-
-async function openEditor() {
-    await act(async () => buttonNamed("Edit")?.click())
-}
-
 beforeEach(() => {
     vi.stubEnv("NEXT_PUBLIC_AGENTA_DEVELOPER_VIEWS", "evaluations")
     host = document.createElement("div")
@@ -185,8 +162,6 @@ beforeEach(() => {
     store.set(projectIdAtom, "pr")
     Object.values(http).forEach((fn) => fn.mockReset())
     router.replace.mockReset()
-    toast.success.mockReset()
-    toast.error.mockReset()
     permission.allowed = true
 })
 
@@ -208,148 +183,13 @@ describe("run summary card", () => {
         expect(host.querySelector('[aria-label="Copy run ID"]')).not.toBeNull()
     })
 
-    it("Save sends the full run: the data and references unchanged, only the name and description new", async () => {
-        const id = serveRun()
-        await mount()
-        await openEditor()
-        await typeInto(NAME, "  Capitals v2 ")
-        await typeInto(DESCRIPTION, "Second pass")
-        await act(async () => buttonNamed("Save")?.click())
-        await flush()
-
-        expect(http.patch).toHaveBeenCalledTimes(1)
-        const [url, body, config] = http.patch.mock.calls[0]
-        expect(url).toBe(`https://agenta.test/api/evaluations/runs/${id}`)
-        expect(config).toEqual({params: {project_id: "pr"}})
-        // The whole `data` goes back, including what the package schema does not list, so the
-        // API rebuilds the run references from the same steps.
-        expect(body.run.data).toEqual(storedData)
-        // Only the run id, the two edited fields and `data`: the API keeps every field a body
-        // leaves out, so a status or flag change made a moment ago is not undone.
-        expect(body).toEqual({
-            run: {id, name: "Capitals v2", description: "Second pass", data: storedData},
-        })
-        expect(toast.success).toHaveBeenCalledWith("Evaluation run updated")
-    })
-
-    it("After save the title shows the new name", async () => {
-        serveRun()
-        await mount()
-        await openEditor()
-        await typeInto(NAME, "Capitals v2")
-        await act(async () => buttonNamed("Save")?.click())
-        await flush()
-        expect(host.querySelector('[data-testid="title"]')?.textContent).toBe("Capitals v2")
-        // The form closed and the card shows the saved name.
-        expect(host.querySelector(NAME)).toBeNull()
-        expect(host.textContent).toContain("Capitals v2")
-    })
-
-    it("An empty name cannot be saved", async () => {
-        serveRun()
-        await mount()
-        await openEditor()
-        await typeInto(NAME, "   ")
-        const save = buttonNamed("Save") as HTMLButtonElement
-        expect(save.disabled).toBe(true)
-        await act(async () => save.click())
-        expect(http.patch).not.toHaveBeenCalled()
-    })
-
-    it("A second Save click while saving sends no request", async () => {
-        serveRun()
-        let release: () => void = () => undefined
-        const gate = new Promise<void>((resolve) => (release = resolve))
-        const patch = http.patch.getMockImplementation()
-        http.patch.mockImplementation(async (...args: unknown[]) => {
-            await gate
-            return patch?.(...(args as [string, {run: Record<string, unknown>}]))
-        })
-        await mount()
-        await openEditor()
-        await typeInto(NAME, "Capitals v2")
-        const save = buttonNamed("Save") as HTMLButtonElement
-        await act(async () => {
-            save.click()
-            save.click()
-        })
-        await act(async () => save.click())
-        expect(http.patch).toHaveBeenCalledTimes(1)
-        release()
-        await flush()
-        expect(http.patch).toHaveBeenCalledTimes(1)
-    })
-
-    it("A failed save shows Failed to update evaluation run and keeps the typed values", async () => {
-        serveRun()
-        http.patch.mockRejectedValue(new Error("Request failed with status code 500"))
-        const logged = vi.spyOn(console, "error").mockImplementation(() => undefined)
-        await mount()
-        await openEditor()
-        await typeInto(NAME, "Capitals v2")
-        await typeInto(DESCRIPTION, "Second pass")
-        await act(async () => buttonNamed("Save")?.click())
-        await flush()
-
-        expect(toast.error).toHaveBeenCalledWith("Failed to update evaluation run")
-        expect(toast.success).not.toHaveBeenCalled()
-        // No raw error text reaches the reader.
-        expect(host.textContent).not.toContain("status code 500")
-        expect(host.querySelector<HTMLInputElement>(NAME)?.value).toBe("Capitals v2")
-        expect(host.querySelector<HTMLTextAreaElement>(DESCRIPTION)?.value).toBe("Second pass")
-        logged.mockRestore()
-    })
-
-    it("Cancel restores the saved name and description", async () => {
-        serveRun()
-        await mount()
-        await openEditor()
-        await typeInto(NAME, "Something else")
-        await act(async () => buttonNamed("Cancel")?.click())
-        expect(host.querySelector(NAME)).toBeNull()
-        expect(host.textContent).toContain("Capitals check")
-        await openEditor()
-        expect(host.querySelector<HTMLInputElement>(NAME)?.value).toBe("Capitals check")
-        expect(http.patch).not.toHaveBeenCalled()
-    })
-
-    it("Save stays disabled until the run has refreshed, so a slow refresh allows no second PATCH", async () => {
-        serveRun()
-        await mount()
-        await openEditor()
-        await typeInto(NAME, "Capitals v2")
-        // From now on the run read is slow: the refresh after the save waits on the gate.
-        let release: () => void = () => undefined
-        const gate = new Promise<void>((resolve) => (release = resolve))
-        const query = http.post.getMockImplementation()
-        http.post.mockImplementation(async (...args: [string, ...unknown[]]) => {
-            if (String(args[0]).endsWith("/evaluations/runs/query")) await gate
-            return query?.(...args)
-        })
-        await act(async () => buttonNamed("Save")?.click())
-        await act(async () => new Promise((resolve) => setTimeout(resolve, 200)))
-        expect(http.patch).toHaveBeenCalledTimes(1)
-        const save = buttonNamed("Save") as HTMLButtonElement | undefined
-        await act(async () => save?.click())
-        expect(http.patch).toHaveBeenCalledTimes(1)
-        release()
-        await flush()
-        expect(host.querySelector(NAME)).toBeNull()
-    })
-
-    it("A closed run has no Edit button", async () => {
-        serveRun({flags: {is_live: false, is_active: false, is_closed: true}})
-        await mount()
-        expect(host.textContent).toContain("Capitals check")
-        expect(buttonNamed("Edit")).toBeUndefined()
-    })
-
-    it("A reader without edit rights sees no Edit button", async () => {
-        permission.allowed = false
+    it("The card has no Edit button, even for a reader who may edit evaluation runs", async () => {
+        permission.allowed = true
         serveRun()
         await mount()
         expect(host.textContent).toContain("Capitals check")
         expect(buttonNamed("Edit")).toBeUndefined()
+        expect(host.querySelector('input[placeholder="Run name"]')).toBeNull()
     })
 
     it("Opening the Configuration tab sends no write request", async () => {

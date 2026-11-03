@@ -39,7 +39,7 @@ export const ConfigurationTab = ({
     return (
         <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-[264px_minmax(0,1fr)]">
             <div className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-4 lg:self-start">
-                <RunSummaryCard projectId={projectId} runId={runId} header={header} />
+                <RunSummaryCard runId={runId} header={header} />
                 <ConfigSectionNav items={nav} />
             </div>
             <div className="flex min-w-0 flex-col gap-4">

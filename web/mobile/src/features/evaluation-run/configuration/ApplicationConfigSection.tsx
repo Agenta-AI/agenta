@@ -80,6 +80,9 @@ export const ApplicationConfigSection = ({application}: {application: Applicatio
                         </Button>
                     )}
                     <ConfigJsonDisclosure
+                        // defaultOpen is read once, so a custom workflow found after the first
+                        // render needs a fresh disclosure to start open.
+                        key={customWithoutSchema ? "open" : "closed"}
                         value={application.snapshot}
                         defaultOpen={customWithoutSchema}
                     />

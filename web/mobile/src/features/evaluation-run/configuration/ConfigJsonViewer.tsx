@@ -12,6 +12,7 @@ export const ConfigJsonViewer = ({id, value}: {id: string; value: unknown}) => {
             id={id}
             initialValue={text}
             showToolbar={false}
+            disabled
             codeOnly
             language="json"
         >
@@ -20,6 +21,8 @@ export const ConfigJsonViewer = ({id, value}: {id: string; value: unknown}) => {
                 initialValue={text}
                 editorType="border"
                 state="readOnly"
+                // `state` only styles the editor. `disabled` turns editing off.
+                disabled
                 disableDebounce
                 noProvider
                 editorProps={{codeOnly: true, language: "json", showLineNumbers: true}}

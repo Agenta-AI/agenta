@@ -39,8 +39,19 @@ vi.mock("@agenta/entities/testset", async () => {
             ),
             atoms: {
                 enableWithTestcases: makeAtom(null, () => undefined),
+                withTestcasesQueryResult: once((id) =>
+                    makeAtom({
+                        data: null,
+                        isPending: id === "rev-slow",
+                        isError: id === "rev-error",
+                    }),
+                ),
                 testcaseColumns: once((id) =>
-                    makeAtom(id === "rev-empty" ? [] : ["country", "capital"]),
+                    makeAtom(
+                        id === "rev-empty" || id === "rev-slow" || id === "rev-error"
+                            ? []
+                            : ["country", "capital"],
+                    ),
                 ),
             },
         },
@@ -61,14 +72,13 @@ import type {ApplicationConfig} from "@/features/evaluation-run/configuration/us
 let host: HTMLDivElement
 let root: Root
 
+const store = createStore()
+let client = new QueryClient()
+
 async function render(node: ReturnType<typeof createElement>) {
     await act(async () => {
         root.render(
-            createElement(
-                Provider,
-                {store: createStore()},
-                createElement(QueryClientProvider, {client: new QueryClient()}, node),
-            ),
+            createElement(Provider, {store}, createElement(QueryClientProvider, {client}, node)),
         )
     })
     await act(async () => new Promise((resolve) => setTimeout(resolve, 50)))
@@ -91,6 +101,7 @@ beforeEach(() => {
     root = createRoot(host)
     router.query = {workspace_id: "ws", project_id: "pr", evaluation_id: "run-1"}
     router.replace.mockReset()
+    client = new QueryClient()
 })
 
 afterEach(() => {
@@ -125,6 +136,38 @@ describe("test set section", () => {
         )
         expect(host.textContent).toContain("No column metadata.")
         expect(host.textContent).not.toContain("Description")
+    })
+
+    it("A slow test case read shows a loading state, not No column metadata", async () => {
+        await render(
+            createElement(TestsetConfigSection, {
+                projectId: "pr",
+                testsets: [{testsetId: "ts-2", revisionId: "rev-slow"}],
+            }),
+        )
+        expect(host.textContent).not.toContain("No column metadata.")
+        expect(
+            host.querySelector('[aria-busy="true"], [data-slot="skeleton"], .animate-pulse'),
+        ).not.toBeNull()
+    })
+
+    it("A failed test case read says so and Try again reads it again", async () => {
+        const invalidate = vi.spyOn(client, "invalidateQueries")
+        await render(
+            createElement(TestsetConfigSection, {
+                projectId: "pr",
+                testsets: [{testsetId: "ts-2", revisionId: "rev-error"}],
+            }),
+        )
+        expect(host.textContent).not.toContain("No column metadata.")
+        expect(host.textContent).toContain("Could not load the columns.")
+        const retry = [...host.querySelectorAll("button")].find(
+            (button) => button.textContent === "Try again",
+        )
+        await act(async () => retry?.click())
+        expect(invalidate).toHaveBeenCalledWith({
+            queryKey: ["revision-with-testcases", "pr", "rev-error"],
+        })
     })
 
     it("A run without a test set shows no Test set section", async () => {
@@ -198,6 +241,22 @@ describe("application section", () => {
         expect(
             [...host.querySelectorAll("button")].map((button) => button.textContent),
         ).not.toContain("Open variant")
+    })
+
+    it("A custom workflow opens its JSON when the data arrives after a cold load", async () => {
+        await render(
+            createElement(ApplicationConfigSection, {
+                application: {...APPLICATION, snapshot: null, customWithoutSchema: false},
+            }),
+        )
+        expect(host.querySelector('[data-testid="json"]')).toBeNull()
+        await render(
+            createElement(ApplicationConfigSection, {
+                application: {...APPLICATION, customWithoutSchema: true},
+            }),
+        )
+        await act(async () => new Promise((resolve) => setTimeout(resolve, 50)))
+        expect(host.querySelector('[data-testid="json"]')).not.toBeNull()
     })
 
     it("A missing app says the metadata is unavailable", async () => {
