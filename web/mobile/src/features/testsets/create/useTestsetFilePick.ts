@@ -11,7 +11,8 @@ export interface TestsetFilePick {
     rows: Record<string, unknown>[]
     /** Why the last file was refused. */
     error: string | null
-    pick: (file: File) => Promise<void>
+    /** Resolves true when this file was accepted and no later pick replaced it. */
+    pick: (file: File) => Promise<boolean>
     remove: () => void
 }
 
@@ -26,15 +27,16 @@ export function useTestsetFilePick(): TestsetFilePick {
     // A later pick or a remove makes an earlier, slower check stale.
     const latest = useRef(0)
 
-    const pick = useCallback(async (file: File) => {
+    const pick = useCallback(async (file: File): Promise<boolean> => {
         const ticket = ++latest.current
         const check = await checkTestsetFile(file)
-        if (ticket !== latest.current) return
+        if (ticket !== latest.current) return false
         setState(
             check.ok
                 ? {file, fileType: check.fileType, rows: check.rows, error: null}
                 : {file: null, fileType: null, rows: [], error: check.message},
         )
+        return check.ok
     }, [])
 
     const remove = useCallback(() => {

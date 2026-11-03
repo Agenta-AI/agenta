@@ -1,4 +1,4 @@
-import {useState} from "react"
+import {useEffect, useState} from "react"
 
 import {Button, DialogFooter, Input} from "@agenta/ui/ui"
 import {Code, PencilSimple} from "@phosphor-icons/react"
@@ -40,12 +40,15 @@ export const UploadTestsetStep = ({
     projectId,
     base,
     onClose,
+    onPendingChange,
     onScratch,
     onApi,
 }: {
     projectId: string
     base: string
     onClose: () => void
+    /** Tells the dialog a save is running, so it stays open until the save ends. */
+    onPendingChange: (pending: boolean) => void
     onScratch: () => void
     onApi: () => void
 }) => {
@@ -53,10 +56,11 @@ export const UploadTestsetStep = ({
     const [name, setName] = useState("")
     const {upload, pending, error} = useUploadTestset({projectId, base, onDone: onClose})
 
+    useEffect(() => onPendingChange(pending), [onPendingChange, pending])
+
     const onFile = async (file: File) => {
-        await picked.pick(file)
-        // Prefill only an empty name, so a name the reader typed stays.
-        setName((current) => current || fileBaseName(file.name))
+        // Prefill only from an accepted file, and only an empty name, so a typed name stays.
+        if (await picked.pick(file)) setName((current) => current || fileBaseName(file.name))
     }
     const onRemove = () => {
         picked.remove()
@@ -81,7 +85,8 @@ export const UploadTestsetStep = ({
                         className="flex flex-col gap-1.5"
                         onSubmit={(event) => {
                             event.preventDefault()
-                            void upload({file, name})
+                            if (picked.fileType)
+                                void upload({file, fileType: picked.fileType, name})
                         }}
                     >
                         <label htmlFor="upload-testset-name" className="text-sm font-medium">

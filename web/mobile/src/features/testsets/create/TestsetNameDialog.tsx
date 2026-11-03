@@ -59,7 +59,8 @@ export const TestsetNameDialog = ({
             initialValue={isClone ? `${testset.name} (copy)` : testset.name}
             placeholder="Enter a name"
             error={error}
-            onClose={onClose}
+            // A save that is running keeps the dialog open, so its result lands where the reader is looking.
+            onClose={() => (pending ? undefined : onClose())}
             onSubmit={(name) => void submit(name)}
         />
     )

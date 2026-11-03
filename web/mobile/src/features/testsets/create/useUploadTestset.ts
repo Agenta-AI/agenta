@@ -6,21 +6,25 @@ import {useQueryClient} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
 import {refreshTestsetLists} from "./refreshTestsetLists"
-import {checkTestsetFile} from "./testsetFileCheck"
 
 export const UPLOAD_FAILED = "Couldn't create the test set from this file"
 
 const malformedMessage = (fileType: TestsetFileType): string =>
     `The file you uploaded is either malformed or is not a valid ${fileType.toUpperCase()} file`
 
-/** The server answers 422 with `csvdata` in the detail when it cannot read the file. */
+/**
+ * The server answers 400 "Failed to read ... file" when it cannot parse the file. An older
+ * path answers 422 with `csvdata` in the detail. Both mean the file is malformed.
+ */
 const isMalformedFile = (error: unknown): boolean => {
     const {statusCode, body} = error as {statusCode?: number; body?: {detail?: unknown}}
-    return statusCode === 422 && JSON.stringify(body?.detail ?? "").includes("csvdata")
+    const detail = JSON.stringify(body?.detail ?? "")
+    if (statusCode === 400) return detail.includes("Failed to read")
+    return statusCode === 422 && detail.includes("csvdata")
 }
 
 /**
- * Create a test set from a file. The file is checked again first. A server refusal turns into
+ * Create a test set from a file that already passed the check. A server refusal turns into
  * plain words for the reader; the server's text goes to the console only.
  */
 export function useUploadTestset({
@@ -38,30 +42,23 @@ export function useUploadTestset({
     const [error, setError] = useState<string | null>(null)
 
     const upload = useCallback(
-        async ({file, name}: {file: File; name: string}) => {
+        async ({file, fileType, name}: {file: File; fileType: TestsetFileType; name: string}) => {
             const testsetName = name.trim()
             if (!testsetName) return
             setPending(true)
             setError(null)
             try {
-                const check = await checkTestsetFile(file)
-                if (!check.ok) {
-                    setError(check.fileType ? malformedMessage(check.fileType) : check.message)
-                    return
-                }
                 let created: Awaited<ReturnType<typeof uploadTestsetFile>>
                 try {
                     created = await uploadTestsetFile({
                         projectId,
                         file,
-                        fileType: check.fileType,
+                        fileType,
                         testsetName,
                     })
                 } catch (cause) {
                     console.error("Creating a test set from a file failed", cause)
-                    setError(
-                        isMalformedFile(cause) ? malformedMessage(check.fileType) : UPLOAD_FAILED,
-                    )
+                    setError(isMalformedFile(cause) ? malformedMessage(fileType) : UPLOAD_FAILED)
                     return
                 }
                 message.success("Test set uploaded successfully")

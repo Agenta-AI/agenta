@@ -194,4 +194,31 @@ describe("Test set name dialog", () => {
         expect(sent).toHaveLength(0)
         expect(onClose).toHaveBeenCalled()
     })
+
+    it("A save that is running keeps the dialog open", async () => {
+        let finish: () => void = () => undefined
+        const gate = new Promise<void>((resolve) => (finish = resolve))
+        stubAxiosHttp(async () => {
+            await gate
+            return {data: {testset: {id: "t-src", name: "Renamed"}}}
+        })
+        mount("rename")
+        await type("Renamed")
+        await act(async () => {
+            button("Rename").click()
+            await settle()
+        })
+        expect(button("Cancel").disabled).toBe(true)
+        await act(async () => {
+            document.dispatchEvent(new KeyboardEvent("keydown", {key: "Escape", bubbles: true}))
+            await settle()
+        })
+        expect(onClose).not.toHaveBeenCalled()
+
+        await act(async () => {
+            finish()
+            await settle()
+        })
+        expect(onClose).toHaveBeenCalledTimes(1)
+    })
 })

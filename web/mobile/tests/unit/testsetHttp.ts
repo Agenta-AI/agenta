@@ -18,7 +18,9 @@ interface Reply {
  * Stand in for the network under the shared axios instance. The package code runs for real, so a
  * test sees exactly what it would send. `reply` answers each request.
  */
-export function stubAxiosHttp(reply: (request: RecordedRequest) => Reply): RecordedRequest[] {
+export function stubAxiosHttp(
+    reply: (request: RecordedRequest) => Reply | Promise<Reply>,
+): RecordedRequest[] {
     const sent: RecordedRequest[] = []
     axios.defaults.adapter = vi.fn(async (config) => {
         const request: RecordedRequest = {
@@ -28,7 +30,7 @@ export function stubAxiosHttp(reply: (request: RecordedRequest) => Reply): Recor
             body: typeof config.data === "string" ? JSON.parse(config.data) : config.data,
         }
         sent.push(request)
-        const {status = 200, data} = reply(request)
+        const {status = 200, data} = await reply(request)
         const response = {data, status, statusText: "", headers: {}, config}
         if (status >= 400) throw Object.assign(new Error(`HTTP ${status}`), {response})
         return response

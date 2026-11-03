@@ -40,6 +40,7 @@ describe("Upload step of the create dialog", () => {
                         projectId="pr"
                         base={BASE}
                         onClose={onClose}
+                        onPendingChange={vi.fn()}
                         onScratch={vi.fn()}
                         onApi={vi.fn()}
                     />
@@ -97,6 +98,13 @@ describe("Upload step of the create dialog", () => {
         expect(nameInput().value).toBe("second")
     })
 
+    it("A refused file does not set the name for the next file", async () => {
+        await choose(new File(["hello"], "notes.txt"))
+        expect(host.querySelector("#upload-testset-name")).toBeNull()
+        await choose(new File(["a,b\n1,2"], "cases.csv"))
+        expect(nameInput().value).toBe("cases")
+    })
+
     it("Create test set is disabled for a name of spaces", async () => {
         await choose(new File(["a,b\n1,2"], "cases.csv"))
         await typeName("   ")
@@ -127,14 +135,22 @@ describe("Upload step of the create dialog", () => {
         expect(onClose).toHaveBeenCalled()
     })
 
-    it("A malformed file error shows the malformed message", async () => {
-        stubFetchHttp(() => ({status: 422, data: {detail: "Unable to parse csvdata"}}))
+    it("A file the server cannot read shows the malformed message", async () => {
+        stubFetchHttp(() => ({status: 400, data: {detail: "Failed to read CSV file: bad row"}}))
         await choose(new File(["a,b\n1,2"], "cases.csv"))
         await press(createButton())
         expect(host.querySelector('[role="alert"]')?.textContent).toBe(
             "The file you uploaded is either malformed or is not a valid CSV file",
         )
+        expect(host.textContent).not.toContain("bad row")
         expect(onClose).not.toHaveBeenCalled()
+    })
+
+    it("A 422 that names csvdata shows the malformed message", async () => {
+        stubFetchHttp(() => ({status: 422, data: {detail: "Unable to parse csvdata"}}))
+        await choose(new File(["a,b\n1,2"], "cases.csv"))
+        await press(createButton())
+        expect(host.querySelector('[role="alert"]')?.textContent).toContain("malformed")
     })
 
     it("Another API error shows Couldn't create the test set from this file", async () => {

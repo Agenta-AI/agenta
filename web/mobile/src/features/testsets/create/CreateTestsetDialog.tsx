@@ -47,10 +47,11 @@ export const CreateTestsetDialog = ({
     onClose: () => void
 }) => {
     const [step, setStep] = useState<Step>("choose")
+    const [saving, setSaving] = useState(false)
     const heading = HEADINGS[step]
 
     return (
-        <Dialog open onOpenChange={(open) => (open ? undefined : onClose())}>
+        <Dialog open onOpenChange={(open) => (open || saving ? undefined : onClose())}>
             <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
                     <div className="flex items-center gap-1">
@@ -76,6 +77,7 @@ export const CreateTestsetDialog = ({
                         projectId={projectId}
                         base={base}
                         onClose={onClose}
+                        onPendingChange={setSaving}
                         onScratch={() => setStep("scratch")}
                         onApi={() => setStep("api")}
                     />
