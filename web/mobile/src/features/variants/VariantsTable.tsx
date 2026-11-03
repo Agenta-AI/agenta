@@ -34,6 +34,7 @@ export const VariantsTable = ({
     latestRevisionId,
     canDeploy,
     canDelete,
+    playgroundHref,
     collapsed,
     onCollapsedChange,
     onOpen,
@@ -46,6 +47,7 @@ export const VariantsTable = ({
     latestRevisionId: string | null
     canDeploy: boolean
     canDelete: boolean
+    playgroundHref: ((row: AppRevisionRow) => string) | null
     collapsed: ReadonlySet<string>
     onCollapsedChange: (next: Set<string>) => void
     onOpen: (row: AppRevisionRow) => void
@@ -82,6 +84,7 @@ export const VariantsTable = ({
                     isLatest={row.revisionId === latestRevisionId}
                     canDeploy={canDeploy}
                     canDelete={canDelete}
+                    playgroundHref={playgroundHref}
                     onOpen={onOpen}
                     onDeploy={onDeploy}
                     onDelete={onDelete}

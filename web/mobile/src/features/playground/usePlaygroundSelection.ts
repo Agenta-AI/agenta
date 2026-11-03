@@ -1,16 +1,32 @@
 import {useCallback, useEffect, useRef} from "react"
 
-import {isLocalDraftId} from "@agenta/entities/shared"
+import {isPlaceholderId} from "@agenta/entities/shared"
 import {workflowDetailQueryAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
-import {playgroundController, playgroundInitializedAtom} from "@agenta/playground"
+import {
+    hasPendingHydrationAtomFamily,
+    playgroundController,
+    playgroundInitializedAtom,
+} from "@agenta/playground"
 import {atom, useAtomValue, useStore} from "jotai"
 import {atomFamily} from "jotai-family"
 import {queryClientAtom} from "jotai-tanstack-query"
 import {useRouter} from "next/router"
 
 import {clearPlayground} from "./clearPlayground"
+import {readLastSelection, writeLastSelection} from "./playgroundLastSelection"
 import {playgroundLatestRevisionIdAtomFamily} from "./playgroundLatestRevision"
-import {parseRevisionIds} from "./playgroundUrl"
+import {
+    hasPendingRestore,
+    isSavedRevisionId,
+    playgroundAddress,
+    restoreSnapshot,
+    snapshotTriggerAtom,
+    syncSnapshotDrafts,
+} from "./playgroundSnapshot"
+import {parseRevisionIds, readSnapshotParam, SNAPSHOT_PARAM} from "./playgroundUrl"
+
+/** How long the address waits after the last edit before it is written. */
+const ADDRESS_WRITE_DELAY_MS = 300
 
 /** How far the app and its selected revisions have loaded. */
 export type PlaygroundLoadStatus = "loading" | "ready" | "error" | "not-found"
@@ -32,12 +48,13 @@ export interface PlaygroundSelection {
 
 /**
  * The selected ids that can stay: ids still loading, ids whose load failed (the screen shows the
- * error), and revisions and local drafts of this app. An id with no data behind it, or one that
- * belongs to another app, goes.
+ * error), revisions and local drafts of this app, and the placeholder of a restored copy until
+ * the copy replaces it. An id with no data behind it, or one that belongs to another app, goes.
  */
 const keptRevisionIdsAtomFamily = atomFamily((appId: string) =>
     atom((get) =>
         get(playgroundController.selectors.entityIds()).filter((id) => {
+            if (isPlaceholderId(id)) return get(hasPendingHydrationAtomFamily(id))
             const query = get(workflowMolecule.selectors.query(id))
             if (query.isPending || query.isError) return true
             const workflowId = query.data?.workflow_id
@@ -49,10 +66,12 @@ const keptRevisionIdsAtomFamily = atomFamily((appId: string) =>
 /**
  * The prompt playground's selection for one app, and its lifecycle.
  *
- * On mount it selects the revisions in `?revisions=` (in order), or the app's latest revision.
- * It writes the selection back to `?revisions=`, drops ids that are not revisions of this app,
- * and on unmount it clears the playground nodes, runs and test set connection: the agent session screen uses the same
- * store, so nothing from here may outlive the route.
+ * On mount it restores the `#pgSnapshot` hash (revisions, drafts, evaluators, test cases), else
+ * selects the revisions in `?revisions=` (in order), else the app's last selection, else its
+ * latest revision. It writes the selection back to `?revisions=` and the work to the hash, drops
+ * ids that are not revisions of this app, and on unmount it clears the playground nodes, runs and
+ * test set connection: the agent session screen uses the same store, so nothing from here may
+ * outlive the route.
  */
 export const usePlaygroundSelection = ({appId}: {appId: string}): PlaygroundSelection => {
     const router = useRouter()
@@ -90,13 +109,29 @@ export const usePlaygroundSelection = ({appId}: {appId: string}): PlaygroundSele
         [store],
     )
 
+    // While a restored test set loads, the address is not written: it would drop the connection.
+    const restoringRef = useRef(false)
+
     useEffect(() => {
         if (!router.isReady || !appUsable) return
         setUpForAppRef.current = appId
-        select(parseRevisionIds(routerRef.current.query.revisions))
+        const stopDrafts = syncSnapshotDrafts(store)
+        const encoded = readSnapshotParam(window.location.hash)
+        const restoring = encoded ? restoreSnapshot(store, encoded) : null
+        if (restoring) {
+            restoringRef.current = true
+            void restoring.finally(() => {
+                restoringRef.current = false
+            })
+        } else {
+            const requested = parseRevisionIds(routerRef.current.query.revisions)
+            select(requested.length > 0 ? requested : readLastSelection(appId))
+        }
         store.set(playgroundInitializedAtom, true)
         return () => {
             setUpForAppRef.current = null
+            restoringRef.current = false
+            stopDrafts()
             clearPlayground(store)
         }
     }, [appId, appUsable, router.isReady, select, store])
@@ -116,20 +151,57 @@ export const usePlaygroundSelection = ({appId}: {appId: string}): PlaygroundSele
         // revision can answer before the app, and nothing else would run it then.
     }, [appId, appUsable, keptIds, latestId, router.isReady, select, store])
 
-    // Write the selection to `?revisions=`. Local drafts stay out until share links exist.
+    // Keep the saved revisions for the next visit.
     useEffect(() => {
-        if (setUpForAppRef.current !== appId) return
-        const saved = store
-            .get(playgroundController.selectors.entityIds())
-            .filter((id) => !isLocalDraftId(id))
-        const {pathname, query} = routerRef.current
-        if (saved.length === 0 || saved.join(",") === query.revisions) return
-        void routerRef.current
-            .replace({pathname, query: {...query, revisions: saved.join(",")}}, undefined, {
-                shallow: true,
-            })
-            .catch(() => undefined)
-    }, [appId, revisionIds, store])
+        if (setUpForAppRef.current !== appId || keptIds.length !== revisionIds.length) return
+        const saved = revisionIds.filter(isSavedRevisionId)
+        if (saved.length > 0) writeLastSelection(appId, saved)
+    }, [appId, keptIds, revisionIds])
+
+    // Write `?revisions=` and the `#pgSnapshot` hash a moment after the last change: each write
+    // re-renders the page. A store subscription, so an edit does not re-render this screen.
+    useEffect(() => {
+        if (!router.isReady || !appUsable) return
+        const write = () => {
+            if (setUpForAppRef.current !== appId || restoringRef.current) return
+            if (hasPendingRestore(store)) return
+            const {revisions, snapshot} = playgroundAddress(store)
+            const {pathname, query} = routerRef.current
+            if (!revisions) return
+            if (
+                revisions === query.revisions &&
+                snapshot === readSnapshotParam(window.location.hash)
+            ) {
+                return
+            }
+            void routerRef.current
+                .replace(
+                    {
+                        pathname,
+                        query: {...query, revisions},
+                        ...(snapshot ? {hash: `${SNAPSHOT_PARAM}=${snapshot}`} : {}),
+                    },
+                    undefined,
+                    {shallow: true, scroll: false},
+                )
+                .catch(() => undefined)
+        }
+        let timer: ReturnType<typeof setTimeout> | undefined
+        const schedule = () => {
+            clearTimeout(timer)
+            timer = setTimeout(write, ADDRESS_WRITE_DELAY_MS)
+        }
+        const unsubscribe = store.sub(snapshotTriggerAtom, schedule)
+        // Another writer of the address (the trace drawer's `?trace=`) drops the hash: put it back.
+        const events = routerRef.current.events
+        events?.on("routeChangeComplete", schedule)
+        schedule()
+        return () => {
+            unsubscribe()
+            events?.off("routeChangeComplete", schedule)
+            clearTimeout(timer)
+        }
+    }, [appId, appUsable, router.isReady, store])
 
     // Only this screen's requests: the app, its latest revision, and the selected revisions.
     const retry = useCallback(() => {

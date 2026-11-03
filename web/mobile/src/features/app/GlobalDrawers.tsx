@@ -40,7 +40,8 @@ registerTraceDrawerSlots()
  */
 export const GlobalDrawers = () => {
     const router = useRouter()
-    bindTraceDrawerSeams(router)
+    const playground = useDeveloperViewEnabled("playground") === true
+    bindTraceDrawerSeams(router, {playground})
     // The split puts a 320px tree beside a content pane of at least 400px, so it stacks below 720px.
     const wide = useMediaQuery("(min-width: 720px)")
     return (
