@@ -527,7 +527,13 @@ function findJinjaTopLevelWord(source: string, word: string): number {
 /** Parse Jinja2 assignment / loop targets. Handles tuples and nested parentheses. */
 function parseJinjaTargets(source: string): string[] {
     let trimmed = source.trim()
-    while (trimmed.startsWith("(") && trimmed.endsWith(")")) {
+    // Strip a pair of parentheses only when it encloses the whole target, so
+    // `(a, b), (c, d)` stays two tuples.
+    while (
+        trimmed.startsWith("(") &&
+        trimmed.endsWith(")") &&
+        splitJinjaTopLevel(trimmed, ",").length === 1
+    ) {
         trimmed = trimmed.slice(1, -1).trim()
     }
 
@@ -560,6 +566,8 @@ interface JinjaScope {
     names: Set<string>
     branches: Set<string>[]
     hasElse: boolean
+    /** For `{% set x | filter %}`: the targets and filter applied at `endset`. */
+    pendingSet?: {targets: string[]; filter: string}
 }
 
 /**
@@ -586,8 +594,6 @@ function extractJinja2Variables(input: string): string[] {
         if (scopes.length > 1 && scopes[scopes.length - 1].block === block) return scopes.pop()
         return undefined
     }
-
-    const blockSetTargets: string[][] = []
 
     const isBound = (path: string): boolean => {
         const root = path.split(".")[0]
@@ -640,7 +646,7 @@ function extractJinja2Variables(input: string): string[] {
             // `{% for %}...{% else %}` the loop target is not bound either.
             const top = scopes[scopes.length - 1]
             if (scopes.length > 1 && (top.block === "if" || top.block === "for")) {
-                top.branches.push(top.names)
+                if (top.block === "if") top.branches.push(top.names)
                 top.names = new Set()
                 if (keyword === "else" && top.block === "if") top.hasElse = true
             }
@@ -683,16 +689,18 @@ function extractJinja2Variables(input: string): string[] {
             const equalsIndex = findJinjaTopLevelChar(rest, "=")
             if (equalsIndex === -1) {
                 // A block assignment can carry a filter: `{% set label | upper %}`.
-                // The target is the part before the filter. Scan from the pipe
-                // so filter arguments still count as inputs.
-                // The body renders before the target is assigned, so the
-                // target binds at `endset`.
+                // The target is the part before the filter. Jinja2 renders the
+                // body, applies the filter in the body's scope, and then binds
+                // the target, so the filter is scanned and the target bound at
+                // `endset`. Scanning from the pipe keeps filter arguments as inputs.
                 const filterIndex = findJinjaTopLevelChar(rest, "|")
-                if (filterIndex !== -1) addExpression(rest.slice(filterIndex))
                 open("set")
-                blockSetTargets.push(
-                    parseJinjaTargets(filterIndex === -1 ? rest : rest.slice(0, filterIndex)),
-                )
+                scopes[scopes.length - 1].pendingSet = {
+                    targets: parseJinjaTargets(
+                        filterIndex === -1 ? rest : rest.slice(0, filterIndex),
+                    ),
+                    filter: filterIndex === -1 ? "" : rest.slice(filterIndex),
+                }
                 continue
             }
             const targets = parseJinjaTargets(rest.slice(0, equalsIndex))
@@ -702,7 +710,12 @@ function extractJinja2Variables(input: string): string[] {
         }
 
         if (keyword === "endset") {
-            if (close("set")) bind(blockSetTargets.pop() ?? [])
+            const top = scopes[scopes.length - 1]
+            if (scopes.length > 1 && top.block === "set" && top.pendingSet) {
+                addExpression(top.pendingSet.filter)
+                scopes.pop()
+                bind(top.pendingSet.targets)
+            }
             continue
         }
 

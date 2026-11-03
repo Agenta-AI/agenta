@@ -568,6 +568,21 @@ describe("extractTemplateVariables — non-mustache regressions", () => {
                     "jinja2",
                 ),
             ).toEqual(["inner"])
+            expect(
+                extractTemplateVariables(
+                    '{% set body | replace("x", replacement) %}{% set replacement = "y" %}x{% endset %}{{ body }}',
+                    "jinja2",
+                ),
+            ).toEqual([])
+        })
+
+        it("binds every name in separate parenthesized tuple targets", () => {
+            expect(
+                extractTemplateVariables(
+                    "{% for (a, b), (c, d) in rows %}{{ a }}{{ b }}{{ c }}{{ d }}{% endfor %}",
+                    "jinja2",
+                ),
+            ).toEqual(["rows"])
         })
 
         it("scopes set targets to the if branch that binds them", () => {
