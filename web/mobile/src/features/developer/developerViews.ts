@@ -83,6 +83,14 @@ export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
         stage: "hidden",
     },
     {
+        id: "evaluations",
+        label: "Evaluations",
+        description: "Evaluation runs and their results.",
+        // The runs list (`/evaluations`) and its rail link come with the runs list work.
+        routes: ["/evaluations", "/evaluations/results/[evaluation_id]"],
+        stage: "hidden",
+    },
+    {
         id: "observability-app-filter",
         label: "Filter by app",
         description:
