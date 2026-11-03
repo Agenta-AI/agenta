@@ -17,7 +17,6 @@ import {
     testcaseIdsAtom,
     newEntityIdsAtom,
     deletedEntityIdsAtom,
-    testcaseDraftAtomFamily,
     testcaseEntityAtomFamily,
     testcaseHasDraftAtomFamily,
     discardAllDraftsAtom,
@@ -298,10 +297,10 @@ export const saveTestsetAtom = atom(
             }
 
             // 2. Collect new testcases (from newEntityIdsAtom)
-            // Note: Draft is already in nested Testcase format (draft.data contains column values)
+            // The entity, not the bare draft: it carries the pending column renames
             const newTestcasesData = newIds
                 .map((id) => {
-                    const draft = get(testcaseDraftAtomFamily(id))
+                    const draft = get(testcaseEntityAtomFamily(id))
                     if (!draft) return null
                     const filteredData: Record<string, unknown> = {}
                     if (draft.data) {
@@ -469,9 +468,10 @@ export const saveNewTestsetAtom = atom(
 
                 // Collect testcase data from new entities
                 // Note: Testcase uses nested format - data fields are in draft.data
+                // The entity, not the bare draft: it carries the pending column renames
                 testcaseData = newIds
                     .map((id) => {
-                        const draft = get(testcaseDraftAtomFamily(id))
+                        const draft = get(testcaseEntityAtomFamily(id))
                         if (!draft?.data) return null
                         // Filter to only include current columns
                         const filteredData: Record<string, unknown> = {}
@@ -543,12 +543,12 @@ export const clearChangesAtom = atom(null, (get, set) => {
         set(clearPendingOpsReducer, revisionId)
     }
 
+    // Discard drafts BEFORE clearing the ids: discardAllDraftsAtom finds drafts through them
+    set(discardAllDraftsAtom)
+
     // Clear new and deleted entity tracking
     set(clearNewEntityIdsAtom)
     set(clearDeletedIdsAtom)
-
-    // Clear all drafts
-    set(discardAllDraftsAtom)
 })
 
 // ============================================================================
