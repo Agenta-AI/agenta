@@ -282,7 +282,8 @@ describe("The evaluator playground", () => {
         await click("Pick app")
 
         expect(JSON.parse(host.querySelector('[data-testid="token-paths"]')!.textContent!)).toEqual(
-            {inputs: ["country"], outputs: ["output"]},
+            // The app declares no outputs: `$.outputs` is the whole output, with no field to offer.
+            {inputs: ["country"], outputs: []},
         )
     })
 

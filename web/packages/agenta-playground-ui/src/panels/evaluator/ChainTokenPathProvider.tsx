@@ -92,7 +92,12 @@ export const ChainTokenPathProvider = ({
                 const merged = [...inputs, ...appInputs.filter((port) => !keys.has(port.key))]
                 return suggest(merged, afterSlot, query, "input")
             }
-            if (slot === "outputs") return suggest(outputs, afterSlot, query, "output")
+            // A fallback port is a placeholder for an app that declares no outputs: the evaluator
+            // then gets the plain output, so `$.outputs.<name>` would not resolve.
+            if (slot === "outputs") {
+                const declared = outputs.filter((port) => !port.isFallback)
+                return suggest(declared, afterSlot, query, "output")
+            }
             return []
         },
         [inputs, appInputs, outputs],
