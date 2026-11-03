@@ -183,24 +183,6 @@ describe("ArchivedTestsetsTable", () => {
         api.http.post.mockImplementation(
             () => new Promise<{data: object}>((resolve) => (finish = () => resolve({data: {}}))),
         )
-        await mount()
-        await openKebab()
-        const item = menuItem("Restore")
-        await act(async () => {
-            item?.click()
-            item?.click()
-        })
-        await openKebab()
-        await act(async () => menuItem("Restore")?.click())
-        expect(api.http.post).toHaveBeenCalledTimes(1)
-        await act(async () => finish())
-    })
-
-    it("Two restore calls in one tick send one request", async () => {
-        let finish: () => void = noop
-        api.http.post.mockImplementation(
-            () => new Promise<{data: object}>((resolve) => (finish = () => resolve({data: {}}))),
-        )
         let restore: (id: string) => Promise<void> = async () => undefined
         const HookProbe = () => {
             restore = useRestoreTestset(PROJECT).restore

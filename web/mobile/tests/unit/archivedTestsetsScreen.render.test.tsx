@@ -8,7 +8,7 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 const noop = vi.hoisted(() => () => undefined)
-const api = vi.hoisted(() => ({page: vi.fn()}))
+const api = vi.hoisted(() => ({page: vi.fn(), canEdit: true}))
 vi.mock("@agenta/entities/testset", async (original) => ({
     ...(await original<object>()),
     queryTestsetsPage: (...args: unknown[]) => api.page(...args),
@@ -30,7 +30,9 @@ vi.mock("@/features/nav/AppShell", () => ({
 }))
 vi.mock("@/features/nav/NavDrawer", () => ({NavDrawer: () => null}))
 vi.mock("@/features/context/useBindProjectContext", () => ({useBindProjectContext: noop}))
-vi.mock("@/features/context/useProjectPermission", () => ({useProjectPermission: () => true}))
+vi.mock("@/features/context/useProjectPermission", () => ({
+    useProjectPermission: () => api.canEdit,
+}))
 vi.mock("@/components/PageTitle", () => ({PageTitle: () => null}))
 
 import {DEVELOPER_VIEWS} from "@/features/developer/developerViews"
@@ -68,6 +70,7 @@ beforeEach(() => {
     store = createStore()
     store.set(activeUserIdAtom, "user-1")
     api.page.mockReset()
+    api.canEdit = true
     window.matchMedia = ((query: string) => ({
         matches: true,
         media: query,
@@ -116,5 +119,24 @@ describe("archived test sets route", () => {
         expect(retry).toBeDefined()
         await act(async () => retry?.click())
         expect(api.page).toHaveBeenCalledTimes(2)
+    })
+
+    it("The page shows Restore only to a reader who may edit test sets", async () => {
+        vi.stubEnv("NEXT_PUBLIC_AGENTA_DEVELOPER_VIEWS", "testsets")
+        api.page.mockResolvedValue({
+            testsets: [{id: "t1", name: "Alpha set", deleted_at: "2026-10-01T00:00:00Z"}],
+            nextCursor: null,
+        })
+        const openMenu = async () => {
+            await act(async () => {
+                host.querySelector('[aria-label="Test set actions"]')?.dispatchEvent(
+                    new MouseEvent("pointerdown", {bubbles: true, cancelable: true, button: 0}),
+                )
+            })
+            return [...document.querySelectorAll('[role="menuitem"]')].map((i) => i.textContent)
+        }
+        api.canEdit = false
+        await mount()
+        expect(await openMenu()).toEqual(["View details"])
     })
 })

@@ -3,10 +3,9 @@ import {keepPreviousData, useQuery} from "@tanstack/react-query"
 
 export const ARCHIVED_TESTSETS_PAGE_SIZE = 50
 
-export const ARCHIVED_TESTSETS_QUERY_KEY = (projectId: string, search: string) =>
+const ARCHIVED_TESTSETS_QUERY_KEY = (projectId: string, search: string) =>
     ["testsets", "archived", projectId, search] as const
 
-/** Stable, so a screen memoising on `testsets` does not recompute on every render without data. */
 const NONE: Testset[] = []
 
 /**
@@ -31,7 +30,6 @@ export const useArchivedTestsets = ({projectId, search}: {projectId: string; sea
                 if (!page.nextCursor || page.nextCursor === cursor) break
                 cursor = page.nextCursor
             }
-            // `filter` gives a copy, so the sort does not reorder the collected array.
             return rows
                 .filter((testset) => testset.deleted_at)
                 .sort((a, b) => (b.deleted_at ?? "").localeCompare(a.deleted_at ?? ""))
