@@ -6,6 +6,7 @@ import {
     TableIcon,
     GitBranchIcon,
     FolderSimpleIcon,
+    ChartDonut,
 } from "@phosphor-icons/react"
 
 /**
@@ -118,6 +119,14 @@ export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
         description: "Show the Prompts page under Developer in the navigation.",
         routes: ["/prompts"],
         nav: {icon: FolderSimpleIcon, section: "developer"},
+        stage: "hidden",
+    },
+    {
+        id: "evaluators",
+        label: "Evaluators",
+        description: "Automatic and human evaluators, with archive and restore.",
+        routes: ["/evaluators", "/evaluators/archived"],
+        nav: {icon: ChartDonut, section: "developer"},
         stage: "hidden",
     },
 ]

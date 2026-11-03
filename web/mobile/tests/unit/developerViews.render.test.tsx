@@ -186,4 +186,19 @@ describe("developer views", () => {
             expect(playgroundScreenLoads.count).toBe(0)
         })
     })
+
+    describe("evaluators view", () => {
+        it("Evaluators routes show not found while the view is hidden", async () => {
+            const actual = await vi.importActual<{DEVELOPER_VIEWS: readonly DeveloperView[]}>(
+                "@/features/developer/developerViews",
+            )
+            const evaluators = actual.DEVELOPER_VIEWS.find((view) => view.id === "evaluators")
+            expect(evaluators).toBeDefined()
+            expect(evaluators!.stage).toBe("hidden")
+            expect(evaluators!.routes).toEqual(["/evaluators", "/evaluators/archived"])
+            expect(
+                isDeveloperViewEnabled(evaluators!, {previewOptedIn: false, forcedIds: new Set()}),
+            ).toBe(false)
+        })
+    })
 })
