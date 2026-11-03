@@ -106,12 +106,9 @@ export const TestsetDetailScreen = ({
         setOpenRowId(id)
     }, [])
 
+    // The import dialog mounts only while open, so each open starts with no file.
     const [importOpen, setImportOpen] = useState(false)
-    const [importLoaded, setImportLoaded] = useState(false)
-    const openImport = useCallback(() => {
-        setImportLoaded(true)
-        setImportOpen(true)
-    }, [])
+    const openImport = useCallback(() => setImportOpen(true), [])
 
     const rows = useAtomValue(testcaseDataController.selectors.rows(editor.tableConfig))
     const columns = useAtomValue(testcaseDataController.selectors.columns(editor.tableConfig))
@@ -197,9 +194,9 @@ export const TestsetDetailScreen = ({
                 </ScreenScaffold>
             </AppShell>
             {archive.modal}
-            {importLoaded && header?.testsetId ? (
+            {importOpen && header?.testsetId ? (
                 <ImportRevisionDialog
-                    open={importOpen}
+                    open
                     projectId={projectId}
                     testsetId={header.testsetId}
                     testsetName={header.testsetName}

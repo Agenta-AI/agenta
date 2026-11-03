@@ -158,9 +158,25 @@ describe("Import a file as a new revision", () => {
         expect(importButton().disabled).toBe(false)
     })
 
-    it("A file column named like a parent covers its nested columns", async () => {
-        await choose(new File(['question,answer,inputs\nq,a,"{""country"": ""FR""}"'], "c.csv"))
+    it("A file with every current column, nested ones included, shows no notice", async () => {
+        await choose(
+            new File(['[{"question": "q", "answer": "a", "inputs": {"country": "FR"}}]'], "c.json"),
+        )
         expect(document.querySelector('[data-testid="import-missing-columns"]')).toBeNull()
+    })
+
+    it("A parent value without the nested column still names the nested column", async () => {
+        await choose(new File(['[{"question": "q", "answer": "a", "inputs": null}]'], "c.json"))
+        expect(document.querySelector('[data-testid="import-missing-columns"]')?.textContent).toBe(
+            "These columns are not in the file and will not be in the new revision: inputs.country",
+        )
+    })
+
+    it("A CSV cell that holds JSON stays one column, as the server keeps it as text", async () => {
+        await choose(new File(['question,answer,inputs\nq,a,"{""country"": ""FR""}"'], "c.csv"))
+        expect(document.querySelector('[data-testid="import-missing-columns"]')?.textContent).toBe(
+            "These columns are not in the file and will not be in the new revision: inputs.country",
+        )
     })
 
     it("A file the server cannot read shows the malformed message", async () => {

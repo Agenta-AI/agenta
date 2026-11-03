@@ -22,8 +22,8 @@ import {useImportRevision} from "./useImportRevision"
  * The dialog uses the drop zone and the file checks of the create dialog, then reads the whole
  * file: a file with no rows is refused, and the current columns the file lacks are named.
  *
- * `currentColumns` are the column keys the grid shows. Closing resets the file; the dialog
- * stays open while the import runs.
+ * `currentColumns` are the column keys the grid shows. The page mounts the dialog only while it
+ * is open, so each open starts with no file. The dialog stays open while the import runs.
  */
 export const ImportRevisionDialog = ({
     open,
@@ -50,7 +50,7 @@ export const ImportRevisionDialog = ({
         projectId,
         testsetId,
         onImported: (revisionId) => {
-            close()
+            onClose()
             if (revisionId) onImported(revisionId)
         },
     })
@@ -66,12 +66,6 @@ export const ImportRevisionDialog = ({
             current = false
         }
     }, [currentColumns, file, fileType])
-
-    function close() {
-        picked.remove()
-        clearError()
-        onClose()
-    }
 
     const onFile = (chosen: File) => {
         // An error belongs to the file that caused it.
@@ -89,7 +83,7 @@ export const ImportRevisionDialog = ({
     const canImport = file !== null && fileType !== null && check?.ok === true && !pending
 
     return (
-        <Dialog open={open} onOpenChange={(next) => (next || pending ? undefined : close())}>
+        <Dialog open={open} onOpenChange={(next) => (next || pending ? undefined : onClose())}>
             <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
                 <DialogHeader>
                     <DialogTitle>Import file as new revision</DialogTitle>
@@ -123,7 +117,7 @@ export const ImportRevisionDialog = ({
                     ) : null}
                 </div>
                 <DialogFooter>
-                    <Button variant="outline" onClick={close} disabled={pending}>
+                    <Button variant="outline" onClick={onClose} disabled={pending}>
                         Cancel
                     </Button>
                     <Button

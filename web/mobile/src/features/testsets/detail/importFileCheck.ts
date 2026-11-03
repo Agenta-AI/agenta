@@ -10,8 +10,9 @@ export const NO_ROWS = "This file has no rows to import."
 
 /**
  * The current columns the file does not hold. The import replaces every row, so these columns
- * are gone in the new revision. A file column that holds an object covers the nested columns
- * under it (`inputs` covers `inputs.country`), as a CSV cell can carry the whole object.
+ * are gone in the new revision. The file columns come from the same extraction as the grid
+ * columns, so a nested value gives the same dotted path on both sides. The server keeps a CSV
+ * cell as text, so a cell that holds JSON gives one column, not its nested paths.
  */
 export const missingColumns = (
     currentColumns: string[],
@@ -20,12 +21,7 @@ export const missingColumns = (
     const fileColumns = new Set(
         extractColumnsFromData(fileRows, {sampleSize: fileRows.length}).map((column) => column.key),
     )
-    const covered = (column: string): boolean => {
-        if (fileColumns.has(column)) return true
-        const dot = column.lastIndexOf(".")
-        return dot > 0 && covered(column.slice(0, dot))
-    }
-    return currentColumns.filter((column) => !covered(column))
+    return currentColumns.filter((column) => !fileColumns.has(column))
 }
 
 /**
