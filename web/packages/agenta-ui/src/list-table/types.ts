@@ -82,6 +82,8 @@ export interface ListTableBaseProps<Row> {
     groupActions?: (group: ListTableGroup<Row>) => ReactNode
     /** Opening a row. Absent ⇒ rows are not clickable and take no focus. */
     onOpenRow?: (row: Row) => void
+    /** With `onOpenRow`: false for a row that does not open (no pointer, no focus). All open by default. */
+    canOpenRow?: (row: Row) => boolean
     /** Wrap the finished row element (a `ContextMenuTrigger asChild`, say). Identity by default. */
     wrapRow?: (row: Row, rowNode: ReactNode) => ReactNode
     /**

@@ -12,6 +12,8 @@ them — styling and import rules here are deliberately different. Design doc:
 
 - **No antd. Ever.** No `antd`, `@ant-design/*`, `@ant-design/x`, and no direct
   Lexical imports (the composer uses `@agenta/ui/rich-chat-input`).
+  No `@agenta/annotation-ui` either (it is built on antd); annotation state and helpers come
+  from `@agenta/annotation`.
   UI comes from the shared shadcn kit in `@agenta/ui/ui`. Chat is built on `@agenta/chat`.
   Icons come from `@phosphor-icons/react` or `lucide-react`.
 - **No app-layer imports.** Never import `@/oss/*`, `@agenta/oss`, or
@@ -86,3 +88,23 @@ specifics), `vercel:shadcn`, `vercel:react-best-practices`.
 - Build: `pnpm build-mobile`
 - Lint / types: `pnpm --filter @agenta/mobile lint` / `pnpm --filter @agenta/mobile types:check`
 - Token bridge: `pnpm --filter @agenta/mobile generate:tokens`
+
+## Speed budget
+
+/m must never get slower. Three things count: the JavaScript users download, the `next dev`
+cold compile time, and the `next build` time. The budget is in `scripts/speed/budget.json`.
+
+- **Size check.** Run `pnpm --filter @agenta/mobile exec next build`, then
+  `pnpm --filter @agenta/mobile speed:check`. It measures the first-load JavaScript (gzip) of
+  every page: the `/_app` shell plus the chunks of the page. It fails when a page is more than
+  3% or 5 KB (the larger value) over its baseline. CI runs it after the image build.
+  Run it before you open a PR that touches a shared page, `_app`, a provider, or a shared package.
+- **Timing check.** `pnpm --filter @agenta/mobile speed:timing`. It runs `next build` and a cold
+  `next dev` three times, and compares the medians with the baseline (15% margin). It takes about
+  15 minutes, is noisy, and runs locally only, never in CI. Run it on the dev box, one heavy command
+  at a time, when a change adds a large dependency or many files to the shared graph.
+- **Raise a budget only with Mahmoud's approval.** First find the cause and fix it: load the heavy
+  part with `next/dynamic`, keep developer views out of `_app` and the providers, and do not import
+  a barrel that pulls a view into a shared page. If he approves, run `speed:check --write`
+  after a fresh build, review the diff of `budget.json`, and say why in the PR body.
+  A new route has no budget until it is added the same way.

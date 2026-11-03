@@ -61,6 +61,16 @@ export {
 // Flag query type (for filtering)
 export type {WorkflowQueryFlags} from "./schema"
 
+// Which evaluators a list shows
+export {
+    isHumanEvaluator,
+    isManagedEvaluator,
+    selectEvaluators,
+    type EvaluatorCategory,
+    type EvaluatorEntry,
+    type EvaluatorListMode,
+} from "./selectEvaluators"
+
 // API parameter types
 export type {
     WorkflowListParams,

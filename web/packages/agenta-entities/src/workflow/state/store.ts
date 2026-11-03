@@ -81,7 +81,14 @@ type QueryClient = import("@tanstack/react-query").QueryClient
 interface WorkflowRevisionRequest {
     projectId: string
     revisionId: string
+    includeArchived?: boolean
 }
+
+/**
+ * Set by a screen that lists archived items (the /m archived evaluators page) so a revision opened
+ * from it resolves even though its workflow is archived. Off everywhere else.
+ */
+export const workflowIncludeArchivedAtom = atom(false)
 
 interface WorkflowLatestRevisionRequest {
     projectId: string
@@ -308,7 +315,8 @@ function findLatestWorkflowRevisionInCache(
 const workflowRevisionBatchFetcher = createBatchFetcher<WorkflowRevisionRequest, Workflow | null>({
     maxBatchSize: 50,
     flushDelay: 10,
-    serializeKey: (req) => `${req.projectId}:${req.revisionId}`,
+    serializeKey: (req) =>
+        `${req.projectId}:${req.revisionId}${req.includeArchived ? ":archived" : ""}`,
     batchFn: async (requests, serializedKeys) => {
         const results = new Map<string, Workflow | null>()
         serializedKeys.forEach((key) => results.set(key, null))
@@ -323,7 +331,9 @@ const workflowRevisionBatchFetcher = createBatchFetcher<WorkflowRevisionRequest,
         const revisionIds = [...new Set(requests.map((req) => req.revisionId).filter(Boolean))]
         if (revisionIds.length === 0) return results
 
-        const revisionMap = await fetchWorkflowRevisionsByIdsBatch(projectId, revisionIds)
+        const revisionMap = await fetchWorkflowRevisionsByIdsBatch(projectId, revisionIds, {
+            includeArchived: requests.some((req) => req.includeArchived),
+        })
         requests.forEach((req, index) => {
             results.set(serializedKeys[index], revisionMap.get(req.revisionId) ?? null)
         })
@@ -447,6 +457,8 @@ export interface WorkflowListRef {
     /** The agent's access policy (owner and visibility): the Owner column and the private
      *  marker on the agents roster. */
     access: Workflow["access"]
+    /** The folder the workflow sits in (the Prompts page). */
+    folder_id: string | null
 }
 
 /**
@@ -473,6 +485,7 @@ export function toWorkflowListRef(w: Workflow): WorkflowListRef {
         updated_at: w.updated_at ?? null,
         created_by_id: w.created_by_id ?? null,
         access: w.access ?? null,
+        folder_id: w.folder_id ?? null,
     }
 }
 
@@ -1286,6 +1299,7 @@ export const workflowQueryAtomFamily = atomFamily((revisionId: string) =>
     atomWithQuery<Workflow | null>((get) => {
         const projectId = get(workflowProjectIdAtom)
         const queryClient = get(queryClientAtom)
+        const includeArchived = get(workflowIncludeArchivedAtom)
         const detailCached =
             projectId && revisionId
                 ? findWorkflowRevisionInDetailCache(queryClient, projectId, revisionId)
@@ -1334,7 +1348,9 @@ export const workflowQueryAtomFamily = atomFamily((revisionId: string) =>
                 } catch {
                     // fall through to the direct fetch below
                 }
-                return persistType(await workflowRevisionBatchFetcher({projectId, revisionId}))
+                return persistType(
+                    await workflowRevisionBatchFetcher({projectId, revisionId, includeArchived}),
+                )
             },
             initialData: detailCached ?? undefined,
             // Every result of this query, cache hits and initialData included, passes through here.
@@ -2961,6 +2977,7 @@ export function seedCreatedWorkflowCache(
         created_by_id: revision.created_by_id ?? null,
         // A revision carries no access policy; the list refetch fills it.
         access: revision.access ?? null,
+        folder_id: revision.folder_id ?? null,
     }
 
     store.set(workflowLocalServerDataAtomFamily(revision.id), revision)

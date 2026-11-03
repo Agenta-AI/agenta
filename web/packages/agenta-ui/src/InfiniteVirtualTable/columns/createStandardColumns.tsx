@@ -1,7 +1,6 @@
 import type {ComponentType, ReactNode} from "react"
 
-import {MoreOutlined} from "@ant-design/icons"
-import {Copy, DownloadSimple} from "@phosphor-icons/react"
+import {Copy, DotsThreeVertical, DownloadSimple} from "@phosphor-icons/react"
 
 import {InitialsAvatar} from "../../components/presentational/avatar"
 import {CopyButton} from "../../components/presentational/CopyButton"
@@ -596,7 +595,7 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
                                         size="sm"
                                         aria-label="Actions"
                                     >
-                                        <MoreOutlined />
+                                        <DotsThreeVertical weight="bold" />
                                     </Button>
                                 </DropdownMenuTrigger>
                             </span>

@@ -445,11 +445,6 @@ export const evaluatorConfigsListDataAtom = atom<Workflow[]>((get) => {
         return true
     }) as Workflow[]
 
-    console.log(
-        `[evaluatorConfigsListData] refs=${refs.length}, after filter=${result.length}`,
-        `flagsMap size=${revisionFlagsMap.size}`,
-    )
-
     return result
 })
 

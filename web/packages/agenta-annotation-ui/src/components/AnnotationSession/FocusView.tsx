@@ -17,7 +17,7 @@ import {Button, Skeleton, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigation} from "../../context/AnnotationUIContext"
-import {useAnnotationKeyboardShortcuts} from "../../hooks/useAnnotationKeyboardShortcuts"
+import {useAnnotationKeyboardShortcuts} from "../../state/useAnnotationKeyboardShortcuts"
 import ScenarioContent from "../ScenarioContent"
 
 import AnnotationPanel from "./AnnotationPanel"

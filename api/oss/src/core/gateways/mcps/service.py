@@ -85,7 +85,6 @@ from oss.src.core.gateways.policy.dtos import (
     ResolvedSecret,
     SecretOwner,
     SecretOwnerKind,
-    SecretMode,
     GatewayOutcome,
     GatewayPlane,
     GatewayTarget,
@@ -592,7 +591,6 @@ class MCPGatewayService:
         secret = await self.resolver.resolve(
             scope=scope,
             ref=BoundSecretRef(secret_id=secret_id),
-            mode=SecretMode.PROJECT_ONLY,
         )
         return api_key_value(secret.secret.data)
 
@@ -1204,9 +1202,7 @@ class MCPGatewayService:
             name=target.name,
         )
         try:
-            secret = await self.resolver.resolve(
-                scope=scope, ref=sign_in_ref, mode=SecretMode.USER_REQUIRED
-            )
+            secret = await self.resolver.resolve(scope=scope, ref=sign_in_ref)
         except SecretNotFoundError as e:
             # Deleted since the run started (a sign-out, or the server changed mode).
             raise MCPSignInMissingError(
@@ -1261,7 +1257,6 @@ class MCPGatewayService:
             secret = await self.resolver.resolve(
                 scope=scope,
                 ref=ProviderKeyRef(provider_key=target.name),
-                mode=SecretMode.PROJECT_ONLY,
             )
             return MCPDirectAuth(secret=secret)
         if endpoint.auth_mode == MCPAuthScheme.NONE:
@@ -1297,7 +1292,6 @@ class MCPGatewayService:
                     scope=scope,
                     ref=BoundSecretRef(secret_id=endpoint.secret_id),
                     # one consent per server (out-of-scope.md)
-                    mode=SecretMode.PROJECT_ONLY,
                 )
             except SecretNotFoundError as e:
                 # The row names a grant the vault no longer holds. Reachable only if a
@@ -1320,12 +1314,10 @@ class MCPGatewayService:
                         integration=target.integration,
                         name=target.name,
                     ),
-                    mode=SecretMode.PROJECT_ONLY,
                 )
             secret = await self.resolver.resolve(
                 scope=scope,
                 ref=BoundSecretRef(secret_id=endpoint.secret_id),
-                mode=SecretMode.PROJECT_ONLY,
             )
             return MCPDirectAuth(secret=secret)
 
@@ -1418,7 +1410,6 @@ class MCPGatewayService:
         return await self.resolver.resolve(
             scope=scope,
             ref=sign_in_ref or BoundSecretRef(secret_id=endpoint.secret_id),  # type: ignore[arg-type]
-            mode=SecretMode.USER_REQUIRED if for_person else SecretMode.PROJECT_ONLY,
         )
 
     @staticmethod
@@ -1467,7 +1458,6 @@ class MCPGatewayService:
             current = await self.resolver.resolve(
                 scope=scope,
                 ref=BoundSecretRef(secret_id=endpoint.secret_id),
-                mode=SecretMode.PROJECT_ONLY,
             )
         except (SecretNotFoundError, SecretInvalidError):
             return True

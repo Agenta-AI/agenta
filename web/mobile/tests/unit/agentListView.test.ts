@@ -7,6 +7,7 @@ import {
     isDefaultAgentFilters,
     isDefaultAgentListView,
     lastActiveLabel,
+    toAgentListRow,
     type AgentListRow,
     type AgentListView,
 } from "../../src/features/agents/agentListView"
@@ -35,6 +36,7 @@ const row = (
     ownerName,
     ownerId,
     isPrivate: false,
+    archived: false,
     waiting,
 })
 
@@ -122,5 +124,21 @@ describe("deriveAgentList — grouping", () => {
 describe("lastActiveLabel", () => {
     it("reads as an em dash when an agent has no timestamp", () => {
         expect(lastActiveLabel(null)).toBe("—")
+    })
+})
+
+describe("toAgentListRow archived", () => {
+    const context = {currentUserId: "u1", ownerNames: new Map<string, string>(), waiting: 0}
+    const workflow = (patch: Record<string, unknown>) =>
+        ({id: "wf-1", name: "Support", ...patch}) as Parameters<typeof toAgentListRow>[0]
+
+    it("An archived workflow becomes an archived row", () => {
+        const archived = toAgentListRow(workflow({deleted_at: "2026-10-01T00:00:00Z"}), context)
+        expect(archived.archived).toBe(true)
+    })
+
+    it("A live workflow is not archived", () => {
+        expect(toAgentListRow(workflow({deleted_at: null}), context).archived).toBe(false)
+        expect(toAgentListRow(workflow({}), context).archived).toBe(false)
     })
 })
