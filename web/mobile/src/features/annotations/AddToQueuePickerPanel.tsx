@@ -1,4 +1,5 @@
-import {SearchInput} from "@agenta/ui/ui"
+import {Button, SearchInput} from "@agenta/ui/ui"
+import {Plus} from "lucide-react"
 
 import {AddToQueuePickerEmpty} from "./states/AddToQueuePickerEmpty"
 import {AddToQueuePickerError} from "./states/AddToQueuePickerError"
@@ -21,6 +22,8 @@ export interface AddToQueuePickerPanelProps {
     emptyMessage: string
     onSelect: (queueId: string) => void
     onRetry: () => void
+    /** Opens the create sheet. The button shows only when this is set. */
+    onNew?: () => void
 }
 
 /** The picker body: a search box over a list of queues. Data and writes live in the caller. */
@@ -33,10 +36,19 @@ export const AddToQueuePickerPanel = ({
     emptyMessage,
     onSelect,
     onRetry,
+    onNew,
 }: AddToQueuePickerPanelProps) => (
     <div className="flex flex-col">
         <div className="flex flex-col gap-2 p-3">
-            <p className="m-0 text-sm font-medium">Select annotation queue</p>
+            <div className="flex items-center justify-between gap-2">
+                <p className="m-0 text-sm font-medium">Select annotation queue</p>
+                {onNew ? (
+                    <Button type="button" size="sm" onClick={onNew}>
+                        <Plus aria-hidden />
+                        New
+                    </Button>
+                ) : null}
+            </div>
             <SearchInput
                 placeholder="Search queues..."
                 value={search}

@@ -1,12 +1,27 @@
 import {MediaViewerHost} from "@agenta/entity-ui/drive"
 import {TraceDrawer} from "@agenta/observability-ui/traceDrawer"
 import {useMediaQuery} from "@agenta/ui/hooks"
+import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
+import {useDeveloperViewEnabled} from "@/features/developer/developerViewAccess"
 import {FeatureGuideDialog} from "@/features/education/FeatureGuideDialog"
 import {WhatsNewDialog} from "@/features/education/WhatsNewDialog"
 import {bindTraceDrawerSeams} from "@/features/observability/bindTraceDrawerSeams"
 import {registerTraceDrawerSlots} from "@/features/observability/registerTraceDrawerSlots"
+
+// The create-queue sheet host mounts once for every entry point (queue list, trace drawer picker,
+// observability toolbar). The sheet inside loads on first open.
+const CreateQueueSheetHost = dynamic(
+    () => import("@/features/annotations/CreateQueueSheetHost").then((m) => m.CreateQueueSheetHost),
+    {ssr: false},
+)
+
+// The shell imports no queue code: the host chunk is requested only when the view is enabled.
+const QueueSheetGate = () => {
+    const enabled = useDeveloperViewEnabled("annotation-queues")
+    return enabled ? <CreateQueueSheetHost /> : null
+}
 
 // Registered when this module loads, not while rendering: `Component` renders before this
 // component in `_app`, and a screen that read the slots first would get the antd defaults.
@@ -35,6 +50,7 @@ export const GlobalDrawers = () => {
             <FeatureGuideDialog />
             <WhatsNewDialog />
             <MediaViewerHost />
+            <QueueSheetGate />
         </>
     )
 }

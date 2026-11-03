@@ -1,7 +1,17 @@
 import {useCallback, useState} from "react"
 
+import {
+    createQueueDrawerDefaultKindAtom,
+    createQueueDrawerOpenAtom,
+    createQueueDrawerSelectionAtom,
+} from "@agenta/annotation"
 import type {AddToQueuePopoverSlotProps} from "@agenta/observability-ui/traceDrawer"
 import {Popover, PopoverAnchor, PopoverContent} from "@agenta/ui/ui"
+import {useSetAtom} from "jotai"
+import {useRouter} from "next/router"
+
+import {useProjectPermission} from "@/features/context/useProjectPermission"
+import {useDeveloperViewEnabled} from "@/features/developer/developerViewAccess"
 
 import {AddToQueuePickerPanel} from "./AddToQueuePickerPanel"
 import {useAddToQueuePicker} from "./useAddToQueuePicker"
@@ -13,6 +23,24 @@ const PickerBody = ({
     onClose: () => void
 }) => {
     const picker = useAddToQueuePicker({...args, onClose})
+    const setKind = useSetAtom(createQueueDrawerDefaultKindAtom)
+    const setSelection = useSetAtom(createQueueDrawerSelectionAtom)
+    const setSheetOpen = useSetAtom(createQueueDrawerOpenAtom)
+    const projectId = useRouter().query.project_id
+    const canEdit = useProjectPermission(
+        typeof projectId === "string" ? projectId : "",
+        "edit_evaluation_queues",
+    )
+    // The sheet host mounts only while the view is enabled, so "New" shows only then. Creating
+    // a queue also needs the edit right.
+    const createEnabled = useDeveloperViewEnabled("annotation-queues") === true && canEdit
+    // The sheet host is mounted once in the app shell, so it outlives this popover content.
+    const openCreate = () => {
+        setKind(args.itemType)
+        setSelection(args.itemIds?.length ? {itemType: args.itemType, itemIds: args.itemIds} : null)
+        onClose()
+        setSheetOpen(true)
+    }
     return (
         <AddToQueuePickerPanel
             queues={picker.rows}
@@ -23,6 +51,7 @@ const PickerBody = ({
             emptyMessage={picker.emptyMessage}
             onSelect={(id) => void picker.select(id)}
             onRetry={picker.retry}
+            onNew={createEnabled ? openCreate : undefined}
         />
     )
 }

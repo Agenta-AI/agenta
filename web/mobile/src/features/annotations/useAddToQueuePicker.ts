@@ -11,6 +11,7 @@ import {message} from "@agenta/ui/app-message"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import type {PickerQueue} from "./AddToQueuePickerPanel"
+import {useQueueLink} from "./useQueueLink"
 
 type HookArgs = Pick<
     AddToQueuePopoverSlotProps,
@@ -27,6 +28,7 @@ export const useAddToQueuePicker = ({
     onQueueSelected,
     onClose,
 }: HookArgs) => {
+    const queueLink = useQueueLink()
     const queues = useAtomValue(simpleQueuesListDataAtom)
     const listQuery = useAtomValue(simpleQueuesListQueryAtom)
     const addTraces = useSetAtom(simpleQueueMolecule.actions.addTraces)
@@ -46,7 +48,9 @@ export const useAddToQueuePicker = ({
             visible.map((queue) => ({
                 id: queue.id,
                 name: queue.name || "Untitled",
-                updated: queue.updated_at ? `Updated ${dayjs(queue.updated_at).fromNow()}` : "",
+                updated: queue.updated_at
+                    ? `Updated ${dayjs(queue.updated_at).fromNow()}`
+                    : "Updated \u2014",
             })),
         [visible],
     )
@@ -77,15 +81,17 @@ export const useAddToQueuePicker = ({
                         : await addTestcases(queueId, itemIds)
                 if (added) {
                     const label = `${ITEM_LABEL[itemType]}${itemIds.length > 1 ? "s" : ""}`
-                    message.success(
-                        `Added ${itemIds.length} ${label} to "${queue.name || "Untitled"}".`,
-                    )
+                    message.success({
+                        content: `Added ${itemIds.length} ${label} to "${queue.name || "Untitled"}".`,
+                        ...queueLink(queueId, "View queue"),
+                        duration: 5,
+                    })
                     onItemsAdded?.()
                     onClose()
                 }
             } catch (error) {
                 console.error("Adding items to a queue failed", error)
-                message.error("Couldn't add to this queue")
+                message.error("Couldn't add to the queue")
             } finally {
                 setSubmittingId(null)
             }
@@ -99,6 +105,7 @@ export const useAddToQueuePicker = ({
             addTraces,
             addTestcases,
             onItemsAdded,
+            queueLink,
         ],
     )
 
