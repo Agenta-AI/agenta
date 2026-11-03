@@ -179,8 +179,17 @@ async function serve() {
   async function route(req, res) {
     if (!authorized(req)) return reply(res, 401, { ok: false });
     const url = new URL(req.url, "http://browser");
-    if (req.method === "GET" && url.pathname === "/health")
-      return session.connected() ? reply(res, 200, { ok: true }) : reply(res, 503, { ok: false });
+    if (req.method === "GET" && url.pathname === "/health") {
+      if (!session.connected()) return reply(res, 503, { ok: false });
+      // The app shows this without opening the live view: the page, and the agent's ask.
+      const page = session.activePage && !session.activePage.isClosed() ? session.activePage : null;
+      return reply(res, 200, {
+        ok: true,
+        waiting: waits.reason(),
+        url: page ? page.url() : "",
+        title: page ? await page.title().catch(() => "") : "",
+      });
+    }
     if (req.method !== "POST") return reply(res, 404, { ok: false });
     if (!isLoopback(req.socket.remoteAddress)) return reply(res, 403, { ok: false });
     const body = await readJson(req);

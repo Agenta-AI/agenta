@@ -35,8 +35,8 @@ and its number; run `tab <number>` to use it.
 Never ask for a password and never type one. The browser refuses to type into a password or
 one-time-code field. When a site needs a sign-in, a 2FA code or a
 CAPTCHA, run `wait` with a short reason, for example
-`wait "Please sign in to example.com, then click I'm done."`. Tell the person to click
-**Watch browser** at the top of the chat.
+`wait "Please sign in to example.com, then click I'm done."`. The chat shows your reason
+with an **Open browser** button; tell the person to click it.
 
 `wait` returns within about 90 seconds. If it prints `Still waiting`, the person has not
 finished yet: run the same `wait` command again, with the same reason. When the person clicks
