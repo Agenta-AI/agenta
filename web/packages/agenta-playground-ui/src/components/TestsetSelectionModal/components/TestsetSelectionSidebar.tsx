@@ -46,7 +46,9 @@ export function TestsetSelectionSidebar({
 }: TestsetSelectionSidebarProps) {
     return (
         <div
-            className={`flex flex-col justify-between overflow-auto`}
+            // The padding keeps the search input's 3px focus ring inside this scroll box, which
+            // would clip it otherwise.
+            className="box-border flex flex-col justify-between overflow-auto p-[3px]"
             style={{
                 width: layoutSizes.sidebarWide,
                 flexShrink: 0,
