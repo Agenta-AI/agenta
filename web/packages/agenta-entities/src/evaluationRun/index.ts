@@ -83,13 +83,51 @@ export {
     type EvaluationRunDetailParams,
     type EvaluationRunQueryParams,
     type EvaluationResultsQueryParams,
+    // Run kind, status rules and the human run builder
+    deriveEvaluationKind,
+    EVALUATION_KIND_LABELS,
+    humanizeRunStatus,
+    isRunInProgress,
+    isTerminalRunStatus,
+    runStatusTone,
+    type EvaluationRunKind,
+    type RunKindInput,
+    type RunStatusTone,
+    buildHumanRunConfig,
+    evaluatorOutputKeys,
+    type BuildHumanRunConfigInput,
+    type HumanRunApp,
+    type HumanRunEvaluator,
+    type HumanRunSpec,
+    type HumanRunTestset,
 } from "./core"
 
 // ============================================================================
 // API
 // ============================================================================
 
-export {fetchEvaluationRun, queryEvaluationRuns, queryEvaluationResults} from "./api"
+export {
+    fetchEvaluationRun,
+    queryEvaluationRuns,
+    queryEvaluationResults,
+    queryEvaluationRunsPage,
+    evaluationRunsListQueryKey,
+    seedEvaluationRunCache,
+    deleteEvaluationRuns,
+    startOnlineEvaluation,
+    stopOnlineEvaluation,
+    createAutoEvaluationRuns,
+    createHumanEvaluationRun,
+    fetchAllTestcaseIds,
+    DEFAULT_EVALUATION_CONCURRENCY,
+    type EvaluationRunsPageParams,
+    type EvaluationRunsPage,
+    type EvaluationRunsListKeyParams,
+    type EvaluationRunActionParams,
+    type EvaluationConcurrency,
+    type CreateAutoEvaluationRunsParams,
+    type CreateAutoEvaluationRunsResult,
+} from "./api"
 
 // ============================================================================
 // STATE
