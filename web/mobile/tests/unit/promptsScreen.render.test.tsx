@@ -124,6 +124,17 @@ describe("PromptsScreen", () => {
         expect(rows[1]).toContain("Welcome email")
     })
 
+    it("The type comes from the latest revision: a chat app reads Chat", () => {
+        mount()
+        const [, chat] = bodyRows()
+        expect(chat.textContent).toContain("Welcome email")
+        expect(chat.textContent).toContain("Chat")
+        expect(chat.textContent).not.toContain("Completion")
+        act(() => bodyRows()[0].click())
+        const summary = bodyRows().find((row) => row.textContent?.includes("Summary"))
+        expect(summary?.textContent).toContain("Completion")
+    })
+
     it("Clicking a folder row opens it and the breadcrumb shows it", () => {
         mount()
         act(() => bodyRows()[0].click())
