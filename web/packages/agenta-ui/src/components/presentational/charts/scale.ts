@@ -91,7 +91,10 @@ export function truncate(text: string, maxChars: number): string {
     return `${text.slice(0, maxChars - 1).trimEnd()}…`
 }
 
-/** Word wraps `text` to at most `maxLines` lines of `lineLength` characters; a cut last line ends with "…". */
+/**
+ * Word wraps `text` to at most `maxLines` lines of `lineLength` characters. A cut line, or a word
+ * longer than a line, ends with "…".
+ */
 export function wrapLabel(text: string, lineLength = 18, maxLines = 2): string[] {
     const lines: string[] = []
     let current = ""
@@ -106,8 +109,9 @@ export function wrapLabel(text: string, lineLength = 18, maxLines = 2): string[]
                 lines.push(current)
                 current = ""
             } else {
-                lines.push(rest.slice(0, lineLength))
-                rest = rest.slice(lineLength)
+                // A word longer than a line is cut, not split over two lines.
+                current = truncate(rest, lineLength)
+                rest = ""
             }
         }
     }
@@ -327,12 +331,9 @@ export function nearestIndex(xs: readonly number[], x: number): number {
     return Math.abs(xs[high] - x) < Math.abs(xs[low] - x) ? high : low
 }
 
-/** Up to `count` indexes spread evenly over `length` items, first and last included. */
-export function spreadIndexes(length: number, count: number): number[] {
+/** At most `maxCount` indexes of `length` items, an equal number of items apart, starting at 0. */
+export function tickIndexes(length: number, maxCount: number): number[] {
     if (length <= 0) return []
-    if (length === 1 || count <= 1) return [0]
-    const n = Math.min(length, count)
-    const result = new Set<number>()
-    for (let i = 0; i < n; i += 1) result.add(Math.round((i * (length - 1)) / (n - 1)))
-    return [...result]
+    const step = Math.max(1, Math.ceil((length - 1) / Math.max(1, maxCount - 1)))
+    return Array.from({length: Math.floor((length - 1) / step) + 1}, (_, i) => i * step)
 }

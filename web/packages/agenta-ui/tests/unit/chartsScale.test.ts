@@ -15,7 +15,7 @@ import {
     radarLabelAlign,
     radarPoint,
     radarRadius,
-    spreadIndexes,
+    tickIndexes,
     ticks,
     truncate,
     wrapLabel,
@@ -103,10 +103,8 @@ describe("chart scale math", () => {
             "Context recall",
             "over retrieved pa…",
         ])
-        expect(wrapLabel("Supercalifragilisticexpialidocious")).toEqual([
-            "Supercalifragilist",
-            "icexpialidocious",
-        ])
+        expect(wrapLabel("Supercalifragilisticexpialidocious")).toEqual(["Supercalifragilis…"])
+        expect(wrapLabel("Groundedness score", 10)).toEqual(["Groundedn…", "score"])
     })
 
     it("radar axis 0 points up and axes go clockwise", () => {
@@ -170,11 +168,13 @@ describe("chart scale math", () => {
         ])
     })
 
-    it("finds the nearest x and spreads tick indexes", () => {
+    it("finds the nearest x and spaces tick indexes evenly", () => {
         expect(nearestIndex([0, 10, 20], 14)).toBe(1)
         expect(nearestIndex([0, 10, 20], 16)).toBe(2)
         expect(nearestIndex([], 3)).toBe(-1)
-        expect(spreadIndexes(24, 4)).toEqual([0, 8, 15, 23])
-        expect(spreadIndexes(1, 4)).toEqual([0])
+        expect(tickIndexes(24, 4)).toEqual([0, 8, 16])
+        expect(tickIndexes(12, 10)).toEqual([0, 2, 4, 6, 8, 10])
+        expect(tickIndexes(3, 10)).toEqual([0, 1, 2])
+        expect(tickIndexes(1, 4)).toEqual([0])
     })
 })

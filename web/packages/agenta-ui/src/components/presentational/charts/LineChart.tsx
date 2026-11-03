@@ -18,7 +18,7 @@ import {
     niceDomain,
     polylinePath,
     seriesColor,
-    spreadIndexes,
+    tickIndexes,
     ticks,
     yAxisWidth,
 } from "./scale"
@@ -78,7 +78,7 @@ export function LineChart({
     const xs = points.map((p) => x(p.x))
     const xLabels = points.map((p) => formatX(p.x))
     const labelWidth = Math.max(...xLabels.map((label) => label.length)) * CHAR_WIDTH
-    const xTicks = spreadIndexes(
+    const xTicks = tickIndexes(
         points.length,
         Math.max(2, Math.floor((plotRight - left) / (labelWidth + X_TICK_GAP))),
     )
