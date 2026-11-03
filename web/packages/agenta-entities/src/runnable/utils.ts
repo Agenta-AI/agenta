@@ -302,11 +302,7 @@ export function resolveTemplateFormat(raw: string | null | undefined): TemplateF
     return null
 }
 
-/**
- * Jinja2 words that can appear inside an expression: operators, the inline
- * `if`/`else`, and constants. Statement names such as `include` or `required`
- * are valid variable names inside an expression, so they are not listed.
- */
+/** Jinja2 operators, inline `if`/`else`, and constants. Statement names stay valid variables. */
 const JINJA_KEYWORDS = new Set([
     "and",
     "or",
@@ -355,15 +351,7 @@ function skipJinjaString(source: string, start: number): number {
     return i
 }
 
-/**
- * Collect the root or dotted variable paths an expression reads.
- *
- * Skips strings, numbers, operators, filter names (`name|length`), test names
- * (`value is odd`), and keyword arguments (`attr="x"`). A name that is only
- * checked with `is defined` or `is undefined` is optional, so that use is skipped. Attribute segments
- * stay attached to their root (`user.name` -> `user.name`). A method call on a
- * dotted path contributes its root only (`mapping.items()` -> `mapping`).
- */
+/** Collect the root or dotted variable paths an expression reads, skipping syntax and `is defined` checks. */
 function collectJinjaExpressionPaths(expression: string): string[] {
     const paths: string[] = []
     let i = 0
@@ -389,8 +377,7 @@ function collectJinjaExpressionPaths(expression: string): string[] {
             continue
         }
 
-        // Consume a whole number literal so `1e3`, `0x1F`, and `1_000` do not
-        // leave a name behind.
+        // Consume whole number literals, so `1e3` or `0x1F` add no name.
         if (/[0-9]/.test(char)) {
             while (i < expression.length && /[0-9A-Za-z_.]/.test(expression[i])) i++
             continue
@@ -427,8 +414,7 @@ function collectJinjaExpressionPaths(expression: string): string[] {
             continue
         }
 
-        // An identifier after `.` is an attribute of what comes before it,
-        // including after a subscript: `items[0].name` reads only `items`.
+        // An identifier after `.` is an attribute: `items[0].name` reads only `items`.
         if (previousSignificantChar(start) === ".") {
             afterIs = false
             continue
@@ -456,8 +442,7 @@ function collectJinjaExpressionPaths(expression: string): string[] {
         // A call to a Jinja2 global is not a template input.
         if (expression[nextIndex] === "(" && JINJA_GLOBALS.has(path)) continue
 
-        // `extra is defined` only checks that `extra` exists, so this use does
-        // not make it a required input. The test words are skipped as usual.
+        // `extra is defined` only checks existence, so it does not make `extra` required.
         const test = /^\s*is\s+(?:not\s+)?([A-Za-z_]+)/.exec(expression.slice(i))
         if (test && JINJA_EXISTENCE_TESTS.has(test[1])) continue
 
@@ -467,10 +452,7 @@ function collectJinjaExpressionPaths(expression: string): string[] {
     return paths
 }
 
-/**
- * Walk the characters of `source` that sit at bracket depth zero and outside
- * quoted strings. Returns the first index where `match` returns true, or -1.
- */
+/** Return the first index at bracket depth zero, outside strings, where `match` is true, or -1. */
 function findJinjaTopLevel(source: string, match: (index: number) => boolean): number {
     let depth = 0
     let i = 0
@@ -527,8 +509,7 @@ function findJinjaTopLevelWord(source: string, word: string): number {
 /** Parse Jinja2 assignment / loop targets. Handles tuples and nested parentheses. */
 function parseJinjaTargets(source: string): string[] {
     let trimmed = source.trim()
-    // Strip a pair of parentheses only when it encloses the whole target, so
-    // `(a, b), (c, d)` stays two tuples.
+    // Strip parentheses only when they enclose the whole target; `(a, b), (c, d)` stays two tuples.
     while (
         trimmed.startsWith("(") &&
         trimmed.endsWith(")") &&
@@ -544,8 +525,7 @@ function parseJinjaTargets(source: string): string[] {
         if (JINJA_NAME.test(value)) {
             targets.push(value)
         } else if (value.startsWith("(") && value.endsWith(")")) {
-            // Only nested tuples bind names. Attribute targets (`ns.found`)
-            // and malformed / half-typed text bind nothing.
+            // Only nested tuples bind names; `ns.found` and half-typed text bind nothing.
             targets.push(...parseJinjaTargets(value))
         }
     }
@@ -570,22 +550,11 @@ interface JinjaScope {
     pendingSet?: {targets: string[]; filter: string}
 }
 
-/**
- * Extract the names a Jinja2 template reads, including names used only inside
- * control blocks.
- *
- * Control-block expressions (`if` / `elif`), loop iterables, `set` right-hand
- * sides, and `with` assignments are scanned in source order. Names the
- * template binds itself (loop targets, `set` targets, `with` targets, and the
- * `loop` object) are excluded inside the block that binds them, so `{% for ticket in tickets %}{{ ticket.id }}`
- * yields `tickets`, not `ticket` or `ticket.id`.
- */
+/** Extract the names a Jinja2 template reads, leaving out names the template binds itself. */
 function extractJinja2Variables(input: string): string[] {
     const variables: string[] = []
     const seen = new Set<string>()
-    // One scope per open block. Each `if` branch gets its own scope, so a `set`
-    // inside one branch does not hide a read after the block. A name set in
-    // every branch of an `if` that has an `else` stays bound after `endif`.
+    // One scope per open block; a name set in every `if` branch (with `else`) stays bound after `endif`.
     const scopes: JinjaScope[] = [{block: "", names: new Set(), branches: [], hasElse: false}]
     const open = (block: string, names: string[] = []): void => {
         scopes.push({block, names: new Set(names), branches: [], hasElse: false})
@@ -623,8 +592,7 @@ function extractJinja2Variables(input: string): string[] {
             const expression = trimJinjaContent(match[1])
             // A mustache-style marker here is an authoring error, not a variable.
             if (!expression || /^[#^&/!>.$<=]/.test(expression)) continue
-            // Use the same syntax-aware scan as control blocks so filters,
-            // operators, subscripts, and constants do not become inputs.
+            // Same syntax-aware scan as control blocks.
             addExpression(expression)
             continue
         }
@@ -642,8 +610,7 @@ function extractJinja2Variables(input: string): string[] {
         }
 
         if (keyword === "elif" || keyword === "else") {
-            // A new branch starts with none of the previous branch's names. In
-            // `{% for %}...{% else %}` the loop target is not bound either.
+            // A new branch, including `for`-`else`, starts with no names from the previous branch.
             const top = scopes[scopes.length - 1]
             if (scopes.length > 1 && (top.block === "if" || top.block === "for")) {
                 if (top.block === "if") top.branches.push(top.names)
@@ -688,11 +655,7 @@ function extractJinja2Variables(input: string): string[] {
         if (keyword === "set") {
             const equalsIndex = findJinjaTopLevelChar(rest, "=")
             if (equalsIndex === -1) {
-                // A block assignment can carry a filter: `{% set label | upper %}`.
-                // The target is the part before the filter. Jinja2 renders the
-                // body, applies the filter in the body's scope, and then binds
-                // the target, so the filter is scanned and the target bound at
-                // `endset`. Scanning from the pipe keeps filter arguments as inputs.
+                // Block `set`: Jinja2 renders the body, applies the filter in its scope, then binds the target at `endset`.
                 const filterIndex = findJinjaTopLevelChar(rest, "|")
                 open("set")
                 scopes[scopes.length - 1].pendingSet = {
@@ -720,8 +683,7 @@ function extractJinja2Variables(input: string): string[] {
         }
 
         if (keyword === "with") {
-            // Jinja2 evaluates every right-hand side in the outer context
-            // before it binds the new targets.
+            // Jinja2 evaluates every right-hand side before it binds the targets.
             const assignments = splitJinjaTopLevel(rest, ",")
             const targets: string[] = []
             for (const assignment of assignments) {
@@ -790,9 +752,7 @@ export function extractTemplateVariables(
     }
 
     if (templateFormat === "jinja2") {
-        // Jinja2 reads variables from both {{ ... }} interpolation and the
-        // {% ... %} control blocks. A dedicated scan keeps track of names the
-        // template binds itself, so loop and `set` targets are not inputs.
+        // Jinja2 also reads names in {% ... %} blocks and binds some names itself.
         return extractJinja2Variables(input)
     }
 
