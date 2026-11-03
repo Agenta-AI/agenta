@@ -202,7 +202,15 @@ export async function createHumanEvaluationRun({
                 ...otherSteps.map((step) => ({...base, step_key: step.key})),
             ]
         })
-        await axios.post(`${baseUrl}/evaluations/results/`, {results}, {params})
+        const resultsResponse = await axios.post(
+            `${baseUrl}/evaluations/results/`,
+            {results},
+            {params},
+        )
+        // The API can answer 200 with an empty list when the insert failed on its side.
+        if ((resultsResponse.data?.results ?? []).length !== results.length) {
+            throw new Error("The step results were not saved.")
+        }
     } catch (error) {
         await deleteEvaluationRuns({projectId, runIds: [runId]}).catch(() => undefined)
         throw error

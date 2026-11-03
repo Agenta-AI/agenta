@@ -212,7 +212,7 @@ describe("createHumanEvaluationRun", () => {
 
     const spec = () => specOf()
     const answers = (scenarioCount: number) => {
-        postMock.mockImplementation(async (url: string) => {
+        postMock.mockImplementation(async (url: string, body?: unknown) => {
             if (url.endsWith("/evaluations/runs/")) return {data: {runs: [{id: "run-1"}]}}
             if (url.endsWith("/evaluations/scenarios/")) {
                 return {
@@ -221,7 +221,8 @@ describe("createHumanEvaluationRun", () => {
                     },
                 }
             }
-            return {data: {}}
+            const results = (body as {results?: unknown[]})?.results ?? []
+            return {data: {results}}
         })
     }
 
@@ -277,6 +278,21 @@ describe("createHumanEvaluationRun", () => {
             params: {project_id: "p1"},
             data: {run_ids: ["run-1"]},
         })
+    })
+
+    it("Step results that the API did not save delete the new run and throw", async () => {
+        answers(1)
+        postMock.mockImplementation(async (url: string) => {
+            if (url.endsWith("/evaluations/runs/")) return {data: {runs: [{id: "run-1"}]}}
+            if (url.endsWith("/evaluations/scenarios/")) return {data: {scenarios: [{id: "sc-0"}]}}
+            return {data: {count: 0, results: []}}
+        })
+        deleteMock.mockResolvedValue({})
+
+        await expect(
+            createHumanEvaluationRun({projectId: "p1", spec: spec(), testcaseIds: ["tc-1"]}),
+        ).rejects.toThrow(/not saved/)
+        expect(deleteMock).toHaveBeenCalledTimes(1)
     })
 
     it("A scenario count that does not match deletes the new run and throws", async () => {
