@@ -26,7 +26,11 @@ function setup(serverData: Record<string, unknown>) {
     return {store, id, unsubscribe}
 }
 
-function editData(store: ReturnType<typeof createStore>, id: string, data: Record<string, unknown>) {
+function editData(
+    store: ReturnType<typeof createStore>,
+    id: string,
+    data: Record<string, unknown>,
+) {
     store.set(updateTestcaseAtom, id, {data})
     return {
         draft: store.get(testcaseDraftAtomFamily(id)),
