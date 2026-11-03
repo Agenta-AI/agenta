@@ -43,16 +43,12 @@ const docHeaders = (ua: string, extra: Record<string, string> = {}) => ({
 
 describe("isMobileDevice", () => {
     it("leaves a token-bearing auth link on desktop", () => {
-        // SuperTokens password-reset links carry a one-time ?token=. Redirecting
-        // drops it twice over: mapDesktopToMobile returns a bare /m/auth, and mobile has no
-        // screen that consumes a token.
-        for (const pathname of ["/auth", "/auth/reset-password"]) {
-            expect(
-                decideDesktopGate(
-                    input({pathname, search: "?token=abc123", headers: docHeaders(MOBILE_UA)}),
-                ),
-            ).toEqual({kind: "pass"})
-        }
+        // mapDesktopToMobile returns a bare /m/auth, so a redirect would drop the token.
+        expect(
+            decideDesktopGate(
+                input({pathname: "/auth", search: "?token=abc123", headers: docHeaders(MOBILE_UA)}),
+            ),
+        ).toEqual({kind: "pass"})
     })
 
     // axiosConfig's 403 handler sends the user to /auth?auth_error=… so they can complete
@@ -400,16 +396,12 @@ describe("decideDesktopGate", () => {
         }
     })
     it("leaves a token-bearing auth link on desktop", () => {
-        // SuperTokens password-reset links carry a one-time ?token=. Redirecting
-        // drops it twice over: mapDesktopToMobile returns a bare /m/auth, and mobile has no
-        // screen that consumes a token.
-        for (const pathname of ["/auth", "/auth/reset-password"]) {
-            expect(
-                decideDesktopGate(
-                    input({pathname, search: "?token=abc123", headers: docHeaders(MOBILE_UA)}),
-                ),
-            ).toEqual({kind: "pass"})
-        }
+        // mapDesktopToMobile returns a bare /m/auth, so a redirect would drop the token.
+        expect(
+            decideDesktopGate(
+                input({pathname: "/auth", search: "?token=abc123", headers: docHeaders(MOBILE_UA)}),
+            ),
+        ).toEqual({kind: "pass"})
     })
 
     it("still redirects a plain auth link with no token", () => {
@@ -771,13 +763,42 @@ describe("invite links", () => {
         }
     })
 
-    it("leaves a password reset link where it works today", () => {
-        const reset = input({
-            pathname: "/auth/reset-password",
-            search: "?token=abc&tenantId=public",
-            headers: docHeaders(DESKTOP_UA),
-        })
-        expect(decideDesktopGate(reset)).toEqual({kind: "pass"})
+    const RESET_SEARCH = "?token=abc&tenantId=public"
+
+    it("forwards a reset link to the /m page, query intact, whatever the cookies say", () => {
+        const jars = [
+            {},
+            {[MOBILE_OPTOUT_COOKIE]: "1"},
+            {[CLASSIC_MODE_COOKIE]: "1"},
+            {sAccessToken: "x"},
+        ]
+        for (const ua of [DESKTOP_UA, MOBILE_UA]) {
+            for (const jar of jars) {
+                expect(
+                    decideDesktopGate(
+                        input({
+                            pathname: "/auth/reset-password",
+                            search: RESET_SEARCH,
+                            headers: docHeaders(ua),
+                            cookie: cookies(jar),
+                        }),
+                    ),
+                ).toEqual({kind: "redirect", location: `/m/auth/reset-password${RESET_SEARCH}`})
+            }
+        }
+    })
+
+    it("keeps a reset link on /m for a Classic mode user", () => {
+        expect(
+            decideMobileGate(
+                input({
+                    pathname: "/auth/reset-password",
+                    search: RESET_SEARCH,
+                    headers: docHeaders(DESKTOP_UA),
+                    cookie: cookies({[CLASSIC_MODE_COOKIE]: "1"}),
+                }),
+            ),
+        ).toEqual({kind: "pass"})
     })
 
     it("keeps an invite on /m for a Classic mode user", () => {
