@@ -9,9 +9,15 @@ import {
 } from "@agenta/observability"
 import {createStore, Provider, useAtomValue} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
-import {afterEach, beforeEach, describe, expect, it} from "vitest"
+import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {useObservabilityAppScope} from "@/features/observability/observabilityAppScope"
+import {
+    useObservabilityAppScope,
+    useSelectObservabilityApp,
+} from "@/features/observability/observabilityAppScope"
+
+const router = vi.hoisted(() => ({pathname: "/observability", query: {}, replace: vi.fn()}))
+vi.mock("next/router", () => ({useRouter: () => router}))
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
@@ -36,6 +42,14 @@ const Screen = ({
     // Keyed like the screen's wait: its content mounts only after the view answers, so its
     // queries subscribe to a scope that is already set.
     return <ScopeProbe key={String(enabled)} seen={seen} />
+}
+
+/** The toolbar picker: it reads the scope in its own render, as `TracesFilters` does. */
+let select: (appId: string | null) => void = () => undefined
+const Picker = ({seen}: {seen: ObservabilityScope[]}) => {
+    select = useSelectObservabilityApp()
+    seen.push(useAtomValue(observabilityScopeAtom))
+    return null
 }
 
 describe("useObservabilityAppScope", () => {
@@ -120,6 +134,35 @@ describe("useObservabilityAppScope", () => {
 
         expect(store.get(observabilityScopeAtom)).toEqual({appId: "app-1", routeAppId: "app-1"})
         expect(seen.every((scope) => scope.appId === "app-1")).toBe(true)
+    })
+
+    it("Picking an app scopes the queries without a React update during render", () => {
+        const seen: ObservabilityScope[] = []
+        const errors = vi.spyOn(console, "error").mockImplementation(() => undefined)
+        try {
+            const Mounted = ({routeAppId}: {routeAppId: string | null}) => (
+                <>
+                    <Screen routeAppId={routeAppId} enabled seen={seen} />
+                    <Picker seen={seen} />
+                </>
+            )
+            render(<Mounted routeAppId="app-1" />)
+            act(() => select("app-2"))
+            expect(router.replace).toHaveBeenCalledWith(
+                {pathname: "/observability", query: {app: "app-2"}},
+                undefined,
+                {shallow: true},
+            )
+            // The URL change arrives after the pick.
+            render(<Mounted routeAppId="app-2" />)
+
+            expect(store.get(observabilityScopeAtom)).toEqual({appId: "app-2", routeAppId: "app-2"})
+            expect(seen.at(-1)).toEqual({appId: "app-2", routeAppId: "app-2"})
+            // React logs "Cannot update a component while rendering a different component" here.
+            expect(errors).not.toHaveBeenCalled()
+        } finally {
+            errors.mockRestore()
+        }
     })
 
     it("Leaving the screen resets the scope", () => {

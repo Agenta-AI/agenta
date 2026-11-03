@@ -21,7 +21,7 @@ import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
 import {ObservabilityAppFilter} from "./ObservabilityAppFilter"
-import {setObservabilityAppInUrl, useObservabilityAppScope} from "./observabilityAppScope"
+import {useObservabilityAppScope, useSelectObservabilityApp} from "./observabilityAppScope"
 import {selectedTraceIds} from "./selectedTraceIds"
 import {SessionsList} from "./SessionsList"
 import {SessionsTable} from "./SessionsTable"
@@ -88,10 +88,7 @@ const ObservabilityContent = ({
             void router.replace(projectHomeUrl({workspaceId, projectId}))
     }, [spans.allowed, spans.pending, projectId, router, workspaceId])
 
-    const onAppChange = useCallback(
-        (appId: string | null) => setObservabilityAppInUrl(router, appId),
-        [router],
-    )
+    const onAppChange = useSelectObservabilityApp()
     const tracesFilters = tab === "traces" ? <TracesFilters /> : undefined
 
     const isNarrow = useIsNarrowScreen()
