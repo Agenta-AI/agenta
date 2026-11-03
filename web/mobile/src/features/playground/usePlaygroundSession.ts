@@ -29,6 +29,8 @@ export type PlaygroundSessionStatus =
 
 export interface PlaygroundSession {
     status: PlaygroundSessionStatus
+    /** The app's name, once it has loaded. */
+    appName: string | null
     /** The first selected revision. It anchors the test cases. */
     primaryId: string | null
     entityIds: string[]
@@ -158,5 +160,5 @@ export const usePlaygroundSession = ({appId}: {appId: string}): PlaygroundSessio
         return "ready"
     })()
 
-    return {status, primaryId, entityIds, retry}
+    return {status, appName: detail.data?.name ?? null, primaryId, entityIds, retry}
 }

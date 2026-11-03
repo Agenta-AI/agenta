@@ -193,7 +193,12 @@ const config = [
                     ],
                     patterns: [
                         {
-                            group: ["antd/*", "@ant-design/*", "../**/components", "../**/components/**"],
+                            group: [
+                                "antd/*",
+                                "@ant-design/*",
+                                "../**/components",
+                                "../**/components/**",
+                            ],
                             message:
                                 "Playground panels ship in /m, which has no antd. Move an antd-free helper out of components/ (to src/hooks or src/panels/shared) before importing it.",
                         },

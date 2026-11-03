@@ -7,6 +7,7 @@
 import {act, useState} from "react"
 
 import type {ConfigViewMode} from "@agenta/entity-ui/drill-in"
+import {PlaygroundConfigPanel} from "@agenta/playground-ui/panels/config"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -63,16 +64,18 @@ vi.mock("@agenta/entities/environment", async (original) => {
 vi.mock("@agenta/playground", async (original) => {
     const actual = await original<typeof import("@agenta/playground")>()
     const {atom} = await import("jotai")
-    const atoms = new Map<string, ReturnType<typeof atom<boolean>>>()
+    const atoms = new Map<string, import("jotai").Atom<boolean>>()
     // A derived atom: each test renders in a new store, so it reads that test's `pending` set.
     const hasPending = (id: string) => {
-        if (!atoms.has(id)) atoms.set(id, atom(() => pending.has(id)))
+        if (!atoms.has(id))
+            atoms.set(
+                id,
+                atom(() => pending.has(id)),
+            )
         return atoms.get(id)!
     }
     return {...actual, hasPendingHydrationAtomFamily: hasPending}
 })
-
-import {PlaygroundConfigPanel} from "@agenta/playground-ui/panels/config"
 
 let root: Root
 let host: HTMLDivElement

@@ -55,10 +55,7 @@ export const ConfigPane = ({
 
     return (
         <div className="ag-panel-raised ag-scroll-no-bar flex h-full min-h-0 w-full flex-col overflow-y-auto">
-            <DrillInBridgeProvider
-                projectId={projectId}
-                onWorkflowRevisionCommitted={pinRevision}
-            >
+            <DrillInBridgeProvider projectId={projectId} onWorkflowRevisionCommitted={pinRevision}>
                 <AgentBuildPanel
                     revisionId={entityId}
                     stickyHeaderTop={48}

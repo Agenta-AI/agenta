@@ -67,6 +67,13 @@ export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
         stage: "hidden",
     },
     {
+        id: "playground",
+        label: "Playground",
+        description: "Edit and run prompt and chat apps.",
+        routes: ["/apps/[app_id]/playground"],
+        stage: "hidden",
+    },
+    {
         id: "observability-app-filter",
         label: "Filter by app",
         description:
