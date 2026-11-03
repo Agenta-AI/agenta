@@ -1,6 +1,6 @@
 import {useCallback, useMemo, useRef, useState} from "react"
 
-import {createAnnotation, updateAnnotation} from "@agenta/entities/annotation"
+import {createAnnotation, fetchAnnotation, updateAnnotation} from "@agenta/entities/annotation"
 import type {AnnotationDto} from "@agenta/entities/annotation/dto"
 import {
     evaluatorsListQueryAtom,
@@ -10,6 +10,7 @@ import type {Workflow} from "@agenta/entities/workflow"
 import {getHostQueryClient} from "@agenta/shared/api"
 import {activeUserIdAtom, projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
+import {useQuery} from "@tanstack/react-query"
 import {atom, useAtomValue} from "jotai"
 
 import {
@@ -54,14 +55,39 @@ export const useTraceAnnotationForm = ({
     const userId = useAtomValue(activeUserIdAtom)
     const {evaluators: humanEvaluators} = useHumanEvaluators()
     const allEvaluators = useAtomValue(evaluatorsListQueryAtom)
-    // Annotations this sheet created, kept until the drawer refetch lists them, so a retry after
-    // a partly failed save updates them instead of creating them again.
-    const [landed, setLanded] = useState<AnnotationDto[]>([])
+    // What this sheet saved, by annotation trace id. It stands in for the drawer's copy for the
+    // life of the sheet, so a retry after a partly failed save updates a landed create instead of
+    // creating it again, and compares with the values just sent.
+    const [savedHere, setSavedHere] = useState<Record<string, AnnotationDto>>({})
 
-    const picked = useMemo(
-        () => pickEditableAnnotations({annotations: [...annotations, ...landed], userId}),
-        [annotations, landed, userId],
-    )
+    // The drawer drops `null` outputs when it groups them, so an update read from it would erase
+    // a saved "none of the above". The user's own annotations are read again as the API stores them.
+    const hasOwn = Boolean(userId) && annotations.some((item) => item.createdById === userId)
+    const stored = useQuery({
+        queryKey: ["trace-annotate-stored", projectId, traceId, spanId],
+        queryFn: () => fetchAnnotation({projectId: projectId ?? "", traceId, spanId}),
+        enabled: Boolean(projectId) && hasOwn,
+        staleTime: 0,
+        gcTime: 0,
+        retry: false,
+    })
+    const storedPending = hasOwn && stored.isPending
+
+    const picked = useMemo(() => {
+        const storedOutputs = new Map(
+            (stored.data?.annotations ?? []).map((item) => [item.trace_id, item.data?.outputs]),
+        )
+        const current = annotations
+            .filter((item) => !(item.trace_id && savedHere[item.trace_id]))
+            .map((item) => {
+                const outputs = item.trace_id ? storedOutputs.get(item.trace_id) : undefined
+                return outputs ? ({...item, data: {outputs}} as AnnotationDto) : item
+            })
+        return pickEditableAnnotations({
+            annotations: [...current, ...Object.values(savedHere)],
+            userId,
+        })
+    }, [annotations, stored.data, savedHere, userId])
 
     // Evaluator order (human evaluator list first), and each slug's workflow: from the evaluator
     // list, else the id from the annotation that names it. A picked slug whose evaluator is gone
@@ -200,11 +226,12 @@ export const useTraceAnnotationForm = ({
     )
 
     const hasChanges =
+        !storedPending &&
         writes.creates.length + writes.updates.length + Object.keys(writes.missingRequired).length >
-        0
+            0
 
     const save = useCallback(async () => {
-        if (savingRef.current || !projectId) return
+        if (savingRef.current || !projectId || storedPending) return
         if (Object.keys(writes.missingRequired).length > 0) {
             setShowErrors(true)
             return
@@ -226,20 +253,25 @@ export const useTraceAnnotationForm = ({
             ),
         ])
         const now = new Date().toISOString()
-        const newlyLanded = created.flatMap((result, index) =>
-            result.status === "fulfilled" && result.value?.trace_id
-                ? [
-                      {
-                          ...writes.creates[index],
-                          trace_id: result.value.trace_id,
-                          span_id: result.value.span_id ?? undefined,
-                          createdById: userId ?? undefined,
-                          created_at: now,
-                      } as AnnotationDto,
-                  ]
-                : [],
-        )
-        if (newlyLanded.length > 0) setLanded((previous) => [...previous, ...newlyLanded])
+        const landed: Record<string, AnnotationDto> = {}
+        created.forEach((result, index) => {
+            const traceIdOfAnnotation = result.status === "fulfilled" && result.value?.trace_id
+            if (!traceIdOfAnnotation || result.status !== "fulfilled") return
+            landed[traceIdOfAnnotation] = {
+                ...writes.creates[index],
+                trace_id: traceIdOfAnnotation,
+                span_id: result.value?.span_id,
+                createdById: userId ?? undefined,
+                created_at: now,
+            } as AnnotationDto
+        })
+        updated.forEach((result, index) => {
+            const update = writes.updates[index]
+            const own = picked.own.find((item) => item.trace_id === update.traceId)
+            if (result.status !== "fulfilled" || !own) return
+            landed[update.traceId] = {...own, data: update.annotation.data} as AnnotationDto
+        })
+        if (Object.keys(landed).length > 0) setSavedHere((previous) => ({...previous, ...landed}))
         const results = [...created, ...updated]
         // Refresh even after a failure: the writes that did land become the user's own
         // annotations, so a retry updates them instead of creating them again.
@@ -260,7 +292,7 @@ export const useTraceAnnotationForm = ({
         }
         message.success(SAVE_SUCCESS_TEXT)
         onSaved()
-    }, [writes, projectId, userId, onSaved])
+    }, [writes, projectId, storedPending, userId, picked, onSaved])
 
     return {
         sections: shownSections,
@@ -268,7 +300,7 @@ export const useTraceAnnotationForm = ({
         setValue,
         errors,
         hasChanges,
-        isLoading,
+        isLoading: isLoading || storedPending,
         hasError,
         isSaving,
         save,

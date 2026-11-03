@@ -19,6 +19,7 @@ const http = vi.hoisted(() => ({
     success: vi.fn(),
     error: vi.fn(),
     client: null as unknown,
+    stored: [] as unknown[],
 }))
 
 vi.mock("@agenta/shared/api", async (importOriginal) => {
@@ -35,6 +36,7 @@ vi.mock("@agenta/ui/app-message", () => ({
     message: {success: http.success, error: http.error},
 }))
 
+import {useHumanEvaluators} from "@/features/observability/annotate/useHumanEvaluators"
 import {useTraceAnnotationForm} from "@/features/observability/annotate/useTraceAnnotationForm"
 
 type Form = ReturnType<typeof useTraceAnnotationForm>
@@ -91,6 +93,10 @@ const seed = (client: QueryClient, revisions: Record<string, unknown> = REVISION
 
 const saved = {trace: {trace_id: "ann-new", span_id: "ann-span-new", data: {outputs: {}}}}
 
+const CREATE_URL = "http://api.test/simple/traces/"
+/** The create requests; the form also reads the user's stored annotations with a query. */
+const creates = () => http.post.mock.calls.filter(([url]) => url === CREATE_URL)
+
 describe("trace annotation form", () => {
     let root: Root
     let host: HTMLElement
@@ -131,7 +137,14 @@ describe("trace annotation form", () => {
     beforeEach(() => {
         http.post.mockReset()
         http.patch.mockReset()
-        http.post.mockResolvedValue({data: saved})
+        http.stored = []
+        http.post.mockImplementation((url: string) =>
+            Promise.resolve(
+                url.endsWith("/simple/traces/query")
+                    ? {data: {count: http.stored.length, traces: http.stored}}
+                    : {data: saved},
+            ),
+        )
         http.patch.mockResolvedValue({data: saved})
         http.success.mockReset()
         http.error.mockReset()
@@ -166,7 +179,7 @@ describe("trace annotation form", () => {
         expect(latest.hasChanges).toBe(true)
         await save()
 
-        expect(http.post.mock.calls).toEqual([
+        expect(creates()).toEqual([
             [
                 "http://api.test/simple/traces/",
                 {
@@ -201,7 +214,7 @@ describe("trace annotation form", () => {
         await act(async () => latest.setValue("score", "rating", 5))
         await save()
 
-        expect(http.post).not.toHaveBeenCalled()
+        expect(creates()).toEqual([])
         expect(http.patch.mock.calls).toEqual([
             [
                 "http://api.test/simple/traces/ann-score",
@@ -268,7 +281,7 @@ describe("trace annotation form", () => {
             await first
         })
 
-        expect(http.post).toHaveBeenCalledTimes(1)
+        expect(creates()).toHaveLength(1)
         expect(onSaved).toHaveBeenCalledTimes(1)
     })
 
@@ -291,7 +304,7 @@ describe("trace annotation form", () => {
         await act(async () => latest.setValue("score", "rating", 4))
         await save()
 
-        expect(http.post).toHaveBeenCalledTimes(2)
+        expect(creates()).toHaveLength(2)
         expect(http.error).toHaveBeenCalledWith("Failed to update annotations")
         expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual(
             expect.arrayContaining([["trace-drawer-annotations"]]),
@@ -309,11 +322,63 @@ describe("trace annotation form", () => {
 
         await save()
 
-        expect(http.post).toHaveBeenCalledTimes(3)
-        const retried = http.post.mock.calls[2][1] as {trace: {references: unknown}}
+        expect(creates()).toHaveLength(3)
+        const retried = creates()[2][1] as {trace: {references: unknown}}
         expect(retried.trace.references).toEqual({evaluator: {id: "wf-score", slug: "score"}})
         expect(http.patch).not.toHaveBeenCalled()
         expect(onSaved).toHaveBeenCalledTimes(1)
+    })
+
+    it("An update keeps a saved null answer the drawer does not show", async () => {
+        http.stored = [
+            {
+                trace_id: "ann-score",
+                span_id: "ann-span-score",
+                data: {outputs: {rating: 3, comment: null}},
+            },
+        ]
+        await mount({annotations: [ownAnnotation("score", {rating: 3})]})
+        await act(async () => latest.setValue("score", "rating", 5))
+        await save()
+
+        expect(http.patch.mock.calls[0][1]).toMatchObject({
+            trace: {data: {outputs: {rating: 5, comment: null}}},
+        })
+    })
+
+    it("Save waits for the stored annotations", async () => {
+        http.post.mockImplementation(() => new Promise(() => undefined))
+        await mount({annotations: [ownAnnotation("tone", {friendly: true})]})
+        await act(async () => latest.setValue("tone", "friendly", false))
+
+        expect(latest.isLoading).toBe(true)
+        expect(latest.hasChanges).toBe(false)
+        await save()
+        expect(http.patch).not.toHaveBeenCalled()
+    })
+
+    it("A later edit of a landed annotation updates it with the values just saved", async () => {
+        vi.spyOn(console, "error").mockImplementation(() => undefined)
+        http.post.mockImplementation((url: string) =>
+            url.endsWith("/simple/traces/query")
+                ? Promise.resolve({data: {traces: []}})
+                : creates().length === 1
+                  ? Promise.resolve({data: saved})
+                  : Promise.reject(new Error("Timeout")),
+        )
+        await mount({selectedSlugs: ["tone", "score"]})
+        await act(async () => latest.setValue("tone", "friendly", true))
+        await act(async () => latest.setValue("score", "rating", 4))
+        await save()
+        await act(async () => latest.setValue("tone", "friendly", false))
+        await save()
+
+        expect(http.patch.mock.calls.map(([url]) => url)).toEqual([
+            "http://api.test/simple/traces/ann-new",
+        ])
+        expect(http.patch.mock.calls[0][1]).toMatchObject({
+            trace: {data: {outputs: {friendly: false}}},
+        })
     })
 
     it("A picked evaluator that is gone or no longer human is left out", async () => {
@@ -332,7 +397,7 @@ describe("trace annotation form", () => {
         await act(async () => latest.setValue("score", "comment", "Too short"))
         await save()
 
-        expect(http.post).not.toHaveBeenCalled()
+        expect(creates()).toEqual([])
         expect(latest.errors).toEqual({score: {rating: "Required"}})
         await act(async () => latest.setValue("score", "rating", 2))
         expect(latest.errors).toEqual({})
@@ -353,5 +418,25 @@ describe("trace annotation form", () => {
         expect(latest.isLoading).toBe(false)
         expect(latest.hasError).toBe(true)
         expect(latest.sections.map((section) => section.slug)).toEqual(["tone"])
+    })
+
+    it("A failed evaluator revision request shows as a load error, not an empty list", async () => {
+        client.setQueryData(["workflows", "latestRevision", "wf-tone", PROJECT], null)
+        client.setQueryData(["workflows", "latestRevision", "wf-score", PROJECT], null)
+        let human: ReturnType<typeof useHumanEvaluators> | undefined
+        const HumanProbe = () => {
+            human = useHumanEvaluators()
+            return null
+        }
+        await act(async () => {
+            root.render(
+                <QueryClientProvider client={client}>
+                    <HumanProbe />
+                </QueryClientProvider>,
+            )
+        })
+
+        expect(human?.evaluators).toEqual([])
+        expect(human?.isError).toBe(true)
     })
 })

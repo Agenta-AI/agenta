@@ -163,7 +163,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 /**
  * The outputs an own annotation saved, flat. The drawer groups them into `metrics`, `notes` and
- * `extra`; the API stores them flat.
+ * `extra` (and drops `null` values); the API stores them flat.
  */
 const savedOutputsOf = (annotation: AnnotationDto): Record<string, unknown> => {
     const grouped = (annotation.data?.outputs ?? {}) as Record<string, unknown>
@@ -218,10 +218,14 @@ export const buildTraceAnnotationWrites = ({
             continue
         }
 
-        // An update keeps the saved outputs the form does not show (a metric a later evaluator
-        // revision removed), because the API replaces the whole outputs object.
+        // The API replaces the whole outputs object. An update therefore starts from the saved
+        // outputs (with a metric a later revision removed, and saved `null` answers) and applies
+        // only the user's edits; an edit that empties a metric removes it. A create sends the
+        // filled metrics.
+        const edits = values[section.slug] ?? {}
         const outputs: Record<string, unknown> = section.own ? savedOutputsOf(section.own) : {}
         for (const [key, value] of Object.entries(current)) {
+            if (section.own && !(key in edits)) continue
             if (isEmptyValue(value)) {
                 delete outputs[key]
                 continue

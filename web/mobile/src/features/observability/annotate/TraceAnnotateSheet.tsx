@@ -105,6 +105,7 @@ export const TraceAnnotateSheet = ({
                                 <Button
                                     variant="outline"
                                     size="sm"
+                                    disabled={form.isSaving}
                                     onClick={() => setStep("select")}
                                 >
                                     <PlusIcon size={14} />
@@ -133,7 +134,8 @@ export const TraceAnnotateSheet = ({
                         message="Some evaluators could not be loaded. Loaded evaluator fields are still available."
                     />
                 ) : null}
-                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                {/* Inert while saving: an edit made then would be lost when the sheet closes. */}
+                <div inert={form.isSaving} className="flex min-h-0 flex-1 flex-col overflow-y-auto">
                     {selecting ? (
                         <div className="p-4">
                             <SelectEvaluatorsStep

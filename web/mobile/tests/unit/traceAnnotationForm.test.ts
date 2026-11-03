@@ -268,6 +268,22 @@ describe("buildTraceAnnotationWrites", () => {
         })
     })
 
+    it("A saved none of the above answer is kept when another metric changes", () => {
+        const own = annotation({
+            references: {evaluator: {id: "wf-score", slug: "score"}},
+            data: {outputs: {rating: 3, label: null}},
+        })
+
+        const writes = buildTraceAnnotationWrites({
+            sections: sectionsFor([own]),
+            values: {score: {rating: 4}},
+            traceId: "trace-1",
+            spanId: "span-1",
+        })
+
+        expect(writes.updates[0].annotation.data).toEqual({outputs: {rating: 4, label: null}})
+    })
+
     it("A cleared own metric is removed from the saved outputs", () => {
         const own = annotation({data: {outputs: {metrics: {friendly: true}}}})
 

@@ -231,4 +231,14 @@ describe("trace annotate sheet", () => {
         expect(http.success).toHaveBeenCalledWith("Annotations updated successfully")
         expect(onClose).toHaveBeenCalledTimes(1)
     })
+
+    it("The form takes no edits while a save runs", async () => {
+        http.patch.mockImplementation(() => new Promise(() => undefined))
+        await mount([ownAnnotation("tone", {friendly: true})])
+        await click(body().querySelector("[role=radio][aria-checked=false]"))
+        await click(buttonNamed("Save"))
+
+        expect(body().querySelector("[inert]")?.textContent).toContain("friendly")
+        expect(buttonNamed("Add Evaluator")?.disabled).toBe(true)
+    })
 })
