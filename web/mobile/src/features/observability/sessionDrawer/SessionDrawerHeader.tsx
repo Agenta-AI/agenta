@@ -37,7 +37,7 @@ export const SessionDrawerHeader = ({
     const next = index !== -1 && index < sessionIds.length - 1 ? sessionIds[index + 1] : null
 
     return (
-        <div className="flex items-center gap-2 border-0 border-b border-solid border-border px-4 py-3">
+        <div className="flex flex-wrap items-center gap-2 border-0 border-b border-solid border-border px-4 py-3">
             {showWidthToggle ? (
                 <Button
                     variant="ghost"
@@ -68,7 +68,7 @@ export const SessionDrawerHeader = ({
             </Button>
             <span className="text-sm font-medium text-foreground">Session</span>
             <CopyTooltip copyText={sessionId} title="Copy session id">
-                <Badge className="min-w-0 cursor-pointer font-mono">
+                <Badge className="max-w-full min-w-0 cursor-pointer font-mono">
                     <span className="truncate"># {sessionId}</span>
                 </Badge>
             </CopyTooltip>
