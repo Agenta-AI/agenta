@@ -1,9 +1,34 @@
 import {getAgentaApiUrl} from "@agenta/shared/api"
 
-import type {BrowserLiveServerMessage} from "./types"
+export interface BrowserViewport {
+    width: number
+    height: number
+}
 
-/** The viewport `agenta-browser` renders; pointer input is sent in these CSS pixels. */
-export const BROWSER_VIEWPORT = {width: 1280, height: 800} as const
+/** The viewport `agenta-browser` renders before its first frame says otherwise. */
+export const BROWSER_VIEWPORT: BrowserViewport = {width: 1280, height: 800}
+
+export type BrowserLiveServerMessage =
+    | {type: "frame"; data: string; width: number; height: number}
+    | {type: "status"; control: "agent" | "user"; url: string; title: string; waiting: string}
+    | {type: "notice"; message: string}
+
+export type BrowserLiveClientMessage =
+    | {
+          type: "mouse"
+          event: "down" | "up" | "move" | "wheel"
+          x: number
+          y: number
+          button?: "left" | "middle" | "right"
+          deltaX?: number
+          deltaY?: number
+      }
+    | {type: "key"; event: "down" | "up"; key: string; code?: string}
+    | {type: "text"; text: string}
+    | {type: "control"; take: boolean}
+    | {type: "done"}
+    | {type: "navigate"; url: string}
+    | {type: "reload"}
 
 /** Cookies authenticate the live socket, so the API origin must be the app's. */
 export const browserLiveUrl = (projectId: string, sessionId: string): string => {

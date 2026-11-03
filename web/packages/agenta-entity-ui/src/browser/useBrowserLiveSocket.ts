@@ -1,10 +1,12 @@
 import {useCallback, useEffect, useRef, useState, type RefObject} from "react"
 
 import {
+    BROWSER_VIEWPORT,
     parseBrowserLiveMessage,
     type BrowserLiveClientMessage,
     type BrowserLiveServerMessage,
-} from "@agenta/entities/browser"
+    type BrowserViewport,
+} from "./live"
 
 export type BrowserLiveConnection =
     | {phase: "connecting"}
@@ -21,13 +23,14 @@ export interface BrowserLiveNotice {
 }
 
 const CLOSE_CODES: Record<number, BrowserLiveConnection> = {
+    4400: {phase: "error", reason: "This session cannot show a browser."},
     4401: {phase: "error", reason: "Your sign-in expired. Sign in again to see the browser."},
     4403: {phase: "error", reason: "You do not have access to this browser."},
     4404: {phase: "closed", reason: "No browser is running right now."},
 }
 
-const closedBy = (event: CloseEvent): BrowserLiveConnection =>
-    CLOSE_CODES[event.code] ?? {phase: "closed", reason: "The browser connection closed."}
+export const closedBy = (code: number): BrowserLiveConnection =>
+    CLOSE_CODES[code] ?? {phase: "closed", reason: "The browser connection closed."}
 
 /** Draws the newest frame only; frames that arrive while one decodes replace each other. */
 const createFramePainter = (canvasRef: RefObject<HTMLCanvasElement | null>) => {
@@ -64,6 +67,7 @@ export const useBrowserLiveSocket = (
     const [connection, setConnection] = useState<BrowserLiveConnection>({phase: "connecting"})
     const [status, setStatus] = useState<BrowserLiveStatus | null>(null)
     const [notice, setNotice] = useState<BrowserLiveNotice | null>(null)
+    const [viewport, setViewport] = useState<BrowserViewport>(BROWSER_VIEWPORT)
     const [attempt, setAttempt] = useState(0)
     const socketRef = useRef<WebSocket | null>(null)
 
@@ -72,17 +76,25 @@ export const useBrowserLiveSocket = (
         setConnection({phase: "connecting"})
         setStatus(null)
         setNotice(null)
+        setViewport(BROWSER_VIEWPORT)
         const socket = new WebSocket(url)
         socketRef.current = socket
         const paintFrame = createFramePainter(canvasRef)
         let failed = false
         let shownUrl: string | null = null
         let notices = 0
-        socket.onopen = () => setConnection({phase: "live"})
+        // An open socket is not live yet: the server accepts, then closes 4401/4403/4404.
+        // The first status is what proves the browser answered.
         socket.onmessage = (event) => {
             const message = parseBrowserLiveMessage(event.data)
-            if (message?.type === "frame") paintFrame(message.data)
-            else if (message?.type === "status") {
+            if (message?.type === "frame") {
+                const {width, height} = message
+                setViewport((prev) =>
+                    prev.width === width && prev.height === height ? prev : {width, height},
+                )
+                paintFrame(message.data)
+            } else if (message?.type === "status") {
+                setConnection((prev) => (prev.phase === "live" ? prev : {phase: "live"}))
                 // A notice is about the page it was raised on; a new page clears it.
                 if (message.url !== shownUrl) setNotice(null)
                 shownUrl = message.url
@@ -102,7 +114,7 @@ export const useBrowserLiveSocket = (
         }
         socket.onclose = (event) => {
             if (failed && !CLOSE_CODES[event.code]) return
-            setConnection(closedBy(event))
+            setConnection(closedBy(event.code))
         }
         return () => {
             socket.onclose = null
@@ -118,5 +130,5 @@ export const useBrowserLiveSocket = (
 
     const reconnect = useCallback(() => setAttempt((count) => count + 1), [])
 
-    return {connection, status, notice, send, reconnect}
+    return {connection, status, notice, viewport, send, reconnect}
 }

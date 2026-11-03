@@ -92,7 +92,9 @@ export const SessionTopBar = ({
             // The desktop puts this at the header's right edge too, not on the tab strip.
             actions={
                 <>
-                    {isBrowserEnabled() ? <WatchBrowserButton sessionId={sessionId} /> : null}
+                    {isBrowserEnabled() ? (
+                        <WatchBrowserButton sessionId={sessionId} projectId={projectId} />
+                    ) : null}
                     {agentId && !agentHidden ? (
                         <ShareMenu
                             agentId={agentId}

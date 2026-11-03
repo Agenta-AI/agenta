@@ -1,37 +1,27 @@
-import {useEffect, useRef} from "react"
+import {useRef} from "react"
 
-import {browserLiveUrl} from "@agenta/entities/browser"
 import {projectIdAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
 
 import {BrowserLiveSurface} from "./BrowserLiveSurface"
+import {browserLiveUrl} from "./live"
 import {useBrowserLiveSocket} from "./useBrowserLiveSocket"
 
-export interface BrowserLiveViewProps {
-    sessionId: string
-    /** Take control once connected, for a browser that waits on the user. */
-    autoTakeControl?: boolean
-}
-
-export const BrowserLiveView = ({sessionId, autoTakeControl = false}: BrowserLiveViewProps) => {
+export const BrowserLiveView = ({sessionId}: {sessionId: string}) => {
     const projectId = useAtomValue(projectIdAtom)
     const canvasRef = useRef<HTMLCanvasElement | null>(null)
     const url = projectId ? browserLiveUrl(projectId, sessionId) : null
-    const {connection, status, notice, send, reconnect} = useBrowserLiveSocket(url, canvasRef)
-
-    const tookControl = useRef(false)
-    useEffect(() => {
-        if (connection.phase !== "live") tookControl.current = false
-        if (!autoTakeControl || tookControl.current || status?.control !== "agent") return
-        tookControl.current = true
-        send({type: "control", take: true})
-    }, [autoTakeControl, connection.phase, status?.control, send])
+    const {connection, status, notice, viewport, send, reconnect} = useBrowserLiveSocket(
+        url,
+        canvasRef,
+    )
 
     return (
         <BrowserLiveSurface
             connection={connection}
             status={status}
             notice={notice}
+            viewport={viewport}
             canvasRef={canvasRef}
             send={send}
             onReconnect={reconnect}

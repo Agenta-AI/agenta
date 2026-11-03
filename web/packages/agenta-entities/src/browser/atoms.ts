@@ -4,14 +4,13 @@ import {atomWithQuery} from "jotai-tanstack-query"
 
 import {fetchBrowserLiveStatus} from "./api"
 
-/** Polls while mounted: the agent starts its browser in the middle of a turn. */
+/** Fetches once per mount; the caller refetches while a turn runs, since only a turn starts a browser. */
 export const browserLiveStatusQueryAtomFamily = atomFamily((sessionId: string) =>
     atomWithQuery((get) => {
         const projectId = get(projectIdAtom)
         return {
             queryKey: ["browser-live-status", projectId, sessionId],
             queryFn: () => fetchBrowserLiveStatus(projectId as string, sessionId),
-            refetchInterval: 10_000,
             refetchOnWindowFocus: false,
             enabled: !!projectId && !!sessionId,
         }

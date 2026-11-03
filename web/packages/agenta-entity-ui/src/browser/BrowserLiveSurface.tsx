@@ -1,9 +1,16 @@
 import {useEffect, useRef, type RefObject} from "react"
 
-import {BROWSER_VIEWPORT, type BrowserLiveClientMessage} from "@agenta/entities/browser"
 import {Button, Spinner} from "@agenta/ui/ui"
-import {ArrowClockwise, Globe, HandPointing, Keyboard, Robot} from "@phosphor-icons/react"
+import {
+    ArrowClockwise,
+    CheckCircle,
+    Globe,
+    HandPointing,
+    Keyboard,
+    Robot,
+} from "@phosphor-icons/react"
 
+import {BROWSER_VIEWPORT, type BrowserLiveClientMessage, type BrowserViewport} from "./live"
 import {isCommandKey, mouseButton, toViewportPoint} from "./liveInput"
 import type {
     BrowserLiveConnection,
@@ -15,6 +22,8 @@ export interface BrowserLiveSurfaceProps {
     connection: BrowserLiveConnection
     status: BrowserLiveStatus | null
     notice?: BrowserLiveNotice | null
+    /** The remote viewport of the latest frame, in CSS pixels; pointer input maps into it. */
+    viewport: BrowserViewport
     canvasRef: RefObject<HTMLCanvasElement | null>
     send: (message: BrowserLiveClientMessage) => void
     onReconnect: () => void
@@ -26,6 +35,7 @@ export const BrowserLiveSurface = ({
     connection,
     status,
     notice = null,
+    viewport,
     canvasRef,
     send,
     onReconnect,
@@ -41,23 +51,23 @@ export const BrowserLiveSurface = ({
     const moveRef = useRef<{x: number; y: number} | null>(null)
     const live = connection.phase === "live"
     const userControl = live && status?.control === "user"
-    // The agent ran `agenta-browser wait`: handing control back ends its wait.
+    // The agent ran `agenta-browser wait`: only "I'm done" ends it; giving back control does not.
     const waiting = live ? status?.waiting || "" : ""
 
     const point = (clientX: number, clientY: number) =>
-        canvasRef.current ? toViewportPoint(canvasRef.current, clientX, clientY) : null
+        canvasRef.current ? toViewportPoint(canvasRef.current, clientX, clientY, viewport) : null
 
     useEffect(() => {
         const canvas = canvasRef.current
         if (!canvas || !userControl) return
         const onWheel = (event: WheelEvent) => {
             event.preventDefault()
-            const at = toViewportPoint(canvas, event.clientX, event.clientY)
+            const at = toViewportPoint(canvas, event.clientX, event.clientY, viewport)
             send({type: "mouse", event: "wheel", ...at, deltaX: event.deltaX, deltaY: event.deltaY})
         }
         canvas.addEventListener("wheel", onWheel, {passive: false})
         return () => canvas.removeEventListener("wheel", onWheel)
-    }, [canvasRef, send, userControl])
+    }, [canvasRef, send, userControl, viewport])
 
     const onPointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
         const at = point(event.clientX, event.clientY)
@@ -175,13 +185,19 @@ export const BrowserLiveSurface = ({
                 </Button>
                 <Button
                     size="sm"
-                    variant={userControl ? "outline" : "default"}
+                    variant={userControl || waiting ? "outline" : "default"}
                     disabled={!live || !status}
                     onClick={() => send({type: "control", take: !userControl})}
                 >
                     {userControl ? <Robot size={14} /> : <HandPointing size={14} />}
-                    {userControl ? (waiting ? "I'm done" : "Give back control") : "Take control"}
+                    {userControl ? "Give back control" : "Take control"}
                 </Button>
+                {waiting ? (
+                    <Button size="sm" onClick={() => send({type: "done"})}>
+                        <CheckCircle size={14} />
+                        I'm done
+                    </Button>
+                ) : null}
             </div>
             {waiting ? (
                 <p role="status" className="text-xs text-foreground">

@@ -1,26 +1,18 @@
-import {BROWSER_VIEWPORT} from "@agenta/entities/browser"
+import type {BrowserViewport} from "./live"
 
 /** A client point on the drawn canvas, in the remote viewport's CSS pixels. */
 export const toViewportPoint = (
-    canvas: HTMLCanvasElement,
+    canvas: Pick<Element, "getBoundingClientRect">,
     clientX: number,
     clientY: number,
+    viewport: BrowserViewport,
 ): {x: number; y: number} => {
     const rect = canvas.getBoundingClientRect()
-    const clamp = (value: number, max: number) => Math.min(Math.max(value, 0), max)
+    const scale = (offset: number, size: number, max: number) =>
+        Math.round(Math.min(Math.max((offset / size) * max, 0), max))
     return {
-        x: Math.round(
-            clamp(
-                ((clientX - rect.left) / rect.width) * BROWSER_VIEWPORT.width,
-                BROWSER_VIEWPORT.width,
-            ),
-        ),
-        y: Math.round(
-            clamp(
-                ((clientY - rect.top) / rect.height) * BROWSER_VIEWPORT.height,
-                BROWSER_VIEWPORT.height,
-            ),
-        ),
+        x: scale(clientX - rect.left, rect.width, viewport.width),
+        y: scale(clientY - rect.top, rect.height, viewport.height),
     }
 }
 
