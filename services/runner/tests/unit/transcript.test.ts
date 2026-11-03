@@ -814,6 +814,67 @@ describe("buildTurnText approval transcript hints", () => {
     assert.doesNotMatch(transcript, /Call the tool again/);
   });
 
+  it("does not let a name-only match take the result a keyed approval needs (#7951)", () => {
+    const transcript = turnTextFor([
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool_call",
+            toolCallId: "call-a",
+            toolName: "read_file",
+            input: { path: "src/a.ts" },
+          },
+          {
+            type: "tool_result",
+            toolCallId: "call-a",
+            toolName: "read_file",
+            output: { approved: true },
+          },
+          {
+            type: "tool_call",
+            toolCallId: "call-b",
+            toolName: "read_file",
+            input: { path: "src/b.ts" },
+          },
+          {
+            type: "tool_result",
+            toolCallId: "call-b",
+            toolName: "read_file",
+            output: { approved: true },
+          },
+        ],
+      },
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool_result",
+            toolCallId: "call-exec-b",
+            toolName: "read_file",
+            output: { content: "b" },
+          },
+          {
+            type: "tool_call",
+            toolCallId: "call-exec-a",
+            toolName: "read_file",
+            input: { path: "src/a.ts" },
+          },
+          {
+            type: "tool_result",
+            toolCallId: "call-exec-a",
+            toolName: "read_file",
+            output: { content: "a" },
+          },
+        ],
+      },
+    ]);
+
+    const executed = transcript.match(/executed below/g) ?? [];
+    assert.equal(executed.length, 2);
+    assert.doesNotMatch(transcript, /Call the tool again/);
+  });
+
   it("keeps preflight tolerant of unverified attachment display fields", () => {
     assert.equal(
       messageTranscript([

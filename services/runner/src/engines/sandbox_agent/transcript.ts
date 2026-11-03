@@ -110,54 +110,61 @@ export function approvalRenderHints(
     );
   };
 
-  // Rendering only. Match by the approval store's key when both sides have one. Otherwise fall
-  // back to the tool name, so an execution whose call shape is unknown still settles an approval
-  // instead of telling the model to run it again.
-  const matchesExecution = (
+  // Rendering only. Each real result settles at most one earlier approval, in order. Match by
+  // the approval store's key first, over all approvals. Then match what is left by tool name when
+  // either side has no key, so an execution whose call shape is unknown still settles an approval
+  // instead of telling the model to run it again, without taking a result a keyed approval needs.
+  const keyMatch = (
     entry: (typeof toolResults)[number],
     later: (typeof toolResults)[number],
-  ): boolean => {
-    if (entry.key !== undefined && later.key !== undefined) {
-      return entry.key === later.key;
-    }
-    return entry.toolName !== undefined && entry.toolName === later.toolName;
-  };
+  ): boolean =>
+    entry.key !== undefined && later.key !== undefined && entry.key === later.key;
+  const nameMatch = (
+    entry: (typeof toolResults)[number],
+    later: (typeof toolResults)[number],
+  ): boolean =>
+    (entry.key === undefined || later.key === undefined) &&
+    entry.toolName !== undefined &&
+    entry.toolName === later.toolName;
 
   const hints = new Map<ContentBlock, ApprovalRenderHint>();
   const consumedResults = new Set<number>();
+  const approvals: number[] = [];
+  for (let index = 0; index < toolResults.length; index++) {
+    if (toolResults[index].decision === "allow") approvals.push(index);
+  }
+
+  for (const matches of [keyMatch, nameMatch]) {
+    for (const index of approvals) {
+      const entry = toolResults[index];
+      if (hints.has(entry.block)) continue;
+      for (
+        let laterIndex = index + 1;
+        laterIndex < toolResults.length;
+        laterIndex++
+      ) {
+        if (consumedResults.has(laterIndex)) continue;
+        const later = toolResults[laterIndex];
+        if (
+          later.decision === undefined &&
+          !isDeferredResult(later.block) &&
+          matches(entry, later)
+        ) {
+          consumedResults.add(laterIndex);
+          hints.set(entry.block, "executed");
+          break;
+        }
+      }
+    }
+  }
+
   const unresolved = new Map<
     string | undefined,
     { block: ContentBlock; index: number }[]
   >();
-
-  for (let index = 0; index < toolResults.length; index++) {
+  for (const index of approvals) {
     const entry = toolResults[index];
-    if (entry.decision !== "allow") continue;
-
-    let matchedResultIndex = -1;
-    for (
-      let laterIndex = index + 1;
-      laterIndex < toolResults.length;
-      laterIndex++
-    ) {
-      if (consumedResults.has(laterIndex)) continue;
-      const later = toolResults[laterIndex];
-      if (
-        later.decision === undefined &&
-        !isDeferredResult(later.block) &&
-        matchesExecution(entry, later)
-      ) {
-        matchedResultIndex = laterIndex;
-        break;
-      }
-    }
-
-    if (matchedResultIndex !== -1) {
-      consumedResults.add(matchedResultIndex);
-      hints.set(entry.block, "executed");
-      continue;
-    }
-
+    if (hints.has(entry.block)) continue;
     const bucketKey = entry.key ?? entry.toolName;
     const list = unresolved.get(bucketKey) ?? [];
     list.push({ block: entry.block, index });
