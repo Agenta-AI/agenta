@@ -240,6 +240,17 @@ describe("misplacedMessageShape", () => {
         ).toBeNull()
     })
 
+    it("keeps a value the agent's own key already holds, even one the composer cannot read", () => {
+        const json = JSON.stringify({
+            message: "old",
+            messages: [
+                {role: "user", content: "a"},
+                {role: "user", content: "b"},
+            ],
+        })
+        expect(misplacedMessageShape(json, chat, ["messages"], getScheduleMessage)).toBeNull()
+    })
+
     it("has nothing to move in an empty mapping", () => {
         expect(misplacedMessageShape("{}", chat, ["messages"], getScheduleMessage)).toBeNull()
     })

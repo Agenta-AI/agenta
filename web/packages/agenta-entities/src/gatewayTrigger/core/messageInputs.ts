@@ -149,7 +149,7 @@ export const FALLBACK_MESSAGE_SHAPE = {isChat: false, primaryKey: "message"}
  * The shape to move a stored message out of, once the agent's shape is known. A message typed
  * or saved before the agent's revision loaded sits under the fallback key, and an agent that
  * does not take that key runs with no message at all. Null when the agent's own key already
- * holds the message, the agent takes the fallback key, or there is nothing to move.
+ * holds a value, the agent takes the fallback key, or there is nothing to move.
  *
  * `read` is the reader for the composer in use: `getScheduleMessage` or, for an event
  * automation, `parseMessageTemplate`.
@@ -162,6 +162,11 @@ export function misplacedMessageShape(
 ): {isChat: boolean; primaryKey: string} | null {
     const fallback = FALLBACK_MESSAGE_SHAPE
     if (agentInputKeys.includes(fallback.primaryKey)) return null
+    // An existing value under the agent's own key stays, even when the composer cannot read it,
+    // because moving the fallback message there would overwrite it.
+    const obj = parseObject(inputsText)
+    const ownKey = shape.isChat || isMessagesPayload(obj) ? "messages" : shape.primaryKey
+    if (Object.prototype.hasOwnProperty.call(obj, ownKey)) return null
     if (read(inputsText, shape.isChat, shape.primaryKey)) return null
     return read(inputsText, fallback.isChat, fallback.primaryKey) ? fallback : null
 }
