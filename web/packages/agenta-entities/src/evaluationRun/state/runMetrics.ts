@@ -1,0 +1,240 @@
+/**
+ * Run-level metrics of a run: one query per run (batched across runs into one request), and a
+ * catalog of the metrics the overview can chart.
+ *
+ * The query polls every 5 s while the run has not finished, and refreshes the run itself at the
+ * same time so the poll stops once the run reaches a terminal status.
+ *
+ * @packageDocumentation
+ */
+
+import {getHostQueryClient} from "@agenta/shared/api"
+import {projectIdAtom} from "@agenta/shared/state"
+import {createBatchFetcher} from "@agenta/shared/utils"
+import {atom} from "jotai"
+import {getDefaultStore} from "jotai/vanilla"
+import {atomFamily} from "jotai-family"
+import {atomWithQuery} from "jotai-tanstack-query"
+
+import {evaluationRunQueryKey} from "../api"
+import {queryRunLevelMetrics} from "../api/runDetails"
+import {
+    isAggregatableMetric,
+    isTerminalRunStatus,
+    normalizeMetricStats,
+    type EvaluationMetric,
+    type EvaluationRun,
+    type MetricStats,
+} from "../core"
+
+import {evaluationRunQueryAtomFamily} from "./molecule"
+
+/** Same cadence as the old app's live refresh. */
+export const RUN_METRICS_REFRESH_MS = 5_000
+
+const PROJECT_PENDING = "projectId not yet available"
+
+export const runLevelMetricsQueryKey = (projectId: string, runId: string) =>
+    ["evaluation-run-metrics", projectId, runId] as const
+
+/** Collects the runs asked for in one frame and sends one request for all of them. */
+const runMetricsBatchFetcher = createBatchFetcher<
+    {projectId: string; runId: string},
+    EvaluationMetric[]
+>({
+    serializeKey: ({projectId, runId}) => `${projectId}:${runId}`,
+    batchFn: async (keys, serializedKeys) => {
+        const projectId = keys[0].projectId
+        if (keys.some((key) => key.projectId !== projectId)) {
+            throw new Error("runMetricsBatchFetcher: requests span multiple projects")
+        }
+        const metrics = await queryRunLevelMetrics({
+            projectId,
+            runIds: [...new Set(keys.map((key) => key.runId))],
+        })
+        const results = new Map<string, EvaluationMetric[]>()
+        keys.forEach((key, index) =>
+            results.set(
+                serializedKeys[index],
+                metrics.filter((metric) => metric.run_id === key.runId),
+            ),
+        )
+        return results
+    },
+})
+
+const runIsTerminal = (runId: string) =>
+    isTerminalRunStatus(getDefaultStore().get(evaluationRunQueryAtomFamily(runId)).data?.status)
+
+export const runLevelMetricsQueryAtomFamily = atomFamily((runId: string) =>
+    atomWithQuery(() => {
+        // Read once, like the run query: atomWithQuery does not re-run this getter later.
+        const projectId = getDefaultStore().get(projectIdAtom) ?? ""
+        return {
+            queryKey: runLevelMetricsQueryKey(projectId, runId),
+            queryFn: async (): Promise<EvaluationMetric[]> => {
+                const currentProjectId = getDefaultStore().get(projectIdAtom)
+                if (!currentProjectId) throw new Error(PROJECT_PENDING)
+                const metrics = await runMetricsBatchFetcher({
+                    projectId: currentProjectId,
+                    runId,
+                })
+                if (!runIsTerminal(runId)) {
+                    void getHostQueryClient().invalidateQueries({
+                        queryKey: evaluationRunQueryKey(runId),
+                    })
+                }
+                return metrics
+            },
+            enabled: Boolean(runId),
+            staleTime: 30_000,
+            refetchInterval: () => (runIsTerminal(runId) ? false : RUN_METRICS_REFRESH_MS),
+            retry: (failureCount: number, error: Error) =>
+                error?.message === PROJECT_PENDING && failureCount < 5,
+            retryDelay: (attempt: number) => Math.min(200 * 2 ** attempt, 2000),
+        }
+    }),
+)
+
+// ============================================================================
+// CATALOG
+// ============================================================================
+
+export interface TemporalMetricPoint {
+    /** ms since the epoch. */
+    timestamp: number
+    stats: MetricStats
+}
+
+export interface RunMetricEntry {
+    /** `{stepKey}:{metricKey}` for an evaluator metric; "cost", "duration", "tokens" or "errors". */
+    id: string
+    kind: "evaluator" | "invocation"
+    stepKey: string | null
+    metricKey: string
+    label: string
+    evaluatorId: string | null
+    evaluatorSlug: string | null
+    /** The run-level stats; for an online run with no static row, the latest point's stats. */
+    stats: MetricStats | null
+    /** Online runs: one point per timestamped row, oldest first. Empty otherwise. */
+    temporal: TemporalMetricPoint[]
+}
+
+/** Invocation metrics, in the order the summary table lists them. */
+export const INVOCATION_METRICS = [
+    {id: "cost", metricKey: "attributes.ag.metrics.costs.cumulative.total", label: "Cost"},
+    {id: "duration", metricKey: "attributes.ag.metrics.duration.cumulative", label: "Duration"},
+    {id: "tokens", metricKey: "attributes.ag.metrics.tokens.cumulative.total", label: "Tokens"},
+    {id: "errors", metricKey: "attributes.ag.metrics.errors.cumulative", label: "Errors"},
+] as const
+
+/** Keys under this prefix are invocation analytics, also reported by evaluator steps. */
+const INVOCATION_PREFIX = "attributes.ag.metrics."
+const LABEL_PREFIXES = ["attributes.ag.data.outputs.", "attributes.ag.data.", "outputs."]
+
+/** "attributes.ag.data.outputs.score" -> "score". */
+export function metricLabel(metricKey: string): string {
+    const prefix = LABEL_PREFIXES.find((candidate) => metricKey.startsWith(candidate))
+    return prefix ? metricKey.slice(prefix.length) : metricKey
+}
+
+type StepMetrics = Record<string, Record<string, unknown>>
+
+const stepMetrics = (metric: EvaluationMetric): StepMetrics => {
+    const out: StepMetrics = {}
+    for (const [stepKey, value] of Object.entries(metric.data ?? {})) {
+        if (value && typeof value === "object" && !Array.isArray(value)) {
+            out[stepKey] = value as Record<string, unknown>
+        }
+    }
+    return out
+}
+
+/**
+ * Build the catalog of one run from the run and its run-level metric rows. Pure: the atom below
+ * feeds it, and tests call it with captured responses.
+ */
+export function buildRunMetricCatalog(
+    run: EvaluationRun | null,
+    metrics: readonly EvaluationMetric[],
+): RunMetricEntry[] {
+    const runLevel = metrics.filter((metric) => !metric.scenario_id)
+    const staticRow = runLevel.find((metric) => !metric.timestamp)
+    const staticData = staticRow ? stepMetrics(staticRow) : {}
+    const timed = runLevel
+        .flatMap((metric) => {
+            const timestamp = metric.timestamp ? Date.parse(metric.timestamp) : NaN
+            return Number.isFinite(timestamp) ? [{timestamp, data: stepMetrics(metric)}] : []
+        })
+        .sort((a, b) => a.timestamp - b.timestamp)
+
+    const pointsFor = (stepKey: string, metricKey: string): TemporalMetricPoint[] =>
+        timed.flatMap(({timestamp, data}) => {
+            const stats = normalizeMetricStats(data[stepKey]?.[metricKey])
+            return stats ? [{timestamp, stats}] : []
+        })
+
+    const statsFor = (stepKey: string, metricKey: string, temporal: TemporalMetricPoint[]) =>
+        normalizeMetricStats(staticData[stepKey]?.[metricKey]) ?? temporal.at(-1)?.stats ?? null
+
+    const steps = run?.data?.steps ?? []
+    const entries: RunMetricEntry[] = []
+
+    for (const step of steps.filter((candidate) => candidate.type === "annotation")) {
+        const keys = new Set<string>(Object.keys(staticData[step.key] ?? {}))
+        for (const {data} of timed) Object.keys(data[step.key] ?? {}).forEach((k) => keys.add(k))
+        for (const metricKey of keys) {
+            if (metricKey.startsWith(INVOCATION_PREFIX)) continue
+            const temporal = pointsFor(step.key, metricKey)
+            const stats = statsFor(step.key, metricKey, temporal)
+            if (!isAggregatableMetric(stats)) continue
+            entries.push({
+                id: `${step.key}:${metricKey}`,
+                kind: "evaluator",
+                stepKey: step.key,
+                metricKey,
+                label: metricLabel(metricKey),
+                evaluatorId: step.references?.evaluator?.id ?? null,
+                evaluatorSlug: step.references?.evaluator?.slug ?? null,
+                stats,
+                temporal,
+            })
+        }
+    }
+
+    const invocationKeys = steps
+        .filter((step) => step.type === "invocation")
+        .map((step) => step.key)
+    for (const {id, metricKey, label} of INVOCATION_METRICS) {
+        const stepKey =
+            invocationKeys.find(
+                (key) =>
+                    staticData[key]?.[metricKey] !== undefined ||
+                    timed.some(({data}) => data[key]?.[metricKey] !== undefined),
+            ) ?? null
+        const temporal = stepKey ? pointsFor(stepKey, metricKey) : []
+        entries.push({
+            id,
+            kind: "invocation",
+            stepKey,
+            metricKey,
+            label,
+            evaluatorId: null,
+            evaluatorSlug: null,
+            stats: stepKey ? statsFor(stepKey, metricKey, temporal) : null,
+            temporal,
+        })
+    }
+
+    return entries
+}
+
+export const runMetricCatalogAtomFamily = atomFamily((runId: string) =>
+    atom<RunMetricEntry[]>((get) =>
+        buildRunMetricCatalog(
+            get(evaluationRunQueryAtomFamily(runId)).data ?? null,
+            get(runLevelMetricsQueryAtomFamily(runId)).data ?? [],
+        ),
+    ),
+)

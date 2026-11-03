@@ -102,6 +102,26 @@ export {
     type HumanRunStep,
     type HumanRunMapping,
     type HumanRunTestset,
+    // Metric stats: summaries, chart rows and formats
+    booleanTruePercent,
+    format3Sig,
+    formatCost,
+    formatDuration,
+    formatTokens,
+    frequencyBars,
+    histogramBars,
+    isAggregatableMetric,
+    isBooleanMetricStats,
+    metricSummary,
+    normalizeMetricStats,
+    radarAxes,
+    RADAR_FALLBACK_INVOCATION_IDS,
+    type MetricBar,
+    type MetricBin,
+    type MetricFrequency,
+    type MetricStats,
+    type MetricSummary,
+    type RadarMetricInput,
 } from "./core"
 
 // ============================================================================
@@ -131,6 +151,13 @@ export {
     type CreateAutoEvaluationRunsParams,
     type CreateAutoEvaluationRunsResult,
     findEvaluationRunsUsing,
+    // Run details
+    editEvaluationRunMeta,
+    queryEvaluationScenariosPage,
+    queryRunLevelMetrics,
+    type EvaluationScenario,
+    type EvaluationScenariosPage,
+    type EvaluationScenariosPageParams,
 } from "./api"
 
 // ============================================================================
@@ -141,4 +168,20 @@ export {
     evaluationRunQueryAtomFamily,
     scenarioStepsQueryAtomFamily,
     invalidateEvaluationRunCache,
+    // Run details page
+    runHeaderAtomFamily,
+    runReferencesAtomFamily,
+    runLevelMetricsQueryAtomFamily,
+    runLevelMetricsQueryKey,
+    runMetricCatalogAtomFamily,
+    buildRunMetricCatalog,
+    INVOCATION_METRICS,
+    metricLabel,
+    RUN_METRICS_REFRESH_MS,
+    type RunEvaluatorReference,
+    type RunHeader,
+    type RunMetricEntry,
+    type RunReferences,
+    type RunTestsetReference,
+    type TemporalMetricPoint,
 } from "./state"
