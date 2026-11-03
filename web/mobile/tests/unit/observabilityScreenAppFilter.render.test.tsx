@@ -2,8 +2,9 @@
 import {act, type ReactNode} from "react"
 
 import {observabilityScopeAtom} from "@agenta/observability"
-import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
+import {QueryClientProvider} from "@tanstack/react-query"
 import {createStore, Provider} from "jotai"
+import {queryClientAtom} from "jotai-tanstack-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
@@ -83,6 +84,7 @@ vi.mock("@/features/observability/ObservabilityAppFilter", () => ({
 }))
 
 import {ObservabilityScreen} from "@/features/observability/ObservabilityScreen"
+import {queryClient} from "@/lib/queryClient"
 
 describe("ObservabilityScreen app filter", () => {
     let root: Root
@@ -92,7 +94,7 @@ describe("ObservabilityScreen app filter", () => {
     const mount = () =>
         act(() =>
             root.render(
-                <QueryClientProvider client={new QueryClient()}>
+                <QueryClientProvider client={queryClient}>
                     <Provider store={store}>
                         <ObservabilityScreen workspaceId="ws" projectId="pr" />
                     </Provider>
@@ -113,6 +115,7 @@ describe("ObservabilityScreen app filter", () => {
         canEnable.current = true
         window.history.replaceState(null, "", "/")
         store = createStore()
+        store.set(queryClientAtom, queryClient)
         host = document.createElement("div")
         document.body.append(host)
         root = createRoot(host)
