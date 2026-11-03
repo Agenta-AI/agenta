@@ -192,6 +192,11 @@ export const useTestsetMenuModel = (): TestsetMenuModel => {
     const confirmLoad = useCallback(
         (payload: TestsetLoadPayload) => {
             if (!loadableId) return
+            // "Discard & Load": drop the edits before the rows are copied, since a row the new
+            // revision shares keeps its id and would carry the edit along.
+            if (dialog?.kind === "load" && dialog.discardEdits) {
+                store.set(loadableController.actions.discardChanges, loadableId)
+            }
             const connectPayload: ConnectToTestsetPayload = {
                 loadableId,
                 revisionId: payload.revisionId,
@@ -199,9 +204,6 @@ export const useTestsetMenuModel = (): TestsetMenuModel => {
                 testsetName: payload.testsetName ?? "",
                 testsetId: payload.testsetId,
                 revisionVersion: payload.revisionVersion,
-            }
-            if (dialog?.kind === "load" && dialog.discardEdits) {
-                store.set(loadableController.actions.discardChanges, loadableId)
             }
             // In local mode the server ids must be empty, or stale ids count as draft rows below.
             if (!isConnected) store.set(testcaseMolecule.ids, [])

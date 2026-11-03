@@ -47,6 +47,8 @@ const TESTSET = "0b9f6c1e-1c2d-4e3f-8a9b-0c1d2e3f4a5b"
 const VARIANT = "1c0a7d2f-2d3e-4f40-9b0c-1d2e3f4a5b6c"
 const REVISION = "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f"
 const OTHER_REVISION = "8b3e4f50-6c7d-4e8f-a091-2c3d4e5f6071"
+/** Another revision of the test set that shares the saved rows (unchanged rows keep their ids). */
+const SHARED_REVISION = "9d4e5f60-7a8b-4c9d-8e0f-1a2b3c4d5e6f"
 const COMMITTED_REVISION = "7a2d3e4f-5b6c-4d7e-9f80-1b2c3d4e5f60"
 const CREATED_TESTSET = "2d1b8e3f-3e4f-4051-8c1d-2e3f4a5b6c7d"
 const CREATED_REVISION = "9c4f5061-7d8e-4f90-b1a2-3d4e5f607182"
@@ -130,7 +132,11 @@ const routeHttp = () => {
                 throw new Error("Request failed with status code 502")
             }
             const rows =
-                ref === REVISION ? savedRows() : ref === CREATED_REVISION ? createdRows() : []
+                ref === REVISION || ref === SHARED_REVISION
+                    ? savedRows()
+                    : ref === CREATED_REVISION
+                      ? createdRows()
+                      : []
             const testcases = ref === OTHER_REVISION ? otherRows() : rows
             return {data: {count: testcases.length, testcases, windowing: {next: null}}}
         }
@@ -762,6 +768,21 @@ describe("Disconnecting and changing the test set", () => {
         expect(rowValues()).toEqual(["Peru"])
         expect(menu().hasLocalChanges).toBe(false)
         expect(rowData(FRANCE)?.country).toBe("France")
+    })
+
+    it("Discard and Load drops the edit when the new revision shares the edited row", async () => {
+        await pickLoad()
+        await editCell(FRANCE, "Spain")
+        act(() => menu().change())
+        await act(async () => {
+            await menu().resolveUnsaved("discard")
+        })
+
+        await pickLoad(SHARED_REVISION, [FRANCE, ITALY])
+
+        expect(menu().connectedRevisionId).toBe(SHARED_REVISION)
+        expect(rowValues()).toEqual(["France", "Italy"])
+        expect(menu().hasLocalChanges).toBe(false)
     })
 
     it("Change test set without edits opens the load dialog at once", async () => {
