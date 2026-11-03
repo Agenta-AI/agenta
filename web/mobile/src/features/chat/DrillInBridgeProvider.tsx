@@ -1,4 +1,4 @@
-import {type PropsWithChildren, useCallback, useMemo} from "react"
+import {type PropsWithChildren, useMemo} from "react"
 
 import {canViewSpansAtom} from "@agenta/entities/access"
 import {
@@ -13,13 +13,11 @@ import {isEE} from "@agenta/shared/api"
 import {useSkillsBridge} from "@agenta/skills-ui"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
+import {getDefaultStore, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {agentEntryHref} from "../agents/agentEntry"
 import {useProjectPermission} from "../context/useProjectPermission"
-
-import {selectedRevisionAtomFamily} from "./selectedRevision"
 
 const openTrace = ({traceId, spanId}: {traceId: string; spanId?: string | null}) => {
     if (!traceId) return
@@ -32,12 +30,18 @@ const openTrace = ({traceId, spanId}: {traceId: string; spanId?: string | null})
  *
  * Only the "Open agent" link differs: it lands on this app's agent overview, not the desktop
  * playground, because routes are the one thing a host genuinely owns.
+ *
+ * What a commit leads to is the screen's call: the agent session pins the new revision to the
+ * session, the prompt playground swaps it into its selection.
  */
 export const DrillInBridgeProvider = ({
     children,
-    sessionId,
     projectId,
-}: PropsWithChildren<{sessionId: string; projectId: string}>) => {
+    onWorkflowRevisionCommitted,
+}: PropsWithChildren<{
+    projectId: string
+    onWorkflowRevisionCommitted?: (revisionId: string) => void
+}>) => {
     const {llmProviderConfig, overlay: llmProviderOverlay} = useLLMProviderConfig()
     const baseWorkflowReference = useWorkflowReferenceBridge()
     const router = useRouter()
@@ -64,11 +68,6 @@ export const DrillInBridgeProvider = ({
     // No trace access, no trace openers: the config pane and the delivery rows hide theirs.
     const canViewSpans = useAtomValue(canViewSpansAtom)
     const permissions = useMemo(() => ({canEditSecrets}), [canEditSecrets])
-    const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
-    const onWorkflowRevisionCommitted = useCallback(
-        (revisionId: string) => pinRevision(revisionId),
-        [pinRevision],
-    )
 
     // Deployment policy never changes at runtime; a stable identity keeps the context value stable.
     const deployment = useMemo(() => ({isCloud: isEE()}), [])

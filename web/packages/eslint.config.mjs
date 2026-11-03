@@ -162,6 +162,46 @@ const config = [
         },
     },
     ...(includePrettierRule ? [eslintPluginPrettier] : []),
+    // The playground panels are what /m renders, and /m ships no antd. Every import path that
+    // reaches antd is banned here. Lint cannot see transitive imports, so
+    // `web/mobile/scripts/speed/antd-in-route.mjs` checks the built playground route as well.
+    {
+        // `pnpm --filter @agenta/playground-ui lint` passes this config with `--config`, so its
+        // globs resolve from the package folder; a run from `web/packages` sees the longer path.
+        files: ["agenta-playground-ui/src/panels/**", "src/panels/**"],
+        rules: {
+            "no-restricted-imports": [
+                "error",
+                {
+                    paths: [
+                        ...restrictedImportPaths,
+                        ...[
+                            "antd",
+                            "@agenta/ui",
+                            "@agenta/playground-ui",
+                            "@agenta/playground-ui/components",
+                            "@agenta/playground-ui/execution-items",
+                            "@agenta/playground-ui/adapters",
+                            "@agenta/playground-ui/playground-inputs-body",
+                            "@agenta/playground-ui/execution-item-comparison-view",
+                            "@agenta/playground-ui/workflow-revision-drawer",
+                        ].map((name) => ({
+                            name,
+                            message:
+                                "Playground panels ship in /m, which has no antd. This path reaches antd: import an antd-free subpath instead.",
+                        })),
+                    ],
+                    patterns: [
+                        {
+                            group: ["antd/*", "@ant-design/*", "../**/components", "../**/components/**"],
+                            message:
+                                "Playground panels ship in /m, which has no antd. Move an antd-free helper out of components/ (to src/hooks or src/panels/shared) before importing it.",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     {
         ignores: ["**/dist/**", "**/node_modules/**", "**/*.d.ts"],
     },

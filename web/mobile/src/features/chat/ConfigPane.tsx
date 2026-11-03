@@ -14,6 +14,7 @@ import {Sidebar} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
 import {DrillInBridgeProvider} from "./DrillInBridgeProvider"
+import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {useOpenModelSetup} from "./useOpenModelSetup"
 
 /**
@@ -40,6 +41,8 @@ export const ConfigPane = ({
 }) => {
     const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
     const openModelSetup = useOpenModelSetup()
+    // A commit made here pins the new revision to this session.
+    const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
     // A row's "Run history" opens in a drawer over the agent, like the automation editor does,
     // rather than navigating away from the conversation.
     const openDrawer = useSetAtom(automationRunHistoryDrawerAtom)
@@ -52,7 +55,10 @@ export const ConfigPane = ({
 
     return (
         <div className="ag-panel-raised ag-scroll-no-bar flex h-full min-h-0 w-full flex-col overflow-y-auto">
-            <DrillInBridgeProvider sessionId={sessionId} projectId={projectId}>
+            <DrillInBridgeProvider
+                projectId={projectId}
+                onWorkflowRevisionCommitted={pinRevision}
+            >
                 <AgentBuildPanel
                     revisionId={entityId}
                     stickyHeaderTop={48}
