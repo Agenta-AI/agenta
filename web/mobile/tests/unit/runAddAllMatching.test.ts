@@ -7,25 +7,27 @@
  */
 import type {ReactElement} from "react"
 
-import {buildTraceQueryParams, type Filter} from "@agenta/observability"
+import type {Filter} from "@agenta/observability"
 import {projectIdAtom} from "@agenta/shared/state"
 import {QueryClient} from "@tanstack/react-query"
 import {getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-const {http, message} = vi.hoisted(() => ({
+const {http, message, modal} = vi.hoisted(() => ({
     http: {get: vi.fn(), post: vi.fn()},
     message: {open: vi.fn(), destroy: vi.fn()},
+    modal: {confirm: vi.fn()},
 }))
 
 vi.mock("@agenta/shared/api", async (original) => {
     const actual = await original<typeof import("@agenta/shared/api")>()
     return {...actual, axios: Object.assign(Object.create(actual.axios), http)}
 })
-vi.mock("@agenta/ui/app-message", () => ({message}))
+vi.mock("@agenta/ui/app-message", () => ({message, modal}))
 
 import {
+    confirmEveryTrace,
     runAddAllMatching,
     type AddAllMatchingInput,
 } from "@/features/observability/queueAll/runAddAllMatching"
@@ -74,24 +76,16 @@ const addCalls = () =>
 
 const filters: Filter[] = [{field: "span_name", operator: "is", value: "chat"}]
 
-const input = (overrides: Partial<AddAllMatchingInput> = {}): AddAllMatchingInput => {
-    let current: AbortController | null = null
-    return {
-        queue: QUEUE,
-        projectId: PROJECT,
-        appId: "",
-        query: buildTraceQueryParams(filters, undefined, "span"),
-        run: {
-            begin: () => {
-                current?.abort()
-                current = new AbortController()
-                return current
-            },
-            owns: (controller) => controller === current,
-        },
-        ...overrides,
-    }
-}
+const input = (overrides: Partial<AddAllMatchingInput> = {}): AddAllMatchingInput => ({
+    queue: QUEUE,
+    projectId: PROJECT,
+    appId: "",
+    filters,
+    sort: undefined,
+    traceTabs: "span",
+    pageSignal: new AbortController().signal,
+    ...overrides,
+})
 
 interface Shown {
     type: string
@@ -109,17 +103,22 @@ const shown = (): Shown[] =>
         duration: args.duration,
         action: args.action,
     }))
-const last = (type: string) => shown().filter((toast) => toast.type === type).at(-1)
+const last = (type: string) =>
+    shown()
+        .filter((toast) => toast.type === type)
+        .at(-1)
 
 beforeEach(() => {
     const store = getDefaultStore()
-    store.set(queryClientAtom, new QueryClient({defaultOptions: {queries: {retry: false}}}))
+    queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}})
+    store.set(queryClientAtom, queryClient)
     store.set(projectIdAtom, PROJECT)
     pages = []
     traceRequests.length = 0
     holdSecondPage = null
     addFailures = new Map()
     message.open.mockReset()
+    modal.confirm.mockReset()
     http.get.mockReset()
     http.post.mockReset()
     http.post.mockImplementation(async (url: string) => {
@@ -136,6 +135,8 @@ afterEach(() => {
     vi.unstubAllGlobals()
     getDefaultStore().set(projectIdAtom, null)
 })
+
+let queryClient: QueryClient
 
 describe("Add all matching to a queue", () => {
     it("Picking a queue scans every matching page and adds their trace ids", async () => {
@@ -333,5 +334,49 @@ describe("Add all matching to a queue", () => {
         expect(last("success")).toMatchObject({
             description: `Queued to "Spot checks". They'll appear as the queue processes.`,
         })
+    })
+    it("Leaving the page stops the scan", async () => {
+        pages = [page(0, 300), page(300, 100), []]
+        let release: () => void = () => undefined
+        holdSecondPage = new Promise((resolve) => (release = resolve))
+        const leave = new AbortController()
+
+        const running = runAddAllMatching(input({pageSignal: leave.signal}))
+        await vi.waitFor(() => expect(traceRequests).toHaveLength(2))
+        leave.abort()
+        release()
+        await running
+
+        expect(traceRequests).toHaveLength(2)
+        expect(addCalls()).toHaveLength(1)
+        expect(last("warning")).toMatchObject({title: "Cancelled"})
+    })
+
+    it("A run marks the queue pages stale, so they show the new items", async () => {
+        pages = [page(0, 2), []]
+        const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+
+        await runAddAllMatching(input())
+
+        expect(invalidate.mock.calls.map(([filters]) => filters)).toEqual([
+            {queryKey: ["simpleQueue", "queue-1"], exact: true},
+            {queryKey: ["simpleQueue", "scenarioProgress", "queue-1"]},
+            {queryKey: ["simpleQueues", "list"]},
+        ])
+    })
+
+    it("No filter asks before queuing every trace", async () => {
+        const answer = confirmEveryTrace()
+        expect(modal.confirm).toHaveBeenCalledWith(
+            expect.objectContaining({
+                title: "Add every trace to the queue?",
+                content:
+                    "No filter is active. This will queue every trace in the project. Continue?",
+                okText: "Continue",
+                cancelText: "Cancel",
+            }),
+        )
+        modal.confirm.mock.calls[0][0].onCancel()
+        await expect(answer).resolves.toBe(false)
     })
 })

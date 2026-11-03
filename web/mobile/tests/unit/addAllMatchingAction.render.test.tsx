@@ -4,7 +4,7 @@
 // scan itself is the lazy runner, stubbed here to record its input (its own test runs it for real).
 import {act} from "react"
 
-import {buildTraceQueryParams, type Filter} from "@agenta/observability"
+import type {Filter} from "@agenta/observability"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
@@ -13,14 +13,7 @@ const fixture = vi.hoisted(() => ({
     views: new Set<string>(["observability-actions"]),
     canEdit: true,
     runs: [] as AddAllMatchingInput[],
-    confirms: [] as {
-        title: string
-        content: string
-        okText: string
-        cancelText: string
-        onOk: () => void
-        onCancel: () => void
-    }[],
+    confirms: [] as ((answer: boolean) => void)[],
     push: vi.fn(),
 }))
 
@@ -32,13 +25,11 @@ vi.mock("@/features/context/useProjectPermission", () => ({
         Boolean(projectId) && action === "edit_evaluation_queues" && fixture.canEdit,
 }))
 vi.mock("next/router", () => ({useRouter: () => ({push: fixture.push})}))
-vi.mock("@agenta/ui/app-message", () => ({
-    modal: {confirm: (config: (typeof fixture.confirms)[number]) => fixture.confirms.push(config)},
-}))
 vi.mock("@/features/observability/queueAll/runAddAllMatching", () => ({
     runAddAllMatching: async (input: AddAllMatchingInput) => {
         fixture.runs.push(input)
     },
+    confirmEveryTrace: () => new Promise<boolean>((resolve) => fixture.confirms.push(resolve)),
 }))
 
 import type {AddAllMatchingInput} from "@/features/observability/queueAll/runAddAllMatching"
@@ -122,14 +113,8 @@ describe("Add all matching filter to queue", () => {
         await render({filters: [TRACE_TYPE]})
 
         const proceed = action?.onBeforeOpen?.()
-        expect(fixture.confirms).toHaveLength(1)
-        expect(fixture.confirms[0]).toMatchObject({
-            title: "Add every trace to the queue?",
-            content: "No filter is active. This will queue every trace in the project. Continue?",
-            okText: "Continue",
-            cancelText: "Cancel",
-        })
-        fixture.confirms[0].onCancel()
+        await vi.waitFor(() => expect(fixture.confirms).toHaveLength(1))
+        fixture.confirms[0](false)
         await expect(proceed).resolves.toBe(false)
         expect(fixture.runs).toHaveLength(0)
     })
@@ -137,7 +122,8 @@ describe("Add all matching filter to queue", () => {
     it("No filter and Continue opens the picker", async () => {
         await render({filters: []})
         const proceed = action?.onBeforeOpen?.()
-        fixture.confirms[0].onOk()
+        await vi.waitFor(() => expect(fixture.confirms).toHaveLength(1))
+        fixture.confirms[0](true)
         await expect(proceed).resolves.toBe(true)
     })
 
@@ -154,29 +140,24 @@ describe("Add all matching filter to queue", () => {
         await render({filters: [TRACE_TYPE, SPAN_NAME], appId: "app-7"})
         const input = await pick()
 
-        expect(input).toMatchObject({queue: QUEUE, projectId: "project-1", appId: "app-7"})
-        expect(input.query).toEqual(buildTraceQueryParams([TRACE_TYPE, SPAN_NAME], SORT, "trace"))
+        expect(input).toMatchObject({
+            queue: QUEUE,
+            projectId: "project-1",
+            appId: "app-7",
+            filters: [TRACE_TYPE, SPAN_NAME],
+            sort: SORT,
+            traceTabs: "trace",
+        })
     })
 
     it("Leaving the screen aborts the run", async () => {
         await render({filters: [SPAN_NAME]})
         const input = await pick()
-        const controller = input.run.begin()
-        expect(input.run.owns(controller)).toBe(true)
+        expect(input.pageSignal.aborted).toBe(false)
 
         await act(async () => root.unmount())
-        expect(controller.signal.aborted).toBe(true)
+        expect(input.pageSignal.aborted).toBe(true)
         root = createRoot(host)
-    })
-
-    it("A new run stops the previous one", async () => {
-        await render({filters: [SPAN_NAME]})
-        const input = await pick()
-        const first = input.run.begin()
-        const second = input.run.begin()
-        expect(first.signal.aborted).toBe(true)
-        expect(input.run.owns(first)).toBe(false)
-        expect(input.run.owns(second)).toBe(true)
     })
 
     it("View queue opens the queue only when the queues view is on", async () => {

@@ -24,29 +24,22 @@ afterEach(() => vi.restoreAllMocks())
 describe("Add all matching to a queue", () => {
     it("A failure shows plain text, not the API error", async () => {
         const logged = vi.spyOn(console, "error").mockImplementation(() => undefined)
-        let current: AbortController | null = null
-
         await runAddAllMatching({
             queue: {id: "queue-1", name: "Weekly review"},
             projectId: "project-1",
             appId: "",
-            query: {
-                params: {focus: "trace"},
-                hasAnnotationConditions: [],
-                hasAnnotationOperator: undefined,
-                isHasAnnotationSelected: -1,
-            },
-            run: {
-                begin: () => (current = new AbortController()),
-                owns: (controller) => controller === current,
-            },
+            filters: [],
+            sort: undefined,
+            traceTabs: "trace",
+            pageSignal: new AbortController().signal,
         })
 
         const [args] = message.open.mock.calls.at(-1) ?? []
         expect(args).toMatchObject({type: "error", action: {label: "Retry"}})
-        expect(
-            (args.content as ReactElement<{title: string; description: string}>).props,
-        ).toEqual({title: "Queue add failed", description: "Something went wrong. Try again."})
+        expect((args.content as ReactElement<{title: string; description: string}>).props).toEqual({
+            title: "Queue add failed",
+            description: "Something went wrong. Try again.",
+        })
         expect(logged).toHaveBeenCalled()
     })
 })

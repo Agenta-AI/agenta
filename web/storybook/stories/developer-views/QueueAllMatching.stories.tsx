@@ -1,6 +1,6 @@
 import {useEffect} from "react"
 
-import {buildTraceQueryParams, type Filter} from "@agenta/observability"
+import type {Filter} from "@agenta/observability"
 import {AddActionsDropdown} from "@agenta/observability-ui"
 import {axios} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
@@ -9,8 +9,10 @@ import type {Meta, StoryObj} from "@storybook/nextjs"
 import {useAtomValue} from "jotai"
 import {expect, userEvent, within} from "storybook/test"
 
-import {confirmEveryTrace} from "../../../mobile/src/features/observability/queueAll/confirmEveryTrace"
-import {runAddAllMatching} from "../../../mobile/src/features/observability/queueAll/runAddAllMatching"
+import {
+    confirmEveryTrace,
+    runAddAllMatching,
+} from "../../../mobile/src/features/observability/queueAll/runAddAllMatching"
 
 type AdapterConfig = Parameters<
     Extract<NonNullable<typeof axios.defaults.adapter>, (...args: never[]) => unknown>
@@ -78,21 +80,19 @@ const ScanRun = ({pages, add = "ok"}: Scenario) => {
             if (add === "failSecond" && adds === 2) return fail(config, 500)
             return answer(config, {count: 1, queue_id: "queue-1"})
         }
-        let current: AbortController | null = null
+        const page = new AbortController()
         void runAddAllMatching({
             queue: {id: "queue-1", name: "Weekly review"},
             projectId,
             appId: "",
-            query: buildTraceQueryParams(FILTERS, undefined, "span"),
-            run: {
-                begin: () => (current = new AbortController()),
-                owns: (controller) => controller === current,
-            },
+            filters: FILTERS,
+            sort: undefined,
+            traceTabs: "span",
+            pageSignal: page.signal,
             onViewQueue: () => undefined,
         })
         return () => {
-            current?.abort()
-            current = null
+            page.abort()
             window.fetch = realFetch
             axios.defaults.adapter = undefined
             message.destroy()

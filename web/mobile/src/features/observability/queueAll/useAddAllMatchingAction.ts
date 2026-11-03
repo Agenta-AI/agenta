@@ -1,15 +1,12 @@
 import {useEffect, useMemo, useRef} from "react"
 
-import {buildTraceQueryParams, type Filter, type SortResult} from "@agenta/observability"
+import type {Filter, SortResult} from "@agenta/observability"
 import type {AddActionsDropdownProps} from "@agenta/observability-ui"
 import {useRouter} from "next/router"
 
 import {useDeveloperViewEnabled} from "@/features/developer/developerViewAccess"
 
 import {useTraceActionAccess} from "../useTraceActionAccess"
-
-import {confirmEveryTrace} from "./confirmEveryTrace"
-import type {QueueRun} from "./runAddAllMatching"
 
 interface Args {
     workspaceId: string
@@ -24,8 +21,8 @@ interface Args {
 
 /**
  * The "Add all matching filter to queue" item of the traces toolbar Add menu, or `undefined` when
- * the user does not see it. Picking a queue loads the scan with `import()`, so the page carries
- * only this hook. One scan runs at a time; a new one or leaving the page stops it.
+ * the user does not see it. The confirm and the scan load with `import()` when they are needed, so
+ * the page carries only this hook. Leaving the page stops a scan in progress.
  */
 export const useAddAllMatchingAction = ({
     workspaceId,
@@ -40,19 +37,13 @@ export const useAddAllMatchingAction = ({
     const queuesView = useDeveloperViewEnabled("annotation-queues") === true
     const router = useRouter()
 
-    const current = useRef<AbortController | null>(null)
-    useEffect(() => () => current.current?.abort(), [])
-    const run = useMemo<QueueRun>(
-        () => ({
-            begin: () => {
-                current.current?.abort()
-                current.current = new AbortController()
-                return current.current
-            },
-            owns: (controller) => current.current === controller,
-        }),
-        [],
-    )
+    // Aborted when the page goes away, which stops a run in progress.
+    const page = useRef<AbortController | null>(null)
+    useEffect(() => {
+        const controller = new AbortController()
+        page.current = controller
+        return () => controller.abort()
+    }, [])
 
     return useMemo(() => {
         if (!allowed) return undefined
@@ -65,11 +56,23 @@ export const useAddAllMatchingAction = ({
         return {
             label: "Add all matching filter to queue",
             disabled: !hasTraces,
-            onBeforeOpen: () => narrowed || confirmEveryTrace(),
+            onBeforeOpen: () =>
+                narrowed ||
+                import("./runAddAllMatching").then(({confirmEveryTrace}) => confirmEveryTrace()),
             onQueueSelected: (queue) => {
-                const query = buildTraceQueryParams(filters, sort, traceTabs)
+                const pageSignal = page.current?.signal
+                if (!pageSignal) return
                 void import("./runAddAllMatching").then(({runAddAllMatching}) =>
-                    runAddAllMatching({queue, projectId, appId, query, run, onViewQueue}),
+                    runAddAllMatching({
+                        queue,
+                        projectId,
+                        appId,
+                        filters,
+                        sort,
+                        traceTabs,
+                        pageSignal,
+                        onViewQueue,
+                    }),
                 )
             },
         }
@@ -81,7 +84,6 @@ export const useAddAllMatchingAction = ({
         projectId,
         queuesView,
         router,
-        run,
         sort,
         traceTabs,
         workspaceId,

@@ -1,34 +1,47 @@
-import {simpleQueueMolecule, type SimpleQueue} from "@agenta/entities/simpleQueue"
+import {addSimpleQueueTraces, type SimpleQueue} from "@agenta/entities/simpleQueue"
 import {addAllMatchingTracesToQueue, BatchFlushError} from "@agenta/entities/simpleQueue/etl"
 import {inferQueueMaxFromPlan} from "@agenta/entities/trace/etl"
 import {
     buildTraceQueryParams,
     createAdaptiveTracePageFetcher,
     withRateLimitRetry,
+    type Filter,
+    type SortResult,
 } from "@agenta/observability"
 import {axios, getAgentaApiUrl, getHostQueryClient, isBillingEnabled} from "@agenta/shared/api"
-import {message} from "@agenta/ui/app-message"
+import {message, modal} from "@agenta/ui/app-message"
 import type {NoticeType} from "@agenta/ui/app-message"
-
-/**
- * The one run the traces page owns. `begin` stops the previous run and returns the new one's
- * controller; `owns` tells a run whether it is still the current one.
- */
-export interface QueueRun {
-    begin: () => AbortController
-    owns: (controller: AbortController) => boolean
-}
 
 export interface AddAllMatchingInput {
     queue: Pick<SimpleQueue, "id" | "name">
     projectId: string
     /** The app the page is scoped to, or "" for the whole project. */
     appId: string
-    query: ReturnType<typeof buildTraceQueryParams>
-    run: QueueRun
+    /** The traces page query: its filters, time range and Root/LLM/All tab. */
+    filters: Filter[]
+    sort: SortResult | undefined
+    traceTabs: string
+    /** Aborts when the traces page goes away; the run stops with it. */
+    pageSignal: AbortSignal
     /** Opens the queue. Without it the success toast has no "View queue" button. */
     onViewQueue?: (queueId: string) => void
 }
+
+/** Asks before a scan with no filter; resolves `true` when the user agrees to queue every trace. */
+export const confirmEveryTrace = () =>
+    new Promise<boolean>((resolve) => {
+        modal.confirm({
+            title: "Add every trace to the queue?",
+            content: "No filter is active. This will queue every trace in the project. Continue?",
+            okText: "Continue",
+            cancelText: "Cancel",
+            onOk: () => resolve(true),
+            onCancel: () => resolve(false),
+        })
+    })
+
+/** The run in progress. A new run stops it. */
+let current: AbortController | null = null
 
 /** The per-run cap of the organization's plan. Without billing, or when it fails, the lowest. */
 const readQueueCap = async (projectId: string): Promise<number> => {
@@ -55,6 +68,18 @@ const readQueueCap = async (projectId: string): Promise<number> => {
 
 const count = (value: number) => value.toLocaleString()
 
+/**
+ * Marks the queue's cached data stale, so its pages show the new items. The keys are the ones the
+ * queue molecule reads; the molecule itself is not imported, because this chunk sharing it moves
+ * modules of the app shell between chunks and the shell grows.
+ */
+const refreshQueueCaches = (queueId: string) => {
+    const client = getHostQueryClient()
+    void client.invalidateQueries({queryKey: ["simpleQueue", queueId], exact: true})
+    void client.invalidateQueries({queryKey: ["simpleQueue", "scenarioProgress", queueId]})
+    void client.invalidateQueries({queryKey: ["simpleQueues", "list"]})
+}
+
 const QueueToast = ({title, description}: {title: string; description: string}) => (
     <span className="flex flex-col gap-0.5">
         <span className="font-medium">{title}</span>
@@ -77,13 +102,19 @@ interface Toast {
  * so it sends the traces that were already queued once more.
  */
 export const runAddAllMatching = async (input: AddAllMatchingInput): Promise<void> => {
-    const {queue, projectId, appId, query, run, onViewQueue} = input
-    const controller = run.begin()
+    const {queue, projectId, appId, pageSignal, onViewQueue} = input
+    current?.abort()
+    const controller = new AbortController()
+    current = controller
+    const owned = () => current === controller
+    if (pageSignal.aborted) controller.abort()
+    pageSignal.addEventListener("abort", () => controller.abort(), {once: true})
+    const query = buildTraceQueryParams(input.filters, input.sort, input.traceTabs)
     const key = `batch-add-queue-${queue.id}`
     const queueName = queue.name || "queue"
     const maxItems = await readQueueCap(projectId)
     const max = count(maxItems)
-    if (!run.owns(controller)) return
+    if (!owned()) return
 
     // One toast per queue, updated in place as the run goes on.
     const show = ({type, title, description, duration, action}: Toast) =>
@@ -105,7 +136,7 @@ export const runAddAllMatching = async (input: AddAllMatchingInput): Promise<voi
             action: cancel,
         })
     const showRateLimited = (delayMs: number) => {
-        if (!run.owns(controller)) return
+        if (!owned()) return
         show({
             type: "loading",
             title: "Rate limited, pausing",
@@ -132,10 +163,14 @@ export const runAddAllMatching = async (input: AddAllMatchingInput): Promise<voi
             }),
             // The queue add has its own rate limit; a 429 there pauses the scan the same way.
             addTraces: (queueId, traceIds) =>
-                withRateLimitRetry(() => simpleQueueMolecule.set.addTraces(queueId, traceIds), {
-                    signal: controller.signal,
-                    onRetry: showRateLimited,
-                }),
+                withRateLimitRetry(
+                    async () =>
+                        (await addSimpleQueueTraces(projectId, queueId, traceIds)).queue_id ?? null,
+                    {
+                        signal: controller.signal,
+                        onRetry: showRateLimited,
+                    },
+                ),
             queueId: queue.id,
             signal: controller.signal,
             // The page fetcher paces itself from the rate limit headers.
@@ -146,8 +181,9 @@ export const runAddAllMatching = async (input: AddAllMatchingInput): Promise<voi
                 if (!controller.signal.aborted) showRunning()
             },
         })
+        if (result.queued > 0) refreshQueueCaches(queue.id)
         // A newer run owns the toast now.
-        if (!run.owns(controller)) return
+        if (!owned()) return
 
         if (result.stoppedBy === "cancelled") {
             show({
@@ -184,7 +220,8 @@ export const runAddAllMatching = async (input: AddAllMatchingInput): Promise<voi
                 : undefined,
         })
     } catch (error) {
-        if (!run.owns(controller)) return
+        if (error instanceof BatchFlushError && error.flushedCount > 0) refreshQueueCaches(queue.id)
+        if (!owned()) return
         const retry = {label: "Retry", onClick: () => void runAddAllMatching(input)}
         if (error instanceof BatchFlushError) {
             show({
