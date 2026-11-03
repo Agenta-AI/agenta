@@ -24,3 +24,16 @@ export {
 } from "./selectors"
 
 export {getNodeById} from "./nodeTree"
+
+export {
+    TRACE_MAPPING_SAMPLE_SIZE,
+    getCanonicalTraceMappingPaths,
+    getColumnNameForTraceMappingPath,
+    suggestTraceMappings,
+    getTraceMappingPathOptions,
+    buildTestsetRowsFromTraces,
+    findDuplicateMappingColumns,
+    newColumnsOf,
+    hasDifferentStructure,
+    type TraceMapping,
+} from "./testsetMapping"
