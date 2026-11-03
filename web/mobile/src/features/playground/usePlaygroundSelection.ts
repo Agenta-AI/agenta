@@ -4,8 +4,6 @@ import {isLocalDraftId} from "@agenta/entities/shared"
 import {
     discardLocalServerDataAtom,
     workflowDetailQueryAtomFamily,
-    workflowLatestRevisionIdAtomFamily,
-    workflowLatestRevisionQueryAtomFamily,
     workflowMolecule,
 } from "@agenta/entities/workflow"
 import {
@@ -18,6 +16,7 @@ import {atomFamily} from "jotai-family"
 import {queryClientAtom} from "jotai-tanstack-query"
 import {useRouter} from "next/router"
 
+import {playgroundLatestRevisionIdAtomFamily} from "./playgroundLatestRevision"
 import {parseRevisionIds} from "./playgroundUrl"
 
 /** How far the app and its selected revisions have loaded. */
@@ -69,8 +68,9 @@ export const usePlaygroundSelection = ({appId}: {appId: string}): PlaygroundSele
     const store = useStore()
 
     const detail = useAtomValue(workflowDetailQueryAtomFamily(appId))
-    const latestQuery = useAtomValue(workflowLatestRevisionQueryAtomFamily(appId))
-    const latestId = useAtomValue(workflowLatestRevisionIdAtomFamily(appId))
+    const latestQuery = useAtomValue(playgroundLatestRevisionIdAtomFamily(appId))
+    // A failed reload keeps the previous answer, which can be a revision just deleted: not used.
+    const latestId = latestQuery.isError ? null : (latestQuery.data ?? null)
     // The controller calls the selected revisions "entity ids"; this screen calls them revisions.
     const revisionIds = useAtomValue(playgroundController.selectors.entityIds())
     const keptIds = useAtomValue(keptRevisionIdsAtomFamily(appId))
@@ -153,7 +153,7 @@ export const usePlaygroundSelection = ({appId}: {appId: string}): PlaygroundSele
             predicate: ({queryKey: [scope, kind, a, b]}) =>
                 scope === "workflows" &&
                 ((kind === "detail" && b === appId) ||
-                    (kind === "latestRevision" && a === appId) ||
+                    (kind === "playgroundLatest" && a === appId) ||
                     (kind === "revision" && selected.has(String(a)))),
         })
     }, [appId, store])

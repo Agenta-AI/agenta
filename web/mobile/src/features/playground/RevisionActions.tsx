@@ -75,14 +75,20 @@ export const RevisionActions = ({
     projectId,
     appId,
     revisionId,
+    readOnly,
     onCommitted,
+    onArchived,
 }: {
     workspaceId: string
     projectId: string
     appId: string
     revisionId: string
+    /** The revision is deleted on the server and is about to leave the page. */
+    readOnly: boolean
     /** A commit made a new revision: show it. */
     onCommitted: (revisionId: string) => void
+    /** The server deleted this revision. The page takes it out after the lists load again. */
+    onArchived: (revisionId: string) => void
 }) => {
     const store = useStore()
     const queryClient = useQueryClient()
@@ -97,7 +103,8 @@ export const RevisionActions = ({
     const dirty = useAtomValue(workflowMolecule.selectors.isDirty(revisionId))
     const ephemeral = useAtomValue(workflowMolecule.selectors.isEphemeral(revisionId))
     const isLocalDraft = isLocalDraftId(revisionId)
-    const loading = query.isPending && !isLocalDraft
+    // A deleted revision keeps no verbs while it waits to leave the page.
+    const unavailable = (query.isPending && !isLocalDraft) || readOnly
 
     // No reason while the check is still running: the answer may be yes.
     const commitReason =
@@ -169,7 +176,7 @@ export const RevisionActions = ({
         <WithTooltip title={commitReason}>
             <Button
                 size="sm"
-                disabled={loading || !canEdit || !(dirty || ephemeral)}
+                disabled={unavailable || !canEdit || !(dirty || ephemeral)}
                 onClick={() => setOpen({kind: "commit"})}
             >
                 {ephemeral ? "Create" : "Commit"}
@@ -202,7 +209,7 @@ export const RevisionActions = ({
                             size="icon-sm"
                             variant="ghost"
                             aria-label="Deploy"
-                            disabled={loading || !canDeploy}
+                            disabled={unavailable || !canDeploy}
                             onClick={() => setOpen({kind: "deploy", revision: shownRevision()})}
                         >
                             <Rocket aria-hidden />
@@ -211,8 +218,8 @@ export const RevisionActions = ({
                     {commitButton}
                     <RevisionMenu
                         dirty={dirty}
-                        canDeploy={canDeploy && !loading}
-                        canDelete={canEdit && !loading}
+                        canDeploy={canDeploy && !unavailable}
+                        canDelete={canEdit && !unavailable}
                         deployHint={deployReason}
                         deleteHint={deleteReason}
                         onCopyConfig={() => void copyConfig()}
@@ -247,6 +254,7 @@ export const RevisionActions = ({
                     projectId={projectId}
                     appId={appId}
                     onClose={() => setOpen(null)}
+                    onArchived={onArchived}
                     onDeleted={afterDelete}
                 />
             ) : null}

@@ -30,12 +30,15 @@ export const DeleteRevisionDialog = ({
     projectId,
     appId,
     onClose,
+    onArchived,
     onDeleted,
 }: {
     row: DialogRevision
     projectId: string
     appId: string
     onClose: () => void
+    /** Called as soon as the server has deleted the revision, before the dialog closes. */
+    onArchived?: (revisionId: string) => void
     /** Called once the revision is gone and the lists have loaded again. It must not throw. */
     onDeleted?: (revisionId: string) => Promise<void> | void
 }) => {
@@ -57,9 +60,16 @@ export const DeleteRevisionDialog = ({
             return
         }
         // The revision is gone: the dialog closes, and the screens that showed it load again.
+        onArchived?.(row.revisionId)
         message.success("Deleted workflow successfully")
         onClose()
-        await queryClient.invalidateQueries({queryKey: ["workflows"]})
+        // The deleted revision itself is not loaded again: that load would write it back to
+        // the persisted cache a reload paints from.
+        await queryClient.invalidateQueries({
+            queryKey: ["workflows"],
+            predicate: ({queryKey}) =>
+                !(queryKey[1] === "revision" && queryKey[2] === row.revisionId),
+        })
         if (shownRevisionId === row.revisionId) setShownRevisionId(null)
         await onDeleted?.(row.revisionId)
     }

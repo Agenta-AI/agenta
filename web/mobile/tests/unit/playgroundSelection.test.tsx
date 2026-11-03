@@ -67,9 +67,6 @@ const revisions = [
 let added: (Omit<ReturnType<typeof revision>, "data"> & {data: object | null})[] = []
 let failRevisions = false
 
-/** A new variant's first revision: version 0, nothing in it. The server nulls its data. */
-const isSeed = (item: {version: number; data: unknown}) => item.version === 0 && !item.data
-
 http.post.mockImplementation(async (url: string, body: Record<string, {id: string}[]>) => {
     if (url.endsWith("/workflows/query")) {
         const ids = (body.workflow_refs ?? []).map((ref) => ref.id)
@@ -83,19 +80,8 @@ http.post.mockImplementation(async (url: string, body: Record<string, {id: strin
         let found = [...revisions, ...added]
             .filter((item) => byId.includes(item.id) || byApp.includes(item.workflow_id))
             .sort((a, b) => b.created_at.localeCompare(a.created_at))
-        const options = body as {grouping?: unknown; windowing?: {limit?: number}}
-        if (options.grouping) {
-            // The newest revision of each app that is not an empty seed, as the server answers.
-            found = found.filter(
-                (item, index) =>
-                    !isSeed(item) &&
-                    found.findIndex(
-                        (other) => other.workflow_id === item.workflow_id && !isSeed(other),
-                    ) === index,
-            )
-        } else if (options.windowing?.limit) {
-            found = found.slice(0, options.windowing.limit)
-        }
+        const limit = (body as {windowing?: {limit?: number}}).windowing?.limit
+        if (limit) found = found.slice(0, limit)
         return {data: {count: found.length, workflow_revisions: found}}
     }
     return {data: {}}
@@ -177,6 +163,46 @@ describe("usePlaygroundSelection", () => {
         await mount("app-1")
 
         expect(selection.revisionIds).toEqual(["rev-2"])
+        expect(selection.status).toBe("ready")
+    })
+
+    it("A new variant with an empty seed and a later revision opens the later revision", async () => {
+        added = [
+            {
+                ...revision("rev-seed", "app-1", 0),
+                workflow_variant_id: "app-1-variant-2",
+                created_at: "2026-11-05T00:00:00Z",
+                data: null,
+            },
+            {
+                ...revision("rev-new", "app-1", 1),
+                workflow_variant_id: "app-1-variant-2",
+                created_at: "2026-11-06T00:00:00Z",
+            },
+        ]
+
+        await mount("app-1")
+
+        expect(selection.revisionIds).toEqual(["rev-new"])
+        expect(selection.status).toBe("ready")
+    })
+
+    it("A version 0 that holds a config opens as the latest revision", async () => {
+        apps["app-v0"] = {id: "app-v0", name: "Seeded", flags: {}}
+        added = [
+            {
+                ...revision("rev-v0", "app-v0", 0),
+                created_at: "2026-11-05T00:00:00Z",
+                data: {
+                    uri: "agenta:builtin:completion:v0",
+                    parameters: {prompt: {messages: [{role: "user", content: "Hi"}]}},
+                },
+            },
+        ]
+
+        await mount("app-v0")
+
+        expect(selection.revisionIds).toEqual(["rev-v0"])
         expect(selection.status).toBe("ready")
     })
 

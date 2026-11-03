@@ -17,6 +17,8 @@ const HEADER_HEIGHT = 48
 
 export interface ConfigPanelProps {
     revisionId: string
+    /** Shows the config without letting it change. */
+    readOnly?: boolean
     /** Form, JSON or YAML. The screen keeps it, so it lasts while the page is open. */
     viewMode: ConfigViewMode
     onViewModeChange: (mode: ConfigViewMode) => void
@@ -35,6 +37,7 @@ export interface ConfigPanelProps {
  */
 export const ConfigPanel = ({
     revisionId,
+    readOnly = false,
     viewMode,
     onViewModeChange,
     switcher,
@@ -57,6 +60,7 @@ export const ConfigPanel = ({
             ) : (
                 <PlaygroundConfigSection
                     revisionId={revisionId}
+                    disabled={readOnly}
                     viewMode={viewMode}
                     stickyHeaderTop={headerSticks ? HEADER_HEIGHT : 0}
                 />

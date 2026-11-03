@@ -40,6 +40,10 @@ export const PlaygroundWorkspace = ({
     // Form, JSON or YAML: kept while the page is open, as in the old playground.
     const [viewMode, setViewMode] = useState<ConfigViewMode>("form")
     const {switchTo, modal: switchDialog} = useSwitchRevision(revisionId)
+    // A revision the server has deleted is read only from that moment. It stays on screen until
+    // the lists load again and the page takes it out, and an edit made then would be lost.
+    const [deletedId, setDeletedId] = useState<string | null>(null)
+    const readOnly = deletedId === revisionId
 
     return (
         <div className="flex h-full min-h-0 flex-col bg-background">
@@ -52,6 +56,7 @@ export const PlaygroundWorkspace = ({
                     >
                         <ConfigPanel
                             revisionId={revisionId}
+                            readOnly={readOnly}
                             viewMode={viewMode}
                             onViewModeChange={setViewMode}
                             switcher={
@@ -67,7 +72,9 @@ export const PlaygroundWorkspace = ({
                                     projectId={projectId}
                                     appId={appId}
                                     revisionId={revisionId}
+                                    readOnly={readOnly}
                                     onCommitted={onWorkflowRevisionCommitted}
+                                    onArchived={setDeletedId}
                                 />
                             }
                         />

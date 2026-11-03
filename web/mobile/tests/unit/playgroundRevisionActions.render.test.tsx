@@ -48,7 +48,10 @@ vi.mock("@agenta/shared/api", async (original) => {
 // The editor, the run pane and the page chrome are not under test.
 vi.mock("@agenta/entity-ui/drill-in", async (original) => ({
     ...(await original<object>()),
-    PlaygroundConfigSection: () => <div data-testid="config-section" />,
+    // The real editor turns every field off when `disabled` is set.
+    PlaygroundConfigSection: ({disabled}: {disabled?: boolean}) => (
+        <div data-testid="config-section" data-disabled={disabled ? "true" : "false"} />
+    ),
 }))
 vi.mock("@agenta/entity-ui/gatewayTool", () => ({CatalogDrawer: () => null}))
 vi.mock("@agenta/ui/editor", async (original) => ({
@@ -111,6 +114,8 @@ const world = {
     holdCommit: null as Promise<void> | null,
     /** While set, the archive request waits for it. */
     holdArchive: null as Promise<void> | null,
+    /** While set, revision lists asked for after a delete wait for it. */
+    holdAfterDelete: null as Promise<void> | null,
     /** Set once a revision is archived. */
     deleted: false,
     /** Revision lists asked for after a delete fail. */
@@ -127,6 +132,7 @@ const resetWorld = () => {
     world.holdList = null
     world.holdCommit = null
     world.holdArchive = null
+    world.holdAfterDelete = null
     world.deleted = false
     world.failAfterDelete = false
 }
@@ -135,7 +141,6 @@ type Body = Record<string, unknown>
 interface RevisionInput {
     workflow_variant_id: string
 }
-const hasData = (revision: Revision) => Object.keys(revision.data).length > 0
 const refIds = (refs: unknown) =>
     Array.isArray(refs) ? refs.map((ref: {id: string}) => ref.id) : null
 
@@ -153,11 +158,6 @@ const answer = (url: string, body: Body): unknown => {
         )
         // Newest first, as the server orders them.
         list = [...list].sort((a, b) => b.created_at.localeCompare(a.created_at))
-        if (body.grouping) {
-            // The newest revision that is not an empty seed, as the server answers.
-            const real = list.filter((revision) => revision.version > 0 || hasData(revision))
-            return {count: Math.min(1, real.length), workflow_revisions: real.slice(0, 1)}
-        }
         const limit = (body.windowing as {limit?: number} | undefined)?.limit
         if (limit) list = list.slice(0, limit)
         return {count: list.length, workflow_revisions: list}
@@ -258,6 +258,7 @@ beforeEach(async () => {
         if (world.holdCommit && url.endsWith("/workflows/revisions/commit")) await world.holdCommit
         if (world.holdArchive && url.endsWith("/archive")) await world.holdArchive
         if (world.deleted && url.endsWith("/workflows/revisions/query")) {
+            if (world.holdAfterDelete) await world.holdAfterDelete
             if (world.failAfterDelete) throw new Error("Request failed with status code 500")
         }
         if (world.failCommit && url.endsWith("/workflows/revisions/commit")) {
@@ -298,6 +299,8 @@ const mount = async () => {
         ),
     )
     await settle()
+    // The first mount of a run imports the editor and can take longer on a busy machine.
+    for (let i = 0; i < 40 && shown().length === 0; i++) await settle()
 }
 const shown = () => store.get(playgroundController.selectors.entityIds())
 const label = (el: Element) => el.textContent?.trim() ?? ""
@@ -728,7 +731,6 @@ describe("Delete", () => {
         expect(document.querySelector("[role=alertdialog]")).toBeNull()
         expect(router.replace).toHaveBeenCalledWith(appUrl(), undefined, {shallow: true})
         expect(shown()).toEqual(["rev-1"])
-        expect(store.get(workflowLatestRevisionIdAtomFamily("app-1"))).toBe("rev-1")
         // A reload paints from the persisted cache: it must not bring the deleted revision back.
         expect(onDisk("revision", "rev-2")).toBeUndefined()
         const latestOnDisk = onDisk("latestRevision", "app-1")?.state.data as {id: string} | null
@@ -762,6 +764,49 @@ describe("Delete", () => {
         expect(shown()).toEqual(["rev-1"])
         expect(isDirty("rev-1")).toBe(true)
         expect(router.replace).not.toHaveBeenCalledWith(appUrl(), undefined, {shallow: true})
+    })
+
+    it("The shown revision is read only from the moment its delete succeeds", async () => {
+        await mount()
+        const editor = () => document.querySelector("[data-testid=config-section]")
+        expect(editor()?.getAttribute("data-disabled")).toBe("false")
+        let release: () => void = () => undefined
+        world.holdAfterDelete = new Promise<void>((resolve) => (release = resolve))
+
+        await deleteShown()
+
+        // The delete succeeded and the lists are still loading: rev-2 is on screen, read only.
+        expect(document.querySelector("[role=alertdialog]")).toBeNull()
+        expect(shown()).toEqual(["rev-2"])
+        expect(editor()?.getAttribute("data-disabled")).toBe("true")
+        expect(find("Commit")!.hasAttribute("disabled")).toBe(true)
+        expect(find("Deploy")!.hasAttribute("disabled")).toBe(true)
+
+        release()
+        await settle()
+
+        expect(shown()).toEqual(["rev-1"])
+        expect(editor()?.getAttribute("data-disabled")).toBe("false")
+    })
+
+    it("An edit made before the delete on another selected revision is kept", async () => {
+        await mount()
+        act(() => store.set(playgroundController.actions.setEntityIds, ["rev-2", "rev-1"]))
+        await settle()
+        act(() => store.set(workflowMolecule.actions.updateConfiguration, "rev-1", prompt("Kept")))
+        await settle()
+        expect(isDirty("rev-1")).toBe(true)
+
+        await deleteShown()
+
+        expect(writes().map((call) => call.url)).toEqual([
+            expect.stringContaining("/workflows/revisions/rev-2/archive"),
+        ])
+        expect(shown()).toEqual(["rev-1"])
+        expect(isDirty("rev-1")).toBe(true)
+        expect(store.get(workflowMolecule.selectors.configuration("rev-1"))).toMatchObject(
+            prompt("Kept"),
+        )
     })
 
     it("When the opening load fails after a delete, the playground shows its load error, and Try again shows the newest revision", async () => {
