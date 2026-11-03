@@ -91,6 +91,7 @@ import type {
     AnnotationColumnDef,
     ScenarioListColumnDef,
     OpenQueuePayload,
+    OpenRunPayload,
     ApplyRouteStatePayload,
     AnnotationProgress,
     AnnotationSessionCallbacks,
@@ -110,8 +111,13 @@ const activeQueueIdAtom = atom<string | null>(null)
 /** The active queue's type (simple or evaluation) */
 const activeQueueTypeAtom = atom<QueueType | null>(null)
 
-/** The evaluation run ID — derived from queue data via simpleQueueMolecule */
+/** A run opened for annotation without a queue (`openRun`); null in a queue session. */
+const runScopeIdAtom = atom<string | null>(null)
+
+/** The evaluation run ID: the run opened directly, else the queue's run from simpleQueueMolecule */
 const activeRunIdAtom = atom<string | null>((get) => {
+    const runScopeId = get(runScopeIdAtom)
+    if (runScopeId) return runScopeId
     const queueId = get(activeQueueIdAtom)
     if (!queueId) return null
     return get(simpleQueueMolecule.selectors.runId(queueId))
@@ -2101,6 +2107,17 @@ const openQueueAtom = atom(null, (_get, set, payload: OpenQueuePayload) => {
 })
 
 /**
+ * Open one evaluation run for annotation, without a queue. The form controller then annotates the
+ * run's scenarios; the caller owns navigation, since the session lists only queue scenarios.
+ */
+const openRunAtom = atom(null, (_get, set, payload: OpenRunPayload) => {
+    set(closeSessionAtom)
+    set(runScopeIdAtom, payload.runId)
+    // Saving must not move to another scenario: the run screens choose the scenario themselves.
+    set(focusAutoNextAtom, false)
+})
+
+/**
  * Navigate to next scenario.
  */
 const navigateNextAtom = atom(null, (get, set) => {
@@ -2372,6 +2389,7 @@ const closeSessionAtom = atom(null, (get, set) => {
     // Derived atoms (activeRunIdAtom, scenarioIdsAtom, scenarioRecordsAtom)
     // clear automatically when activeQueueIdAtom becomes null.
     set(activeQueueIdAtom, null)
+    set(runScopeIdAtom, null)
     set(activeQueueTypeAtom, null)
     set(focusedScenarioIdAtom, null)
     set(completedScenarioIdsAtom, new Set())
@@ -3543,6 +3561,8 @@ export const annotationSessionController = {
     actions: {
         /** Open a queue for annotation */
         openQueue: openQueueAtom,
+        /** Open an evaluation run for annotation, without a queue */
+        openRun: openRunAtom,
         /** Navigate to next scenario */
         navigateNext: navigateNextAtom,
         /** Navigate to previous scenario */
@@ -3650,6 +3670,7 @@ export const annotationSessionController = {
     // ========================================================================
     set: {
         openQueue: (payload: OpenQueuePayload) => getStore().set(openQueueAtom, payload),
+        openRun: (payload: OpenRunPayload) => getStore().set(openRunAtom, payload),
         navigateNext: () => getStore().set(navigateNextAtom),
         navigatePrev: () => getStore().set(navigatePrevAtom),
         navigateToIndex: (index: number) => getStore().set(navigateToIndexAtom, index),

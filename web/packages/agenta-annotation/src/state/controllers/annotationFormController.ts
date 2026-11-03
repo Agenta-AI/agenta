@@ -1050,6 +1050,24 @@ function buildStepReferences(annotationSteps: EvaluationRunDataStep[]): Map<stri
 }
 
 /**
+ * The test set and test case references of a run-scoped annotation. The test set is named only when
+ * the run reads a single one, since a scenario result does not say which test set it came from.
+ */
+function buildRunScopeReferences(
+    steps: EvaluationRunDataStep[],
+    testcaseId: string | undefined,
+): {testset?: {id: string}; testcase?: {id: string}} {
+    const testsetIds = steps.flatMap((step) => {
+        const id = step.type === "input" ? step.references?.testset?.id : null
+        return id ? [id] : []
+    })
+    return {
+        ...(testsetIds.length === 1 ? {testset: {id: testsetIds[0]}} : {}),
+        ...(testcaseId ? {testcase: {id: testcaseId}} : {}),
+    }
+}
+
+/**
  * Match existing annotations to evaluator slugs.
  * In testcase mode, uses queue-scoped matching with conflict detection.
  * In trace mode, matches by evaluator reference.
@@ -1303,7 +1321,7 @@ function fireMetricUpserts({
 
 /** Submit annotations and optionally mark a not-yet-completed scenario complete */
 const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotationsPayload) => {
-    const {scenarioId, queueId, markComplete} = payload
+    const {scenarioId, queueId = "", markComplete} = payload
     const rawProjectId = get(projectIdAtom)
     const traceSpan = get(traceSpanByScenarioAtomFamily(scenarioId))
     const scenarioStatuses = get(annotationSessionController.selectors.scenarioStatuses())
@@ -1339,6 +1357,14 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
             ? get(evaluationRunMolecule.selectors.annotationSteps(activeRunId))
             : []
         const stepRefsByEvalId = buildStepReferences(annotationSteps)
+        // A run annotated without a queue also names the test set and test case it rated.
+        const runScopeReferences =
+            !queueId && activeRunId
+                ? buildRunScopeReferences(
+                      get(evaluationRunMolecule.selectors.steps(activeRunId)),
+                      traceSpan.testcaseId,
+                  )
+                : {}
 
         // Phase 2: Match existing annotations to evaluator slugs
         const existingBySlug = matchExistingAnnotations({
@@ -1519,6 +1545,7 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
                             ...(stepRefs?.evaluator_revision
                                 ? {evaluator_revision: stepRefs.evaluator_revision}
                                 : {}),
+                            ...runScopeReferences,
                         },
                         links: {
                             [linksKey]: {

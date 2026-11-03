@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import {act, createElement} from "react"
 
+import type {RunHeader} from "@agenta/entities/evaluationRun"
 import {primeWorkflowArtifactCacheImperative} from "@agenta/entities/workflow"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
@@ -34,9 +35,21 @@ vi.mock("next/router", () => ({
     }),
 }))
 
+import {answerRequest, newServerState, type ScenarioServerState} from "./runScenariosFixtures"
+
 import {ScenariosTab} from "@/features/evaluation-run/scenarios/ScenariosTab"
 
-import {answerRequest, newServerState, type ScenarioServerState} from "./runScenariosFixtures"
+/** The scenarios tab only needs the run kind: an automatic run has no Annotate action. */
+const AUTO_RUN: RunHeader = {
+    name: "Capitals check",
+    description: null,
+    status: "evaluation_finished",
+    kind: "auto",
+    flags: {isLive: false, isClosed: false, isActive: false},
+    createdAt: null,
+    updatedAt: null,
+    createdById: null,
+}
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
@@ -77,7 +90,11 @@ async function mount(patch: Partial<ScenarioServerState> = {}, wide = true) {
             createElement(
                 Provider,
                 {store},
-                createElement(QueryClientProvider, {client}, createElement(ScenariosTab, {runId})),
+                createElement(
+                    QueryClientProvider,
+                    {client},
+                    createElement(ScenariosTab, {runId, header: AUTO_RUN}),
+                ),
             ),
         )
     })

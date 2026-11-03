@@ -10,18 +10,25 @@ import {Tabs, TabsList, TabsTrigger} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
-import {PageNotFound} from "@/components/PageNotFound"
-
+import {RunAnnotateSkeleton} from "./focus/states/RunAnnotateSkeleton"
 import {useFocusScenarioParam} from "./focus/useFocusScenarioParam"
 import {OverviewTab} from "./overview/OverviewTab"
 import {ScenariosSkeleton} from "./scenarios/states/ScenariosSkeleton"
 import {RunDetailsSkeleton} from "./states/RunDetailsSkeleton"
 import {useRunDetailsView, type RunDetailsView} from "./useRunDetailsView"
 
+import {PageNotFound} from "@/components/PageNotFound"
+
 // The scenario table and its cell renderers load when the tab opens, not with the page.
 const ScenariosTab = dynamic<{runId: string; header: RunHeader}>(
     () => import("./scenarios/ScenariosTab").then((module) => module.ScenariosTab),
     {ssr: false, loading: () => <ScenariosSkeleton />},
+)
+
+// The Annotate tab brings the annotation controllers: it loads when the tab opens.
+const RunAnnotateTab = dynamic<{runId: string; header: RunHeader}>(
+    () => import("./focus/RunAnnotateTab").then((module) => module.RunAnnotateTab),
+    {ssr: false, loading: () => <RunAnnotateSkeleton />},
 )
 
 // The scenario drawer loads only once a scenario is focused.
@@ -32,12 +39,13 @@ const ScenarioFocusSheet = dynamic<{runId: string; header: RunHeader; poll: bool
 
 /**
  * The tabs built so far. A tab without a body shows disabled, and its view falls back to
- * Overview, until the Configuration and Annotate work lands.
+ * Overview, until the Configuration work lands.
  */
 type TabBody = ComponentType<{runId: string; header: RunHeader}>
 const TAB_BODIES: Partial<Record<RunDetailsView, TabBody>> & {overview: TabBody} = {
     overview: OverviewTab,
     scenarios: ScenariosTab,
+    focus: RunAnnotateTab,
 }
 
 /** The run page under its title: the tabs and the open tab, or the run's load state. */
@@ -79,7 +87,11 @@ export const RunDetailsBody = ({runId}: {runId: string}) => {
             </div>
             <Body runId={runId} header={header} />
             {focusedScenarioId ? (
-                <ScenarioFocusSheet runId={runId} header={header} poll={shown !== "scenarios"} />
+                <ScenarioFocusSheet
+                    runId={runId}
+                    header={header}
+                    poll={shown !== "scenarios" && shown !== "focus"}
+                />
             ) : null}
         </Tabs>
     )

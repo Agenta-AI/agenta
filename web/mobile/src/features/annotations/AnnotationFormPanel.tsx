@@ -22,27 +22,38 @@ const PanelMessage = ({children}: {children: string}) => (
     </div>
 )
 
+/** The form belongs to a queue's item, or to a scenario of an evaluation run. */
+type FormScope = {queueId: string; runId?: never} | {runId: string; queueId?: never}
+
 /**
  * The form for one scenario: one open section per evaluator, its metrics as fields. With
- * `showSubmit` (the annotate sheet) it carries its own Mark completed button; in the focus view
- * the footer has it.
+ * `showSubmit` (the annotate sheets, the run's Annotate tab) it carries its own submit button; in
+ * the queue focus view the footer has it. `readOnly` shows the values without the button.
  */
 export const AnnotationFormPanel = ({
     scenarioId,
-    queueId,
     showSubmit = false,
-}: {
+    readOnly = false,
+    onSaved,
+    ...scope
+}: FormScope & {
     scenarioId: string
-    queueId: string
     showSubmit?: boolean
+    readOnly?: boolean
+    onSaved?: () => void
 }) => {
+    const inRun = Boolean(scope.runId)
     const {metrics, evaluators, evaluatorResolution, updateMetric} =
         useAnnotationFormState(scenarioId)
     const stepRefs = useAtomValue(annotationSessionController.selectors.evaluatorStepRefs())
     const description = useAtomValue(annotationSessionController.selectors.queueDescription())
     const submitError = useAtomValue(annotationFormController.selectors.submitError(scenarioId))
     const clearSubmitError = useSetAtom(annotationFormController.actions.clearSubmitError)
-    const submission = useSubmitAnnotations(scenarioId, queueId)
+    const submission = useSubmitAnnotations(
+        scenarioId,
+        scope.runId ? {runId: scope.runId} : {queueId: scope.queueId ?? ""},
+        onSaved,
+    )
 
     const sections = useMemo(
         () =>
@@ -59,16 +70,21 @@ export const AnnotationFormPanel = ({
     }, [slugKey])
 
     const header = (
-        <AnnotationPanelHeader description={description} isCompleted={submission.isCompleted} />
+        <AnnotationPanelHeader
+            description={description}
+            isCompleted={inRun ? null : submission.isCompleted}
+        />
     )
     const nothingLoaded = stepRefs.length > 0 && evaluators.length === 0
     const panelMessage =
         stepRefs.length === 0
-            ? "No evaluators configured for this queue"
+            ? inRun
+                ? "No evaluators configured for this run."
+                : "No evaluators configured for this queue"
             : nothingLoaded && evaluatorResolution.isPending
               ? "Loading evaluators..."
               : nothingLoaded
-                ? "Could not load evaluator schemas for this queue"
+                ? `Could not load evaluator schemas for this ${inRun ? "run" : "queue"}`
                 : null
     if (panelMessage) {
         return (
@@ -128,6 +144,7 @@ export const AnnotationFormPanel = ({
                                 <AnnotationEvaluatorSection
                                     slug={evaluator.slug}
                                     fields={metrics[evaluator.slug] ?? {}}
+                                    readOnly={readOnly}
                                     onChange={updateMetric}
                                 />
                             </AccordionContent>
@@ -135,7 +152,7 @@ export const AnnotationFormPanel = ({
                     ))}
                 </Accordion>
             </div>
-            {showSubmit ? (
+            {showSubmit && !readOnly ? (
                 <div className="shrink-0 border-0 border-t border-solid border-border p-3">
                     <LoadingButton
                         className="w-full"
