@@ -65,7 +65,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "The traces filter dialog with the evaluator and feedback controls on its annotation row. The controls and the evaluator list load when a dialog with an annotation row first opens.\n\n**Used in:** the /m Observability toolbar and the Live evaluation filter, behind the `observability-actions` developer view.",
+                    "The traces filter dialog with the evaluator and feedback controls on its annotation row. The controls and the evaluator list load when a dialog with an annotation row first opens.\n\n**Used in:** the /m Observability toolbar, behind the `observability-actions` developer view.",
             },
         },
     },

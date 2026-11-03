@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 /**
  * "Add all matching to a queue" over the real package code: the real trace page fetcher, the real
- * scan pipeline (`addAllMatchingTracesToQueue`) and the real queue add
- * (`simpleQueueMolecule.set.addTraces`). Only HTTP is replaced: `fetch` answers the trace query
+ * scan pipeline (`addAllMatchingTracesToQueue`) and the real queue add request
+ * (`addSimpleQueueTraces`). Only HTTP is replaced: `fetch` answers the trace query
  * the Fern client sends, and `axios` answers the queue add. Each test checks the exact requests.
  */
 import type {ReactElement} from "react"
@@ -334,7 +334,10 @@ describe("Add all matching to a queue", () => {
         expect(last("success")).toMatchObject({
             description: `Queued to "Spot checks". They'll appear as the queue processes.`,
         })
+        // Both runs use one toast, so the replaced run leaves no spinner behind.
+        expect(new Set(message.open.mock.calls.map(([args]) => args.key)).size).toBe(1)
     })
+
     it("Leaving the page stops the scan", async () => {
         pages = [page(0, 300), page(300, 100), []]
         let release: () => void = () => undefined

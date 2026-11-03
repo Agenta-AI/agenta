@@ -42,26 +42,18 @@ export const confirmEveryTrace = () =>
 
 /** The run in progress. A new run stops it. */
 let current: AbortController | null = null
+const TOAST_KEY = "queue-all-matching"
 
 /** The per-run cap of the organization's plan. Without billing, or when it fails, the lowest. */
 const readQueueCap = async (projectId: string): Promise<number> => {
     if (!isBillingEnabled()) return inferQueueMaxFromPlan(null)
-    const subscription = await getHostQueryClient()
-        .fetchQuery({
-            // The key `useBillingSubscription` uses, so a loaded subscription is not asked again.
-            queryKey: ["billing", "subscription", projectId],
-            // The request of `fetchCurrentSubscription` in `@agenta/settings-ui`. Its barrel is
-            // not imported here: whatever this chunk takes from a barrel the app shell also
-            // loads lands in the shell.
-            queryFn: async () =>
-                (
-                    await axios.get<{plan?: string | null} | null>(
-                        `${getAgentaApiUrl()}/billing/subscription`,
-                        {params: {project_id: projectId}},
-                    )
-                ).data,
-            staleTime: 1000 * 60 * 5,
+    // The request `fetchCurrentSubscription` sends. The `@agenta/settings-ui` barrel is not
+    // imported: what this chunk takes from a barrel the app shell loads ends up in the shell.
+    const subscription = await axios
+        .get<{plan?: string | null} | null>(`${getAgentaApiUrl()}/billing/subscription`, {
+            params: {project_id: projectId},
         })
+        .then((response) => response.data)
         .catch(() => null)
     return inferQueueMaxFromPlan(subscription?.plan)
 }
@@ -96,30 +88,19 @@ interface Toast {
     action?: {label: string; onClick: () => void}
 }
 
-/**
- * Scans every trace that matches the traces page query and adds the trace ids to `queue`, with a
- * toast that shows the progress and how the run ended. Retry starts the whole scan again,
- * so it sends the traces that were already queued once more.
- */
-export const runAddAllMatching = async (input: AddAllMatchingInput): Promise<void> => {
-    const {queue, projectId, appId, pageSignal, onViewQueue} = input
-    current?.abort()
-    const controller = new AbortController()
-    current = controller
+const scan = async (input: AddAllMatchingInput, controller: AbortController) => {
+    const {queue, projectId, appId, onViewQueue} = input
     const owned = () => current === controller
-    if (pageSignal.aborted) controller.abort()
-    pageSignal.addEventListener("abort", () => controller.abort(), {once: true})
     const query = buildTraceQueryParams(input.filters, input.sort, input.traceTabs)
-    const key = `batch-add-queue-${queue.id}`
     const queueName = queue.name || "queue"
     const maxItems = await readQueueCap(projectId)
     const max = count(maxItems)
     if (!owned()) return
 
-    // One toast per queue, updated in place as the run goes on.
+    // One toast, updated in place; a new run takes it over.
     const show = ({type, title, description, duration, action}: Toast) =>
         message.open({
-            key,
+            key: TOAST_KEY,
             type,
             duration,
             action,
@@ -241,5 +222,24 @@ export const runAddAllMatching = async (input: AddAllMatchingInput): Promise<voi
             duration: 0,
             action: retry,
         })
+    }
+}
+
+/**
+ * Scans every trace that matches the traces page query and adds the trace ids to `queue`, with a
+ * toast that shows the progress and how the run ended. Retry starts the whole scan again,
+ * so it sends the traces that were already queued once more.
+ */
+export const runAddAllMatching = async (input: AddAllMatchingInput): Promise<void> => {
+    current?.abort()
+    const controller = new AbortController()
+    current = controller
+    const stop = () => controller.abort()
+    if (input.pageSignal.aborted) stop()
+    input.pageSignal.addEventListener("abort", stop, {once: true})
+    try {
+        await scan(input, controller)
+    } finally {
+        input.pageSignal.removeEventListener("abort", stop)
     }
 }
