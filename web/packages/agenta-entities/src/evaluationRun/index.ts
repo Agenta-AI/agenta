@@ -139,6 +139,7 @@ export {
     deleteEvaluationRuns,
     startOnlineEvaluation,
     stopOnlineEvaluation,
+    editEvaluationRunMeta,
     createAutoEvaluationRuns,
     createHumanEvaluationRun,
     fetchAllTestcaseIds,

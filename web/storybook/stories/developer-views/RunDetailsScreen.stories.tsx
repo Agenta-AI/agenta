@@ -17,7 +17,7 @@ import type {AgentaDataParameters, StoryScope} from "../../.storybook/decorators
 const RunDetailsStory = ({projectId, runId}: {projectId: string; runId: string}) => (
     <div className="flex flex-col gap-4 text-foreground">
         <RunDetailsHeader projectId={projectId} runId={runId} />
-        <RunDetailsBody runId={runId} />
+        <RunDetailsBody projectId={projectId} runId={runId} />
     </div>
 )
 
