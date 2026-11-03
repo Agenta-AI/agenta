@@ -2,6 +2,8 @@ import {describe, expect, it} from "vitest"
 
 import {
     bandLayout,
+    finiteOrNull,
+    fitRadarLabels,
     barPath,
     formatChartValue,
     lineSegments,
@@ -17,7 +19,7 @@ import {
     ticks,
     truncate,
     wrapLabel,
-    xLabelStep,
+    xLabelEvery,
 } from "../../src/components/presentational/charts/scale"
 
 describe("chart scale math", () => {
@@ -35,6 +37,19 @@ describe("chart scale math", () => {
         expect(ticks(0, 0.3, 3)).toEqual([0, 0.1, 0.2, 0.3])
         expect(ticks(-20, 40, 3)).toEqual([-20, 0, 20, 40])
         expect(ticks(5, 5)).toEqual([5])
+    })
+
+    it("ticks stop at values beyond float precision instead of looping", () => {
+        expect(ticks(1e16, 1e16 + 2)).toEqual([1e16, 1e16 + 2])
+        expect(ticks(0, Infinity)).toEqual([0])
+    })
+
+    it("NaN and infinite values count as missing", () => {
+        expect(finiteOrNull(3)).toBe(3)
+        expect(finiteOrNull(Number.NaN)).toBeNull()
+        expect(finiteOrNull(Infinity)).toBeNull()
+        expect(finiteOrNull(null)).toBeNull()
+        expect(finiteOrNull(undefined)).toBeNull()
     })
 
     it("nice domain holds negative values and never collapses to one value", () => {
@@ -59,7 +74,7 @@ describe("chart scale math", () => {
 
     it("band layout leaves a 20% group gap and a 10% bar gap", () => {
         const one = bandLayout(100, 2, 1)
-        expect(one.step).toBe(50)
+        expect(one.groupWidth).toBe(50)
         expect(one.bandWidth).toBe(40)
         expect(one.bandStart(1)).toBe(55)
         expect(one.barWidth).toBe(40)
@@ -69,8 +84,8 @@ describe("chart scale math", () => {
     })
 
     it("x labels thin out when the groups are too narrow for them", () => {
-        expect(xLabelStep(80, 4)).toEqual({every: 1, maxChars: 11})
-        expect(xLabelStep(30, 9).every).toBe(2)
+        expect(xLabelEvery(80, 4)).toEqual({every: 1, maxChars: 11})
+        expect(xLabelEvery(30, 9).every).toBe(2)
     })
 
     it("bar path rounds the value end up or down", () => {
@@ -121,6 +136,17 @@ describe("chart scale math", () => {
         expect(radarRadius(300, 400, [label, label, label, label], 10)).toBeCloseTo(80)
         // A side label wider than half the box leaves no room.
         expect(radarRadius(100, 400, [label, {width: 90, height: 20}, label], 10)).toBeLessThan(0)
+    })
+
+    it("radar labels wrap shorter when 18 characters leave too little room", () => {
+        // Axis 1 points right, so its label needs its full width beside the chart.
+        const names = ["Latency", "Context recall over retrieved passages", "Cost", "Fluency"]
+        const options = {gap: 10, lineHeight: 13, minRadius: 24}
+        const wide = fitRadarLabels(600, 300, names, options)
+        expect(wide.labels[1]).toEqual(["Context recall", "over retrieved pa…"])
+        const narrow = fitRadarLabels(240, 300, names, options)
+        expect(narrow.radius).toBeGreaterThanOrEqual(24)
+        expect(Math.max(...narrow.labels.flat().map((line) => line.length))).toBeLessThan(18)
     })
 
     it("line segments break at null values", () => {

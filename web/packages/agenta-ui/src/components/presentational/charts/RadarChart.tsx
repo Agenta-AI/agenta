@@ -3,19 +3,19 @@ import {
     CHART_FONT_SIZE,
     CHART_GRID,
     ChartFrame,
+    seriesValues,
+    tooltipRows,
     useChartFrameState,
-    type ChartTooltipContent,
 } from "./ChartParts"
 import {
-    CHAR_WIDTH,
+    finiteOrNull,
+    fitRadarLabels,
     formatChartValue,
     nearestRadarAxis,
     radarDirection,
     radarLabelAlign,
     radarPoint,
-    radarRadius,
     seriesColor,
-    wrapLabel,
 } from "./scale"
 import type {RadarAxis, RadarChartProps} from "./types"
 
@@ -26,6 +26,15 @@ const LINE_HEIGHT = 13
 const MIN_RADIUS = 24
 /** Space kept free along the edges of the chart. */
 const EDGE = 4
+
+/** The value of a series on an axis, or null when it is missing or not a finite number. */
+function vertexOf(axis: RadarAxis, key: string) {
+    const value = axis.values[key]
+    if (!value) return null
+    const normalized = finiteOrNull(value.normalized)
+    const raw = finiteOrNull(value.raw)
+    return normalized === null || raw === null ? null : {normalized, raw}
+}
 
 /**
  * One axis per metric with values already normalized to 0..1, one filled polygon per series.
@@ -43,51 +52,30 @@ export function RadarChart({
     const frame = useChartFrameState(axes.length)
     if (axes.length < MIN_AXES || series.length === 0) return null
 
-    const formatRaw = (raw: number, axis: RadarAxis) =>
-        formatAxisValue ? formatAxisValue(raw, axis) : formatValue(raw)
     const count = axes.length
-    const labels = axes.map((axis) => wrapLabel(axis.name))
     const cx = frame.width / 2
     const cy = height / 2
-    const radius = Math.max(
-        MIN_RADIUS,
-        radarRadius(
-            frame.width - EDGE * 2,
-            height - EDGE * 2,
-            labels.map((lines) => ({
-                width: Math.max(...lines.map((line) => line.length)) * CHAR_WIDTH,
-                // One more line of room above and below: the block starts half a line past the gap.
-                height: (lines.length + 1) * LINE_HEIGHT,
-            })),
-            LABEL_GAP,
-        ),
+    const {labels, radius} = fitRadarLabels(
+        frame.width - EDGE * 2,
+        height - EDGE * 2,
+        axes.map((axis) => axis.name),
+        {gap: LABEL_GAP, lineHeight: LINE_HEIGHT, minRadius: MIN_RADIUS},
     )
     const at = (index: number, fraction: number) =>
         radarPoint(cx, cy, radius, index, count, fraction)
     const points = (list: readonly [number, number][]) => list.map((p) => p.join(",")).join(" ")
 
-    const active = frame.active === null ? null : axes[frame.active]
-    let tooltip: ChartTooltipContent | null = null
-    if (frame.active !== null && active) {
-        const [x, y] = at(frame.active, 1)
-        tooltip = {
-            x,
-            y,
-            label: active.name,
-            rows: series.flatMap((s, index) => {
-                const value = active.values[s.key]
-                if (!value) return []
-                return [
-                    {
-                        key: s.key,
-                        name: s.name,
-                        color: seriesColor(s, index),
-                        value: `${formatRaw(value.raw, active)} / ${formatRaw(active.max, active)}`,
-                    },
-                ]
-            }),
-        }
-    }
+    const format = (raw: number, axis: RadarAxis) =>
+        formatAxisValue ? formatAxisValue(raw, axis) : formatValue(raw)
+    const valuesAt = (axis: RadarAxis) =>
+        seriesValues(series, (key) => {
+            const vertex = vertexOf(axis, key)
+            return vertex === null
+                ? null
+                : `${format(vertex.raw, axis)} / ${format(axis.max, axis)}`
+        })
+    const activeAxis = frame.active === null ? null : axes[frame.active]
+    const activeEnd = frame.active === null ? null : at(frame.active, 1)
 
     return (
         <ChartFrame
@@ -96,22 +84,22 @@ export function RadarChart({
             height={height}
             series={series}
             className={className}
-            count={count}
             indexAt={(x, y) => nearestRadarAxis(x - cx, y - cy, count)}
-            tooltip={tooltip}
+            tooltip={
+                activeAxis === null || activeEnd === null
+                    ? null
+                    : {
+                          x: activeEnd[0],
+                          y: activeEnd[1],
+                          label: activeAxis.name,
+                          rows: tooltipRows(valuesAt(activeAxis)),
+                      }
+            }
             table={{
                 columns: ["", ...series.map((s) => s.name)],
                 rows: axes.map((axis) => ({
                     key: axis.name,
-                    cells: [
-                        axis.name,
-                        ...series.map((s) => {
-                            const value = axis.values[s.key]
-                            return value
-                                ? `${formatRaw(value.raw, axis)} / ${formatRaw(axis.max, axis)}`
-                                : ""
-                        }),
-                    ],
+                    cells: [axis.name, ...valuesAt(axis).map((row) => row.value ?? "")],
                 })),
             }}
         >
@@ -140,8 +128,8 @@ export function RadarChart({
             {series.map((s, seriesIndex) => {
                 const color = seriesColor(s, seriesIndex)
                 const vertices = axes.flatMap((axis, index) => {
-                    const value = axis.values[s.key]
-                    return value ? [at(index, value.normalized)] : []
+                    const vertex = vertexOf(axis, s.key)
+                    return vertex ? [at(index, vertex.normalized)] : []
                 })
                 return (
                     <g key={s.key} data-series={s.key}>

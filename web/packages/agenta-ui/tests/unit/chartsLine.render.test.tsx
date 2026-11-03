@@ -150,6 +150,30 @@ describe("LineChart", () => {
         expect(colors.every((c) => c.startsWith("var(--ag-"))).toBe(true)
     })
 
+    it("A fixed y domain sets the axis, and a NaN value only breaks its own line", () => {
+        const {container} = render(
+            <LineChart
+                title="Pass rate"
+                height={200}
+                series={oneSeries}
+                yDomain={[0, 1]}
+                points={[
+                    {x: 1, values: {score: 0.5}},
+                    {x: 2, values: {score: Number.NaN}},
+                    {x: 3, values: {score: 0.75}},
+                    {x: 4, values: {score: 1}},
+                ]}
+            />,
+        )
+        // Tick labels are svg text; the hidden table holds the data values.
+        const tickLabels = Array.from(container.querySelectorAll("text")).map((t) => t.textContent)
+        expect(tickLabels).toEqual(expect.arrayContaining(["0", "0.25", "0.5", "0.75", "1"]))
+        // The NaN point leaves a dot before it and a line after it.
+        expect(container.querySelectorAll('g[data-series="score"] circle')).toHaveLength(1)
+        expect(linesOf(container, "score")).toHaveLength(1)
+        expect(container.innerHTML).not.toContain("NaN")
+    })
+
     it("Empty points render nothing", () => {
         const {container} = render(
             <LineChart title="Score over time" height={200} series={oneSeries} points={[]} />,

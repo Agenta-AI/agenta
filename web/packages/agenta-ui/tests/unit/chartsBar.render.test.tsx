@@ -116,22 +116,6 @@ describe("BarChart", () => {
         expect(screen.queryByRole("list")).toBeNull()
     })
 
-    it("Legend shows only with two or more series and shortens long names", () => {
-        const {rerender} = render(<ChartLegend series={[{key: "a", name: "Only"}]} />)
-        expect(screen.queryByRole("list")).toBeNull()
-        rerender(
-            <ChartLegend
-                series={[
-                    {key: "a", name: "A very long evaluation run name"},
-                    {key: "b", name: "Short"},
-                ]}
-            />,
-        )
-        const items = within(screen.getByRole("list")).getAllByRole("listitem")
-        expect(items.map((item) => item.textContent)).toEqual(["A very long evaluat…", "Short"])
-        expect(items[0].getAttribute("title")).toBe("A very long evaluation run name")
-    })
-
     it("Hovering a category shows every series value in the tooltip", () => {
         render(<BarChart title="Scores" height={200} series={twoRuns} data={data} />)
         const svg = screen.getByRole("img", {name: "Scores"})
@@ -183,9 +167,80 @@ describe("BarChart", () => {
         expect(container.innerHTML).toBe("")
     })
 
+    it("A series color and a value format from the caller are used", () => {
+        const {container} = render(
+            <BarChart
+                title="Pass rate"
+                height={200}
+                series={[{key: "pct", name: "Percentage", color: "var(--ag-colorSuccess)"}]}
+                data={[{category: "True", values: {pct: 40}}]}
+                yMax={100}
+                formatValue={(value) => `${value}%`}
+            />,
+        )
+        expect(bars(container, "pct")[0].getAttribute("fill")).toBe("var(--ag-colorSuccess)")
+        expect(screen.getByText("100%").tagName).toBe("text")
+        fireEvent.focus(screen.getByRole("img"))
+        expect(screen.getByRole("tooltip").textContent).toContain("Percentage: 40%")
+    })
+
+    it("Home and End move the focus to the first and last category", () => {
+        render(<BarChart title="Scores" height={200} series={twoRuns} data={data} />)
+        const svg = screen.getByRole("img")
+        fireEvent.focus(svg)
+        fireEvent.keyDown(svg, {key: "End"})
+        expect(screen.getByRole("tooltip").textContent).toContain("High")
+        fireEvent.keyDown(svg, {key: "Home"})
+        expect(screen.getByRole("tooltip").textContent).toContain("Low")
+    })
+
+    it("A NaN value draws no bar and leaves the other bars in place", () => {
+        const {container} = render(
+            <BarChart
+                title="Scores"
+                height={200}
+                series={[{key: "a", name: "Run A"}]}
+                data={[
+                    {category: "x", values: {a: Number.NaN}},
+                    {category: "y", values: {a: 4}},
+                ]}
+            />,
+        )
+        const drawn = bars(container, "a")
+        expect(drawn).toHaveLength(1)
+        expect(drawn[0].getAttribute("d")).not.toContain("NaN")
+    })
+
+    it("A chart that first renders without data draws once data arrives", () => {
+        const {rerender} = render(
+            <BarChart title="Scores" height={200} series={twoRuns} data={[]} />,
+        )
+        expect(screen.queryByRole("img")).toBeNull()
+        rerender(<BarChart title="Scores" height={200} series={twoRuns} data={data} />)
+        expect(screen.getByRole("img", {name: "Scores"})).toBeTruthy()
+    })
+
     it("A hidden chart with no width draws no svg and does not fail", () => {
         stubChartWidth(0)
         render(<BarChart title="Scores" height={200} series={twoRuns} data={data} />)
         expect(screen.queryByRole("img")).toBeNull()
+    })
+})
+
+describe("ChartLegend", () => {
+    it("Legend shows only with two or more series and shortens long names", () => {
+        const {rerender} = render(<ChartLegend series={[{key: "a", name: "Only"}]} />)
+        expect(screen.queryByRole("list")).toBeNull()
+        rerender(
+            <ChartLegend
+                series={[
+                    {key: "a", name: "A very long evaluation run name"},
+                    {key: "b", name: "Short"},
+                ]}
+            />,
+        )
+        const items = within(screen.getByRole("list")).getAllByRole("listitem")
+        expect(items.map((item) => item.textContent)).toEqual(["A very long evaluat…", "Short"])
+        expect(items[0].getAttribute("title")).toBe("A very long evaluation run name")
     })
 })

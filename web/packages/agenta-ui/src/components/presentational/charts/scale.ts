@@ -12,6 +12,11 @@ export function seriesColor(series: ChartSeries, index: number): string {
     return series.color ?? `var(--ag-chart-series-${index % SERIES_TOKEN_COUNT})`
 }
 
+/** A finite number, or null for a missing, NaN or infinite value. Charts draw null as "no value". */
+export function finiteOrNull(value: number | null | undefined): number | null {
+    return typeof value === "number" && Number.isFinite(value) ? value : null
+}
+
 export function formatChartValue(value: number): string {
     if (!Number.isFinite(value)) return String(value)
     return String(Number(value.toPrecision(3)))
@@ -56,13 +61,19 @@ export function niceDomain(min: number, max: number, count = 4): [number, number
 
 /** Readable tick values from `min` to `max`, both ends included when they fall on a step. */
 export function ticks(min: number, max: number, count = 4): number[] {
-    if (!(max > min)) return [min]
+    if (!(max > min) || !Number.isFinite(max - min)) return [min]
     const step = niceStep(max - min, count)
-    const result: number[] = []
-    for (let value = Math.ceil(min / step) * step; value <= max + step * 1e-9; value += step) {
-        result.push(snap(value, step))
-    }
-    return result
+    const first = Math.ceil(min / step) * step
+    const steps = Math.floor((max - first) / step + 1e-9)
+    // At extreme magnitudes a step can be below float precision: fall back to the two ends.
+    if (!(steps >= 0 && steps <= count * 4)) return [min, max]
+    const values = Array.from({length: steps + 1}, (_, i) => snap(first + i * step, step))
+    return [...new Set(values)]
+}
+
+/** Width of the y axis: room for the longest tick label and a small gap. */
+export function yAxisWidth(tickValues: readonly number[], format: (value: number) => string) {
+    return Math.max(...tickValues.map((tick) => format(tick).length)) * CHAR_WIDTH + 10
 }
 
 export function linearScale(
@@ -109,7 +120,7 @@ export function wrapLabel(text: string, lineLength = 18, maxLines = 2): string[]
 
 export interface BandLayout {
     /** Width of one category group, gap included. */
-    step: number
+    groupWidth: number
     /** Width of the bars area inside a group. */
     bandWidth: number
     /** Left edge of the bars area of group `index`. */
@@ -128,13 +139,13 @@ export function bandLayout(
     groupGap = 0.2,
     barGap = 0.1,
 ): BandLayout {
-    const step = width / Math.max(1, groupCount)
-    const bandWidth = step * (1 - groupGap)
+    const groupWidth = width / Math.max(1, groupCount)
+    const bandWidth = groupWidth * (1 - groupGap)
     const slot = bandWidth / Math.max(1, seriesCount)
     const barWidth = seriesCount > 1 ? slot * (1 - barGap) : slot
-    const bandStart = (index: number) => index * step + (step - bandWidth) / 2
+    const bandStart = (index: number) => index * groupWidth + (groupWidth - bandWidth) / 2
     return {
-        step,
+        groupWidth,
         bandWidth,
         bandStart,
         barWidth,
@@ -143,16 +154,20 @@ export function bandLayout(
     }
 }
 
-/** Every `step`-th x label is drawn so labels of `minChars` fit; returns the step and the chars that fit. */
-export function xLabelStep(
-    bandStep: number,
+/**
+ * Draw every `every`-th x label so that labels of up to `minChars` characters fit between their
+ * neighbours; `maxChars` is how many characters fit then.
+ */
+export function xLabelEvery(
+    groupWidth: number,
     longest: number,
     minChars = 6,
 ): {every: number; maxChars: number} {
+    if (!(groupWidth > 0)) return {every: 1, maxChars: 1}
     const wanted = Math.min(longest, minChars)
-    let every = 1
-    while (Math.floor((bandStep * every) / CHAR_WIDTH) - 1 < wanted && every < 64) every += 1
-    return {every, maxChars: Math.max(1, Math.floor((bandStep * every) / CHAR_WIDTH) - 1)}
+    // One character of the slot stays empty, so labels never touch.
+    const every = Math.max(1, Math.ceil(((wanted + 1) * CHAR_WIDTH) / groupWidth))
+    return {every, maxChars: Math.max(1, Math.floor((groupWidth * every) / CHAR_WIDTH) - 1)}
 }
 
 /**
@@ -234,6 +249,39 @@ export function radarRadius(
         else if (roomY < 0) radius = 0
     })
     return radius
+}
+
+/** Shorter label lines to try, in order, when the radar labels leave too little room. */
+const RADAR_LINE_LENGTHS = [18, 14, 10, 7]
+
+/**
+ * Wraps the axis names into labels and picks the largest radius that fits them. Labels wrap at
+ * 18 characters; when that leaves less than `minRadius`, they wrap shorter. Only a chart too
+ * narrow for even the shortest labels gets `minRadius` with labels that may be cut at the edge.
+ */
+export function fitRadarLabels(
+    width: number,
+    height: number,
+    names: readonly string[],
+    {gap, lineHeight, minRadius}: {gap: number; lineHeight: number; minRadius: number},
+): {labels: string[][]; radius: number} {
+    let labels: string[][] = []
+    let radius = 0
+    for (const lineLength of RADAR_LINE_LENGTHS) {
+        labels = names.map((name) => wrapLabel(name, lineLength))
+        radius = radarRadius(
+            width,
+            height,
+            labels.map((lines) => ({
+                width: Math.max(...lines.map((line) => line.length)) * CHAR_WIDTH,
+                // One more line of room: the block starts half a line past the gap.
+                height: (lines.length + 1) * lineHeight,
+            })),
+            gap,
+        )
+        if (radius >= minRadius) return {labels, radius}
+    }
+    return {labels, radius: minRadius}
 }
 
 /** Index of the axis nearest to the direction from the center to (`dx`, `dy`). */

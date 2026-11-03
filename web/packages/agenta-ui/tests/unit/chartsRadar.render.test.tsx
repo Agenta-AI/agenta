@@ -107,6 +107,12 @@ describe("RadarChart", () => {
         expect(tooltip.textContent).toContain("Run B: $1.00 / $4.00")
     })
 
+    it("A narrow chart without width draws nothing and does not fail", () => {
+        stubChartWidth(0)
+        render(<RadarChart title="Metrics" height={300} series={twoRuns} axes={axes} />)
+        expect(screen.queryByRole("img")).toBeNull()
+    })
+
     it("A missing series value is left out, not drawn as zero", () => {
         const {container} = render(
             <RadarChart

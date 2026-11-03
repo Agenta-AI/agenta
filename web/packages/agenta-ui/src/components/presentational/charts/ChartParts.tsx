@@ -1,12 +1,11 @@
 import {
-    useEffect,
+    useCallback,
     useId,
     useRef,
     useState,
     type KeyboardEvent,
     type MouseEvent,
     type ReactNode,
-    type RefObject,
 } from "react"
 
 import {cn} from "../../../utils/styles"
@@ -21,34 +20,41 @@ export const CHART_AXIS_TEXT = "var(--ag-chart-axis-text)"
 export const CHART_FONT_SIZE = 11
 
 const LEGEND_NAME_MAX = 20
+const TOOLTIP_MAX_WIDTH = 240
+/** Distance between the tooltip and its anchor point. */
+const TOOLTIP_OFFSET = 12
 
-/** Width of the element, kept current with a ResizeObserver. 0 until measured or while hidden. */
-export function useChartWidth(ref: RefObject<HTMLElement | null>): number {
+/**
+ * Width of the element the returned ref is attached to, kept current with a ResizeObserver.
+ * 0 until measured or while hidden. A callback ref, so an element that mounts later (a chart that
+ * first rendered without data) is measured too.
+ */
+export function useChartWidth() {
     const [width, setWidth] = useState(0)
-    useEffect(() => {
-        const element = ref.current
+    const observer = useRef<ResizeObserver | null>(null)
+    const measureRef = useCallback((element: HTMLDivElement | null) => {
+        observer.current?.disconnect()
+        observer.current = null
         if (!element) return
         if (typeof ResizeObserver === "undefined") {
             setWidth(element.clientWidth)
             return
         }
-        const observer = new ResizeObserver(([entry]) => {
+        observer.current = new ResizeObserver(([entry]) => {
             setWidth(Math.floor(entry.contentRect.width))
         })
-        observer.observe(element)
-        return () => observer.disconnect()
-    }, [ref])
-    return width
+        observer.current.observe(element)
+    }, [])
+    return {measureRef, width}
 }
 
 /** The measured width and the focused target of a chart with `count` targets. */
 export function useChartFrameState(count: number) {
-    const measureRef = useRef<HTMLDivElement>(null)
-    const width = useChartWidth(measureRef)
+    const {measureRef, width} = useChartWidth()
     const [active, setActive] = useState<number | null>(null)
     // A focus target that the data no longer has is no focus at all.
     const current = active !== null && active < count ? active : null
-    return {measureRef, width, active: current, onActiveChange: setActive}
+    return {measureRef, width, count, active: current, onActiveChange: setActive}
 }
 
 export interface ChartTooltipRow {
@@ -58,7 +64,7 @@ export interface ChartTooltipRow {
     value: string
 }
 
-export interface ChartTooltipContent {
+export interface ChartTooltipModel {
     /** Anchor point inside the plot, in px. */
     x: number
     y: number
@@ -66,25 +72,59 @@ export interface ChartTooltipContent {
     rows: readonly ChartTooltipRow[]
 }
 
-function ChartTooltip({id, width, tip}: {id: string; width: number; tip: ChartTooltipContent}) {
-    // Open towards the wider side so the tooltip never leaves the chart.
-    const side = tip.x <= width / 2 ? {left: tip.x + 12} : {right: width - tip.x + 12}
+/** The formatted value of every series at one target; `value` is null where the series has none. */
+export function seriesValues(
+    series: readonly ChartSeries[],
+    read: (key: string) => string | null,
+): (Omit<ChartTooltipRow, "value"> & {value: string | null})[] {
+    return series.map((s, index) => ({
+        key: s.key,
+        name: s.name,
+        color: seriesColor(s, index),
+        value: read(s.key),
+    }))
+}
+
+/** Tooltip rows: the series that have a value. */
+export function tooltipRows(values: ReturnType<typeof seriesValues>): ChartTooltipRow[] {
+    return values.flatMap((row) => (row.value === null ? [] : [{...row, value: row.value}]))
+}
+
+function ChartTooltip({
+    id,
+    width,
+    tooltip,
+}: {
+    id: string
+    width: number
+    tooltip: ChartTooltipModel
+}) {
+    // Open towards the wider side, and never wider than that side, so it stays inside the chart.
+    const opensRight = tooltip.x <= width / 2
+    const room = (opensRight ? width - tooltip.x : tooltip.x) - TOOLTIP_OFFSET
+    const side = opensRight
+        ? {left: tooltip.x + TOOLTIP_OFFSET}
+        : {right: width - tooltip.x + TOOLTIP_OFFSET}
     return (
         <div
             id={id}
             role="tooltip"
-            className="pointer-events-none absolute z-10 max-w-[240px] rounded-md border bg-popover px-2 py-1 text-xs text-popover-foreground shadow-md"
-            style={{...side, top: Math.max(0, tip.y - 12)}}
+            className="pointer-events-none absolute z-10 rounded-md border bg-popover px-2 py-1 text-xs text-popover-foreground shadow-md"
+            style={{
+                ...side,
+                top: Math.max(0, tooltip.y - TOOLTIP_OFFSET),
+                maxWidth: Math.max(80, Math.min(TOOLTIP_MAX_WIDTH, room)),
+            }}
         >
-            <div className="mb-0.5 font-medium">{tip.label}</div>
-            {tip.rows.map((row) => (
-                <div key={row.key} className="flex items-center gap-1.5 whitespace-nowrap">
+            <div className="mb-0.5 break-words font-medium">{tooltip.label}</div>
+            {tooltip.rows.map((row) => (
+                <div key={row.key} className="flex items-start gap-1.5">
                     <span
                         aria-hidden
-                        className="size-2 shrink-0 rounded-sm"
+                        className="mt-1 size-2 shrink-0 rounded-sm"
                         style={{background: row.color}}
                     />
-                    <span>
+                    <span className="min-w-0 break-words">
                         {row.name}: <span className="tabular-nums">{row.value}</span>
                     </span>
                 </div>
@@ -154,7 +194,7 @@ export interface ChartFrameProps {
     height: number
     series: readonly ChartSeries[]
     className?: string
-    measureRef: RefObject<HTMLDivElement | null>
+    measureRef: (element: HTMLDivElement | null) => void
     width: number
     /** Number of focus targets (categories, axes or points). */
     count: number
@@ -162,7 +202,7 @@ export interface ChartFrameProps {
     onActiveChange: (index: number | null) => void
     /** Maps a pointer position inside the svg to a focus target, or null outside the plot. */
     indexAt: (x: number, y: number) => number | null
-    tooltip: ChartTooltipContent | null
+    tooltip: ChartTooltipModel | null
     table: ChartTable
     children: ReactNode
 }
@@ -232,7 +272,7 @@ export function ChartFrame({
                     </svg>
                 ) : null}
                 {tooltip && width > 0 ? (
-                    <ChartTooltip id={tooltipId} width={width} tip={tooltip} />
+                    <ChartTooltip id={tooltipId} width={width} tooltip={tooltip} />
                 ) : null}
             </div>
             <ChartLegend series={series} />

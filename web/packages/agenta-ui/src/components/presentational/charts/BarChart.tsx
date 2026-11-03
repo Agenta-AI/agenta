@@ -4,27 +4,29 @@ import {
     CHART_FONT_SIZE,
     ChartFrame,
     YGrid,
+    seriesValues,
+    tooltipRows,
     useChartFrameState,
-    type ChartTooltipContent,
 } from "./ChartParts"
 import {
-    CHAR_WIDTH,
     bandLayout,
     barPath,
+    finiteOrNull,
     formatChartValue,
     linearScale,
     niceDomain,
     niceMax,
     seriesColor,
-    ticks as tickValues,
+    ticks,
     truncate,
-    xLabelStep,
+    xLabelEvery,
+    yAxisWidth,
 } from "./scale"
-import type {BarChartProps} from "./types"
+import type {BarChartDatum, BarChartProps} from "./types"
 
-const TOP = 8
-const RIGHT = 8
-const BOTTOM = 24
+const MARGIN_TOP = 8
+const MARGIN_RIGHT = 8
+const MARGIN_BOTTOM = 24
 /** A bar for a zero value is still this tall, so it reads as "zero", not "missing". */
 const MIN_BAR = 2
 
@@ -41,45 +43,31 @@ export function BarChart({
     const frame = useChartFrameState(data.length)
     if (data.length === 0 || series.length === 0) return null
 
+    const valueOf = (datum: BarChartDatum, key: string) => finiteOrNull(datum.values[key])
     const values = data.flatMap((datum) =>
-        series.map((s) => datum.values[s.key]).filter((v): v is number => v != null),
+        series.map((s) => valueOf(datum, s.key)).filter((v): v is number => v !== null),
     )
     const dataMax = Math.max(0, ...values)
     const dataMin = Math.min(0, ...values)
+    const fixedMax = finiteOrNull(yMax) ?? undefined
     const [low, high] =
-        dataMin < 0 ? niceDomain(dataMin, yMax ?? dataMax) : [0, yMax ?? niceMax(dataMax)]
-    const yTicks = tickValues(low, high)
+        dataMin < 0 ? niceDomain(dataMin, fixedMax ?? dataMax) : [0, fixedMax ?? niceMax(dataMax)]
+    const yTicks = ticks(low, high)
 
-    const left = Math.max(...yTicks.map((t) => formatValue(t).length)) * CHAR_WIDTH + 10
-    const plotWidth = Math.max(0, frame.width - left - RIGHT)
-    const bottom = height - BOTTOM
-    const y = linearScale([low, high], [bottom, TOP])
+    const left = yAxisWidth(yTicks, formatValue)
+    const plotWidth = Math.max(0, frame.width - left - MARGIN_RIGHT)
+    const plotBottom = height - MARGIN_BOTTOM
+    const y = linearScale([low, high], [plotBottom, MARGIN_TOP])
     const baseline = y(0)
     const bands = bandLayout(plotWidth, data.length, series.length)
-    const labels = xLabelStep(bands.step, Math.max(...data.map((d) => d.category.length)))
+    const labels = xLabelEvery(bands.groupWidth, Math.max(...data.map((d) => d.category.length)))
 
+    const valuesAt = (datum: BarChartDatum) =>
+        seriesValues(series, (key) => {
+            const value = valueOf(datum, key)
+            return value === null ? null : formatValue(value)
+        })
     const activeDatum = frame.active === null ? null : data[frame.active]
-    const tooltip: ChartTooltipContent | null =
-        frame.active === null || activeDatum === null
-            ? null
-            : {
-                  x: left + bands.bandStart(frame.active) + bands.bandWidth / 2,
-                  y: TOP,
-                  label: activeDatum.category,
-                  rows: series.flatMap((s, index) => {
-                      const value = activeDatum.values[s.key]
-                      return value == null
-                          ? []
-                          : [
-                                {
-                                    key: s.key,
-                                    name: s.name,
-                                    color: seriesColor(s, index),
-                                    value: formatValue(value),
-                                },
-                            ]
-                  }),
-              }
 
     return (
         <ChartFrame
@@ -88,33 +76,35 @@ export function BarChart({
             height={height}
             series={series}
             className={className}
-            count={data.length}
             indexAt={(x) => {
                 if (x < left || x > left + plotWidth) return null
-                return Math.min(data.length - 1, Math.floor((x - left) / bands.step))
+                return Math.min(data.length - 1, Math.floor((x - left) / bands.groupWidth))
             }}
-            tooltip={tooltip}
+            tooltip={
+                frame.active === null || activeDatum === null
+                    ? null
+                    : {
+                          x: left + bands.bandStart(frame.active) + bands.bandWidth / 2,
+                          y: MARGIN_TOP,
+                          label: activeDatum.category,
+                          rows: tooltipRows(valuesAt(activeDatum)),
+                      }
+            }
             table={{
                 columns: ["", ...series.map((s) => s.name)],
                 rows: data.map((datum) => ({
                     key: datum.category,
-                    cells: [
-                        datum.category,
-                        ...series.map((s) => {
-                            const value = datum.values[s.key]
-                            return value == null ? "" : formatValue(value)
-                        }),
-                    ],
+                    cells: [datum.category, ...valuesAt(datum).map((row) => row.value ?? "")],
                 })),
             }}
         >
             <YGrid ticks={yTicks} y={y} left={left} right={left + plotWidth} format={formatValue} />
             {frame.active !== null ? (
                 <rect
-                    x={left + frame.active * bands.step}
-                    y={TOP}
-                    width={bands.step}
-                    height={bottom - TOP}
+                    x={left + frame.active * bands.groupWidth}
+                    y={MARGIN_TOP}
+                    width={bands.groupWidth}
+                    height={plotBottom - MARGIN_TOP}
                     fill="var(--ag-chart-track)"
                     opacity={0.5}
                 />
@@ -122,8 +112,8 @@ export function BarChart({
             {data.map((datum, index) => (
                 <g key={datum.category}>
                     {series.map((s, seriesIndex) => {
-                        const value = datum.values[s.key]
-                        if (value == null) return null
+                        const value = valueOf(datum, s.key)
+                        if (value === null) return null
                         const valueY = y(value)
                         const stubbed =
                             Math.abs(baseline - valueY) >= MIN_BAR
@@ -148,7 +138,7 @@ export function BarChart({
                     {index % labels.every === 0 ? (
                         <text
                             x={left + bands.bandStart(index) + bands.bandWidth / 2}
-                            y={bottom + 16}
+                            y={plotBottom + 16}
                             textAnchor="middle"
                             fontSize={CHART_FONT_SIZE}
                             fill={CHART_AXIS_TEXT}

@@ -4,11 +4,13 @@ import {
     CHART_FONT_SIZE,
     ChartFrame,
     YGrid,
+    seriesValues,
+    tooltipRows,
     useChartFrameState,
-    type ChartTooltipContent,
 } from "./ChartParts"
 import {
     CHAR_WIDTH,
+    finiteOrNull,
     formatChartValue,
     lineSegments,
     linearScale,
@@ -17,19 +19,32 @@ import {
     polylinePath,
     seriesColor,
     spreadIndexes,
-    ticks as tickValues,
+    ticks,
+    yAxisWidth,
 } from "./scale"
-import type {LineChartProps} from "./types"
+import type {LineChartProps, LinePoint} from "./types"
 
-const TOP = 8
-const BOTTOM = 24
-/** Room for half of the last x label, which is centered on its point. */
-const RIGHT = 12
+const MARGIN_TOP = 8
+const MARGIN_BOTTOM = 24
+const MARGIN_RIGHT = 12
 const AREA_OPACITY = 0.12
-/** Minimum horizontal room for one x tick label. */
-const X_TICK_SPACING = 96
+/** Empty space between two x tick labels. */
+const X_TICK_GAP = 24
 
-const defaultFormatX = (x: number) => new Date(x).toLocaleString()
+const defaultFormatX = (x: number) =>
+    new Date(x).toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+    })
+
+/** The y domain the caller fixed, when it is usable; otherwise null. */
+function fixedDomain(domain: LineChartProps["yDomain"]): [number, number] | null {
+    if (!domain) return null
+    const [low, high] = domain.map(finiteOrNull)
+    return low !== null && high !== null && high > low ? [low, high] : null
+}
 
 /** Values over time, one straight line with a light area per series. A null breaks the line. */
 export function LineChart({
@@ -46,48 +61,35 @@ export function LineChart({
     if (unsortedPoints.length === 0 || series.length === 0) return null
 
     const points = [...unsortedPoints].sort((a, b) => a.x - b.x)
+    const valueOf = (point: LinePoint, key: string) => finiteOrNull(point.values[key])
     const values = points.flatMap((p) =>
-        series.map((s) => p.values[s.key]).filter((v): v is number => v != null),
+        series.map((s) => valueOf(p, s.key)).filter((v): v is number => v !== null),
     )
     const [low, high] =
-        yDomain ?? (values.length ? niceDomain(Math.min(...values), Math.max(...values)) : [0, 1])
-    const yTicks = tickValues(low, high)
+        fixedDomain(yDomain) ??
+        (values.length ? niceDomain(Math.min(...values), Math.max(...values)) : [0, 1])
+    const yTicks = ticks(low, high)
 
-    const left = Math.max(...yTicks.map((t) => formatValue(t).length)) * CHAR_WIDTH + 10
-    const plotRight = Math.max(left, frame.width - RIGHT)
-    const bottom = height - BOTTOM
-    const first = points[0].x
-    const last = points[points.length - 1].x
-    const x = linearScale([first, last], [left, plotRight])
-    const y = linearScale([low, high], [bottom, TOP])
+    const left = yAxisWidth(yTicks, formatValue)
+    const plotRight = Math.max(left, frame.width - MARGIN_RIGHT)
+    const plotBottom = height - MARGIN_BOTTOM
+    const x = linearScale([points[0].x, points[points.length - 1].x], [left, plotRight])
+    const y = linearScale([low, high], [plotBottom, MARGIN_TOP])
     const xs = points.map((p) => x(p.x))
+    const xLabels = points.map((p) => formatX(p.x))
+    const labelWidth = Math.max(...xLabels.map((label) => label.length)) * CHAR_WIDTH
     const xTicks = spreadIndexes(
         points.length,
-        Math.max(2, Math.floor((plotRight - left) / X_TICK_SPACING)),
+        Math.max(2, Math.floor((plotRight - left) / (labelWidth + X_TICK_GAP))),
     )
 
-    const active = frame.active === null ? null : points[frame.active]
-    const tooltip: ChartTooltipContent | null =
-        frame.active === null || active === null
-            ? null
-            : {
-                  x: xs[frame.active],
-                  y: TOP,
-                  label: formatX(active.x),
-                  rows: series.flatMap((s, index) => {
-                      const value = active.values[s.key]
-                      return value == null
-                          ? []
-                          : [
-                                {
-                                    key: s.key,
-                                    name: s.name,
-                                    color: seriesColor(s, index),
-                                    value: formatValue(value),
-                                },
-                            ]
-                  }),
-              }
+    const valuesAt = (point: LinePoint) =>
+        seriesValues(series, (key) => {
+            const value = valueOf(point, key)
+            return value === null ? null : formatValue(value)
+        })
+    const activePoint = frame.active === null ? null : points[frame.active]
+    const activeX = frame.active === null ? null : xs[frame.active]
 
     return (
         <ChartFrame
@@ -96,25 +98,33 @@ export function LineChart({
             height={height}
             series={series}
             className={className}
-            count={points.length}
             indexAt={(px) => nearestIndex(xs, px)}
-            tooltip={tooltip}
+            tooltip={
+                activePoint === null || activeX === null
+                    ? null
+                    : {
+                          x: activeX,
+                          y: MARGIN_TOP,
+                          label: formatX(activePoint.x),
+                          rows: tooltipRows(valuesAt(activePoint)),
+                      }
+            }
             table={{
                 columns: ["", ...series.map((s) => s.name)],
                 rows: points.map((point, index) => ({
                     key: `${point.x}-${index}`,
-                    cells: [
-                        formatX(point.x),
-                        ...series.map((s) => {
-                            const value = point.values[s.key]
-                            return value == null ? "" : formatValue(value)
-                        }),
-                    ],
+                    cells: [xLabels[index], ...valuesAt(point).map((row) => row.value ?? "")],
                 })),
             }}
         >
             <YGrid ticks={yTicks} y={y} left={left} right={plotRight} format={formatValue} />
-            <line x1={left} x2={plotRight} y1={bottom} y2={bottom} stroke={CHART_AXIS_LINE} />
+            <line
+                x1={left}
+                x2={plotRight}
+                y1={plotBottom}
+                y2={plotBottom}
+                stroke={CHART_AXIS_LINE}
+            />
             {xTicks.map((index) => {
                 // The end labels align inwards so they stay inside the chart.
                 const anchor =
@@ -127,31 +137,31 @@ export function LineChart({
                     <text
                         key={index}
                         x={xs[index]}
-                        y={bottom + 16}
+                        y={plotBottom + 16}
                         textAnchor={anchor}
                         fontSize={CHART_FONT_SIZE}
                         fill={CHART_AXIS_TEXT}
                     >
-                        {formatX(points[index].x)}
+                        {xLabels[index]}
                     </text>
                 )
             })}
-            {frame.active !== null ? (
+            {activeX !== null ? (
                 <line
-                    x1={xs[frame.active]}
-                    x2={xs[frame.active]}
-                    y1={TOP}
-                    y2={bottom}
+                    x1={activeX}
+                    x2={activeX}
+                    y1={MARGIN_TOP}
+                    y2={plotBottom}
                     stroke={CHART_AXIS_LINE}
                 />
             ) : null}
             {series.map((s, seriesIndex) => {
                 const color = seriesColor(s, seriesIndex)
-                const activeValue = active?.values[s.key]
+                const activeValue = activePoint === null ? null : valueOf(activePoint, s.key)
                 const segments = lineSegments(
                     points.map((p, index) => {
-                        const value = p.values[s.key]
-                        return [xs[index], value == null ? null : y(value)] as const
+                        const value = valueOf(p, s.key)
+                        return [xs[index], value === null ? null : y(value)] as const
                     }),
                 )
                 return (
@@ -168,7 +178,7 @@ export function LineChart({
                             ) : (
                                 <g key={index}>
                                     <path
-                                        d={`${polylinePath(segment)} V${bottom} H${segment[0][0]} Z`}
+                                        d={`${polylinePath(segment)} V${plotBottom} H${segment[0][0]} Z`}
                                         fill={color}
                                         fillOpacity={AREA_OPACITY}
                                     />
@@ -183,9 +193,9 @@ export function LineChart({
                                 </g>
                             ),
                         )}
-                        {activeValue != null && frame.active !== null ? (
+                        {activeValue !== null && activeX !== null ? (
                             <circle
-                                cx={xs[frame.active]}
+                                cx={activeX}
                                 cy={y(activeValue)}
                                 r={4}
                                 fill={color}
