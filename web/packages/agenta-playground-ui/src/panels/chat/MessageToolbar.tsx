@@ -75,7 +75,7 @@ export const MessageToolbar = ({
     const copyLabel = copied ? "Copied" : "Copy"
 
     return (
-        <div className="flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/message:opacity-100 group-focus-within/message:opacity-100 [@media(hover:none)]:opacity-100">
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/message:opacity-100 group-focus-within/message:opacity-100 [@media(hover:none)]:opacity-100">
             {children}
             {onRerun ? (
                 <SimpleTooltip title="Re-run" side="top">

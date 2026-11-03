@@ -1,8 +1,15 @@
-import {memo, useCallback, useEffect, useRef, useState, type ReactNode} from "react"
+import {
+    memo,
+    useCallback,
+    useEffect,
+    useRef,
+    useState,
+    type CSSProperties,
+    type ReactNode,
+} from "react"
 
 import type {SimpleChatMessage} from "@agenta/playground"
 import {ChatMessageEditor} from "@agenta/ui/chat-message"
-import {getCollapseStyle} from "@agenta/ui/components/presentational"
 import {
     getViewOptions,
     messageViewModeAtom,
@@ -34,6 +41,20 @@ export interface ChatMessageProps {
 }
 
 const TOOL_ROLE_OPTIONS = [{label: "tool", value: "tool"}]
+
+/**
+ * A collapsed message keeps its header and shows the first lines of its text, which fade out
+ * over the last line. The mask runs in px from the top, so a shorter text does not fade.
+ */
+const COLLAPSED_BODY_CLASS =
+    "[&_.agenta-editor-wrapper]:max-h-16 [&_.agenta-editor-wrapper]:overflow-hidden [&_.agenta-editor-wrapper]:[mask-image:linear-gradient(to_bottom,black_40px,transparent_64px)]"
+
+/**
+ * In the text view the editor shows the markdown source, where the editor's own placeholder never
+ * shows, so an empty message draws it here, at the start of the (empty) source line.
+ */
+const EMPTY_TEXT_PLACEHOLDER_CLASS =
+    "[&_.editor-input.markdown-view_.editor-code]:before:pointer-events-none [&_.editor-input.markdown-view_.editor-code]:before:absolute [&_.editor-input.markdown-view_.editor-code]:before:select-none [&_.editor-input.markdown-view_.editor-code]:before:text-muted-foreground [&_.editor-input.markdown-view_.editor-code]:before:content-[var(--chat-message-placeholder)]"
 
 /**
  * One message of the chat: a user, assistant or tool message in its own editor, with the role,
@@ -106,15 +127,28 @@ export const ChatMessage = memo(
             markdownView: chatViewMode === "text",
             enableTokens: !isCodeMode,
             editorType: "borderless" as const,
+            // On a narrow message the buttons wrap below the role.
+            headerClassName: "flex-wrap",
         }
+
+        const placeholder = isUser
+            ? "Type your message…"
+            : "Enter tool call result here and hit run"
+        const showPlaceholder =
+            !editorText && !isError && toolPayloads.length === 0 && chatViewMode === "text"
 
         const wrapperClass = cn(
             "group/message w-full",
             isError && "[&_.message-user-select]:text-destructive",
-            // A tool reply has a fixed role: show it, but do not let it change.
-            isTool &&
+            // A tool reply and an error have a fixed role: show it, but do not let it change.
+            (isTool || isError) &&
                 "[&_.message-user-select]:pointer-events-none [&_.message-user-select_svg]:hidden",
+            collapsed && COLLAPSED_BODY_CLASS,
+            showPlaceholder && EMPTY_TEXT_PLACEHOLDER_CLASS,
         )
+        const wrapperStyle = showPlaceholder
+            ? ({"--chat-message-placeholder": JSON.stringify(placeholder)} as CSSProperties)
+            : undefined
 
         const attachments = isUser ? (
             <MessageAttachmentSlots
@@ -136,11 +170,7 @@ export const ChatMessage = memo(
             ) : undefined
 
         return (
-            <div
-                className={wrapperClass}
-                style={getCollapseStyle(collapsed)}
-                data-testid={`chat-message-${kind}`}
-            >
+            <div className={wrapperClass} style={wrapperStyle} data-testid={`chat-message-${kind}`}>
                 {toolPayloads.length > 0 ? (
                     toolPayloads.map((payload, index) => (
                         <ChatMessageEditor
@@ -179,11 +209,7 @@ export const ChatMessage = memo(
                                   ? [{label: "Error", value: "Error"}]
                                   : undefined
                         }
-                        placeholder={
-                            isUser
-                                ? "Type your message…"
-                                : "Enter tool call result here and hit run"
-                        }
+                        placeholder={placeholder}
                         onFocusChange={(focused) => {
                             if (focused) setCollapsed(false)
                         }}

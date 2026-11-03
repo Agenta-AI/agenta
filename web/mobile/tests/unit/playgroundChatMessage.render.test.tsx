@@ -287,9 +287,16 @@ describe("A chat message", () => {
     it("A user message edits its text and role", async () => {
         await mount([{kind: "user"}])
         expect(host.querySelector('[aria-label="Type your message…"]')).not.toBeNull()
+        // The text view shows the markdown source, so the empty message draws its own placeholder.
+        const placeholderVar = () =>
+            host
+                .querySelector<HTMLElement>('[data-testid="chat-message-user"]')!
+                .style.getPropertyValue("--chat-message-placeholder")
+        expect(placeholderVar()).toBe('"Type your message…"')
 
         await typeInto("Plan a trip for Alex")
         expect(userMessage().content).toBe("Plan a trip for Alex")
+        expect(placeholderVar()).toBe("")
 
         await openMenu(host.querySelector(".message-user-select")!)
         await act(async () => menuItem("assistant")!.click())
