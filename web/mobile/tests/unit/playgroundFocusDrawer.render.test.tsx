@@ -300,6 +300,30 @@ describe("The focus drawer", () => {
         expect(after.value).toBe('{"inputs": {"country": ')
     })
 
+    it("An unfinished JSON edit does not carry over to the next row", async () => {
+        await seedRows()
+        const [first, second] = rowIds()
+        for (const row of [first, second]) {
+            await act(async () =>
+                store.set(executionItemController.actions.setTestcaseCellValue, {
+                    testcaseId: row,
+                    column: "country",
+                    value: "France",
+                }),
+            )
+        }
+        await openRow(first)
+        await switchToJson()
+        await typeInto(dialog()!.querySelector<HTMLTextAreaElement>('[data-testid="editor"]')!, "{")
+
+        await act(async () => button(dialog()!, "Next testcase")!.click())
+        await settle()
+
+        const editor = dialog()!.querySelector<HTMLTextAreaElement>('[data-testid="editor"]')!
+        expect(editor.value).not.toBe("{")
+        expect(JSON.parse(editor.value).inputs).toEqual({country: "France"})
+    })
+
     it("Leaving the page closes and resets the drawer", async () => {
         await seedRows()
         await openRow(rowIds()[0])

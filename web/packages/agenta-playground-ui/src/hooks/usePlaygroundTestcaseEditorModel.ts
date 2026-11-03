@@ -135,10 +135,13 @@ export const usePlaygroundTestcaseEditorModel = (testcaseId: string) => {
             for (const [key, value] of Object.entries(nextValue)) {
                 const isMissing = !(key in existing) && key in suggestedDefaults
                 if (isMissing && sameValue(value, suggestedDefaults[key])) continue
-                data[key] = keepNativeType(
-                    value,
-                    nativeTypes.current.get(`${testcaseId}:${key}`) ?? schemaMap[key]?.type,
-                )
+                // Only a field the user changed gets its type restored.
+                data[key] = sameValue(value, existing[key])
+                    ? value
+                    : keepNativeType(
+                          value,
+                          nativeTypes.current.get(`${testcaseId}:${key}`) ?? schemaMap[key]?.type,
+                      )
             }
             updateTestcase(testcaseId, {data})
         },

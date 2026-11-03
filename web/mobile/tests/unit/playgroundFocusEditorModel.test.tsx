@@ -166,4 +166,17 @@ describe("The focus drawer form model", () => {
 
         expect(rowData().age).toBe(57)
     })
+
+    it("A field the user did not change keeps its text value after the type was remembered", async () => {
+        await seed({age: 42, country: "France"})
+        // The form remembers age as a number; then the JSON view stores it as text.
+        await act(async () => model.handleEditorChange({...model.editorValue, age: "43"}))
+        await settle()
+        await seed({age: "0042", country: "France"})
+        expect(rowData().age).toBe("0042")
+        await act(async () => model.handleEditorChange({...model.editorValue, country: "Spain"}))
+        await settle()
+
+        expect(rowData()).toEqual({age: "0042", country: "Spain"})
+    })
 })

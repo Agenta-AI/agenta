@@ -112,6 +112,7 @@ export const FocusDrawer = ({renderTraceFooter}: FocusDrawerProps) => {
             if (rootViewMode !== "form") {
                 return (
                     <TestcaseDataEditor
+                        key={rowId}
                         value={payload}
                         onChange={handlePayloadChange}
                         mode="edit"
@@ -124,6 +125,7 @@ export const FocusDrawer = ({renderTraceFooter}: FocusDrawerProps) => {
             return (
                 <div className="flex flex-col gap-4">
                     <TestcaseDataEditor
+                        key={rowId}
                         value={editorValue}
                         columns={editorColumns}
                         onChange={handleEditorChange}
