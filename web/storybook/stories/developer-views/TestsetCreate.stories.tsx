@@ -1,16 +1,16 @@
 import type {ReactNode} from "react"
 
-import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import type {Meta, StoryObj} from "@storybook/nextjs"
+import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {expect, fireEvent, userEvent, waitFor, within} from "storybook/test"
 
 import {CreateTestsetDialog} from "../../../mobile/src/features/testsets/create/CreateTestsetDialog"
-import {TestsetFileDrop} from "../../../mobile/src/features/testsets/create/TestsetFileDrop"
-import {TestsetNameDialog} from "../../../mobile/src/features/testsets/create/TestsetNameDialog"
 import {
     INVALID_JSON,
     UNSUPPORTED_FORMAT,
 } from "../../../mobile/src/features/testsets/create/testsetFileCheck"
+import {TestsetFileDrop} from "../../../mobile/src/features/testsets/create/TestsetFileDrop"
+import {TestsetNameDialog} from "../../../mobile/src/features/testsets/create/TestsetNameDialog"
 
 /**
  * The create flow for a test set: the file drop and its states, the create dialog with its three
