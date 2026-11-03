@@ -37,7 +37,7 @@ export const KeepDraftRowsDialog = ({
                 if (!next) onCancel()
             }}
         >
-            <AlertDialogContent>
+            <AlertDialogContent className="max-w-lg">
                 <AlertDialogHeader>
                     <AlertDialogTitle>
                         {chat ? "Replace the current conversation?" : "Keep your draft test cases?"}

@@ -55,6 +55,8 @@ export const UnsavedTestsetDialog = ({
             }}
         >
             <AlertDialogContent
+                // Three actions with long labels need more than the default width.
+                className="max-w-lg"
                 onEscapeKeyDown={(event) => {
                     if (saving) event.preventDefault()
                 }}

@@ -170,7 +170,7 @@ export const LoadTestsetDialog = ({
                         </section>
                     ) : null}
                 </div>
-                <DialogFooter className="flex-row items-center justify-between gap-3 border-0 border-t border-solid border-border px-4 py-3">
+                <DialogFooter className="m-0 flex-row items-center justify-between gap-3 px-4 py-3">
                     {selection.selectionDisabled ? (
                         <Alert
                             type="warning"
