@@ -6,7 +6,6 @@ import {
     shouldShowStopControl,
     restoreRefusedSend as restoreRefusedSendInto,
 } from "@agenta/chat/assets"
-import {getPendingSecretInteractions} from "@agenta/chat/clientTools"
 import {
     ConnectionDock,
     ConnectionFocusProvider,
@@ -22,6 +21,7 @@ import {
     useAgentModelSetup,
     useConnectionDock,
     useElicitationDock,
+    useSecretDock,
     useComposerAttachments,
 } from "@agenta/chat/hooks"
 import {
@@ -47,7 +47,7 @@ import {
 } from "@agenta/entities/workflow"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {SecretRequestDock} from "@agenta/entity-ui/clientTools"
-import {AgentSetupCard, PersonalAccountsCard} from "@agenta/entity-ui/onboarding"
+import {PersonalAccountsCard} from "@agenta/entity-ui/onboarding"
 import {isOnScreen, isOverlayOpen} from "@agenta/shared/utils"
 import {message, modal} from "@agenta/ui/app-message"
 import {ChatBubble} from "@agenta/ui/components/presentational"
@@ -95,7 +95,6 @@ import {deriveMobileRemoteTurnPresentation, showTrailingWorkingPulse} from "./tu
 import {useApprovalActions, type ApprovalActions} from "./useApprovalActions"
 import {useOpenModelSetup} from "./useOpenModelSetup"
 import {usePersonalSetupStep} from "./usePersonalSetupStep"
-import {useSessionSetupStep} from "./useSessionSetupStep"
 import {useSessionWatch} from "./useSessionWatch"
 import {useStartBlankSession} from "./useStartBlankSession"
 import {useTranscriptAutoScroll} from "./useTranscriptAutoScroll"
@@ -248,11 +247,6 @@ export const LiveConversation = ({
         },
         [adoptRevision, pinRevision],
     )
-    const pendingSecret = useMemo(
-        () => getPendingSecretInteractions(conversation.messages)[0],
-        [conversation.messages],
-    )
-
     // The agent committing itself in THIS session: follow it — pin the workspace and retarget the
     // next send — and drop the latest-revision caches, or the pane and the chip keep the revision
     // it replaced. A durable send learns it from the records reader; a `useChat` stream carries a
@@ -424,10 +418,6 @@ export const LiveConversation = ({
             store,
         ],
     )
-    // A template create asks for its accounts here, on arrival, instead of on a create surface of
-    // its own. Holds the first message while it does; declines silently when there is nothing to
-    // ask, which is every other way into this screen.
-    const setup = useSessionSetupStep(sessionId)
     // The viewer's own missing "user" items. Optional: it never holds a message.
     const personalSetup = usePersonalSetupStep(sessionId, entityId)
     useEffect(() => {
@@ -439,7 +429,6 @@ export const LiveConversation = ({
             modelKeyLoading,
             modelKeyWaitedMs,
             modelBlocked: modelBlocked || setupBlocked,
-            setupBlocking: setup.blocking,
         })
         if (decision === "hold") return
         if (decision === "abandon") {
@@ -457,7 +446,6 @@ export const LiveConversation = ({
         modelKeyWaitedMs,
         modelBlocked,
         setupBlocked,
-        setup.blocking,
         send,
         sessionId,
         sendPendingTask,
@@ -765,17 +753,44 @@ export const LiveConversation = ({
         elicitationPending: elicits.open,
         onOutput: conversation.sendToolOutput,
     })
+    const secrets = useSecretDock({
+        messages: conversation.messages,
+        enabled: interactionAvailability.parkedDocks && !locked,
+        onOutput: conversation.sendToolOutput,
+    })
+    // Every dock the run can park on the user. A message typed over any of them answers it.
+    const parkedDocks = [
+        // A deny-with-note already answering the gate owns it; a second answer would race it.
+        {
+            open: approvalsOpen && steerActions.phase !== "resuming",
+            dismiss: conversation.approvals.dismiss,
+        },
+        elicits,
+        connects,
+        secrets,
+    ]
     // The docks know an ask is answered before `hitlPending` does; an ask with no dock stays a wait.
-    const cardOpen = approvalsOpen || elicits.open || connects.open || Boolean(pendingSecret)
+    const cardOpen = parkedDocks.some((dock) => dock.open)
     const answerInFlight =
         conversation.approvals.settledIds.size > 0 ||
         elicits.settlingIds.size > 0 ||
-        connects.settlingIds.size > 0
+        connects.settlingIds.size > 0 ||
+        secrets.settlingIds.size > 0
+    // A message sent over open docks answers them: each settles as its own decline would, then
+    // the message steers into the resumed run so the agent reads it next. Settled together: a
+    // failure after one dock had gone would hand the text back with that request silently
+    // cancelled. The steer waits on the dismissals, but its message shows now. `steer` rather
+    // than `send`: the session has already run, so there is no registration to do.
+    const steerOverDocks = async (input: Parameters<typeof conversation.steer>[0]) => {
+        const open = parkedDocks.filter((dock) => dock.open)
+        if (open.length === 0) return false
+        const dismissed = Promise.all(open.map((dock) => dock.dismiss()))
+        await conversation.steer(input, {after: dismissed})
+        return true
+    }
     const parkedOnUser = conversation.hitlPending && (cardOpen || !answerInFlight)
     const resumingAfterAnswer = conversation.hitlPending && !cardOpen && answerInFlight
 
-    const secretDockOpen =
-        !locked && !streamingHere && !stopping && !conversation.stopped && Boolean(pendingSecret)
     // Rewind: re-run the conversation from a turn. The hook only SCANS (it never opens dialogs),
     // so the warning about tools that already ran, and putting a rewound user message back into
     // the composer, are this surface's job — same division the desktop uses. `composerRef` is
@@ -898,8 +913,8 @@ export const LiveConversation = ({
                             </div>
                         ) : conversation.historyUnavailable ? (
                             <p className="text-muted-foreground mt-3 text-center text-xs">
-                                This session&apos;s earlier messages are no longer stored. New
-                                messages still work.
+                                No messages are saved in this session. Messages that failed to send
+                                are not kept, and old messages can expire.
                             </p>
                         ) : null}
                     </div>
@@ -973,15 +988,15 @@ export const LiveConversation = ({
                         ) : null}
                         {/* Parked question forms, between approval and connect — the same order as
                         desktop, and the same order as the keyboard precedence. */}
-                        {secretDockOpen && pendingSecret ? (
+                        {secrets.front ? (
                             <ContentRail>
                                 <SecretRequestDock
-                                    key={pendingSecret.toolCallId}
-                                    meta={pendingSecret}
+                                    key={secrets.front.toolCallId}
+                                    meta={secrets.front}
                                     revisionId={entityId}
                                     onAdoptRevision={adoptSecretRevision}
                                     canEditSecrets={canEditSecrets}
-                                    onOutput={conversation.sendToolOutput}
+                                    onOutput={secrets.settle}
                                 />
                             </ContentRail>
                         ) : null}
@@ -1009,28 +1024,10 @@ export const LiveConversation = ({
                                 </ContentRail>
                             </div>
                         ) : null}
-                        {/* The template's accounts, asked for once on arrival. Above the model
-                        strip because it is what the user came here holding: the first message is
-                        parked behind it, and "Continue" is what releases it. */}
-                        {setup.open && !locked ? (
-                            <div className="bg-background shrink-0 px-3 pt-3 pb-0">
-                                <ContentRail>
-                                    <AgentSetupCard
-                                        accounts={setup.accounts}
-                                        suggestions={setup.suggestions}
-                                        onAddAccount={setup.addAccount}
-                                        onCreate={setup.resolve}
-                                        onDismiss={setup.resolve}
-                                        createLabel="Continue"
-                                    />
-                                </ContentRail>
-                            </div>
-                        ) : null}
-                        {/* The viewer's own accounts for this agent's "user" items. After the
-                        template step, which asks first when both would show. Not `locked`: a
+                        {/* The viewer's own accounts for this agent's "user" items. Not `locked`: a
                         reloaded chat with no turns has no session row, so sending stays off, and
                         the card holds no message. */}
-                        {personalSetup.open && !setup.open && !readOnly && !accessPending ? (
+                        {personalSetup.open && !readOnly && !accessPending ? (
                             <div className="bg-background shrink-0 px-3 pt-3 pb-0">
                                 <ContentRail>
                                     <PersonalAccountsCard
@@ -1058,18 +1055,15 @@ export const LiveConversation = ({
                                 filenames={pendingTask?.parts?.map(
                                     (part) => part.filename || "Attachment",
                                 )}
-                                // A template task left while its connect step held it comes
-                                // back failed; the step still goes first.
                                 retryDisabled={
                                     locked ||
-                                    setup.blocking ||
                                     isHydrating ||
                                     modelBlocked ||
                                     setupBlocked ||
                                     (modelKeyLoading && modelKeyWaitedMs < MODEL_KEY_WAIT_LIMIT_MS)
                                 }
                                 onRetry={() => {
-                                    if (locked || setup.blocking) return
+                                    if (locked) return
                                     void sendPendingTask({
                                         sessionId,
                                         retry: true,
@@ -1094,34 +1088,7 @@ export const LiveConversation = ({
                                     // An open edit rewrites its held message instead of sending. The
                                     // input clears on submit, so the displaced draft goes back after.
                                     if (!conversation.editingId) {
-                                        // A message typed over a parked question or connection
-                                        // request replaces it: the cards settle exactly as their own
-                                        // ✕ / "Not now" would, then the message steers into the
-                                        // resumed run so the agent reads it next, not after. A
-                                        // dismiss that fails throws here, and the composer's catch
-                                        // puts the text back with the cards intact. `steer` rather
-                                        // than `send`: the session has already run, so there is no
-                                        // fresh-session registration to do.
-                                        //
-                                        // Settled together, not in sequence: a failure after one dock
-                                        // had already gone would hand the text back with that dock's
-                                        // request silently cancelled. Both writes go out, and the
-                                        // first rejection is what the composer reports.
-                                        //
-                                        // The steer waits on the dismissals, but its message shows
-                                        // now: awaiting them first left the run resuming with the
-                                        // message nowhere on screen.
-                                        if (elicits.open || connects.open) {
-                                            const dismissed = Promise.all([
-                                                elicits.open ? elicits.dismiss() : null,
-                                                connects.open ? connects.dismiss() : null,
-                                            ])
-                                            await conversation.steer(
-                                                {text, parts, stagedFiles},
-                                                {after: dismissed},
-                                            )
-                                            return
-                                        }
+                                        if (await steerOverDocks({text, parts, stagedFiles})) return
                                         await send({text, parts, stagedFiles})
                                         return
                                     }
@@ -1135,8 +1102,9 @@ export const LiveConversation = ({
                                         )
                                 }}
                                 onSteer={async ({text, parts, stagedFiles}) => {
-                                    if (!locked)
-                                        await conversation.steer({text, parts, stagedFiles})
+                                    if (locked) return
+                                    if (await steerOverDocks({text, parts, stagedFiles})) return
+                                    await conversation.steer({text, parts, stagedFiles})
                                 }}
                                 disabled={disabled}
                                 sendDisabled={setupBlocked}

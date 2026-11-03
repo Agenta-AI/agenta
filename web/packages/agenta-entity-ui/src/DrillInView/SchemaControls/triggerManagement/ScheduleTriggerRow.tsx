@@ -1,4 +1,4 @@
-/** One schedule row in the Triggers section: cadence subtitle + a version-drift tag. */
+/** One schedule row in the Triggers section: name + cadence subtitle. */
 import {useEffect, useMemo, useState, type ReactNode} from "react"
 
 import {
@@ -10,7 +10,6 @@ import {
 import {Clock} from "@phosphor-icons/react"
 
 import {TriggerRow} from "./TriggerRow"
-import {useDriftTag} from "./useDriftTag"
 
 /** "next in 14h" — the coarse time until the next UTC fire, or null if none upcoming. */
 function formatCountdown(cron?: string): string | null {
@@ -28,14 +27,11 @@ function formatCountdown(cron?: string): string | null {
 
 export function ScheduleTriggerRow({
     record,
-    entityId,
     disabled,
     onOpen,
     menu,
 }: {
     record: TriggerSchedule
-    /** The open agent's revision id, compared against the schedule's binding target. */
-    entityId: string | null
     disabled?: boolean
     onOpen: () => void
     menu: ReactNode
@@ -54,14 +50,12 @@ export function ScheduleTriggerRow({
         return () => clearInterval(id)
     }, [cron])
     const next = useMemo(() => formatCountdown(cron), [cron, tick])
-    const driftTag = useDriftTag(record.data?.references, entityId)
 
     return (
         <TriggerRow
             icon={<Clock size={15} />}
             name={named ? (record.name as string) : "Untitled schedule"}
             nameMuted={!named}
-            chip={driftTag ?? undefined}
             subtitle={next ? `${cadence} · ${next}` : cadence}
             active={isEntityActive(record)}
             disabled={disabled}

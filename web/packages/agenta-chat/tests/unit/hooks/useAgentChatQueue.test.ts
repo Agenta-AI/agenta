@@ -35,6 +35,22 @@ const assistantAwaitingQuestion = (id: string): UIMessage =>
         ],
     }) as unknown as UIMessage
 
+/** An assistant tail paused on a parked secret request (the secret dock owns it). */
+const assistantAwaitingSecret = (id: string): UIMessage =>
+    ({
+        id,
+        role: "assistant",
+        parts: [
+            {
+                type: "tool-request_secret",
+                state: "input-available",
+                toolCallId: `${id}-secret`,
+                input: {name: "Stripe key", env_var: "STRIPE_KEY", reason: "to bill"},
+            },
+            {type: "data-render", data: {toolCallId: `${id}-secret`, render: {kind: "secret"}}},
+        ],
+    }) as unknown as UIMessage
+
 /** An assistant tail paused on a HITL tool gate (the dock-actionable state). */
 const assistantAwaitingApproval = (id: string): UIMessage =>
     ({
@@ -267,10 +283,12 @@ describe("useAgentChatQueue", () => {
         )
     })
 
-    it("refuses Steer while an APPROVAL is parked, so the message keeps queueing behind the gate", async () => {
-        // A message typed over an approval is as likely to be consent as a redirect, so the gate
-        // stays the only way to answer it. Reading "parked on the user" as steerable would have
-        // admitted one straight past the queue.
+    it.each([
+        ["a secret request", assistantAwaitingSecret],
+        ["an approval", assistantAwaitingApproval],
+    ])("admits Steer while the run is parked on %s", async (_label, parkedTail) => {
+        // Every dock is answered by a message typed over it: the host settles the dock first, then
+        // steers the message into the resumed run. Queueing it left the dock waiting instead.
         const server: ServerQueueAdapter = {
             busy: false,
             queued: [],
@@ -279,25 +297,18 @@ describe("useAgentChatQueue", () => {
             remove: vi.fn().mockResolvedValue(undefined),
         }
         const {result} = setup({
-            messages: [userTurn("u1", "go"), assistantAwaitingApproval("a1")],
+            messages: [userTurn("u1", "go"), parkedTail("a1")],
             stopped: false,
             server,
         })
 
         await act(async () => {
-            await expect(result.current.steer({text: "yes go ahead"})).rejects.toThrow(
-                "not ready to accept a Steer input",
-            )
+            await result.current.steer({text: "do this instead"})
         })
-        expect(server.submit).not.toHaveBeenCalled()
 
-        // The same message still queues, which is what the approval dock expects.
-        await act(async () => {
-            await result.current.submit({text: "yes go ahead"})
-        })
         expect(server.submit).toHaveBeenCalledWith(
-            expect.objectContaining({text: "yes go ahead"}),
-            "queue",
+            expect.objectContaining({text: "do this instead"}),
+            "steer",
             expect.anything(),
         )
     })

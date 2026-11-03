@@ -27,7 +27,9 @@ from oss.src.core.embeds.exceptions import (
     NonEmbeddableWorkflowReferenceError,
     PathExtractionError,
     EmbedNotFoundError,
+    EmbedReferenceInconsistentError,
 )
+from oss.src.core.git.types import RetrieveRefsInconsistent
 from oss.src.core.shared.dtos import Reference, Selector
 
 
@@ -261,7 +263,7 @@ def create_universal_resolver(
 
         return None
 
-    async def resolver_callback(references: Dict[str, Reference]) -> Dict[str, Any]:
+    async def _resolve(references: Dict[str, Reference]) -> Dict[str, Any]:
         # Parse all entity types to extract category and levels.
         # All references are guaranteed same-family by _resolve_references.
         parsed: Dict[str, Reference] = {}  # level -> ref
@@ -518,6 +520,12 @@ def create_universal_resolver(
             raise UnsupportedReferenceTypeError(
                 f"Unsupported entity category: {category}"
             )
+
+    async def resolver_callback(references: Dict[str, Reference]) -> Dict[str, Any]:
+        try:
+            return await _resolve(references)
+        except RetrieveRefsInconsistent as e:
+            raise EmbedReferenceInconsistentError(references=references) from e
 
     return resolver_callback
 

@@ -74,6 +74,13 @@ export {
     type ColumnRenameOp,
 } from "./revisionTableState"
 
+// Header metadata for a revision view
+export {
+    testsetRevisionHeaderAtomFamily,
+    type TestsetRevisionHeader,
+    type TestsetRevisionHeaderState,
+} from "./metadata"
+
 // Mutation atoms (save, clear, track changes)
 export {
     // Legacy save atoms (use saveReducer for new code)

@@ -7,6 +7,8 @@
  */
 
 import {getHostQueryClient} from "@agenta/shared/api"
+import {projectIdAtom} from "@agenta/shared/state"
+import {getDefaultStore} from "jotai"
 
 import type {
     TriggerSchedule,
@@ -30,7 +32,7 @@ function withActiveFlag<T extends Entity>(entity: T, active: boolean): T {
 
 export function applyScheduleActiveOptimistic(scheduleId: string, active: boolean): () => void {
     const queryClient = getHostQueryClient()
-    const listKey = ["triggers", "schedules"]
+    const listKey = ["triggers", "schedules", getDefaultStore().get(projectIdAtom)]
     const detailKey = ["triggers", "schedules", "detail", scheduleId]
 
     const prevList = queryClient.getQueryData<TriggerSchedulesResponse>(listKey)
@@ -64,7 +66,7 @@ export function applySubscriptionActiveOptimistic(
     active: boolean,
 ): () => void {
     const queryClient = getHostQueryClient()
-    const listKey = ["triggers", "subscriptions"]
+    const listKey = ["triggers", "subscriptions", getDefaultStore().get(projectIdAtom)]
     const detailKey = ["triggers", "subscriptions", "detail", subscriptionId]
 
     const prevList = queryClient.getQueryData<TriggerSubscriptionsResponse>(listKey)

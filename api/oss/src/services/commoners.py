@@ -336,9 +336,10 @@ async def create_accounts(
                 # Adds the contact to Loops for marketing emails.
                 from oss.src.utils import emailing  # noqa: PLC0415
 
-                emailing.add_contact(email)
-            except ConnectionError as ex:
-                log.warn("error adding contact to loops %s", ex)
+                await emailing.add_contact(email)
+            except Exception:
+                # A Loops failure must never fail sign-up.
+                log.warn("error adding contact to loops", exc_info=True)
 
         return user
 

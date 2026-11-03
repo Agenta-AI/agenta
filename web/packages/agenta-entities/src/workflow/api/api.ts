@@ -1335,11 +1335,13 @@ export async function fetchWorkflowAgentFlags(
  *
  * @param projectId - Project ID
  * @param revisionIds - Array of revision IDs to fetch
+ * @param opts.includeArchived - Also return revisions of archived workflows
  * @returns Map of revision ID → Workflow
  */
 export async function fetchWorkflowRevisionsByIdsBatch(
     projectId: string,
     revisionIds: string[],
+    opts?: {includeArchived?: boolean},
 ): Promise<Map<string, Workflow>> {
     const results = new Map<string, Workflow>()
 
@@ -1349,6 +1351,8 @@ export async function fetchWorkflowRevisionsByIdsBatch(
         `${getAgentaApiUrl()}/workflows/revisions/query`,
         {
             workflow_revision_refs: revisionIds.map((id) => ({id})),
+            // Sent only when asked: an archived evaluator opened cold must still resolve.
+            ...(opts?.includeArchived ? {include_archived: true} : {}),
         },
         {params: {project_id: projectId}},
     )

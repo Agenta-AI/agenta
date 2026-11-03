@@ -635,20 +635,22 @@ async def run_orphan_sweep(
         unsettled.difference_update(skipped_orphan_turns)
         terminal_winners: Set[Tuple[UUID, str, str]] = set()
         endings_written: Set[Tuple[UUID, str, str]] = set()
+        # Queued inputs the lost turns promoted, delivered once their ownership is released.
+        promoted_inputs: List[Tuple[Tuple[UUID, str, str], Any]] = []
         for project_id, session_id, turn_id in sorted(unsettled, key=lambda t: t[1]):
             key = (project_id, session_id, turn_id)
-            if (
-                key not in terminal_turns
-                and commands_service is not None
-                and not await commands_service.settle_execution_lost(
+            if key not in terminal_turns and commands_service is not None:
+                settlement = await commands_service.settle_execution_lost(
                     project_id=project_id,
                     session_id=session_id,
                     execution_id=turn_id,
                     settled_at=now,
                     transaction=session,
                 )
-            ):
-                continue
+                if not settlement.settled:
+                    continue
+                if settlement.admission is not None:
+                    promoted_inputs.append((key, settlement.admission))
             terminal_winners.add(key)
             record_events = (
                 _stopped_turn_records(
@@ -852,6 +854,20 @@ async def run_orphan_sweep(
                 session_id=session_id,
                 turn_id=row_turn_id,
             )
+
+        # After the release: the promoted turn's first heartbeat must not meet the lost owner.
+        # A turn whose release was skipped beat again, so its input stays in the queue.
+        for key, admission in promoted_inputs:
+            if key in failed_running_clears:
+                continue
+            try:
+                await commands_service.deliver_input_admission(admission)
+            except Exception:
+                log.warning(
+                    "watchdog: failed to deliver a promoted queued input",
+                    execution_id=admission.execution_id,
+                    exc_info=True,
+                )
 
         # Tell every open reader the session ended. Without this a browser sitting on the
         # settled turn keeps showing it as running until the user reloads. Best effort: the

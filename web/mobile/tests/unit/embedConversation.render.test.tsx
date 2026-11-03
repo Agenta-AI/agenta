@@ -13,6 +13,17 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 import type {EmbedClient, EmbedConversation} from "@/features/embed/embedClient"
 import {REPLY_FAILED_TEXT} from "@/features/embed/embedConversationModel"
 import {useEmbedConversation} from "@/features/embed/useEmbedConversation"
+
+// Approval records are long to build; a test sets the pending gates directly.
+const gates = vi.hoisted(() => ({pending: null as {approvalId: string}[] | null}))
+vi.mock("@agenta/chat/model", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("@agenta/chat/model")>()
+    return {
+        ...actual,
+        getPendingApprovals: (messages: Parameters<typeof actual.getPendingApprovals>[0]) =>
+            gates.pending ?? actual.getPendingApprovals(messages),
+    }
+})
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
@@ -91,6 +102,7 @@ describe("the widget's wait for a reply", () => {
     })
     afterEach(() => {
         act(() => root.unmount())
+        gates.pending = null
     })
 
     const mount = async (client: EmbedClient) => {
@@ -198,5 +210,45 @@ describe("the widget's wait for a reply", () => {
         expect(chat.current?.waitingForReply).toBe(false)
         // The message that got no turn does not stay on screen as if it were sent.
         expect(chat.current?.messages).toHaveLength(2)
+    })
+
+    it("ends the answered phase when the gate clears while the answer is still sending", async () => {
+        const {client, state} = fakeClient()
+        state.conversations = [conversation]
+        state.records = [record("r1", "user", "delete it", 1)]
+        vi.mocked(client.readConversation).mockImplementation(async () => ({
+            records: state.records,
+            choiceTokens: ["c:approve", "c:deny"],
+            unstartedTurns: 0,
+        }))
+        gates.pending = [{approvalId: "a1"}]
+        const {chat} = await mount(client)
+        expect(chat.current?.pendingApprovals).toHaveLength(1)
+
+        let release: () => void = vi.fn()
+        vi.mocked(client.send).mockImplementationOnce(
+            () => new Promise<void>((resolve) => (release = resolve)),
+        )
+        let answering: Promise<void> | undefined
+        act(() => {
+            answering = chat.current?.answerApproval(true)
+        })
+        await vi.waitFor(() => expect(client.send).toHaveBeenCalled())
+        // The run resumes and the records drop the gate before the send returns.
+        gates.pending = []
+        state.records = [...state.records, record("r2", "agent", "done", 2)]
+        // A dropped stream re-reads the records when it reconnects.
+        const handlers = vi.mocked(client.connectLive).mock.calls.at(-1)?.[1] as {
+            onDisconnect: (info: {reason: string; reconnect: boolean}) => void
+        }
+        act(() => handlers.onDisconnect({reason: "error", reconnect: true}))
+        await vi.waitFor(() => expect(chat.current?.pendingApprovals).toHaveLength(0), {
+            timeout: 3_000,
+        })
+        await act(async () => {
+            release()
+            await answering
+        })
+        expect(chat.current?.approvalAnswered).toBe(false)
     })
 })

@@ -258,7 +258,7 @@ class _Policy:
 
 
 class _NoVault:
-    async def resolve(self, *, scope, ref, mode):
+    async def resolve(self, *, scope, ref):
         raise AssertionError("a builtin call must never read the project's vault")
 
     async def available_provider_keys(self, *, scope):

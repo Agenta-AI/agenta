@@ -2,7 +2,7 @@
 
 Status: sections 2, 3 and 4 are replaced by `small-team-roles` and are not built. The tombstone table and its write shipped in M3, and removing them is a separate cleanup.
 
-Prerequisites: M3 in production; M6 merged. Parentheses name the spec requirement.
+Prerequisites, from CONTRACT.md section 14 (the contract wins): section 1 (M9a, per-turn usage) needs nothing. Parentheses name the spec requirement.
 
 ## 1. Per-turn usage (first release)
 

@@ -37,3 +37,27 @@ export type {
     EvaluationResultsQueryParams,
     EvaluationMetricsQueryParams,
 } from "./types"
+
+export {
+    deriveEvaluationKind,
+    EVALUATION_KIND_LABELS,
+    humanizeRunStatus,
+    isRunInProgress,
+    isTerminalRunStatus,
+    runStatusTone,
+    type EvaluationRunKind,
+    type RunKindInput,
+    type RunStatusTone,
+} from "./runKind"
+
+export {
+    buildHumanRunConfig,
+    evaluatorOutputKeys,
+    type BuildHumanRunConfigInput,
+    type HumanRunApp,
+    type HumanRunEvaluator,
+    type HumanRunMapping,
+    type HumanRunSpec,
+    type HumanRunStep,
+    type HumanRunTestset,
+} from "./humanRunConfig"
