@@ -28,9 +28,6 @@ const RevisionDrawerHost = dynamic(
 
 export const RECENT_PROMPTS_COUNT = 5
 
-const NO_COLLAPSED: ReadonlySet<string> = new Set()
-const ignore = () => undefined
-
 /** The five newest revisions of the app. A row opens the revision drawer. Nothing here deletes. */
 export const AppRecentPromptsSection = ({
     projectId,
@@ -81,11 +78,8 @@ export const AppRecentPromptsSection = ({
                     latestRevisionId={latestRevisionId}
                     canDeploy={canDeploy}
                     canDelete={false}
-                    collapsed={NO_COLLAPSED}
-                    onCollapsedChange={ignore}
                     onOpen={(row) => setRevisionId(row.revisionId)}
                     onDeploy={setDeployRow}
-                    onDelete={ignore}
                     empty={<VariantsEmpty />}
                 />
             )}

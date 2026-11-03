@@ -1,5 +1,3 @@
-import type {ReactNode} from "react"
-
 import type {AppEnvironmentDeployment} from "@agenta/entities/environment"
 import {FormattedDate, Tag} from "@agenta/ui/components/presentational"
 import {Badge} from "@agenta/ui/ui"
@@ -47,7 +45,7 @@ export const EnvironmentCards = ({
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {environments.map((environment) => {
             const key = environment.slug || environment.name
-            const body: ReactNode = <CardBody environment={environment} />
+            const body = <CardBody environment={environment} />
             if (getHref) {
                 return (
                     <Link
