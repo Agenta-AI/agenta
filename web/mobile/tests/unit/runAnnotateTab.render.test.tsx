@@ -388,11 +388,19 @@ describe("run annotate tab", () => {
         // The reader leaves the tab while the update is on its way.
         await act(async () => root.unmount())
         root = createRoot(host)
+        state.calls.length = 0
         finish()
         for (let i = 0; i < 3; i++) await settle()
 
         expect(toast.success).toHaveBeenCalledWith("Annotations saved successfully")
         expect(client.getQueryData(annotationTrace)).toBeUndefined()
+        // The scenario's results are read again, so a form opened next finds the saved annotation.
+        const resultReads = state.calls.filter((call) =>
+            call.url.endsWith("/evaluations/results/query"),
+        )
+        expect(resultReads.map((call) => call.body)).toContainEqual(
+            expect.objectContaining({result: expect.objectContaining({scenario_ids: ["sc-1"]})}),
+        )
     })
 
     it("A failed submit shows Couldn't save the annotations and keeps the values", async () => {

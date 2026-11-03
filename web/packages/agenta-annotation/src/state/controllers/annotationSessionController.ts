@@ -1933,9 +1933,11 @@ const scenarioMetricForEvaluatorAtomFamily = atomFamily(
 async function invalidateScenarioAnnotations(
     scenarioId: string,
     fallbackAnnotations: Annotation[] = [],
+    /** The run the save wrote to; the session may have closed while it ran. */
+    savedRunId: string | null = null,
 ) {
     const store = getStore()
-    const runId = store.get(activeRunIdAtom)
+    const runId = savedRunId ?? store.get(activeRunIdAtom)
     const projectId = store.get(projectIdAtom)
     let freshSteps: EvaluationResult[] | null = null
 

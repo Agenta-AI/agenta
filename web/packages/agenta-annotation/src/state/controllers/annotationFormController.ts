@@ -1642,6 +1642,7 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
         await annotationSessionController.cache.invalidateScenarioAnnotations(
             scenarioId,
             submittedAnnotations,
+            runId,
         )
 
         // A run's screens read its metrics again right after the save: refresh them first.
