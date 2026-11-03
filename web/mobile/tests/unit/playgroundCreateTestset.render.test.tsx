@@ -9,6 +9,7 @@ import {act} from "react"
 import {loadableController} from "@agenta/entities/loadable"
 import {playgroundController} from "@agenta/playground"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
+import {message} from "@agenta/ui/app-message"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
@@ -235,10 +236,10 @@ describe("Create a new test set from the load dialog", () => {
         const queries = http.post.mock.calls.filter(([url]) =>
             String(url).endsWith("/testcases/query"),
         )
-        expect(queries[0][1]).toEqual({
-            testset_revision_ref: {id: NEW_REVISION},
-            windowing: {limit: 50},
-        })
+        expect(queries.map(([, body]) => body)).toEqual([
+            {testset_revision_ref: {id: NEW_REVISION}, windowing: {limit: 50}},
+            {testcase_ids: [FRANCE, ITALY]},
+        ])
         expect(store.get(loadableController.selectors.connectedSource(loadableId()))).toMatchObject(
             {id: NEW_REVISION},
         )
@@ -267,6 +268,24 @@ describe("Create a new test set from the load dialog", () => {
             expect.arrayContaining(["France", "Italy", "Brazil"]),
         )
         expect(store.get(loadableController.selectors.hasLocalChanges(loadableId()))).toBe(true)
+    })
+
+    it("Rows that fail to load connect nothing and tell the reader", async () => {
+        const answer = http.post.getMockImplementation()!
+        http.post.mockImplementation(async (url: string, body: unknown) => {
+            if (url.endsWith("/testcases/query")) throw new Error("Request failed with status 500")
+            return answer(url, body)
+        })
+        vi.spyOn(console, "error").mockImplementation(() => undefined)
+        await openLoadDialog()
+        await click(topDialog(), "Create a new test set")
+        await upload("capitals.csv", "Capitals")
+
+        expect(message.error).toHaveBeenCalledWith("The test set was created, but it did not load")
+        expect(store.get(loadableController.selectors.connectedSource(loadableId()))).toMatchObject(
+            {id: null},
+        )
+        expect(button(host, "Test set")).toBeDefined()
     })
 
     it("Cancel returns to the load dialog and connects nothing", async () => {

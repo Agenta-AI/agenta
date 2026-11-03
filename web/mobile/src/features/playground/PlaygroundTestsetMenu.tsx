@@ -1,4 +1,4 @@
-import {useState} from "react"
+import {useEffect, useRef, useState} from "react"
 
 import type {CommitCreateFieldsConfig, CommitModeOption} from "@agenta/entity-ui/modals"
 import {useTestsetMenuModel} from "@agenta/playground-ui/hooks"
@@ -65,18 +65,25 @@ export const PlaygroundTestsetMenu = () => {
     const [creating, setCreating] = useState(false)
     const router = useRouter()
     const projectId = useAtomValue(projectIdAtom) as string | null
+    // Leaving the page while the rows load must not connect a playground that is gone.
+    const mounted = useRef(true)
+    useEffect(() => {
+        mounted.current = true
+        return () => {
+            mounted.current = false
+        }
+    }, [])
     if (!loadableId) return null
 
     // The new test set loads the way a pick in the load dialog does, with all of its rows.
-    const loadCreated = async (created: CreatedTestset) => {
+    const loadCreated = async (created: CreatedTestset): Promise<void> => {
         if (!projectId || !created.revisionId) return
         try {
-            model.confirmLoad(
-                await createdTestsetPayload(projectId, {
-                    ...created,
-                    revisionId: created.revisionId,
-                }),
-            )
+            const payload = await createdTestsetPayload(projectId, {
+                ...created,
+                revisionId: created.revisionId,
+            })
+            if (mounted.current) model.confirmLoad(payload)
         } catch (error) {
             console.error("Loading the new test set failed", error)
             message.error("The test set was created, but it did not load")
@@ -103,7 +110,7 @@ export const PlaygroundTestsetMenu = () => {
                     projectId={projectId}
                     base={`/w/${router.query.workspace_id}/p/${projectId}`}
                     onClose={() => setCreating(false)}
-                    onCreated={(created) => void loadCreated(created)}
+                    onCreated={loadCreated}
                 />
             ) : null}
             {dialog?.kind === "keep-drafts" ? (

@@ -43,8 +43,8 @@ export function useUploadTestset({
     projectId: string
     base: string
     onDone: () => void
-    /** Replaces the jump to the new test set page. */
-    onCreated?: (created: CreatedTestset) => void
+    /** Replaces the jump to the new test set page. The dialog stays open until it settles. */
+    onCreated?: (created: CreatedTestset) => void | Promise<void>
 }) {
     const router = useRouter()
     const queryClient = useQueryClient()
@@ -74,7 +74,7 @@ export function useUploadTestset({
                 message.success("Test set uploaded successfully")
                 void refreshTestsetLists(queryClient)
                 if (onCreated) {
-                    onCreated({
+                    await onCreated({
                         testsetId: created.testsetId,
                         revisionId: created.revisionId,
                         name: testsetName,

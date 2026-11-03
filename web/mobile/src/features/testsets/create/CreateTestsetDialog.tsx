@@ -49,7 +49,7 @@ export const CreateTestsetDialog = ({
     projectId: string
     base: string
     onClose: () => void
-    onCreated?: (created: CreatedTestset) => void
+    onCreated?: (created: CreatedTestset) => void | Promise<void>
 }) => {
     const [step, setStep] = useState<Step>("choose")
     const [saving, setSaving] = useState(false)

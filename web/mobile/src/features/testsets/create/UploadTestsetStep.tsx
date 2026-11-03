@@ -51,7 +51,7 @@ export const UploadTestsetStep = ({
     /** Tells the dialog a save is running, so it stays open until the save ends. */
     onPendingChange: (pending: boolean) => void
     /** The host's next step after an upload, instead of opening the new test set page. */
-    onCreated?: (created: CreatedTestset) => void
+    onCreated?: (created: CreatedTestset) => void | Promise<void>
     /** Leave both out to hide the manual ways. */
     onScratch?: () => void
     onApi?: () => void
