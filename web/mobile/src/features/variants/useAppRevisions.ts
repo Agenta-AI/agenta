@@ -3,7 +3,7 @@ import {
     queryWorkflowRevisionsByWorkflow,
     queryWorkflowVariants,
 } from "@agenta/entities/workflow"
-import {useInfiniteQuery, type InfiniteData, type QueryClient} from "@tanstack/react-query"
+import {useInfiniteQuery} from "@tanstack/react-query"
 
 export const REVISIONS_PAGE_SIZE = 50
 
@@ -23,21 +23,6 @@ export interface AppRevisionRow {
 
 export const appRevisionsKey = (projectId: string, appId: string, search: string) =>
     ["workflows", "app-revisions", projectId, appId, search] as const
-
-/**
- * The newest revision of the app in the loaded list, leaving out `exceptId`. Null when the list is
- * not loaded. A screen that just deleted a revision reads it to pick what to show next.
- */
-export const newestRevisionIdExcept = (
-    queryClient: QueryClient,
-    {projectId, appId, exceptId}: {projectId: string; appId: string; exceptId: string},
-): string | null => {
-    const cached = queryClient.getQueryData<InfiniteData<{rows: AppRevisionRow[]}>>(
-        appRevisionsKey(projectId, appId, ""),
-    )
-    const rows = cached?.pages.flatMap((page) => page.rows) ?? []
-    return rows.find((row) => row.revisionId !== exceptId)?.revisionId ?? null
-}
 
 const hasContent = (value: unknown): boolean => {
     if (value == null || value === "") return false

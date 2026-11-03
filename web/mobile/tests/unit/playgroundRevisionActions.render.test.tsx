@@ -8,7 +8,11 @@
 import {act} from "react"
 
 import {projectPermissionQueryKey} from "@agenta/entities/access"
-import {createLocalDraftFromWorkflowRevision, workflowMolecule} from "@agenta/entities/workflow"
+import {
+    createLocalDraftFromWorkflowRevision,
+    workflowLatestRevisionIdAtomFamily,
+    workflowMolecule,
+} from "@agenta/entities/workflow"
 import {playgroundController} from "@agenta/playground"
 import {queryClient as hostQueryClient} from "@agenta/shared/api"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
@@ -100,6 +104,9 @@ const world = {
     variants: [] as {id: string; slug: string; name: string; workflow_id: string}[],
     environments: [] as Record<string, unknown>[],
     failCommit: false,
+    /** While set, the answer to that request waits for it. */
+    holdList: null as Promise<void> | null,
+    holdCommit: null as Promise<void> | null,
 }
 const resetWorld = () => {
     world.revisions = [makeRevision("rev-1", 1, "First"), makeRevision("rev-2", 2, "Second")]
@@ -109,6 +116,8 @@ const resetWorld = () => {
         {id: "env-prod", slug: "production", name: "production", variant_id: "env-prod-var"},
     ]
     world.failCommit = false
+    world.holdList = null
+    world.holdCommit = null
 }
 
 type Body = Record<string, unknown>
@@ -186,7 +195,7 @@ let host: HTMLDivElement
 let client: QueryClient
 
 /** Every request the screen sent, in order. */
-const calls: {method: string; url: string; body: Body}[] = []
+const calls: {method: string; url: string; body: Body; params: unknown}[] = []
 const sent = (suffix: string) => calls.filter((call) => call.url.endsWith(suffix))
 /** The requests that change data on the server. */
 const writes = () =>
@@ -216,15 +225,25 @@ beforeEach(async () => {
     router.replace.mockReset()
     router.replace.mockResolvedValue(true)
     calls.length = 0
-    http.post.mockImplementation(async (url: string, body: Body) => {
-        calls.push({method: "post", url, body})
+    http.post.mockImplementation(async (url: string, body: Body, config?: {params?: unknown}) => {
+        calls.push({method: "post", url, body, params: config?.params})
+        const windowing = (body?.windowing ?? {}) as {limit?: number}
+        // The delete dialog reads the app's revisions 50 at a time.
+        if (
+            world.holdList &&
+            url.endsWith("/workflows/revisions/query") &&
+            windowing.limit === 50
+        ) {
+            await world.holdList
+        }
+        if (world.holdCommit && url.endsWith("/workflows/revisions/commit")) await world.holdCommit
         if (world.failCommit && url.endsWith("/workflows/revisions/commit")) {
             throw new Error("Request failed with status code 500")
         }
         return {data: answer(url, body ?? {})}
     })
     http.get.mockImplementation(async (url: string) => {
-        calls.push({method: "get", url, body: {}})
+        calls.push({method: "get", url, body: {}, params: undefined})
         return {data: {}}
     })
     allow("edit_workflows", true)
@@ -290,6 +309,8 @@ const edit = async (text: string) => {
     act(() => store.set(workflowMolecule.actions.updateConfiguration, "rev-2", prompt(text)))
     await settle()
 }
+/** What a saved prompt holds: the editor adds the list of input keys. */
+const saved = (text: string) => ({prompt: {...prompt(text).prompt, input_keys: []}})
 const isDirty = (id: string) => store.get(workflowMolecule.selectors.isDirty(id))
 const text = () => document.body.textContent ?? ""
 
@@ -443,11 +464,16 @@ describe("Commit", () => {
 
         const commits = sent("/workflows/revisions/commit")
         expect(commits).toHaveLength(1)
-        expect(commits[0].body.workflow_revision).toMatchObject({
-            workflow_id: "app-1",
-            workflow_variant_id: "var-1",
-            message: "Shorter prompt",
-            data: {parameters: prompt("Changed")},
+        expect(commits[0].params).toEqual({project_id: projectId})
+        expect(commits[0].body).toEqual({
+            workflow_revision: {
+                workflow_id: "app-1",
+                workflow_variant_id: "var-1",
+                slug: expect.any(String),
+                name: "default",
+                message: "Shorter prompt",
+                data: {uri: "agenta:builtin:completion:v0", parameters: saved("Changed")},
+            },
         })
         expect(shown()).toEqual(["rev-3"])
         expect(isDirty("rev-2")).toBe(false)
@@ -473,21 +499,29 @@ describe("Commit", () => {
             call.url.replace(/\?.*/, "").replace(/^.*\/workflows/, ""),
         )
         expect(order).toEqual(["/variants/", "/revisions/commit", "/revisions/commit"])
-        expect(sent("/workflows/variants/")[0].body.workflow_variant).toMatchObject({
-            workflow_id: "app-1",
-            name: "Concise",
+        expect(sent("/workflows/variants/")[0].params).toEqual({project_id: projectId})
+        expect(sent("/workflows/variants/")[0].body).toEqual({
+            workflow_variant: {workflow_id: "app-1", slug: expect.any(String), name: "Concise"},
         })
         // The new variant starts from the base revision's type, then gets the edited config.
         const [start, commit] = sent("/workflows/revisions/commit").map(
             (call) => call.body.workflow_revision,
         )
-        expect(start).toMatchObject({
-            workflow_variant_id: world.variants.at(-1)!.id,
+        const variantId = world.variants.at(-1)!.id
+        expect(start).toEqual({
+            workflow_id: "app-1",
+            workflow_variant_id: variantId,
+            slug: expect.any(String),
+            name: "Concise",
             data: {uri: "agenta:builtin:completion:v0"},
         })
-        expect(commit).toMatchObject({
-            workflow_variant_id: world.variants.at(-1)!.id,
-            data: {parameters: prompt("Changed")},
+        expect(commit).toEqual({
+            workflow_id: "app-1",
+            workflow_variant_id: variantId,
+            slug: expect.any(String),
+            name: "Concise",
+            message: expect.any(String),
+            data: {uri: "agenta:builtin:completion:v0", parameters: saved("Changed")},
         })
         expect(shown()[0]).toBe(world.revisions.at(-1)!.id)
     })
@@ -506,15 +540,20 @@ describe("Commit", () => {
 
         const published = sent("/environments/revisions/commit")
         expect(published).toHaveLength(1)
-        expect(published[0].body.environment_revision).toMatchObject({
-            environment_id: "env-qa",
-            environment_variant_id: "env-qa-var",
-            delta: {
-                set: {
-                    "capitals.revision": {
-                        application: {id: "app-1", slug: "capitals"},
-                        application_variant: {id: "var-1"},
-                        application_revision: {id: "rev-3", version: "3"},
+        expect(published[0].params).toEqual({project_id: projectId})
+        expect(published[0].body).toEqual({
+            environment_revision: {
+                slug: expect.any(String),
+                environment_id: "env-qa",
+                environment_variant_id: "env-qa-var",
+                message: "Ship it",
+                delta: {
+                    set: {
+                        "capitals.revision": {
+                            application: {id: "app-1", slug: "capitals"},
+                            application_variant: {id: "var-1", slug: "capitals.var-1"},
+                            application_revision: {id: "rev-3", version: "3"},
+                        },
                     },
                 },
             },
@@ -534,6 +573,36 @@ describe("Commit", () => {
         expect(isDirty("rev-2")).toBe(true)
         expect(shown()).toEqual(["rev-2"])
         expect(world.revisions).toHaveLength(2)
+    })
+
+    it("Commit and deploy is not offered without deploy permission", async () => {
+        allow("deploy_environments", false)
+        await mount()
+        await edit("Changed")
+        await click("Commit")
+        await fillMessage("Ship it")
+
+        expect(find("Commit and deploy options")).toBeUndefined()
+        expect(find("Commit")).toBeDefined()
+    })
+
+    it("Cancel does nothing while the commit is being saved", async () => {
+        let release: () => void = () => undefined
+        world.holdCommit = new Promise<void>((resolve) => (release = resolve))
+        await mount()
+        await edit("Changed")
+        await click("Commit")
+        await fillMessage("Slow save")
+        await click("Commit")
+        await click("Cancel")
+
+        expect(document.querySelector("[role=dialog]")).not.toBeNull()
+
+        release()
+        await settle()
+
+        expect(document.querySelector("[role=dialog]")).toBeNull()
+        expect(shown()).toEqual(["rev-3"])
     })
 
     it("A reader without edit permission sees Commit disabled", async () => {
@@ -560,16 +629,20 @@ describe("Deploy", () => {
 
         const published = sent("/environments/revisions/commit")
         expect(published).toHaveLength(1)
-        expect(published[0].body.environment_revision).toMatchObject({
-            environment_id: "env-prod",
-            environment_variant_id: "env-prod-var",
-            message: "Go live",
-            delta: {
-                set: {
-                    "capitals.revision": {
-                        application: {id: "app-1", slug: "capitals"},
-                        application_variant: {id: "var-1", slug: "capitals.var-1"},
-                        application_revision: {id: "rev-2", version: "2"},
+        expect(published[0].params).toEqual({project_id: projectId})
+        expect(published[0].body).toEqual({
+            environment_revision: {
+                slug: expect.any(String),
+                environment_id: "env-prod",
+                environment_variant_id: "env-prod-var",
+                message: "Go live",
+                delta: {
+                    set: {
+                        "capitals.revision": {
+                            application: {id: "app-1", slug: "capitals"},
+                            application_variant: {id: "var-1", slug: "capitals.var-1"},
+                            application_revision: {id: "rev-2", version: "2"},
+                        },
                     },
                 },
             },
@@ -595,8 +668,11 @@ describe("Delete", () => {
         const archives = writes()
         expect(archives).toHaveLength(1)
         expect(archives[0].url).toContain("/workflows/revisions/rev-2/archive")
+        expect(archives[0].params).toEqual({project_id: projectId})
         expect(archives[0].body).toEqual({})
         expect(shown()).toEqual(["rev-1"])
+        // The app's cached latest revision follows, so the next visit does not reopen rev-2.
+        expect(store.get(workflowLatestRevisionIdAtomFamily("app-1"))).toBe("rev-1")
     })
 
     it("A revision with empty parameters is deleted alone and its variant stays", async () => {
@@ -612,11 +688,20 @@ describe("Delete", () => {
         expect(sent("/archive").filter((call) => call.url.includes("/variants/"))).toHaveLength(0)
     })
 
-    it("The only revision cannot be deleted, even before the list has loaded", async () => {
+    it("Delete waits for the list of revisions, then refuses the only revision", async () => {
         world.revisions = [world.revisions[1]]
+        let release: () => void = () => undefined
+        world.holdList = new Promise<void>((resolve) => (release = resolve))
         await mount()
         await openMenu("Revision actions")
         await click("Delete")
+
+        expect(find("Delete")!.hasAttribute("disabled")).toBe(true)
+        await click("Delete")
+        expect(writes()).toHaveLength(0)
+
+        release()
+        await settle()
 
         expect(text()).toContain("Cannot delete the only revision. Delete the app instead.")
         expect(find("Delete")).toBeUndefined()
@@ -628,7 +713,11 @@ describe("Delete", () => {
         await mount()
         await openMenu("Revision actions")
 
-        expect(find("Delete")!.getAttribute("aria-disabled")).toBe("true")
+        const item = [...document.querySelectorAll("[role=menuitem]")].find((entry) =>
+            label(entry).startsWith("Delete"),
+        )
+        expect(item?.getAttribute("aria-disabled")).toBe("true")
+        expect(label(item!)).toContain("You don't have permission to delete.")
     })
 })
 

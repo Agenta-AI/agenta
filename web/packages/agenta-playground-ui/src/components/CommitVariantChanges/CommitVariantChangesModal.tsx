@@ -1,4 +1,4 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useMemo, useRef} from "react"
 
 import {publishMutationAtom} from "@agenta/entities/runnable"
 import {workflowMolecule, createWorkflowFromEphemeralAtom} from "@agenta/entities/workflow"
@@ -55,7 +55,11 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     )
     const commitDeployOptions = hostDeployOptions ?? fixedDeployOptions
 
+    // A save that is under way keeps the modal open. A closed modal could not stop it, and the
+    // reader would go on editing a draft that the save is about to clear.
+    const saving = useRef(false)
     const handleClose = useCallback(() => {
+        if (saving.current) return
         onCancel?.({} as never)
     }, [onCancel])
 
@@ -105,7 +109,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
         [publish, runnableData, appId, appSlug],
     )
 
-    const handleSubmit = useCallback(
+    const submit = useCallback(
         async ({
             message: commitMessage,
             mode,
@@ -221,6 +225,18 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
             onSuccess,
             commitRevision,
         ],
+    )
+
+    const handleSubmit = useCallback(
+        async (params: CommitSubmitParams) => {
+            saving.current = true
+            try {
+                return await submit(params)
+            } finally {
+                saving.current = false
+            }
+        },
+        [submit],
     )
 
     const commitModes = useMemo(

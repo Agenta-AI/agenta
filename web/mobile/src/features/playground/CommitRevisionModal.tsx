@@ -14,12 +14,15 @@ export const CommitRevisionModal = ({
     revisionId,
     appId,
     appSlug,
+    canDeploy,
     onClose,
     onCommitted,
 }: {
     revisionId: string
     appId: string
     appSlug: string | null
+    /** Without deploy permission, the dialog offers the commit alone. */
+    canDeploy: boolean
     onClose: () => void
     onCommitted: (revisionId: string) => void
 }) => {
@@ -40,7 +43,7 @@ export const CommitRevisionModal = ({
             variantId={revisionId}
             appId={appId}
             appSlug={appSlug}
-            commitDeployOptions={deployOptions}
+            commitDeployOptions={canDeploy ? deployOptions : []}
             onCancel={onClose}
             onAfterCommit={() =>
                 void queryClient.invalidateQueries({queryKey: ["workflows", "app-revisions"]})

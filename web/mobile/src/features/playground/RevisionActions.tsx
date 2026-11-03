@@ -3,6 +3,7 @@ import {useState, type ReactNode} from "react"
 import {isLocalDraftId} from "@agenta/entities/shared"
 import {
     discardLocalServerDataAtom,
+    queryWorkflowRevisionsByWorkflow,
     workflowDetailQueryAtomFamily,
     workflowMolecule,
 } from "@agenta/entities/workflow"
@@ -16,9 +17,8 @@ import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue, useStore} from "jotai"
 import dynamic from "next/dynamic"
 
-import {useProjectPermission} from "../context/useProjectPermission"
+import {useProjectPermissionState} from "../context/useProjectPermission"
 import type {DialogRevision} from "../variants/DeployRevisionDialog"
-import {newestRevisionIdExcept} from "../variants/useAppRevisions"
 
 import {RevisionMenu} from "./RevisionMenu"
 
@@ -82,8 +82,10 @@ export const RevisionActions = ({
     const store = useStore()
     const queryClient = useQueryClient()
     const [open, setOpen] = useState<Open | null>(null)
-    const canEdit = useProjectPermission(projectId, "edit_workflows")
-    const canDeploy = useProjectPermission(projectId, "deploy_environments")
+    const edit = useProjectPermissionState(projectId, "edit_workflows")
+    const deploy = useProjectPermissionState(projectId, "deploy_environments")
+    const canEdit = edit.allowed
+    const canDeploy = deploy.allowed
     const app = useAtomValue(workflowDetailQueryAtomFamily(appId))
     const query = useAtomValue(workflowMolecule.selectors.query(revisionId))
     const dirty = useAtomValue(workflowMolecule.selectors.isDirty(revisionId))
@@ -91,9 +93,11 @@ export const RevisionActions = ({
     const isLocalDraft = isLocalDraftId(revisionId)
     const loading = query.isPending && !isLocalDraft
 
-    const commitReason = canEdit ? null : "You don't have permission to commit changes."
-    const deployReason = canDeploy ? null : "You don't have permission to deploy."
-    const deleteReason = canEdit ? null : "You don't have permission to delete."
+    // No reason while the check is still running: the answer may be yes.
+    const commitReason =
+        canEdit || edit.pending ? null : "You don't have permission to commit changes."
+    const deployReason = canDeploy || deploy.pending ? null : "You don't have permission to deploy."
+    const deleteReason = canEdit || edit.pending ? null : "You don't have permission to delete."
 
     const shownRevision = (): DialogRevision => {
         const data = store.get(workflowMolecule.selectors.data(revisionId))
@@ -127,23 +131,30 @@ export const RevisionActions = ({
         else message.error("Failed to copy raw configuration")
     }
 
-    // The deleted revision leaves the screen. With nothing left, the selection picks the app's
-    // latest revision.
-    const afterDelete = (deletedId: string) => {
+    // The deleted revision leaves the screen. The server names the newest revision left; it also
+    // becomes the app's cached latest revision, which the header and the next visit read.
+    const afterDelete = async (deletedId: string) => {
         store.set(workflowMolecule.actions.discard, deletedId)
-        // The delete dialog has loaded the app's revisions again, so this is the newest one left.
-        const next = newestRevisionIdExcept(queryClient, {projectId, appId, exceptId: deletedId})
-        if (next) {
-            store.set(playgroundController.actions.switchEntity, {
-                currentEntityId: deletedId,
-                newEntityId: next,
+        try {
+            const page = await queryWorkflowRevisionsByWorkflow(appId, projectId, undefined, {
+                limit: 1,
+                order: "descending",
             })
-            return
+            const latest = page.workflow_revisions[0] ?? null
+            queryClient.setQueryData(["workflows", "latestRevision", appId, projectId], latest)
+            if (latest) {
+                store.set(playgroundController.actions.switchEntity, {
+                    currentEntityId: deletedId,
+                    newEntityId: latest.id,
+                })
+            }
+        } catch (error) {
+            console.error("Loading the newest revision failed", error)
         }
-        store.set(
-            playgroundController.actions.setEntityIds,
-            store.get(playgroundController.selectors.entityIds()).filter((id) => id !== deletedId),
-        )
+        queryClient.removeQueries({
+            predicate: ({queryKey: [scope, kind, id]}) =>
+                scope === "workflows" && kind === "revision" && id === deletedId,
+        })
     }
 
     const discardLocalDraft = () => {
@@ -214,6 +225,7 @@ export const RevisionActions = ({
                     revisionId={revisionId}
                     appId={appId}
                     appSlug={app.data?.slug ?? null}
+                    canDeploy={canDeploy}
                     onClose={() => setOpen(null)}
                     onCommitted={onCommitted}
                 />
