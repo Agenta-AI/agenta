@@ -7,18 +7,9 @@ import type {ReactElement} from "react"
 
 import {afterEach, describe, expect, it, vi} from "vitest"
 
-const {notification} = vi.hoisted(() => ({
-    notification: {
-        open: vi.fn(),
-        success: vi.fn(),
-        info: vi.fn(),
-        warning: vi.fn(),
-        error: vi.fn(),
-        destroy: vi.fn(),
-    },
-}))
+const {message} = vi.hoisted(() => ({message: {open: vi.fn(), destroy: vi.fn()}}))
 
-vi.mock("@agenta/ui/app-message", () => ({notification}))
+vi.mock("@agenta/ui/app-message", () => ({message}))
 vi.mock("@agenta/entities/simpleQueue/etl", async (original) => ({
     ...(await original<object>()),
     addAllMatchingTracesToQueue: vi.fn(async () => {
@@ -51,16 +42,11 @@ describe("Add all matching to a queue", () => {
             },
         })
 
-        const shown = notification.error.mock.calls[0]?.[0] as {
-            message: string
-            description: string
-            btn: ReactElement<{children: string}>
-        }
-        expect(shown).toMatchObject({
-            message: "Queue add failed",
-            description: "Something went wrong. Try again.",
-        })
-        expect(shown.btn.props.children).toBe("Retry")
+        const [args] = message.open.mock.calls.at(-1) ?? []
+        expect(args).toMatchObject({type: "error", action: {label: "Retry"}})
+        expect(
+            (args.content as ReactElement<{title: string; description: string}>).props,
+        ).toEqual({title: "Queue add failed", description: "Something went wrong. Try again."})
         expect(logged).toHaveBeenCalled()
     })
 })

@@ -6,10 +6,9 @@ import {
     createAdaptiveTracePageFetcher,
     withRateLimitRetry,
 } from "@agenta/observability"
-import {fetchCurrentSubscription} from "@agenta/settings-ui"
-import {getHostQueryClient, isBillingEnabled} from "@agenta/shared/api"
-import {notification} from "@agenta/ui/app-message"
-import {Button} from "@agenta/ui/ui"
+import {axios, getAgentaApiUrl, getHostQueryClient, isBillingEnabled} from "@agenta/shared/api"
+import {message} from "@agenta/ui/app-message"
+import type {NoticeType} from "@agenta/ui/app-message"
 
 /**
  * The one run the traces page owns. `begin` stops the previous run and returns the new one's
@@ -38,7 +37,16 @@ const readQueueCap = async (projectId: string): Promise<number> => {
         .fetchQuery({
             // The key `useBillingSubscription` uses, so a loaded subscription is not asked again.
             queryKey: ["billing", "subscription", projectId],
-            queryFn: () => fetchCurrentSubscription(projectId),
+            // The request of `fetchCurrentSubscription` in `@agenta/settings-ui`. Its barrel is
+            // not imported here: whatever this chunk takes from a barrel the app shell also
+            // loads lands in the shell.
+            queryFn: async () =>
+                (
+                    await axios.get<{plan?: string | null} | null>(
+                        `${getAgentaApiUrl()}/billing/subscription`,
+                        {params: {project_id: projectId}},
+                    )
+                ).data,
             staleTime: 1000 * 60 * 5,
         })
         .catch(() => null)
@@ -47,9 +55,25 @@ const readQueueCap = async (projectId: string): Promise<number> => {
 
 const count = (value: number) => value.toLocaleString()
 
+const QueueToast = ({title, description}: {title: string; description: string}) => (
+    <span className="flex flex-col gap-0.5">
+        <span className="font-medium">{title}</span>
+        <span>{description}</span>
+    </span>
+)
+
+interface Toast {
+    type: NoticeType
+    title: string
+    description: string
+    /** Seconds on screen; 0 stays until closed. */
+    duration: number
+    action?: {label: string; onClick: () => void}
+}
+
 /**
  * Scans every trace that matches the traces page query and adds the trace ids to `queue`, with a
- * notification that shows the progress and how the run ended. Retry starts the whole scan again,
+ * toast that shows the progress and how the run ended. Retry starts the whole scan again,
  * so it sends the traces that were already queued once more.
  */
 export const runAddAllMatching = async (input: AddAllMatchingInput): Promise<void> => {
@@ -61,30 +85,35 @@ export const runAddAllMatching = async (input: AddAllMatchingInput): Promise<voi
     const max = count(maxItems)
     if (!run.owns(controller)) return
 
-    const cancelButton = (
-        <Button size="sm" variant="outline" onClick={() => controller.abort()}>
-            Cancel
-        </Button>
-    )
+    // One toast per queue, updated in place as the run goes on.
+    const show = ({type, title, description, duration, action}: Toast) =>
+        message.open({
+            key,
+            type,
+            duration,
+            action,
+            content: <QueueToast title={title} description={description} />,
+        })
+    const cancel = {label: "Cancel", onClick: () => controller.abort()}
     let queued = 0
     const showRunning = () =>
-        notification.open({
-            key,
-            message: `Queuing traces to "${queueName}"`,
+        show({
+            type: "loading",
+            title: `Queuing traces to "${queueName}"`,
             description: `Queued ${count(queued)} of up to ${max} traces…`,
             duration: 0,
-            btn: cancelButton,
+            action: cancel,
         })
     const showRateLimited = (delayMs: number) => {
         if (!run.owns(controller)) return
-        notification.open({
-            key,
-            message: "Rate limited, pausing",
+        show({
+            type: "loading",
+            title: "Rate limited, pausing",
             description:
                 `Queued ${count(queued)} of up to ${max} traces. The server is throttling ` +
                 `requests; retrying in ${Math.ceil(delayMs / 1000)}s…`,
             duration: 0,
-            btn: cancelButton,
+            action: cancel,
         })
     }
     showRunning()
@@ -117,82 +146,63 @@ export const runAddAllMatching = async (input: AddAllMatchingInput): Promise<voi
                 if (!controller.signal.aborted) showRunning()
             },
         })
-        // A newer run owns the notification now.
+        // A newer run owns the toast now.
         if (!run.owns(controller)) return
-        // A finite duration on a key that had duration 0 must start as a new notification.
-        notification.destroy(key)
 
         if (result.stoppedBy === "cancelled") {
-            notification.warning({
-                key,
-                message: "Cancelled",
+            show({
+                type: "warning",
+                title: "Cancelled",
                 description: `${count(result.queued)} traces queued to "${queueName}" before you stopped.`,
                 duration: 6,
             })
             return
         }
         if (result.queued === 0) {
-            notification.info({
-                key,
-                message: "Nothing queued",
+            show({
+                type: "info",
+                title: "Nothing queued",
                 description: "No traces match this filter, so nothing was queued.",
                 duration: 6,
             })
             return
         }
-        notification.success({
-            key,
-            message: `Queued ${count(result.queued)} traces`,
+        show({
+            type: "success",
+            title: `Queued ${count(result.queued)} traces`,
             description:
                 result.stoppedBy === "cap"
                     ? `Queued to "${queueName}". Hit the ${max}-trace limit for one run. ` +
                       `Narrow the filter to queue the rest. They'll appear as the queue processes.`
                     : `Queued to "${queueName}". They'll appear as the queue processes.`,
             duration: 6,
-            btn: onViewQueue ? (
-                <Button
-                    size="sm"
-                    onClick={() => {
-                        notification.destroy(key)
-                        onViewQueue(queue.id)
-                    }}
-                >
-                    View queue
-                </Button>
-            ) : undefined,
+            action: onViewQueue
+                ? {
+                      label: "View queue",
+                      onClick: () => onViewQueue(queue.id),
+                  }
+                : undefined,
         })
     } catch (error) {
         if (!run.owns(controller)) return
-        notification.destroy(key)
-        const retryButton = (
-            <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                    notification.destroy(key)
-                    void runAddAllMatching(input)
-                }}
-            >
-                Retry
-            </Button>
-        )
+        const retry = {label: "Retry", onClick: () => void runAddAllMatching(input)}
         if (error instanceof BatchFlushError) {
-            notification.error({
-                key,
-                message: "Queue add incomplete",
+            show({
+                type: "error",
+                title: "Queue add incomplete",
                 description: `Queued ${count(error.flushedCount)} traces; ${count(error.failedCount)} failed to queue.`,
                 duration: 0,
-                btn: retryButton,
+                action: retry,
             })
             return
         }
         console.error("Adding all matching traces to a queue failed", error)
-        notification.error({
-            key,
-            message: "Queue add failed",
+        show({
+            type: "error",
+            title: "Queue add failed",
             description: "Something went wrong. Try again.",
             duration: 0,
-            btn: retryButton,
+            action: retry,
         })
     }
 }

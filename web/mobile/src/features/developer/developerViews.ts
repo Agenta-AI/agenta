@@ -133,7 +133,7 @@ export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
         id: "observability-actions",
         label: "Trace actions",
         description:
-            "Add to testset, Annotate, annotation filters and Add all matching filter to queue on the traces page and in the trace drawer.",
+            "Add to testset, Annotate, annotation filters and queue all matching traces on the traces page.",
         stage: "hidden",
     },
 ]

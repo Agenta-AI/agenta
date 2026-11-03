@@ -14,26 +14,16 @@ import {getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-const {http, notification} = vi.hoisted(() => ({
+const {http, message} = vi.hoisted(() => ({
     http: {get: vi.fn(), post: vi.fn()},
-    notification: {
-        open: vi.fn(),
-        success: vi.fn(),
-        info: vi.fn(),
-        warning: vi.fn(),
-        error: vi.fn(),
-        destroy: vi.fn(),
-    },
+    message: {open: vi.fn(), destroy: vi.fn()},
 }))
 
 vi.mock("@agenta/shared/api", async (original) => {
     const actual = await original<typeof import("@agenta/shared/api")>()
     return {...actual, axios: Object.assign(Object.create(actual.axios), http)}
 })
-vi.mock("@agenta/ui/app-message", () => ({
-    notification,
-    message: {success: vi.fn(), error: vi.fn(), info: vi.fn()},
-}))
+vi.mock("@agenta/ui/app-message", () => ({message}))
 
 import {
     runAddAllMatching,
@@ -103,13 +93,23 @@ const input = (overrides: Partial<AddAllMatchingInput> = {}): AddAllMatchingInpu
     }
 }
 
-/** The last notification each kind showed, as `{message, description}`. */
-const last = (kind: keyof typeof notification) => {
-    const calls = notification[kind].mock.calls
-    return calls[calls.length - 1]?.[0] as
-        | {message: string; description: string; btn?: ReactElement<{onClick: () => void}>}
-        | undefined
+interface Shown {
+    type: string
+    title: string
+    description: string
+    duration: number
+    action?: {label: string; onClick: () => void}
 }
+
+/** Every toast the run showed, in order, as its type, text, duration and button. */
+const shown = (): Shown[] =>
+    message.open.mock.calls.map(([args]) => ({
+        type: args.type,
+        ...(args.content as ReactElement<{title: string; description: string}>).props,
+        duration: args.duration,
+        action: args.action,
+    }))
+const last = (type: string) => shown().filter((toast) => toast.type === type).at(-1)
 
 beforeEach(() => {
     const store = getDefaultStore()
@@ -119,7 +119,7 @@ beforeEach(() => {
     traceRequests.length = 0
     holdSecondPage = null
     addFailures = new Map()
-    for (const fn of Object.values(notification)) fn.mockReset()
+    message.open.mockReset()
     http.get.mockReset()
     http.post.mockReset()
     http.post.mockImplementation(async (url: string) => {
@@ -167,7 +167,7 @@ describe("Add all matching to a queue", () => {
             },
         ])
         expect(last("success")).toMatchObject({
-            message: "Queued 400 traces",
+            title: "Queued 400 traces",
             description: `Queued to "Weekly review". They'll appear as the queue processes.`,
         })
     })
@@ -197,21 +197,21 @@ describe("Add all matching to a queue", () => {
 
         const running = runAddAllMatching(input())
         await vi.waitFor(() => expect(traceRequests).toHaveLength(2))
-        expect(last("open")).toMatchObject({
-            message: `Queuing traces to "Weekly review"`,
+        expect(last("loading")).toMatchObject({
+            title: `Queuing traces to "Weekly review"`,
             description: "Queued 250 of up to 1,000 traces…",
         })
-        last("open")?.btn?.props.onClick()
+        last("loading")?.action?.onClick()
         release()
         await running
 
         expect(traceRequests).toHaveLength(2)
         expect(addCalls()).toHaveLength(1)
         expect(last("warning")).toMatchObject({
-            message: "Cancelled",
+            title: "Cancelled",
             description: `250 traces queued to "Weekly review" before you stopped.`,
         })
-        expect(notification.success).not.toHaveBeenCalled()
+        expect(last("success")).toBeUndefined()
     })
 
     it("A partial failure shows Queue add incomplete with Retry", async () => {
@@ -230,14 +230,14 @@ describe("Add all matching to a queue", () => {
         ).toEqual([250, 50])
         const shown = last("error")
         expect(shown).toMatchObject({
-            message: "Queue add incomplete",
+            title: "Queue add incomplete",
             description: "Queued 250 traces; 50 failed to queue.",
         })
         expect(JSON.stringify(shown?.description)).not.toContain("queue store unavailable")
 
         // Retry runs the whole scan again from the first page.
-        shown?.btn?.props.onClick()
-        await vi.waitFor(() => expect(notification.success).toHaveBeenCalled())
+        shown?.action?.onClick()
+        await vi.waitFor(() => expect(last("success")).toBeDefined())
         expect(traceRequests).toHaveLength(4)
         const newest = (index: number) =>
             Date.parse((traceRequests[index].body.windowing as {newest: string}).newest)
@@ -245,7 +245,7 @@ describe("Add all matching to a queue", () => {
         expect(
             addCalls().map((call) => (call.body as {trace_ids: string[]}).trace_ids.length),
         ).toEqual([250, 50, 250, 50])
-        expect(last("success")).toMatchObject({message: "Queued 300 traces"})
+        expect(last("success")).toMatchObject({title: "Queued 300 traces"})
     })
 
     it("The run stops at the plan cap and says so", async () => {
@@ -258,7 +258,7 @@ describe("Add all matching to a queue", () => {
         expect(sent).toHaveLength(1000)
         expect(new Set(sent).size).toBe(1000)
         expect(last("success")).toMatchObject({
-            message: "Queued 1,000 traces",
+            title: "Queued 1,000 traces",
             description:
                 `Queued to "Weekly review". Hit the 1,000-trace limit for one run. ` +
                 `Narrow the filter to queue the rest. They'll appear as the queue processes.`,
@@ -276,9 +276,9 @@ describe("Add all matching to a queue", () => {
 
         await runAddAllMatching(input())
 
-        expect(notification.open).toHaveBeenCalledWith(
+        expect(shown()).toContainEqual(
             expect.objectContaining({
-                message: "Rate limited, pausing",
+                title: "Rate limited, pausing",
                 description:
                     "Queued 0 of up to 1,000 traces. The server is throttling requests; retrying in 1s…",
             }),
@@ -287,7 +287,7 @@ describe("Add all matching to a queue", () => {
             {trace_ids: ["trace-0", "trace-1"]},
             {trace_ids: ["trace-0", "trace-1"]},
         ])
-        expect(last("success")).toMatchObject({message: "Queued 2 traces"})
+        expect(last("success")).toMatchObject({title: "Queued 2 traces"})
     })
 
     it("No matching trace says nothing was queued", async () => {
@@ -297,7 +297,7 @@ describe("Add all matching to a queue", () => {
 
         expect(http.post).not.toHaveBeenCalled()
         expect(last("info")).toMatchObject({
-            message: "Nothing queued",
+            title: "Nothing queued",
             description: "No traces match this filter, so nothing was queued.",
         })
     })
@@ -307,13 +307,13 @@ describe("Add all matching to a queue", () => {
         const onViewQueue = vi.fn()
 
         await runAddAllMatching(input({onViewQueue}))
-        last("success")?.btn?.props.onClick()
+        last("success")?.action?.onClick()
         expect(onViewQueue).toHaveBeenCalledWith("queue-1")
 
         pages = [page(0, 1), []]
         traceRequests.length = 0
         await runAddAllMatching(input())
-        expect(last("success")?.btn).toBeUndefined()
+        expect(last("success")?.action).toBeUndefined()
     })
 
     it("A newer run silences the run it replaced", async () => {
@@ -328,8 +328,8 @@ describe("Add all matching to a queue", () => {
         release()
         await Promise.all([first, second])
 
-        expect(notification.warning).not.toHaveBeenCalled()
-        expect(notification.success).toHaveBeenCalledTimes(1)
+        expect(last("warning")).toBeUndefined()
+        expect(shown().filter((toast) => toast.type === "success")).toHaveLength(1)
         expect(last("success")).toMatchObject({
             description: `Queued to "Spot checks". They'll appear as the queue processes.`,
         })

@@ -4,7 +4,7 @@ import {buildTraceQueryParams, type Filter} from "@agenta/observability"
 import {AddActionsDropdown} from "@agenta/observability-ui"
 import {axios} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
-import {notification} from "@agenta/ui/app-message"
+import {message} from "@agenta/ui/app-message"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {useAtomValue} from "jotai"
 import {expect, userEvent, within} from "storybook/test"
@@ -40,7 +40,7 @@ const FILTERS: Filter[] = [{field: "span_name", operator: "is", value: "chat"}]
 
 /**
  * Starts the real scan against stand-in HTTP: `fetch` answers the trace query with the story's
- * pages and the axios adapter answers the queue add. The notification is the story.
+ * pages and the axios adapter answers the queue add. The toast is the story.
  */
 const ScanRun = ({pages, add = "ok"}: Scenario) => {
     const projectId = useAtomValue(projectIdAtom) ?? "project-1"
@@ -95,12 +95,12 @@ const ScanRun = ({pages, add = "ok"}: Scenario) => {
             current = null
             window.fetch = realFetch
             axios.defaults.adapter = undefined
-            notification.destroy()
+            message.destroy()
         }
     }, [add, pages, projectId])
     return (
         <p className="text-sm text-muted-foreground">
-            The scan runs in the background; its notification is in the corner.
+            The scan runs in the background; its toast shows the progress.
         </p>
     )
 }
@@ -114,7 +114,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "Add all matching filter to queue: the Add menu item, the confirm when no filter is active, and the notification of the background scan in each state. The scan is the real runner over stand-in HTTP.\n\n**Used in:** the /m Observability toolbar, behind the `observability-actions` developer view and the queue edit right.",
+                    "Add all matching filter to queue: the Add menu item, the confirm when no filter is active, and the toast of the background scan in each state. The scan is the real runner over stand-in HTTP.\n\n**Used in:** the /m Observability toolbar, behind the `observability-actions` developer view and the queue edit right.",
             },
         },
     },
