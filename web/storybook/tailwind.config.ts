@@ -9,6 +9,8 @@ import {createConfig} from "../oss/tailwind.config"
 const config: Config = createConfig([
     "../oss/src/**/*.{ts,tsx}",
     "../packages/*/src/**/*.{ts,tsx}",
+    // The /m screens drawn by the developer-view stories.
+    "../mobile/src/features/**/*.{ts,tsx}",
     "./stories/**/*.{ts,tsx}",
     "./components/**/*.{ts,tsx}",
     "./.storybook/**/*.{ts,tsx}",
