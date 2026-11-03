@@ -1,4 +1,5 @@
 import {projectIdAtom} from "@agenta/shared/state"
+import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
@@ -16,3 +17,6 @@ export const browserLiveStatusQueryAtomFamily = atomFamily((sessionId: string) =
         }
     }),
 )
+
+/** Whether the session's browser pane is open. Per session: the browser belongs to one. */
+export const browserPaneOpenAtomFamily = atomFamily((_sessionId: string) => atom(false))

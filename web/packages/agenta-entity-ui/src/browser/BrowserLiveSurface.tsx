@@ -10,6 +10,8 @@ import {
     Robot,
 } from "@phosphor-icons/react"
 
+import {ROW_ICON_BTN} from "../drive/DriveHeader"
+
 import {BROWSER_VIEWPORT, type BrowserLiveClientMessage, type BrowserViewport} from "./live"
 import {isCommandKey, mouseButton, toViewportPoint} from "./liveInput"
 import type {
@@ -133,21 +135,26 @@ export const BrowserLiveSurface = ({
         input.value = ""
     }
 
+    const takeControl = () => send({type: "control", take: true})
+    const giveBack = () => send({type: "control", take: false})
+    const done = () => send({type: "done"})
+
     return (
         <div className="flex min-h-0 flex-1 flex-col gap-2">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
                 <Button
-                    variant="outline"
+                    variant="ghost"
                     size="icon-sm"
                     aria-label="Reload page"
                     title="Reload page"
                     disabled={!live || !status}
                     onClick={() => send({type: "reload"})}
+                    className={ROW_ICON_BTN}
                 >
-                    <ArrowClockwise size={14} />
+                    <ArrowClockwise size={15} />
                 </Button>
                 <form
-                    className="flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-md border border-solid border-border bg-muted px-2 text-xs text-muted-foreground"
+                    className="flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-md bg-colorFillTertiary px-2 text-xs text-colorTextTertiary"
                     title={status?.title || undefined}
                     onSubmit={(event) => {
                         event.preventDefault()
@@ -170,52 +177,83 @@ export const BrowserLiveSurface = ({
                         autoComplete="off"
                         autoCorrect="off"
                         spellCheck={false}
-                        className="min-w-0 flex-1 truncate border-0 bg-transparent p-0 font-mono text-xs text-foreground outline-none"
+                        className="min-w-0 flex-1 truncate border-0 bg-transparent p-0 font-mono text-xs text-colorText outline-none"
                     />
                 </form>
                 <Button
-                    variant="outline"
+                    variant="ghost"
                     size="icon-sm"
-                    className="md:hidden"
+                    className={`md:hidden ${ROW_ICON_BTN}`}
                     aria-label="Show keyboard"
                     disabled={!userControl}
                     onClick={() => inputRef.current?.focus({preventScroll: true})}
                 >
-                    <Keyboard size={14} />
+                    <Keyboard size={15} />
                 </Button>
-                <Button
-                    size="sm"
-                    variant={userControl || waiting ? "outline" : "default"}
-                    disabled={!live || !status}
-                    onClick={() => send({type: "control", take: !userControl})}
-                >
-                    {userControl ? <Robot size={14} /> : <HandPointing size={14} />}
-                    {userControl ? "Give back control" : "Take control"}
-                </Button>
-                {waiting ? (
-                    <Button size="sm" onClick={() => send({type: "done"})}>
-                        <CheckCircle size={14} />
-                        I'm done
+                {/* While the agent waits, its ask below carries the actions. */}
+                {waiting ? null : (
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!live || !status}
+                        onClick={userControl ? giveBack : takeControl}
+                    >
+                        {userControl ? <Robot size={14} /> : <HandPointing size={14} />}
+                        {userControl ? "Give back control" : "Take control"}
                     </Button>
-                ) : null}
+                )}
             </div>
             {waiting ? (
-                <p role="status" className="text-xs text-foreground">
-                    <span className="font-medium">The agent asks:</span> {waiting}
-                </p>
+                <div
+                    role="status"
+                    className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer p-3"
+                >
+                    <div className="flex min-w-0 flex-1 basis-60 flex-col gap-1">
+                        <span className="flex items-center gap-1.5 text-xs font-medium text-colorText">
+                            <HandPointing size={14} weight="fill" className="shrink-0" />
+                            The agent needs you
+                        </span>
+                        <span className="text-[13px] leading-relaxed text-colorTextSecondary [text-wrap:pretty]">
+                            {waiting}
+                        </span>
+                    </div>
+                    <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                        {userControl ? (
+                            <>
+                                <Button size="sm" variant="ghost" onClick={giveBack}>
+                                    Give back control
+                                </Button>
+                                <Button size="sm" onClick={done}>
+                                    <CheckCircle size={14} />
+                                    I'm done
+                                </Button>
+                            </>
+                        ) : (
+                            <>
+                                <Button size="sm" variant="ghost" onClick={done}>
+                                    I'm done
+                                </Button>
+                                <Button size="sm" onClick={takeControl}>
+                                    <HandPointing size={14} />
+                                    Take control
+                                </Button>
+                            </>
+                        )}
+                    </div>
+                </div>
             ) : null}
             {notice ? (
-                <p role="status" className="text-xs text-destructive">
+                <p role="status" className="m-0 text-xs text-colorError">
                     {notice.message}
                 </p>
             ) : null}
-            <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border border-solid border-border bg-muted">
+            <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary">
                 <canvas
                     ref={canvasRef}
                     width={BROWSER_VIEWPORT.width}
                     height={BROWSER_VIEWPORT.height}
                     aria-label={status?.title ? `Browser showing ${status.title}` : "Browser"}
-                    className={`block max-h-full max-w-full touch-none select-none bg-background ${userControl ? "cursor-default" : "cursor-not-allowed"}`}
+                    className={`block max-h-full max-w-full touch-none select-none bg-colorBgContainer ${userControl ? "cursor-default" : "cursor-not-allowed"}`}
                     onPointerDown={onPointerDown}
                     onPointerMove={onPointerMove}
                     onPointerUp={onPointerUp}
@@ -241,7 +279,7 @@ export const BrowserLiveSurface = ({
                     onCompositionEnd={(event) => sendText(event.currentTarget)}
                 />
                 {connection.phase !== "live" ? (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-muted/90 p-4 text-center text-sm text-muted-foreground">
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-muted/90 p-4 text-center text-sm text-colorTextSecondary">
                         {connection.phase === "connecting" ? (
                             <>
                                 <Spinner />
@@ -252,9 +290,7 @@ export const BrowserLiveSurface = ({
                                 <span
                                     role={connection.phase === "error" ? "alert" : undefined}
                                     className={
-                                        connection.phase === "error"
-                                            ? "text-destructive"
-                                            : undefined
+                                        connection.phase === "error" ? "text-colorError" : undefined
                                     }
                                 >
                                     {connection.reason}
@@ -266,14 +302,13 @@ export const BrowserLiveSurface = ({
                             </>
                         )}
                     </div>
-                ) : status && !userControl ? (
-                    <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm">
-                        {waiting
-                            ? "The agent is waiting for you. Take control to help."
-                            : "The agent is using the browser. Take control to use it yourself."}
-                    </div>
                 ) : null}
             </div>
+            {live && status && !userControl && !waiting ? (
+                <p className="m-0 text-xs text-colorTextTertiary">
+                    View only. Take control to click and type.
+                </p>
+            ) : null}
         </div>
     )
 }

@@ -16,9 +16,11 @@ import {
     useCanPanesCoexist,
     useFilesPaneLayout,
 } from "@agenta/chat/state"
+import {browserPaneOpenAtomFamily} from "@agenta/entities/browser"
 import {useDriveDirtyGuard} from "@agenta/entities/drive"
 import type {SessionStream} from "@agenta/entities/session"
 import {sharingKeys, type SessionSharingResponse} from "@agenta/entities/sharing"
+import {BrowserPane} from "@agenta/entity-ui/browser"
 import {
     DriveLinkContext,
     DriveSessionProvider,
@@ -30,7 +32,7 @@ import {registerAgentAutoCommitHandler} from "@agenta/playground/state"
 import {sessionRoutePath} from "@agenta/sessions/link"
 import {renderedSessionTabsAtomFamily, sessionTabScope} from "@agenta/sessions/state"
 import {useRequestSessionTabRename, useSessionActions} from "@agenta/sessions-ui"
-import {getHostQueryClient} from "@agenta/shared/api"
+import {getHostQueryClient, isBrowserEnabled} from "@agenta/shared/api"
 import {composerPrefillRequestAtom} from "@agenta/shared/state"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {useSessionShortcuts} from "@agenta/ui/shortcuts"
@@ -228,7 +230,26 @@ export const SessionWorkspace = ({
         sessionId,
         filesOpen,
     )
-    const filesExpanded = filesLayout.expanded
+    // The agent's browser docks in the same right-edge slot, one of the two at a time.
+    const browserEnabled = isBrowserEnabled()
+    const [browserPaneOpen, setBrowserOpen] = useAtom(browserPaneOpenAtomFamily(sessionId))
+    const browserOpen = browserEnabled && browserPaneOpen
+    const dockOpen = filesOpen || browserOpen
+    const closeDock = useCallback(() => {
+        closeFilesPane()
+        setBrowserOpen(false)
+    }, [closeFilesPane, setBrowserOpen])
+    const prevBrowserOpenRef = useRef(browserOpen)
+    useEffect(() => {
+        if (browserOpen && !prevBrowserOpenRef.current) closeFilesPane()
+        prevBrowserOpenRef.current = browserOpen
+    }, [browserOpen, closeFilesPane])
+    const prevFilesOpenForBrowserRef = useRef(filesOpen)
+    useEffect(() => {
+        if (filesOpen && !prevFilesOpenForBrowserRef.current) setBrowserOpen(false)
+        prevFilesOpenForBrowserRef.current = filesOpen
+    }, [filesOpen, setBrowserOpen])
+    const filesExpanded = filesLayout.expanded && !browserOpen
     // Never a config pane for a hidden agent: its configuration is exactly what the reader may not
     // see, and a pane mounted while it was visible is dropped below, not kept hidden.
     const configEntityId = agentHidden ? null : entityId
@@ -239,7 +260,7 @@ export const SessionWorkspace = ({
         configCollapsed,
         twoPane,
         hasEntity: Boolean(configEntityId),
-        filesOpen,
+        filesOpen: dockOpen,
         filesExpanded,
     })
     // Live px during a drag, mirrored from the shared persisted width — which is written at
@@ -271,24 +292,23 @@ export const SessionWorkspace = ({
     // Edge-triggered, so they cannot evict each other in a loop.
     const canPanesCoexist = useCanPanesCoexist(SIDEBAR_DEFAULT_WIDTH)
     const panesMustAlternate = twoPane && !canPanesCoexist
-    const prevFilesOpenRef = useRef(filesOpen)
+    const prevFilesOpenRef = useRef(dockOpen)
     useEffect(() => {
-        if (filesOpen && !prevFilesOpenRef.current && panesMustAlternate) setConfigCollapsed(true)
-        prevFilesOpenRef.current = filesOpen
-    }, [filesOpen, panesMustAlternate, setConfigCollapsed])
+        if (dockOpen && !prevFilesOpenRef.current && panesMustAlternate) setConfigCollapsed(true)
+        prevFilesOpenRef.current = dockOpen
+    }, [dockOpen, panesMustAlternate, setConfigCollapsed])
     const prevConfigCollapsedRef = useRef(configCollapsed)
     useEffect(() => {
-        if (!configCollapsed && prevConfigCollapsedRef.current && panesMustAlternate)
-            closeFilesPane()
+        if (!configCollapsed && prevConfigCollapsedRef.current && panesMustAlternate) closeDock()
         prevConfigCollapsedRef.current = configCollapsed
-    }, [configCollapsed, panesMustAlternate, closeFilesPane])
+    }, [configCollapsed, panesMustAlternate, closeDock])
     // Shrinking past the threshold with both open keeps Files, the surface opened deliberately.
     const prevAlternateRef = useRef(panesMustAlternate)
     useEffect(() => {
-        if (panesMustAlternate && !prevAlternateRef.current && filesOpen && !configCollapsed)
+        if (panesMustAlternate && !prevAlternateRef.current && dockOpen && !configCollapsed)
             setConfigCollapsed(true)
         prevAlternateRef.current = panesMustAlternate
-    }, [panesMustAlternate, filesOpen, configCollapsed, setConfigCollapsed])
+    }, [panesMustAlternate, dockOpen, configCollapsed, setConfigCollapsed])
 
     // The SAME session shortcuts the desktop playground binds. The rail publishes the tabs it
     // renders, so `Alt+1…9` addresses exactly what is on screen. A phone sends no Alt chord, so
@@ -374,6 +394,9 @@ export const SessionWorkspace = ({
     const lastPaneKindRef = useRef<"config" | "sessions">("sessions")
     if (showPane) lastPaneKindRef.current = wantsConfig ? "config" : "sessions"
     const paneKind = showPane ? (wantsConfig ? "config" : "sessions") : lastPaneKindRef.current
+    // Same for the right-edge slot: a closing slide keeps what it was showing.
+    const lastDockKindRef = useRef<"files" | "browser">("files")
+    if (dockOpen) lastDockKindRef.current = browserOpen ? "browser" : "files"
     const pane = (
         <>
             {configMountedRef.current && configEntityId ? (
@@ -457,7 +480,7 @@ export const SessionWorkspace = ({
                                 <SplitPane
                                     paneSide="end"
                                     paneSize={
-                                        twoPane && filesOpen && !filesExpanded ? filesPaneSize : 0
+                                        twoPane && dockOpen && !filesExpanded ? filesPaneSize : 0
                                     }
                                     paneMin={FILES_PANE_MIN}
                                     paneMax={FILES_PANE_MAX}
@@ -470,8 +493,8 @@ export const SessionWorkspace = ({
                                     revealContent={twoPane && !filesExpanded}
                                     // Phone: Files takes the conversation's place, as the config
                                     // pane does — no divider, no drag, full width.
-                                    barHidden={filesExpanded || !twoPane || !filesOpen}
-                                    resizable={!filesExpanded && twoPane && filesOpen}
+                                    barHidden={filesExpanded || !twoPane || !dockOpen}
+                                    resizable={!filesExpanded && twoPane && dockOpen}
                                     paneGrow={filesExpanded || (!twoPane && showFiles)}
                                     paneClassName={!twoPane && !showFiles ? "hidden" : undefined}
                                     fillClassName={
@@ -485,7 +508,14 @@ export const SessionWorkspace = ({
                                     onResizeEnd={(size) => setStoredFilesWidth(size)}
                                     className="h-full"
                                     pane={
-                                        filesSlide.keepMounted ? (
+                                        filesSlide.keepMounted &&
+                                        lastDockKindRef.current === "browser" ? (
+                                            <BrowserPane
+                                                sessionId={sessionId}
+                                                closeControl={twoPane ? "none" : "back"}
+                                                onClose={() => setBrowserOpen(false)}
+                                            />
+                                        ) : filesSlide.keepMounted ? (
                                             <DriveLinkContext.Provider value={driveLink.copyLink}>
                                                 <SessionFilesPane
                                                     scope={filesScope}
