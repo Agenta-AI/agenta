@@ -237,9 +237,7 @@ const ObservabilityContent = ({
                         {sessionDrawerRequested ? (
                             <ObservabilitySessionDrawer
                                 sessionId={session.sessionId}
-                                spanId={session.spanId}
                                 onSelectSession={session.open}
-                                onClose={session.close}
                             />
                         ) : null}
                     </PageLayout>

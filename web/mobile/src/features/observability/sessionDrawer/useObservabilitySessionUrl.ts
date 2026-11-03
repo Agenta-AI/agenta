@@ -4,20 +4,19 @@ import {useRouter} from "next/router"
 
 import {currentQuery} from "../bindTraceDrawerSeams"
 
-const readParam = (value: string | string[] | undefined): string | null =>
-    typeof value === "string" && value !== "" ? value : null
-
 /**
  * The open observability session lives in the address bar, as `?session=`, so a link opens it,
- * Back closes it and the screen needs no state of its own. Opening and moving between sessions
- * push a history entry. Closing replaces the entry, so Back does not reopen what was closed.
- * Both keep the other params (`app`, `trace`) and drop `span`, which belongs to the session
- * that was open.
+ * Back closes it and the screen needs no state of its own. Opening pushes a history entry and
+ * drops `span`, which belongs to the session that was open. The other params (`app`, `trace`)
+ * stay.
+ *
+ * This file is on the page everyone opens. Closing and `?span=` are only needed once the drawer
+ * is open, so they live in `useSessionDrawerUrl`, in the drawer's own chunk.
  */
 export const useObservabilitySessionUrl = () => {
     const router = useRouter()
-    const sessionId = readParam(router.query.session)
-    const spanId = readParam(router.query.span)
+    const param = router.query.session
+    const sessionId = typeof param === "string" && param !== "" ? param : null
 
     const open = useCallback(
         (id: string) => {
@@ -29,12 +28,5 @@ export const useObservabilitySessionUrl = () => {
         [router],
     )
 
-    const close = useCallback(() => {
-        const query = currentQuery(router, window.location.search)
-        delete query.session
-        delete query.span
-        void router.replace({pathname: router.pathname, query}, undefined, {shallow: true})
-    }, [router])
-
-    return {sessionId, spanId, open, close}
+    return {sessionId, open}
 }

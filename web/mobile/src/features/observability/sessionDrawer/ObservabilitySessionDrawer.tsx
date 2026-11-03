@@ -5,6 +5,7 @@ import {useMediaQuery} from "@agenta/ui/hooks"
 
 import {SessionDrawerBody} from "./SessionDrawerBody"
 import {SessionDrawerHeader} from "./SessionDrawerHeader"
+import {useSessionDrawerUrl} from "./useSessionDrawerUrl"
 
 const NORMAL_WIDTH = 1250
 const EXPANDED_WIDTH = 1920
@@ -12,9 +13,7 @@ const EXPANDED_WIDTH = 1920
 interface ObservabilitySessionDrawerProps {
     /** `null` closes the drawer. The panel keeps the last session while it slides out. */
     sessionId: string | null
-    spanId: string | null
     onSelectSession: (sessionId: string) => void
-    onClose: () => void
 }
 
 /**
@@ -25,10 +24,9 @@ interface ObservabilitySessionDrawerProps {
  */
 const ObservabilitySessionDrawer = ({
     sessionId,
-    spanId,
     onSelectSession,
-    onClose,
 }: ObservabilitySessionDrawerProps) => {
+    const {spanId, close} = useSessionDrawerUrl()
     // Below 720px the panel is as wide as the screen, so the tree has no room and widening does nothing.
     const wide = useMediaQuery("(min-width: 720px)")
     // The tree takes 320px and the annotations 300px more, so they sit beside the messages only
@@ -44,7 +42,7 @@ const ObservabilitySessionDrawer = ({
             closable={false}
             title={null}
             open={sessionId !== null}
-            onClose={onClose}
+            onClose={close}
             width={expanded ? EXPANDED_WIDTH : NORMAL_WIDTH}
             styles={{body: {padding: 0}}}
             destroyOnHidden
@@ -54,7 +52,7 @@ const ObservabilitySessionDrawer = ({
                     <SessionDrawerHeader
                         sessionId={shownSessionId}
                         onSelectSession={onSelectSession}
-                        onClose={onClose}
+                        onClose={close}
                         showWidthToggle={wide}
                         expanded={expanded}
                         onToggleWidth={() => setExpanded(!expanded)}

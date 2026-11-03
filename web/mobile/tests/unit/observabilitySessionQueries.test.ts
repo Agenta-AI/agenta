@@ -2,6 +2,7 @@
  * The session drawer's data layer with its real atoms. The requests are faked where they leave
  * the app: the Fern traces client for the session traces, axios for the annotations.
  */
+import {bindWorkspaceMembersAtom, type WorkspaceMember} from "@agenta/entities/organization"
 import {
     bindObservabilityScopeAtom,
     type ObservabilityScope,
@@ -168,6 +169,47 @@ describe("session drawer queries", () => {
         })
         unsubscribe()
         unsubscribeAnnotations()
+    })
+
+    it("Annotation author names resolve once members load, without a new request", async () => {
+        const post = vi.spyOn(axios, "post").mockResolvedValue({
+            data: {
+                count: 1,
+                traces: [
+                    {
+                        trace_id: "ffffffffffffffffffffffffffffffff",
+                        span_id: "dddddddddddddddd",
+                        created_by_id: "user-1",
+                        links: {
+                            invocation: {
+                                trace_id: "11111111-1111-1111-1111-111111111111",
+                                span_id: "aaaaaaaaaaaaaaaa",
+                            },
+                        },
+                    },
+                ],
+            },
+        })
+        const members = atom<WorkspaceMember[]>([])
+        store.set(bindWorkspaceMembersAtom, members)
+        const unsubscribe = await settle("session-e")
+        const unsubscribeAnnotated = store.sub(
+            observabilitySessionAnnotatedTracesAtomFamily("session-e"),
+            vi.fn(),
+        )
+        const authorOf = () =>
+            (
+                store.get(observabilitySessionAnnotatedTracesAtomFamily("session-e"))[0]
+                    .annotations?.[0] as {createdBy?: string} | undefined
+            )?.createdBy
+        await vi.waitFor(() => expect(authorOf()).toBe("user-1"))
+
+        store.set(members, [{user: {id: "user-1", username: "Alex"}} as WorkspaceMember])
+
+        await vi.waitFor(() => expect(authorOf()).toBe("Alex"))
+        expect(post).toHaveBeenCalledTimes(1)
+        unsubscribe()
+        unsubscribeAnnotated()
     })
 
     it("A failed traces request is an error, not an empty session", async () => {

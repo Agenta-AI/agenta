@@ -90,14 +90,9 @@ vi.mock("@/features/observability/useTracesExportBinding", () => ({
     useTracesExportBinding: () => ({onExport: vi.fn(), isExporting: false}),
 }))
 vi.mock("@/features/observability/sessionDrawer/ObservabilitySessionDrawer", () => ({
-    default: (props: {sessionId: string | null; spanId: string | null; onClose: () => void}) => {
+    default: (props: {sessionId: string | null}) => {
         drawerProps.current = props
-        return (
-            <div data-testid="drawer">
-                {String(props.sessionId)}|{String(props.spanId)}
-                <button onClick={props.onClose}>close drawer</button>
-            </div>
-        )
+        return <div data-testid="drawer">{String(props.sessionId)}</div>
     },
 }))
 
@@ -179,32 +174,10 @@ describe("observability session URL", () => {
         expect(drawer()).toBeUndefined()
     })
 
-    it("A link with session opens the drawer host with the session and span", async () => {
+    it("A link with session opens the drawer host with the session", async () => {
         router.query = {workspace_id: "ws", project_id: "pr", session: "session-a", span: "span-1"}
         render()
-        await until(() => expect(drawer()).toContain("session-a|span-1"))
-    })
-
-    it("Close removes session and span from the URL with replace", async () => {
-        router.query = {workspace_id: "ws", project_id: "pr", session: "session-a", span: "span-1"}
-        window.history.replaceState(
-            null,
-            "",
-            "/observability?app=app-1&session=session-a&span=span-1",
-        )
-        render()
-        await until(() => expect(drawer()).toBeDefined())
-        await click("close drawer")
-
-        expect(router.push).not.toHaveBeenCalled()
-        expect(router.replace).toHaveBeenCalledWith(
-            {
-                pathname: router.pathname,
-                query: {workspace_id: "ws", project_id: "pr", app: "app-1"},
-            },
-            undefined,
-            {shallow: true},
-        )
+        await until(() => expect(drawer()).toBe("session-a"))
     })
 
     it("Switching tabs keeps the drawer tied to the URL", async () => {

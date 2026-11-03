@@ -21,12 +21,18 @@ globalThis.ResizeObserver ??= class {
     disconnect = vi.fn()
 } as unknown as typeof ResizeObserver
 
-const {queryTraces, sessions, wide} = vi.hoisted(() => ({
+const {queryTraces, sessions, wide, router} = vi.hoisted(() => ({
+    router: {
+        pathname: "/w/[workspace_id]/p/[project_id]/observability",
+        query: {} as Record<string, string>,
+        replace: vi.fn(),
+    },
     queryTraces: vi.fn(),
     sessions: {ids: ["session-a", "session-b", "session-c"]},
     wide: {current: true},
 }))
 
+vi.mock("next/router", () => ({useRouter: () => router}))
 vi.mock("@agenta/sdk/resources", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/sdk/resources")>()),
     getTracesClient: () => ({queryTraces}),
@@ -132,7 +138,6 @@ describe("ObservabilitySessionDrawer", () => {
     let host: HTMLDivElement
     let store: ReturnType<typeof createStore>
     const onSelectSession = vi.fn()
-    const onClose = vi.fn()
     const scrollIntoView = vi.fn()
 
     const text = () => document.body.textContent ?? ""
@@ -144,19 +149,19 @@ describe("ObservabilitySessionDrawer", () => {
         await until(() => expect(button(label), `button "${label}"`).toBeDefined())
         await act(async () => button(label)?.click())
     }
-    const shown = (sessionId: string | null = "session-b", spanId: string | null = null) =>
-        act(async () => {
+    const shown = (sessionId: string | null = "session-b", spanId: string | null = null) => {
+        router.query = spanId ? {span: spanId} : {}
+        return act(async () => {
             root.render(
                 <Provider store={store}>
                     <ObservabilitySessionDrawer
                         sessionId={sessionId}
-                        spanId={spanId}
                         onSelectSession={onSelectSession}
-                        onClose={onClose}
                     />
                 </Provider>,
             )
         })
+    }
     const loaded = () => vi.waitFor(() => expect(text()).toContain("Trace 1"))
 
     beforeEach(() => {
@@ -165,7 +170,7 @@ describe("ObservabilitySessionDrawer", () => {
         sessions.ids = ["session-a", "session-b", "session-c"]
         queryTraces.mockReset().mockResolvedValue({count: 2, traces: SESSION_TRACES})
         onSelectSession.mockReset()
-        onClose.mockReset()
+        router.replace.mockReset()
         scrollIntoView.mockReset()
         Element.prototype.scrollIntoView = scrollIntoView
         vi.spyOn(axios, "post").mockResolvedValue({data: {count: 0, traces: []}})
@@ -205,7 +210,7 @@ describe("ObservabilitySessionDrawer", () => {
         await shown("session-b")
         expect(text()).toContain("# session-b")
         await click("Close")
-        expect(onClose).toHaveBeenCalled()
+        expect(router.replace).toHaveBeenCalledTimes(1)
     })
 
     it("Traces render oldest first as Trace 1 and Trace 2", async () => {
