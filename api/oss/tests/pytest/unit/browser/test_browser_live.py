@@ -15,6 +15,7 @@ from oss.src.apis.fastapi.browser import router as browser_router
 from oss.src.core.sessions.streams import runner_client
 from oss.src.core.sessions.streams.runner_client import (
     BrowserLiveLink,
+    BrowserPage,
     fetch_browser_live_link,
 )
 from oss.src.utils.env import env
@@ -22,8 +23,9 @@ from starlette.websockets import WebSocketDisconnect
 
 PROJECT_ID = "019a0000-0000-7000-8000-000000000001"
 ORIGIN = "https://app.example"
+PAGE = BrowserPage(waiting="Sign in", url="https://example.com/", title="Example")
 LINK = BrowserLiveLink(
-    url="wss://8790-sb.proxy/live", headers={"x-agenta-browser-token": "t"}
+    url="wss://8790-sb.proxy/live", headers={"x-agenta-browser-token": "t"}, page=PAGE
 )
 
 
@@ -57,13 +59,29 @@ def runner(monkeypatch):
 
 
 async def test_returns_the_link_the_runner_found(runner):
-    runner.response = httpx.Response(200, json=LINK._asdict())
+    runner.response = httpx.Response(
+        200, json={"url": LINK.url, "headers": LINK.headers, "page": PAGE._asdict()}
+    )
     got = await fetch_browser_live_link(project_id=PROJECT_ID, session_id="s1")
     assert got == LINK
     url, body, headers = runner.seen[0]
     assert url == "http://runner/browser/live"
     assert body == {"projectId": PROJECT_ID, "sessionId": "s1"}
     assert headers == {"Authorization": "Bearer rt"}
+
+
+@pytest.mark.parametrize(
+    "page",
+    [None, "nope", {"waiting": 7, "url": None}, {"title": "x" * 5000}],
+)
+async def test_a_bad_page_state_keeps_the_link(runner, page):
+    runner.response = httpx.Response(
+        200, json={"url": LINK.url, "headers": LINK.headers, "page": page}
+    )
+    got = await fetch_browser_live_link(project_id=PROJECT_ID, session_id="s1")
+    assert got.url == LINK.url
+    assert got.page.waiting == "" and got.page.url == ""
+    assert len(got.page.title) <= 2048
 
 
 @pytest.mark.parametrize(
@@ -344,3 +362,40 @@ def test_the_browser_skill_is_listed_only_with_the_flag_and_always_resolves():
     # Listed only with the flag; an agent that embeds it resolves either way.
     assert listed("false") == "False True"
     assert listed("true") == "True True"
+
+
+def _status(monkeypatch, link):
+    monkeypatch.setattr(env.browser, "enabled", True)
+
+    async def allow(*args, **kwargs):
+        return True
+
+    async def found(**kwargs):
+        return link
+
+    monkeypatch.setattr(browser_router, "allow_resource", allow)
+    monkeypatch.setattr(browser_router, "fetch_browser_live_link", found)
+    request = type("R", (), {"state": type("S", (), {"project_id": PROJECT_ID})()})()
+    return asyncio.run(
+        browser_router.BrowserRouter().live_status(
+            request,
+            live_status_request=browser_router.BrowserLiveStatusRequest(
+                session_id="019a0000-0000-7000-8000-000000000002"
+            ),
+        )
+    )
+
+
+def test_status_carries_the_page_and_the_agents_ask(monkeypatch):
+    got = _status(monkeypatch, LINK)
+    assert got.model_dump(exclude_none=True) == {
+        "running": True,
+        "waiting": "Sign in",
+        "url": "https://example.com/",
+        "title": "Example",
+    }
+
+
+def test_status_leaves_out_an_empty_ask(monkeypatch):
+    got = _status(monkeypatch, LINK._replace(page=BrowserPage()))
+    assert got.model_dump(exclude_none=True) == {"running": True}

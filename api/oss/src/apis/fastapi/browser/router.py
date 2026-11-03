@@ -7,7 +7,7 @@ Both are mounted always, so the API schema keeps them; with the browser off they
 
 import asyncio
 from contextlib import suppress
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Request, WebSocket
@@ -47,6 +47,10 @@ class BrowserLiveStatusRequest(BaseModel):
 
 class BrowserLiveStatusResponse(BaseModel):
     running: bool
+    # The agent's ask while it waits for the person; absent when it is not waiting.
+    waiting: Optional[str] = None
+    url: Optional[str] = None
+    title: Optional[str] = None
 
 
 def _allowed_origins() -> set[str]:
@@ -92,7 +96,14 @@ class BrowserRouter:
             project_id=UUID(str(request.state.project_id)),
             session_id=session_id,
         )
-        return BrowserLiveStatusResponse(running=link is not None)
+        if link is None:
+            return BrowserLiveStatusResponse(running=False)
+        return BrowserLiveStatusResponse(
+            running=True,
+            waiting=link.page.waiting or None,
+            url=link.page.url or None,
+            title=link.page.title or None,
+        )
 
     # WS /browser/live?project_id=..&session_id=..
     async def live(self, websocket: WebSocket) -> None:

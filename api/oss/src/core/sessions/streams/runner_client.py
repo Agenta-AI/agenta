@@ -236,11 +236,23 @@ async def cancel_runner_execution(
 _BROWSER_LIVE_TIMEOUT_SECONDS = 15.0
 
 
+class BrowserPage(NamedTuple):
+    """The browser's open page, and the agent's ask while it waits for the person (else empty)."""
+
+    waiting: str = ""
+    url: str = ""
+    title: str = ""
+
+
 class BrowserLiveLink(NamedTuple):
     """Where the session's browser serves its live view, and the headers the connection needs."""
 
     url: str
     headers: dict[str, str]
+    page: BrowserPage = BrowserPage()
+
+
+_BROWSER_PAGE_TEXT_MAX = 2048
 
 
 async def fetch_browser_live_link(
@@ -278,6 +290,16 @@ async def fetch_browser_live_link(
     headers = body.get("headers") if isinstance(body, dict) else None
     if not isinstance(url, str) or not isinstance(headers, dict):
         return None
+    page = body.get("page")
+    page = page if isinstance(page, dict) else {}
     return BrowserLiveLink(
-        url=url, headers={str(k): str(v) for k, v in headers.items()}
+        url=url,
+        headers={str(k): str(v) for k, v in headers.items()},
+        page=BrowserPage(
+            **{
+                field: value[:_BROWSER_PAGE_TEXT_MAX]
+                for field in BrowserPage._fields
+                if isinstance(value := page.get(field), str)
+            }
+        ),
     )
