@@ -200,6 +200,47 @@ describe("run metrics query", () => {
         stopRun()
     })
 
+    it("The final fetch also happens when the run finished while the request was in flight", async () => {
+        const run = {...auto.run, id: "run-racing", status: "running"}
+        const client = new QueryClient()
+        client.setQueryData(evaluationRunQueryKey(run.id), run)
+        store.set(queryClientAtom, client)
+        let metricCalls = 0
+        postMock.mockImplementation(async (url: string) => {
+            if (url.endsWith("/evaluations/runs/query")) {
+                return {data: {count: 1, runs: [{...run, status: "success"}]}}
+            }
+            if (url.endsWith("/evaluations/metrics/query")) {
+                metricCalls += 1
+                // Another refresh stores the finished run while this request is in flight.
+                client.setQueryData(evaluationRunQueryKey(run.id), {...run, status: "success"})
+                return {
+                    data: {
+                        count: 1,
+                        metrics: [
+                            {...auto.response.metrics[0], id: `m-${metricCalls}`, run_id: run.id},
+                        ],
+                    },
+                }
+            }
+            throw new Error(`unexpected request ${url}`)
+        })
+
+        const stopRun = store.sub(evaluationRunQueryAtomFamily(run.id), () => undefined)
+        const stopMetrics = store.sub(runLevelMetricsQueryAtomFamily(run.id), () => undefined)
+        await vi.waitFor(() =>
+            expect(
+                (
+                    store.get(runLevelMetricsQueryAtomFamily(run.id)).data as
+                        | {id: string}[]
+                        | undefined
+                )?.[0]?.id,
+            ).toBe("m-2"),
+        )
+        stopMetrics()
+        stopRun()
+    })
+
     it("The metrics query stops polling when the run is gone", async () => {
         serve([], [])
         const client = new QueryClient()

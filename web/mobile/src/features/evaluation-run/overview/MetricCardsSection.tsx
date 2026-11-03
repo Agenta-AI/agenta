@@ -1,6 +1,6 @@
 import {useEffect} from "react"
 
-import {Alert} from "@agenta/ui/ui"
+import {Alert, Button} from "@agenta/ui/ui"
 
 import {ChartSkeleton} from "../states/ChartSkeleton"
 import {OverviewEmpty} from "../states/OverviewEmpty"
@@ -23,6 +23,7 @@ export const MetricCardsSection = ({
     hasEvaluators,
     pending,
     error,
+    onRetry,
 }: {
     runId: string
     runName: string
@@ -31,6 +32,7 @@ export const MetricCardsSection = ({
     hasEvaluators: boolean
     pending: boolean
     error: Error | null
+    onRetry?: () => void
 }) => {
     const cards = metrics.filter((metric) => metric.kind === "evaluator")
 
@@ -73,19 +75,35 @@ export const MetricCardsSection = ({
     }
 
     return (
-        <div className={GRID}>
-            {cards.map((metric) =>
-                online ? (
-                    <TemporalMetricCard
-                        key={metric.id}
-                        metric={metric}
-                        runId={runId}
-                        runName={runName}
-                    />
-                ) : (
-                    <MetricCard key={metric.id} metric={metric} runId={runId} />
-                ),
-            )}
+        <div className="flex flex-col gap-4">
+            {error ? (
+                <Alert
+                    type="error"
+                    showIcon
+                    message="Unable to refresh evaluator metrics. The scores below may be out of date."
+                    action={
+                        onRetry ? (
+                            <Button size="sm" onClick={onRetry}>
+                                Try again
+                            </Button>
+                        ) : undefined
+                    }
+                />
+            ) : null}
+            <div className={GRID}>
+                {cards.map((metric) =>
+                    online ? (
+                        <TemporalMetricCard
+                            key={metric.id}
+                            metric={metric}
+                            runId={runId}
+                            runName={runName}
+                        />
+                    ) : (
+                        <MetricCard key={metric.id} metric={metric} runId={runId} />
+                    ),
+                )}
+            </div>
         </div>
     )
 }

@@ -16,6 +16,7 @@ export interface RunOverviewViewProps {
     metricsPending: boolean
     metricsError: Error | null
     names: OverviewNames
+    onRetryMetrics?: () => void
 }
 
 /** The Overview tab's layout: the run summary with its radar, then one card per evaluator metric. */
@@ -27,6 +28,7 @@ export const RunOverviewView = ({
     metricsPending,
     metricsError,
     names,
+    onRetryMetrics,
 }: RunOverviewViewProps) => {
     const rows = useMemo(
         () => buildRunSummaryRows({header, references, metrics, metricsPending, names}),
@@ -68,6 +70,7 @@ export const RunOverviewView = ({
                 hasEvaluators={(references?.evaluators.length ?? 0) > 0}
                 pending={metricsPending}
                 error={metricsError}
+                onRetry={onRetryMetrics}
             />
         </div>
     )

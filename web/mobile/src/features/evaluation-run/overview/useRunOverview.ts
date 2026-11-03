@@ -85,5 +85,6 @@ export function useRunOverview(runId: string) {
         metricsPending: metricsQuery.isPending,
         metricsError: metricsQuery.isError ? metricsQuery.error : null,
         names,
+        onRetryMetrics: () => void metricsQuery.refetch(),
     }
 }

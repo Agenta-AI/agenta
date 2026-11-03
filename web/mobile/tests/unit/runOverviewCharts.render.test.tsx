@@ -146,6 +146,65 @@ describe("overview charts", () => {
         log.mockRestore()
     })
 
+    it("A failed refresh keeps the cards, warns, and offers a retry", () => {
+        vi.spyOn(console, "error").mockImplementation(() => undefined)
+        const retry = vi.fn()
+        render(
+            createElement(MetricCardsSection, {
+                runId: RUN_ID,
+                runName: "Capitals check",
+                online: false,
+                metrics: [evaluatorMetric("attributes.ag.data.outputs.success", BOOLEAN)],
+                hasEvaluators: true,
+                pending: false,
+                error: new Error("Request failed with status code 500"),
+                onRetry: retry,
+            }),
+        )
+        expect(host.textContent).toContain("Unable to refresh evaluator metrics")
+        expect(host.textContent).not.toContain("500")
+        expect(charts.bar).not.toHaveLength(0)
+        const button = Array.from(host.querySelectorAll("button")).find(
+            (node) => node.textContent === "Try again",
+        )
+        act(() => button?.click())
+        expect(retry).toHaveBeenCalledTimes(1)
+    })
+
+    it("A categorical value missing from the latest point keeps its line", () => {
+        const point = (minute: number, frequency: {value: string; count: number}[]) => ({
+            timestamp: Date.UTC(2026, 9, 30, 9, minute),
+            stats: {type: "categorical/single", frequency},
+        })
+        render(
+            createElement(MetricCardsSection, {
+                runId: RUN_ID,
+                runName: "Capitals check",
+                online: true,
+                metrics: [
+                    evaluatorMetric("attributes.ag.data.outputs.tone", CATEGORICAL, {
+                        temporal: [
+                            point(0, [
+                                {value: "friendly", count: 1},
+                                {value: "curt", count: 2},
+                            ]),
+                            point(10, [{value: "friendly", count: 4}]),
+                        ],
+                    }),
+                ],
+                hasEvaluators: true,
+                pending: false,
+                error: null,
+            }),
+        )
+        const line = charts.line.at(-1) as {series: {key: string}[]; points: {values: unknown}[]}
+        expect(line.series.map((series) => series.key)).toEqual(["friendly", "curt"])
+        expect(line.points.map((point) => point.values)).toEqual([
+            {friendly: 1, curt: 2},
+            {friendly: 4, curt: 0},
+        ])
+    })
+
     it("An online run shows one time chart per metric", () => {
         const point = (minute: number, trueCount: number) => ({
             timestamp: Date.UTC(2026, 9, 30, 9, minute),

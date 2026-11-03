@@ -76,14 +76,18 @@ export const runLevelMetricsQueryAtomFamily = atomFamily((runId: string) =>
             queryKey: runLevelMetricsQueryKey(projectId ?? "", runId),
             queryFn: async (): Promise<EvaluationMetric[]> => {
                 if (!projectId) return []
+                // Read the run before the request starts: a refresh of the run that lands while
+                // the request is in flight must still count as the run finishing.
+                const runKey = evaluationRunQueryKey(runId)
+                const before = poll
+                    ? getHostQueryClient().getQueryData<EvaluationRun | null>(runKey)
+                    : undefined
                 const metrics = await runMetricsBatchFetcher({projectId, runId})
                 if (!poll) return metrics
                 // Refresh the run too, so the poll sees it finish. When it finished since the last
                 // look, the numbers above may be older than its last scenario: fetch them once
                 // more. A run that was not loaded yet gets no second fetch.
                 const client = getHostQueryClient()
-                const runKey = evaluationRunQueryKey(runId)
-                const before = client.getQueryData<EvaluationRun | null>(runKey)
                 await client.invalidateQueries({queryKey: runKey})
                 const after = client.getQueryData<EvaluationRun | null>(runKey)
                 const justFinished =

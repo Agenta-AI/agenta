@@ -48,7 +48,17 @@ function timeChart(metric: OverviewMetric, runId: string, runName: string): Time
             })),
         }
     }
-    const categories = frequencyBars(latest, MAX_CATEGORY_LINES).map((bar) => bar.category)
+    // Rank values over every point, so a value missing from the latest point keeps its history.
+    const totals = new Map<string, number>()
+    for (const {stats} of metric.temporal) {
+        for (const bar of frequencyBars(stats)) {
+            totals.set(bar.category, (totals.get(bar.category) ?? 0) + bar.value)
+        }
+    }
+    const categories = [...totals.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .slice(0, MAX_CATEGORY_LINES)
+        .map(([category]) => category)
     const countOf = (stats: MetricStats, category: string) =>
         frequencyBars(stats).find((bar) => bar.category === category)?.value ?? 0
     return {
