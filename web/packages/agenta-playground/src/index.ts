@@ -120,6 +120,7 @@ export {
     hasAppReference,
     resolveTraceRefs,
 } from "./state/controllers/traceRefResolution"
+export {looksLikePromptConfig} from "./state/controllers/playgroundController"
 export type {SpanWithReferences} from "./state/controllers/traceRefResolution"
 
 // ============================================================================

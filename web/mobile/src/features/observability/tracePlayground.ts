@@ -1,13 +1,13 @@
 import {extractAgData, extractInputs, type TraceSpanNode} from "@agenta/entities/trace"
 import {closeTraceDrawerAtom} from "@agenta/observability/traceDrawer"
-import {extractReferences, resolveTraceRefs} from "@agenta/playground"
+import {extractReferences, looksLikePromptConfig, resolveTraceRefs} from "@agenta/playground"
 import {encodeSnapshot, SNAPSHOT_VERSION} from "@agenta/playground/snapshot"
 import {message} from "@agenta/ui/app-message"
 import {getDefaultStore} from "jotai"
 import type {NextRouter} from "next/router"
 
 import {agentEntryHref} from "../agents/agentEntry"
-import {playgroundHref, withSnapshot} from "../playground/playgroundUrl"
+import {evaluatorPlaygroundHref, playgroundHref, withSnapshot} from "../playground/playgroundUrl"
 
 /**
  * The trace drawer's "Playground" action. Loaded on the first click, so the drawer, which every
@@ -25,10 +25,13 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const hasAgentSpan = (span: TraceSpanNode): boolean =>
     span.span_type === "agent" || (span.children ?? []).some(hasAgentSpan)
 
+/** The span types whose inputs match an app's inputs (the package's invocation spans). */
+const INVOCATION_SPAN_TYPES = new Set(["workflow", "task", "agent", "chain"])
+
 /**
  * The span's inputs as a test case: the template inputs, with the chat messages beside them
- * when the span nests them (`{inputs, messages, parameters}`). Same rule as the package's
- * `openFromTrace`.
+ * when the span nests them (`{inputs, messages, parameters}`), and without a prompt template
+ * captured as an argument. Same rule as the package's `openFromTrace` for a revision.
  */
 const testcaseInputs = (span: TraceSpanNode): Record<string, unknown> => {
     let raw = extractInputs(span)
@@ -41,11 +44,20 @@ const testcaseInputs = (span: TraceSpanNode): Record<string, unknown> => {
             // Not JSON: the span has no inputs to replay.
         }
     }
-    if (!isRecord(raw.inputs)) return raw
-    return Array.isArray(raw.messages) ? {...raw.inputs, messages: raw.messages} : raw.inputs
+    const inputs = !isRecord(raw.inputs)
+        ? raw
+        : Array.isArray(raw.messages)
+          ? {...raw.inputs, messages: raw.messages}
+          : raw.inputs
+    return Object.fromEntries(
+        Object.entries(inputs).filter(([, value]) => !looksLikePromptConfig(value)),
+    )
 }
 
-export type TracePlaygroundTarget = {kind: "link"; href: string} | {kind: "no-app"}
+export type TracePlaygroundTarget =
+    | {kind: "link"; href: string}
+    | {kind: "no-app"}
+    | {kind: "span-type"; spanType: string}
 
 /** Where a span opens, from its resolved app and revision. */
 export const tracePlaygroundTarget = ({
@@ -58,6 +70,9 @@ export const tracePlaygroundTarget = ({
     refs: {appId: string | null; revisionId: string | null}
 }): TracePlaygroundTarget => {
     const {appId, revisionId} = refs
+    if (span.span_type && !INVOCATION_SPAN_TYPES.has(span.span_type)) {
+        return {kind: "span-type", spanType: span.span_type}
+    }
     if (!appId) return {kind: "no-app"}
     // An agent run replays in the agent chat (decision F-D4).
     if (hasAgentSpan(span)) return {kind: "link", href: agentEntryHref(base, appId)}
@@ -93,8 +108,13 @@ export const resolveTracePlaygroundTarget = async ({
     span: TraceSpanNode
 }): Promise<TracePlaygroundTarget> => {
     const refs = extractReferences(span)
-    // An evaluator span replays the evaluator, which /w opens in a drawer /m does not have.
-    if (refs.evaluator || refs.evaluator_revision) return {kind: "no-app"}
+    // An evaluator span replays the evaluator: its revision opens in the evaluator playground.
+    if (refs.evaluator || refs.evaluator_revision) {
+        const evaluatorRevisionId = refs.evaluator_revision?.id
+        return evaluatorRevisionId
+            ? {kind: "link", href: evaluatorPlaygroundHref(base, evaluatorRevisionId)}
+            : {kind: "no-app"}
+    }
     const appId = refs.application?.id ?? null
     const revisionId = refs.application_revision?.id ?? null
     const resolved =
@@ -120,6 +140,12 @@ export const openTraceInPlayground = async (router: NextRouter, span: TraceSpanN
     })
     if (target.kind === "no-app") {
         message.info("This trace has no app, so it cannot open in the playground.")
+        return null
+    }
+    if (target.kind === "span-type") {
+        message.info(
+            `"${target.spanType}" spans can't be replayed in the playground. Open the parent workflow, task, agent, or chain span instead.`,
+        )
         return null
     }
     getDefaultStore().set(closeTraceDrawerAtom)

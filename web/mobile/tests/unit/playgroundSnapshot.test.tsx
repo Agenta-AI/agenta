@@ -23,14 +23,21 @@ import {
     type PlaygroundSelection,
 } from "@/features/playground/usePlaygroundSelection"
 
-const {http, router} = vi.hoisted(() => ({
+const {http, router, routeListeners} = vi.hoisted(() => ({
     http: {post: vi.fn(), get: vi.fn()},
+    routeListeners: new Set<(url: string, options: {shallow: boolean}) => void>(),
     router: {
         isReady: true,
         pathname: "/w/[workspace_id]/p/[project_id]/apps/[app_id]/playground",
         query: {} as Record<string, string>,
         asPath: "/",
         replace: vi.fn(),
+        events: {
+            on: (_name: string, listener: (url: string, options: {shallow: boolean}) => void) =>
+                routeListeners.add(listener),
+            off: (_name: string, listener: (url: string, options: {shallow: boolean}) => void) =>
+                routeListeners.delete(listener),
+        },
     },
 }))
 
@@ -328,5 +335,88 @@ describe("last selection per app", () => {
         await mount("app-1")
 
         expect(selection.revisionIds).toEqual(["rev-2"])
+    })
+})
+
+describe("a link into the open playground", () => {
+    it("A new snapshot for the same app replaces what the page showed", async () => {
+        await mount("app-1", "rev-1")
+
+        setHash(
+            snapshotHash({
+                selection: [{kind: "commit", id: "rev-2", runnableType: "workflow"}],
+                drafts: [],
+                localTestset: {rows: [{data: {country: "Chile"}}], name: null},
+            }),
+        )
+        router.query = {...router.query, revisions: "rev-2"}
+        act(() => {
+            for (const listener of routeListeners) listener("/m/new", {shallow: false})
+        })
+        await settle()
+
+        expect(selection.revisionIds).toEqual(["rev-2"])
+        expect(firstRowData()).toEqual([{country: "Chile"}])
+    })
+
+    it("The page's own address writes do not restart it", async () => {
+        await mount("app-1", "rev-1")
+        const nodeId = store.get(playgroundController.selectors.nodes())[0]?.id
+
+        act(() => {
+            for (const listener of routeListeners) listener("/m/same", {shallow: true})
+        })
+        await settle()
+
+        expect(store.get(playgroundController.selectors.nodes())[0]?.id).toBe(nodeId)
+    })
+
+    it("A shallow address change that drops the hash gets it back", async () => {
+        await mount("app-1", "rev-1")
+        expect(window.location.hash.startsWith("#pgSnapshot=")).toBe(true)
+
+        // The trace drawer writes `?trace=` from the search alone.
+        setHash("")
+        act(() => {
+            for (const listener of routeListeners) listener("/m/trace", {shallow: true})
+        })
+        await settle()
+
+        expect(window.location.hash.startsWith("#pgSnapshot=")).toBe(true)
+    })
+})
+
+describe("evaluators in a snapshot", () => {
+    it("An evaluator after the app is connected again", async () => {
+        setHash(
+            snapshotHash({
+                selection: [
+                    {
+                        kind: "commit",
+                        id: "rev-1",
+                        runnableType: "workflow",
+                        depth: 0,
+                        entityType: "workflow",
+                    },
+                    {
+                        kind: "commit",
+                        id: "ev-rev-1",
+                        runnableType: "workflow",
+                        depth: 1,
+                        entityType: "workflow",
+                        label: "Exact match",
+                    },
+                ],
+                drafts: [],
+            }),
+        )
+        await mount("app-1", "rev-1")
+
+        const graph = store.get(playgroundController.selectors.nodes())
+        expect(graph.map((node) => [node.entityId, node.depth])).toEqual([
+            ["rev-1", 0],
+            ["ev-rev-1", 1],
+        ])
+        expect(selection.revisionIds).toEqual(["rev-1"])
     })
 })

@@ -7,7 +7,10 @@ import type {TraceSpanNode} from "@agenta/entities/trace"
 import {parseSnapshot} from "@agenta/playground/snapshot"
 import {describe, expect, it} from "vitest"
 
-import {tracePlaygroundTarget} from "@/features/observability/tracePlayground"
+import {
+    resolveTracePlaygroundTarget,
+    tracePlaygroundTarget,
+} from "@/features/observability/tracePlayground"
 import {
     evaluatorPlaygroundHref,
     parseRevisionIds,
@@ -142,5 +145,83 @@ describe("tracePlaygroundTarget", () => {
                 refs: {appId: "app-1", revisionId: null},
             }),
         ).toEqual({kind: "no-app"})
+    })
+
+    it("A prompt template among the inputs stays out of the test case", () => {
+        const target = tracePlaygroundTarget({
+            base: BASE,
+            span: span({
+                attributes: {
+                    ag: {
+                        data: {
+                            inputs: {
+                                topic: "tea",
+                                prompt: {
+                                    messages: [{role: "system", content: "Be brief"}],
+                                    template_format: "curly",
+                                },
+                            },
+                        },
+                    },
+                },
+            }),
+            refs: {appId: "app-1", revisionId: "rev-1"},
+        })
+        if (target.kind !== "link") throw new Error("expected a link")
+        const snapshot = parseSnapshot(target.href.split("#pgSnapshot=")[1])
+        expect(snapshot.value?.localTestset?.rows).toEqual([{data: {topic: "tea"}}])
+    })
+
+    it("A span that is not an invocation names its type and opens nothing", () => {
+        expect(
+            tracePlaygroundTarget({
+                base: BASE,
+                span: span({span_type: "chat"}),
+                refs: {appId: "app-1", revisionId: "rev-1"},
+            }),
+        ).toEqual({kind: "span-type", spanType: "chat"})
+    })
+})
+
+describe("resolveTracePlaygroundTarget", () => {
+    it("An evaluator span opens its revision in the evaluator playground", async () => {
+        const target = await resolveTracePlaygroundTarget({
+            base: BASE,
+            projectId: "proj-1",
+            span: span({
+                attributes: {
+                    ag: {
+                        data: {inputs: {country: "Peru"}},
+                        references: {evaluator_revision: {id: "ev-rev-1"}},
+                    },
+                },
+            }),
+        })
+        expect(target).toEqual({
+            kind: "link",
+            href: "/w/ws-1/p/proj-1/evaluators/playground?revisions=ev-rev-1",
+        })
+    })
+
+    it("An app span with both ids opens without asking the server", async () => {
+        const target = await resolveTracePlaygroundTarget({
+            base: BASE,
+            projectId: "proj-1",
+            span: span({
+                attributes: {
+                    ag: {
+                        data: {},
+                        references: {
+                            application: {id: "app-1"},
+                            application_revision: {id: "rev-1"},
+                        },
+                    },
+                },
+            }),
+        })
+        expect(target).toEqual({
+            kind: "link",
+            href: "/w/ws-1/p/proj-1/apps/app-1/playground?revisions=rev-1",
+        })
     })
 })

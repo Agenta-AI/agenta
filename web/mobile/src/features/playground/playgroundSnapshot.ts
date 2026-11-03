@@ -2,6 +2,7 @@ import {isLocalDraftId, isPlaceholderId} from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {
     applyPendingHydrationsForRevision,
+    executionController,
     pendingHydrationsAtom,
     playgroundController,
     setSelectionUpdateCallback,
@@ -66,9 +67,10 @@ export const playgroundAddress = (store: Store): {revisions: string; snapshot: s
  * test set and its rows. Its value is only a trigger.
  */
 export const snapshotTriggerAtom = atom((get) => [
-    get(playgroundController.selectors.nodes()),
-    ...get(playgroundController.selectors.entityIds()).map((id) =>
-        get(workflowMolecule.atoms.draft(id)),
+    get(playgroundController.selectors.entityIds()),
+    // Every node's draft: the evaluators after the app are in the snapshot too.
+    ...get(playgroundController.selectors.nodes()).map((node) =>
+        get(workflowMolecule.atoms.draft(node.entityId)),
     ),
     get(playgroundController.selectors.connectedTestset()),
     get(playgroundController.selectors.hiddenTestcaseCount()),
@@ -93,7 +95,8 @@ export const hasPendingRestore = (store: Store): boolean => {
  * Restores a playground from an encoded snapshot: its revisions in order, the evaluators after
  * the app, and its test set or rows. The drafts wait for their revision data (see
  * `syncSnapshotDrafts`). Returns null when the snapshot cannot be read, so the caller opens the
- * address's revisions instead; otherwise a promise that settles when the test set is back.
+ * address's revisions instead; otherwise a promise that settles when the test cases are back, or
+ * when the page has moved on and they are no longer wanted.
  */
 export const restoreSnapshot = (store: Store, encoded: string): Promise<void> | null => {
     const result = store.set(urlSnapshotController.actions.hydrateFromUrl, encoded)
@@ -127,19 +130,48 @@ export const restoreSnapshot = (store: Store, encoded: string): Promise<void> | 
         if (connected) nodeAtDepth.set(depth, connected.nodeId)
     }
 
-    if (result.localTestset) {
-        store.set(playgroundController.actions.restoreLocalTestset, result.localTestset)
+    // The rows belong to this page's test set only: a page left meanwhile changes the id.
+    const loadableId = store.get(playgroundController.selectors.loadableId())
+    const isCurrent = () => store.get(playgroundController.selectors.loadableId()) === loadableId
+
+    const {localTestset, loadable} = result
+    if (localTestset) {
+        // Chat rows become a conversation only when the revision is known to be a chat app.
+        return whenModeKnown(store, isCurrent).then((current) => {
+            if (current) store.set(playgroundController.actions.restoreLocalTestset, localTestset)
+        })
     }
-    if (!result.loadable) return Promise.resolve()
+    if (!loadable) return Promise.resolve()
     return store
-        .set(playgroundController.actions.restoreLoadableConnection, result.loadable)
+        .set(playgroundController.actions.restoreLoadableConnection, loadable)
         .then(() => undefined)
         .catch(() => {
             // The test set is gone or unreadable: an empty row, so there is still something to run.
-            const loadableId = store.get(playgroundController.selectors.loadableId())
-            if (loadableId) store.set(playgroundController.actions.addRowWithInit, {loadableId})
+            if (loadableId && isCurrent()) {
+                store.set(playgroundController.actions.addRowWithInit, {loadableId})
+            }
         })
 }
+
+/**
+ * Settles once the primary revision says whether it is a chat app (true), or once the page has
+ * moved on to other revisions (false).
+ */
+const whenModeKnown = (store: Store, isCurrent: () => boolean) =>
+    new Promise<boolean>((resolve) => {
+        const unsubscribes: (() => void)[] = []
+        const check = () => {
+            const current = isCurrent()
+            if (current && store.get(executionController.selectors.isChatMode) === undefined) return
+            for (const unsubscribe of unsubscribes) unsubscribe()
+            resolve(current)
+        }
+        unsubscribes.push(
+            store.sub(executionController.selectors.isChatMode, check),
+            store.sub(playgroundController.selectors.loadableId(), check),
+        )
+        check()
+    })
 
 /** The pending drafts whose revision data has loaded. Recomputed whenever that data changes. */
 const readyDraftSourcesAtom = atom((get) => {

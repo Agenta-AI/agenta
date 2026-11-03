@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useRef} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
 import {isPlaceholderId} from "@agenta/entities/shared"
 import {workflowDetailQueryAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
@@ -112,9 +112,26 @@ export const usePlaygroundSelection = ({appId}: {appId: string}): PlaygroundSele
     // While a restored test set loads, the address is not written: it would drop the connection.
     const restoringRef = useRef(false)
 
+    // A link into this open page (the trace drawer's Playground on the same app) keeps the page
+    // mounted: count each such visit, so the page sets up again from the new address. The page's
+    // own writes are shallow and do not count.
+    const [visit, setVisit] = useState(0)
+    const setUpAddressRef = useRef("")
+    useEffect(() => {
+        const events = routerRef.current.events
+        const onVisit = (_url: string, {shallow}: {shallow: boolean}) => {
+            const {pathname, search, hash} = window.location
+            if (shallow || `${pathname}${search}${hash}` === setUpAddressRef.current) return
+            setVisit((count) => count + 1)
+        }
+        events?.on("routeChangeComplete", onVisit)
+        return () => events?.off("routeChangeComplete", onVisit)
+    }, [])
+
     useEffect(() => {
         if (!router.isReady || !appUsable) return
         setUpForAppRef.current = appId
+        setUpAddressRef.current = `${window.location.pathname}${window.location.search}${window.location.hash}`
         const stopDrafts = syncSnapshotDrafts(store)
         const encoded = readSnapshotParam(window.location.hash)
         const restoring = encoded ? restoreSnapshot(store, encoded) : null
@@ -134,7 +151,7 @@ export const usePlaygroundSelection = ({appId}: {appId: string}): PlaygroundSele
             stopDrafts()
             clearPlayground(store)
         }
-    }, [appId, appUsable, router.isReady, select, store])
+    }, [appId, appUsable, router.isReady, select, store, visit])
 
     // Drop ids that are not revisions of this app; with nothing left, take the latest revision.
     useEffect(() => {
@@ -201,7 +218,7 @@ export const usePlaygroundSelection = ({appId}: {appId: string}): PlaygroundSele
             events?.off("routeChangeComplete", schedule)
             clearTimeout(timer)
         }
-    }, [appId, appUsable, router.isReady, store])
+    }, [appId, appUsable, router.isReady, store, visit])
 
     // Only this screen's requests: the app, its latest revision, and the selected revisions.
     const retry = useCallback(() => {
