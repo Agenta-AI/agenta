@@ -34,7 +34,12 @@ export function useTestsetLeaveGuard({
             setProceed({go: () => void request.onOk()}),
         [],
     )
-    const leave = useUnsavedGuard({dirty, confirm: askBeforeLeaving})
+    const leave = useUnsavedGuard({
+        dirty,
+        confirm: askBeforeLeaving,
+        title: "Unsaved changes",
+        message: "You have unsaved changes in your test set.",
+    })
 
     useEffect(() => {
         if (!dirty) return
