@@ -310,6 +310,29 @@ describe("The test set menu in the run pane", () => {
         expect(button(host, "Capitals (v3)")).toBeDefined()
     })
 
+    it("The sync dialog counts a saved row unchecked in Manage as deleted, and the commit deletes it", async () => {
+        await connect()
+        await act(async () =>
+            store.set(loadableController.actions.updateTestcaseSelection, loadableId(), [FRANCE]),
+        )
+        await settle()
+
+        await openMenu()
+        await menuItem("Sync changes")
+        const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!
+        expect(dialog.textContent).toContain("1 testcase deleted")
+        await click(dialog, "Commit")
+
+        const commits = http.post.mock.calls.filter(([url]) =>
+            String(url).endsWith("/testsets/revisions/commit"),
+        )
+        expect(commits).toHaveLength(1)
+        expect(
+            (commits[0][1] as {testset_revision: {delta: {rows: {remove?: string[]}}}})
+                .testset_revision.delta.rows.remove,
+        ).toEqual([ITALY])
+    })
+
     it("Leaving with unsaved test set edits asks first", async () => {
         await connect()
         expect(leave()).toBe("left")

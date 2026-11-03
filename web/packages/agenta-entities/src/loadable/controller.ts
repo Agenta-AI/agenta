@@ -49,6 +49,7 @@ import {
     clearNewEntityIdsAtom,
     currentRevisionIdAtom,
     deletedEntityIdsAtom,
+    markDeletedAtom,
     newEntityIdsAtom,
     setCurrentRevisionIdAtom,
     clearDeletedIdsAtom,
@@ -455,8 +456,12 @@ const connectedHasLocalChangesAtomFamily = atomFamily((loadableId: string) =>
             return true
         }
 
-        // Check if any shown testcase has been edited. Hidden rows are not saved, so they do
-        // not count.
+        // Check hidden saved testcases (they are deleted from the testset on sync)
+        for (const id of state.hiddenTestcaseIds) {
+            if (!isLocalTestcaseId(id)) return true
+        }
+
+        // Check if any shown testcase has been edited.
         const displayRowIds = get(testcaseMolecule.atoms.displayRowIds)
         for (const id of displayRowIds) {
             if (state.hiddenTestcaseIds.has(id)) continue
@@ -1208,6 +1213,13 @@ const commitChangesAtom = atom(
         }
         const visibleRowsBeforeCommit = getCanonicalVisibleRows(get, loadableId)
 
+        // Soft-delete hidden saved rows so they appear in TestsetRevisionDelta.deleted: a row
+        // removed from the playground or unchecked in "Manage test cases" is deleted from the
+        // new revision. Hidden new rows are not on the server and are left out below.
+        for (const id of state.hiddenTestcaseIds) {
+            if (!isLocalTestcaseId(id)) set(markDeletedAtom, id)
+        }
+
         // Get testset ID from revision
         const revisionQuery = get(revisionMolecule.query(state.connectedSourceId))
         const testsetId = revisionQuery?.data?.testset_id
@@ -1215,9 +1227,9 @@ const commitChangesAtom = atom(
             throw new Error("Could not determine testset ID from revision")
         }
 
-        // Delegate to saveTestsetAtom which reads from testcaseMolecule. Hidden rows (removed
-        // from the playground or deselected in "Manage test cases") are left out: a saved row
-        // stays in the test set unchanged, and a new row is not saved.
+        // Delegate to saveTestsetAtom which reads from testcaseMolecule. Hidden rows are left out
+        // of the replaces and adds: a hidden saved row is deleted (above), a hidden new row is
+        // not saved.
         const result = await set(saveTestsetAtom, {
             projectId,
             testsetId,
