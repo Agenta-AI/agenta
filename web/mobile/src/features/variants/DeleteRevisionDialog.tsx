@@ -47,7 +47,7 @@ export const DeleteRevisionDialog = ({
             // Only this revision. The shared delete action also archives other revisions it
             // takes for empty seeds, which can take a real revision with it.
             await archiveWorkflowRevision(projectId, row.revisionId)
-            message.success("Deleted workflow successfully")
+            message.success("Deleted revision successfully")
             await queryClient.invalidateQueries({queryKey: ["workflows"]})
             if (shownRevisionId === row.revisionId) setShownRevisionId(null)
             onClose()
