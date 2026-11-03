@@ -1,4 +1,3 @@
-import type {Key} from "react"
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {useObservability, useSessions} from "@agenta/observability"
@@ -101,11 +100,11 @@ const ObservabilityContent = ({
     const showsTable = !isNarrow
     const bodyRef = useRef<HTMLDivElement | null>(null)
 
-    const {fetchTraces, traces} = useObservability()
+    // The selection lives in the shared atom: the toolbar's Delete button reads it to enable.
+    const {fetchTraces, traces, selectedRowKeys, setSelectedRowKeys} = useObservability()
     const {refetchSessions} = useSessions()
 
     // Swallow the refetch results: the toolbar only needs the promise to settle.
-    const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([])
     const {onExport, isExporting} = useTracesExportBinding()
     const openDeleteModal = useSetAtom(deleteTraceModalAtom)
     // Rows are keyed by span id; delete and the queue take trace ids.
@@ -113,7 +112,9 @@ const ObservabilityContent = ({
         () => selectedTraceIds(traces, selectedRowKeys),
         [traces, selectedRowKeys],
     )
-    const clearSelection = useCallback(() => setSelectedRowKeys([]), [])
+    const clearSelection = useCallback(() => setSelectedRowKeys([]), [setSelectedRowKeys])
+    // The atom outlives the screen; a selection must not come back on the next visit.
+    useEffect(() => clearSelection, [clearSelection])
 
     const onDelete = useCallback(
         () => openDeleteModal({isOpen: true, traceIds, onClose: clearSelection}),

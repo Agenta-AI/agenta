@@ -9,9 +9,8 @@ interface SpanRow {
 }
 
 /**
- * The trace ids of the selected table rows. The traces table keys its rows by span id, so a
- * selection is a list of spans; delete and the queue act on whole traces. Each trace is listed
- * once, even when several of its spans are selected.
+ * The trace ids of the selected table rows, each once. The traces table keys its rows by span
+ * id, but delete and the queue act on whole traces.
  */
 export const selectedTraceIds = (traces: SpanRow[], keys: Key[]): string[] => {
     const ids = keys
