@@ -144,6 +144,7 @@ export {
     workflowArtifactScopedQueryAtomFamily,
     workflowVariantsScopedQueryAtomFamily,
     primeWorkflowArtifactCacheImperative,
+    primeWorkflowRevisionDetailCacheImperative,
 } from "./store"
 
 // Persisted agent-type map (cold-reload fallback for playgroundEarlyAgentStateAtom)

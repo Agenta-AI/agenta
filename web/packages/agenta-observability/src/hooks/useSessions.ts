@@ -1,5 +1,6 @@
 import {useCallback} from "react"
 
+import {projectIdAtom} from "@agenta/shared/state"
 import {useAtom, useAtomValue} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 
@@ -17,7 +18,6 @@ import {
     sessionCountAtom,
     sessionsLoadingAtom,
     sessionsQueryAtom,
-    sessionsSpansQueryAtom,
 } from "../state/queries"
 
 export const useSessions = () => {
@@ -32,8 +32,6 @@ export const useSessions = () => {
     const [{refetch: refetchSessions, fetchNextPage, hasNextPage, isFetchingNextPage}] =
         useAtom(sessionsQueryAtom)
 
-    const [{refetch: refetchSessionSpans}] = useAtom(sessionsSpansQueryAtom)
-
     const sessionIds = useAtomValue(filteredSessionIdsAtom)
     const sessionCount = useAtomValue(sessionCountAtom)
     const isLoading = useAtomValue(sessionsLoadingAtom)
@@ -44,6 +42,12 @@ export const useSessions = () => {
     }, [fetchNextPage, hasNextPage])
 
     const queryClient = useAtomValue(queryClientAtom)
+    const projectId = useAtomValue(projectIdAtom)
+
+    const refetchSessionSpans = useCallback(
+        () => queryClient.invalidateQueries({queryKey: ["session_spans", projectId]}),
+        [queryClient, projectId],
+    )
 
     /**
      * Resets sessions and session-spans queries back to page 1.

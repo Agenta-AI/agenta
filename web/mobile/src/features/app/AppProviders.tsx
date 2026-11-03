@@ -3,6 +3,7 @@ import type {PropsWithChildren} from "react"
 import {EntityModalsProvider} from "@agenta/entity-ui/modals"
 import {configureAgentaSdk} from "@agenta/sdk/config"
 import {ProjectWatch} from "@agenta/sessions/watch"
+import {schedulePersistedQueryGc} from "@agenta/shared/api/persist"
 import {QueryClientProvider} from "@tanstack/react-query"
 import {Provider, getDefaultStore} from "jotai"
 import {useHydrateAtoms} from "jotai/react/utils"
@@ -28,6 +29,8 @@ configureAgentaSdk({host: getApiUrl()})
 // without it only fetchProjects' explicit retry path could heal a 401.
 // Not on the embed widget: it has no login, and its 401s must not refresh a session.
 if (typeof window === "undefined" || !isEmbedPath(window.location.pathname)) ensureAuthInit()
+// Without it, expired and stale-buster IndexedDB entries are never swept.
+schedulePersistedQueryGc()
 
 const HydrateAtoms = ({children}: PropsWithChildren) => {
     useHydrateAtoms([[queryClientAtom, queryClient]])

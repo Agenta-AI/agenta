@@ -1,10 +1,11 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {useObservability, useSessions} from "@agenta/observability"
+import {useObservability} from "@agenta/observability"
 import {ObservabilityRangePicker, ObservabilityToolbar} from "@agenta/observability-ui"
 import {AddActionsDropdown, DeleteTraceModal, deleteTraceModalAtom} from "@agenta/observability-ui"
 import {PageLayout} from "@agenta/ui"
 import {useIsNarrowScreen} from "@agenta/ui/hooks"
+import {useQueryClient} from "@tanstack/react-query"
 import {useSetAtom} from "jotai"
 import {MessagesSquare, Network} from "lucide-react"
 import {useRouter} from "next/router"
@@ -102,7 +103,8 @@ const ObservabilityContent = ({
 
     // The selection lives in the shared atom: the toolbar's Delete button reads it to enable.
     const {fetchTraces, traces, selectedRowKeys, setSelectedRowKeys} = useObservability()
-    const {refetchSessions} = useSessions()
+    // Not `useSessions()`: that would load sessions and their spans on the Traces tab too.
+    const queryClient = useQueryClient()
 
     // Swallow the refetch results: the toolbar only needs the promise to settle.
     const {onExport, isExporting} = useTracesExportBinding()
@@ -123,8 +125,12 @@ const ObservabilityContent = ({
 
     const onRefresh = useCallback(async () => {
         if (tab === "traces") await fetchTraces()
-        else await refetchSessions()
-    }, [tab, fetchTraces, refetchSessions])
+        else
+            await Promise.all([
+                queryClient.invalidateQueries({queryKey: ["sessions"]}),
+                queryClient.invalidateQueries({queryKey: ["session_spans"]}),
+            ])
+    }, [tab, fetchTraces, queryClient])
 
     return (
         <>

@@ -10,7 +10,9 @@ import {act, type ReactNode} from "react"
 
 import {axios} from "@agenta/shared/api"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
+import {QueryClientProvider} from "@tanstack/react-query"
 import {createStore, Provider} from "jotai"
+import {queryClientAtom} from "jotai-tanstack-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
@@ -130,6 +132,7 @@ vi.mock("@/features/observability/TracesTable", () => ({
 }))
 
 import {ObservabilityScreen} from "@/features/observability/ObservabilityScreen"
+import {queryClient} from "@/lib/queryClient"
 
 describe("ObservabilityScreen selection actions", () => {
     let root: Root
@@ -159,6 +162,7 @@ describe("ObservabilityScreen selection actions", () => {
         deleteTrace.mockReset().mockResolvedValue({count: 1, trace_id: "x"})
         fetchTraces.mockReset()
         store = createStore()
+        store.set(queryClientAtom, queryClient)
         store.set(projectIdAtom, "pr")
         store.set(sessionAtom, true)
         host = document.createElement("div")
@@ -166,9 +170,11 @@ describe("ObservabilityScreen selection actions", () => {
         root = createRoot(host)
         act(() =>
             root.render(
-                <Provider store={store}>
-                    <ObservabilityScreen workspaceId="ws" projectId="pr" />
-                </Provider>,
+                <QueryClientProvider client={queryClient}>
+                    <Provider store={store}>
+                        <ObservabilityScreen workspaceId="ws" projectId="pr" />
+                    </Provider>
+                </QueryClientProvider>,
             ),
         )
     })

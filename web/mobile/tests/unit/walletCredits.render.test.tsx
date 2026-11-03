@@ -100,6 +100,12 @@ globalThis.ResizeObserver ??= class {
     unobserve = vi.fn()
     disconnect = vi.fn()
 } as unknown as typeof ResizeObserver
+// The sidebar meter polls only while on screen.
+globalThis.IntersectionObserver ??= class {
+    observe = vi.fn()
+    unobserve = vi.fn()
+    disconnect = vi.fn()
+} as unknown as typeof IntersectionObserver
 
 beforeEach(() => {
     runtime.__env = {NEXT_PUBLIC_AGENTA_WALLETS_ENABLED: "true"}

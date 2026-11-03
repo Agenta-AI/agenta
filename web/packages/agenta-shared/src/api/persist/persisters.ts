@@ -7,6 +7,7 @@ import {PERSIST_SCHEMA_VERSION} from "./version"
 const identity = (value: PersistedQuery) => value
 
 const CATALOG_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000
+const IMMUTABLE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
 
 type Persister = ReturnType<typeof experimental_createQueryPersister<PersistedQuery>>
 type PersistedQueryHandle = Parameters<Persister["persisterFn"]>[2]
@@ -42,12 +43,12 @@ const handleRestoreRefetch = (persister: Persister): Persister => ({
 /**
  * Class A — immutable-by-key bodies (e.g. workflow revisions): restore from disk and
  * never refetch. Pair with `staleTime: Infinity` on the query so later observer mounts
- * don't revalidate either. Invalidation happens only via PERSIST_SCHEMA_VERSION bumps.
+ * don't revalidate either. Entries expire after 30 days or on a PERSIST_SCHEMA_VERSION bump.
  */
 export const immutablePersister = experimental_createQueryPersister<PersistedQuery>({
     storage: idbQueryStorage,
     buster: PERSIST_SCHEMA_VERSION,
-    maxAge: Number.POSITIVE_INFINITY,
+    maxAge: IMMUTABLE_MAX_AGE_MS,
     serialize: identity,
     deserialize: identity,
     refetchOnRestore: false,

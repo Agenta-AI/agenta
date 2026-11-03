@@ -35,6 +35,7 @@ vi.mock("@agenta/entities/session", () => ({
 }))
 vi.mock("@agenta/entities/workflow", () => ({
     retrieveWorkflowRevision: (...args: unknown[]) => retrieveWorkflowRevision(...args),
+    primeWorkflowRevisionDetailCacheImperative: () => undefined,
 }))
 
 import {useAgentEntity} from "@/features/chat/useAgentEntity"

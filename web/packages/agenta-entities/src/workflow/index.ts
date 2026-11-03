@@ -364,6 +364,7 @@ export {
     workflowArtifactScopedQueryAtomFamily,
     workflowVariantsScopedQueryAtomFamily,
     primeWorkflowArtifactCacheImperative,
+    primeWorkflowRevisionDetailCacheImperative,
     // Commit / Archive
     commitWorkflowRevisionAtom,
     commitWorkflowRevision,

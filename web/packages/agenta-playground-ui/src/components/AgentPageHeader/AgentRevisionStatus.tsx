@@ -72,8 +72,8 @@ export const AgentRevisionStatus = ({
     // observers ARE active. It lives here, in the shared chip, because every host that shows a
     // revision has the problem — putting it in one app's wrapper fixed only that app.
     useEffect(() => {
-        invalidateAgentCommittedRevisionCache()
-    }, [])
+        invalidateAgentCommittedRevisionCache(historyWorkflowId)
+    }, [historyWorkflowId])
 
     const data = useAtomValue(workflowMolecule.selectors.data(revisionId || ""))
     const isDirty = useAtomValue(workflowMolecule.selectors.isDirty(revisionId || ""))
