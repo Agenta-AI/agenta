@@ -5,9 +5,9 @@ import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {EvaluationsScreen} from "@/features/evaluations/list/EvaluationsScreen"
-
 import {makeRun, page} from "./evaluationRunsFixtures"
+
+import {EvaluationsScreen} from "@/features/evaluations/list/EvaluationsScreen"
 
 const http = vi.hoisted(() => ({post: vi.fn(), delete: vi.fn()}))
 const env = vi.hoisted(() => ({
@@ -258,16 +258,28 @@ describe("evaluations screen", () => {
         )
     })
 
-    it("The All tab create menu lists the auto, human and SDK types with their descriptions", async () => {
+    it("The All menu offers Live evaluation", async () => {
+        const onCreate = vi.fn()
+        await mount({onCreate})
+        await openMenuOf(button(/New evaluation|Start evaluation/))
+        const items = [...document.querySelectorAll<HTMLElement>("[role=menuitem]")]
+        expect(items.map((el) => el.textContent)).toEqual([
+            "Auto evaluationRun test sets with configured evaluators for fast iteration.",
+            "Human evaluationCollect human votes or ratings on evaluation outputs.",
+            "Live evaluationEvaluate live traffic with an automatic evaluator.",
+            "SDK evaluationRun evaluations programmatically using the Agenta SDK.",
+        ])
+        await act(async () => items[2].click())
+        expect(onCreate).toHaveBeenCalledWith("online")
+    })
+
+    it("App scope leaves Live evaluation out of the create menu", async () => {
+        env.query = {app: "app-1"}
         await mount({onCreate: vi.fn()})
         await openMenuOf(button(/New evaluation|Start evaluation/))
         const menu = [...document.querySelectorAll("[role=menuitem]")].map((el) => el.textContent)
-        expect(menu).toEqual([
-            "Auto evaluationRun test sets with configured evaluators for fast iteration.",
-            "Human evaluationCollect human votes or ratings on evaluation outputs.",
-            "SDK evaluationRun evaluations programmatically using the Agenta SDK.",
-        ])
         expect(menu.join(" ")).not.toContain("Live evaluation")
+        expect(menu).toHaveLength(3)
     })
 
     it("A kind tab create button opens that kind directly", async () => {
@@ -278,10 +290,28 @@ describe("evaluations screen", () => {
         expect(onCreate).toHaveBeenCalledWith("human")
     })
 
-    it("The Live tab has no create button", async () => {
+    it("The Live tab shows a create button", async () => {
+        env.query = {kind: "online"}
+        const onCreate = vi.fn()
+        await mount({onCreate})
+        await act(async () => button(/New evaluation/)?.click())
+        expect(onCreate).toHaveBeenCalledWith("online")
+    })
+
+    it("The Live empty state starts a live evaluation", async () => {
+        env.query = {kind: "online"}
+        const onCreate = vi.fn()
+        await mount({onCreate})
+        expect(text()).toContain("Get Started with Live Evaluation")
+        await act(async () => button(/^Create Evaluation$/)?.click())
+        expect(onCreate).toHaveBeenCalledWith("online")
+    })
+
+    it("A reader without edit rights sees no Live entry", async () => {
+        env.permissions = {}
         env.query = {kind: "online"}
         await mount({onCreate: vi.fn()})
-        expect(button(/New evaluation|Start evaluation/)).toBeUndefined()
+        expect(button(/New evaluation|Create Evaluation/)).toBeUndefined()
     })
 
     it("A reader without edit rights sees no create button", async () => {

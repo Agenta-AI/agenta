@@ -9,16 +9,13 @@ import {Button} from "@agenta/ui/ui"
 import {Spinner} from "@phosphor-icons/react"
 import dynamic from "next/dynamic"
 
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
-
 import {useBindProjectContext} from "../../context/useBindProjectContext"
 import {AppShell} from "../../nav/AppShell"
 import {NavDrawer} from "../../nav/NavDrawer"
 import {ObservabilityAppFilter} from "../../observability/ObservabilityAppFilter"
 import {useRevisionParam} from "../../revisions/useRevisionParam"
 
-import {CreateEvaluationMenu, type CreatableKind} from "./CreateEvaluationMenu"
+import {CREATABLE_KINDS, CreateEvaluationMenu, type CreatableKind} from "./CreateEvaluationMenu"
 import {EvaluationKindTabs} from "./EvaluationKindTabs"
 import {EvaluationRunsTable} from "./EvaluationRunsTable"
 import {RunStatusFilter} from "./RunStatusFilter"
@@ -28,6 +25,9 @@ import {EvaluationsNoMatch} from "./states/EvaluationsNoMatch"
 import {useEvaluationRunsFilters} from "./useEvaluationRunsFilters"
 import {useEvaluationRunsList} from "./useEvaluationRunsList"
 import {useRunRowActions} from "./useRunRowActions"
+
+import {PageTitle} from "@/components/PageTitle"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 // The drawer and its config pane cost nothing until a reader opens a variant.
 const RevisionDrawerHost = dynamic(
@@ -64,6 +64,10 @@ export const EvaluationsScreen = ({
     const searchField = useDebouncedAtomSearch(filters.setSearch, 300, search)
     const filtered = search.trim() !== "" || statuses.length > 0
     const canCreate = Boolean(onCreate) && actions.canEdit
+    // Live evaluations are project wide, so an app scoped list does not offer them.
+    const offeredKinds = appId
+        ? (createKinds ?? CREATABLE_KINDS).filter((offered) => offered !== "online")
+        : createKinds
 
     const loadMore = useCallback(async () => {
         const result = await list.fetchNextPage()
@@ -75,7 +79,7 @@ export const EvaluationsScreen = ({
             <CreateEvaluationMenu
                 tab={kind}
                 onCreate={onCreate}
-                kinds={createKinds}
+                kinds={offeredKinds}
                 label={kind === "all" ? "Start evaluation" : "New evaluation"}
             />
         ) : null
@@ -148,13 +152,13 @@ export const EvaluationsScreen = ({
                                             <EvaluationsEmpty
                                                 kind={kind}
                                                 onCreate={canCreate ? onCreate : undefined}
-                                                createKinds={createKinds}
+                                                createKinds={offeredKinds}
                                                 createMenu={
                                                     canCreate && onCreate ? (
                                                         <CreateEvaluationMenu
                                                             tab="all"
                                                             onCreate={onCreate}
-                                                            kinds={createKinds}
+                                                            kinds={offeredKinds}
                                                             label="Start evaluation"
                                                         />
                                                     ) : null
