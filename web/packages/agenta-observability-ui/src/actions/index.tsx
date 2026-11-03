@@ -167,7 +167,9 @@ const AddActionsDropdown = ({
     const dropdown = (
         <DropdownMenu open={dropdownOpen} onOpenChange={handleDropdownOpenChange}>
             <DropdownMenuTrigger asChild>{button}</DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            {/* An action can open a picker of its own; focus going back to the Add button
+                would close that picker as soon as it opens. */}
+            <DropdownMenuContent align="end" onCloseAutoFocus={(event) => event.preventDefault()}>
                 {renderTableMenuItems(
                     menuItems.map((item) => ({
                         ...item,
