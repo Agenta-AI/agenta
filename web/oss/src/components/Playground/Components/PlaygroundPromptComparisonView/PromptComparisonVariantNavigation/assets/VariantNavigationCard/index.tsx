@@ -155,7 +155,7 @@ const VariantNavigationCard = ({
                     "translate-x-0 translate-y-0 skew-x-0 skew-y-0 rotate-0",
                     "transition-all duration-200 ease-in-out",
                     "opacity-100 *:!select-none",
-                    "border border-colorBorderSecondary bg-colorBgElevated",
+                    "border border-solid border-colorBorderSecondary bg-colorBgElevated",
                     {
                         "shadow-xl [&_>_div]:scale-[1.01]": isDragging,
                         "opacity-50": active && !isDragging,
