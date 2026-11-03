@@ -264,3 +264,30 @@ export const testcaseDataController = createEntityDataController<
     configEquals: areConfigsEqual,
     counts: (config) => countsAtomFamily(config),
 })
+
+/**
+ * Loads the next page of a server-mode table, when there is one and no page is loading.
+ *
+ * The grid calls it when the reader scrolls near the end. Rows on later pages join the same
+ * row list, so an edit to one of them reaches the save like an edit on the first page.
+ * Local mode has one page and does nothing.
+ */
+export const loadMoreTestcasesAtom = atom(null, (get, set, config: TestcaseDataConfig) => {
+    if (config.useLocal) return
+    const key = {scopeId: config.scopeId, pageSize: config.pageSize ?? 100}
+    const tableAtoms = testcasePaginatedStore.store.store.atoms
+    const info = get(tableAtoms.paginationInfoAtomFamily(key))
+    if (!info.hasMore || !info.nextCursor || info.isFetching) return
+    const totalRows = get(tableAtoms.combinedRowsAtomFamily(key)).length
+    set(tableAtoms.scheduleNextPageAtomFamily(key), {
+        nextCursor: info.nextCursor,
+        nextOffset: info.nextOffset ?? totalRows,
+        nextWindowing: info.nextWindowing ?? {
+            next: info.nextCursor,
+            order: "ascending",
+            limit: key.pageSize,
+            stop: null,
+        },
+        totalRows,
+    })
+})

@@ -1,0 +1,180 @@
+import {useCallback, useMemo, useState} from "react"
+
+import {testcaseDataController, type TestcaseTableRow} from "@agenta/entities/testcase"
+import {TestcaseTable, type EntityColumnHeader} from "@agenta/entity-ui/testcase"
+import {message} from "@agenta/ui/app-message"
+import type {ColumnDefs} from "@agenta/ui/table"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {copyToClipboard} from "@agenta/ui/utils"
+import {Trash} from "@phosphor-icons/react"
+import {useAtomValue} from "jotai"
+
+import {AddColumnButton, ColumnDialog, type ColumnDialogStep} from "./ColumnDialogs"
+import {ColumnHeaderActions} from "./ColumnHeaderActions"
+import {TestcaseRowMenu} from "./TestcaseRowMenu"
+import type {TestsetEditor} from "./useTestsetEditor"
+
+type GridEditor = Pick<
+    TestsetEditor,
+    | "isNew"
+    | "tableConfig"
+    | "readOnly"
+    | "columnEditBlocked"
+    | "deleteRows"
+    | "addColumn"
+    | "renameColumn"
+    | "deleteColumns"
+>
+
+const deletedRowsMessage = (count: number) =>
+    count === 1
+        ? "Deleted testcase. Save to apply changes."
+        : `Deleted ${count} testcase(s). Save to apply changes.`
+
+/**
+ * The testcase grid of a test set page: rows, the row menu, the column menus and the column
+ * steps, and the bulk delete. Every change goes through the editor: rows stay unsaved until
+ * the commit, and a column change on a saved test set saves a new version at once.
+ *
+ * A reader who may not edit gets the rows and "Copy ID" only. While a save runs
+ * (`editor.readOnly`) every change is off.
+ */
+export const TestsetGrid = ({
+    editor,
+    canEdit,
+    onOpenRow,
+    onColumnSaved,
+}: {
+    editor: GridEditor
+    canEdit: boolean
+    onOpenRow: (rowId: string) => void
+    /** Opens the version a column change saved. */
+    onColumnSaved: (revisionId: string) => void
+}) => {
+    const {tableConfig, readOnly, deleteRows} = editor
+    const [selected, setSelected] = useState<string[]>([])
+    const [step, setStep] = useState<ColumnDialogStep | null>(null)
+    const columns = useAtomValue(testcaseDataController.selectors.columns(tableConfig))
+
+    const deleteSelected = useCallback(() => {
+        if (readOnly || selected.length === 0) return
+        deleteRows(selected)
+        message.success(deletedRowsMessage(selected.length))
+        setSelected([])
+    }, [deleteRows, readOnly, selected])
+
+    const appendColumns = useMemo<ColumnDefs<TestcaseTableRow>>(
+        () => [
+            {
+                key: "__row_actions",
+                title: "",
+                width: 48,
+                fixed: "right",
+                render: (_value, row) => (
+                    <TestcaseRowMenu
+                        isNewRow={Boolean(row.__isNew)}
+                        canEdit={canEdit}
+                        deleteDisabled={readOnly}
+                        onEdit={() => onOpenRow(row.id)}
+                        onDelete={() => {
+                            if (readOnly) return
+                            deleteRows([row.id])
+                            message.success(deletedRowsMessage(1))
+                        }}
+                        onCopyId={() =>
+                            void copyToClipboard(row.id).then((copied) => {
+                                if (copied) message.success("Copied")
+                            })
+                        }
+                    />
+                ),
+            },
+        ],
+        [canEdit, deleteRows, onOpenRow, readOnly],
+    )
+
+    const renderColumnHeader = useCallback(
+        (header: EntityColumnHeader) => (
+            <ColumnHeaderActions
+                header={header}
+                blockedReason={editor.columnEditBlocked}
+                onRename={() => setStep({kind: "rename", columnKey: header.key})}
+                onDelete={() =>
+                    setStep(
+                        header.isGroup
+                            ? {
+                                  kind: "delete",
+                                  columnKey: header.key,
+                                  groupColumns: columns
+                                      .map((column) => column.key)
+                                      .filter((key) => key.startsWith(`${header.key}.`)),
+                              }
+                            : {kind: "delete", columnKey: header.key},
+                    )
+                }
+            />
+        ),
+        [columns, editor.columnEditBlocked],
+    )
+
+    const submitStep = useCallback(
+        (name: string) => {
+            if (step?.kind === "add") return editor.addColumn(name)
+            if (step?.kind === "rename") return editor.renameColumn(step.columnKey, name)
+            return editor.deleteColumns(step?.groupColumns ?? [name])
+        },
+        [editor, step],
+    )
+
+    const toolbar = canEdit ? (
+        <div className="flex items-center gap-2">
+            <SimpleTooltip
+                title={selected.length === 0 ? "Select testcases to delete" : "Delete selected"}
+            >
+                <span className="inline-flex">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={readOnly || selected.length === 0}
+                        onClick={deleteSelected}
+                    >
+                        <Trash aria-hidden size={14} />
+                        Delete
+                    </Button>
+                </span>
+            </SimpleTooltip>
+            <AddColumnButton
+                blockedReason={editor.columnEditBlocked}
+                onClick={() => setStep({kind: "add"})}
+            />
+        </div>
+    ) : null
+
+    return (
+        <>
+            <TestcaseTable
+                config={tableConfig}
+                selectable={canEdit}
+                selectedIds={selected}
+                onSelectionChange={setSelected}
+                selectionDisabled={readOnly}
+                onRowClick={(row) => {
+                    if (!row.__isSkeleton) onOpenRow(row.id)
+                }}
+                appendColumns={appendColumns}
+                renderColumnHeader={canEdit ? renderColumnHeader : undefined}
+                headerExtra={toolbar}
+            />
+            <ColumnDialog
+                step={step}
+                savesVersion={!editor.isNew}
+                onClose={() => setStep(null)}
+                onSubmit={submitStep}
+                onDone={(revisionId) => {
+                    setStep(null)
+                    if (revisionId) onColumnSaved(revisionId)
+                }}
+            />
+        </>
+    )
+}

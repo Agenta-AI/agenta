@@ -31,7 +31,8 @@ type ToolbarEditor = Pick<
  * of it: no buttons, and no prompt because nothing can be unsaved.
  *
  * `onImport` is optional: the Import button shows only when the page can open the import step.
- * `onRowAdded` lets the page open the new row in the drawer.
+ * `onRowAdded` lets the page open the new row in the drawer. The page holds `commitOpen`, so
+ * the testcase drawer can open the same commit step.
  */
 export const TestsetToolbar = ({
     editor,
@@ -41,6 +42,8 @@ export const TestsetToolbar = ({
     revisions,
     onImport,
     onRowAdded,
+    commitOpen,
+    onCommitOpenChange: setCommitOpen,
 }: {
     editor: ToolbarEditor
     routeId: string
@@ -50,9 +53,10 @@ export const TestsetToolbar = ({
     revisions: Pick<RevisionsList, "latestVersion" | "load" | "status">
     onImport?: () => void
     onRowAdded?: (rowId: string) => void
+    commitOpen: boolean
+    onCommitOpenChange: (open: boolean) => void
 }) => {
     const {isNew, hasUnsavedChanges, isSaving} = editor
-    const [commitOpen, setCommitOpen] = useState(false)
     const [discardOpen, setDiscardOpen] = useState(false)
 
     const guard = useTestsetLeaveGuard({
@@ -76,7 +80,7 @@ export const TestsetToolbar = ({
             setCommitOpen(false)
             guard.leave(testsetRevisionPath(base, revisionId))
         },
-        [base, editor, guard],
+        [base, editor, guard, setCommitOpen],
     )
 
     const handleAddRow = useCallback(() => {

@@ -177,6 +177,8 @@ export interface EntityTableProps<
     enableExport?: boolean
     /** Extra controls in the table toolbar, next to the settings button */
     headerExtra?: ReactNode
+    /** Loads the next page when the reader scrolls near the end. Without it the table shows one page. */
+    loadNextPage?: () => void
     /**
      * Type chip config. When omitted, a default config is built from
      * `getCellValue`/`getRowData` so chip rendering doesn't depend on each
@@ -198,6 +200,8 @@ export interface EntityTableProps<
 // ============================================================================
 // CONSTANTS
 // ============================================================================
+
+const noop = () => undefined
 
 /** Width for selection checkbox column */
 const SELECTION_COLUMN_WIDTH = 48
@@ -310,6 +314,7 @@ export function EntityTable<
     showSettings = true,
     enableExport = true,
     headerExtra,
+    loadNextPage,
     typeChips,
     store,
     pageSize,
@@ -378,19 +383,18 @@ export function EntityTable<
         () => ({
             scopeId: config.scopeId,
             pageSize: resolvedPageSize,
-            enableInfiniteScroll: false,
+            enableInfiniteScroll: Boolean(loadNextPage),
         }),
-        [config.scopeId, resolvedPageSize],
+        [config.scopeId, loadNextPage, resolvedPageSize],
     )
 
-    // Build pagination object for IVT (no-op for now — paginated mode TBD)
     const pagination = useMemo(
         () => ({
             rows,
-            loadNextPage: () => {},
-            resetPages: () => {},
+            loadNextPage: loadNextPage ?? noop,
+            resetPages: noop,
         }),
-        [rows],
+        [loadNextPage, rows],
     )
 
     // Handle row selection toggle
