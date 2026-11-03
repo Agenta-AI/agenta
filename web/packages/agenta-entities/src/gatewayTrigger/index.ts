@@ -93,10 +93,12 @@ export {
 } from "./core/scheduleBuilder"
 export type {CronCadence, CronTimeOfDay, ScheduleBuilderState} from "./core/scheduleBuilder"
 export {
+    FALLBACK_MESSAGE_SHAPE,
     getScheduleMessage,
     getScheduleMessagePreview,
     messageContentText,
     parseInputsFields,
+    misplacedMessageShape,
     remapMessageShape,
     setScheduleMessage,
 } from "./core/messageInputs"
