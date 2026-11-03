@@ -8,9 +8,9 @@ import {useTestsetLeaveGuard} from "@/features/testsets/detail/useTestsetLeaveGu
 
 /** A router that runs the route events the way the Pages Router does on `push`. */
 const router = vi.hoisted(() => {
-    const handlers = new Map<string, Set<(url: string) => void>>()
+    const handlers = new Map<string, Set<(url: string, options: {shallow: boolean}) => void>>()
     const emit = (name: string, url = "") => {
-        for (const handler of [...(handlers.get(name) ?? [])]) handler(url)
+        for (const handler of [...(handlers.get(name) ?? [])]) handler(url, {shallow: false})
     }
     return {
         handlers,
@@ -28,12 +28,12 @@ vi.mock("next/router", () => ({
     useRouter: () => ({
         push: router.push,
         events: {
-            on: (name: string, handler: (url: string) => void) => {
+            on: (name: string, handler: (url: string, options: {shallow: boolean}) => void) => {
                 const set = router.handlers.get(name) ?? new Set()
                 set.add(handler)
                 router.handlers.set(name, set)
             },
-            off: (name: string, handler: (url: string) => void) =>
+            off: (name: string, handler: (url: string, options: {shallow: boolean}) => void) =>
                 router.handlers.get(name)?.delete(handler),
             emit: (name: string) => router.emit(name),
         },
