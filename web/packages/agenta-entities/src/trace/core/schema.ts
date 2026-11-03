@@ -61,7 +61,6 @@ export const SpanKindEnum = z.enum([
     "SPAN_KIND_PRODUCER",
     "SPAN_KIND_CONSUMER",
 ])
-export type SpanKind = z.infer<typeof SpanKindEnum>
 
 export const StatusCodeEnum = z.enum(["STATUS_CODE_UNSET", "STATUS_CODE_OK", "STATUS_CODE_ERROR"])
 export type StatusCode = z.infer<typeof StatusCodeEnum>
@@ -188,27 +187,6 @@ export interface TraceSpanNode extends TraceSpan {
     children?: TraceSpan[] | null
 }
 
-export const traceSpanNodeSchema: z.ZodType<TraceSpanNode> = z.lazy(() =>
-    baseSpanFieldsSchema
-        .merge(timestampFieldsSchema)
-        .merge(auditFieldsSchema)
-        .extend({
-            spans: z
-                .record(z.string(), z.union([traceSpanSchema, z.array(traceSpanSchema)]))
-                .optional()
-                .nullable(),
-            key: z.string().optional(),
-            invocationIds: z
-                .object({
-                    trace_id: z.string(),
-                    span_id: z.string(),
-                })
-                .optional()
-                .nullable(),
-            children: z.array(traceSpanSchema).optional().nullable(),
-        }),
-)
-
 // --- RESPONSE WRAPPERS -------------------------------------------------------
 
 export const tracesResponseSchema = z.object({
@@ -269,7 +247,6 @@ export const tracesArrayResponseSchema = z.object({
     count: z.number().optional(),
     traces: z.array(traceOutputSchema).optional().nullable(),
 })
-export type TracesArrayResponse = z.infer<typeof tracesArrayResponseSchema>
 
 // Cursor/time-window pagination block (Fern `Windowing`). Kept lenient — the
 // FE only reads it back to pass `next`/`oldest`/`newest` to the next page.
@@ -322,13 +299,6 @@ export const analyticsResponseSchema = z.object({
     buckets: z.array(metricsBucketSchema).optional().nullable(),
 })
 export type AnalyticsResponse = z.infer<typeof analyticsResponseSchema>
-
-// Combined response type for list queries
-export interface TraceListResponse {
-    traces: TraceSpanNode[]
-    count: number
-    nextCursor?: string
-}
 
 // ============================================================================
 // PARSING UTILITIES

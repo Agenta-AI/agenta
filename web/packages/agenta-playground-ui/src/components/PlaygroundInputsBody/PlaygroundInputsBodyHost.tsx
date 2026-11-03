@@ -18,12 +18,9 @@
  *     SingleLayout.
  */
 
-import {useCallback, useMemo} from "react"
+import {useMemo} from "react"
 
-import {loadableController} from "@agenta/entities/runnable"
-import {executionItemController, playgroundController} from "@agenta/playground"
-import {filterUnreferencedColumnsForSource} from "@agenta/playground/state"
-import {atom, useAtomValue, useSetAtom} from "jotai"
+import {usePlaygroundInputsModel} from "../../hooks/usePlaygroundInputsModel"
 
 import {PlaygroundInputsBody} from "./PlaygroundInputsBody"
 import type {
@@ -65,51 +62,12 @@ export function PlaygroundInputsBodyHost({
     sections,
     templateFormat,
 }: PlaygroundInputsBodyHostProps) {
-    const visibility = useAtomValue(
-        useMemo(
-            () =>
-                executionItemController.selectors.inputsVisibility({
-                    testcaseId: rowId,
-                    downstreamKey,
-                }),
-            [rowId, downstreamKey],
-        ),
-    )
-
-    // Read the input port schema map so we can inject helpText + declared
-    // port type + JSON-schema fragment onto each variable entry:
-    //   - `helpText`       → evaluator envelope variables (`inputs`/`outputs`)
-    //                          keep the legacy guidance tooltip.
-    //   - `expectedType`   → drives the default view mode + TypeChip for
-    //                          variables with no value yet. Without it, a `geo`
-    //                          port referenced via `{{geo.region}}` opens as a
-    //                          text input with a `null` chip instead of Form +
-    //                          `object` chip.
-    //   - `expectedSchema` → seeds Form / JSON / YAML modes when no value exists
-    //                          with an empty-value skeleton matching the expected
-    //                          sub-fields (so `geo` shows `region`, `subregion`,
-    //                          `coordinates.lat/lng` before the user types).
-    const portSchemaMap = useAtomValue(
-        executionItemController.selectors.inputPortSchemaMap,
-    ) as Record<string, {helpText?: string; type?: string; schema?: unknown}>
-
-    const enrichedInputs = useMemo<PlaygroundInputsBodyVariable[]>(
-        () =>
-            visibility.inputs.map((v) => {
-                const portSchema = portSchemaMap[v.name]
-                const help = portSchema?.helpText
-                const type = portSchema?.type as PlaygroundInputsBodyVariable["expectedType"]
-                const schema = portSchema?.schema
-                if (!help && !type && !schema) return v
-                return {
-                    ...v,
-                    ...(help ? {helpText: help} : {}),
-                    ...(type ? {expectedType: type} : {}),
-                    ...(schema ? {expectedSchema: schema} : {}),
-                }
-            }),
-        [visibility.inputs, portSchemaMap],
-    )
+    const {
+        inputs: enrichedInputs,
+        unreferencedColumns,
+        connectedSourceName,
+        setValue: handleValueChange,
+    } = usePlaygroundInputsModel({rowId, downstreamKey})
 
     // Partition enriched inputs into sections when `sections` is provided.
     // Variables not listed in any section are appended as ungrouped at the
@@ -134,47 +92,6 @@ export function PlaygroundInputsBodyHost({
         }
         return groups
     }, [sections, enrichedInputs])
-
-    const setCellValue = useSetAtom(executionItemController.actions.setTestcaseCellValue)
-
-    // Connected-source name (set when the row is sourced from a testset
-    // rather than authored locally). Every card uses this to surface the
-    // unified database indicator — same per-card, gated by the global
-    // loadable state.
-    const loadableId = useAtomValue(
-        useMemo(() => playgroundController.selectors.loadableId(), []),
-    ) as string | null
-    // Build a single read-only atom that returns the connected-source
-    // descriptor (or null when no loadable is mounted). The cast through
-    // `unknown` keeps the conditional atom typeable — the runtime always
-    // returns the `{id, name, type}` shape (or null), but the atom-family
-    // factory has its own readonly atom type that wouldn't normally union
-    // cleanly with a fallback `atom(() => null)`.
-    const connectedSourceAtom = useMemo(
-        () =>
-            loadableId
-                ? loadableController.selectors.connectedSource(loadableId)
-                : (atom(() => null) as unknown as ReturnType<
-                      typeof loadableController.selectors.connectedSource
-                  >),
-        [loadableId],
-    )
-    const connectedSource = useAtomValue(connectedSourceAtom) as {
-        id: string | null
-        name: string | null
-    } | null
-    const connectedSourceName = connectedSource?.id ? (connectedSource.name ?? null) : null
-    const unreferencedColumns = filterUnreferencedColumnsForSource(
-        visibility.unreferencedColumns,
-        connectedSource?.id,
-    )
-
-    const handleValueChange = useCallback(
-        (name: string, value: unknown) => {
-            setCellValue({testcaseId: rowId, column: name, value})
-        },
-        [setCellValue, rowId],
-    )
 
     return (
         <PlaygroundInputsBody

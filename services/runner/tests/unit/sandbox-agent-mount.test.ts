@@ -10,6 +10,18 @@
  */
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import {
   signSessionMountCredentials,
@@ -22,6 +34,10 @@ import {
   mountHarnessSessionDirs,
   storeReachableFromSandbox,
   shellQuote,
+  waitForMountReady,
+  remoteMountLogFile,
+  remoteMountScript,
+  REMOTE_MOUNT_NOT_ALIVE_EXIT,
   type MountCredentials,
 } from "../../src/engines/sandbox_agent/mount.ts";
 
@@ -170,7 +186,10 @@ describe("harnessSessionMounts (S4)", () => {
   });
 
   it("an unknown/unlisted harness mounts nothing (callers fall back to cwd only)", () => {
-    assert.deepEqual(harnessSessionMounts("unknown-harness", "/home/agent"), []);
+    assert.deepEqual(
+      harnessSessionMounts("unknown-harness", "/home/agent"),
+      [],
+    );
   });
 });
 
@@ -184,26 +203,32 @@ describe("mountHarnessSessionDirs (S4, remote-only)", () => {
     ];
     const sandbox = { runProcess: async () => ({ exitCode: 0 }) };
 
-    await mountHarnessSessionDirs(sandbox, "sess-1", dirs, "https://tunnel.example", {
-      apiBase: "http://api:8000",
-      authorization: "ApiKey abc",
-      log: SILENT,
-      signSessionMountCredentials: async (_sessionId, _deps, name) => {
-        signedNames.push(name ?? "cwd");
-        if (name === "pi-sessions") return null; // simulate one failed sign
-        return {
-          region: "us-east-1",
-          bucket: "agenta-store",
-          prefix: `mounts/proj-1/${name}`,
-          accessKey: "AK",
-          secretKey: "SK",
-        };
+    await mountHarnessSessionDirs(
+      sandbox,
+      "sess-1",
+      dirs,
+      "https://tunnel.example",
+      {
+        apiBase: "http://api:8000",
+        authorization: "ApiKey abc",
+        log: SILENT,
+        signSessionMountCredentials: async (_sessionId, _deps, name) => {
+          signedNames.push(name ?? "cwd");
+          if (name === "pi-sessions") return null; // simulate one failed sign
+          return {
+            region: "us-east-1",
+            bucket: "agenta-store",
+            prefix: `mounts/proj-1/${name}`,
+            accessKey: "AK",
+            secretKey: "SK",
+          };
+        },
+        mountStorageRemote: async (_sandbox, path) => {
+          mountedPaths.push(path);
+          return true;
+        },
       },
-      mountStorageRemote: async (_sandbox, path) => {
-        mountedPaths.push(path);
-        return true;
-      },
-    });
+    );
 
     assert.deepEqual(signedNames, ["claude-projects", "pi-sessions"]);
     // Only the successfully-signed dir got mounted; the failed one was skipped, not fatal.
@@ -213,15 +238,21 @@ describe("mountHarnessSessionDirs (S4, remote-only)", () => {
   it("is a no-op for an empty dir list", async () => {
     let called = false;
     const sandbox = { runProcess: async () => ({ exitCode: 0 }) };
-    await mountHarnessSessionDirs(sandbox, "sess-1", [], "https://tunnel.example", {
-      apiBase: "http://api:8000",
-      authorization: "ApiKey abc",
-      log: SILENT,
-      signSessionMountCredentials: async () => {
-        called = true;
-        return null;
+    await mountHarnessSessionDirs(
+      sandbox,
+      "sess-1",
+      [],
+      "https://tunnel.example",
+      {
+        apiBase: "http://api:8000",
+        authorization: "ApiKey abc",
+        log: SILENT,
+        signSessionMountCredentials: async () => {
+          called = true;
+          return null;
+        },
       },
-    });
+    );
     assert.equal(called, false);
   });
 });
@@ -245,6 +276,58 @@ function notMountedThenAlive(): (cwd: string) => Promise<boolean> {
 }
 
 describe("mountStorage", () => {
+  it("cancels a slow local mount promptly and stops a geesefs handle that arrives late", async () => {
+    const controller = new AbortController();
+    let mountStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      mountStarted = resolve;
+    });
+    let finishMount!: (attempt: { stop: () => Promise<void> }) => void;
+    const lateMount = new Promise<{ stop: () => Promise<void> }>((resolve) => {
+      finishMount = resolve;
+    });
+    let stopped = 0;
+    const mount = mountStorage("/work/cwd", CREDS, {
+      signal: controller.signal,
+      checkMounted: async () => false,
+      runGeesefs: async () => {
+        mountStarted();
+        return lateMount;
+      },
+      unmountDeps: {
+        runUnmount: async () => {},
+        checkMountpoint: async () => "gone",
+      },
+      log: SILENT,
+    });
+
+    await started;
+    controller.abort();
+    await assert.rejects(
+      () =>
+        Promise.race([
+          mount,
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error("local mount did not cancel")),
+              4_000,
+            ),
+          ),
+        ]),
+      /acquisition was aborted/,
+    );
+
+    finishMount({
+      stop: async () => {
+        stopped += 1;
+      },
+    });
+    for (let i = 0; i < 10 && stopped === 0; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    assert.equal(stopped, 1, "the late geesefs process is stopped");
+  });
+
   it("builds the geesefs command with creds in env, not argv", async () => {
     let seenArgs: string[] = [];
     let seenEnv: Record<string, string> = {};
@@ -270,6 +353,7 @@ describe("mountStorage", () => {
     assert.ok(seenArgs.includes("--endpoint"));
     assert.ok(seenArgs.includes("http://seaweedfs:8333"));
     assert.ok(seenArgs.includes("allow_other"));
+    assert.ok(seenArgs.includes("--no-expire-multipart"));
     // -f keeps geesefs foreground (tracked child). Without it the detached daemon dies under
     // write-heavy load (git clone) and the mount goes ENOTCONN.
     assert.ok(seenArgs.includes("-f"));
@@ -354,7 +438,9 @@ describe("mountStorage", () => {
         runGeesefs: async () => ({
           stop: async () => {
             calls.push("stop-unconfirmed");
-            throw new Error("geesefs process did not exit after SIGTERM and SIGKILL");
+            throw new Error(
+              "geesefs process did not exit after SIGTERM and SIGKILL",
+            );
           },
         }),
         unmountDeps: {
@@ -371,28 +457,173 @@ describe("mountStorage", () => {
   });
 
   for (const detachState of ["mounted", "inconclusive"] as const) {
-    it("fails clearly when the failed mount remains " + detachState, async () => {
-      let probes = 0;
-      await assert.rejects(
-        mountStorage("/work/cwd", CREDS, {
-          checkMounted: async () => false,
-          runGeesefs: async () => {
-            throw new Error("fuse: device not found");
-          },
-          unmountDeps: {
-            runUnmount: async () => {},
-            checkMountpoint: async () => {
-              probes += 1;
-              return probes === 1 ? "gone" : detachState;
+    it(
+      "fails clearly when the failed mount remains " + detachState,
+      async () => {
+        let probes = 0;
+        await assert.rejects(
+          mountStorage("/work/cwd", CREDS, {
+            checkMounted: async () => false,
+            runGeesefs: async () => {
+              throw new Error("fuse: device not found");
             },
-          },
-          log: SILENT,
-        }),
-        /detach could not be confirmed.*refusing ephemeral cwd fallback.*fuse: device not found/,
-      );
-      assert.equal(probes, 2);
-    });
+            unmountDeps: {
+              runUnmount: async () => {},
+              checkMountpoint: async () => {
+                probes += 1;
+                return probes === 1 ? "gone" : detachState;
+              },
+            },
+            log: SILENT,
+          }),
+          /detach could not be confirmed.*refusing ephemeral cwd fallback.*fuse: device not found/,
+        );
+        assert.equal(probes, 2);
+      },
+    );
   }
+});
+
+describe("mountStorage readiness", () => {
+  it("probes after the attempt and fails when the mount is not alive", async () => {
+    let checks = 0;
+    const calls: string[] = [];
+    const ok = await mountStorage("/work/cwd", CREDS, {
+      checkMounted: async () => {
+        checks += 1;
+        return false;
+      },
+      runGeesefs: async () => ({
+        stop: async () => {
+          calls.push("stop");
+        },
+      }),
+      unmountDeps: {
+        runUnmount: async () => {},
+        checkMountpoint: async () => "gone",
+      },
+      log: SILENT,
+    });
+    assert.equal(ok, false);
+    assert.equal(checks, 2);
+    assert.deepEqual(calls, ["stop"]);
+  });
+
+  it("an abort during the attempt still stops it and throws", async () => {
+    const controller = new AbortController();
+    const calls: string[] = [];
+    const mount = mountStorage("/work/cwd", CREDS, {
+      signal: controller.signal,
+      checkMounted: async () => false,
+      runGeesefs: async () => {
+        controller.abort();
+        return {
+          stop: async () => {
+            calls.push("stop");
+          },
+        };
+      },
+      unmountDeps: {
+        runUnmount: async () => {
+          calls.push("unmount");
+        },
+        checkMountpoint: async () => "gone",
+      },
+      log: SILENT,
+    });
+    await assert.rejects(mount, /acquisition was aborted/);
+    for (let i = 0; i < 10 && !calls.includes("stop"); i++) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    assert.ok(calls.includes("stop"), "the alive attempt is stopped on abort");
+  });
+});
+
+describe("mountStorage without FUSE", () => {
+  it("returns false at once, without probing or starting geesefs, and warns once", async () => {
+    const logs: string[] = [];
+    let checks = 0;
+    const deps = {
+      fuseDevice: "/nonexistent/fuse-device",
+      checkMounted: async () => {
+        checks += 1;
+        return false;
+      },
+      log: (m: string) => logs.push(m),
+    };
+    const started = Date.now();
+    assert.equal(await mountStorage("/work/cwd", CREDS, deps), false);
+    assert.equal(await mountStorage("/work/cwd-agent", CREDS, deps), false);
+    assert.ok(Date.now() - started < 1_000);
+    assert.equal(checks, 0);
+    assert.equal(logs.filter((l) => l.includes("no /dev/fuse")).length, 1);
+  });
+});
+
+describe("waitForMountReady", () => {
+  const clock = () => {
+    let t = 0;
+    const sleeps: number[] = [];
+    return {
+      now: () => t,
+      sleep: async (ms: number) => {
+        sleeps.push(ms);
+        t += ms;
+      },
+      sleeps,
+    };
+  };
+
+  it("returns at the first alive probe with no sleep", async () => {
+    const c = clock();
+    const ok = await waitForMountReady({
+      check: async () => true,
+      sleep: c.sleep,
+      now: c.now,
+    });
+    assert.equal(ok, true);
+    assert.deepEqual(c.sleeps, []);
+  });
+
+  it("starts at 50 ms and doubles to a 100 ms cap", async () => {
+    const c = clock();
+    let probes = 0;
+    const ok = await waitForMountReady({
+      check: async () => ++probes === 8,
+      sleep: c.sleep,
+      now: c.now,
+    });
+    assert.equal(ok, true);
+    assert.deepEqual(c.sleeps, [50, 100, 100, 100, 100, 100, 100]);
+  });
+
+  it("gives up after the 15 s timeout", async () => {
+    const c = clock();
+    const ok = await waitForMountReady({
+      check: async () => false,
+      sleep: c.sleep,
+      now: c.now,
+    });
+    assert.equal(ok, false);
+    assert.equal(
+      c.sleeps.reduce((a, b) => a + b, 0),
+      15_000,
+    );
+  });
+
+  it("stops at once when geesefs exited", async () => {
+    const c = clock();
+    let probes = 0;
+    const ok = await waitForMountReady({
+      check: async () => (probes++, false),
+      sleep: c.sleep,
+      now: c.now,
+      exited: () => probes >= 2,
+    });
+    assert.equal(ok, false);
+    assert.equal(probes, 2);
+    assert.deepEqual(c.sleeps, [50]);
+  });
 });
 
 describe("unmountStorage", () => {
@@ -468,7 +699,7 @@ describe("unmountStorage confirmation", () => {
 describe("discoverTunnelEndpoint (remote)", () => {
   it("prefers the https public_url from the ngrok agent API", async () => {
     const url = await discoverTunnelEndpoint({
-      ngrokApi: "http://ngrok:4040",
+      ngrokApi: "http://ngrok-mounts:4040",
       fetchImpl: (async () =>
         okResponse({
           tunnels: [
@@ -490,6 +721,113 @@ describe("discoverTunnelEndpoint (remote)", () => {
     assert.equal(url, null);
   });
 
+  it("picks the tunnel forwarding to the store, not the first one listed", async () => {
+    const url = await discoverTunnelEndpoint({
+      storeEndpoint: "http://seaweedfs:8333",
+      fetchImpl: (async () =>
+        okResponse({
+          tunnels: [
+            {
+              proto: "https",
+              public_url: "https://ingress.example",
+              config: { addr: "http://traefik:80" },
+            },
+            {
+              proto: "https",
+              public_url: "https://store.example",
+              config: { addr: "http://seaweedfs:8333" },
+            },
+          ],
+        })) as unknown as typeof fetch,
+      log: SILENT,
+    });
+    assert.equal(url, "https://store.example");
+  });
+
+  it("returns null when the store endpoint itself cannot be parsed", async () => {
+    // Falling through to "first https tunnel wins" here would hand back the ingress
+    // tunnel, which is the failure this matching exists to prevent.
+    const url = await discoverTunnelEndpoint({
+      storeEndpoint: "   ",
+      fetchImpl: (async () =>
+        okResponse({
+          tunnels: [
+            {
+              proto: "https",
+              public_url: "https://ingress.example",
+              config: { addr: "http://traefik:80" },
+            },
+          ],
+        })) as unknown as typeof fetch,
+      log: SILENT,
+    });
+    assert.equal(url, null);
+  });
+
+  it("prefers the https listing when the store's upstream is listed twice", async () => {
+    // One `ngrok http` can appear as both an http and an https entry over the same
+    // upstream. geesefs would then reach the store unencrypted over the internet.
+    const url = await discoverTunnelEndpoint({
+      storeEndpoint: "http://seaweedfs:8333",
+      fetchImpl: (async () =>
+        okResponse({
+          tunnels: [
+            {
+              proto: "http",
+              public_url: "http://store.example",
+              config: { addr: "http://seaweedfs:8333" },
+            },
+            {
+              proto: "https",
+              public_url: "https://store.example",
+              config: { addr: "http://seaweedfs:8333" },
+            },
+          ],
+        })) as unknown as typeof fetch,
+      log: SILENT,
+    });
+    assert.equal(url, "https://store.example");
+  });
+
+  it("returns null rather than another tunnel's URL when none forwards to the store", async () => {
+    // The development compose files point the agent at the platform ingress, so a
+    // live tunnel is no longer evidence that the store is reachable. Handing back
+    // the ingress URL would mount an HTTP API as an object store.
+    const url = await discoverTunnelEndpoint({
+      storeEndpoint: "http://seaweedfs:8333",
+      fetchImpl: (async () =>
+        okResponse({
+          tunnels: [
+            {
+              proto: "https",
+              public_url: "https://ingress.example",
+              config: { addr: "http://traefik:80" },
+            },
+          ],
+        })) as unknown as typeof fetch,
+      log: SILENT,
+    });
+    assert.equal(url, null);
+  });
+
+  it("matches the upstream on host and port however the agent spells it", async () => {
+    const url = await discoverTunnelEndpoint({
+      storeEndpoint: "http://seaweedfs:8333",
+      fetchImpl: (async () =>
+        okResponse({
+          tunnels: [
+            {
+              proto: "https",
+              public_url: "https://store.example",
+              config: { addr: "seaweedfs:8333" },
+            },
+          ],
+        })) as unknown as typeof fetch,
+      log: SILENT,
+    });
+    assert.equal(url, "https://store.example");
+  });
+
   it("returns null when the agent API is unreachable", async () => {
     const url = await discoverTunnelEndpoint({
       fetchImpl: (async () => {
@@ -502,30 +840,88 @@ describe("discoverTunnelEndpoint (remote)", () => {
 });
 
 describe("mountStorageRemote", () => {
-  it("detaches an existing mount before starting geesefs", async () => {
-    const commands: string[] = [];
+  const isMountScript = (opts: { args?: string[] }) =>
+    (opts.args?.[1] ?? "").includes("geesefs --log-file");
+
+  it("cancels a slow Daytona mount command promptly", async () => {
+    const controller = new AbortController();
+    let mountStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      mountStarted = resolve;
+    });
     const sandbox = {
       runProcess: async (opts: { args?: string[] }) => {
-        const command = opts.args?.[1] ?? "";
-        commands.push(command);
+        if (isMountScript(opts)) {
+          mountStarted();
+          return new Promise<{ exitCode: number }>(() => {});
+        }
         return { exitCode: 0 };
       },
     };
-
-    const ok = await mountStorageRemote(sandbox, "/home/sandbox/work", CREDS, {
+    const mount = mountStorageRemote(sandbox, "/home/sandbox/work", CREDS, {
       endpoint: "https://abc.ngrok.io",
-      aliveAttempts: 1,
+      signal: controller.signal,
       log: SILENT,
     });
 
-    assert.equal(ok, true);
-    const unmountIndex = commands.findIndex((command) => command.includes("fusermount -u"));
-    const mountIndex = commands.findIndex((command) => command.includes("geesefs --log-file"));
-    assert.ok(unmountIndex >= 0);
-    assert.ok(mountIndex > unmountIndex, "unmount attempt precedes the geesefs mount");
+    await started;
+    controller.abort();
+    await assert.rejects(
+      () =>
+        Promise.race([
+          mount,
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error("remote mount did not cancel")),
+              4_000,
+            ),
+          ),
+        ]),
+      /acquisition was aborted/,
+    );
   });
 
-  it("execs geesefs IN the sandbox with the tunnel endpoint and creds in env", async () => {
+  it("detaches a remote mount that completes after cancellation", async () => {
+    const controller = new AbortController();
+    const unmountCalls: string[] = [];
+    let finishMount!: (value: { exitCode: number }) => void;
+    const mountFinished = new Promise<{ exitCode: number }>((resolve) => {
+      finishMount = resolve;
+    });
+    let mountStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      mountStarted = resolve;
+    });
+    const sandbox = {
+      runProcess: async (opts: { command: string; args?: string[] }) => {
+        if (isMountScript(opts)) {
+          mountStarted();
+          return mountFinished;
+        }
+        unmountCalls.push(opts.args?.[1] ?? "");
+        return { exitCode: 0 };
+      },
+    };
+    const mount = mountStorageRemote(sandbox, "/home/sandbox/work", CREDS, {
+      endpoint: "https://abc.ngrok.io",
+      signal: controller.signal,
+      log: SILENT,
+    });
+
+    await started;
+    controller.abort();
+    await assert.rejects(mount, /acquisition was aborted/);
+    finishMount({ exitCode: 0 });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.equal(
+      unmountCalls.length,
+      2,
+      "detaches on cancellation and again after the late mount completes",
+    );
+  });
+
+  it("mounts with ONE exec: detach, mkdir, start, and the alive poll in one script", async () => {
     const calls: Array<{
       command: string;
       args?: string[];
@@ -548,150 +944,191 @@ describe("mountStorageRemote", () => {
     });
 
     assert.equal(ok, true);
-    // geesefs runs through `sh -c "geesefs ... &"` so it backgrounds and the RPC returns.
-    const geesefs = calls.find(
-      (c) => c.command === "sh" && (c.args?.[1] ?? "").includes("geesefs"),
-    );
-    assert.ok(geesefs);
-    const shellCmd = geesefs.args![1];
+    assert.equal(calls.length, 1, "one round trip to the sandbox");
+    const [call] = calls;
+    assert.equal(call!.command, "sh");
+    const script = call!.args![1]!;
+    const order = [
+      "fusermount -u",
+      "mkdir -p",
+      "geesefs --log-file",
+      "mountpoint -q",
+    ].map((needle) => script.indexOf(needle));
+    assert.ok(order.every((i) => i >= 0));
+    assert.deepEqual([...order].sort((x, y) => x - y), order, "detach, mkdir, start, poll");
     // Tunnel endpoint overrides the in-network one.
-    assert.ok(shellCmd.includes("--endpoint' 'https://abc.ngrok.io"));
-    assert.ok(shellCmd.includes("agenta-store:mounts/proj-1/mount-9"));
-    assert.ok(shellCmd.includes("/home/sandbox/work"));
-    // Backgrounded so the RPC returns instead of blocking on a foreground mount.
-    assert.ok(shellCmd.trimEnd().endsWith("&"));
-    // Scoped creds cross into the sandbox via env only, never the shell string.
-    assert.equal(geesefs.env!.AWS_ACCESS_KEY_ID, "SCOPED-AK");
-    assert.equal(geesefs.env!.AWS_SESSION_TOKEN, "SCOPED-TOK");
-    assert.ok(!shellCmd.includes("SCOPED-AK"));
+    assert.ok(script.includes("--endpoint' 'https://abc.ngrok.io"));
+    assert.ok(script.includes("agenta-store:mounts/proj-1/mount-9"));
+    // Backgrounded (no -f) so the script can go on to poll and then exit.
+    assert.ok(!/\s'-f'(\s|$)/.test(script), "remote geesefs must not run foreground");
+    assert.match(script, /geesefs --log-file [^\n]*2>&1 &$/m);
+    // Scoped creds cross into the sandbox via env only, never the script text.
+    assert.equal(call!.env!.AWS_ACCESS_KEY_ID, "SCOPED-AK");
+    assert.equal(call!.env!.AWS_SESSION_TOKEN, "SCOPED-TOK");
+    assert.ok(!script.includes("SCOPED-AK"));
   });
 
-  it("returns false on a non-zero geesefs exit (no throw)", async () => {
-    const sandbox = {
-      runProcess: async (opts: { command: string; args?: string[] }) =>
-        opts.command === "sh" && (opts.args?.[1] ?? "").includes("geesefs")
-          ? { exitCode: 1, stderr: "mount error" }
-          : { exitCode: 0 },
-    };
-    const ok = await mountStorageRemote(sandbox, "/home/sandbox/work", CREDS, {
-      endpoint: "https://abc.ngrok.io",
-      log: SILENT,
-    });
-    assert.equal(ok, false);
-  });
-
-  it("backgrounds geesefs (no -f) so the runProcess RPC returns", async () => {
-    let shellCmd = "";
-    const sandbox = {
-      runProcess: async (opts: { command: string; args?: string[] }) => {
-        if (opts.command === "sh" && (opts.args?.[1] ?? "").includes("geesefs"))
-          shellCmd = opts.args![1];
-        return { exitCode: 0 };
-      },
-    };
-
-    await mountStorageRemote(sandbox, "/home/sandbox/work", CREDS, {
-      endpoint: "https://abc.ngrok.io",
-      log: SILENT,
-    });
-
-    // A foreground geesefs (-f) never returns, so `runProcess` blocks until its timeout kills
-    // the mount it just made; the trailing `&` backgrounds it instead.
-    assert.ok(!/\s-f(\s|$)/.test(shellCmd), "remote geesefs must not run foreground");
-    assert.ok(shellCmd.trimEnd().endsWith("&"), "geesefs must be backgrounded");
-  });
-
-  it("returns false when the mount never comes alive", async () => {
-    // geesefs backgrounds cleanly (exit 0) but the FUSE channel never serves I/O. Without the
-    // liveness poll this returned true and the next mkdir hit a dead mount ("Stream Error").
-    const sandbox = {
-      runProcess: async (opts: { args?: string[] }) => ({
-        exitCode: opts.args?.some((a) => a.includes("mountpoint")) ? 1 : 0,
-      }),
-    };
-
-    const ok = await mountStorageRemote(sandbox, "/home/sandbox/work", CREDS, {
-      endpoint: "https://abc.ngrok.io",
-      aliveAttempts: 2,
-      log: SILENT,
-    });
-    assert.equal(ok, false);
-  });
-
-  it("returns true once the mountpoint probe succeeds", async () => {
-    let probes = 0;
+  it("returns false and detaches when the mount never comes alive", async () => {
+    const execs: string[] = [];
+    const logs: string[] = [];
     const sandbox = {
       runProcess: async (opts: { args?: string[] }) => {
-        if (opts.args?.some((a) => a.includes("mountpoint"))) {
-          probes += 1;
-          return { exitCode: probes >= 2 ? 0 : 1 }; // alive on the second poll
-        }
-        return { exitCode: 0 };
+        execs.push(opts.args?.[1] ?? "");
+        return isMountScript(opts)
+          ? {
+              exitCode: REMOTE_MOUNT_NOT_ALIVE_EXIT,
+              result: "geesefs: access denied",
+            }
+          : { exitCode: 0 };
       },
     };
-
     const ok = await mountStorageRemote(sandbox, "/home/sandbox/work", CREDS, {
       endpoint: "https://abc.ngrok.io",
-      log: SILENT,
+      log: (m) => logs.push(m),
     });
-    assert.equal(ok, true);
-    assert.equal(probes, 2, "polls until the mount serves I/O");
+    assert.equal(ok, false);
+    assert.equal(execs.length, 2);
+    assert.ok(execs[1]!.includes("fusermount -u '/home/sandbox/work'"));
+    assert.ok(execs[1]!.includes("umount -l '/home/sandbox/work'"));
+    assert.match(logs.join("\n"), /remote mount not alive.*access denied/);
   });
 
-  it("unmounts the dead FUSE node before giving up when the alive poll never succeeds", async () => {
-    // geesefs may register the mountpoint without ever serving I/O. If nothing detaches it, it
-    // shadows cwd and every later file op on the sandbox hangs until the run limit kills the turn.
-    const unmountCalls: string[] = [];
+  it("returns false and detaches on any other non-zero exit (no throw)", async () => {
+    const execs: string[] = [];
     const sandbox = {
-      runProcess: async (opts: { command: string; args?: string[] }) => {
-        const shellCmd = opts.args?.[1] ?? "";
-        if (opts.command === "sh" && /mountpoint -q/.test(shellCmd)) {
-          return { exitCode: 1 }; // never alive
-        }
-        if (
-          opts.command === "sh" &&
-          (shellCmd.includes("fusermount") || shellCmd.includes("umount"))
-        ) {
-          unmountCalls.push(shellCmd);
-          return { exitCode: 0 };
-        }
+      runProcess: async (opts: { args?: string[] }) => {
+        execs.push(opts.args?.[1] ?? "");
+        return isMountScript(opts)
+          ? { exitCode: 1, stderr: "mount error" }
+          : { exitCode: 0 };
+      },
+    };
+    const ok = await mountStorageRemote(sandbox, "/home/sandbox/work", CREDS, {
+      endpoint: "https://abc.ngrok.io",
+      log: SILENT,
+    });
+    assert.equal(ok, false);
+    assert.equal(execs.length, 2, "the mount, then the detach");
+  });
+
+  it("returns false and detaches when the exec throws", async () => {
+    const execs: string[] = [];
+    const sandbox = {
+      runProcess: async (opts: { args?: string[] }) => {
+        execs.push(opts.args?.[1] ?? "");
+        if (isMountScript(opts)) throw new Error("exec timed out");
         return { exitCode: 0 };
       },
     };
-
     const ok = await mountStorageRemote(sandbox, "/home/sandbox/work", CREDS, {
       endpoint: "https://abc.ngrok.io",
-      aliveAttempts: 2,
       log: SILENT,
     });
-
     assert.equal(ok, false);
-    assert.equal(
-      unmountCalls.length,
-      2,
-      "cleans before mounting and again after the alive check fails",
-    );
-    assert.ok(unmountCalls[1].includes("fusermount -u '/home/sandbox/work'"));
-    assert.ok(unmountCalls[1].includes("umount -l '/home/sandbox/work'"));
+    assert.equal(execs.length, 2);
   });
 
   it("uses the store's own endpoint when no tunnel is passed", async () => {
-    let shellCmd = "";
+    let script = "";
     const sandbox = {
       runProcess: async (opts: { command: string; args?: string[] }) => {
-        if (opts.command === "sh" && (opts.args?.[1] ?? "").includes("geesefs"))
-          shellCmd = opts.args![1];
+        if (isMountScript(opts)) script = opts.args![1]!;
         return { exitCode: 0 };
       },
     };
-    // CREDS.endpoint is the real store URL; with no override geesefs must use it, not the tunnel.
     await mountStorageRemote(sandbox, "/home/sandbox/work", CREDS, {
       log: SILENT,
     });
     assert.ok(
-      shellCmd.includes(`--endpoint' '${CREDS.endpoint}`),
+      script.includes(`--endpoint' '${CREDS.endpoint}`),
       "falls back to the store's own endpoint",
     );
+  });
+});
+
+describe("remoteMountScript in a real shell", () => {
+  // Stub geesefs/mountpoint/fusermount on PATH, run the script with sh, and check the outcome.
+  const withStubs = (opts: {
+    aliveAfterProbes?: number;
+    lsHangs?: boolean;
+    mountpointHangs?: boolean;
+    aliveSeconds: number;
+  }) => {
+    const dir = mkdtempSync(join(tmpdir(), "agenta-remote-mount-"));
+    const bin = join(dir, "bin");
+    mkdirSync(bin);
+    const cwd = join(dir, "work");
+    const stub = (name: string, body: string) => {
+      writeFileSync(join(bin, name), `#!/bin/sh\n${body}\n`);
+      chmodSync(join(bin, name), 0o755);
+    };
+    stub("geesefs", `echo started >> ${dir}/geesefs.calls; echo "geesefs log line"`);
+    stub("fusermount", `echo "$@" >> ${dir}/unmount.calls; exit 0`);
+    stub(
+      "mountpoint",
+      `n=$(cat ${dir}/probes 2>/dev/null || echo 0); n=$((n+1)); echo $n > ${dir}/probes; ` +
+        (opts.mountpointHangs ? "sleep 30; " : "") +
+        `[ $n -ge ${opts.aliveAfterProbes ?? 1_000_000} ]`,
+    );
+    if (opts.lsHangs) stub("ls", "sleep 30");
+    const script = remoteMountScript(cwd, ["--endpoint", "http://x", "b:p", cwd], join(dir, "g.log"), opts.aliveSeconds);
+    const started = Date.now();
+    const r = spawnSync("sh", ["-c", script], {
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+      encoding: "utf-8",
+      timeout: 30_000,
+    });
+    const elapsed = Date.now() - started;
+    const read = (f: string) => {
+      try {
+        return readFileSync(join(dir, f), "utf-8");
+      } catch {
+        return "";
+      }
+    };
+    const out = { status: r.status, stdout: r.stdout, elapsed, probes: Number(read("probes") || 0), geesefs: read("geesefs.calls"), unmount: read("unmount.calls"), cwdExists: existsSync(cwd) };
+    rmSync(dir, { recursive: true, force: true });
+    return out;
+  };
+
+  it("exits 0 as soon as the mount serves I/O, polling at about 50 ms", () => {
+    const r = withStubs({ aliveAfterProbes: 3, aliveSeconds: 10 });
+    assert.equal(r.status, 0);
+    assert.equal(r.probes, 3);
+    assert.equal(r.geesefs.trim(), "started");
+    assert.ok(r.unmount.length > 0, "detached first");
+    assert.ok(r.cwdExists, "created the mountpoint");
+    assert.ok(r.elapsed < 2_000, `took ${r.elapsed} ms`);
+  });
+
+  it("exits not-alive with the log tail once the time budget passes", () => {
+    // The clock has whole seconds, so a 2 s budget lasts between 1 and 2 s.
+    const r = withStubs({ aliveSeconds: 2 });
+    assert.equal(r.status, REMOTE_MOUNT_NOT_ALIVE_EXIT);
+    assert.ok(r.probes >= 2, `probed ${r.probes} times`);
+    assert.ok(r.elapsed < 5_000, `took ${r.elapsed} ms`);
+    assert.match(r.stdout, /geesefs log line/);
+  });
+
+  it("stops after two hung ls probes in a row", { timeout: 20_000 }, () => {
+    const r = withStubs({ aliveAfterProbes: 1, lsHangs: true, aliveSeconds: 60 });
+    assert.equal(r.status, REMOTE_MOUNT_NOT_ALIVE_EXIT);
+    assert.equal(r.probes, 2);
+  });
+
+  it("caps a hung mountpoint probe too, and stops after two", { timeout: 20_000 }, () => {
+    const r = withStubs({ mountpointHangs: true, aliveSeconds: 60 });
+    assert.equal(r.status, REMOTE_MOUNT_NOT_ALIVE_EXIT);
+    assert.equal(r.probes, 2);
+    assert.ok(r.elapsed < 15_000, `took ${r.elapsed} ms`);
+  });
+
+  it("gives each mountpoint its own geesefs log, since mounts run at the same time", () => {
+    assert.notEqual(
+      remoteMountLogFile("/home/sandbox/work"),
+      remoteMountLogFile("/home/sandbox/work-agent"),
+    );
+    assert.match(remoteMountLogFile("/home/sandbox/work"), /^\/tmp\/geesefs-mount[^/]+\.log$/);
   });
 });
 
@@ -739,7 +1176,7 @@ describe("shell injection hardening (RUN-SHELL-1)", () => {
 
     await mountStorageRemote(sandbox, hostileCwd, CREDS, {
       endpoint: "https://abc.ngrok.io",
-      aliveAttempts: 1,
+      aliveTimeoutMs: 1_000,
       log: SILENT,
     });
 

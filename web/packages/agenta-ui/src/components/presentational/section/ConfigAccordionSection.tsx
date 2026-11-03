@@ -36,12 +36,14 @@ import {
     useState,
 } from "react"
 
-import {CaretDown, CaretRight, Lock} from "@phosphor-icons/react"
+import {Lock} from "@phosphor-icons/react"
 import {motion} from "motion/react"
 
 import {cn} from "../../../utils/styles"
 import {HeightCollapse} from "../../HeightCollapse"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../ui/tooltip"
+
+import {ConfigRowCaret, ConfigRowTrailing} from "./ConfigRowTrailing"
 
 /**
  * Whether the enclosing accordion section is currently expanded. Because the body stays MOUNTED while
@@ -71,7 +73,7 @@ export function sectionIndicatorColor(tone: SectionIndicatorTone): string {
         : tone === "incomplete"
           ? "var(--ag-colorWarning)"
           : tone === "agent"
-            ? "var(--ag-c-13C2C2, #13c2c2)"
+            ? "light-dark(#113955, #8CCFFF)"
             : "var(--ag-colorInfo)"
 }
 
@@ -138,6 +140,8 @@ export interface ConfigAccordionSectionProps {
      * while the title itself truncates, so a long title + badge + summary never overlap.
      */
     titleBadge?: ReactNode
+    /** Keep the title intact and truncate the summary first. @default false */
+    preserveTitle?: boolean
     /** Additional CSS class for the section wrapper. */
     className?: string
     /**
@@ -198,6 +202,7 @@ export function ConfigAccordionSection({
     indicator,
     summaryCollapsedOnly = false,
     titleBadge,
+    preserveTitle = false,
     className,
     headerBand,
     revealOnMount = false,
@@ -234,7 +239,7 @@ export function ConfigAccordionSection({
           ? "var(--ag-colorSuccess)"
           : status === "warning"
             ? "var(--ag-colorWarning)"
-            : "var(--ag-c-586673,#586673)"
+            : "var(--ag-c-586673)"
     const isControlled = open !== undefined
     // With `animateInitialOpen`, a default-open section still MOUNTS closed and expands via the
     // effect below, so its first paint is the collapsed row (matching skeletons), not the content.
@@ -334,11 +339,10 @@ export function ConfigAccordionSection({
                                     "bg-transparent",
                                     noDivider
                                         ? "border-transparent"
-                                        : "border-[var(--ag-c-EAEFF5,#eaeff5)]",
+                                        : "border-[var(--ag-c-EAEFF5)]",
                                 ),
                       )
-                    : !noDivider &&
-                          "border-0 border-b border-solid border-[var(--ag-c-EAEFF5,#eaeff5)]",
+                    : !noDivider && "border-0 border-b border-solid border-[var(--ag-c-EAEFF5)]",
                 className,
             )}
         >
@@ -372,7 +376,10 @@ export function ConfigAccordionSection({
                             activate()
                         }
                     }}
-                    className="flex min-w-0 items-center gap-2"
+                    className={cn(
+                        "flex items-center gap-2",
+                        preserveTitle ? "shrink-0 max-w-full" : "min-w-0",
+                    )}
                 >
                     {iconAffordance}
                     {/* Title. Base text stays crisp; while `pulse` holds, an accent DUPLICATE laid
@@ -413,10 +420,42 @@ export function ConfigAccordionSection({
                     {titleBadge ? <span className="shrink-0">{titleBadge}</span> : null}
                 </div>
 
-                <div className="flex shrink-0 items-center gap-2">
+                <ConfigRowTrailing
+                    className={preserveTitle ? "min-w-0" : "shrink-0"}
+                    // A non-collapsible row never carries an affordance, so it keeps no column.
+                    reserve={collapsible || opensDrawer || locked}
+                    affordance={
+                        locked ? (
+                            lockedReason ? (
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Lock size={14} className="text-[var(--ag-zinc-5)]" />
+                                        </TooltipTrigger>
+                                        <TooltipContent>{lockedReason}</TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            ) : (
+                                <Lock size={14} className="text-[var(--ag-zinc-5)]" />
+                            )
+                        ) : opensDrawer ? (
+                            <ConfigRowCaret />
+                        ) : collapsible ? (
+                            <ConfigRowCaret open={isOpen} />
+                        ) : null
+                    }
+                >
                     {summary && (!summaryCollapsedOnly || !isOpen) ? (
                         // antd `Text type="secondary"` is colorTextDescription, not colorTextSecondary.
-                        <span className="max-w-[220px] truncate text-right text-xs text-colorTextDescription">
+                        // The title gives way, not the summary — a percentage cap here resolved
+                        // against this shrink-to-fit cluster, i.e. the text's own width, so it
+                        // clipped even "1 file" to "1 f…". `preserveTitle` swaps which half yields.
+                        <span
+                            className={cn(
+                                "text-right text-xs text-colorTextDescription",
+                                preserveTitle ? "min-w-0 truncate" : "shrink-0 whitespace-nowrap",
+                            )}
+                        >
                             {summary}
                         </span>
                     ) : null}
@@ -433,36 +472,12 @@ export function ConfigAccordionSection({
                             {extra}
                         </span>
                     ) : null}
-                    {locked ? (
-                        lockedReason ? (
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Lock
-                                            size={14}
-                                            className="text-[var(--ag-c-97A4B0,#97a4b0)]"
-                                        />
-                                    </TooltipTrigger>
-                                    <TooltipContent>{lockedReason}</TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
-                        ) : (
-                            <Lock size={14} className="text-[var(--ag-c-97A4B0,#97a4b0)]" />
-                        )
-                    ) : opensDrawer ? (
-                        <CaretRight size={14} className="text-[var(--ag-c-97A4B0,#97a4b0)]" />
-                    ) : collapsible ? (
-                        isOpen ? (
-                            <CaretDown size={14} className="text-[var(--ag-c-97A4B0,#97a4b0)]" />
-                        ) : (
-                            <CaretRight size={14} className="text-[var(--ag-c-97A4B0,#97a4b0)]" />
-                        )
-                    ) : null}
-                </div>
+                </ConfigRowTrailing>
             </div>
 
             {opensDrawer ? null : (
-                <HeightCollapse open={isOpen}>
+                // The 4px bleed keeps a focused control's 3px ring inside the collapse's clip.
+                <HeightCollapse open={isOpen} className="-mx-1" contentClassName="px-1">
                     {/* Top padding gives the body room below the header band (which carries the
                         fill + bottom divider), so it reads as content, not a header continuation. */}
                     <div className={bodyClassName}>

@@ -121,7 +121,7 @@ export function RunInPlaygroundButton({
                 <div className="mb-2 text-xs font-medium text-[var(--ag-colorTextHeading)]">
                     Agent will receive
                 </div>
-                <pre className="m-0 max-h-[240px] max-w-[320px] overflow-auto whitespace-pre-wrap break-words text-[11px] leading-snug">
+                <pre className="m-0 max-h-[240px] max-w-[320px] overflow-auto whitespace-pre-wrap break-words text-xs leading-snug">
                     {parsed.ok ? preview : "Inputs is not valid JSON."}
                 </pre>
             </PopoverContent>

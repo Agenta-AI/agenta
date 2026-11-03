@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "entry": "meeting-followup",
+  "agents": {
+    "meeting-followup": {
+      "name": "Meeting follow-up",
+      "description": "After each meeting, drafts a follow-up email and logs the meeting notes to the CRM.",
+      "instructions": "./ai.agenta/agents/meeting-followup/AGENTS.md",
+      "setup": "./ai.agenta/agents/meeting-followup/SETUP.md",
+      "connections": [
+        {
+          "key": "draft-the-follow-up",
+          "required": true,
+          "purpose": "Draft the follow-up",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "gmail"
+            }
+          ],
+          "setup_notes": "Read meeting notes, draft the follow-up"
+        },
+        {
+          "key": "read-the-meeting",
+          "required": false,
+          "purpose": "Read the meeting",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "googlecalendar"
+            }
+          ],
+          "setup_notes": "Read the meeting"
+        },
+        {
+          "key": "update-the-crm",
+          "required": false,
+          "purpose": "Update the CRM",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "hubspot"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "salesforce"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "attio"
+            }
+          ],
+          "setup_notes": "Update the CRM"
+        }
+      ]
+    }
+  }
+}

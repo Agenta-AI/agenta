@@ -58,9 +58,6 @@ export {
     revisionSchema,
     revisionSchemas,
     type Revision,
-    type CreateRevision,
-    type UpdateRevision,
-    type LocalRevision,
     revisionListItemSchema,
     type RevisionListItem,
     revisionsResponseSchema,
@@ -70,8 +67,6 @@ export {
     testsetSchemas,
     type Testset,
     type CreateTestset,
-    type UpdateTestset,
-    type LocalTestset,
     testsetsResponseSchema,
     type TestsetsResponse,
     // Variant schemas
@@ -83,6 +78,12 @@ export {
     getVersionDisplay,
     NEW_TESTSET_ID,
     isNewTestsetId,
+    // File import helpers
+    detectTestsetFileType,
+    parseCsvRows,
+    readTestsetFilePreview,
+    type TestsetFileType,
+    type TestsetFilePreviewResult,
 } from "./core"
 
 export type {
@@ -121,6 +122,7 @@ export {
     fetchRevisionsBatch,
     fetchTestsetsBatch,
     fetchTestsetsList,
+    queryTestsetsPage,
     fetchTestsetDetail,
     fetchVariantDetail,
     // Testset CRUD
@@ -135,13 +137,14 @@ export {
     archiveRevision,
     // File upload
     uploadTestsetFile,
-    uploadRevisionFile,
+    uploadTestsetRevisionFile,
+    // Evaluation runs that use a Testset
+    fetchEvaluationRunIdsUsingTestsets,
     // File download
     downloadTestset,
     downloadRevision,
     // Simple API
     fetchSimpleTestset,
-    queryPreviewTestsets,
     // Types
     type ExportFileType,
 } from "./api"
@@ -160,9 +163,27 @@ export {latestRevisionForTestsetAtomFamily, testsetQueryAtomFamily} from "./stat
  * Save mutation atom for committing testset changes.
  * Used by entity adapters for the commit modal.
  */
-export {saveTestsetAtom} from "./state/mutations"
+export {
+    saveTestsetAtom,
+    saveNewTestsetAtom,
+    changesSummaryAtom,
+    hasUnsavedChangesAtom,
+    clearChangesAtom,
+} from "./state/mutations"
 
-export type {SaveTestsetParams, SaveTestsetResult} from "./state/mutations"
+export type {
+    SaveTestsetParams,
+    SaveTestsetResult,
+    SaveNewTestsetParams,
+    SaveNewTestsetResult,
+    ChangesSummary,
+} from "./state/mutations"
+
+export {
+    testsetRevisionHeaderAtomFamily,
+    type TestsetRevisionHeader,
+    type TestsetRevisionHeaderState,
+} from "./state/metadata"
 
 // ============================================================================
 // SELECTION CONFIG

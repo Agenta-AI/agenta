@@ -3,7 +3,7 @@ import {useState, type ReactNode} from "react"
 import {TriggerRow} from "@agenta/entity-ui/drill-in"
 import {DropdownMenuItem, DropdownMenuSeparator} from "@agenta/ui/ui"
 import {MoreOutlined} from "@ant-design/icons"
-import {CaretRight, Clock, Flask, ListChecks, PencilSimpleLine, Trash} from "@phosphor-icons/react"
+import {Clock, ListChecks, PencilSimpleLine, Trash} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {
     Button as AntButton,
@@ -14,8 +14,8 @@ import {
 
 // TriggerRow — the Triggers section's standalone schedule row. The antd cells replay the
 // PRE-migration body verbatim from feat/storybook-data-seam (antd `Tooltip` on the status
-// icon, a text `Button icon={<Flask/>}`, and a `Dropdown menu={{items}}` with an
-// `icon={<MoreOutlined/>}` text button); the agenta cells render the migrated component.
+// icon and a `Dropdown menu={{items}}` with an `icon={<MoreOutlined/>}` text button); the
+// agenta cells render the migrated component. The run action now lives inside the ⋯ menu.
 const meta = {
     title: "@agenta/entity-ui/DrillIn/TriggerRow",
     component: TriggerRow,
@@ -68,22 +68,18 @@ function AntdTriggerRow({
     icon,
     name,
     nameMuted,
-    chip,
     subtitle,
     active,
     disabled,
-    runDisabled,
     menuOpen,
     menuContainer,
 }: {
     icon: ReactNode
     name: string
     nameMuted?: boolean
-    chip?: ReactNode
     subtitle: string
     active: boolean
     disabled?: boolean
-    runDisabled?: boolean
     menuOpen?: boolean
     menuContainer?: HTMLElement | null
 }) {
@@ -107,37 +103,18 @@ function AntdTriggerRow({
                 </span>
             </AntTooltip>
             <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                    <span
-                        className={`truncate text-xs font-medium ${
-                            nameMuted ? "italic text-[var(--ag-colorTextTertiary)]" : ""
-                        }`}
-                    >
-                        {name}
-                    </span>
-                    <CaretRight
-                        size={12}
-                        className="shrink-0 text-[var(--ag-colorTextSecondary)]"
-                    />
-                    {chip ? (
-                        <span className="ml-0.5 max-w-[170px] shrink-0 truncate rounded bg-[var(--ag-colorFillSecondary)] px-1.5 py-0.5 text-[10px] text-[var(--ag-colorTextSecondary)]">
-                            {chip}
-                        </span>
-                    ) : null}
+                <div
+                    className={`truncate text-xs font-medium ${
+                        nameMuted ? "italic text-[var(--ag-colorTextTertiary)]" : ""
+                    }`}
+                >
+                    {name}
                 </div>
                 <div className="mt-0.5 line-clamp-2 max-w-prose text-xs leading-snug text-[var(--ag-colorTextSecondary)]">
                     {subtitle}
                 </div>
             </div>
             <div className="flex shrink-0 items-center gap-1" role="presentation">
-                <AntTooltip title="Run in playground">
-                    <AntButton
-                        type="text"
-                        icon={<Flask size={16} />}
-                        aria-label="Run in playground"
-                        disabled={runDisabled}
-                    />
-                </AntTooltip>
                 <AntDropdown
                     trigger={["click"]}
                     styles={{root: {width: 180}}}
@@ -195,19 +172,17 @@ export const AntdVsAgenta: Story = {
         name: "Morning digest",
         subtitle: "Summarize yesterday's tickets.",
         active: true,
-        onRun: noop,
         onOpen: noop,
         menu: AGENTA_MENU,
     },
     render: () => (
         <div className="flex max-w-[1100px] flex-col">
             <Row
-                label="active · named · cron chip"
+                label="active · named"
                 a={
                     <AntdTriggerRow
                         icon={ICON}
                         name="Morning digest"
-                        chip="Every day at 09:00"
                         subtitle="Summarize yesterday's tickets."
                         active
                     />
@@ -216,10 +191,8 @@ export const AntdVsAgenta: Story = {
                     <TriggerRow
                         icon={ICON}
                         name="Morning digest"
-                        chip="Every day at 09:00"
                         subtitle="Summarize yesterday's tickets."
                         active
-                        onRun={noop}
                         onOpen={noop}
                         menu={AGENTA_MENU}
                     />
@@ -243,35 +216,29 @@ export const AntdVsAgenta: Story = {
                         nameMuted
                         subtitle="No message set"
                         active={false}
-                        onRun={noop}
                         onOpen={noop}
                         menu={AGENTA_MENU}
                     />
                 }
             />
             <Row
-                label="read-only · run disabled"
+                label="read-only"
                 a={
                     <AntdTriggerRow
                         icon={ICON}
                         name="Weekly report"
-                        chip="Every Monday at 08:00"
                         subtitle="Post the weekly summary to #ops."
                         active
                         disabled
-                        runDisabled
                     />
                 }
                 s={
                     <TriggerRow
                         icon={ICON}
                         name="Weekly report"
-                        chip="Every Monday at 08:00"
                         subtitle="Post the weekly summary to #ops."
                         active
                         disabled
-                        runDisabled
-                        onRun={noop}
                         onOpen={noop}
                         menu={AGENTA_MENU}
                     />
@@ -302,7 +269,6 @@ export const OpenState: Story = {
         name: "Morning digest",
         subtitle: "Summarize yesterday's tickets.",
         active: true,
-        onRun: noop,
         onOpen: noop,
         menu: AGENTA_MENU,
     },
@@ -315,7 +281,6 @@ export const OpenState: Story = {
                         <AntdTriggerRow
                             icon={ICON}
                             name="Morning digest"
-                            chip="Every day at 09:00"
                             subtitle="Summarize yesterday's tickets."
                             active
                             menuOpen
@@ -331,10 +296,8 @@ export const OpenState: Story = {
                         <TriggerRow
                             icon={ICON}
                             name="Morning digest"
-                            chip="Every day at 09:00"
                             subtitle="Summarize yesterday's tickets."
                             active
-                            onRun={noop}
                             onOpen={noop}
                             menu={AGENTA_MENU}
                             menuOpen

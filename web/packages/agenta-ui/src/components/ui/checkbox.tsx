@@ -8,7 +8,7 @@ import {cn} from "./utils"
 /**
  * Checkbox — a Radix + cva primitive in @agenta/ui, following shadcn's source conventions (no
  * `forwardRef`, `data-slot` on Root AND Indicator). Re-skinned to antd v6's Checkbox geometry via the shared
- * control scale (`size-control-check` = 16px, `rounded-control-sm` = 6px), colour via bridge tokens.
+ * control scale (`size-control-check` = 16px, `rounded-control-check` = 4px), colour via bridge tokens.
  *
  * SCOPE: the bare box only. antd's `Checkbox.Group` is NOT part of this primitive — compose it
  * if ever needed; no antd-shaped props are added.
@@ -27,7 +27,7 @@ const checkboxVariants = cva([
     // CONTROL_RESET — Radix Root is a native <button>; preflight is off (see button.tsx).
     "box-border border-solid font-[inherit] p-0",
     "group relative inline-flex shrink-0 cursor-pointer items-center justify-center align-middle transition-colors",
-    "size-control-check rounded-control-sm border", // antd: 16px box, borderRadiusSM=6px, 1px border.
+    "size-control-check rounded-control-check border", // 16px box, 4px corner, 1px border.
     "bg-background border-border", // antd unchecked/indeterminate: colorBgContainer + colorBorder.
     "enabled:hover:border-primary", // antd hover border → colorPrimary (enabled only).
     // antd CHECKED (only): bg + border = colorPrimary. Indeterminate keeps the white box.
@@ -59,7 +59,7 @@ function Checkbox({className, ...props}: CheckboxProps) {
                     `calc(checkboxSize/4 - lineWidth)` = 16/4-1; `left-1/4` resolves against the
                     14px padding box (3.5px) and shifted the tick half a pixel right of antd's.
                     colorTextDisabled when disabled. */}
-                <span className="absolute left-[3px] top-1/2 box-border hidden h-[9.14px] w-[5.71px] border-2 border-l-0 border-t-0 border-solid border-colorWhite [transform:rotate(45deg)_translate(-50%,-50%)] group-disabled:border-colorTextDisabled group-data-[state=checked]:block" />
+                <span className="absolute left-[3px] top-1/2 box-border hidden h-[9.14px] w-[5.71px] border-2 border-l-0 border-t-0 border-solid border-btn-primary-fg [transform:rotate(45deg)_translate(-50%,-50%)] group-disabled:border-colorTextDisabled group-data-[state=checked]:block" />
                 {/* INDETERMINATE: centred colorPrimary square (antd v6 mark), 7px = control-check-dash. */}
                 <span className="absolute left-1/2 top-1/2 hidden size-control-check-dash -translate-x-1/2 -translate-y-1/2 bg-primary group-data-[state=indeterminate]:block" />
             </CheckboxPrimitive.Indicator>

@@ -1,0 +1,416 @@
+// Curated sample jobs from the coworkers design. These are not live workspace records.
+const L = (n) => `/logos/tools/${n}.svg`;
+const LOGO = {
+  Notion: L("notion"),
+  GitHub: L("github"),
+  HubSpot: L("hubspot"),
+  Slack: L("slack"),
+  Zendesk: L("zendesk"),
+  Linear: L("linear"),
+  Drive: L("googledrive"),
+  Discord: L("discord"),
+  ChatGPT: L("openai"),
+  Claude: L("anthropic"),
+  Gemini: L("gemini"),
+  "Open models": L("ollama"),
+};
+const mask = (src, s) =>
+  src
+    ? `flex:0 0 auto;width:${s}px;height:${s}px;background-color:var(--logo-grey);-webkit-mask-image:url('${src}');mask-image:url('${src}');-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;-webkit-mask-size:contain;mask-size:contain;`
+    : "display:none;";
+const chip = (name, s) => ({ name, logoStyle: mask(LOGO[name], s) });
+const WEB = "web";
+const S = (k, pre, bold, post = "") => [k, pre, bold, post];
+const AREAS = [
+  {
+    area: "Marketing",
+    items: [
+      {
+        title: "SEO automation agent",
+        version: "v12",
+        desc: "Turns an article idea into a brief, a draft, and a pull request ready for review.",
+        tools: ["Notion", "GitHub"],
+        ask: "Research our next best-tools article and prepare the brief in Notion.",
+        worked: "Worked for 3m 08s",
+        files: "1 file",
+        meta: "2m ago · 3m 08s · 412K tokens · $0.031",
+        steps: [
+          S(WEB, "Searched", "best LLM evaluation tools 2026"),
+          S(WEB, "Read", "6 competitor articles"),
+          S("Notion", "Read", "Content guidelines", "on Notion"),
+          S("Notion", "Wrote", "Brief: best-tools article", "on Notion"),
+        ],
+        reply:
+          "The brief is ready: search intent, comparison criteria, outline, and sources. Review it before I draft the article.",
+      },
+      {
+        title: "SEO content generator",
+        version: "v8",
+        desc: "Drafts long-form articles from an approved brief, in your voice, with sources linked.",
+        tools: ["Notion", "GitHub"],
+        ask: "Draft the article from the approved brief and open a PR.",
+        worked: "Worked for 4m 40s",
+        files: "2 files",
+        meta: "1h ago · 4m 40s · 610K tokens · $0.048",
+        steps: [
+          S("Notion", "Read", "Brief: best-tools article", "on Notion"),
+          S("Notion", "Read", "Style guide"),
+          S("GitHub", "Wrote", "blog/best-llm-eval-tools.mdx"),
+          S("GitHub", "Opened", "PR #412", "on GitHub"),
+        ],
+        reply:
+          "Draft is in PR #412: 2,100 words, 9 cited sources, images marked as TODO. Ready for your read.",
+      },
+      {
+        title: "GEO optimization agent",
+        version: "v3",
+        desc: "Checks how AI assistants describe your product and proposes content fixes.",
+        tools: ["Notion", "GitHub"],
+        ask: "Check how ChatGPT and Perplexity describe Agenta",
+        worked: "Worked for 1m 12s",
+        files: "1 file",
+        meta: "3h ago · 1m 12s · 140K tokens · $0.012",
+        steps: [
+          S(WEB, "Queried", "12 prompts", "across 3 assistants"),
+          S(WEB, "Compared", "answers against positioning"),
+          S("Notion", "Wrote", "GEO gaps · Sept", "on Notion"),
+        ],
+        reply:
+          "Two assistants still call Agenta a prompt-management tool. I listed the pages to update and drafted new descriptions.",
+      },
+      {
+        title: "AI marketing agent",
+        version: "v15",
+        desc: "Plans the weekly content calendar and drafts social posts from what shipped.",
+        tools: ["Slack", "Notion"],
+        ask: "Plan next week's posts from this week's changelog.",
+        worked: "Worked for 52s",
+        files: "1 file",
+        meta: "1d ago · 52s · 88K tokens · $0.007",
+        steps: [
+          S("GitHub", "Read", "changelog", "for the week"),
+          S("Notion", "Read", "Content calendar"),
+          S("Notion", "Added", "5 planned posts"),
+        ],
+        reply:
+          "Five posts planned, one per weekday, each tied to a shipped feature. Drafts are in the calendar for review.",
+      },
+      {
+        title: "Competitor mention tracker",
+        version: "v6",
+        desc: "Watches for competitor mentions and summarizes what changed, daily.",
+        tools: ["Slack", "Notion"],
+        ask: "Summarize this week's notable competitor changes",
+        worked: "Worked for 38s",
+        files: "",
+        meta: "6h ago · 38s · 61K tokens · $0.005",
+        steps: [
+          S(WEB, "Scanned", "4 competitor changelogs"),
+          S(WEB, "Scanned", "Hacker News, X, LinkedIn"),
+          S("Slack", "Posted", "digest to #marketing"),
+        ],
+        reply:
+          "Two pricing changes and one new evaluation feature. Full digest is in #marketing with links.",
+      },
+      {
+        title: "Ad campaign analysis",
+        version: "v4",
+        desc: "Pulls campaign performance and flags what to pause or scale.",
+        tools: ["HubSpot", "Slack"],
+        ask: "Report on September campaign performance",
+        worked: "Worked for 47s",
+        files: "1 file",
+        meta: "2d ago · 47s · 72K tokens · $0.006",
+        steps: [
+          S("HubSpot", "Read", "3 campaigns", "on HubSpot"),
+          S(WEB, "Compared", "CPL against last month"),
+          S("Slack", "Posted", "summary to #growth"),
+        ],
+        reply:
+          "CPL is down 18% on the docs campaign and up 40% on the comparison campaign. I recommend pausing the latter.",
+      },
+    ],
+  },
+  {
+    area: "Sales",
+    items: [
+      {
+        title: "Outreach coworker",
+        version: "v7",
+        desc: "Researches prospects, gathers context, and drafts outreach for your review.",
+        tools: ["HubSpot", "Slack"],
+        ask: "Research this prospect and draft an introduction based on what their team is building.",
+        worked: "Worked for 48s",
+        files: "1 draft",
+        meta: "5m ago · 48s · 96K tokens · $0.008",
+        steps: [
+          S("HubSpot", "Read", "contact & company", "on HubSpot"),
+          S(WEB, "Read", "their launch post"),
+          S("HubSpot", "Drafted", "introduction email"),
+          S("Slack", "Posted", "summary to #sales"),
+        ],
+        reply:
+          "I found their recent launch and prepared a short introduction. The research and draft are ready for your review.",
+      },
+      {
+        title: "Lead qualification agent",
+        version: "v11",
+        desc: "Scores inbound leads against your ICP and routes them to the right owner.",
+        tools: ["HubSpot", "Slack"],
+        ask: "Qualify this morning's inbound leads.",
+        worked: "Worked for 1m 05s",
+        files: "",
+        meta: "1h ago · 1m 05s · 120K tokens · $0.010",
+        steps: [
+          S("HubSpot", "Read", "14 new leads"),
+          S(WEB, "Researched", "company size and stack"),
+          S("HubSpot", "Updated", "fit score on 14 leads"),
+        ],
+        reply:
+          "Three leads score 4+ and match the ICP. I assigned them to Sarah and left notes on the rest.",
+      },
+      {
+        title: "CRM hygiene agent",
+        version: "v5",
+        desc: "Keeps deals, stages, and contacts in your CRM current after every call.",
+        tools: ["HubSpot", "Slack"],
+        ask: "Update the CRM from yesterday's calls.",
+        worked: "Worked for 41s",
+        files: "",
+        meta: "3h ago · 41s · 54K tokens · $0.004",
+        steps: [
+          S("Slack", "Read", "call notes", "in #sales-calls"),
+          S("HubSpot", "Updated", "6 deal stages"),
+          S("HubSpot", "Added", "2 new contacts"),
+        ],
+        reply:
+          "Six deals moved stage and two contacts were added. One deal had no clear next step, flagged for you.",
+      },
+      {
+        title: "Pipeline review agent",
+        version: "v9",
+        desc: "Summarizes pipeline health and surfaces deals at risk before the weekly review.",
+        tools: ["HubSpot", "Slack"],
+        ask: "Review the Q4 pipeline and flag at-risk deals",
+        worked: "Worked for 36s",
+        files: "1 file",
+        meta: "2d ago · 36s · 70K tokens · $0.006",
+        steps: [
+          S("HubSpot", "Read", "Q4 open opportunities"),
+          S("HubSpot", "Compared", "close dates against activity"),
+          S("Notion", "Wrote", "Pipeline review · W37"),
+        ],
+        reply:
+          "Pipeline is $412K across 18 deals. Three have had no activity in 14 days and close this month; details in the review doc.",
+      },
+      {
+        title: "Proposal drafting agent",
+        version: "v2",
+        desc: "Turns discovery notes into a first-draft proposal using your templates.",
+        tools: ["Notion", "HubSpot"],
+        ask: "Draft a proposal for Acme from the discovery notes.",
+        worked: "Worked for 2m 10s",
+        files: "1 file",
+        meta: "4d ago · 2m 10s · 260K tokens · $0.021",
+        steps: [
+          S("HubSpot", "Read", "Acme deal and notes"),
+          S("Notion", "Read", "Proposal template"),
+          S("Notion", "Wrote", "Proposal · Acme"),
+        ],
+        reply:
+          "The proposal draft covers scope, pricing tiers, and timeline from the notes. Pricing is left for you to confirm.",
+      },
+    ],
+  },
+  {
+    area: "Support",
+    items: [
+      {
+        title: "Support coworker",
+        version: "v21",
+        desc: "Uses your company knowledge to draft replies and brings uncertain cases back to you.",
+        tools: ["Zendesk", "Notion"],
+        ask: "Draft a reply to this setup question using our docs. Flag anything you cannot verify.",
+        worked: "Worked for 22s",
+        files: "1 draft",
+        meta: "1m ago · 22s · 38K tokens · $0.003",
+        steps: [
+          S("Zendesk", "Read", "ticket #4821"),
+          S("Notion", "Searched", "Setup guide", "in docs"),
+          S("Zendesk", "Drafted", "reply with 2 links", "as internal note"),
+          S(WEB, "Flagged", "account-specific question", "for you"),
+        ],
+        reply:
+          "The setup steps are covered in our docs. I drafted a reply with the relevant links and flagged the account-specific question for you.",
+      },
+      {
+        title: "Ticket triage agent",
+        version: "v14",
+        desc: "Classifies and prioritizes new tickets, and routes them to the right queue.",
+        tools: ["Zendesk", "Slack"],
+        ask: "Triage everything that came in overnight.",
+        worked: "Worked for 58s",
+        files: "",
+        meta: "7h ago · 58s · 92K tokens · $0.008",
+        steps: [
+          S("Zendesk", "Read", "23 new tickets"),
+          S("Zendesk", "Tagged", "category and priority"),
+          S("Slack", "Posted", "2 urgent tickets to #support"),
+        ],
+        reply:
+          "23 tickets triaged: 2 urgent, 9 how-to, 8 bugs, 4 billing. The two urgent ones are posted in #support.",
+      },
+      {
+        title: "Knowledge base agent",
+        version: "v6",
+        desc: "Spots repeated questions and drafts new help-center articles from resolved tickets.",
+        tools: ["Zendesk", "Notion"],
+        ask: "Find recurring questions our docs don't answer",
+        worked: "Worked for 1m 30s",
+        files: "2 files",
+        meta: "1d ago · 1m 30s · 180K tokens · $0.015",
+        steps: [
+          S("Zendesk", "Read", "last 30 days of resolved tickets"),
+          S("Notion", "Searched", "help center"),
+          S("Notion", "Drafted", "2 new articles"),
+        ],
+        reply:
+          "Two topics account for 31 tickets and have no article. I drafted both from the resolved replies.",
+      },
+      {
+        title: "Bug report agent",
+        version: "v4",
+        desc: "Turns customer bug reports into reproducible engineering issues.",
+        tools: ["Zendesk", "Linear"],
+        ask: "File the bug from ticket #4790.",
+        worked: "Worked for 33s",
+        files: "",
+        meta: "2d ago · 33s · 44K tokens · $0.004",
+        steps: [
+          S("Zendesk", "Read", "ticket #4790 and attachments"),
+          S("Linear", "Searched", "duplicates"),
+          S("Linear", "Created", "ENG-431"),
+        ],
+        reply:
+          "Filed as ENG-431 with steps to reproduce, browser details, and the screenshot. No duplicate found.",
+      },
+      {
+        title: "Customer health agent",
+        version: "v3",
+        desc: "Watches account signals and warns you before a customer churns.",
+        tools: ["Zendesk", "HubSpot"],
+        ask: "Flag accounts at churn risk this month",
+        worked: "Worked for 44s",
+        files: "1 file",
+        meta: "3d ago · 44s · 66K tokens · $0.005",
+        steps: [
+          S("Zendesk", "Read", "ticket volume per account"),
+          S("HubSpot", "Read", "renewal dates and usage"),
+          S("Notion", "Wrote", "At-risk accounts · Sept"),
+        ],
+        reply:
+          "Four accounts show rising tickets and falling usage within 60 days of renewal. Summary and suggested outreach are in the doc.",
+      },
+    ],
+  },
+  {
+    area: "Engineering",
+    items: [
+      {
+        title: "Code review coworker",
+        version: "v9",
+        desc: "Reviews changes against your team’s conventions and surfaces issues with file references.",
+        tools: ["GitHub", "Linear"],
+        ask: "Review this pull request for edge cases and missing checks.",
+        worked: "Worked for 1m 41s",
+        files: "2 files",
+        meta: "8m ago · 1m 41s · 210K tokens · $0.019",
+        steps: [
+          S("GitHub", "Read", "PR #6712", "on agenta"),
+          S("GitHub", "Read", "4 changed files"),
+          S("Linear", "Read", "ENG-418", "on Linear"),
+          S("GitHub", "Left", "3 review comments"),
+        ],
+        reply:
+          "I found an unhandled empty response and a missing error state. The review includes the relevant files and suggested fixes.",
+      },
+      {
+        title: "Issue triage agent",
+        version: "v12",
+        desc: "Labels and groups new GitHub issues, and flags duplicates.",
+        tools: ["GitHub", "Linear"],
+        ask: "Go through every open playground bug and group them by area.",
+        worked: "Worked for 4m 12s",
+        files: "2 files",
+        meta: "1d ago · 4m 12s · 1.2M tokens · $0.084",
+        steps: [
+          S("GitHub", "Read", "61 open issues"),
+          S("GitHub", "Searched", "web/oss/src/components"),
+          S("GitHub", "Wrote", "triage/playground-bugs.md"),
+          S("Linear", "Updated", "task list"),
+        ],
+        reply:
+          "61 open issues, four clusters. The approvals cluster (14) is downstream of one dock bug; write-up in triage/playground-bugs.md.",
+      },
+      {
+        title: "Release notes agent",
+        version: "v7",
+        desc: "Writes the changelog from merged pull requests, in your format.",
+        tools: ["GitHub", "Notion"],
+        ask: "Draft the changelog for this week's release.",
+        worked: "Worked for 1m 02s",
+        files: "1 file",
+        meta: "2d ago · 1m 02s · 130K tokens · $0.011",
+        steps: [
+          S("GitHub", "Read", "27 merged PRs"),
+          S("Notion", "Read", "Changelog format"),
+          S("GitHub", "Wrote", "docs/changelog/0.76.md"),
+        ],
+        reply:
+          "Changelog drafted: 6 features, 14 fixes, 2 breaking changes called out at the top. Ready for review.",
+      },
+      {
+        title: "On-call summary agent",
+        version: "v5",
+        desc: "Summarizes incidents and error traces for the morning hand-off.",
+        tools: ["Slack", "GitHub"],
+        ask: "Summarize overnight incidents and alerts",
+        worked: "Worked for 29s",
+        files: "",
+        meta: "9h ago · 29s · 48K tokens · $0.004",
+        steps: [
+          S("Slack", "Read", "#alerts", "overnight"),
+          S(WEB, "Queried", "error traces", "last 12h"),
+          S("Slack", "Posted", "hand-off to #eng"),
+        ],
+        reply:
+          "One alert at 02:14, self-resolved. Error traces are dominated by session_turn_in_use, tied to #6712.",
+      },
+      {
+        title: "Dependency update agent",
+        version: "v3",
+        desc: "Checks for outdated or vulnerable dependencies and opens upgrade PRs.",
+        tools: ["GitHub", "Slack"],
+        ask: "Audit our dependencies for known vulnerabilities",
+        worked: "Worked for 1m 15s",
+        files: "1 file",
+        meta: "3d ago · 1m 15s · 90K tokens · $0.007",
+        steps: [
+          S("GitHub", "Read", "package manifests"),
+          S(WEB, "Checked", "advisories"),
+          S("GitHub", "Opened", "PR #418", "with 2 upgrades"),
+        ],
+        reply:
+          "Two advisories affect us, both patched upstream. PR #418 upgrades them; tests pass.",
+      },
+    ],
+  },
+];
+
+const GLOBE =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
+  );
+
+export { AREAS, LOGO, GLOBE, WEB, mask };

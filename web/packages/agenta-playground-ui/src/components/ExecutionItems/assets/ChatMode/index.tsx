@@ -1,12 +1,11 @@
 import {useMemo} from "react"
 
-import {workflowMolecule} from "@agenta/entities/workflow"
 import {executionItemController} from "@agenta/playground"
-import {extractPromptTemplateContext, normalizeEnhancedMessages} from "@agenta/shared/utils"
 import {ChatMessageList} from "@agenta/ui/chat-message"
 import {HeightCollapse} from "@agenta/ui/components"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {useChatConfigMessages} from "../../../../hooks/useChatConfigMessages"
 import {useExecutionCell} from "../../../../hooks/useExecutionCell"
 import ControlsBar from "../../../ControlsBar"
 import ChatTurnView from "../ChatTurnView"
@@ -35,18 +34,6 @@ export interface ChatModeProps {
 
 const noop = () => {}
 
-/** Extract messages from a prompt config object (raw ag_config value) */
-const extractPromptMessages = (promptConfig: unknown): unknown[] => {
-    if (!promptConfig || typeof promptConfig !== "object" || Array.isArray(promptConfig)) return []
-    const cfg = promptConfig as Record<string, unknown>
-    const messages = cfg.messages
-    if (Array.isArray(messages)) return messages
-    return []
-}
-
-/** @deprecated Alias kept for backward compatibility */
-export type GenerationChatProps = ChatModeProps
-
 const ChatMode = ({entityId, renderLastTurnFooter, renderControlsBar}: ChatModeProps) => {
     // Completion-style variable inputs for chat use normalized input rows with a derived fallback
     const variableRowIds = useAtomValue(
@@ -64,42 +51,8 @@ const ChatMode = ({entityId, renderLastTurnFooter, renderControlsBar}: ChatModeP
             Array.from(new Set(renderableItemsForExecution.map((item) => item.rowId))) as string[],
         [renderableItemsForExecution],
     )
-    // Config messages (read-only) — read configuration from the runnable bridge
-    const entityConfig = useAtomValue(
-        useMemo(() => workflowMolecule.selectors.configuration(entityId || ""), [entityId]),
-    )
-    const agConfig = useMemo(() => {
-        const params = entityConfig as Record<string, unknown> | undefined
-        return (params?.ag_config || params || {}) as Record<string, unknown>
-    }, [entityConfig])
-
-    // Extract prompt config objects from ag_config (objects with messages or llm_config)
-    const promptConfigs = useMemo(() => {
-        const configs: Record<string, unknown>[] = []
-        for (const val of Object.values(agConfig)) {
-            if (val && typeof val === "object" && !Array.isArray(val)) {
-                const cfg = val as Record<string, unknown>
-                if (cfg.messages || cfg.llm_config) {
-                    configs.push(cfg)
-                }
-            }
-        }
-        return configs
-    }, [agConfig])
-
-    const rawConfigMessages = useMemo(
-        () => promptConfigs.flatMap((cfg) => extractPromptMessages(cfg)),
-        [promptConfigs],
-    )
-    const configMessages = useMemo(
-        () => normalizeEnhancedMessages(rawConfigMessages),
-        [rawConfigMessages],
-    )
-
-    const {templateFormat, tokens} = useMemo(
-        () => extractPromptTemplateContext(promptConfigs),
-        [promptConfigs],
-    )
+    // Config messages (read-only)
+    const {messages: configMessages, templateFormat, tokens} = useChatConfigMessages(entityId || "")
 
     return (
         <section className="flex flex-col">

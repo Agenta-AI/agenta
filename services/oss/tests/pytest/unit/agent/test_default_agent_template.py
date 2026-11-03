@@ -40,6 +40,16 @@ def test_service_default_is_the_bare_builder():
     assert _inspect_agent_default() == build_agent_v0_default()
 
 
+def test_config_fallback_agents_md_matches_the_platform_default():
+    # `agent/config.py` keeps a fallback copy of the default persona for runs where the
+    # editable files are missing; it must not drift from the SDK's single source (the
+    # persona now carries the self-naming guidance, so a stale copy would silently
+    # reintroduce the never-renames behavior live QA caught).
+    from oss.src.agent.config import DEFAULT_AGENTS_MD  # noqa: PLC0415
+
+    assert DEFAULT_AGENTS_MD == build_agent_v0_default()["instructions"]["agents_md"]
+
+
 def test_inspect_default_parses_into_the_runtime_selection():
     # The default the playground pre-fills on `/inspect` must parse cleanly into the same runtime
     # values `AgentTemplate.from_params` produces, so what the user sees is what the agent runs.
@@ -56,7 +66,7 @@ def test_inspect_default_parses_into_the_runtime_selection():
     assert config.sandbox_permission is None
     assert config.harness == "pi_core"
     assert config.sandbox == "local"
-    assert config.permission_default == "allow_reads"
+    assert config.permission_default == "allow"
 
 
 def _authoring_extra_tools(tools: list) -> list:
@@ -89,12 +99,21 @@ def test_authoring_extras_absent_from_every_published_default():
     assert "skills" not in builtin_default
 
 
-def test_published_default_carries_no_tool_entries():
+def test_published_default_carries_only_the_agenta_tools_entry():
     """Built-in tools are activated by the runner on every Pi run, so they are not configured
-    here. A new agent can still read, run shell commands, and edit and write files wherever it
-    runs (issue #5590), without any entry in `tools`."""
-    assert _inspect_agent_default()["tools"] == []
-    assert _builtin_agent_default()["tools"] == []
+    here (issue #5590). The one entry turns on the default Agenta tools in every run."""
+    assert _inspect_agent_default()["tools"] == [
+        {
+            "type": "agenta_tools",
+            "tools": {"get_current_session": "allow", "rename_session": "allow"},
+        }
+    ]
+    assert _builtin_agent_default()["tools"] == [
+        {
+            "type": "agenta_tools",
+            "tools": {"get_current_session": "allow", "rename_session": "allow"},
+        }
+    ]
 
 
 def test_harness_default_is_pi_core_in_every_source():

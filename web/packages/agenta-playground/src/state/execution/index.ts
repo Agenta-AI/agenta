@@ -69,7 +69,6 @@ export type {
     // Adapter
     ExecutionAdapter,
     // Legacy compat
-    PlaygroundTestResult,
     // Cancel params
     CancelTestsParams,
 } from "./types"
@@ -228,18 +227,8 @@ export {
     isAnyExecutingWithContextAtom,
     executionProgressWithContextAtom,
     // Session selectors
-    sessionCountAtomFamily,
-    activeSessionCountAtomFamily,
     isCompareModeAtomFamily,
-    sessionLabelsAtomFamily,
-    // Step selectors
-    stepCountAtomFamily,
-    latestStepAtomFamily,
     // Result selectors
-    stepAggregateStatusAtomFamily,
-    stepResultSummaryAtomFamily,
-    allResultsAtomFamily,
-    completedResultsCountAtomFamily,
     executionProgressAtomFamily,
     // Row-entity convenience selectors
     responseByRowEntityAtomFamily,
@@ -356,6 +345,7 @@ export {
     applyBuildKitOverlay,
     buildAgentRequest,
     buildAgentReferences,
+    SHARED_SESSION_RESPONSE_HEADER,
     type AgentRequest,
 } from "./agentRequest"
 // Stream vs batch response channel for the agent lane (read by buildAgentRequest's Accept header).
@@ -368,10 +358,19 @@ export {
     isPendingClientToolInteraction,
     type LiveAgentInteraction,
 } from "./agentApprovalResume"
+// The durable half of an approval decision: the row resolution, and what retires the gate marker.
+export {approvalResolution, isResumeSend, type ChatStatusLike} from "./approvalAnswer"
+// Answer a parked interaction durably BEFORE releasing whatever can start the next turn.
 // Render-hint map: sibling `data-render` parts → toolCallId lookup (interaction kinds).
 export {buildRenderMap, renderKindFor, type RenderHintLike} from "./renderMap"
 // Agent-lane queued-message release gate (never releases mid-HITL or pre-resume).
-export {canReleaseQueuedMessage, isHitlPending} from "./agentMessageQueue"
+export {
+    approvalContinuationSettled,
+    canReleaseQueuedMessage,
+    hasRunningApprovalContinuation,
+    isHitlPending,
+    messageHasPendingHitl,
+} from "./agentMessageQueue"
 // Per-turn request capture + correlation helpers (Turn Inspector Context/Raw tabs).
 export {
     appendCapped,
@@ -380,3 +379,21 @@ export {
     triggerUserMessageId,
     type TurnRequestCapture,
 } from "./turnCapture"
+// Agent playground auto-commit: flushes the config draft to a revision on its own (#6126).
+export {
+    agentAutoCommitStatusAtomFamily,
+    agentAutoCommitErrorAtomFamily,
+    agentAutoCommitScheduledAtomFamily,
+    flushAgentAutoCommitAtom,
+    registerAgentAutoCommitHandler,
+} from "./agentAutoCommit"
+export {watchLatestVersion, type LatestVersion} from "./latestVersionCheck"
+// Agent version history: the drawer's rows, and the revert that commits an old config as a new one.
+export {
+    buildVersionRows,
+    buildRevertMessage,
+    revertAgentRevisionAtom,
+    REVERT_MESSAGE_PREFIX,
+    type AgentVersionRow,
+    type RevertAgentRevisionParams,
+} from "./agentVersionHistory"

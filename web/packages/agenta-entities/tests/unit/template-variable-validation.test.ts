@@ -10,9 +10,8 @@
  * folder. We import via the workspace path alias rather than a relative
  * path that would couple this test to the package's folder layout.
  */
-import {describe, expect, it} from "vitest"
-
 import {validateTemplateVariable} from "@agenta/shared/utils"
+import {describe, expect, it} from "vitest"
 
 describe("validateTemplateVariable", () => {
     describe("plain names + dot notation", () => {

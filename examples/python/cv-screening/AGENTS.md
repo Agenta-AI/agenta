@@ -44,7 +44,7 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt
 # .env (mode 600, gitignored):
 #   OPENAI_API_KEY=sk-...
 #   AGENTA_API_KEY=<scoped project key>
-#   AGENTA_HOST=https://<host>        # e.g. http://144.76.237.122:8280, no trailing slash
+#   AGENTA_HOST=https://<host>        # e.g. http://<dev-host>:8280, no trailing slash
 
 .venv/bin/python prepare_testset.py --upload   # testset "CV Screening - IT Manager", 27 rows
 .venv/bin/python make_sample_pdfs.py           # the four demo PDFs in data/sample_cvs/

@@ -10,9 +10,6 @@
  * definitions. If this file also imported from `relations.ts`, it would create a
  * circular ES module dependency causing a `ReferenceError` at runtime.
  *
- * For child ID extraction (e.g., testcase IDs from a revision), inline the logic
- * directly instead of using `getChildIds(data, relation)`.
- *
  * ## Usage
  *
  * ```typescript

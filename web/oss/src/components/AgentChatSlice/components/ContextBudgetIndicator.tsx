@@ -10,9 +10,9 @@
  */
 import {useMemo} from "react"
 
+import {SimpleTooltip} from "@agenta/ui/ui"
 import {Warning} from "@phosphor-icons/react"
 import type {UIMessage} from "ai"
-import {Tooltip} from "antd"
 
 import {computeContextBudget} from "../assets/contextBudget"
 
@@ -67,7 +67,8 @@ const ContextBudgetIndicator = ({messages, maxTokens, className}: ContextBudgetI
             : `Context ${fmt(occ)} tokens`
 
     return (
-        <Tooltip
+        <SimpleTooltip
+            side="top"
             title={
                 <div className="flex flex-col gap-1 text-xs">
                     <span>
@@ -83,8 +84,6 @@ const ContextBudgetIndicator = ({messages, maxTokens, className}: ContextBudgetI
                     </span>
                 </div>
             }
-            placement="topRight"
-            mouseEnterDelay={0.4}
         >
             <span
                 className={`inline-flex items-center gap-1.5 whitespace-nowrap ${className ?? ""}`}
@@ -107,7 +106,7 @@ const ContextBudgetIndicator = ({messages, maxTokens, className}: ContextBudgetI
                     {label}
                 </span>
             </span>
-        </Tooltip>
+        </SimpleTooltip>
     )
 }
 

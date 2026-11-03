@@ -2,6 +2,7 @@ import os
 import uuid
 
 import pytest
+import pytest_asyncio
 
 
 class TestVaultSecretsAPI:
@@ -343,3 +344,162 @@ class TestCustomNamedSecretsAPI:
         assert response.status_code == 422, (
             "Non-string text custom_secret must be rejected"
         )
+
+
+class TestProviderConnectionsAPI:
+    """Named `provider_key` connections: stable slug, assigned display name, independence.
+
+    The tests use a provider family the rest of the suite never touches and clear that family
+    first, so the assigned names are exact rather than "whatever the project had already".
+    """
+
+    PROVIDER = "alephalpha"
+    TITLE = "Aleph Alpha"
+
+    @classmethod
+    def _payload(cls, *, name=None, models=None, harnesses=None, key="sk-conn"):
+        data = {"kind": cls.PROVIDER, "provider": {"key": key}}
+        if models is not None:
+            data["models"] = [{"slug": slug} for slug in models]
+        if harnesses is not None:
+            data["harnesses"] = harnesses
+        return {
+            "header": {"name": name} if name else {},
+            "secret": {"kind": "provider_key", "data": data},
+        }
+
+    @classmethod
+    async def _clear(cls, async_client):
+        response = await async_client.get("secrets")
+        for secret in response.json():
+            if (
+                secret["secret"]["kind"] == "provider_key"
+                and secret["secret"]["data"]["kind"] == cls.PROVIDER
+            ):
+                await async_client.delete(f"secrets/{secret['id']}")
+
+    @pytest_asyncio.fixture(autouse=True)
+    async def clean_provider(self, async_client):
+        await self._clear(async_client)
+        yield
+        await self._clear(async_client)
+
+    @pytest.mark.asyncio
+    @pytest.mark.secret_creation
+    @pytest.mark.integration
+    async def test_unnamed_connections_are_numbered_per_provider(self, async_client):
+        first = await async_client.post("secrets", json=self._payload())
+        second = await async_client.post("secrets", json=self._payload())
+
+        assert first.status_code == 200 and second.status_code == 200
+        assert first.json()["header"]["name"] == self.TITLE
+        assert second.json()["header"]["name"] == f"{self.TITLE} 2"
+
+    @pytest.mark.asyncio
+    @pytest.mark.secret_creation
+    @pytest.mark.integration
+    async def test_connections_get_distinct_stable_slugs(self, async_client):
+        first = (await async_client.post("secrets", json=self._payload())).json()
+        second = (await async_client.post("secrets", json=self._payload())).json()
+
+        assert first["slug"] and second["slug"]
+        assert first["slug"] != second["slug"]
+
+        # The slug addresses the exact record, so two keys of one provider stay selectable.
+        by_slug = await async_client.get(f"secrets/{second['slug']}")
+        assert by_slug.status_code == 200
+        assert by_slug.json()["id"] == second["id"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.secret_creation
+    @pytest.mark.integration
+    async def test_a_supplied_name_is_kept(self, async_client):
+        response = await async_client.post(
+            "secrets", json=self._payload(name="Research budget")
+        )
+
+        assert response.json()["header"]["name"] == "Research budget"
+        assert response.json()["slug"].startswith("research-budget-")
+
+    @pytest.mark.asyncio
+    @pytest.mark.secret_retrieval
+    @pytest.mark.integration
+    async def test_models_and_harnesses_round_trip(self, async_client):
+        created = (
+            await async_client.post(
+                "secrets",
+                json=self._payload(
+                    models=["luminous-base", "luminous-supreme"],
+                    harnesses=["pi_core"],
+                ),
+            )
+        ).json()
+
+        for record in (
+            created,
+            (await async_client.get(f"secrets/{created['id']}")).json(),
+        ):
+            data = record["secret"]["data"]
+            assert [model["slug"] for model in data["models"]] == [
+                "luminous-base",
+                "luminous-supreme",
+            ]
+            assert data["harnesses"] == ["pi_core"]
+
+        listed = [
+            secret
+            for secret in (await async_client.get("secrets")).json()
+            if secret["id"] == created["id"]
+        ]
+        assert listed and listed[0]["secret"]["data"]["harnesses"] == ["pi_core"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.secret_retrieval
+    @pytest.mark.integration
+    async def test_a_connection_without_the_new_fields_still_reads(self, async_client):
+        created = (await async_client.post("secrets", json=self._payload())).json()
+
+        data = (await async_client.get(f"secrets/{created['id']}")).json()["secret"][
+            "data"
+        ]
+        assert data["provider"]["key"] == "sk-conn"
+        assert "models" not in data
+        assert "harnesses" not in data
+
+    @pytest.mark.asyncio
+    @pytest.mark.secret_update
+    @pytest.mark.integration
+    async def test_updating_one_connection_leaves_the_other_untouched(
+        self, async_client
+    ):
+        first = (
+            await async_client.post(
+                "secrets", json=self._payload(key="sk-first", models=["luminous-base"])
+            )
+        ).json()
+        second = (
+            await async_client.post(
+                "secrets",
+                json=self._payload(key="sk-second", models=["luminous-supreme"]),
+            )
+        ).json()
+
+        update = await async_client.put(
+            f"secrets/{first['id']}",
+            json=self._payload(
+                name="Primary", key="sk-first-rotated", models=["luminous-extended"]
+            ),
+        )
+        assert update.status_code == 200
+
+        unchanged = (await async_client.get(f"secrets/{second['id']}")).json()
+        assert unchanged["header"]["name"] == f"{self.TITLE} 2"
+        assert unchanged["slug"] == second["slug"]
+        assert unchanged["secret"]["data"]["provider"]["key"] == "sk-second"
+        assert [model["slug"] for model in unchanged["secret"]["data"]["models"]] == [
+            "luminous-supreme"
+        ]
+
+        rotated = (await async_client.get(f"secrets/{first['id']}")).json()
+        assert rotated["secret"]["data"]["provider"]["key"] == "sk-first-rotated"
+        assert rotated["slug"] == first["slug"]

@@ -1,0 +1,354 @@
+/**
+ * The docked message queue — what you have lined up, pinned above the composer.
+ *
+ * Sibling of `ApprovalDock` / `ElicitationDock` / `ConnectionDock` in form, but not in kind: those
+ * are gates the run is blocked on, this is a list the run will drain on its own. It therefore keeps
+ * its place ABOVE them, so the gate that actually wants an answer stays nearest the input.
+ *
+ * Two properties are the point:
+ *
+ *  - **The card never grows without bound.** The header is pinned and only the body scrolls, so a
+ *    twelve-deep queue takes exactly as much room as a five-deep one, and the count and collapse
+ *    toggle stay reachable at any length.
+ *  - **Editing happens in the composer, not here.** A row's pencil hands its text to the host, which
+ *    loads it into the input; this card only MARKS which row is under edit and offers the way out.
+ *    See `useAgentChatQueue.commitEdit` for what the resulting send does.
+ */
+import {memo, useEffect, useMemo, useRef, useState} from "react"
+
+import {splitQuotedMessage, truncateQuoteText, type QuotedExcerpt} from "@agenta/shared/quotes"
+import {getCollapseLabel} from "@agenta/ui/components/presentational"
+import {HeightCollapse} from "@agenta/ui/height-collapse"
+import {Button} from "@agenta/ui/ui"
+import {
+    CaretUp,
+    File as FileIcon,
+    PencilSimple,
+    Quotes,
+    SpeakerHigh,
+    Stack,
+    Trash,
+    VideoCamera,
+} from "@phosphor-icons/react"
+import type {FileUIPart} from "ai"
+
+import {fileKind, filePartName} from "../assets/files"
+import type {QueuedMessage} from "../hooks/useAgentChatQueue"
+
+/** The dock family's surface — same geometry as the approval and connect cards. */
+const CARD_SURFACE =
+    "rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer shadow-sm"
+
+/** Five rows at the design's 32px row height. Past that the body scrolls; the card does not grow. */
+const BODY_MAX_H = "max-h-40"
+
+/** Shared tile chrome, so the count block and the type icon read as the same object. */
+const TILE_CHROME =
+    "inline-flex h-5 shrink-0 items-center justify-center rounded border border-solid border-colorBorderSecondary"
+const TILE = `${TILE_CHROME} w-5`
+
+/** One attachment tile: image thumbnail, else a type icon. Sized to sit inside a 32px row. */
+const Attachment = ({part}: {part: FileUIPart}) => {
+    const name = filePartName(part)
+    const kind = fileKind(part.mediaType)
+    if (kind === "image") {
+        return (
+            // A data: or blob: thumbnail — next/image can optimize neither.
+            <img src={part.url} alt={name} title={name} className={`${TILE} object-cover`} />
+        )
+    }
+    const Icon = kind === "audio" ? SpeakerHigh : kind === "video" ? VideoCamera : FileIcon
+    return (
+        <span
+            role="img"
+            aria-label={name}
+            title={name}
+            className={`${TILE} bg-colorFillTertiary text-colorTextSecondary`}
+        >
+            <Icon size={11} aria-hidden />
+        </span>
+    )
+}
+
+/**
+ * A message's files, leading the row. One file shows its own tile; several collapse into a single
+ * counted block rather than a strip, so the row keeps its height and the text keeps its width no
+ * matter how many files a message carries.
+ */
+const Attachments = ({files}: {files: FileUIPart[]}) => {
+    if (files.length === 1) return <Attachment part={files[0]} />
+    const label = `${files.length} attachments`
+    return (
+        <span
+            role="img"
+            aria-label={label}
+            title={files.map(filePartName).join(", ")}
+            className={`${TILE} bg-colorFillTertiary text-[10px] font-medium tabular-nums text-colorTextSecondary`}
+        >
+            {files.length}
+        </span>
+    )
+}
+
+/** A quoted reply's excerpts as one tile, so the row reads as the reply, not as raw markdown. */
+const QuoteTile = ({quotes}: {quotes: QuotedExcerpt[]}) => {
+    const label = quotes.length === 1 ? "1 quote" : `${quotes.length} quotes`
+    return (
+        <span
+            role="img"
+            aria-label={label}
+            title={quotes.map((q) => `${q.origin}: ${truncateQuoteText(q.text, 80)}`).join("\n")}
+            // Widens to fit a count.
+            className={`${TILE_CHROME} min-w-5 gap-0.5 bg-colorFillTertiary px-1 text-[10px] font-medium tabular-nums text-colorTextSecondary`}
+        >
+            <Quotes size={11} aria-hidden />
+            {quotes.length > 1 ? quotes.length : null}
+        </span>
+    )
+}
+
+const Row = ({
+    message,
+    editing,
+    touchCls,
+    onEdit,
+    onCancelEdit,
+    onRemove,
+    onSendNow,
+    sendNowBlocked,
+}: {
+    message: QueuedMessage
+    editing: boolean
+    touchCls: string
+    onEdit?: (message: QueuedMessage) => void
+    onCancelEdit?: () => void
+    onRemove: (id: string) => void
+    onSendNow?: (id: string) => void
+    sendNowBlocked: boolean
+}) => {
+    const {quotes, text} = useMemo(() => splitQuotedMessage(message.text.trim()), [message.text])
+    // A bare quote with no reply shows its excerpt instead.
+    const excerpt = !text && quotes.length ? truncateQuoteText(quotes[0].text) : ""
+    // A steer or promoted row is already on its way; any other waits while one is.
+    const sendingThis = message.policy === "steer" || !!message.promotedExecutionId
+    const files = message.fileParts ?? []
+    const attachmentCount = Math.max(files.length, message.attachmentCount ?? 0)
+    return (
+        <div
+            className={`group flex min-h-8 flex-wrap items-center gap-1.5 rounded-lg px-2 transition-colors ${
+                editing ? "bg-colorFillTertiary" : "hover:bg-colorFillTertiary"
+            }`}
+        >
+            {files.length > 0 && <Attachments files={files} />}
+            {quotes.length > 0 && <QuoteTile quotes={quotes} />}
+            {text ? (
+                <span title={text} className="min-w-0 flex-1 truncate text-xs text-colorText">
+                    {text}
+                </span>
+            ) : excerpt ? (
+                <span
+                    title={quotes[0].text}
+                    className="min-w-0 flex-1 truncate text-xs text-colorTextSecondary"
+                >
+                    {excerpt}
+                </span>
+            ) : (
+                <span className="min-w-0 flex-1 truncate text-xs italic text-colorTextTertiary">
+                    {attachmentCount ? "(attachments only)" : "(empty message)"}
+                </span>
+            )}
+            {/* Keep Send Now visible without hover. */}
+            <span
+                className={`flex shrink-0 items-center gap-0.5 transition-opacity ${
+                    editing || touchCls || (onSendNow && message.source === "server")
+                        ? "opacity-100"
+                        : "opacity-0 focus-within:opacity-100 group-hover:opacity-100"
+                }`}
+            >
+                {onSendNow && message.source === "server" ? (
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        className={`h-6 !text-xs text-colorTextSecondary ${touchCls}`}
+                        disabled={editing || sendingThis || sendNowBlocked || !!message.saving}
+                        title={
+                            !sendingThis && sendNowBlocked
+                                ? "Another message is being sent first"
+                                : undefined
+                        }
+                        onClick={() => onSendNow(message.id)}
+                    >
+                        {sendingThis ? "Sending" : "Send Now"}
+                    </Button>
+                ) : null}
+                {editing ? (
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        className={`h-6 !text-xs text-colorTextSecondary ${touchCls}`}
+                        onClick={onCancelEdit}
+                    >
+                        Cancel
+                    </Button>
+                ) : onEdit && message.editable !== false ? (
+                    <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label="Edit queued message"
+                        className={`size-6 text-colorTextTertiary hover:text-colorText ${touchCls}`}
+                        // A failed edit comes back, not the text it would have replaced.
+                        onClick={() =>
+                            onEdit(
+                                message.unsavedEdit
+                                    ? {
+                                          ...message,
+                                          text: message.unsavedEdit.text,
+                                          fileParts:
+                                              message.unsavedEdit.fileParts ?? message.fileParts,
+                                      }
+                                    : message,
+                            )
+                        }
+                    >
+                        <PencilSimple size={13} />
+                    </Button>
+                ) : null}
+                {/* A local row has started, unless it is a just-sent one marked removable. */}
+                {(message.removable ?? message.source !== "local") ? (
+                    <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label="Remove queued message"
+                        disabled={!!message.saving}
+                        className={`size-6 text-colorTextTertiary hover:text-colorText ${touchCls}`}
+                        onClick={() => onRemove(message.id)}
+                    >
+                        <Trash size={13} />
+                    </Button>
+                ) : null}
+            </span>
+            {message.error ? (
+                <span role="alert" className="basis-full pb-1 text-xs text-colorError">
+                    {message.error}
+                </span>
+            ) : null}
+        </div>
+    )
+}
+
+export interface QueuedMessagesDockProps {
+    /** Held messages in FIFO order — index 0 is released first. */
+    queued: QueuedMessage[]
+    /** The run is parked on the user (HITL), so the queue is held rather than merely waiting. */
+    held?: boolean
+    onRemove: (id: string) => void
+    onSendNow?: (id: string) => void
+    /** A stop is already carrying one message into the next turn, so Send Now waits for it. */
+    sendNowBlocked?: boolean
+    /** Hand a row's content to the host's composer. Omit on surfaces without an editable input. */
+    onEdit?: (message: QueuedMessage) => void
+    /** Abandon the edit; the host puts the stashed draft back. */
+    onCancelEdit?: () => void
+    /** Id of the row the composer is currently editing. */
+    editingId?: string | null
+    /** Invisibly extended tap area; the chrome stays identical. */
+    touch?: boolean
+    className?: string
+}
+
+const QueuedMessagesDock = ({
+    queued,
+    held = false,
+    onRemove,
+    onSendNow,
+    sendNowBlocked = false,
+    onEdit,
+    onCancelEdit,
+    editingId = null,
+    touch = false,
+    className = "",
+}: QueuedMessagesDockProps) => {
+    const [collapsed, setCollapsed] = useState(false)
+    const bodyRef = useRef<HTMLDivElement>(null)
+    const countRef = useRef(queued.length)
+
+    // Messages append at the tail, so past the scroll cap a new one lands out of sight and Enter
+    // looks like it did nothing. Follow the tail on growth only — never on a removal, which would
+    // yank the list under the pointer that just removed something.
+    useEffect(() => {
+        const grew = queued.length > countRef.current
+        countRef.current = queued.length
+        if (!grew || collapsed) return
+        const body = bodyRef.current
+        if (body) body.scrollTop = body.scrollHeight
+    }, [queued.length, collapsed])
+
+    const touchCls = touch
+        ? "relative after:absolute after:-inset-x-1 after:-inset-y-2 after:content-['']"
+        : ""
+
+    const editingMissingRow = !!editingId && !queued.some((message) => message.id === editingId)
+
+    return (
+        <div className={`${CARD_SURFACE} ${className}`}>
+            {/* px-3 so the icon starts on the same 13px line as the row text below it and the
+                composer's own text — the card reads as one left edge, not three. */}
+            <div className="flex items-center gap-2 px-3 py-1.5">
+                <Stack size={14} className="shrink-0 text-colorTextTertiary" aria-hidden />
+                <span className="min-w-0 truncate text-[13px] text-colorTextSecondary">
+                    {queued.length} queued message{queued.length === 1 ? "" : "s"}
+                    {held ? " · waits for your answer" : ""}
+                </span>
+                <span className="flex-1" />
+                {/* Not `CollapseToggleButton`: it carries a tooltip, and a caret in a two-item
+                    header does not need explaining. Its label helper still applies. */}
+                <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label={getCollapseLabel(collapsed)}
+                    className={`text-colorTextTertiary hover:text-colorText ${touchCls}`}
+                    onClick={() => setCollapsed((c) => !c)}
+                >
+                    <CaretUp
+                        size={12}
+                        className={`transition-transform duration-200 ease-out motion-reduce:transition-none ${
+                            collapsed ? "rotate-180" : ""
+                        }`}
+                    />
+                </Button>
+            </div>
+            {editingMissingRow ? (
+                <div className="flex items-center gap-2 px-3 pb-2 text-xs text-colorTextSecondary">
+                    <span className="flex-1">This message is no longer queued.</span>
+                    <Button size="sm" variant="ghost" onClick={onCancelEdit}>
+                        Cancel editing
+                    </Button>
+                </div>
+            ) : null}
+            {/* The composer sits directly below, so a hard mount/unmount teleports it by the
+                body's full height. `HeightCollapse` is the app's one collapse primitive — the same
+                motion as the accordion sections and the sibling docks — and it owns aria-hidden
+                + inert while shut, so the rows are unreachable when they are not visible. */}
+            <HeightCollapse open={!collapsed} durationMs={200} fade>
+                <div ref={bodyRef} className={`${BODY_MAX_H} overflow-y-auto px-1 pb-1`}>
+                    {queued.map((message) => (
+                        <Row
+                            // The send's id: the server copy takes over the just-sent row in place.
+                            key={message.clientId ?? message.id}
+                            message={message}
+                            editing={message.id === editingId}
+                            touchCls={touchCls}
+                            onEdit={onEdit}
+                            onCancelEdit={onCancelEdit}
+                            onRemove={onRemove}
+                            onSendNow={onSendNow}
+                            sendNowBlocked={sendNowBlocked}
+                        />
+                    ))}
+                </div>
+            </HeightCollapse>
+        </div>
+    )
+}
+
+export default memo(QueuedMessagesDock)

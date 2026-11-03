@@ -94,6 +94,46 @@ def _delete_account_by_email(admin_api, *, email):
     assert resp.status_code == 204, resp.text
 
 
+def _create_workflow(triggers_api):
+    """Build a workflow + variant + committed revision; return its slug."""
+    slug = f"sub-wf-{uuid4().hex[:8]}"
+
+    wf = triggers_api(
+        "POST", "/workflows/", json={"workflow": {"slug": slug, "name": slug}}
+    )
+    assert wf.status_code == 200, wf.text
+    workflow_id = wf.json()["workflow"]["id"]
+
+    variant = triggers_api(
+        "POST",
+        "/workflows/variants/",
+        json={
+            "workflow_variant": {
+                "slug": f"{slug}-v",
+                "name": "Default",
+                "workflow_id": workflow_id,
+            }
+        },
+    )
+    assert variant.status_code == 200, variant.text
+    variant_id = variant.json()["workflow_variant"]["id"]
+
+    commit = triggers_api(
+        "POST",
+        "/workflows/revisions/commit",
+        json={
+            "workflow_revision": {
+                "slug": f"{slug}-v1",
+                "workflow_id": workflow_id,
+                "workflow_variant_id": variant_id,
+                "message": "initial",
+            }
+        },
+    )
+    assert commit.status_code == 200, commit.text
+    return slug
+
+
 @pytest.fixture(scope="class")
 def triggers_api(admin_api, ag_env):
     account = _create_developer_business_account(admin_api)
@@ -191,6 +231,8 @@ class TestTriggerSubscriptionsLifecycle:
         connection_id = self._create_connection(triggers_api)
 
         try:
+            workflow_slug = _create_workflow(triggers_api)
+
             create = triggers_api(
                 "POST",
                 "/triggers/subscriptions/",
@@ -202,7 +244,7 @@ class TestTriggerSubscriptionsLifecycle:
                             "event_key": "GITHUB_STAR_ADDED_EVENT",
                             "trigger_config": {"owner": "acme", "repo": "widgets"},
                             "inputs_fields": {"repo": "$.event.attributes.repository"},
-                            "references": {"workflow": {"slug": "triage"}},
+                            "references": {"workflow": {"slug": workflow_slug}},
                         },
                     }
                 },
@@ -227,8 +269,14 @@ class TestTriggerSubscriptionsLifecycle:
             )
             assert delete.status_code == 204
 
+            # The shared route now returns the soft-deleted subscription for exact-ID
+            # historical display (deleted automations remain readable), not a 404 —
+            # list/query routes still omit it.
             fetch = triggers_api("GET", f"/triggers/subscriptions/{subscription_id}")
-            assert fetch.status_code == 404
+            assert fetch.status_code == 200, fetch.text
+            historical = fetch.json()["subscription"]
+            assert historical["id"] == subscription_id
+            assert historical["deleted_at"] is not None
 
             # C7: deleting the subscription must NOT delete/revoke the connection.
             conn = triggers_api("GET", f"/tools/connections/{connection_id}")

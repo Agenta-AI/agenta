@@ -1,5 +1,9 @@
 [
-    {"id": "u1", "role": "user", "parts": [{"type": "text", "text": "delete the file and send a mail"}]},
+    {
+        "id": "u1",
+        "role": "user",
+        "parts": [{"type": "text", "text": "delete the file and send a mail"}]
+    },
     {
         "id": "a1",
         "role": "assistant",

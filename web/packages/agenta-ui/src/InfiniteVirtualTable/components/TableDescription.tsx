@@ -1,7 +1,5 @@
 import type {ReactNode} from "react"
 
-import {Typography} from "antd"
-
 import {cn} from "../../utils/styles"
 
 export interface TableDescriptionProps {
@@ -37,13 +35,17 @@ const TableDescription = ({children, className, maxWidth = "prose"}: TableDescri
     }[maxWidth]
 
     return (
-        <Typography.Paragraph
-            type="secondary"
-            className={cn(maxWidthClass, "line-clamp-2 h-10", className)}
-            style={{marginBottom: 0}}
+        <p
+            className={cn(
+                // Preflight is off in this app, so the native <p> top margin comes back too.
+                "m-0 text-colorTextSecondary",
+                maxWidthClass,
+                "line-clamp-2 h-10",
+                className,
+            )}
         >
             {children}
-        </Typography.Paragraph>
+        </p>
     )
 }
 

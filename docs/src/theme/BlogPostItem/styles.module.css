@@ -1,44 +1,32 @@
+/* Changelog list row: date and version on the left, the entry on the right. */
 .item {
   display: grid;
-  grid-template-columns: 9rem minmax(0, 1fr);
-  column-gap: 3rem;
-  padding: 2.75rem 0;
-  border-top: 1px solid var(--ifm-toc-border-color);
+  grid-template-columns: 152px minmax(0, 1fr);
+  column-gap: 32px;
+  max-width: var(--doc-list-width);
+  padding: 40px 0;
+  border-top: 1px solid var(--borderdefault);
 }
 
 .item:first-of-type {
   border-top: none;
-  padding-top: 1rem;
+  padding-top: 0;
 }
 
 .meta {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.55rem;
+  gap: 8px;
   position: sticky;
-  top: calc(var(--ifm-navbar-height) + 1.5rem);
+  top: calc(var(--ifm-navbar-height) + var(--doc-main-padding-top));
   align-self: start;
-  padding-top: 0.2rem;
 }
 
 .date {
-  font-weight: var(--ifm-font-weight-semibold);
-  color: var(--ifm-color-emphasis-900);
-  font-size: 0.875rem;
-  line-height: 1.4;
-}
-
-.version {
-  display: inline-block;
-  font-size: 0.7rem;
-  font-weight: var(--ifm-font-weight-semibold);
-  letter-spacing: 0.02em;
-  line-height: 1.7;
-  padding: 0 0.55rem;
-  border-radius: 1rem;
-  background-color: var(--ifm-color-emphasis-100);
-  color: var(--ifm-color-emphasis-700);
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--contentsecondary);
 }
 
 .main {
@@ -46,52 +34,172 @@
 }
 
 .title {
-  font-size: 1.4rem;
-  line-height: 1.3;
-  margin-bottom: 0.85rem;
+  margin: 0 0 16px;
 }
 
-/* !important needed to beat the global `article a` underline rule in custom.css */
+/* !important needed to beat the global `article a` underline rule */
 .title a {
-  color: var(--ifm-heading-color);
+  color: var(--contentprimary);
   text-decoration: none !important;
-  transition: color 150ms ease;
 }
 
 .title a:hover {
-  color: var(--ifm-link-color);
   text-decoration: none !important;
 }
 
-/* Tighten the preview text so cards stay compact and scannable. */
 .main :global(.markdown) > :first-child {
   margin-top: 0;
 }
 
+.main :global(.markdown) > :last-child {
+  margin-bottom: 0;
+}
+
+/* Media sits 16px above the summary in the list (24px in the entry page). */
+.main :global(.markdown) iframe,
+.main :global(.markdown) div:has(> iframe) {
+  margin-bottom: 16px !important;
+}
+
 .main :global(.markdown) {
-  font-size: 0.95rem;
-  color: var(--ifm-color-emphasis-800);
+  font-size: 15px;
+  line-height: 26px;
+  color: var(--contentprimary);
+  text-wrap: pretty;
 }
 
 .readMore {
-  display: inline-block;
-  margin-top: 0.9rem;
-  font-size: 0.9rem;
-  font-weight: var(--ifm-font-weight-semibold);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--contentprimary);
+  text-decoration: none !important;
+  transition: color var(--ifm-transition-fast) ease;
+}
+
+.readMore:hover {
+  color: var(--contentsecondary);
+}
+
+.readMore svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* Improvements and fixes from the entry's frontmatter. */
+.releaseItems {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+/* The global `details` box style uses !important; only the header carries a fill. */
+.releaseItems .releaseSection {
+  margin: 0;
+  border: 0 !important;
+  border-radius: 0;
+  background-color: transparent !important;
+}
+
+.releaseSummary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background-color: var(--bgelevated1);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 22px;
+  color: var(--contentprimary);
+  cursor: pointer;
+  list-style: none;
+}
+
+.releaseSummary::-webkit-details-marker {
+  display: none;
+}
+
+.releaseCount {
+  font-weight: 400;
+  color: var(--contentsecondary);
+}
+
+.releaseChevron {
+  width: 16px;
+  height: 16px;
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--contentsecondary);
+  transition: transform var(--ifm-transition-fast) ease;
+}
+
+.releaseSection[open] .releaseChevron {
+  transform: rotate(180deg);
+}
+
+.releaseList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 14px 14px 8px;
+  list-style: none;
+}
+
+.releaseRow {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 16px;
+  margin: 0;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--contentprimary);
+}
+
+.releaseArea {
+  color: var(--contentsecondary);
 }
 
 @media (max-width: 996px) {
   .item {
     grid-template-columns: minmax(0, 1fr);
-    row-gap: 0.85rem;
-    padding: 2rem 0;
+    row-gap: 12px;
+    padding: 32px 0;
   }
 
   .meta {
     position: static;
     flex-direction: row;
     align-items: center;
-    gap: 0.75rem;
-    padding-top: 0;
+    gap: 10px;
   }
+}
+
+.releaseHint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  margin-top: 12px;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--contentsecondary);
+  text-decoration: none !important;
+  transition: color var(--ifm-transition-fast) ease;
+}
+
+.releaseHint:hover {
+  color: var(--contentprimary);
+}
+
+.releaseHint svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
 }

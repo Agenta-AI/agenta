@@ -245,7 +245,7 @@ More broadly, the pipeline had multiple places where a single bad field or span 
 
 ### Testing
 
-Verified on worktree deployment at `http://144.76.237.122:8480`:
+Verified on worktree deployment at `http://<dev-host>:8480`:
 - OTel JS example sends traces successfully
 - Spans with JSON-stringified inputs/parameters/internals appear correctly in UI
 - Malformed spans are skipped without affecting good spans

@@ -1,0 +1,75 @@
+---
+id: fetch-channel-setup
+title: "Fetch Channel Setup"
+description: "Reachable before any connection exists -- the manifest an"
+sidebar_label: "Fetch Channel Setup"
+hide_title: true
+hide_table_of_contents: true
+api: eJztV99v2zYQ/lcIPm2AYmfFntyXBW2zBO26oMm2hziIz9TJYkuTKnlK6xn634cjJUuqY7fIUOxlT7bI+8W7774jt5JgFeTsVr4owVo0Qd5lMsegvK5IOytn8h2CKmFpUCyxcB4F2I1QzlpULCHwsw4UxMmJoBLFGqwuMJAAO7euQg/kvLCIeRDkxMqJZa1NHmUrA1Q4vxZQVULbuFZoH4h3FE7mdlEgqfJepeDue6/3AamuFiIQbEJU9K4mFIXzAgbRzS2VQAKMR8g3bazPBZU6CJ0UnUURhSqPCnMMQtNkbud2YWGNi0wsBvlYCLC5WJRgc4MLAR5F6T5FO3yIaK899NzGkwa2G9AS2w1oiudJOoeK0IscC6gNhWi30BQEp5uDmshMJlva2ctczuQ4GTEDMpMVeFgjoec6biUHLWeylZKZ1FzECqiUmfT4sdYeczkjX2MmgypxDXK2lbSpWC2Q13YlM0maDC+0uJBNk+1sx5/W8Mca/WZkuQATRqbBbn4vYmxjJ2yxXbG1MbK5692+ZRdDn0NMfl/XLweehhGkmn9n5xfJScNrHkPlbMDAxp6dnvLPuDWva6UwhKI24l0rLDOpnCW0FEOoKqNVRND0fWCd7SDAyjO+SCcPytVJqY1NW8IV+iEWogTzQ8SsnJ02mUwwHB13bFfbQL6O3Zi+CddhH3JN1i2A97AZuL0cGmgymTtVr7sDHnDKtAJ0DNjnSaIZ5etgF7QiTSYLbTAh4mkVPu/0m0wabT881c4b1m36rLnle1Q0QuRtl4b+jHd7nX3N9XvplPyS9/9iTlxEDktcc98lfiFWaJmYMGSC3WGgk9qbkxwrtDlaimwW3NxafEAvlvABc6Etuch9gYC0EgoqWGqjaSNyVAYS000eOXVMO5p8jJ9xxbuaHCrh2y7nsERzTPBNFIjIVh6HsFg6ZxDsQPY6iQxaIrJAM6zCEfV3ndDAABNzk8kSTfVkEmHdhicDEXr7VDNXrXpv6R69d/5f2hOvopGvQbcdMqlcB2B7zqA4whznCTScThcI83t4AG34LnO0LBdRWJzthPfq+0jsj8X3GJS/UXXA5+O2vClRtMP9xOADGkGftBWuEItW/8Xu9jOytJgJ313l5vaTppJvSklFcLYFGGcxO3DN8+5Te32ayKbhY/z87Nn+SPoTjM5jI7d1fvI8ypFAmyMdb5wa7X4DJruZFinlAGjeuBQgw2YdVseo4jcMAVbYI/CwaEyGuOHdhq8QVZ2YZTfjeIGHEX0emNmHCOfyM321e0wkdA6/lRt0UF+ithMPpuJlKsExzF7c3FztGUz4WCOVju+tq0iR8Qo6k9MWcmGqgMC4Vb+wbf810zhvppI52D90N9vaG9aHSseSps+SqAqz6RTriTKuziewQkswAZ0E7yKP117TJho5u7p8jZsLhBy9nN3eDQWuGYkJW2OxXT2g0q+RM9TeCc9qKp3Xf8PwXlomrSbWuXDDMp/F4MTZ1eVeX4+2uGVAUT/X2m2ZfXHs/rQyk7iODSMJYf3LbofryzlMbk4nP01OI6W7QGuwAxfn/LwQLYmI6/Z5MYpy2zfz/+/C//Bd2MKRqWBaGdCRrCIytm2f3XYvwMBwSp3G//rFWf9E7J6SzBI8KVl9u11CwD+8aRpeTu8d7qBcB656/+L5gJv+UfgApubQYoseEB2/5b5FY/f26oXv+MPrNMwfC+sgcH/orl0/ikOp7NrdboY+u2i6xMUpUnZUsm13z5TCigZ6e0OPY9+R46+vbmTT/AOc3hOC
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Channel Setup"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/channels/catalog/channels/{channel}/setup/"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Reachable before any connection exists -- the manifest an
+operator needs to go build the platform app in the first place.
+`fetch_channel_connection_setup` stays the route for a connection
+that already exists; this is the one that precedes it.
+
+`name`, `description` and `handle` are how the app the operator
+builds presents itself; the adapter defaults and fits each one.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./fetch-channel-setup.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./fetch-channel-setup.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./fetch-channel-setup.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

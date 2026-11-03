@@ -28,7 +28,7 @@
   - Create/upsert instance: `POST /trigger_instances/{slug}/upsert` (body `connected_account_id`, `trigger_config`)
   - Enable/disable instance: `PATCH /trigger_instances/manage/{trigger_id}` (body `status` = `"enable"`/`"disable"`)
   - Delete instance: `DELETE /trigger_instances/manage/{trigger_id}`
-  - All paths are relative to `env.composio.api_url` (default `/api/v3`); adapter builds `f"{api_url}{path}"` exactly like `ComposioToolsAdapter`. Docs currently surface these under the `v3.1` minor; the path *segments* (what E5 asked to confirm) are stable across v3/v3.1 and we keep the shared `env.composio.api_url` base.
+  - All paths are relative to `env.composio.api_url` (default `/api/v3.1`); adapter builds `f"{api_url}{path}"` exactly like `ComposioToolsAdapter`. The path *segments* (what E5 asked to confirm) are stable across v3/v3.1 and every Composio adapter uses the shared base.
 
 ## Notes / blockers
 

@@ -39,10 +39,10 @@ const withTextVariants = cva(
     {
         variants: {
             plain: {
-                // Default: heading colour, weight 500, fontSizeLG 14px.
-                false: "text-colorTextHeading font-medium text-sm leading-[1.6666666666666667]",
-                // plain: base text colour, normal weight, fontSize 12px.
-                true: "text-colorText font-normal text-xs leading-[1.6666666666666667]",
+                // Default: heading colour, weight 500, fontSizeLG 16px.
+                false: "text-colorTextHeading font-medium text-base leading-[1.4285714285714286]",
+                // plain: base text colour, normal weight, fontSize 14px.
+                true: "text-colorText font-normal text-sm leading-[1.4285714285714286]",
             },
         },
         defaultVariants: {plain: false},

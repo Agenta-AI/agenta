@@ -1,0 +1,121 @@
+---
+// A template's example run card; the run loops: play, hold, fade out, play again.
+import RunSteps from "./RunSteps.astro";
+
+interface Props {
+  name: string;
+  example: {
+    prompt: string;
+    steps: string[];
+    reply: string;
+    status?: string | null;
+  };
+  class?: string;
+}
+const { name, example, class: className } = Astro.props;
+---
+
+<div
+  class:list={["ag-tpl-output", "ag-run--play", className]}
+  role="group"
+  aria-label={`Example run of ${name}`}
+  data-run
+>
+  <div class="ag-tpl-output__head">
+    <span class="ag-tpl-output__mark" aria-hidden="true"><img src="/logos/Agenta-symbol-light.svg" alt="" /></span>
+    <span class="ag-tpl-output__from">{name}</span>
+    <span class="ag-tpl-output__tag">Example run</span>
+    <span class="ag-tpl-output__side">
+      {example.status && <span class="ag-tpl-output__status">{example.status}</span>}
+    </span>
+  </div>
+  <div class="ag-tpl-output__body">
+    <RunSteps example={example} />
+  </div>
+</div>
+
+<script>
+  const HOLD_MS = 4000;
+  // The reply animates last; without motion it never animates, so the run stays still.
+  for (const run of document.querySelectorAll<HTMLElement>("[data-run]")) {
+    const body = run.querySelector<HTMLElement>(".ag-tpl-output__body");
+    run.querySelector(".ag-run__reply")?.addEventListener("animationend", () => {
+      setTimeout(() => run.classList.add("ag-run--rewind"), HOLD_MS);
+    });
+    body?.addEventListener("transitionend", (event) => {
+      if (event.target !== body || !run.classList.contains("ag-run--rewind")) return;
+      run.classList.remove("ag-run--play");
+      void run.offsetWidth;
+      run.classList.add("ag-run--play");
+      run.classList.remove("ag-run--rewind");
+    });
+  }
+</script>
+
+<style is:global>
+  .ag-tpl-output {
+    background: var(--th-bg-1);
+    border-radius: var(--radius-lg);
+    box-shadow:
+      0 0 0 1px var(--th-border),
+      var(--th-menu-shadow);
+    overflow: hidden;
+    text-align: left;
+  }
+  .ag-tpl-output__head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--th-border-subtle);
+    background: var(--th-bg-2);
+  }
+  .ag-tpl-output__mark {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    background: var(--yellow-400);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .ag-tpl-output__mark img {
+    width: 16px;
+    height: auto;
+  }
+  .ag-tpl-output__from {
+    font: 600 13.5px/18px var(--font-sans);
+    color: var(--th-text-hi);
+  }
+  .ag-tpl-output__tag {
+    font: 600 9px/12px var(--font-sans);
+    color: var(--th-text-body);
+    background: var(--th-code-bg);
+    border-radius: 3px;
+    padding: 2px 5px;
+    text-transform: uppercase;
+  }
+  .ag-tpl-output__side {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .ag-tpl-output__status {
+    font: 400 12px/16px var(--font-sans);
+    color: var(--th-text-mut);
+  }
+  .ag-tpl-output__body {
+    padding: 22px 28px 28px;
+    transition: opacity 0.4s ease;
+  }
+  .ag-run--rewind .ag-tpl-output__body {
+    opacity: 0;
+  }
+  @media (max-width: 767px) {
+    .ag-tpl-output__body {
+      padding: 18px 18px 22px;
+    }
+  }
+</style>

@@ -29,7 +29,7 @@ import {
   type FacetDigests,
 } from "../../lifecycle/desired-state.ts";
 import type { AgentRunRequest } from "../../protocol.ts";
-import { configFingerprint } from "./session-identity.ts";
+import { configFieldDigests, configFingerprint } from "./session-identity.ts";
 
 /**
  * The state an environment has successfully installed. Read-only to everyone except
@@ -52,6 +52,12 @@ export interface AppliedEnvironmentState {
    * the same successful acquire, so it can never disagree with `configFingerprint`.
    */
   readonly facets: FacetDigests;
+  /**
+   * Per-field digests of the same configuration (see `configFieldDigests`), so a config
+   * mismatch can log WHICH fields changed — names only, values never leave the hash. Stamped
+   * with the other two, so the three views describe one configuration.
+   */
+  readonly fieldDigests: Record<string, string>;
 }
 
 /**
@@ -74,11 +80,17 @@ export class AppliedState implements AppliedStateOwner {
   #generation: number;
   #configFingerprint: string;
   #facets: FacetDigests;
+  #fieldDigests: Record<string, string>;
 
-  constructor(configFingerprint: string, facets: FacetDigests) {
+  constructor(
+    configFingerprint: string,
+    facets: FacetDigests,
+    fieldDigests: Record<string, string>,
+  ) {
     this.#generation = 1;
     this.#configFingerprint = configFingerprint;
     this.#facets = facets;
+    this.#fieldDigests = fieldDigests;
   }
 
   get appliedState(): AppliedEnvironmentState {
@@ -87,6 +99,7 @@ export class AppliedState implements AppliedStateOwner {
       generation: this.#generation,
       configFingerprint: this.#configFingerprint,
       facets: { ...this.#facets },
+      fieldDigests: { ...this.#fieldDigests },
     };
   }
 
@@ -101,10 +114,12 @@ export class AppliedState implements AppliedStateOwner {
   commitApplied(result: {
     configFingerprint: string;
     facets: FacetDigests;
+    fieldDigests: Record<string, string>;
   }): void {
     this.#generation += 1;
     this.#configFingerprint = result.configFingerprint;
     this.#facets = result.facets;
+    this.#fieldDigests = result.fieldDigests;
   }
 }
 
@@ -117,9 +132,27 @@ export class AppliedState implements AppliedStateOwner {
  * real code can never reach.
  */
 export function appliedStateForRequest(request: AgentRunRequest): AppliedState {
-  const fingerprint = configFingerprint(request);
+  const result = appliedResultForRequest(request);
   return new AppliedState(
-    fingerprint,
-    normalizeDesiredState(request, fingerprint).digests,
+    result.configFingerprint,
+    result.facets,
+    result.fieldDigests,
   );
+}
+
+/**
+ * The three applied-state views of one request, for `commitApplied` callers. One place computes
+ * all of them, so no commit can stamp views of different configurations.
+ */
+export function appliedResultForRequest(request: AgentRunRequest): {
+  configFingerprint: string;
+  facets: FacetDigests;
+  fieldDigests: Record<string, string>;
+} {
+  const fingerprint = configFingerprint(request);
+  return {
+    configFingerprint: fingerprint,
+    facets: normalizeDesiredState(request, fingerprint).digests,
+    fieldDigests: configFieldDigests(request),
+  };
 }

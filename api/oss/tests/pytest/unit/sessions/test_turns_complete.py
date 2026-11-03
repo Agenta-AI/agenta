@@ -52,7 +52,13 @@ async def test_complete_turn_delegates_project_scoped_key_and_completion_fields(
     service.complete_turn.return_value = completed
     router = SessionTurnsRouter(turns_service=service)
 
-    with _access(True):
+    with (
+        _access(True),
+        patch(
+            "oss.src.apis.fastapi.sessions.router.has_valid_runner_token",
+            return_value=True,
+        ),
+    ):
         response = await router.complete_turn(
             request=_request(project_id, user_id),
             body=SessionTurnCompleteRequest(

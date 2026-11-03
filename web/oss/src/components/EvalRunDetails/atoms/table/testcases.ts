@@ -1,6 +1,7 @@
 import {createBatchFetcher, type BatchFetcher} from "@agenta/shared/utils"
 import {atom} from "jotai"
-import {atomFamily, selectAtom} from "jotai/utils"
+import {selectAtom} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
@@ -8,6 +9,7 @@ import type {PreviewTestCase} from "@/oss/lib/Types"
 import {getProjectValues} from "@/oss/state/project"
 
 import {resolveTestcaseValueByPath, splitPath} from "../../utils/valueAccess"
+import {sameFamilyKey} from "../familyKeys"
 import {activePreviewRunIdAtom, effectiveProjectIdAtom} from "../run"
 
 const testcaseBatcherCache = new Map<string, BatchFetcher<string, PreviewTestCase | null>>()
@@ -36,59 +38,61 @@ const normalizeTestcase = (raw: any): PreviewTestCase | null => {
 const resolveEffectiveRunId = (get: any, runId?: string | null) =>
     runId ?? get(activePreviewRunIdAtom) ?? undefined
 
-export const evaluationTestcaseBatcherFamily = atomFamily(({runId}: {runId?: string | null} = {}) =>
-    atom((get) => {
-        const {projectId: globalProjectId} = getProjectValues()
-        const projectId = globalProjectId ?? get(effectiveProjectIdAtom)
-        const effectiveRunId = resolveEffectiveRunId(get, runId)
-        if (!projectId) return null
+export const evaluationTestcaseBatcherFamily = atomFamily(
+    ({runId}: {runId?: string | null} = {}) =>
+        atom((get) => {
+            const {projectId: globalProjectId} = getProjectValues()
+            const projectId = globalProjectId ?? get(effectiveProjectIdAtom)
+            const effectiveRunId = resolveEffectiveRunId(get, runId)
+            if (!projectId) return null
 
-        const cacheKey = `${projectId}:${effectiveRunId ?? "preview"}`
-        let batcher = testcaseBatcherCache.get(cacheKey)
-        if (!batcher) {
-            testcaseBatcherCache.clear()
-            batcher = createBatchFetcher<string, PreviewTestCase | null>({
-                serializeKey: (key) => key,
-                batchFn: async (testcaseIds) => {
-                    const uniqueIds = Array.from(new Set(testcaseIds.filter(Boolean)))
-                    if (uniqueIds.length === 0) {
-                        return {}
-                    }
-
-                    const response = await axios.post(
-                        `/testcases/query`,
-                        {testcase_ids: uniqueIds},
-                        {
-                            params: {project_id: projectId},
-                        },
-                    )
-
-                    const rows = Array.isArray(response.data?.testcases)
-                        ? response.data.testcases
-                        : []
-
-                    const result: Record<string, PreviewTestCase | null> = Object.create(null)
-                    rows.forEach((row: any) => {
-                        const normalized = normalizeTestcase(row)
-                        if (normalized?.id) {
-                            result[normalized.id] = normalized
+            const cacheKey = `${projectId}:${effectiveRunId ?? "preview"}`
+            let batcher = testcaseBatcherCache.get(cacheKey)
+            if (!batcher) {
+                testcaseBatcherCache.clear()
+                batcher = createBatchFetcher<string, PreviewTestCase | null>({
+                    serializeKey: (key) => key,
+                    batchFn: async (testcaseIds) => {
+                        const uniqueIds = Array.from(new Set(testcaseIds.filter(Boolean)))
+                        if (uniqueIds.length === 0) {
+                            return {}
                         }
-                    })
 
-                    uniqueIds.forEach((id) => {
-                        if (typeof result[id] === "undefined") {
-                            result[id] = null
-                        }
-                    })
+                        const response = await axios.post(
+                            `/testcases/query`,
+                            {testcase_ids: uniqueIds},
+                            {
+                                params: {project_id: projectId},
+                            },
+                        )
 
-                    return result
-                },
-            })
-            testcaseBatcherCache.set(cacheKey, batcher)
-        }
+                        const rows = Array.isArray(response.data?.testcases)
+                            ? response.data.testcases
+                            : []
 
-        return batcher
-    }),
+                        const result: Record<string, PreviewTestCase | null> = Object.create(null)
+                        rows.forEach((row: any) => {
+                            const normalized = normalizeTestcase(row)
+                            if (normalized?.id) {
+                                result[normalized.id] = normalized
+                            }
+                        })
+
+                        uniqueIds.forEach((id) => {
+                            if (typeof result[id] === "undefined") {
+                                result[id] = null
+                            }
+                        })
+
+                        return result
+                    },
+                })
+                testcaseBatcherCache.set(cacheKey, batcher)
+            }
+
+            return batcher
+        }),
+    sameFamilyKey,
 )
 
 export const evaluationTestcaseBatcherAtom = atom((get) =>
@@ -120,6 +124,7 @@ export const evaluationTestcaseQueryAtomFamily = atomFamily(
                 },
             }
         }),
+    sameFamilyKey,
 )
 
 export const testcaseValueAtomFamily = atomFamily(
@@ -129,6 +134,7 @@ export const testcaseValueAtomFamily = atomFamily(
             (queryState) => resolveTestcaseValueByPath(queryState.data, splitPath(path)),
             Object.is,
         ),
+    sameFamilyKey,
 )
 
 export const testcaseQueryMetaAtomFamily = atomFamily(
@@ -143,4 +149,5 @@ export const testcaseQueryMetaAtomFamily = atomFamily(
             (a, b) =>
                 a.isLoading === b.isLoading && a.isFetching === b.isFetching && a.error === b.error,
         ),
+    sameFamilyKey,
 )

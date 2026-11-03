@@ -23,6 +23,16 @@ import {
  * holds in either theme, and leaves nothing behind once the words are committed. */
 export const INTERIM_STYLE = "opacity: 0.65;"
 
+/**
+ * Visually inert, and load-bearing: Lexical merges adjacent text nodes that share a format and
+ * style, so an unstyled committed node is swallowed by whatever was already typed before it. The
+ * session then can no longer find its own node, re-creates it past the interim tail, and re-appends
+ * the whole transcript on the next result — "Draft" + "hello world" dictated becomes
+ * "Draft  hello hello hello world". A style of its own keeps the node addressable; `end()` drops it
+ * so the words settle into ordinary text and merge like anything else.
+ */
+const COMMITTED_STYLE = "opacity: 1;"
+
 export interface DictationSession {
     /** Push the recogniser's committed text and its provisional tail. */
     update: (finalText: string, interimText: string) => void
@@ -45,20 +55,28 @@ export function beginDictation(editor: LexicalEditor): DictationSession {
         const paragraph = $isParagraphNode(last) ? last : $createParagraphNode()
         if (paragraph !== last) root.append(paragraph)
 
+        // Resolved first, because a replacement committed node has to be placed relative to it.
+        const existingInterim = interimKey ? $getNodeByKey(interimKey) : null
+        const survivingInterim = existingInterim instanceof TextNode ? existingInterim : null
+
         const existingFinal = finalKey ? $getNodeByKey(finalKey) : null
         let finalNode: TextNode
         if (existingFinal instanceof TextNode) {
             finalNode = existingFinal
         } else {
             finalNode = $createTextNode("")
-            paragraph.append(finalNode)
+            finalNode.setStyle(COMMITTED_STYLE)
+            // Lexical collects the node while it holds no text, which is the norm until the first
+            // word settles. A replacement must go back BEFORE the tail — appending it renders the
+            // transcript in reverse ("hello world and" as " andhello world") until the tail empties.
+            if (survivingInterim) survivingInterim.insertBefore(finalNode)
+            else paragraph.append(finalNode)
             finalKey = finalNode.getKey()
         }
 
-        const existingInterim = interimKey ? $getNodeByKey(interimKey) : null
         let interimNode: TextNode
-        if (existingInterim instanceof TextNode) {
-            interimNode = existingInterim
+        if (survivingInterim) {
+            interimNode = survivingInterim
         } else {
             interimNode = $createTextNode("")
             interimNode.setStyle(INTERIM_STYLE)
@@ -84,6 +102,9 @@ export function beginDictation(editor: LexicalEditor): DictationSession {
                     interimNode.setTextContent(
                         interimText && finalText ? ` ${interimText}` : interimText,
                     )
+                    if (finalNode.getStyle() !== COMMITTED_STYLE) {
+                        finalNode.setStyle(COMMITTED_STYLE)
+                    }
                     if (interimNode.getStyle() !== INTERIM_STYLE) {
                         interimNode.setStyle(INTERIM_STYLE)
                     }
@@ -101,8 +122,10 @@ export function beginDictation(editor: LexicalEditor): DictationSession {
                     else interimNode.remove()
                 }
                 const finalNode = finalKey ? $getNodeByKey(finalKey) : null
-                if (finalNode instanceof TextNode && !finalNode.getTextContent().trim()) {
-                    finalNode.remove()
+                if (finalNode instanceof TextNode) {
+                    // Empty means the session caught no words — drop it, separator space and all.
+                    if (finalNode.getTextContent().trim()) finalNode.setStyle("")
+                    else finalNode.remove()
                 }
                 $getRoot().selectEnd()
             })

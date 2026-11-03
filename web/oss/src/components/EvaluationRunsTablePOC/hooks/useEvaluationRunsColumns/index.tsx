@@ -7,7 +7,7 @@ import {
     createTableColumns,
     type TableColumnConfig,
 } from "@agenta/ui/table"
-import type {ColumnsType} from "antd/es/table"
+import type {ColumnDefs} from "@agenta/ui/table"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {
@@ -691,7 +691,7 @@ const useEvaluationRunsColumns = ({
         isMetricHidden,
     ])
 
-    const columns = useMemo<ColumnsType<EvaluationRunTableRow>>(() => {
+    const columns = useMemo<ColumnDefs<EvaluationRunTableRow>>(() => {
         const columnConfigs: TableColumnConfig<EvaluationRunTableRow>[] = []
 
         columnConfigs.push(

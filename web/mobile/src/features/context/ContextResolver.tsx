@@ -1,111 +1,127 @@
-import {useEffect, useMemo, useState} from "react"
+import {useEffect, useMemo, useRef, useState} from "react"
 
+import {Button} from "@agenta/ui/ui"
 import {useQuery} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
-import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {fetchProjects, readDesktopLastUsed, readLastContext, type LastContext} from "@/lib/context"
+import {HomePageSkeleton} from "@/features/home/states/HomePageSkeleton"
+import {readPendingInvite} from "@/features/invite/pendingInvite"
+import {
+    fetchProjects,
+    projectHomeUrl,
+    projectTemplateUrl,
+    readDesktopLastUsed,
+    readLastContext,
+    peekTemplateKey,
+    type LastContext,
+} from "@/lib/context"
 
 import {selectContextTarget} from "./contextTarget"
-import {ProjectList} from "./ProjectList"
-import {SignedOutNotice} from "./states/SignedOutNotice"
 import {groupByWorkspace, type WorkspaceGroup} from "./workspaceGroups"
-import {WorkspaceSelector} from "./WorkspaceSelector"
 
-const sessionsUrl = ({workspaceId, projectId}: LastContext) =>
-    `/w/${workspaceId}/p/${projectId}/sessions`
+interface ContextResolverProps {
+    /**
+     * Confine resolution to the workspace the URL names (`/w/:workspace_id`, `/w/:id/p`), so
+     * a link into a workspace lands in THAT workspace rather than the remembered one. Omitted
+     * on `/m/` and `/m/w`, which resolve across the whole tree.
+     */
+    workspaceId?: string
+}
 
 /**
- * `/m/` root flow: last-context → auto-forward, else fetch projects and pick.
+ * `/m/` root flow: resolve a project (remembered → desktop continuity → first) and forward to
+ * its home. There is no picker page — switching lives in the drawer. This route only ever shows
+ * the home skeleton, an error, or leaves.
  *
- * `?switch=1` suppresses every auto-forward so the picker is reachable from inside the app —
- * without it a stored context makes this route un-viewable and the workspace unswitchable.
+ * Also the body of every `/w/...` index gate, collapsed into one resolver because mobile answers
+ * all of them from the same project list.
  */
-export const ContextResolver = () => {
+export const ContextResolver = ({workspaceId}: ContextResolverProps = {}) => {
     const router = useRouter()
     // useState initializer: read once, client-only (SSR renders the loading branch).
     const [stored] = useState<LastContext | null>(() =>
         typeof window === "undefined" ? null : readLastContext(),
     )
-    const switching = router.isReady && router.query.switch !== undefined
-    const shortcut = switching ? null : stored
 
+    // Always fetched (the shared key every screen uses): a stored pair still forwards on the
+    // first render, but once the tree answers we can tell a stale shortcut from a live one.
     const query = useQuery({
         queryKey: ["mobile", "projects"],
         queryFn: () => fetchProjects(),
-        enabled: !shortcut,
         staleTime: 30_000,
     })
     const result = query.data
+    // Every sign-in path ends at the root, so this one check covers them all. Read once, client-only.
+    const [hasInvite] = useState(
+        () => typeof window !== "undefined" && !workspaceId && readPendingInvite() !== null,
+    )
 
     const groups = useMemo<WorkspaceGroup[]>(
         () => (result?.kind === "ok" ? groupByWorkspace(result.projects) : []),
         [result],
     )
-    // Which workspace the header is scoped to. Falls back rather than syncing on every fetch:
-    // a refetch can drop the selected workspace entirely.
-    const [selectedWorkspaceId, setSelectedWorkspaceId] = useState("")
-    const selectedGroup =
-        groups.find((group) => group.workspaceId === selectedWorkspaceId) ?? groups[0]
 
     const target = useMemo<LastContext | null>(
         () =>
             selectContextTarget({
                 ready: router.isReady,
-                switching,
-                shortcut,
+                shortcut: stored,
                 groups,
+                groupsLoaded: result?.kind === "ok",
                 desktopLastUsed: readDesktopLastUsed(),
+                workspaceId,
             }),
-        [router.isReady, switching, shortcut, groups],
+        [router.isReady, stored, groups, result, workspaceId],
     )
 
-    useEffect(() => {
-        if (target) void router.replace(sessionsUrl(target))
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [target])
+    // The template key this mount resolves to, read once. The effect below can run more than
+    // once (the remembered project, then the fetched tree, or React's development double run),
+    // and every run must forward to the same place: a later run that read no key sent the user
+    // to the project home, and whichever navigation landed last won.
+    const templateKeyRef = useRef<string | null>(null)
 
-    let body
-    // Pinned above the scroller — only the picker branch earns a title.
-    let header
-    if (target || (!shortcut && query.isPending)) {
-        body = <p className="text-muted-foreground grow p-6 text-center text-xs">Loading…</p>
-    } else if (result?.kind === "unauthenticated") {
-        body = <SignedOutNotice />
-    } else if (result?.kind === "ok" && selectedGroup) {
-        header = (
-            <div className="border-border flex shrink-0 flex-col gap-2 border-b px-4 pt-3 pb-2">
-                <h1 className="text-xs font-semibold">Choose a project</h1>
-                <WorkspaceSelector
-                    groups={groups}
-                    selectedId={selectedGroup.workspaceId}
-                    onSelect={setSelectedWorkspaceId}
-                />
-            </div>
-        )
-        body = <ProjectList group={selectedGroup} />
-    } else {
-        body = (
-            <div className="flex grow flex-col items-center justify-center gap-3 p-6 text-center">
-                <p className="text-muted-foreground text-xs">
-                    {result?.kind === "ok" ? "No projects found." : "Something went wrong."}
-                </p>
-                <button
-                    type="button"
-                    className="border-border min-h-11 rounded-md border px-3 py-2 text-xs"
-                    onClick={() => void query.refetch()}
-                >
-                    Retry
-                </button>
-            </div>
+    useEffect(() => {
+        if (hasInvite) {
+            void router.replace("/invite")
+            return
+        }
+        if (!target?.projectId) return
+        // On the URL, or remembered by AuthGate before a sign-in dropped the query.
+        if (templateKeyRef.current === null) {
+            templateKeyRef.current =
+                (typeof router.query.template === "string" ? router.query.template.trim() : "") ||
+                peekTemplateKey()
+        }
+        const templateKey = templateKeyRef.current
+        const next = templateKey ? projectTemplateUrl(target, templateKey) : projectHomeUrl(target)
+        // A gate that forwards to itself would loop; nothing here ever resolves to its own
+        // path, but the guard keeps that true if a route is added under a project home.
+        if (router.asPath.split("?")[0] === next) return
+        void router.replace(next)
+    }, [target, hasInvite])
+
+    // Signed out is not a screen on a phone — the auth page is, and AuthGate routes there
+    // from wherever the user landed (this page redirects away too fast to be that gate).
+
+    if (hasInvite) return <HomePageSkeleton />
+
+    if (result?.kind === "error" || (result?.kind === "ok" && groups.length === 0)) {
+        return (
+            <ScreenScaffold>
+                <div className="flex grow flex-col items-center justify-center gap-3 p-6 text-center">
+                    <p className="text-muted-foreground text-xs">
+                        {result?.kind === "ok" ? "No projects found." : "Something went wrong."}
+                    </p>
+                    <Button type="button" variant="outline" onClick={() => void query.refetch()}>
+                        Retry
+                    </Button>
+                </div>
+            </ScreenScaffold>
         )
     }
 
-    return (
-        <>
-            <PageTitle parts={["Choose a project"]} />
-            <ScreenScaffold header={header}>{body}</ScreenScaffold>
-        </>
-    )
+    // Every resolution forwards to a project home, so hold that page's own skeleton: the
+    // arrival is then one continuous frame rather than a line of text the home replaces.
+    return <HomePageSkeleton />
 }

@@ -1,12 +1,12 @@
 import {useEffect, useRef, useState} from "react"
 
+import type {Org} from "@agenta/entities/organization"
 import type {User} from "@agenta/shared/types"
 import {type Survey, type PostHog} from "posthog-js"
 
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {type SurveyError} from "@/oss/lib/helpers/analytics/hooks/useSurvey"
 import {useSurvey} from "@/oss/lib/helpers/analytics/hooks/useSurvey"
-import type {Org} from "@/oss/lib/Types"
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
 

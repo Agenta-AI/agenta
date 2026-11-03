@@ -1,31 +1,50 @@
-import {useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo} from "react"
 
-import {FilterChip} from "@/components/FilterChip"
+import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
+import {
+    applySessionScopeAtom,
+    resetSessionFiltersAtom,
+    sessionSearchAtom,
+    useSessionsList,
+} from "@agenta/sessions/state"
+import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
+import {useFilterMenuView} from "@agenta/ui/filter-menu"
+import {ListTableToolbar} from "@agenta/ui/list-table"
+import {Button} from "@agenta/ui/ui"
+import {Plus} from "@phosphor-icons/react"
+import {useAtomValue, useSetAtom} from "jotai"
+import Link from "next/link"
+import {useRouter} from "next/router"
+
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {clearLastContext} from "@/lib/context"
+import {useStartBlankSession} from "@/features/chat/useStartBlankSession"
 
-import {ProjectSwitcher} from "../context/ProjectSwitcher"
-import {useCurrentProject} from "../context/useCurrentProject"
+import {useBindProjectContext} from "../context/useBindProjectContext"
+import {useDeveloperViewEnabled} from "../developer/developerViewAccess"
+import {FeatureOnboarding} from "../education/FeatureOnboarding"
+import {HowThisWorksButton} from "../education/HowThisWorksButton"
+import {AppShell} from "../nav/AppShell"
+import {NavDrawer} from "../nav/NavDrawer"
 
-import {mergeSessionRows} from "./mergeSessionRows"
-import {classifyPageFailure} from "./pageFailure"
-import {filterPendingRows} from "./pendingFilter"
-import {SessionRow} from "./SessionRow"
-import {SessionSearchBar} from "./SessionSearchBar"
-import {
-    SessionListEmpty,
-    SessionListError,
-    SessionListLoading,
-    SessionListPendingEmpty,
-} from "./states/SessionListStates"
-import {pendingCountBySession, useActionableInteractions} from "./useActionableInteractions"
-import {livenessBySession, useLivenessPoll} from "./useLivenessPoll"
-import {useSessionListHead} from "./useSessionListHead"
-import {useSessionListScrollRestore} from "./useSessionListScrollRestore"
-import {useSessionsInfinite} from "./useSessionsInfinite"
+import {SESSIONS_PAGE_FRAME} from "./pageFrame"
+import {SessionAutomationDrawers} from "./SessionAutomationDrawers"
+import {SessionFilterMenu} from "./SessionFilterMenu"
+import {SessionListTable} from "./SessionListTable"
+import {activityFloorIso, DEFAULT_SESSION_LIST_VIEW, type SessionListView} from "./sessionListView"
+import {sessionScopeFromRoute} from "./sessionRouteScope"
+import {showSessionsOnboarding, useProjectHasSessions} from "./useProjectHasSessions"
+import {useSessionRowMenu} from "./useSessionRowMenu"
 
-/** Sessions list: server-side search, id+activity cursor paging, archived rows hidden. */
+/**
+ * The sessions page — the same table, toolbar and filter menu the automations page renders, over
+ * the shared session list state.
+ *
+ * One search field and one filter button, not a row of switches: type, status, agent and how the
+ * rows are cut all live inside the menu, so this app has ONE way to configure a list rather than
+ * one per page. Filtering still runs on the shared atoms `@agenta/sessions/state` owns, so this
+ * page and the desktop one narrow the same set the same way; only the controls differ.
+ */
 export const SessionListScreen = ({
     workspaceId,
     projectId,
@@ -33,146 +52,193 @@ export const SessionListScreen = ({
     workspaceId: string
     projectId: string
 }) => {
-    const [onlyPending, setOnlyPending] = useState(false)
-    const [input, setInput] = useState("")
-    const [search, setSearch] = useState("")
-    useEffect(() => {
-        const handle = setTimeout(() => setSearch(input.trim()), 300)
-        return () => clearTimeout(handle)
-    }, [input])
+    useBindProjectContext(projectId)
+    const base = `/w/${workspaceId}/p/${projectId}`
+    // `?mode=automation` — what the agent overview's "Automation runs" card links to, so a cold
+    // load or a pasted link lands on the same set the card was showing. `?agent=<id>` narrows to
+    // one agent, behind a developer view. Applied below, once the search field exists to be
+    // cleared with it.
+    const router = useRouter()
+    const applyScope = useSetAtom(applySessionScopeAtom)
+    const routeMode = typeof router.query.mode === "string" ? router.query.mode : undefined
+    const routeAgent = typeof router.query.agent === "string" ? router.query.agent : undefined
+    const agentLinkEnabled = useDeveloperViewEnabled("observability-app-filter") === true
 
-    const project = useCurrentProject(workspaceId, projectId)
-    const query = useSessionsInfinite(projectId, search)
-    // Bounded liveness for the list itself: newest page only, so a session created elsewhere
-    // shows up without a manual refresh (see useSessionListHead).
-    const head = useSessionListHead(projectId, search)
-    const scroll = useSessionListScrollRestore(projectId, !query.isPending)
-    const liveness = useLivenessPoll(projectId)
-    const liveBadges = useMemo(() => livenessBySession(liveness.data), [liveness.data])
-    const interactions = useActionableInteractions(projectId)
-    const pendingBySession = useMemo(
-        () => pendingCountBySession(interactions.data),
-        [interactions.data],
+    // Grouping is a display preference a reader sets once; the filters are a question they were
+    // asking at the time, so only the first survives a reload — and the rest live in the shared
+    // atoms anyway.
+    const [view, setView] = useFilterMenuView<SessionListView>({
+        key: "agenta:sessions:view",
+        fallback: DEFAULT_SESSION_LIST_VIEW,
+        persist: ["group"],
+    })
+
+    // Computed once per mount and per facet change, never per render — a floor read from
+    // `Date.now()` on every render would mint a fresh query key each time and refetch forever.
+    //
+    // So it does NOT follow the clock: a tab left open all day keeps the floor it started with,
+    // and "Last 7 days" quietly becomes seven days and a bit. That is a boundary drifting, not a
+    // wrong answer, and a timer to correct it would cost a refetch of the whole list to move a
+    // line nobody is looking at.
+    const activityFloor = useMemo(() => activityFloorIso(view.activity), [view.activity])
+
+    // The SAME arguments `SessionListTable` passes, so both hooks resolve to one query rather
+    // than two. This one is only here for the waiting count the filter menu shows.
+    const list = useSessionsList({
+        activityFloor,
+        defaultPolicy: {origin: "exclude-trigger", expansions: []},
+        automationPolicy: {origin: "trigger-only", expansions: ["trigger"]},
+    })
+
+    // Debounced: the search is a server predicate on two queries, so every keystroke would
+    // otherwise refetch both. Seeded from the atom, which outlives this mount — coming back to a
+    // narrowed list with an empty box reads as broken rather than as filtered.
+    const setSearch = useSetAtom(sessionSearchAtom)
+    const seedSearch = useAtomValue(sessionSearchAtom)
+    const listSettledEmpty = list.isEmpty && !list.isPlaceholder && !list.isPending
+    const probe = useProjectHasSessions(listSettledEmpty)
+    const projectEmpty = showSessionsOnboarding({
+        listSettledEmpty,
+        listError: list.isError,
+        probe,
+        search: seedSearch,
+    })
+    const search = useDebouncedAtomSearch(setSearch, 300, seedSearch)
+
+    const resetFilters = useSetAtom(resetSessionFiltersAtom)
+    // Two undos, because they answer different questions. A search that matched nothing is undone
+    // by clearing the SEARCH — wiping the reader's other narrowing at the same time hands back a
+    // list far wider than the one they were searching in, without saying so.
+    const clearSearch = search.reset
+    // The whole view: every facet, the grouping and the search draft. The draft matters — a reset
+    // that only touched the atoms would leave the box showing a term that no longer applies to
+    // the rows under it.
+    const resetView = useCallback(() => {
+        resetFilters()
+        search.reset()
+        setView(DEFAULT_SESSION_LIST_VIEW)
+    }, [resetFilters, search, setView])
+
+    useEffect(() => {
+        const scope = sessionScopeFromRoute({mode: routeMode, agent: routeAgent}, agentLinkEnabled)
+        if (!scope) return
+        applyScope(scope)
+        // The scope clears the search ATOM, but a keystroke already on the debounce would land
+        // after it and re-narrow the list the route just scoped. The hook cannot see that on its
+        // own: the atom was already empty, so its value never changed and nothing told the draft.
+        clearSearch()
+    }, [agentLinkEnabled, applyScope, clearSearch, routeAgent, routeMode])
+
+    // The shared row verbs — rename, pin, archive, delete — the same ones the agent overview and
+    // the desktop list bind. Without them a row here offers only the pin.
+    const sessionMenu = useSessionRowMenu(base)
+    // An agent heading's "+": the same blank start every other "+" in the app makes.
+    const startBlank = useStartBlankSession(base)
+    const verbs = useMemo(
+        () => ({
+            open: sessionMenu.open,
+            menuFor: sessionMenu.menuFor,
+            onMenuSelect: sessionMenu.onMenuSelect,
+            onRenameRow: sessionMenu.onRenameRow,
+        }),
+        [sessionMenu.menuFor, sessionMenu.onMenuSelect, sessionMenu.onRenameRow, sessionMenu.open],
     )
-    // Sessions, not interactions: the filter shows rows, and one session can hold several gates.
-    const waitingSessions = pendingBySession?.size ?? 0
-    const pages = query.data?.pages ?? []
-    const {failed, laterPageFailed} = classifyPageFailure(pages, query.isError)
 
-    // A stored pair pointing at a deleted project would forward `/m/` straight back here
-    // on every launch. Drop it as soon as its project will not load; `ContextSync`
-    // restores the fast path from the next project that does, so a transient failure
-    // costs one visit to the picker.
-    useEffect(() => {
-        if (failed) clearLastContext()
-    }, [failed])
-    const merged = useMemo(
+    const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
+    // The menu's Agent row offers this roster; the group headings label from it.
+    const agents = useMemo(
         () =>
-            mergeSessionRows(
-                head.data ?? [],
-                (query.data?.pages ?? []).flatMap((page) => page ?? []),
-            ),
-        [head.data, query.data],
+            (agentsQuery.data ?? [])
+                .map((agent: Workflow) => ({
+                    id: agent.id,
+                    name: (agent.name || agent.slug || "").trim(),
+                }))
+                .filter((agent: {id: string; name: string}) => agent.id && agent.name),
+        [agentsQuery.data],
     )
-    const pending = useMemo(
-        () => filterPendingRows(merged, pendingBySession, Boolean(search)),
-        [merged, pendingBySession, search],
+    const agentNames = useMemo(
+        () => new Map(agents.map((agent: {id: string; name: string}) => [agent.id, agent.name])),
+        [agents],
     )
-    const rows = onlyPending ? pending.rows : merged
-
-    // Answering the last gate must not strand the user on an empty filtered list.
-    useEffect(() => {
-        if (onlyPending && waitingSessions === 0) setOnlyPending(false)
-    }, [onlyPending, waitingSessions])
-
-    let body
-    if (query.isPending) {
-        body = <SessionListLoading />
-    } else if (failed) {
-        body = <SessionListError onRetry={() => void query.refetch()} />
-    } else if (rows.length === 0) {
-        // Filtered-empty is not the same as project-empty: the waiting sessions are real, just
-        // deeper than the pages fetched so far.
-        body = onlyPending ? (
-            <SessionListPendingEmpty
-                unloaded={pending.unloaded}
-                searching={Boolean(search)}
-                canLoadMore={Boolean(query.hasNextPage)}
-                loading={query.isFetchingNextPage}
-                onLoadMore={() => void query.fetchNextPage()}
-            />
-        ) : (
-            <SessionListEmpty />
-        )
-    } else {
-        body = (
-            <div className="flex flex-col">
-                {onlyPending && pending.unloaded > 0 ? (
-                    <p className="text-muted-foreground border-border border-b px-4 py-2 text-xs">
-                        {pending.unloaded} more further down the list, not loaded yet.
-                    </p>
-                ) : null}
-                {rows.map((session) => (
-                    <SessionRow
-                        key={session.id}
-                        session={session}
-                        href={`/w/${workspaceId}/p/${projectId}/sessions/${session.session_id}`}
-                        liveness={
-                            liveBadges ? (liveBadges.get(session.session_id) ?? null) : undefined
-                        }
-                        pendingApprovals={pendingBySession?.get(session.session_id) ?? 0}
-                    />
-                ))}
-                {laterPageFailed || query.hasNextPage ? (
-                    <button
-                        type="button"
-                        className="text-muted-foreground p-4 text-center text-xs"
-                        disabled={query.isFetchingNextPage}
-                        onClick={() => void query.fetchNextPage()}
-                    >
-                        {query.isFetchingNextPage
-                            ? "Loading…"
-                            : laterPageFailed
-                              ? "Could not load more sessions. Tap to retry."
-                              : "Load more"}
-                    </button>
-                ) : null}
-            </div>
-        )
-    }
 
     return (
         <>
-            <PageTitle parts={["Sessions", project?.project_name]} />
-            <ScreenScaffold
-                scrollRef={scroll.ref}
-                onScroll={scroll.onScroll}
-                header={
-                    <div className="border-border flex shrink-0 flex-col gap-2 border-b px-4 pt-2 pb-3">
-                        <ProjectSwitcher workspaceId={workspaceId} projectId={projectId} />
-                        {/* Search and filter share a row: both narrow the same list, and three
-                        stacked full-width rows cost most of a phone's first screen. */}
-                        <div className="flex items-center gap-2">
-                            <SessionSearchBar value={input} onChange={setInput} />
-                            {waitingSessions > 0 ? (
-                                <FilterChip
-                                    active={onlyPending}
-                                    onToggle={() => setOnlyPending((on) => !on)}
-                                    label={
-                                        onlyPending
-                                            ? "Show all sessions"
-                                            : `Show only the ${waitingSessions} session${waitingSessions === 1 ? "" : "s"} waiting on you`
-                                    }
-                                >
-                                    {waitingSessions} waiting
-                                </FilterChip>
-                            ) : null}
+            <PageTitle title="Sessions" />
+            <AppShell workspaceId={workspaceId} projectId={projectId}>
+                <ScreenScaffold
+                    header={
+                        // The same frame the automations header uses, so the two pages line up at
+                        // every width: page column, 16px gutters on a phone, 64px and a deeper
+                        // top from `lg`.
+                        <div
+                            className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${SESSIONS_PAGE_FRAME}`}
+                        >
+                            <div className="flex min-w-0 items-center gap-2">
+                                <NavDrawer workspaceId={workspaceId} projectId={projectId} />
+                                <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
+                                    Sessions
+                                </h1>
+                                {projectEmpty ? null : (
+                                    <HowThisWorksButton
+                                        guide="sessions"
+                                        className="max-sm:hidden"
+                                    />
+                                )}
+                                {/* Sessions start from Home's composer. */}
+                                {projectEmpty ? (
+                                    <Button asChild>
+                                        <Link href={`${base}/apps`}>
+                                            <Plus />
+                                            New session
+                                        </Link>
+                                    </Button>
+                                ) : null}
+                            </div>
                         </div>
+                    }
+                >
+                    <div className={`min-w-0 px-4 pb-12 pt-3 ${SESSIONS_PAGE_FRAME}`}>
+                        {projectEmpty ? (
+                            <FeatureOnboarding guideKey="sessions" base={base} />
+                        ) : (
+                            <>
+                                {/* Search belongs to the list, not to the page: it sits on the
+                                    table's own left edge so it reads as the control that narrows
+                                    what is below it. One control beside the field, not four — type,
+                                    status, agent and grouping are rows inside it, so the bar stays
+                                    a search bar. */}
+                                <ListTableToolbar
+                                    search={search.value}
+                                    onSearchChange={search.onChange}
+                                    searchPlaceholder="Search sessions"
+                                    actions={
+                                        <SessionFilterMenu
+                                            view={view}
+                                            onChange={setView}
+                                            agents={agents}
+                                            waitingCount={list.waitingCount}
+                                            onReset={resetView}
+                                        />
+                                    }
+                                />
+                                <SessionListTable
+                                    group={view.group}
+                                    activityFloor={activityFloor}
+                                    agentNames={agentNames}
+                                    agentNamesReady={!agentsQuery.isPending}
+                                    verbs={verbs}
+                                    onNewSession={startBlank}
+                                    onClearSearch={clearSearch}
+                                    onResetView={resetView}
+                                />
+                            </>
+                        )}
                     </div>
-                }
-            >
-                {body}
-            </ScreenScaffold>
+                </ScreenScaffold>
+            </AppShell>
+            {/* The trigger drawers the automation row verbs open, at screen level so one survives
+                its row unmounting underneath it. */}
+            <SessionAutomationDrawers base={base} workspaceId={workspaceId} projectId={projectId} />
         </>
     )
 }

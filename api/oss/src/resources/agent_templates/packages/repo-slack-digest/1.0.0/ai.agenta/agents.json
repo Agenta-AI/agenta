@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "entry": "repo-slack-digest",
+  "agents": {
+    "repo-slack-digest": {
+      "name": "Repo Slack digest",
+      "description": "Twice a day, posts a digest of new issues, commits, and PRs to Slack.",
+      "instructions": "./ai.agenta/agents/repo-slack-digest/AGENTS.md",
+      "setup": "./ai.agenta/agents/repo-slack-digest/SETUP.md",
+      "connections": [
+        {
+          "key": "read-repository-activity",
+          "required": true,
+          "purpose": "Read repository activity",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "github"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "gitlab"
+            }
+          ],
+          "setup_notes": "Read issues & pull requests"
+        },
+        {
+          "key": "post-the-digest",
+          "required": true,
+          "purpose": "Post the digest",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "slack"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "discord"
+            }
+          ],
+          "setup_notes": "Post the repo digest"
+        }
+      ]
+    }
+  }
+}

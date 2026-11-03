@@ -5,8 +5,6 @@
  * Used by workflow and other entities.
  */
 
-import {z} from "zod"
-
 import type {EntitySchema, EntitySchemaProperty} from "../"
 
 // Re-export from shared for convenience
@@ -43,43 +41,6 @@ export const SERVICE_ROUTE_PATHS: Record<string, string> = {
     [APP_SERVICE_TYPES.CHAT]: "services/chat",
 }
 
-/**
- * Determine whether an app type string maps to a known (prefetchable) service type.
- *
- * Backend returns app_type values like:
- * - "chat", "completion" (friendly tags)
- * - "SERVICE:chat", "SERVICE:completion" (enum values)
- * - "TEMPLATE:simple_chat", "TEMPLATE:simple_completion" (legacy templates)
- * - "custom", "CUSTOM", "SDK_CUSTOM" (custom apps)
- *
- * @returns The normalized service type, or null if not a known service type
- */
-export function resolveServiceType(appType: string | undefined | null): AppServiceType | null {
-    if (!appType) return null
-
-    const normalized = appType.toLowerCase()
-
-    if (
-        normalized === "chat" ||
-        normalized === "service:chat" ||
-        normalized === "template:simple_chat" ||
-        normalized === "chat (old)"
-    ) {
-        return APP_SERVICE_TYPES.CHAT
-    }
-
-    if (
-        normalized === "completion" ||
-        normalized === "service:completion" ||
-        normalized === "template:simple_completion" ||
-        normalized === "completion (old)"
-    ) {
-        return APP_SERVICE_TYPES.COMPLETION
-    }
-
-    return null
-}
-
 // ============================================================================
 // ENDPOINT SCHEMA
 // ============================================================================
@@ -108,19 +69,6 @@ export interface EndpointSchema {
     /** Generic schema for backward compatibility */
     schema?: unknown
 }
-
-// Zod schema for optional validation
-export const endpointSchemaSchema = z.object({
-    endpoint: z.string().optional(),
-    path: z.string().optional(),
-    requestSchema: z.unknown().optional(),
-    agConfigSchema: z.unknown().optional(),
-    inputsSchema: z.unknown().optional(),
-    outputsSchema: z.unknown().optional(),
-    messagesSchema: z.unknown().optional(),
-    requestProperties: z.array(z.string()).optional(),
-    schema: z.unknown().optional(),
-})
 
 // ============================================================================
 // REVISION SCHEMA STATE
@@ -164,41 +112,4 @@ export interface RevisionSchemaState {
     isLoading?: boolean
     /** Error message */
     error?: string
-}
-
-// Zod schema for optional validation
-export const revisionSchemaStateSchema = z.object({
-    openApiSchema: z.unknown().optional(),
-    agConfigSchema: z.unknown().optional(),
-    promptSchema: z.unknown().optional(),
-    customPropertiesSchema: z.unknown().optional(),
-    endpoints: z.unknown().optional(),
-    availableEndpoints: z.array(z.string()).optional(),
-    isChatVariant: z.boolean().optional(),
-    runtimePrefix: z.string().optional(),
-    routePath: z.string().optional(),
-    isLoading: z.boolean().optional(),
-    error: z.string().optional(),
-})
-
-/**
- * Create an empty schema state
- */
-export function createEmptySchemaState(): RevisionSchemaState {
-    return {
-        openApiSchema: null,
-        agConfigSchema: null,
-        promptSchema: null,
-        customPropertiesSchema: null,
-        endpoints: {
-            test: null,
-            run: null,
-            generate: null,
-            generateDeployed: null,
-        },
-        availableEndpoints: [],
-        isChatVariant: false,
-        isLoading: false,
-        error: undefined,
-    }
 }

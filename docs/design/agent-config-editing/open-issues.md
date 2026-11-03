@@ -511,7 +511,7 @@ reader can act on it cold.
 ## Claude emits malformed JSON on read_config calls, one wasted round trip each time
 
 - Found by: the benchmark's baseline runs, 6 August 2026, characterised across all 19
-  occurrences in stored results (`benchmarks/agent-config-editing/results/20260806-200904`,
+  occurrences in stored results (`benchmark/results/20260806-200904`,
   grep `debug_calls` for `InputValidationError`).
 - **Symptom.** On claude-haiku cells, `read_config` calls fail with
   `InputValidationError: input could not be parsed as JSON` in 16 to 21 percent of

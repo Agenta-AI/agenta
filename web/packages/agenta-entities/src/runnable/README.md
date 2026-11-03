@@ -182,46 +182,16 @@ This is the single source of truth for "what inputs does this revision expect".
 For DAG-based execution of multiple runnables:
 
 ```typescript
-import { computeTopologicalOrder, resolveChainInputs } from '@agenta/entities/runnable'
+import { computeTopologicalLevels, resolveChainInputs } from '@agenta/entities/runnable'
 
-// Get execution order
-const order = computeTopologicalOrder(nodes, connections)
+// Get execution batches (nodes in one level can run in parallel)
+const levels = computeTopologicalLevels(nodes, connections)
 
-// Resolve inputs from upstream outputs
-const inputs = resolveChainInputs(mappings, upstreamOutputs, testcaseData)
+// Resolve a node's inputs from upstream results
+const inputs = resolveChainInputs(connections, targetNodeId, nodeResults, testcaseData)
 ```
 
-### Auto-Mapping
-
-Automatically map inputs based on name matching:
-
-```typescript
-import { autoMapInputs } from '@agenta/entities/runnable'
-
-const mappings = autoMapInputs(
-    ["input", "context"],  // target keys
-    [{ path: "testcase.input", key: "input" }]  // available sources
-)
-// Returns: [{ targetKey: "input", sourcePath: "testcase.input", status: "valid" }, ...]
-```
-
-## Entity Provider (Dependency Injection)
-
-For runtime dependency injection of entity implementations, use the context from `@agenta/playground`:
-
-```typescript
-import { PlaygroundEntityProvider, usePlaygroundEntities } from '@agenta/playground'
-
-// Wrap your app with the provider
-<PlaygroundEntityProvider providers={{
-    appRevision: { selectors: workflowMolecule.selectors },
-}}>
-    <App />
-</PlaygroundEntityProvider>
-
-// Access injected providers in components
-const { appRevision } = usePlaygroundEntities()
-```
+## Entity Provider Types
 
 The type definitions for providers are exported from this module:
 

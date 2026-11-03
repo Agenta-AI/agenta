@@ -1,11 +1,11 @@
 /**
  * SectionChangeBody
  *
- * What a drawer-backed config section (Model & harness / Advanced) shows INLINE when it has
- * uncommitted changes: **its own controls, narrowed to the properties that changed**, plus a link to
- * the drawer for everything else.
+ * What a drawer-backed config section (Advanced) shows INLINE when it has uncommitted changes:
+ * **its own controls, narrowed to the properties that changed**, plus a link to the drawer for
+ * everything else.
  *
- * This is the same affordance as the Model & harness "Connect key" state — show the control that
+ * This is the same affordance as the Model section's "Connect key" state — show the control that
  * owns the thing needing attention, not a description of it, and not the whole drawer. "Needs a key"
  * and "changed since the commit" are one pattern with different filters; only the filter differs.
  *

@@ -79,7 +79,7 @@ export function renderEvaluatorTypeTag(
     return React.createElement(
         "span",
         {
-            className: "text-[10px] px-1.5 py-0.5 rounded",
+            className: "text-[12px] px-1.5 py-0.5 rounded",
             style: color
                 ? {
                       backgroundColor: color.bg,

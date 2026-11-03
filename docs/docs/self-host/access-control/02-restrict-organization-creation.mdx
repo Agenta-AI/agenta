@@ -23,6 +23,14 @@ The legacy names `AGENTA_ORG_CREATION_ALLOWLIST` and `AGENTA_ACCESS_ORG_CREATION
 The first user to sign up needs to be in the allowlist. Otherwise, they will not be able to create the initial organization.
 :::
 
+To cap how many organizations one user can own, set `AGENTA_ACCESS_MAX_OWNED_ORGANIZATIONS`:
+
+```bash
+AGENTA_ACCESS_MAX_OWNED_ORGANIZATIONS=3
+```
+
+A user who already owns that many organizations cannot create another one until they delete one. Organizations the user joined by invitation do not count. When the variable is not set, there is no limit.
+
 ## Restrict who can sign up
 
 To limit sign-ups to your own domains, set `AGENTA_ACCESS_ALLOWED_DOMAINS`:
@@ -39,6 +47,8 @@ To block specific addresses or domains instead, use the block lists:
 AGENTA_ACCESS_BLOCKED_EMAILS=spammer@example.com
 AGENTA_ACCESS_BLOCKED_DOMAINS=example.org
 ```
+
+Blocked domains match their subdomains too (`user@mail.example.org` is blocked by `example.org`). A user on a blocked domain also cannot create new organizations, even with a session that started before the block.
 
 When `AGENTA_ACCESS_ALLOWED_DOMAINS` is set, the block lists for domains are not consulted; the allowlist wins.
 
@@ -58,6 +68,7 @@ On Enterprise, you can also enable auto-join for a verified domain from **Settin
 | Variable | Effect |
 |---|---|
 | `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS` | Only listed emails can create organizations |
+| `AGENTA_ACCESS_MAX_OWNED_ORGANIZATIONS` | Most organizations one user can own |
 | `AGENTA_ACCESS_ALLOWED_DOMAINS` | Only listed domains (and subdomains) can sign up |
 | `AGENTA_ACCESS_BLOCKED_DOMAINS` | Listed domains cannot sign up |
 | `AGENTA_ACCESS_BLOCKED_EMAILS` | Listed emails cannot sign up |

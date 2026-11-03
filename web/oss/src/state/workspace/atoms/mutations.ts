@@ -1,10 +1,9 @@
+import type {WorkspaceRole} from "@agenta/entities/organization"
+import {updateOrganization} from "@agenta/entities/organization"
+import {updateWorkspace, fetchOfferedRoles} from "@agenta/entities/organization"
 import {message} from "@agenta/ui/app-message"
 import {atom} from "jotai"
 import {atomWithMutation, atomWithQuery} from "jotai-tanstack-query"
-
-import {WorkspaceRole} from "@/oss/lib/Types"
-import {updateOrganization} from "@/oss/services/organization/api"
-import {updateWorkspace, fetchAllWorkspaceRoles} from "@/oss/services/workspace/api"
 
 import {selectedOrgQueryAtom, orgsQueryAtom} from "../../org/selectors/org"
 import {userAtom} from "../../profile/selectors/user"
@@ -98,8 +97,9 @@ export const workspaceRolesQueryAtom = atomWithQuery<Omit<WorkspaceRole, "permis
         const projectId = get(projectIdAtom)
 
         return {
-            queryKey: ["workspaceRoles"],
-            queryFn: () => fetchAllWorkspaceRoles(),
+            // The offered roles depend on the organization's plan, which the project names.
+            queryKey: ["workspaceRoles", projectId],
+            queryFn: () => fetchOfferedRoles(projectId ?? undefined),
             staleTime: 1000 * 60 * 10, // 10 minutes - roles don't change often
             refetchOnWindowFocus: false,
             refetchOnReconnect: false,

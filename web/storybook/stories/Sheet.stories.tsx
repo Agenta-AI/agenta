@@ -20,7 +20,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "The `@agenta/ui` Sheet (Radix-based) that replaces antd `Drawer`. It is a compound component — compose `Sheet` > `SheetContent` > `SheetHeader`/`SheetFooter`. Prop tables for each part are below.\n\n**Used in:** 1 place directly — `EnhancedDrawer`, which in turn backs all 23 app drawers.",
+                    "The `@agenta/ui` Sheet (Radix-based) that replaces antd `Drawer`. It is a compound component — compose `Sheet` > `SheetContent` > `SheetHeader`/`SheetFooter`. Prop tables for each part are below.\n\nThe `left` and `right` sides float: 8px in from the viewport, rounded, with no border. The close button sits at the right of the header (`showCloseButton={false}` on `SheetHeader` hides it), and the footer is a muted band. `top` and `bottom` stay edge to edge. `responsive` is a bottom sheet below `lg` and the floating right drawer from `lg` up.\n\n**Used in:** `EnhancedDrawer`, which backs the app drawers, and directly by the /m sheets (navigation, session inspector, Publish, settings forms).",
             },
         },
     },
@@ -134,6 +134,41 @@ export const Sides: Story = {
                     />
                 </div>
             ))}
+        </div>
+    ),
+}
+
+// The fifth side. It is a VIEWPORT rule, not a container one, so this story portals to the
+// viewport and changes shape with the Storybook viewport toolbar: a bottom sheet at phone widths,
+// the right-edge drawer from 1024px up. Rendering it in a boxed column like `Sides` would show
+// the desktop half at every width, which is exactly the mistake the variant exists to prevent.
+export const Responsive: Story = {
+    parameters: {
+        docs: {
+            description: {
+                story: '`side="responsive"` — a bottom sheet below `lg` and the app\'s right-edge drawer from `lg` up. Resize the preview or use the viewport toolbar to see both halves. `EnhancedDrawer` exposes it as `placement="responsive"`, and a `width` there applies to the drawer half only.',
+            },
+        },
+    },
+    render: () => (
+        <div className="p-8">
+            <Sheet>
+                <SheetTrigger asChild>
+                    <ShadButton variant="outline">Open responsive panel</ShadButton>
+                </SheetTrigger>
+                <SheetContent side="responsive">
+                    <SheetHeader>
+                        <SheetTitle>Add MCP server</SheetTitle>
+                    </SheetHeader>
+                    <div className="flex-1 overflow-auto px-6 py-6 text-field-md text-colorText">
+                        {BODY}
+                    </div>
+                    <SheetFooter>
+                        <ShadButton variant="outline">Cancel</ShadButton>
+                        <ShadButton>Add</ShadButton>
+                    </SheetFooter>
+                </SheetContent>
+            </Sheet>
         </div>
     ),
 }

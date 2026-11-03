@@ -94,7 +94,7 @@ const RefinePromptModalContent: React.FC<RefinePromptModalContentProps> = ({
                     <Typography.Text strong className="text-[13px]">
                         Instructions
                     </Typography.Text>
-                    <Typography.Text type="secondary" className="mt-0.5 block text-[11px]">
+                    <Typography.Text type="secondary" className="mt-0.5 block text-xs">
                         Chat with an LLM agent to improve your prompt
                     </Typography.Text>
                 </div>
@@ -118,7 +118,7 @@ const RefinePromptModalContent: React.FC<RefinePromptModalContentProps> = ({
                     </Typography.Text>
                     <div className="flex items-center gap-3">
                         <div className="flex items-center gap-2">
-                            <Typography.Text type="secondary" className="text-[11px]">
+                            <Typography.Text type="secondary" className="text-xs">
                                 Diff
                             </Typography.Text>
                             <Switch
@@ -146,7 +146,7 @@ const RefinePromptModalContent: React.FC<RefinePromptModalContentProps> = ({
                         <PreviewPanel promptKey={promptKey} promptVersion={promptVersion} />
                     ) : (
                         <div className="flex h-full items-center justify-center px-4">
-                            <Typography.Text type="secondary" className="text-center text-[11px]">
+                            <Typography.Text type="secondary" className="text-center text-xs">
                                 Submit instructions to see the refined prompt
                             </Typography.Text>
                         </div>

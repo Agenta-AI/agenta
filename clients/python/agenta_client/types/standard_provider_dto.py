@@ -4,6 +4,7 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
+from .custom_model_settings_dto import CustomModelSettingsDto
 from .standard_provider_kind import StandardProviderKind
 from .standard_provider_settings_dto import StandardProviderSettingsDto
 
@@ -11,10 +12,15 @@ from .standard_provider_settings_dto import StandardProviderSettingsDto
 class StandardProviderDto(UniversalBaseModel):
     kind: StandardProviderKind
     provider: StandardProviderSettingsDto
-    
+    models: typing.Optional[typing.List[CustomModelSettingsDto]] = None
+    harnesses: typing.Optional[typing.List[str]] = None
+
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
+            extra="allow", frozen=True
+        )  # type: ignore # Pydantic v2
     else:
+
         class Config:
             frozen = True
             smart_union = True

@@ -1,6 +1,6 @@
 import {atom} from "jotai"
 import type {Atom, Getter} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 /**
  * Query result type matching React Query structure

@@ -14,6 +14,7 @@ export {
     fetchRevisionsBatch,
     // Testset
     fetchTestsetsList,
+    queryTestsetsPage,
     fetchTestsetsBatch,
     fetchTestsetDetail,
     // Variant
@@ -34,13 +35,14 @@ export {
     archiveRevision,
     // File upload
     uploadTestsetFile,
-    uploadRevisionFile,
+    uploadTestsetRevisionFile,
+    // Evaluation runs that use a Testset
+    fetchEvaluationRunIdsUsingTestsets,
     // File download
     downloadTestset,
     downloadRevision,
     // Simple API
     fetchSimpleTestset,
-    queryPreviewTestsets,
     // Types
     type ExportFileType,
 } from "./mutations"

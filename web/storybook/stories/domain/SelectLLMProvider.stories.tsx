@@ -126,3 +126,110 @@ export const Flat: Story = {
         return <Demo />
     },
 }
+
+/** Each plan appears once, so a mounted subscription row is the plan name and the tag alone. */
+const SUBSCRIPTION_OPTIONS: ProviderGroup[] = [
+    ...MOCK_OPTIONS.slice(0, 2),
+    {
+        key: "subscription:anthropic",
+        label: "Claude",
+        iconKey: "anthropic",
+        tag: "Subscription",
+        tagTone: "olive",
+        options: [
+            {label: "claude-fable-5", value: "anthropic/claude-fable-5", searchCaption: "Claude"},
+        ],
+    },
+    {
+        key: "subscription:openai",
+        label: "ChatGPT",
+        iconKey: "openai",
+        tag: "Subscription",
+        tagTone: "olive",
+        options: [{label: "gpt-5.6-sol", value: "openai/gpt-5.6-sol", searchCaption: "ChatGPT"}],
+    },
+]
+
+/**
+ * Each plan appears twice: a hosted subscription signed in from the app, and a mounted one set up
+ * on the server. Only the mounted row says where it comes from.
+ */
+const DUPLICATE_SUBSCRIPTION_OPTIONS: ProviderGroup[] = [
+    ...MOCK_OPTIONS.slice(0, 2),
+    {
+        key: "hosted:anthropic",
+        label: "Claude",
+        iconKey: "anthropic",
+        tag: "Subscription",
+        tagTone: "olive",
+        options: [{label: "Sonnet", value: "sonnet", searchCaption: "Claude"}],
+    },
+    {
+        key: "subscription:anthropic",
+        label: "Claude",
+        iconKey: "anthropic",
+        tag: "Subscription",
+        tagTone: "olive",
+        caption: "Set up on the server",
+        options: [
+            {
+                label: "claude-fable-5",
+                value: "anthropic/claude-fable-5",
+                searchCaption: "Claude (set up on the server)",
+            },
+        ],
+    },
+    {
+        key: "subscription:openai",
+        label: "ChatGPT",
+        iconKey: "openai",
+        tag: "Subscription",
+        tagTone: "olive",
+        caption: "Set up on the server",
+        options: [
+            {
+                label: "gpt-5.6-sol",
+                value: "openai/gpt-5.6-sol",
+                searchCaption: "ChatGPT (set up on the server)",
+            },
+        ],
+    },
+    {
+        key: "hosted:openai",
+        label: "ChatGPT",
+        iconKey: "openai",
+        tag: "Subscription",
+        tagTone: "olive",
+        caption: "Sign in needed",
+        disabled: true,
+        options: [],
+    },
+]
+
+const SubscriptionsDemo = ({options}: {options: ProviderGroup[]}) => {
+    const [value, setValue] = useState<string>("openai/gpt-5.6-sol")
+    return (
+        <div className="w-[320px]">
+            <SelectLLMProviderBase
+                value={value}
+                onChange={(v) => setValue(v as string)}
+                options={options}
+                showGroup
+                showSearch
+                providerDropdownWidth={460}
+                connectionColumnWidth={200}
+                placeholder="Select a model"
+            />
+        </div>
+    )
+}
+
+/** The agent picker's narrow left column: the tag sits on line two so the name keeps its width. */
+export const Subscriptions: Story = {
+    render: () => <SubscriptionsDemo options={SUBSCRIPTION_OPTIONS} />,
+}
+
+/** The same plan from two sources: the mounted row adds "Set up on the server" after its tag. */
+export const DuplicateSubscriptions: Story = {
+    render: () => <SubscriptionsDemo options={DUPLICATE_SUBSCRIPTION_OPTIONS} />,
+}

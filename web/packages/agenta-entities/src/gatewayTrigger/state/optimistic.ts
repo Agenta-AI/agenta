@@ -6,7 +6,9 @@
  * Each helper returns a `rollback` closure that restores the prior cache state.
  */
 
-import {queryClient} from "@agenta/shared/api"
+import {getHostQueryClient} from "@agenta/shared/api"
+import {projectIdAtom} from "@agenta/shared/state"
+import {getDefaultStore} from "jotai"
 
 import type {
     TriggerSchedule,
@@ -29,7 +31,8 @@ function withActiveFlag<T extends Entity>(entity: T, active: boolean): T {
 // --- Schedules ---
 
 export function applyScheduleActiveOptimistic(scheduleId: string, active: boolean): () => void {
-    const listKey = ["triggers", "schedules"]
+    const queryClient = getHostQueryClient()
+    const listKey = ["triggers", "schedules", getDefaultStore().get(projectIdAtom)]
     const detailKey = ["triggers", "schedules", "detail", scheduleId]
 
     const prevList = queryClient.getQueryData<TriggerSchedulesResponse>(listKey)
@@ -62,7 +65,8 @@ export function applySubscriptionActiveOptimistic(
     subscriptionId: string,
     active: boolean,
 ): () => void {
-    const listKey = ["triggers", "subscriptions"]
+    const queryClient = getHostQueryClient()
+    const listKey = ["triggers", "subscriptions", getDefaultStore().get(projectIdAtom)]
     const detailKey = ["triggers", "subscriptions", "detail", subscriptionId]
 
     const prevList = queryClient.getQueryData<TriggerSubscriptionsResponse>(listKey)

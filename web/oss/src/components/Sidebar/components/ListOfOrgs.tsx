@@ -1,5 +1,7 @@
 import {memo, useEffect, useMemo, useRef, useState} from "react"
 
+import type {OrgDetails} from "@agenta/entities/organization"
+import {checkOrganizationAccess} from "@agenta/entities/organization"
 import {InitialsAvatar} from "@agenta/ui"
 import {ArrowsLeftRight, PencilSimple, Trash, SignOut} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
@@ -24,8 +26,6 @@ import Session from "supertokens-auth-react/recipe/session"
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {useSession} from "@/oss/hooks/useSession"
 import {getUsernameFromEmail} from "@/oss/lib/helpers/utils"
-import type {OrgDetails} from "@/oss/lib/Types"
-import {checkOrganizationAccess} from "@/oss/services/organization/api"
 import {useOrgData} from "@/oss/state/org"
 import {resetOrganizationData} from "@/oss/state/org"
 import {
@@ -298,7 +298,7 @@ const ListOfOrgs = ({
 
     const createMutation = useMutation({
         mutationFn: async (values: {name: string; description?: string}) => {
-            const {createOrganization} = await import("@/oss/services/organization/api")
+            const {createOrganization} = await import("@agenta/entities/organization")
             return createOrganization(values)
         },
         onSuccess: async (createdOrg) => {
@@ -323,7 +323,7 @@ const ListOfOrgs = ({
 
     const renameMutation = useMutation({
         mutationFn: async ({organizationId, name}: {organizationId: string; name: string}) => {
-            const {updateOrganization} = await import("@/oss/services/organization/api")
+            const {updateOrganization} = await import("@agenta/entities/organization")
             return updateOrganization(organizationId, {name})
         },
         onSuccess: async () => {
@@ -342,7 +342,7 @@ const ListOfOrgs = ({
 
     const deleteMutation = useMutation({
         mutationFn: async (organizationId: string) => {
-            const {deleteOrganization} = await import("@/oss/services/organization/api")
+            const {deleteOrganization} = await import("@agenta/entities/organization")
             return deleteOrganization(organizationId)
         },
         onSuccess: async () => {
@@ -366,7 +366,7 @@ const ListOfOrgs = ({
             organizationId: string
             newOwnerId: string
         }) => {
-            const {transferOrganizationOwnership} = await import("@/oss/services/organization/api")
+            const {transferOrganizationOwnership} = await import("@agenta/entities/organization")
             const result = await transferOrganizationOwnership(organizationId, newOwnerId)
             return result
         },

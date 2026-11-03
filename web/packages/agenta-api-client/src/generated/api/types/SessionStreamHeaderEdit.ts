@@ -4,9 +4,19 @@
  * The rename edit: a full-PUT of the header fields only.
  *
  * Distinct from SessionStreamEdit (used by the flag-mirror/heartbeat paths) so the
- * liveness-only writes can never carry name/description, and vice versa.
+ * liveness-only writes can never carry name/description, and vice versa. The one
+ * other header writer is the heartbeat's fill-once proposal, which goes through the
+ * DAO's NULL-guarded `fill_missing` and so cannot overwrite this edit.
+ *
+ * ``name`` may be omitted/``None`` (no change) or an empty string (the explicit
+ * clear-title action the chat rail's rename path uses), but a NON-empty name must
+ * contain a non-whitespace character: storing ``"   "`` clears the visible title
+ * while the row still holds a value, a state no caller ever means. The LLM-facing
+ * ``rename_session`` schema already rejects both; this closes the direct-API hole.
  */
 export interface SessionStreamHeaderEdit {
     name?: (string | null) | undefined;
     description?: (string | null) | undefined;
+    replacing_name?: (string | null) | undefined;
+    replacing_revision?: (number | null) | undefined;
 }

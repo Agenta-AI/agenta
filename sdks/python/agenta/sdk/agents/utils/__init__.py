@@ -2,6 +2,7 @@
 transports to the TypeScript runner."""
 
 from .ts_runner import (
+    RUNNER_TIMEOUT_SECONDS,
     deliver_http_result,
     deliver_http_stream,
     deliver_subprocess_result,
@@ -12,6 +13,7 @@ from .wire import request_to_wire, result_from_wire
 __all__ = [
     "request_to_wire",
     "result_from_wire",
+    "RUNNER_TIMEOUT_SECONDS",
     "deliver_http_result",
     "deliver_subprocess_result",
     "deliver_http_stream",

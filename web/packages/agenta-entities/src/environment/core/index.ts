@@ -35,10 +35,6 @@ export {
     // Normalization
     normalizeEnvironment,
     normalizeEnvironmentRevision,
-    // Utilities
-    getDeployedRevisionId,
-    getDeployedAppKeys,
-    isGuardedEnvironment,
 } from "./schema"
 
 // API parameter types
@@ -53,3 +49,9 @@ export type {
     EditEnvironmentParams,
     DeployToEnvironmentParams,
 } from "./types"
+
+export {
+    buildAppDeploymentHistory,
+    type AppDeploymentApp,
+    type AppDeploymentRow,
+} from "./appDeploymentHistory"

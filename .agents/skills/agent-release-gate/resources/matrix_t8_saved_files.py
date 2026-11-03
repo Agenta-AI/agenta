@@ -27,6 +27,7 @@ import httpx
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from qa_matrix_lib import (  # noqa: E402
     archive,
+    check_no_silent_turn,
     create_workflow,
     latest_revision,
     refs,
@@ -178,14 +179,22 @@ def t8_saved_files():
         )
         real_read = read_output is not None
 
+        # A turn that produced nothing also produced no tool error, so it would satisfy the
+        # absence check above by doing nothing at all (ASD-EST100).
+        silent = check_no_silent_turn(turns)
         core_ok = (
-            real_read and not any_real_tool_error and version_bumped and body_matches
+            real_read
+            and not any_real_tool_error
+            and not silent["violations"]
+            and version_bumped
+            and body_matches
         )
         return {
             "status": "PASS" if core_ok else "FAIL",
             "why": (
                 f"real_read (a tool output carried the real marker)={real_read}, "
                 f"any_real_tool_error={any_real_tool_error}, version_bumped={version_bumped}, "
+                f"silent_turns={silent['violations']}, "
                 f"body_matches={body_matches}. Check runner logs for 'remote agent mount active "
                 f"for artifact={wf}' separately."
             ),

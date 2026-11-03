@@ -1,3 +1,6 @@
+import {expectAuthenticatedSession} from "@agenta/oss/tests/playwright/acceptance/utils/auth"
+import {createScenarios} from "@agenta/oss/tests/playwright/acceptance/utils/scenarios"
+import {buildAcceptanceTags} from "@agenta/oss/tests/playwright/acceptance/utils/tags"
 import {
     TestCoverage,
     TestcaseType,
@@ -10,11 +13,7 @@ import {
     TestSpeedType,
 } from "@agenta/web-tests/playwright/config/testTags"
 import {test} from "@agenta/web-tests/tests/fixtures/base.fixture"
-import {expect} from "@agenta/web-tests/utils"
-
-import {expectAuthenticatedSession} from "@agenta/oss/tests/playwright/acceptance/utils/auth"
-import {createScenarios} from "@agenta/oss/tests/playwright/acceptance/utils/scenarios"
-import {buildAcceptanceTags} from "@agenta/oss/tests/playwright/acceptance/utils/tags"
+import {expect, pollLocatorState} from "@agenta/web-tests/utils"
 
 const scenarios = createScenarios(test)
 
@@ -32,6 +31,23 @@ const lightFastTags = buildAcceptanceTags({
 
 const createInviteEmail = (scope: string) =>
     `${scope}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@agenta.test`
+
+const waitForResendResponse = async (page: any) => {
+    const response = await page.waitForResponse(
+        (res: any) =>
+            res.request().method() === "POST" &&
+            res.url().includes("/workspaces/") &&
+            res.url().includes("/invite/resend") &&
+            ![301, 302, 303, 307, 308].includes(res.status()),
+        {timeout: 15000},
+    )
+
+    if (!response.ok()) {
+        throw new Error(
+            `Resend invitation request failed (${response.status()}): ${await response.text()}`,
+        )
+    }
+}
 
 const waitForRemoveResponse = async (page: any) => {
     const response = await page.waitForResponse(
@@ -72,17 +88,16 @@ const openInviteMembersModal = async (page: any) => {
 
     for (let attempt = 0; attempt < 3; attempt++) {
         // Ensure any previous dialog is closed before clicking again.
-        const alreadyOpen = await inviteModal.isVisible().catch(() => false)
+        const alreadyOpen = await pollLocatorState(() => inviteModal.isVisible())
         if (!alreadyOpen) {
             await inviteButton.click()
         }
 
         // Wait for the email input to become visible. This is the most reliable
         // signal that both the modal wrapper AND its dynamic content are ready.
-        const inputAppeared = await emailInput
-            .waitFor({state: "visible", timeout: 15000})
-            .then(() => true)
-            .catch(() => false)
+        const inputAppeared = await pollLocatorState(() =>
+            emailInput.waitFor({state: "visible", timeout: 15000}).then(() => true),
+        )
 
         if (inputAppeared) {
             return {inviteModal, emailInput}
@@ -103,20 +118,9 @@ const submitInviteMembersModal = async (inviteModal: any) => {
     await expect(inviteModal).not.toBeVisible({timeout: 30000})
 }
 
-/**
- * Invite a member via the EE flow (email sent) and wait for their row to appear
- * in the members table with "Invitation Pending" status.
- * Returns the invited email so callers can locate the row.
- */
-/**
- * A row in the members table.
- *
- * The table is virtualised: the semantic `<table>` carries only the `<thead>` and each
- * body row is a `[data-row-key]` node outside it, so `locator("tr")` only ever matches
- * the header.
- */
+/** A member row rendered by the current semantic table. */
 const memberRow = (page: any, email: string) =>
-    page.locator("[data-row-key]").filter({hasText: email}).first()
+    page.getByRole("row").filter({hasText: email}).first()
 
 /**
  * Closes the "Invited user link" dialog that opens after a successful invite.
@@ -124,12 +128,13 @@ const memberRow = (page: any, email: string) =>
  */
 const dismissInvitedUserLinkDialog = async (page: any) => {
     const dialog = page.getByRole("dialog", {name: "Invited user link"})
-    if (!(await dialog.isVisible().catch(() => false))) return
+    if (!(await pollLocatorState(() => dialog.isVisible()))) return
     // `exact` matters: the footer also carries a "Copy & Close" button.
     await dialog.getByRole("button", {name: "Close", exact: true}).click()
     await expect(dialog).toBeHidden({timeout: 10000})
 }
 
+/** Invites a member and waits for its Pending row state. */
 const invitePendingMember = async (page: any, apiHelpers: any, uiHelpers: any): Promise<string> => {
     const testEmail = createInviteEmail("test-member")
 
@@ -161,7 +166,9 @@ const invitePendingMember = async (page: any, apiHelpers: any, uiHelpers: any): 
     // refreshed at all — which is why callers then failed to find the row. Close it
     // first, then wait for the row itself.
     await dismissInvitedUserLinkDialog(page)
-    await expect(memberRow(page, testEmail)).toBeVisible({timeout: 15000})
+    const row = memberRow(page, testEmail)
+    await expect(row).toBeVisible({timeout: 15000})
+    await expect(row.getByText("Pending", {exact: true})).toBeVisible({timeout: 15000})
 
     return testEmail
 }
@@ -265,14 +272,16 @@ const membersTests = () => {
             })
 
             await scenarios.and("the user clicks Resend invitation", async () => {
-                await page
-                    .locator(".ant-dropdown-menu-item")
-                    .filter({hasText: "Resend invitation"})
-                    .click()
+                await Promise.all([
+                    waitForResendResponse(page),
+                    page.getByRole("menuitem", {name: "Resend invitation", exact: true}).click(),
+                ])
             })
 
             await scenarios.then("a success confirmation is shown", async () => {
-                await expect(page.getByText("Invitation sent!")).toBeVisible({timeout: 10000})
+                await expect(page.getByText("Invitation sent!", {exact: true})).toBeVisible({
+                    timeout: 10000,
+                })
             })
         },
     )
@@ -303,11 +312,8 @@ const membersTests = () => {
             })
 
             await scenarios.and("the user clicks Remove and confirms", async () => {
-                await page.locator(".ant-dropdown-menu-item").filter({hasText: "Remove"}).click()
+                await page.getByRole("menuitem", {name: "Remove", exact: true}).click()
 
-                // `AlertPopup` calls `modal.confirm` from `@agenta/ui/app-message`, which
-                // renders a Radix `AlertDialog`. Its content carries role="alertdialog",
-                // a distinct role from "dialog" — so `getByRole("dialog")` never matches.
                 const confirmDialog = page.getByRole("alertdialog", {name: "Remove member"})
                 await expect(confirmDialog).toBeVisible({timeout: 10000})
                 await Promise.all([

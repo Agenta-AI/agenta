@@ -30,6 +30,49 @@ const tsEslintConfig = tseslint.config(
 
 const includePrettierRule = process.env.DISABLE_PRETTIER !== "true"
 
+/**
+ * Import bans every @agenta/* package inherits. A package config that overrides
+ * `no-restricted-imports` must spread this into its own `paths`, or it drops the bans.
+ */
+export const restrictedImportPaths = [
+    // Root barrel statically imports the monolithic AgentaApiClient (all 27 resource
+    // clients, ~300KB parsed) into any eager import graph. Regressed once (June fix, July relapse).
+    {
+        name: "@agenta/sdk",
+        message:
+            "Import per-resource accessors from '@agenta/sdk/resources' (or '@agenta/sdk/config' for host pinning) — the root barrel bundles all 27 Fern resource clients.",
+    },
+    // A host that installs its own QueryClient (as /m did) turns every write on the
+    // singleton into a silent no-op. Read the host's client instead.
+    {
+        name: "@agenta/shared/api",
+        importNames: ["queryClient"],
+        message:
+            "Use `getHostQueryClient()` from '@agenta/shared/api' — the `queryClient` singleton is only for hosts to pass to <QueryClientProvider>; package writes on it are dead when the host installed its own client.",
+    },
+    // Same singleton, reachable through the root barrel's re-export.
+    {
+        name: "@agenta/shared",
+        importNames: ["queryClient"],
+        message:
+            "Use `getHostQueryClient()` from '@agenta/shared/api' — the `queryClient` singleton is only for hosts to pass to <QueryClientProvider>; package writes on it are dead when the host installed its own client.",
+    },
+]
+
+/**
+ * Syntax bans every @agenta/* package inherits. `no-restricted-imports` does not see
+ * `await import(...)`, so the singleton is banned again at the ImportExpression level.
+ * A package config that overrides `no-restricted-syntax` must spread this into its options.
+ */
+export const restrictedSyntax = [
+    {
+        selector:
+            'ImportExpression > Literal[value="@agenta/shared/api"], ImportExpression > Literal[value="@agenta/shared"]',
+        message:
+            "Dynamic-import '@agenta/shared/api/hostQueryClient' instead — importing the api barrel dynamically can reach the `queryClient` singleton, whose writes are dead on a host that installed its own client.",
+    },
+]
+
 const config = [
     ...compat.extends("plugin:@lexical/recommended"),
     ...tsEslintConfig,
@@ -55,21 +98,8 @@ const config = [
             },
         },
         rules: {
-            // Root barrel statically imports the monolithic AgentaApiClient (all 27
-            // resource clients, ~300KB parsed) into any eager import graph. Use the
-            // per-resource accessors instead. Regressed once (June fix, July relapse).
-            "no-restricted-imports": [
-                "error",
-                {
-                    paths: [
-                        {
-                            name: "@agenta/sdk",
-                            message:
-                                "Import per-resource accessors from '@agenta/sdk/resources' (or '@agenta/sdk/config' for host pinning) — the root barrel bundles all 27 Fern resource clients.",
-                        },
-                    ],
-                },
-            ],
+            "no-restricted-imports": ["error", {paths: restrictedImportPaths}],
+            "no-restricted-syntax": ["error", ...restrictedSyntax],
             "prefer-const": "off",
             "no-self-assign": "off",
             "no-empty": "off",
@@ -132,6 +162,52 @@ const config = [
         },
     },
     ...(includePrettierRule ? [eslintPluginPrettier] : []),
+    // The playground panels are what /m renders, and /m ships no antd. This bans antd itself, the
+    // `@agenta/ui` root, and the `@agenta/playground-ui` paths known to reach antd. Lint cannot
+    // see transitive imports (`@agenta/ui/ui` reaches `@ant-design/icons`, which /m already
+    // ships), so `web/mobile/scripts/speed/antd-in-route.mjs` checks the built playground route.
+    {
+        // `pnpm --filter @agenta/playground-ui lint` passes this config with `--config`, so its
+        // globs resolve from the package folder; a run from `web/packages` sees the longer path.
+        files: ["agenta-playground-ui/src/panels/**", "src/panels/**"],
+        rules: {
+            "no-restricted-imports": [
+                "error",
+                {
+                    paths: [
+                        ...restrictedImportPaths,
+                        ...[
+                            "antd",
+                            "@agenta/ui",
+                            "@agenta/playground-ui",
+                            "@agenta/playground-ui/components",
+                            "@agenta/playground-ui/execution-items",
+                            "@agenta/playground-ui/adapters",
+                            "@agenta/playground-ui/playground-inputs-body",
+                            "@agenta/playground-ui/execution-item-comparison-view",
+                            "@agenta/playground-ui/workflow-revision-drawer",
+                        ].map((name) => ({
+                            name,
+                            message:
+                                "Playground panels ship in /m, which has no antd. This path reaches antd: import an antd-free subpath instead.",
+                        })),
+                    ],
+                    patterns: [
+                        {
+                            group: [
+                                "antd/*",
+                                "@ant-design/*",
+                                "../**/components",
+                                "../**/components/**",
+                            ],
+                            message:
+                                "Playground panels ship in /m, which has no antd. Move an antd-free helper out of components/ (to src/hooks or src/panels/shared) before importing it.",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     {
         ignores: ["**/dist/**", "**/node_modules/**", "**/*.d.ts"],
     },

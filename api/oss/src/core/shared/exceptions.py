@@ -1,6 +1,14 @@
 from typing import Optional, Dict, Any
 
 
+class EntityCreationIdempotencyConflict(Exception):
+    """An idempotency key was reused with a different request fingerprint."""
+
+    def __init__(self, *, namespace: str) -> None:
+        self.namespace = namespace
+        super().__init__("The idempotency key is already bound to a different request.")
+
+
 class EntityCreationConflict(Exception):
     """Exception raised when trying to create an entity that already exists."""
 

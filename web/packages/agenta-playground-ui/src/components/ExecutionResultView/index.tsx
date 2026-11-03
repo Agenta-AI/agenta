@@ -8,6 +8,7 @@ import {Typography} from "antd"
 import {useAtomValue} from "jotai"
 
 import {usePlaygroundUIOptional} from "../../context/PlaygroundUIContext"
+import {runErrorText} from "../../panels/runs/RunError"
 import RepetitionNavigation from "../ExecutionItems/assets/RepetitionNavigation"
 import {ClickRunPlaceholder} from "../ExecutionItems/assets/ResultPlaceholder"
 import TypingIndicator from "../ExecutionItems/assets/TypingIndicator"
@@ -124,26 +125,7 @@ function ErrorContent({
     }
     footer: React.ReactNode
 }) {
-    let errorText =
-        typeof result?.error === "string" ? result.error : String(result?.error ?? "Error")
-
-    if (
-        errorText === "An unknown error occurred" ||
-        errorText === "Unknown error" ||
-        errorText === "Error"
-    ) {
-        const detail =
-            typeof result?.metadata?.rawError?.detail === "string"
-                ? result.metadata.rawError.detail
-                : undefined
-        if (detail) {
-            errorText = detail
-        }
-        const retryAfter = result?.metadata?.retryAfter
-        if (retryAfter) {
-            errorText = `${errorText} Retry after ${retryAfter}s.`
-        }
-    }
+    const errorText = runErrorText(result)
 
     return (
         <SharedEditor
@@ -203,7 +185,7 @@ function ResponseContent({
             <div>
                 {repetitionProps && !isComparisonView && (
                     <div className="flex gap-1 items-center mb-1">
-                        <Typography.Text type="secondary" className="text-[10px] text-nowrap">
+                        <Typography.Text type="secondary" className="text-[12px] text-nowrap">
                             Total repeats
                         </Typography.Text>
                         <RepetitionNavigation {...repetitionProps} />
@@ -224,7 +206,7 @@ function ResponseContent({
         <div>
             {repetitionProps && !isComparisonView && (
                 <div className="flex gap-1 items-center mb-1">
-                    <Typography.Text type="secondary" className="text-[10px] text-nowrap">
+                    <Typography.Text type="secondary" className="text-[12px] text-nowrap">
                         Total repeats
                     </Typography.Text>
                     <RepetitionNavigation {...repetitionProps} />

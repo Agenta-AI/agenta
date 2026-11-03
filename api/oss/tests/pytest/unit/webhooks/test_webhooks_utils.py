@@ -5,6 +5,7 @@ DNS-dependent cases use a monkeypatched socket.getaddrinfo.
 """
 
 import importlib
+import os
 
 import pytest
 
@@ -224,3 +225,94 @@ def test_allow_insecure_canonical_wins_over_legacy_alias(monkeypatch):
         monkeypatch.delenv("AGENTA_INSECURE_EGRESS_ALLOWED", raising=False)
         monkeypatch.delenv("AGENTA_WEBHOOKS_ALLOW_INSECURE", raising=False)
         importlib.reload(env)
+
+
+# ---------------------------------------------------------------------------
+# End-to-end: the env var itself, not a monkeypatched module constant, drives
+# the refusal. Every other SSRF test in this repo pins `_WEBHOOK_ALLOW_INSECURE`
+# directly (see `tests/pytest/utils/egress.py`), which proves the guard's logic
+# but not that AGENTA_INSECURE_EGRESS_ALLOWED=false — the value every shared
+# deployment now sets — actually reaches it.
+# ---------------------------------------------------------------------------
+
+
+# The three names that decide the flag, newest first. The last two are deprecated aliases
+# and any of the three may already be exported by the process running the suite.
+_EGRESS_VARIABLES = (
+    "AGENTA_INSECURE_EGRESS_ALLOWED",
+    "AGENTA_WEBHOOKS_ALLOW_INSECURE",
+    "AGENTA_WEBHOOK_ALLOW_INSECURE",
+)
+
+
+def _reload_egress_modules() -> None:
+    from oss.src.utils import env
+    from oss.src.core.webhooks import utils as webhook_utils
+
+    importlib.reload(env)
+    importlib.reload(webhook_utils)
+
+
+def test_insecure_egress_allowed_false_blocks_private_address_end_to_end():
+    """Deliberately not using `monkeypatch`, which is what made this leak.
+
+    The modules are reloaded here rather than by pytest, and `monkeypatch` restores the
+    environment only after the test function has returned. The reload in the `finally`
+    therefore ran while the deprecated aliases were still deleted, so on a process that
+    exported one the flag was left pinned to the wrong value for every later test in that
+    worker — a false green in whatever ran next, not in this case (P6).
+
+    Restoring by hand, before the reload, removes the ordering question entirely.
+    """
+    from oss.src.core.webhooks import utils as webhook_utils
+
+    original = {name: os.environ.get(name) for name in _EGRESS_VARIABLES}
+    os.environ["AGENTA_INSECURE_EGRESS_ALLOWED"] = "false"
+    for alias in _EGRESS_VARIABLES[1:]:
+        os.environ.pop(alias, None)
+    try:
+        _reload_egress_modules()
+        assert webhook_utils._WEBHOOK_ALLOW_INSECURE is False
+        with pytest.raises(ValueError, match="blocked IP"):
+            webhook_utils.resolve_validated_webhook_ip("https://10.0.0.5/hook")
+    finally:
+        for name, value in original.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+        _reload_egress_modules()
+
+
+def test_the_end_to_end_case_leaves_the_flag_as_it_found_it():
+    """The leak itself, reproduced by exporting an alias the way a deployment might.
+
+    Nothing about the case above should be visible afterwards, and what made it visible
+    was restoring the environment after the reload rather than before it.
+    """
+    from oss.src.core.webhooks import utils as webhook_utils
+
+    original = {name: os.environ.get(name) for name in _EGRESS_VARIABLES}
+    os.environ.pop("AGENTA_INSECURE_EGRESS_ALLOWED", None)
+    # `false`, not `true`: the flag defaults to ON, so an alias saying ON is restored by
+    # accident and proves nothing. This value is the one the reload can only reach by
+    # actually reading the alias.
+    os.environ["AGENTA_WEBHOOKS_ALLOW_INSECURE"] = "false"
+    try:
+        _reload_egress_modules()
+        assert webhook_utils._WEBHOOK_ALLOW_INSECURE is False
+
+        test_insecure_egress_allowed_false_blocks_private_address_end_to_end()
+
+        # The alias is still exported, so the flag must still be what it says.
+        assert os.environ["AGENTA_WEBHOOKS_ALLOW_INSECURE"] == "false"
+        assert webhook_utils._WEBHOOK_ALLOW_INSECURE is False, (
+            "the end-to-end case left the guard pinned to the default"
+        )
+    finally:
+        for name, value in original.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+        _reload_egress_modules()

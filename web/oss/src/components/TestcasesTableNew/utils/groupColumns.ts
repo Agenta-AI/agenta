@@ -1,6 +1,6 @@
 import type {ReactNode} from "react"
 
-import type {ColumnType} from "antd/es/table"
+import type {ColumnDef} from "@agenta/ui/table"
 
 import type {Column} from "@/oss/state/entities/testcase/columnState"
 
@@ -10,13 +10,13 @@ import type {Column} from "@/oss/state/entities/testcase/columnState"
 export interface ColumnGroup<T> {
     key: string
     title: string
-    children: ColumnType<T>[]
+    children: ColumnDef<T>[]
 }
 
 /**
  * Result of grouping columns - either a regular column or a group
  */
-export type GroupedColumn<T> = ColumnType<T> | ColumnGroup<T>
+export type GroupedColumn<T> = ColumnDef<T> | ColumnGroup<T>
 
 /** Default max depth for group expansion (1 = only top-level groups expand by default) */
 const DEFAULT_MAX_DEPTH = 1
@@ -32,7 +32,7 @@ export interface GroupColumnsOptions<T> {
     /** Function to render the group header (receives groupName, isCollapsed, childCount) */
     renderGroupHeader?: (groupName: string, isCollapsed: boolean, childCount: number) => ReactNode
     /** Function to create a collapsed column (shows full JSON) */
-    createCollapsedColumnDef?: (groupName: string, childColumns: Column[]) => ColumnType<T>
+    createCollapsedColumnDef?: (groupName: string, childColumns: Column[]) => ColumnDef<T>
     /** Maximum depth for group expansion (default: 2). Beyond this depth, columns show as JSON */
     maxDepth?: number
 }
@@ -90,11 +90,11 @@ function isExpandedColumn(col: Column): boolean {
  */
 function groupColumnsRecursive<T>(
     columns: Column[],
-    createColumnDef: (col: Column, displayName: string) => ColumnType<T>,
+    createColumnDef: (col: Column, displayName: string) => ColumnDef<T>,
     options: GroupColumnsOptions<T> | undefined,
     parentPath: string,
     currentDepth: number,
-): ColumnType<T>[] {
+): ColumnDef<T>[] {
     const {
         collapsedGroups,
         onGroupHeaderClick,
@@ -103,7 +103,7 @@ function groupColumnsRecursive<T>(
         maxDepth = DEFAULT_MAX_DEPTH,
     } = options ?? {}
 
-    const result: ColumnType<T>[] = []
+    const result: ColumnDef<T>[] = []
     const groupMap = new Map<string, {columns: Column[]; order: number}>()
     let orderCounter = 0
 
@@ -116,7 +116,7 @@ function groupColumnsRecursive<T>(
             result.push({
                 ...createColumnDef(col, col.name),
                 __order: orderCounter++,
-            } as ColumnType<T> & {__order: number})
+            } as ColumnDef<T> & {__order: number})
             return
         }
 
@@ -142,7 +142,7 @@ function groupColumnsRecursive<T>(
             result.push({
                 ...createColumnDef(col, displayName),
                 __order: orderCounter++,
-            } as ColumnType<T> & {__order: number})
+            } as ColumnDef<T> & {__order: number})
         }
     })
 
@@ -165,7 +165,7 @@ function groupColumnsRecursive<T>(
             result.push({
                 ...collapsedCol,
                 __order: group.order,
-            } as ColumnType<T> & {__order: number})
+            } as ColumnDef<T> & {__order: number})
         } else {
             // Expanded state: recursively group children
             const children = groupColumnsRecursive(
@@ -187,20 +187,20 @@ function groupColumnsRecursive<T>(
                 title,
                 children,
                 __order: group.order,
-            } as ColumnType<T> & {__order: number})
+            } as ColumnDef<T> & {__order: number})
         }
     })
 
     // Sort by original order to maintain column sequence
     result.sort((a, b) => {
-        const orderA = (a as ColumnType<T> & {__order?: number}).__order ?? 0
-        const orderB = (b as ColumnType<T> & {__order?: number}).__order ?? 0
+        const orderA = (a as ColumnDef<T> & {__order?: number}).__order ?? 0
+        const orderB = (b as ColumnDef<T> & {__order?: number}).__order ?? 0
         return orderA - orderB
     })
 
     // Clean up __order property
     result.forEach((col) => {
-        delete (col as ColumnType<T> & {__order?: number}).__order
+        delete (col as ColumnDef<T> & {__order?: number}).__order
     })
 
     return result
@@ -209,10 +209,10 @@ function groupColumnsRecursive<T>(
 /**
  * Count leaf columns in a nested column structure
  */
-function countLeafColumns<T>(columns: ColumnType<T>[]): number {
+function countLeafColumns<T>(columns: ColumnDef<T>[]): number {
     let count = 0
     columns.forEach((col) => {
-        const children = (col as ColumnType<T> & {children?: ColumnType<T>[]}).children
+        const children = (col as ColumnDef<T> & {children?: ColumnDef<T>[]}).children
         if (children && children.length > 0) {
             count += countLeafColumns(children)
         } else {
@@ -238,8 +238,8 @@ function countLeafColumns<T>(columns: ColumnType<T>[]): number {
  */
 export function groupColumns<T>(
     columns: Column[],
-    createColumnDef: (col: Column, displayName: string) => ColumnType<T>,
+    createColumnDef: (col: Column, displayName: string) => ColumnDef<T>,
     options?: GroupColumnsOptions<T>,
-): ColumnType<T>[] {
+): ColumnDef<T>[] {
     return groupColumnsRecursive(columns, createColumnDef, options, "", 0)
 }

@@ -1,11 +1,11 @@
 import {useCallback, useMemo} from "react"
 
+import {filteredSessionIdsAtom} from "@agenta/observability"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {CaretDown, CaretUp, SidebarSimple} from "@phosphor-icons/react"
 import {Button, Tag, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
-import {filteredSessionIdsAtom} from "@/oss/state/newObservability"
 import {openSessionDrawerWithUrlAtom} from "@/oss/state/url/session"
 
 import useSessionDrawer from "../../hooks/useSessionDrawer"

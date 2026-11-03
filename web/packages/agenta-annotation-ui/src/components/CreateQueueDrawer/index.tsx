@@ -1,6 +1,11 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
+    createQueueDrawerOpenAtom,
+    createQueueDrawerDefaultKindAtom,
+    createQueueDrawerSelectionAtom,
+} from "@agenta/annotation"
+import {
     createSimpleQueueAtom,
     simpleQueueMolecule,
     type CreateSimpleQueuePayload,
@@ -16,11 +21,6 @@ import {Divider, Drawer, Form, Input, Select, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigationSafe} from "../../context"
-import {
-    createQueueDrawerOpenAtom,
-    createQueueDrawerDefaultKindAtom,
-    createQueueDrawerSelectionAtom,
-} from "../../state/atoms"
 
 import {EntityEvaluatorSelector} from "./EntityEvaluatorSelector"
 import SelectedEvaluatorCard, {type SelectedEvaluatorCardData} from "./SelectedEvaluatorCard"

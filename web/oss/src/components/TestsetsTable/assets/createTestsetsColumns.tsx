@@ -1,5 +1,6 @@
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {createStandardColumns} from "@agenta/ui/table"
+import type {ColumnDefs} from "@agenta/ui/table"
 import {LoadingOutlined, MinusCircleOutlined, PlusCircleOutlined} from "@ant-design/icons"
 import {
     ArrowCounterClockwise,
@@ -11,7 +12,6 @@ import {
     PencilSimple,
 } from "@phosphor-icons/react"
 import {Tag} from "antd"
-import type {ColumnsType} from "antd/es/table"
 
 import CommitMessageCell from "@/oss/components/TestsetsTable/components/CommitMessageCell"
 import type {ExportFileType} from "@/oss/services/testsets/api"
@@ -50,7 +50,7 @@ export function createTestsetsColumns(
         exportingRowKey = null,
         expandState,
     }: CreateTestsetsColumnsOptions,
-): ColumnsType<TestsetTableRow> {
+): ColumnDefs<TestsetTableRow> {
     const isArchived = mode === "archived"
     const isSelectMode = interactionMode === "select"
     const isManageMode = !isSelectMode

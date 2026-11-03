@@ -33,8 +33,7 @@ interface LocalTooltipProps {
  * `size`→size, `icon`→leading child, `loading`→LoadingButton, `shape="circle"`→icon size + 50%
  * radius (`"round"`→pill),
  * `htmlType`→native type, `block`→full-width. `tooltipProps.title`→Radix tooltip
- * (placement→side). No title → bare Button. Deferred (rare / unused): `ghost`,
- * `iconPosition="end"`, `arrow={false}`.
+ * (placement→side). No title → bare Button. Deferred (rare / unused): `ghost`, `arrow={false}`.
  */
 // Local antd-compatible props (no antd import): reproduces the antd `ButtonProps` surface the
 // call-sites use, so they pass their existing antd props unchanged; the facade translates the
@@ -119,7 +118,7 @@ function EnhancedButton({
     // antd-only props dropped so they don't leak onto the native <button>:
     block: _block,
     ghost: _ghost,
-    iconPosition: _iconPosition,
+    iconPosition,
     rootClassName: _rootClassName,
     classNames: _classNames,
     styles: _styles,
@@ -131,12 +130,22 @@ function EnhancedButton({
     // size variants only carry `rounded-control*`, so without this a circle button rendered as a
     // rounded square. `className` still wins (tailwind-merge puts it last).
     const shapeClass = shape === "circle" || shape === "round" ? "rounded-control-round" : undefined
-    const content = (
-        <>
-            {icon}
-            {label ?? children}
-        </>
-    )
+    // `iconPosition="end"` was dropped here as "rare / unused". It is neither: five call sites pass
+    // it (the shared EmptyState's Learn-More, the agent composer, the template strip's intent
+    // actions, the annotation session nav), and every one of them rendered its arrow on the WRONG
+    // SIDE — "→ Learn More" against the desktop app's "Learn More →".
+    const content =
+        iconPosition === "end" ? (
+            <>
+                {label ?? children}
+                {icon}
+            </>
+        ) : (
+            <>
+                {icon}
+                {label ?? children}
+            </>
+        )
 
     const shared = {
         ref,

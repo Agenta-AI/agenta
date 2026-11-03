@@ -21,9 +21,6 @@ export interface ExecutionRowProps {
     }) => React.ReactNode
 }
 
-/** @deprecated Alias kept for backward compatibility */
-export type GenerationCompletionRowProps = ExecutionRowProps
-
 const ExecutionRow = ({
     entityId,
     rowId,

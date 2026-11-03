@@ -179,7 +179,9 @@ export const workflowSnapshotAdapter: RunnableSnapshotAdapter = {
             patchData,
         )
 
-        store.set(updateWorkflowDraftAtom, revisionId, {data: mergedData})
+        // Restoring a stored draft, not editing: `hydrating` keeps auto-commit from reading a
+        // reopened tab as a fresh change and committing it.
+        store.set(updateWorkflowDraftAtom, revisionId, {data: mergedData}, {hydrating: true})
         return true
     },
 
@@ -228,7 +230,12 @@ export const workflowSnapshotAdapter: RunnableSnapshotAdapter = {
                     store.get(workflowServerDataSelectorFamily(localDraftId)),
                     parseResult.data,
                 )
-                store.set(updateWorkflowDraftAtom, localDraftId, {data: mergedData})
+                store.set(
+                    updateWorkflowDraftAtom,
+                    localDraftId,
+                    {data: mergedData},
+                    {hydrating: true},
+                )
             }
 
             return localDraftId

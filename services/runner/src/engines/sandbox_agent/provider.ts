@@ -7,6 +7,7 @@ import {
   DEFAULT_DAYTONA_SNAPSHOT,
   KNOWN_SANDBOX_PROVIDER_IDS,
   loadRunnerConfig,
+  providerNotEnabledMessage,
   type RunnerConfig,
   type RunnerDaytonaConfig,
   type SandboxProviderId,
@@ -19,9 +20,43 @@ import {
 } from "./daytona-provider.ts";
 import { daytonaWithProcessLocalSecrets } from "./daytona-secret-provider.ts";
 import {
+  swapGatewayCredentials,
+  type DaytonaSecretLease,
+  type GatewayCredentialPlaceholders,
+} from "./daytona-secrets.ts";
+import {
   assertDaytonaOpaqueSecretsEnabled,
   type DaytonaSecretPlan,
 } from "./daytona-secret-plan.ts";
+
+/** The port the Daytona provider passes to `sandbox-agent server`. */
+export const DAYTONA_SANDBOX_AGENT_PORT = 3_000;
+
+/**
+ * Recover the daemon port from the public sandbox handle id.
+ *
+ * Local ids are the daemon's `host:port`; Daytona ids are opaque, so use the explicit port this
+ * module gives that provider. Unknown providers stay undefined rather than borrowing a port.
+ */
+export function sandboxAgentServerPort(
+  sandboxId: string | undefined,
+): number | undefined {
+  if (!sandboxId) return undefined;
+  const separator = sandboxId.indexOf("/");
+  if (separator <= 0) return undefined;
+  const provider = sandboxId.slice(0, separator);
+  if (provider === "daytona") return DAYTONA_SANDBOX_AGENT_PORT;
+  if (provider !== "local") return undefined;
+
+  try {
+    const port = Number(new URL(`http://${sandboxId.slice(separator + 1)}`).port);
+    return Number.isInteger(port) && port > 0 && port <= 65_535
+      ? port
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * Translate the Layer 2 network policy into Daytona create fields. Daytona enforces egress
@@ -67,6 +102,7 @@ export function buildDaytonaCreate(
   environment: Record<string, string>,
   sandboxPermission: SandboxPermission | undefined,
   secretAttachments: Record<string, string> = {},
+  labels: Record<string, string> = {},
 ): Record<string, unknown> {
   const snapshot = daytona.image
     ? undefined
@@ -80,6 +116,7 @@ export function buildDaytonaCreate(
     ...(target ? { target } : {}),
     ...daytonaNetworkFields(sandboxPermission),
     envVars: daytonaEnvVars(piExtEnv, environment),
+    ...(Object.keys(labels).length > 0 ? { labels } : {}),
     ...(Object.keys(secretAttachments).length > 0
       ? { secrets: secretAttachments }
       : {}),
@@ -128,7 +165,12 @@ export function daytonaCreateFingerprint(input: {
   image?: string;
   create: Record<string, unknown>;
 }): string {
-  return createHash("sha256").update(canonicalJson(input)).digest("hex");
+  // Labels name the session, they do not shape the sandbox: the same topology for two sessions
+  // must hash the same, and a label added later must not read as a different sandbox.
+  const { labels: _labels, ...create } = input.create;
+  return createHash("sha256")
+    .update(canonicalJson({ ...input, create }))
+    .digest("hex");
 }
 
 /** Recognized ids that are planned but not yet provisionable (fail with a specific message). */
@@ -143,7 +185,19 @@ export const PLANNED_SANDBOX_IDS = ["e2b"] as const;
  * `buildRunPlan` rejects restricted policies the local provider cannot enforce before this is
  * reached. A known-but-disabled provider is refused here too (defense-in-depth for callers that
  * bypass `buildRunPlan`).
+ *
+ * `options.inheritedLease` carries the Secret lease of a sandbox the credential preflight convicted
+ * as stuck. The rebuild is created against that same allocation, which is the case Daytona support
+ * confirmed works. See `acquireEnvironment`.
  */
+export interface BuildSandboxProviderOptions {
+  /** A detached lease from a sandbox this run already convicted. See `acquireEnvironment`. */
+  inheritedLease?: DaytonaSecretLease;
+  /** The session inventory labels written on a Daytona create. See `sandbox-labels.ts`. */
+  sessionLabels?: Record<string, string>;
+  config?: RunnerConfig;
+}
+
 export function buildSandboxProvider(
   sandboxId: string,
   env: Record<string, string>,
@@ -152,16 +206,14 @@ export function buildSandboxProvider(
   modelEnvironment: Record<string, string>,
   sandboxPermission?: SandboxPermission,
   daytonaSecretPlan?: DaytonaSecretPlan,
-  config: RunnerConfig = loadRunnerConfig(),
+  options: BuildSandboxProviderOptions = {},
 ) {
+  const config = options.config ?? loadRunnerConfig();
   if (
     (KNOWN_SANDBOX_PROVIDER_IDS as readonly string[]).includes(sandboxId) &&
     !config.providers.enabled.includes(sandboxId as SandboxProviderId)
   ) {
-    throw new Error(
-      `Sandbox provider '${sandboxId}' is not enabled on this deployment ` +
-        `(enabled: ${config.providers.enabled.join(", ")}).`,
-    );
+    throw new Error(providerNotEnabledMessage(sandboxId, config.providers.enabled));
   }
 
   if (sandboxId === "daytona") {
@@ -174,19 +226,35 @@ export function buildSandboxProvider(
       piExtEnv,
       modelEnvironment,
       sandboxPermission,
+      {},
+      options.sessionLabels,
     );
-    const buildDaytona = (secretAttachments: Record<string, string>) =>
+    // The fingerprint below hashes `createFields` as built, raw gateway credential included, so a
+    // new credential still reads as a new sandbox on reconnect exactly as before. Only the create
+    // request itself carries the placeholders.
+    const buildDaytona = (
+      secretAttachments: Record<string, string>,
+      gatewayPlaceholders: GatewayCredentialPlaceholders = { mcpHeaders: {} },
+    ) =>
       daytonaWithLifecycle(
         {
           ...(image ? { image } : {}),
+          agentPort: DAYTONA_SANDBOX_AGENT_PORT,
           create: {
             ...createFields,
+            envVars: swapGatewayCredentials(
+              createFields.envVars as Record<string, string>,
+              gatewayPlaceholders,
+            ),
             ...(Object.keys(secretAttachments).length > 0
               ? { secrets: secretAttachments }
               : {}),
           } as any,
         },
-        { client: buildDaytonaClient(config.daytona) },
+        {
+          client: buildDaytonaClient(config.daytona),
+          target: config.daytona.target,
+        },
       );
     // The process-local Secret wrapper applies to EVERY plan-bearing Daytona run
     // (`buildRunPlan` builds a plan unless AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS switched hiding
@@ -216,6 +284,11 @@ export function buildSandboxProvider(
         client.secret,
         {
           createFingerprint,
+          // Set only when the credential preflight convicted the previous sandbox of this run.
+          // The rebuild then mounts the SAME Secret instead of allocating a new one.
+          ...(options.inheritedLease
+            ? { inheritedLease: options.inheritedLease }
+            : {}),
           // Run slightly after Daytona's own auto-delete backstop. The timer first issues an
           // idempotent sandbox delete, then removes Secrets, preserving the hard deletion order.
           cleanupDelayMilliseconds:

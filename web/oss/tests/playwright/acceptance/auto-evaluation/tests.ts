@@ -1,6 +1,6 @@
 import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
 import {getProjectScopedBasePath} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
-import {expect} from "@agenta/web-tests/utils"
+import {appToast, expect, pollLocatorState} from "@agenta/web-tests/utils"
 import {
     deriveEvaluationKind,
     type EvaluationRunForKindDetection,
@@ -83,7 +83,7 @@ const getVisibleButtonByLabels = async (page: Page, labels: readonly (string | R
 
         for (let index = 0; index < buttonCount; index += 1) {
             const button = buttons.nth(index)
-            if (await button.isVisible().catch(() => false)) {
+            if (await pollLocatorState(() => button.isVisible())) {
                 return button
             }
         }
@@ -141,7 +141,10 @@ const openAutoEvaluationModal = async (page: Page) => {
     await ensureAutoEvaluationsContext(page)
     await (await getAutoEvaluationCreateButton(page)).click()
 
-    const modal = page.locator(".ant-modal").first()
+    // NewEvaluationModal renders via EnhancedModal, a facade over the @agenta/ui
+    // (Radix) Dialog — DialogContent carries data-slot="dialog-content", not the
+    // antd .ant-modal wrapper this used to match.
+    const modal = page.locator('[data-slot="dialog-content"]').first()
     await expect(modal).toBeVisible()
     await expect(modal.getByText(AUTO_EVALUATION_MODAL_TITLE).first()).toBeVisible()
     await expect(
@@ -170,13 +173,8 @@ const selectAutoEvaluationModalTableInput = async ({
 }) => {
     const activePane = modal.locator(".ant-tabs-tabpane-active").last()
     const searchInput = activePane.locator('input[placeholder="Search"]').first()
-    const inputSelector =
-        'input[type="checkbox"], input[type="radio"], .ant-checkbox-input, .ant-radio-input'
-    const controlSelector =
-        '.ant-checkbox, .ant-checkbox-wrapper, .ant-radio, .ant-radio-wrapper, [role="checkbox"], [role="radio"]'
-    const selectedTags = modal.locator(".ant-tabs-tab .ant-tag")
 
-    if (rowText && (await searchInput.isVisible().catch(() => false))) {
+    if (rowText && (await pollLocatorState(() => searchInput.isVisible()))) {
         await typeIntoLocator(searchInput, rowText)
         await expect(searchInput).toHaveValue(rowText)
         await expect
@@ -193,45 +191,22 @@ const selectAutoEvaluationModalTableInput = async ({
         : activePane.locator("[data-row-key]").first()
     await expect(targetRow).toBeVisible({timeout: 30000})
 
-    const targetRowKey = await targetRow.getAttribute("data-row-key")
-    const stableRow = targetRowKey
-        ? modal.locator(`[data-row-key="${targetRowKey}"]`).first()
-        : targetRow
-    await expect(stableRow).toBeVisible({timeout: 30000})
+    const selectedTabId = await modal.getByRole("tab", {selected: true}).getAttribute("id")
+    const selectionControl = targetRow
+        .getByRole("checkbox")
+        .or(targetRow.getByRole("radio"))
+        .first()
 
-    const isSelected = async () => {
-        const rowClassName = await stableRow.getAttribute("class").catch(() => null)
-        if (rowClassName?.includes("ant-table-row-selected")) {
-            return true
-        }
-
-        const ariaSelected = await stableRow.getAttribute("aria-selected").catch(() => null)
-        if (ariaSelected === "true") {
-            return true
-        }
-
-        const selectionInput = stableRow.locator(inputSelector).first()
-        if ((await selectionInput.count().catch(() => 0)) > 0) {
-            return await selectionInput.isChecked().catch(() => false)
-        }
-
-        if (typeof rowText === "string") {
-            return (await selectedTags.filter({hasText: rowText}).count()) > 0
-        }
-
-        return false
+    if (!(await selectionControl.isChecked())) {
+        await selectionControl.click()
     }
-
-    if (!(await isSelected())) {
-        const selectionControl = stableRow.locator(controlSelector).first()
-        if ((await selectionControl.count().catch(() => 0)) > 0) {
-            await selectionControl.click({force: true})
-        } else {
-            await stableRow.click({force: true})
-        }
+    // Selection can advance the tab and replace grouped rows. Check the persisted summary.
+    await expect(
+        modal.locator(`[id="${selectedTabId}"]`).getByRole("img", {name: "check-circle"}),
+    ).toBeVisible({timeout: 30000})
+    if (rowText) {
+        await expect(modal.locator(`[id="${selectedTabId}"]`)).toContainText(rowText)
     }
-
-    await expect.poll(isSelected, {timeout: 30000}).toBe(true)
 }
 
 const waitForAutoResultsPage = async (page: Page, appId: string) => {
@@ -257,7 +232,7 @@ const openAutoEvaluationRunFromList = async ({
     await ensureAutoEvaluationsContext(page)
 
     const evaluationsSearchInput = page.locator('input[placeholder="Search evaluations"]').first()
-    if (await evaluationsSearchInput.isVisible().catch(() => false)) {
+    if (await pollLocatorState(() => evaluationsSearchInput.isVisible())) {
         await typeIntoLocator(evaluationsSearchInput, evaluationName)
         await expect(evaluationsSearchInput).toHaveValue(evaluationName)
     }
@@ -275,7 +250,7 @@ const openAutoEvaluationRunFromList = async ({
             const count = await candidates.count()
             for (let index = 0; index < count; index += 1) {
                 const row = candidates.nth(index)
-                if (await row.isVisible().catch(() => false)) {
+                if (await pollLocatorState(() => row.isVisible())) {
                     return row
                 }
             }
@@ -461,19 +436,19 @@ const waitAndClickDeleteForRun = async (
             async () => {
                 try {
                     const row = getRow()
-                    if (!(await row.isVisible().catch(() => false))) return false
+                    if (!(await pollLocatorState(() => row.isVisible()))) return false
                     await row.hover()
                     const moreButton = row
                         .locator("button")
                         .filter({has: page.locator('[aria-label="more"]')})
                         .first()
-                    if (!(await moreButton.isVisible().catch(() => false))) return false
+                    if (!(await pollLocatorState(() => moreButton.isVisible()))) return false
                     await moreButton.click()
                     await page.waitForTimeout(300)
                     const deleteItem = page
                         .getByRole("menuitem", {name: AUTO_EVAL_DELETE_MENU_LABEL})
                         .first()
-                    if (!(await deleteItem.isVisible().catch(() => false))) {
+                    if (!(await pollLocatorState(() => deleteItem.isVisible()))) {
                         await page.keyboard.press("Escape")
                         return false
                     }
@@ -495,16 +470,20 @@ const waitAndClickDeleteForRun = async (
 
     await page.getByRole("menuitem", {name: AUTO_EVAL_DELETE_MENU_LABEL}).click()
 
+    // DeleteEvaluationModal renders through EnhancedModal, a facade over the @agenta/ui
+    // (Radix) Dialog, so the panel is `[data-slot="dialog-content"]`, not an antd `.ant-modal`.
     const deleteModal = page
-        .locator(".ant-modal")
+        .locator('[data-slot="dialog-content"]')
         .filter({hasText: AUTO_EVAL_DELETE_CONFIRM_TEXT})
         .first()
     await expect(deleteModal).toBeVisible({timeout: 10000})
     await deleteModal.getByRole("button", {name: AUTO_EVAL_DELETE_OK_BUTTON}).click()
 
-    await expect(
-        page.locator(".ant-message").getByText(AUTO_EVAL_DELETE_SUCCESS).first(),
-    ).toBeVisible({timeout: 15000})
+    // The success message toasts through @agenta/ui's app-message facade, which draws a
+    // Sonner toast, not an antd `.ant-message` node.
+    await expect(appToast(page, AUTO_EVAL_DELETE_SUCCESS)).toBeVisible({
+        timeout: 15000,
+    })
 }
 
 export {

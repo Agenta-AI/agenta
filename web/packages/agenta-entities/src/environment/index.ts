@@ -78,10 +78,10 @@ export {
     // Normalization
     normalizeEnvironment,
     normalizeEnvironmentRevision,
-    // Utilities
-    getDeployedRevisionId,
-    getDeployedAppKeys,
-    isGuardedEnvironment,
+    // App deployment history
+    buildAppDeploymentHistory,
+    type AppDeploymentApp,
+    type AppDeploymentRow,
 } from "./core"
 
 export type {

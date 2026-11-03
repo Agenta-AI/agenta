@@ -1,0 +1,54 @@
+/**
+ * The raw answer behind a failed check, for the person who has to fix the server.
+ *
+ * Collapsed by default because it is debugging material, not an explanation: the sentence
+ * above it already says what went wrong. The body is cut to the data layer's own limit,
+ * because what is on the other end of the address is whatever answered, and a megabyte of
+ * HTML in a dialog helps nobody. The reader cuts it too; this is the same constant, so the
+ * panel cannot be the place a longer body gets through.
+ *
+ * It renders only when the probe carried the server's answer, which it does whenever
+ * something answered (`problem.response` in `api/oss/src/core/gateways/mcps/probe.py`).
+ */
+import {useState} from "react"
+
+import {PROBE_RESPONSE_BODY_LIMIT} from "@agenta/entities/mcpEndpoint"
+import {Button, cn, touchTargetExpansion} from "@agenta/ui/ui"
+
+export interface ShowResponsePanelProps {
+    /** The status line, when the answer had one. */
+    statusLine?: string | null
+    body: string
+}
+
+export const ShowResponsePanel = ({statusLine, body}: ShowResponsePanelProps) => {
+    const [open, setOpen] = useState(false)
+
+    return (
+        <>
+            <Button
+                variant="link"
+                size="xs"
+                // 24px of chrome, 44px of hit area: the expansion is invisible, so the toggle
+                // keeps its place on the sentence's baseline.
+                className={cn("px-0 align-baseline text-xs", touchTargetExpansion(24))}
+                aria-expanded={open}
+                onClick={() => setOpen((current) => !current)}
+            >
+                {open ? "Hide response" : "Show response"}
+            </Button>
+            {open ? (
+                <pre
+                    data-testid="mcp-probe-response"
+                    className="m-0 mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-control-sm bg-colorFillTertiary p-2 font-mono text-[11px] leading-normal text-colorTextSecondary"
+                >
+                    {[statusLine, body.slice(0, PROBE_RESPONSE_BODY_LIMIT)]
+                        .filter(Boolean)
+                        .join("\n")}
+                </pre>
+            ) : null}
+        </>
+    )
+}
+
+export default ShowResponsePanel

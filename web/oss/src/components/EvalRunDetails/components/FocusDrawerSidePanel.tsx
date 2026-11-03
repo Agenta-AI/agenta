@@ -1,12 +1,11 @@
 import {memo, useCallback, useMemo, useState} from "react"
 import type {ReactNode} from "react"
 
+import {CustomTreeComponent} from "@agenta/observability-ui/traceDrawer"
 import {useInfiniteTablePagination} from "@agenta/ui/table"
 import {TreeStructure, Download, Sparkle, Speedometer} from "@phosphor-icons/react"
 import {Skeleton} from "antd"
 import {useAtomValue} from "jotai"
-
-import CustomTreeComponent from "@/oss/components/CustomUIs/CustomTreeComponent"
 
 import {evaluationPreviewTableStore} from "../evaluationPreviewTableStore"
 import usePreviewTableData from "../hooks/usePreviewTableData"
@@ -95,7 +94,7 @@ const FocusDrawerSidePanel = ({runId, scenarioId}: FocusDrawerSidePanelProps) =>
             {
                 title: "Output",
                 id: "output",
-                icon: <Sparkle size={14} className="text-[var(--ag-c-13C2C2)]" />,
+                icon: <Sparkle size={14} className="text-[var(--ag-type-agent-text)]" />,
                 anchorId:
                     groupAnchorMap.get("outputs") ??
                     groupAnchorMap.get("invocation") ??

@@ -69,6 +69,7 @@ const DrawerDemo = ({filename = "AGENTS.md", disabled = false}) => {
                 onCancel={() => setOpen(false)}
                 onSave={() => setOpen(false)}
                 disabled={disabled}
+                dirty={value !== SAMPLE}
             />
         </div>
     )

@@ -1,0 +1,42 @@
+---
+// An author's mark: the Agenta symbol for the Agenta team, else initials.
+import { AGENTA_AUTHOR_ID, initialsOf } from "../lib/marketplace";
+
+interface Props {
+  author: { id: string; name: string };
+  size?: number;
+}
+const { author, size = 18 } = Astro.props;
+---
+
+<span class="ag-authormark" style={`--authormark:${size}px;`} aria-hidden="true">
+  {
+    author.id === AGENTA_AUTHOR_ID ? (
+      <>
+        <img class="th-dark-only" src="/logos/Agenta-symbol-dark-accent.svg" alt="" />
+        <img class="th-light-only" src="/logos/Agenta-symbol-light.svg" alt="" />
+      </>
+    ) : (
+      initialsOf(author.name)
+    )
+  }
+</span>
+
+<style is:global>
+  .ag-authormark {
+    width: var(--authormark);
+    height: var(--authormark);
+    flex: 0 0 auto;
+    border-radius: calc(var(--authormark) * 0.27);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--th-bg-1);
+    box-shadow: inset 0 0 0 1px var(--th-ctl-ring);
+    font: 600 calc(var(--authormark) * 0.42) / 1 var(--font-sans);
+    color: var(--th-text-hi);
+  }
+  .ag-authormark img {
+    width: 50%;
+  }
+</style>

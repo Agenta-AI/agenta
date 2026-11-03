@@ -1,5 +1,7 @@
 import {useEffect, useRef, useState, type FC} from "react"
 
+import {acceptWorkspaceInvite} from "@agenta/entities/organization"
+import {isEE} from "@agenta/shared/api"
 import {message} from "@agenta/ui/app-message"
 import {Button, Card, Typography} from "antd"
 import {useAtomValue} from "jotai"
@@ -9,9 +11,7 @@ import {useLocalStorage} from "usehooks-ts"
 
 import ContentSpinner from "@/oss/components/Spinner/ContentSpinner"
 import {inviteErrorMessageFromCode} from "@/oss/lib/helpers/authMessages"
-import {isEE} from "@/oss/lib/helpers/isEE"
 import {getJWT} from "@/oss/services/api"
-import {acceptWorkspaceInvite} from "@/oss/services/workspace/api"
 import {useOrgData} from "@/oss/state/org"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
 import {useProjectData} from "@/oss/state/project"

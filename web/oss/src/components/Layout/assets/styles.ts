@@ -27,7 +27,8 @@ export const useStyles = createUseStyles(() => ({
         top: 0,
         left: 0,
         height: 38,
-        backgroundColor: "#1c2c3d",
+        // Stays a dark bar in both themes so the white text below keeps its contrast.
+        backgroundColor: "var(--ag-colorBgSpotlight)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",

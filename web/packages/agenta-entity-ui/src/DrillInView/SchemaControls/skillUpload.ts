@@ -23,6 +23,7 @@ export interface SkillFileEntry {
 export interface ParsedSkill {
     name?: string
     description?: string
+    disable_model_invocation?: boolean
     body: string
     files: SkillFileEntry[]
 }
@@ -40,13 +41,14 @@ const IGNORED = /(^|\/)(__MACOSX\/|\.DS_Store$|\.git\/)/
 export function parseSkillMarkdown(md: string): {
     name?: string
     description?: string
+    disable_model_invocation?: boolean
     body: string
 } {
     const clean = md.replace(/^\uFEFF/, "")
     const m = clean.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/)
     if (!m) return {body: clean.trim()}
     const fm = m[1] ?? ""
-    const body = (m[2] ?? "").replace(/^[\r\n]+/, "")
+    const body = (m[2] ?? "").replace(/^[\r\n]+/, "").trimEnd()
     let metadata: unknown
     try {
         metadata = loadYaml(fm)
@@ -62,7 +64,13 @@ export function parseSkillMarkdown(md: string): {
         if (typeof value !== "string") return undefined
         return value.trim() || undefined
     }
-    return {name: read("name"), description: read("description"), body}
+    return {
+        name: read("name"),
+        description: read("description"),
+        // The frontmatter key the runner writes and the backend parser reads.
+        ...(record["disable-model-invocation"] === true ? {disable_model_invocation: true} : {}),
+        body,
+    }
 }
 
 /** Build a skill object from a flat set of files (archives already expanded). */
@@ -70,7 +78,7 @@ export function buildSkillFromFiles(raw: RawFile[]): ParsedSkill {
     const files = raw.filter((f) => f.bytes && !f.path.endsWith("/") && !IGNORED.test(f.path))
     const skillFile = files.find((f) => SKILL_MD.test(f.path))
     const md = skillFile ? strFromU8(skillFile.bytes) : ""
-    const {name, description, body} = parseSkillMarkdown(md)
+    const {name, description, disable_model_invocation, body} = parseSkillMarkdown(md)
     // Strip the folder SKILL.md lives in, so bundled paths are relative to it.
     const baseDir = skillFile ? skillFile.path.replace(/SKILL\.md$/i, "") : ""
     const bundled: SkillFileEntry[] = files
@@ -81,7 +89,13 @@ export function buildSkillFromFiles(raw: RawFile[]): ParsedSkill {
             return {path: rel, content: strFromU8(f.bytes)}
         })
         .filter((f) => f.path)
-    return {name, description, body, files: bundled}
+    return {
+        name,
+        description,
+        ...(disable_model_invocation ? {disable_model_invocation} : {}),
+        body,
+        files: bundled,
+    }
 }
 
 /** Expand any `.zip` / `.skill` archives into their entries; pass other files through. */
@@ -165,10 +179,11 @@ export function mergePastedSkill(
     skill: Record<string, unknown>,
     md: string,
 ): Record<string, unknown> {
-    const {name, description, body} = parseSkillMarkdown(md)
+    const {name, description, disable_model_invocation, body} = parseSkillMarkdown(md)
     const next: Record<string, unknown> = {...skill, body}
     if (name) next.name = name
     if (description) next.description = description
+    if (disable_model_invocation) next.disable_model_invocation = true
     return next
 }
 
@@ -180,4 +195,82 @@ export async function parseSkillFromFileList(list: FileList | File[]): Promise<P
 /** Top-level: a drop's DataTransfer → a parsed skill. */
 export async function parseSkillFromDataTransfer(dt: DataTransfer): Promise<ParsedSkill> {
     return buildSkillFromFiles(expandArchives(await readDataTransfer(dt)))
+}
+
+// ---------------------------------------------------------------------------
+// Multi-candidate scan (the upload drawer's 1c/1d/1e states)
+// ---------------------------------------------------------------------------
+
+export interface SkillScanCandidate {
+    /** SKILL.md's directory, "" at the upload root. Doubles as the row label. */
+    dir: string
+    skill: ParsedSkill
+}
+
+export interface SkillUploadScan {
+    /** One entry per SKILL.md found; empty = nothing importable (the invalid state). */
+    candidates: SkillScanCandidate[]
+    /** Files skipped with a reason ("binary", "too large") — the gold warnings. */
+    skipped: {path: string; reason: string}[]
+    /** Total files considered, for the "N files parsed" tag. */
+    fileCount: number
+}
+
+/** Mirror of the SDK's per-file content cap (SkillFile.content max_length). */
+const FILE_CONTENT_MAX = 200_000
+
+/** A NUL byte in the first 4KB marks binary content — decoding it would mojibake. */
+const looksBinary = (bytes: Uint8Array): boolean => {
+    const probe = bytes.subarray(0, 4096)
+    for (const b of probe) if (b === 0) return true
+    return false
+}
+
+/**
+ * Enumerate EVERY SKILL.md in an upload and build one candidate per directory, so the
+ * upload view can recover from "no SKILL.md at the root" by offering the nested skills it
+ * did find. Binary and oversized files are skipped with a reason, never mojibaked in.
+ */
+export function scanSkillFiles(raw: RawFile[]): SkillUploadScan {
+    const files = raw.filter((f) => f.bytes && !f.path.endsWith("/") && !IGNORED.test(f.path))
+    const skipped: {path: string; reason: string}[] = []
+    const usable: RawFile[] = []
+    for (const f of files) {
+        if (looksBinary(f.bytes)) skipped.push({path: f.path, reason: "binary"})
+        else if (f.bytes.length > FILE_CONTENT_MAX)
+            skipped.push({path: f.path, reason: "too large"})
+        else usable.push(f)
+    }
+
+    const skillFiles = usable.filter((f) => SKILL_MD.test(f.path))
+    // Nested-skill boundaries come from EVERY SKILL.md, including skipped ones — a
+    // binary/oversized nested SKILL.md still fences its directory off from the parent.
+    const allSkillFiles = files.filter((f) => SKILL_MD.test(f.path))
+    const candidates: SkillScanCandidate[] = skillFiles.map((skillFile) => {
+        const dir = skillFile.path.replace(/SKILL\.md$/i, "").replace(/\/$/, "")
+        const prefix = dir ? `${dir}/` : ""
+        // The candidate owns its subtree; a nested skill's files never leak into the parent's.
+        const nestedDirs = allSkillFiles
+            .filter((other) => other !== skillFile)
+            .map((other) => other.path.replace(/SKILL\.md$/i, ""))
+            .filter((otherPrefix) => otherPrefix.startsWith(prefix) && otherPrefix !== prefix)
+        const scope = usable.filter(
+            (f) =>
+                f.path.startsWith(prefix) &&
+                !nestedDirs.some((nested) => f.path.startsWith(nested)),
+        )
+        return {dir, skill: buildSkillFromFiles(scope)}
+    })
+
+    return {candidates, skipped, fileCount: files.length}
+}
+
+/** Top-level: a selected FileList → the multi-candidate scan. */
+export async function scanSkillFromFileList(list: FileList | File[]): Promise<SkillUploadScan> {
+    return scanSkillFiles(expandArchives(await filesToRaw(list)))
+}
+
+/** Top-level: a drop's DataTransfer → the multi-candidate scan. */
+export async function scanSkillFromDataTransfer(dt: DataTransfer): Promise<SkillUploadScan> {
+    return scanSkillFiles(expandArchives(await readDataTransfer(dt)))
 }

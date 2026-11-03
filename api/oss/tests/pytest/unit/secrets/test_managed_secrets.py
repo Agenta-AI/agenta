@@ -1,0 +1,240 @@
+from uuid import uuid4
+import json
+
+import pytest
+from pydantic import ValidationError
+
+from oss.src.core.secrets.dtos import (
+    CreateSecretDTO,
+    SecretResponseDTO,
+    UpdateSecretDTO,
+)
+from oss.src.core.secrets.managed import (
+    ManagedSecretReadOnlyError,
+    SecretManagementDTO,
+    SecretManagementPolicy,
+    SecretManager,
+)
+from oss.src.core.secrets.redaction import project_secret_response
+from oss.src.core.secrets.services import VaultService
+from oss.src.dbs.postgres.secrets.mappings import (
+    map_secrets_dbe_to_dto,
+    map_secrets_dto_to_dbe,
+)
+from oss.tests.pytest.utils.organization_secrets import (
+    load_effective_from_list,
+    owner_scope,
+)
+
+
+PROJECT_ID = uuid4()
+
+
+def _create(*, write_only=False):
+    return CreateSecretDTO(
+        header={"name": "Managed"},
+        secret={
+            "kind": "provider_key",
+            "data": {"kind": "openai", "provider": {"key": "sk-managed"}},
+        },
+        write_only=write_only,
+    )
+
+
+def _management():
+    return SecretManagementDTO(manager=SecretManager.STARTER_CREDITS_BRIDGE)
+
+
+class _DAO:
+    load_effective = load_effective_from_list
+
+    def __init__(self):
+        self.record = None
+
+    async def create(
+        self,
+        *,
+        owner,
+        create_secret_dto,
+        management=None,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
+        self.record = SecretResponseDTO(
+            id=uuid4(),
+            slug=create_secret_dto.slug,
+            kind=create_secret_dto.secret.kind,
+            data=create_secret_dto.secret.data,
+            header=create_secret_dto.header,
+            write_only=create_secret_dto.write_only,
+            management=management,
+        )
+        return self.record
+
+    async def list(
+        self,
+        *,
+        owner,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
+        return [self.record] if self.record else []
+
+    async def update(
+        self,
+        *,
+        owner,
+        secret_id,
+        update_secret_dto,
+        user_id=None,
+        resolve_update=None,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
+        if resolve_update:
+            update_secret_dto = resolve_update(self.record, update_secret_dto)
+        # Apply it, the way the real DAO does. A fake that returns the row untouched lets a
+        # test claiming the update landed pass against an update that changed nothing.
+        if update_secret_dto.header is not None:
+            self.record.header = update_secret_dto.header
+        if update_secret_dto.secret is not None:
+            self.record.kind = update_secret_dto.secret.kind
+            self.record.data = update_secret_dto.secret.data
+        return self.record
+
+    async def delete(
+        self,
+        *,
+        owner,
+        secret_id,
+        authorize_delete=None,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
+        if authorize_delete:
+            authorize_delete(self.record)
+        self.record = None
+
+
+def test_management_models_are_exact():
+    management = _management()
+    assert management.manager is SecretManager.STARTER_CREDITS_BRIDGE
+    assert management.policy is SecretManagementPolicy.MANAGER_ONLY
+
+
+@pytest.mark.parametrize("dto", [CreateSecretDTO, UpdateSecretDTO])
+def test_public_write_models_reject_management_fields(dto):
+    payload = {"management": {"manager": "starter-credits-bridge"}}
+    if dto is CreateSecretDTO:
+        payload.update(_create().model_dump())
+    with pytest.raises(ValidationError):
+        dto.model_validate(payload)
+
+
+@pytest.mark.asyncio
+async def test_readable_managed_secret_is_allowed_and_locked():
+    service = VaultService(_DAO())
+    created = await service.create_managed_secret(
+        project_id=PROJECT_ID,
+        create_secret_dto=_create(write_only=False),
+        management=_management(),
+    )
+    assert created.write_only is False
+    assert created.management == _management()
+
+    with pytest.raises(ManagedSecretReadOnlyError):
+        await service.update_secret(
+            created.id,
+            UpdateSecretDTO(header={"name": "No"}),
+            project_id=PROJECT_ID,
+        )
+    with pytest.raises(ManagedSecretReadOnlyError):
+        await service.delete_secret(created.id, project_id=PROJECT_ID)
+
+
+def test_public_projection_exposes_policy_but_not_manager():
+    secret = SecretResponseDTO(
+        id=uuid4(),
+        slug="managed",
+        kind="provider_key",
+        data={"kind": "openai", "provider": {"key": "sk-managed"}},
+        header={"name": "Managed"},
+        write_only=False,
+        management=_management(),
+    )
+    public = project_secret_response(secret, reveal_write_only=True)
+    dumped = public.model_dump(mode="json", exclude_none=True)
+    assert dumped["management"] == {"policy": "manager_only"}
+    assert "manager" not in dumped["management"]
+
+
+def test_mapping_round_trip_uses_structured_management_without_flat_fallback():
+    dbe = map_secrets_dto_to_dbe(
+        project_id=PROJECT_ID,
+        organization_id=None,
+        secret_dto=_create(write_only=False),
+        management=_management(),
+    )
+    assert '"management"' in dbe.data
+    assert '"managed_by"' not in dbe.data
+    restored = map_secrets_dbe_to_dto(secrets_dbe=dbe)
+    assert restored.management == _management()
+    assert restored.write_only is False
+
+    payload = json.loads(dbe.data)
+    payload.pop("management")
+    payload["managed_by"] = "starter-credits-bridge"
+    dbe.data = json.dumps(payload)
+    legacy = map_secrets_dbe_to_dto(secrets_dbe=dbe)
+    assert legacy.management is None
+
+
+@pytest.mark.asyncio
+async def test_the_owning_manager_may_rewrite_a_managed_secret():
+    # The read-only rule stops a CALLER editing a platform-owned row. The manager that owns
+    # the row has to be able to repair it: a seeded value can go stale, and only the manager
+    # knows the current one.
+    service = VaultService(_DAO())
+    created = await service.create_managed_secret(
+        project_id=PROJECT_ID,
+        create_secret_dto=_create(write_only=True),
+        management=_management(),
+    )
+
+    updated = await service.update_managed_secret(
+        secret_id=created.id,
+        project_id=PROJECT_ID,
+        update_secret_dto=UpdateSecretDTO(
+            header={"name": "Renamed"},
+            secret={
+                "kind": "provider_key",
+                "data": {"kind": "openai", "provider": {}},
+            },
+        ),
+        manager=SecretManager.STARTER_CREDITS_BRIDGE,
+    )
+
+    assert updated.header.name == "Renamed"
+    # The row keeps what it is and what it holds: still managed, still write-only, and the
+    # credential the update omitted was carried over rather than wiped.
+    assert updated.data.provider.key == "sk-managed"
+    assert updated.management == _management()
+    assert updated.write_only is True
+
+
+@pytest.mark.asyncio
+async def test_the_manager_path_refuses_a_row_no_manager_owns():
+    # The path exists to repair what the platform seeded, never to edit what a user saved.
+    service = VaultService(_DAO())
+    created = await service.create_secret(
+        project_id=PROJECT_ID,
+        create_secret_dto=_create(write_only=False),
+    )
+
+    with pytest.raises(ManagedSecretReadOnlyError):
+        await service.update_managed_secret(
+            secret_id=created.id,
+            project_id=PROJECT_ID,
+            update_secret_dto=UpdateSecretDTO(header={"name": "No"}),
+            manager=SecretManager.STARTER_CREDITS_BRIDGE,
+        )

@@ -9,16 +9,26 @@ from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 class SessionStreamHeaderEdit(UniversalBaseModel):
     """
     The rename edit: a full-PUT of the header fields only.
-    
+
     Distinct from SessionStreamEdit (used by the flag-mirror/heartbeat paths) so the
     liveness-only writes can never carry name/description, and vice versa.
+
+    ``name`` may be omitted/``None`` (no change) or an empty string (the explicit
+    clear-title action the chat rail's rename path uses), but a NON-empty name must
+    contain a non-whitespace character: storing ``"   "`` clears the visible title
+    while the row still holds a value, a state no caller ever means. The LLM-facing
+    ``rename_session`` schema already rejects both; this closes the direct-API hole.
     """
+
     name: typing.Optional[str] = None
     description: typing.Optional[str] = None
-    
+
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
+            extra="allow", frozen=True
+        )  # type: ignore # Pydantic v2
     else:
+
         class Config:
             frozen = True
             smart_union = True

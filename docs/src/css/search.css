@@ -1,0 +1,355 @@
+/* DocSearch modal and the /search results page. The header button lives in navbar.css. */
+
+/* A flat, opaque panel with a hairline border and a soft shadow, like the
+   version dropdown and the Ask AI menu. */
+.DocSearch-Modal {
+  border-radius: var(--radius-lg) !important;
+  background-color: var(--bgdefault) !important;
+  border: 1px solid var(--borderdefault);
+  box-shadow: 0 16px 48px rgb(0 0 0 / 0.16) !important;
+}
+
+[data-theme="dark"] .DocSearch-Modal {
+  box-shadow: 0 16px 48px rgb(0 0 0 / 0.5) !important;
+}
+
+.DocSearch-SearchBar,
+.DocSearch-Form {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+.DocSearch-Footer {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+  border-top: 1px solid var(--borderdefault) !important;
+}
+
+/* Neutralize DocSearch's blue/lavender accents and use the doc palette.
+   These variables drive the placeholder, the "Clear the query"/"Ask AI"
+   accents, the matched-text highlight, focus, and the selected result. All
+   values are theme-aware, so light and dark are both handled. */
+:root,
+[data-theme="dark"] {
+  /* !important because Docusaurus's Algolia CSS sets these on :root after us */
+  --docsearch-muted-color: var(--contenttertiary) !important;
+  --docsearch-primary-color: var(--contentsecondary) !important;
+  --docsearch-highlight-color: var(--contentprimary) !important;
+  --docsearch-focus-color: var(--contentsecondary) !important;
+  /* Lavender tint used for action-button (Close/Clear) hover backgrounds. */
+  --docsearch-soft-primary-color: rgba(0, 0, 0, 0.05) !important;
+  /* Neutral overlay scrim (was a lavender rgba(101,108,133,.8)). */
+  --docsearch-container-background: rgba(20, 20, 22, 0.5) !important;
+  /* Results/searchbox/footer sit directly on the frosted modal panel. */
+  --docsearch-hit-background: transparent !important;
+  --docsearch-searchbox-background: transparent !important;
+  --docsearch-footer-background: transparent !important;
+}
+
+/* Surfaces that use the modal background (sticky section headers) match the
+   panel. */
+:root,
+[data-theme="dark"] {
+  --docsearch-modal-background: var(--bgdefault) !important;
+}
+
+[data-theme="dark"] {
+  --docsearch-soft-primary-color: rgba(255, 255, 255, 0.07) !important;
+}
+
+/* Sticky section headers on the panel surface. */
+.DocSearch-Hit-source {
+  background-color: var(--bgdefault) !important;
+}
+
+/* "Clear the query" text button and its divider: the close button and the
+   native clear on the field are enough. */
+.DocSearch-Clear,
+.DocSearch-Actions .DocSearch-Divider {
+  display: none !important;
+}
+
+/* The Algolia mark greyscaled like on /search. */
+.DocSearch-Logo svg {
+  opacity: 0.6;
+  filter: grayscale(1);
+  transition: opacity var(--ifm-transition-fast) ease;
+}
+
+.DocSearch-Logo a:hover svg {
+  opacity: 1;
+}
+
+/* Selected/hovered result: a subtle neutral-grey highlight with normal text,
+   instead of a solid blue fill with white text. A translucent grey reads as
+   neutral (the --bgelevated* greys are warm-tinted and look muddy here). */
+.DocSearch-Hit[aria-selected="true"] a {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+[data-theme="dark"] .DocSearch-Hit[aria-selected="true"] a {
+  background-color: rgba(255, 255, 255, 0.07) !important;
+}
+
+.DocSearch-Hit[aria-selected="true"] .DocSearch-Hit-title,
+.DocSearch-Hit[aria-selected="true"] .DocSearch-Hit-path,
+.DocSearch-Hit[aria-selected="true"] mark {
+  color: var(--contentprimary) !important;
+}
+
+.DocSearch-Hit[aria-selected="true"] .DocSearch-Hit-icon,
+.DocSearch-Hit[aria-selected="true"] .DocSearch-Hit-action {
+  color: var(--contenttertiary) !important;
+}
+
+/* Matched keyword: emphasize with a semibold weight (in the normal content
+   color) instead of a colored highlight. */
+.DocSearch-Hit mark,
+.DocSearch-Hit-title mark,
+.DocSearch-Hit-path mark {
+  font-weight: 600 !important;
+  color: var(--contentprimary) !important;
+  background: transparent !important;
+}
+
+/* "Ask AI" suggestion row: neutral grey tint instead of the hardcoded
+   Algolia blue (rgba(0, 61, 255, 0.1)). */
+.DocSearch-Hit--AskAI {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+[data-theme="dark"] .DocSearch-Hit--AskAI {
+  background-color: rgba(255, 255, 255, 0.07) !important;
+}
+
+/* No-results / screen icons have a hardcoded lavender stroke (#5a5e9a);
+   neutralize them to a muted grey (the paths inherit the svg's stroke). */
+.DocSearch-Screen-Icon svg,
+.DocSearch-Screen-Icon svg * {
+  stroke: var(--contenttertiary) !important;
+}
+
+/* The "Ask AI" conversation menu popover floats outside the modal and was
+   fully transparent, so page content bled through its items. Give it a solid
+   opaque surface. */
+.DocSearch-Menu-content {
+  background-color: var(--bgdefault) !important;
+  border: 1px solid var(--borderdefault) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18) !important;
+}
+
+/*********************** Search results page (/search) ***********************/
+/* The page has no sidebar, so it takes the reading measure centred in the
+   window: the query field styled like the header search, results as a
+   plain list with hairlines, and the muted footer meta. The container is
+   found by the query input it holds; the theme sets no page class. */
+.container:has([class*="searchQueryInput"]) {
+  max-width: calc(var(--doc-content-width) + 2 * var(--doc-main-padding-x));
+  padding: 8px var(--doc-main-padding-x) var(--doc-main-padding-bottom);
+  margin: 0 auto;
+}
+
+.container:has([class*="searchQueryInput"]) > h1 {
+  font-size: var(--ifm-heading-h2-font-size);
+  line-height: 28px;
+  margin-bottom: 16px;
+}
+
+/* Query field + version select on one line: same field as the header
+   search. The theme's CSS module caps the query column at 60%; the
+   .container in the selectors outranks that hashed class. */
+.container:has([class*="searchQueryInput"]) > form.row {
+  flex-wrap: nowrap;
+  gap: 8px;
+  /* Infima rows hang 15px past their container for the cols' gutters; the
+     cols here have none, so the fields align with the text. */
+  margin: 0;
+}
+
+.container [class*="searchQueryColumn"] {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: none !important;
+  padding: 0;
+}
+
+.container [class*="searchVersionColumn"] {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: none !important;
+  padding: 0 !important;
+}
+
+.container [class*="searchQueryInput"],
+.container [class*="searchVersionInput"] {
+  height: 40px;
+  padding: 0 14px;
+  margin-bottom: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  background: var(--bgelevated1);
+  color: var(--contentprimary);
+  font-size: 14px;
+  line-height: 20px;
+  transition:
+    border-color var(--ifm-transition-fast) ease,
+    background-color var(--ifm-transition-fast) ease;
+}
+
+.container [class*="searchQueryInput"]:focus,
+.container [class*="searchVersionInput"]:focus {
+  border-color: var(--borderdark);
+  background: var(--bgdefault);
+  outline: none;
+}
+
+[class*="searchQueryInput"]::placeholder {
+  color: var(--contenttertiary);
+}
+
+.container [class*="searchVersionInput"] {
+  min-width: 96px;
+  padding-right: 32px;
+  appearance: none;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23848b8c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 14px;
+}
+
+/* Count + "Powered by": one muted meta row, flush with the text column. */
+.container:has([class*="searchQueryInput"]) > div.row {
+  align-items: center;
+  margin: 12px 0 8px;
+}
+
+.container:has([class*="searchQueryInput"]) > div.row > .col {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+[class*="searchResultsColumn"] {
+  color: var(--contenttertiary) !important;
+  font-weight: var(--ifm-font-weight-normal) !important;
+  font-size: 13px !important;
+}
+
+[class*="searchLogoColumn"] {
+  font-size: 13px;
+}
+
+[class*="searchLogoColumn"] svg {
+  height: 18px;
+  width: auto;
+  opacity: 0.6;
+  filter: grayscale(1);
+  transition: opacity var(--ifm-transition-fast) ease;
+}
+
+[class*="searchLogoColumn"] a:hover svg {
+  opacity: 1;
+}
+
+/* Results */
+[class*="searchResultItem_"] {
+  padding: 12px 0 !important;
+  border-bottom: 1px solid var(--borderdefault);
+}
+
+/* Title: 15px medium. The :not()s match the global h2 rule's specificity. */
+h2[class*="searchResultItemHeading"]:not([class*="openapi"]):not(
+    [class*="cardTitle"]
+  ) {
+  font-size: 15px !important;
+  font-weight: var(--ifm-font-weight-semibold) !important;
+  line-height: 22px !important;
+  margin: 0 0 2px;
+}
+
+[class*="searchResultItemHeading"] a {
+  color: var(--contentprimary) !important;
+  text-decoration: none !important;
+}
+
+[class*="searchResultItemHeading"] a:hover {
+  text-decoration: underline !important;
+  text-decoration-color: var(--borderdark) !important;
+  text-underline-offset: 3px !important;
+}
+
+/* Matched keyword: semibold neutral, no yellow highlight (matches the modal). */
+.search-result-match {
+  background-color: transparent !important;
+  color: inherit !important;
+  font-weight: 600 !important;
+}
+
+/* Source path: 13px muted breadcrumb with a small chevron. */
+[class*="searchResultItemPath"] {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--contenttertiary) !important;
+  --ifm-breadcrumb-separator-size-multiplier: 1;
+  --ifm-breadcrumb-spacing: 6px;
+}
+
+[class*="searchResultItemPath"] .breadcrumbs__item,
+[class*="searchResultItemPath"] .search-result-match {
+  color: var(--contenttertiary) !important;
+}
+
+[class*="searchResultItemPath"] .breadcrumbs__item:not(:last-child)::after {
+  opacity: 0.5;
+}
+
+[class*="searchResultItemSummary"] {
+  margin: 4px 0 0;
+  font-size: 14px;
+  line-height: 22px;
+  font-style: normal;
+  color: var(--contentsecondary);
+}
+
+/* Loading spinner in the palette rather than the primary colour. */
+[class*="loadingSpinner"] {
+  border-color: var(--bgelevated2);
+  border-top-color: var(--contentsecondary);
+}
+
+/* Recolor the native type="search" clear button. Left alone it renders in the
+   OS accent (blue); swap it for a neutral X drawn in the doc palette. */
+[class*="searchQueryInput"]::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  background-color: var(--contenttertiary);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='black' d='M18.3 5.71a1 1 0 0 0-1.41 0L12 10.59 7.11 5.7A1 1 0 0 0 5.7 7.11L10.59 12 5.7 16.89a1 1 0 1 0 1.41 1.41L12 13.41l4.89 4.89a1 1 0 0 0 1.41-1.41L13.41 12l4.89-4.89a1 1 0 0 0 0-1.4z'/></svg>")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='black' d='M18.3 5.71a1 1 0 0 0-1.41 0L12 10.59 7.11 5.7A1 1 0 0 0 5.7 7.11L10.59 12 5.7 16.89a1 1 0 1 0 1.41 1.41L12 13.41l4.89 4.89a1 1 0 0 0 1.41-1.41L13.41 12l4.89-4.89a1 1 0 0 0 0-1.4z'/></svg>")
+    center / contain no-repeat;
+}
+
+[class*="searchQueryInput"]::-webkit-search-cancel-button:hover {
+  background-color: var(--contentsecondary);
+}
+
+@media (max-width: 576px) {
+  .container:has([class*="searchQueryInput"]) {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .container:has([class*="searchQueryInput"]) > form.row {
+    flex-wrap: wrap;
+  }
+
+  .container [class*="searchVersionColumn"] {
+    width: 100%;
+  }
+}

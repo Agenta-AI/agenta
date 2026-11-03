@@ -64,40 +64,6 @@ class OrganizationDB(Base):
     deleted_by_id = Column(UUID(as_uuid=True), nullable=True)
 
 
-class WorkspaceDB(Base):
-    __tablename__ = "workspaces"
-
-    id = Column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid7,
-        unique=True,
-        nullable=False,
-    )
-    name = Column(String)
-    type = Column(String, nullable=True)
-    description = Column(String, nullable=True)
-    organization_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("organizations.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    created_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
-    updated_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
-    deleted_at = Column(DateTime(timezone=True), nullable=True)
-    created_by_id = Column(UUID(as_uuid=True), nullable=True)
-    updated_by_id = Column(UUID(as_uuid=True), nullable=True)
-    deleted_by_id = Column(UUID(as_uuid=True), nullable=True)
-
-    organization = relationship(
-        "oss.src.models.db_models.OrganizationDB",
-    )
-
-
 class UserDB(Base):
     __tablename__ = "users"
 
@@ -151,17 +117,8 @@ class ProjectDB(Base):
         ForeignKey("organizations.id", ondelete="CASCADE"),
         nullable=False,
     )
-    workspace_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("workspaces.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-
     organization = relationship(
         "oss.src.models.db_models.OrganizationDB",
-    )
-    workspace = relationship(
-        "oss.src.models.db_models.WorkspaceDB",
     )
 
 
@@ -206,47 +163,6 @@ class OrganizationMemberDB(Base):
     )
     organization = relationship(
         "oss.src.models.db_models.OrganizationDB",
-    )
-
-
-class WorkspaceMemberDB(Base):
-    __tablename__ = "workspace_members"
-
-    id = Column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid7,
-        unique=True,
-        nullable=False,
-    )
-
-    user_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
-    )
-    workspace_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("workspaces.id", ondelete="CASCADE"),
-    )
-
-    role = Column(String, default="viewer")
-
-    created_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
-    updated_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
-    deleted_at = Column(DateTime(timezone=True), nullable=True)
-    created_by_id = Column(UUID(as_uuid=True), nullable=True)
-    updated_by_id = Column(UUID(as_uuid=True), nullable=True)
-    deleted_by_id = Column(UUID(as_uuid=True), nullable=True)
-
-    user = relationship(
-        "oss.src.models.db_models.UserDB",
-    )
-    workspace = relationship(
-        "oss.src.models.db_models.WorkspaceDB",
     )
 
 

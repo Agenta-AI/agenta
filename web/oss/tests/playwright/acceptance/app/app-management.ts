@@ -70,7 +70,10 @@ const tests = () => {
                 // The actions dropdown trigger (MoreOutlined icon) is the only button in the
                 // data row. AntD Tooltip title does not become an accessible name, so we locate
                 // the row by text and click its button directly.
-                const appRow = page.locator(".ant-table-row").filter({hasText: appName}).first()
+                const appRow = page
+                    .locator(".avt-row, .ant-table-row")
+                    .filter({hasText: appName})
+                    .first()
                 await appRow.hover()
                 await appRow.getByRole("button").click()
                 await page.getByRole("menuitem", {name: "Archive"}).click()
@@ -121,7 +124,10 @@ const tests = () => {
             await scenarios.when(
                 "the user renames an existing app with a new unique name",
                 async () => {
-                    const appRow = page.locator(".ant-table-row").filter({hasText: appName}).first()
+                    const appRow = page
+                        .locator(".avt-row, .ant-table-row")
+                        .filter({hasText: appName})
+                        .first()
                     await appRow.hover()
                     await appRow.getByRole("button").click()
                     const renameItem = page.getByRole("menuitem", {name: /rename/i})
@@ -152,8 +158,15 @@ const tests = () => {
                 await expectAuthenticatedSession(page)
             })
 
-            await scenarios.and("at least one prompt app exists in the project", async () => {
-                const app = await apiHelpers.getApp()
+            await scenarios.and("a fresh completion app exists in the project", async () => {
+                // createApp(), not getApp(): the workflow list has no field that tells a
+                // completion app from an agent app (both carry the same
+                // {is_application, is_evaluator, is_snippet} flags), so getApp()'s loose
+                // "completion" matcher can pick up an agent app seeded by another test in
+                // the same shared ephemeral project (e.g. agent-chat). An agent app has no
+                // "Deployment" section, so this test hung waiting for a heading that would
+                // never render. Always minting a fresh app sidesteps the ambiguity.
+                const app = await apiHelpers.createApp("completion")
                 appId = app.id
             })
 
@@ -162,7 +175,10 @@ const tests = () => {
                     waitUntil: "domcontentloaded",
                 })
                 await uiHelpers.expectPath(`/apps/${appId}/overview`)
-                await page.waitForLoadState("networkidle")
+                // Not `waitForLoadState("networkidle")`: the layout keeps a live SSE
+                // connection open (ProjectWatch), so the network never goes idle and this
+                // would hang for the full test timeout. The heading assertions below
+                // already wait for the page to be ready.
             })
 
             await scenarios.when("the user opens an existing app", async () => {

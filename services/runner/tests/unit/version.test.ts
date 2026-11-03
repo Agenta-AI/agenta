@@ -15,7 +15,7 @@ describe("HARNESS_KINDS", () => {
   it("lists codex alongside the other harnesses the runner drives", () => {
     assert.deepEqual(
       [...HARNESS_KINDS].sort(),
-      ["claude", "codex", "pi_agenta", "pi_core"].sort(),
+      ["claude", "codex", "pi_core"].sort(),
     );
   });
 });

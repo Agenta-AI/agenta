@@ -109,6 +109,32 @@ describe("resume predicate × render map", () => {
         expect(agentShouldResumeAfterApproval({messages: [user, message]})).toBe(true)
     })
 
+    it("request_input with no render part still resumes by name", () => {
+        const message = {
+            id: "a1",
+            role: "assistant",
+            parts: [{type: "step-start"}, settledTool("request_input", "call_e")],
+        }
+        expect(agentShouldResumeAfterApproval({messages: [user, message]})).toBe(true)
+    })
+
+    it("request_input errors with no render part still resume by name", () => {
+        const message = {
+            id: "a1",
+            role: "assistant",
+            parts: [
+                {type: "step-start"},
+                {
+                    type: "tool-request_input",
+                    toolCallId: "call_e",
+                    state: "output-error",
+                    errorText: "Could not render input",
+                },
+            ],
+        }
+        expect(agentShouldResumeAfterApproval({messages: [user, message]})).toBe(true)
+    })
+
     it("a pending elicitation (input-available) does not resume", () => {
         const message = {
             id: "a1",
@@ -176,6 +202,19 @@ describe("queue gating × pending client tools (T7)", () => {
                 id: "a1",
                 role: "assistant",
                 parts: [{type: "step-start"}, pendingTool("request_connection", "call_c")],
+            },
+        ]
+        expect(isHitlPending(messages)).toBe(true)
+        expect(canReleaseQueuedMessage("ready", messages)).toBe(false)
+    })
+
+    it("request_input pending by bare toolName (no render part) also holds the queue", () => {
+        const messages = [
+            user,
+            {
+                id: "a1",
+                role: "assistant",
+                parts: [{type: "step-start"}, pendingTool("request_input", "call_e")],
             },
         ]
         expect(isHitlPending(messages)).toBe(true)

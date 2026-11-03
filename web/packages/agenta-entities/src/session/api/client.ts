@@ -62,6 +62,20 @@ export function projectScopedRequest(
     return options
 }
 
+/** True for a Fern error carrying an HTTP 409, the server's "I refuse" rather than "I failed".
+ *
+ * Fern raises `AgentaApiError` with a `statusCode`, so this reads that field rather than the
+ * message. Anything without one is a transport or unknown failure and must not be mistaken
+ * for a refusal: the two call for opposite handling at a call site that shows an optimistic
+ * value. */
+export function isConflictError(error: unknown): boolean {
+    return (
+        typeof error === "object" &&
+        error !== null &&
+        (error as {statusCode?: unknown}).statusCode === 409
+    )
+}
+
 /** True for fetch/Fern abort + timeout cancellations (vs real failures).
  *
  * Fern does NOT rethrow the raw `AbortError`: its fetcher repackages an aborted request as
@@ -91,15 +105,41 @@ export function isAbortError(error: unknown): boolean {
     return false
 }
 
+/** True when the request never reached the server (offline, API down, CORS): Fern wraps
+ * fetch's `TypeError` as a status-less `AgentaApiError` with it on `cause`. A bare
+ * `TypeError` thrown by the callback itself is a bug, not a network failure. */
+export function isNetworkError(error: unknown): boolean {
+    if (typeof error !== "object" || error === null || error instanceof TypeError) return false
+    let current: unknown = error
+    for (let depth = 0; current != null && depth < 5; depth++) {
+        if (current instanceof TypeError) return true
+        if (typeof current !== "object") break
+        if ((current as {statusCode?: unknown}).statusCode !== undefined) return false
+        current = (current as {cause?: unknown}).cause
+    }
+    return false
+}
+
 /**
  * Boundary wrapper for Fern calls. Fern throws `AgentaApiError` on non-2xx; we return
  * null on failure (logged) and rethrow aborts so query clients cancel cleanly.
+ *
+ * `isExpected` marks a status that is an answer, not a failure: null, unlogged.
+ *
+ * A network failure returns null unlogged too: the browser already reports it, and polled
+ * reads would otherwise log it on every tick until the connection comes back.
  */
-export async function callFern<T>(label: string, fn: () => Promise<T>): Promise<T | null> {
+export async function callFern<T>(
+    label: string,
+    fn: () => Promise<T>,
+    isExpected?: (error: unknown) => boolean,
+): Promise<T | null> {
     try {
         return await fn()
     } catch (error) {
         if (isAbortError(error)) throw error
+        if (isExpected?.(error)) return null
+        if (isNetworkError(error)) return null
         console.error(`${label} failed:`, error instanceof Error ? error.message : String(error))
         return null
     }

@@ -415,14 +415,14 @@ class TestTrialPricingEntry:
         )
         assert out.splitlines() == ["cloud_v0_business", "30", "True"]
 
-    def test_no_trial_entry_falls_back_to_pro_trial_when_stripe_enabled(self):
+    def test_no_trial_entry_means_no_trial_even_when_stripe_enabled(self):
         out = _ok(
             "from ee.src.core.subscriptions.settings import "
             "get_trial_plan, get_trial_days, trial_enabled; "
             "print(get_trial_plan()); print(get_trial_days()); print(trial_enabled())",
             env_extra={"STRIPE_API_KEY": "sk_test_dummy"},
         )
-        assert out.splitlines() == ["cloud_v0_pro", "14", "True"]
+        assert out.splitlines() == ["None", "None", "False"]
 
     def test_no_trial_entry_stays_disabled_when_stripe_disabled(self):
         out = _ok(
@@ -532,7 +532,7 @@ class TestRolesOverride:
         )
         lines = out.splitlines()
         # owner + viewer minima first, custom role last.
-        assert lines[0] == "owner,admin,viewer,reviewer"
+        assert lines[0] == "owner,admin,member,viewer,reviewer"
         assert lines[1] == "view_workflows"
 
     def test_project_override_is_mirrored_to_workspace_today(self):
@@ -553,7 +553,7 @@ class TestRolesOverride:
                 )
             },
         )
-        assert out.strip() == "owner,admin,viewer,reviewer"
+        assert out.strip() == "owner,admin,member,viewer,reviewer"
 
     def test_unknown_permission_fails_startup(self):
         _fails(
@@ -854,7 +854,7 @@ class TestRolesOverlay:
                 )
             },
         )
-        assert out.strip() == "owner,admin,viewer"
+        assert out.strip() == "owner,admin,member,viewer"
 
     def test_overlay_non_project_scope_fails_startup(self):
         _fails(

@@ -12,21 +12,51 @@
  * The config surface shows one flat file view; the agent's durable folder is a SUBFOLDER of the
  * conversation's working folder, not a separate "App drive" (that split lives only in the drawer).
  */
-import {type ReactNode} from "react"
+import {useCallback, type ReactNode} from "react"
 
+import {triggerScheduleDrawerAtom} from "@agenta/entities/gatewayTrigger"
+import {CONFIG_REGION_BAR, ConfigRowTrailing} from "@agenta/ui/components/presentational"
 import {SkeletonBlock} from "@agenta/ui/ui"
+import {Lightning} from "@phosphor-icons/react"
+import {useSetAtom} from "jotai"
 
 import {SkeletonSectionRow} from "./agentTemplate/AgentConfigSkeleton"
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
-import {TriggerManagementSection, useAgentTriggers} from "./TriggerManagementSection"
+import {CreateWithAIAddMenu} from "./agentTemplate/CreateWithAIAddMenu"
+import {
+    TriggerManagementSection,
+    useAgentTriggers,
+    type TriggerOwnerRef,
+} from "./TriggerManagementSection"
 
-// A visual copy of the Configuration header bar's classes (PlaygroundVariantConfigHeader) — keep
-// the two in sync so the three region headers are indistinguishable.
 const barClass = (sticky: boolean) =>
-    `h-[48px] flex items-center justify-between overflow-hidden ${
-        sticky ? "sticky top-0 z-[10]" : ""
-    } w-full border-b border-colorBorderSecondary py-2 px-4 bg-[var(--ag-c-FFFFFF)] bg-[image:linear-gradient(var(--ant-color-fill-tertiary),var(--ant-color-fill-tertiary))]`
-const titleClass = "text-[13px] font-semibold text-[var(--ant-color-text)]"
+    `${CONFIG_REGION_BAR} ${sticky ? "sticky top-0 z-[10]" : ""} bg-[var(--ag-surface-section-header)]`
+const titleClass = "text-[13px] font-semibold text-colorText"
+
+/** A region header bar. `children` follow the {@link ConfigRowTrailing} convention. */
+export function AgentRegionHeaderBar({
+    title,
+    sticky = true,
+    children,
+}: {
+    title: ReactNode
+    sticky?: boolean
+    children?: ReactNode
+}) {
+    return (
+        <div className={barClass(sticky)}>
+            <span className={titleClass}>{title}</span>
+            {children}
+        </div>
+    )
+}
+// Region BODIES are the white sheet the Configuration region's field list already paints
+// (`ag-drill-in-field-list`). Without it they'd expose the raised panel tint behind collapsed
+// section headers, so Subscriptions/Schedules would not match collapsed Tools/Skills.
+const bodyClass = "bg-[var(--ag-surface-section-content)] px-4 pb-3 pt-1"
+// Sections-holding body: no vertical padding, so an expanded section's band runs flush into the
+// region header above and the next region below instead of leaving white slivers.
+const sectionsBodyClass = "bg-[var(--ag-surface-section-content)] px-4"
 
 /**
  * Loading shape for the operational regions, shown while the panel's hydration/agent-ness is
@@ -36,22 +66,24 @@ const titleClass = "text-[13px] font-semibold text-[var(--ant-color-text)]"
 export function AgentOperationsSkeleton({sticky = true}: {sticky?: boolean}) {
     return (
         <>
-            <section className="flex w-full flex-col" aria-busy>
-                <div className={barClass(sticky)}>
-                    <span className={titleClass}>Triggers</span>
-                    <SkeletonBlock active className="h-3.5 w-11 shrink-0" />
-                </div>
-                <div className="flex flex-col px-4 pb-3 pt-1">
+            <section className="flex flex-col" aria-busy>
+                <AgentRegionHeaderBar title="Automations" sticky={sticky}>
+                    <ConfigRowTrailing>
+                        <SkeletonBlock active className="h-3.5 w-11 shrink-0" />
+                    </ConfigRowTrailing>
+                </AgentRegionHeaderBar>
+                <div className={`flex flex-col ${bodyClass}`}>
                     <SkeletonSectionRow title={112} value={44} withAdd divider />
                     <SkeletonSectionRow title={82} value={44} withAdd />
                 </div>
             </section>
-            <section className="flex w-full flex-col" aria-busy>
-                <div className={barClass(sticky)}>
-                    <span className={titleClass}>Files</span>
-                    <SkeletonBlock active className="h-3.5 w-11 shrink-0" />
-                </div>
-                <div className="flex flex-col px-4 pb-3 pt-1">
+            <section className="flex grow flex-col" aria-busy>
+                <AgentRegionHeaderBar title="Recent files" sticky={sticky}>
+                    <ConfigRowTrailing>
+                        <SkeletonBlock active className="h-3.5 w-11 shrink-0" />
+                    </ConfigRowTrailing>
+                </AgentRegionHeaderBar>
+                <div className={`flex grow flex-col ${bodyClass}`}>
                     <SkeletonSectionRow title={86} value={90} divider />
                     <SkeletonSectionRow title={110} value={110} />
                 </div>
@@ -66,6 +98,8 @@ export function AgentOperationsSections({
     sticky = true,
     storage,
     storageHeader,
+    automationDrawer,
+    onOpenRunHistory,
 }: {
     /** The open agent's revision id (the playground's variantId). */
     revisionId: string | null
@@ -76,31 +110,68 @@ export function AgentOperationsSections({
      * chat session state this package can't reach. Absent → static placeholder. */
     storage?: ReactNode
     /** Right-side content of the Files header bar (file count + browse entry), slotted by the app
-     * layer for the same reason as `storage`. Matches the Triggers header's count slot. */
+     * layer for the same reason as `storage`. Follows the shared `ConfigRowTrailing` convention so
+     * its folder glyph lands on the panel's affordance axis. */
     storageHeader?: ReactNode
+    /** The automations create/edit drawer, passed down to the Automations section. */
+    automationDrawer: ReactNode
+    /** A row's "Run history" destination; see {@link TriggerManagementSection}. */
+    onOpenRunHistory?: (owner: TriggerOwnerRef) => void
 }) {
-    const {count: triggerCount} = useAgentTriggers(revisionId)
+    const {count: triggerCount, defaultReferences, defaultBoundLabel} = useAgentTriggers(revisionId)
+    const openScheduleDrawer = useSetAtom(triggerScheduleDrawerAtom)
+
+    // The region's own "+", now that Subscriptions and Schedules are one list with no headers of
+    // their own to hang it from. It opens a schedule-shaped draft; the drawer's own "Runs when"
+    // control is where a reader switches it to an event, so there is nothing to choose here.
+    const onAdd = useCallback(() => {
+        openScheduleDrawer({
+            defaultReferences,
+            defaultBoundLabel,
+            playgroundEntityId: revisionId ?? undefined,
+        })
+    }, [defaultBoundLabel, defaultReferences, openScheduleDrawer, revisionId])
 
     return (
         <>
-            <section className="flex w-full flex-col">
-                <div className={barClass(sticky)}>
-                    <span className={titleClass}>Triggers</span>
-                    <span className="text-xs text-[var(--ag-colorTextTertiary)]">
-                        {countSummary(triggerCount, "trigger")}
-                    </span>
-                </div>
-                <div className="px-4 pb-3 pt-1">
-                    <TriggerManagementSection entityId={revisionId} disabled={disabled} />
+            <section className="flex flex-col">
+                <AgentRegionHeaderBar title="Automations" sticky={sticky}>
+                    {/* No reserved affordance column: this region has no caret, and the empty
+                        14px slot only held the "+" off the bar's right edge. */}
+                    <ConfigRowTrailing reserve={false}>
+                        <span className="text-xs text-[var(--ag-colorTextTertiary)]">
+                            {countSummary(triggerCount, "automation")}
+                        </span>
+                        {disabled ? null : (
+                            <CreateWithAIAddMenu
+                                label="Add automation"
+                                starterPrompt="I want an automation that"
+                                onManual={onAdd}
+                                manualTitle="Create manually"
+                                manualHint="Run on a schedule or an event"
+                                manualIcon={<Lightning size={16} />}
+                            />
+                        )}
+                    </ConfigRowTrailing>
+                </AgentRegionHeaderBar>
+                <div className={sectionsBodyClass}>
+                    <TriggerManagementSection
+                        entityId={revisionId}
+                        disabled={disabled}
+                        automationDrawer={automationDrawer}
+                        onOpenRunHistory={onOpenRunHistory}
+                    />
                 </div>
             </section>
 
-            <section className="flex w-full flex-col">
-                <div className={barClass(sticky)}>
-                    <span className={titleClass}>Files</span>
+            {/* Last region: it grows so its white sheet runs to the panel's bottom edge instead of
+                stopping at the last file row. */}
+            <section className="flex grow flex-col">
+                <AgentRegionHeaderBar title="Recent files" sticky={sticky}>
                     {storageHeader}
-                </div>
-                <div className="flex flex-col px-4 pb-3 pt-1">
+                </AgentRegionHeaderBar>
+                {/* Files never recolours on expand (unlike Triggers' sections) — it stays a white sheet. */}
+                <div className={`flex grow flex-col ${bodyClass}`}>
                     {storage ?? (
                         // Static fallback for surfaces that don't slot the live Files body.
                         <span className="text-xs text-colorTextDescription">

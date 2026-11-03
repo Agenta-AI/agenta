@@ -271,7 +271,7 @@ export class WorkspacesClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -361,7 +361,7 @@ export class WorkspacesClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -445,7 +445,7 @@ export class WorkspacesClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:

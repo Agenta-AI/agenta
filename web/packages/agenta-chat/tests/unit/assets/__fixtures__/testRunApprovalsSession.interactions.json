@@ -1,0 +1,335 @@
+[
+  {
+    "id": "019feff6-9efa-7c41-8b6f-58e4365fb830",
+    "session_id": "f60bc4f8-cd39-495d-ada8-1ceb354ec16e",
+    "turn_id": "13b32471-21e3-4904-baa9-c5d463b20293",
+    "token": "aa874b2c-2cd8-40d2-aba2-2ee0244db0a0",
+    "kind": "client_tool",
+    "status": "responded",
+    "created_at": "2026-08-11T08:35:45.018806+00:00",
+    "data": {
+      "request": {
+        "args": {
+          "message": "Lovely idea—tell me when and where to send it, and I’ll configure the daily delivery.",
+          "requestedSchema": {
+            "type": "object",
+            "required": [
+              "delivery_time",
+              "timezone",
+              "telegram_destination"
+            ],
+            "properties": {
+              "timezone": {
+                "type": "string",
+                "title": "Time zone",
+                "default": "Etc/UTC",
+                "description": "Use an IANA name, such as Africa/Cairo or Asia/Riyadh."
+              },
+              "poetry_style": {
+                "type": "string",
+                "title": "Poetry preference",
+                "default": "Varied Arabic classics",
+                "description": "Optional: a style, era, poet, or leave as varied classics."
+              },
+              "delivery_time": {
+                "type": "string",
+                "title": "Morning delivery time",
+                "default": "08:00",
+                "description": "Your preferred local time."
+              },
+              "telegram_destination": {
+                "type": "string",
+                "title": "Telegram destination",
+                "description": "The chat ID or @channel username where the poem should be sent."
+              }
+            },
+            "x-ag-stepper": true
+          }
+        },
+        "tool": "request_input",
+        "tool_call_id": "exec-2e49d279-c258-4f07-9165-9acb53c82a02"
+      },
+      "references": {
+        "workflow": {
+          "id": "019feff5-ffbd-75f3-8c26-a0418c1356cd",
+          "slug": "create-an-agent-that-send-me-a-daily-arabic-msoen9ue4m"
+        },
+        "workflow_variant": {
+          "id": "019feff5-fff2-7a71-9038-05d017b0e041",
+          "slug": "create-an-agent-that-send-me-a-daily-arabic-msoen9ue4m.default"
+        }
+      },
+      "resolution": {
+        "output": {
+          "action": "accept",
+          "content": {
+            "timezone": "Berlin",
+            "poetry_style": "Varied Arabic classics",
+            "delivery_time": "08:00",
+            "telegram_destination": "my username is @mmabrouk1987"
+          },
+          "humanFriendlyMessage": "Provided the requested input."
+        },
+        "outcome": "completed",
+        "tool_name": "mcp.agenta-tools.request_input",
+        "tool_call_id": "exec-2e49d279-c258-4f07-9165-9acb53c82a02"
+      }
+    }
+  },
+  {
+    "id": "019feff7-6bca-7923-987e-cae73d861b95",
+    "session_id": "f60bc4f8-cd39-495d-ada8-1ceb354ec16e",
+    "turn_id": "3388c3d7-6e0a-47ba-81dd-87cd5ceb09d5",
+    "token": "c6179e6c-c573-4ebc-b136-223301fca138",
+    "kind": "user_approval",
+    "status": "resolved",
+    "created_at": "2026-08-11T08:36:37.450739+00:00",
+    "data": {
+      "request": {
+        "args": {
+          "description": "Configuring the agent to send one varied Arabic classic poem to the confirmed Telegram username each morning.",
+          "workflow_revision": {
+            "delta": {
+              "operations": [
+                {
+                  "value": "You send a daily Arabic poetry message to Telegram. Every scheduled run, do exac… <406 chars elided>",
+                  "target": [
+                    "parameters",
+                    "agent",
+                    "instructions",
+                    "agents_md"
+                  ],
+                  "operation": "set"
+                },
+                {
+                  "value": {
+                    "type": "gateway",
+                    "action": "SEND_MESSAGE",
+                    "provider": "composio",
+                    "connection": "telegram-main",
+                    "integration": "telegram"
+                  },
+                  "target": [
+                    "parameters",
+                    "agent",
+                    "tools"
+                  ],
+                  "operation": "add_item"
+                }
+              ]
+            },
+            "base_revision_id": "019feff6-0072-7a00-899d-59a9cc1a414a"
+          }
+        },
+        "tool": "commit_revision",
+        "tool_call_id": "exec-0cb27e20-8243-418e-9676-af60d15eb6d5"
+      },
+      "references": {
+        "workflow": {
+          "id": "019feff5-ffbd-75f3-8c26-a0418c1356cd",
+          "slug": "create-an-agent-that-send-me-a-daily-arabic-msoen9ue4m"
+        },
+        "workflow_variant": {
+          "id": "019feff5-fff2-7a71-9038-05d017b0e041",
+          "slug": "create-an-agent-that-send-me-a-daily-arabic-msoen9ue4m.default"
+        }
+      },
+      "resolution": {
+        "verdict": "approved",
+        "tool_call_id": "exec-0cb27e20-8243-418e-9676-af60d15eb6d5"
+      }
+    }
+  },
+  {
+    "id": "019feff7-ded4-7fe3-aa40-5e0e577b0c8e",
+    "session_id": "f60bc4f8-cd39-495d-ada8-1ceb354ec16e",
+    "turn_id": "17c48289-d8d3-49c0-b177-537505cca4b1",
+    "token": "f62bf104-f684-4616-8844-185e4def3ff4",
+    "kind": "user_approval",
+    "status": "resolved",
+    "created_at": "2026-08-11T08:37:06.900182+00:00",
+    "data": {
+      "request": {
+        "args": {
+          "description": "Configuring the agent to send one varied Arabic classic poem to the confirmed Telegram username each morning.",
+          "workflow_revision": {
+            "delta": {
+              "operations": [
+                {
+                  "value": "You send a daily Arabic poetry message to Telegram. Every scheduled run, do exac… <406 chars elided>",
+                  "target": [
+                    "parameters",
+                    "agent",
+                    "instructions",
+                    "agents_md"
+                  ],
+                  "operation": "set"
+                },
+                {
+                  "value": {
+                    "name": "telegram-send-message",
+                    "type": "gateway",
+                    "action": "SEND_MESSAGE",
+                    "provider": "composio",
+                    "connection": "telegram-main",
+                    "integration": "telegram"
+                  },
+                  "target": [
+                    "parameters",
+                    "agent",
+                    "tools"
+                  ],
+                  "operation": "add_item"
+                }
+              ]
+            },
+            "base_revision_id": "019feff6-0072-7a00-899d-59a9cc1a414a"
+          }
+        },
+        "tool": "commit_revision",
+        "tool_call_id": "exec-c439557f-1178-42ea-92a9-083450faf74e"
+      },
+      "references": {
+        "workflow": {
+          "id": "019feff5-ffbd-75f3-8c26-a0418c1356cd",
+          "slug": "create-an-agent-that-send-me-a-daily-arabic-msoen9ue4m"
+        },
+        "workflow_variant": {
+          "id": "019feff5-fff2-7a71-9038-05d017b0e041",
+          "slug": "create-an-agent-that-send-me-a-daily-arabic-msoen9ue4m.default"
+        }
+      },
+      "resolution": {
+        "verdict": "approved",
+        "tool_call_id": "exec-c439557f-1178-42ea-92a9-083450faf74e"
+      }
+    }
+  },
+  {
+    "id": "019feff8-013c-7531-8a7a-7e9736bfcd8f",
+    "session_id": "f60bc4f8-cd39-495d-ada8-1ceb354ec16e",
+    "turn_id": "4f974add-a145-46d5-87f8-f2d8f5254838",
+    "token": "94b0ed74-0d2b-4c83-98ad-66ec0de6c5aa",
+    "kind": "user_approval",
+    "status": "resolved",
+    "created_at": "2026-08-11T08:37:15.708303+00:00",
+    "data": {
+      "request": {
+        "args": {
+          "inputs": {
+            "messages": [
+              {
+                "role": "user",
+                "content": "Send today's daily Arabic poem now."
+              }
+            ]
+          },
+          "description": "Verifying that a poetry run reaches the configured Telegram destination.",
+          "expectations": {
+            "terminal_tool": "telegram-send-message"
+          }
+        },
+        "tool": "test_run",
+        "tool_call_id": "exec-626ba8eb-d7dd-4077-b222-bc8dcd09649f"
+      },
+      "references": {
+        "workflow": {
+          "id": "019feff5-ffbd-75f3-8c26-a0418c1356cd",
+          "slug": "create-an-agent-that-send-me-a-daily-arabic-msoen9ue4m"
+        },
+        "workflow_variant": {
+          "id": "019feff5-fff2-7a71-9038-05d017b0e041",
+          "slug": "create-an-agent-that-send-me-a-daily-arabic-msoen9ue4m.default"
+        }
+      },
+      "resolution": {
+        "verdict": "approved",
+        "tool_call_id": "exec-626ba8eb-d7dd-4077-b222-bc8dcd09649f"
+      }
+    }
+  },
+  {
+    "id": "019feff8-20a6-7740-abf0-fe9aa9b0d63c",
+    "session_id": "f60bc4f8-cd39-495d-ada8-1ceb354ec16e",
+    "turn_id": "1c497c41-6160-4c89-b2d6-df28d67e8fe0",
+    "token": "edcc155c-9ef5-4f93-9f7e-8de029105a1a",
+    "kind": "user_approval",
+    "status": "resolved",
+    "created_at": "2026-08-11T08:37:23.750666+00:00",
+    "data": {
+      "request": {
+        "args": {
+          "inputs": {
+            "messages": [
+              {
+                "role": "user",
+                "content": "Send today's daily Arabic poem now."
+              }
+            ]
+          },
+          "description": "Retrying the scheduled-message verification after the temporary runtime error.",
+          "expectations": {
+            "terminal_tool": "telegram-send-message"
+          }
+        },
+        "tool": "test_run",
+        "tool_call_id": "exec-9255970a-8bc6-4f7e-b072-3aa9dd3730b2"
+      },
+      "references": {
+        "workflow": {
+          "id": "019feff5-ffbd-75f3-8c26-a0418c1356cd",
+          "slug": "create-an-agent-that-send-me-a-daily-arabic-msoen9ue4m"
+        },
+        "workflow_variant": {
+          "id": "019feff5-fff2-7a71-9038-05d017b0e041",
+          "slug": "create-an-agent-that-send-me-a-daily-arabic-msoen9ue4m.default"
+        }
+      },
+      "resolution": {
+        "verdict": "approved",
+        "tool_call_id": "exec-9255970a-8bc6-4f7e-b072-3aa9dd3730b2"
+      }
+    }
+  },
+  {
+    "id": "019feff9-6b39-7651-ab94-93191d5adb65",
+    "session_id": "f60bc4f8-cd39-495d-ada8-1ceb354ec16e",
+    "turn_id": "a27927d7-1430-4012-9b25-478f3276b4bc",
+    "token": "eca07d80-9b42-4f51-9009-2045ec8c9f92",
+    "kind": "user_approval",
+    "status": "pending",
+    "created_at": "2026-08-11T08:38:48.378065+00:00",
+    "data": {
+      "request": {
+        "tool": "create_schedule",
+        "args": {
+          "data": {
+            "event_key": "daily_arabic_poetry_tick",
+            "inputs_fields": {
+              "messages": [
+                {
+                  "content": "Send the daily Arabic poetry message now.",
+                  "role": "user"
+                }
+              ]
+            },
+            "schedule": "0 6 * * *"
+          },
+          "description": "Sends a varied Arabic classical poem to @mmabrouk1987 every day at 06:00 UTC.",
+          "name": "daily-arabic-poetry"
+        },
+        "tool_call_id": "exec-b1dc2fc6-805d-4f5e-9eac-d782ed0086bb"
+      },
+      "references": {
+        "workflow": {
+          "slug": "create-an-agent-that-send-me-a-daily-arabic-msoen9ue4m",
+          "id": "019feff5-ffbd-75f3-8c26-a0418c1356cd"
+        },
+        "workflow_variant": {
+          "slug": "create-an-agent-that-send-me-a-daily-arabic-msoen9ue4m.default",
+          "id": "019feff5-fff2-7a71-9038-05d017b0e041"
+        }
+      }
+    }
+  }
+]

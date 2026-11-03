@@ -1,0 +1,1 @@
+{"title":"Body","body":{"content":{"application/json":{"schema":{"properties":{"repo_url":{"type":"string","maxLength":256,"title":"Repo Url"}},"additionalProperties":false,"type":"object","required":["repo_url"],"title":"TemplateSourceScanRequest"}}},"required":true}}

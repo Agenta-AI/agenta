@@ -26,11 +26,21 @@ Before you request review, make sure your pull request:
 - notes what still needs QA
 - passes the relevant formatting, linting, and test checks locally
 
+### Demo screenshots for UI changes
+
+Screenshots and recordings must come from the real Agenta app running your branch. Start the app locally, open the screen you changed, and capture it there.
+
+Do not submit mock-ups: a standalone HTML page, an isolated component harness, or any UI recreated by hand or by an AI agent to imitate the screen. A picture that resembles the app but was not produced by the app proves nothing about the change, and it hides the layout, theme, and data problems a reviewer needs to see.
+
+If you cannot run the app, say so in the pull request instead of substituting a mock-up.
+
+This applies to AI coding agents as well. If you use one to write the change, it must run the app and capture the real screens.
+
 ## Contribution Rules
 
 We had many inactive issues and pull requests in the past. To keep work moving:
 
-- An issue may only be assigned to one person for up to one week (three days for very simple issues). If the issue remains unsolved after a week, it will be unassigned and made available to others.
+- An assigned issue must show progress within two days. If there is no visible activity, such as a comment with an update, a draft pull request, or a question about the issue, it will be unassigned and made available to others.
 - Any pull request left inactive by the author for over a week may be closed. The author can reopen it later and continue the work.
 
 ## Contributor License Agreement

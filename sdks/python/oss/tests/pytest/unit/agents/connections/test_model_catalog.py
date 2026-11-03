@@ -9,11 +9,13 @@ unchanged ``models`` map.
 from __future__ import annotations
 
 import pytest
-from pydantic import ValidationError
-
+from agenta.sdk.agents import model_catalog as model_catalog_module
 from agenta.sdk.agents.capabilities import (
     CLAUDE_MODEL_ALIASES,
+    CODEX_MODELS,
     HARNESS_CONNECTION_CAPABILITIES,
+    MODEL_ID_ALIASES,
+    PROVIDER_DEFAULT_MODELS,
     harness_catalog_document,
 )
 from agenta.sdk.agents.model_catalog import (
@@ -28,8 +30,9 @@ from agenta.sdk.agents.model_catalog import (
     model_input_modalities,
     pi_model_catalog,
 )
+from pydantic import ValidationError
 
-_ALL_HARNESSES = ("pi_core", "pi_agenta", "claude", "codex")
+_ALL_HARNESSES = ("pi_core", "claude", "codex")
 
 
 def test_data_files_load_and_validate():
@@ -84,7 +87,8 @@ def test_pi_ids_are_unique_and_provider_prefixed():
     for entry in entries:
         # id is the provider/model join key; its prefix is the entry's provider.
         assert entry.id.startswith(f"{entry.provider}/"), entry.id
-        assert entry.source == "pi_generated"
+        # Generated facts, or a hand-written addition for a model the pinned pi-ai predates.
+        assert entry.source in ("pi_generated", "curated"), entry.id
 
 
 def test_pi_overlay_merges_without_overwriting_facts():
@@ -113,6 +117,88 @@ def test_uncurated_pi_entry_is_valid_with_absent_curated_fields():
     assert sample.name is not None  # frontend falls back to name
 
 
+def test_gemini_3_7_flash_is_published_with_its_display_name():
+    entries = model_catalog_entries("pi_core")
+    entry = next(
+        (item for item in entries if item["id"] == "gemini/gemini-3.7-flash"), None
+    )
+    assert entry is not None, "gemini/gemini-3.7-flash missing from the pi catalog"
+    assert entry["name"] == "Gemini 3.7 Flash"
+    assert entry["provider"] == "gemini"
+    assert entry["source"] == "pi_generated"
+    assert entry["context_window"] == 1048576
+    assert entry["pricing"]["input_per_mtok"] == 0.75
+    assert entry["pricing"]["output_per_mtok"] == 3.75
+
+
+def test_gemini_3_7_flash_is_the_first_default_model():
+    assert PROVIDER_DEFAULT_MODELS["gemini"][0] == "gemini/gemini-3.7-flash"
+    defaults = harness_catalog_document()["pi_core"]["capabilities"]["default_models"]
+    assert defaults["gemini"][0] == "gemini/gemini-3.7-flash"
+
+
+def test_gemini_3_6_flash_is_published_with_its_display_name():
+    # The generated catalog keeps the provider's display name rather than exposing only the id.
+    entries = model_catalog_entries("pi_core")
+    entry = next(
+        (item for item in entries if item["id"] == "gemini/gemini-3.6-flash"), None
+    )
+    assert entry is not None, "gemini/gemini-3.6-flash missing from the pi catalog"
+    assert entry["name"] == "Gemini 3.6 Flash"
+    assert entry["provider"] == "gemini"
+    assert entry["source"] == "pi_generated"
+    assert entry["context_window"] == 1048576
+
+
+def test_gemini_3_6_flash_is_offered_as_a_default_model():
+    # A curated default is dropped when the harness cannot select it, so the catalog entry and the
+    # PROVIDER_DEFAULT_MODELS line only work together.
+    assert "gemini/gemini-3.6-flash" in PROVIDER_DEFAULT_MODELS["gemini"]
+    defaults = harness_catalog_document()["pi_core"]["capabilities"]["default_models"]
+    assert "gemini/gemini-3.6-flash" in defaults["gemini"]
+
+
+def test_a_curated_addition_never_shadows_a_generated_entry(monkeypatch):
+    # The addition is a stopgap until a regeneration carries the model. When both files name the
+    # same id the generated facts win, so an addition left behind cannot mask fresher facts.
+    generated = {
+        "models": [
+            {
+                "id": "gemini/overlapping",
+                "provider": "gemini",
+                "source": "pi_generated",
+                "name": "From pi-ai",
+            }
+        ]
+    }
+    curated = {
+        "overlay": {},
+        "additions": [
+            {
+                "id": "gemini/overlapping",
+                "provider": "gemini",
+                "source": "curated",
+                "name": "Hand written",
+            },
+            {
+                "id": "gemini/only-curated",
+                "provider": "gemini",
+                "source": "curated",
+                "name": "Only curated",
+            },
+        ],
+    }
+    monkeypatch.setattr(
+        model_catalog_module,
+        "_read_json",
+        lambda name: generated if "generated" in name else curated,
+    )
+
+    names = {entry.id: entry.name for entry in load_pi_model_catalog().models}
+    assert names["gemini/overlapping"] == "From pi-ai"
+    assert names["gemini/only-curated"] == "Only curated"
+
+
 def test_claude_catalog_covers_exactly_the_accepted_alias_set():
     entries = claude_model_catalog().models
     ids = {e.id for e in entries}
@@ -130,8 +216,14 @@ def test_claude_catalog_uses_stable_harness_request_values():
         "sonnet",
         "haiku",
         "opus[1m]",
-        "claude-fable-5",
+        "claude-fable-5-1",
     ]
+
+
+def test_claude_catalog_labels_fable_5_1_as_the_frontier():
+    entry = next(e for e in claude_model_catalog().models if e.id == "claude-fable-5-1")
+    assert entry.name == "Claude Fable 5.1"
+    assert entry.ratings is not None and entry.ratings.intelligence == 5
 
 
 def test_fable_ships_as_a_current_fact_via_the_pi_anthropic_block():
@@ -168,7 +260,7 @@ def test_model_catalog_entries_helper_matches_the_published_field():
     assert model_catalog_entries("some-future-harness") == []
 
 
-@pytest.mark.parametrize("harness", ["pi_core", "pi_agenta"])
+@pytest.mark.parametrize("harness", ["pi_core"])
 def test_pi_input_modalities_lookup_joins_resolved_provider_and_model(harness):
     assert model_input_modalities(harness, "gpt-5.5", provider="openai") == [
         "text",
@@ -244,3 +336,239 @@ def test_pricing_and_ratings_never_collide_in_type():
             assert isinstance(entry.pricing.input_per_mtok, float)
         if entry.ratings is not None and entry.ratings.cost is not None:
             assert isinstance(entry.ratings.cost, int)
+
+
+def test_default_models_are_published_per_harness_in_its_own_spelling():
+    catalog = harness_catalog_document()
+
+    pi_defaults = catalog["pi_core"]["capabilities"]["default_models"]
+    assert set(pi_defaults) == set(PROVIDER_DEFAULT_MODELS)
+    # Pi spells the openai family bare and every other family provider-prefixed; the defaults
+    # follow the accepted set rather than the curated list's canonical spelling.
+    assert pi_defaults["openai"] == [
+        "gpt-6-astra",
+        "gpt-6.1-sol",
+        "gpt-6-sol",
+        "gpt-6-luna",
+        "gpt-5.6-luna",
+        "gpt-5.6-terra",
+        "gpt-5.6-sol",
+    ]
+    assert pi_defaults["anthropic"] == [
+        "anthropic/claude-opus-5-5",
+        "anthropic/claude-opus-5",
+        "anthropic/claude-fable-5-1",
+        "anthropic/claude-sonnet-5-5",
+        "anthropic/claude-sonnet-5",
+        "anthropic/claude-haiku-5-5",
+        "anthropic/claude-haiku-4-5",
+    ]
+    assert pi_defaults["openrouter"] == PROVIDER_DEFAULT_MODELS["openrouter"]
+    assert len(pi_defaults["openrouter"]) == 12
+
+    # Claude selects by alias: `claude-fable-5-1` is its own request value, and the versioned
+    # opus, sonnet and haiku ids arrive under the tier alias Claude actually accepts. Opus arrives
+    # as the bracketed `opus[1m]` because that is the spelling Claude publishes for the Opus tier.
+    assert catalog["claude"]["capabilities"]["default_models"] == {
+        "anthropic": ["opus[1m]", "claude-fable-5-1", "sonnet", "haiku"]
+    }
+    # Codex reaches openai only, names its models bare, and offers only the curated ids it runs.
+    assert catalog["codex"]["capabilities"]["default_models"] == {
+        "openai": [
+            model_id.split("/", 1)[1]
+            for model_id in PROVIDER_DEFAULT_MODELS["openai"]
+            if model_id.split("/", 1)[1] in CODEX_MODELS
+        ]
+    }
+
+
+def test_default_models_are_a_subset_of_what_the_harness_can_select():
+    for harness, caps in HARNESS_CONNECTION_CAPABILITIES.items():
+        for provider, defaults in caps.default_models.items():
+            # Scoped to the provider: an id under another provider's catalog is not something
+            # this provider's connection can select.
+            catalog_ids = {
+                str(entry["id"])
+                for entry in caps.model_catalog
+                if entry.get("provider") == provider
+            }
+            assert provider in caps.providers, harness
+            selectable = set(caps.models.get(provider) or []) | catalog_ids
+            assert set(defaults) <= selectable, (harness, provider)
+
+
+def test_curated_default_models_exist_in_the_pinned_pi_catalog():
+    catalog_ids = {entry.id for entry in pi_model_catalog().models}
+    for provider, models in PROVIDER_DEFAULT_MODELS.items():
+        for model_id in models:
+            assert model_id in catalog_ids, (provider, model_id)
+    # pi-ai 0.87.1 carries Opus 5.5, so the generated file supplies it and the curated addition
+    # that bridged the older snapshot is retired.
+    assert "anthropic/claude-opus-5-5" in catalog_ids
+    entry = next(
+        e for e in pi_model_catalog().models if e.id == "anthropic/claude-opus-5-5"
+    )
+    assert entry.name == "Claude Opus 5.5" and entry.source == "pi_generated"
+
+
+def test_fable_5_1_keeps_its_own_claude_request_value():
+    # A curated Fable 5.1 id must reach Claude as Fable 5.1, never be respelled as Fable 5.
+    fable_aliases = {
+        alias
+        for prefix, alias in MODEL_ID_ALIASES.items()
+        if "anthropic/claude-fable-5-1".startswith(prefix)
+    }
+    assert fable_aliases == {"claude-fable-5-1"}
+    claude_defaults = harness_catalog_document()["claude"]["capabilities"][
+        "default_models"
+    ]["anthropic"]
+    assert "claude-fable-5-1" in claude_defaults
+    assert "claude-fable-5" not in claude_defaults
+
+
+def test_opus_5_5_is_a_prompt_model_and_a_default():
+    from agenta.sdk.utils.assets import supported_llm_models
+
+    assert supported_llm_models["anthropic"][0] == "anthropic/claude-opus-5-5"
+    assert PROVIDER_DEFAULT_MODELS["anthropic"][:2] == [
+        "anthropic/claude-opus-5-5",
+        "anthropic/claude-opus-5",
+    ]
+    assert "anthropic/claude-fable-5-1" in supported_llm_models["anthropic"]
+    assert "anthropic/claude-opus-5-5" in PROVIDER_DEFAULT_MODELS["anthropic"]
+    assert "anthropic/claude-fable-5-1" in PROVIDER_DEFAULT_MODELS["anthropic"]
+
+
+@pytest.mark.parametrize(
+    "model_id,provider,expected",
+    [
+        ("vertex_ai/gemini-3.7-flash", "openai", ["text", "image"]),
+        ("vertex_ai/gemini-3.7-flash", "OpenAI", ["text", "image"]),
+        ("openai/vertex_ai/gemini-3.7-flash", None, ["text", "image"]),
+        ("Agenta/custom/vertex_ai/gemini-3.7-flash", None, ["text", "image"]),
+        ("Agenta/custom/vertex_ai/gemini-3.7-flash", "Agenta", ["text", "image"]),
+        ("Agenta/custom/vertex_ai/gemini-3.6-flash", "openai", ["text", "image"]),
+        ("vertex_ai/gemini-3.6-flash", "openai", ["text", "image"]),
+        ("vertex/gemini-3.7-flash", None, ["text", "image"]),
+        ("vertex_ai/gemini-3.7-flash", "vertex_ai", ["text", "image"]),
+        ("vertex/gemini-3.7-flash", "vertex", ["text", "image"]),
+        ("Agenta/custom/mistral/codestral-latest", "openai", ["text"]),
+        ("gemini/gemini-3.7-flash", "openai", ["text", "image"]),
+        ("anthropic/claude-sonnet-5-5", "openai", ["text", "image"]),
+        ("openrouter/google/gemini-3.7-flash", "openai", ["text", "image"]),
+        ("Agenta/custom/vertex_ai/unknown-model", None, None),
+        ("Agenta/custom/company-vision-v2", None, None),
+        ("Agenta/custom/custom/vertex_ai/gemini-3.7-flash", None, None),
+        ("vertex_ai/unknown-model", "openai", None),
+        ("company-vision-v2", "openai", None),
+        ("other/gemini-3.7-flash", "openai", None),
+        ("vertex_ai/gemini-3.7-flash", "anthropic", None),
+    ],
+)
+def test_custom_input_modalities_use_only_catalog_facts(model_id, provider, expected):
+    assert model_input_modalities("pi_core", model_id, provider=provider) == expected
+
+
+@pytest.mark.parametrize("modalities", [["text"], None])
+def test_bridge_alias_uses_catalog_facts(monkeypatch, modalities):
+    catalog = model_catalog_module.ModelCatalog(
+        models=[
+            ModelCatalogEntry(
+                id="gemini/gemini-3.7-flash",
+                provider="gemini",
+                source="curated",
+                modalities=modalities,
+            )
+        ]
+    )
+    monkeypatch.setattr(model_catalog_module, "_PI_CATALOG", catalog)
+    assert (
+        model_input_modalities(
+            "pi_core", "vertex_ai/gemini-3.7-flash", provider="openai"
+        )
+        == modalities
+    )
+
+
+def test_bridge_alias_does_not_override_an_exact_entry(monkeypatch):
+    catalog = model_catalog_module.ModelCatalog(
+        models=[
+            ModelCatalogEntry(
+                id="openai/vertex_ai/gemini-3.7-flash",
+                provider="openai",
+                source="curated",
+                modalities=["text"],
+            ),
+            ModelCatalogEntry(
+                id="gemini/gemini-3.7-flash",
+                provider="gemini",
+                source="curated",
+                modalities=["text", "image"],
+            ),
+        ]
+    )
+    monkeypatch.setattr(model_catalog_module, "_PI_CATALOG", catalog)
+    assert model_input_modalities(
+        "pi_core", "vertex_ai/gemini-3.7-flash", provider="openai"
+    ) == ["text"]
+
+
+def test_sonnet_5_5_is_a_prompt_model_a_default_and_a_pi_generated_model():
+    from agenta.sdk.utils.assets import supported_llm_models
+
+    assert "anthropic/claude-sonnet-5-5" in supported_llm_models["anthropic"]
+    assert "anthropic/claude-sonnet-5-5" in PROVIDER_DEFAULT_MODELS["anthropic"]
+    # pi-ai 0.99.1 carries Sonnet 5.5, so its facts come from the generated catalog and the
+    # curated addition retired.
+    entry = next(
+        e for e in pi_model_catalog().models if e.id == "anthropic/claude-sonnet-5-5"
+    )
+    assert entry.name == "Claude Sonnet 5.5" and entry.source == "pi_generated"
+    assert entry.label == "Sonnet 5.5"
+    assert entry.pricing is not None
+    assert (entry.pricing.input_per_mtok, entry.pricing.output_per_mtok) == (2, 10)
+    assert entry.context_window == 1_000_000
+    # Claude names the tier: the pinned Claude Code build resolves `sonnet` to Sonnet 5.5.
+    sonnet = next(e for e in claude_model_catalog().models if e.id == "sonnet")
+    assert sonnet.name == "Claude Sonnet 5.5"
+
+
+def test_gemini_4_argon_is_published_with_its_display_name():
+    # `builtin/agenta` serves google/gemini-4-argon. The picker matches a catalog entry whose id,
+    # minus its provider prefix, equals that id, as the OpenRouter Flash entries do.
+    entries = model_catalog_entries("pi_core")
+    entry = next(
+        (item for item in entries if item["id"] == "openrouter/google/gemini-4-argon"),
+        None,
+    )
+    assert entry is not None, (
+        "openrouter/google/gemini-4-argon missing from the pi catalog"
+    )
+    assert entry["name"] == "Gemini 4 Argon"
+    assert entry["provider"] == "openrouter"
+
+
+def test_kimi_k3_1_pro_is_published_with_a_clean_label():
+    entries = harness_catalog_document()["pi_core"]["capabilities"]["model_catalog"]
+    entry = next(
+        (
+            item
+            for item in entries
+            if item["id"] == "openrouter/moonshotai/kimi-k3.1-pro"
+        ),
+        None,
+    )
+    assert entry is not None, (
+        "openrouter/moonshotai/kimi-k3.1-pro missing from the pi catalog"
+    )
+    assert entry["provider"] == "openrouter"
+    assert entry["source"] == "curated"
+    assert entry["name"] == "MoonshotAI: Kimi K3.1 Pro"
+    assert entry["label"] == "Kimi K3.1 Pro"
+    assert entry["context_window"] == 1048576
+    assert entry["modalities"] == ["text", "image", "video"]
+    assert entry["pricing"]["input_per_mtok"] == 2
+    assert entry["pricing"]["output_per_mtok"] == 10
+    assert entry["pricing"]["cache_read_per_mtok"] == 0.2
+    assert entry["pricing"]["cache_write_per_mtok"] is None
+    assert entry["pricing"]["currency"] == "USD"

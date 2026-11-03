@@ -1,0 +1,117 @@
+import {
+    deriveSessionRowStatus,
+    type SessionRowStatus,
+    type SessionStream,
+} from "@agenta/entities/session"
+
+export type {SessionRowStatus}
+
+export interface SessionRowStatusMeta {
+    status: SessionRowStatus
+    label: string
+    /**
+     * The dot's fill, as the run-status hues the nav rail already paints a blocked session with
+     * (`--ag-run-status-*`). NOT the semantic `colorWarning` / `colorSuccess`: those are TEXT
+     * colours, dark enough that a 7px dot reads as brown rather than as a call to action, and the
+     * rail and the list would disagree about the same session.
+     */
+    dotClassName: string
+    /**
+     * The word beside that dot, where a surface has room for one. A readable semantic text
+     * colour, NOT the dot's hue: `#F79009` is a mark, and as 13px type on white it is a smear.
+     */
+    textClassName: string
+    /** Only `waiting` and `running` justify a pulse; a warm sandbox is not activity. */
+    pulse: boolean
+    /** Text shown inline on the row. Set only where a colour alone would under-report the state. */
+    chipLabel?: string
+    chipClassName?: string
+}
+
+/** Presentation for each status. The status itself is derived in `@agenta/entities/session`, so
+ * every surface that lists sessions agrees on what a row IS; only the styling lives here. */
+const META: Record<SessionRowStatus, Omit<SessionRowStatusMeta, "status">> = {
+    // A blocked session is the only row that costs you something to miss, so it is the only one
+    // that gets words — a 8px dot is not a call to action.
+    waiting: {
+        label: "Waiting on you",
+        dotClassName: "bg-[var(--ag-run-status-warning)]",
+        textClassName: "text-colorWarningText",
+        pulse: true,
+        chipLabel: "Waiting",
+        chipClassName: "bg-colorWarningBg text-colorWarningText",
+    },
+    running: {
+        label: "Running",
+        // The deep semantic green, not the run-status mint: the pulse dims the dot to half, and at
+        // 6px the mint's low half read as washed out rather than live.
+        dotClassName: "bg-colorSuccess",
+        textClassName: "text-colorSuccessText",
+        pulse: true,
+    },
+    // The rest are states, not calls to action, so they read as muted as the timestamp beside them.
+    alive: {
+        label: "Ready to resume",
+        // Ink, as the nav rail paints it (a FILLED dot in the row's own colour): a warm sandbox
+        // is "there", not a colour-coded event. The old info-blue read as a stray tint.
+        dotClassName: "bg-colorText",
+        textClassName: "text-muted-foreground",
+        pulse: false,
+    },
+    ended: {
+        label: "Ended",
+        dotClassName: "bg-colorTextQuaternary",
+        textClassName: "text-muted-foreground",
+        pulse: false,
+    },
+    archived: {
+        label: "Archived",
+        dotClassName: "bg-colorTextQuaternary",
+        textClassName: "text-muted-foreground",
+        pulse: false,
+    },
+    idle: {
+        label: "Idle",
+        dotClassName: "bg-colorBorder",
+        textClassName: "text-muted-foreground",
+        pulse: false,
+    },
+}
+
+export function sessionRowStatus(
+    row: SessionStream,
+    pendingCount: number | undefined,
+): SessionRowStatusMeta {
+    const status = deriveSessionRowStatus(row, pendingCount)
+    return sessionRowStatusMeta(status)
+}
+
+/** The same presentation, for a row that has no stream to derive from yet (a pending tab). */
+export function sessionRowStatusMeta(status: SessionRowStatus): SessionRowStatusMeta {
+    return {status, ...META[status]}
+}
+
+/**
+ * What a blocked session is actually asking for. The gate poll already carries `kind` and the row
+ * used to throw it away, so a waiting row said only that it was stuck — never whether it wanted a
+ * decision, a message, or a tool run.
+ *
+ * Nouns, never imperatives. "Approve" in a chip is a button, and this one does nothing: the row
+ * opens the session, where the gate is already docked above the composer. Approving from a list
+ * would mean approving an action you haven't read, so the label names the state and leaves the
+ * decision on the surface that shows what is being decided.
+ */
+export function pendingGateLabel(kinds: string[] | undefined): string {
+    if (!kinds?.length) return "Waiting"
+    if (kinds.length > 1) return "Multiple"
+    switch (kinds[0]) {
+        case "user_approval":
+            return "Approval"
+        case "user_input":
+            return "Input"
+        case "client_tool":
+            return "Tool call"
+        default:
+            return "Waiting"
+    }
+}

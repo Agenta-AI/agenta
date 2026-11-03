@@ -189,24 +189,3 @@ export function parseSnapshot(encoded: string): ValidationResult<PlaygroundSnaps
     // Validate
     return validateSnapshot(decodeResult.data)
 }
-
-/**
- * Check if an encoded string is within safe limits.
- *
- * @param encoded - The encoded string to check
- * @returns Object with size info and warnings
- */
-export function checkEncodedSize(encoded: string): {
-    length: number
-    isValid: boolean
-    isWarning: boolean
-    percentUsed: number
-} {
-    const length = encoded.length
-    return {
-        length,
-        isValid: length <= MAX_ENCODED_LENGTH,
-        isWarning: length > WARN_ENCODED_LENGTH,
-        percentUsed: Math.round((length / MAX_ENCODED_LENGTH) * 100),
-    }
-}

@@ -1,7 +1,12 @@
+import {queryAllAnnotations as queryAllAnnotationsDto} from "@agenta/entities/annotation/dto"
+import type {
+    AnnotationEditPayloadDto,
+    AnnotationsResponseDto,
+} from "@agenta/entities/annotation/dto"
+
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import {fetchJson, getBaseUrl, ensureProjectId} from "@/oss/lib/api/assets/fetchClient"
+import {ensureProjectId} from "@/oss/lib/api/assets/fetchClient"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
-import {AnnotationEditPayloadDto, AnnotationsResponse} from "@/oss/lib/hooks/useAnnotations/types"
 import {getProjectValues} from "@/oss/state/project"
 
 //Prefix convention:
@@ -11,34 +16,21 @@ import {getProjectValues} from "@/oss/state/project"
 //  - update: PUT data to server
 //  - delete: DELETE data from server
 
-// Map annotation-specific query keys to simple-traces equivalents
-const mapAnnotationQueryToTrace = (queries?: Record<string, any>): Record<string, any> => {
-    if (!queries || !Object.keys(queries).length) return {}
-    const {annotation_links, annotation, ...rest} = queries as any
-    const body: Record<string, any> = {...rest}
-    if (annotation_links) body.links = annotation_links
-    if (annotation) body.trace = annotation
-    return body
-}
+// Moved to @agenta/entities/annotation/dto; this keeps the implicit-project-id
+// signature the OSS call sites use. The CRUD helpers below stay in OSS — the
+// package's annotation module already owns those five export names for its
+// zod-validated entity API.
+export const queryAllAnnotations = async (
+    queries?: Record<string, any>,
+): Promise<AnnotationsResponseDto> =>
+    queryAllAnnotationsDto({projectId: ensureProjectId(), queries})
 
 // Map simple-traces response back to annotation-compatible shape
-const mapTraceResponseToAnnotation = (data: any): AnnotationsResponse => ({
+const mapTraceResponseToAnnotation = (data: any): AnnotationsResponseDto => ({
     ...data,
     annotation: data.trace ?? null,
     annotations: data.traces ?? [],
 })
-
-export const queryAllAnnotations = async (
-    queries?: Record<string, any>,
-): Promise<AnnotationsResponse> => {
-    const projectId = ensureProjectId()
-    const base = getBaseUrl()
-    const url = new URL(`${base}/simple/traces/query`)
-    if (projectId) url.searchParams.set("project_id", projectId)
-    const body = mapAnnotationQueryToTrace(queries)
-    const data = await fetchJson(url, {method: "POST", body: JSON.stringify(body)})
-    return mapTraceResponseToAnnotation(data)
-}
 
 export const createAnnotation = async (annotationPayload: any) => {
     const {projectId} = getProjectValues()
@@ -73,7 +65,7 @@ export const fetchAnnotation = async ({
     traceId?: string
     spanId?: string
     signal?: AbortSignal
-}): Promise<AnnotationsResponse | null> => {
+}): Promise<AnnotationsResponseDto | null> => {
     const {projectId} = getProjectValues()
 
     return new Promise((resolve) => {

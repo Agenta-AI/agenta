@@ -51,3 +51,23 @@ def check_entity_creation_conflict(
             return
 
         raise
+
+
+# Postgres reports `lock_timeout` expiry as `lock_not_available`.
+LOCK_NOT_AVAILABLE_SQLSTATE = "55P03"
+
+
+def is_lock_timeout(exception: Optional[BaseException]) -> bool:
+    """Whether an exception is an expired `lock_timeout`.
+
+    The SQLSTATE travels on the driver error that SQLAlchemy wraps, so walk the chain
+    rather than trusting one wrapper's shape.
+    """
+    seen = exception
+    for _ in range(4):
+        if seen is None:
+            return False
+        if getattr(seen, "sqlstate", None) == LOCK_NOT_AVAILABLE_SQLSTATE:
+            return True
+        seen = getattr(seen, "orig", None) or getattr(seen, "__cause__", None)
+    return False

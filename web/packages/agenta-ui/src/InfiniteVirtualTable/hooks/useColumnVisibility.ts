@@ -1,11 +1,11 @@
 import type {ReactNode} from "react"
 import {useCallback, useMemo, useRef} from "react"
 
-import type {ColumnsType} from "antd/es/table"
 import {useAtomValue} from "jotai"
 import {LOW_PRIORITY, useSetAtomWithSchedule} from "jotai-scheduler"
 
 import {getColumnHiddenKeysAtom} from "../atoms/columnHiddenKeys"
+import type {ColumnDefs} from "../columnDef"
 import type {ExtendedColumn} from "../types"
 
 type Key = string
@@ -30,7 +30,7 @@ export interface ColumnTreeNode {
 const toKey = (key: React.Key | undefined): Key | null =>
     key === undefined || key === null ? null : String(key)
 
-const collectKeys = <RecordType>(columns: ColumnsType<RecordType>): Key[] => {
+const collectKeys = <RecordType>(columns: ColumnDefs<RecordType>): Key[] => {
     const result: Key[] = []
     const visit = (cols: ExtendedColumn<RecordType>[]) => {
         cols.forEach((col) => {
@@ -43,7 +43,7 @@ const collectKeys = <RecordType>(columns: ColumnsType<RecordType>): Key[] => {
     return Array.from(new Set(result))
 }
 
-const collectLeafKeys = <RecordType>(columns: ColumnsType<RecordType>): Key[] => {
+const collectLeafKeys = <RecordType>(columns: ColumnDefs<RecordType>): Key[] => {
     const result: Key[] = []
     const visit = (cols: ExtendedColumn<RecordType>[]) => {
         cols.forEach((col) => {
@@ -60,9 +60,9 @@ const collectLeafKeys = <RecordType>(columns: ColumnsType<RecordType>): Key[] =>
 }
 
 const filterColumnsRecursive = <RecordType>(
-    columns: ColumnsType<RecordType>,
+    columns: ColumnDefs<RecordType>,
     hidden: Set<Key>,
-): ColumnsType<RecordType> => {
+): ColumnDefs<RecordType> => {
     const map = (cols: ExtendedColumn<RecordType>[]): ExtendedColumn<RecordType>[] =>
         cols
             .map((col): ExtendedColumn<RecordType> | null => {
@@ -77,11 +77,11 @@ const filterColumnsRecursive = <RecordType>(
             })
             .filter((col): col is ExtendedColumn<RecordType> => col !== null)
 
-    return map(columns as ExtendedColumn<RecordType>[]) as ColumnsType<RecordType>
+    return map(columns as ExtendedColumn<RecordType>[]) as ColumnDefs<RecordType>
 }
 
 export const useColumnVisibility = <RecordType>(
-    columns: ColumnsType<RecordType>,
+    columns: ColumnDefs<RecordType>,
     {storageKey, defaultHiddenKeys = []}: Options = {},
 ) => {
     const allKeys = useMemo(() => collectKeys(columns), [columns])
@@ -138,7 +138,7 @@ export const useColumnVisibility = <RecordType>(
     )
 
     const collectDescendantKeys = useCallback(
-        (cols: ColumnsType<RecordType>, target: Key): Key[] => {
+        (cols: ColumnDefs<RecordType>, target: Key): Key[] => {
             const keys: Key[] = []
             const visit = (items: ExtendedColumn<RecordType>[]) => {
                 items.forEach((col) => {
@@ -195,7 +195,7 @@ export const useColumnVisibility = <RecordType>(
     }
 
     const buildTree = useCallback(
-        (cols: ColumnsType<RecordType>): ColumnTreeNode[] => {
+        (cols: ColumnDefs<RecordType>): ColumnTreeNode[] => {
             const map = (items: ExtendedColumn<RecordType>[]): ColumnTreeNode[] => {
                 const nodes: ColumnTreeNode[] = []
                 items.forEach((col) => {
@@ -207,7 +207,7 @@ export const useColumnVisibility = <RecordType>(
                     }
                     const subtreeKeys: Key[] = [
                         k,
-                        ...collectDescendantKeys([col] as ColumnsType<RecordType>, k).filter(
+                        ...collectDescendantKeys([col] as ColumnDefs<RecordType>, k).filter(
                             (x) => x !== k,
                         ),
                     ]

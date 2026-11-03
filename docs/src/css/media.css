@@ -1,0 +1,143 @@
+/* One frame for every embedded video and screenshot: 16:9, rounded, bordered,
+   on the elevated surface. Applies to docs pages and changelog entries alike
+   (both render inside .markdown). */
+
+.markdown iframe[src*="youtube"],
+.markdown iframe[src*="youtu.be"],
+.markdown iframe[src*="cloudflarestream"] {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  /* Entries hardcode height="400|500"; the ratio decides the height instead. */
+  height: auto !important;
+  aspect-ratio: 16 / 9;
+  margin: 0 0 24px;
+  border: 1px solid var(--borderdefault);
+  border-radius: var(--radius-lg);
+  background-color: var(--bgelevated1);
+}
+
+/* Changelog entries wrap their iframes in inline-styled flex <div>s with their
+   own margins; those wrappers become plain blocks and the frame carries the
+   spacing. !important because the styles are inline. */
+.markdown div:has(> iframe[src*="youtube"]),
+.markdown div:has(> iframe[src*="youtu.be"]),
+.markdown div:has(> iframe[src*="cloudflarestream"]) {
+  display: block !important;
+  margin: 0 0 24px !important;
+  padding: 0 !important;
+}
+
+.markdown div:has(> iframe) > iframe {
+  margin-bottom: 0;
+}
+
+/* <Stream responsive> positions its iframe absolutely inside a wrapper that
+   only gets its padding-top box once the player reports the video size. Until
+   then the wrapper is 0px tall, so an absolute iframe (and the skeleton drawn
+   on the wrapper) would sit on top of the text below. Keyed off the iframe,
+   not the wrapper's padding, so it holds from the first paint; the aspect
+   ratio above sizes it. */
+.markdown iframe[src*="cloudflarestream"] {
+  position: static !important;
+  inset: auto !important;
+}
+
+/* Screenshots (IdealImage swaps an <svg> placeholder for the <img>). */
+.markdown img {
+  border-radius: var(--radius-lg);
+  margin-bottom: 24px;
+}
+
+.markdown img.medium-zoom-image,
+.markdown img[src*="/assets/ideal-img/"],
+.markdown div[style*="background-size"] > svg {
+  border: 1px solid var(--borderdefault);
+  border-radius: var(--radius-lg);
+}
+
+.markdown div[style*="background-size"] {
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin-bottom: 24px !important;
+}
+
+.markdown div:has(> img.medium-zoom-image) {
+  margin-bottom: 24px;
+}
+
+.markdown img.medium-zoom-image {
+  margin-bottom: 0 !important;
+}
+
+/* Placeholder while a Stream's player boots: the design's media box, a flat
+   elevated panel with a play button that breathes. streamSkeleton.ts flips
+   the wrapper to "loaded" once the player has its first frame. */
+[data-stream-state="loading"] {
+  position: relative;
+  border-radius: var(--radius-lg);
+  background-color: var(--bgelevated1);
+  /* An inset shadow, not a border, so nothing shifts when the state flips. */
+  box-shadow: inset 0 0 0 1px var(--borderdefault);
+}
+
+[data-stream-state="loading"]::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 52px;
+  height: 52px;
+  transform: translate(-50%, -50%);
+  background-color: var(--bginverse);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 52 52'><path fill-rule='evenodd' d='M26 0a26 26 0 1 0 0 52a26 26 0 1 0 0-52zM21 17v18l14-9z'/></svg>")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 52 52'><path fill-rule='evenodd' d='M26 0a26 26 0 1 0 0 52a26 26 0 1 0 0-52zM21 17v18l14-9z'/></svg>")
+    center / contain no-repeat;
+  animation: ag-stream-breathe 1.6s ease-in-out infinite;
+}
+
+/* Hold the iframe back until it reports in, then fade it over the shimmer.
+   Keyed off the attribute, so with no JS the iframe is never hidden. */
+[data-stream-state] > iframe {
+  transition: opacity 200ms ease-out;
+}
+
+[data-stream-state="loading"] > iframe {
+  opacity: 0;
+}
+
+@keyframes ag-stream-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-stream-state="loading"]::after {
+    animation: none;
+    opacity: 0.8;
+  }
+
+  [data-stream-state] > iframe {
+    transition: none;
+  }
+}
+
+/* Image zoom overlay */
+.medium-zoom-overlay {
+  background-color: rgba(0, 0, 0, 0.62) !important;
+}
+
+[data-theme="dark"] .medium-zoom-overlay {
+  background-color: rgba(0, 0, 0, 0.7) !important;
+}
+
+.medium-zoom-image--opened,
+.medium-zoom-overlay {
+  z-index: 9999999;
+}

@@ -61,6 +61,7 @@ import uuid
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from qa_matrix_lib import (  # noqa: E402
     archive,
+    check_no_silent_turn,
     create_workflow,
     refs,
     run_until_settled,
@@ -221,11 +222,19 @@ def b1_for(harness_name: str) -> dict:
             }
         )
 
-        core_ok = not any_errors and len(found_in_tool_output) == len(expected)
+        # A silent turn inside the settled loop carries no error, so `not any_errors`
+        # alone would accept it (ASD-EST100).
+        silent = check_no_silent_turn(turns)
+        core_ok = (
+            not any_errors
+            and not silent["violations"]
+            and len(found_in_tool_output) == len(expected)
+        )
         return {
             "status": "PASS" if core_ok else "FAIL",
             "why": (
-                f"any_errors={any_errors}, expected={expected}, "
+                f"any_errors={any_errors}, silent_turns={silent['violations']}, "
+                f"expected={expected}, "
                 f"found_in_tool_output={found_in_tool_output}, "
                 f"tool_names_seen={search_tool_names}"
             ),

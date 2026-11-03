@@ -2,7 +2,7 @@ import {SkeletonBlock} from "@agenta/ui/ui"
 
 /**
  * Loading placeholder for the agent config panel's Configuration section, mirroring its
- * section-row list (Model & harness, Instructions, Tools, MCP servers, Skills, Advanced):
+ * section-row list (Model, Instructions, Tools, MCP servers, Skills, Advanced):
  * leading icon + title on the left, value summary + add/chevron affordances on the right,
  * divider between rows. Shown while the revision/schema is still loading so the panel holds
  * its real shape instead of the generic prompt-config pulse boxes. Triggers/Mounts are NOT
@@ -46,7 +46,7 @@ export const SkeletonSectionRow = ({
 
 // One entry per section row: title/value widths vary like the real labels do.
 const ROWS: {title: number; value: number; withAdd?: boolean}[] = [
-    {title: 128, value: 130}, // Model & harness (value mirrors the real, truncating summary)
+    {title: 128, value: 130}, // Model (value mirrors the real, truncating summary)
     {title: 112, value: 48, withAdd: true}, // Instructions
     {title: 60, value: 56, withAdd: true}, // Tools
     {title: 122, value: 44, withAdd: true}, // MCP servers

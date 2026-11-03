@@ -2,6 +2,7 @@ from typing import Any, List, Optional, Union
 
 from agenta.sdk.agents.tools import (
     BuiltinToolConfig,
+    GatewayConnectionToolConfig,
     GatewayToolConfig,
     ToolConfigurationError,
     coerce_tool_configs,
@@ -24,6 +25,8 @@ from oss.src.core.tools.dtos import (
     ToolResult,
     # Tool resolution
     ToolReference,
+    ResolvedGatewayConnection,
+    UnavailableToolConnection,
     ResolvedTool,
     # Tool discovery
     ToolProviderKind,
@@ -113,6 +116,9 @@ class ToolCallResponse(BaseModel):
 
 class ToolResolveRequest(BaseModel):
     tools: List[ToolReference] = Field(default_factory=list)
+    # Leave out a connection that is missing, turned off or signed out, and name it in
+    # `unavailable_connections`, instead of refusing the whole request.
+    omit_unavailable: bool = False
 
     @field_validator("tools", mode="before")
     @classmethod
@@ -124,7 +130,10 @@ class ToolResolveRequest(BaseModel):
         unsupported = [
             config
             for config in configs
-            if not isinstance(config, (BuiltinToolConfig, GatewayToolConfig))
+            if not isinstance(
+                config,
+                (BuiltinToolConfig, GatewayToolConfig, GatewayConnectionToolConfig),
+            )
         ]
         if unsupported:
             raise ValueError("/tools/resolve accepts only builtin and gateway tools")
@@ -135,6 +144,10 @@ class ToolResolveResponse(BaseModel):
     count: int = 0
     builtins: List[str] = Field(default_factory=list)
     custom: List[ResolvedTool] = Field(default_factory=list)
+    gateway_connections: List[ResolvedGatewayConnection] = Field(default_factory=list)
+    unavailable_connections: List[UnavailableToolConnection] = Field(
+        default_factory=list
+    )
 
 
 # ---------------------------------------------------------------------------

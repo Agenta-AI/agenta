@@ -1,0 +1,358 @@
+import {useCallback, useMemo} from "react"
+
+import {
+    archiveSessionRemote,
+    deleteSessionRemote,
+    setSessionHeader,
+    unarchiveSessionRemote,
+} from "@agenta/entities/session"
+import {shareUrl} from "@agenta/sessions/link"
+import {pinnedSessionIdsAtom, toggleSessionPinAtom, unpinSessionAtom} from "@agenta/sessions/state"
+import {projectIdAtom} from "@agenta/shared/state"
+import {message, modal} from "@agenta/ui/app-message"
+import {copyToClipboard} from "@agenta/ui/utils"
+import {
+    ArchiveIcon,
+    ArrowSquareOutIcon,
+    LinkSimpleIcon,
+    PencilSimpleIcon,
+    PushPinIcon,
+    PushPinSlashIcon,
+    TrashIcon,
+    UsersIcon,
+} from "@phosphor-icons/react"
+import {useQueryClient} from "@tanstack/react-query"
+import {useAtomValue, useSetAtom} from "jotai"
+
+import type {SessionMenuEntry} from "./menu"
+import {NAMED_SESSION_QUERY_KEYS, withRenamedSession} from "./renameCache"
+
+export interface SessionActionTarget {
+    sessionId: string
+    /** The owning agent, which is also the chat scope key. Null for a session with no turns —
+     * its server state still changes, there is just no local tab cache to keep in step. */
+    appId: string | null
+    name?: string | null
+    archived?: boolean
+    /**
+     * Sharing (M3): the session's owner, from its row. `null` = ownerless (channel, API key,
+     * trigger): today's verbs, no Share. Absent = the host does not know, so today's verbs too.
+     */
+    ownerUserId?: string | null
+}
+
+/** Who the current user is to a session, for the verbs it offers. */
+export type SessionMenuAccess = "owner" | "member" | "ownerless"
+
+/**
+ * The owner gets every verb plus Share; someone else on an owned session gets Open, Pin and
+ * Copy share link only (rename, share, archive and delete are the owner's); an ownerless session,
+ * or one whose owner the host does not know, keeps today's verbs without Share.
+ */
+export const sessionMenuAccess = (
+    target: Pick<SessionActionTarget, "ownerUserId">,
+    currentUserId: string | null | undefined,
+): SessionMenuAccess => {
+    if (!target.ownerUserId) return "ownerless"
+    return currentUserId && target.ownerUserId === currentUserId ? "owner" : "member"
+}
+
+/**
+ * A host's optimistic local session cache (the desktop playground's open tabs).
+ *
+ * Where a session is already in it, the action goes through the host, whose store write is
+ * optimistic AND calls the API. Where it isn't — a row on the project-wide list for an agent
+ * this browser has never opened — the server call below is made directly. Never both: doing both
+ * fires every mutation twice.
+ */
+export interface SessionLocalCache {
+    has: (target: SessionActionTarget) => boolean
+    /** Awaited before the lists revalidate: these verbs own the server call for a cached
+     * session, and a refetch that overtakes it brings the old row straight back. */
+    /**
+     * Resolve `false` when the write did not land, so the verb reports it instead of claiming a
+     * rename the next list read will undo. `void` is success: a host with no server write.
+     */
+    rename: (target: SessionActionTarget, title: string) => void | boolean | Promise<boolean | void>
+    setArchived: (target: SessionActionTarget) => void | Promise<unknown>
+    remove: (target: SessionActionTarget) => void | Promise<unknown>
+}
+
+export interface UseSessionActionsOptions {
+    /** Omit on a surface with no local tab cache — every action then goes straight to the server. */
+    localCache?: SessionLocalCache
+    /**
+     * The path a session is linked at, or "" where this app cannot address one. Supplying it adds
+     * "Copy share link" to the menu; an app whose sessions have no URL of their own omits it and
+     * the entry never appears.
+     *
+     * A path, not a URL, because the menu asks on every render whether a session can be linked.
+     * Keeping that answer pure means it never reads `window` outside the click.
+     */
+    sharePathFor?: (target: SessionActionTarget) => string
+    /**
+     * Runs after a session is archived or deleted, before the lists revalidate. A surface whose
+     * sessions are routes leaves the one it is on here — the server side is done, and the next
+     * list read will no longer carry the row.
+     */
+    onRemoved?: (target: SessionActionTarget) => void | Promise<unknown>
+    /** The signed-in user, to tell the owner of a session from everyone else. */
+    currentUserId?: string | null
+    /** Opens the Share dialog. Supplying it adds "Share" to the owner's menu. */
+    onShare?: (target: SessionActionTarget) => void
+}
+
+/**
+ * Everything you can do to a session, defined once.
+ *
+ * Several surfaces act on sessions — the desktop sessions list, the playground's session bar, the
+ * mobile lists — and they must not drift into offering different verbs, or the same verb with
+ * different effects.
+ */
+export const useSessionActions = ({
+    localCache,
+    sharePathFor,
+    onRemoved,
+    currentUserId,
+    onShare,
+}: UseSessionActionsOptions = {}) => {
+    const queryClient = useQueryClient()
+    const projectId = useAtomValue(projectIdAtom) ?? ""
+    const pinnedIds = useAtomValue(pinnedSessionIdsAtom)
+    const togglePin = useSetAtom(toggleSessionPinAtom)
+    const unpin = useSetAtom(unpinSessionAtom)
+
+    const revalidate = useCallback(() => {
+        void queryClient.invalidateQueries({queryKey: ["sessions-page"]})
+        void queryClient.invalidateQueries({queryKey: ["session-list"]})
+        // The sidebar keeps its own narrower window under its own keys; without these an
+        // archive or delete driven from the rail leaves the row sitting there.
+        void queryClient.invalidateQueries({queryKey: ["sidebar-sessions"]})
+        void queryClient.invalidateQueries({queryKey: ["sidebar-sessions-pinned"]})
+    }, [queryClient])
+
+    const isCached = useCallback(
+        (target: SessionActionTarget) => Boolean(target.appId && localCache?.has(target)),
+        [localCache],
+    )
+
+    /**
+     * Commits a rename: writes to the local cache when the session is open there and to the
+     * server otherwise. Every surface renames in place through `useInlineRename`, and they all
+     * land here so a rename from any list also retitles an open chat tab.
+     */
+    const commitRename = useCallback(
+        async (target: SessionActionTarget, title: string) => {
+            const name = title.trim()
+            if (!name) return false
+            if (isCached(target)) {
+                // The host's write can fail like the direct one below. Dropping its answer
+                // reported success, so the row kept the new name until the next list read
+                // quietly put the old one back, and the person never learned the rename was
+                // lost (#6695).
+                if ((await localCache?.rename(target, name)) === false) return false
+            } else {
+                const ok = await setSessionHeader({
+                    sessionId: target.sessionId,
+                    projectId,
+                    name,
+                    // A person typed this one, so the server remembers it as theirs and
+                    // refuses an agent rename over it.
+                    nameSource: "manual",
+                })
+                if (!ok) return false
+            }
+            // Rename is the one verb whose write the list read does not see straight away: the
+            // refetch an invalidation kicks off comes back carrying the OLD name and would undo
+            // what you just typed, leaving the row stale until the next poll. So patch the cached
+            // rows and mark the queries stale WITHOUT refetching — the next poll, focus or mount
+            // takes the server's copy once it agrees.
+            for (const key of NAMED_SESSION_QUERY_KEYS) {
+                queryClient.setQueriesData({queryKey: [key]}, (data: unknown) =>
+                    withRenamedSession(data, target.sessionId, name),
+                )
+                void queryClient.invalidateQueries({queryKey: [key], refetchType: "none"})
+            }
+            return true
+        },
+        [isCached, localCache, projectId, queryClient],
+    )
+
+    const setArchived = useCallback(
+        async (target: SessionActionTarget) => {
+            if (isCached(target)) {
+                await localCache?.setArchived(target)
+            } else {
+                const call = target.archived ? unarchiveSessionRemote : archiveSessionRemote
+                const ok = await call({sessionId: target.sessionId, projectId})
+                if (!ok) {
+                    message.error(target.archived ? "Couldn't unarchive" : "Couldn't archive")
+                    return
+                }
+            }
+            // Archiving drops the pin: a pinned row leads every list, which is the opposite of
+            // what archiving asks for, and the menu will not pin it back until it is unarchived.
+            if (!target.archived) {
+                unpin(target.sessionId)
+                await onRemoved?.(target)
+            }
+            revalidate()
+        },
+        [isCached, localCache, onRemoved, projectId, revalidate, unpin],
+    )
+
+    const remove = useCallback(
+        (target: SessionActionTarget) => {
+            modal.confirm({
+                centered: true,
+                title: "Delete session",
+                // Delete is a hard fan-out across turns, streams, interactions and mounts. Say so:
+                // archive sits right next to it in the menu and looks like the same kind of verb.
+                content: `"${target.name?.trim() || "This session"}" and its full transcript will be permanently deleted. Archive it instead if you might want it back.`,
+                okText: "Delete",
+                okButtonProps: {danger: true},
+                onOk: async () => {
+                    if (isCached(target)) {
+                        // AWAITED: the local verb fires the server call itself, and revalidating
+                        // ahead of it refetches a list the row is still in — which puts the row
+                        // back until the next poll.
+                        await localCache?.remove(target)
+                    } else {
+                        const ok = await deleteSessionRemote({
+                            sessionId: target.sessionId,
+                            projectId,
+                        })
+                        if (!ok) {
+                            message.error("Couldn't delete this session")
+                            return
+                        }
+                    }
+                    unpin(target.sessionId)
+                    await onRemoved?.(target)
+                    revalidate()
+                },
+            })
+        },
+        [isCached, localCache, onRemoved, projectId, revalidate, unpin],
+    )
+
+    const copyShareLink = useCallback(
+        async (target: SessionActionTarget) => {
+            const link = shareUrl(sharePathFor?.(target) ?? "")
+            if (!link) {
+                message.error("This session has no link yet")
+                return
+            }
+            if (await copyToClipboard(link)) message.success("Share link copied")
+            else message.error("Couldn't copy the link")
+        },
+        [sharePathFor],
+    )
+
+    const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
+
+    /** The one menu every surface renders. `onOpen` is omitted where the session is already open. */
+    const menuItems = useCallback(
+        (
+            target: SessionActionTarget,
+            options?: {onOpen?: () => void; openLabel?: string},
+        ): SessionMenuEntry[] => {
+            const access = sessionMenuAccess(target, currentUserId)
+            const open: SessionMenuEntry[] = options?.onOpen
+                ? [
+                      {
+                          key: "open",
+                          label: options.openLabel ?? "Open",
+                          icon: <ArrowSquareOutIcon size={14} />,
+                          disabled: !target.appId,
+                      },
+                  ]
+                : []
+            const pin: SessionMenuEntry = {
+                key: "pin",
+                label: pinnedSet.has(target.sessionId) ? "Unpin" : "Pin",
+                icon: pinnedSet.has(target.sessionId) ? (
+                    <PushPinSlashIcon size={14} />
+                ) : (
+                    <PushPinIcon size={14} />
+                ),
+            }
+            const copyLink: SessionMenuEntry[] = sharePathFor
+                ? [
+                      {
+                          key: "copy-link",
+                          label: "Copy share link",
+                          icon: <LinkSimpleIcon size={14} />,
+                          disabled: !sharePathFor(target),
+                      },
+                  ]
+                : []
+            // Removed, not disabled: these verbs are the owner's (S4).
+            if (access === "member")
+                return [...open, ...(target.archived ? [] : [pin]), ...copyLink]
+            const share: SessionMenuEntry[] =
+                access === "owner" && onShare && !target.archived
+                    ? [{key: "share", label: "Share", icon: <UsersIcon size={14} />}]
+                    : []
+            return [
+                ...open,
+                // An archived session is out of the way on purpose: renaming or pinning it would put
+                // it back in your face without unarchiving it. Unarchive first, then rename.
+                ...(target.archived
+                    ? []
+                    : [
+                          {
+                              key: "rename",
+                              label: "Rename",
+                              icon: <PencilSimpleIcon size={14} />,
+                          },
+                          pin,
+                          ...share,
+                          ...copyLink,
+                          {type: "divider" as const},
+                      ]),
+                {
+                    key: "archive",
+                    label: target.archived ? "Unarchive" : "Archive",
+                    icon: <ArchiveIcon size={14} />,
+                },
+                {key: "delete", label: "Delete", icon: <TrashIcon size={14} />, danger: true},
+            ]
+        },
+        [currentUserId, onShare, pinnedSet, sharePathFor],
+    )
+
+    /**
+     * Routes a menu key to its verb.
+     *
+     * "rename" is the one key this hook cannot finish on its own: the edit happens IN the row, and
+     * only the surface knows which row that is. So it travels back out as `onRename`, the same way
+     * "open" does. A surface that renders the "rename" entry MUST supply it, or hand the key to a
+     * component that starts the edit itself (`SessionsListView`, `SessionRowActions`) — otherwise
+     * the entry is dead. It was dead on the chat tab strip and the card lists until now.
+     */
+    const onMenuClick = useCallback(
+        (target: SessionActionTarget, options?: {onOpen?: () => void; onRename?: () => void}) =>
+            ({key}: {key: string}) => {
+                if (key === "open") options?.onOpen?.()
+                if (key === "rename") options?.onRename?.()
+                if (key === "pin") togglePin(target.sessionId)
+                if (key === "copy-link") void copyShareLink(target)
+                if (key === "share") onShare?.(target)
+                if (key === "archive") void setArchived(target)
+                if (key === "delete") remove(target)
+            },
+        [copyShareLink, onShare, remove, setArchived, togglePin],
+    )
+
+    return {
+        commitRename,
+        setArchived,
+        remove,
+        togglePin,
+        copyShareLink,
+        menuItems,
+        onMenuClick,
+        pinnedSet,
+    }
+}

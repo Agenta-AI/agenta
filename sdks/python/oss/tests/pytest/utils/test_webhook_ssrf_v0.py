@@ -27,8 +27,8 @@ _HOOK_ALLOW_INSECURE_ENV_VARS = (
 def resolve_hook_allow_insecure(monkeypatch):
     """Re-run the handler's import-time env resolution under `env` and return the flag.
 
-    Clears every recognized var first so the ambient shell cannot leak in; reloads once more
-    on teardown to restore module state for later tests.
+    Clears every recognized var first, applies an optional explicit test value, and reloads once
+    more on teardown to restore module state for later tests.
     """
 
     def _resolve(env=None):
@@ -96,7 +96,7 @@ class TestValidateWebhookUrlSecureDefault:
 
     def test_hostname_resolving_to_private_ip_rejected(self):
         with patch(
-            "agenta.sdk.workflows.handlers.socket.getaddrinfo",
+            "agenta.sdk.utils.net.socket.getaddrinfo",
             return_value=[(None, None, None, None, ("192.168.1.100", 0))],
         ):
             with pytest.raises(ValueError, match="blocked IP"):
@@ -104,7 +104,7 @@ class TestValidateWebhookUrlSecureDefault:
 
     def test_hostname_resolving_to_public_ip_returns_literal(self):
         with patch(
-            "agenta.sdk.workflows.handlers.socket.getaddrinfo",
+            "agenta.sdk.utils.net.socket.getaddrinfo",
             return_value=[(None, None, None, None, ("93.184.216.34", 0))],
         ):
             assert _validate_webhook_url("https://example.com/hook") == "93.184.216.34"

@@ -1,8 +1,7 @@
 import React from "react"
 
+import {WebhookProvider} from "@agenta/entities/webhook"
 import type {Rule} from "antd/lib/form"
-
-import {WebhookProvider} from "@/oss/services/webhooks/types"
 
 export type FieldComponent =
     | "input"

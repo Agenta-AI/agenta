@@ -2,9 +2,10 @@ from typing import Optional, Dict, Any, List
 from uuid import UUID
 
 from agenta.sdk.utils.client import authed_async_api
+from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.models.evaluations import EvaluationResult
 
-# TODO: ADD TYPES
+log = get_module_logger(__file__)
 
 
 async def apopulate(
@@ -38,8 +39,12 @@ async def apopulate(
 
     try:
         response.raise_for_status()
-    except:
-        print(response.text)
+    except Exception:
+        log.error(
+            "API request failed",
+            endpoint=f"/simple/evaluations/{run_id}/populate",
+            response_text=response.text,
+        )
         raise
 
     response = response.json()
@@ -95,8 +100,12 @@ async def acreate(
 
     try:
         response.raise_for_status()
-    except:
-        print(response.text)
+    except Exception:
+        log.error(
+            "API request failed",
+            endpoint="/evaluations/results/",
+            response_text=response.text,
+        )
         raise
 
     response = response.json()

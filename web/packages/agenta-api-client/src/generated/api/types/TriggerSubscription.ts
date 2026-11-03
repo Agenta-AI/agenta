@@ -18,4 +18,6 @@ export interface TriggerSubscription {
     connection_id: string;
     trigger_id?: (string | null) | undefined;
     data: AgentaApi.TriggerSubscriptionData;
+    principal?: (AgentaApi.PrincipalRef | null) | undefined;
+    artifact_id?: (string | null) | undefined;
 }

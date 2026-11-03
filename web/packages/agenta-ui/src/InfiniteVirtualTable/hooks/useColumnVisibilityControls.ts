@@ -1,8 +1,7 @@
 import {useCallback, useMemo} from "react"
 import type {Key} from "react"
 
-import type {ColumnsType} from "antd/es/table"
-
+import type {ColumnDefs} from "../columnDef"
 import type {ColumnTreeNode, ColumnVisibilityState} from "../types"
 
 /**
@@ -10,7 +9,7 @@ import type {ColumnTreeNode, ColumnVisibilityState} from "../types"
  * Note: The hook uses string internally for keys but the atom uses React.Key
  */
 interface ColumnVisibilityHookResult<RecordType> {
-    visibleColumns: ColumnsType<RecordType>
+    visibleColumns: ColumnDefs<RecordType>
     leafKeys: string[]
     allKeys: string[]
     hiddenKeys: Key[]

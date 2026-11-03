@@ -23,15 +23,11 @@
  */
 
 import {projectIdAtom} from "@agenta/shared/state"
-import {
-    extractApiErrorMessage,
-    preserveResponseStatus,
-    stripAgentaMetadataDeep,
-} from "@agenta/shared/utils"
+import {extractApiErrorMessage, preserveResponseStatus} from "@agenta/shared/utils"
+import isEqual from "fast-deep-equal"
 import {atom, getDefaultStore} from "jotai"
 
-import {flattenEvaluatorConfiguration} from "../../runnable/evaluatorTransforms"
-import {syncPromptInputKeysInParameters} from "../../runnable/utils"
+import type {Visibility} from "../../sharing/core/schema"
 import {
     commitWorkflowRevisionApi,
     createWorkflow as createWorkflowApi,
@@ -40,68 +36,31 @@ import {
     archiveWorkflowVariant,
     queryWorkflowRevisions,
 } from "../api"
-import {generateSlug, type Workflow, type WorkflowData} from "../core"
+import {generateSlug, type Workflow} from "../core"
 
 import {workflowsListDataAtom} from "./allWorkflows"
+import {
+    buildCreatePayloadFromEphemeral,
+    prepareCommitParameters,
+    prepareCommitSchemas,
+} from "./createPayload"
 import {invalidateEvaluatorsListCache} from "./evaluatorUtils"
 import {
     workflowEntityAtomFamily,
-    discardWorkflowDraftAtom,
+    workflowDraftAtomFamily,
+    updateWorkflowDraftAtom,
+    consumeWorkflowDraftAtom,
+    transferBuildKitStateAtom,
+    migrateBuildKitStateAtom,
     invalidateWorkflowsListCache,
     invalidateWorkflowCache,
     invalidateWorkflowRevisionsByWorkflowCache,
     invalidateWorkflowRevisionsByVariantCache,
     invalidateWorkflowVariantsCache,
     primeWorkflowRevisionDetailCacheImperative,
+    primeCommittedRevisionRefLists,
     getFlatSourceData,
 } from "./store"
-
-// ============================================================================
-// HELPERS
-// ============================================================================
-
-/**
- * Prepare parameters for the commit API.
- * For evaluator workflows, flattens nested params (prompt.messages → prompt_template)
- * back to the flat format the backend expects.
- */
-function prepareCommitParameters(
-    entity: Workflow,
-    flatParams: Record<string, unknown> | null,
-): Record<string, unknown> | undefined {
-    // The playground build-kit overlay lives in read-only additional_context/session atoms. Commit
-    // reads only the user-owned revision config here, so platform ops and sandbox elevation stay out.
-    const rawParams = stripAgentaMetadataDeep(entity.data?.parameters) as
-        | Record<string, unknown>
-        | undefined
-    if (!rawParams) return undefined
-
-    const isEvaluator = entity.flags?.is_evaluator ?? false
-    if (isEvaluator) {
-        return flattenEvaluatorConfiguration(rawParams, flatParams)
-    }
-    return (
-        (syncPromptInputKeysInParameters(rawParams) as Record<string, unknown> | undefined) ??
-        rawParams
-    )
-}
-
-/**
- * Prepare schemas for the commit API.
- * Commits the edited `data.schemas` so input/output schema edits persist.
- * For evaluators the `parameters` subkey carries a display-only nesting transform
- * with no flatten inverse, so it is restored from the flat server schema.
- */
-function prepareCommitSchemas(
-    entity: Workflow,
-    flatSchemas: WorkflowData["schemas"] | null,
-): WorkflowData["schemas"] | undefined {
-    const edited = entity.data?.schemas
-    if (!entity.flags?.is_evaluator || !edited) {
-        return edited
-    }
-    return {...edited, parameters: flatSchemas?.parameters ?? edited.parameters}
-}
 
 // ============================================================================
 // TYPES
@@ -247,6 +206,7 @@ export const commitWorkflowRevisionAtom = atom(
     null,
     async (get, set, params: WorkflowCommitParams): Promise<WorkflowCommitOutcome> => {
         const {revisionId, commitMessage: _commitMessage} = params
+        set(migrateBuildKitStateAtom, revisionId)
 
         try {
             const projectId = get(projectIdAtom)
@@ -259,6 +219,9 @@ export const commitWorkflowRevisionAtom = atom(
             if (!entity) {
                 throw new Error(`No workflow entity found for ${revisionId}`)
             }
+            // What we are about to send. Step 4 compares against this so an edit made WHILE the
+            // request is in flight is not mistaken for something this commit contains.
+            const draftAtSend = get(workflowDraftAtomFamily(revisionId))
             const flatSource = getFlatSourceData(get, revisionId)
             const flatParams =
                 (flatSource?.data?.parameters as Record<string, unknown> | null) ?? null
@@ -308,6 +271,9 @@ export const commitWorkflowRevisionAtom = atom(
             // synchronously with `initialData`, keeping the just-created
             // revision selected through the navigation.
             primeWorkflowRevisionDetailCacheImperative(newWorkflow)
+            // The pickers list thin refs; seed the new one so the dropdown shows it immediately
+            // rather than after the invalidation below refetches.
+            primeCommittedRevisionRefLists(newWorkflow)
 
             const result: WorkflowCommitResult = {
                 success: true,
@@ -322,8 +288,24 @@ export const commitWorkflowRevisionAtom = atom(
                 await _commitCallbacks.onNewRevision(result, params)
             }
 
-            // 4. Discard draft
-            set(discardWorkflowDraftAtom, revisionId)
+            // 4. Discard only what this commit contains. The payload was snapshotted before the
+            // `await`, so an edit typed during the request is in neither the new revision nor —
+            // once discarded — anywhere else. Carry it onto the new revision instead.
+            const draftNow = get(workflowDraftAtomFamily(revisionId))
+            const editedDuringCommit = !isEqual(draftNow, draftAtSend)
+            let carriedForward = false
+            if (editedDuringCommit && draftNow?.data) {
+                set(updateWorkflowDraftAtom, newRevisionId, {data: draftNow.data})
+                // Dropped when the new revision has no server baseline yet — confirm, don't assume.
+                carriedForward = get(workflowDraftAtomFamily(newRevisionId)) !== null
+            }
+            // A stranded draft is recoverable; a discarded one is not.
+            if (!editedDuringCommit || carriedForward) {
+                // CONSUMED, not discarded. A host that switches to the new revision after this
+                // returns still has the old one on screen, and a surface that resets itself on a
+                // discard would reset here for a commit nobody asked for (D94).
+                set(consumeWorkflowDraftAtom, revisionId)
+            }
 
             // 5. Invalidate caches in the background so the caller (modal)
             // isn't blocked by network refetches.
@@ -331,6 +313,9 @@ export const commitWorkflowRevisionAtom = atom(
             invalidateEvaluatorsListCache()
             invalidateWorkflowCache(revisionId)
             invalidateWorkflowRevisionsByWorkflowCache(workflowId)
+            // The picker lists by VARIANT, so without this the revision just created is missing
+            // from the dropdown until something else refetches.
+            if (variantId) invalidateWorkflowRevisionsByVariantCache(variantId)
             if (_commitCallbacks.onQueryInvalidate) {
                 void _commitCallbacks.onQueryInvalidate()
             }
@@ -406,6 +391,7 @@ export const createWorkflowVariantAtom = atom(
         params: WorkflowCreateVariantParams,
     ): Promise<WorkflowCreateVariantOutcome> => {
         const {baseRevisionId, newVariantName, slug: explicitSlug, commitMessage} = params
+        set(migrateBuildKitStateAtom, baseRevisionId)
 
         try {
             const projectId = get(projectIdAtom)
@@ -499,8 +485,8 @@ export const createWorkflowVariantAtom = atom(
                 })
             }
 
-            // Discard draft for the base revision
-            set(discardWorkflowDraftAtom, baseRevisionId)
+            // CONSUMED, not discarded: the edits became a revision. See `consumeWorkflowDraftAtom`.
+            set(consumeWorkflowDraftAtom, baseRevisionId)
 
             // 6. Invalidate caches in the background so the caller (modal)
             // isn't blocked by network refetches.
@@ -544,6 +530,8 @@ export interface WorkflowCreateFromEphemeralParams {
     name?: string
     /** Slug for the new workflow. When provided, overrides auto-generation. */
     slug?: string
+    /** Sharing (M3): forwarded to the workflow create body. */
+    visibility?: Visibility
 }
 
 /**
@@ -564,7 +552,7 @@ export interface WorkflowCreateFromEphemeralParams {
 export const createWorkflowFromEphemeralAtom = atom(
     null,
     async (get, set, params: WorkflowCreateFromEphemeralParams): Promise<WorkflowCommitOutcome> => {
-        const {revisionId, commitMessage, name, slug} = params
+        const {revisionId, commitMessage, name, slug, visibility} = params
 
         try {
             const projectId = get(projectIdAtom)
@@ -572,15 +560,8 @@ export const createWorkflowFromEphemeralAtom = atom(
                 throw new Error("No project ID available")
             }
 
-            // 1. Read ephemeral entity data
-            const entity = get(workflowEntityAtomFamily(revisionId))
-            if (!entity) {
-                throw new Error(`No workflow entity found for ${revisionId}`)
-            }
-            const flatSource = getFlatSourceData(get, revisionId)
-            const flatParams =
-                (flatSource?.data?.parameters as Record<string, unknown> | null) ?? null
-            const flatSchemas = flatSource?.data?.schemas ?? null
+            // 1. Read the exact payload that ordinary ephemeral creation commits.
+            const {entity, data, flags} = buildCreatePayloadFromEphemeral(get, revisionId)
 
             // 2. Generate a unique slug (never use the template key)
             const workflowName = name || entity.name || "Workflow"
@@ -590,24 +571,15 @@ export const createWorkflowFromEphemeralAtom = atom(
             const newWorkflow = await createWorkflowApi(projectId, {
                 slug: workflowSlug,
                 name: workflowName,
-                flags: entity.flags
-                    ? {
-                          is_application: entity.flags.is_application,
-                          is_evaluator: entity.flags.is_evaluator,
-                          is_snippet: entity.flags.is_snippet,
-                      }
-                    : undefined,
+                flags,
                 message: commitMessage || undefined,
-                data: entity.data
-                    ? {
-                          uri: entity.data.uri,
-                          parameters: prepareCommitParameters(entity, flatParams),
-                          schemas: prepareCommitSchemas(entity, flatSchemas),
-                      }
-                    : undefined,
+                data,
+                visibility,
             })
 
             const newRevisionId = newWorkflow.id
+            if (newWorkflow.workflow_id)
+                set(transferBuildKitStateAtom, {revisionId, workflowId: newWorkflow.workflow_id})
 
             // Prime the per-revision detail cache before callbacks run —
             // see the matching comment in `commitWorkflowRevisionAtom`.
@@ -627,8 +599,8 @@ export const createWorkflowFromEphemeralAtom = atom(
             // 4. Invoke commit callbacks (reuse shared helper)
             await invokeWorkflowCommitCallbacks(result, {revisionId, commitMessage})
 
-            // 5. Discard local draft
-            set(discardWorkflowDraftAtom, revisionId)
+            // 5. The commit consumed the local draft; it was not discarded.
+            set(consumeWorkflowDraftAtom, revisionId)
 
             // 6. Invalidate caches (both app and evaluator lists)
             invalidateWorkflowsListCache()

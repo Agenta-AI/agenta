@@ -1,0 +1,1 @@
+{"parameters":[{"name":"workflow_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Workflow Id"}}]}

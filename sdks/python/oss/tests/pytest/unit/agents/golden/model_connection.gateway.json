@@ -1,0 +1,13 @@
+{
+  "provider": "openai",
+  "deployment": "custom",
+  "credentialMode": "none",
+  "credentials": [],
+  "endpoint": {
+    "baseUrl": "https://gateway.example.com/gateways/llms/standard/openai"
+  },
+  "gatewayCredentials": {
+    "header": "X-AG-Credentials",
+    "value": "ApiKey mock-gateway-credentials"
+  }
+}

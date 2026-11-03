@@ -15,11 +15,11 @@ import type {
     TestProviderProfileInfo,
 } from "./types"
 
-// Header of the custom-providers ("OpenAI-compatible endpoints") section, and the
-// label of the button that opens its create form. Both are product copy; keep them
-// here so a rename is a one-line fix rather than a hunt through the helpers.
-const CUSTOM_PROVIDERS_SECTION_HEADER = "OpenAI-compatible endpoints"
-const CUSTOM_PROVIDER_ADD_BUTTON_LABEL = "Add endpoint"
+// Settings presents providers as a catalog: a Connected group, then the groups to connect
+// from. Keep the page and group copy here so future wording changes stay local to this fixture.
+const PROVIDERS_PAGE_HEADING = "AI providers"
+const CATALOG_GROUP_HEADING = "Model providers"
+const CONNECTED_GROUP_HEADING = "Connected"
 
 const MOCK_PROVIDER_NAME = "mock"
 const MOCK_PROVIDER_KIND = "custom"
@@ -30,6 +30,10 @@ const MOCK_API_BASE_URL = "https://mockgpt.wiremockapi.cloud/v1"
 interface VaultSecretRecord {
     id: string
     kind: string
+    value_status?: {
+        configured?: boolean
+        preview?: string | null
+    }
     header?: {
         name?: string
     }
@@ -134,44 +138,20 @@ function readTestProjectMetadata(): TestProjectMetadata | null {
 }
 
 async function waitForModelsPageReady(page: Page): Promise<void> {
-    const customProvidersSection = getCustomProvidersSection(page)
-
-    await page.waitForLoadState("networkidle", {timeout: 10000}).catch(() => {})
+    const providersSection = getProvidersSection(page)
 
     await expect
         .poll(
             async () => {
                 const pathname = new URL(page.url()).pathname
                 const hasScopedSettingsPath = /\/w\/[^/]+\/p\/[^/]+\/settings$/.test(pathname)
-                const headingVisible = await page
-                    .getByRole("heading", {name: "LLMs"})
-                    .isVisible()
-                    .catch(() => false)
-                const sectionVisible = await customProvidersSection.isVisible().catch(() => false)
-                const hasVisibleSpinner = await customProvidersSection
-                    .locator(".ant-spin-spinning")
-                    .isVisible()
-                    .catch(() => false)
-                // `.first()` matters: the section renders this button twice (once in the
-                // header, once in the empty-state row). Without it the locator is strict-mode
-                // ambiguous and `isEnabled()` throws — pollLocatorState lets that throw
-                // through instead of swallowing it, so a future selector regression fails
-                // loudly instead of timing out with a "never reached a stable ready state"
-                // message that names no real cause.
-                const createButtonEnabled = await pollLocatorState(() =>
-                    customProvidersSection
-                        .getByRole("button", {name: CUSTOM_PROVIDER_ADD_BUTTON_LABEL})
-                        .first()
-                        .isEnabled(),
+                const headingVisible = await pollLocatorState(() =>
+                    page.getByRole("heading", {name: PROVIDERS_PAGE_HEADING}).isVisible(),
                 )
+                // The catalog draws skeleton groups without headings until connections load.
+                const sectionVisible = await pollLocatorState(() => providersSection.isVisible())
 
-                return (
-                    hasScopedSettingsPath &&
-                    headingVisible &&
-                    sectionVisible &&
-                    !hasVisibleSpinner &&
-                    createButtonEnabled
-                )
+                return hasScopedSettingsPath && headingVisible && sectionVisible
             },
             {
                 timeout: 15000,
@@ -196,31 +176,30 @@ async function navigateToModels(page: Page, uiHelpers: UIHelpers): Promise<void>
     await page.goto(`${projectBasePath}/settings?tab=llms`, {waitUntil: "domcontentloaded"})
 
     await uiHelpers.expectPath("/settings")
-    await expect(page.getByRole("heading", {name: "LLMs"})).toBeVisible({
+    await expect(page.getByRole("heading", {name: PROVIDERS_PAGE_HEADING})).toBeVisible({
         timeout: 15000,
     })
-    await expect(getCustomProvidersSection(page)).toBeVisible({timeout: 15000})
+    await expect(getProvidersSection(page)).toBeVisible({timeout: 15000})
     await waitForModelsPageReady(page)
 }
 
-function getCustomProvidersSection(page: Page): Locator {
-    // Anchored on the section's own header text. This used to key off the
-    // "OpenAI-compatible endpoint" trigger button, but that button is now labelled
-    // "Add endpoint", so the old anchor matched nothing and the section could never
-    // be found. The header reads "OpenAI-compatible endpoints" (plural).
+function getCatalogGroup(page: Page, heading: string): Locator {
     return page
-        .getByText(CUSTOM_PROVIDERS_SECTION_HEADER, {exact: true})
-        .locator("xpath=ancestor::section[1]")
+        .locator("section")
+        .filter({has: page.getByRole("heading", {name: heading, exact: true})})
         .first()
 }
 
-async function getCustomProviderRow(page: Page, providerName: string): Promise<Locator | null> {
-    const customProvidersSection = getCustomProvidersSection(page)
-    const table = customProvidersSection.getByRole("table").first()
+function getProvidersSection(page: Page): Locator {
+    // Always drawn once the page loads, connected providers or not.
+    return getCatalogGroup(page, CATALOG_GROUP_HEADING)
+}
 
-    const row = table
-        .getByRole("row")
-        .filter({has: page.getByRole("cell", {name: providerName, exact: true})})
+async function getCustomProviderRow(page: Page, providerName: string): Promise<Locator | null> {
+    // A connected provider is a clickable row in the Connected group, named by its connection.
+    const row = getCatalogGroup(page, CONNECTED_GROUP_HEADING)
+        .getByRole("button")
+        .filter({has: page.getByText(providerName, {exact: true})})
         .first()
 
     return (await row.count()) > 0 ? row : null
@@ -262,7 +241,8 @@ function assertMockProviderSecret(secret: VaultSecretRecord): void {
     expect(secret.header?.name).toBe(MOCK_PROVIDER_NAME)
     expect(secret.data?.kind).toBe(MOCK_PROVIDER_KIND)
     expect(secret.data?.provider?.url).toBe(MOCK_API_BASE_URL)
-    expect(secret.data?.provider?.extras?.api_key).toBe(MOCK_API_KEY)
+    expect(secret.value_status?.configured).toBe(true)
+    expect(secret.data?.provider?.extras?.api_key).toBeUndefined()
     expect(secret.data?.models?.some((model) => model.slug === MOCK_MODEL_NAME)).toBe(true)
 }
 
@@ -313,14 +293,12 @@ async function createMockProvider(page: Page, uiHelpers: UIHelpers): Promise<voi
     await page.reload({waitUntil: "domcontentloaded"})
     await waitForModelsPageReady(page)
 
-    const providerNameCell = getCustomProvidersSection(page).getByRole("cell", {
-        name: MOCK_PROVIDER_NAME,
-        exact: true,
-    })
-
-    const providerVisible = await providerNameCell.isVisible({timeout: 5000}).catch(() => false)
-    if (providerVisible) {
-        await expect(providerNameCell).toBeVisible({timeout: 15000})
+    const providerRow = await getCustomProviderRow(page, MOCK_PROVIDER_NAME)
+    const providerVisible =
+        providerRow !== null &&
+        (await pollLocatorState(() => providerRow.isVisible({timeout: 5000})))
+    if (providerRow && providerVisible) {
+        await expect(providerRow).toBeVisible({timeout: 15000})
     }
 }
 
@@ -425,31 +403,36 @@ async function selectMockModel(page: Page): Promise<void> {
 
     await modelButton.click()
 
-    // The configure popover contains "Configure" somewhere in its header area.
-    // Use a partial-text match so "Configure model" and "Configure" both match.
+    // The configure popover is a Radix Popover (@agenta/ui), not an antd Popover —
+    // PopoverContent renders with data-slot="popover-content", not .ant-popover.
+    // It contains "Configure" somewhere in its header area; a partial-text match
+    // covers both "Configure model" and "Configure".
     const configurePopover = page
-        .locator(".ant-popover")
+        .locator('[data-slot="popover-content"]')
         .filter({has: page.getByText(/Configure/i)})
         .last()
     await expect(configurePopover).toBeVisible({timeout: 15000})
 
-    // Find the model selector inside the popover. When currentModel is known, narrow
-    // to the select that displays it; otherwise fall back to the first select.
-    const modelSelect =
-        currentModel.length > 0
-            ? configurePopover.locator(".ant-select").filter({hasText: currentModel}).first()
-            : configurePopover.locator(".ant-select").first()
-    await expect(modelSelect).toBeVisible({timeout: 15000})
-    await modelSelect.click()
+    // The model select (SelectLLMProviderBase, also @agenta/ui) is itself a nested
+    // Radix Popover: a disclosure button (aria-haspopup="listbox", deliberately not
+    // role="combobox" — see SelectLLMProviderBase.tsx) that opens a search input plus
+    // a role="listbox"/role="option" list. Not an antd Select/dropdown.
+    const modelSelectTrigger = configurePopover.locator('[aria-haspopup="listbox"]').first()
+    await expect(modelSelectTrigger).toBeVisible({timeout: 15000})
+    await modelSelectTrigger.click()
 
-    const dropdown = page.locator(".ant-select-dropdown").last()
-    await expect(dropdown).toBeVisible({timeout: 15000})
+    // The select's own popover portals to <body> as a sibling of configurePopover, so
+    // grab the most recently opened data-slot="popover-content" instead of nesting.
+    const modelListPopover = page.locator('[data-slot="popover-content"]').last()
+    await expect(modelListPopover).toBeVisible({timeout: 15000})
 
-    const searchInput = dropdown.locator("input").first()
+    const searchInput = modelListPopover.getByPlaceholder("Search")
     await expect(searchInput).toBeVisible({timeout: 15000})
     await searchInput.fill(MOCK_MODEL_NAME)
 
-    const mockModelOption = dropdown.getByText(new RegExp(`(^|/)${MOCK_MODEL_NAME}$`)).last()
+    const mockModelOption = modelListPopover
+        .getByRole("option", {name: new RegExp(`(^|/)${MOCK_MODEL_NAME}$`)})
+        .last()
     await expect(mockModelOption).toBeVisible({timeout: 15000})
     await mockModelOption.click()
 

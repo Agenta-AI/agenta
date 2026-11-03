@@ -1,0 +1,23 @@
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: none;
+  color: var(--contentprimary);
+  cursor: pointer;
+  transition: background-color var(--ifm-transition-fast) ease;
+}
+
+.toggle:hover {
+  background-color: var(--bgelevated1);
+}
+
+.toggle:focus-visible {
+  outline: 2px solid var(--contentprimary);
+  outline-offset: 2px;
+}

@@ -1,18 +1,18 @@
 import {useCallback, useEffect, useMemo} from "react"
 
-import {Tag} from "antd"
-import {useAtomValue} from "jotai"
-import dynamic from "next/dynamic"
-
 import {
+    getSettingsTabVariant,
     DEFAULT_SETTINGS_TAB,
     getSettingsTabDescription,
     getSettingsTabDocs,
     getSettingsTabLabel,
     resolveSettingsTab,
-    type SettingsTabKey,
-} from "@/oss/components/pages/settings/assets/navigation"
-import SettingsPageShell from "@/oss/components/pages/settings/components/SettingsPageShell"
+} from "@agenta/settings"
+import {SettingsPageShell} from "@agenta/settings-ui"
+import {Tag} from "antd"
+import {useAtomValue} from "jotai"
+import dynamic from "next/dynamic"
+
 import {useSettingsAccess} from "@/oss/components/pages/settings/hooks/useSettingsAccess"
 import PageTitle from "@/oss/components/PageTitle"
 import {useQueryParam} from "@/oss/hooks/useQuery"
@@ -21,9 +21,10 @@ import {useOrgData} from "@/oss/state/org"
 import {useProjectData} from "@/oss/state/project"
 import {settingsTabAtom} from "@/oss/state/settings"
 
-const Secrets = dynamic(() => import("@/oss/components/pages/settings/Secrets/Secrets"), {
-    ssr: false,
-})
+const AIProviders = dynamic(
+    () => import("@/oss/components/pages/settings/AIProviders/AIProviders"),
+    {ssr: false},
+)
 const Vault = dynamic(() => import("@/oss/components/pages/settings/Vault/Vault"), {
     ssr: false,
 })
@@ -32,6 +33,9 @@ const WorkspaceManage = dynamic(
     {ssr: false},
 )
 const APIKeys = dynamic(() => import("@/oss/components/pages/settings/APIKeys/APIKeys"), {
+    ssr: false,
+})
+const Analytics = dynamic(() => import("@/oss/components/pages/settings/Analytics/Analytics"), {
     ssr: false,
 })
 const Billing = dynamic(() => import("@/oss/components/pages/settings/Billing"), {
@@ -46,7 +50,7 @@ const Tools = dynamic(() => import("@/oss/components/pages/settings/Tools/Tools"
     ssr: false,
 })
 
-const Triggers = dynamic(() => import("@/oss/components/pages/settings/Triggers/Triggers"), {
+const Channels = dynamic(() => import("@/oss/components/pages/settings/Channels/Channels"), {
     ssr: false,
 })
 
@@ -68,6 +72,11 @@ const Webhooks = dynamic(() => import("@/oss/components/pages/settings/Webhooks/
     ssr: false,
 })
 
+const MCPEndpoints = dynamic(
+    () => import("@/oss/components/pages/settings/MCPEndpoints/MCPEndpoints"),
+    {ssr: false},
+)
+
 const Preferences = dynamic(
     () => import("@/oss/components/pages/settings/Preferences/Preferences"),
     {ssr: false},
@@ -78,13 +87,11 @@ interface SettingsProps {
 }
 
 /** Tabs that render a form rather than a table, so they cap at 640 instead of 1120. */
-const FORM_TABS = new Set<SettingsTabKey>(["account", "preferences"])
 
 /**
- * Tabs that render nothing but a virtualized table needing the full page to scroll
- * internally. Everything else that isn't a form gets the 1120 table cap.
+ * Tabs whose table is wider than the 1120 cap every other table tab gets — the Audit Log
+ * carries a timestamp, a dotted event type and a full UUID on one row.
  */
-const FULL_WIDTH_TABS = new Set<SettingsTabKey>(["auditLog"])
 
 export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
     const [tabQuery] = useQueryParam("tab", undefined, "replace")
@@ -97,13 +104,13 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
     const {redirectUrl} = useURL()
     const settingsKey = `${selectedOrg?.id ?? "org"}:${project?.project_id ?? "project"}`
 
+    const isDemoOrg = selectedOrg?.flags?.is_demo ?? false
+
     useEffect(() => {
-        if (project?.is_demo) {
+        if (project && isDemoOrg) {
             redirectUrl()
         }
-    }, [project, redirectUrl])
-
-    const isDemoOrg = selectedOrg?.flags?.is_demo ?? false
+    }, [project, isDemoOrg, redirectUrl])
 
     // The org ID has its own column now; the title only carries the demo marker.
     const buildOrganizationTitle = useCallback(
@@ -133,18 +140,26 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                     ),
                 }
             case "llms":
-                return {content: <Secrets />, title: getSettingsTabLabel("llms", settingsAccess)}
+                return {
+                    content: <AIProviders />,
+                    title: getSettingsTabLabel("llms", settingsAccess),
+                }
             case "secrets":
                 return {content: <Vault />, title: getSettingsTabLabel("secrets", settingsAccess)}
             case "tools":
                 return {content: <Tools />, title: getSettingsTabLabel("tools", settingsAccess)}
-            case "triggers":
+            case "channels":
                 return {
-                    content: <Triggers />,
-                    title: getSettingsTabLabel("triggers", settingsAccess),
+                    content: <Channels />,
+                    title: getSettingsTabLabel("channels", settingsAccess),
                 }
             case "apiKeys":
                 return {content: <APIKeys />, title: getSettingsTabLabel("apiKeys", settingsAccess)}
+            case "analytics":
+                return {
+                    content: <Analytics />,
+                    title: getSettingsTabLabel("analytics", settingsAccess),
+                }
             case "billing":
                 return {
                     content: <Billing />,
@@ -154,6 +169,11 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                 return {
                     content: <Webhooks />,
                     title: getSettingsTabLabel("webhooks", settingsAccess),
+                }
+            case "mcpEndpoints":
+                return {
+                    content: <MCPEndpoints />,
+                    title: getSettingsTabLabel("mcpEndpoints", settingsAccess),
                 }
             case "auditLog":
                 return {
@@ -191,15 +211,7 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                 title={title}
                 description={getSettingsTabDescription(resolvedTab, settingsAccess)}
                 docs={getSettingsTabDocs(resolvedTab)}
-                variant={
-                    FORM_TABS.has(resolvedTab)
-                        ? "form"
-                        : FULL_WIDTH_TABS.has(resolvedTab)
-                          ? "full"
-                          : "table"
-                }
-                // Audit Log's virtual table needs a bounded parent to scroll internally.
-                fullHeight={resolvedTab === "auditLog"}
+                variant={getSettingsTabVariant(resolvedTab)}
             >
                 {content}
             </SettingsPageShell>

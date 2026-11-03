@@ -1,11 +1,16 @@
 import {useMemo, type ComponentProps} from "react"
 
-import {formatCompactNumber, formatCurrency, formatNumber} from "@agenta/shared/utils"
-import {ChartLineIcon} from "@phosphor-icons/react"
+import {RangePicker} from "@agenta/observability-ui"
+import {
+    formatCompactNumber,
+    formatCurrency,
+    formatNumber,
+    formatPercent,
+} from "@agenta/shared/utils"
+import {ChartLineIcon, WarningCircleIcon} from "@phosphor-icons/react"
 import {Spin} from "antd"
 import {useAtom} from "jotai"
 
-import Sort from "@/oss/components/Filters/Sort"
 import {useObservabilityDashboard} from "@/oss/state/observability"
 import {observabilityDashboardTimeRangeAtom} from "@/oss/state/observability/dashboard"
 
@@ -23,15 +28,26 @@ const gridLayout2Class = "grid grid-cols-2 gap-5 [@media(max-width:768px)]:grid-
 const gridLayout4Class =
     "grid grid-cols-2 gap-5 [@media(min-width:1360px)]:grid-cols-4 [@media(max-width:850px)]:grid-cols-1"
 
-const EmptyChart = ({className}: {className: string}) => (
+// Both grids key off the VIEWPORT, so a narrow container on a wide screen still gets four
+// columns. `stack` is for containers, not screens: the rail is ~340px whatever the display does.
+const stackLayoutClass = "flex flex-col gap-5"
+
+/** A failed query is not an empty window: the reason shows once above the grid, not "No data". */
+const EmptyChart = ({className, failed}: {className: string; failed: boolean}) => (
     <div className={className}>
-        <ChartLineIcon size={18} />
-        <span>No data</span>
+        {failed ? (
+            <WarningCircleIcon size={18} />
+        ) : (
+            <>
+                <ChartLineIcon size={18} />
+                <span>No data</span>
+            </>
+        )}
     </div>
 )
 
 interface AnalyticsDashboardProps {
-    layout?: "grid-2" | "grid-4"
+    layout?: "grid-2" | "grid-4" | "stack"
     showTimeRangeSelector?: boolean
 }
 
@@ -39,7 +55,7 @@ const AnalyticsDashboard = ({
     layout = "grid-2",
     showTimeRangeSelector = true,
 }: AnalyticsDashboardProps) => {
-    const {data, loading, isFetching} = useObservabilityDashboard()
+    const {data, loading, isFetching, errorMessage} = useObservabilityDashboard()
     const [timeRange, setTimeRange] = useAtom(observabilityDashboardTimeRangeAtom)
 
     const chartData = useMemo(() => (data?.data?.length ? data.data : []), [data])
@@ -48,7 +64,6 @@ const AnalyticsDashboard = ({
     const defaultGraphProps = useMemo<ComponentProps<typeof CustomAreaChart>>(
         () => ({
             className: "h-[140px]",
-            colors: ["cyan-600", "rose"],
             tickCount: 5,
             index: "timestamp",
             data: chartData,
@@ -58,23 +73,34 @@ const AnalyticsDashboard = ({
         [chartData],
     )
 
-    const gridClassName = layout === "grid-4" ? gridLayout4Class : gridLayout2Class
+    const gridClassName =
+        layout === "stack"
+            ? stackLayoutClass
+            : layout === "grid-4"
+              ? gridLayout4Class
+              : gridLayout2Class
 
     return (
         <div>
             {showTimeRangeSelector ? (
                 <div className="flex justify-end mb-4">
-                    <Sort
+                    <RangePicker
                         type="text"
                         disabled={loading || isFetching}
-                        onSortApply={setTimeRange}
-                        defaultSortValue={timeRange.label || "1 month"}
+                        value={timeRange}
+                        onChange={setTimeRange}
+                        fallbackLabel="1 month"
                         exclude={["all time"]}
                         ariaLabel="Usage date range"
                     />
                 </div>
             ) : null}
             <Spin spinning={loading || isFetching}>
+                {errorMessage && !(loading || isFetching) ? (
+                    <div role="alert" className="mb-4 text-[13px] text-colorError">
+                        {errorMessage}
+                    </div>
+                ) : null}
                 <div className={gridClassName}>
                     <WidgetCard
                         title="Requests"
@@ -91,8 +117,10 @@ const AnalyticsDashboard = ({
                                 <div className={`${statTextClass} danger`}>
                                     <span className="label">Failed:</span>
                                     <span className="value">
+                                        {/* `failure_rate` is a 0-1 fraction, not a percentage —
+                                            `formatPercent` does the scaling and the suffix. */}
                                         {data?.failure_rate
-                                            ? `${formatNumber(data?.failure_rate)}%`
+                                            ? formatPercent(data.failure_rate)
                                             : "-"}
                                     </span>
                                 </div>
@@ -109,7 +137,10 @@ const AnalyticsDashboard = ({
                                 }
                             />
                         ) : (
-                            <EmptyChart className={emptyStateClass} />
+                            <EmptyChart
+                                className={emptyStateClass}
+                                failed={Boolean(errorMessage)}
+                            />
                         )}
                     </WidgetCard>
 
@@ -133,7 +164,10 @@ const AnalyticsDashboard = ({
                                 valueFormatter={(value) => `${formatCompactNumber(value)}ms`}
                             />
                         ) : (
-                            <EmptyChart className={emptyStateClass} />
+                            <EmptyChart
+                                className={emptyStateClass}
+                                failed={Boolean(errorMessage)}
+                            />
                         )}
                     </WidgetCard>
 
@@ -148,11 +182,26 @@ const AnalyticsDashboard = ({
                             </div>
                         }
                         rightSubHeading={
-                            <div className={statTextClass}>
-                                <span className="label">Avg:</span>
-                                <span className="value">
-                                    {data?.total_cost ? formatCurrency(data.avg_cost) : "-"}
-                                </span>
+                            <div className="flex items-center gap-4">
+                                <div className={statTextClass}>
+                                    <span className="label">Avg:</span>
+                                    <span className="value">
+                                        {data?.total_cost ? formatCurrency(data.avg_cost) : "-"}
+                                    </span>
+                                </div>
+                                {/* Traces with no cost on their root add 0 to the total. Show
+                                    how many, so a low total is not read as a cheap period. */}
+                                {(data?.without_cost_count ?? 0) > 0 && (
+                                    <div
+                                        className={statTextClass}
+                                        title="These traces have no cost on their root span. Either they made no priced model call, or their cost could not be added up."
+                                    >
+                                        <span className="label">Without cost:</span>
+                                        <span className="value">
+                                            {formatNumber(data?.without_cost_count ?? 0)}
+                                        </span>
+                                    </div>
+                                )}
                             </div>
                         }
                     >
@@ -160,11 +209,13 @@ const AnalyticsDashboard = ({
                             <CustomAreaChart
                                 {...defaultGraphProps}
                                 categories={["cost"]}
-                                colors={["cyan-600"]}
                                 valueFormatter={(value) => formatCurrency(value)}
                             />
                         ) : (
-                            <EmptyChart className={emptyStateClass} />
+                            <EmptyChart
+                                className={emptyStateClass}
+                                failed={Boolean(errorMessage)}
+                            />
                         )}
                     </WidgetCard>
 
@@ -188,13 +239,12 @@ const AnalyticsDashboard = ({
                         }
                     >
                         {hasData ? (
-                            <CustomAreaChart
-                                {...defaultGraphProps}
-                                categories={["total_tokens"]}
-                                colors={["cyan-600"]}
-                            />
+                            <CustomAreaChart {...defaultGraphProps} categories={["total_tokens"]} />
                         ) : (
-                            <EmptyChart className={emptyStateClass} />
+                            <EmptyChart
+                                className={emptyStateClass}
+                                failed={Boolean(errorMessage)}
+                            />
                         )}
                     </WidgetCard>
                 </div>

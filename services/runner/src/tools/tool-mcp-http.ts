@@ -37,7 +37,9 @@ import type { AddressInfo } from "node:net";
 
 import type { ResolvedToolSpec } from "../protocol.ts";
 import { EMPTY_OBJECT_SCHEMA, MAX_BODY_BYTES } from "./callback.ts";
-import { runResolvedTool } from "./dispatch.ts";
+import { runResolvedToolAllowingPause } from "./dispatch.ts";
+import { GATEWAY_RUN_CALL_REF } from "./gateway-policy.ts";
+import { RELAY_PAUSED } from "./relay-client.ts";
 import type { ClientToolRelay } from "./client-tool-relay.ts";
 import type { ExecutableToolGate } from "./executable-tool-gate.ts";
 import { assertRequiredArguments, specInputSchema } from "./spec-schema.ts";
@@ -241,10 +243,14 @@ async function handle(
       // The channel holds only public metadata; execution relays to the runner via the relay
       // dir, where the private spec + callback auth are applied server-side. A unique id per
       // call keeps parallel calls from colliding.
-      const text = await runResolvedTool(spec, params?.arguments, {
+      const text = await runResolvedToolAllowingPause(spec, params?.arguments, {
         toolCallId: callId ?? randomUUID(),
         relayDir,
       });
+      // A gateway call whose compiled permission is `ask` parks at the relay seam, below this
+      // handler. The turn has already ended; answer the way an in-process pause does so the
+      // harness cannot settle the call, rather than reporting a tool error for a real pause.
+      if (text === RELAY_PAUSED) return MCP_PAUSED;
       return {
         jsonrpc: "2.0",
         id,
@@ -389,14 +395,34 @@ export function startInternalToolMcpServer(
         // A batch is an array; handle each and answer with an array of the responses that have
         // an id (notifications produce none).
         if (Array.isArray(parsed)) {
-          // A client tool crosses a turn boundary and cannot safely participate in concurrent
-          // batch execution. Preflight the whole batch so no sibling item executes first.
-          const containsClientToolCall = parsed.some((message) => {
-            if (message?.method !== "tools/call") return false;
+          // Two kinds of call cannot safely participate in concurrent batch execution, for the
+          // same reason: both can PAUSE, and a pause aborts the whole batch. Every sibling that
+          // already ran is then a side effect with no result — the model never learns it
+          // happened, and the obvious recovery is to send it again. Preflight the whole batch so
+          // no sibling executes at all.
+          //
+          //  - A client tool, which crosses a turn boundary to the browser.
+          //  - A `gateway.run` call, which pauses at the relay seam when its compiled permission
+          //    is `ask`. Rejecting is what keeps the paused case honest; serializing the batch
+          //    would still leave the items ahead of it executed and discarded.
+          //
+          // `gateway.search` is deliberately not here: it cannot pause, and re-running a read is
+          // harmless. The single-call path is untouched either way.
+          let unbatchable: string | undefined;
+          for (const message of parsed) {
+            if (message?.method !== "tools/call") continue;
             const spec = specByName.get(message?.params?.name);
-            return spec && (spec.kind ?? "callback") === "client";
-          });
-          if (containsClientToolCall) {
+            if (!spec) continue;
+            if ((spec.kind ?? "callback") === "client") {
+              unbatchable = "client";
+              break;
+            }
+            if (spec.callRef === GATEWAY_RUN_CALL_REF) {
+              unbatchable = `'${message.params.name}'`;
+              break;
+            }
+          }
+          if (unbatchable) {
             res.writeHead(400, { "content-type": "application/json" });
             res.end(
               JSON.stringify({
@@ -404,7 +430,7 @@ export function startInternalToolMcpServer(
                 id: null,
                 error: {
                   code: -32600,
-                  message: "client tools/call is not supported in a batch",
+                  message: `${unbatchable} tools/call is not supported in a batch; send it on its own`,
                 },
               }),
             );

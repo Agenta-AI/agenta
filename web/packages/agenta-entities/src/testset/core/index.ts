@@ -10,9 +10,6 @@ export {
     revisionSchema,
     revisionSchemas,
     type Revision,
-    type CreateRevision,
-    type UpdateRevision,
-    type LocalRevision,
     revisionListItemSchema,
     type RevisionListItem,
     revisionsResponseSchema,
@@ -22,8 +19,6 @@ export {
     testsetSchemas,
     type Testset,
     type CreateTestset,
-    type UpdateTestset,
-    type LocalTestset,
     testsetsResponseSchema,
     type TestsetsResponse,
     // Variant
@@ -36,6 +31,15 @@ export {
     NEW_TESTSET_ID,
     isNewTestsetId,
 } from "./schema"
+
+// File import helpers (pure, no external dependencies)
+export {
+    detectTestsetFileType,
+    parseCsvRows,
+    readTestsetFilePreview,
+    type TestsetFileType,
+    type TestsetFilePreviewResult,
+} from "./fileImport"
 
 // API parameter types
 export type {

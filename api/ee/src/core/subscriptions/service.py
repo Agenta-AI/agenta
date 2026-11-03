@@ -1,5 +1,6 @@
+import asyncio
 from typing import Optional
-from uuid import getnode
+from uuid import UUID, getnode
 from datetime import datetime, timezone, timedelta
 
 from oss.src.utils.logging import get_module_logger
@@ -21,6 +22,7 @@ from ee.src.core.subscriptions.settings import (
     trial_enabled,
 )
 from ee.src.core.subscriptions.interfaces import SubscriptionsDAOInterface
+from ee.src.core.wallets.service import WalletsService
 
 log = get_module_logger(__name__)
 
@@ -35,12 +37,120 @@ class EventException(Exception):
     pass
 
 
+class StaleEventException(Exception):
+    """The event is for a subscription the organization no longer has. The webhook
+    acknowledges it, so Stripe stops retrying, and nothing is written."""
+
+
+_ENDED_STRIPE_STATUSES = frozenset({"canceled", "incomplete_expired"})
+
+
+async def _stripe_subscription_ended(subscription_id: str) -> bool:
+    """Whether Stripe reports the subscription as ended.
+
+    Raises EventException when Stripe cannot be read, so the webhook answers non-2xx
+    and Stripe retries the event instead of it being applied on a guess.
+    """
+    stripe = _load_stripe()
+    if stripe is None:
+        raise EventException("Stripe is not available to check the subscription")
+
+    try:
+        # The Stripe client is synchronous; keep the request off the event loop.
+        stripe_subscription = await asyncio.to_thread(
+            stripe.Subscription.retrieve, subscription_id
+        )
+    except Exception as e:  # pylint: disable=too-broad-exception
+        log.warn("Failed to read subscription %s from Stripe", subscription_id)
+        raise EventException(
+            f"Could not read subscription {subscription_id} from Stripe"
+        ) from e
+
+    status = getattr(stripe_subscription, "status", None)
+    if status is None and isinstance(stripe_subscription, dict):
+        status = stripe_subscription.get("status")
+
+    return status in _ENDED_STRIPE_STATUSES
+
+
+async def _is_stale_event(
+    *,
+    event: Event,
+    subscription_id: str,
+    recorded_subscription_id: Optional[str],
+    recorded_plan_is_free: bool,
+) -> bool:
+    """Whether a Stripe event is for a subscription the organization no longer has.
+
+    Stripe delivers events out of order and retries them for days, so an event can
+    arrive after the organization's subscription changed. A different id alone does
+    not prove the event is older, so Stripe decides: an ended subscription's event
+    is stale; a live one's is applied (CREATED) or refused so Stripe retries it.
+    """
+    if subscription_id == recorded_subscription_id:
+        return False
+
+    # A paid row with no recorded id has nothing to compare: apply, as before.
+    if (
+        event != Event.SUBSCRIPTION_CREATED
+        and not recorded_subscription_id
+        and not recorded_plan_is_free
+    ):
+        return False
+
+    if await _stripe_subscription_ended(subscription_id):
+        return True
+
+    # A live subscription the row does not record yet: CREATED records it. Any other
+    # event waits for that, so it is refused and Stripe retries it.
+    if event == Event.SUBSCRIPTION_CREATED:
+        return False
+
+    raise EventException(
+        f"Event {event.value} is for subscription {subscription_id}, which is live "
+        "but not the one recorded yet"
+    )
+
+
 class SubscriptionsService:
     def __init__(
         self,
         subscriptions_dao: SubscriptionsDAOInterface,
+        wallets_service: Optional[WalletsService] = None,
     ):
         self.subscriptions_dao = subscriptions_dao
+        # Wired only into the billing router's instance, which handles the Stripe
+        # webhook. A plan change writes nothing to the wallet: it changes which plan
+        # allowance the next billing period grants (open-designs items 22 and 23).
+        self.wallets_service = wallets_service
+
+    async def grant_period_credits(
+        self,
+        *,
+        organization_id: str,
+        plan: str,
+        period_start: datetime,
+        period_end: datetime,
+    ) -> None:
+        """Grant the monthly credits of a paid billing period. Idempotent per
+        organization and period (see `WalletsService.grant_period_allowance`)."""
+        if not env.wallets.enabled or self.wallets_service is None:
+            return
+
+        credit = await self.wallets_service.grant_period_allowance(
+            organization_id=UUID(organization_id),
+            plan=plan,
+            period_start=period_start,
+            period_end=period_end,
+        )
+
+        log.info(
+            "[billing] [wallets] period credits %s | %s | %s | %s",
+            organization_id,
+            plan,
+            period_start.isoformat(),
+            credit.amount_musd if credit else 0,
+        )
 
     async def create(
         self,
@@ -62,6 +172,33 @@ class SubscriptionsService:
         subscription: SubscriptionDTO,
     ) -> Optional[SubscriptionDTO]:
         return await self.subscriptions_dao.update(subscription=subscription)
+
+    async def _apply_event_write(
+        self,
+        *,
+        subscription: SubscriptionDTO,
+        recorded_subscription_id: Optional[str],
+        guarded: bool,
+    ) -> Optional[SubscriptionDTO]:
+        """Write the row an event produced. A Stripe event's write applies only if the
+        row still records the subscription it was checked against; otherwise another
+        event changed it in between and this one is refused, so Stripe retries it."""
+        if not guarded:
+            return await self.update(subscription=subscription)
+
+        updated = await self.subscriptions_dao.update(
+            subscription=subscription,
+            check_subscription_id=True,
+            expected_subscription_id=recorded_subscription_id,
+        )
+
+        if updated is None:
+            raise EventException(
+                f"The subscription for organization ID {subscription.organization_id} "
+                "changed while the event was applied"
+            )
+
+        return updated
 
     async def start_reverse_trial(
         self,
@@ -208,7 +345,8 @@ class SubscriptionsService:
     ) -> Optional[SubscriptionDTO]:
         """Provision the initial subscription for a newly signed-up organization.
 
-        - Stripe enabled                     → reverse-trial flow on trial plan.
+        - Stripe enabled, a pricing entry carries `"trial": N` → reverse trial.
+        - Stripe enabled, no trial entry     → onboard on the free plan.
         - Stripe disabled                    → onboard on `get_default_plan()`.
         """
         if env.stripe.enabled:
@@ -295,11 +433,40 @@ class SubscriptionsService:
         subscription = await self.read(organization_id=organization_id)
 
         if not subscription:
+            log.warn(
+                "[billing] [internal] no subscription row | %s | %s",
+                organization_id,
+                event.value,
+            )
+
             raise EventException(
-                "Subscription not found for organization ID: {organization_id}"
+                f"No subscription is recorded for organization ID {organization_id}, "
+                f"so event {event.value} cannot be applied"
             )
 
         free_plan = get_free_plan()
+
+        if subscription_id and await _is_stale_event(
+            event=event,
+            subscription_id=subscription_id,
+            recorded_subscription_id=subscription.subscription_id,
+            recorded_plan_is_free=subscription.plan == free_plan,
+        ):
+            log.info(
+                "[billing] [internal] stale subscription event | %s | %s | recorded=%s | event=%s",
+                organization_id,
+                event.value,
+                subscription.subscription_id,
+                subscription_id,
+            )
+
+            raise StaleEventException(
+                f"Event {event.value} is for subscription {subscription_id}, not the "
+                f"one recorded for organization ID {organization_id}"
+            )
+
+        recorded_subscription_id = subscription.subscription_id
+        guarded = subscription_id is not None
 
         if event == Event.SUBSCRIPTION_CREATED:
             subscription.active = True
@@ -307,17 +474,29 @@ class SubscriptionsService:
             subscription.subscription_id = subscription_id
             subscription.anchor = anchor
 
-            subscription = await self.update(subscription=subscription)
+            subscription = await self._apply_event_write(
+                subscription=subscription,
+                recorded_subscription_id=recorded_subscription_id,
+                guarded=guarded,
+            )
 
         elif subscription.plan != free_plan and event == Event.SUBSCRIPTION_PAUSED:
             subscription.active = False
 
-            subscription = await self.update(subscription=subscription)
+            subscription = await self._apply_event_write(
+                subscription=subscription,
+                recorded_subscription_id=recorded_subscription_id,
+                guarded=guarded,
+            )
 
         elif subscription.plan != free_plan and event == Event.SUBSCRIPTION_RESUMED:
             subscription.active = True
 
-            subscription = await self.update(subscription=subscription)
+            subscription = await self._apply_event_write(
+                subscription=subscription,
+                recorded_subscription_id=recorded_subscription_id,
+                guarded=guarded,
+            )
 
         elif subscription.plan != free_plan and event == Event.SUBSCRIPTION_SWITCHED:
             stripe = _load_stripe()
@@ -337,14 +516,30 @@ class SubscriptionsService:
                     f"Cannot switch plans without an existing subscription for organization ID: {organization_id}"
                 )
 
+            line_items = get_stripe_line_items(plan)
+
+            # Stripe rejects a subscription left with no items.
+            if not line_items:
+                raise SwitchException(
+                    f"Plan [{plan}] has no Stripe prices and cannot be switched to. Please contact support."
+                )
+
             try:
-                _subscription = stripe.Subscription.retrieve(
-                    id=subscription.subscription_id,
+                stripe.Subscription.modify(
+                    subscription.subscription_id,
+                    items=[
+                        {"id": item.id, "deleted": True}
+                        for item in stripe.SubscriptionItem.list(
+                            subscription=subscription.subscription_id,
+                        ).data
+                    ]
+                    + line_items,
+                    # Invoices snapshot this metadata, and the renewal's monthly credits
+                    # follow the plan it names (see BillingRouter._grant_period_credits).
+                    metadata={"plan": plan},
                 )
             except Exception as e:  # pylint: disable=too-broad-exception
-                log.warn(
-                    "Failed to retrieve subscription from Stripe: %s", subscription
-                )
+                log.warn("Failed to switch subscription in Stripe: %s", subscription)
 
                 raise EventException(
                     "Could not switch plans. Please try again or contact support.",
@@ -353,18 +548,11 @@ class SubscriptionsService:
             subscription.active = True
             subscription.plan = plan
 
-            stripe.Subscription.modify(
-                subscription.subscription_id,
-                items=[
-                    {"id": item.id, "deleted": True}
-                    for item in stripe.SubscriptionItem.list(
-                        subscription=subscription.subscription_id,
-                    ).data
-                ]
-                + get_stripe_line_items(plan),
+            subscription = await self._apply_event_write(
+                subscription=subscription,
+                recorded_subscription_id=recorded_subscription_id,
+                guarded=guarded,
             )
-
-            subscription = await self.update(subscription=subscription)
 
         elif subscription.plan != free_plan and event == Event.SUBSCRIPTION_CANCELLED:
             subscription.active = True
@@ -372,7 +560,11 @@ class SubscriptionsService:
             subscription.subscription_id = None
             subscription.anchor = anchor
 
-            subscription = await self.update(subscription=subscription)
+            subscription = await self._apply_event_write(
+                subscription=subscription,
+                recorded_subscription_id=recorded_subscription_id,
+                guarded=guarded,
+            )
 
         elif subscription.plan == free_plan and event == Event.SUBSCRIPTION_CANCELLED:
             log.info(
@@ -381,10 +573,23 @@ class SubscriptionsService:
             )
 
         else:
-            log.warn("Invalid subscription event: %s ", subscription)
+            # Every branch above missed. PAUSED, RESUMED and SWITCHED are each
+            # guarded by `plan != free_plan`, and CANCELLED has its own
+            # free-plan no-op, so reaching here means the organization's
+            # recorded plan IS the free plan: there is no paid subscription for
+            # the event to act on.
+            log.warn(
+                "[billing] [internal] unhandled subscription event | %s | %s | plan=%s | active=%s",
+                organization_id,
+                event.value,
+                subscription.plan,
+                subscription.active,
+            )
 
             raise EventException(
-                f"Invalid subscription event {event} for organization ID: {organization_id}"
+                f"Event {event.value} does not apply to organization ID "
+                f"{organization_id}, whose recorded plan is "
+                f"{subscription.plan or 'unset'}"
             )
 
         # Invalidate the entitlements subscription cache so the new plan takes effect immediately

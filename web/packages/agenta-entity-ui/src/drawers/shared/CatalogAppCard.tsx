@@ -117,7 +117,7 @@ export function AppCard({
             tags={shownCategories}
             meta={
                 typeof actionsCount === "number" && actionsCount > 0 ? (
-                    <span className="flex items-center gap-1 text-[10px] text-[var(--ag-colorTextTertiary)]">
+                    <span className="flex items-center gap-1 text-[12px] text-[var(--ag-colorTextTertiary)]">
                         <Lightning size={11} weight="fill" />
                         {actionsCount}
                     </span>

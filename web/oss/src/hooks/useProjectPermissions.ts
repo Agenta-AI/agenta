@@ -1,8 +1,8 @@
 import {useCallback, useMemo} from "react"
 
+import {isEE} from "@agenta/shared/api"
 import {useAtomValue} from "jotai"
 
-import {isEE} from "@/oss/lib/helpers/isEE"
 import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
 import {rolesQueryAtom} from "@/oss/state/access/atoms"
 import {useOrgData} from "@/oss/state/org"

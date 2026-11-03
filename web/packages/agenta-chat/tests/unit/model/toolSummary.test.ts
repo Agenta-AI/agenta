@@ -29,16 +29,35 @@ describe("summarizeOutput", () => {
         expect(summarizeOutput("hello   \n  world")).toBe("hello world")
     })
 
-    it("prefers a well-known field over the generic field count", () => {
+    it("prefers a well-known field", () => {
         expect(summarizeOutput({summary: "done"})).toBe("done")
     })
 
-    it("falls back to a field count when no well-known field matches", () => {
-        expect(summarizeOutput({a: 1, b: 2})).toBe("2 fields")
+    it("says nothing when no well-known field matches — a field count is not information", () => {
+        expect(summarizeOutput({a: 1, b: 2})).toBeNull()
     })
 
     it("returns null for an empty object", () => {
         expect(summarizeOutput({})).toBeNull()
+    })
+
+    // A gateway tool returns its payload as a JSON string; dumping its first 80 characters put
+    // raw braces in the row.
+    it("reads a serialised payload as structure instead of dumping it", () => {
+        const payload = JSON.stringify({data: {composio_execution_message: "Minimal response"}})
+        expect(summarizeOutput(payload)).toBeNull()
+    })
+
+    it("still finds a well-known field inside a serialised payload", () => {
+        expect(summarizeOutput(JSON.stringify({message: "Sent"}))).toBe("Sent")
+    })
+
+    it("counts a serialised array the same as a real one", () => {
+        expect(summarizeOutput("[1, 2, 3]")).toBe("3 results")
+    })
+
+    it("leaves text that merely starts with a brace alone", () => {
+        expect(summarizeOutput("{not json after all")).toBe("{not json after all")
     })
 
     it("returns null for a nullish output", () => {
@@ -139,5 +158,14 @@ describe("rowSummary", () => {
     it("returns null for a state that hasn't settled yet", () => {
         const part = {state: "input-streaming"} as ToolUIPart
         expect(rowSummary(part)).toBeNull()
+    })
+})
+
+// The OSS mirror cuts on code points; this copy used to cut on UTF-16 units.
+describe("summarizeOutput code-point cut", () => {
+    it("never splits a surrogate pair at the limit", () => {
+        const out = summarizeOutput("🙂".repeat(90))
+        expect(out).toBe(`${"🙂".repeat(80)}…`)
+        expect(out).not.toContain("�")
     })
 })

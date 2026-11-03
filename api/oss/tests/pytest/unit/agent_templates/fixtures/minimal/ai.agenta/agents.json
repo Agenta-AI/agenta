@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "entry": "assistant",
+  "agents": {
+    "assistant": {
+      "name": "Research Assistant",
+      "description": "Research a topic and cite sources.",
+      "instructions": "./ai.agenta/agents/assistant/AGENTS.md"
+    }
+  }
+}

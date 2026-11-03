@@ -25,8 +25,3 @@ export const toolExecutionDrawerAtom = atom<ExecutionDrawerState | null>(null)
 // ---------------------------------------------------------------------------
 // Catalog browsing state (drawer-local, reset on close)
 // ---------------------------------------------------------------------------
-
-export const catalogSearchAtom = atom("")
-export const selectedCatalogIntegrationAtom = atom<string | null>(null)
-export const actionSearchAtom = atom("")
-export const selectedCatalogActionAtom = atom<string | null>(null)

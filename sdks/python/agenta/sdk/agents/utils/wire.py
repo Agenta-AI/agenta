@@ -25,7 +25,7 @@ from agenta.sdk.redaction.context import get_active_redactor
 
 from .effective_config import stamp_effective_parameters
 from ..permission_rules import PermissionRule
-from ..errors import AgentRunFailed
+from ..errors import AgentRunFailed, AgentTurnAdmissionRefused
 from ..dtos import (
     Event,
     AgentResult,
@@ -36,6 +36,7 @@ from ..dtos import (
     RunContext,
     TraceContext,
 )
+from ..tools.models import ResolvedGatewayPolicy
 
 log = get_module_logger(__name__)
 
@@ -91,10 +92,14 @@ def request_to_wire(
     messages: Sequence[Message],
     trace: Optional[TraceContext] = None,
     run_context: Optional[RunContext] = None,
+    turn_context: Optional[str] = None,
     session_id: Optional[str] = None,
+    detached: bool = False,
     turn_id: Optional[str] = None,
     project_id: Optional[str] = None,
+    control_command_id: Optional[str] = None,
     effective_parameters: Optional[Dict[str, Any]] = None,
+    gateway_policy: Optional[ResolvedGatewayPolicy] = None,
 ) -> Dict[str, Any]:
     """Serialize one turn into the ``/run`` request JSON.
 
@@ -102,6 +107,9 @@ def request_to_wire(
     own (Pi: built-ins + native specs, no gating; Claude: MCP specs + permission policy).
     ``config.wire_prompt()`` adds any system-prompt overrides the harness exposes (Pi's
     ``systemPrompt`` / ``appendSystemPrompt``); it is empty for harnesses that have none.
+    ``gateway_policy`` is the private compiled policy for the agent's gateway connections. It
+    comes from the neutral session envelope rather than the harness config and is omitted when
+    the agent has no connection entry.
     ``config.wire_mcp()`` adds user-declared MCP servers, omitted when there are none so a
     tool-free run's payload is unchanged. ``config.wire_skills()`` adds resolved inline skill
     packages, likewise omitted when there are none (skills ride their own seam, not the tool
@@ -124,6 +132,9 @@ def request_to_wire(
     (``call.context`` on direct-call specs and ``contextBindings`` on callRef specs) (direct-call tools, Phase 3a). Omitted when unset (and when its ``to_wire`` is empty),
     so a run that needs no binding stays byte-identical to before.
 
+    ``turn_context`` is SDK-rendered context included in this turn's harness prompt.
+    It is separate from the stable platform instructions and never changes session identity.
+
     ``effective_parameters`` is the POST-HYDRATION config this turn actually runs (the handler's
     resolved ``data.parameters``). It rides as the opaque ``effectiveParameters`` ONLY on a
     session run — a non-session run has no interaction row to stamp it onto, so its payload stays
@@ -140,6 +151,7 @@ def request_to_wire(
         "sessionId": session_id,
         "agentsMd": config.agents_md,
         "model": config.model,
+        # to_wire preserves absent versus null display_content.
         "messages": [message.to_wire() for message in messages],
         # The run's tracing inputs ride the wire grouped by role (see the trace/telemetry interface
         # restructure): `context.propagation` carries the per-call W3C trace-context headers, and
@@ -150,22 +162,32 @@ def request_to_wire(
         "telemetry": trace.telemetry_to_wire() if trace else None,
         **config.wire_tools(),
         **config.wire_prompt(),
+        **config.wire_platform_instructions(),
         **config.wire_mcp(),
         **config.wire_skills(),
         **config.wire_sandbox_permission(),
+        **config.wire_sandbox_credentials(),
         **config.wire_connection_ref(),
         **config.wire_model_connection(),
         **config.wire_harness_mode(),
         **config.wire_harness_files(),
     }
+    if gateway_policy is not None:
+        payload["gatewayPolicy"] = gateway_policy.to_wire()
     if run_context is not None:
         run_context_wire = run_context.to_wire()
         if run_context_wire:
             payload["runContext"] = run_context_wire
+    if turn_context is not None:
+        payload["turnContext"] = turn_context
     if turn_id is not None:
         payload["turnId"] = turn_id
+    if detached and session_id:
+        payload["detached"] = True
     if project_id is not None:
         payload["projectId"] = project_id
+    if control_command_id is not None:
+        payload["controlCommandId"] = control_command_id
     if session_id:
         stamped = stamp_effective_parameters(effective_parameters)
         if stamped:
@@ -182,7 +204,15 @@ def result_from_wire(data: Dict[str, Any]) -> AgentResult:
     """
     data = get_active_redactor().redact_json(data, sink="runner_result")
     if not data.get("ok"):
-        raise AgentRunFailed(sanitize_runner_error(data.get("error")))
+        error_detail = data.get("errorDetail")
+        if AgentTurnAdmissionRefused.matches(error_detail):
+            raise AgentTurnAdmissionRefused(
+                sanitize_runner_error(data.get("error")), error_detail=error_detail
+            )
+        raise AgentRunFailed(
+            sanitize_runner_error(data.get("error")),
+            error_detail=error_detail if isinstance(error_detail, dict) else None,
+        )
 
     messages: List[Message] = []
     for raw in data.get("messages") or []:
@@ -206,4 +236,5 @@ def result_from_wire(data: Dict[str, Any]) -> AgentResult:
         session_id=data.get("sessionId"),
         model=data.get("model"),
         trace_id=data.get("traceId"),
+        sandbox=data.get("sandbox"),
     )

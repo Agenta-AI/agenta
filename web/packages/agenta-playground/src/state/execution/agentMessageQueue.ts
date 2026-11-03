@@ -25,6 +25,56 @@ interface ToolPartLike {
 interface MessageLike {
     role?: string
     parts?: ToolPartLike[]
+    metadata?: unknown
+}
+
+type ApprovalContinuationState = "running" | "done" | "error"
+
+interface ApprovalContinuationMeta {
+    executionId?: string
+    state?: ApprovalContinuationState
+}
+
+const latestApprovalContinuation = (
+    messages: MessageLike[],
+): ApprovalContinuationMeta | undefined => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+        const continuation = (
+            messages[i]?.metadata as {approvalContinuation?: ApprovalContinuationMeta} | undefined
+        )?.approvalContinuation
+        if (continuation?.state) return continuation
+    }
+    return undefined
+}
+
+const latestApprovalContinuationState = (
+    messages: MessageLike[],
+): ApprovalContinuationState | undefined => latestApprovalContinuation(messages)?.state
+
+/**
+ * A durable approval continuation is still in flight for this conversation.
+ *
+ * `canReleaseQueuedMessage` already holds on this, but the gate is not the only release path:
+ * `useAgentChatQueue` also releases on a user stop and on an ORPHANED restored resume shape. The
+ * orphan hatch is true for EVERY durable answer — the answer retires the local gate marker, and
+ * the first adopted server transcript makes the tail a restored "resume imminent" message — so
+ * without this predicate it walks around the hold and sends into the running continuation, which
+ * supersedes it on the runner and aborts the tool call the user just approved.
+ */
+export function hasRunningApprovalContinuation(messages: MessageLike[]): boolean {
+    return latestApprovalContinuationState(messages) === "running"
+}
+
+/**
+ * The transcript carries a terminal record for `executionId` — the only proof a client that never
+ * streamed the continuation has that the continuation is over. A DIFFERENT execution id counts as
+ * settled: a later continuation replaced this one, so this id can never terminate.
+ */
+export function approvalContinuationSettled(messages: MessageLike[], executionId: string): boolean {
+    const continuation = latestApprovalContinuation(messages)
+    if (!continuation) return false
+    if (continuation.executionId !== executionId) return true
+    return continuation.state === "done" || continuation.state === "error"
 }
 
 const isToolPart = (part: ToolPartLike): boolean => {
@@ -33,7 +83,7 @@ const isToolPart = (part: ToolPartLike): boolean => {
 }
 
 /**
- * The last assistant turn is paused awaiting the user's decision on a tool gate
+ * An assistant turn is paused awaiting the user's decision on a tool gate
  * (`approval-requested`) — the one HITL state the user can act on (via the ApprovalDock).
  *
  * Deliberately NOT `approval-responded`: that "resume is imminent" hold belongs SOLELY to
@@ -46,11 +96,14 @@ const isToolPart = (part: ToolPartLike): boolean => {
  * unblock UI can never disagree.
  */
 export function isHitlPending(messages: MessageLike[]): boolean {
-    const last = messages[messages.length - 1]
-    if (!last || last.role !== "assistant") return false
-    const parts = last.parts ?? []
-    // Parked client tools (elicitation forms, connect cards) hold the queue exactly like an
-    // approval gate: the stream reads "ready" while the run awaits the user's widget action.
+    return messages.some(messageHasPendingHitl)
+}
+
+/** The per-message half of `isHitlPending`, so a "waiting for you" marker paints on the turn that
+ * actually holds the gate instead of the newest one. Built from the same predicate on purpose. */
+export function messageHasPendingHitl(message: MessageLike): boolean {
+    if (message.role !== "assistant") return false
+    const parts = message.parts ?? []
     const renderMap = buildRenderMap(parts)
     return parts.some(
         (part) =>
@@ -73,7 +126,18 @@ export function isHitlPending(messages: MessageLike[]): boolean {
  * freeze the queue permanently. `isHitlPending` still holds — its dock IS the unblock UI.
  */
 export function canReleaseQueuedMessage(status: string, messages: MessageLike[]): boolean {
+    const continuationState = latestApprovalContinuationState(messages)
+    if (continuationState === "running") return false
     if (status === "error") return !isHitlPending(messages)
+    if (status === "ready" && (continuationState === "done" || continuationState === "error")) {
+        return !isHitlPending(messages)
+    }
+    const lastAssistant = messages.findLast((message) => message.role === "assistant")
+    const recordTerminal = (lastAssistant?.metadata as {recordTerminal?: unknown} | undefined)
+        ?.recordTerminal
+    if (status === "ready" && recordTerminal === true) {
+        return !isHitlPending(messages)
+    }
     return (
         status === "ready" &&
         !isHitlPending(messages) &&

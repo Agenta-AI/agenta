@@ -42,7 +42,7 @@ export interface AddItemGroup {
 
 function GroupLabel({children}: {children: ReactNode}) {
     return (
-        <span className="block px-2 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+        <span className="block px-2 pb-1 pt-2 text-xs font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
             {children}
         </span>
     )
@@ -66,7 +66,7 @@ function Row({item, onPick}: {item: AddItemMenuItem; onPick: (item: AddItemMenuI
             <span className="flex min-w-0 flex-1 flex-col leading-tight">
                 <span className="truncate text-xs text-[var(--ag-colorText)]">{item.title}</span>
                 {item.subtitle ? (
-                    <span className="truncate text-[11px] text-[var(--ag-colorTextTertiary)]">
+                    <span className="truncate text-xs text-[var(--ag-colorTextTertiary)]">
                         {item.subtitle}
                     </span>
                 ) : null}

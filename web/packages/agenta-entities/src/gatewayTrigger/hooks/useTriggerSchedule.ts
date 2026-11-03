@@ -1,8 +1,8 @@
 import {useCallback, useState} from "react"
 
-import {queryClient} from "@agenta/shared/api"
+import {getHostQueryClient} from "@agenta/shared/api"
 import {useAtomValue} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {
@@ -19,11 +19,8 @@ import type {
     TriggerScheduleEdit,
     TriggerScheduleResponse,
 } from "../core/types"
+import {invalidateTriggerSchedules} from "../state/invalidate"
 import {applyScheduleActiveOptimistic} from "../state/optimistic"
-
-const invalidateSchedules = () => {
-    queryClient.invalidateQueries({queryKey: ["triggers", "schedules"]})
-}
 
 // Single schedule (used to source the full PUT body before editing).
 export const triggerScheduleQueryAtomFamily = atomFamily((scheduleId: string) =>
@@ -45,12 +42,12 @@ export const useTriggerSchedule = (scheduleId?: string) => {
             setIsMutating(true)
             try {
                 const res = await fn()
-                invalidateSchedules()
+                invalidateTriggerSchedules()
                 // Seed the detail cache with the create/edit result so a drawer that
                 // selects the just-saved schedule reads it immediately (no loading flash);
                 // it still background-refetches since the list invalidation marks it stale.
                 if (res.schedule?.id) {
-                    queryClient.setQueryData(
+                    getHostQueryClient().setQueryData(
                         ["triggers", "schedules", "detail", res.schedule.id],
                         res,
                     )
@@ -77,7 +74,7 @@ export const useTriggerSchedule = (scheduleId?: string) => {
         setIsMutating(true)
         try {
             await deleteTriggerSchedule(id)
-            invalidateSchedules()
+            invalidateTriggerSchedules()
         } finally {
             setIsMutating(false)
         }
@@ -89,10 +86,10 @@ export const useTriggerSchedule = (scheduleId?: string) => {
         const rollback = applyScheduleActiveOptimistic(id, active)
         try {
             await (active ? startTriggerSchedule(id) : stopTriggerSchedule(id))
-            invalidateSchedules()
+            invalidateTriggerSchedules()
         } catch (error) {
             rollback()
-            invalidateSchedules()
+            invalidateTriggerSchedules()
             throw error
         }
     }, [])

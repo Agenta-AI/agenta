@@ -155,7 +155,7 @@ dying with the container.
 
 The frontend talks to the agent through the gateway, not the runner. For example the local
 env file points the chat slice at
-`http://144.76.237.122:8280/services/agent/v0/messages`
+`http://<dev-host>:8280/services/agent/v0/messages`
 (`NEXT_PUBLIC_AGENT_CHAT_API` in `.env.ee.dev.local`).
 
 ## Agent env vars

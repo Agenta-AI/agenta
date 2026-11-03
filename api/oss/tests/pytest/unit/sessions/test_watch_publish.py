@@ -9,6 +9,7 @@ DB write is already committed and must not be re-driven by relay errors).
 
 import json
 import zlib
+from inspect import Parameter, signature
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -16,10 +17,16 @@ import pytest
 from orjson import dumps
 
 from oss.src.core.sessions.records.service import RecordsService
+from oss.src.core.sessions.streams.dtos import SessionStreamHeaderEdit
+from oss.src.core.sessions.streams.service import SessionStreamsService
+from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
 from oss.src.core.sessions.records.dtos import SessionRecord
-from oss.src.dbs.redis.sessions.contract import watch_channel
+from oss.src.core.workflows.dtos import Workflow, WorkflowEdit
+from oss.src.core.workflows.service import WorkflowsService
+from oss.src.dbs.redis.sessions.contract import project_watch_channel, watch_channel
 from oss.src.dbs.redis.sessions.watch import SessionsWatchPublisher
 from oss.src.tasks.asyncio.sessions.records_worker import RecordsWorker
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
 
 
 def _payload(*, project_id, session_id, record_index=0):
@@ -40,6 +47,7 @@ class _RecordingPublisher:
 
     def __init__(self, *, fail: bool = False, journal=None):
         self.calls: list[tuple[str, str]] = []
+        self.changed_calls: list[tuple[str, str, str]] = []
         self.fail = fail
         self.journal = journal
 
@@ -49,6 +57,11 @@ class _RecordingPublisher:
         self.calls.append((project_id, session_id))
         if self.journal is not None:
             self.journal.append(("publish", session_id))
+
+    async def changed(self, *, project_id: str, entity: str, id: str) -> None:
+        if self.fail:
+            raise RuntimeError("relay down")
+        self.changed_calls.append((project_id, entity, id))
 
 
 def _worker(records_dao, publisher):
@@ -124,11 +137,11 @@ async def test_worker_skips_publish_when_append_fails():
 
     assert total_appended == 0
     assert publisher.calls == []
-    # `process_batch` acknowledges at parse time, before the append, so a failed append is still
-    # acked and dropped by the shared consumer loop. That predates this change and is shared by
-    # every worker on `BaseStreamConsumer`; the relay tee neither causes it nor repairs it. This
-    # assertion pins the tee's scope, not an endorsement of the acknowledgement rule.
-    assert len(processed_ids) == 1
+    # A failed append acknowledges nothing, so the record stays in the Redis pending list and
+    # the reclaim pass writes it later. `process_batch` used to acknowledge at parse time,
+    # before the append, which made every Postgres failure permanent record loss (#5496).
+    # `test_records_worker_durability.py` pins that rule; this line pins the tee's scope.
+    assert processed_ids == []
 
 
 @pytest.mark.asyncio
@@ -171,6 +184,44 @@ async def test_publisher_publishes_on_watch_channel():
 
 
 @pytest.mark.asyncio
+async def test_publisher_carries_committed_interaction_resolution():
+    import fakeredis
+
+    redis = fakeredis.FakeAsyncRedis()
+    pubsub = redis.pubsub()
+    project_id = str(uuid4())
+    channel = watch_channel(project_id, "sess-1")
+    await pubsub.subscribe(channel)
+    await pubsub.get_message(timeout=1)
+
+    publisher = SessionsWatchPublisher(redis_client=redis)
+    interaction = {
+        "id": str(uuid4()),
+        "session_id": "sess-1",
+        "turn_id": "turn-1",
+        "token": "approval-1",
+        "kind": "user_approval",
+        "status": "responded",
+        "data": {"resolution": {"verdict": "approved"}},
+    }
+    await publisher.interaction(
+        project_id=project_id,
+        session_id="sess-1",
+        status="resolved",
+        interactions=[interaction],
+    )
+
+    message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1)
+    assert message is not None
+    assert json.loads(message["data"]) == {
+        "type": "interaction",
+        "session_id": "sess-1",
+        "status": "resolved",
+        "interactions": [interaction],
+    }
+
+
+@pytest.mark.asyncio
 async def test_publisher_swallows_redis_failure():
     broken = AsyncMock()
     broken.publish = AsyncMock(side_effect=ConnectionError("redis gone"))
@@ -181,3 +232,148 @@ async def test_publisher_swallows_redis_failure():
     await publisher.lifecycle(project_id="p", session_id="s", state="running")
     await publisher.interaction(project_id="p", session_id="s", status="pending")
     assert broken.publish.await_count == 3
+
+
+@pytest.mark.asyncio
+async def test_publisher_publishes_entity_change_on_project_channel():
+    import fakeredis
+
+    redis = fakeredis.FakeAsyncRedis()
+    pubsub = redis.pubsub()
+    project_id = str(uuid4())
+    channel = project_watch_channel(project_id)
+    await pubsub.subscribe(channel)
+    await pubsub.get_message(timeout=1)
+
+    publisher = SessionsWatchPublisher(redis_client=redis)
+    await publisher.changed(project_id=project_id, entity="session", id="session-1")
+
+    message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1)
+    assert message is not None
+    assert json.loads(message["data"]) == {
+        "type": "session-changed",
+        "entity": "session",
+        "id": "session-1",
+    }
+
+
+def test_changed_signature_is_keyword_only_on_protocol_and_publisher():
+    protocol_parameters = list(
+        signature(SessionsWatchPublisherInterface.changed).parameters.values()
+    )
+    assert [parameter.name for parameter in protocol_parameters] == [
+        "self",
+        "project_id",
+        "entity",
+        "id",
+    ]
+    assert all(
+        parameter.kind is Parameter.KEYWORD_ONLY
+        for parameter in protocol_parameters[1:]
+    )
+
+    publisher = SessionsWatchPublisher(redis_client=AsyncMock())
+    with pytest.raises(TypeError):
+        publisher.changed("project-1", "session", "session-1")
+
+
+@pytest.mark.asyncio
+async def test_set_header_publishes_session_change_with_explicit_project_id():
+    project_id = uuid4()
+    updated = object()
+    streams_dao = AsyncMock()
+    streams_dao.update_header.return_value = updated
+    publisher = _RecordingPublisher()
+    service = SessionStreamsService(
+        streams_dao=streams_dao,
+        lock_engine=None,
+        watch_publisher=publisher,
+    )
+
+    result = await service.set_header(
+        project_id=project_id,
+        user_id=uuid4(),
+        session_id="session-1",
+        header=SessionStreamHeaderEdit(name="Renamed"),
+        access=OWNERLESS_PROJECT_POLICY,
+    )
+
+    assert result is updated
+    assert publisher.changed_calls == [
+        (str(project_id), "session", "session-1"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_edit_workflow_publishes_workflow_change_with_explicit_project_id(
+    monkeypatch,
+):
+    from oss.src.core.workflows import service as workflows_service_module
+
+    project_id = uuid4()
+    workflow_id = uuid4()
+    workflow = Workflow(id=workflow_id, slug="workflow")
+    workflows_dao = AsyncMock()
+    workflows_dao.fetch_artifact.return_value = workflow
+    workflows_dao.edit_artifact.return_value = workflow
+    publisher = _RecordingPublisher()
+    service = WorkflowsService(
+        workflows_dao=workflows_dao,
+        watch_publisher=publisher,
+    )
+    monkeypatch.setattr(workflows_service_module, "invalidate_cache", AsyncMock())
+    monkeypatch.setattr(workflows_service_module, "set_cache", AsyncMock())
+
+    result = await service.edit_workflow(
+        project_id=project_id,
+        user_id=uuid4(),
+        workflow_edit=WorkflowEdit(id=workflow_id, name="Renamed"),
+    )
+
+    assert result is not None
+    assert publisher.changed_calls == [
+        (str(project_id), "workflow", str(workflow_id)),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_change_publisher_failure_does_not_fail_either_write(monkeypatch):
+    from oss.src.core.workflows import service as workflows_service_module
+
+    project_id = uuid4()
+    publisher = _RecordingPublisher(fail=True)
+
+    streams_dao = AsyncMock()
+    streams_dao.update_header.return_value = object()
+    streams_service = SessionStreamsService(
+        streams_dao=streams_dao,
+        lock_engine=None,
+        watch_publisher=publisher,
+    )
+    session_result = await streams_service.set_header(
+        project_id=project_id,
+        user_id=uuid4(),
+        session_id="session-1",
+        header=SessionStreamHeaderEdit(name="Renamed"),
+        access=OWNERLESS_PROJECT_POLICY,
+    )
+
+    workflow_id = uuid4()
+    workflow = Workflow(id=workflow_id, slug="workflow")
+    workflows_dao = AsyncMock()
+    workflows_dao.fetch_artifact.return_value = workflow
+    workflows_dao.edit_artifact.return_value = workflow
+    workflows_service = WorkflowsService(
+        workflows_dao=workflows_dao,
+        watch_publisher=publisher,
+    )
+    monkeypatch.setattr(workflows_service_module, "invalidate_cache", AsyncMock())
+    monkeypatch.setattr(workflows_service_module, "set_cache", AsyncMock())
+    workflow_result = await workflows_service.edit_workflow(
+        project_id=project_id,
+        user_id=uuid4(),
+        workflow_edit=WorkflowEdit(id=workflow_id, name="Renamed"),
+    )
+
+    assert session_result is not None
+    assert workflow_result is not None

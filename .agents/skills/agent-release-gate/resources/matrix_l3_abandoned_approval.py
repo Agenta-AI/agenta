@@ -50,6 +50,7 @@ from qa_matrix_lib import (  # noqa: E402
     LIVE_TOOLS,
     agent_config,
     archive,
+    check_no_silent_turn,
     create_workflow,
     interactions,
     invoke,
@@ -141,7 +142,16 @@ def l3():
         )
 
         agents, sandboxes = ledger_ids(session_id)
-        ok = gated and steer_ok and died_loudly and not leaked
+        # `not leaked` is an absence check: a turn that produced nothing leaks nothing,
+        # so it would satisfy it vacuously (ASD-EST100). Both turns were meant to answer.
+        silent = check_no_silent_turn([t1, t2])
+        ok = (
+            gated
+            and steer_ok
+            and died_loudly
+            and not leaked
+            and not silent["violations"]
+        )
 
         why_parts = []
         if not gated:

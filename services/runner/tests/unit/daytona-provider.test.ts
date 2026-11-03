@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it, vi } from "vitest";
-
+import { DEFAULT_DAYTONA_SNAPSHOT } from "../../src/config/runner-config.ts";
 import {
   DaytonaReconnectTerminalError,
   daytonaWithLifecycle,
 } from "../../src/engines/sandbox_agent/daytona-provider.ts";
+import {
+  resetCreatedSandboxIds,
+  sandboxSnapshotOf,
+} from "../../src/engines/sandbox_agent/created-sandboxes.ts";
 
 function fakeProvider() {
   return {
@@ -27,6 +31,82 @@ function buildProvider(sandbox: Record<string, any>, getError?: unknown) {
     buildBaseProvider: fakeProvider,
   });
 }
+
+describe("Daytona provider create", () => {
+  it("reports the snapshot and build command when the snapshot is missing", async () => {
+    const provider = daytonaWithLifecycle(
+      {
+        create: {
+          snapshot: DEFAULT_DAYTONA_SNAPSHOT,
+        } as any,
+      },
+      {
+        client: {} as any,
+        target: "eu",
+        buildBaseProvider: () => ({
+          ...fakeProvider(),
+          create: async () => {
+            throw { statusCode: 404 };
+          },
+        }),
+      },
+    );
+
+    await assert.rejects(
+      () => provider.create(),
+      new RegExp(
+        `Daytona snapshot '${DEFAULT_DAYTONA_SNAPSHOT}' was not found.*` +
+          `DAYTONA_API_KEY=\\.\\.\\. DAYTONA_TARGET=eu uv run build_snapshot\\.py`,
+      ),
+    );
+  });
+});
+
+describe("Daytona provider snapshot record (capability probe key)", () => {
+  afterEach(() => resetCreatedSandboxIds());
+
+  it("records the configured snapshot for a sandbox this process created", async () => {
+    const provider = daytonaWithLifecycle(
+      { create: { snapshot: "agenta-agent-sandbox-v9" } as any },
+      { client: {} as any, buildBaseProvider: () => ({ ...fakeProvider(), create: async () => "daytona/sb-new" }) },
+    );
+    await provider.create();
+    assert.equal(sandboxSnapshotOf("daytona/sb-new"), "agenta-agent-sandbox-v9");
+    assert.equal(sandboxSnapshotOf("sb-new"), "agenta-agent-sandbox-v9");
+  });
+
+  it("records nothing for an image build", async () => {
+    const provider = daytonaWithLifecycle(
+      { create: {} as any },
+      { client: {} as any, buildBaseProvider: () => ({ ...fakeProvider(), create: async () => "sb-image" }) },
+    );
+    await provider.create();
+    assert.equal(sandboxSnapshotOf("sb-image"), undefined);
+  });
+
+  it("records the snapshot Daytona reports on reconnect, not the configured one", async () => {
+    const provider = daytonaWithLifecycle(
+      { create: { snapshot: "agenta-agent-sandbox-v9" } as any },
+      {
+        client: { get: async () => ({ state: "started", snapshot: "agenta-agent-sandbox-v8" }) } as any,
+        buildBaseProvider: fakeProvider,
+      },
+    );
+    await provider.reconnect("sb-parked");
+    assert.equal(sandboxSnapshotOf("sb-parked"), "agenta-agent-sandbox-v8");
+  });
+
+  it("forgets a stale record when the reconnected sandbox reports no snapshot", async () => {
+    const created = daytonaWithLifecycle(
+      { create: { snapshot: "agenta-agent-sandbox-v9" } as any },
+      { client: {} as any, buildBaseProvider: () => ({ ...fakeProvider(), create: async () => "sb-1" }) },
+    );
+    await created.create();
+    const reconnected = buildProvider({ state: "started" });
+    await reconnected.reconnect("sb-1");
+    assert.equal(sandboxSnapshotOf("sb-1"), undefined);
+  });
+});
 
 describe("Daytona provider pause", () => {
   afterEach(() => vi.useRealTimers());
@@ -189,21 +269,49 @@ describe("Daytona provider delete", () => {
 });
 
 describe("Daytona provider activity refresh", () => {
-  it("strips the provider prefix and performs exactly one lookup", async () => {
+  it("strips the provider prefix and refreshes sandbox activity", async () => {
     const ids: string[] = [];
+    let refreshCalls = 0;
+
     const provider = daytonaWithLifecycle({}, {
-      client: { get: async (id: string) => { ids.push(id); return {} as any; } } as any,
+      client: {
+        get: async (id: string) => {
+          ids.push(id);
+
+          return {
+            async refreshActivity() {
+              refreshCalls += 1;
+            },
+          } as any;
+        },
+      } as any,
       buildBaseProvider: fakeProvider,
     });
 
     await provider.refreshActivity("daytona/sandbox-1");
 
     assert.deepEqual(ids, ["sandbox-1"]);
+    assert.equal(refreshCalls, 1);
   });
 
   it("swallows a missing sandbox", async () => {
     const provider = buildProvider({}, { statusCode: 404 });
-    await assert.doesNotReject(() => provider.refreshActivity("daytona/missing"));
+
+    await assert.doesNotReject(() =>
+      provider.refreshActivity("daytona/missing"),
+    );
+  });
+
+  it("swallows an activity refresh failure", async () => {
+    const provider = buildProvider({
+      async refreshActivity() {
+        throw new Error("temporary activity refresh failure");
+      },
+    });
+
+    await assert.doesNotReject(() =>
+      provider.refreshActivity("daytona/sandbox-1"),
+    );
   });
 });
 

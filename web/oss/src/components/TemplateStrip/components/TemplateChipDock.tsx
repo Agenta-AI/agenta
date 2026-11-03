@@ -1,11 +1,11 @@
+import {type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
-
-import {type AgentTemplate} from "@/oss/components/pages/agent-home/assets/templates"
 
 import TemplateChip from "./TemplateChip"
 
 interface TemplateChipDockProps {
-    template: AgentTemplate
+    /** Null before any template was picked — the chip then has nothing to show. */
+    template: AgentStarterTemplate | null
     /** Whether a template is currently selected — drives the fade/rise in and out. */
     visible: boolean
     onClear: () => void
@@ -18,7 +18,7 @@ const ENTRANCE = {type: "spring", visualDuration: 0.3, bounce: 0} as const
 const TemplateChipDock = ({template, visible, onClear}: TemplateChipDockProps) => (
     <MotionConfig reducedMotion="user">
         <AnimatePresence>
-            {visible && (
+            {visible && template && (
                 <motion.div
                     key="template-chip"
                     className="origin-bottom-left"

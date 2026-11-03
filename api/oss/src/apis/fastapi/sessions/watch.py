@@ -1,14 +1,16 @@
 """SSE frame generator for ``GET /sessions/streams/watch`` (M3 live relay).
 
 Bridges one Redis pub/sub subscription (durable plane, one per SSE connection)
-into `text/event-stream` frames. Events carry TYPE + minimal metadata only —
-clients revalidate through their existing query paths; no record payloads ride
-the wire. Idle periods emit ``: heartbeat`` comment frames so proxies and
-clients never see a silent connection.
+into `text/event-stream` frames. Most events carry type plus minimal metadata;
+interaction events may carry committed row state so readers can retire a gate
+without a query round trip. Idle periods emit ``: heartbeat`` comment frames so
+proxies and clients never see a silent connection.
 """
 
 import json
-from typing import Any, AsyncIterator, Callable, Optional
+import math
+import threading
+from typing import Any, AsyncIterator, Awaitable, Callable, Optional
 
 from oss.src.dbs.redis.sessions.contract import (
     WATCH_EVENT_INTERACTION,
@@ -21,6 +23,54 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 HEARTBEAT_FRAME = ": heartbeat\n\n"
+
+# ---------------------------------------------------------------------------
+# Server-shutdown release.
+#
+# Uvicorn's graceful shutdown drains in-flight responses BEFORE it runs lifespan
+# shutdown, and an SSE response never completes on its own — so without a release
+# every reload/stop waits on these generators forever (live symptom: the dev
+# stack's `uvicorn --reload` logs "Reloading..." and the API stays dead until a
+# hard container restart, since any open browser tab holds a watch stream).
+# `Server.shutdown` is where every exit path meets — a SIGINT/SIGTERM, and a
+# gunicorn worker that reached `--max-requests` (no signal at all) — and the drain
+# runs inside it, so hooking it releases every stream within one poll interval and
+# lets the drain complete. A client disconnect
+# already releases a stream by cancelling the generator; this covers the server
+# side. A `threading.Event` because the hook may run from a signal frame: no
+# event-loop affinity, and polling it is cheap.
+# ---------------------------------------------------------------------------
+
+_shutdown = threading.Event()
+
+# Upper bound on how long a stream keeps waiting on Redis before it re-checks the
+# shutdown flag, so a reload never waits a full heartbeat interval (15s default).
+_SHUTDOWN_POLL_SECONDS = 1.0
+
+
+def request_shutdown() -> None:
+    """Release every open watch stream (idempotent; wired into uvicorn's shutdown)."""
+    _shutdown.set()
+
+
+def _install_uvicorn_exit_hook() -> None:
+    try:
+        from uvicorn.server import Server  # noqa: PLC0415 — optional dependency
+    except Exception:  # pragma: no cover — no uvicorn (workers, bare test runs)
+        return
+    if getattr(Server.shutdown, "_agenta_watch_hook", False):  # pragma: no cover
+        return
+    original = Server.shutdown
+
+    async def shutdown(self: Any, *args: Any, **kwargs: Any) -> Any:
+        request_shutdown()
+        return await original(self, *args, **kwargs)
+
+    shutdown._agenta_watch_hook = True  # type: ignore[attr-defined]
+    Server.shutdown = shutdown  # type: ignore[method-assign]
+
+
+_install_uvicorn_exit_hook()
 
 
 def retry_frame(retry_milliseconds: int) -> str:
@@ -37,11 +87,14 @@ _KNOWN_EVENTS = {
     WATCH_EVENT_RECORDS_CHANGED,
     WATCH_EVENT_LIFECYCLE,
     WATCH_EVENT_INTERACTION,
+    "session-changed",
+    "workflow-changed",
 }
+# Each project event family also needs its view permission in the project route's conjunction.
 
 
-def format_watch_frame(raw: Any) -> Optional[str]:
-    """One published payload -> one SSE frame; None for anything malformed/unknown."""
+def parse_watch_payload(raw: Any) -> Optional[dict]:
+    """One published payload -> its dict; None for anything malformed/unknown."""
     try:
         payload = json.loads(raw)
     except (ValueError, TypeError):
@@ -54,7 +107,34 @@ def format_watch_frame(raw: Any) -> Optional[str]:
     # publish must drop its own frame, never the connection.
     if not isinstance(event, str) or event not in _KNOWN_EVENTS:
         return None
-    return f"event: {event}\ndata: {json.dumps(payload)}\n\n"
+    return payload
+
+
+def _frame(payload: dict) -> str:
+    return f"event: {payload['type']}\ndata: {json.dumps(payload)}\n\n"
+
+
+def format_watch_frame(raw: Any) -> Optional[str]:
+    """One published payload -> one SSE frame; None for anything malformed/unknown."""
+    payload = parse_watch_payload(raw)
+    return _frame(payload) if payload is not None else None
+
+
+async def _passes(
+    event_filter: Optional[Callable[[dict], Awaitable[bool]]], payload: dict
+) -> bool:
+    """A filter error drops the frame (fail closed) and keeps the connection."""
+    if event_filter is None:
+        return True
+    try:
+        return await event_filter(payload)
+    except Exception as exc:
+        log.warning(
+            "[WATCH] event filter failed, frame dropped",
+            event_type=payload.get("type"),
+            error=repr(exc),
+        )
+        return False
 
 
 async def watch_event_stream(
@@ -63,8 +143,13 @@ async def watch_event_stream(
     pubsub_factory: Callable[[], Any],
     heartbeat_seconds: float,
     retry_milliseconds: int,
+    event_filter: Optional[Callable[[dict], Awaitable[bool]]] = None,
 ) -> AsyncIterator[str]:
     """Subscribe to the session's watch channel and yield SSE frames forever.
+
+    ``event_filter``, when given, decides each parsed payload: a payload it refuses
+    (or that makes it raise) is dropped. The project stream uses it to drop the
+    events of items the watcher may not read.
 
     The first frame is a ``retry:`` preamble: it pins the client's built-in
     auto-reconnect delay (implementation-defined otherwise) so a server-side
@@ -80,26 +165,42 @@ async def watch_event_stream(
 
     The subscription is torn down in ``finally`` — a client disconnect cancels
     the generator (GeneratorExit/CancelledError), which is exactly the cleanup
-    path, so no Redis subscription outlives its SSE connection.
+    path, so no Redis subscription outlives its SSE connection. CancelledError is
+    never swallowed here: the ``finally`` guards only the best-effort teardown.
+
+    Server shutdown is the OTHER release path: the loop re-checks the module
+    shutdown flag at least every ``_SHUTDOWN_POLL_SECONDS``, and returns as soon
+    as it is set — uvicorn's drain would otherwise wait on this generator forever
+    (see the module comment). The heartbeat cadence is preserved by counting idle
+    polls rather than lengthening the wait.
     """
     pubsub = pubsub_factory()
     try:
         await pubsub.subscribe(channel)
         yield retry_frame(retry_milliseconds)
         yield ready_frame()
-        while True:
+        poll_seconds = min(heartbeat_seconds, _SHUTDOWN_POLL_SECONDS)
+        idle_polls_per_heartbeat = max(1, math.ceil(heartbeat_seconds / poll_seconds))
+        idle_polls = 0
+        while not _shutdown.is_set():
             message = await pubsub.get_message(
                 ignore_subscribe_messages=True,
-                timeout=heartbeat_seconds,
+                timeout=poll_seconds,
             )
+            if _shutdown.is_set():
+                break
             if message is None:
-                yield HEARTBEAT_FRAME
+                idle_polls += 1
+                if idle_polls >= idle_polls_per_heartbeat:
+                    idle_polls = 0
+                    yield HEARTBEAT_FRAME
                 continue
+            idle_polls = 0
             if message.get("type") != "message":
                 continue
-            frame = format_watch_frame(message.get("data"))
-            if frame is not None:
-                yield frame
+            payload = parse_watch_payload(message.get("data"))
+            if payload is not None and await _passes(event_filter, payload):
+                yield _frame(payload)
     finally:
         # Two independent attempts: a failing unsubscribe must not skip the close, or the
         # connection outlives the disconnected client.

@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "entry": "weekly-report",
+  "agents": {
+    "weekly-report": {
+      "name": "Weekly report",
+      "description": "Each week, compiles a report of shipping activity and product metrics to Notion.",
+      "instructions": "./ai.agenta/agents/weekly-report/AGENTS.md",
+      "setup": "./ai.agenta/agents/weekly-report/SETUP.md",
+      "connections": [
+        {
+          "key": "read-the-shipped-work",
+          "required": true,
+          "purpose": "Read the shipped work",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "github"
+            }
+          ],
+          "setup_notes": "Read pull requests"
+        },
+        {
+          "key": "publish-the-report",
+          "required": true,
+          "purpose": "Publish the report",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "notion"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "slack"
+            }
+          ],
+          "setup_notes": "Publish the report"
+        },
+        {
+          "key": "read-product-metrics",
+          "required": false,
+          "purpose": "Read product metrics",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "posthog"
+            }
+          ],
+          "setup_notes": "Read product metrics"
+        }
+      ]
+    }
+  }
+}

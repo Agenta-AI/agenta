@@ -31,15 +31,7 @@
       }
     }
   },
-  "tools": [
-    "read",
-    "bash",
-    "edit",
-    "write",
-    "grep",
-    "find",
-    "ls"
-  ],
+  "tools": ["read", "bash", "edit", "write", "grep", "find", "ls"],
   "customTools": [
     {
       "name": "get_user",
@@ -168,5 +160,6 @@
         }
       }
     }
-  }
+  },
+  "turnContext": "## This session\n\nThis session is named \"Q3 notes\"."
 }

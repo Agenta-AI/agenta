@@ -7,17 +7,37 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/server.test.ts)
  */
+import { turnLogUnmoved } from "../utils/turn-log.ts";
 import { afterEach, describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 import * as http from "node:http";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import {
   createAgentServer,
   normalizeKillProjectId,
   registerShutdownHandler,
+  runWithKeepalive,
+  type KeepaliveEngine,
   type RunAgent,
 } from "../../src/server.ts";
+import type { SessionEnvironment } from "../../src/engines/sandbox_agent.ts";
+import { runSandboxAgent } from "../../src/engines/sandbox_agent.ts";
+import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
+import type { KillSessionSandboxes } from "../../src/engines/sandbox_agent/kill-by-label.ts";
+import { HEARTBEAT_INTERVAL_SECONDS } from "../../src/sessions/contract.ts";
+import { AcquireAbortedError } from "../../src/environment/acquire-abort.ts";
+import { PREVIOUS_TEARDOWN_STUCK_MESSAGE } from "../../src/engines/sandbox_agent/session-pool.ts";
+import { REPLICA_ID } from "../../src/sessions/alive.ts";
+import {
+  liveExecutions,
+  resetExecutionsForTest,
+} from "../../src/sessions/execution-registry.ts";
+import { resetContinuationAdmissionsForTest } from "../../src/sessions/continuation-admission.ts";
+import { resetDrainForTest } from "../../src/lifecycle/shutdown.ts";
 
 const TOKEN_ENV = "AGENTA_RUNNER_TOKEN";
 const previousToken = process.env[TOKEN_ENV];
@@ -26,12 +46,39 @@ const LIMIT_ENV = "AGENTA_RUNNER_CONCURRENCY_LIMIT";
 const previousLimit = process.env[LIMIT_ENV];
 
 afterEach(() => {
+  resetExecutionsForTest();
+  resetContinuationAdmissionsForTest();
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   if (previousToken === undefined) delete process.env[TOKEN_ENV];
   else process.env[TOKEN_ENV] = previousToken;
   if (previousLimit === undefined) delete process.env[LIMIT_ENV];
   else process.env[LIMIT_ENV] = previousLimit;
 });
+
+/** A value that must never reach the wire: it stands in for a real credential. */
+const FAKE_LOGIN_SECRET = "not-a-real-token";
+
+/**
+ * Point every subscription mount variable at a temp folder holding fake logins, so
+ * `/subscription-status` answers about these files instead of the operator's own.
+ */
+function mountFakeLogins(): { cleanup: () => void } {
+  const root = mkdtempSync(join(tmpdir(), "runner-subscription-"));
+  const contents = JSON.stringify({ fake: FAKE_LOGIN_SECRET });
+  for (const [dirEnv, file] of [
+    ["CODEX_HOME", "auth.json"],
+    // Mounted, but without the credentials file Claude reads: `login_missing`.
+    ["CLAUDE_CONFIG_DIR", null],
+    ["PI_CODING_AGENT_DIR", "auth.json"],
+  ] as const) {
+    const dir = join(root, dirEnv.toLowerCase());
+    mkdirSync(dir, { recursive: true });
+    if (file) writeFileSync(join(dir, file), contents);
+    vi.stubEnv(dirEnv, dir);
+  }
+  return { cleanup: () => rmSync(root, { recursive: true, force: true }) };
+}
 
 /**
  * The token is REQUIRED to serve, so a booted runner always has one. `listen` therefore configures
@@ -45,13 +92,17 @@ const AUTH = { authorization: `Bearer ${TEST_TOKEN}` };
 async function listen(
   run: RunAgent,
   token: string | null = TEST_TOKEN,
+  // `/kill` lists sandboxes on Daytona when the loaded env enables it, so a test never lets it
+  // reach the real client.
+  killLabelledSandboxes: KillSessionSandboxes = async () => {},
+  killDeadlineMs?: number,
 ): Promise<{ url: string; close: () => Promise<void> }> {
   // Force the configured token unconditionally (default TEST_TOKEN; `null` = leave the env
   // as the test set it, for the tokenless-boot case). A loaded dev env (`load-env` before
   // the suite) sets AGENTA_RUNNER_TOKEN=replace-me; a "set only if unset" guard would let
   // that leak in and 401 every AUTH request. afterEach restores the pre-suite value.
   if (token !== null) process.env[TOKEN_ENV] = token;
-  const server = createAgentServer(run);
+  const server = createAgentServer(run, killLabelledSandboxes, killDeadlineMs);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address() as AddressInfo;
   return {
@@ -77,6 +128,8 @@ describe("createAgentServer", () => {
           (body.engines as unknown[]).includes("sandbox-agent"),
       );
       assert.ok(Array.isArray(body.harnesses));
+      // A caller compares this with a turn binding's replica id before it trusts a pod address.
+      assert.equal(body.replicaId, REPLICA_ID);
     } finally {
       await s.close();
     }
@@ -213,6 +266,69 @@ describe("createAgentServer", () => {
     }
   });
 
+  it("GET /subscription-status without a token returns 401", async () => {
+    // Unlike /health, this describes the operator's own login state: it stays behind the gate.
+    const s = await listen(okRun, "s3cret");
+    try {
+      const res = await fetch(`${s.url}/subscription-status`);
+      assert.equal(res.status, 401);
+      const body = (await res.json()) as { ok: boolean; error: string };
+      assert.equal(body.ok, false);
+      assert.match(body.error, /Unauthorized/);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("GET /subscription-status with a wrong token returns 401", async () => {
+    const s = await listen(okRun, "s3cret");
+    try {
+      const res = await fetch(`${s.url}/subscription-status`, {
+        headers: { authorization: "Bearer nope" },
+      });
+      assert.equal(res.status, 401);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("GET /subscription-status with the token returns one state per harness", async () => {
+    // Every mount variable is stubbed at a temp folder, so the route reads these fake logins and
+    // never the login files of whoever runs the suite — and the expected states are exact.
+    const mounts = mountFakeLogins();
+    const s = await listen(okRun);
+    try {
+      const res = await fetch(`${s.url}/subscription-status`, {
+        headers: AUTH,
+      });
+      assert.equal(res.status, 200);
+      const raw = await res.text();
+      const body = JSON.parse(raw) as {
+        version: number;
+        harnesses: Record<string, { state: string; provider?: string }>;
+      };
+      assert.equal(body.version, 1);
+      assert.deepEqual(body.harnesses, {
+        // A login file that parses.
+        codex: { state: "ready", provider: "openai" },
+        // A mounted folder without the credentials file.
+        claude: { state: "login_missing", provider: "anthropic" },
+        // One Pi mount, one login: both Pi harnesses read it.
+        pi_core: { state: "ready" },
+      });
+      // The fake credential sitting in the login file the route just read is not on the wire,
+      // and neither is any path.
+      assert.ok(
+        !raw.includes(FAKE_LOGIN_SECRET),
+        `response leaked the login contents: ${raw}`,
+      );
+      assert.ok(!raw.includes("/"), `response carried a path: ${raw}`);
+    } finally {
+      await s.close();
+      mounts.cleanup();
+    }
+  });
+
   it("POST /kill with sessionId + projectId drains that session's pool entry + sandboxes (idempotent)", async () => {
     // With keep-alive off (default) the pool is empty, so the drain is a no-op that still 200s.
     const s = await listen(okRun);
@@ -225,6 +341,160 @@ describe("createAgentServer", () => {
       assert.equal(res.status, 200);
       const body = (await res.json()) as { ok: boolean };
       assert.equal(body.ok, true);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /kill sweeps the session's labelled sandboxes with the request's scope, and only for a scoped request", async () => {
+    const swept: Array<{ projectId: string; sessionId: string }> = [];
+    const s = await listen(okRun, TEST_TOKEN, async (scope) => {
+      swept.push(scope);
+    });
+    try {
+      const unscoped = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        headers: AUTH,
+        body: JSON.stringify({ sessionId: "sess-1" }),
+      });
+      assert.equal(unscoped.status, 400);
+      assert.deepEqual(swept, []);
+
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        headers: AUTH,
+        body: JSON.stringify({ sessionId: " sess-1 ", projectId: "proj-1" }),
+      });
+      assert.equal(res.status, 200);
+      assert.deepEqual(swept, [{ sessionId: "sess-1", projectId: "proj-1" }]);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /kill drains the session's pool entry in every pool before it sweeps the labelled sandboxes", async () => {
+    const order: string[] = [];
+    vi.spyOn(SessionPool.prototype, "destroy").mockImplementation(
+      async (key: string, reason?: string) => {
+        // Yield so a sweep that did not wait for the drain would be recorded first.
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        order.push(`drain:${key}:${reason}`);
+      },
+    );
+    const s = await listen(okRun, TEST_TOKEN, async () => {
+      order.push("sweep");
+    });
+    try {
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        headers: AUTH,
+        body: JSON.stringify({ sessionId: "sess-1", projectId: "proj-1" }),
+      });
+      assert.equal(res.status, 200);
+      assert.deepEqual(order, [
+        "drain:proj-1:sess-1:kill",
+        "drain:proj-1:sess-1:kill",
+        "drain:proj-1:sess-1:kill",
+        "sweep",
+      ]);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /kill whose pool drain outlasts the deadline answers 200 and never sweeps the labels", async () => {
+    // After the api stops waiting, a new turn may create a sandbox with the same labels on
+    // another pod; a sweep started by the late drain would delete it.
+    let drainsFinished = 0;
+    let releaseDrain!: () => void;
+    const drainReleased = new Promise<void>((resolve) => (releaseDrain = resolve));
+    vi.spyOn(SessionPool.prototype, "destroy").mockImplementation(async () => {
+      await drainReleased;
+      drainsFinished += 1;
+    });
+    const swept: string[] = [];
+    const s = await listen(
+      okRun,
+      TEST_TOKEN,
+      async ({ sessionId }) => {
+        swept.push(sessionId);
+      },
+      30,
+    );
+    try {
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        headers: AUTH,
+        body: JSON.stringify({ sessionId: "sess-1", projectId: "proj-1" }),
+      });
+      assert.equal(res.status, 200);
+      assert.deepEqual(await res.json(), { ok: true });
+      assert.equal(drainsFinished, 0, "the route answered before the drain finished");
+
+      releaseDrain();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      assert.equal(drainsFinished, 3, "the drain finished in the background");
+      assert.deepEqual(swept, []);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /kill logs a drain that fails after the deadline", async () => {
+    let failDrain!: () => void;
+    const drainFails = new Promise<void>((resolve) => (failDrain = resolve));
+    vi.spyOn(SessionPool.prototype, "destroy").mockImplementation(async () => {
+      await drainFails;
+      throw new Error("teardown exploded");
+    });
+    const written: string[] = [];
+    const write = process.stderr.write.bind(process.stderr);
+    vi.spyOn(process.stderr, "write").mockImplementation(((chunk: unknown, ...rest: never[]) => {
+      written.push(String(chunk));
+      return write(chunk as string, ...rest);
+    }) as typeof process.stderr.write);
+    const s = await listen(okRun, TEST_TOKEN, async () => {}, 30);
+    try {
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        headers: AUTH,
+        body: JSON.stringify({ sessionId: "sess-1", projectId: "proj-1" }),
+      });
+      assert.equal(res.status, 200);
+
+      failDrain();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      assert.match(
+        written.join(""),
+        /kill: background drain failed session=sess-1: teardown exploded/,
+      );
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /kill bounds the label sweep by the deadline it started when it began", async () => {
+    let sweepDeadline: AbortSignal | undefined;
+    const s = await listen(
+      okRun,
+      TEST_TOKEN,
+      async (_scope, deadline) => {
+        sweepDeadline = deadline;
+        assert.equal(deadline.aborted, false);
+        await new Promise<void>((resolve) =>
+          deadline.addEventListener("abort", () => resolve(), { once: true }),
+        );
+      },
+      30,
+    );
+    try {
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        headers: AUTH,
+        body: JSON.stringify({ sessionId: "sess-1", projectId: "proj-1" }),
+      });
+      assert.equal(res.status, 200);
+      assert.equal(sweepDeadline?.aborted, true);
     } finally {
       await s.close();
     }
@@ -433,6 +703,1322 @@ describe("createAgentServer", () => {
     }
   });
 
+  it("persists one stopped ending when user Stop aborts a slow cold acquire", async () => {
+    let markAcquireStarted!: () => void;
+    const acquireStarted = new Promise<void>((resolve) => {
+      markAcquireStarted = resolve;
+    });
+    let runTurnCalls = 0;
+    const engine: KeepaliveEngine = {
+      async resolveKeepaliveMount() {
+        return null;
+      },
+      async acquireEnvironment(_request, signal) {
+        markAcquireStarted();
+        await new Promise<void>((resolve) => {
+          if (signal?.aborted) return resolve();
+          signal?.addEventListener("abort", () => resolve(), { once: true });
+        });
+        return { ok: false, error: "sandbox acquisition aborted" };
+      },
+      async runTurn() {
+        runTurnCalls += 1;
+        return { ok: true, output: "must not run" };
+      },
+      readLatestTurnIndex: turnLogUnmoved,
+      async runCold() {
+        return { ok: false, error: "must not run cold fallback" };
+      },
+    };
+    const run: RunAgent = (request, emit, signal) =>
+      runWithKeepalive(request, emit, signal, {
+        engine,
+        pool: new SessionPool<SessionEnvironment>({ poolMax: 1 }),
+        config: {
+          enabled: true,
+          ttlMs: 60_000,
+          approvalTtlMs: 60_000,
+          poolMax: 1,
+        },
+      });
+    const s = await listen(run);
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const ingested: Array<Record<string, any>> = [];
+    let heartbeatCount = 0;
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          heartbeatCount += 1;
+          return Response.json({
+            stream: { id: "stream-stop-during-acquire" },
+            is_current_turn: heartbeatCount === 1,
+          });
+        }
+        if (url.endsWith("/sessions/records/ingest")) {
+          ingested.push(JSON.parse(String(init?.body)));
+        }
+        return Response.json({});
+      });
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+
+    try {
+      const responsePromise = fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sandbox: "local",
+          sessionId: "session-stop-during-acquire",
+          runContext: { project: { id: "project-1" } },
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: `${s.url}/otlp/v1/traces`,
+                headers: { authorization: "Test platform authorization" },
+              },
+            },
+          },
+          messages: [{ role: "user", content: "start slowly" }],
+        }),
+      });
+
+      await acquireStarted;
+      await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_SECONDS * 1000);
+      const response = await responsePromise;
+      const records = (await response.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, any>);
+
+      assert.equal(runTurnCalls, 0, "the Stop landed before the turn started");
+      const endings = ingested.filter(
+        (record) => record.record_type === "done",
+      );
+      assert.equal(endings.length, 1, "the transcript has one terminal record");
+      assert.equal(
+        ingested.filter((record) => record.record_type === "error").length,
+        0,
+        "a user Stop does not persist an acquire error",
+      );
+      assert.deepEqual(endings[0].attributes, {
+        type: "done",
+        stopReason: "cancelled",
+      });
+      assert.equal(
+        records.filter((record) => record.kind === "result").length,
+        1,
+        "the run outcome is reported once",
+      );
+      assert.equal(
+        records.filter(
+          (record) => record.kind === "event" && record.event?.type === "error",
+        ).length,
+        0,
+        "a user Stop does not reach the client as an error event",
+      );
+      assert.equal(records.at(-1)?.result.ok, true);
+      assert.equal(records.at(-1)?.result.stopReason, "cancelled");
+    } finally {
+      vi.useRealTimers();
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
+  // The Stop can land even earlier than the test above: `acquireEnvironmentOnce` calls
+  // `throwIfAcquireAborted(signal)` twice BEFORE its own try block (environment.ts ~460/~467),
+  // so an abort there THROWS out of `acquireEnvironment` instead of returning `{ ok: false }`.
+  // Neither `coldAndPark`'s try (it wraps only `engine.runTurn`) nor `awaitTurnOrAbandon`
+  // converts it, so it reaches `server.ts`'s catch branch. That path is the cold-acquire Stop
+  // the issue reports, and it must end the same way: cancelled, with no error frame.
+  it("ends a user Stop that throws out of a cold acquire as cancelled", async () => {
+    let markAcquireStarted!: () => void;
+    const acquireStarted = new Promise<void>((resolve) => {
+      markAcquireStarted = resolve;
+    });
+    let runTurnCalls = 0;
+    const engine: KeepaliveEngine = {
+      async resolveKeepaliveMount() {
+        return null;
+      },
+      async acquireEnvironment(_request, signal) {
+        markAcquireStarted();
+        await new Promise<void>((resolve) => {
+          if (signal?.aborted) return resolve();
+          signal?.addEventListener("abort", () => resolve(), { once: true });
+        });
+        throw new AcquireAbortedError();
+      },
+      async runTurn() {
+        runTurnCalls += 1;
+        return { ok: true, output: "must not run" };
+      },
+      readLatestTurnIndex: turnLogUnmoved,
+      async runCold() {
+        return { ok: false, error: "must not run cold fallback" };
+      },
+    };
+    const run: RunAgent = (request, emit, signal) =>
+      runWithKeepalive(request, emit, signal, {
+        engine,
+        pool: new SessionPool<SessionEnvironment>({ poolMax: 1 }),
+        config: {
+          enabled: true,
+          ttlMs: 60_000,
+          approvalTtlMs: 60_000,
+          poolMax: 1,
+        },
+      });
+    const s = await listen(run);
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const ingested: Array<Record<string, any>> = [];
+    let heartbeatCount = 0;
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          heartbeatCount += 1;
+          return Response.json({
+            stream: { id: "stream-stop-thrown-acquire" },
+            is_current_turn: heartbeatCount === 1,
+          });
+        }
+        if (url.endsWith("/sessions/records/ingest")) {
+          ingested.push(JSON.parse(String(init?.body)));
+        }
+        return Response.json({});
+      });
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+
+    try {
+      const responsePromise = fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sandbox: "local",
+          sessionId: "session-stop-thrown-acquire",
+          runContext: { project: { id: "project-1" } },
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: `${s.url}/otlp/v1/traces`,
+                headers: { authorization: "Test platform authorization" },
+              },
+            },
+          },
+          messages: [{ role: "user", content: "start slowly" }],
+        }),
+      });
+
+      await acquireStarted;
+      await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_SECONDS * 1000);
+      const response = await responsePromise;
+      const records = (await response.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, any>);
+
+      assert.equal(runTurnCalls, 0, "the Stop landed before the turn started");
+      const endings = ingested.filter(
+        (record) => record.record_type === "done",
+      );
+      assert.equal(endings.length, 1, "the transcript has one terminal record");
+      assert.equal(
+        ingested.filter((record) => record.record_type === "error").length,
+        0,
+        "a user Stop does not persist an acquire error",
+      );
+      assert.deepEqual(endings[0].attributes, {
+        type: "done",
+        stopReason: "cancelled",
+      });
+      assert.equal(
+        records.filter(
+          (record) => record.kind === "event" && record.event?.type === "error",
+        ).length,
+        0,
+        "the thrown abort does not reach the client as an error event",
+      );
+      assert.equal(records.at(-1)?.result.ok, true);
+      assert.equal(records.at(-1)?.result.stopReason, "cancelled");
+    } finally {
+      vi.useRealTimers();
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
+  // A Stop that arrives AFTER the run already emitted and persisted a real terminal record must
+  // not rewrite that failure into a cancellation. The `!terminalRecordEmitted` half of the Stop
+  // rewrite in `server.ts` exists for exactly this run: it fails loudly, then the transport URL
+  // for the turn dies with the Stop label already on the controller.
+  it("keeps a real failure when a user Stop lands after its terminal record", async () => {
+    const realError = "model exploded";
+    let markRunStarted!: () => void;
+    const runStarted = new Promise<void>((resolve) => {
+      markRunStarted = resolve;
+    });
+    const run: RunAgent = async (_request, emit, signal) => {
+      emit?.({ type: "error", message: realError });
+      emit?.({ type: "done" });
+      markRunStarted();
+      await new Promise<void>((resolve) => {
+        if (signal?.aborted) return resolve();
+        signal?.addEventListener("abort", () => resolve(), { once: true });
+      });
+      throw new Error(realError);
+    };
+    const s = await listen(run);
+    const realFetch = globalThis.fetch.bind(globalThis);
+    let heartbeatCount = 0;
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          heartbeatCount += 1;
+          return Response.json({
+            stream: { id: "stream-stop-after-terminal" },
+            is_current_turn: heartbeatCount === 1,
+          });
+        }
+        return Response.json({});
+      });
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+
+    try {
+      const responsePromise = fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sandbox: "local",
+          sessionId: "session-stop-after-terminal",
+          runContext: { project: { id: "project-1" } },
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: `${s.url}/otlp/v1/traces`,
+                headers: { authorization: "Test platform authorization" },
+              },
+            },
+          },
+          messages: [{ role: "user", content: "fail loudly" }],
+        }),
+      });
+
+      await runStarted;
+      await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_SECONDS * 1000);
+      const response = await responsePromise;
+      const records = (await response.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, any>);
+
+      const result = records.at(-1)?.result;
+      assert.equal(result?.ok, false);
+      assert.equal(result?.error, realError);
+      assert.notEqual(
+        result?.stopReason,
+        "cancelled",
+        "a terminal record already written keeps its own ending",
+      );
+    } finally {
+      vi.useRealTimers();
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
+  // The two tests above use a FAKE engine, so they pin the transport's contract but not the real
+  // acquire. This one drives the REAL engine (`runSandboxAgent`) through the same HTTP server and
+  // aborts it inside `environment.ts`'s own acquire. Only the mount-signing network call is
+  // stubbed, through the documented `deps.signSessionMountCredentials` seam. The abort therefore
+  // makes the REAL `throwIfAcquireAborted(signal)` at environment.ts ~467 throw the REAL
+  // `AcquireAbortedError`, and the real `acquireEnvironment`/`runSandboxAgent` chain carries it to
+  // the transport. This is the closest this suite can get to a live cold provider without a
+  // deployment: the provider's own network behaviour is not exercised, but every line of the
+  // runner's acquire-and-report path is.
+  it("ends a user Stop inside the real engine's acquire as cancelled", async () => {
+    let markAcquireStarted!: () => void;
+    const acquireStarted = new Promise<void>((resolve) => {
+      markAcquireStarted = resolve;
+    });
+    // The real `prepareEnvironmentSetup` awaits this before its post-setup abort check. Blocking
+    // here holds acquire open until the Stop lands, then returning lets the REAL check throw.
+    const signSessionMountCredentials = (async (
+      _session: string,
+      options: { signal?: AbortSignal } = {},
+    ) => {
+      markAcquireStarted();
+      await new Promise<void>((resolve) => {
+        if (options.signal?.aborted) return resolve();
+        options.signal?.addEventListener("abort", () => resolve(), { once: true });
+      });
+      return null;
+    }) as never;
+    const run: RunAgent = (request, emit, signal) =>
+      runSandboxAgent(request, emit, signal, { signSessionMountCredentials });
+    const s = await listen(run);
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const ingested: Array<Record<string, any>> = [];
+    let heartbeatCount = 0;
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          heartbeatCount += 1;
+          return Response.json({
+            stream: { id: "stream-real-acquire-stop" },
+            is_current_turn: heartbeatCount === 1,
+          });
+        }
+        if (url.endsWith("/sessions/records/ingest")) {
+          ingested.push(JSON.parse(String(init?.body)));
+        }
+        return Response.json({});
+      });
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+
+    try {
+      const responsePromise = fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sandbox: "local",
+          sessionId: "session-real-acquire-stop",
+          runContext: { project: { id: "project-1" } },
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: `${s.url}/otlp/v1/traces`,
+                headers: { authorization: "Test platform authorization" },
+              },
+            },
+          },
+          messages: [{ role: "user", content: "start slowly" }],
+        }),
+      });
+
+      await acquireStarted;
+      await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_SECONDS * 1000);
+      const response = await responsePromise;
+      const records = (await response.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, any>);
+
+      assert.equal(
+        ingested.filter((record) => record.record_type === "error").length,
+        0,
+        "the real acquire abort does not persist an error",
+      );
+      const endings = ingested.filter(
+        (record) => record.record_type === "done",
+      );
+      assert.equal(endings.length, 1, "the transcript has one terminal record");
+      assert.deepEqual(endings[0].attributes, {
+        type: "done",
+        stopReason: "cancelled",
+      });
+      assert.equal(
+        records.filter(
+          (record) => record.kind === "event" && record.event?.type === "error",
+        ).length,
+        0,
+        "the real acquire abort does not reach the client as an error event",
+      );
+      const result = records.at(-1)?.result;
+      assert.equal(result?.ok, true);
+      assert.equal(result?.stopReason, "cancelled");
+    } finally {
+      vi.useRealTimers();
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
+  // A Stop label is not proof that the throw WAS the Stop. The pool raises
+  // `PREVIOUS_TEARDOWN_STUCK_MESSAGE` when the previous environment of the conversation is still
+  // tearing down, and a user can press Stop at the same moment. Reading only the label would
+  // persist a cancellation and report success, hiding an infrastructure fault as a user action.
+  // The catch branch keys on `AcquireAbortedError`, so an unrelated throw keeps its error.
+  it("keeps an unrelated failure when a user Stop lands at the same moment", async () => {
+    let markRunStarted!: () => void;
+    const runStarted = new Promise<void>((resolve) => {
+      markRunStarted = resolve;
+    });
+    const run: RunAgent = async (_request, _emit, signal) => {
+      markRunStarted();
+      await new Promise<void>((resolve) => {
+        if (signal?.aborted) return resolve();
+        signal?.addEventListener("abort", () => resolve(), { once: true });
+      });
+      // Not an acquire abort: the previous turn's teardown ran past its budget.
+      throw Object.assign(new Error(PREVIOUS_TEARDOWN_STUCK_MESSAGE), {
+        publicCode: "runner_error",
+      });
+    };
+    const s = await listen(run);
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const ingested: Array<Record<string, any>> = [];
+    let heartbeatCount = 0;
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          heartbeatCount += 1;
+          return Response.json({
+            stream: { id: "stream-stop-beside-failure" },
+            is_current_turn: heartbeatCount === 1,
+          });
+        }
+        if (url.endsWith("/sessions/records/ingest")) {
+          ingested.push(JSON.parse(String(init?.body)));
+        }
+        return Response.json({});
+      });
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+
+    try {
+      const responsePromise = fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sandbox: "local",
+          sessionId: "session-stop-beside-failure",
+          runContext: { project: { id: "project-1" } },
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: `${s.url}/otlp/v1/traces`,
+                headers: { authorization: "Test platform authorization" },
+              },
+            },
+          },
+          messages: [{ role: "user", content: "start" }],
+        }),
+      });
+
+      await runStarted;
+      await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_SECONDS * 1000);
+      const response = await responsePromise;
+      const records = (await response.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, any>);
+
+      const errors = ingested.filter((record) => record.record_type === "error");
+      assert.equal(errors.length, 1, "the real failure is persisted");
+      assert.equal(errors[0].attributes.message, PREVIOUS_TEARDOWN_STUCK_MESSAGE);
+      const endings = ingested.filter((record) => record.record_type === "done");
+      assert.equal(endings.length, 1, "the transcript has one terminal record");
+      assert.notEqual(
+        endings[0].attributes.stopReason,
+        "cancelled",
+        "an unrelated failure is not written down as a cancellation",
+      );
+      const result = records.at(-1)?.result;
+      assert.equal(result?.ok, false);
+      assert.equal(result?.error, PREVIOUS_TEARDOWN_STUCK_MESSAGE);
+      assert.notEqual(result?.stopReason, "cancelled");
+    } finally {
+      vi.useRealTimers();
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
+  it("persists an acquire failure error before exactly one ending", async () => {
+    const acquireError = "sandbox mount failed";
+    let runTurnCalls = 0;
+    const engine: KeepaliveEngine = {
+      async resolveKeepaliveMount() {
+        return null;
+      },
+      async acquireEnvironment() {
+        return { ok: false, error: acquireError };
+      },
+      async runTurn() {
+        runTurnCalls += 1;
+        return { ok: true, output: "must not run" };
+      },
+      readLatestTurnIndex: turnLogUnmoved,
+      async runCold() {
+        return { ok: false, error: "must not run cold fallback" };
+      },
+    };
+    const run: RunAgent = (request, emit, signal) =>
+      runWithKeepalive(request, emit, signal, {
+        engine,
+        pool: new SessionPool<SessionEnvironment>({ poolMax: 1 }),
+        config: {
+          enabled: true,
+          ttlMs: 60_000,
+          approvalTtlMs: 60_000,
+          poolMax: 1,
+        },
+      });
+    const s = await listen(run);
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const ingested: Array<Record<string, any>> = [];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          return Response.json({
+            stream: { id: "stream-acquire-failure" },
+            is_current_turn: true,
+          });
+        }
+        if (url.endsWith("/sessions/records/ingest")) {
+          ingested.push(JSON.parse(String(init?.body)));
+        }
+        return Response.json({});
+      });
+
+    try {
+      const response = await fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sandbox: "local",
+          sessionId: "session-acquire-failure",
+          runContext: { project: { id: "project-1" } },
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: `${s.url}/otlp/v1/traces`,
+                headers: { authorization: "Test platform authorization" },
+              },
+            },
+          },
+          messages: [{ role: "user", content: "fail during acquire" }],
+        }),
+      });
+      const records = (await response.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, any>);
+
+      assert.equal(runTurnCalls, 0, "the failed acquire never starts the turn");
+      const endingRecords = ingested.filter((record) =>
+        ["error", "done"].includes(record.record_type),
+      );
+      assert.deepEqual(
+        endingRecords.map((record) => record.record_type),
+        ["error", "done"],
+        "the transcript preserves the error before its ending",
+      );
+      assert.deepEqual(endingRecords[0].attributes, {
+        type: "error",
+        message: acquireError,
+      });
+      assert.deepEqual(endingRecords[1].attributes, { type: "done" });
+      assert.equal(
+        records.filter((record) => record.kind === "result").length,
+        1,
+        "the failed run outcome is reported once",
+      );
+      assert.equal(records.at(-1)?.result.error, acquireError);
+    } finally {
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
+  it("keeps the normal Stop path at exactly one persisted ending", async () => {
+    const normalStop: RunAgent = async (_request, emit) => {
+      emit?.({ type: "done", stopReason: "cancelled" });
+      return { ok: true, stopReason: "cancelled", events: [] };
+    };
+    const s = await listen(normalStop);
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const ingested: Array<Record<string, any>> = [];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          return Response.json({
+            stream: { id: "stream-normal-stop" },
+            is_current_turn: true,
+          });
+        }
+        if (url.endsWith("/sessions/records/ingest")) {
+          ingested.push(JSON.parse(String(init?.body)));
+        }
+        return Response.json({});
+      });
+
+    try {
+      const response = await fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sessionId: "session-normal-stop",
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: `${s.url}/otlp/v1/traces`,
+                headers: { authorization: "Test platform authorization" },
+              },
+            },
+          },
+          messages: [{ role: "user", content: "stop normally" }],
+        }),
+      });
+      const records = (await response.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, any>);
+
+      const endings = ingested.filter(
+        (record) => record.record_type === "done",
+      );
+      assert.equal(
+        endings.length,
+        1,
+        "the server must not duplicate runTurn's ending",
+      );
+      assert.deepEqual(endings[0].attributes, {
+        type: "done",
+        stopReason: "cancelled",
+      });
+      assert.equal(
+        records.filter(
+          (record) => record.kind === "event" && record.event?.type === "done",
+        ).length,
+        1,
+        "the normal Stop still streams its one done event",
+      );
+      assert.equal(
+        records.filter((record) => record.kind === "result").length,
+        1,
+        "the run outcome is reported once",
+      );
+    } finally {
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+  for (const testCase of [
+    { name: "plain", sessionOwned: false, detached: false, aborts: true },
+    {
+      name: "session-owned",
+      sessionOwned: true,
+      detached: false,
+      aborts: false,
+    },
+    { name: "detached", sessionOwned: true, detached: true, aborts: false },
+  ]) {
+    it(`a dropped ${testCase.name} invoke ${testCase.aborts ? "cancels" : "does not cancel"} the turn`, async () => {
+      vi.stubEnv("AGENTA_API_INTERNAL_URL", "http://api:8000");
+      let releaseRun: (() => void) | undefined;
+      let observedAbort = false;
+      let completed = false;
+      let markStarted: (() => void) | undefined;
+      const started = new Promise<void>((resolve) => {
+        markStarted = resolve;
+      });
+      const run: RunAgent = async (_request, _emit, signal) => {
+        markStarted?.();
+        return await new Promise((resolve) => {
+          const finish = () => {
+            if (completed) return;
+            completed = true;
+            resolve({ ok: true, output: "done", events: [] });
+          };
+          releaseRun = finish;
+          signal?.addEventListener(
+            "abort",
+            () => {
+              observedAbort = true;
+              finish();
+            },
+            { once: true },
+          );
+        });
+      };
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockImplementation(async (input) => {
+          const url = String(input);
+          if (url.endsWith("/sessions/streams/heartbeat")) {
+            return Response.json({
+              stream: { id: "stream-1" },
+              is_current_turn: true,
+            });
+          }
+          return Response.json({});
+        });
+      const s = await listen(run);
+
+      try {
+        const request = http.request(`${s.url}/run`, {
+          method: "POST",
+          headers: {
+            ...AUTH,
+            accept: "application/x-ndjson",
+            "content-type": "application/json",
+          },
+        });
+        request.on("error", () => {});
+        request.end(
+          JSON.stringify({
+            harness: "pi_core",
+            ...(testCase.sessionOwned
+              ? { sessionId: `session-${testCase.name}` }
+              : {}),
+            ...(testCase.detached ? { detached: true } : {}),
+            telemetry: {
+              exporters: {
+                otlp: {
+                  endpoint: "http://127.0.0.1:8000/otlp/v1/traces",
+                  headers: { authorization: "ApiKey test" },
+                },
+              },
+            },
+            messages: [{ role: "user", content: "hello" }],
+          }),
+        );
+
+        await started;
+        request.destroy();
+        await new Promise<void>((resolve) => setTimeout(resolve, 25));
+
+        if (!testCase.aborts) {
+          assert.equal(
+            observedAbort,
+            false,
+            "the dropped response must not own turn lifetime",
+          );
+          assert.equal(
+            completed,
+            false,
+            "the fake turn is still running after disconnect",
+          );
+          releaseRun?.();
+        }
+
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(
+            () => reject(new Error("run did not settle")),
+            1_000,
+          );
+          const poll = () => {
+            if (completed) {
+              clearTimeout(timeout);
+              resolve();
+            } else setImmediate(poll);
+          };
+          poll();
+        });
+        assert.equal(observedAbort, testCase.aborts);
+      } finally {
+        releaseRun?.();
+        await s.close();
+        fetchSpy.mockRestore();
+      }
+    });
+  }
+
+  it("admits one execution for duplicate durable continuation delivery and re-reports started", async () => {
+    vi.stubEnv("AGENTA_API_URL", "https://api.example.test/api");
+    let runCalls = 0;
+    const signals: AbortSignal[] = [];
+    const s = await listen(async (_request, _emit, signal) => {
+      runCalls += 1;
+      assert.ok(signal);
+      signals.push(signal);
+      return { ok: true, output: "continued", events: [] };
+    });
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const admissionReports: Array<Record<string, any>> = [];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.includes("/sessions/control/commands/command-1/outcome")) {
+          const headers = new Headers(init?.headers);
+          assert.equal(
+            headers.get("x-agenta-runner-token"),
+            TEST_TOKEN,
+            "continuation outcome authenticates with the runner token",
+          );
+          admissionReports.push(JSON.parse(String(init?.body)));
+          return Response.json({
+            command: { id: "command-1", state: "applied" },
+            admitted: admissionReports.length === 1,
+          });
+        }
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          return Response.json({
+            stream: { id: "stream-1" },
+            is_current_turn: true,
+          });
+        }
+        return Response.json({ ok: true });
+      });
+    const request = {
+      harness: "pi_core",
+      sessionId: "session-1",
+      turnId: "continuation-turn-1",
+      projectId: "project-1",
+      controlCommandId: "command-1",
+      messages: [{ role: "user", content: "approved" }],
+    };
+
+    try {
+      const deliver = () =>
+        fetchSpy(`${s.url}/run`, {
+          method: "POST",
+          headers: { accept: "application/x-ndjson", ...AUTH },
+          body: JSON.stringify(request),
+        });
+      const first = await deliver();
+      assert.equal(first.status, 200);
+      const firstRecords = (await first.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line));
+      assert.equal(firstRecords.at(-1).result.ok, true);
+
+      const duplicate = await deliver();
+      assert.equal(duplicate.status, 200);
+      const duplicateRecords = (await duplicate.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line));
+      assert.equal(duplicateRecords.at(-1).result.ok, true);
+      assert.equal(
+        duplicateRecords.at(-1).result.stopReason,
+        "control_command_duplicate",
+      );
+
+      assert.equal(runCalls, 1);
+      assert.equal(signals.length, 1);
+      assert.equal(signals[0].aborted, false);
+      assert.equal(admissionReports.length, 2);
+      for (const report of admissionReports) {
+        assert.equal(report.result, "applied");
+        assert.equal(report.execution.id, "continuation-turn-1");
+        assert.equal(report.execution.state, "started");
+        assert.equal(typeof report.replica_id, "string");
+      }
+    } finally {
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
+  for (const testCase of [
+    { name: "durable continuation", continuation: true, clientGone: false },
+    { name: "session-owned turn", continuation: false, clientGone: true },
+  ]) {
+    it(`a ${testCase.name} whose caller closes mid-turn reports clientGone=${testCase.clientGone} to the park decision`, async () => {
+      // The api dispatches an answered approval detached and closes the stream once the first
+      // record arrives. That close must not read as a lost client, or the resumed warm sandbox is
+      // destroyed at turn end and the next message starts cold. Any other session-owned turn
+      // keeps "disconnect means destroy, never park".
+      vi.stubEnv("AGENTA_API_URL", "https://api.example.test/api");
+      let markStarted: (() => void) | undefined;
+      const started = new Promise<void>((resolve) => {
+        markStarted = resolve;
+      });
+      let releaseRun: (() => void) | undefined;
+      let clientGoneAtEnd: boolean | undefined;
+      const run: RunAgent = async (_request, emit, _signal, options) => {
+        emit?.({ type: "message", text: "first" } as never);
+        markStarted?.();
+        await new Promise<void>((resolve) => {
+          releaseRun = resolve;
+        });
+        clientGoneAtEnd = options?.clientGone?.();
+        return { ok: true, output: "continued", events: [] };
+      };
+      const realFetch = globalThis.fetch.bind(globalThis);
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockImplementation(async (input, init) => {
+          const url = String(input);
+          if (url.startsWith(s.url)) return realFetch(input, init);
+          if (url.includes("/sessions/control/commands/command-close/outcome")) {
+            return Response.json({
+              command: { id: "command-close", state: "applied" },
+              admitted: true,
+            });
+          }
+          if (url.endsWith("/sessions/streams/heartbeat")) {
+            return Response.json({
+              stream: { id: "stream-close" },
+              is_current_turn: true,
+            });
+          }
+          return Response.json({ ok: true });
+        });
+      const s = await listen(run);
+
+      try {
+        const request = http.request(`${s.url}/run`, {
+          method: "POST",
+          headers: {
+            ...AUTH,
+            accept: "application/x-ndjson",
+            "content-type": "application/json",
+          },
+        });
+        request.on("error", () => {});
+        request.end(
+          JSON.stringify({
+            harness: "pi_core",
+            sessionId: `session-close-${testCase.continuation ? "c" : "s"}`,
+            turnId: `turn-close-${testCase.continuation ? "c" : "s"}`,
+            projectId: "project-1",
+            ...(testCase.continuation
+              ? { controlCommandId: "command-close", detached: true }
+              : {}),
+            messages: [{ role: "user", content: "approved" }],
+          }),
+        );
+
+        await started;
+        request.destroy();
+        await new Promise<void>((resolve) => setTimeout(resolve, 25));
+        releaseRun?.();
+        await vi.waitFor(() => assert.notEqual(clientGoneAtEnd, undefined), {
+          timeout: 1_000,
+        });
+        assert.equal(clientGoneAtEnd, testCase.clientGone);
+      } finally {
+        releaseRun?.();
+        await s.close();
+        fetchSpy.mockRestore();
+      }
+    });
+  }
+
+  it("keeps a continuation retryable when its admission outcome cannot be reported", async () => {
+    vi.stubEnv("AGENTA_API_URL", "https://api.example.test/api");
+    let runCalls = 0;
+    let reportCalls = 0;
+    const s = await listen(async (_request, _emit, signal) => {
+      runCalls += 1;
+      assert.equal(signal?.aborted, false);
+      return { ok: true, output: "continued", events: [] };
+    });
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.includes("/sessions/control/commands/command-retry/outcome")) {
+          reportCalls += 1;
+          return reportCalls === 1
+            ? new Response("unavailable", { status: 503 })
+            : Response.json({
+                command: { id: "command-retry", state: "applied" },
+                admitted: true,
+              });
+        }
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          return Response.json({
+            stream: { id: "stream-retry" },
+            is_current_turn: true,
+          });
+        }
+        return Response.json({ ok: true });
+      });
+    const request = {
+      harness: "pi_core",
+      sessionId: "session-retry",
+      turnId: "continuation-turn-retry",
+      projectId: "project-1",
+      controlCommandId: "command-retry",
+      messages: [{ role: "user", content: "approved" }],
+    };
+
+    try {
+      const deliver = async () => {
+        const response = await fetchSpy(`${s.url}/run`, {
+          method: "POST",
+          headers: { accept: "application/x-ndjson", ...AUTH },
+          body: JSON.stringify(request),
+        });
+        return (await response.text())
+          .trim()
+          .split("\n")
+          .map((line) => JSON.parse(line));
+      };
+
+      const failed = await deliver();
+      assert.equal(failed.at(-1).result.ok, false);
+      assert.equal(
+        runCalls,
+        0,
+        "engine does not start before durable admission",
+      );
+
+      const retried = await deliver();
+      assert.equal(retried.at(-1).result.ok, true);
+      assert.equal(runCalls, 1);
+      assert.equal(reportCalls, 2);
+    } finally {
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
+  it("recovers after the API committed admission but its response was lost", async () => {
+    vi.stubEnv("AGENTA_API_URL", "https://api.example.test/api");
+    let runCalls = 0;
+    let reportCalls = 0;
+    const s = await listen(async () => {
+      runCalls += 1;
+      return { ok: true, output: "continued", events: [] };
+    });
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (
+          url.includes(
+            "/sessions/control/commands/command-response-loss/outcome",
+          )
+        ) {
+          reportCalls += 1;
+          if (reportCalls === 1) {
+            // The API committed applied/running, but the runner never observed the response.
+            throw new Error("connection reset after response commit");
+          }
+          return Response.json({
+            command: { id: "command-response-loss", state: "applied" },
+            // The immediate retry sees running. The later retry represents API watchdog/preflight
+            // recovery, whose recoverable->running CAS grants exactly one fresh admission.
+            admitted: reportCalls >= 3,
+          });
+        }
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          return Response.json({
+            stream: { id: "stream-response-loss" },
+            is_current_turn: true,
+          });
+        }
+        return Response.json({ ok: true });
+      });
+    const request = {
+      harness: "pi_core",
+      sessionId: "session-response-loss",
+      turnId: "continuation-turn-response-loss",
+      projectId: "project-1",
+      controlCommandId: "command-response-loss",
+      messages: [{ role: "user", content: "approved" }],
+    };
+
+    try {
+      const deliver = async () => {
+        const response = await fetchSpy(`${s.url}/run`, {
+          method: "POST",
+          headers: { accept: "application/x-ndjson", ...AUTH },
+          body: JSON.stringify(request),
+        });
+        return (await response.text())
+          .trim()
+          .split("\n")
+          .map((line) => JSON.parse(line));
+      };
+
+      assert.equal((await deliver()).at(-1).result.ok, false);
+      assert.equal(
+        (await deliver()).at(-1).result.stopReason,
+        "control_command_duplicate",
+      );
+      assert.equal(runCalls, 0);
+      assert.equal((await deliver()).at(-1).result.ok, true);
+      assert.equal(runCalls, 1);
+      assert.equal(reportCalls, 3);
+    } finally {
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
+  it("does not report or run a continuation until a fresh controller owns the alive lock", async () => {
+    vi.stubEnv("AGENTA_API_URL", "https://api.example.test/api");
+    let runCalls = 0;
+    let activeHeartbeatCalls = 0;
+    let reportCalls = 0;
+    const engineSignals: AbortSignal[] = [];
+    const s = await listen(async (_request, _emit, signal) => {
+      runCalls += 1;
+      assert.ok(signal);
+      engineSignals.push(signal);
+      return { ok: true, output: "continued", events: [] };
+    });
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          const body = JSON.parse(String(init?.body));
+          if (body.is_running) activeHeartbeatCalls += 1;
+          return Response.json({
+            stream: { id: "stream-ownership" },
+            is_current_turn:
+              body.is_running === false || activeHeartbeatCalls > 1,
+          });
+        }
+        if (
+          url.includes("/sessions/control/commands/command-ownership/outcome")
+        ) {
+          reportCalls += 1;
+          return Response.json({
+            command: { id: "command-ownership", state: "applied" },
+            admitted: true,
+          });
+        }
+        return Response.json({ ok: true });
+      });
+    const request = {
+      harness: "pi_core",
+      sessionId: "session-ownership",
+      turnId: "continuation-turn-ownership",
+      projectId: "project-1",
+      controlCommandId: "command-ownership",
+      messages: [{ role: "user", content: "approved" }],
+    };
+
+    try {
+      const deliver = async () => {
+        const response = await fetchSpy(`${s.url}/run`, {
+          method: "POST",
+          headers: { accept: "application/x-ndjson", ...AUTH },
+          body: JSON.stringify(request),
+        });
+        return (await response.text())
+          .trim()
+          .split("\n")
+          .map((line) => JSON.parse(line));
+      };
+
+      const rejected = await deliver();
+      assert.equal(rejected.at(-1).result.ok, false);
+      assert.equal(reportCalls, 0, "ownership rejection precedes outcome");
+      assert.equal(
+        runCalls,
+        0,
+        "ownership rejection precedes engine invocation",
+      );
+
+      const retried = await deliver();
+      assert.equal(retried.at(-1).result.ok, true);
+      assert.equal(reportCalls, 1);
+      assert.equal(runCalls, 1);
+      assert.equal(engineSignals.length, 1);
+      assert.equal(
+        engineSignals[0].aborted,
+        false,
+        "the retry receives a fresh, un-aborted controller",
+      );
+    } finally {
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
+  it("does not run when the API says another replica already admitted the command", async () => {
+    vi.stubEnv("AGENTA_API_URL", "https://api.example.test/api");
+    let runCalls = 0;
+    let reportCalls = 0;
+    const s = await listen(async () => {
+      runCalls += 1;
+      return { ok: true, output: "must not run", events: [] };
+    });
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          return Response.json({
+            stream: { id: "stream-cross-replica" },
+            is_current_turn: true,
+          });
+        }
+        if (
+          url.includes("/sessions/control/commands/command-applied/outcome")
+        ) {
+          reportCalls += 1;
+          return Response.json({
+            command: { id: "command-applied", state: "applied" },
+            admitted: false,
+          });
+        }
+        return Response.json({ ok: true });
+      });
+    const request = {
+      harness: "pi_core",
+      sessionId: "session-cross-replica",
+      turnId: "continuation-turn-cross-replica",
+      projectId: "project-1",
+      controlCommandId: "command-applied",
+      messages: [{ role: "user", content: "approved" }],
+    };
+
+    try {
+      const deliver = async () => {
+        const response = await fetchSpy(`${s.url}/run`, {
+          method: "POST",
+          headers: { accept: "application/x-ndjson", ...AUTH },
+          body: JSON.stringify(request),
+        });
+        return (await response.text())
+          .trim()
+          .split("\n")
+          .map((line) => JSON.parse(line));
+      };
+
+      const first = await deliver();
+      assert.equal(first.at(-1).result.ok, true);
+      assert.equal(first.at(-1).result.stopReason, "control_command_duplicate");
+      const duplicate = await deliver();
+      assert.equal(
+        duplicate.at(-1).result.stopReason,
+        "control_command_duplicate",
+      );
+      assert.equal(runCalls, 0);
+      assert.equal(reportCalls, 2, "same-process duplicate re-acknowledges");
+    } finally {
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
   it("redacts this run's credentials from the stderr stack log when a run throws", async () => {
     // A per-run provider key rides ONLY the typed request (never process env). When the run
     // throws with that key captured in the error message/stack (an auth failure echoing it,
@@ -483,6 +2069,76 @@ describe("createAgentServer", () => {
       assert.equal(logged.includes(PER_RUN_KEY), false);
       assert.match(logged, /\[ag:redacted/);
     } finally {
+      await s.close();
+    }
+  });
+
+  it("persists one terminal done record when a session-owned run throws", async () => {
+    const s = await listen(async () => {
+      throw new Error("engine escaped");
+    });
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const ingested: Array<Record<string, any>> = [];
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          return Response.json({
+            stream: { id: "stream-escaped-run" },
+            is_current_turn: true,
+          });
+        }
+        if (url.endsWith("/sessions/records/ingest")) {
+          ingested.push(JSON.parse(String(init?.body)));
+        }
+        return Response.json({});
+      });
+
+    try {
+      const response = await fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sessionId: "session-escaped-run",
+          runContext: { project: { id: "project-1" } },
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: `${s.url}/otlp/v1/traces`,
+                headers: { authorization: "Test platform authorization" },
+              },
+            },
+          },
+          messages: [{ role: "user", content: "throw" }],
+        }),
+      });
+      const records = (await response.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, any>);
+
+      assert.deepEqual(
+        ingested
+          .filter((record) => ["error", "done"].includes(record.record_type))
+          .map((record) => record.record_type),
+        ["error", "done"],
+      );
+      assert.equal(
+        ingested.filter((record) => record.record_type === "done").length,
+        1,
+      );
+      assert.equal(
+        records.filter((record) => record.kind === "result").length,
+        1,
+      );
+      assert.equal(records.at(-1)?.result.error, "engine escaped");
+    } finally {
+      fetchSpy.mockRestore();
+      errorSpy.mockRestore();
       await s.close();
     }
   });
@@ -553,8 +2209,147 @@ describe("createAgentServer", () => {
         records[0].result.error,
         "A user turn may carry at most 2 attachments.",
       );
+      assert.deepEqual(liveExecutions(), []);
     } finally {
       delete process.env.AGENTA_ATTACHMENTS_MAX_PER_TURN;
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
+  it("never sends a third-party collector credential to session APIs", async () => {
+    // The protection is only decidable once the runner knows its own PUBLIC api base: without it
+    // a public-looking endpoint could equally be this platform under its public name. Configure it
+    // here so this case exercises the armed check rather than the undecidable state (which the
+    // sibling case below covers).
+    vi.stubEnv("AGENTA_API_URL", "https://agenta.example.test/api");
+    let engineCredential: string | undefined;
+    const s = await listen(async (_request, _emit, _signal, options) => {
+      engineCredential = options?.credential?.();
+      return { ok: true, output: "done", events: [] };
+    });
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const platformCalls: Array<{ url: string; authorization: string }> = [];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        const headers = (init?.headers ?? {}) as Record<string, string>;
+        platformCalls.push({
+          url,
+          authorization: headers.authorization ?? "",
+        });
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          return Response.json({
+            stream: { id: "stream-1" },
+            is_current_turn: true,
+          });
+        }
+        return Response.json({});
+      });
+
+    try {
+      const res = await fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sessionId: "session-third-party",
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: "https://collector.example.test/v1/traces",
+                headers: {
+                  authorization: "Bearer collector-secret",
+                },
+              },
+            },
+          },
+          messages: [{ role: "user", content: "hello" }],
+        }),
+      });
+      await res.text();
+
+      assert.equal(engineCredential, "");
+      assert.equal(
+        platformCalls.some((call) =>
+          call.url.endsWith("/sessions/streams/heartbeat"),
+        ),
+        true,
+      );
+      assert.equal(
+        platformCalls.some(
+          (call) => call.authorization === "Bearer collector-secret",
+        ),
+        false,
+      );
+    } finally {
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
+  it("still authenticates session APIs when only the internal api hop is configured", async () => {
+    // The self-hosted shape that broke in v0.114.0. The api and services containers know the
+    // deployment by its public name, so a dispatched run's trace endpoint is the public base,
+    // while the runner is given only the in-network hop. Those two never string-match, and
+    // dropping the credential there 401s every session call — persistence, heartbeat, and the
+    // history rebuild that reports it as "record log is unreadable". Undecidable must not mean
+    // unauthenticated.
+    vi.stubEnv("AGENTA_API_URL", undefined);
+    vi.stubEnv("AGENTA_API_INTERNAL_URL", "http://api:8000");
+    let engineCredential: string | undefined;
+    const s = await listen(async (_request, _emit, _signal, options) => {
+      engineCredential = options?.credential?.();
+      return { ok: true, output: "done", events: [] };
+    });
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const platformCalls: Array<{ url: string; authorization: string }> = [];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        const headers = (init?.headers ?? {}) as Record<string, string>;
+        platformCalls.push({ url, authorization: headers.authorization ?? "" });
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          return Response.json({
+            stream: { id: "stream-1" },
+            is_current_turn: true,
+          });
+        }
+        return Response.json({});
+      });
+
+    try {
+      const res = await fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sessionId: "session-self-hosted",
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: "https://selfhosted.example.test/api/otlp/v1/traces",
+                headers: { authorization: "Secret platform-credential" },
+              },
+            },
+          },
+          messages: [{ role: "user", content: "hello" }],
+        }),
+      });
+      await res.text();
+
+      assert.equal(engineCredential, "Secret platform-credential");
+      assert.equal(
+        platformCalls.some(
+          (call) => call.authorization === "Secret platform-credential",
+        ),
+        true,
+      );
+    } finally {
       fetchSpy.mockRestore();
       await s.close();
     }
@@ -738,6 +2533,8 @@ describe("registerShutdownHandler (sandbox-leak backstop on docker stop)", () =>
   afterEach(() => {
     for (const signal of registered.splice(0))
       process.removeAllListeners(signal);
+    // The handler puts the process into drain; later tests serve turns again.
+    resetDrainForTest();
   });
 
   function register(opts: Parameters<typeof registerShutdownHandler>[0]) {
@@ -807,4 +2604,70 @@ describe("registerShutdownHandler (sandbox-leak backstop on docker stop)", () =>
 
     assert.equal(cleanups, 1, "a repeated signal does not re-run cleanup");
   });
+});
+
+describe("user message display persistence", () => {
+  for (const display of [undefined, null, "Visible request", ""]) {
+    it(`preserves ${String(display)} without changing engine input`, async () => {
+      const message = {
+        role: "user",
+        content:
+          "Visible request\n\nTemplate-supplied setup guidance: ask for repository",
+        ...(display !== undefined ? { display_content: display } : {}),
+      };
+      const s = await listen(async (request) => {
+        assert.deepEqual(request.messages, [message]);
+        return { ok: true, output: "Ready" };
+      });
+      const realFetch = globalThis.fetch.bind(globalThis);
+      const ingested: Array<Record<string, any>> = [];
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockImplementation(async (input, init) => {
+          const url = String(input);
+          if (url === `${s.url}/run`) return realFetch(input, init);
+          if (url.endsWith("/sessions/streams/heartbeat")) {
+            return Response.json({
+              stream: { id: "stream-display" },
+              is_current_turn: true,
+            });
+          }
+          if (url.endsWith("/sessions/records/ingest"))
+            ingested.push(JSON.parse(String(init?.body)));
+          return Response.json({});
+        });
+      try {
+        const response = await fetchSpy(`${s.url}/run`, {
+          method: "POST",
+          headers: { accept: "application/x-ndjson", ...AUTH },
+          body: JSON.stringify({
+            harness: "pi_core",
+            sessionId: "session-display",
+            runContext: { project: { id: "project-1" } },
+            telemetry: {
+              exporters: {
+                otlp: {
+                  endpoint: `${s.url}/otlp/v1/traces`,
+                  headers: { authorization: "Test platform authorization" },
+                },
+              },
+            },
+            messages: [message],
+          }),
+        });
+        await response.text();
+        const user = ingested.find((record) => record.record_source === "user");
+        assert.ok(user);
+        assert.equal(user.attributes.text, message.content);
+        assert.equal(
+          Object.hasOwn(user.attributes, "display_content"),
+          display !== undefined,
+        );
+        assert.equal(user.attributes.display_content, display);
+      } finally {
+        fetchSpy.mockRestore();
+        await s.close();
+      }
+    });
+  }
 });

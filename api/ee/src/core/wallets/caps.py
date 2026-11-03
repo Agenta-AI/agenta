@@ -1,0 +1,195 @@
+"""Plan caps on agent turns, and the lines the person reads when a turn meets a limit.
+
+Only turns that run on the platform's own sandboxes are capped, and only while the
+deployment's wallet is on (`AGENTA_WALLETS_ENABLED`). The numbers live
+with the plan entitlements (`AGENT_TURN_CAPS`). The runner shows each line as it is, beside
+a stable code the chat maps to its own title and button, so every line is one line of plain
+text written for the person in the chat.
+
+The words are plain on purpose: "task" for what the person asked the agent to do, and
+"agent" for the agent, with no internal terms. The numbers in them come from the caps and
+the plan catalog.
+"""
+
+from dataclasses import dataclass
+from typing import Optional, Protocol
+from uuid import UUID
+
+from ee.src.core.access.entitlements.types import (
+    AGENT_TURN_CAPS,
+    DEFAULT_CATALOG,
+    AgentTurnCaps,
+    DefaultPlan,
+)
+from ee.src.core.wallets.grants import DAILY_FREE_GRANTS_PER_MONTH
+from ee.src.core.wallets.plans import allowance_musd_for_plan
+
+WALLET_BALANCE_EXHAUSTED_CODE = "wallet_balance_exhausted"
+CONCURRENT_TURNS_LIMIT_CODE = "concurrent_turns_limit"
+# A `builtin` model call for an organization whose wallet is `off`: nothing would
+# measure or charge it, so it is refused, and the organization uses its own keys.
+BUILTIN_MODELS_NOT_ENABLED_CODE = "builtin_models_not_enabled"
+
+# The runner beats every minute; a turn whose runner stopped beating leaves the count
+# after three missed beats.
+TURN_SLOT_TTL_SECONDS = 180
+
+_HOBBY = DefaultPlan.CLOUD_V0_HOBBY.value
+_PRO = DefaultPlan.CLOUD_V0_PRO.value
+_BUSINESS = DefaultPlan.CLOUD_V0_BUSINESS.value
+
+# The plan to suggest next, by plan. Business has none: the person contacts us.
+_UPGRADE = {_HOBBY: _PRO, _PRO: _BUSINESS}
+
+# 1 credit = 1 cent = 10_000 musd.
+_MUSD_PER_CREDIT = 10_000
+
+
+def _monthly_credits(plan: str) -> str:
+    return f"{allowance_musd_for_plan(plan=plan) // _MUSD_PER_CREDIT:,}"
+
+
+_BUY_MORE = "Buy more credits to keep going"
+
+
+class TurnSlotsInterface(Protocol):
+    """One organization's running turns, each held for a bounded time and renewed by
+    the runner while the turn runs."""
+
+    async def acquire(
+        self, *, organization_id: UUID, turn_id: str, limit: int, ttl_seconds: int
+    ) -> bool:
+        """Hold a slot for this turn unless the organization already holds `limit`.
+        A turn that already holds one keeps it."""
+        ...
+
+    async def renew(
+        self, *, organization_id: UUID, turn_id: str, ttl_seconds: int
+    ) -> None:
+        """Extend this turn's hold; a hold that already expired is taken again, because
+        a running turn is never stopped by the count."""
+        ...
+
+    async def release(self, *, organization_id: UUID, turn_id: str) -> None: ...
+
+
+class SessionTurnHoldsInterface(Protocol):
+    """The agent turn each session is running, as admitted by the platform's runner, held
+    for at most the turn's limit. While a session holds a turn, the LLM gateway serves its
+    platform-funded calls without checking the balance: a turn that started finishes."""
+
+    async def hold(
+        self, *, organization_id: UUID, session_id: str, turn_id: str, ttl_seconds: int
+    ) -> None:
+        """Hold the session's turn for `ttl_seconds`; a newer turn replaces an older one."""
+        ...
+
+    async def held(self, *, organization_id: UUID, session_id: str) -> bool: ...
+
+    async def release(
+        self, *, organization_id: UUID, session_id: str, turn_id: str
+    ) -> None:
+        """Let go of the session's hold if it is still this turn's."""
+        ...
+
+
+@dataclass(frozen=True)
+class TurnLimit:
+    seconds: int
+    message: str
+
+
+@dataclass(frozen=True)
+class TurnAdmission:
+    allowed: bool
+    code: Optional[str] = None
+    message: Optional[str] = None
+    turn_limit: Optional[TurnLimit] = None
+    slot_held: bool = False
+
+
+def turn_caps_for(plan: Optional[str]) -> Optional[AgentTurnCaps]:
+    return AGENT_TURN_CAPS.get(plan) if plan else None
+
+
+def _plan_title(plan: str) -> str:
+    for entry in DEFAULT_CATALOG:
+        if entry.get("plan") == plan:
+            return entry["title"]
+    return plan
+
+
+def _duration(seconds: int) -> str:
+    hours, rest = divmod(seconds, 3600)
+    if hours and not rest:
+        return f"{hours} hour" if hours == 1 else f"{hours} hours"
+    minutes = seconds // 60
+    return f"{minutes} minute" if minutes == 1 else f"{minutes} minutes"
+
+
+def concurrent_turns_message(plan: str, caps: AgentTurnCaps) -> str:
+    upgrade = _UPGRADE.get(plan)
+    upgrade_caps = turn_caps_for(upgrade)
+    next_step = (
+        f"upgrade to {_plan_title(upgrade)} for {upgrade_caps.concurrent_turns} at a time."
+        if upgrade and upgrade_caps
+        else "contact us to raise the limit."
+    )
+    return (
+        f"Your {_plan_title(plan)} plan allows {caps.concurrent_turns} concurrent tasks, "
+        f"and {caps.concurrent_turns} are running. We didn't start this task or "
+        f"charge you. Resend when one finishes, or {next_step}"
+    )
+
+
+def turn_length_message(plan: str, caps: AgentTurnCaps) -> str:
+    upgrade = _UPGRADE.get(plan)
+    upgrade_caps = turn_caps_for(upgrade)
+    next_step = (
+        f"upgrade to {_plan_title(upgrade)} for up to "
+        f"{_duration(upgrade_caps.max_turn_seconds)}."
+        if upgrade and upgrade_caps
+        else "split the work into smaller tasks."
+    )
+    return (
+        f"The {_plan_title(plan)} plan limits a task to "
+        f"{_duration(caps.max_turn_seconds)}. This one reached it, so we stopped it. "
+        "Saved work is kept, and you paid only for the time used. Send a message to "
+        f"continue, or {next_step}"
+    )
+
+
+def _credit_next_step(plan: Optional[str]) -> str:
+    if plan == _HOBBY:
+        next_step = (
+            "Free daily credits come back at midnight UTC, up to "
+            f"{DAILY_FREE_GRANTS_PER_MONTH} days a month, or upgrade to "
+            f"{_plan_title(_PRO)} for {_monthly_credits(_PRO)} credits a month."
+        )
+    elif plan == _PRO:
+        next_step = (
+            f"{_BUY_MORE}, or upgrade to {_plan_title(_BUSINESS)} for "
+            f"{_monthly_credits(_BUSINESS)} credits a month."
+        )
+    elif plan == _BUSINESS:
+        next_step = f"{_BUY_MORE}, or contact us."
+    else:
+        next_step = "Add credits to keep going."
+    return next_step
+
+
+def credit_exhausted_message(plan: Optional[str]) -> str:
+    return (
+        "You've used all your organization's credits, so we didn't start this task "
+        "and didn't charge you. Tasks already running will finish. "
+        f"{_credit_next_step(plan)}"
+    )
+
+
+def model_call_refused_message(plan: Optional[str]) -> str:
+    """For a model call refused at the gateway, outside a turn the runner admitted. It
+    makes no claim about the work or charges before the call."""
+    return (
+        "You've used all your organization's credits, so this task couldn't use an "
+        f"included AI model. {_credit_next_step(plan)}"
+    )

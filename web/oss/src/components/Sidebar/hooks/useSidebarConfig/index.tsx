@@ -1,6 +1,22 @@
 import {useMemo} from "react"
 
 import {
+    AGENTS_SIDEBAR_KEY,
+    EVALUATORS_SIDEBAR_KEY,
+    PROMPTS_SIDEBAR_KEY,
+    TESTSETS_SIDEBAR_KEY,
+} from "@agenta/navigation"
+import {SidebarConfig} from "@agenta/navigation"
+import {
+    HOME_SIDEBAR_KEY,
+    MAIN_SIDEBAR_SCOPE_ID,
+    SESSIONS_SIDEBAR_KEY,
+    SKILLS_SIDEBAR_KEY,
+} from "@agenta/navigation"
+import {loadMoreSidebarSessionsAtomFamily} from "@agenta/navigation"
+import {SessionFilterMenu, SessionSearchButton} from "@agenta/navigation-ui"
+import {advancedNavHiddenAtom} from "@agenta/shared/state"
+import {
     ChartLineUpIcon,
     DesktopIcon,
     FlaskIcon,
@@ -11,31 +27,21 @@ import {
     HouseIcon,
     ListChecksIcon,
     RobotIcon,
+    ChatsCircleIcon,
+    PuzzlePieceIcon,
 } from "@phosphor-icons/react"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {getEntityKindIcon} from "@/oss/components/References"
 import useURL from "@/oss/hooks/useURL"
 import {useCurrentAppLite} from "@/oss/state/app"
 import {useAppState} from "@/oss/state/appState"
-import {
-    advancedNavHiddenAtom,
-    deadEndNavDisabledAtom,
-    homeNavInertAtom,
-} from "@/oss/state/onboarding"
+import {deadEndNavDisabledAtom, homeNavInertAtom} from "@/oss/state/onboarding"
 
-import {
-    AGENTS_SIDEBAR_KEY,
-    EVALUATORS_SIDEBAR_KEY,
-    PROMPTS_SIDEBAR_KEY,
-    TESTSETS_SIDEBAR_KEY,
-} from "../../dynamic/registry"
 import {
     injectDynamicChildren,
     useSidebarDynamicChildren,
 } from "../../dynamic/useSidebarDynamicChildren"
-import {SidebarConfig} from "../../engine/types"
-import {HOME_SIDEBAR_KEY} from "../../scopes/constants"
 
 export interface MainSidebarItems {
     projectItems: SidebarConfig[]
@@ -47,6 +53,7 @@ export const useSidebarConfig = (): MainSidebarItems => {
     const {appId: routedAppId, routeLayer} = useAppState()
     const {projectURL, baseAppURL, appURL, recentlyVisitedAppURL} = useURL()
     const dynamicChildren = useSidebarDynamicChildren()
+    const loadMoreSessions = useSetAtom(loadMoreSidebarSessionsAtomFamily(MAIN_SIDEBAR_SCOPE_ID))
     const homeNavInert = useAtomValue(homeNavInertAtom)
     const deadEndNavDisabled = useAtomValue(deadEndNavDisabledAtom)
     const hideAdvancedNav = useAtomValue(advancedNavHiddenAtom)
@@ -79,17 +86,55 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 title: "Prompts",
                 link: `${projectURL}/prompts`,
                 icon: getEntityKindIcon("app"),
+                // Collapsed rail: navigate to the section instead of flyout-ing the list. A
+                // 15-row popover is a list to read, not a menu to pick from, and the icon's
+                // obvious meaning is "take me to this section".
+                hideChildrenWhenCollapsed: true,
                 isHidden: hideAdvancedNav,
                 disabled: !hasProjectURL,
             },
+            // Agents before Sessions: a session is something an agent has.
             {
                 key: AGENTS_SIDEBAR_KEY,
                 title: "Agents",
                 link: `${projectURL}/agents`,
                 icon: <RobotIcon size={14} />,
+                // Only agents reach `/apps/<id>` with this rail up, so the prefix can't over-claim.
+                matchLinks: [`${projectURL}/agents`, `${baseAppURL}/`],
                 // Onboarding IS agent creation — the list page is an empty dead-end until it commits.
                 disabled: !hasProjectURL || deadEndNavDisabled,
                 tooltip: deadEndNavDisabled ? "Your agents will appear here" : undefined,
+            },
+            {
+                key: SKILLS_SIDEBAR_KEY,
+                title: "Skills",
+                link: `${projectURL}/skills`,
+                icon: <PuzzlePieceIcon size={14} />,
+                hideChildrenWhenCollapsed: true,
+                disabled: !hasProjectURL,
+            },
+            {
+                key: SESSIONS_SIDEBAR_KEY,
+                title: "Sessions",
+                link: `${projectURL}/sessions`,
+                icon: <ChatsCircleIcon size={14} />,
+                hideChildrenWhenCollapsed: true,
+                // Sessions only exist once an agent has run — a dead-end during onboarding.
+                disabled: !hasProjectURL || deadEndNavDisabled,
+                tooltip: deadEndNavDisabled ? "Your sessions will appear here" : undefined,
+                // No collapse caret: the rows are grouped and individually collapsible, and the
+                // search and filter are this group's affordances.
+                alwaysOpen: true,
+                // The rail does not scroll; THIS group does. Sessions is the only list that grows
+                // without bound, so the entries after it stay on screen.
+                scrollChildren: true,
+                onReachEnd: loadMoreSessions,
+                groupAction: (
+                    <>
+                        <SessionSearchButton />
+                        <SessionFilterMenu scopeId={MAIN_SIDEBAR_SCOPE_ID} />
+                    </>
+                ),
             },
             {
                 key: "evaluation-group",
@@ -142,10 +187,19 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 title: "Observability",
                 link: `${projectURL}/observability`,
                 icon: <ChartLineUpIcon size={14} />,
+                isHidden: hideAdvancedNav,
                 disabled: !hasProjectURL,
             },
         ],
-        [baseAppURL, deadEndNavDisabled, hasProjectURL, hideAdvancedNav, homeNavInert, projectURL],
+        [
+            baseAppURL,
+            deadEndNavDisabled,
+            hasProjectURL,
+            hideAdvancedNav,
+            homeNavInert,
+            loadMoreSessions,
+            projectURL,
+        ],
     )
 
     const appItems = useMemo<SidebarConfig[]>(() => {
@@ -156,7 +210,9 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 title: "Overview",
                 link: `${appURL || recentlyVisitedAppURL}/overview`,
                 icon: <DesktopIcon size={14} />,
-                isHidden: isHidden || hideAdvancedNav,
+                // Overview is available in both navs — simplified mode hides the advanced
+                // surfaces around it, not the workflow's own overview.
+                isHidden,
                 // Enabled for evaluators too — scoped by the workflow id as the `application` reference.
                 disabled: !hasProjectURL,
             },
@@ -169,6 +225,17 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 disabled: !hasProjectURL,
             },
             {
+                key: "app-sessions-link",
+                title: "Sessions",
+                link: `${appURL || recentlyVisitedAppURL}/sessions`,
+                icon: <ChatsCircleIcon size={14} />,
+                isHidden,
+                disabled: !hasProjectURL,
+                // Only agents hold conversations — a prompt app or evaluator would get an
+                // always-empty list.
+                workflowCategories: ["agent"],
+            },
+            {
                 key: "app-variants-link",
                 title: "Registry",
                 link: `${appURL || recentlyVisitedAppURL}/variants`,
@@ -176,7 +243,8 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 icon: <LightningIcon size={14} />,
                 disabled: !hasProjectURL,
                 dataTour: "registry-nav",
-                workflowCategories: ["app", "agent"],
+                // Agents navigate flat: no Registry, Evaluations or per-app Observability.
+                workflowCategories: ["app"],
             },
             {
                 key: "app-evaluations-link",
@@ -187,14 +255,16 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 // Enabled for evaluators too — shows the runs scoped by the evaluator's id.
                 disabled: !hasProjectURL,
                 dataTour: "evaluations-nav",
+                workflowCategories: ["app", "evaluator"],
             },
             {
                 key: "app-traces-link",
                 title: "Observability",
                 icon: <TreeViewIcon size={14} />,
-                isHidden,
+                isHidden: isHidden || hideAdvancedNav,
                 link: `${appURL || recentlyVisitedAppURL}/traces`,
                 disabled: !hasProjectURL,
+                workflowCategories: ["app", "evaluator"],
             },
         ]
     }, [

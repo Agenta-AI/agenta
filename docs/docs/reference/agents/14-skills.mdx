@@ -1,0 +1,38 @@
+---
+title: "Skills and reusable setup"
+sidebar_label: "Skills"
+description: "Package reusable instructions and supporting files with an Agenta agent."
+sidebar_position: 15
+---
+
+A skill is a named instruction package rendered beside the agent's `AGENTS.md`. Its description tells the model when to load it.
+
+```json
+{
+  "name": "release-qa",
+  "description": "Use when checking release notes before publication.",
+  "body": "Check every version, link, migration step, and compatibility claim against source.",
+  "files": [
+    {
+      "path": "checklists/release.md",
+      "content": "- Version is correct\n- Links resolve\n- Breaking changes are explicit\n"
+    }
+  ]
+}
+```
+
+## Constraints
+
+- `name` uses lowercase letters, digits, and single hyphens, up to 64 characters.
+- `description` is 1 to 1,024 characters.
+- `body` is up to 50,000 characters.
+- File paths are relative POSIX paths; absolute paths, backslashes, `..`, and root `SKILL.md` are rejected.
+- Set both `allow_executable_files: true` and an executable file entry to ship a runnable helper. Sandbox policy must also permit execution.
+
+Set `disable_model_invocation: true` to hide a skill from ordinary model selection and make it explicitly invokable only in supported harnesses.
+
+## Stored skills
+
+A `skills` entry can be an `@ag.embed` reference to a stored skill workflow. Follow the skill workflow slug for the latest revision or pin a workflow revision version. Agenta resolves embeds before the runner starts.
+
+Skills package instructions and files. They do not implicitly add an MCP server or connected application; configure those separately.

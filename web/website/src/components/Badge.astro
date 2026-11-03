@@ -1,0 +1,28 @@
+---
+// Badge — the section eyebrow ("HOW IT WORKS", "PRICING", "404").
+//
+// One recipe for the whole site, measured on the Framer build: a 24px round
+// outline with a transparent inside, 12px/400 uppercase text, 2px 12px padding.
+// The colours are the theme's --th-badge-* tokens, so the same markup is right
+// in light and dark. Pass `href` to render it as a link (the hero announcement).
+//
+// variant:
+//   "default" the themed eyebrow (light: paper outline + ink-600 text).
+//   "dark"    for bands that are dark in both themes; fixed white-alpha recipe.
+//   "yellow"  the brand-yellow chip (pricing "Most popular" style call-outs).
+interface Props extends astroHTML.JSX.HTMLAttributes {
+  variant?: "default" | "dark" | "yellow";
+  href?: string;
+}
+
+const { variant = "default", href, class: className, ...rest } = Astro.props;
+const Tag = href ? "a" : "span";
+---
+
+<Tag
+  class:list={["ag-badge", `ag-badge--${variant}`, className]}
+  href={href}
+  {...rest}
+>
+  <slot />
+</Tag>

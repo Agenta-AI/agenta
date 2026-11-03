@@ -22,6 +22,10 @@ import {
   claudeSystemPromptMeta,
   composeSystemPromptAppendix,
 } from "../../src/engines/sandbox_agent/system-prompt-appendix.ts";
+import {
+  fileCitationAppendix,
+  platformGuidanceAppendix,
+} from "../../src/engines/sandbox_agent/platform-guidance.ts";
 
 const MOUNT = "/home/sandbox/agenta/mounts/proj-1/sandbox-1-agent";
 
@@ -60,13 +64,19 @@ describe("the guidance for a mount that was ATTEMPTED and SKIPPED", () => {
   });
 
   it("forbids reporting the user's work as lost, which is what the user actually saw", () => {
-    assert.match(text, /do not tell the user that their saved work is missing or was deleted/);
+    assert.match(
+      text,
+      /do not tell the user that their saved work is missing or was deleted/,
+    );
     assert.match(text, /nothing has been lost/);
   });
 
   it("contradicts the history explicitly, because history is why the model looked", () => {
     // The heart of the design: absence cannot correct a transcript that shows the folder working.
-    assert.match(text, /If the conversation so far shows you reading or writing files there/);
+    assert.match(
+      text,
+      /If the conversation so far shows you reading or writing files there/,
+    );
   });
 
   it("names no path and no variable, because there is nothing to advertise", () => {
@@ -87,5 +97,32 @@ describe("the delivery channels carry either statement unchanged", () => {
       appendToSystemPrompt("author text", agentMountUnavailableGuidance()),
       `author text\n\n${agentMountUnavailableGuidance()}`,
     );
+  });
+});
+
+describe("file citation guidance", () => {
+  it("asks for a working-directory-relative link and rejects the shapes that do not open", () => {
+    // The client's link gate (`chatFileRefs.tsx`) opens only files in the session or agent drive,
+    // and a bare basename cannot pick one file among several with that name.
+    const text = fileCitationAppendix().text;
+    assert.match(text, /Markdown link/);
+    assert.match(text, /relative to your working directory/);
+    assert.match(text, /agent-files\/report\.md/);
+    assert.match(text, /Link only files in your working directory/);
+    assert.match(text, /bare basename/);
+    assert.doesNotMatch(text, /full absolute path/);
+  });
+
+  it("is included for every harness through the rendered instructions file", () => {
+    for (const acpAgent of ["pi", "claude", "codex"]) {
+      const text = platformGuidanceAppendix({
+        acpAgent,
+        isPi: acpAgent === "pi",
+        agentMountedPath: undefined,
+        agentMountSkipped: false,
+        toolNames: [],
+      });
+      assert.match(text ?? "", /relative to your working directory/);
+    }
   });
 });

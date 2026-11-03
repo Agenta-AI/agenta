@@ -1,6 +1,6 @@
 ---
 name: sync-model-catalog
-description: Regenerate and refresh the curated agent model catalog (the label/description/pricing/ratings behind the agent model picker). Use when the pinned @earendil-works/pi-ai version bumps, when a Claude Code build changes its accepted alias set, or before a release when the curated Claude/Pi facts (lineup, pricing, ratings) need refreshing from current public sources. Owns the data files under sdks/python/agenta/sdk/agents/data/; never edits capabilities.py logic.
+description: Refresh Agenta's harness catalogs, provider model lists, recommended defaults, and provider-supplied display names. Use for new OpenAI, Anthropic, Codex, Pi, or OpenRouter models and before releases that need current model choices.
 allowed-tools: Read, Edit, Write, Grep, Glob, Bash, WebSearch, WebFetch
 user-invocable: true
 ---
@@ -17,19 +17,23 @@ Design and rationale:
 
 ## What it owns
 
-Three JSON data files under `sdks/python/agenta/sdk/agents/data/`, loaded by
+Four JSON data files under `sdks/python/agenta/sdk/agents/data/`, loaded by
 `sdks/python/agenta/sdk/agents/model_catalog.py`:
 
 - `pi_models.generated.json` — machine-generated from pi-ai. Objective facts only (name / pricing /
   context_window / modalities), `source: "pi_generated"`. **Never hand-edit.**
 - `pi_models.curated.json` — human overlay for the generated file (id -> `{label?, description?,
-  ratings?}`), merged onto the generated facts at load. Survives regeneration.
+  ratings?}`), merged onto the generated facts at load. Survives regeneration. Its `additions`
+  list holds whole entries for models the pinned pi-ai release predates (see below).
 - `claude_models.curated.json` — hand-curated Claude alias entries (facts + judgments),
   `source: "curated"`.
+- `codex_models.curated.json` — hand-curated Codex entries (facts + judgments),
+  `source: "curated"`.
 
-It never edits `capabilities.py` logic — only these data files.
+It also updates the accepted subscription model ids and recommended provider defaults in
+`capabilities.py`, plus the canonical API-key provider list in `sdk/utils/assets.py`.
 
-## The three jobs
+## Refresh workflow
 
 ### 1. Regenerate the Pi file (on a pi-ai version bump)
 
@@ -38,17 +42,39 @@ vault-mapped providers plus `openai-codex`) and emits one entry per model. pi-ai
 mapped to Agenta's vocabulary (`google`->`gemini`, `together`->`together_ai`); ids are
 `<agenta-provider>/<pi-model-id>`.
 
+**Two copies of pi-ai are installed, and only one of them is the harness.** The runner declares
+`@earendil-works/pi-ai` directly at an older version, while `@earendil-works/pi-coding-agent` — the
+package that actually runs the agent — carries its own newer copy. Resolve the models file THROUGH
+pi-coding-agent, so the catalog describes the models the harness really accepts:
+
 ```bash
-# From repo root. Point at the pinned pi-ai in the runner's node_modules (the .pnpm path includes
-# the version — resolve it with the glob).
-MODELS=$(ls services/runner/node_modules/.pnpm/@earendil-works+pi-ai@*/node_modules/@earendil-works/pi-ai/dist/models.generated.js | head -1)
+# From repo root. `realpath` must do the resolving: the path crosses a pnpm symlink, and a `..`
+# left in it would be normalized lexically by node's loader back onto the runner's older direct
+# copy — silently regenerating against the wrong pi-ai.
+MODELS=$(realpath services/runner/node_modules/@earendil-works/pi-coding-agent/../pi-ai/dist/models.generated.js)
 node .agents/skills/sync-model-catalog/generate_pi_models.mjs "$MODELS" \
   sdks/python/agenta/sdk/agents/data/pi_models.generated.json
 ```
 
-Detect the bump from a lockfile diff on `@earendil-works+pi-ai@<version>`. The `_generator` field
-in the output records the exact pi-ai version. The curated overlay is untouched — only the
-`.generated.json` is rewritten, so the merge on load re-applies the human judgments.
+The generator prints the version it read, and records it in the output's `_generator.source`. Check
+that line: a regeneration that reports an OLDER version than the file already carried has read the
+wrong copy — discard it rather than committing a downgrade.
+
+Detect the bump from a lockfile diff on `@earendil-works+pi-coding-agent@<version>`. The curated
+overlay is untouched — only the `.generated.json` is rewritten, so the merge on load re-applies the
+human judgments.
+
+#### Adding a model pi-ai does not carry yet
+
+A model released after the pinned pi-ai snapshot has no generated entry, so it has no catalog entry
+at all: the picker can only show its bare id, and `PROVIDER_DEFAULT_MODELS` drops it (a curated
+default must exist in the catalog or the accepted set). The overlay cannot fix this, because an
+overlay key only decorates an id the generated file already has.
+
+Put the whole entry in the `additions` list of `pi_models.curated.json` instead, with
+`source: "curated"` and every fact sourced from the vendor's own pages. Do not hand-edit the
+generated file. A generated entry of the same id always wins at load, so the addition retires
+itself the moment a regeneration carries the model. Prune superseded additions after job 1.
 
 ### 2. Sync Claude to the live accepted set (needs a running runner)
 
@@ -56,11 +82,13 @@ in the output records the exact pi-ai version. The curated overlay is untouched 
 Probe live sessions by reading the model config options (the same `getConfigOptions` call
 `allowedModels` uses in `services/runner/src/engines/sandbox_agent/model.ts`), but do not copy one
 session's set blindly. Account entitlements and promotions can add or remove context-hinted variants
-such as `claude-fable-5[1m]` while keeping the same model family.
+such as `claude-fable-5-1[1m]` while keeping the same model family.
 
 Use the stable bare canonical id when the runner can safely widen it to the session's hinted option.
-For Fable, publish `claude-fable-5`: it matches a bare live option exactly and the runner resolves it
-to `claude-fable-5[1m]` when that is the only offered variant. Do not publish the friendly forms
+For Fable, publish `claude-fable-5-1`: an API-key session offers it bare, and the runner resolves it
+to `claude-fable-5-1[1m]` on a subscription session, where that is the only offered variant. Drop an
+id the pinned build no longer offers at all (Claude Code 2.1.280 dropped `claude-fable-5`); keeping
+it publishes a picker option that fails at run time. Do not publish the friendly forms
 `fable` or `fable[1m]`; the harness does not recognize that model family under those ids. Requires
 an authenticated Claude session, so this is a manual/periodic step, not a CI gate.
 
@@ -72,6 +100,51 @@ current lineup, pricing, and relative standing from the vendor's pages and annou
 WebFetch), then propose updated descriptions and ratings for a human to confirm. Never write a rating
 from memory. Validate the 1-5 range and flag any entry whose facts you could not verify. Ratings:
 higher is better on every axis; `cost` is cost-efficiency (5 = cheapest).
+
+### 4. Refresh Codex and OpenAI
+
+Use OpenAI's official model pages for the current general-purpose lineup, ids, pricing, context,
+and recommended starting models. Add a new model to `supported_llm_models["openai"]` and
+`PROVIDER_DEFAULT_MODELS["openai"]` only when the official page identifies it as a current
+general-purpose model.
+
+For Codex subscription models, confirm the model is accepted by the pinned Codex app-server or a
+live authenticated session. Add it to `CODEX_MODELS` and `codex_models.curated.json`. For Pi's
+ChatGPT subscription path, update the Pi package first; regenerate the catalog, then make
+`PI_SUBSCRIPTION_MODELS["openai-codex"]` exactly match the pinned package's catalog.
+
+### 5. Refresh Anthropic API models
+
+Use `GET https://api.anthropic.com/v1/models` with the user's key when available. The response is
+newest-first and supplies `id`, `display_name`, capabilities, and token limits. Cross-check the
+official models overview and deprecation page before changing recommendations or removing an id.
+Keep the current four product tiers in `PROVIDER_DEFAULT_MODELS["anthropic"]`; do not remove a
+deprecated model from the canonical list until Anthropic marks it retired.
+
+### 6. Refresh OpenRouter by weekly usage
+
+Run:
+
+```bash
+python .agents/skills/sync-model-catalog/audit_provider_models.py
+```
+
+The script calls OpenRouter's public `GET /api/v1/models` with `sort=most-popular`,
+`supported_parameters=tools`, and `output_modalities=text`. Use the first 10 results for both
+`supported_llm_models["openrouter"]` and `PROVIDER_DEFAULT_MODELS["openrouter"]`, preserving
+response order. The endpoint's `name` field is
+the human-readable label.
+
+The ranking changes with usage. Review removals before applying them because a saved connection
+may still use a model that fell out of the top 10.
+
+### 7. Preserve provider display names
+
+Provider probes keep ids in `DiscoveryResult.models` for compatibility and return names in
+`DiscoveryResult.model_names`. OpenRouter supplies `name`; Anthropic supplies `display_name`;
+Gemini supplies `displayName`. Save selected names in each model's existing `extras.name` field so
+the settings list and model picker still show the friendly name after reload. OpenAI's Models API
+supplies ids only, so its friendly names come from the curated catalog.
 
 ## Validate
 
@@ -86,9 +159,20 @@ cd sdks/python && uv run --no-sync python -m pytest \
 A malformed data file fails loud there (and at import in `capabilities.py`, which then publishes an
 empty catalog rather than crashing `/inspect`).
 
+## Harness bumps change the Daytona snapshot
+
+A bump of a pinned harness version (Pi, Pi ACP, Codex ACP, Claude ACP) changes a Daytona snapshot
+build input. In the same commit, bump `services/runner/config/sandbox-recipe.json` `version`,
+regenerate `services/runner/images/sandbox/daytona/sandbox-recipe-fingerprint.json`, and run the
+fingerprint test (steps in that folder's `README.md`, "Recipe version"). The new version is a new
+snapshot name, which must be built in every Daytona account before the runner that asks for it
+deploys.
+
 ## When to run
 
 - Job 1 on a pi-ai bump (automatable from a lockfile diff).
 - Jobs 2 and 3 before a release or on demand (need a live session and a web lookup).
+- Jobs 4 and 5 when OpenAI or Anthropic announce a model or deprecation.
+- Job 6 weekly or before a release; it is safe to run without a credential.
 
 The skill writes files and a proposal; a human reviews the curated changes and commits.

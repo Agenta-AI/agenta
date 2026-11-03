@@ -5,10 +5,6 @@
  * family. API calls go through the Fern-generated `@agentaai/api-client`
  * (resolved via `@agenta/sdk`) so request/response shapes stay in sync with
  * the backend OpenAPI definition.
- *
- * Lifted from `web/oss/src/features/gateway-tools/` (the hand-rolled
- * services + hooks layer is going away; the OSS feature folder shrinks to
- * just orchestration glue).
  */
 
 // ---------------------------------------------------------------------------
@@ -16,6 +12,11 @@
 // ---------------------------------------------------------------------------
 
 export type {
+    GatewayConnectionPolicy,
+    GatewayConnectionRef,
+    GatewayConnectionToolConfig,
+    GatewayPermission,
+    GatewayPermissions,
     Status,
     ToolAuthScheme,
     ToolCall,
@@ -48,7 +49,7 @@ export type {
     ToolResult,
     ToolResultData,
 } from "./core"
-export {isConnectionActive, isConnectionValid} from "./core"
+export {isConnectionActive, isConnectionValid, isConnectionDefault} from "./core"
 
 // ---------------------------------------------------------------------------
 // API — Fern-backed HTTP wrappers
@@ -65,6 +66,7 @@ export {
     fetchToolIntegrations,
     fetchToolProviders,
     getToolsClient,
+    makeDefaultToolConnection,
     projectScopedRequest,
     queryToolConnections,
     refreshToolConnection,
@@ -75,15 +77,7 @@ export {
 // STATE — drawer + selection atoms
 // ---------------------------------------------------------------------------
 
-export {
-    actionSearchAtom,
-    catalogSearchAtom,
-    connectionDrawerAtom,
-    selectedCatalogActionAtom,
-    selectedCatalogIntegrationAtom,
-    toolCatalogDrawerOpenAtom,
-    toolExecutionDrawerAtom,
-} from "./state"
+export {connectionDrawerAtom, toolCatalogDrawerOpenAtom, toolExecutionDrawerAtom} from "./state"
 export type {ConnectionDrawerState, ExecutionDrawerState} from "./state"
 
 // ---------------------------------------------------------------------------
@@ -100,6 +94,8 @@ export {
     toolCatalogIntegrationsInfiniteAtom,
     toolConnectionQueryAtomFamily,
     toolConnectionsQueryAtom,
+    personalToolConnectionsQueryAtom,
+    usePersonalToolConnections,
     toolIntegrationConnectionsAtomFamily,
     toolIntegrationDetailQueryFamily,
     toolIntegrationsCategoryAtom,
@@ -109,19 +105,17 @@ export {
     useToolCatalogActions,
     useToolCatalogCategories,
     useToolCatalogIntegrations,
+    invalidateToolConnections,
     useToolConnectionActions,
     useToolConnectionQuery,
     useToolConnectionsQuery,
     useToolExecution,
     useToolIntegrationConnections,
+    useToolIntegrationCatalog,
     useToolIntegrationDetail,
+    useToolsConnections,
 } from "./hooks"
-
-// ---------------------------------------------------------------------------
-// PROMPT — cross-entity bridge (workflow-aware tool removal)
-// ---------------------------------------------------------------------------
-
-export {removePromptToolByNameAtomFamily} from "./prompt"
+export type {CreateConnectionInput} from "./hooks"
 
 // ---------------------------------------------------------------------------
 // SLUG HELPERS — re-exported from @agenta/shared for ergonomic single-import

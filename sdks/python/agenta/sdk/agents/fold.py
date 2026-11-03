@@ -128,6 +128,23 @@ def fold(
     }
 
 
+def assistant_text(events: Iterable[FoldedEvent]) -> str:
+    """Return the human-readable assistant text from one agent event stream.
+
+    Reasoning, tool, usage, and terminal events remain available in the streamed response
+    and session records. They are transport details rather than the workflow's output.
+    Reuse ``fold`` so this projection follows the same message-boundary rules as batch
+    execution and Vercel egress.
+    """
+    folded = fold(events)
+    return "".join(
+        message.get("content", "")
+        for message in folded["messages"]
+        if message.get("role") == "assistant"
+        and isinstance(message.get("content"), str)
+    )
+
+
 def _is_trailing_tool_unit(message: Message) -> bool:
     return message.get("role") == "tool"
 

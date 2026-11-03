@@ -1,15 +1,12 @@
-// Copied verbatim from web/oss/src/components/AgentChatSlice/hooks/useAgentModelKeyStatus.ts
-// (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
-// PR deletes it. Keep byte-parity if either side changes.
-// Adaptations: none — every import already resolves to an allowed package dep.
+// Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
 import {useMemo} from "react"
 
+import {hasStoredKey, standardSecretsAtom, vaultSecretsQueryAtom} from "@agenta/entities/secret"
 import {
-    providerKeySetupDoneAtom,
-    standardSecretsAtom,
-    vaultSecretsQueryAtom,
-} from "@agenta/entities/secret"
-import {workflowMolecule} from "@agenta/entities/workflow"
+    agentModelCandidatesAtomFamily,
+    builtinModelEndpointsQueryAtom,
+    workflowMolecule,
+} from "@agenta/entities/workflow"
 import type {LlmProvider} from "@agenta/shared/types"
 import {normalizeProviderFamily} from "@agenta/shared/utils"
 import {useAtomValue} from "jotai"
@@ -33,9 +30,9 @@ export interface AgentModelKeyStatus {
      */
     loading: boolean
     /**
-     * The connect-a-model gate: resolved provider, vault loaded, vault holds NO secret of any kind
-     * (project-wide — not just this provider's), the agent isn't self-managed, and the user has never
-     * completed key setup before. Banner and composer-block consumers should both key off this.
+     * The connect-a-model gate. Active only once every source has settled (no refetch in flight)
+     * with zero runnable routes; credit-funded built-in models count as routes.
+     * Banner and composer-block consumers should both key off this.
      */
     gateActive: boolean
 }
@@ -51,27 +48,28 @@ interface HarnessRef {
 }
 
 /**
- * Model → provider → vault-key detection for an agent. The `agent.llm` value is a structured ModelRef
- * carrying its `provider`; we check the project's vault (`standardSecretsAtom`) for a key for that
- * provider. Harness (Pi/Claude) is a separate axis and NOT part of this check.
- *
- * The connect-model gate (`gateActive`) is project-wide, not per-provider: once the project has ANY
- * vault secret, or the user has connected a key once before, or the agent is self-managed, the gate
- * never fires again — "it's not our problem anymore".
+ * The connect-a-model gate, as a rule over resolved facts. A stored secret alone is insufficient:
+ * at least one exact connection/subscription + harness + model route must be runnable.
  */
+export const connectModelGate = ({
+    loading,
+    candidateCount,
+}: {
+    loading: boolean
+    candidateCount: number
+}): boolean => !loading && candidateCount === 0
+
 export function useAgentModelKeyStatus(entityId: string): AgentModelKeyStatus {
     const config = useAtomValue(
         useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
     )
     const standardSecrets = useAtomValue(standardSecretsAtom)
-    // "Loaded" = the vault query produced an array (successful fetch). Pending/errored → `data` is
-    // undefined, so we treat the vault as unresolved and never assert a missing key from empty slots.
-    const vaultQuery = useAtomValue(vaultSecretsQueryAtom)
-    const loading = !Array.isArray(vaultQuery.data)
-    // Raw listSecrets rows (standard + custom provider + named), NOT the static standardSecrets
-    // catalog — that always has one row per known provider regardless of vault state.
-    const vaultEmpty = !loading && (vaultQuery.data as unknown[]).length === 0
-    const keySetupDone = useAtomValue(providerKeySetupDoneAtom)
+    const candidateState = useAtomValue(agentModelCandidatesAtomFamily(true))
+    const vault = useAtomValue(vaultSecretsQueryAtom)
+    const builtin = useAtomValue(builtinModelEndpointsQueryAtom)
+    // A persisted vault or a cached 403 can be stale; never assert keyless mid-refetch.
+    const candidateSourcesLoading =
+        candidateState.status !== "ready" || vault.isFetching || builtin.isFetching
 
     return useMemo(() => {
         const agent = (config as {agent?: {llm?: LlmRef; harness?: HarnessRef}} | null)?.agent
@@ -88,8 +86,6 @@ export function useAgentModelKeyStatus(entityId: string): AgentModelKeyStatus {
                 : model?.includes("/")
                   ? model.split("/")[0]
                   : null
-        const selfManaged = llm?.connection?.mode === "self_managed"
-
         const p = normalizeProviderFamily(provider)
         const providerEntry = p
             ? (standardSecrets.find(
@@ -99,17 +95,19 @@ export function useAgentModelKeyStatus(entityId: string): AgentModelKeyStatus {
               ) ?? null)
             : null
 
-        const gateActive =
-            !loading && vaultEmpty && !selfManaged && !keySetupDone && !!providerEntry
+        const gateActive = connectModelGate({
+            loading: candidateSourcesLoading,
+            candidateCount: candidateState.candidates.length,
+        })
 
         return {
             provider,
             model,
             harness,
-            hasKey: !!providerEntry?.key,
+            hasKey: hasStoredKey(providerEntry),
             providerEntry,
-            loading,
+            loading: candidateSourcesLoading,
             gateActive,
         }
-    }, [config, standardSecrets, loading, vaultEmpty, keySetupDone])
+    }, [config, standardSecrets, candidateSourcesLoading, candidateState])
 }

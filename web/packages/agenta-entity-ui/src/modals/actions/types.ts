@@ -89,42 +89,10 @@ export type EntityModalAction =
 // ============================================================================
 
 /**
- * Create a commit action
- */
-export function commitAction(entity: EntityReference, initialMessage?: string): CommitAction {
-    return {type: "commit", entity, initialMessage}
-}
-
-/**
- * Create a save action
- */
-export function saveAction(entity: EntityReference, saveAsNew?: boolean): SaveAction {
-    return {type: "save", entity, saveAsNew}
-}
-
-/**
- * Create a create action
- */
-export function createAction(entityType: EntityType, initialName?: string): CreateAction {
-    return {type: "create", entityType, initialName}
-}
-
-/**
  * Create a delete action
  */
 export function deleteAction(entities: EntityReference[], onSuccess?: () => void): DeleteAction {
     return {type: "delete", entities, onSuccess}
-}
-
-/**
- * Create a saveOrCommit action
- */
-export function saveOrCommitAction(
-    entity: EntityReference,
-    state: EntityState,
-    options?: SaveOrCommitOptions,
-): SaveOrCommitAction {
-    return {type: "saveOrCommit", entity, state, options}
 }
 
 // ============================================================================

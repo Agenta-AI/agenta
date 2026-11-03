@@ -33,8 +33,11 @@ export const useCellVisibility = () => {
             return undefined
         }
 
+        // `.avt-body` is the table package's stable hook. The antd selectors stay as a fallback
+        // for the raw <Table> call sites this hook is also used from.
         const root =
             scrollContainer ??
+            element.closest<HTMLDivElement>(".avt-body") ??
             element.closest<HTMLDivElement>(".ant-table-body") ??
             element.closest<HTMLDivElement>(".ant-table-body-inner") ??
             null

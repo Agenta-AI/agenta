@@ -39,6 +39,9 @@ export function useChatScopeKey(): string {
 export const drawerScopeKey = (entityId: string | null | undefined): string =>
     `drawer:${entityId || "new"}`
 
+/** Is this scope a drawer's, rather than an app's? */
+export const isDrawerScopeKey = (key: string): boolean => key.startsWith("drawer:")
+
 /**
  * Scope key for the playground-native onboarding surface. The onboarding playground runs on the
  * PROJECT route (no app id), so without an override it would fall back to the shared `__global__`

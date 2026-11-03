@@ -4,7 +4,7 @@
  */
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import type {ConfigItemView} from "../ConfigItemDrawer"
+import {stableStringify} from "@agenta/entities/workflow/commitDiff"
 
 import {cloneItem} from "./agentTemplateUtils"
 import {ITEM_KINDS, type ItemKind, type ItemKindDef} from "./itemKinds"
@@ -19,37 +19,47 @@ export interface EditingState {
 export function useConfigItemDrawer({
     config,
     onChange,
+    prepareCommit,
 }: {
     config: Record<string, unknown>
     onChange: (next: Record<string, unknown>) => void
+    /**
+     * Per-kind work a Save must complete BEFORE the item reaches the config (an MCP server
+     * registers its gateway endpoint). It returns the item to store, and a throw aborts the save.
+     */
+    prepareCommit?: (
+        kind: ItemKind,
+        draft: Record<string, unknown>,
+    ) => Promise<Record<string, unknown>>
 }) {
     const [editing, setEditing] = useState<EditingState | null>(null)
     const [draft, setDraft] = useState<Record<string, unknown>>({})
-    const [drawerView, setDrawerView] = useState<ConfigItemView>("form")
+    // What the drawer opened with, so Save can tell an untouched item from an edited one.
+    const [opened, setOpened] = useState<string>("")
     // JSON-view parse validity from the open drawer's JsonObjectEditor; blocks Save while the raw
     // JSON is invalid. Reset when the open item changes — each editor is keyed/remounts and starts
     // valid.
     const [jsonInvalid, setJsonInvalid] = useState(false)
+    // A `prepareCommit` failure: shown in the drawer, which stays open with the draft intact.
+    const [commitError, setCommitError] = useState<string | null>(null)
+    const [committing, setCommitting] = useState(false)
     useEffect(() => {
         setJsonInvalid(false)
+        setCommitError(null)
+        setCommitting(false)
     }, [editing])
 
-    const openCreate = useCallback(
-        (kind: ItemKind, seed: Record<string, unknown>, view: ConfigItemView) => {
-            setDraft(seed)
-            setDrawerView(view)
-            setEditing({kind, mode: "create", index: -1})
-        },
-        [],
-    )
-    const openEdit = useCallback(
-        (kind: ItemKind, index: number, item: unknown, view: ConfigItemView) => {
-            setDraft(cloneItem(item))
-            setDrawerView(view)
-            setEditing({kind, mode: "edit", index})
-        },
-        [],
-    )
+    const openCreate = useCallback((kind: ItemKind, seed: Record<string, unknown>) => {
+        setDraft(seed)
+        setOpened(stableStringify(seed))
+        setEditing({kind, mode: "create", index: -1})
+    }, [])
+    const openEdit = useCallback((kind: ItemKind, index: number, item: unknown) => {
+        const initial = cloneItem(item)
+        setDraft(initial)
+        setOpened(stableStringify(initial))
+        setEditing({kind, mode: "edit", index})
+    }, [])
     const closeEditor = useCallback(() => setEditing(null), [])
 
     const fieldArray = useCallback(
@@ -60,12 +70,25 @@ export function useConfigItemDrawer({
 
     // Apply the drawer's draft to the config: append (create) or replace at index (edit).
     // The list transform is `itemListOps` so its preservation guarantee is unit-tested.
-    const commitDraft = useCallback(() => {
+    const commitDraft = useCallback(async () => {
         if (!editing) return
         const {field} = ITEM_KINDS[editing.kind]
-        onChange({...config, [field]: applyItemToList(fieldArray(field), editing, draft)})
+        let item = draft
+        if (prepareCommit) {
+            setCommitting(true)
+            setCommitError(null)
+            try {
+                item = await prepareCommit(editing.kind, draft)
+            } catch (error) {
+                setCommitError((error as Error)?.message || "Could not save this item.")
+                setCommitting(false)
+                return
+            }
+            setCommitting(false)
+        }
+        onChange({...config, [field]: applyItemToList(fieldArray(field), editing, item)})
         setEditing(null)
-    }, [editing, draft, config, onChange, fieldArray])
+    }, [editing, draft, config, onChange, fieldArray, prepareCommit])
 
     /** Drop one item by index from its kind's array. */
     const removeItem = useCallback(
@@ -82,19 +105,24 @@ export function useConfigItemDrawer({
         [editing, draft],
     )
 
+    // Nothing to commit when the draft still matches what the drawer opened with. Key order is
+    // normalised, so a JSON-view reformat that changes no values still counts as untouched.
+    const draftUnchanged = useMemo(() => stableStringify(draft) === opened, [draft, opened])
+
     return {
         editing,
         draft,
         setDraft,
-        drawerView,
-        setDrawerView,
         jsonInvalid,
         setJsonInvalid,
         openCreate,
         openEdit,
         closeEditor,
         commitDraft,
+        commitError,
+        committing,
         removeItem,
         draftInvalid,
+        draftUnchanged,
     }
 }

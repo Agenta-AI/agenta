@@ -1661,7 +1661,7 @@ Maps between Agenta DTOs and Composio's V3 API.
 
 ```python
 class ComposioAdapter(GatewayAdapterInterface):
-    def __init__(self, *, api_key: str, base_url: str = "https://backend.composio.dev/api/v3"):
+    def __init__(self, *, api_key: str, base_url: str = "https://backend.composio.dev/api/v3.1"):
         self.api_key = api_key
         self.base_url = base_url
 

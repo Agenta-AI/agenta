@@ -113,9 +113,11 @@ provider stack before deciding).
   current banner's dismissal-not-persisted annoyance.
 - `NoMobilePageWrapper` is retired when the gate is actually turned **on**, not when its code
   ships. WP5 landed the gate default-off (`AGENTA_MOBILE_GATE`), so retiring the wrapper any
-  earlier would leave a mobile visitor with neither the gate nor the blocker. Retirement (T8)
-  belongs to the deployment window that flips the flag, once WP2 and WP4 can serve what the
-  redirect points at.
+  earlier would leave a mobile visitor with neither the gate nor the blocker. **Since v0.113.0
+  the gate is default-on**, so T8 is now unblocked and is the open follow-up: the only mobile
+  visitors who still reach the wrapper are the ones who chose the desktop view (the
+  `agenta-mobile-optout` cookie) or a deployment that set `AGENTA_MOBILE_GATE=false`, and for
+  the first group the blocker is a dead end.
 
 **URL scheme (mobile app, under basePath `/m`):**
 

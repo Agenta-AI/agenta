@@ -7,6 +7,7 @@ import pytest
 from agenta.sdk.models.tracing import OTelLink
 from oss.src.core.shared.dtos import Trace
 from oss.src.core.tracing.dtos import OTelFlatSpan, OTelSpan, SpanType, TraceType
+from oss.src.core.tracing.utils import pricing
 from oss.src.core.tracing.utils.trees import (
     calculate_and_propagate_metrics,
     calculate_costs,
@@ -30,6 +31,13 @@ CHILD_A_UUID = "41d6cfe0-4b90-11ec-41d6-cfe04b9011ec"
 CHILD_B_UUID = "51d6cfe0-4b90-11ec-51d6-cfe04b9011ec"
 
 
+@pytest.fixture(autouse=True)
+def _fresh_pricing_caches():
+    pricing.resolve_pricing_model.cache_clear()
+    yield
+    pricing.resolve_pricing_model.cache_clear()
+
+
 def _span(
     *,
     span_id: str,
@@ -39,6 +47,8 @@ def _span(
     links=None,
     prompt_tokens: float = 0.0,
     completion_tokens: float = 0.0,
+    cache_read_tokens: float | None = None,
+    cache_token_key: str = "cache_read",
     prompt_cost: float = 0.0,
     completion_cost: float = 0.0,
     errors: int = 0,
@@ -50,14 +60,18 @@ def _span(
 ) -> OTelFlatSpan:
     total_tokens = prompt_tokens + completion_tokens
     total_cost = prompt_cost + completion_cost
+    incremental_tokens = {
+        "prompt": prompt_tokens,
+        "completion": completion_tokens,
+        "total": total_tokens,
+    }
+    # Under `cache_token_key` because the ingest adapters disagree on the name: the logfire
+    # path writes `cache_read`, the Vercel AI path writes `cached`. Absent entirely when
+    # None, which is the shape of a span from a provider or model without prompt caching.
+    if cache_read_tokens is not None:
+        incremental_tokens[cache_token_key] = cache_read_tokens
     metrics = {
-        "tokens": {
-            "incremental": {
-                "prompt": prompt_tokens,
-                "completion": completion_tokens,
-                "total": total_tokens,
-            }
-        },
+        "tokens": {"incremental": incremental_tokens},
         "costs": {
             "incremental": {
                 "prompt": prompt_cost,
@@ -114,10 +128,555 @@ def test_parse_span_dtos_to_span_idx_and_tree_hierarchy():
     assert list(tree[ROOT_UUID].keys()) == [CHILD_A_UUID]
 
 
+OUTSIDE_PARENT_UUID = "61d6cfe0-4b90-11ec-61d6-cfe04b9011ec"
+GRANDCHILD_UUID = "71d6cfe0-4b90-11ec-71d6-cfe04b9011ec"
+OTHER_ROOT_UUID = "81d6cfe0-4b90-11ec-81d6-cfe04b9011ec"
+OTHER_CHILD_UUID = "91d6cfe0-4b90-11ec-91d6-cfe04b9011ec"
+
+
+def _metrics(span: OTelFlatSpan) -> dict:
+    return span.attributes["ag"]["metrics"]
+
+
+def _bare_span(**kwargs) -> OTelFlatSpan:
+    span = _span(**kwargs)
+    span.attributes["ag"]["metrics"] = {}
+    return span
+
+
+def _mark_aggregate(span: OTelFlatSpan) -> OTelFlatSpan:
+    span.attributes["ag"]["flags"] = {"aggregate_usage": True}
+    return span
+
+
+def _rollup(spans):
+    span_idx = parse_span_dtos_to_span_idx(spans)
+    tree = parse_span_idx_to_span_id_tree(span_idx)
+    cumulate_costs(tree, span_idx)
+    cumulate_tokens(tree, span_idx)
+    cumulate_errors(tree, span_idx)
+    return span_idx, tree
+
+
+@pytest.mark.parametrize("reported_cost", [0.0, 0.0042, 0.01])
+def test_workflow_summary_and_its_traced_children_are_not_double_counted(
+    reported_cost,
+):
+    root = _span(
+        span_id=ROOT_UUID,
+        span_name="_agent",
+        span_type=SpanType.WORKFLOW,
+        prompt_tokens=40,
+        completion_tokens=10,
+    )
+    root.attributes["ag"]["metrics"]["costs"]["incremental"] = {"total": reported_cost}
+    _mark_aggregate(root)
+    child = _span(
+        span_id=CHILD_A_UUID,
+        parent_id=ROOT_UUID,
+        span_name="chat",
+        span_type=SpanType.CHAT,
+        prompt_tokens=40,
+        completion_tokens=10,
+        prompt_cost=0.003,
+        completion_cost=0.0012,
+        start_offset_s=1,
+    )
+
+    span_idx, _ = _rollup([root, child])
+    metrics = _metrics(span_idx[ROOT_UUID])
+
+    assert metrics["tokens"]["cumulative"] == {
+        "prompt": 40,
+        "completion": 10,
+        "total": 50,
+    }
+    if reported_cost >= 0.0042:
+        assert metrics["costs"]["cumulative"] == {"total": reported_cost}
+    else:
+        assert metrics["costs"]["cumulative"] == pytest.approx(
+            {"prompt": 0.003, "completion": 0.0012, "total": 0.0042}
+        )
+
+
+def test_task_usage_adds_to_its_traced_children():
+    # A RAG task returns its untraced completion's usage; its traced embedding is extra.
+    root = _span(
+        span_id=ROOT_UUID,
+        span_name="rag",
+        prompt_tokens=900,
+        completion_tokens=100,
+        prompt_cost=0.01,
+        completion_cost=0.02,
+    )
+    child = _span(
+        span_id=CHILD_A_UUID,
+        parent_id=ROOT_UUID,
+        span_name="embedding",
+        span_type=SpanType.EMBEDDING,
+        prompt_tokens=100,
+        prompt_cost=0.001,
+        start_offset_s=1,
+    )
+
+    span_idx, _ = _rollup([root, child])
+    metrics = _metrics(span_idx[ROOT_UUID])
+
+    assert metrics["tokens"]["cumulative"] == {
+        "prompt": 1000,
+        "completion": 100,
+        "total": 1100,
+    }
+    assert metrics["costs"]["cumulative"] == pytest.approx(
+        {"prompt": 0.011, "completion": 0.02, "total": 0.031}
+    )
+
+
+def test_model_call_span_sums_its_own_usage_and_its_children():
+    root = _span(
+        span_id=ROOT_UUID,
+        span_name="chat",
+        span_type=SpanType.CHAT,
+        prompt_tokens=10,
+        completion_tokens=5,
+        prompt_cost=0.1,
+        completion_cost=0.2,
+    )
+    child = _span(
+        span_id=CHILD_A_UUID,
+        parent_id=ROOT_UUID,
+        span_name="embedding",
+        span_type=SpanType.EMBEDDING,
+        prompt_tokens=10,
+        completion_tokens=5,
+        prompt_cost=0.1,
+        completion_cost=0.2,
+        start_offset_s=1,
+    )
+
+    span_idx, _ = _rollup([root, child])
+    metrics = _metrics(span_idx[ROOT_UUID])
+
+    assert metrics["tokens"]["cumulative"] == {
+        "prompt": 20,
+        "completion": 10,
+        "total": 30,
+    }
+    assert metrics["costs"]["cumulative"] == pytest.approx(
+        {"prompt": 0.2, "completion": 0.4, "total": 0.6}
+    )
+
+
+def test_llm_v0_usage_copied_from_its_traced_call_counts_once():
+    # llm_v0 returns its litellm call's `usage` (no cost); the callback traces that call.
+    root = _bare_span(
+        span_id=ROOT_UUID, span_name="llm_v0", span_type=SpanType.WORKFLOW
+    )
+    root.attributes["ag"]["metrics"]["tokens"] = {
+        "incremental": {"prompt": 12.0, "completion": 1.0, "total": 13.0}
+    }
+    chat = _bare_span(
+        span_id=CHILD_A_UUID,
+        parent_id=ROOT_UUID,
+        span_name="litellm_client",
+        span_type=SpanType.CHAT,
+        start_offset_s=1,
+    )
+    chat.attributes["ag"]["metrics"] = {
+        "tokens": {"incremental": {"prompt": 12.0, "completion": 1.0, "total": 13.0}},
+        "costs": {"incremental": {"total": 2.4e-06}},
+    }
+
+    span_idx, _ = _rollup([root, chat])
+    metrics = _metrics(span_idx[ROOT_UUID])
+
+    assert metrics["tokens"]["cumulative"] == {
+        "prompt": 12.0,
+        "completion": 1.0,
+        "total": 13.0,
+    }
+    assert metrics["costs"]["cumulative"] == {"total": 2.4e-06}
+
+
+def test_app_returning_its_traced_calls_cost_and_usage_counts_them_once():
+    # A custom SDK app returns {"message", "cost", "usage"} summed over two litellm calls
+    # that the litellm callback also traces, below a task span that returns the same.
+    usage = {"prompt": 30.0, "completion": 6.0, "total": 36.0}
+    root = _bare_span(span_id=ROOT_UUID, span_name="app", span_type=SpanType.WORKFLOW)
+    root.attributes["ag"]["metrics"] = {
+        "tokens": {"incremental": dict(usage)},
+        "costs": {"incremental": {"total": 0.1 + 0.2}},
+    }
+    task = _bare_span(
+        span_id=CHILD_A_UUID, parent_id=ROOT_UUID, span_name="step", start_offset_s=1
+    )
+    task.attributes["ag"]["metrics"] = deepcopy(root.attributes["ag"]["metrics"])
+    calls = []
+    for span_id, tokens, cost in (
+        (GRANDCHILD_UUID, {"prompt": 10.0, "completion": 2.0, "total": 12.0}, 0.2),
+        (CHILD_B_UUID, {"prompt": 20.0, "completion": 4.0, "total": 24.0}, 0.1),
+    ):
+        call = _bare_span(
+            span_id=span_id,
+            parent_id=CHILD_A_UUID,
+            span_name="litellm_client",
+            span_type=SpanType.CHAT,
+            start_offset_s=2,
+        )
+        call.attributes["ag"]["metrics"] = {
+            "tokens": {"incremental": tokens},
+            "costs": {"incremental": {"total": cost}},
+        }
+        calls.append(call)
+
+    span_idx, _ = _rollup([root, task, *calls])
+
+    for span_id in (ROOT_UUID, CHILD_A_UUID):
+        metrics = _metrics(span_idx[span_id])
+        assert metrics["tokens"]["cumulative"] == usage
+        assert metrics["costs"]["cumulative"] == pytest.approx({"total": 0.3})
+
+
+def test_unmarked_run_summary_equal_to_its_children_counts_once():
+    # An agent root from a services build that does not set the aggregate flag yet.
+    usage = {"prompt": 4, "completion": 340, "total": 226059}
+    root = _bare_span(
+        span_id=ROOT_UUID, span_name="_agent", span_type=SpanType.WORKFLOW
+    )
+    root.attributes["ag"]["metrics"]["tokens"] = {"incremental": dict(usage)}
+    chat = _bare_span(
+        span_id=CHILD_A_UUID,
+        parent_id=ROOT_UUID,
+        span_name="chat",
+        span_type=SpanType.CHAT,
+        start_offset_s=1,
+    )
+    chat.attributes["ag"]["metrics"]["tokens"] = {
+        "incremental": {**usage, "cache_read": 197594}
+    }
+
+    span_idx, _ = _rollup([root, chat])
+
+    assert _metrics(span_idx[ROOT_UUID])["tokens"]["cumulative"] == {
+        **usage,
+        "cache_read": 197594,
+    }
+
+
+def test_reported_total_without_priced_children_has_no_invented_breakdown():
+    root = _bare_span(span_id=ROOT_UUID, span_name="root")
+    root.attributes["ag"]["metrics"]["costs"] = {"incremental": {"total": 0.5}}
+    child = _bare_span(
+        span_id=CHILD_A_UUID, parent_id=ROOT_UUID, span_name="tool", start_offset_s=1
+    )
+
+    span_idx, _ = _rollup([root, child])
+
+    assert _metrics(span_idx[ROOT_UUID])["costs"]["cumulative"] == {"total": 0.5}
+    assert "costs" not in _metrics(span_idx[CHILD_A_UUID])
+
+
+def test_nested_aggregate_totals_take_the_larger_side_at_each_level():
+    root = _mark_aggregate(_bare_span(span_id=ROOT_UUID, span_name="root"))
+    root.attributes["ag"]["metrics"]["costs"] = {"incremental": {"total": 0.4}}
+    mid = _mark_aggregate(
+        _bare_span(
+            span_id=CHILD_A_UUID, parent_id=ROOT_UUID, span_name="mid", start_offset_s=1
+        )
+    )
+    mid.attributes["ag"]["metrics"]["costs"] = {"incremental": {"total": 0.5}}
+    leaf = _span(
+        span_id=GRANDCHILD_UUID,
+        parent_id=CHILD_A_UUID,
+        span_name="chat",
+        span_type=SpanType.CHAT,
+        prompt_cost=0.1,
+        completion_cost=0.2,
+        start_offset_s=2,
+    )
+
+    span_idx, _ = _rollup([root, mid, leaf])
+
+    assert _metrics(span_idx[CHILD_A_UUID])["costs"]["cumulative"] == {"total": 0.5}
+    assert _metrics(span_idx[ROOT_UUID])["costs"]["cumulative"] == {"total": 0.5}
+
+
+def test_zero_cost_children_roll_up_as_zero():
+    root = _bare_span(span_id=ROOT_UUID, span_name="agent")
+    child_a = _span(
+        span_id=CHILD_A_UUID, parent_id=ROOT_UUID, span_name="chat", start_offset_s=1
+    )
+    child_b = _span(
+        span_id=CHILD_B_UUID, parent_id=ROOT_UUID, span_name="chat", start_offset_s=2
+    )
+
+    span_idx, _ = _rollup([root, child_a, child_b])
+
+    assert _metrics(span_idx[ROOT_UUID])["costs"]["cumulative"] == {
+        "prompt": 0.0,
+        "completion": 0.0,
+        "total": 0.0,
+    }
+
+
+def test_reported_zero_total_keeps_its_childrens_cost():
+    root = _bare_span(span_id=ROOT_UUID, span_name="agent")
+    root.attributes["ag"]["metrics"]["costs"] = {"incremental": {"total": 0.0}}
+    child = _span(
+        span_id=CHILD_A_UUID,
+        parent_id=ROOT_UUID,
+        span_name="chat",
+        prompt_cost=0.1,
+        completion_cost=0.2,
+        start_offset_s=1,
+    )
+
+    span_idx, _ = _rollup([root, child])
+
+    assert _metrics(span_idx[ROOT_UUID])["costs"]["cumulative"] == pytest.approx(
+        {"prompt": 0.1, "completion": 0.2, "total": 0.3}
+    )
+
+
+def test_spans_without_costs_get_no_cumulative_cost():
+    root = _bare_span(span_id=ROOT_UUID, span_name="root")
+    child = _bare_span(
+        span_id=CHILD_A_UUID, parent_id=ROOT_UUID, span_name="tool", start_offset_s=1
+    )
+
+    span_idx, _ = _rollup([root, child])
+
+    assert _metrics(span_idx[ROOT_UUID]) == {}
+    assert _metrics(span_idx[CHILD_A_UUID]) == {}
+
+
+def test_rollup_drops_a_stale_cumulative_cost_when_nothing_is_priced():
+    root = _bare_span(span_id=ROOT_UUID, span_name="root")
+    child = _bare_span(
+        span_id=CHILD_A_UUID, parent_id=ROOT_UUID, span_name="chat", start_offset_s=1
+    )
+    stale = {"prompt": 0.1, "completion": 0.2, "total": 0.3}
+    root.attributes["ag"]["metrics"]["costs"] = {"cumulative": dict(stale)}
+    child.attributes["ag"]["metrics"]["costs"] = {"cumulative": dict(stale)}
+
+    span_idx, _ = _rollup([root, child])
+
+    assert "cumulative" not in _metrics(span_idx[ROOT_UUID])["costs"]
+    assert "cumulative" not in _metrics(span_idx[CHILD_A_UUID])["costs"]
+
+
+def test_cache_counts_roll_up_under_one_name_per_bucket():
+    root = _bare_span(span_id=ROOT_UUID, span_name="_agent", span_type=SpanType.AGENT)
+    runner = _bare_span(
+        span_id=CHILD_A_UUID,
+        parent_id=ROOT_UUID,
+        span_name="chat",
+        span_type=SpanType.CHAT,
+        start_offset_s=1,
+    )
+    runner.attributes["ag"]["metrics"]["tokens"] = {
+        "incremental": {
+            "prompt": 956,
+            "completion": 39,
+            "cache_read": 0,
+            "cache_creation": 82116,
+            "total": 83111,
+        }
+    }
+    openinference = _bare_span(
+        span_id=CHILD_B_UUID,
+        parent_id=ROOT_UUID,
+        span_name="llm",
+        span_type=SpanType.LLM,
+        start_offset_s=2,
+    )
+    openinference.attributes["ag"]["metrics"]["tokens"] = {
+        "incremental": {
+            "prompt": 1000,
+            "completion": 10,
+            "total": 1010,
+            "prompt_details": {"cache_read": 600, "cache_write": 100},
+        }
+    }
+
+    span_idx, _ = _rollup([root, runner, openinference])
+
+    assert _metrics(span_idx[CHILD_A_UUID])["tokens"]["cumulative"] == {
+        "prompt": 956,
+        "completion": 39,
+        "cache_creation": 82116,
+        "total": 83111,
+    }
+    assert _metrics(span_idx[ROOT_UUID])["tokens"]["cumulative"] == {
+        "prompt": 1956,
+        "completion": 49,
+        "cache_read": 600,
+        "cache_creation": 82216,
+        "total": 84121,
+    }
+
+
+def test_run_summary_keeps_its_childrens_cache_split_at_the_same_total():
+    usage = {"prompt": 4, "completion": 340, "total": 226059}
+    root = _mark_aggregate(
+        _bare_span(span_id=ROOT_UUID, span_name="_agent", span_type=SpanType.WORKFLOW)
+    )
+    root.attributes["ag"]["metrics"]["tokens"] = {"incremental": dict(usage)}
+    chat = _bare_span(
+        span_id=CHILD_A_UUID,
+        parent_id=ROOT_UUID,
+        span_name="chat",
+        span_type=SpanType.CHAT,
+        start_offset_s=1,
+    )
+    chat.attributes["ag"]["metrics"]["tokens"] = {
+        "incremental": {**usage, "cache_read": 197594, "cache_creation": 28121}
+    }
+
+    span_idx, _ = _rollup([root, chat])
+
+    assert _metrics(span_idx[ROOT_UUID])["tokens"]["cumulative"] == {
+        **usage,
+        "cache_read": 197594,
+        "cache_creation": 28121,
+    }
+
+
+def test_cached_alias_rolls_up_as_cache_read():
+    span = _span(
+        span_id=ROOT_UUID,
+        span_name="chat",
+        span_type=SpanType.CHAT,
+        prompt_tokens=100,
+        completion_tokens=5,
+        cache_read_tokens=80,
+        cache_token_key="cached",
+    )
+
+    span_idx, _ = _rollup([span])
+
+    assert _metrics(span_idx[ROOT_UUID])["tokens"]["cumulative"] == {
+        "prompt": 100,
+        "completion": 5,
+        "cache_read": 80,
+        "total": 105,
+    }
+
+
+def test_batch_whose_top_span_has_its_parent_in_another_batch_still_rolls_up():
+    agent = _bare_span(
+        span_id=ROOT_UUID,
+        parent_id=OUTSIDE_PARENT_UUID,
+        span_name="invoke_agent",
+    )
+    chat = _span(
+        span_id=CHILD_A_UUID,
+        parent_id=ROOT_UUID,
+        span_name="chat",
+        prompt_tokens=10,
+        completion_tokens=5,
+        prompt_cost=0.1,
+        completion_cost=0.2,
+        start_offset_s=1,
+    )
+    tool = _span(
+        span_id=CHILD_B_UUID,
+        parent_id=ROOT_UUID,
+        span_name="tool",
+        errors=1,
+        start_offset_s=2,
+    )
+
+    span_idx, tree = _rollup([chat, tool, agent])
+    metrics = _metrics(span_idx[ROOT_UUID])
+
+    assert list(tree.keys()) == [ROOT_UUID]
+    assert metrics["tokens"]["cumulative"] == {
+        "prompt": 10.0,
+        "completion": 5.0,
+        "total": 15.0,
+    }
+    assert metrics["costs"]["cumulative"]["total"] == pytest.approx(0.3)
+    assert metrics["errors"]["cumulative"] == 1
+
+
+def test_two_orphan_subtrees_in_one_batch_are_separate_trees():
+    first = _bare_span(
+        span_id=ROOT_UUID, parent_id=OUTSIDE_PARENT_UUID, span_name="agent"
+    )
+    first_child = _span(
+        span_id=CHILD_A_UUID,
+        parent_id=ROOT_UUID,
+        span_name="chat",
+        prompt_cost=0.1,
+        start_offset_s=1,
+    )
+    second = _bare_span(
+        span_id=OTHER_ROOT_UUID,
+        parent_id=OUTSIDE_PARENT_UUID,
+        span_name="agent",
+        start_offset_s=2,
+    )
+    second_child = _span(
+        span_id=OTHER_CHILD_UUID,
+        parent_id=OTHER_ROOT_UUID,
+        span_name="chat",
+        prompt_cost=0.4,
+        start_offset_s=3,
+    )
+
+    span_idx, tree = _rollup([second_child, first, second, first_child])
+
+    assert list(tree.keys()) == [ROOT_UUID, OTHER_ROOT_UUID]
+    assert list(tree[ROOT_UUID].keys()) == [CHILD_A_UUID]
+    assert list(tree[OTHER_ROOT_UUID].keys()) == [OTHER_CHILD_UUID]
+    assert _metrics(span_idx[ROOT_UUID])["costs"]["cumulative"][
+        "total"
+    ] == pytest.approx(0.1)
+    assert _metrics(span_idx[OTHER_ROOT_UUID])["costs"]["cumulative"][
+        "total"
+    ] == pytest.approx(0.4)
+
+
+def test_deep_span_chain_rolls_up_without_recursion_error():
+    chain = [
+        _span(
+            span_id=str(UUID(int=i + 1)),
+            parent_id=str(UUID(int=i)) if i else None,
+            span_name="step",
+            span_type=SpanType.CHAT,
+            prompt_cost=0.001,
+            start_offset_s=0,
+        )
+        for i in range(3000)
+    ]
+
+    span_idx, _ = _rollup(chain)
+
+    top = _metrics(span_idx[str(UUID(int=1))])["costs"]["cumulative"]
+    assert top["total"] == pytest.approx(3.0)
+
+
+def test_tree_places_each_span_once_and_keeps_children_that_start_early():
+    root = _span(span_id=ROOT_UUID, span_name="root", start_offset_s=5)
+    early_child = _span(
+        span_id=CHILD_A_UUID, parent_id=ROOT_UUID, span_name="child", start_offset_s=1
+    )
+    cycle_a = _span(span_id=OTHER_ROOT_UUID, parent_id=OTHER_CHILD_UUID, span_name="a")
+    cycle_b = _span(span_id=OTHER_CHILD_UUID, parent_id=OTHER_ROOT_UUID, span_name="b")
+
+    tree = parse_span_idx_to_span_id_tree(
+        parse_span_dtos_to_span_idx([root, early_child, cycle_a, cycle_b])
+    )
+
+    assert tree == {ROOT_UUID: {CHILD_A_UUID: {}}}
+
+
 def test_cumulate_tokens_and_costs_propagate_from_children_to_parent():
     root = _span(
         span_id=ROOT_UUID,
         span_name="root",
+        span_type=SpanType.CHAT,
         prompt_tokens=1,
         completion_tokens=2,
         prompt_cost=0.1,
@@ -208,6 +767,28 @@ def test_connect_children_groups_duplicate_child_names_into_lists():
     assert len(root.spans["child"]) == 2
 
 
+def test_connect_children_links_a_deep_span_chain_without_recursion_error():
+    chain = [
+        _otel_span_from_flat(
+            _span(
+                span_id=str(UUID(int=i + 1)),
+                parent_id=str(UUID(int=i)) if i else None,
+                span_name="step",
+                start_offset_s=0,
+            )
+        )
+        for i in range(3000)
+    ]
+    spans_idx = {span.span_id: span for span in chain}
+    tree = parse_span_idx_to_span_id_tree(spans_idx)
+
+    connect_children(tree, spans_idx)
+
+    for parent, child in zip(chain, chain[1:]):
+        assert parent.spans == {"step": child}
+    assert chain[-1].spans is None
+
+
 def test_calculate_costs_sets_incremental_values_for_cost_supported_types(monkeypatch):
     span = _span(
         span_id=ROOT_UUID,
@@ -219,7 +800,7 @@ def test_calculate_costs_sets_incremental_values_for_cost_supported_types(monkey
     span_idx = {span.span_id: span}
 
     monkeypatch.setattr(
-        "oss.src.core.tracing.utils.trees.cost_calculator.cost_per_token",
+        "oss.src.core.tracing.utils.pricing.cost_calculator.cost_per_token",
         lambda **_: (0.12, 0.34),
     )
 
@@ -227,6 +808,27 @@ def test_calculate_costs_sets_incremental_values_for_cost_supported_types(monkey
 
     costs = span_idx[ROOT_UUID].attributes["ag"]["metrics"]["costs"]["incremental"]
     assert costs == {"prompt": 0.12, "completion": 0.34, "total": 0.46}
+
+
+def test_calculate_costs_preserves_instrumentation_reported_total(monkeypatch):
+    span = _span(
+        span_id=ROOT_UUID,
+        span_name="root",
+        prompt_tokens=10,
+        completion_tokens=20,
+        span_type=SpanType.CHAT,
+    )
+    span.attributes["ag"]["metrics"]["costs"]["incremental"] = {"total": 0.0042}
+
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.pricing.cost_calculator.cost_per_token",
+        lambda **_: (0.12, 0.34),
+    )
+
+    calculate_costs({span.span_id: span})
+
+    costs = span.attributes["ag"]["metrics"]["costs"]["incremental"]
+    assert costs == {"total": 0.0042}
 
 
 def test_calculate_costs_swallows_calculation_errors(monkeypatch):
@@ -243,13 +845,310 @@ def test_calculate_costs_swallows_calculation_errors(monkeypatch):
         raise RuntimeError("boom")
 
     monkeypatch.setattr(
-        "oss.src.core.tracing.utils.trees.cost_calculator.cost_per_token",
+        "oss.src.core.tracing.utils.pricing.cost_calculator.cost_per_token",
         _raise,
     )
 
     calculate_costs(span_idx)
 
-    assert "incremental" in span_idx[ROOT_UUID].attributes["ag"]["metrics"]["costs"]
+    # The error does not escape, and the span keeps no cost it cannot back up.
+    assert "incremental" not in span_idx[ROOT_UUID].attributes["ag"]["metrics"]["costs"]
+    assert (
+        span_idx[ROOT_UUID].attributes["ag"]["meta"]["pricing"]["error"]
+        == "pricing_failed"
+    )
+
+
+@pytest.mark.parametrize("cache_token_key", ["cache_read", "cached"])
+def test_calculate_costs_passes_cached_tokens_to_the_pricer(
+    monkeypatch,
+    cache_token_key,
+):
+    """Cached prompt tokens must reach litellm, which prices them far below fresh input.
+
+    Both spellings have to be honoured: the logfire ingest path writes `cache_read`, the
+    Vercel AI path writes `cached`. Reading only one silently overstates the other's cost.
+    """
+    span = _span(
+        span_id=ROOT_UUID,
+        span_name="root",
+        prompt_tokens=25978,
+        completion_tokens=100,
+        cache_read_tokens=24540,
+        cache_token_key=cache_token_key,
+        span_type=SpanType.CHAT,
+    )
+    span_idx = {span.span_id: span}
+
+    seen = {}
+
+    def _capture(**kwargs):
+        seen.update(kwargs)
+        return (0.005, 0.001)
+
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.pricing.cost_calculator.cost_per_token",
+        _capture,
+    )
+
+    calculate_costs(span_idx)
+
+    assert seen["cache_read_input_tokens"] == 24540
+    # The cached count is a SUBSET of the prompt total, not an addition to it. litellm
+    # re-prices that slice itself, so the prompt total is passed through untouched;
+    # subtracting the cached tokens here would understate cost instead of overstating it.
+    assert seen["prompt_tokens"] == 25978
+
+
+def test_calculate_costs_sends_the_cached_count_as_an_int(monkeypatch):
+    """The count must reach litellm as an int, not the float this metric is stored as.
+
+    litellm reads the cached slice back off `Usage.prompt_tokens_details.cached_tokens`,
+    and its `Usage` model only builds that wrapper from an int -- given a float it leaves
+    `prompt_tokens_details` None and bills every token at the full input rate again. There
+    is no exception to catch: the whole fix degrades to a no-op. Verified against litellm
+    1.92.0, where `cost_per_token(..., cache_read_input_tokens=24540)` prices a 25,978-token
+    Gemini prompt at $0.001168 and the same call with `24540.0` at $0.007793.
+    """
+    span = _span(
+        span_id=ROOT_UUID,
+        span_name="root",
+        prompt_tokens=25978.0,
+        completion_tokens=100.0,
+        cache_read_tokens=24540.0,
+        span_type=SpanType.CHAT,
+    )
+    span_idx = {span.span_id: span}
+
+    seen = {}
+
+    def _capture(**kwargs):
+        seen.update(kwargs)
+        return (0.001, 0.002)
+
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.pricing.cost_calculator.cost_per_token",
+        _capture,
+    )
+
+    calculate_costs(span_idx)
+
+    assert isinstance(seen["cache_read_input_tokens"], int)
+    assert not isinstance(seen["cache_read_input_tokens"], bool)
+    assert seen["cache_read_input_tokens"] == 24540
+
+
+def test_calculate_costs_omits_cache_kwarg_when_nothing_was_cached(monkeypatch):
+    """A span with no caching must call exactly the signature it always did.
+
+    The SDK pins `litellm>=1,<2`, and `calculate_costs` swallows every exception. On a 1.x
+    old enough to lack the parameter, passing it unconditionally would raise TypeError and
+    be swallowed into "no costs at all" for EVERY span, not just cached ones -- so the
+    pricer is called here with a signature that accepts nothing else.
+    """
+    span = _span(
+        span_id=ROOT_UUID,
+        span_name="root",
+        prompt_tokens=10,
+        completion_tokens=20,
+        span_type=SpanType.CHAT,
+    )
+    span_idx = {span.span_id: span}
+
+    def _legacy_signature(model, prompt_tokens, completion_tokens):
+        return (0.1, 0.2)
+
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.pricing.cost_calculator.cost_per_token",
+        _legacy_signature,
+    )
+
+    calculate_costs(span_idx)
+
+    costs = span_idx[ROOT_UUID].attributes["ag"]["metrics"]["costs"]["incremental"]
+    assert costs["prompt"] == pytest.approx(0.1)
+    assert costs["completion"] == pytest.approx(0.2)
+    assert costs["total"] == pytest.approx(0.3)
+
+
+def test_calculate_costs_ignores_a_zero_cached_count(monkeypatch):
+    """An explicit zero is a cache miss, not a cached slice: still the legacy signature."""
+    span = _span(
+        span_id=ROOT_UUID,
+        span_name="root",
+        prompt_tokens=10,
+        completion_tokens=20,
+        cache_read_tokens=0,
+        span_type=SpanType.CHAT,
+    )
+    span_idx = {span.span_id: span}
+
+    def _legacy_signature(model, prompt_tokens, completion_tokens):
+        return (0.1, 0.2)
+
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.pricing.cost_calculator.cost_per_token",
+        _legacy_signature,
+    )
+
+    calculate_costs(span_idx)
+
+    costs = span_idx[ROOT_UUID].attributes["ag"]["metrics"]["costs"]["incremental"]
+    assert costs["total"] == pytest.approx(0.3)
+
+
+def test_calculate_costs_ignores_a_non_numeric_cached_count(monkeypatch):
+    """Garbage in the cache field must not cost the span its ENTIRE cost.
+
+    A foreign OTLP source can write anything under `tokens.incremental`. A truthy
+    non-numeric value that reached `int()` would raise inside the try, and the bare
+    `except` would swallow it into "no costs at all" for the span -- a regression
+    against the pre-fix behaviour, where a garbage cache field was simply ignored
+    and prompt/completion were still priced.
+    """
+    span = _span(
+        span_id=ROOT_UUID,
+        span_name="root",
+        prompt_tokens=10,
+        completion_tokens=20,
+        cache_read_tokens="24540",
+        span_type=SpanType.CHAT,
+    )
+    span_idx = {span.span_id: span}
+
+    def _legacy_signature(model, prompt_tokens, completion_tokens):
+        return (0.1, 0.2)
+
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.pricing.cost_calculator.cost_per_token",
+        _legacy_signature,
+    )
+
+    calculate_costs(span_idx)
+
+    costs = span_idx[ROOT_UUID].attributes["ag"]["metrics"]["costs"]["incremental"]
+    assert costs["prompt"] == pytest.approx(0.1)
+    assert costs["completion"] == pytest.approx(0.2)
+    assert costs["total"] == pytest.approx(0.3)
+
+
+def test_calculate_costs_ignores_a_negative_cached_count(monkeypatch):
+    """A negative count is not a cached slice: still the legacy signature.
+
+    Negative is truthy, so without the numeric guard it would reach the pricer,
+    where "fresh = prompt - cached" arithmetic turns it into an overstated cost.
+    """
+    span = _span(
+        span_id=ROOT_UUID,
+        span_name="root",
+        prompt_tokens=10,
+        completion_tokens=20,
+        cache_read_tokens=-5,
+        span_type=SpanType.CHAT,
+    )
+    span_idx = {span.span_id: span}
+
+    def _legacy_signature(model, prompt_tokens, completion_tokens):
+        return (0.1, 0.2)
+
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.pricing.cost_calculator.cost_per_token",
+        _legacy_signature,
+    )
+
+    calculate_costs(span_idx)
+
+    costs = span_idx[ROOT_UUID].attributes["ag"]["metrics"]["costs"]["incremental"]
+    assert costs["total"] == pytest.approx(0.3)
+
+
+def test_calculate_costs_prefers_cache_read_over_cached_when_both_present(monkeypatch):
+    """`cache_read` wins when both aliases appear on one span.
+
+    No ingest adapter writes both today, but the precedence should be pinned:
+    `cache_read` is the spelling the runner emits and the logfire path stores.
+    """
+    span = _span(
+        span_id=ROOT_UUID,
+        span_name="root",
+        prompt_tokens=25978,
+        completion_tokens=100,
+        cache_read_tokens=24540,
+        span_type=SpanType.CHAT,
+    )
+    span.attributes["ag"]["metrics"]["tokens"]["incremental"]["cached"] = 999
+    span_idx = {span.span_id: span}
+
+    seen = {}
+
+    def _capture(**kwargs):
+        seen.update(kwargs)
+        return (0.001, 0.002)
+
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.pricing.cost_calculator.cost_per_token",
+        _capture,
+    )
+
+    calculate_costs(span_idx)
+
+    assert seen["cache_read_input_tokens"] == 24540
+
+
+def test_calculate_costs_bills_cached_tokens_below_fresh_input(monkeypatch):
+    """End-to-end shape of #5711, with the pricer modelling litellm's published contract.
+
+    The reported case: a 25,978-token prompt of which 24,540 came from cache, on a model
+    whose cached rate is a tenth of its input rate. Billing every token at the full input
+    rate is what produced the 6.6x overstatement.
+    """
+    input_rate = 0.30 / 1_000_000
+    cached_rate = input_rate / 10
+    output_rate = 2.50 / 1_000_000
+
+    def _priced(model, prompt_tokens, completion_tokens, cache_read_input_tokens=0):
+        fresh = prompt_tokens - cache_read_input_tokens
+        return (
+            fresh * input_rate + cache_read_input_tokens * cached_rate,
+            completion_tokens * output_rate,
+        )
+
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.pricing.cost_calculator.cost_per_token",
+        _priced,
+    )
+
+    cached = _span(
+        span_id=ROOT_UUID,
+        span_name="root",
+        prompt_tokens=25978,
+        completion_tokens=100,
+        cache_read_tokens=24540,
+        span_type=SpanType.CHAT,
+    )
+    uncached = _span(
+        span_id=CHILD_A_UUID,
+        span_name="root",
+        prompt_tokens=25978,
+        completion_tokens=100,
+        span_type=SpanType.CHAT,
+    )
+
+    calculate_costs({cached.span_id: cached})
+    calculate_costs({uncached.span_id: uncached})
+
+    cached_costs = cached.attributes["ag"]["metrics"]["costs"]["incremental"]
+    uncached_costs = uncached.attributes["ag"]["metrics"]["costs"]["incremental"]
+
+    assert cached_costs["total"] < uncached_costs["total"]
+    # Compared on the prompt component, which is the part caching changes -- the issue's
+    # 6.6x is a prompt-side ratio, and folding in the (identical) completion cost would
+    # dilute it to ~5.7x. Same call, same token counts: the only difference is whether the
+    # cached slice was priced as cached. Before the fix both paths produced the high number.
+    assert uncached_costs["prompt"] / cached_costs["prompt"] == pytest.approx(
+        6.67,
+        abs=0.01,
+    )
 
 
 def test_calculate_and_propagate_metrics_runs_full_pipeline(monkeypatch):
@@ -272,7 +1171,7 @@ def test_calculate_and_propagate_metrics_runs_full_pipeline(monkeypatch):
     )
 
     monkeypatch.setattr(
-        "oss.src.core.tracing.utils.trees.cost_calculator.cost_per_token",
+        "oss.src.core.tracing.utils.pricing.cost_calculator.cost_per_token",
         lambda model, prompt_tokens, completion_tokens: (
             prompt_tokens * 0.01,
             completion_tokens * 0.02,
@@ -291,6 +1190,350 @@ def test_calculate_and_propagate_metrics_runs_full_pipeline(monkeypatch):
         (1 * 0.01 + 1 * 0.02) + (2 * 0.01 + 3 * 0.02), 6
     )
     assert root_errors == 1
+
+
+def _llm_span(
+    *,
+    tokens: dict,
+    meta: dict,
+    data: dict | None = None,
+    span_id: str = ROOT_UUID,
+) -> OTelFlatSpan:
+    return OTelFlatSpan(
+        trace_id=TRACE_UUID,
+        span_id=span_id,
+        span_name="chat",
+        span_type=SpanType.CHAT,
+        start_time=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        attributes={
+            "ag": {
+                "meta": meta,
+                "data": data or {},
+                "metrics": {"tokens": {"incremental": tokens}},
+            }
+        },
+    )
+
+
+def _incremental_costs(span: OTelFlatSpan):
+    return span.attributes["ag"]["metrics"].get("costs", {}).get("incremental")
+
+
+# Literal dollar values from litellm 1.101.0's bundled price map:
+#   claude-sonnet-4-5: input 3e-6, cache read 3e-7, cache write 3.75e-6, output 1.5e-5
+#   gpt-4o:            input 2.5e-6, cache read 1.25e-6, no cache write price, output 1e-5
+@pytest.mark.parametrize(
+    "model, tokens, marker, expected",
+    [
+        # Inclusive (OpenTelemetry) input: 1000 = 500 fresh + 200 read + 300 write.
+        (
+            "claude-sonnet-4-5",
+            {
+                "prompt": 1000,
+                "completion": 100,
+                "cache_read": 200,
+                "cache_creation": 300,
+            },
+            None,
+            (0.002685, 0.0015),
+        ),
+        # Exclusive input (Agenta runner): the same usage, reported as 500 + buckets.
+        (
+            "claude-sonnet-4-5",
+            {
+                "prompt": 500,
+                "completion": 100,
+                "cache_read": 200,
+                "cache_creation": 300,
+            },
+            False,
+            (0.002685, 0.0015),
+        ),
+        (
+            "claude-sonnet-4-5",
+            {
+                "prompt": 500,
+                "completion": 100,
+                "cache_read": 200,
+                "cache_creation": 300,
+            },
+            "false",
+            (0.002685, 0.0015),
+        ),
+        # Cache writes priced at the write rate: 800 * 3e-6 + 200 * 3.75e-6.
+        (
+            "claude-sonnet-4-5",
+            {"prompt": 800, "completion": 0, "cache_creation": 200},
+            False,
+            (0.00315, 0.0),
+        ),
+        (
+            "gpt-4o",
+            {"prompt": 1000, "completion": 100, "cache_read": 200},
+            None,
+            (0.00225, 0.001),
+        ),
+        (
+            "gpt-4o",
+            {"prompt": 800, "completion": 100, "cache_read": 200},
+            False,
+            (0.00225, 0.001),
+        ),
+        (
+            "gpt-4o",
+            {"prompt": 1000, "completion": 100, "cache_read": 200},
+            True,
+            (0.00225, 0.001),
+        ),
+        # An "inclusive" count smaller than its cache can only be exclusive.
+        (
+            "gpt-4o",
+            {"prompt": 800, "completion": 100, "cache_read": 1000},
+            None,
+            (0.00325, 0.001),
+        ),
+        # OpenInference nests cache counts under `llm.token_count.prompt_details.*`.
+        (
+            "claude-sonnet-4-5",
+            {
+                "prompt": 1000,
+                "completion": 100,
+                "prompt_details": {"cache_read": 200, "cache_write": 300},
+            },
+            None,
+            (0.002685, 0.0015),
+        ),
+    ],
+)
+def test_calculate_costs_prices_each_token_bucket_at_its_rate(
+    model, tokens, marker, expected
+):
+    meta = {"response": {"model": model}}
+    if marker is not None:
+        meta["usage"] = {"input_tokens_includes_cache": marker}
+    span = _llm_span(tokens=tokens, meta=meta)
+
+    calculate_costs({span.span_id: span})
+
+    costs = _incremental_costs(span)
+    assert costs["prompt"] == pytest.approx(expected[0], rel=1e-9)
+    assert costs["completion"] == pytest.approx(expected[1], rel=1e-9)
+    assert costs["total"] == pytest.approx(sum(expected), rel=1e-9)
+    assert "pricing" not in span.attributes["ag"]["meta"]
+
+
+def test_calculate_costs_above_the_long_context_tier_uses_litellm_tier_rates():
+    # 250k prompt > claude-sonnet-4-5's 200k tier: 250000 * 6e-6 and 100 * 2.25e-5.
+    span = _llm_span(
+        tokens={"prompt": 250_000, "completion": 100},
+        meta={"response": {"model": "claude-sonnet-4-5"}},
+    )
+
+    calculate_costs({span.span_id: span})
+
+    assert _incremental_costs(span)["prompt"] == pytest.approx(1.5)
+    assert _incremental_costs(span)["completion"] == pytest.approx(0.00225)
+
+
+def test_calculate_costs_falls_back_to_the_request_model():
+    span = _llm_span(
+        tokens={"prompt": 1000, "completion": 100},
+        meta={"request": {"model": "claude-sonnet-4-5"}},
+    )
+
+    calculate_costs({span.span_id: span})
+
+    assert _incremental_costs(span)["total"] == pytest.approx(0.0045)
+
+
+def test_calculate_costs_prefers_response_then_parameters_then_request_model(
+    monkeypatch,
+):
+    seen = []
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.trees.resolve_pricing_model",
+        lambda model: seen.append(model) or None,
+    )
+    tokens = {"prompt": 1, "completion": 1}
+
+    calculate_costs(
+        {
+            "a": _llm_span(
+                tokens=tokens,
+                meta={"response": {"model": "r"}, "request": {"model": "q"}},
+                data={"parameters": {"model": "p"}},
+            ),
+            "b": _llm_span(
+                tokens=tokens,
+                meta={"request": {"model": "q"}},
+                data={"parameters": {"model": "p"}},
+            ),
+            "c": _llm_span(tokens=tokens, meta={"request": {"model": "q"}}),
+        }
+    )
+
+    assert seen == ["r", "p", "q"]
+
+
+@pytest.mark.parametrize(
+    "model, reason",
+    [
+        ("totally-unknown-model", "unknown_model"),
+        # A custom gateway must not inherit the public OpenAI price of the bare name.
+        ("my-gateway/gpt-5.3-codex", "unknown_model"),
+        (None, "missing_model"),
+    ],
+)
+def test_calculate_costs_marks_an_unpriceable_span_instead_of_writing_zero(
+    model, reason
+):
+    span = _llm_span(
+        tokens={"prompt": 1000, "completion": 100},
+        meta={"request": {"model": model}} if model else {},
+    )
+
+    calculate_costs({span.span_id: span})
+
+    assert _incremental_costs(span) is None
+    assert span.attributes["ag"]["meta"]["pricing"] == {
+        "error": reason,
+        "model": model,
+    }
+
+
+def test_calculate_costs_does_not_mark_an_unknown_model_that_measured_nothing():
+    span = _llm_span(
+        tokens={"prompt": 0, "completion": 0},
+        meta={"request": {"model": "totally-unknown-model"}},
+    )
+
+    calculate_costs({span.span_id: span})
+
+    assert _incremental_costs(span) is None
+    assert "pricing" not in span.attributes["ag"]["meta"]
+
+
+def test_calculate_costs_does_not_price_a_total_only_count_at_zero():
+    span = _llm_span(
+        tokens={"total": 1500},
+        meta={"request": {"model": "gpt-4o"}},
+    )
+
+    calculate_costs({span.span_id: span})
+
+    assert _incremental_costs(span) is None
+    assert span.attributes["ag"]["meta"]["pricing"] == {
+        "error": "missing_token_split",
+        "model": "gpt-4o",
+    }
+
+
+def test_calculate_costs_does_not_price_part_of_a_total_from_cache_counts():
+    span = _llm_span(
+        tokens={"total": 1500, "cache_read": 500},
+        meta={"request": {"model": "gpt-4o"}},
+    )
+
+    calculate_costs({span.span_id: span})
+
+    assert _incremental_costs(span) is None
+    assert span.attributes["ag"]["meta"]["pricing"] == {
+        "error": "missing_token_split",
+        "model": "gpt-4o",
+    }
+
+
+def test_calculate_costs_prices_cache_counts_that_make_up_the_whole_total():
+    span = _llm_span(
+        tokens={"total": 500, "cache_read": 500},
+        meta={"request": {"model": "gpt-4o"}},
+    )
+
+    calculate_costs({span.span_id: span})
+
+    assert _incremental_costs(span)["total"] == pytest.approx(500 * 1.25e-6)
+    assert "pricing" not in span.attributes["ag"]["meta"]
+
+
+def test_calculate_costs_removes_an_earlier_cost_when_the_span_is_unpriced():
+    span = _llm_span(
+        tokens={"prompt": 1000, "completion": 100},
+        meta={"request": {"model": "no-such-model-xyz"}},
+    )
+    span.attributes["ag"]["metrics"]["costs"] = {
+        "incremental": {"prompt": 0.1, "completion": 0.2, "total": 0.3}
+    }
+
+    calculate_costs({span.span_id: span})
+
+    assert _incremental_costs(span) is None
+    assert span.attributes["ag"]["meta"]["pricing"]["error"] == "unknown_model"
+
+
+def test_calculate_costs_prices_a_free_model_at_zero():
+    span = _llm_span(
+        tokens={"prompt": 1000, "completion": 100},
+        meta={"request": {"model": "codestral/codestral-latest"}},
+    )
+
+    calculate_costs({span.span_id: span})
+
+    assert _incremental_costs(span) == {"prompt": 0.0, "completion": 0.0, "total": 0.0}
+    assert "pricing" not in span.attributes["ag"]["meta"]
+
+
+def test_calculate_costs_clears_a_stale_pricing_marker():
+    span = _llm_span(
+        tokens={"prompt": 1000, "completion": 100},
+        meta={
+            "request": {"model": "gpt-4o"},
+            "pricing": {"error": "unknown_model", "model": "gpt-4o"},
+        },
+    )
+
+    calculate_costs({span.span_id: span})
+
+    assert _incremental_costs(span)["total"] == pytest.approx(0.0035)
+    assert "pricing" not in span.attributes["ag"]["meta"]
+
+
+def test_calculate_costs_marks_a_pricer_failure(monkeypatch):
+    def _raise(**_):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.pricing.cost_calculator.cost_per_token", _raise
+    )
+    span = _llm_span(
+        tokens={"prompt": 10, "completion": 20},
+        meta={"request": {"model": "gpt-4o"}},
+    )
+
+    calculate_costs({span.span_id: span})
+
+    assert _incremental_costs(span) is None
+    assert span.attributes["ag"]["meta"]["pricing"]["error"] == "pricing_failed"
+
+
+def test_calculate_costs_passes_cache_writes_to_litellm(monkeypatch):
+    seen = {}
+
+    def _capture(**kwargs):
+        seen.update(kwargs)
+        return (0.5, 0.25)
+
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.pricing.cost_calculator.cost_per_token", _capture
+    )
+    span = _llm_span(
+        tokens={"prompt": 1000, "completion": 100, "cache_creation": 300},
+        meta={"request": {"model": "claude-sonnet-4-5"}},
+    )
+
+    calculate_costs({span.span_id: span})
+
+    assert seen["cache_creation_input_tokens"] == 300
+    assert seen["prompt_tokens"] == 1000
 
 
 def test_infer_and_propagate_trace_type_by_trace_preserves_input_order():
@@ -431,3 +1674,24 @@ def test_promote_identity_by_trace_is_per_trace_and_ignores_missing_attrs():
 
 def test_promote_identity_by_trace_empty_list_is_noop():
     assert promote_identity_by_trace([]) == []
+
+
+def test_calculate_costs_prices_llm_typed_spans(monkeypatch):
+    span = _span(
+        span_id=ROOT_UUID,
+        span_name="root",
+        prompt_tokens=10,
+        completion_tokens=20,
+        span_type=SpanType.LLM,
+    )
+    span_idx = {span.span_id: span}
+
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.pricing.cost_calculator.cost_per_token",
+        lambda **_: (0.12, 0.34),
+    )
+
+    calculate_costs(span_idx)
+
+    costs = span_idx[ROOT_UUID].attributes["ag"]["metrics"]["costs"]["incremental"]
+    assert costs == {"prompt": 0.12, "completion": 0.34, "total": 0.46}

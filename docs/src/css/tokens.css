@@ -1,0 +1,172 @@
+/* Design tokens. The neutral palette comes from the docs redesign; the dark
+   values are derived from it. Every other stylesheet reads these names, so a
+   colour change lands here only. */
+
+:root {
+  /* Surfaces */
+  --bgdefault: #ffffff;
+  --bgelevated1: #f6f5f3;
+  --bgelevated2: #f0efed;
+
+  /* Text */
+  --contentprimary: #242424;
+  --contentsecondary: #676770;
+  --contenttertiary: #848b8c;
+
+  /* Borders */
+  --borderlight: #ecebe9;
+  --borderdefault: #e5e5e3;
+  --borderdark: #d7d7d7;
+
+  /* Inverted surfaces (the primary button) */
+  --bginverse: #242424;
+  --contentinverse: #ffffff;
+
+  /* Radii */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+
+  /* Frame measurements */
+  --doc-content-width: 720px;
+  /* Pages without a TOC column (changelog list, roadmap) use a wider column. */
+  --doc-list-width: 900px;
+  --doc-toc-width: 240px;
+  --doc-main-padding-x: 56px;
+  /* Lines the page title up with the first rail row (sidebar padding 20). */
+  --doc-main-padding-top: 20px;
+  --doc-main-padding-bottom: 64px;
+
+  /* Infima mappings */
+  --ifm-color-primary: var(--contentprimary);
+  --ifm-color-primary-dark: var(--contentprimary);
+  --ifm-color-primary-darker: var(--contentprimary);
+  --ifm-color-primary-darkest: var(--contentprimary);
+  --ifm-color-primary-light: var(--contentsecondary);
+  --ifm-color-primary-lighter: var(--contenttertiary);
+  --ifm-color-primary-lightest: var(--borderdark);
+
+  --ifm-background-color: var(--bgdefault);
+  --ifm-background-surface-color: var(--bgdefault);
+  --ifm-navbar-background-color: var(--bgdefault);
+  --ifm-navbar-height: 60px;
+  --ifm-navbar-padding-horizontal: 32px;
+  --ifm-navbar-shadow: none;
+
+  --ifm-font-color-base: var(--contentprimary);
+  --ifm-font-color-secondary: var(--contentsecondary);
+  --ifm-heading-color: var(--contentprimary);
+  --ifm-link-color: var(--contentprimary);
+  --ifm-link-hover-color: var(--contentprimary);
+  --ifm-link-hover-decoration: none;
+
+  --ifm-toc-border-color: var(--borderdefault);
+  --ifm-color-emphasis-200: var(--borderdefault);
+  --ifm-color-emphasis-300: var(--borderdark);
+  --ifm-hover-overlay: var(--bgelevated1);
+  --ifm-alert-border-color: var(--borderdefault);
+
+  --ifm-menu-color: var(--contentsecondary);
+  --ifm-menu-color-active: var(--contentprimary);
+  --ifm-menu-color-background-active: var(--bgelevated1);
+  --ifm-menu-color-background-hover: var(--bgelevated1);
+  --ifm-menu-link-padding-vertical: 0;
+  --ifm-menu-link-padding-horizontal: 10px;
+
+  --ifm-font-family-base: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --ifm-font-family-monospace: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ifm-font-size-base: 15px;
+  --ifm-line-height-base: 1.73;
+  --ifm-font-weight-normal: 400;
+  --ifm-font-weight-semibold: 500;
+  --ifm-font-weight-bold: 600;
+  --ifm-heading-font-weight: 600;
+  --ifm-h1-font-weight: 600;
+  --ifm-h2-font-weight: 600;
+  --ifm-h3-font-weight: 600;
+  --ifm-h4-font-weight: 600;
+  --ifm-heading-h1-font-size: 30px;
+  --ifm-heading-h2-font-size: 20px;
+  --ifm-heading-h3-font-size: 17px;
+  --ifm-heading-h4-font-size: 15px;
+
+  --ifm-global-radius: var(--radius-md);
+  --ifm-code-font-size: 90%;
+  --ifm-pre-background: var(--bgelevated1);
+  --ifm-code-background: var(--bgelevated1);
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.05);
+
+  /* UI element aliases kept for the swizzled components */
+  --navbar-link-color: var(--contentsecondary);
+  --navbar-link-active-color: var(--contentprimary);
+  --sidebar-link-color: var(--contentsecondary);
+  --sidebar-link-active-color: var(--contentprimary);
+  --toc-link-color: var(--contentsecondary);
+
+  /* Docsearch */
+  --docsearch-background-color: var(--bgelevated1) !important;
+  --docsearch-icon-color: var(--contentprimary) !important;
+  --docsearch-secondary-text-color: var(--contentsecondary) !important;
+}
+
+/* The theme defines --doc-sidebar-width on :root in a module that loads after
+   this file; setting it on the app root wins by inheritance, and the footer
+   (outside .main-wrapper) reads it too. */
+#__docusaurus {
+  --doc-sidebar-width: 272px;
+  /* The whole frame (sidebar, reading column, TOC) is capped and centred on
+     wide screens. The offset is what everything fixed or full-width (the
+     sidebar, the header row, the footer) shifts by. Declared here, not on
+     :root, so the sidebar width above is the one it reads (the theme sets
+     its own on :root). */
+  --doc-frame-max: calc(var(--doc-sidebar-width) + var(--doc-content-width) + var(--doc-toc-width) + 30px + 2 * var(--doc-main-padding-x));
+  --doc-frame-offset: 0px;
+}
+
+/* Centring starts only once there is real room for it. Just above the frame
+   width the offset would be a sliver (a 30px gap at 1440px) that leaves the
+   sidebar hanging off the window edge; until then the frame stays anchored
+   left and the reading column alone centres (content.css). */
+@media (min-width: 1600px) {
+  #__docusaurus {
+    --doc-frame-offset: max(0px, calc(50% - var(--doc-frame-max) / 2));
+  }
+}
+
+/* Small laptops: narrower sidebar, TOC and gutters so the reading column
+   keeps a usable width. */
+@media (min-width: 997px) and (max-width: 1200px) {
+  :root {
+    --doc-main-padding-x: 32px;
+    --doc-toc-width: 200px;
+  }
+
+  #__docusaurus {
+    --doc-sidebar-width: 240px;
+  }
+}
+
+[data-theme="dark"] {
+  --bgdefault: #141413;
+  --bgelevated1: #1c1c1b;
+  --bgelevated2: #262625;
+
+  --contentprimary: #f5f5f4;
+  --contentsecondary: #a3a3a0;
+  --contenttertiary: #7a7a77;
+
+  --borderlight: #232322;
+  --borderdefault: #2a2a29;
+  --borderdark: #3a3a38;
+
+  --bginverse: #f5f5f4;
+  --contentinverse: #141413;
+
+  --ifm-background-color: var(--bgdefault) !important;
+  --ifm-background-surface-color: var(--bgdefault);
+  --ifm-navbar-background-color: var(--bgdefault);
+
+  --docusaurus-highlighted-code-line-bg: rgba(255, 255, 255, 0.07);
+
+  --docsearch-background-color: var(--bgelevated2) !important;
+}

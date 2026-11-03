@@ -1,7 +1,8 @@
 import {useMemo} from "react"
 
+import {projectIdAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {queryTriggerConnections} from "../api"
@@ -10,11 +11,12 @@ import type {TriggerConnection, TriggerConnectionsResponse} from "../core/types"
 const DEFAULT_PROVIDER = "composio"
 
 // Full list of trigger connections (shared `gateway_connections` rows, F2).
-export const triggerConnectionsQueryAtom = atomWithQuery<TriggerConnectionsResponse>(() => ({
-    queryKey: ["triggers", "connections"],
+export const triggerConnectionsQueryAtom = atomWithQuery<TriggerConnectionsResponse>((get) => ({
+    queryKey: ["triggers", "connections", get(projectIdAtom)],
     queryFn: () => queryTriggerConnections(),
     staleTime: 30_000,
     refetchOnWindowFocus: false,
+    enabled: !!get(projectIdAtom),
 }))
 
 export const useTriggerConnectionsQuery = () => {
@@ -36,8 +38,8 @@ export const useTriggerConnectionsQuery = () => {
 
 // Connections scoped to a single integration.
 export const triggerIntegrationConnectionsAtomFamily = atomFamily((integrationKey: string) =>
-    atomWithQuery<TriggerConnectionsResponse>(() => ({
-        queryKey: ["triggers", "connections", DEFAULT_PROVIDER, integrationKey],
+    atomWithQuery<TriggerConnectionsResponse>((get) => ({
+        queryKey: ["triggers", "connections", DEFAULT_PROVIDER, integrationKey, get(projectIdAtom)],
         queryFn: () =>
             queryTriggerConnections({
                 provider_key: DEFAULT_PROVIDER,
@@ -45,7 +47,7 @@ export const triggerIntegrationConnectionsAtomFamily = atomFamily((integrationKe
             }),
         staleTime: 30_000,
         refetchOnWindowFocus: false,
-        enabled: !!integrationKey,
+        enabled: !!integrationKey && !!get(projectIdAtom),
     })),
 )
 

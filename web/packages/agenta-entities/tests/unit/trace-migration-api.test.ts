@@ -359,9 +359,50 @@ describe("fetchSpansAnalytics (Phase 6 — POST /spans/analytics/query)", () => 
         expect(res).toBeNull()
     })
 
+    it("rethrows the Fern error with its status and body in strict mode", async () => {
+        const failure = Object.assign(new Error("504"), {
+            statusCode: 504,
+            body: {detail: "The analytics query took too long. Choose a shorter time range."},
+        })
+        querySpansAnalytics.mockRejectedValueOnce(failure)
+        await expect(fetchSpansAnalytics({projectId: "proj-9", strict: true})).rejects.toBe(failure)
+    })
+
+    it("turns off Fern's transport retry in strict mode, so a 504 is not sent four times", async () => {
+        querySpansAnalytics.mockResolvedValueOnce({count: 0, buckets: []})
+        await fetchSpansAnalytics({projectId: "proj-9", strict: true})
+        const [, opts] = querySpansAnalytics.mock.calls[0]
+        expect(opts.maxRetries).toBe(0)
+    })
+
+    it("keeps Fern's transport retry for non-strict callers", async () => {
+        querySpansAnalytics.mockResolvedValueOnce({count: 0, buckets: []})
+        await fetchSpansAnalytics({projectId: "proj-9"})
+        const [, opts] = querySpansAnalytics.mock.calls[0]
+        expect(opts.maxRetries).toBeUndefined()
+    })
+
     it("rethrows AbortError so TanStack Query can cancel", async () => {
         const abort = new DOMException("Aborted", "AbortError")
         querySpansAnalytics.mockRejectedValueOnce(abort)
         await expect(fetchSpansAnalytics({projectId: "proj-9"})).rejects.toBe(abort)
+    })
+
+    it("sends `specs` as a JSON-string query param", async () => {
+        querySpansAnalytics.mockResolvedValueOnce({count: 0, buckets: []})
+        await fetchSpansAnalytics({
+            projectId: "proj-9",
+            specs: [{type: "categorical/single", path: "attributes.ag.meta.tool.name"}],
+        })
+        const [request] = querySpansAnalytics.mock.calls[0]
+        expect(JSON.parse(request.specs)).toEqual([
+            {type: "categorical/single", path: "attributes.ag.meta.tool.name"},
+        ])
+    })
+
+    it("throws the request error in strict mode", async () => {
+        const failure = new Error("500")
+        querySpansAnalytics.mockRejectedValueOnce(failure)
+        await expect(fetchSpansAnalytics({projectId: "proj-9", strict: true})).rejects.toBe(failure)
     })
 })

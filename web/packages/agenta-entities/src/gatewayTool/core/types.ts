@@ -71,6 +71,18 @@ export type ToolConnectionResponse = AgentaApi.ToolConnectionResponse
 export type ToolConnectionsResponse = AgentaApi.ToolConnectionsResponse
 export type ToolConnectionStatus = AgentaApi.ToolConnectionStatus
 
+// Gateway connection entry (the saved agent-configuration shape)
+export type GatewayConnectionToolConfig = AgentaApi.GatewayConnectionToolConfig
+export type GatewayConnectionRef = AgentaApi.GatewayConnectionRef
+export type GatewayConnectionPolicy = AgentaApi.GatewayConnectionPolicy
+export type GatewayPermissions = AgentaApi.GatewayPermissions
+/** The policy values, sourced from the wire so a new one cannot appear without a compile error.
+ *
+ *  `NonNullable` because the wire field is optional: the SDK model defaults it to `"inherit"`, so
+ *  an absent `default` means inherit rather than "no value". This type names the values
+ *  themselves, and absence is resolved where the wire shape is parsed, not carried around in it. */
+export type GatewayPermission = NonNullable<AgentaApi.GatewayPermissions["default"]>
+
 // ---------------------------------------------------------------------------
 // Tool execution
 // ---------------------------------------------------------------------------
@@ -114,4 +126,9 @@ export function isConnectionActive(connection: ToolConnection | null | undefined
 
 export function isConnectionValid(connection: ToolConnection | null | undefined): boolean {
     return readConnectionFlag(connection, "is_valid") ?? false
+}
+
+/** The caller's default for its integration. */
+export function isConnectionDefault(connection: ToolConnection | null | undefined): boolean {
+    return connection?.is_default === true
 }

@@ -1,5 +1,6 @@
 import {useMemo, useRef, useState} from "react"
 
+import {TraceAnnotations} from "@agenta/observability-ui/traceDrawer"
 import {CopyTooltip as EnhancedTooltip} from "@agenta/ui/copy-tooltip"
 import {MinusOutlined, PlusOutlined} from "@ant-design/icons"
 import {Button, Collapse, CollapseProps, Tag, Typography} from "antd"
@@ -11,7 +12,6 @@ import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResult
 
 import AddToTestsetButton from "../../../AddToTestsetDrawer/components/AddToTestsetButton"
 import AnnotateDrawerButton from "../../../AnnotateDrawer/assets/AnnotateDrawerButton"
-import TraceAnnotations from "../../../TraceDrawer/components/TraceSidePanel/TraceAnnotations"
 import {isAnnotationVisibleAtom} from "../../store/sessionDrawerStore"
 
 interface SessionMessagePanelProps extends CollapseProps {

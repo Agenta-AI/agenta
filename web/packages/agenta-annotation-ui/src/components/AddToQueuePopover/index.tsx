@@ -1,6 +1,11 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {
+    createQueueDrawerOpenAtom,
+    createQueueDrawerDefaultKindAtom,
+    createQueueDrawerSelectionAtom,
+} from "@agenta/annotation"
+import {
     simpleQueueMolecule,
     simpleQueuePaginatedStore,
     simpleQueuesListDataAtom,
@@ -15,11 +20,6 @@ import {Button, Divider, Input, Popover, Skeleton, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigationSafe} from "../../context"
-import {
-    createQueueDrawerOpenAtom,
-    createQueueDrawerDefaultKindAtom,
-    createQueueDrawerSelectionAtom,
-} from "../../state/atoms"
 import CreateQueueDrawer from "../CreateQueueDrawer"
 
 const ANNOTATION_QUEUE_TABLE_PARAMS = {
@@ -239,7 +239,7 @@ const QueueListContent = ({
                                 >
                                     {queue.name || "Untitled"}
                                 </Typography.Text>
-                                <Typography.Text type="secondary" className="text-[10px]">
+                                <Typography.Text type="secondary" className="text-[12px]">
                                     Updated{" "}
                                     {queue.updated_at ? dayjs(queue.updated_at)?.fromNow() : "—"}
                                 </Typography.Text>

@@ -171,7 +171,7 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
                                 <TooltipProvider>
                                     <Tooltip>
                                         <TooltipTrigger asChild>
-                                            <span className="font-sans text-[11px] text-colorTextDescription">
+                                            <span className="font-sans text-xs text-colorTextDescription">
                                                 ?
                                             </span>
                                         </TooltipTrigger>
@@ -196,7 +196,7 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
 
                 {/* Helper text + Detect from testcase button */}
                 <div className="flex items-start justify-between gap-3">
-                    <span className="text-[11px] pt-0.5 text-colorTextDescription">
+                    <span className="text-xs pt-0.5 text-colorTextDescription">
                         Each field creates a column with value 0 (no match) or 1 (match)
                     </span>
                     {!disabled && detectFieldsFromTestcase && (

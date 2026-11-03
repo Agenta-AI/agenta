@@ -2,10 +2,11 @@
  * exportMatchingTraces — the bulk-trace export ETL pipeline.
  *
  * Composes the generic ETL primitives — `makeSourceFromCursorFetch` →
- * flattenSpanTrees (transform) → dedupAndCap (transform) →
- * `makeBufferedBatchSink` — driven by `runLoop`. Pages every trace matching a
- * filter, flattens each tree into the flat list of its descendant spans,
- * dedups by row key, caps at `maxRows`, and flushes deduplicated rows in
+ * flattenSpanTrees (transform) → dedupAndCap (transform) → optional `enrich`
+ * (transform) → `makeBufferedBatchSink` — driven by `runLoop`. Pages every
+ * trace matching a filter, flattens each tree into the flat list of its
+ * descendant spans, dedups by row key, caps at `maxRows`, optionally joins
+ * correlated data a row does not carry, and flushes deduplicated rows in
  * fixed-size batches to a caller-provided `flushBatch` transport.
  *
  * Format-agnostic by design: the caller's `flushBatch` does the CSV/JSON/...
@@ -101,6 +102,17 @@ export interface ExportMatchingTracesOptions<T extends ScannedExportRow> {
     maxRows?: number
     /** Live progress callback, fired after each page and once at the end. */
     onProgress?: (progress: ExportMatchingTracesProgress) => void
+    /**
+     * Optional last transform, applied AFTER dedup and the cap so it only runs for rows that
+     * actually reach the sink. Async is allowed (see `Transform`), which is what makes this the
+     * seam for correlated data a row does not carry — evaluator metrics live on annotations
+     * linked to a span, not on the span, so they are fetched per chunk and merged here.
+     *
+     * Enrichment belongs here rather than in `flushBatch`: the sink is the format/transport
+     * boundary, so anything done there cannot be reused by a different sink, and it sits
+     * outside the loop's cancellation path.
+     */
+    enrich?: Transform<T, T>
 }
 
 /** Hard cap on unique rows in one export. */
@@ -185,13 +197,18 @@ export const exportMatchingTraces = async <T extends ScannedExportRow>({
     batchSize = DEFAULT_BATCH_SIZE,
     maxRows = DEFAULT_MAX_ROWS,
     onProgress,
+    enrich,
 }: ExportMatchingTracesOptions<T>): Promise<ExportMatchingTracesResult> => {
     const source = makeSourceFromCursorFetch<T>({fetchPage, pageDelayMs})
     const flatten = makeFlattenSpanTreesTransform<T>()
     const dedupCap = makeDedupAndCapTransform<T>(selectKey, maxRows)
     const sinkHandle = makeBufferedBatchSink<T>({batchSize, signal, flush: flushBatch})
 
-    const gen = runLoop<T, T>(source, [flatten, dedupCap], sinkHandle.sink, undefined, signal)
+    // `enrich` last: dedup and the cap decide what reaches the sink, so running it earlier
+    // would fetch correlated data for rows that get dropped.
+    const transforms: Transform<T, T>[] = enrich ? [flatten, dedupCap, enrich] : [flatten, dedupCap]
+
+    const gen = runLoop<T, T>(source, transforms, sinkHandle.sink, undefined, signal)
 
     let scanned = 0
     let limitReached = false

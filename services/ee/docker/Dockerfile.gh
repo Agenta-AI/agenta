@@ -30,7 +30,6 @@ COPY ./clients/python /clients/python/
 # - shapely: transitive from google-cloud-aiplatform, never used
 # Kept: litellm + provider SDKs (google-cloud-aiplatform, boto3, openai) — litellm
 #   dynamically imports these at runtime to route calls to different LLM providers
-# Kept: newrelic — used for observability
 RUN --mount=type=cache,id=pip-services,target=/root/.cache/pip \
     --mount=type=cache,id=uv-services,target=/root/.cache/uv \
     UV_HTTP_TIMEOUT=300 uv sync --locked --no-dev \
@@ -56,6 +55,7 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app:/sdks/python:/clients/python \
+    GUNICORN_CMD_ARGS="--config python:entrypoints.gunicorn_conf" \
     PATH="/opt/venv/bin:${PATH}"
 
 RUN groupadd --gid 10001 agenta && \

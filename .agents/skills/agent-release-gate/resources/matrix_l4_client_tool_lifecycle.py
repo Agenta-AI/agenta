@@ -34,14 +34,17 @@ The correctness half is what blocks: the browser's result must actually reach th
 `client_tool` interaction must be STORED (a row in `/sessions/interactions/`), not merely
 streamed.
 
-OBSERVED NUANCE, recorded but not asserted (2026-08-06): a client-tool row that was FULFILLED
-successfully still ends up stored as `cancelled`, not `responded`/`resolved`. The browser answers
-in-band through the messages plane, and the next turn's `cancelStaleInteractions` sweep spares
-only the tokens it recognises as in-band answers -- which covers approval replies, not client-tool
-outputs -- so the row is swept as though it had been abandoned. The round trip itself works, so
-this cell asserts only that no row is left `pending`. It is the durable RECORD that lies: anything
-reading the stored interactions later (a reconnecting client, an audit) cannot tell a fulfilled
-client tool from an abandoned one. Worth fixing, not worth blocking a release on.
+FIXED CONTRACT (2026-08-10): the browser records a client-tool answer with ONE
+`POST /sessions/interactions/transition` call that writes `status=responded` and
+`data.resolution` together, before it sends the resume turn. The later stale sweep filters on
+`pending`, so the answered row is invisible to it and must remain `responded`; `resolved` stays
+approval-only.
+
+WIRE-LEVEL CAVEAT. This script has no browser, so the server cannot perform that client-owned
+write on its behalf. The cell therefore makes the same transition call itself, keyed by the
+stored row's token, BEFORE it sends the in-band tool output. Fulfilling only through the assistant
+message would correctly leave the row `pending` for the next-turn sweep to cancel. Do not remove
+the explicit transition or mistake it for server-side behaviour.
 
 FIRST-RUN NOTE. If turn 1 ends without a recognizable paused client-tool call, this cell FAILS
 and prints the frames it did see. That is deliberate: a SKIP here would be an untested claim, and
@@ -58,6 +61,7 @@ import uuid
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from qa_matrix_lib import (  # noqa: E402
     agent_config,
+    api_call,
     archive,
     create_workflow,
     interactions,
@@ -152,6 +156,57 @@ def l4():
             r for r in interactions(session_id) if r.get("kind") == "client_tool"
         ]
 
+        row = next(
+            (
+                r
+                for r in rows_paused
+                if ((r.get("data") or {}).get("request") or {}).get("tool_call_id")
+                == call_id
+                or r.get("token") == call_id
+            ),
+            None,
+        )
+        if row is None:
+            return {
+                "status": "FAIL",
+                "why": (
+                    "the paused client-tool call has no stored row keyed by its tool_call_id, so "
+                    "the browser-equivalent answer transition cannot be sent"
+                ),
+                "workflow_id": wf,
+                "session_id": session_id,
+                "tool_call_id": call_id,
+                "client_tool_rows_while_paused": rows_paused,
+            }
+
+        resolution = {
+            "tool_call_id": call_id,
+            "tool_name": TOOL_NAME,
+            "outcome": "completed",
+            "output": marker,
+        }
+        transition = api_call(
+            "POST",
+            "/sessions/interactions/transition",
+            json={
+                "session_id": session_id,
+                "token": row["token"],
+                "status": "responded",
+                "resolution": resolution,
+            },
+        )
+        if transition.status_code != 200:
+            return {
+                "status": "FAIL",
+                "why": (
+                    "the browser-equivalent atomic answer transition failed: "
+                    f"HTTP {transition.status_code} {transition.text[:300]}"
+                ),
+                "workflow_id": wf,
+                "session_id": session_id,
+                "interaction_id": row.get("id"),
+            }
+
         # Turn 2: the browser answers. No new user message -- the result belongs to this turn.
         msgs2 = msgs + [fulfil(t1, call_id, marker)]
         t2 = invoke(session_id, msgs2, params, references, log=False)
@@ -163,9 +218,17 @@ def l4():
         ]
         statuses = [r.get("status") for r in rows_after]
         stored = bool(rows_after)
-        no_orphan_pending = all(s != "pending" for s in statuses)
+        settled_row = next(
+            (r for r in rows_after if r.get("id") == row.get("id")), None
+        )
+        settled_resolution = ((settled_row or {}).get("data") or {}).get("resolution")
+        stored_answer = (
+            settled_row is not None
+            and settled_row.get("status") == "responded"
+            and settled_resolution == resolution
+        )
 
-        ok = delivered and stored and no_orphan_pending and not t2.errors
+        ok = delivered and stored and stored_answer and not t2.errors
 
         why_parts = []
         if not delivered:
@@ -178,9 +241,11 @@ def l4():
                 "no `client_tool` interaction row was stored, so the call existed only on the "
                 "stream -- nothing durable for a reconnecting client to render"
             )
-        elif not no_orphan_pending:
+        elif not stored_answer:
             why_parts.append(
-                f"a `client_tool` row is still `pending` after the round trip completed: {statuses}"
+                "the answered `client_tool` row did not remain `responded` with its exact "
+                f"resolution after resume: status={(settled_row or {}).get('status')!r}, "
+                f"resolution={settled_resolution!r}"
             )
         if t2.errors:
             why_parts.append(f"the resumed turn errored: {t2.errors[:1]}")
@@ -189,7 +254,7 @@ def l4():
             "status": "PASS" if ok else "FAIL",
             "why": (
                 "the client-tool round trip completes, the result reaches the model, and the "
-                "interaction is stored"
+                "interaction remains `responded` with its answer stored"
                 if ok
                 else " | ".join(why_parts)
             ),
@@ -198,6 +263,9 @@ def l4():
             "result_reached_model": delivered,
             "client_tool_rows_while_paused": [r.get("status") for r in rows_paused],
             "client_tool_rows_after": statuses,
+            "answered_interaction_id": row.get("id"),
+            "answered_interaction_status": (settled_row or {}).get("status"),
+            "answered_interaction_resolution": settled_resolution,
             # RECORDED, NOT ASSERTED. Two ids is today's expected cost: a client-tool pause is
             # not parkable, so the environment is destroyed and the resume rebuilds. If this ever
             # reads 1, the warm hold (#5384) landed and this cell's docstring needs updating --

@@ -3,7 +3,7 @@ import {useMemo} from "react"
 import {resolveOutputSchema} from "@agenta/entities/workflow"
 import {getAgentaApiUrl} from "@agenta/shared/api"
 import {atom, useAtomValue} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {EvaluatorDto} from "@/oss/services/evaluations/api/evaluatorTypes"

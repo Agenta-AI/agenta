@@ -22,7 +22,8 @@ from oss.src.core.sessions.dtos import SessionListItem
 from oss.src.core.sessions.service import SessionsService
 from oss.src.core.sessions.streams.dtos import SessionStream
 from oss.src.core.sessions.turns.dtos import HarnessKind, SessionTurn
-from oss.src.core.shared.dtos import Reference
+from oss.src.core.sessions.types import SessionReference
+from oss.tests.pytest.utils.sharing import PROJECT_SESSION_SCOPE
 
 
 _PROJECT = uuid4()
@@ -35,7 +36,7 @@ def _stream(session_id: str) -> SessionStream:
 def _turn(
     session_id: str,
     turn_index: int,
-    references: Optional[List[Reference]] = None,
+    references: Optional[List[SessionReference]] = None,
 ) -> SessionTurn:
     return SessionTurn(
         id=uuid4(),
@@ -58,7 +59,15 @@ class _FakeStreamsService:
         self.rows = rows
 
     async def query_streams(
-        self, *, project_id, filter, windowing=None, session_ids=None
+        self,
+        *,
+        project_id,
+        read_scope,
+        filter,
+        windowing=None,
+        session_ids=None,
+        exclude_session_ids=None,
+        read_options=None,
     ):
         if session_ids is not None:
             return [s for s in self.rows if s.session_id in session_ids]
@@ -119,8 +128,8 @@ async def test_query_sessions_echoes_highest_turn_index_references():
     session_with_turns = "session-with-turns"
     session_without_turns = "session-without-turns"
 
-    early_ref = Reference(id=uuid4(), slug="early-workflow", version="v1")
-    latest_ref = Reference(id=uuid4(), slug="latest-workflow", version="v2")
+    early_ref = SessionReference(id=uuid4(), slug="early-workflow", version="v1")
+    latest_ref = SessionReference(id=uuid4(), slug="latest-workflow", version="v2")
 
     streams = [_stream(session_with_turns), _stream(session_without_turns)]
     turns_by_session = {
@@ -133,7 +142,9 @@ async def test_query_sessions_echoes_highest_turn_index_references():
 
     svc, _, turns_svc = _service(streams=streams, turns_by_session=turns_by_session)
 
-    result = await svc.query_sessions(project_id=_PROJECT)
+    result = await svc.query_sessions(
+        read_scope=PROJECT_SESSION_SCOPE, project_id=_PROJECT
+    )
 
     assert len(result) == 2
     for item in result:
@@ -156,7 +167,7 @@ async def test_query_sessions_batches_latest_turn_lookup_into_one_call():
 
     svc, _, turns_svc = _service(streams=streams, turns_by_session=turns_by_session)
 
-    await svc.query_sessions(project_id=_PROJECT)
+    await svc.query_sessions(read_scope=PROJECT_SESSION_SCOPE, project_id=_PROJECT)
 
     # One batch call covering every listed session_id -- never one lookup per row.
     assert len(turns_svc.latest_turn_per_session_calls) == 1
@@ -171,7 +182,9 @@ async def test_query_sessions_batches_latest_turn_lookup_into_one_call():
 async def test_query_sessions_no_streams_skips_turns_lookup_entirely():
     svc, _, turns_svc = _service(streams=[], turns_by_session={})
 
-    result = await svc.query_sessions(project_id=_PROJECT)
+    result = await svc.query_sessions(
+        read_scope=PROJECT_SESSION_SCOPE, project_id=_PROJECT
+    )
 
     assert result == []
     assert turns_svc.latest_turn_per_session_calls == []
@@ -184,7 +197,9 @@ async def test_query_sessions_preserves_stream_ordering():
 
     svc, _, _ = _service(streams=streams, turns_by_session={})
 
-    result = await svc.query_sessions(project_id=_PROJECT)
+    result = await svc.query_sessions(
+        read_scope=PROJECT_SESSION_SCOPE, project_id=_PROJECT
+    )
 
     assert [item.session_id for item in result] == [session_first, session_second]
 

@@ -2,6 +2,46 @@
 
 This guide walks you through deploying Agenta EE with Docker Compose. It covers two paths: using pre-built images or building your own from source.
 
+## Running EE dev stacks side by side
+
+Use `hosting/docker-compose/env.sh` to create a worktree-specific EE environment. It writes
+`hosting/docker-compose/ee/.env.ee.worktree`, a small non-secret allocation file containing the
+Compose project name and every host-bound port in `docker-compose.dev.yml`: Postgres, Traefik
+HTTP, the Traefik dashboard, and the two mock gateways. It then copies the source environment
+file and merges that allocation into `hosting/docker-compose/ee/.env.ee.dev`. The allocation
+also updates the public web, API, and services URLs to use the worktree's Traefik port.
+
+Choose a unique worktree name. The script automatically finds five free host ports in the
+`10000:19999` range, or six with `--with-store-port`; use `--port-offset` or explicit ports
+when you need a fixed allocation. Size any range you reserve for a stack off that count.
+For example, from a new worktree:
+
+```bash
+bash hosting/docker-compose/env.sh --ee --dev
+```
+
+From a linked worktree this takes the worktree name from its directory and copies the primary
+checkout's `.env.ee.dev`. Pass `--source` or `--worktree` to override either inference. The
+smaller allocation is reusable and inspectable; the generated `.env.ee.dev` remains ignored
+because it contains the copied credentials. Start the stack with:
+
+```bash
+bash hosting/docker-compose/run.sh --ee --dev \
+  --env-file hosting/docker-compose/ee/.env.ee.dev
+```
+
+`env.sh` follows `run.sh`'s target selectors: `--ee|--oss`, `--dev|--gh`, `--local`, and
+`--ssl`. Use the same selectors for both commands. GH-derived stages also receive a unique
+loopback object-store port in addition to Postgres, Traefik HTTP, the Traefik dashboard and
+the two mock gateways.
+
+Use `--port-range START:END` to change the automatic range. Use `--port-offset`, or
+`--postgres-port`, `--http-port`, `--traefik-ui-port`, and `--store-port`, when the ports
+must be fixed. Use
+`--public-host` or `--public-scheme` when the generated URLs should not use the source's
+`TRAEFIK_DOMAIN`/`TRAEFIK_PROTOCOL` (or `localhost`/`http`). Use `env.sh allocate` and `env.sh
+merge` when allocation and merging need to run independently.
+
 ## Prerequisites
 
 - Docker Engine 24+ with Compose V2
@@ -22,6 +62,7 @@ Open `.env.ee.gh` and set the required values:
 AGENTA_LICENSE=ee
 AGENTA_AUTH_KEY=<generate with: openssl rand -hex 32>
 AGENTA_CRYPT_KEY=<generate with: openssl rand -hex 32>
+AGENTA_SERVICES_INTERNAL_KEY=<generate with: openssl rand -hex 32>
 ```
 
 See [Environment Variables](#environment-variables) for what else you can configure.
@@ -134,6 +175,7 @@ cp hosting/docker-compose/ee/env.ee.gh.example hosting/docker-compose/ee/.env.ee
 | `AGENTA_LICENSE` | Must be `ee`. |
 | `AGENTA_AUTH_KEY` | Secret for internal service authentication. Generate with `openssl rand -hex 32`. |
 | `AGENTA_CRYPT_KEY` | Encryption key for sensitive data at rest. Generate with `openssl rand -hex 32`. |
+| `AGENTA_SERVICES_INTERNAL_KEY` | Proves the Services container is the platform runtime, so a run can read write-only secret values. Set the same value on the API and the Services container; no fallback to `AGENTA_AUTH_KEY`. Generate with `openssl rand -hex 32`. |
 | `AGENTA_WEB_URL` | Public URL of the web frontend (default: `http://localhost`). |
 | `AGENTA_API_URL` | Public URL of the API (default: `http://localhost/api`). |
 | `AGENTA_SERVICES_URL` | Public URL of the services endpoint (default: `http://localhost/services`). |
@@ -143,9 +185,15 @@ cp hosting/docker-compose/ee/env.ee.gh.example hosting/docker-compose/ee/.env.ee
 Most optional variables can be left empty. A few are worth calling out:
 
 - **Stripe** (`STRIPE_API_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICING`): Leave all three empty. Billing is disabled when these are unset. The application runs without usage limits.
-- **LLM provider keys** (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.): These power the built-in LLM proxy in the playground. Leave empty if your users will provide their own keys at runtime.
+- **LLM provider keys** (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.): The EE edition does not use these for projects unless you also set `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED=true`. With it set, a project without a saved key for a provider uses these. Leave them empty if your users will provide their own keys at runtime.
 - **SSO / OAuth** (`GOOGLE_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_ID`, etc.): Set a provider's `CLIENT_ID` and `CLIENT_SECRET` to enable it. The frontend auto-detects which providers are configured. Leave empty to use email/password authentication only.
 - **Database** (`POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_URI_*`): The compose stack includes Postgres with working defaults. Override these only if you bring your own database. **Change the default password in production.**
+
+### Development and Debugging
+
+| Variable | Description |
+|----------|-------------|
+| `AGENTA_SERVICES_ALLOWED_ORIGINS` | Comma-separated web origins that may call the services API. Set this when the development web app runs on a different origin from `AGENTA_SERVICES_URL`, for example `http://localhost:3000,http://192.0.2.10:8680`. Recreate the `services` container after changing it. |
 
 The example file lists all variables with descriptions, grouped by category.
 

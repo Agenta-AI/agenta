@@ -49,7 +49,7 @@ All wired into `EvaluationRunsTable` - renders appropriate empty state based on 
 
 ### Test Environment
 
-- URL: `http://144.76.237.122:8380`
+- URL: `http://<dev-host>:8380`
 - Compose project: `agenta-ee-dev-empty-state-poc`
 - Ports: 8380 (web), 8381 (traefik), 5435 (postgres)
 - Env file: `hosting/docker-compose/ee/.env.ee.dev.local`

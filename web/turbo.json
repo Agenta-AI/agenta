@@ -16,7 +16,8 @@
         },
         "dev": {
             "cache": false,
-            "persistent": true
+            "persistent": true,
+            "passThroughEnv": ["AGENTA_API_URL", "AGENTA_API_INTERNAL_URL", "AGENTA_WEB_URL"]
         },
         "lint": {
             "dependsOn": ["^lint"],
@@ -84,6 +85,32 @@
             "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
             "outputs": [".tsbuildinfo"]
         },
+        "@agenta/sessions#build": {
+            "dependsOn": ["@agenta/shared#build", "@agenta/entities#build"],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
+            "outputs": [".tsbuildinfo"]
+        },
+        "@agenta/automation-ui#build": {
+            "dependsOn": [
+                "@agenta/shared#build",
+                "@agenta/ui#build",
+                "@agenta/entities#build",
+                "@agenta/entity-ui#build",
+                "@agenta/sessions-ui#build"
+            ],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
+            "outputs": [".tsbuildinfo"]
+        },
+        "@agenta/sessions-ui#build": {
+            "dependsOn": [
+                "@agenta/shared#build",
+                "@agenta/ui#build",
+                "@agenta/entities#build",
+                "@agenta/sessions#build"
+            ],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
+            "outputs": [".tsbuildinfo"]
+        },
         "@agenta/oss#build": {
             "dependsOn": [
                 "@agenta/shared#build",
@@ -92,7 +119,9 @@
                 "@agenta/entity-ui#build",
                 "@agenta/playground#build",
                 "@agenta/playground-ui#build",
-                "@agenta/chat#build"
+                "@agenta/chat#build",
+                "@agenta/sessions#build",
+                "@agenta/sessions-ui#build"
             ],
             "inputs": [
                 "src/**",
@@ -114,7 +143,9 @@
                 "@agenta/entity-ui#build",
                 "@agenta/playground#build",
                 "@agenta/playground-ui#build",
-                "@agenta/chat#build"
+                "@agenta/chat#build",
+                "@agenta/sessions#build",
+                "@agenta/sessions-ui#build"
             ],
             "inputs": [
                 "src/**",
@@ -170,6 +201,18 @@
             "inputs": ["src/**/*.ts", "src/**/*.tsx"],
             "outputs": []
         },
+        "@agenta/sessions#lint": {
+            "inputs": ["src/**/*.ts", "src/**/*.tsx", "eslint.config.*"],
+            "outputs": []
+        },
+        "@agenta/automation-ui#lint": {
+            "inputs": ["src/**/*.ts", "src/**/*.tsx", "eslint.config.*"],
+            "outputs": []
+        },
+        "@agenta/sessions-ui#lint": {
+            "inputs": ["src/**/*.ts", "src/**/*.tsx", "eslint.config.*"],
+            "outputs": []
+        },
         "@agenta/oss#lint": {
             "dependsOn": [
                 "@agenta/shared#lint",
@@ -178,7 +221,9 @@
                 "@agenta/entity-ui#lint",
                 "@agenta/playground#lint",
                 "@agenta/playground-ui#lint",
-                "@agenta/chat#lint"
+                "@agenta/chat#lint",
+                "@agenta/sessions#lint",
+                "@agenta/sessions-ui#lint"
             ],
             "inputs": [
                 "src/**/*.ts",
@@ -241,6 +286,32 @@
             "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
             "outputs": []
         },
+        "@agenta/sessions#types:check": {
+            "dependsOn": ["@agenta/shared#types:check", "@agenta/entities#types:check"],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
+            "outputs": []
+        },
+        "@agenta/automation-ui#types:check": {
+            "dependsOn": [
+                "@agenta/shared#types:check",
+                "@agenta/ui#types:check",
+                "@agenta/entities#types:check",
+                "@agenta/entity-ui#types:check",
+                "@agenta/sessions-ui#types:check"
+            ],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
+            "outputs": []
+        },
+        "@agenta/sessions-ui#types:check": {
+            "dependsOn": [
+                "@agenta/shared#types:check",
+                "@agenta/ui#types:check",
+                "@agenta/entities#types:check",
+                "@agenta/sessions#types:check"
+            ],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
+            "outputs": []
+        },
         "@agenta/oss#types:check": {
             "dependsOn": [
                 "@agenta/shared#types:check",
@@ -249,7 +320,9 @@
                 "@agenta/entity-ui#types:check",
                 "@agenta/playground#types:check",
                 "@agenta/playground-ui#types:check",
-                "@agenta/chat#types:check"
+                "@agenta/chat#types:check",
+                "@agenta/sessions#types:check",
+                "@agenta/sessions-ui#types:check"
             ],
             "inputs": [
                 "src/**",

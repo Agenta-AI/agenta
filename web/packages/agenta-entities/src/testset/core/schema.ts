@@ -27,6 +27,7 @@ import {z} from "zod"
 import {
     createEntitySchemaSet,
     timestampFieldsSchema,
+    auditFieldsSchema,
     safeParseWithLogging,
     getVersionLabel,
 } from "../../shared"
@@ -124,10 +125,6 @@ export const revisionSchemas = createEntitySchemaSet({
     },
 })
 
-export type CreateRevision = typeof revisionSchemas.types.Create
-export type UpdateRevision = typeof revisionSchemas.types.Update
-export type LocalRevision = typeof revisionSchemas.types.Local
-
 /**
  * Revision list item - lighter version for lists
  */
@@ -179,10 +176,12 @@ export const testsetSchema = z
     .object({
         id: z.string(),
         name: z.string(),
+        slug: z.string().nullable().optional(),
         description: z.string().nullable().optional(),
         project_id: z.string().nullable().optional(),
     })
     .merge(timestampFieldsSchema)
+    .merge(auditFieldsSchema)
 
 export type Testset = z.infer<typeof testsetSchema>
 
@@ -207,8 +206,6 @@ export const testsetSchemas = createEntitySchemaSet({
 })
 
 export type CreateTestset = typeof testsetSchemas.types.Create
-export type UpdateTestset = typeof testsetSchemas.types.Update
-export type LocalTestset = typeof testsetSchemas.types.Local
 
 /**
  * Testset query response
@@ -216,6 +213,12 @@ export type LocalTestset = typeof testsetSchemas.types.Local
 export const testsetsResponseSchema = z.object({
     testsets: z.array(testsetSchema),
     count: z.number().optional(),
+    windowing: z
+        .object({
+            next: z.string().nullable().optional(),
+        })
+        .nullable()
+        .optional(),
 })
 
 export type TestsetsResponse = z.infer<typeof testsetsResponseSchema>

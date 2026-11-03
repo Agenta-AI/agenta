@@ -7,4 +7,5 @@ export interface SessionInteractionData {
     references?: (Record<string, AgentaApi.Reference | null> | null) | undefined;
     selector?: (AgentaApi.Selector | null) | undefined;
     resolution?: (Record<string, unknown> | null) | undefined;
+    parameters?: (Record<string, unknown> | null) | undefined;
 }

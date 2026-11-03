@@ -20,6 +20,7 @@ from oss.src.core.sessions.streams.dtos import SessionStreamQuery
 from oss.src.dbs.postgres.sessions.streams import dao as dao_module
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
 from oss.src.dbs.postgres.shared.utils import apply_windowing
+from oss.tests.pytest.utils.sharing import PROJECT_SESSION_SCOPE
 
 COALESCE_EXPR = "coalesce(session_streams.updated_at, session_streams.created_at)"
 
@@ -88,6 +89,29 @@ def test_updated_at_cursor_rides_coalesced_updated_at():
     assert f"{COALESCE_EXPR} <" in where
     assert "session_streams.id <" in where
     # `created_at` must ride only inside the coalesce expression, never bare.
+    _assert_created_at_only_inside_coalesce(where)
+
+
+def test_updated_at_ascending_cursor_uses_oldest_with_id_tiebreak():
+    oldest = datetime.now(timezone.utc)
+    next_id = uuid7()
+    stmt = apply_windowing(
+        stmt=select(SessionStreamDBE),
+        DBE=SessionStreamDBE,
+        attribute="updated_at",
+        order="descending",
+        windowing=Windowing(
+            oldest=oldest,
+            next=next_id,
+            limit=20,
+            order="ascending",
+        ),
+    )
+    where = str(stmt.whereclause.compile(compile_kwargs={"literal_binds": True}))
+
+    assert f"{COALESCE_EXPR} >=" in where
+    assert f"{COALESCE_EXPR} >" in where
+    assert "session_streams.id >" in where
     _assert_created_at_only_inside_coalesce(where)
 
 
@@ -173,6 +197,7 @@ async def test_dao_query_fallback_orders_by_coalesced_updated_at(monkeypatch):
     monkeypatch.setattr(dao_module, "get_transactions_engine", lambda: mock_engine)
 
     await dao_module.SessionStreamsDAO().query(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=uuid4(),
         filter=SessionStreamQuery(),
         windowing=None,

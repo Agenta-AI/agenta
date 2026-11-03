@@ -22,7 +22,7 @@ Everything below is **merged into `big-agents`** (tip `810e331443` at handoff ti
 is no open PR from this work. New work should go on fresh GitButler lanes over `big-agents`
 (see §9).
 
-The EE dev stack for QA is at `http://144.76.237.122:8280` (see §8).
+The EE dev stack for QA is at `http://<dev-host>:8280` (see §8).
 
 ---
 
@@ -204,7 +204,7 @@ builder message fires once as `template`, never as `composer`).
 ## 8. QA environment and reset
 
 - Stack: EE dev docker-compose, project `agenta-ee-dev-wp-b2-rendering`, at
-  `http://144.76.237.122:8280`. Env file `hosting/docker-compose/ee/.env.ee.dev.local`.
+  `http://<dev-host>:8280`. Env file `hosting/docker-compose/ee/.env.ee.dev.local`.
   Web container mounts host `web/oss/src`, `web/ee/src`, `web/packages` (hot reload).
 - Current flags in dev: `NEXT_PUBLIC_AGENT_PLAYGROUND_ONBOARDING=false`,
   `NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER` unset. No `NEXT_PUBLIC_POSTHOG_API_KEY`, so locally

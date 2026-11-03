@@ -1,4 +1,5 @@
 from typing import Optional, List, TYPE_CHECKING, Any, Dict
+from oss.src.core.git.dtos import RevisionGrouping
 from uuid import UUID, uuid4
 from collections import defaultdict
 
@@ -902,6 +903,8 @@ class QueriesService:
         #
         include_archived: Optional[bool] = None,
         #
+        grouping: Optional[RevisionGrouping] = None,
+        #
         windowing: Optional[Windowing] = None,
     ) -> List[QueryRevision]:
         _revision_query = (
@@ -922,6 +925,8 @@ class QueriesService:
             revision_refs=query_revision_refs,
             #
             include_archived=include_archived,
+            #
+            grouping=grouping,
             #
             windowing=windowing,
         )

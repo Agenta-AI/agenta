@@ -1,13 +1,12 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {FolderOpenOutlined, FileOutlined} from "@ant-design/icons"
-import {ArrowCounterClockwise} from "@phosphor-icons/react"
-import {Tree, Typography} from "antd"
-import type {DataNode} from "antd/es/tree"
+import {ArrowCounterClockwise, File as FileIcon, FolderOpen} from "@phosphor-icons/react"
 import {LOW_PRIORITY, useSetAtomWithSchedule} from "jotai-scheduler"
 
 import {Button} from "../../../components/ui/button"
+import {CheckboxTree, type CheckboxTreeNode} from "../../../components/ui/checkbox-tree"
 import {InputAffix} from "../../../components/ui/input-composed"
+import {cn} from "../../../utils/styles"
 import {getColumnWidthsAtom} from "../../atoms/columnWidths"
 import {useColumnVisibilityControls, type ColumnVisibilityState} from "../../InfiniteVirtualTable"
 import type {
@@ -27,7 +26,13 @@ export interface ColumnVisibilityPopoverContentProps<RowType extends object> {
     additionalContent?: React.ReactNode
 }
 
-type VisibilityTreeNode = DataNode & {searchLabel: string}
+type VisibilityTreeNode = CheckboxTreeNode & {searchLabel: string; children?: VisibilityTreeNode[]}
+
+/** The box antd's `.anticon` gave these icons: 1em wide, inline-block, 0.125em below the baseline. */
+const ANTD_ICON_BOX = {
+    size: "1em",
+    style: {display: "inline-block", verticalAlign: "-0.125em"},
+} as const
 
 const ColumnVisibilityPopoverContent = <RowType extends object>({
     onClose,
@@ -120,14 +125,18 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
             return {
                 title:
                     typeof label === "string" ? (
-                        <Typography.Text className={hasChildren ? "font-semibold" : ""} ellipsis>
+                        <span className={cn("truncate", hasChildren && "font-semibold")}>
                             {label}
-                        </Typography.Text>
+                        </span>
                     ) : (
                         label
                     ),
                 searchValues: [typeof label === "string" ? label : undefined, key],
-                icon: hasChildren ? <FolderOpenOutlined /> : <FileOutlined />,
+                icon: hasChildren ? (
+                    <FolderOpen {...ANTD_ICON_BOX} />
+                ) : (
+                    <FileIcon {...ANTD_ICON_BOX} />
+                ),
             }
         },
         [],
@@ -145,7 +154,11 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
                 const icon =
                     meta.icon ??
                     defaultMeta.icon ??
-                    (hasChildren ? <FolderOpenOutlined /> : <FileOutlined />)
+                    (hasChildren ? (
+                        <FolderOpen {...ANTD_ICON_BOX} />
+                    ) : (
+                        <FileIcon {...ANTD_ICON_BOX} />
+                    ))
                 const searchValues = meta.searchValues ??
                     defaultMeta.searchValues ?? [
                         node.label ?? undefined,
@@ -254,9 +267,7 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
             />
 
             <div className="flex flex-col gap-1">
-                <Typography.Text className="text-xs font-medium uppercase text-zinc-6">
-                    Visibility
-                </Typography.Text>
+                <span className="text-xs font-medium uppercase text-zinc-6">Visibility</span>
                 <div className="flex flex-wrap gap-1.5">
                     <Button variant="outline" size="sm" onClick={handleExpandAll}>
                         Expand all
@@ -274,27 +285,16 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
             </div>
             <div className="rounded-md border border-solid border-zinc-1 bg-[var(--ag-c-FFFFFF)] shadow-inner">
                 <div className="max-h-[320px] overflow-auto px-1 py-2">
-                    <Tree
-                        checkable
-                        blockNode
-                        draggable
-                        selectable={false}
-                        showLine
+                    <CheckboxTree
                         height={300}
-                        checkedKeys={{checked: checkedKeys, halfChecked: halfCheckedKeys}}
+                        checkedKeys={checkedKeys}
+                        halfCheckedKeys={halfCheckedKeys}
                         expandedKeys={expandedKeys}
-                        onExpand={(keys) => setExpandedKeys(keys as string[])}
+                        onExpand={setExpandedKeys}
                         treeData={filteredTreeData}
-                        onCheck={(_, info) => {
-                            const key = String(info.node.key)
-                            const nodeItem = info.node as VisibilityTreeNode
-                            const hasNestedChildren =
-                                Array.isArray(nodeItem.children) && nodeItem.children.length > 0
-                            if (hasNestedChildren) {
-                                toggleTree(key)
-                            } else {
-                                toggleColumn(key)
-                            }
+                        onCheck={(key, _node, hasNestedChildren) => {
+                            if (hasNestedChildren) toggleTree(key)
+                            else toggleColumn(key)
                         }}
                     />
                 </div>

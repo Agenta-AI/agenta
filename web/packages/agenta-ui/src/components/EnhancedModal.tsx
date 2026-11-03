@@ -143,6 +143,8 @@ interface ModalProps {
     loading?: boolean
     prefixCls?: string
     getContainer?: ModalGetContainer
+    /** Mask and centre inside `getContainer` (a positioned element), not the page. */
+    contained?: boolean
     modalRender?: (node: React.ReactNode) => React.ReactNode
     afterClose?: () => void
     afterOpenChange?: (open: boolean) => void
@@ -212,7 +214,9 @@ export function EnhancedModal(props: EnhancedModalProps) {
         focusable,
         zIndex,
         getContainer,
+        contained = false,
         styles: customStyles,
+        classNames: customClassNames,
         className,
         style,
         maxHeight = "90vh",
@@ -240,6 +244,11 @@ export function EnhancedModal(props: EnhancedModalProps) {
     }, [open, shouldRender, afterClose, lazyRender])
 
     const resolved = typeof customStyles === "function" ? customStyles({props}) : customStyles
+    // Same resolution for the class slots. They were declared and never read, so a call-site's
+    // `classNames={{footer}}` went nowhere — inert for today's three call-sites (they ask for the
+    // flex/justify-end the footer already has) but the same drop that bit EnhancedDrawer.
+    const resolvedClassNames =
+        typeof customClassNames === "function" ? customClassNames({props}) : customClassNames
 
     // antd `getContainer` (element | () => element | false | undefined) → Radix portal target.
     // `HTMLElement` is a browser-only global: guard it so SSR doesn't throw evaluating
@@ -300,9 +309,11 @@ export function EnhancedModal(props: EnhancedModalProps) {
         )
 
     return (
-        <Dialog open={open} onOpenChange={handleOpenChange}>
+        // Contained runs non-modal: the host (a drawer) already traps focus.
+        <Dialog open={open} onOpenChange={handleOpenChange} modal={!(contained && container)}>
             <DialogContent
                 container={container}
+                contained={contained && !!container}
                 showCloseButton={closeIcon !== null && closable !== false}
                 closeIcon={closeIcon}
                 // Facade scroll layout: drop the content's own padding/gap so the body scrolls
@@ -310,7 +321,8 @@ export function EnhancedModal(props: EnhancedModalProps) {
                 className={cn("gap-0 p-0", className)}
                 style={{
                     width: modalWidth,
-                    maxWidth: modalWidth,
+                    // Viewport clamp: a fixed px maxWidth pushed the panel off both phone edges.
+                    maxWidth: "100%",
                     ...(maxHeight ? {maxHeight} : {}),
                     ...(zIndex != null ? {zIndex} : {}),
                     // Legacy root `style` and `styles.container` (antd's outer wrapper slot —
@@ -331,9 +343,12 @@ export function EnhancedModal(props: EnhancedModalProps) {
                     if (!maskClosable) e.preventDefault()
                 }}
             >
-                {/* antd modal: header marginBottom 8px (pb-2), footer marginTop 12px (pt-3). */}
+                {/* 16px rhythm; the footer band supplies its own padding. */}
                 {title != null ? (
-                    <DialogHeader className="shrink-0 px-6 pb-2 pt-5" style={resolved?.header}>
+                    <DialogHeader
+                        className={cn("shrink-0 px-4 pb-4 pt-4", resolvedClassNames?.header)}
+                        style={resolved?.header}
+                    >
                         <DialogTitle>{title}</DialogTitle>
                     </DialogHeader>
                 ) : (
@@ -344,16 +359,20 @@ export function EnhancedModal(props: EnhancedModalProps) {
                 <div
                     data-slot="modal-body"
                     className={cn(
-                        "min-h-0 flex-1 overflow-y-auto px-6 text-field-md text-colorText",
-                        title == null && "pt-5",
-                        footerNode == null && "pb-5",
+                        "min-h-0 flex-1 overflow-y-auto px-4 pb-4 text-field-md text-colorText",
+                        title == null && "pt-4",
+                        resolvedClassNames?.body,
                     )}
                     style={resolved?.body}
                 >
                     {children}
                 </div>
                 {footerNode != null ? (
-                    <DialogFooter className="shrink-0 px-6 pb-5 pt-3" style={resolved?.footer}>
+                    <DialogFooter
+                        // The content is p-0 here, so the band's -m bleed is undone.
+                        className={cn("mx-0 mb-0 shrink-0", resolvedClassNames?.footer)}
+                        style={resolved?.footer}
+                    >
                         {footerNode}
                     </DialogFooter>
                 ) : null}

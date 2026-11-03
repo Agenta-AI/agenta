@@ -31,6 +31,7 @@ from oss.src.core.git.dtos import (
 )
 
 from oss.src.core.shared.dtos import sync_alias, AliasConfig
+from oss.src.core.sharing.dtos import AccessPolicy, Visibility
 from oss.src.core.shared.dtos import (  # noqa: F401
     Identifier,
     Slug,
@@ -210,12 +211,27 @@ class WorkflowCatalogFlags(WorkflowArtifactFlags):
 # workflows --------------------------------------------------------------------
 
 
+class WorkflowArtifact(Artifact):
+    """An artifact row of a workflow list query, with the agent's access policy read
+    in the same statement."""
+
+    access: Optional[AccessPolicy] = None
+
+
 class Workflow(Artifact):
     flags: Optional[WorkflowArtifactFlags] = None
+
+    # The applied policy on create, and the policy on list queries (`query_workflows`).
+    # Direct reads (`fetch_workflow`, served from the artifact cache) leave it unset.
+    access: Optional[AccessPolicy] = None
 
 
 class WorkflowCreate(ArtifactCreate):
     flags: Optional[WorkflowFlags] = None
+
+    # Requested visibility of a new agent. Omitted: private when the request has an
+    # owner, else project. A private request without an owner is dropped.
+    visibility: Optional[Visibility] = None
 
 
 class WorkflowEdit(ArtifactEdit):
@@ -482,11 +498,23 @@ class SimpleWorkflow(Identifier, Slug, Lifecycle, Header, Metadata):
     variant_id: Optional[UUID] = None
     revision_id: Optional[UUID] = None
 
+    # The applied policy on create, and the policy on list queries (`query`). Direct
+    # reads leave it unset.
+    access: Optional[AccessPolicy] = None
+
+
+class SimpleWorkflowCreateResult(BaseModel):
+    workflow: SimpleWorkflow
+    replayed: bool
+
 
 class SimpleWorkflowCreate(Slug, Header, Metadata):
     flags: Optional[SimpleWorkflowFlags] = None
 
     data: Optional[SimpleWorkflowData] = None
+
+    # See `WorkflowCreate.visibility`.
+    visibility: Optional[Visibility] = None
 
 
 class SimpleWorkflowEdit(Identifier, Header, Metadata):
@@ -622,3 +650,28 @@ class CommitOutcome(BaseModel):
     revision: Optional[WorkflowRevision] = None
     status: Literal["committed", "no_change"] = "committed"
     warnings: List[CommitWarning] = Field(default_factory=list)
+
+
+class ResolvedTarget(BaseModel):
+    """The revision a request resolved to, and its artifact (M2 triggers check the
+    principal against this target before they claim a delivery)."""
+
+    artifact_id: UUID
+    revision_id: UUID
+    archived: bool = False
+
+
+# The reference keys that name an agent: the `workflow` and `application` families, each
+# with `_variant` and `_revision`, and `environment` (resolved to its current revision).
+# A superset of `core/channels/dtos.py::RESOLVABLE_AGENT_REFERENCE_KEYS`.
+AGENT_REFERENCE_KEYS = frozenset(
+    {
+        "workflow",
+        "workflow_variant",
+        "workflow_revision",
+        "application",
+        "application_variant",
+        "application_revision",
+        "environment",
+    }
+)

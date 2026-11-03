@@ -95,19 +95,3 @@ export function getContentLanguage(content: string): "json" | "yaml" | "text" {
 
     return "text"
 }
-
-/**
- * Checks if a string looks like it contains JSON.
- * This is a quick heuristic check that doesn't validate.
- *
- * @param str - String to check
- * @returns true if the string looks like JSON
- *
- * @example
- * looksLikeJson('{"key": "value"}') // true
- * looksLikeJson('[1, 2, 3]') // true
- * looksLikeJson('hello') // false
- *
- * @deprecated Use `isJsonString` from jsonDetection instead. This is an alias for backward compatibility.
- */
-export const looksLikeJson = isJsonString

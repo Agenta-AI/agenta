@@ -149,38 +149,6 @@ export function getSelectionAdapter<TSelection = unknown>(
 }
 
 /**
- * Check if an adapter is registered
- */
-export function hasSelectionAdapter(name: string): boolean {
-    return adapterRegistry.has(name)
-}
-
-/**
- * Get all registered adapter names
- */
-export function getRegisteredAdapterNames(): string[] {
-    return Array.from(adapterRegistry.keys())
-}
-
-/**
- * Clear the adapter registry (for testing)
- */
-export function clearSelectionAdapterRegistry(): void {
-    adapterRegistry.clear()
-}
-
-/**
- * Create and register an adapter in one call
- */
-export function createAndRegisterAdapter<TSelection>(
-    options: CreateSelectionAdapterOptions<TSelection>,
-): EntitySelectionAdapter<TSelection> {
-    const adapter = createAdapter(options)
-    registerSelectionAdapter(adapter)
-    return adapter
-}
-
-/**
  * Resolve adapter from name or instance
  */
 export function resolveAdapter<TSelection>(

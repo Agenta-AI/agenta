@@ -78,7 +78,8 @@ export const triggerScheduleDrawerAtom = atom<ScheduleDrawerState | null>(null)
 // (a delivery belongs to exactly one of the two; XOR, DB-enforced).
 // ---------------------------------------------------------------------------
 
-export interface DeliveriesDrawerState {
+export interface OwnerDeliveriesDrawerState {
+    mode: "owner-history"
     owner: {kind: "subscription" | "schedule"; id: string}
     name?: string
     // When opened from an agent playground: the agent's entityId. Enables the
@@ -86,4 +87,9 @@ export interface DeliveriesDrawerState {
     // inputs into that agent's chat session). Absent in workspace settings.
     playgroundEntityId?: string
 }
+export interface ExactDeliveryDrawerState {
+    mode: "exact-delivery"
+    deliveryId: string
+}
+export type DeliveriesDrawerState = OwnerDeliveriesDrawerState | ExactDeliveryDrawerState
 export const triggerDeliveriesDrawerAtom = atom<DeliveriesDrawerState | null>(null)

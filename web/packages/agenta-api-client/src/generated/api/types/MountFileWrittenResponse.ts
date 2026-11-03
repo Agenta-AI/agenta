@@ -3,4 +3,5 @@
 export interface MountFileWrittenResponse {
     path: string;
     size?: number | undefined;
+    etag?: (string | null) | undefined;
 }

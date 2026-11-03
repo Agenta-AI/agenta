@@ -96,3 +96,17 @@ async def test_duplicate_call_ref_rejected(connection):
         await _resolver(connection).resolve(
             [ReferenceToolConfig(slug="wf"), ReferenceToolConfig(slug="wf")]
         )
+
+
+async def test_normal_workflow_name_does_not_shadow_request_secret(connection):
+    resolution = await _resolver(connection).resolve(
+        [
+            ReferenceToolConfig(slug="request_secret"),
+            ReferenceToolConfig(slug="__ag__request_secret"),
+        ]
+    )
+
+    names = [spec.name for spec in resolution.tool_specs]
+    assert names[1] == "request_secret"
+    assert names[0].startswith("request_secret_")
+    assert len(set(names)) == 2

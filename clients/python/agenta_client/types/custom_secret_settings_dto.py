@@ -10,11 +10,14 @@ from .custom_secret_settings_dto_content import CustomSecretSettingsDtoContent
 
 class CustomSecretSettingsDto(UniversalBaseModel):
     format: CustomSecretFormat
-    content: CustomSecretSettingsDtoContent
-    
+    content: typing.Optional[CustomSecretSettingsDtoContent] = None
+
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
+            extra="allow", frozen=True
+        )  # type: ignore # Pydantic v2
     else:
+
         class Config:
             frozen = True
             smart_union = True

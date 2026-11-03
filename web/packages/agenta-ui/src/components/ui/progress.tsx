@@ -1,6 +1,6 @@
 import * as React from "react"
 
-import {CheckCircleFilled, CheckOutlined, CloseCircleFilled, CloseOutlined} from "@ant-design/icons"
+import {Check, CheckCircle, X, XCircle} from "@phosphor-icons/react"
 import {cva, type VariantProps} from "class-variance-authority"
 
 import {cn} from "./utils"
@@ -21,11 +21,11 @@ import {cn} from "./utils"
  *   colorSuccess, exception = colorError. `transition-[width]` at `motionDurationSlow` 0.3s
  *   with antd's `motionEaseInOutCirc` — a CSS transition, not a keyframe.
  * - text (antd's `-indicator`) → `colorText` normal / colorSuccess / colorError, `fontSize`
- *   12px default / 10px small (`text-xs` / `text-[10px]`), `line-height:1` (`leading-none`). At
- *   status success/exception antd swaps the `{percent}%` label for antd's own filled glyphs
- *   `CheckCircleFilled` / `CloseCircleFilled` (@ant-design/icons — exact glyph parity; their
- *   `1em` svg + shared `.anticon` box make both the icon AND the info-area height match antd,
- *   which keeps the bar vertically aligned). Size comes from the span font (1em = 12/10px).
+ *   14px default / 12px small (`text-sm` / `text-[12px]`), `line-height:1` (`leading-none`). At
+ *   status success/exception antd swaps the `{percent}%` label for filled glyphs
+ *   `CheckCircle` / `XCircle` (Phosphor, `fill` weight; no antd icon package, so the mobile
+ *   bundle stays free of it). The `1em` block svg keeps the info-area height at the font size,
+ *   which keeps the bar vertically aligned. Size comes from the span font (1em = 12/10px).
  *
  * antd auto-promotes an unset status to `success` at percent >= 100 (matches antd). `box-border`
  * is required (preflight is OFF app-wide). `strokeColor`/`trailColor` override the bar/track
@@ -47,10 +47,11 @@ import {cn} from "./utils"
  *   themes. The indicator recolours by status too — antd's base `-status-*` rule (specificity
  *   0,3,0) beats `-circle -indicator`'s `circleTextColor` (0,2,0).
  * - the indicator is absolutely centred at `1em` (i.e. it inherits the body font size), and its
- *   glyph is `circleIconFontSize` = `fontSize/fontSizeSM` em = 1.2em under the app theme (12/10).
+ *   glyph is `circleIconFontSize` = `fontSize/fontSizeSM` em = 1.2em under the app theme (12/10),
+ *   applied to the svg.
  *
- * Status glyphs are per-variant, matching antd exactly: LINE uses `CheckCircleFilled`/
- * `CloseCircleFilled`, CIRCLE uses the bare `CheckOutlined`/`CloseOutlined`.
+ * Status glyphs are per-variant, like antd: LINE uses the filled `CheckCircle`/`XCircle`,
+ * CIRCLE uses the bare bold `Check`/`X`.
  *
  * One DELIBERATE circle divergence from antd: it wraps the info in a Tooltip when the diameter
  * is <= 20 — we render it inline instead (no Tooltip dependency in this primitive).
@@ -89,7 +90,7 @@ const progressBarVariants = cva(
 // antd `-indicator`: colour per status (colorText normal; success/exception recolour) and
 // font per size — default `fontSize` 12px, small `fontSizeSM` 10px (antd's small-line rule).
 // `leading-none` = antd's `line-height: 1`.
-const progressTextVariants = cva("box-border whitespace-nowrap leading-none", {
+const progressTextVariants = cva("box-border whitespace-nowrap leading-none [&_svg]:block", {
     variants: {
         status: {
             normal: "text-foreground",
@@ -97,7 +98,7 @@ const progressTextVariants = cva("box-border whitespace-nowrap leading-none", {
             success: "text-success",
             exception: "text-error",
         },
-        size: {default: "text-xs", small: "text-[10px]"},
+        size: {default: "text-sm", small: "text-[12px]"},
     },
     defaultVariants: {status: "normal", size: "default"},
 })
@@ -122,7 +123,7 @@ const progressCircleStrokeVariants = cva(
 // antd circle `-indicator`: absolutely centred over the ring, `1em` (inherits the body font),
 // `line-height: 1`; the glyph is `circleIconFontSize` = fontSize/fontSizeSM em (12/10 = 1.2em).
 const progressCircleTextVariants = cva(
-    "absolute inset-x-0 top-1/2 m-0 box-border -translate-y-1/2 whitespace-normal p-0 text-center leading-none [&_.anticon]:text-[1.2em]",
+    "absolute inset-x-0 top-1/2 m-0 box-border -translate-y-1/2 whitespace-normal p-0 text-center leading-none [&_svg]:mx-auto [&_svg]:block [&_svg]:size-[1.2em]",
     {
         variants: {
             status: {
@@ -209,9 +210,9 @@ export function Progress({
         if (format) {
             info = format(pct)
         } else if (effectiveStatus === "exception") {
-            info = isCircle ? <CloseOutlined /> : <CloseCircleFilled />
+            info = isCircle ? <X weight="bold" /> : <XCircle weight="fill" />
         } else if (effectiveStatus === "success") {
-            info = isCircle ? <CheckOutlined /> : <CheckCircleFilled />
+            info = isCircle ? <Check weight="bold" /> : <CheckCircle weight="fill" />
         } else {
             info = `${pct}%`
         }

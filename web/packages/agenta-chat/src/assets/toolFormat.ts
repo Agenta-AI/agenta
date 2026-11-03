@@ -1,9 +1,4 @@
-// Copied verbatim from web/oss/src/components/AgentChatSlice/assets/toolFormat.ts (2026-07-25);
-// the OSS original remains authoritative for the desktop chat until the re-plumb PR deletes it.
-// Keep byte-parity if either side changes.
-// Adaptations: this is the canonical copy of `stripFence` for the package — src/model/toolSummary.ts
-// (copied earlier from ToolActivity.tsx, which itself imports stripFence from this file in OSS) now
-// re-exports it from here instead of holding a second definition.
+// Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
 /**
  * Shared formatting for tool input/output display (inline step log + Turn Inspector), so both
  * render a payload identically.
@@ -34,6 +29,27 @@ export const stripFence = (value: string): string => {
     let i = 3
     while (i < s.length - 3 && isFenceTagChar(s[i])) i++
     return s.slice(i, s.length - 3).trim()
+}
+
+/** The tag a harness wraps a tool failure in before handing it back to its own model. */
+const TOOL_USE_ERROR_OPEN = "<tool_use_error>"
+const TOOL_USE_ERROR_CLOSE = "</tool_use_error>"
+
+/**
+ * Unwrap a harness's own tool-error envelope, fence and all.
+ *
+ * `<tool_use_error>…</tool_use_error>` is addressed to the model, not to a person: it is how the
+ * harness tells its own model that a call failed. It reached the screen verbatim inside the failed
+ * tool card (UI QA round 3, D2). Only a wrapper spanning the WHOLE string is removed, so an error
+ * that merely quotes the tag keeps it.
+ */
+export const unwrapToolUseError = (value: string): string => {
+    const stripped = stripFence(value).trim()
+    if (!stripped.startsWith(TOOL_USE_ERROR_OPEN) || !stripped.endsWith(TOOL_USE_ERROR_CLOSE))
+        return stripFence(value)
+    return stripped
+        .slice(TOOL_USE_ERROR_OPEN.length, stripped.length - TOOL_USE_ERROR_CLOSE.length)
+        .trim()
 }
 
 /** Pretty-print `value` for a monospace block: JSON string → indented JSON, object → indented JSON,

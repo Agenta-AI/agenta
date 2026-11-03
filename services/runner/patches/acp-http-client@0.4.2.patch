@@ -11,10 +11,10 @@ index cf6e52b462bd8d70530c6a56b515e25c1f1d8a5e..19d526b52c496b38dda200a1dcbd36dc
 +
 +export { type AcpEnvelopeDirection, type AcpEnvelopeObserver, AcpHttpClient, type AcpHttpClientOptions, AcpHttpError, type AcpHttpTransportOptions, AcpRpcError, type ProblemDetails, type QueryValue, type RpcErrorResponse, isRetryableAcpWriteError };
 diff --git a/dist/index.js b/dist/index.js
-index b0f33f0766f1a93c14ee4970f45ef3f519e4aaea..9eccca0fa94ea46a11ff8f4d41e31707a0491899 100644
+index b0f33f0766f1a93c14ee4970f45ef3f519e4aaea..d09d67d0adc19aa3da13e5ed769ecc2f422816cb 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -17,6 +17,22 @@ var AcpHttpError = class extends Error {
+@@ -17,6 +17,29 @@ var AcpHttpError = class extends Error {
      this.response = response;
    }
  };
@@ -30,6 +30,13 @@ index b0f33f0766f1a93c14ee4970f45ef3f519e4aaea..9eccca0fa94ea46a11ff8f4d41e31707
 +  }
 +  return false;
 +}
++function shouldRetryAcpWrite(message, error) {
++  if (message?.method !== "session/prompt") {
++    return isRetryableAcpWriteError(error);
++  }
++  const cause = error?.cause;
++  return error?.code === "ECONNREFUSED" || cause?.code === "ECONNREFUSED";
++}
 +function jitteredBackoffMs(baseDelayMs, attempt) {
 +  const exp = baseDelayMs * 2 ** (attempt - 1);
 +  return exp + Math.random() * baseDelayMs;
@@ -37,7 +44,7 @@ index b0f33f0766f1a93c14ee4970f45ef3f519e4aaea..9eccca0fa94ea46a11ff8f4d41e31707
  var RPC_CODE_LABELS = {
    [-32700]: "Parse error",
    [-32600]: "Invalid request",
-@@ -242,28 +258,45 @@ var StreamableHttpAcpTransport = class {
+@@ -242,28 +265,45 @@ var StreamableHttpAcpTransport = class {
      void this.postMessage(url, headers, message);
    }
    async postMessage(url, headers, message) {
@@ -66,7 +73,7 @@ index b0f33f0766f1a93c14ee4970f45ef3f519e4aaea..9eccca0fa94ea46a11ff8f4d41e31707
 +        });
 +        if (!response.ok) {
 +          throw new AcpHttpError(response.status, await readProblem(response), response);
-         }
++        }
 +        if (response.status === 200) {
 +          const text = await response.text();
 +          if (text.trim()) {
@@ -74,13 +81,13 @@ index b0f33f0766f1a93c14ee4970f45ef3f519e4aaea..9eccca0fa94ea46a11ff8f4d41e31707
 +            this.pushInbound(envelope);
 +          }
 +          return;
-+        }
+         }
 +        await response.text().catch(() => {
 +        });
          return;
 +      } catch (error) {
 +        const isLastAttempt = attempt === maxAttempts;
-+        if (!isRetryableAcpWriteError(error) || isLastAttempt) {
++        if (!shouldRetryAcpWrite(message, error) || isLastAttempt) {
 +          console.error("ACP write error:", error);
 +          this.failReadable(error);
 +          return;
@@ -102,7 +109,7 @@ index b0f33f0766f1a93c14ee4970f45ef3f519e4aaea..9eccca0fa94ea46a11ff8f4d41e31707
      }
    }
    ensureSseLoop() {
-@@ -531,6 +564,7 @@ export {
+@@ -531,6 +571,7 @@ export {
    AcpHttpClient,
    AcpHttpError,
    AcpRpcError,

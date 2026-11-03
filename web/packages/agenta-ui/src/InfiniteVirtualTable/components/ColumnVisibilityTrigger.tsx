@@ -2,9 +2,11 @@ import type {MouseEvent, ReactNode} from "react"
 import {useMemo, useState} from "react"
 
 import {GearSix} from "@phosphor-icons/react"
-import {Checkbox, Popover, Tooltip} from "antd"
 
 import {Button} from "../../components/ui/button"
+import {Checkbox} from "../../components/ui/checkbox"
+import {Popover, PopoverContent, PopoverTrigger} from "../../components/ui/popover"
+import {SimpleTooltip} from "../../components/ui/tooltip-composed"
 import type {ColumnVisibilityState} from "../types"
 
 type ColumnVisibilityControls<Row extends object> = ColumnVisibilityState<Row>
@@ -31,20 +33,25 @@ const DefaultVisibilityContent = <Row extends object>({
             const label = node.titleNode ?? node.label ?? String(node.key)
             const childNodes = node.children?.length ? renderNodes(node.children, depth + 1) : null
             const isGroup = Boolean(node.children?.length)
+            const id = `column-visibility-${String(node.key)}`
             return (
                 <div key={node.key} className="flex flex-col gap-1">
-                    <Checkbox
-                        indeterminate={node.indeterminate}
-                        checked={node.checked}
-                        onChange={() =>
-                            isGroup
-                                ? controls.toggleTree(node.key)
-                                : controls.toggleColumn(node.key)
-                        }
+                    <label
+                        htmlFor={id}
+                        className="flex items-center gap-2 cursor-pointer text-field-md text-colorText"
                         style={{marginLeft: depth ? depth * 12 : 0}}
                     >
+                        <Checkbox
+                            id={id}
+                            checked={node.indeterminate ? "indeterminate" : node.checked}
+                            onCheckedChange={() =>
+                                isGroup
+                                    ? controls.toggleTree(node.key)
+                                    : controls.toggleColumn(node.key)
+                            }
+                        />
                         {label}
-                    </Checkbox>
+                    </label>
                     {childNodes}
                 </div>
             )
@@ -52,9 +59,9 @@ const DefaultVisibilityContent = <Row extends object>({
 
     return (
         <div className="flex flex-col gap-3 min-w-[220px]">
-            <div className="text-xs text-zinc-6">Toggle columns</div>
+            <div className="text-xs text-colorTextSecondary">Toggle columns</div>
             <div className="max-h-64 overflow-auto pr-1">{renderNodes(nodes)}</div>
-            <div className="border-0 border-t border-solid border-zinc-2 my-1" />
+            <div className="h-px bg-colorBorderSecondary my-1" />
             <div className="flex justify-between gap-2">
                 <Button variant="outline" size="sm" onClick={() => controls.reset()}>
                     Reset
@@ -81,46 +88,47 @@ const ColumnVisibilityTrigger = <Row extends object>({
         [leafKeys, isHidden],
     )
 
-    const stopPropagation = (event: MouseEvent) => {
-        event.preventDefault()
-        event.stopPropagation()
-    }
+    // Stop the click reaching the header cell (which sorts) but do NOT preventDefault: the
+    // trigger's own open handler is composed onto this same element and is skipped once the
+    // event is default-prevented. That is what left this control dead under antd.
+    const stopPropagation = (event: MouseEvent) => event.stopPropagation()
 
     const triggerNode =
         variant === "icon" ? (
-            <Tooltip title={label}>
-                <Button
-                    className="rounded-control-round"
-                    size="icon"
-                    variant="ghost"
-                    onClick={stopPropagation}
-                >
-                    {<GearSix size={16} weight="bold" />}
-                </Button>
-            </Tooltip>
+            <Button
+                className="rounded-control-round"
+                size="icon"
+                variant="ghost"
+                aria-label={label}
+                onClick={stopPropagation}
+            >
+                <GearSix size={16} weight="bold" />
+            </Button>
         ) : (
             <Button variant="outline" onClick={stopPropagation}>
-                {<GearSix size={14} weight="bold" />}
+                <GearSix size={14} weight="bold" />
                 {label} ({visibleLeafCount})
             </Button>
         )
 
-    const content = renderContent ? (
-        renderContent(controls, () => setOpen(false))
-    ) : (
-        <DefaultVisibilityContent controls={controls} onClose={() => setOpen(false)} />
-    )
-
     return (
-        <Popover
-            trigger="click"
-            placement="bottomRight"
-            destroyOnHidden
-            open={open}
-            onOpenChange={(value) => setOpen(value)}
-            content={content}
-        >
-            {triggerNode}
+        <Popover open={open} onOpenChange={setOpen}>
+            {/* Span keeps the tooltip trigger off the popover trigger's own element (see
+                SimpleTooltip) — hygiene, not the /evaluations loop fix. */}
+            {/* Span keeps the tooltip trigger off the popover trigger's own element (see
+                SimpleTooltip) — hygiene, not the /evaluations loop fix. */}
+            <SimpleTooltip title={variant === "icon" ? label : undefined}>
+                <span className="inline-flex">
+                    <PopoverTrigger asChild>{triggerNode}</PopoverTrigger>
+                </span>
+            </SimpleTooltip>
+            <PopoverContent align="end" className="w-auto p-3">
+                {renderContent ? (
+                    renderContent(controls, () => setOpen(false))
+                ) : (
+                    <DefaultVisibilityContent controls={controls} onClose={() => setOpen(false)} />
+                )}
+            </PopoverContent>
         </Popover>
     )
 }

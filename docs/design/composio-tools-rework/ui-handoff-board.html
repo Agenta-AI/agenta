@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <meta name="design_doc_mode" content="canvas">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="_ds/agenta-design-system-0263eb0f-a904-4476-a73b-7afca7b6d749/colors_and_type.css">
+  <link rel="stylesheet" href="_ds/agenta-design-system-0263eb0f-a904-4476-a73b-7afca7b6d749/ui_kits/web/kit.css">
+  <script src="_ds/agenta-design-system-0263eb0f-a904-4476-a73b-7afca7b6d749/_ds_bundle.js"></script>
+  <style>
+    body { margin: 0; background: #e9e7e4; }
+    a { color: #5e5e08; } a:hover { color: #242424; }
+  </style>
+</helmet>
+<section style="display:flex;flex-wrap:wrap;gap:64px;padding:48px;align-items:flex-start;font-family:var(--font-sans)">
+  <!-- ============================== OPTION 2a (iteration on 1b) ============================== -->
+  <div id="2a" style="display:flex;flex-direction:column;gap:20px">
+    <div style="display:flex;align-items:center;gap:12px;max-width:1000px">
+      <span style="display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:24px;border-radius:6px;background:#242424;color:#ffffff;font-size:12px;font-weight:600;font-family:var(--font-mono);padding:0 7px">2a</span>
+      <div>
+        <div style="font-size:15px;font-weight:600;color:#242424">Iteration on <a href="#1b">1b</a></div>
+        <div style="font-size:13px;color:#676770">Allow all preset · icon glyphs instead of written-out permissions · collapsible groups, "show more" rows and expandable descriptions for 100-tool apps · Add integration drawer rebuilt around the three user stories (search &amp; add, quick-add your connections, pick a connection when there are several).</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:32px;align-items:flex-start;flex-wrap:wrap">
+
+      <!-- 2a · Frame 1: Playground panel with permission glyphs -->
+      <figure style="margin:0" data-screen-label="2a Tools panel">
+        <figcaption style="font-size:12px;color:#676770;margin:0 0 8px 2px;font-weight:500">1 · Playground — icon + short label instead of a written-out tag</figcaption>
+        <div style="width:400px;background:#ffffff;border:1px solid #e5e5e3;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,0.06);padding:16px">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
+            <span style="font-size:11px;font-weight:500;letter-spacing:0.05em;color:#848b8c;text-transform:uppercase">Integrations</span>
+            <span style="font-size:11px;color:#676770;background:#f0efed;border-radius:9px;padding:1px 7px;font-family:var(--font-mono)">4</span>
+            <span style="flex:1"></span>
+            <svg width="15" height="15" viewBox="0 0 24 24" style="stroke:#848b8c;fill:none;stroke-width:2;stroke-linecap:round"><path d="M12 5v14M5 12h14"></path></svg>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #e5e5e3;border-radius:8px;cursor:pointer">
+              <span style="width:22px;height:22px;border-radius:5px;background:#0f1520;color:#ffffff;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0">C</span>
+              <span style="flex:1;min-width:0;font-size:14px;font-weight:500;color:#242424">Composio Search</span>
+              <span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#676770;flex-shrink:0"><svg width="13" height="13" viewBox="0 0 24 24" style="stroke:#848b8c;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><circle cx="12" cy="12" r="9"></circle><path d="M8 12.5l2.5 2.5L16 9.5"></path></svg>Allow all</span>
+              <svg width="13" height="13" viewBox="0 0 24 24" style="stroke:#a3a19f;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M9 6l6 6-6 6"></path></svg>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #e5e5e3;border-radius:8px;cursor:pointer;background:#fbfaf8">
+              <img src="https://cdn.simpleicons.org/github/24292f" alt="" width="20" height="20" style="flex-shrink:0">
+              <span style="flex:1;min-width:0;font-size:14px;font-weight:500;color:#242424">GitHub</span>
+              <span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#676770;flex-shrink:0"><svg width="13" height="13" viewBox="0 0 24 24" style="stroke:#848b8c;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"></path></svg>Allow reads</span>
+              <svg width="13" height="13" viewBox="0 0 24 24" style="stroke:#a3a19f;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M9 6l6 6-6 6"></path></svg>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #e5e5e3;border-radius:8px;cursor:pointer">
+              <img src="https://cdn.simpleicons.org/linear/5E6AD2" alt="" width="20" height="20" style="flex-shrink:0">
+              <span style="flex:1;min-width:0;font-size:14px;font-weight:500;color:#242424">Linear</span>
+              <span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#676770;flex-shrink:0"><svg width="13" height="13" viewBox="0 0 24 24" style="stroke:#848b8c;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8z"></path><path d="M13.7 21a2 2 0 0 1-3.4 0"></path></svg>Always asks</span>
+              <svg width="13" height="13" viewBox="0 0 24 24" style="stroke:#a3a19f;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M9 6l6 6-6 6"></path></svg>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #e5e5e3;border-radius:8px;cursor:pointer">
+              <img src="https://cdn.simpleicons.org/notion/000000" alt="" width="20" height="20" style="flex-shrink:0">
+              <span style="flex:1;min-width:0;font-size:14px;font-weight:500;color:#242424">Notion</span>
+              <span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#8a6400;flex-shrink:0"><svg width="13" height="13" viewBox="0 0 24 24" style="stroke:#8a6400;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"></path><circle cx="15" cy="7" r="2"></circle><circle cx="9" cy="17" r="2"></circle></svg>Custom · 2</span>
+              <svg width="13" height="13" viewBox="0 0 24 24" style="stroke:#a3a19f;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M9 6l6 6-6 6"></path></svg>
+            </div>
+          </div>
+          <div style="font-size:12px;color:#a3a19f;margin-top:10px">Glyphs: bell = always asks · pencil = allows reads, asks to write · circled check = allow all · slash = denied · sliders = custom</div>
+        </div>
+      </figure>
+
+      <!-- 2a · Frame 2: Default permission menu with icons + Allow all -->
+      <figure style="margin:0" data-screen-label="2a Default permission menu">
+        <figcaption style="font-size:12px;color:#676770;margin:0 0 8px 2px;font-weight:500">2 · Integration drawer — default permission menu (now with Allow all)</figcaption>
+        <div style="width:420px;background:#ffffff;border:1px solid #e5e5e3;border-radius:12px;box-shadow:0 12px 28px rgba(0,0,0,0.10);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid #e5e5e3">
+            <span style="width:26px;height:26px;border:1px solid #e5e5e3;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="12" height="12" viewBox="0 0 24 24" style="stroke:#676770;fill:none;stroke-width:2;stroke-linecap:round"><path d="M6 6l12 12M18 6L6 18"></path></svg></span>
+            <img src="https://cdn.simpleicons.org/github/24292f" alt="" width="22" height="22">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:14px;font-weight:600;color:#242424">GitHub</div>
+              <div style="font-size:12px;color:#848b8c">Integration · github · acme-org connection</div>
+            </div>
+            <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#2e7d3a;flex-shrink:0"><span style="width:6px;height:6px;border-radius:50%;background:#12b76a"></span>Connected</span>
+          </div>
+          <div style="padding:16px;padding-bottom:24px">
+            <div style="font-size:12px;color:#676770;margin-bottom:6px">Default permission</div>
+            <div style="position:relative">
+              <div style="display:flex;align-items:center;justify-content:space-between;height:34px;border:1px solid #413f3f;box-shadow:0 0 0 3px rgba(217,217,44,0.35);border-radius:6px;padding:0 12px;background:#ffffff">
+                <span style="display:inline-flex;align-items:center;gap:8px;font-size:13px;color:#242424"><svg width="13" height="13" viewBox="0 0 24 24" style="stroke:#676770;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"></path></svg>Ask for write &amp; delete</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" style="stroke:#848b8c;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M6 9l6 6 6-6"></path></svg>
+              </div>
+              <div style="position:relative;margin-top:6px;width:100%;background:#ffffff;border:1px solid #f0efed;border-radius:8px;box-shadow:0 6px 16px rgba(0,0,0,0.08),0 3px 6px -4px rgba(0,0,0,0.12),0 9px 28px 8px rgba(0,0,0,0.05);padding:4px;z-index:5">
+                <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:6px"><svg width="14" height="14" viewBox="0 0 24 24" style="stroke:#676770;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8z"></path><path d="M13.7 21a2 2 0 0 1-3.4 0"></path></svg><div style="flex:1"><div style="font-size:13px;color:#242424">Always ask</div><div style="font-size:11px;color:#848b8c">Approval before every run</div></div></div>
+                <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:6px;background:#f6f5f3"><svg width="14" height="14" viewBox="0 0 24 24" style="stroke:#242424;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"></path></svg><div style="flex:1"><div style="font-size:13px;color:#242424;font-weight:500">Ask for write &amp; delete</div><div style="font-size:11px;color:#848b8c">Read-only tools run automatically</div></div><svg width="12" height="12" viewBox="0 0 24 24" style="stroke:#242424;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round"><path d="M5 13l4 4L19 7"></path></svg></div>
+                <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:6px"><svg width="14" height="14" viewBox="0 0 24 24" style="stroke:#676770;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><circle cx="12" cy="12" r="9"></circle><path d="M8 12.5l2.5 2.5L16 9.5"></path></svg><div style="flex:1"><div style="font-size:13px;color:#242424">Allow all</div><div style="font-size:11px;color:#848b8c">Everything runs without asking</div></div></div>
+                <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:6px"><svg width="14" height="14" viewBox="0 0 24 24" style="stroke:#676770;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><circle cx="12" cy="12" r="9"></circle><path d="M5.5 5.5l13 13"></path></svg><div style="flex:1"><div style="font-size:13px;color:#242424">Deny all</div><div style="font-size:11px;color:#848b8c">Tools stay listed but never run</div></div></div>
+                <div style="height:1px;background:#f0efed;margin:4px 6px"></div>
+                <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:6px"><svg width="14" height="14" viewBox="0 0 24 24" style="stroke:#676770;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"></path><circle cx="15" cy="7" r="2"></circle><circle cx="9" cy="17" r="2"></circle></svg><div style="flex:1"><div style="font-size:13px;color:#242424">Custom</div><div style="font-size:11px;color:#848b8c">Per-tool permissions below</div></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </figure>
+
+      <!-- 2a · Frame 3: Tools at scale -->
+      <figure style="margin:0" data-screen-label="2a Tools at scale">
+        <figcaption style="font-size:12px;color:#676770;margin:0 0 8px 2px;font-weight:500">3 · Same drawer — 96 tools: search, collapsible groups, expandable descriptions</figcaption>
+        <div style="width:480px;background:#ffffff;border:1px solid #e5e5e3;border-radius:12px;box-shadow:0 12px 28px rgba(0,0,0,0.10);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid #e5e5e3">
+            <span style="width:26px;height:26px;border:1px solid #e5e5e3;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="12" height="12" viewBox="0 0 24 24" style="stroke:#676770;fill:none;stroke-width:2;stroke-linecap:round"><path d="M6 6l12 12M18 6L6 18"></path></svg></span>
+            <img src="https://cdn.simpleicons.org/github/24292f" alt="" width="22" height="22">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:14px;font-weight:600;color:#242424">GitHub</div>
+              <div style="font-size:12px;color:#848b8c">Integration · github · acme-org connection</div>
+            </div>
+            <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#2e7d3a;flex-shrink:0"><span style="width:6px;height:6px;border-radius:50%;background:#12b76a"></span>Connected</span>
+          </div>
+          <div style="padding:16px">
+            <div style="font-size:12px;color:#676770;margin-bottom:6px">Default permission</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;height:34px;border:1px solid #d7d7d7;border-radius:6px;padding:0 12px;background:#ffffff">
+              <span style="display:inline-flex;align-items:center;gap:8px;font-size:13px;color:#242424"><svg width="13" height="13" viewBox="0 0 24 24" style="stroke:#676770;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"></path></svg>Ask for write &amp; delete</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" style="stroke:#848b8c;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M6 9l6 6 6-6"></path></svg>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;height:32px;border:1px solid #d7d7d7;border-radius:6px;padding:0 10px;margin-top:14px">
+              <svg width="13" height="13" viewBox="0 0 24 24" style="stroke:#848b8c;fill:none;stroke-width:2;stroke-linecap:round"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path></svg>
+              <span style="font-size:13px;color:#a3a19f">Search 96 tools</span>
+            </div>
+            <div style="border:1px solid #e5e5e3;border-radius:8px;margin-top:12px">
+              <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#fbfaf8;border-radius:8px;cursor:pointer">
+                <svg width="11" height="11" viewBox="0 0 24 24" style="stroke:#676770;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M9 6l6 6-6 6"></path></svg>
+                <span style="font-size:12px;font-weight:500;letter-spacing:0.04em;color:#676770;text-transform:uppercase;flex:1">Read-only · 61</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#848b8c"><svg width="12" height="12" viewBox="0 0 24 24" style="stroke:#848b8c;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><circle cx="12" cy="12" r="9"></circle><path d="M8 12.5l2.5 2.5L16 9.5"></path></svg>runs automatically</span>
+              </div>
+            </div>
+            <div style="border:1px solid #e5e5e3;border-radius:8px;margin-top:8px;overflow:hidden">
+              <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#fbfaf8;border-bottom:1px solid #f0efed;cursor:pointer">
+                <svg width="11" height="11" viewBox="0 0 24 24" style="stroke:#676770;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M6 9l6 6 6-6"></path></svg>
+                <span style="font-size:12px;font-weight:500;letter-spacing:0.04em;color:#676770;text-transform:uppercase;flex:1">Write &amp; delete · 35</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#848b8c"><svg width="12" height="12" viewBox="0 0 24 24" style="stroke:#848b8c;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8z"></path><path d="M13.7 21a2 2 0 0 1-3.4 0"></path></svg>asks first</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px">
+                <div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:500;color:#242424">Create issue</div><div style="font-size:12px;color:#848b8c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Create an issue in a repository</div></div>
+                <span style="display:inline-flex;align-items:center;gap:6px;border:1px solid #d7d7d7;border-radius:6px;padding:2px 8px;font-size:12px;color:#413f3f;flex-shrink:0"><svg width="11" height="11" viewBox="0 0 24 24" style="stroke:#676770;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8z"></path><path d="M13.7 21a2 2 0 0 1-3.4 0"></path></svg>Ask<svg width="10" height="10" viewBox="0 0 24 24" style="stroke:#848b8c;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M6 9l6 6 6-6"></path></svg></span>
+              </div>
+              <div style="padding:8px 12px;border-top:1px solid #f0efed;background:#fbfaf8">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:500;color:#242424">Create pull request</div></div>
+                  <span style="display:inline-flex;align-items:center;gap:6px;border:1px solid #d7d7d7;border-radius:6px;padding:2px 8px;font-size:12px;color:#413f3f;flex-shrink:0;background:#ffffff"><svg width="11" height="11" viewBox="0 0 24 24" style="stroke:#676770;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8z"></path><path d="M13.7 21a2 2 0 0 1-3.4 0"></path></svg>Ask<svg width="10" height="10" viewBox="0 0 24 24" style="stroke:#848b8c;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M6 9l6 6 6-6"></path></svg></span>
+                </div>
+                <div style="font-size:12px;color:#676770;line-height:1.5;margin-top:4px">Open a pull request from a head branch into a base branch. Supports draft pull requests, reviewers, labels, and linked issues. Returns the created pull request number and URL.</div>
+                <div style="font-size:12px;color:#5e5e08;margin-top:4px;cursor:pointer">Show less</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid #f0efed">
+                <div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:500;color:#242424">Merge pull request</div><div style="font-size:12px;color:#848b8c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Merge a pull request using merge, squash, or rebase</div><div style="font-size:12px;color:#5e5e08;margin-top:2px;cursor:pointer">Show more</div></div>
+                <span style="display:inline-flex;align-items:center;gap:6px;border:1px solid #d7d7d7;border-radius:6px;padding:2px 8px;font-size:12px;color:#413f3f;flex-shrink:0"><svg width="11" height="11" viewBox="0 0 24 24" style="stroke:#676770;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8z"></path><path d="M13.7 21a2 2 0 0 1-3.4 0"></path></svg>Ask<svg width="10" height="10" viewBox="0 0 24 24" style="stroke:#848b8c;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M6 9l6 6 6-6"></path></svg></span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid #f0efed">
+                <div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:500;color:#242424">Delete branch</div><div style="font-size:12px;color:#848b8c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Delete a branch from a repository</div></div>
+                <span style="display:inline-flex;align-items:center;gap:6px;border:1px solid #d94c4a;border-radius:6px;padding:2px 8px;font-size:12px;color:#5e0908;font-weight:500;flex-shrink:0;background:#f9e5e5"><svg width="11" height="11" viewBox="0 0 24 24" style="stroke:#5e0908;fill:none;stroke-width:2;stroke-linecap:round"><circle cx="12" cy="12" r="9"></circle><path d="M5.5 5.5l13 13"></path></svg>Deny<svg width="10" height="10" viewBox="0 0 24 24" style="stroke:#5e0908;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M6 9l6 6 6-6"></path></svg></span>
+              </div>
+              <div style="padding:8px 12px;border-top:1px solid #f0efed;font-size:12px;color:#5e5e08;cursor:pointer">Show 31 more</div>
+            </div>
+            <div style="font-size:12px;color:#848b8c;margin-top:10px">Setting a tool's permission switches the default to Custom.</div>
+          </div>
+          <div style="display:flex;align-items:center;padding:10px 16px;border-top:1px solid #e5e5e3;justify-content:flex-end">
+            <span style="background:#242424;color:#ffffff;border-radius:6px;padding:4px 14px;font-size:13px;cursor:pointer">Done</span>
+          </div>
+        </div>
+      </figure>
+
+      <!-- 2a · Frame 4: Add integration drawer, story-driven -->
+      <figure style="margin:0" data-screen-label="2a Add integration drawer">
+        <figcaption style="font-size:12px;color:#676770;margin:0 0 8px 2px;font-weight:500">4 · Add integration — search &amp; add, quick-add your connections, pick a connection</figcaption>
+        <div style="width:680px;background:#ffffff;border:1px solid #e5e5e3;border-radius:12px;box-shadow:0 12px 28px rgba(0,0,0,0.10);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid #e5e5e3">
+            <svg width="14" height="14" viewBox="0 0 24 24" style="stroke:#676770;fill:none;stroke-width:2;stroke-linecap:round"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+            <svg width="15" height="15" viewBox="0 0 24 24" style="stroke:#242424;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0V7zM12 16v5"></path></svg>
+            <span style="font-size:14px;font-weight:600;color:#242424">Add integration</span>
+          </div>
+          <div style="display:flex;flex-direction:row-reverse;align-items:stretch"><div style="flex:1;min-width:0;padding:14px 16px;position:relative;max-height:680px;overflow:hidden"><div style="position:absolute;right:3px;top:70px;width:6px;height:150px;border-radius:3px;background:rgba(36,36,36,0.22)"></div>
+            <div style="display:flex;align-items:center;gap:8px;height:36px;border:1px solid #d9d92c;box-shadow:0 0 0 3px rgba(217,217,44,0.25);border-radius:8px;padding:0 12px">
+              <svg width="14" height="14" viewBox="0 0 24 24" style="stroke:#848b8c;fill:none;stroke-width:2;stroke-linecap:round"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path></svg>
+              <span style="font-size:13px;color:#a3a19f">Search apps...</span>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin:16px 2px 6px">
+              <span style="font-size:11px;font-weight:500;letter-spacing:0.05em;color:#848b8c;text-transform:uppercase">Connected in your workspace · 13</span>
+              
+            </div>
+            <div style="border:1px solid #e5e5e3;border-radius:8px;overflow:hidden">
+              <div style="padding:8px 12px;background:#fbfaf8">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <img src="https://cdn.simpleicons.org/github/24292f" alt="" width="20" height="20">
+                  <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500;color:#242424">GitHub</div><div style="font-size:12px;color:#848b8c">Choose connection</div></div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:4px;margin:8px 0 4px 30px">
+                  <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid #242424;border-radius:6px;background:#ffffff">
+                    <span style="width:13px;height:13px;border-radius:50%;border:4px solid #242424;background:#ffffff;box-sizing:border-box;flex-shrink:0"></span>
+                    <span style="font-size:12px;color:#242424;flex:1">acme-org · GitHub App</span>
+                    
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid #e5e5e3;border-radius:6px;background:#ffffff">
+                    <span style="width:13px;height:13px;border-radius:50%;border:1px solid #d7d7d7;flex-shrink:0"></span>
+                    <span style="font-size:12px;color:#242424;flex:1">mahmoud · personal token</span>
+                  </div>
+                  <div style="display:flex;justify-content:flex-end;margin-top:2px"><span style="background:#242424;color:#ffffff;border-radius:6px;padding:3px 12px;font-size:12px;cursor:pointer">Add with acme-org</span></div>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid #f0efed">
+                <img src="https://cdn.simpleicons.org/linear/5E6AD2" alt="" width="20" height="20">
+                <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500;color:#242424">Linear</div><div style="font-size:12px;color:#848b8c">linear · acme workspace</div></div>
+                <span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#2e7d3a"><svg width="11" height="11" viewBox="0 0 24 24" style="stroke:#2e7d3a;fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round"><path d="M5 13l4 4L19 7"></path></svg>Added</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid #f0efed">
+                <img src="https://cdn.simpleicons.org/notion/000000" alt="" width="20" height="20">
+                <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500;color:#242424">Notion</div><div style="font-size:12px;color:#848b8c">notion · team workspace</div></div>
+                <span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#2e7d3a"><svg width="11" height="11" viewBox="0 0 24 24" style="stroke:#2e7d3a;fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round"><path d="M5 13l4 4L19 7"></path></svg>Added</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid #f0efed">
+                <img src="https://cdn.simpleicons.org/stripe/635BFF" alt="" width="20" height="20">
+                <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500;color:#242424">Stripe</div><div style="font-size:12px;color:#848b8c">stripe · live mode</div></div>
+                <span style="border:1px solid #d7d7d7;border-radius:6px;padding:2px 12px;font-size:12px;color:#242424;font-weight:500;cursor:pointer">Add</span>
+              </div>
+              
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin:16px 2px 6px">
+              <span style="font-size:11px;font-weight:500;letter-spacing:0.05em;color:#848b8c;text-transform:uppercase">All apps · 84</span>
+              
+            </div>
+            <div style="border:1px solid #e5e5e3;border-radius:8px;overflow:hidden">
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px">
+                <span style="width:20px;height:20px;border-radius:5px;background:#4A154B;color:#ffffff;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:600">S</span>
+                <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500;color:#242424">Slack</div><div style="font-size:12px;color:#848b8c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Team messaging with channels, threads, and workflows</div></div>
+                <span style="border:1px solid #d7d7d7;border-radius:6px;padding:2px 12px;font-size:12px;color:#242424;cursor:pointer">Connect</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid #f0efed">
+                <img src="https://cdn.simpleicons.org/airtable/18BFFF" alt="" width="20" height="20">
+                <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500;color:#242424">Airtable</div><div style="font-size:12px;color:#848b8c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Flexible database-spreadsheet hybrid for structured data</div></div>
+                <span style="border:1px solid #d7d7d7;border-radius:6px;padding:2px 12px;font-size:12px;color:#242424;cursor:pointer">Connect</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid #f0efed">
+                <img src="https://cdn.simpleicons.org/asana/F06A6A" alt="" width="20" height="20">
+                <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500;color:#242424">Asana</div><div style="font-size:12px;color:#848b8c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Work management for tasks, projects, and goals</div></div>
+                <span style="border:1px solid #d7d7d7;border-radius:6px;padding:2px 12px;font-size:12px;color:#242424;cursor:pointer">Connect</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid #f0efed">
+                <img src="https://cdn.simpleicons.org/box/0061D5" alt="" width="20" height="20">
+                <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500;color:#242424">Box</div><div style="font-size:12px;color:#848b8c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Cloud content management and secure file sharing</div></div>
+                <span style="border:1px solid #d7d7d7;border-radius:6px;padding:2px 12px;font-size:12px;color:#242424;cursor:pointer">Connect</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid #f0efed">
+                <img src="https://cdn.simpleicons.org/confluence/172B4D" alt="" width="20" height="20">
+                <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500;color:#242424">Confluence</div><div style="font-size:12px;color:#848b8c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Team collaboration and knowledge management</div></div>
+                <span style="border:1px solid #d7d7d7;border-radius:6px;padding:2px 12px;font-size:12px;color:#242424;cursor:pointer">Connect</span>
+              </div>
+            </div>
+          </div>
+          <div style="width:176px;flex-shrink:0;border-right:1px solid #f0efed;padding:14px 12px;max-height:680px;overflow:hidden">
+            <div style="font-size:11px;font-weight:500;letter-spacing:0.05em;color:#848b8c;text-transform:uppercase;padding:0 8px;margin-bottom:6px">Categories</div>
+            <div style="display:flex;flex-direction:column">
+              <div style="font-size:13px;color:#242424;font-weight:500;padding:4px 8px;background:#f0efed;border-radius:6px">All apps</div>
+              <div style="font-size:13px;color:#413f3f;padding:4px 8px">Developer tools</div>
+              <div style="font-size:13px;color:#413f3f;padding:4px 8px">Documents</div>
+              <div style="font-size:13px;color:#413f3f;padding:4px 8px">Project management</div>
+              <div style="font-size:13px;color:#413f3f;padding:4px 8px">Team collaboration</div>
+              <div style="font-size:13px;color:#413f3f;padding:4px 8px">Analytics</div>
+              <div style="font-size:13px;color:#413f3f;padding:4px 8px">CRM</div>
+              <div style="font-size:13px;color:#413f3f;padding:4px 8px">Marketing automation</div>
+              <div style="font-size:13px;color:#413f3f;padding:4px 8px">Task management</div>
+              <div style="font-size:13px;color:#413f3f;padding:4px 8px">Accounting</div>
+              <div style="font-size:13px;color:#413f3f;padding:4px 8px">Databases</div>
+              <div style="font-size:13px;color:#413f3f;padding:4px 8px">Customer support</div>
+              <div style="font-size:13px;color:#413f3f;padding:4px 8px">File storage</div>
+              <div style="font-size:13px;color:#413f3f;padding:4px 8px">Productivity</div>
+              <div style="font-size:13px;color:#a3a19f;padding:4px 8px">Images &amp; design</div>
+            </div>
+          </div></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-top:1px solid #e5e5e3;justify-content:flex-end">
+            <span style="background:#242424;color:#ffffff;border-radius:6px;padding:4px 14px;font-size:13px;cursor:pointer">Done</span>
+          </div>
+        </div>
+      </figure>
+    </div>
+    <div style="font-size:12px;color:#676770;max-width:1000px">Copy changes: the panel section is now "Integrations" (not "Connected apps" — connections live in the workspace, integrations are what this agent uses). The add drawer drops the connections rail and tool counts: one list of your workspace connections (one-click add, connection picker when there are several), one list of everything else ("Connect" runs the auth flow, then the app is added).</div>
+  </div>
+
+
+  <!-- ============================== OPTION 1a ============================== -->
+  <div id="1a" style="display:flex;flex-direction:column;gap:20px">
+    <div style="display:flex;align-items:center;gap:12px;max-width:900px">
+      <span style="display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:24px;border-radius:6px;background:#242424;color:#ffffff;font-size:12px;font-weight:600;font-family:var(--font-mono);padding:0 7px">1a</span>
+      <div>
+        <div style="font-size:15px;font-weight:600;color:#242424">Preset cards + inline segmented controls</div>
+        <div style="font-size:13px;color:#676770">Default permission as radio cards; every tool shows a segmented Ask / Allow / Deny (grey = inherited from the default). Changing one auto-switches to Custom.</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:32px;align-items:flex-start">
+
+      <!-- 1a · Frame 1: Playground tools panel -->
+      <figure style="margin:0" data-screen-label="1a Tools panel">
+        <figcaption style="font-size:12px;color:#676770;margin:0 0 8px 2px;font-weight:500">1 · Playground config — Tools section</figcaption>
+        <div style="width:400px;background:#ffffff;border:1px solid #e5e5e3;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,0.06);padding:16px">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
+            <span style="font-size:11px;font-weight:500;letter-spacing:0.05em;color:#848b8c;text-transform:uppercase">Connected apps</span>
+            <span style="font-size:11px;color:#676770;background:#f0efed;border-radius:9px;padding:1px 7px;font-family:var(--font-mono)">4</span>
+            <span style="flex:1"></span>
+            <svg width="15" height="15" viewBox="0 0 24 24" style="stroke:#848b8c;fill:none;stroke-width:2;stroke-linecap:round"><path d="M12 5v14M5 12h14"></path></svg>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #e5e5e3;border-radius:8px;cursor:pointer">
+              <span style="width:22px;height:22px;border-radius:5px;background:#0f1520;color:#ffffff;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0">C</span>
+              <span style="flex:1;min-width:0;font-size:14px;font-weight:500;color:#242424;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Composio Search</span>
+              <span style="font-size:12px;background:#f8f8dd;color:#5e5e08;border-radius:4px;padding:2px 7px;flex-shrink:0">Asks for write &amp; delete</span>
+              <svg width="13" height="13" viewBox="0 0 24 24" style="stroke:#a3a19f;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M9 6l6 6-6 6"></path></svg>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #e5e5e3;border-radius:8px;cursor:pointer">
+              <img src="https://cdn.simpleicons.org/github/24292f" alt="" width="20" height="20" style="flex-shrink:0">
+              <span style="flex:1;min-width:0;font-size:14px;font-weight:500;color:#242424">GitHub</span>
+              <span style="font-size:12px;background:#ebeaea;color:#413f3f;border-radius:4px;padding:2px 7px;flex-shrink:0">Always asks</span>
+              <svg width="13" height="13" viewBox="0 0 24 24" style="stroke:#a3a19f;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M9 6l6 6-6 6"></path></svg>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #e5e5e3;border-radius:8px;cursor:pointer;background:#fbfaf8">
+              <img src="https://cdn.simpleicons.org/linear/5E6AD2" alt="" width="20" height="20" style="flex-shrink:0">
+              <span style="flex:1;min-width:0;font-size:14px;font-weight:500;color:#242424">Linear</span>
+              <span style="font-size:12px;background:#f8f8dd;color:#5e5e08;border-radius:4px;padding:2px 7px;flex-shrink:0">Asks for write &amp; delete</span>
+              <svg width="13" height="13" viewBox="0 0 24 24" style="stroke:#a3a19f;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M9 6l6 6-6 6"></path></svg>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #e5e5e3;border-radius:8px;cursor:pointer">
+              <img src="https://cdn.simpleicons.org/notion/000000" alt="" width="20" height="20" style="flex-shrink:0">
+              <span style="flex:1;min-width:0;font-size:14px;font-weight:500;color:#242424">Notion</span>
+              <span style="font-size:12px;background:#fbf3d9;color:#8a6400;border-radius:4px;padding:2px 7px;flex-shrink:0">Custom</span>
+              <svg width="13" height="13" viewBox="0 0 24 24" style="stroke:#a3a19f;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M9 6l6 6-6 6"></path></svg>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;margin:18px 0 8px">
+            <span style="font-size:11px;font-weight:500;letter-spacing:0.05em;color:#848b8c;text-transform:uppercase">Tool definitions</span>
+            <span style="font-size:11px;color:#676770;background:#f0efed;border-radius:9px;padding:1px 7px;font-family:var(--font-mono)">1</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid #e5e5e3;border-radius:8px">
+            <span style="width:22px;height:22px;border-radius:5px;background:#f0efed;color:#676770;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;font-family:var(--font-mono);flex-shrink:0">{}</span>
+            <span style="flex:1;font-size:13px;font-family:var(--font-mono);color:#242424">get_weather</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" style="stroke:#a3a19f;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M9 6l6 6-6 6"></path></svg>
+          </div>
+        </div>
+      </figure>
+
+      <!-- 1a · Frame 2: Integration permission drawer -->
+      <figure style="margin:0" data-screen-label="1a Integration drawer">
+        <figcaption style="font-size:12px;color:#676770;margin:0 0 8px 2px;font-weight:500">2 · Integration drawer — click a row (default state)</figcaption>
+        <div style="width:480px;background:#ffffff;border:1px solid #e5e5e3;border-radius:12px;box-shadow:0 12px 28px rgba(0,0,0,0.10);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid #e5e5e3">
+            <span style="width:26px;height:26px;border:1px solid #e5e5e3;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="12" height="12" viewBox="0 0 24 24" style="stroke:#676770;fill:none;stroke-width:2;stroke-linecap:round"><path d="M6 6l12 12M18 6L6 18"></path></svg></span>
+            <img src="https://cdn.simpleicons.org/linear/5E6AD2" alt="" width="22" height="22">
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:8px"><span style="font-size:14px;font-weight:600;color:#242424">Linear</span><span style="font-size:11px;background:#fbfaf8;border:1px solid #d7d7d7;color:#242424;border-radius:4px;padding:1px 6px">third-party</span></div>
+              <div style="font-size:12px;color:#848b8c">Connected app · linear · 6 tools</div>
+            </div>
+            <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#2e7d3a;flex-shrink:0"><span style="width:6px;height:6px;border-radius:50%;background:#12b76a"></span>Connected</span>
+          </div>
+          <div style="padding:16px">
+            <div style="font-size:11px;font-weight:500;letter-spacing:0.05em;color:#848b8c;text-transform:uppercase;margin-bottom:8px">Default permission</div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="display:flex;gap:10px;padding:9px 12px;border:1px solid #e5e5e3;border-radius:8px;align-items:flex-start;cursor:pointer">
+                <span style="width:14px;height:14px;border-radius:50%;border:1px solid #d7d7d7;margin-top:2px;flex-shrink:0"></span>
+                <div><div style="font-size:13px;font-weight:500;color:#242424">Always ask</div><div style="font-size:12px;color:#848b8c">Every tool run asks for approval first</div></div>
+              </div>
+              <div style="display:flex;gap:10px;padding:9px 12px;border:1px solid #242424;border-radius:8px;align-items:flex-start;background:#fbfaf8;cursor:pointer">
+                <span style="width:14px;height:14px;border-radius:50%;border:4px solid #242424;background:#ffffff;margin-top:2px;flex-shrink:0;box-sizing:border-box"></span>
+                <div><div style="font-size:13px;font-weight:500;color:#242424">Ask for write &amp; delete</div><div style="font-size:12px;color:#848b8c">Read-only tools run automatically; anything that changes data asks first</div></div>
+              </div>
+              <div style="display:flex;gap:10px;padding:9px 12px;border:1px solid #e5e5e3;border-radius:8px;align-items:flex-start;cursor:pointer">
+                <span style="width:14px;height:14px;border-radius:50%;border:1px solid #d7d7d7;margin-top:2px;flex-shrink:0"></span>
+                <div><div style="font-size:13px;font-weight:500;color:#242424">Deny all</div><div style="font-size:12px;color:#848b8c">The agent can see these tools but never run them</div></div>
+              </div>
+              <div style="display:flex;gap:10px;padding:9px 12px;border:1px solid #e5e5e3;border-radius:8px;align-items:flex-start;cursor:pointer">
+                <span style="width:14px;height:14px;border-radius:50%;border:1px solid #d7d7d7;margin-top:2px;flex-shrink:0"></span>
+                <div><div style="font-size:13px;font-weight:500;color:#242424">Custom</div><div style="font-size:12px;color:#848b8c">Choose a permission per tool below</div></div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin:18px 2px 6px">
+              <span style="font-size:11px;font-weight:500;letter-spacing:0.05em;color:#848b8c;text-transform:uppercase">Read-only · 3</span>
+              <span style="font-size:11px;color:#a3a19f">runs automatically</span>
+            </div>
+            <div style="border:1px solid #e5e5e3;border-radius:8px;overflow:hidden">
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px">
+                <div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:500;color:#242424">List issues</div><div style="font-size:12px;color:#848b8c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">List issues in a project or team with filters</div></div>
+                <span style="display:inline-flex;border:1px solid #e5e5e3;border-radius:6px;overflow:hidden;flex-shrink:0"><span style="padding:3px 10px;font-size:12px;color:#848b8c">Ask</span><span style="padding:3px 10px;font-size:12px;color:#413f3f;background:#f0efed;border-left:1px solid #e5e5e3;border-right:1px solid #e5e5e3;font-weight:500">Allow</span><span style="padding:3px 10px;font-size:12px;color:#848b8c">Deny</span></span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid #f0efed">
+                <div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:500;color:#242424">Get issue</div><div style="font-size:12px;color:#848b8c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Fetch a single issue with its full details</div></div>
+                <span style="display:inline-flex;border:1px solid #e5e5e3;border-radius:6px;overflow:hidden;flex-shrink:0"><span style="padding:3px 10px;font-size:12px;color:#848b8c">Ask</span><span style="padding:3px 10px;font-size:12px;color:#413f3f;background:#f0efed;border-left:1px solid #e5e5e3;border-right:1px solid #e5e5e3;font-weight:500">Allow</span><span style="padding:3px 10px;font-size:12px;color:#848b8c">Deny</span></span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid #f0efed">
+                <div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:500;color:#242424">Search issues</div><div style="font-size:12px;color:#848b8c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Full-text search across issues</div></div>
+                <span style="display:inline-flex;border:1px solid #e5e5e3;border-radius:6px;overflow:hidden;flex-shrink:0"><span style="padding:3px 10px;font-size:12px;color:#848b8c">Ask</span><span style="padding:3px 10px;font-size:12px;color:#413f3f;background:#f0efed;border-left:1px solid #e5e5e3;border-right:1px solid #e5e5e3;font-weight:500">Allow</span><span style="padding:3px 10px;font-size:12px;color:#848b8c">Deny</span></span>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin:14px 2px 6px">
+              <span style="font-size:11px;font-weight:500;letter-spacing:0.05em;color:#848b8c;text-transform:uppercase">Write &amp; delete · 3</span>
+              <span style="font-size:11px;color:#a3a19f">asks first</span>
+            </div>
+            <div style="border:1px solid #e5e5e3;border-radius:8px;overflow:hidden">
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px">
+                <div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:500;color:#242424">Create issue</div><div style="font-size:12px;color:#848b8c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Create a new issue in a team</div></div>
+                <span style="display:inline-flex;border:1px solid #e5e5e3;border-radius:6px;overflow:hidden;flex-shrink:0"><span style="padding:3px 10px;font-size:12px;color:#413f3f;background:#f0efed;border-right:1px solid #e5e5e3;font-weight:500">Ask</span><span style="padding:3px 10px;font-size:12px;color:#848b8c;border-right:1px solid #e5e5e3">Allow</span><span style="padding:3px 10px;font-size:12px;color:#848b8c">Deny</span></span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid #f0efed">
+                <div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:500;color:#242424">Update issue</div><div style="font-size:12px;color:#848b8c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Change status, assignee, or fields on an issue</div></div>
+                <span style="display:inline-flex;border:1px solid #e5e5e3;border-radius:6px;overflow:hidden;flex-shrink:0"><span style="padding:3px 10px;font-size:12px;color:#413f3f;background:#f0efed;border-right:1px solid #e5e5e3;font-weight:500">Ask</span><span style="padding:3px 10px;font-size:12px;color:#848b8c;border-right:1px solid #e5e5e3">Allow</span><span style="padding:3px 10px;font-size:12px;color:#848b8c">Deny</span></span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid #f0efed">
+                <div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:500;color:#242424">Delete issue</div><div style="font-size:12px;color:#848b8c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Permanently delete an issue</div></div>
+                <span style="display:inline-flex;border:1px solid #e5e5e3;border-radius:6px;overflow:hidden;flex-shrink:0"><span style="padding:3px 10px;font-size:12px;color:#413f3f;background:#f0efed;border-right:1px solid #e5e5e3;font-weight:500">Ask</span><span style="padding:3px 10px;font-size:12px;color:#848b8c;border-right:1px solid #e5e5e3">Allow</span><span style="padding:3px 10px;font-size:12px;color:#848b8c">Deny</span></span>
+              </div>
+            </div>
+            <div style="font-size:12px;color:#848b8c;margin-top:10px">Grey selections follow the default. Setting one switches this integration to Custom.</div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-top:1px solid #e5e5e3">
+            <span style="font-size:12px;color:#848b8c">Applies to the draft immediately</span>
+            <span style="background:#242424;color:#ffffff;border-radius:6px;padding:4px 14px;font-size:13px;cursor:pointer">Done</span>
+          </div>
+        </div>
+      </figure>
+
+      <!-- 1a · Frame 3: Add integrations drawer -->
+      <figure style="margin:0" data-screen-label="1a Add integrations drawer">
+        <figcaption style="font-size:12px;color:#676770;margin:0 0 8px 2px;font-weight:500">3 · Add integrations — click a card to add the whole app</figcaption>
+        <div style="width:860px;background:#ffffff;border:1px solid #e5e5e3;border-radius:12px;box-shadow:0 12px 28px rgba(0,0,0,0.10);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid #e5e5e3">
+            <svg width="14" height="14" viewBox="0 0 24 24" style="stroke:#676770;fill:none;stroke-width:2;stroke-linecap:round"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+            <svg width="15" height="15" viewBox="0 0 24 24" style="stroke:#242424;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0V7zM12 16v5"></path></svg>
+            <span style="font-size:14px;font-weight:600;color:#242424">Add integrations</span>
+          </div>
+          <div style="display:flex;min-height:480px">
+            <div style="width:230px;border-right:1px solid #f0efed;padding:14px 10px;flex-shrink:0">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:0 8px;margin-bottom:8px"><span style="font-size:11px;font-weight:500;letter-spacing:0.05em;color:#848b8c;text-transform:uppercase">Your connections</span><span style="font-size:12px;color:#a3a19f">13</span></div>
+              <div style="display:flex;flex-direction:column">
+                <div style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px"><img src="https://cdn.simpleicons.org/stripe/635BFF" alt="" width="16" height="16"><div style="flex:1;min-width:0"><div style="font-size:13px;color:#242424">Stripe</div><div style="font-size:11px;color:#a3a19f">stripe</div></div><span style="width:6px;height:6px;border-radius:50%;background:#12b76a"></span></div>
+                <div style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px"><img src="https://cdn.simpleicons.org/googleads/4285F4" alt="" width="16" height="16"><div style="flex:1;min-width:0"><div style="font-size:13px;color:#242424">googleads-main</div><div style="font-size:11px;color:#a3a19f">googleads</div></div><span style="width:6px;height:6px;border-radius:50%;background:#12b76a"></span></div>
+                <div style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px"><span style="width:16px;height:16px;border-radius:4px;background:#f0efed;color:#676770;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:600">B</span><div style="flex:1;min-width:0"><div style="font-size:13px;color:#242424">Browserbase</div><div style="font-size:11px;color:#a3a19f">browserbase_tool</div></div><span style="width:6px;height:6px;border-radius:50%;background:#12b76a"></span></div>
+                <div style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px"><span style="width:16px;height:16px;border-radius:4px;background:#054ADA;color:#ffffff;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:600">A</span><div style="flex:1;min-width:0"><div style="font-size:13px;color:#242424">Ahrefs</div><div style="font-size:11px;color:#a3a19f">ahrefs</div></div><span style="width:6px;height:6px;border-radius:50%;background:#12b76a"></span></div>
+                <div style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px"><span style="width:16px;height:16px;border-radius:4px;background:#0f1520;color:#ffffff;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:600">C</span><div style="flex:1;min-width:0"><div style="font-size:13px;color:#242424">Composio Search</div><div style="font-size:11px;color:#a3a19f">Composio Search</div></div><span style="width:6px;height:6px;border-radius:50%;background:#12b76a"></span></div>
+              </div>
+              <div style="font-size:13px;color:#5e5e08;padding:6px 8px;cursor:pointer">Show all 13</div>
+              <div style="height:1px;background:#f0efed;margin:8px 0"></div>
+              <div style="font-size:11px;font-weight:500;letter-spacing:0.05em;color:#848b8c;text-transform:uppercase;padding:0 8px;margin-bottom:6px">Browse by category</div>
+              <div style="display:flex;flex-direction:column">
+                <div style="font-size:13px;color:#242424;font-weight:500;padding:5px 8px;background:#f0efed;border-radius:6px">All apps</div>
+                <div style="font-size:13px;color:#413f3f;padding:5px 8px">developer tools</div>
+                <div style="font-size:13px;color:#413f3f;padding:5px 8px">analytics</div>
+                <div style="font-size:13px;color:#413f3f;padding:5px 8px">project management</div>
+                <div style="font-size:13px;color:#413f3f;padding:5px 8px">team collaboration</div>
+                <div style="font-size:13px;color:#413f3f;padding:5px 8px">documents</div>
+                <div style="font-size:13px;color:#a3a19f;padding:5px 8px">databases</div>
+              </div>
+            </div>
+            <div style="flex:1;padding:14px 16px;min-width:0">
+              <div style="display:flex;align-items:center;gap:8px;height:38px;border:1px solid #d9d92c;box-shadow:0 0 0 3px rgba(217,217,44,0.25);border-radius:8px;padding:0 12px;margin-bottom:12px">
+                <svg width="14" height="14" viewBox="0 0 24 24" style="stroke:#848b8c;fill:none;stroke-width:2;stroke-linecap:round"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path></svg>
+                <span style="font-size:14px;color:#a3a19f">Search apps...</span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span style="font-size:11px;font-weight:500;letter-spacing:0.05em;color:#848b8c;text-transform:uppercase">All apps</span><span style="font-size:12px;color:#a3a19f">84 apps</span></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <div style="background:#fbfaf8;border:1px solid #242424;border-radius:10px;padding:14px;position:relative">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><img src="https://cdn.simpleicons.org/notion/000000" alt="" width="24" height="24"><span style="font-size:14px;font-weight:500;color:#242424;flex:1">Notion</span><span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;background:#eaf2e3;color:#2c7737;border-radius:4px;padding:2px 8px"><svg width="10" height="10" viewBox="0 0 24 24" style="stroke:#2c7737;fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round"><path d="M5 13l4 4L19 7"></path></svg>Added</span></div>
+                  <div style="font-size:13px;color:#676770;line-height:1.45;margin-bottom:10px">Notion centralizes notes, docs, wikis, and tasks in a unified workspace.</div>
+                  <div style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;background:#efeeec;color:#676770;border-radius:4px;padding:2px 6px">Documents</span><span style="flex:1"></span><span style="font-size:12px;color:#676770">All 53 tools · asks for write &amp; delete</span></div>
+                </div>
+                <div style="background:#fbfaf8;border:1px solid transparent;border-radius:10px;padding:14px">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="width:24px;height:24px;border-radius:6px;background:#4A154B;color:#ffffff;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:600">S</span><span style="font-size:14px;font-weight:500;color:#242424;flex:1">Slack</span></div>
+                  <div style="font-size:13px;color:#676770;line-height:1.45;margin-bottom:10px">Team messaging with channels, threads, and workflow automation.</div>
+                  <div style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;background:#efeeec;color:#676770;border-radius:4px;padding:2px 6px">Team Chat</span><span style="flex:1"></span><svg width="11" height="11" viewBox="0 0 24 24" style="fill:#a3a19f"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z"></path></svg><span style="font-size:12px;color:#676770">38</span></div>
+                </div>
+                <div style="background:#fbfaf8;border:1px solid transparent;border-radius:10px;padding:14px">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><img src="https://cdn.simpleicons.org/airtable/18BFFF" alt="" width="24" height="24"><span style="font-size:14px;font-weight:500;color:#242424;flex:1">Airtable</span></div>
+                  <div style="font-size:13px;color:#676770;line-height:1.45;margin-bottom:10px">Flexible database-spreadsheet hybrid for structured team data.</div>
+                  <div style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;background:#efeeec;color:#676770;border-radius:4px;padding:2px 6px">Databases</span><span style="flex:1"></span><svg width="11" height="11" viewBox="0 0 24 24" style="fill:#a3a19f"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z"></path></svg><span style="font-size:12px;color:#676770">27</span></div>
+                </div>
+                <div style="background:#fbfaf8;border:1px solid transparent;border-radius:10px;padding:14px">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><img src="https://cdn.simpleicons.org/asana/F06A6A" alt="" width="24" height="24"><span style="font-size:14px;font-weight:500;color:#242424;flex:1">Asana</span></div>
+                  <div style="font-size:13px;color:#676770;line-height:1.45;margin-bottom:10px">Work management platform for tasks, projects, and goals.</div>
+                  <div style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;background:#efeeec;color:#676770;border-radius:4px;padding:2px 6px">Project Management</span><span style="flex:1"></span><svg width="11" height="11" viewBox="0 0 24 24" style="fill:#a3a19f"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z"></path></svg><span style="font-size:12px;color:#676770">31</span></div>
+                </div>
+                <div style="background:#fbfaf8;border:1px solid transparent;border-radius:10px;padding:14px">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><img src="https://cdn.simpleicons.org/box/0061D5" alt="" width="24" height="24"><span style="font-size:14px;font-weight:500;color:#242424;flex:1">Box</span></div>
+                  <div style="font-size:13px;color:#676770;line-height:1.45;margin-bottom:10px">Cloud content management for secure file storage and sharing.</div>
+                  <div style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;background:#efeeec;color:#676770;border-radius:4px;padding:2px 6px">File Storage</span><span style="flex:1"></span><svg width="11" height="11" viewBox="0 0 24 24" style="fill:#a3a19f"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z"></path></svg><span style="font-size:12px;color:#676770">44</span></div>
+                </div>
+                <div style="background:#fbfaf8;border:1px solid transparent;border-radius:10px;padding:14px">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><img src="https://cdn.simpleicons.org/confluence/172B4D" alt="" width="24" height="24"><span style="font-size:14px;font-weight:500;color:#242424;flex:1">Confluence</span></div>
+                  <div style="font-size:13px;color:#676770;line-height:1.45;margin-bottom:10px">A tool for team collaboration and knowledge management.</div>
+                  <div style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;background:#efeeec;color:#676770;border-radius:4px;padding:2px 6px">Team Collaboration</span><span style="flex:1"></span><svg width="11" height="11" viewBox="0 0 24 24" style="fill:#a3a19f"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z"></path></svg><span style="font-size:12px;color:#676770">69</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-top:1px solid #e5e5e3">
+            <span style="font-size:12px;color:#848b8c">1 integration added — new integrations ask before write &amp; delete</span>
+            <span style="background:#242424;color:#ffffff;border-radius:6px;padding:4px 14px;font-size:13px;cursor:pointer">Done</span>
+          </div>
+        </div>
+      </figure>
+    </div>
+    <div style="font-size:12px;color:#676770;max-width:900px">Clicking an already-added app card (or a Playground row) opens the permission drawer — the add drawer never lists individual tools.</div>
+  </div>
+
+  <!-- ============================== OPTION 1b ============================== -->
+  <div id="1b" style="display:flex;flex-direction:column;gap:20px">
+    <div style="display:flex;align-items:center;gap:12px;max-width:900px">
+      <span style="display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:24px;border-radius:6px;background:#242424;color:#ffffff;font-size:12px;font-weight:600;font-family:var(--font-mono);padding:0 7px">1b</span>
+      <div>
+        <div style="font-size:15px;font-weight:600;color:#242424">Preset select + per-tool menus</div>
+        <div style="font-size:13px;color:#676770">Default permission as a select (like today's tool detail); per-tool permission via compact dropdowns. Drawer shown in Custom state with overrides. Add-drawer cards carry an explicit Add button.</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:32px;align-items:flex-start">
+
+      <!-- 1b · Frame 1: Playground tools panel -->
+      <figure style="margin:0" data-screen-label="1b Tools panel">
+        <figcaption style="font-size:12px;color:#676770;margin:0 0 8px 2px;font-weight:500">1 · Playground config — Tools section</figcaption>
+        <div style="width:400px;background:#ffffff;border:1px solid #e5e5e3;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,0.06);padding:16px">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
+            <span style="font-size:11px;font-weight:500;letter-spacing:0.05em;color:#848b8c;text-transform:uppercase">Connected apps</span>
+            <span style="font-size:11px;color:#676770;background:#f0efed;border-radius:9px;padding:1px 7px;font-family:var(--font-mono)">4</span>
+            <span style="flex:1"></span>
+            <svg width="15" height="15" viewBox="0 0 24 24" style="stroke:#848b8c;fill:none;stroke-width:2;stroke-linecap:round"><path d="M12 5v14M5 12h14"></path></svg>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid #e5e5e3;border-radius:8px;cursor:pointer">
+              <span style="width:22px;height:22px;border-radius:5px;background:#0f1520;color:#ffffff;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0">C</span>
+              <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:500;color:#242424">Composio Search</div><div style="font-size:12px;color:#848b8c">Asks before write &amp; delete</div></div>
+              <svg width="13" height="13" viewBox="0 0 24 24" style="stroke:#a3a19f;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M9 6l6 6-6 6"></path></svg>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid #e5e5e3;border-radius:8px;cursor:pointer">
+              <img src="https://cdn.simpleicons.org/github/24292f" alt="" width="20" height="20" style="flex-shrink:0">
+              <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:500;color:#242424">GitHub</div><div style="font-size:12px;color:#848b8c">Always asks before running tools</div></div>
+              <svg width="13" height="13" viewBox="0 0 24 24" style="stroke:#a3a19f;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M9 6l6 6-6 6"></path></svg>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid #e5e5e3;border-radius:8px;cursor:pointer">
+              <img src="https://cdn.simpleicons.org/linear/5E6AD2" alt="" width="20" height="20" style="flex-shrink:0">
+              <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:500;color:#242424">Linear</div><div style="font-size:12px;color:#848b8c">Asks before write &amp; delete</div></div>
+              <svg width="13" height="13" viewBox="0 0 24 24" style="stroke:#a3a19f;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M9 6l6 6-6 6"></path></svg>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid #e5e5e3;border-radius:8px;cursor:pointer;background:#fbfaf8">
+              <img src="https://cdn.simpleicons.org/notion/000000" alt="" width="20" height="20" style="flex-shrink:0">
+              <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:500;color:#242424">Notion</div><div style="font-size:12px;color:#8a6400">Custom · 1 denied, 3 allowed</div></div>
+              <svg width="13" height="13" viewBox="0 0 24 24" style="stroke:#a3a19f;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M9 6l6 6-6 6"></path></svg>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;margin:18px 0 8px">
+            <span style="font-size:11px;font-weight:500;letter-spacing:0.05em;color:#848b8c;text-transform:uppercase">Tool definitions</span>
+            <span style="font-size:11px;color:#676770;background:#f0efed;border-radius:9px;padding:1px 7px;font-family:var(--font-mono)">1</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid #e5e5e3;border-radius:8px">
+            <span style="width:22px;height:22px;border-radius:5px;background:#f0efed;color:#676770;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;font-family:var(--font-mono);flex-shrink:0">{}</span>
+            <span style="flex:1;font-size:13px;font-family:var(--font-mono);color:#242424">get_weather</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" style="stroke:#a3a19f;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M9 6l6 6-6 6"></path></svg>
+          </div>
+        </div>
+      </figure>
+
+      <!-- 1b · Frame 2: Integration drawer, Custom state -->
+      <figure style="margin:0" data-screen-label="1b Integration drawer (Custom)">
+        <figcaption style="font-size:12px;color:#676770;margin:0 0 8px 2px;font-weight:500">2 · Integration drawer — Custom state, per-tool menu open</figcaption>
+        <div style="width:480px;background:#ffffff;border:1px solid #e5e5e3;border-radius:12px;box-shadow:0 12px 28px rgba(0,0,0,0.10)">
+          <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid #e5e5e3">
+            <span style="width:26px;height:26px;border:1px solid #e5e5e3;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="12" height="12" viewBox="0 0 24 24" style="stroke:#676770;fill:none;stroke-width:2;stroke-linecap:round"><path d="M6 6l12 12M18 6L6 18"></path></svg></span>
+            <img src="https://cdn.simpleicons.org/notion/000000" alt="" width="22" height="22">
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:8px"><span style="font-size:14px;font-weight:600;color:#242424">Notion</span><span style="font-size:11px;background:#fbfaf8;border:1px solid #d7d7d7;color:#242424;border-radius:4px;padding:1px 6px">third-party</span></div>
+              <div style="font-size:12px;color:#848b8c">Connected app · notion · 10 tools</div>
+            </div>
+            <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#2e7d3a;flex-shrink:0"><span style="width:6px;height:6px;border-radius:50%;background:#12b76a"></span>Connected</span>
+          </div>
+          <div style="padding:16px">
+            <div style="font-size:12px;color:#676770;margin-bottom:6px">Default permission</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;height:34px;border:1px solid #d7d7d7;border-radius:6px;padding:0 12px;background:#ffffff">
+              <span style="display:inline-flex;align-items:center;gap:8px;font-size:13px;color:#242424">Custom<span style="font-size:11px;background:#fbf3d9;color:#8a6400;border-radius:4px;padding:1px 6px">4 overrides</span></span>
+              <svg width="12" height="12" viewBox="0 0 24 24" style="stroke:#848b8c;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M6 9l6 6 6-6"></path></svg>
+            </div>
+            <div style="font-size:12px;color:#848b8c;margin-top:6px">Every tool below carries its own permission. Picking a preset resets them.</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin:18px 2px 6px">
+              <span style="font-size:11px;font-weight:500;letter-spacing:0.05em;color:#848b8c;text-transform:uppercase">Read-only · 4</span>
+            </div>
+            <div style="border:1px solid #e5e5e3;border-radius:8px">
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px">
+                <div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:500;color:#242424">Search pages</div><div style="font-size:12px;color:#848b8c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Search across pages and databases</div></div>
+                <span style="display:inline-flex;align-items:center;gap:6px;border:1px solid #d7d7d7;border-radius:6px;padding:2px 8px;font-size:12px;color:#413f3f;flex-shrink:0">Allow<svg width="10" height="10" viewBox="0 0 24 24" style="stroke:#848b8c;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M6 9l6 6 6-6"></path></svg></span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid #f0efed">
+                <div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:500;color:#242424">Get page</div><div style="font-size:12px;color:#848b8c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Fetch a page with its content blocks</div></div>
+                <span style="display:inline-flex;align-items:center;gap:6px;border:1px solid #d7d7d7;border-radius:6px;padding:2px 8px;font-size:12px;color:#413f3f;flex-shrink:0">Allow<svg width="10" height="10" viewBox="0 0 24 24" style="stroke:#848b8c;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M6 9l6 6 6-6"></path></svg></span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid #f0efed">
+                <div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:500;color:#242424">Query database</div><div style="font-size:12px;color:#848b8c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Run filtered queries against a database</div></div>
+                <span style="display:inline-flex;align-items:center;gap:6px;border:1px solid #d7d7d7;border-radius:6px;padding:2px 8px;font-size:12px;color:#413f3f;flex-shrink:0">Allow<svg width="10" height="10" viewBox="0 0 24 24" style="stroke:#848b8c;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M6 9l6 6 6-6"></path></svg></span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid #f0efed">
+                <div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:500;color:#242424">List users</div><div style="font-size:12px;color:#848b8c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">List workspace members</div></div>
+                <span style="display:inline-flex;align-items:center;gap:6px;border:1px solid #d7d7d7;border-radius:6px;padding:2px 8px;font-size:12px;color:#413f3f;flex-shrink:0">Ask<svg width="10" height="10" viewBox="0 0 24 24" style="stroke:#848b8c;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M6 9l6 6 6-6"></path></svg></span>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin:14px 2px 6px">
+              <span style="font-size:11px;font-weight:500;letter-spacing:0.05em;color:#848b8c;text-transform:uppercase">Write &amp; delete · 6</span>
+            </div>
+            <div style="border:1px solid #e5e5e3;border-radius:8px">
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px">
+                <div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:500;color:#242424">Create page</div><div style="font-size:12px;color:#848b8c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Create a page under a parent page or database</div></div>
+                <span style="display:inline-flex;align-items:center;gap:6px;border:1px solid #d7d7d7;border-radius:6px;padding:2px 8px;font-size:12px;color:#413f3f;flex-shrink:0">Ask<svg width="10" height="10" viewBox="0 0 24 24" style="stroke:#848b8c;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M6 9l6 6 6-6"></path></svg></span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid #f0efed">
+                <div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:500;color:#242424">Update page</div><div style="font-size:12px;color:#848b8c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Update properties or content of a page</div></div>
+                <span style="display:inline-flex;align-items:center;gap:6px;border:1px solid #d7d7d7;border-radius:6px;padding:2px 8px;font-size:12px;color:#413f3f;flex-shrink:0">Ask<svg width="10" height="10" viewBox="0 0 24 24" style="stroke:#848b8c;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M6 9l6 6 6-6"></path></svg></span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid #f0efed">
+                <div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:500;color:#242424">Append blocks</div><div style="font-size:12px;color:#848b8c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Append content blocks to a page</div></div>
+                <span style="display:inline-flex;align-items:center;gap:6px;border:1px solid #d7d7d7;border-radius:6px;padding:2px 8px;font-size:12px;color:#413f3f;flex-shrink:0">Ask<svg width="10" height="10" viewBox="0 0 24 24" style="stroke:#848b8c;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M6 9l6 6 6-6"></path></svg></span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid #f0efed;position:relative;background:#fbfaf8">
+                <div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:500;color:#242424">Archive page</div><div style="font-size:12px;color:#848b8c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Move a page to trash</div></div>
+                <span style="display:inline-flex;align-items:center;gap:6px;border:1px solid #413f3f;box-shadow:0 0 0 3px rgba(217,217,44,0.35);border-radius:6px;padding:2px 8px;font-size:12px;color:#5e0908;font-weight:500;flex-shrink:0;background:#ffffff">Deny<svg width="10" height="10" viewBox="0 0 24 24" style="stroke:#848b8c;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M6 9l6 6 6-6"></path></svg></span>
+                <div style="position:absolute;right:12px;top:36px;width:236px;background:#ffffff;border:1px solid #f0efed;border-radius:8px;box-shadow:0 6px 16px rgba(0,0,0,0.08),0 3px 6px -4px rgba(0,0,0,0.12),0 9px 28px 8px rgba(0,0,0,0.05);padding:4px;z-index:5">
+                  <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px"><div style="flex:1"><div style="font-size:13px;color:#242424">Always ask</div><div style="font-size:11px;color:#848b8c">Approval before every run</div></div></div>
+                  <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px"><div style="flex:1"><div style="font-size:13px;color:#242424">Allow</div><div style="font-size:11px;color:#848b8c">Runs without asking</div></div></div>
+                  <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;background:#f6f5f3"><div style="flex:1"><div style="font-size:13px;color:#242424;font-weight:500">Deny</div><div style="font-size:11px;color:#848b8c">Never runs</div></div><svg width="12" height="12" viewBox="0 0 24 24" style="stroke:#242424;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round"><path d="M5 13l4 4L19 7"></path></svg></div>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid #f0efed">
+                <div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:500;color:#242424">Delete block</div><div style="font-size:12px;color:#848b8c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Permanently remove a content block</div></div>
+                <span style="display:inline-flex;align-items:center;gap:6px;border:1px solid #d94c4a;border-radius:6px;padding:2px 8px;font-size:12px;color:#5e0908;font-weight:500;flex-shrink:0;background:#f9e5e5">Deny<svg width="10" height="10" viewBox="0 0 24 24" style="stroke:#5e0908;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M6 9l6 6 6-6"></path></svg></span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid #f0efed">
+                <div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:500;color:#242424">Create database</div><div style="font-size:12px;color:#848b8c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Create a database under a parent page</div></div>
+                <span style="display:inline-flex;align-items:center;gap:6px;border:1px solid #d7d7d7;border-radius:6px;padding:2px 8px;font-size:12px;color:#413f3f;flex-shrink:0">Ask<svg width="10" height="10" viewBox="0 0 24 24" style="stroke:#848b8c;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M6 9l6 6 6-6"></path></svg></span>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-top:1px solid #e5e5e3">
+            <span style="font-size:12px;color:#848b8c">Applies to the draft immediately</span>
+            <span style="background:#242424;color:#ffffff;border-radius:6px;padding:4px 14px;font-size:13px;cursor:pointer">Done</span>
+          </div>
+        </div>
+      </figure>
+
+      <!-- 1b · Frame 3: Add integrations drawer -->
+      <figure style="margin:0" data-screen-label="1b Add integrations drawer">
+        <figcaption style="font-size:12px;color:#676770;margin:0 0 8px 2px;font-weight:500">3 · Add integrations — explicit Add button per card</figcaption>
+        <div style="width:860px;background:#ffffff;border:1px solid #e5e5e3;border-radius:12px;box-shadow:0 12px 28px rgba(0,0,0,0.10);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid #e5e5e3">
+            <svg width="14" height="14" viewBox="0 0 24 24" style="stroke:#676770;fill:none;stroke-width:2;stroke-linecap:round"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+            <svg width="15" height="15" viewBox="0 0 24 24" style="stroke:#242424;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0V7zM12 16v5"></path></svg>
+            <span style="font-size:14px;font-weight:600;color:#242424">Add integrations</span>
+          </div>
+          <div style="display:flex;min-height:480px">
+            <div style="width:230px;border-right:1px solid #f0efed;padding:14px 10px;flex-shrink:0">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:0 8px;margin-bottom:8px"><span style="font-size:11px;font-weight:500;letter-spacing:0.05em;color:#848b8c;text-transform:uppercase">Your connections</span><span style="font-size:12px;color:#a3a19f">13</span></div>
+              <div style="display:flex;flex-direction:column">
+                <div style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px"><img src="https://cdn.simpleicons.org/stripe/635BFF" alt="" width="16" height="16"><div style="flex:1;min-width:0"><div style="font-size:13px;color:#242424">Stripe</div><div style="font-size:11px;color:#a3a19f">stripe</div></div><span style="width:6px;height:6px;border-radius:50%;background:#12b76a"></span></div>
+                <div style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px"><img src="https://cdn.simpleicons.org/googleads/4285F4" alt="" width="16" height="16"><div style="flex:1;min-width:0"><div style="font-size:13px;color:#242424">googleads-main</div><div style="font-size:11px;color:#a3a19f">googleads</div></div><span style="width:6px;height:6px;border-radius:50%;background:#12b76a"></span></div>
+                <div style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px"><span style="width:16px;height:16px;border-radius:4px;background:#f0efed;color:#676770;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:600">B</span><div style="flex:1;min-width:0"><div style="font-size:13px;color:#242424">Browserbase</div><div style="font-size:11px;color:#a3a19f">browserbase_tool</div></div><span style="width:6px;height:6px;border-radius:50%;background:#12b76a"></span></div>
+                <div style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px"><span style="width:16px;height:16px;border-radius:4px;background:#054ADA;color:#ffffff;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:600">A</span><div style="flex:1;min-width:0"><div style="font-size:13px;color:#242424">Ahrefs</div><div style="font-size:11px;color:#a3a19f">ahrefs</div></div><span style="width:6px;height:6px;border-radius:50%;background:#12b76a"></span></div>
+                <div style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px"><span style="width:16px;height:16px;border-radius:4px;background:#0f1520;color:#ffffff;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:600">C</span><div style="flex:1;min-width:0"><div style="font-size:13px;color:#242424">Composio Search</div><div style="font-size:11px;color:#a3a19f">Composio Search</div></div><span style="width:6px;height:6px;border-radius:50%;background:#12b76a"></span></div>
+              </div>
+              <div style="font-size:13px;color:#5e5e08;padding:6px 8px;cursor:pointer">Show all 13</div>
+              <div style="height:1px;background:#f0efed;margin:8px 0"></div>
+              <div style="font-size:11px;font-weight:500;letter-spacing:0.05em;color:#848b8c;text-transform:uppercase;padding:0 8px;margin-bottom:6px">Browse by category</div>
+              <div style="display:flex;flex-direction:column">
+                <div style="font-size:13px;color:#242424;font-weight:500;padding:5px 8px;background:#f0efed;border-radius:6px">All apps</div>
+                <div style="font-size:13px;color:#413f3f;padding:5px 8px">developer tools</div>
+                <div style="font-size:13px;color:#413f3f;padding:5px 8px">analytics</div>
+                <div style="font-size:13px;color:#413f3f;padding:5px 8px">project management</div>
+                <div style="font-size:13px;color:#413f3f;padding:5px 8px">team collaboration</div>
+                <div style="font-size:13px;color:#413f3f;padding:5px 8px">documents</div>
+                <div style="font-size:13px;color:#a3a19f;padding:5px 8px">databases</div>
+              </div>
+            </div>
+            <div style="flex:1;padding:14px 16px;min-width:0">
+              <div style="display:flex;align-items:center;gap:8px;height:38px;border:1px solid #d7d7d7;border-radius:8px;padding:0 12px;margin-bottom:12px">
+                <svg width="14" height="14" viewBox="0 0 24 24" style="stroke:#848b8c;fill:none;stroke-width:2;stroke-linecap:round"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path></svg>
+                <span style="font-size:14px;color:#a3a19f">Search apps...</span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span style="font-size:11px;font-weight:500;letter-spacing:0.05em;color:#848b8c;text-transform:uppercase">All apps</span><span style="font-size:12px;color:#a3a19f">84 apps</span></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <div style="background:#fbfaf8;border-radius:10px;padding:14px">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><img src="https://cdn.simpleicons.org/linear/5E6AD2" alt="" width="24" height="24"><span style="font-size:14px;font-weight:500;color:#242424;flex:1">Linear</span><span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#2e7d3a"><svg width="11" height="11" viewBox="0 0 24 24" style="stroke:#2e7d3a;fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round"><path d="M5 13l4 4L19 7"></path></svg>Added</span></div>
+                  <div style="font-size:13px;color:#676770;line-height:1.45;margin-bottom:10px">Issue tracking built for modern product teams.</div>
+                  <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;text-align:center;font-size:12px;color:#676770;border:1px solid #e5e5e3;border-radius:6px;padding:4px 0;background:#ffffff">Configure permissions</span></div>
+                </div>
+                <div style="background:#fbfaf8;border-radius:10px;padding:14px">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="width:24px;height:24px;border-radius:6px;background:#4A154B;color:#ffffff;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:600">S</span><span style="font-size:14px;font-weight:500;color:#242424;flex:1">Slack</span><span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#676770"><svg width="11" height="11" viewBox="0 0 24 24" style="fill:#a3a19f"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z"></path></svg>38</span></div>
+                  <div style="font-size:13px;color:#676770;line-height:1.45;margin-bottom:10px">Team messaging with channels, threads, and workflow automation.</div>
+                  <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;text-align:center;font-size:12px;color:#242424;border:1px solid #d7d7d7;border-radius:6px;padding:4px 0;background:#ffffff;font-weight:500">Add all 38 tools</span></div>
+                </div>
+                <div style="background:#fbfaf8;border-radius:10px;padding:14px">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><img src="https://cdn.simpleicons.org/airtable/18BFFF" alt="" width="24" height="24"><span style="font-size:14px;font-weight:500;color:#242424;flex:1">Airtable</span><span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#676770"><svg width="11" height="11" viewBox="0 0 24 24" style="fill:#a3a19f"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z"></path></svg>27</span></div>
+                  <div style="font-size:13px;color:#676770;line-height:1.45;margin-bottom:10px">Flexible database-spreadsheet hybrid for structured team data.</div>
+                  <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;text-align:center;font-size:12px;color:#242424;border:1px solid #d7d7d7;border-radius:6px;padding:4px 0;background:#ffffff;font-weight:500">Add all 27 tools</span></div>
+                </div>
+                <div style="background:#fbfaf8;border-radius:10px;padding:14px">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><img src="https://cdn.simpleicons.org/asana/F06A6A" alt="" width="24" height="24"><span style="font-size:14px;font-weight:500;color:#242424;flex:1">Asana</span><span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#676770"><svg width="11" height="11" viewBox="0 0 24 24" style="fill:#a3a19f"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z"></path></svg>31</span></div>
+                  <div style="font-size:13px;color:#676770;line-height:1.45;margin-bottom:10px">Work management platform for tasks, projects, and goals.</div>
+                  <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;text-align:center;font-size:12px;color:#242424;border:1px solid #d7d7d7;border-radius:6px;padding:4px 0;background:#ffffff;font-weight:500">Add all 31 tools</span></div>
+                </div>
+                <div style="background:#fbfaf8;border-radius:10px;padding:14px">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><img src="https://cdn.simpleicons.org/box/0061D5" alt="" width="24" height="24"><span style="font-size:14px;font-weight:500;color:#242424;flex:1">Box</span><span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#676770"><svg width="11" height="11" viewBox="0 0 24 24" style="fill:#a3a19f"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z"></path></svg>44</span></div>
+                  <div style="font-size:13px;color:#676770;line-height:1.45;margin-bottom:10px">Cloud content management for secure file storage and sharing.</div>
+                  <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;text-align:center;font-size:12px;color:#242424;border:1px solid #d7d7d7;border-radius:6px;padding:4px 0;background:#ffffff;font-weight:500">Add all 44 tools</span></div>
+                </div>
+                <div style="background:#fbfaf8;border-radius:10px;padding:14px">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><img src="https://cdn.simpleicons.org/confluence/172B4D" alt="" width="24" height="24"><span style="font-size:14px;font-weight:500;color:#242424;flex:1">Confluence</span><span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#676770"><svg width="11" height="11" viewBox="0 0 24 24" style="fill:#a3a19f"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z"></path></svg>69</span></div>
+                  <div style="font-size:13px;color:#676770;line-height:1.45;margin-bottom:10px">A tool for team collaboration and knowledge management.</div>
+                  <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;text-align:center;font-size:12px;color:#242424;border:1px solid #d7d7d7;border-radius:6px;padding:4px 0;background:#ffffff;font-weight:500">Add all 69 tools</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-top:1px solid #e5e5e3">
+            <span style="font-size:12px;color:#848b8c">1 integration added — new integrations ask before write &amp; delete</span>
+            <span style="background:#242424;color:#ffffff;border-radius:6px;padding:4px 14px;font-size:13px;cursor:pointer">Done</span>
+          </div>
+        </div>
+      </figure>
+    </div>
+    <div style="font-size:12px;color:#676770;max-width:900px">"Configure permissions" on an added card opens the same integration drawer as the Playground row — one config surface, two entry points.</div>
+  </div>
+</section>
+</x-dc>
+</body>
+</html>

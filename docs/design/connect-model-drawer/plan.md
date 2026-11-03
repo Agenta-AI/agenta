@@ -233,7 +233,7 @@ Dependencies: needs slices 4 and 5 both done. Last slice; nothing depends on it.
 
 ## Verification plan (after slice 5, again after slice 6)
 
-Environment: dev stack `http://144.76.237.122:8280` (EE dev). Use the
+Environment: dev stack `http://<dev-host>:8280` (EE dev). Use the
 debug-local-deployment skill for login and logs. Run every check in light AND dark.
 
 1. **Rail styling**: open each SectionRail consumer; selected rows show the filled pill;

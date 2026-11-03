@@ -1,0 +1,21 @@
+{
+  "agenta_app": 1,
+  "name": "Content workspace",
+  "entry": "index.html",
+  "access": "read-write",
+  "data": [
+    "knowledge/starting-voice.md",
+    "setup/knowledge-audience.md",
+    "setup/knowledge-company.md",
+    "setup/knowledge-focus.md",
+    "setup/knowledge-voice.md",
+    "setup/publish-access.md",
+    "setup/publish-destination.md",
+    "setup/publish-format.md",
+    "setup/publish-review.md",
+    "setup/research-custom.md",
+    "setup/research-review.md",
+    "setup/research-schedule.md",
+    "setup/research-sources.md"
+  ]
+}

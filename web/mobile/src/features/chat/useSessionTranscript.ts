@@ -1,16 +1,53 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
-import {loadSessionMessages, type SessionTranscript} from "@agenta/chat/assets"
-import {revalidateSessionRecordsAtom} from "@agenta/entities/session"
+import {
+    loadSessionMessages,
+    reconcileInteractionRowStates,
+    type SessionTranscript,
+} from "@agenta/chat/assets"
+import {refreshSessionTurnsOnTurnEndAtom} from "@agenta/chat/state"
+import {
+    fetchSessionInteractionStatesAtom,
+    interactionStatesFromWatchEvent,
+    revalidateSessionInteractionsAtom,
+    revalidateSessionRecordsAtom,
+    type SessionInteractionRowStates,
+} from "@agenta/entities/session"
+import {isHitlPending} from "@agenta/playground"
 import type {UIMessage} from "ai"
 import {getDefaultStore} from "jotai"
 
-import {shouldAdoptTranscript} from "./transcriptAdoption"
+import {adoptTranscriptRead, shouldAdoptTranscript} from "./transcriptAdoption"
+
+const INTERACTION_GATE_POLL_MS = 1_000
+
+/** Last adopted transcript per session, so returning to one shows it instead of re-blanking. */
+const SNAPSHOTS = new Map<
+    string,
+    {messages: UIMessage[]; recordCount: number | undefined; sequenceCursor: number | undefined}
+>()
+// Bounds the retained transcripts; a switch rarely lands further back than this.
+const SNAPSHOT_LIMIT = 12
+
+/** Logout is a client-side route change, so these outlive it without this. */
+export const clearTranscriptSnapshots = () => SNAPSHOTS.clear()
+
+const rememberSnapshot = (
+    id: string,
+    messages: UIMessage[],
+    recordCount: number | undefined,
+    sequenceCursor: number | undefined,
+) => {
+    SNAPSHOTS.delete(id)
+    SNAPSHOTS.set(id, {messages, recordCount, sequenceCursor})
+    const oldest = SNAPSHOTS.keys().next()
+    if (SNAPSHOTS.size > SNAPSHOT_LIMIT && !oldest.done) SNAPSHOTS.delete(oldest.value)
+}
 
 /**
  * Read-only transcript for one session: server record replay via `loadSessionMessages`
  * (IndexedDB-restored, revalidation re-delivered through `onRefreshed`). `null` history
- * collapses into "empty" — raw text covers both no-messages and history-unavailable.
+ * collapses into "empty"; a read that failed is "failed", so the screen can offer a retry.
  *
  * `pollMs` > 0 tightens the cadence (a running turn / pending approval): each tick marks the
  * records stale and re-reads through the shared cache. Foreground-only — a hidden tab skips
@@ -20,8 +57,12 @@ import {shouldAdoptTranscript} from "./transcriptAdoption"
  * (`useSessionWatch`) can drive the exact same revalidate path push-style.
  */
 export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
-    const [messages, setMessages] = useState<UIMessage[]>([])
-    const [state, setState] = useState<"loading" | "ready" | "empty">("loading")
+    const [messages, setMessages] = useState<UIMessage[]>(
+        () => SNAPSHOTS.get(sessionId)?.messages ?? [],
+    )
+    const [state, setState] = useState<"loading" | "ready" | "empty" | "failed">(() =>
+        SNAPSHOTS.has(sessionId) ? "ready" : "loading",
+    )
     // Session-switch guard: a late resolve for a previous session must never land.
     const sessionRef = useRef(sessionId)
     sessionRef.current = sessionId
@@ -35,7 +76,8 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
     const messagesRef = useRef<UIMessage[]>([])
     // Records the rendered transcript was built from; `undefined` until the first adoption. This
     // is in-memory only — mobile persists no transcript, so there is nothing to file it against.
-    const watermarkRef = useRef<number | undefined>(undefined)
+    const recordCountRef = useRef<number | undefined>(undefined)
+    const sequenceCursorRef = useRef<number | undefined>(undefined)
 
     /**
      * Apply one delivery behind the shared adoption rule (`shouldAdoptTranscript`). Returns
@@ -47,11 +89,20 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
             if (sessionRef.current !== sessionId) return false
             const shouldAdopt = shouldAdoptTranscript(transcript, {
                 messageCount: messagesRef.current.length,
-                watermark: watermarkRef.current,
+                recordCount: recordCountRef.current,
+                sequenceCursor: sequenceCursorRef.current,
             })
             if (!shouldAdopt || !transcript) return false
-            watermarkRef.current = transcript.recordCount
+            recordCountRef.current = transcript.recordCount
+            if (transcript.sequenceCursor !== undefined)
+                sequenceCursorRef.current = transcript.sequenceCursor
             messagesRef.current = transcript.messages
+            rememberSnapshot(
+                sessionId,
+                transcript.messages,
+                recordCountRef.current,
+                sequenceCursorRef.current,
+            )
             setMessages(transcript.messages)
             setState("ready")
             return true
@@ -62,6 +113,9 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
     // adopter through a ref rather than closing over it.
     const adoptRef = useRef(adopt)
     adoptRef.current = adopt
+    // Bumped by `retry` to run the first load again.
+    const [attempt, setAttempt] = useState(0)
+    const retry = useCallback(() => setAttempt((n) => n + 1), [])
 
     useEffect(() => {
         let cancelled = false
@@ -69,27 +123,43 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
         // deliveries order-independent, and this flag keeps a stale empty result from blanking
         // a transcript the revalidation already adopted.
         let adopted = false
-        setState("loading")
-        setMessages([])
-        messagesRef.current = []
-        watermarkRef.current = undefined
-        void loadSessionMessages(sessionId, (fresh) => {
-            // Disk-restore revalidation re-delivery — fresh is non-empty by contract.
-            if (cancelled) return
-            if (adoptRef.current(fresh)) adopted = true
-        }).then((transcript) => {
-            if (cancelled) return
-            if (adoptRef.current(transcript)) {
-                adopted = true
-                return
-            }
-            // Nothing adopted from either delivery → no durable history for this session.
-            if (!adopted) setState("empty")
-        })
+        let failed = false
+        // Seeded from the last adopted transcript when we have one: the load below still runs and
+        // adopts anything newer, but the switch itself no longer empties the screen first.
+        const seeded = SNAPSHOTS.get(sessionId)
+        setState(seeded ? "ready" : "loading")
+        setMessages(seeded?.messages ?? [])
+        messagesRef.current = seeded?.messages ?? []
+        recordCountRef.current = seeded?.recordCount
+        sequenceCursorRef.current = seeded?.sequenceCursor
+        void loadSessionMessages(
+            sessionId,
+            (fresh) => {
+                // Disk-restore revalidation re-delivery — fresh is non-empty by contract.
+                if (cancelled) return
+                if (adoptRef.current(fresh)) adopted = true
+            },
+            () => {
+                failed = true
+            },
+        )
+            .then((transcript) => {
+                if (cancelled) return
+                if (adoptRef.current(transcript)) {
+                    adopted = true
+                    return
+                }
+                // Nothing adopted from either delivery → no durable history for this session. A
+                // seeded transcript is not that: an unchanged record log declines to adopt.
+                if (!adopted && !seeded) setState(failed ? "failed" : "empty")
+            })
+            .catch(() => {
+                if (!cancelled && !adopted && !seeded) setState("failed")
+            })
         return () => {
             cancelled = true
         }
-    }, [sessionId])
+    }, [sessionId, attempt])
 
     const refresh = useCallback(() => {
         if (document.visibilityState !== "visible") return
@@ -100,20 +170,23 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
         inFlightRef.current = true
         // Invalidate first so the shared-cache read refetches instead of serving staleTime.
         getDefaultStore().set(revalidateSessionRecordsAtom, sessionId)
-        void loadSessionMessages(sessionId)
-            .then((transcript) => {
-                adoptRef.current(transcript)
-            })
-            // A failed poll keeps what is on screen and waits for the next tick; swallowing it
-            // here keeps a transient 5xx from surfacing as an unhandled rejection every 3s.
-            .catch(() => undefined)
-            .finally(() => {
-                inFlightRef.current = false
-                if (pendingRef.current) {
-                    pendingRef.current = false
-                    if (sessionRef.current === sessionId) refresh()
-                }
-            })
+        void adoptTranscriptRead(
+            () => loadSessionMessages(sessionId),
+            (transcript) => {
+                // Only an ended turn reads the session turns (the footer's figures).
+                getDefaultStore().set(refreshSessionTurnsOnTurnEndAtom, {
+                    sessionId,
+                    messages: transcript.messages,
+                })
+                return adoptRef.current(transcript)
+            },
+        ).finally(() => {
+            inFlightRef.current = false
+            if (pendingRef.current) {
+                pendingRef.current = false
+                if (sessionRef.current === sessionId) refresh()
+            }
+        })
     }, [sessionId])
 
     useEffect(() => {
@@ -124,5 +197,49 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
         }
     }, [refresh, pollMs])
 
-    return {messages, state, refresh}
+    const applyInteractionStates = useCallback(
+        (rows: SessionInteractionRowStates) => {
+            if (sessionRef.current !== sessionId) return
+            const current = messagesRef.current
+            const reconciled = reconcileInteractionRowStates(current, rows)
+            if (reconciled === current) return
+            messagesRef.current = reconciled
+            setMessages(reconciled)
+        },
+        [sessionId],
+    )
+    const refreshInteractions = useCallback(async () => {
+        const store = getDefaultStore()
+        await store.set(revalidateSessionInteractionsAtom, sessionId)
+        applyInteractionStates(await store.set(fetchSessionInteractionStatesAtom, sessionId))
+    }, [applyInteractionStates, sessionId])
+    const interactionChanged = useCallback(
+        (event: MessageEvent<string>) => {
+            const pushed = interactionStatesFromWatchEvent(event.data, sessionId)
+            if (!pushed) {
+                void refreshInteractions()
+                return
+            }
+            applyInteractionStates(pushed)
+            void getDefaultStore().set(revalidateSessionInteractionsAtom, sessionId)
+        },
+        [applyInteractionStates, refreshInteractions, sessionId],
+    )
+    const interactionGateOpen = isHitlPending(messages)
+    useEffect(() => {
+        if (!interactionGateOpen) return
+        let cancelled = false
+        let timer: ReturnType<typeof setTimeout> | undefined
+        const poll = async () => {
+            await refreshInteractions().catch(() => undefined)
+            if (!cancelled) timer = setTimeout(poll, INTERACTION_GATE_POLL_MS)
+        }
+        timer = setTimeout(poll, INTERACTION_GATE_POLL_MS)
+        return () => {
+            cancelled = true
+            if (timer) clearTimeout(timer)
+        }
+    }, [interactionGateOpen, refreshInteractions])
+
+    return {messages, state, refresh, retry, interactionChanged}
 }

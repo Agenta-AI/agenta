@@ -3,7 +3,6 @@ import {join} from "node:path"
 
 import {describe, expect, it} from "vitest"
 
-import {buildFormFieldsFromSchema} from "../../src/utils/gatewayToolSchema"
 import {
     ELICITATION_RENDER_KIND,
     SECRET_FIELD_PATTERN,
@@ -15,9 +14,9 @@ import {
     hasPriorElicitationDegradation,
     normalizeStringFormat,
     parseElicitationPayload,
-    partitionElicitationDraft,
     serializeElicitationContent,
 } from "../../src/utils/elicitation"
+import {buildFormFieldsFromSchema} from "../../src/utils/gatewayToolSchema"
 
 const fixture = (name: string) =>
     JSON.parse(readFileSync(join(__dirname, "..", "fixtures", name), "utf-8"))
@@ -326,6 +325,75 @@ describe("parseElicitationPayload", () => {
         expect(parsed.channels.items?.enum).toEqual(["slack", "email"])
     })
 
+    it("accepts the stepper + choice-card payload from the PR-reviewer session verbatim", () => {
+        // Verbatim `request_input` input from session a21da9cd (the "not handled" report): a
+        // stepper form whose two choice fields use the oneOf/const idiom with defaults. It must
+        // parse and build fields — a widget that can't render this settles a degradation instead.
+        const payload = {
+            message: "To configure the PR reviewer, tell me which repository to monitor.",
+            requestedSchema: {
+                type: "object",
+                required: ["repository", "review_posture", "risk_criteria"],
+                properties: {
+                    repository: {
+                        type: "string",
+                        title: "Repository",
+                        description: "GitHub repository in owner/repo form.",
+                    },
+                    risk_criteria: {
+                        type: "string",
+                        title: "Risk criteria",
+                        default: "diff",
+                        oneOf: [
+                            {
+                                const: "diff",
+                                title: "Discover from the diff (recommended)",
+                                description: "Prioritize auth, secrets, migrations, deletions.",
+                            },
+                            {
+                                const: "security",
+                                title: "Security-sensitive review",
+                                description: "Emphasize auth, secrets, permissions, migrations.",
+                            },
+                        ],
+                    },
+                    review_posture: {
+                        type: "string",
+                        title: "Review posture",
+                        default: "advisory",
+                        oneOf: [
+                            {const: "advisory", title: "Advisory comments (recommended)"},
+                            {const: "blocking", title: "Request changes when tests are missing"},
+                        ],
+                    },
+                },
+                "x-ag-stepper": true,
+            },
+        }
+        const result = parseElicitationPayload(payload)
+        expect(result.ok).toBe(true)
+        if (!result.ok) return
+        expect(result.payload.requestedSchema["x-ag-stepper"]).toBe(true)
+        expect(result.payload.requestedSchema.properties.risk_criteria.enum).toEqual([
+            "diff",
+            "security",
+        ])
+        const fields = buildFormFieldsFromSchema(
+            result.payload.requestedSchema as unknown as Record<string, unknown>,
+            "",
+            {formats: true, openEnums: true},
+        )
+        expect(fields.map((f) => f.name).sort()).toEqual([
+            "repository",
+            "review_posture",
+            "risk_criteria",
+        ])
+        expect(fields.find((f) => f.name === "review_posture")?.enumValues).toEqual([
+            "advisory",
+            "blocking",
+        ])
+    })
+
     it("rejects malformed oneOf options", () => {
         const payload = validPayload()
         ;(payload.requestedSchema.properties as Record<string, unknown>).process = {
@@ -376,7 +444,7 @@ describe("parseElicitationPayload", () => {
         ;(byName.requestedSchema.properties as Record<string, unknown>).api_key = {type: "string"}
         expect(parseElicitationPayload(byName)).toEqual({
             ok: false,
-            reason: 'property "api_key" is secret-shaped — use a connect flow',
+            reason: 'property "api_key" is secret-shaped — do not retry the form; use request_secret or request_connection',
         })
         const byTitle = validPayload()
         ;(byTitle.requestedSchema.properties as Record<string, unknown>).value = {
@@ -537,37 +605,6 @@ describe("serializeElicitationContent", () => {
         expect(serializeElicitationContent(result.payload, {at: {toISOString: () => iso}})).toEqual(
             {at: iso},
         )
-    })
-})
-
-describe("partitionElicitationDraft", () => {
-    const payload = {
-        message: "m",
-        requestedSchema: {
-            type: "object" as const,
-            properties: {
-                due: {type: "string" as const, format: "date"},
-                at: {type: "string" as const, format: "date-time"},
-                name: {type: "string" as const},
-            },
-        },
-    }
-
-    it("routes ISO strings on date fields to dates (caller revives), the rest to plain", () => {
-        const {plain, dates} = partitionElicitationDraft(payload, {
-            due: "2026-07-11",
-            at: "2026-07-11T09:00:00.000Z",
-            name: "Ada",
-            ghost: "kept",
-        })
-        expect(dates).toEqual({due: "2026-07-11", at: "2026-07-11T09:00:00.000Z"})
-        expect(plain).toEqual({name: "Ada", ghost: "kept"})
-    })
-
-    it("non-string values on date fields stay plain (tolerant)", () => {
-        const {plain, dates} = partitionElicitationDraft(payload, {due: 42})
-        expect(dates).toEqual({})
-        expect(plain).toEqual({due: 42})
     })
 })
 

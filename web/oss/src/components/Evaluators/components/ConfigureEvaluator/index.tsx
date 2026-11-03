@@ -104,7 +104,7 @@ const ConfigureEvaluatorPageInner = () => {
         <OSSPlaygroundShell providers={providers}>
             {/* Definite height, not `h-full`: the chain would collapse to content height and
              * strand the empty state at the top. 29px matches Layout's full-height frame. */}
-            <div className="flex flex-col w-full h-[calc(100dvh-29px)] overflow-hidden">
+            <div className="flex flex-col w-full h-[calc(var(--ag-viewport-height,100dvh)-29px)] overflow-hidden">
                 <EvaluatorPlaygroundHeader />
                 <PlaygroundMainView
                     mode="evaluator"

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "error-triage",
+  "version": "1.0.0",
+  "description": "Triages every new Sentry error by severity and files a ticket for the ones that are real.",
+  "author": {
+    "name": "Agenta"
+  },
+  "license": "Apache-2.0",
+  "keywords": [
+    "engineering",
+    "agent-template"
+  ],
+  "extensions": {
+    "ai.agenta": {
+      "manifest": "./ai.agenta/agents.json"
+    }
+  }
+}

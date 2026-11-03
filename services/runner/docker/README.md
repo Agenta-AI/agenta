@@ -7,6 +7,12 @@ Images for the agent runner (the `sandbox-agent server` runtime in
 - `Dockerfile.dev` — dev image. `tsx watch`, source bind-mounted, hot reload.
 - `Dockerfile.gh` — production image. Source baked in, no watcher.
 
+Both images, and the Daytona snapshot recipe, install the agent-facing tools from ONE file,
+`images/sandbox/install-agent-tools.sh` (gh, uv, fd, ripgrep, the pinned Python set, the node
+toolchain, ffmpeg, poppler, tesseract, and one Chromium under `PLAYWRIGHT_BROWSERS_PATH`). Change
+a pin there, never in a Dockerfile, so the local sandbox (this container) and the Daytona sandbox
+stay identical. Each section of that script asserts its pin at build time.
+
 ## Licensing posture (read before changing any image or build recipe)
 
 The rule that shapes every image here:
@@ -25,7 +31,7 @@ Why:
   redistribute, resell, sublicense, or repackage the Services. So an image **we
   build and distribute must not contain Claude Code.**
 - Claude Code is installed **from Anthropic** (`npm install -g
-  @anthropic-ai/claude-code`, `https://claude.ai/install.sh`, or the daemon's
+@anthropic-ai/claude-code`, `https://claude.ai/install.sh`, or the daemon's
   `install-agent claude`). That keeps Anthropic as the distributor, which is the
   permitted path. The production sidecar does this at runtime; a snapshot we build
   for our own use does it at build time.

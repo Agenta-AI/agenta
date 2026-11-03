@@ -18,8 +18,24 @@ function randomSuffix(length: number): string {
 }
 
 /**
- * Converts a display name to a URL-safe slug base.
- * Result is lowercase, hyphen-separated, no leading/trailing hyphens.
+ * Sanitized, kebab-cased slug base (no random suffix), matching the BACKEND slug
+ * normalization: NFKD-normalize, drop non-word chars (keeps `_`, drops `.`), collapse
+ * hyphen/whitespace runs. Use this when the backend derives the same slug from the same
+ * name (vault secrets); use `slugifyName` for client-generated entity slugs.
+ */
+export function slugifyBase(name: string): string {
+    return name
+        ?.normalize("NFKD")
+        .replace(/[^\w\s-]/g, "")
+        .trim()
+        .toLowerCase()
+        .replace(/[-\s]+/g, "-")
+}
+
+/**
+ * Converts a display name to a URL-safe slug base for CLIENT-generated entity slugs (it
+ * keeps `.` and strips leading/trailing hyphens, so it satisfies `isValidSlug`). The
+ * suffix helpers below all build on this one. For backend parity use `slugifyBase`.
  */
 export function slugifyName(name: string): string {
     return name
@@ -86,4 +102,19 @@ export function isValidSlug(slug: string): boolean {
     if (slug.length < 1 || slug.length > 255) return false
     if (/\.{2,}|-{2,}/.test(slug)) return false
     return /^[a-z0-9][a-z0-9_.\-]*[a-z0-9]$/.test(slug) || /^[a-z0-9]$/.test(slug)
+}
+
+/**
+ * Converts an arbitrary label into an env-var-style name: `x-api-key` -> `X_API_KEY`.
+ *
+ * Splits on separator runs rather than collapsing then trimming them: dropping the empty
+ * segments strips leading/trailing separators for free, and it keeps the whole thing linear
+ * (a trailing `_+$` trim is polynomial-time on separator runs, which CodeQL flags).
+ */
+export function toEnvVarName(value: string): string {
+    return value
+        .split(/[^A-Za-z0-9]+/)
+        .filter(Boolean)
+        .join("_")
+        .toUpperCase()
 }

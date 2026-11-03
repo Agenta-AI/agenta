@@ -1,95 +1,106 @@
 /**
- * Skin registration shapes (WP3a-C5).
+ * Skin registration shapes for the three chat registries — clientTools, approvals, toolDisplay.
+ * Skins populate the store through `registerChatSkin` (./registry.ts).
+ */
+import type {ClientToolWidget} from "@agenta/shared/clientTools"
+
+/**
+ * The client-tool widget contract is DEFINED in @agenta/shared/clientTools and re-exported here, so
+ * that hosts and skins keep one import site (`@agenta/chat/skin`) while the widget package
+ * (@agenta/entity-ui) can reach the same types without depending on @agenta/chat. The dispatcher
+ * here already imports those widgets by value; a dependency back the other way is a workspace
+ * package cycle, which pnpm materializes as an endless node_modules symlink chain and which sends
+ * the production webpack build into a non-terminating directory walk. See
+ * `web/packages/agenta-shared/tests/unit/workspaceGraph.test.ts`.
+ */
+export type {
+    ClientToolMeta,
+    ClientToolWidget,
+    ClientToolWidgetProps,
+    SettleClientTool,
+} from "@agenta/shared/clientTools"
+
+/** One readable row behind the approval card's "See what changes" toggle. */
+export interface ApprovalPreviewItem {
+    /** Short noun phrase naming the change, e.g. `New skill · deslope`. */
+    title: string
+    /** One sentence saying what it means for the user. */
+    detail?: string
+}
+
+/**
+ * What the approval card renders — plain language, no payload. One shell serves every tool and
+ * every host, so a describer returns DATA, never JSX: there is no mode in which the card shows
+ * raw arguments, a diff, or a digest.
+ */
+export interface ApprovalPreview {
+    /** One sentence: what happens if you approve, and what it costs. */
+    sentence: string
+    /** The rows behind the toggle. Empty hides the toggle entirely. */
+    items: ApprovalPreviewItem[]
+    /** Integration slug the card looks up, then re-describes with `appName`. */
+    sourceKey?: string
+}
+
+/**
+ * One approval registry entry: a pure function from the gate's payload to what the card says.
+ * Returning `null` falls back to the generic describer, so a describer that cannot read its own
+ * payload degrades instead of guessing.
  *
- * Generalized from the three OSS chat registries — clientTools, approvals, toolDisplay (see
- * `web/oss/src/components/AgentChatSlice/components/clientTools/{registry.tsx,types.ts}`,
- * `.../components/approvals/registry.tsx`, `.../assets/toolDisplay.ts`) — with `Handler`/`Renderer`
- * renamed to `Widget`/`Entry` and no OSS import (this package never imports from `web/oss`). The
- * OSS registries keep running standalone until the desktop re-plumb PR switches them onto this
- * store; until then `registerChatSkin` (./registry.ts) is called by nobody and the store stays
- * empty — skins (mobile shadcn first) populate it.
+ * `appName` is the catalog name, which answers late: resolve once, report `sourceKey`, get called
+ * again with the name. Same contract as `resolveToolDisplay`.
  */
-import type {ComponentType, ReactNode} from "react"
+export type ApprovalDescriber = (
+    input: unknown,
+    manifest: unknown,
+    appName?: string,
+) => ApprovalPreview | null
 
-import type {ToolUIPart} from "ai"
+/** Best-effort tool family, inferred from the wire-name shape and the call's arguments. */
+export type ToolKind = "gateway" | "mcp" | "platform" | "shell" | "file"
+
+/** The row's sentence in both tenses. The done form says what was attempted, not that it worked. */
+export interface ToolActivity {
+    running: string
+    done: string
+}
+
+/** The closed set of activity-step glyphs, chosen by kind and canonical name, never per raw tool. */
+export type ActivityIcon =
+    | "brain"
+    | "terminal"
+    | "file-read"
+    | "file-write"
+    | "file-list"
+    | "file-search"
+    | "web-search"
+    | "web-fetch"
+    | "subtask"
+    | "agent"
+    | "task-list"
+    | "commit"
+    | "config"
+    | "rename"
+    | "test"
+    | "schedule"
+    | "trigger"
+    | "runs"
+    | "annotation"
+    | "deliveries"
+    | "tool-search"
+    | "connections"
+    | "gateway"
+    | "mcp"
+    | "platform"
+    | "ask"
+    | "connect"
+    | "secret"
 
 /**
- * Normalised view of a tool part a client-tool widget reads, mirroring OSS's `ClientToolMeta`
- * (`clientTools/types.ts`). Structural (no `ai` dependency beyond the raw part) so a skin widget
- * and the resolvers agree on one shape.
- */
-export interface ClientToolMeta {
-    toolCallId: string
-    toolName: string
-    /** The `render.kind` hint (from a sibling `data-render` part), checked before `toolName`. */
-    renderKind?: string
-    state: string
-    input: unknown
-    output: unknown
-    /** A result already settled it (`output-available`/`output-error`). */
-    settled: boolean
-    /** The raw part, for widgets that need fields beyond the normalised view. */
-    part: ToolUIPart
-}
-
-/** Settle the parked part. Mirrors OSS `SettleClientTool`: exactly one of `output`/`errorText`. */
-export interface SettleClientTool {
-    (args: {output: Record<string, unknown>}): void
-    (args: {errorText: string}): void
-}
-
-/** Props every client-tool widget receives — mirrors OSS `ClientToolHandlerProps`. */
-export interface ClientToolWidgetProps {
-    meta: ClientToolMeta
-    /** Settle the part (resumes the run). No-op once already settled. */
-    settle: SettleClientTool
-    /** An earlier part in this turn already auto-settled as a degradation; the widget should park
-     * (visible notice, no auto-settle) instead of looping. */
-    degradedEarlierInTurn?: boolean
-}
-
-/**
- * What the OSS clientTools registry actually stores per entry: a bare component (see
- * `BY_RENDER_KIND`/`BY_TOOL_NAME` in `clientTools/registry.tsx`, both
- * `Record<string, ComponentType<ClientToolHandlerProps>>` — no separate per-entry metadata; "meta"
- * only exists as the `meta: ClientToolMeta` prop the component receives, captured above in
- * `ClientToolWidgetProps`).
- */
-export type ClientToolWidget = ComponentType<ClientToolWidgetProps>
-
-/** Props an approval body receives — mirrors OSS `ApprovalBodyProps`. */
-export interface ApprovalBodyProps {
-    /** The exact tool input the user is approving. */
-    input: unknown
-    /** Selected agent revision — specialized bodies diff payloads against its committed config. */
-    entityId: string
-    /** The dock's generic payload block — render it verbatim when the payload can't be previewed. */
-    fallback: ReactNode
-}
-
-/**
- * One approval registry entry — mirrors OSS `ApprovalRenderer` (`approvals/registry.tsx`) field for
- * field: a `Body` plus the two copy overrides the OSS registry actually has. It has no `summary` or
- * other fields; do not add any without a corresponding OSS field to mirror.
- */
-export interface ApprovalBodyEntry {
-    Body: ComponentType<ApprovalBodyProps>
-    /** Replaces "The agent wants to run this tool before it can keep going."; null = Body owns it. */
-    headline?: string | null
-    approveLabel?: string
-}
-
-/** Best-effort tool family, inferred from the wire-name shape only — mirrors OSS `ToolKind`. */
-export type ToolKind = "gateway" | "mcp" | "platform"
-
-/**
- * One toolDisplay registry entry — mirrors the *registration-time* shape OSS actually stores in its
- * `BY_TOOL_NAME` map (`toolDisplay.ts`'s unexported `ToolDisplayOverride`: `{label?; source?;
- * summary?}`), generalized with an optional `kind` override since a skin registration is not
- * required to restate `raw` (it IS the record key in `ChatSkinRegistration.toolDisplay`) or force a
- * default's inferred `kind`. All fields are optional: an entry may override just one piece (OSS's
- * `commit_revision` entry, for example, overrides only `summary`) and the resolver fills the rest
- * from the parsed name shape (see `resolveToolDisplay` in `./registry.ts`).
+ * One toolDisplay registry entry. A skin registration is not required to restate `raw` (it IS the
+ * record key in `ChatSkinRegistration.toolDisplay`) or force a default's inferred `kind`. All
+ * fields are optional: an entry may override just one piece (e.g. only `summary`) and the resolver
+ * fills the rest from the parsed name shape (see `resolveToolDisplay` in `./registry.ts`).
  */
 export interface ToolDisplayEntry {
     /** Humanized action label ("Fetch emails"); overrides the parsed default when present. */
@@ -97,37 +108,55 @@ export interface ToolDisplayEntry {
     /** Where the tool comes from ("Gmail", "Linear · MCP"); overrides the parsed default. */
     source?: string
     kind?: ToolKind
+    /** The row's sentence; a function gets the app's name (undefined until known) and may decline. */
+    activity?: ToolActivity | ((appName?: string) => ToolActivity | undefined)
+    /** The app this call is about; `action` is a tool it reported, or with `ran`, called. */
+    app?: (input: unknown, output: unknown) => {slug?: string; action?: string; ran?: boolean}
     /** Friendly one-liner for a settled row; null/absent falls back to the generic summary. */
     summary?: (input: unknown, output: unknown) => string | null
+    /** The verb forms a static `activity` opens with, so a row can bold what follows. */
+    verb?: ToolActivity
+    /** The step glyph; overrides the kind's default. */
+    icon?: ActivityIcon
 }
 
 /**
- * A resolved toolDisplay — the full shape `resolveToolDisplay` returns, mirroring OSS's public
- * `ToolDisplay` interface (`raw`/`kind`/`label` always present; `source`/`summary` still optional).
+ * A resolved toolDisplay — the full shape `resolveToolDisplay` returns (`raw`/`kind`/`label`
+ * always present; `source`/`summary` still optional).
  */
 export interface ResolvedToolDisplay {
     label: string
     source?: string
+    /** A tool-catalog integration slug ("github"); look it up for the app's real spelling. */
+    sourceKey?: string
     raw: string
     kind: ToolKind
+    /** Plain-English sentence for the activity row. Falls back to `label` when none is known. */
+    activity: ToolActivity
+    /** Short technical detail for the row's secondary slot (a command, a filename). */
+    detail?: string
     summary?: (input: unknown, output: unknown) => string | null
+    /** The verb alone, in both tenses, when the sentence was built from one. */
+    verb?: ToolActivity
+    /** The step glyph, from the override or the kind's default. */
+    icon: ActivityIcon
 }
 
 /**
- * Everything one skin contributes to the shared chat registries. Mirrors the OSS two-level
- * clientTools split (a render-kind map checked first, then a tool-name map — see
- * `resolveClientToolHandler`'s precedence in `clientTools/registry.tsx`) rather than inventing a
- * different nesting.
+ * Everything one skin contributes to the shared chat registries. clientTools is two-level: a
+ * render-kind map checked first, then a tool-name map.
  */
 export interface ChatSkinRegistration {
     clientTools?: {
-        /** Checked first — the finer dispatch axis (mirrors OSS `BY_RENDER_KIND`). */
+        /** Checked first — the finer dispatch axis. */
         byRenderKind?: Record<string, ClientToolWidget>
-        /** Checked when no render-kind hint matched (mirrors OSS `BY_TOOL_NAME`). */
+        /** Checked when no render-kind hint matched. */
         byToolName?: Record<string, ClientToolWidget>
     }
-    /** Tool name → approval body renderer + copy overrides (mirrors OSS `BY_TOOL_NAME`). */
-    approvals?: Record<string, ApprovalBodyEntry>
-    /** Raw tool name → display override (mirrors OSS `BY_TOOL_NAME`). */
+    /** Tool name → the describer that turns its payload into the card's plain-English copy. */
+    approvals?: Record<string, ApprovalDescriber>
+    /** Raw tool name → display override. */
     toolDisplay?: Record<string, ToolDisplayEntry>
+    /** Connected integration slugs: a bare tool name carrying one (`list-devto-articles`) is that app's. */
+    appHints?: string[]
 }
