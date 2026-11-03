@@ -83,7 +83,11 @@ export const snapshotTriggerAtom = atom((get) => [
  * address then would replace the hash with one that has lost them.
  */
 export const hasPendingRestore = (store: Store): boolean => {
-    const ids = new Set(store.get(playgroundController.selectors.entityIds()))
+    // The evaluators after the app count too: their drafts are in the snapshot.
+    const ids = new Set([
+        ...store.get(playgroundController.selectors.entityIds()),
+        ...store.get(playgroundController.selectors.nodes()).map((node) => node.entityId),
+    ])
     for (const pending of store.get(pendingHydrationsAtom).values()) {
         if (ids.has(pending.sourceRevisionId)) return true
         if (pending.placeholderId && ids.has(pending.placeholderId)) return true
@@ -96,9 +100,13 @@ export const hasPendingRestore = (store: Store): boolean => {
  * the app, and its test set or rows. The drafts wait for their revision data (see
  * `syncSnapshotDrafts`). Returns null when the snapshot cannot be read, so the caller opens the
  * address's revisions instead; otherwise a promise that settles when the test cases are back, or
- * when the page has moved on and they are no longer wanted.
+ * when `isWanted` turns false (the page was left or set up again) and they are dropped.
  */
-export const restoreSnapshot = (store: Store, encoded: string): Promise<void> | null => {
+export const restoreSnapshot = (
+    store: Store,
+    encoded: string,
+    isWanted: () => boolean,
+): Promise<void> | null => {
     const result = store.set(urlSnapshotController.actions.hydrateFromUrl, encoded)
     const entities = result.entities ?? []
     const rootIds = entities.filter((entity) => !entity.depth).map((entity) => entity.id)
@@ -130,41 +138,41 @@ export const restoreSnapshot = (store: Store, encoded: string): Promise<void> | 
         if (connected) nodeAtDepth.set(depth, connected.nodeId)
     }
 
-    // The rows belong to this page's test set only: a page left meanwhile changes the id.
     const loadableId = store.get(playgroundController.selectors.loadableId())
-    const isCurrent = () => store.get(playgroundController.selectors.loadableId()) === loadableId
 
     const {localTestset, loadable} = result
     if (localTestset) {
         // Chat rows become a conversation only when the revision is known to be a chat app.
-        return whenModeKnown(store, isCurrent).then((current) => {
-            if (current) store.set(playgroundController.actions.restoreLocalTestset, localTestset)
+        return whenModeKnown(store, isWanted).then((wanted) => {
+            if (wanted) store.set(playgroundController.actions.restoreLocalTestset, localTestset)
         })
     }
     if (!loadable) return Promise.resolve()
     return store
-        .set(playgroundController.actions.restoreLoadableConnection, loadable)
+        .set(playgroundController.actions.restoreLoadableConnection, loadable, {
+            isCurrent: isWanted,
+        })
         .then(() => undefined)
         .catch(() => {
             // The test set is gone or unreadable: an empty row, so there is still something to run.
-            if (loadableId && isCurrent()) {
+            if (loadableId && isWanted()) {
                 store.set(playgroundController.actions.addRowWithInit, {loadableId})
             }
         })
 }
 
 /**
- * Settles once the primary revision says whether it is a chat app (true), or once the page has
- * moved on to other revisions (false).
+ * Settles once the primary revision says whether it is a chat app (true), or once the restore is
+ * no longer wanted (false). Leaving clears the selection, which wakes the wait up to give up.
  */
-const whenModeKnown = (store: Store, isCurrent: () => boolean) =>
+const whenModeKnown = (store: Store, isWanted: () => boolean) =>
     new Promise<boolean>((resolve) => {
         const unsubscribes: (() => void)[] = []
         const check = () => {
-            const current = isCurrent()
-            if (current && store.get(executionController.selectors.isChatMode) === undefined) return
+            const wanted = isWanted()
+            if (wanted && store.get(executionController.selectors.isChatMode) === undefined) return
             for (const unsubscribe of unsubscribes) unsubscribe()
-            resolve(current)
+            resolve(wanted)
         }
         unsubscribes.push(
             store.sub(executionController.selectors.isChatMode, check),

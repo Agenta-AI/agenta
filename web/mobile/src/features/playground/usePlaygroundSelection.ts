@@ -132,13 +132,17 @@ export const usePlaygroundSelection = ({appId}: {appId: string}): PlaygroundSele
         if (!router.isReady || !appUsable) return
         setUpForAppRef.current = appId
         setUpAddressRef.current = `${window.location.pathname}${window.location.search}${window.location.hash}`
+        // This set-up's own token: a restore that outlives it (the page was left, or a link set it
+        // up again) drops its result and leaves the next set-up's state alone.
+        let wanted = true
+        const isWanted = () => wanted
         const stopDrafts = syncSnapshotDrafts(store)
         const encoded = readSnapshotParam(window.location.hash)
-        const restoring = encoded ? restoreSnapshot(store, encoded) : null
+        const restoring = encoded ? restoreSnapshot(store, encoded, isWanted) : null
         if (restoring) {
             restoringRef.current = true
             void restoring.finally(() => {
-                restoringRef.current = false
+                if (wanted) restoringRef.current = false
             })
         } else {
             const requested = parseRevisionIds(routerRef.current.query.revisions)
@@ -146,6 +150,7 @@ export const usePlaygroundSelection = ({appId}: {appId: string}): PlaygroundSele
         }
         store.set(playgroundInitializedAtom, true)
         return () => {
+            wanted = false
             setUpForAppRef.current = null
             restoringRef.current = false
             stopDrafts()
@@ -191,6 +196,9 @@ export const usePlaygroundSelection = ({appId}: {appId: string}): PlaygroundSele
             ) {
                 return
             }
+            // From now on the address is the page's own: a link to the address it opened with is a
+            // new visit.
+            setUpAddressRef.current = ""
             void routerRef.current
                 .replace(
                     {
@@ -218,7 +226,7 @@ export const usePlaygroundSelection = ({appId}: {appId: string}): PlaygroundSele
             events?.off("routeChangeComplete", schedule)
             clearTimeout(timer)
         }
-    }, [appId, appUsable, router.isReady, store, visit])
+    }, [appId, appUsable, router.isReady, store])
 
     // Only this screen's requests: the app, its latest revision, and the selected revisions.
     const retry = useCallback(() => {

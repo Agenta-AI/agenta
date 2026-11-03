@@ -419,4 +419,38 @@ describe("evaluators in a snapshot", () => {
         ])
         expect(selection.revisionIds).toEqual(["rev-1"])
     })
+
+    it("The address keeps an evaluator draft until its revision loads", async () => {
+        const hash = snapshotHash({
+            selection: [
+                {
+                    kind: "commit",
+                    id: "rev-1",
+                    runnableType: "workflow",
+                    depth: 0,
+                    entityType: "workflow",
+                },
+                {
+                    kind: "draft",
+                    draftKey: "dk-ev",
+                    runnableType: "workflow",
+                    depth: 1,
+                    entityType: "workflow",
+                },
+            ],
+            drafts: [
+                {
+                    draftKey: "dk-ev",
+                    sourceRevisionId: "ev-slow",
+                    runnableType: "workflow",
+                    patch: {parameters: {threshold: 0.8}},
+                },
+            ],
+        })
+        setHash(hash)
+        await mount("app-1", "rev-1")
+
+        // `ev-slow` never answers here: the hash must stay the one that holds its draft.
+        expect(window.location.hash).toBe(`#${hash}`)
+    })
 })

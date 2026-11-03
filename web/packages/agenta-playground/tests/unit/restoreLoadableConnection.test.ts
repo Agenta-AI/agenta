@@ -30,18 +30,18 @@ const REVISION_ID = "rev-1"
 const LOADABLE_ID = `testset:workflow:${REVISION_ID}`
 const TESTSET_REVISION_ID = "11111111-1111-4111-8111-111111111111"
 
-const restore = (store: ReturnType<typeof createStore>) => {
+const restore = (store: ReturnType<typeof createStore>, isCurrent?: () => boolean) => {
     store.set(projectIdAtom, "proj-1")
     store.set(
         playgroundController.actions.addPrimaryNode,
         {type: "workflow", id: REVISION_ID, label: "Prompt"},
         {skipInitialRow: true},
     )
-    return store.set(playgroundController.actions.restoreLoadableConnection, {
-        revisionId: TESTSET_REVISION_ID,
-        sourceName: "Countries v1",
-        testsetId: "ts-1",
-    })
+    return store.set(
+        playgroundController.actions.restoreLoadableConnection,
+        {revisionId: TESTSET_REVISION_ID, sourceName: "Countries v1", testsetId: "ts-1"},
+        isCurrent ? {isCurrent} : undefined,
+    )
 }
 
 describe("restoreLoadableConnection", () => {
@@ -59,6 +59,19 @@ describe("restoreLoadableConnection", () => {
         const store = createStore()
         const done = restore(store)
         store.set(playgroundController.actions.resetAll)
+        page.release()
+        await done
+
+        const source = store.get(loadableController.selectors.connectedSource(LOADABLE_ID))
+        expect(source.id).toBeNull()
+    })
+
+    it("connects nothing when the caller says the restore is no longer wanted", async () => {
+        const store = createStore()
+        let wanted = true
+        const done = restore(store, () => wanted)
+        // The same revision opens again: the loadable id is unchanged.
+        wanted = false
         page.release()
         await done
 

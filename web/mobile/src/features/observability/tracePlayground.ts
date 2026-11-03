@@ -25,9 +25,6 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const hasAgentSpan = (span: TraceSpanNode): boolean =>
     span.span_type === "agent" || (span.children ?? []).some(hasAgentSpan)
 
-/** The span types whose inputs match an app's inputs (the package's invocation spans). */
-const INVOCATION_SPAN_TYPES = new Set(["workflow", "task", "agent", "chain"])
-
 /**
  * The span's inputs as a test case: the template inputs, with the chat messages beside them
  * when the span nests them (`{inputs, messages, parameters}`), and without a prompt template
@@ -70,9 +67,9 @@ export const tracePlaygroundTarget = ({
     refs: {appId: string | null; revisionId: string | null}
 }): TracePlaygroundTarget => {
     const {appId, revisionId} = refs
-    if (span.span_type && !INVOCATION_SPAN_TYPES.has(span.span_type)) {
-        return {kind: "span-type", spanType: span.span_type}
-    }
+    // The drawer's button allows a chat span, which /w replays as a copy in its revision drawer.
+    // /m has no such drawer, and the span's prompt inputs do not fit the app's inputs.
+    if (span.span_type === "chat") return {kind: "span-type", spanType: span.span_type}
     if (!appId) return {kind: "no-app"}
     // An agent run replays in the agent chat (decision F-D4).
     if (hasAgentSpan(span)) return {kind: "link", href: agentEntryHref(base, appId)}
