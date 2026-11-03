@@ -16,6 +16,11 @@ export const HumanEvaluatorPicker = (props: {
         showWorkflowMeta: true,
     })
     return (
-        <EvaluatorPicker adapter={adapter} instanceId="new-evaluation-human-evaluator" {...props} />
+        <EvaluatorPicker
+            adapter={adapter}
+            instanceId="new-evaluation-human-evaluator"
+            allowSelectAll={false}
+            {...props}
+        />
     )
 }

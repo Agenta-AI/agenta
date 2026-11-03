@@ -71,6 +71,7 @@ describe("evaluators section", () => {
         wizardData.evaluatorCount = 2
         await mount(section("auto"))
         expect(Object.keys(pickers.latest)).toEqual(["new-evaluation-auto-evaluator"])
+        expect(pickers.latest["new-evaluation-auto-evaluator"].showChildSelectAll).toBe(true)
     })
 
     it("Human mode lists human evaluators with their metric summary", async () => {
@@ -81,6 +82,9 @@ describe("evaluators section", () => {
 
         const adapter = picker.adapter as {kind: string}
         expect(adapter.kind).toBe("human")
+        // A human run takes one revision of each evaluator, so there is no select all.
+        expect(picker.showChildSelectAll).toBe(false)
+        expect(picker.showParentCheckboxes).toBe(false)
     })
 
     it("The evaluator label shows the name, the version and the metrics of a human evaluator", async () => {

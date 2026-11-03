@@ -28,11 +28,17 @@ const toast = vi.hoisted(() => ({
     notification: {error: vi.fn()},
 }))
 const nav = vi.hoisted(() => ({push: vi.fn()}))
+// The vault is read through the generated API client, not axios: this is its HTTP seam.
+const vault = vi.hoisted(() => ({listSecrets: vi.fn()}))
 
 vi.mock("@agenta/shared/api", async (original) => ({
     ...(await original<object>()),
     axios: http,
     getAgentaApiUrl: () => "https://api.test",
+}))
+vi.mock("@agenta/sdk/resources", async (original) => ({
+    ...(await original<object>()),
+    getSecretsClient: () => vault,
 }))
 vi.mock("@agenta/ui/app-message", () => toast)
 vi.mock("next/router", () => ({useRouter: () => ({push: nav.push, query: {}})}))
@@ -58,7 +64,6 @@ const evaluatorPick: DraftEvaluator = {
     evaluatorId: ID.evaluator,
     name: "Exact match",
     version: 2,
-    isHuman: false,
 }
 
 let host: HTMLDivElement
@@ -141,6 +146,7 @@ const mockApi = (overrides: Record<string, (body: unknown) => unknown> = {}) => 
         }
     })
     http.get.mockResolvedValue({data: []})
+    vault.listSecrets.mockResolvedValue([])
 }
 
 const build = (kind: NewEvaluationKind, ...actions: NewEvaluationAction[]): NewEvaluationDraft =>
@@ -353,6 +359,44 @@ describe("starting an auto evaluation", () => {
     })
 })
 
+describe("the provider key check", () => {
+    const aiCritiqueDraft = () => {
+        const draft = filled("auto")
+        return {...draft, revisions: [draft.revisions[0]]}
+    }
+
+    it("An AI critique evaluator with a legacy key shows LLM Key Missing too", async () => {
+        client.setQueryData(["workflows", "revision", ID.evaluatorRevision, "pr"], {
+            id: ID.evaluatorRevision,
+            workflow_id: ID.evaluator,
+            flags: {is_evaluator: true},
+            data: {uri: "agenta:builtin:auto_ai_critique:v0"},
+        })
+
+        const result = await startWith(aiCritiqueDraft())
+
+        expect(result).toEqual({status: "blocked"})
+    })
+
+    it("An AI critique evaluator in a project that has an LLM key starts the run", async () => {
+        seedWorkflows({is_llm: true})
+        vault.listSecrets.mockResolvedValue([
+            {
+                id: "secret-1",
+                kind: "provider_key",
+                value_status: {configured: true, preview: "sk-...test"},
+                data: {kind: "openai", provider: {key: "sk-test"}},
+            },
+        ])
+
+        const result = await startWith(aiCritiqueDraft())
+
+        expect(result).toEqual({status: "started", kind: "auto"})
+        expect(toast.notification.error).not.toHaveBeenCalled()
+        expect(requests("/simple/evaluations/")).toHaveLength(1)
+    })
+})
+
 describe("starting a human evaluation", () => {
     const inputKey = "greetings-444444444444"
     const invocationKey = "default-22222222aaaa"
@@ -460,6 +504,20 @@ describe("starting a human evaluation", () => {
         await startWith(filled("human"))
         expect(nav.push).toHaveBeenCalledWith("/w/ws/p/pr/evaluations/results/human-run?view=focus")
         expect(toast.message.success).not.toHaveBeenCalled()
+    })
+
+    it("A failed test case read starts no run", async () => {
+        mockApi({
+            "/testcases/query": () => {
+                throw new Error("testcases failed")
+            },
+        })
+        vi.spyOn(console, "error").mockImplementation(() => undefined)
+
+        const result = await startWith(filled("human"))
+
+        expect(result).toEqual({status: "failed"})
+        expect(requests("/evaluations/runs/")).toEqual([])
     })
 
     it("A human start that fails shows Couldn't start the evaluation and keeps the sheet open", async () => {

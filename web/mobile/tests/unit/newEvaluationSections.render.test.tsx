@@ -171,7 +171,6 @@ describe("test set section", () => {
                 revisions={[{id: "rev-a", variantName: "default", version: 1}]}
                 selected={null}
                 onPick={noop}
-                onClear={noop}
             />,
         )
         expect(host.textContent).toContain(
@@ -192,7 +191,6 @@ describe("test set section", () => {
                 onPick={(picked) => {
                     draft = newEvaluationReducer(draft, {type: "pickTestset", testset: picked})
                 }}
-                onClear={noop}
             />,
         )
         const picker = pickers.latest["new-evaluation-testset"]
@@ -206,15 +204,7 @@ describe("test set section", () => {
     })
 
     it("Before an app is picked the test set section says Select an application first", async () => {
-        await mount(
-            <TestsetSection
-                hasApp={false}
-                revisions={[]}
-                selected={null}
-                onPick={noop}
-                onClear={noop}
-            />,
-        )
+        await mount(<TestsetSection hasApp={false} revisions={[]} selected={null} onPick={noop} />)
         expect(host.textContent).toContain("Select an application first to load this section.")
     })
 })

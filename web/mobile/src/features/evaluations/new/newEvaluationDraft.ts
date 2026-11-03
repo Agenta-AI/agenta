@@ -36,7 +36,6 @@ export interface DraftEvaluator {
     evaluatorId: string
     name: string
     version: number
-    isHuman: boolean
 }
 
 export type ConcurrencyField = "batch_size" | "max_retries" | "retry_delay"
@@ -128,8 +127,6 @@ export const buildAutoName = (
 
 export interface InitialDraftOptions {
     app?: DraftApp | null
-    /** The list is scoped to an app, which fills in once the app list loads. */
-    scoped?: boolean
     revisions?: DraftRevision[]
     suffix?: string
 }
@@ -137,12 +134,7 @@ export interface InitialDraftOptions {
 /** The open section at start: Revision for a scoped app, Test set for given revisions. */
 export const createInitialDraft = (
     kind: NewEvaluationKind,
-    {
-        app = null,
-        scoped = false,
-        revisions = [],
-        suffix = makeNameSuffix(),
-    }: InitialDraftOptions = {},
+    {app = null, revisions = [], suffix = makeNameSuffix()}: InitialDraftOptions = {},
 ): NewEvaluationDraft => ({
     kind,
     app,
@@ -153,7 +145,7 @@ export const createInitialDraft = (
     name: "",
     autoName: "",
     suffix,
-    section: revisions.length > 0 ? "testset" : app || scoped ? "revision" : "application",
+    section: revisions.length > 0 ? "testset" : app ? "revision" : "application",
 })
 
 /**
@@ -181,7 +173,7 @@ export const newEvaluationReducer = (
         case "clearApp":
             return createInitialDraft(state.kind, {suffix: state.suffix})
         case "hydrateApp":
-            return state.app ? state : {...state, app: action.app}
+            return state.app?.id === action.app.id ? {...state, app: action.app} : state
         case "pickRevision": {
             const {revision} = action
             if (state.kind === "human") {
@@ -213,17 +205,21 @@ export const newEvaluationReducer = (
         case "clearTestset":
             return followAutoName(state, {...state, testset: null})
         case "pickEvaluator": {
-            const picked = state.evaluators.some(
-                (item) => item.revisionId === action.evaluator.revisionId,
-            )
-            return {
-                ...state,
-                evaluators: picked
-                    ? state.evaluators.filter(
-                          (item) => item.revisionId !== action.evaluator.revisionId,
-                      )
-                    : [...state.evaluators, action.evaluator],
+            const {evaluator} = action
+            if (state.evaluators.some((item) => item.revisionId === evaluator.revisionId)) {
+                return {
+                    ...state,
+                    evaluators: state.evaluators.filter(
+                        (item) => item.revisionId !== evaluator.revisionId,
+                    ),
+                }
             }
+            // A human run names each annotation step after its evaluator, so one revision each.
+            const others =
+                state.kind === "human"
+                    ? state.evaluators.filter((item) => item.evaluatorId !== evaluator.evaluatorId)
+                    : state.evaluators
+            return {...state, evaluators: [...others, evaluator]}
         }
         case "removeEvaluator":
             return {

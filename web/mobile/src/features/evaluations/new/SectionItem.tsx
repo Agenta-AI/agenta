@@ -57,7 +57,7 @@ export const SectionItem = ({
                                 aria-label={`Remove ${chip.label}`}
                                 disabled={disabled}
                                 onClick={chip.onRemove}
-                                className="inline-flex shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 text-muted-foreground hover:text-foreground disabled:cursor-not-allowed"
+                                className="-m-1.5 inline-flex shrink-0 cursor-pointer items-center border-0 bg-transparent p-1.5 text-muted-foreground hover:text-foreground disabled:cursor-not-allowed"
                             >
                                 <X aria-hidden size={12} />
                             </button>

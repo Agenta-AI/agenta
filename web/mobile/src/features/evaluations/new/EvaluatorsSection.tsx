@@ -8,7 +8,6 @@ import {AutoEvaluatorPicker} from "./AutoEvaluatorPicker"
 import {EvaluatorsEmpty} from "./EvaluatorsEmpty"
 import {HumanEvaluatorPicker} from "./HumanEvaluatorPicker"
 import type {DraftEvaluator, NewEvaluationKind} from "./newEvaluationDraft"
-import {PickedCard} from "./PickedCard"
 import {SectionHint} from "./SectionHint"
 
 /** Whether the project has any evaluator at all, and whether that is still loading. */
@@ -58,16 +57,6 @@ export const EvaluatorsSection = ({
                 onRemove={onRemove}
                 onClear={onClear}
             />
-            {selected.map((evaluator) => (
-                <PickedCard
-                    key={evaluator.revisionId}
-                    removeLabel={`Remove ${evaluator.name}`}
-                    disabled={disabled}
-                    onRemove={() => onRemove(evaluator.revisionId)}
-                >
-                    {evaluator.name} - v{evaluator.version}
-                </PickedCard>
-            ))}
         </div>
     )
 }

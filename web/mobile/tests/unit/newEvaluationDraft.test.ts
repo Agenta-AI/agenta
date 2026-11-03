@@ -29,7 +29,6 @@ const evaluator: DraftEvaluator = {
     evaluatorId: "ev-1",
     name: "Exact match",
     version: 1,
-    isHuman: false,
 }
 
 const run = (draft: NewEvaluationDraft, ...actions: NewEvaluationAction[]) =>
@@ -126,6 +125,18 @@ describe("new evaluation draft", () => {
         )
         expect(draft.revisions).toEqual([revisionB])
         expect(draft.section).toBe("testset")
+    })
+
+    it("Human mode keeps one revision of each evaluator, auto mode keeps every pick", () => {
+        const second: DraftEvaluator = {...evaluator, revisionId: "ev-rev-2", version: 2}
+        const pickBoth = (kind: NewEvaluationKind) =>
+            run(
+                start(kind),
+                {type: "pickEvaluator", evaluator},
+                {type: "pickEvaluator", evaluator: second},
+            ).evaluators
+        expect(pickBoth("human")).toEqual([second])
+        expect(pickBoth("auto")).toEqual([evaluator, second])
     })
 
     it("Picking the selected test set revision again clears it", () => {

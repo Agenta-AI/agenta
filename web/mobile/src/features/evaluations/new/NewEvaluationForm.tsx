@@ -64,18 +64,21 @@ export const NewEvaluationForm = ({
 }) => {
     const {draft, dispatch} = useNewEvaluationDraft(
         kind,
-        {scoped: appId !== null, revisions: initialRevisions},
+        {
+            // A scoped app starts the draft; its name and type arrive with the app list.
+            app: appId ? {id: appId, name: "", isCustom: false} : null,
+            revisions: initialRevisions,
+        },
         initial,
     )
     const {apps} = useEvaluableApps()
     const scopedApp = appId ? apps.find((app) => app.id === appId) : undefined
 
-    // A scoped app arrives with the app list: fill it in without moving the open section.
     useEffect(() => {
-        if (scopedApp && !draft.app) dispatch({type: "hydrateApp", app: toDraftApp(scopedApp)})
-    }, [scopedApp, draft.app, dispatch])
+        if (scopedApp) dispatch({type: "hydrateApp", app: toDraftApp(scopedApp)})
+    }, [scopedApp, dispatch])
 
-    const appChosen = Boolean(draft.app ?? appId)
+    const appChosen = draft.app !== null
     const open = (section: NewEvaluationSection) => dispatch({type: "openSection", section})
 
     const handleSubmit = async (event: FormEvent) => {
@@ -88,7 +91,7 @@ export const NewEvaluationForm = ({
         }
     }
 
-    const appChips: SectionChip[] = draft.app
+    const appChips: SectionChip[] = draft.app?.name
         ? [
               {
                   id: draft.app.id,
@@ -159,7 +162,7 @@ export const NewEvaluationForm = ({
                     >
                         <AppSection
                             selectedId={draft.app?.id ?? null}
-                            disabled={appId !== null}
+                            disabled={isStarting || appId !== null}
                             onPick={(app) => dispatch({type: "pickApp", app})}
                         />
                     </SectionItem>
@@ -171,7 +174,7 @@ export const NewEvaluationForm = ({
                     >
                         <RevisionSection
                             kind={kind}
-                            appId={draft.app?.id ?? appId}
+                            appId={draft.app?.id ?? null}
                             selected={draft.revisions}
                             disabled={isStarting}
                             onPick={(revision) => dispatch({type: "pickRevision", revision})}
@@ -192,7 +195,6 @@ export const NewEvaluationForm = ({
                             selected={draft.testset}
                             disabled={isStarting}
                             onPick={(testset) => dispatch({type: "pickTestset", testset})}
-                            onClear={() => dispatch({type: "clearTestset"})}
                         />
                     </SectionItem>
                     <SectionItem

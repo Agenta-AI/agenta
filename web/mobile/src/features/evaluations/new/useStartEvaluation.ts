@@ -6,7 +6,7 @@ import {
     createHumanEvaluationRun,
     fetchAllTestcaseIds,
 } from "@agenta/entities/evaluationRun"
-import {providerConnectionsAtom, vaultSecretsQueryAtom} from "@agenta/entities/secret"
+import {toProviderConnections, vaultSecretsQueryAtom} from "@agenta/entities/secret"
 import {normalizeWorkflowTypeKey, workflowMolecule} from "@agenta/entities/workflow"
 import {isEE} from "@agenta/shared/api"
 import {message, notification} from "@agenta/ui/app-message"
@@ -14,15 +14,15 @@ import {useQueryClient} from "@tanstack/react-query"
 import {getDefaultStore} from "jotai"
 import {useRouter} from "next/router"
 
+import {RUNS_LIST_KEY} from "../list/runsListKey"
+
 import {readHumanRunInputs} from "./humanRunInputs"
 import {
     validateDraft,
+    type DraftTestset,
     type NewEvaluationDraft,
     type NewEvaluationSection,
 } from "./newEvaluationDraft"
-
-/** Every runs list query, whatever its filters. */
-const RUNS_LIST_KEY = ["evaluation-runs", "list"] as const
 
 const LEGACY_AI_CRITIQUE_KEYS = new Set(["auto_ai_critique", "ai_critique"])
 
@@ -44,10 +44,9 @@ const isAiCritique = (revisionId: string): boolean => {
 /** True when the project has no provider key. Cloud serves built-in models, so it never blocks. */
 const lacksProviderKey = async (): Promise<boolean> => {
     if (isEE()) return false
-    const store = getDefaultStore()
-    const query = store.get(vaultSecretsQueryAtom)
-    if (query.isPending) await query.refetch()
-    return store.get(providerConnectionsAtom).length === 0
+    // The vault query is not mounted on this page, so read the answer of a fresh request.
+    const {data} = await getDefaultStore().get(vaultSecretsQueryAtom).refetch({throwOnError: true})
+    return toProviderConnections(data ?? []).length === 0
 }
 
 /**
@@ -74,24 +73,23 @@ export const useStartEvaluation = ({
     )
 
     const startAuto = useCallback(
-        async (draft: NewEvaluationDraft): Promise<StartEvaluationResult> => {
-            const testset = draft.testset
-            if (!testset) return {status: "failed"}
-
-            if (
-                draft.evaluators.some((e) => isAiCritique(e.revisionId)) &&
-                (await lacksProviderKey())
-            ) {
-                notification.error({
-                    message: "LLM Key Missing",
-                    description: "Please provide at least one LLM key to access this feature.",
-                })
-                message.error("LLM keys are required for AI Critique configuration")
-                void router.push(`${base}/settings?tab=llms`)
-                return {status: "blocked"}
-            }
-
+        async (
+            draft: NewEvaluationDraft,
+            testset: DraftTestset,
+        ): Promise<StartEvaluationResult> => {
             try {
+                if (
+                    draft.evaluators.some((e) => isAiCritique(e.revisionId)) &&
+                    (await lacksProviderKey())
+                ) {
+                    notification.error({
+                        message: "LLM Key Missing",
+                        description: "Please provide at least one LLM key to access this feature.",
+                    })
+                    message.error("LLM keys are required for AI Critique configuration")
+                    void router.push(`${base}/settings?tab=llms`)
+                    return {status: "blocked"}
+                }
                 const {runIds, failedRevisionIds} = await createAutoEvaluationRuns({
                     projectId,
                     name: draft.name.trim(),
@@ -129,10 +127,11 @@ export const useStartEvaluation = ({
     )
 
     const startHuman = useCallback(
-        async (draft: NewEvaluationDraft): Promise<StartEvaluationResult> => {
+        async (
+            draft: NewEvaluationDraft,
+            testset: DraftTestset,
+        ): Promise<StartEvaluationResult> => {
             const [revision] = draft.revisions
-            const testset = draft.testset
-            if (!revision || !testset) return {status: "failed"}
             try {
                 const input = await readHumanRunInputs({
                     projectId,
@@ -171,11 +170,16 @@ export const useStartEvaluation = ({
                 message.error(problem.message)
                 return {status: "invalid", section: problem.section}
             }
+            // `validateDraft` has checked the test set, which narrows the type for the starters.
+            const {testset} = draft
+            if (!testset) return {status: "invalid", section: "testset"}
             busyRef.current = true
             setIsStarting(true)
             try {
                 const result =
-                    draft.kind === "auto" ? await startAuto(draft) : await startHuman(draft)
+                    draft.kind === "auto"
+                        ? await startAuto(draft, testset)
+                        : await startHuman(draft, testset)
                 if (result.status === "started") {
                     void queryClient.invalidateQueries({queryKey: RUNS_LIST_KEY})
                 }

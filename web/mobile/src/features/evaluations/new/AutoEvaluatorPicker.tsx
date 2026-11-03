@@ -16,6 +16,11 @@ export const AutoEvaluatorPicker = (props: {
         showWorkflowMeta: true,
     })
     return (
-        <EvaluatorPicker adapter={adapter} instanceId="new-evaluation-auto-evaluator" {...props} />
+        <EvaluatorPicker
+            adapter={adapter}
+            instanceId="new-evaluation-auto-evaluator"
+            allowSelectAll
+            {...props}
+        />
     )
 }

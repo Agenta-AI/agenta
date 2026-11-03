@@ -7,7 +7,6 @@ import {PlusIcon} from "@phosphor-icons/react"
 
 import {ExpectedVariables} from "./ExpectedVariables"
 import type {DraftRevision, DraftTestset} from "./newEvaluationDraft"
-import {PickedCard} from "./PickedCard"
 import {SectionHint} from "./SectionHint"
 
 const toDraftTestset = (result: TestsetSelectionResult): DraftTestset => ({
@@ -24,14 +23,12 @@ export const TestsetSection = ({
     selected,
     disabled,
     onPick,
-    onClear,
 }: {
     hasApp: boolean
     revisions: readonly DraftRevision[]
     selected: DraftTestset | null
     disabled?: boolean
     onPick: (testset: DraftTestset) => void
-    onClear: () => void
 }) => {
     if (!hasApp) return <SectionHint>Select an application first to load this section.</SectionHint>
 
@@ -55,15 +52,6 @@ export const TestsetSection = ({
                     selectedChildId={selected?.revisionId ?? null}
                 />
             </div>
-            {selected ? (
-                <PickedCard
-                    removeLabel={`Remove ${selected.name}`}
-                    disabled={disabled}
-                    onRemove={onClear}
-                >
-                    {selected.name} - v{selected.version}
-                </PickedCard>
-            ) : null}
         </div>
     )
 }

@@ -2,11 +2,11 @@ import {Sheet, SheetContent} from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {expect, within} from "storybook/test"
 
-import {NewEvaluationForm} from "../../../mobile/src/features/evaluations/new/NewEvaluationForm"
 import type {
     DraftEvaluator,
     NewEvaluationDraft,
 } from "../../../mobile/src/features/evaluations/new/newEvaluationDraft"
+import {NewEvaluationForm} from "../../../mobile/src/features/evaluations/new/NewEvaluationForm"
 import type {QueryFixtures, StoryScope} from "../../.storybook/decorators/withAgentaData"
 
 /**
@@ -61,14 +61,12 @@ const EVALUATORS: DraftEvaluator[] = [
         evaluatorId: "evaluator-exact",
         name: "Exact match",
         version: 2,
-        isHuman: false,
     },
     {
         revisionId: "revision-tone-1",
         evaluatorId: "evaluator-tone",
         name: "Tone check",
         version: 1,
-        isHuman: false,
     },
 ]
 

@@ -134,6 +134,24 @@ describe("new evaluation sheet", () => {
         expect(buttonByName("Cancel")?.disabled).toBe(true)
     })
 
+    it("The app list cannot change while a start runs", async () => {
+        hook.isStarting = true
+        await mount("auto")
+        const rows = [
+            ...document.querySelectorAll<HTMLButtonElement>("ul[aria-label=Applications] button"),
+        ]
+        expect(rows.length).toBe(2)
+        expect(rows.every((row) => row.disabled)).toBe(true)
+    })
+
+    it("A scoped app starts the draft before the app list loads", async () => {
+        wizardData.apps = []
+        wizardData.appsPending = true
+        await mount("auto", "app-1")
+        expect(openSection()).toContain("Revision")
+        expect(pickers.latest["new-evaluation-revision-app-1"]).toBeDefined()
+    })
+
     it("Cancel closes the sheet", async () => {
         await mount("auto")
         await act(async () => buttonByName("Cancel")?.click())

@@ -17,6 +17,8 @@ import type {DraftEvaluator, DraftRevision, DraftTestset} from "./newEvaluationD
 type Store = ReturnType<typeof getDefaultStore>
 
 const SETTLE_TIMEOUT_MS = 15_000
+/** An app with no inputs never fills its schema, so that wait is short. */
+const SCHEMA_WAIT_MS = 5_000
 
 /** Resolve with the atom's value once `ready` accepts it. Subscribing is what starts its query. */
 export const settleAtom = <T>(
@@ -74,25 +76,33 @@ export async function readHumanRunInputs({
         (entity) => Boolean(entity),
     )
 
-    let inputKeys: string[]
+    // The input schema comes from the revision or from its inspected interface.
+    const inputSchema = await settleAtom(
+        store,
+        workflowMolecule.selectors.inputSchema(revision.id),
+        (value) => value !== null,
+        SCHEMA_WAIT_MS,
+    ).catch(() => null)
+    let inputKeys = propertyNames(inputSchema)
     let hasMessagesInput = false
-    if (isCustomApp) {
-        // A custom app declares its inputs in the OpenAPI document, which loads on demand.
+
+    // A custom app hosted at its own URL, with no URI, declares its inputs only in OpenAPI.
+    const legacyCustomApp =
+        isCustomApp && !revisionEntity?.data?.uri && Boolean(revisionEntity?.data?.url)
+    if (inputKeys.length === 0 && legacyCustomApp) {
         const spec = await settleAtom(
             store,
             appOpenApiSchemaAtomFamily(revision.id),
             (value) => value !== null,
+            SCHEMA_WAIT_MS,
         ).catch(() => null)
         const routePath = store.get(appRoutePathAtomFamily(revision.id)) || ""
-        inputKeys = spec ? extractInputKeysFromSchema(spec as never, routePath) : []
-        hasMessagesInput = spec
-            ? Boolean(
-                  extractAllEndpointSchemas(spec as never, routePath).primaryEndpoint
-                      ?.messagesSchema,
-              )
-            : false
-    } else {
-        inputKeys = propertyNames(store.get(workflowMolecule.selectors.inputSchema(revision.id)))
+        if (spec) {
+            inputKeys = extractInputKeysFromSchema(spec as never, routePath)
+            hasMessagesInput = Boolean(
+                extractAllEndpointSchemas(spec as never, routePath).primaryEndpoint?.messagesSchema,
+            )
+        }
     }
 
     const firstPage = await fetchTestcasesPage({
@@ -100,6 +110,8 @@ export async function readHumanRunInputs({
         revisionId: testset.revisionId,
         limit: 1,
     })
+    // `fetchTestcasesPage` turns a failed request into an empty page, which must not read as "no columns".
+    if (firstPage.testcases.length === 0) throw new Error("The test set has no test cases.")
     const columns = Object.keys(firstPage.testcases[0]?.data ?? {}).filter(
         (column) => !column.startsWith("__"),
     )

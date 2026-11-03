@@ -18,9 +18,7 @@ import {useRevisionParam} from "../../revisions/useRevisionParam"
 import {useConfirmModal} from "../../settings/useConfirmModal"
 
 import {readRunReferences, runDisplayName} from "./runReferences"
-
-/** Every runs list query, whatever its filters. */
-const RUNS_LIST_KEY = ["evaluation-runs", "list"] as const
+import {RUNS_LIST_KEY} from "./runsListKey"
 
 /**
  * The actions of a run row. Stop, resume and delete need `edit_evaluation_runs`: a reader

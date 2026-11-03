@@ -8,7 +8,6 @@ import {
 import {PlusIcon} from "@phosphor-icons/react"
 
 import type {DraftRevision, NewEvaluationKind} from "./newEvaluationDraft"
-import {PickedCard} from "./PickedCard"
 import {SectionHint} from "./SectionHint"
 
 const toDraftRevision = (result: WorkflowRevisionSelectionResult): DraftRevision => ({
@@ -79,16 +78,6 @@ export const RevisionSection = ({
                         : {selectedChildId: selected[0]?.id ?? null})}
                 />
             </div>
-            {selected.map((revision) => (
-                <PickedCard
-                    key={revision.id}
-                    removeLabel={`Remove ${revision.variantName} v${revision.version}`}
-                    disabled={disabled}
-                    onRemove={() => onRemove(revision.id)}
-                >
-                    {revision.variantName} - v{revision.version}
-                </PickedCard>
-            ))}
         </div>
     )
 }

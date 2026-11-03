@@ -13,18 +13,13 @@ import type {DraftEvaluator} from "./newEvaluationDraft"
 
 type EvaluatorAdapter = ReturnType<typeof useEnrichedEvaluatorOnlyAdapter>
 
-type EvaluatorSelection = WorkflowRevisionSelectionResult & {
-    metadata: WorkflowRevisionSelectionResult["metadata"] & {isHuman?: boolean}
-}
-
 const toDraftEvaluator = (result: WorkflowRevisionSelectionResult): DraftEvaluator => {
-    const {id, metadata} = result as EvaluatorSelection
+    const {id, metadata} = result
     return {
         revisionId: id,
         evaluatorId: metadata.workflowId || "",
         name: metadata.workflowName || "Evaluator",
         version: metadata.revision ?? 0,
-        isHuman: Boolean(metadata.isHuman),
     }
 }
 
@@ -34,12 +29,15 @@ export const EvaluatorPicker = ({
     instanceId,
     selected,
     disabled,
+    allowSelectAll,
     onPick,
     onRemove,
     onClear,
 }: {
     adapter: EvaluatorAdapter
     instanceId: string
+    /** Select-all picks every revision of an evaluator. A human run takes one revision each. */
+    allowSelectAll: boolean
     selected: readonly DraftEvaluator[]
     disabled?: boolean
     onPick: (evaluator: DraftEvaluator) => void
@@ -82,12 +80,12 @@ export const EvaluatorPicker = ({
                 multiSelect
                 selectedChildIds={selectedIds}
                 selectionSummary
-                showParentCheckboxes
+                showParentCheckboxes={allowSelectAll}
                 selectedChildrenByParent={selectedByEvaluator}
                 totalChildrenByParent={totalByEvaluator}
                 onDeselectChild={onRemove}
                 showParentDescription
-                showChildSelectAll
+                showChildSelectAll={allowSelectAll}
                 onClearAll={onClear}
                 size="middle"
             />
