@@ -24,6 +24,7 @@ import {NavDrawer} from "../nav/NavDrawer"
 import {useAddToTestsetAction} from "./addToTestset/useAddToTestsetAction"
 import {ObservabilityAppFilter} from "./ObservabilityAppFilter"
 import {setObservabilityAppInUrl, useObservabilityAppScope} from "./observabilityAppScope"
+import {useAddAllMatchingAction} from "./queueAll/useAddAllMatchingAction"
 import {selectedTraceIds} from "./selectedTraceIds"
 import {useObservabilitySessionUrl} from "./sessionDrawer/useObservabilitySessionUrl"
 import {SessionsList} from "./SessionsList"
@@ -116,7 +117,8 @@ const ObservabilityContent = ({
     const bodyRef = useRef<HTMLDivElement | null>(null)
 
     // The selection lives in the shared atom: the toolbar's Delete button reads it to enable.
-    const {fetchTraces, traces, selectedRowKeys, setSelectedRowKeys} = useObservability()
+    const {fetchTraces, traces, selectedRowKeys, setSelectedRowKeys, filters, sort, traceTabs} =
+        useObservability()
     // Not `useSessions()`: that would load sessions and their spans on the Traces tab too.
     const queryClient = useQueryClient()
 
@@ -132,6 +134,15 @@ const ObservabilityContent = ({
     // The atom outlives the screen; a selection must not come back on the next visit.
     useEffect(() => clearSelection, [clearSelection])
     const addToTestset = useAddToTestsetAction(projectId, selectedRowKeys.map(String))
+    const queueAllMatching = useAddAllMatchingAction({
+        workspaceId,
+        projectId,
+        appId: (appFilterEnabled && routeAppId) || "",
+        filters,
+        sort,
+        traceTabs,
+        hasTraces: traces.length > 0,
+    })
 
     const onDelete = useCallback(
         () => openDeleteModal({isOpen: true, traceIds, onClose: clearSelection}),
@@ -205,6 +216,7 @@ const ObservabilityContent = ({
                                             disabled: traceIds.length === 0,
                                             onItemsAdded: clearSelection,
                                         }}
+                                        queueAllMatchingAction={queueAllMatching}
                                     />
                                 ) : undefined
                             }
