@@ -92,7 +92,8 @@ import {createOutputMappingId, extractPaths} from "./utils"
 // ============================================================================
 
 const LOCAL_TESTCASE_PREFIXES = ["new-", "local-"] as const
-const VERSION_SUFFIX_REGEX = /\s+v\d+\s*$/i
+// The version a connected name ends with: "Name (v2)", as the playground names it, or "Name v2".
+const VERSION_SUFFIX_REGEX = /\s+\(?v\d+\)?\s*$/i
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     !!value && typeof value === "object" && !Array.isArray(value)
@@ -192,7 +193,7 @@ const buildVersionedSourceName = (
     if (typeof version !== "number" || !Number.isFinite(version)) return sourceName
 
     const baseName = sourceName.replace(VERSION_SUFFIX_REGEX, "").trim()
-    return `${baseName} v${version}`
+    return `${baseName} (v${version})`
 }
 
 // ============================================================================
@@ -1143,7 +1144,12 @@ const updateTestcaseSelectionAtom = atom(
         if (state.connectedSourceId) {
             // Reset first, then set - setTestcaseIdsAtom appends, so we need to clear first
             set(resetTestcaseIdsAtom)
-            set(setTestcaseIdsAtom, selectedIds)
+            // Only saved rows: a row added in the playground stays a new row, or a commit would
+            // send it twice (as a replace with its local id and as an add).
+            set(
+                setTestcaseIdsAtom,
+                selectedIds.filter((id) => !isLocalTestcaseId(id)),
+            )
         }
     },
 )

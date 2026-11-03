@@ -1,3 +1,5 @@
+import type {ReactNode} from "react"
+
 import {executionItemController} from "@agenta/playground"
 import {CollapsibleGroupHeader, RunButton} from "@agenta/ui/components/presentational"
 import {useRunAllShortcut} from "@agenta/ui/hooks"
@@ -9,6 +11,8 @@ export interface RunsPanelHeaderProps {
     entityId: string
     /** The title that folds the panel. */
     label?: string
+    /** The test set menu, left of Clear. */
+    testsetMenu?: ReactNode
 }
 
 /**
@@ -16,7 +20,11 @@ export interface RunsPanelHeaderProps {
  * outputs, Run all runs every row and turns into Cancel while they run. Ctrl or ⌘ with Enter runs
  * all.
  */
-export const RunsPanelHeader = ({entityId, label = "Generations"}: RunsPanelHeaderProps) => {
+export const RunsPanelHeader = ({
+    entityId,
+    label = "Generations",
+    testsetMenu,
+}: RunsPanelHeaderProps) => {
     const {isRunning} = useAtomValue(executionItemController.selectors.headerData(entityId)) as {
         isRunning?: boolean
     }
@@ -47,7 +55,8 @@ export const RunsPanelHeader = ({entityId, label = "Generations"}: RunsPanelHead
                 }
                 className="items-center text-base font-semibold text-nowrap"
             />
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2">
+                {testsetMenu}
                 <SimpleTooltip title="Clear all" side="bottom">
                     <Button
                         variant="outline"

@@ -4,6 +4,7 @@ import {RunsPanel, RunsPanelSkeleton} from "@agenta/playground-ui/panels/runs"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
+import {PlaygroundTestsetMenu} from "./PlaygroundTestsetMenu"
 import {usePlaygroundTraceFooter} from "./usePlaygroundTraceFooter"
 
 // A completion app never downloads the chat panel.
@@ -23,6 +24,17 @@ export const PlaygroundRunPane = ({revisionId}: {revisionId: string}) => {
     const footer = usePlaygroundTraceFooter()
 
     if (query.isPending || isChat === undefined) return <RunsPanelSkeleton />
-    if (isChat) return <ChatPanel revisionId={revisionId} renderTraceFooter={footer} />
-    return <RunsPanel revisionId={revisionId} renderTraceFooter={footer} />
+    const testsetMenu = <PlaygroundTestsetMenu />
+    if (isChat) {
+        return (
+            <ChatPanel
+                revisionId={revisionId}
+                renderTraceFooter={footer}
+                testsetMenu={testsetMenu}
+            />
+        )
+    }
+    return (
+        <RunsPanel revisionId={revisionId} renderTraceFooter={footer} testsetMenu={testsetMenu} />
+    )
 }

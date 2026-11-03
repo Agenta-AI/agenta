@@ -94,6 +94,15 @@ export interface TestcaseDataConfig extends EntityDataConfigBase {
      * An edit session needs them; a read-only table does not. Default: false.
      */
     includeNewRows?: boolean
+    /** Shows only the loaded rows with a value that contains this text (any case). */
+    searchTerm?: string
+}
+
+/** Whether a cell value, or a value nested in it, contains the search text. */
+const valueMatches = (value: unknown, term: string): boolean => {
+    if (value === null || value === undefined) return false
+    const text = typeof value === "string" ? value : JSON.stringify(value)
+    return text.toLowerCase().includes(term)
 }
 
 /**
@@ -107,7 +116,8 @@ function areConfigsEqual(a: TestcaseDataConfig, b: TestcaseDataConfig): boolean 
         a.pageSize === b.pageSize &&
         a.localRows === b.localRows &&
         a.localColumnKeys === b.localColumnKeys &&
-        a.includeNewRows === b.includeNewRows
+        a.includeNewRows === b.includeNewRows &&
+        a.searchTerm === b.searchTerm
     )
 }
 
@@ -152,9 +162,15 @@ const rowsAtomFamily = atomFamily((config: TestcaseDataConfig) => {
         const state = get(testcasePaginatedStore.selectors.state(paginatedParams))
 
         // Filter out skeleton rows, and new rows unless the table is an edit session
-        return state.rows.filter(
+        const rows = state.rows.filter(
             (row) => !row.__isSkeleton && (config.includeNewRows || !row.__isNew),
         )
+        const term = config.searchTerm?.trim().toLowerCase()
+        if (!term) return rows
+        return rows.filter((row) => {
+            const data = get(testcaseEntityAtomFamily(row.id))?.data
+            return !!data && Object.values(data).some((value) => valueMatches(value, term))
+        })
     })
 }, areConfigsEqual)
 

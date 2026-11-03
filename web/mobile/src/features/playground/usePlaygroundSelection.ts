@@ -1,6 +1,8 @@
 import {useCallback, useEffect, useRef} from "react"
 
+import {loadableController} from "@agenta/entities/loadable"
 import {isLocalDraftId} from "@agenta/entities/shared"
+import {clearChangesAtom} from "@agenta/entities/testset"
 import {
     discardLocalServerDataAtom,
     workflowDetailQueryAtomFamily,
@@ -58,7 +60,7 @@ const keptRevisionIdsAtomFamily = atomFamily((appId: string) =>
  *
  * On mount it selects the revisions in `?revisions=` (in order), or the app's latest revision.
  * It writes the selection back to `?revisions=`, drops ids that are not revisions of this app,
- * and on unmount it clears the playground nodes and runs: the agent session screen uses the same
+ * and on unmount it clears the playground nodes, runs and test set connection: the agent session screen uses the same
  * store, so nothing from here may outlive the route.
  */
 export const usePlaygroundSelection = ({appId}: {appId: string}): PlaygroundSelection => {
@@ -105,8 +107,15 @@ export const usePlaygroundSelection = ({appId}: {appId: string}): PlaygroundSele
         return () => {
             setUpForAppRef.current = null
             const selected = store.get(playgroundController.selectors.entityIds())
+            const loadableId = store.get(playgroundController.selectors.loadableId())
             // Runs first: they are found through the selection that `resetAll` removes.
             store.set(executionItemController.actions.clearAll)
+            // The test case store is shared with the test set editor: the connection and the
+            // unsaved test case edits go with the page.
+            if (loadableId) {
+                store.set(clearChangesAtom)
+                store.set(loadableController.actions.disconnect, loadableId)
+            }
             store.set(playgroundController.actions.resetAll)
             store.set(playgroundInitializedAtom, false)
             // Leaving asked to discard unsaved changes: the drafts go with the page.
