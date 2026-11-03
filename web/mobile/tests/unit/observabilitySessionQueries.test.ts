@@ -140,6 +140,36 @@ describe("session drawer queries", () => {
         unsubscribeAnnotations()
     })
 
+    it("Annotations are requested again when the spans change but their number does not", async () => {
+        const post = vi.spyOn(axios, "post").mockResolvedValue({data: {count: 0, traces: []}})
+        const unsubscribe = await settle("session-d")
+        const unsubscribeAnnotations = store.sub(
+            observabilitySessionAnnotationsQueryAtomFamily("session-d"),
+            vi.fn(),
+        )
+        await vi.waitFor(() => expect(post).toHaveBeenCalledTimes(1))
+
+        const swapped = JSON.parse(
+            JSON.stringify(TRACES.slice(0, 1)).replace(/aaaaaaaaaaaaaaaa/g, "eeeeeeeeeeeeeeee"),
+        )
+        queryTraces.mockResolvedValue({count: 1, traces: swapped})
+        await store
+            .get(queryClientAtom)
+            .invalidateQueries({queryKey: ["observability-session-traces"]})
+
+        await vi.waitFor(() => expect(post).toHaveBeenCalledTimes(2))
+        expect(post.mock.calls[1][1]).toEqual({
+            trace: {
+                links: [
+                    {trace_id: "11111111-1111-1111-1111-111111111111", span_id: "eeeeeeeeeeeeeeee"},
+                    {trace_id: "11111111-1111-1111-1111-111111111111", span_id: "bbbbbbbbbbbbbbbb"},
+                ],
+            },
+        })
+        unsubscribe()
+        unsubscribeAnnotations()
+    })
+
     it("A failed traces request is an error, not an empty session", async () => {
         queryTraces.mockRejectedValue(new Error("boom"))
         const unsubscribe = store.sub(

@@ -32,10 +32,17 @@ interface SessionDrawerBodyProps {
     linkedSpanId: string | null
     /** A phone-width panel shows the traces only: "View trace" reaches the spans. */
     narrow: boolean
+    /** The annotations sit beside the messages, not under them. */
+    annotationsBeside: boolean
 }
 
 /** Loads one session and picks what shows: loading, error, no traces, or the tree and panels. */
-export const SessionDrawerBody = ({sessionId, linkedSpanId, narrow}: SessionDrawerBodyProps) => {
+export const SessionDrawerBody = ({
+    sessionId,
+    linkedSpanId,
+    narrow,
+    annotationsBeside,
+}: SessionDrawerBodyProps) => {
     // The trace drawer writes `?span=` too, as its own span. Read it once, as the link's.
     const [initialSpanId] = useState(linkedSpanId)
     const query = useAtomValue(observabilitySessionTracesQueryAtomFamily(sessionId))
@@ -90,7 +97,12 @@ export const SessionDrawerBody = ({sessionId, linkedSpanId, narrow}: SessionDraw
                     />
                 </div>
             )}
-            <SessionTurnList traces={traces} stats={stats} truncated={truncated} narrow={narrow} />
+            <SessionTurnList
+                traces={traces}
+                stats={stats}
+                truncated={truncated}
+                annotationsBeside={annotationsBeside}
+            />
         </div>
     )
 }

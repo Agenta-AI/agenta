@@ -12,11 +12,16 @@ interface SessionTurnListProps {
     stats: SessionStats | null
     /** The request may have left traces out. */
     truncated: boolean
-    narrow: boolean
+    annotationsBeside: boolean
 }
 
 /** The summary, then one panel per trace. This column scrolls on its own. */
-export const SessionTurnList = ({traces, stats, truncated, narrow}: SessionTurnListProps) => {
+export const SessionTurnList = ({
+    traces,
+    stats,
+    truncated,
+    annotationsBeside,
+}: SessionTurnListProps) => {
     const annotationsVisible = useAtomValue(observabilitySessionAnnotationsVisibleAtom)
     return (
         <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
@@ -32,7 +37,7 @@ export const SessionTurnList = ({traces, stats, truncated, narrow}: SessionTurnL
                     trace={trace}
                     index={index}
                     annotationsVisible={annotationsVisible}
-                    narrow={narrow}
+                    annotationsBeside={annotationsBeside}
                 />
             ))}
         </section>

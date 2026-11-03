@@ -31,6 +31,9 @@ const ObservabilitySessionDrawer = ({
 }: ObservabilitySessionDrawerProps) => {
     // Below 720px the panel is as wide as the screen, so the tree has no room and widening does nothing.
     const wide = useMediaQuery("(min-width: 720px)")
+    // The tree takes 320px and the annotations 300px more, so they sit beside the messages only
+    // when the drawer is wide enough to leave the messages room.
+    const annotationsBeside = useMediaQuery("(min-width: 1100px)")
     const [expanded, setExpanded] = useState(false)
     const [lastSessionId, setLastSessionId] = useState(sessionId)
     if (sessionId !== null && sessionId !== lastSessionId) setLastSessionId(sessionId)
@@ -61,6 +64,7 @@ const ObservabilitySessionDrawer = ({
                         sessionId={shownSessionId}
                         linkedSpanId={spanId}
                         narrow={!wide}
+                        annotationsBeside={annotationsBeside}
                     />
                 </div>
             ) : null}

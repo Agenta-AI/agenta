@@ -46,8 +46,8 @@ interface SessionTurnPanelProps {
     /** Position in the session, from zero. */
     index: number
     annotationsVisible: boolean
-    /** Annotations sit under the messages instead of beside them. */
-    narrow: boolean
+    /** The annotations sit beside the messages, not under them. */
+    annotationsBeside: boolean
 }
 
 /** One trace as a collapsible panel: its messages, its totals, and its annotations. */
@@ -55,7 +55,7 @@ export const SessionTurnPanel = ({
     trace,
     index,
     annotationsVisible,
-    narrow,
+    annotationsBeside,
 }: SessionTurnPanelProps) => {
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const [showHidden, setShowHidden] = useState(false)
@@ -71,7 +71,7 @@ export const SessionTurnPanel = ({
                         <span className="text-sm font-medium">Trace {index + 1}</span>
                     </AccordionTrigger>
                     <AccordionContent className="!p-0">
-                        <div className={narrow ? "flex flex-col" : "flex"}>
+                        <div className={annotationsBeside ? "flex" : "flex flex-col"}>
                             <div className="flex min-w-0 flex-1 flex-col gap-3 p-4">
                                 {showHidden
                                     ? messages
@@ -125,9 +125,9 @@ export const SessionTurnPanel = ({
                             {annotationsVisible ? (
                                 <div
                                     className={
-                                        narrow
-                                            ? "border-0 border-t border-solid border-border p-4"
-                                            : "w-[300px] shrink-0 border-0 border-l border-solid border-border p-4"
+                                        annotationsBeside
+                                            ? "w-[300px] shrink-0 border-0 border-l border-solid border-border p-4"
+                                            : "border-0 border-t border-solid border-border p-4"
                                     }
                                 >
                                     <TraceAnnotations annotations={trace.annotations ?? []} />

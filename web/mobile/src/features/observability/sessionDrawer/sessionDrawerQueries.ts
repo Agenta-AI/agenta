@@ -106,16 +106,16 @@ const sessionAnnotationLinksAtomFamily = atomFamily((sessionId: string) =>
 )
 
 /**
- * The raw annotations of the session. The key holds the number of links and not the links: a
- * long session would put every span id in the key. The `session-drawer-annotations` prefix is
- * the one a saved annotation invalidates.
+ * The raw annotations of the session. The key holds the links, so a refreshed session that
+ * swaps spans asks again. The `session-drawer-annotations` prefix is the one a saved annotation
+ * invalidates.
  */
 export const observabilitySessionAnnotationsQueryAtomFamily = atomFamily((sessionId: string) =>
     atomWithQuery<AnnotationDto[]>((get) => {
         const projectId = get(projectIdAtom)
         const links = get(sessionAnnotationLinksAtomFamily(sessionId))
         return {
-            queryKey: ["session-drawer-annotations", projectId, sessionId, links.length],
+            queryKey: ["session-drawer-annotations", projectId, sessionId, links],
             enabled: links.length > 0,
             refetchOnWindowFocus: false,
             queryFn: async () => {
