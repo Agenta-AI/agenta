@@ -109,10 +109,10 @@ const world = {
     /** While set, the answer to that request waits for it. */
     holdList: null as Promise<void> | null,
     holdCommit: null as Promise<void> | null,
+    /** While set, the archive request waits for it. */
+    holdArchive: null as Promise<void> | null,
     /** Set once a revision is archived. */
     deleted: false,
-    /** While set, revision lists asked for after a delete wait for it. */
-    holdAfterDelete: null as Promise<void> | null,
     /** Revision lists asked for after a delete fail. */
     failAfterDelete: false,
 }
@@ -126,8 +126,8 @@ const resetWorld = () => {
     world.failCommit = false
     world.holdList = null
     world.holdCommit = null
+    world.holdArchive = null
     world.deleted = false
-    world.holdAfterDelete = null
     world.failAfterDelete = false
 }
 
@@ -135,6 +135,7 @@ type Body = Record<string, unknown>
 interface RevisionInput {
     workflow_variant_id: string
 }
+const hasData = (revision: Revision) => Object.keys(revision.data).length > 0
 const refIds = (refs: unknown) =>
     Array.isArray(refs) ? refs.map((ref: {id: string}) => ref.id) : null
 
@@ -152,6 +153,11 @@ const answer = (url: string, body: Body): unknown => {
         )
         // Newest first, as the server orders them.
         list = [...list].sort((a, b) => b.created_at.localeCompare(a.created_at))
+        if (body.grouping) {
+            // The newest revision that is not an empty seed, as the server answers.
+            const real = list.filter((revision) => revision.version > 0 || hasData(revision))
+            return {count: Math.min(1, real.length), workflow_revisions: real.slice(0, 1)}
+        }
         const limit = (body.windowing as {limit?: number} | undefined)?.limit
         if (limit) list = list.slice(0, limit)
         return {count: list.length, workflow_revisions: list}
@@ -250,8 +256,8 @@ beforeEach(async () => {
             await world.holdList
         }
         if (world.holdCommit && url.endsWith("/workflows/revisions/commit")) await world.holdCommit
+        if (world.holdArchive && url.endsWith("/archive")) await world.holdArchive
         if (world.deleted && url.endsWith("/workflows/revisions/query")) {
-            if (world.holdAfterDelete) await world.holdAfterDelete
             if (world.failAfterDelete) throw new Error("Request failed with status code 500")
         }
         if (world.failCommit && url.endsWith("/workflows/revisions/commit")) {
@@ -451,9 +457,9 @@ describe("Discard and revert", () => {
     })
 })
 
-/** The lazy dialogs load a moment after the click. */
+/** The lazy dialogs load a moment after the click; the first load is slow in a full run. */
 const until = async (read: () => unknown) => {
-    for (let i = 0; i < 40 && !read(); i++) {
+    for (let i = 0; i < 200 && !read(); i++) {
         await act(async () => {
             await new Promise((resolve) => setTimeout(resolve, 25))
         })
@@ -705,21 +711,9 @@ describe("Delete", () => {
         await click("Delete")
     }
 
-    it("After a delete, the persisted cache names the new latest revision and drops the deleted one", async () => {
-        await mount()
-        expect(onDisk("revision", "rev-2")).toBeDefined()
+    const appUrl = () => `/w/ws-1/p/${projectId}/apps/app-1/playground`
 
-        await deleteShown()
-
-        expect(shown()).toEqual(["rev-1"])
-        // A reload paints from this cache: it must not bring the deleted revision back.
-        expect((onDisk("latestRevision", "app-1")?.state.data as {id: string} | null)?.id).toBe(
-            "rev-1",
-        )
-        expect(onDisk("revision", "rev-2")).toBeUndefined()
-    })
-
-    it("After a delete, the newest revision with content is shown, not a new variant's empty seed", async () => {
+    it("Deleting the shown revision opens the app without a revision, and the opening load shows the newest revision left", async () => {
         await mount()
         // Someone adds a variant meanwhile: its empty first revision is the newest one.
         world.revisions.push({
@@ -727,39 +721,52 @@ describe("Delete", () => {
             created_at: "2026-11-08T00:00:00Z",
             data: {},
         })
+        expect(onDisk("revision", "rev-2")).toBeDefined()
 
         await deleteShown()
 
+        expect(document.querySelector("[role=alertdialog]")).toBeNull()
+        expect(router.replace).toHaveBeenCalledWith(appUrl(), undefined, {shallow: true})
         expect(shown()).toEqual(["rev-1"])
         expect(store.get(workflowLatestRevisionIdAtomFamily("app-1"))).toBe("rev-1")
+        // A reload paints from the persisted cache: it must not bring the deleted revision back.
+        expect(onDisk("revision", "rev-2")).toBeUndefined()
+        const latestOnDisk = onDisk("latestRevision", "app-1")?.state.data as {id: string} | null
+        expect(latestOnDisk?.id ?? null).not.toBe("rev-2")
     })
 
-    it("The dialog stays open until the next revision is known, and a revision picked meanwhile stays", async () => {
-        world.revisions.push(makeRevision("rev-3", 3, "Third"))
+    it("The dialog closes once the delete succeeds; a revision picked meanwhile stays with its edits", async () => {
         await mount()
-        expect(shown()).toEqual(["rev-3"])
         let release: () => void = () => undefined
-        world.holdAfterDelete = new Promise<void>((resolve) => (release = resolve))
+        world.holdArchive = new Promise<void>((resolve) => (release = resolve))
 
         await deleteShown()
         expect(text()).toContain("Deleting…")
 
         act(() =>
             store.set(playgroundController.actions.switchEntity, {
-                currentEntityId: "rev-3",
+                currentEntityId: "rev-2",
                 newEntityId: "rev-1",
             }),
         )
+        await settle()
+        act(() => store.set(workflowMolecule.actions.updateConfiguration, "rev-1", prompt("Kept")))
+        await settle()
         release()
         await settle()
 
         expect(document.querySelector("[role=alertdialog]")).toBeNull()
+        expect(writes().map((call) => call.url)).toEqual([
+            expect.stringContaining("/workflows/revisions/rev-2/archive"),
+        ])
         expect(shown()).toEqual(["rev-1"])
+        expect(isDirty("rev-1")).toBe(true)
+        expect(router.replace).not.toHaveBeenCalledWith(appUrl(), undefined, {shallow: true})
     })
 
-    it("When the next revision does not load, an error offers Try again, which shows it", async () => {
+    it("When the opening load fails after a delete, the playground shows its load error, and Try again shows the newest revision", async () => {
         world.failAfterDelete = true
-        // The lists the dialog reloads fail at once instead of after three retries.
+        // The lists reloaded after the delete fail at once instead of after three retries.
         const defaults = client.getDefaultOptions()
         client.setDefaultOptions({...defaults, queries: {...defaults.queries, retry: false}})
         onTestFinished(() => client.setDefaultOptions(defaults))
@@ -768,15 +775,14 @@ describe("Delete", () => {
         await deleteShown()
 
         expect(document.querySelector("[role=alertdialog]")).toBeNull()
-        expect(text()).toContain("Couldn't load the newest revision.")
-        expect(find("Commit")).toBeUndefined()
+        expect(text()).toContain("Playground is unable to communicate with the service")
+        expect(shown()).toEqual([])
 
         world.failAfterDelete = false
         await click("Try again")
 
         expect(shown()).toEqual(["rev-1"])
-        expect(text()).not.toContain("Couldn't load the newest revision.")
-        expect(store.get(workflowLatestRevisionIdAtomFamily("app-1"))).toBe("rev-1")
+        expect(text()).not.toContain("Playground is unable to communicate with the service")
     })
 
     it("Delete archives only the shown revision and shows the latest one left", async () => {

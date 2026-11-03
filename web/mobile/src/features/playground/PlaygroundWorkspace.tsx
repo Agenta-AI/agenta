@@ -63,6 +63,7 @@ export const PlaygroundWorkspace = ({
                             }
                             actions={
                                 <RevisionActions
+                                    workspaceId={workspaceId}
                                     projectId={projectId}
                                     appId={appId}
                                     revisionId={revisionId}

@@ -3,12 +3,12 @@ import {useState, type ReactNode} from "react"
 import {isLocalDraftId} from "@agenta/entities/shared"
 import {
     discardLocalServerDataAtom,
-    queryWorkflowRevisionsByWorkflow,
+    reloadWorkflowLatestRevisionAtom,
     workflowDetailQueryAtomFamily,
     workflowMolecule,
 } from "@agenta/entities/workflow"
 import {playgroundController} from "@agenta/playground"
-import {catalogPersister, immutablePersister} from "@agenta/shared/api/persist"
+import {immutablePersister} from "@agenta/shared/api/persist"
 import {message} from "@agenta/ui/app-message"
 import {cn} from "@agenta/ui/styles"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
@@ -17,11 +17,12 @@ import {Rocket, Trash} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue, useStore} from "jotai"
 import dynamic from "next/dynamic"
+import {useRouter} from "next/router"
 
 import {useProjectPermissionState} from "../context/useProjectPermission"
 import type {DialogRevision} from "../variants/DeployRevisionDialog"
-import {isEmptySeed} from "../variants/useAppRevisions"
 
+import {playgroundHref} from "./playgroundUrl"
 import {RevisionMenu} from "./RevisionMenu"
 
 // Each dialog loads when it is first opened, so the playground opens without them.
@@ -70,11 +71,13 @@ const WithTooltip = ({
  * render it again.
  */
 export const RevisionActions = ({
+    workspaceId,
     projectId,
     appId,
     revisionId,
     onCommitted,
 }: {
+    workspaceId: string
     projectId: string
     appId: string
     revisionId: string
@@ -83,9 +86,8 @@ export const RevisionActions = ({
 }) => {
     const store = useStore()
     const queryClient = useQueryClient()
+    const router = useRouter()
     const [open, setOpen] = useState<Open | null>(null)
-    // A deleted revision whose replacement did not load: it stays on screen with a retry.
-    const [unreplacedId, setUnreplacedId] = useState<string | null>(null)
     const edit = useProjectPermissionState(projectId, "edit_workflows")
     const deploy = useProjectPermissionState(projectId, "deploy_environments")
     const canEdit = edit.allowed
@@ -135,51 +137,27 @@ export const RevisionActions = ({
         else message.error("Failed to copy raw configuration")
     }
 
-    /** The newest revision left, newest first from the server, without a new variant's empty seed. */
-    const newestRevisionLeft = async (deletedId: string) => {
-        let next: string | null = null
-        do {
-            const page = await queryWorkflowRevisionsByWorkflow(appId, projectId, undefined, {
-                next,
-                limit: 50,
-                order: "descending",
-            })
-            const found = page.workflow_revisions.find(
-                (revision) => revision.id !== deletedId && !isEmptySeed(revision),
-            )
-            if (found) return found
-            next = page.windowing?.next ?? null
-        } while (next)
-        return null
-    }
-
-    // The deleted revision leaves the screen and both caches: memory and the persisted one a reload
-    // paints from. The newest revision left becomes the app's cached latest revision and replaces
-    // the deleted one, unless another revision is on screen by then.
+    // The app's latest revision loads again, and the deleted revision leaves both caches: memory
+    // and the persisted one a reload paints from. When it is on screen, the playground opens the
+    // app without it, and the opening load shows the latest revision, or its error and retry.
+    // Other revisions and their edits stay.
     const afterDelete = async (deletedId: string) => {
-        store.set(workflowMolecule.actions.discard, deletedId)
+        await store.set(reloadWorkflowLatestRevisionAtom, appId)
+        const selected = store.get(playgroundController.selectors.entityIds())
+        if (selected.includes(deletedId)) {
+            const rest = selected.filter((id) => id !== deletedId)
+            store.set(playgroundController.actions.setEntityIds, rest)
+            store.set(workflowMolecule.actions.discard, deletedId)
+            const href = playgroundHref(
+                `/w/${workspaceId}/p/${projectId}`,
+                appId,
+                rest.filter((id) => !isLocalDraftId(id)),
+            )
+            void router.replace(href, undefined, {shallow: true}).catch(() => undefined)
+        }
         const deletedKey = ["workflows", "revision", deletedId]
         queryClient.removeQueries({queryKey: deletedKey})
         await immutablePersister.removeQueries({queryKey: deletedKey}).catch(() => undefined)
-        let latest
-        try {
-            latest = await newestRevisionLeft(deletedId)
-        } catch (error) {
-            console.error("Loading the newest revision failed", error)
-            setUnreplacedId(deletedId)
-            return
-        }
-        setUnreplacedId(null)
-        if (!latest) return
-        const latestKey = ["workflows", "latestRevision", appId, projectId]
-        queryClient.setQueryData(latestKey, latest)
-        await catalogPersister.persistQueryByKey(latestKey, queryClient).catch(() => undefined)
-        if (store.get(playgroundController.selectors.entityIds()).includes(deletedId)) {
-            store.set(playgroundController.actions.switchEntity, {
-                currentEntityId: deletedId,
-                newEntityId: latest.id,
-            })
-        }
     }
 
     const discardLocalDraft = () => {
@@ -198,21 +176,6 @@ export const RevisionActions = ({
             </Button>
         </WithTooltip>
     )
-
-    if (unreplacedId === revisionId) {
-        return (
-            <p className="m-0 text-sm text-destructive">
-                Couldn't load the newest revision.{" "}
-                <button
-                    type="button"
-                    className="underline"
-                    onClick={() => void afterDelete(unreplacedId)}
-                >
-                    Try again
-                </button>
-            </p>
-        )
-    }
 
     return (
         <>

@@ -63,7 +63,12 @@ const revisions = [
     revision("rev-a", "agent-app", 1, {is_agent: true}),
     revision("rev-b", "agent-app", 2, {is_agent: true}),
 ]
+/** Revisions one test adds to the fixtures above. */
+let added: (Omit<ReturnType<typeof revision>, "data"> & {data: object | null})[] = []
 let failRevisions = false
+
+/** A new variant's first revision: version 0, nothing in it. The server nulls its data. */
+const isSeed = (item: {version: number; data: unknown}) => item.version === 0 && !item.data
 
 http.post.mockImplementation(async (url: string, body: Record<string, {id: string}[]>) => {
     if (url.endsWith("/workflows/query")) {
@@ -74,9 +79,23 @@ http.post.mockImplementation(async (url: string, body: Record<string, {id: strin
         if (failRevisions) throw new Error("network down")
         const byId = (body.workflow_revision_refs ?? []).map((ref) => ref.id)
         const byApp = (body.workflow_refs ?? []).map((ref) => ref.id)
-        const found = revisions.filter(
-            (item) => byId.includes(item.id) || byApp.includes(item.workflow_id),
-        )
+        // Newest first, as the server orders them.
+        let found = [...revisions, ...added]
+            .filter((item) => byId.includes(item.id) || byApp.includes(item.workflow_id))
+            .sort((a, b) => b.created_at.localeCompare(a.created_at))
+        const options = body as {grouping?: unknown; windowing?: {limit?: number}}
+        if (options.grouping) {
+            // The newest revision of each app that is not an empty seed, as the server answers.
+            found = found.filter(
+                (item, index) =>
+                    !isSeed(item) &&
+                    found.findIndex(
+                        (other) => other.workflow_id === item.workflow_id && !isSeed(other),
+                    ) === index,
+            )
+        } else if (options.windowing?.limit) {
+            found = found.slice(0, options.windowing.limit)
+        }
         return {data: {count: found.length, workflow_revisions: found}}
     }
     return {data: {}}
@@ -117,6 +136,7 @@ beforeEach(() => {
     store.set(projectIdAtom, projectId)
     store.set(sessionAtom, true)
     failRevisions = false
+    added = []
     router.replace.mockReset()
     router.replace.mockImplementation(async ({query}: {query: Record<string, string>}) => {
         router.query = query
@@ -143,6 +163,17 @@ describe("usePlaygroundSelection", () => {
     })
 
     it("Without revisions the latest revision is selected", async () => {
+        await mount("app-1")
+
+        expect(selection.revisionIds).toEqual(["rev-2"])
+        expect(selection.status).toBe("ready")
+    })
+
+    it("Without revisions a newer variant's empty seed is skipped for the latest revision", async () => {
+        added = [
+            {...revision("rev-seed", "app-1", 0), created_at: "2026-11-05T00:00:00Z", data: null},
+        ]
+
         await mount("app-1")
 
         expect(selection.revisionIds).toEqual(["rev-2"])

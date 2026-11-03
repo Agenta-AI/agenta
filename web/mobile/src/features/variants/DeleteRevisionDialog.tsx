@@ -36,10 +36,7 @@ export const DeleteRevisionDialog = ({
     projectId: string
     appId: string
     onClose: () => void
-    /**
-     * Called once the revision is gone and the lists have loaded again. The dialog stays open
-     * until it is done, so nothing else changes the screen meanwhile. It must not throw.
-     */
+    /** Called once the revision is gone and the lists have loaded again. It must not throw. */
     onDeleted?: (revisionId: string) => Promise<void> | void
 }) => {
     const queryClient = useQueryClient()
@@ -53,17 +50,18 @@ export const DeleteRevisionDialog = ({
             // Only this revision. The shared delete action also archives other revisions it
             // takes for empty seeds, which can take a real revision with it.
             await archiveWorkflowRevision(projectId, row.revisionId)
-            message.success("Deleted workflow successfully")
-            await queryClient.invalidateQueries({queryKey: ["workflows"]})
-            if (shownRevisionId === row.revisionId) setShownRevisionId(null)
-            await onDeleted?.(row.revisionId)
-            onClose()
         } catch (error) {
             console.error("Delete revision failed", error)
             message.error("Couldn't delete this revision")
-        } finally {
             setPending(false)
+            return
         }
+        // The revision is gone: the dialog closes, and the screens that showed it load again.
+        message.success("Deleted workflow successfully")
+        onClose()
+        await queryClient.invalidateQueries({queryKey: ["workflows"]})
+        if (shownRevisionId === row.revisionId) setShownRevisionId(null)
+        await onDeleted?.(row.revisionId)
     }
 
     return (
