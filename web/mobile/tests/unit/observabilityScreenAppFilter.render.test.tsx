@@ -24,7 +24,12 @@ vi.mock("@/features/developer/developerViewAccess", () => ({
 }))
 vi.mock("@agenta/observability", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/observability")>()),
-    useObservability: () => ({fetchTraces: vi.fn()}),
+    useObservability: () => ({
+        fetchTraces: vi.fn(),
+        traces: [],
+        selectedRowKeys: [],
+        setSelectedRowKeys: vi.fn(),
+    }),
     useSessions: () => ({refetchSessions: vi.fn()}),
 }))
 vi.mock("@agenta/observability-ui", () => ({
