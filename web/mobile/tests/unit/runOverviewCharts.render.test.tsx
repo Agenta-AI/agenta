@@ -65,7 +65,7 @@ afterEach(() => {
 })
 
 const card = (metric: ReturnType<typeof evaluatorMetric>) =>
-    createElement(MetricCard, {metric, runId: RUN_ID, runName: "Capitals check"})
+    createElement(MetricCard, {metric, runId: RUN_ID})
 
 describe("overview charts", () => {
     it("A boolean metric shows the true percent and a True and False chart", () => {
@@ -184,6 +184,41 @@ describe("overview charts", () => {
         expect(line.yDomain).toEqual([0, 1])
         // The score metric has no points yet.
         expect(host.textContent).toContain("Exact match metrics are on the way")
+    })
+
+    it("An online categorical metric draws one line per value", () => {
+        const point = (minute: number, friendly: number, curt: number) => ({
+            timestamp: Date.UTC(2026, 9, 30, 9, minute),
+            stats: {
+                type: "categorical/single",
+                frequency: [
+                    {value: "friendly", count: friendly},
+                    {value: "curt", count: curt},
+                ],
+            },
+        })
+        render(
+            createElement(MetricCardsSection, {
+                runId: RUN_ID,
+                runName: "Capitals check",
+                online: true,
+                metrics: [
+                    evaluatorMetric("attributes.ag.data.outputs.tone", CATEGORICAL, {
+                        temporal: [point(0, 1, 2), point(10, 4, 1)],
+                    }),
+                ],
+                hasEvaluators: true,
+                pending: false,
+                error: null,
+            }),
+        )
+        const line = charts.line[0] as {series: {key: string}[]; points: unknown[]}
+        expect(line.series.map((series) => series.key)).toEqual(["friendly", "curt"])
+        expect(line.points).toEqual([
+            {x: Date.UTC(2026, 9, 30, 9, 0), values: {friendly: 1, curt: 2}},
+            {x: Date.UTC(2026, 9, 30, 9, 10), values: {friendly: 4, curt: 1}},
+        ])
+        expect(host.textContent).toContain("Exact match")
     })
 
     it("No evaluator metrics shows No evaluator metrics available", () => {

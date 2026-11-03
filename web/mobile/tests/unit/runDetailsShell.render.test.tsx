@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import {act, createElement, type ReactNode} from "react"
 
-import {activeUserIdAtom, projectIdAtom} from "@agenta/shared/state"
+import {activeUserIdAtom, projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {createStore, getDefaultStore, Provider} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
@@ -75,7 +75,19 @@ interface RunSpec {
     active?: boolean
     human?: boolean
     name?: string
+    /** Test set, app and evaluator references, so the overview looks up their names. */
+    references?: boolean
 }
+
+const REFERENCED_STEPS = [
+    {key: "ts", type: "input", references: {testset: {id: "ts-1"}}},
+    {
+        key: "app",
+        type: "invocation",
+        references: {application: {id: "app-1"}, application_revision: {id: "rev-1", version: 2}},
+    },
+    {key: "ev", type: "annotation", origin: "auto", references: {evaluator: {id: "ev-1"}}},
+]
 
 /** A new run id per test: the package caches runs by id for the whole file. */
 function serveRun(spec: RunSpec | null) {
@@ -86,9 +98,11 @@ function serveRun(spec: RunSpec | null) {
         status: spec.status ?? "success",
         flags: {is_live: Boolean(spec.live), is_active: Boolean(spec.active), is_closed: false},
         data: {
-            steps: spec.human
-                ? [{key: "ev", type: "annotation", origin: "human", references: {}}]
-                : [],
+            steps: spec.references
+                ? REFERENCED_STEPS
+                : spec.human
+                  ? [{key: "ev", type: "annotation", origin: "human", references: {}}]
+                  : [],
         },
     }
     http.post.mockImplementation(async (url: string) => {
@@ -193,16 +207,34 @@ describe("run details tabs", () => {
 
 describe("run details page", () => {
     it("Opening a run sends no write request", async () => {
-        serveRun({status: "running", live: true, active: true})
+        // Every read the page makes, including the name lookups of the test set, app, variant
+        // and evaluator: through axios or through fetch (the Fern client).
+        const fetched: string[] = []
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+                fetched.push(`${init?.method ?? "GET"} ${String(input)}`)
+                return new Response("{}", {status: 404})
+            }),
+        )
+        store.set(sessionAtom, true)
+        serveRun({status: "running", live: true, active: true, references: true})
+        http.get.mockResolvedValue({data: {}})
         await mount()
+        await flush()
+
         expect(host.textContent).toContain("Evaluator Scores Overview")
         expect(http.patch).not.toHaveBeenCalled()
         expect(http.put).not.toHaveBeenCalled()
         expect(http.delete).not.toHaveBeenCalled()
-        const posted = http.post.mock.calls.map((call) => String(call[0]).replace(/.*\/api/, ""))
-        expect(new Set(posted)).toEqual(
-            new Set(["/evaluations/runs/query", "/evaluations/metrics/query"]),
-        )
+        const posted = http.post.mock.calls.map((call) => String(call[0]))
+        expect(posted).toContain("https://agenta.test/api/evaluations/runs/query")
+        expect(posted).toContain("https://agenta.test/api/evaluations/metrics/query")
+        // Every POST is a query: a read with a body, never a change.
+        expect(posted.filter((url) => !url.endsWith("/query"))).toEqual([])
+        expect(fetched.filter((line) => !/^(GET|POST \S+\/query)\b/.test(line))).toEqual([])
+        vi.unstubAllGlobals()
+        store.set(sessionAtom, false)
     })
 
     it("Pausing an active online run calls stop and shows Evaluation stopped", async () => {

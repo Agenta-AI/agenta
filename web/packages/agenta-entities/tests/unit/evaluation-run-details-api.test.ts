@@ -1,23 +1,18 @@
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
-const {postMock, patchMock} = vi.hoisted(() => ({postMock: vi.fn(), patchMock: vi.fn()}))
+const {postMock} = vi.hoisted(() => ({postMock: vi.fn()}))
 
 vi.mock("@agenta/shared/api", () => ({
-    axios: {post: postMock, patch: patchMock},
+    axios: {post: postMock},
     getAgentaApiUrl: () => "https://agenta.test/api",
 }))
 
-import {
-    editEvaluationRunMeta,
-    queryEvaluationScenariosPage,
-    queryRunLevelMetrics,
-} from "../../src/evaluationRun"
+import {queryEvaluationScenariosPage, queryRunLevelMetrics} from "../../src/evaluationRun"
 
 const scenario = (id: string) => ({id, run_id: "run-1", status: "success"})
 
 beforeEach(() => {
     postMock.mockReset()
-    patchMock.mockReset()
 })
 
 describe("run details API", () => {
@@ -89,23 +84,6 @@ describe("run details API", () => {
         expect(postMock).toHaveBeenCalledWith(
             "https://agenta.test/api/evaluations/metrics/query",
             {metrics: {run_ids: ["run-1", "run-2"], scenario_ids: false}},
-            {params: {project_id: "p1"}},
-        )
-    })
-
-    it("Edit run sends only id, name and description", async () => {
-        patchMock.mockResolvedValue({data: {}})
-
-        await editEvaluationRunMeta({
-            projectId: "p1",
-            runId: "run-1",
-            name: "Nightly check",
-            description: null,
-        })
-
-        expect(patchMock).toHaveBeenCalledWith(
-            "https://agenta.test/api/evaluations/runs/run-1",
-            {run: {id: "run-1", name: "Nightly check", description: null}},
             {params: {project_id: "p1"}},
         )
     })

@@ -152,7 +152,6 @@ export {
     type CreateAutoEvaluationRunsResult,
     findEvaluationRunsUsing,
     // Run details
-    editEvaluationRunMeta,
     queryEvaluationScenariosPage,
     queryRunLevelMetrics,
     type EvaluationScenario,

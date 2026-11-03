@@ -30,7 +30,6 @@ export {
     type CreateAutoEvaluationRunsResult,
 } from "./createRuns"
 export {
-    editEvaluationRunMeta,
     evaluationScenarioSchema,
     queryEvaluationScenariosPage,
     queryRunLevelMetrics,

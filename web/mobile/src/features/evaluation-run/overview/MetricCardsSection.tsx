@@ -72,12 +72,20 @@ export const MetricCardsSection = ({
         )
     }
 
-    const Card = online ? TemporalMetricCard : MetricCard
     return (
         <div className={GRID}>
-            {cards.map((metric) => (
-                <Card key={metric.id} metric={metric} runId={runId} runName={runName} />
-            ))}
+            {cards.map((metric) =>
+                online ? (
+                    <TemporalMetricCard
+                        key={metric.id}
+                        metric={metric}
+                        runId={runId}
+                        runName={runName}
+                    />
+                ) : (
+                    <MetricCard key={metric.id} metric={metric} runId={runId} />
+                ),
+            )}
         </div>
     )
 }

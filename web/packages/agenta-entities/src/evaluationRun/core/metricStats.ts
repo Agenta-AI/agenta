@@ -241,18 +241,7 @@ export function radarAxes(
             order.push(metric)
         }
     }
-    const evaluatorAxes = order.filter((metric) => metric.kind === "evaluator")
-    const picked =
-        evaluatorAxes.length >= 3
-            ? evaluatorAxes
-            : [
-                  ...evaluatorAxes,
-                  ...RADAR_FALLBACK_INVOCATION_IDS.flatMap((id) =>
-                      order.filter((metric) => metric.kind === "invocation" && metric.id === id),
-                  ),
-              ]
-
-    return picked.flatMap((axisMetric) => {
+    const toAxis = (axisMetric: RadarMetricInput): RadarAxis | null => {
         const statsByRun = runIds.map(
             (runId) =>
                 (metricsByRun[runId] ?? []).find((metric) => metric.id === axisMetric.id)?.stats ??
@@ -262,7 +251,7 @@ export function radarAxes(
         const rawByRun = statsByRun.map((stats) =>
             isBoolean ? booleanTruePercent(stats) : (metricSummary(stats)?.value ?? null),
         )
-        if (rawByRun.every((raw) => raw === null)) return []
+        if (rawByRun.every((raw) => raw === null)) return null
 
         let max = 100
         if (!isBoolean) {
@@ -280,8 +269,19 @@ export function radarAxes(
             values[runId] =
                 raw === null ? null : {raw, normalized: Math.min(Math.max(raw / max, 0), 1)}
         })
-        return [{name: axisMetric.name, max, values}]
-    })
+        return {name: axisMetric.name, max, values}
+    }
+
+    // Count only axes that carry a value: a categorical metric draws no axis, so it must not
+    // keep the invocation axes out.
+    const evaluatorAxes = order
+        .filter((metric) => metric.kind === "evaluator")
+        .flatMap((metric) => toAxis(metric) ?? [])
+    if (evaluatorAxes.length >= 3) return evaluatorAxes
+    const invocationAxes = RADAR_FALLBACK_INVOCATION_IDS.flatMap((id) =>
+        order.filter((metric) => metric.kind === "invocation" && metric.id === id),
+    ).flatMap((metric) => toAxis(metric) ?? [])
+    return [...evaluatorAxes, ...invocationAxes]
 }
 
 /** USD. 2 decimals from $1, else 3 significant digits ("$0.000123"). */

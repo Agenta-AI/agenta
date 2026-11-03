@@ -19,11 +19,10 @@ import {PageNotFound} from "@/components/PageNotFound"
  * The tabs built so far. A tab without a body shows disabled, and its view falls back to
  * Overview, until the Scenarios, Configuration and Annotate work lands.
  */
-const TAB_BODIES: Partial<
-    Record<RunDetailsView, ComponentType<{runId: string; header: RunHeader}>>
-> = {overview: OverviewTab}
-
-const shownView = (view: RunDetailsView): RunDetailsView => (TAB_BODIES[view] ? view : "overview")
+type TabBody = ComponentType<{runId: string; header: RunHeader}>
+const TAB_BODIES: Partial<Record<RunDetailsView, TabBody>> & {overview: TabBody} = {
+    overview: OverviewTab,
+}
 
 /** The run page under its title: the tabs and the open tab, or the run's load state. */
 export const RunDetailsBody = ({runId}: {runId: string}) => {
@@ -44,9 +43,10 @@ export const RunDetailsBody = ({runId}: {runId: string}) => {
     }
     if (!header) return <RunDetailsSkeleton />
 
-    const Body = TAB_BODIES[shownView(view)] ?? OverviewTab
+    const shown = TAB_BODIES[view] ? view : "overview"
+    const Body = TAB_BODIES[shown] ?? TAB_BODIES.overview
     return (
-        <Tabs value={shownView(view)} onValueChange={setView}>
+        <Tabs value={shown} onValueChange={setView}>
             <div className="-mx-4 overflow-x-auto px-4 pb-4">
                 <TabsList aria-label="Evaluation sections">
                     {tabs.map((tab) => (

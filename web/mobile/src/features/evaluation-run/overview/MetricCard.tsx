@@ -61,15 +61,7 @@ function chartSpec(metric: OverviewMetric, runId: string): ChartSpec {
 }
 
 /** One evaluator metric: its summary value and its distribution. */
-export const MetricCard = ({
-    metric,
-    runId,
-    runName,
-}: {
-    metric: OverviewMetric
-    runId: string
-    runName: string
-}) => {
+export const MetricCard = ({metric, runId}: {metric: OverviewMetric; runId: string}) => {
     const narrow = useIsNarrowScreen()
     const summary = metricSummary(metric.stats)
     const spec = chartSpec(metric, runId)
@@ -89,7 +81,7 @@ export const MetricCard = ({
             </header>
             {summary ? (
                 <p className="m-0 text-xl font-semibold tabular-nums text-foreground">
-                    <span title={runName}>{summary.formatted}</span>
+                    {summary.formatted}
                 </p>
             ) : null}
             {spec.data.length === 0 ? (

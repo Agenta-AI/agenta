@@ -148,6 +148,25 @@ describe("metric stats", () => {
         ])
     })
 
+    it("A categorical metric does not keep the duration and cost axes out", () => {
+        const axes = radarAxes(
+            {
+                r1: [
+                    evaluator("score", {mean: 0.5, max: 1}),
+                    evaluator("tone", {type: "categorical/single", freq: [{value: "a", count: 2}]}),
+                    evaluator("topic", {
+                        type: "categorical/single",
+                        freq: [{value: "b", count: 1}],
+                    }),
+                    invocation("cost", 0.002, 0.004),
+                    invocation("duration", 1.5, 3),
+                ],
+            },
+            ["r1"],
+        )
+        expect(axes.map((axis) => axis.name)).toEqual(["score", "Duration", "Cost"])
+    })
+
     it("A run without a value on an axis gets null, not zero", () => {
         const axes = radarAxes(
             {

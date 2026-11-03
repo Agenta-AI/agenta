@@ -12,7 +12,6 @@ import {getHostQueryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {createBatchFetcher} from "@agenta/shared/utils"
 import {atom} from "jotai"
-import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
@@ -31,8 +30,6 @@ import {evaluationRunQueryAtomFamily} from "./molecule"
 
 /** Same cadence as the old app's live refresh. */
 export const RUN_METRICS_REFRESH_MS = 5_000
-
-const PROJECT_PENDING = "projectId not yet available"
 
 export const runLevelMetricsQueryKey = (projectId: string, runId: string) =>
     ["evaluation-run-metrics", projectId, runId] as const
@@ -63,35 +60,34 @@ const runMetricsBatchFetcher = createBatchFetcher<
     },
 })
 
-const runIsTerminal = (runId: string) =>
-    isTerminalRunStatus(getDefaultStore().get(evaluationRunQueryAtomFamily(runId)).data?.status)
+/** Poll while the run is loading or not finished; stop when it finished, failed or is gone. */
+const shouldPoll = (run: {data?: EvaluationRun | null; isPending: boolean}) =>
+    run.data ? !isTerminalRunStatus(run.data.status) : run.isPending
 
+/**
+ * The getter reads the project and the run reactively, so the query key, the request and the
+ * poll interval follow a project switch and a run that finishes or resumes.
+ */
 export const runLevelMetricsQueryAtomFamily = atomFamily((runId: string) =>
-    atomWithQuery(() => {
-        // Read once, like the run query: atomWithQuery does not re-run this getter later.
-        const projectId = getDefaultStore().get(projectIdAtom) ?? ""
+    atomWithQuery((get) => {
+        const projectId = get(projectIdAtom)
+        const poll = shouldPoll(get(evaluationRunQueryAtomFamily(runId)))
         return {
-            queryKey: runLevelMetricsQueryKey(projectId, runId),
+            queryKey: runLevelMetricsQueryKey(projectId ?? "", runId),
             queryFn: async (): Promise<EvaluationMetric[]> => {
-                const currentProjectId = getDefaultStore().get(projectIdAtom)
-                if (!currentProjectId) throw new Error(PROJECT_PENDING)
-                const metrics = await runMetricsBatchFetcher({
-                    projectId: currentProjectId,
-                    runId,
-                })
-                if (!runIsTerminal(runId)) {
+                if (!projectId) return []
+                const metrics = await runMetricsBatchFetcher({projectId, runId})
+                // Refresh the run too, so the poll sees it finish.
+                if (poll) {
                     void getHostQueryClient().invalidateQueries({
                         queryKey: evaluationRunQueryKey(runId),
                     })
                 }
                 return metrics
             },
-            enabled: Boolean(runId),
+            enabled: Boolean(runId && projectId),
             staleTime: 30_000,
-            refetchInterval: () => (runIsTerminal(runId) ? false : RUN_METRICS_REFRESH_MS),
-            retry: (failureCount: number, error: Error) =>
-                error?.message === PROJECT_PENDING && failureCount < 5,
-            retryDelay: (attempt: number) => Math.min(200 * 2 ** attempt, 2000),
+            refetchInterval: poll ? RUN_METRICS_REFRESH_MS : false,
         }
     }),
 )

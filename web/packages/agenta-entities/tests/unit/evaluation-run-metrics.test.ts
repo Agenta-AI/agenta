@@ -15,6 +15,7 @@ vi.mock("@agenta/shared/api", async (importOriginal) => ({
 import {
     buildRunMetricCatalog,
     evaluationRunQueryAtomFamily,
+    evaluationRunQueryKey,
     runLevelMetricsQueryAtomFamily,
     runLevelMetricsQueryKey,
     runMetricCatalogAtomFamily,
@@ -137,24 +138,71 @@ describe("run metrics query", () => {
         await vi.waitFor(() =>
             expect(store.get(runLevelMetricsQueryAtomFamily(run.id)).isSuccess).toBe(true),
         )
-        const query = client.getQueryCache().find({queryKey: runLevelMetricsQueryKey("p1", run.id)})
-        const interval = () => {
-            const option = query?.options.refetchInterval
-            return typeof option === "function" ? option(query as never) : option
-        }
-        expect(interval()).toBe(5_000)
+        const interval = () =>
+            client.getQueryCache().find({queryKey: runLevelMetricsQueryKey("p1", run.id)})
+                ?.observers[0]?.options.refetchInterval
+        await vi.waitFor(() => expect(interval()).toBe(5_000))
 
         // A metrics fetch while the run is running also refreshes the run, so the poll sees the
         // run finish and stops.
         serve([{...run, status: "success"}], [])
         await store.get(runLevelMetricsQueryAtomFamily(run.id)).refetch()
-        await vi.waitFor(() =>
-            expect(store.get(evaluationRunQueryAtomFamily(run.id)).data?.status).toBe("success"),
-        )
-        expect(interval()).toBe(false)
+        await vi.waitFor(() => expect(interval()).toBe(false))
+
+        // Resumed: the run is running again, and the poll starts again.
+        serve([run], [])
+        await client.invalidateQueries({queryKey: evaluationRunQueryKey(run.id)})
+        await vi.waitFor(() => expect(interval()).toBe(5_000))
 
         stopMetrics()
         stopRun()
+    })
+
+    it("The metrics query stops polling when the run is gone", async () => {
+        serve([], [])
+        const client = new QueryClient()
+        store.set(queryClientAtom, client)
+
+        const stopRun = store.sub(evaluationRunQueryAtomFamily("run-gone"), () => undefined)
+        const stopMetrics = store.sub(runLevelMetricsQueryAtomFamily("run-gone"), () => undefined)
+        await vi.waitFor(() =>
+            expect(store.get(evaluationRunQueryAtomFamily("run-gone")).isSuccess).toBe(true),
+        )
+        const query = client
+            .getQueryCache()
+            .find({queryKey: runLevelMetricsQueryKey("p1", "run-gone")})
+        await vi.waitFor(() => expect(query?.observers[0]?.options.refetchInterval).toBe(false))
+
+        stopMetrics()
+        stopRun()
+    })
+
+    it("The metrics query waits for the project and keys its result by it", async () => {
+        store.set(projectIdAtom, null)
+        const run = {...auto.run, id: "run-late-project"}
+        serve(
+            [run],
+            auto.response.metrics.map((row) => ({...row, run_id: run.id})),
+        )
+        const client = new QueryClient()
+        store.set(queryClientAtom, client)
+
+        const stopMetrics = store.sub(runLevelMetricsQueryAtomFamily(run.id), () => undefined)
+        await new Promise((resolve) => setTimeout(resolve, 150))
+        expect(
+            postMock.mock.calls.filter((call) => String(call[0]).endsWith("/metrics/query")),
+        ).toHaveLength(0)
+
+        store.set(projectIdAtom, "p2")
+        await vi.waitFor(() =>
+            expect(store.get(runLevelMetricsQueryAtomFamily(run.id)).isSuccess).toBe(true),
+        )
+        const metricsCall = postMock.mock.calls.find((call) =>
+            String(call[0]).endsWith("/metrics/query"),
+        )
+        expect(metricsCall?.[2]).toEqual({params: {project_id: "p2"}})
+        expect(client.getQueryData(runLevelMetricsQueryKey("p2", run.id))).toHaveLength(1)
+        stopMetrics()
     })
 
     it("Two runs share one metrics request", async () => {
@@ -177,15 +225,21 @@ describe("run metrics query", () => {
             expect(store.get(runLevelMetricsQueryAtomFamily("run-b")).isSuccess).toBe(true)
         })
 
-        const metricCalls = postMock.mock.calls.filter((call) =>
-            String(call[0]).endsWith("/metrics/query"),
+        // Earlier tests may still have a poll in flight: count only the calls for these runs.
+        const metricCalls = postMock.mock.calls.filter(
+            (call) =>
+                String(call[0]).endsWith("/metrics/query") &&
+                call[1].metrics.run_ids.some((id: string) => id === "run-a" || id === "run-b"),
         )
         expect(metricCalls).toHaveLength(1)
-        expect(metricCalls[0][1]).toEqual({
-            metrics: {run_ids: ["run-a", "run-b"], scenario_ids: false},
-        })
-        expect(store.get(runMetricCatalogAtomFamily("run-b")).map((entry) => entry.id)).toContain(
-            "evaluator-4d0a:attributes.ag.data.outputs.tone",
+        expect(metricCalls[0][1].metrics.run_ids).toEqual(
+            expect.arrayContaining(["run-a", "run-b"]),
+        )
+        expect(metricCalls[0][1].metrics.scenario_ids).toBe(false)
+        await vi.waitFor(() =>
+            expect(
+                store.get(runMetricCatalogAtomFamily("run-b")).map((entry) => entry.id),
+            ).toContain("evaluator-4d0a:attributes.ag.data.outputs.tone"),
         )
         stops.forEach((stop) => stop())
     })

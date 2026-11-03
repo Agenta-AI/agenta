@@ -4,6 +4,7 @@ import {
     format3Sig,
     formatCost,
     formatDuration,
+    isBooleanMetricStats,
     radarAxes,
     type RadarMetricInput,
 } from "@agenta/entities/evaluationRun"
@@ -16,11 +17,24 @@ import {OverviewEmpty} from "../states/OverviewEmpty"
 
 import type {OverviewMetric} from "./useRunOverview"
 
-const formatAxisValue = (raw: number, axis: RadarAxis) => {
-    if (axis.name === "Cost") return formatCost(raw)
-    if (axis.name === "Duration") return formatDuration(raw)
-    return axis.max === 100 ? `${raw.toFixed(2)}%` : format3Sig(raw)
+type AxisUnit = "cost" | "duration" | "percent" | "number"
+
+const unitOf = (input: RadarMetricInput): AxisUnit => {
+    if (input.kind === "invocation" && (input.id === "cost" || input.id === "duration")) {
+        return input.id
+    }
+    return isBooleanMetricStats(input.stats) ? "percent" : "number"
 }
+
+/** Cost and duration axes read as money and time, boolean axes as a percent. */
+const axisFormatter =
+    (unitByName: ReadonlyMap<string, AxisUnit>) => (raw: number, axis: RadarAxis) => {
+        const unit = unitByName.get(axis.name)
+        if (unit === "cost") return formatCost(raw)
+        if (unit === "duration") return formatDuration(raw)
+        if (unit === "percent") return `${raw.toFixed(2)}%`
+        return format3Sig(raw)
+    }
 
 /** The radar of a run's evaluator scores, with Duration and Cost added when there are few. */
 export const RunRadarCard = ({
@@ -35,7 +49,7 @@ export const RunRadarCard = ({
     pending: boolean
 }) => {
     const narrow = useIsNarrowScreen()
-    const axes = useMemo(() => {
+    const {axes, formatAxisValue} = useMemo(() => {
         const inputs: RadarMetricInput[] = metrics.map((metric) => ({
             id: metric.id,
             kind: metric.kind,
@@ -45,7 +59,11 @@ export const RunRadarCard = ({
                     : metric.label,
             stats: metric.stats,
         }))
-        return radarAxes({[runId]: inputs}, [runId])
+        const unitByName = new Map(inputs.map((input) => [input.name, unitOf(input)] as const))
+        return {
+            axes: radarAxes({[runId]: inputs}, [runId]),
+            formatAxisValue: axisFormatter(unitByName),
+        }
     }, [metrics, runId])
 
     if (pending && axes.length === 0) {

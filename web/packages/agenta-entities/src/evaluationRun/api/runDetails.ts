@@ -1,6 +1,5 @@
 /**
- * Run details API: the scenario pages of one run, the run-level metrics of a set of runs, and the
- * run name and description edit.
+ * Run details API: the scenario pages of one run and the run-level metrics of a set of runs.
  *
  * Each function throws when the request fails or the response does not match its schema, so a
  * caller never mistakes a failed request for an empty result.
@@ -90,23 +89,4 @@ export async function queryRunLevelMetrics({
         {params: {project_id: projectId}},
     )
     return parseOrThrow(evaluationMetricsResponseSchema, response?.data, "metrics").metrics
-}
-
-/** `PATCH /evaluations/runs/{runId}`: rename a run or change its description. Nothing else. */
-export async function editEvaluationRunMeta({
-    projectId,
-    runId,
-    name,
-    description,
-}: {
-    projectId: string
-    runId: string
-    name: string
-    description: string | null
-}): Promise<void> {
-    await axios.patch(
-        `${getAgentaApiUrl()}/evaluations/runs/${runId}`,
-        {run: {id: runId, name, description}},
-        {params: {project_id: projectId}},
-    )
 }
