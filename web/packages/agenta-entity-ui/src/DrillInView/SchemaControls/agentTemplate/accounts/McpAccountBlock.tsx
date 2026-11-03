@@ -42,7 +42,13 @@ export function McpAccountBlock({
             onChange={(value) => onChange(value as AccountSource)}
             disabled={disabled}
             line={
-                source === "user" && endpoint && endpoint.user_sign_in !== undefined ? (
+                // Disabled means the reader may not edit the agent. Those roles may not use the
+                // project's MCP servers either (the API sends `can_sign_in: false`), so a sign-in
+                // would lead nowhere.
+                !disabled &&
+                source === "user" &&
+                endpoint &&
+                endpoint.user_sign_in !== undefined ? (
                     <YourSignInLine endpoint={endpoint} />
                 ) : null
             }

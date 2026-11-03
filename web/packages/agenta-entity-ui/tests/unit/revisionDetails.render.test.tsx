@@ -50,8 +50,8 @@ vi.mock("@agenta/entities/environment", async () => {
 })
 
 vi.mock("@agenta/entities/shared", () => ({
-    UserAuthorLabel: ({userId}: {userId?: string | null}) => (
-        <span data-testid="author">{userId}</span>
+    UserAuthorLabel: ({userId, fallback}: {userId?: string | null; fallback?: string | null}) => (
+        <span data-testid="author">{userId ?? fallback}</span>
     ),
 }))
 
@@ -154,6 +154,12 @@ describe("RevisionDetails", () => {
         put("artifactSlug:rev-1", null)
         await render({revisionId: "rev-1", kind: "evaluator"})
         expect(labelTexts()).not.toContain("Slug")
+    })
+
+    it("Created by shows a dash when the author is unknown", async () => {
+        put("data:rev-1", revision({created_by_id: null}))
+        await render({revisionId: "rev-1", kind: "variant"})
+        expect(valueOf("Created by")).toBe("—")
     })
 
     it("The note row shows only when the revision has a message", async () => {

@@ -255,7 +255,7 @@ export const LiveConversation = ({
     // user, another session) never come through here: the version pill offers those.
     const applyCommitRef = useRef<(revisionId: string) => void>(() => undefined)
     applyCommitRef.current = (revisionId: string) => {
-        invalidateAgentCommittedRevisionCache()
+        invalidateAgentCommittedRevisionCache(agentId)
         if (revisionId === entityId) return
         // Unsaved edits in the config pane belong to the pinned revision. Switching now would drop
         // them, so the version pill offers the commit instead.

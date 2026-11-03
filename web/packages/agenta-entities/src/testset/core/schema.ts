@@ -27,6 +27,7 @@ import {z} from "zod"
 import {
     createEntitySchemaSet,
     timestampFieldsSchema,
+    auditFieldsSchema,
     safeParseWithLogging,
     getVersionLabel,
 } from "../../shared"
@@ -180,6 +181,7 @@ export const testsetSchema = z
         project_id: z.string().nullable().optional(),
     })
     .merge(timestampFieldsSchema)
+    .merge(auditFieldsSchema)
 
 export type Testset = z.infer<typeof testsetSchema>
 

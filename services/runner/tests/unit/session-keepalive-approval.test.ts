@@ -2011,6 +2011,9 @@ function pausableHarness(
       openToolCallIds() {
         return [...run.open];
       },
+      wasForceSettled(toolCallId: string) {
+        return run.settled.some((entry) => entry.id === toolCallId);
+      },
       denied: [] as string[],
       markToolCallDenied(id: string | undefined) {
         if (id) run.denied.push(id);

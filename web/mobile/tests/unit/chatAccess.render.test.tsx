@@ -19,6 +19,8 @@ const sharing = vi.hoisted(() => ({
     querySharingMembers: vi.fn(),
 }))
 const fresh = vi.hoisted(() => new Set<string>())
+// Chats this tab created; unlike `fresh`, the record survives a reload.
+const created = vi.hoisted(() => new Set<string>())
 
 vi.mock("@agenta/sdk/resources", () => ({
     getSharingClient: () => sharing,
@@ -31,6 +33,8 @@ const rows = vi.hoisted(() => ({querySessionStreams: vi.fn()}))
 // The fresh-session marker and the session row read; the rest of the entity is not read here.
 vi.mock("@agenta/entities/session", () => ({
     isSessionFresh: (sessionId: string) => fresh.has(sessionId),
+    isSessionCreatedHere: (sessionId: string) => created.has(sessionId),
+    forgetSessionCreatedHere: (sessionId: string) => created.delete(sessionId),
     querySessionStreams: (...args: unknown[]) => rows.querySessionStreams(...args),
 }))
 
@@ -64,12 +68,12 @@ let host: HTMLDivElement
 let root: Root
 let seen: ReturnType<typeof useChatAccess>
 
-const Probe = ({sessionId}: {sessionId: string}) => {
-    seen = useChatAccess({sessionId, projectId: PROJECT, agentHidden: false})
+const Probe = ({sessionId, routeAgentId}: {sessionId: string; routeAgentId?: string}) => {
+    seen = useChatAccess({sessionId, projectId: PROJECT, routeAgentId, agentHidden: false})
     return null
 }
 
-const mount = async (sessionId: string) => {
+const mount = async (sessionId: string, routeAgentId?: string) => {
     const client = new QueryClient({defaultOptions: {queries: {retry: false}}})
     const store = createStore()
     store.set(queryClientAtom, client)
@@ -78,7 +82,7 @@ const mount = async (sessionId: string) => {
         root.render(
             <QueryClientProvider client={client}>
                 <Provider store={store}>
-                    <Probe sessionId={sessionId} />
+                    <Probe sessionId={sessionId} routeAgentId={routeAgentId} />
                 </Provider>
             </QueryClientProvider>,
         ),
@@ -150,6 +154,63 @@ describe("until the sharing state of an existing chat is known", () => {
         expect(seen.blocked).toBeNull()
     })
 
+    it("an empty chat this tab created may send after a reload", async () => {
+        created.add("empty-after-reload")
+        rows.querySessionStreams.mockResolvedValue(notFound)
+        await mount("empty-after-reload", "agent-1")
+        await advance(0)
+
+        expect(seen.canSend).toBe(true)
+        expect(seen.blocked).toBeNull()
+        expect(seen.readOnly).toBeNull()
+    })
+
+    it("an agent link to a chat with no row that this tab did not create stays locked", async () => {
+        // Another person's private chat reads like an empty one: no row.
+        rows.querySessionStreams.mockResolvedValue(notFound)
+        await mount("someone-elses-private", "agent-1")
+        await advance(0)
+
+        expect(seen.canSend).toBe(false)
+        expect(seen.blocked).toBeNull()
+    })
+
+    it("an empty chat this tab created needs its agent's route to send", async () => {
+        created.add("created-no-route")
+        rows.querySessionStreams.mockResolvedValue(notFound)
+        await mount("created-no-route")
+        await advance(0)
+
+        expect(seen.canSend).toBe(false)
+        expect(seen.blocked).toBe("not_found")
+    })
+
+    it("a chat this tab created is no longer an empty chat once it has a row", async () => {
+        created.add("created-then-used")
+        rows.querySessionStreams.mockResolvedValue(state("participant"))
+        await mount("created-then-used", "agent-1")
+        await advance(0)
+        expect(seen.canSend).toBe(true)
+
+        // Access is removed, and the page reloads: the screen remembers nothing.
+        await act(async () => root.unmount())
+        root = createRoot(host)
+        rows.querySessionStreams.mockResolvedValue(notFound)
+        await mount("created-then-used", "agent-1")
+        await advance(0)
+
+        expect(seen.canSend).toBe(false)
+    })
+
+    it("no row without an agent route stays not found", async () => {
+        rows.querySessionStreams.mockResolvedValue(notFound)
+        await mount("no-row-no-agent")
+        await advance(0)
+
+        expect(seen.canSend).toBe(false)
+        expect(seen.blocked).toBe("not_found")
+    })
+
     it("a known state that allows sending enables it", async () => {
         rows.querySessionStreams.mockResolvedValue(state("participant"))
         await mount("existing-known")
@@ -171,6 +232,19 @@ describe("a sharing change while the chat stays open", () => {
         await advance(59_000)
         expect(seen.blocked).toBeNull()
         await advance(1_500)
+
+        expect(seen.blocked).toBe("removed")
+        expect(seen.canSend).toBe(false)
+    })
+
+    it("a revoked grant on the agent's route is still removed, not an empty chat", async () => {
+        rows.querySessionStreams.mockResolvedValueOnce(state("participant"))
+        await mount("revoked-on-agent-route", "agent-1")
+        await advance(0)
+        expect(seen.canSend).toBe(true)
+
+        rows.querySessionStreams.mockResolvedValue(notFound)
+        await advance(60_500)
 
         expect(seen.blocked).toBe("removed")
         expect(seen.canSend).toBe(false)

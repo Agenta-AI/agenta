@@ -30,6 +30,7 @@ vi.mock("jotai", async (importOriginal) => ({
 import McpPermissionDrawer from "../../src/mcpEndpoint/McpPermissionDrawer"
 import {
     getMcpConnectionStatus,
+    McpProtocolError,
     readMcpPolicy,
     type McpServerPolicy,
 } from "@agenta/entities/mcpEndpoint"
@@ -1015,5 +1016,39 @@ describe("a saved per-tool value the drawer cannot draw", () => {
         await render({policy: misCasedValue})
 
         expect(labelled("Default permission")?.textContent).not.toContain("Allow all")
+    })
+})
+
+describe("a reader who may not edit the agent", () => {
+    // A Viewer opens the same drawer. The API refuses their edits, so the drawer must not offer
+    // one, and must not ask them to sign in to a server they may not use.
+    const viewer = {disabled: true, onRemove: vi.fn(), onReconnect: vi.fn()}
+
+    it("is not offered Remove from agent", async () => {
+        await render(viewer)
+
+        expect(button("Remove from agent")).toBeUndefined()
+    })
+
+    it("reads the no-access answer instead of a reconnect ask when the login lapsed", async () => {
+        listMcpTools.mockRejectedValue(
+            new McpProtocolError("Denied use_mcp_endpoints", "policy_denied", 403),
+        )
+        const logged = vi.spyOn(console, "error").mockImplementation(() => undefined)
+        await render({...viewer, status: "login_expired"})
+
+        expect(text()).not.toContain("needs a new sign-in")
+        expect(button("Reconnect")).toBeUndefined()
+        expect(text()).toContain("You do not have access to this server's tools.")
+        logged.mockRestore()
+    })
+
+    it("offers no Connect when the tool list asks for a sign-in", async () => {
+        listMcpTools.mockRejectedValue(new McpProtocolError("Sign in first", "auth_required", 401))
+        const logged = vi.spyOn(console, "error").mockImplementation(() => undefined)
+        await render(viewer)
+
+        expect(button("Connect")).toBeUndefined()
+        logged.mockRestore()
     })
 })

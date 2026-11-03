@@ -49,3 +49,9 @@ export type {
     EditEnvironmentParams,
     DeployToEnvironmentParams,
 } from "./types"
+
+export {
+    buildAppDeploymentHistory,
+    type AppDeploymentApp,
+    type AppDeploymentRow,
+} from "./appDeploymentHistory"

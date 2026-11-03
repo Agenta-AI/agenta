@@ -44,6 +44,7 @@ const WorkflowRevisionDrawer = ({playgroundContent}: WorkflowRevisionDrawerProps
     const context = useAtomValue(workflowRevisionDrawerContextAtom)
     const closeDrawer = useSetAtom(closeWorkflowRevisionDrawerAtom)
     const [shouldRender, setShouldRender] = useState(!!isOpen)
+    const [container, setContainer] = useState<HTMLElement | null>(null)
     const isEvaluatorDrawer = context === "evaluator-view" || context === "evaluator-create"
     // Create-style flows (evaluator + app create) and the evaluator viewer use a
     // blurred backdrop. antd's built-in `maskClosable` (default true) drives
@@ -52,6 +53,13 @@ const WorkflowRevisionDrawer = ({playgroundContent}: WorkflowRevisionDrawerProps
 
     useEffect(() => {
         if (isOpen) {
+            // Opened from an @agenta/ui modal (e.g. "Create new evaluator" in New Evaluation):
+            // mount inside that dialog. Rendered beside it, the drawer stacks under its z-50
+            // layer, and the dialog's focus trap fights the drawer's.
+            const dialogs = document.querySelectorAll<HTMLElement>(
+                '[data-slot="dialog-content"][data-state="open"]',
+            )
+            setContainer(dialogs.length ? dialogs[dialogs.length - 1] : null)
             setShouldRender(true)
         }
     }, [isOpen])
@@ -115,6 +123,7 @@ const WorkflowRevisionDrawer = ({playgroundContent}: WorkflowRevisionDrawerProps
             // z-40/z-50. Pin below that scale so a nested Create/confirm modal stacks above
             // this drawer instead of behind it.
             zIndex={40}
+            getContainer={container ?? undefined}
             styles={{
                 body: {padding: 0},
                 wrapper: {width: isExpanded ? "clamp(1155px, 92vw, 1600px)" : 1100},

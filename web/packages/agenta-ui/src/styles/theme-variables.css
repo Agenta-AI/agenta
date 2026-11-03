@@ -568,6 +568,9 @@
     --ag-chart-series-2: #FF8E8C;
     --ag-chart-series-3: #8FBF7A;
     --ag-chart-series-4: #787878;
+    --ag-chart-grid: #FFFFFF1F;
+    --ag-chart-axis-line: #FFFFFF33;
+    --ag-chart-axis-text: #A6A6A6;
     --ag-chart-track: #333333;
     --ag-type-completion-bg: rgba(209, 209, 81, 0.14);
     --ag-type-completion-text: #d1d151;

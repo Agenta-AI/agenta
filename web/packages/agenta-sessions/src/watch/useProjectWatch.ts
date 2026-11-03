@@ -7,7 +7,7 @@ import {getAgentaApiUrl, getHostQueryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
 
-import {useWatchEventSource, type RefreshSession} from "./watchEventSource"
+import {useWatchEventSource, type RefreshSession, type WatchEventHandler} from "./watchEventSource"
 
 /** The events `GET /sessions/watch` emits. `ready` fires on every (re)connect. */
 export type ProjectWatchEvent = "ready" | "session-changed" | "workflow-changed"
@@ -24,14 +24,24 @@ export const projectWatchUrl = (projectId: string): string =>
  * exists only there; a token match reaches it without importing an app module into a package,
  * and matches nothing on `/m`.
  */
-const invalidateProjectWorkflowQueries = (): void => {
+const invalidateProjectWorkflowQueries = (workflowId?: string): void => {
     invalidateWorkflowsListCache()
     // A change to a workflow is, as often as not, a new revision — committed by the agent, by
     // this app's auto-save, or by another device — so the latest-revision caches must re-read.
-    invalidateAgentCommittedRevisionCache()
+    invalidateAgentCommittedRevisionCache(workflowId)
     void getHostQueryClient().invalidateQueries({
         predicate: (query) => query.queryKey.includes("agents-workflows"),
     })
+}
+
+/** The workflow a `workflow-changed` event names (`{entity: "workflow", id}`), if any. */
+const changedWorkflowId = (event: MessageEvent<string>): string | undefined => {
+    try {
+        const id = (JSON.parse(event.data) as {id?: unknown})?.id
+        return typeof id === "string" && id ? id : undefined
+    } catch {
+        return undefined
+    }
 }
 
 /**
@@ -48,13 +58,13 @@ const invalidateProjectWorkflowQueries = (): void => {
  * change events stay narrow, so a busy chat does not refetch the agents list on every turn.
  */
 /** What each server event refreshes. Module scope: nothing here closes over a render. */
-export const projectWatchHandlers: Record<ProjectWatchEvent, () => void> = {
+export const projectWatchHandlers: Record<ProjectWatchEvent, WatchEventHandler> = {
     ready: () => {
         invalidateSessionListQueries()
         invalidateProjectWorkflowQueries()
     },
-    "session-changed": invalidateSessionListQueries,
-    "workflow-changed": invalidateProjectWorkflowQueries,
+    "session-changed": () => invalidateSessionListQueries(),
+    "workflow-changed": (event) => invalidateProjectWorkflowQueries(changedWorkflowId(event)),
 }
 
 export const useProjectWatch = ({refreshSession}: {refreshSession: RefreshSession}): void => {

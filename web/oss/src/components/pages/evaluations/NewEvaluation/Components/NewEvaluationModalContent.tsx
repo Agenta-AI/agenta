@@ -137,6 +137,8 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                 entityId: localId,
                 mode: "create",
                 onEvaluatorCreated,
+                // Created inline: stay in this modal instead of opening the new evaluator's page.
+                postCreateNavigation: "stay",
             })
             onSelectTemplate?.(evaluator)
         },

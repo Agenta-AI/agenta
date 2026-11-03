@@ -1,4 +1,13 @@
-import {Archive, Plugs as PlugsIcon, type Icon} from "@phosphor-icons/react"
+import {
+    Archive,
+    Plugs as PlugsIcon,
+    type Icon,
+    Tray,
+    TableIcon,
+    GitBranchIcon,
+    FolderSimpleIcon,
+    ChartDonut,
+} from "@phosphor-icons/react"
 
 /**
  * How far a developer view has rolled out.
@@ -67,10 +76,57 @@ export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
         stage: "hidden",
     },
     {
+        id: "playground",
+        label: "Playground",
+        description: "Edit and run prompt and chat apps.",
+        routes: ["/apps/[app_id]/playground"],
+        stage: "hidden",
+    },
+    {
         id: "observability-app-filter",
         label: "Filter by app",
         description:
             "Filter traces and sessions by app, and open sessions for one agent from a link.",
+        stage: "hidden",
+    },
+    {
+        id: "annotation-queues",
+        label: "Annotation queues",
+        description: "Show the Annotation queues page under Developer in the navigation.",
+        routes: ["/annotations", "/annotations/[queue_id]"],
+        nav: {icon: Tray, section: "developer"},
+        stage: "hidden",
+    },
+    {
+        id: "testsets",
+        label: "Test sets",
+        description: "Show the Test sets page under Developer in the navigation.",
+        routes: ["/testsets", "/testsets/archived", "/testsets/[testset_id]"],
+        nav: {icon: TableIcon, section: "developer"},
+        stage: "hidden",
+    },
+    {
+        id: "variants",
+        label: "Variants",
+        description: "Variants of an app, their revisions, and where each is deployed.",
+        routes: ["/variants"],
+        nav: {icon: GitBranchIcon, section: "developer"},
+        stage: "hidden",
+    },
+    {
+        id: "prompts",
+        label: "Prompts",
+        description: "Show the Prompts page under Developer in the navigation.",
+        routes: ["/prompts"],
+        nav: {icon: FolderSimpleIcon, section: "developer"},
+        stage: "hidden",
+    },
+    {
+        id: "evaluators",
+        label: "Evaluators",
+        description: "Automatic and human evaluators, with archive and restore.",
+        routes: ["/evaluators", "/evaluators/archived"],
+        nav: {icon: ChartDonut, section: "developer"},
         stage: "hidden",
     },
 ]

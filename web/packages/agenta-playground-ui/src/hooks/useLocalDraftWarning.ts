@@ -5,7 +5,11 @@ import {workflowMolecule} from "@agenta/entities/workflow"
 import {playgroundController} from "@agenta/playground"
 import {atom, useAtomValue} from "jotai"
 
-export const useLocalDraftWarning = () => {
+/**
+ * Asks the browser to confirm before the page unloads while a selected revision is a local draft
+ * or has unsaved edits. Returns that flag, so a host can guard in-app navigation as well.
+ */
+export const useLocalDraftWarning = (): boolean => {
     const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), []))
 
     const hasUnsavedOrLocalDraftsAtom = useMemo(
@@ -40,4 +44,6 @@ export const useLocalDraftWarning = () => {
             window.removeEventListener("beforeunload", handleBeforeUnload)
         }
     }, [hasUnsavedOrLocalDrafts])
+
+    return hasUnsavedOrLocalDrafts
 }

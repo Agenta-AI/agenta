@@ -28,7 +28,7 @@ import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import type {StoreOptions} from "../../shared"
-import {queryEvaluationRuns, queryEvaluationResults} from "../api"
+import {queryEvaluationRuns, queryEvaluationResults, evaluationRunQueryKey} from "../api"
 import type {
     EvaluationRun,
     EvaluationRunDataMapping,
@@ -110,7 +110,7 @@ const runBatchFetcher = createBatchFetcher<RunBatchKey, EvaluationRun | null>({
  */
 export const evaluationRunQueryAtomFamily = atomFamily((runId: string) =>
     atomWithQuery(() => ({
-        queryKey: ["evaluationRun", runId],
+        queryKey: evaluationRunQueryKey(runId),
         queryFn: async (): Promise<EvaluationRun | null> => {
             const projectId = getStore().get(projectIdAtom)
             if (!runId) return null

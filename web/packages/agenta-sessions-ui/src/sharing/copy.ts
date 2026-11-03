@@ -69,6 +69,11 @@ export const sessionSharingCopy = {
     stopSharing: "Stop sharing",
     copyLink: "Copy share link",
     linkCopied: "Link copied. Only people with access can open it.",
+    /** Draft: the chat is private with nobody added, so the copied link opens for nobody else. */
+    linkNobodyYet:
+        "Nobody else can open this link yet. Invite people above, or choose Shared with project.",
+    /** Draft: the toast after a copy while nobody else has access. */
+    linkCopiedNobodyYet: "Link copied. Nobody else can open it yet.",
     done: "Done",
 
     stopTitle: "Stop sharing?",

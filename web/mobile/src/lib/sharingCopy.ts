@@ -41,6 +41,8 @@ export const sharingCopy = {
 
     // Hidden and unknown read the same.
     chatNotFound: "This chat does not exist, or you do not have access to it.",
+    // Draft: a chat link someone sent gives no access until its owner adds the reader.
+    chatNotFoundAskOwner: "If someone sent you this link, ask them to add you from Share.",
     agentNotFound: "This agent does not exist, or you do not have access to it.",
 
     // A read-only approval card.

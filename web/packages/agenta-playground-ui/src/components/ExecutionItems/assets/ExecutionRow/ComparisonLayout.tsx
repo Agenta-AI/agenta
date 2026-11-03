@@ -331,12 +331,15 @@ const ComparisonLayout = ({
                                         />
                                     </div>
                                 )}
-                                <PlaygroundInputsBodyHost
-                                    rowId={rowId}
-                                    downstreamKey={downstreamKey}
-                                    editable={!disabled}
-                                    templateFormat={promptTemplateFormat}
-                                />
+                                {/* Same inset as the toolbar above and the run controls below. */}
+                                <div className="px-2">
+                                    <PlaygroundInputsBodyHost
+                                        rowId={rowId}
+                                        downstreamKey={downstreamKey}
+                                        editable={!disabled}
+                                        templateFormat={promptTemplateFormat}
+                                    />
+                                </div>
                             </>
                         ) : (
                             variableIds.map((variableId, index) => (

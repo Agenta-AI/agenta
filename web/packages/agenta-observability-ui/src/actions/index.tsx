@@ -5,14 +5,10 @@ import {Button} from "@agenta/ui/ui"
 import {DropdownMenu, DropdownMenuContent, DropdownMenuTrigger} from "@agenta/ui/ui"
 import {DatabaseIcon, ListChecks, ListPlus, PlusIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
-import dynamic from "next/dynamic"
+
+import {getTraceDrawerReferences} from "../traceDrawer/referenceSlots"
 
 import {AddActionsDropdownProps} from "./types"
-
-const AddToQueuePopover = dynamic(
-    () => import("@agenta/annotation-ui/add-to-queue").then((m) => m.default),
-    {ssr: false},
-)
 
 /** Which queue action the (single) picker popover is serving. */
 type QueueScope = "selected" | "all-matching"
@@ -171,7 +167,9 @@ const AddActionsDropdown = ({
     const dropdown = (
         <DropdownMenu open={dropdownOpen} onOpenChange={handleDropdownOpenChange}>
             <DropdownMenuTrigger asChild>{button}</DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            {/* An action can open a picker of its own; focus going back to the Add button
+                would close that picker as soon as it opens. */}
+            <DropdownMenuContent align="end" onCloseAutoFocus={(event) => event.preventDefault()}>
                 {renderTableMenuItems(
                     menuItems.map((item) => ({
                         ...item,
@@ -182,6 +180,7 @@ const AddActionsDropdown = ({
         </DropdownMenu>
     )
 
+    const {AddToQueuePopover} = getTraceDrawerReferences()
     const hasQueuePicker = Boolean(queueAction || queueAllMatchingAction)
     // When the picker is closed `queueScope` is null — fall back to whichever
     // action exists so the popover always has a coherent set of props.

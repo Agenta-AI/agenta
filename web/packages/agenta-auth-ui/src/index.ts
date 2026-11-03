@@ -16,6 +16,7 @@ export {default as AuthSideBanner} from "./AuthSideBanner"
 export {AuthShell, type AuthShellProps} from "./AuthShell"
 export {AgentaMark, AgentaWordmark} from "./AgentaBrand"
 export {
+    FIELD_CLASS,
     HEADLINE_CLASS,
     KEYCAP_CLASS,
     STATUS_TEXT_CLASS,

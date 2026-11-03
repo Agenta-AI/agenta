@@ -15,17 +15,19 @@ import type {
 import type { ToolCallCorrelationIndex } from "./client-tools.ts";
 import {
   raiseApproval,
-  type EmitRun,
+  type ParkRun,
   type PauseLike,
   type RecordPendingInteraction,
 } from "./seam-approval.ts";
 
 export interface BuildExecutableToolGateInput {
   responder: Responder;
-  run: EmitRun;
+  run: ParkRun;
   pause: PauseLike;
   recordPendingInteraction: RecordPendingInteraction;
   toolCallIndex?: ToolCallCorrelationIndex;
+  /** Flag the turn non-parkable when a call the pause already closed is skipped (see `ParkRun`). */
+  onNonParkablePause?: () => void;
   /**
    * The run's permission plan, used ONLY to word a refusal.
    *
@@ -52,6 +54,7 @@ export function buildExecutableToolGate({
   pause,
   recordPendingInteraction,
   toolCallIndex,
+  onNonParkablePause,
   permissionPlan,
   executionGrants,
   log = () => {},
@@ -97,7 +100,7 @@ export function buildExecutableToolGate({
         };
       }
 
-      raiseApproval({
+      const raised = raiseApproval({
         run,
         pause,
         recordPendingInteraction,
@@ -107,6 +110,7 @@ export function buildExecutableToolGate({
         toolName: request.toolName,
         args: request.input,
       });
+      if (!raised) onNonParkablePause?.();
       return { kind: "pendingApproval" };
     },
     onPause: () => pause.pause(),

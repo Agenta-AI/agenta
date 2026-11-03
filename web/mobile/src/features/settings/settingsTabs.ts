@@ -75,7 +75,7 @@ const useSettingsAccess = ({projectId, analytics, owner}: RoleReach): SettingsAc
     const toolsEnabled = isToolsEnabled()
     const mcpGatewayEnabled = isMcpGatewayEnabled()
     const walletsEnabled = isWalletsEnabled()
-    const walletEnforced = useWalletSummary(projectId).data?.mode === "enforce"
+    const walletEnforced = useWalletSummary(projectId, {poll: false}).data?.mode === "enforce"
 
     return useMemo(
         () => ({

@@ -22,6 +22,18 @@ import type { ToolCallCorrelationIndex } from "./client-tools.ts";
 
 export type EmitRun = { emitEvent: (event: AgentEvent) => void };
 
+/**
+ * The run surface a seam needs to park a call. `wasForceSettled` closes a race: once one call
+ * pauses the turn, the runner closes every other open call as not executed, and a sibling whose
+ * gate arrives just after that must not park. Parking it would seed a durable row for a call the
+ * transcript already closed, and the turn would wait on that row forever. A seam that skips such
+ * a call also marks the turn non-parkable: the harness still holds the call's request, and only
+ * a cold continuation, which replays the closed call from the transcript, drops it.
+ */
+export type ParkRun = EmitRun & {
+  wasForceSettled(toolCallId: string): boolean;
+};
+
 /** The pause-controller surface a seam needs (see `PendingApprovalPauseController`). */
 export interface PauseLike {
   markPausedToolCall(toolCallId: string): void;
@@ -38,7 +50,7 @@ export type RecordPendingInteraction = (
 ) => void;
 
 export interface RaiseApprovalInput {
-  run: EmitRun;
+  run: ParkRun;
   pause: PauseLike;
   recordPendingInteraction: RecordPendingInteraction;
   /** Non-Pi harnesses: maps the call to the real ACP tool-call id the card attaches to. */
@@ -58,10 +70,10 @@ export interface RaiseApprovalInput {
 }
 
 /**
- * Emit the approval card, mark the call paused, and seed the durable row. Returns the correlated
- * tool-call id the card attached to, which the caller may need for its own bookkeeping.
+ * Emit the approval card, mark the call paused, and seed the durable row. Returns false, and
+ * raises nothing, for a call the runner already closed as not executed (see `ParkRun`).
  */
-export function raiseApproval(input: RaiseApprovalInput): string {
+export function raiseApproval(input: RaiseApprovalInput): boolean {
   const {
     run,
     pause,
@@ -76,6 +88,7 @@ export function raiseApproval(input: RaiseApprovalInput): string {
 
   const correlatedId =
     toolCallIndex?.lookup(toolName, args) ?? input.toolCallId;
+  if (run.wasForceSettled(correlatedId)) return false;
   pause.markPausedToolCall(correlatedId);
   run.emitEvent({
     type: "interaction_request",
@@ -100,5 +113,5 @@ export function raiseApproval(input: RaiseApprovalInput): string {
   // The 5th argument keys the durable interaction row by the harness's tool-call id, so
   // server.ts can match an out-of-band approval reply by tool_call_id.
   recordPendingInteraction(id, toolName, args, "user_approval", correlatedId);
-  return correlatedId;
+  return true;
 }

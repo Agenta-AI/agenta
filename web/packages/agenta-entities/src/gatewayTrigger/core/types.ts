@@ -358,6 +358,14 @@ export const triggerDeliveriesResponseSchema = z
     .passthrough()
 export type TriggerDeliveriesResponse = z.infer<typeof triggerDeliveriesResponseSchema>
 
+/** Mirrors the shared backend `Windowing` DTO, the fields the deliveries query reads. */
+export interface TriggerDeliveryWindowing {
+    oldest?: string
+    newest?: string
+    limit?: number
+    order?: "ascending" | "descending"
+}
+
 export interface TriggerDeliveryQuery {
     status?: TriggerStatus
     subscription_id?: string

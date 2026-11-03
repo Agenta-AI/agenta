@@ -96,7 +96,12 @@ export const RevisionDetails = ({
                 <FormattedDate date={revision.created_at} />
             </DetailRow>
             <DetailRow label="Created by">
-                <UserAuthorLabel userId={revision.created_by_id} showPrefix={false} showAvatar />
+                <UserAuthorLabel
+                    userId={revision.created_by_id}
+                    showPrefix={false}
+                    showAvatar
+                    fallback="—"
+                />
             </DetailRow>
             {revision.message ? <DetailRow label="Note">{revision.message}</DetailRow> : null}
             <DeploymentRow revisionId={revisionId} />
