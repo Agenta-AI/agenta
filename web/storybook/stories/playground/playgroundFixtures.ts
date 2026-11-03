@@ -1,5 +1,7 @@
 import {workflowFlagsSchema, type Workflow} from "@agenta/entities/workflow"
+import {playgroundController, playgroundInitializedAtom} from "@agenta/playground"
 import type {QueryKey} from "@tanstack/react-query"
+import {getDefaultStore} from "jotai"
 
 import type {StoryScope} from "../../.storybook/decorators/withAgentaData"
 import {variantNameCellQueries, workflowRevision, type WorkflowIds} from "../../fixtures/workflow"
@@ -34,3 +36,14 @@ export const promptRevisionQueries = (scope: StoryScope): [QueryKey, unknown][] 
         variantNames: ["default"],
         deployedTo: ["production"],
     })
+
+/** Selects a revision in the playground the way the screen does, so its run pane has rows. */
+export const selectRevision = (revisionId: string) => {
+    const store = getDefaultStore()
+    store.set(playgroundController.actions.addPrimaryNode, {
+        type: "workflow",
+        id: revisionId,
+        label: revisionId,
+    })
+    store.set(playgroundInitializedAtom, true)
+}

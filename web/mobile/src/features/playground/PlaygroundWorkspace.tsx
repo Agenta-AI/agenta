@@ -7,8 +7,8 @@ import dynamic from "next/dynamic"
 import {DrillInBridgeProvider} from "../chat/DrillInBridgeProvider"
 
 import {PlaygroundHeader} from "./PlaygroundHeader"
+import {PlaygroundRunPane} from "./PlaygroundRunPane"
 import {PlaygroundSplit} from "./PlaygroundSplit"
-import {RunPanePlaceholder} from "./RunPanePlaceholder"
 
 // The tools section of a prompt opens the tool catalog; it loads when first opened.
 const CatalogDrawer = dynamic(
@@ -52,7 +52,7 @@ export const PlaygroundWorkspace = ({
                         />
                     </DrillInBridgeProvider>
                 }
-                runs={<RunPanePlaceholder />}
+                runs={<PlaygroundRunPane revisionId={revisionId} />}
             />
             <CatalogDrawer />
         </div>
