@@ -72,7 +72,7 @@ const EVALUATORS: DraftEvaluator[] = [
 ]
 
 const FILLED: Partial<NewEvaluationDraft> = {
-    app: {id: "app-support", name: APPS.support, isCustom: false},
+    app: {id: "app-support", name: APPS.support},
     revisions: [
         {id: "revision-a", variantName: "default", version: 3},
         {id: "revision-b", variantName: "concise", version: 1},

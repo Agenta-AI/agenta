@@ -67,7 +67,7 @@ export const NewEvaluationForm = ({
         kind,
         {
             // A scoped app starts the draft; its name and type arrive with the app list.
-            app: appId ? {id: appId, name: "", isCustom: false} : null,
+            app: appId ? {id: appId, name: ""} : null,
             revisions: initialRevisions,
         },
         initial,
@@ -179,9 +179,6 @@ export const NewEvaluationForm = ({
                             selected={draft.revisions}
                             disabled={isStarting}
                             onPick={(revision) => dispatch({type: "pickRevision", revision})}
-                            onRemove={(revisionId) =>
-                                dispatch({type: "removeRevision", revisionId})
-                            }
                         />
                     </SectionItem>
                     <SectionItem

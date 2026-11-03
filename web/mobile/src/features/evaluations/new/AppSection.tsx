@@ -4,7 +4,7 @@ import {LoadError} from "@agenta/ui/components/presentational"
 import {Input, SkeletonRows} from "@agenta/ui/ui"
 import {CheckIcon} from "@phosphor-icons/react"
 
-import {appTypeLabel, toDraftApp, useEvaluableApps} from "./appList"
+import {toDraftApp, useEvaluableApps} from "./appList"
 import type {DraftApp} from "./newEvaluationDraft"
 import {SectionHint} from "./SectionHint"
 
@@ -60,10 +60,9 @@ export const AppSection = ({
                                 className="flex w-full cursor-pointer items-center justify-between gap-3 rounded-md border-0 bg-transparent px-3 py-2 text-left text-sm text-foreground hover:bg-muted aria-pressed:bg-muted"
                             >
                                 <span className="min-w-0 truncate">{app.name || app.slug}</span>
-                                <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
-                                    {appTypeLabel(app)}
-                                    {app.id === selectedId ? <CheckIcon aria-hidden /> : null}
-                                </span>
+                                {app.id === selectedId ? (
+                                    <CheckIcon aria-hidden className="shrink-0" />
+                                ) : null}
                             </button>
                         </li>
                     ))}

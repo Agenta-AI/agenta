@@ -17,6 +17,8 @@ export const wizardData = {
     appsError: false,
     evaluatorCount: 0,
     evaluatorsPending: false,
+    evaluatorsError: false,
+    refetchEvaluators: () => undefined as unknown,
     revisionData: {} as Record<string, unknown>,
     refetchApps: () => undefined as unknown,
 }
@@ -36,6 +38,8 @@ const appsQueryAtom = atom(() => ({refetch: () => wizardData.refetchApps()}))
 const evaluatorsListAtom = atom(() => ({
     data: {refs: new Array(wizardData.evaluatorCount).fill({})},
     isPending: wizardData.evaluatorsPending,
+    isError: wizardData.evaluatorsError,
+    refetch: () => wizardData.refetchEvaluators(),
 }))
 const metaMapAtom = atom(() => new Map())
 const dataAtoms = new Map<string, Atom<unknown>>()
@@ -84,6 +88,8 @@ export const resetWizardData = () => {
     wizardData.appsError = false
     wizardData.evaluatorCount = 0
     wizardData.evaluatorsPending = false
+    wizardData.evaluatorsError = false
+    wizardData.refetchEvaluators = () => undefined
     wizardData.revisionData = {}
     wizardData.refetchApps = () => undefined
     pickers.latest = {}

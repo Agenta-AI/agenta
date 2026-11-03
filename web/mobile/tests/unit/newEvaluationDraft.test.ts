@@ -14,8 +14,8 @@ import {
     type NewEvaluationKind,
 } from "@/features/evaluations/new/newEvaluationDraft"
 
-const app: DraftApp = {id: "app-1", name: "Support bot", isCustom: false}
-const otherApp: DraftApp = {id: "app-2", name: "Search bot", isCustom: false}
+const app: DraftApp = {id: "app-1", name: "Support bot"}
+const otherApp: DraftApp = {id: "app-2", name: "Search bot"}
 const revisionA: DraftRevision = {id: "rev-a", variantName: "default", version: 3}
 const revisionB: DraftRevision = {id: "rev-b", variantName: "concise", version: 1}
 const testset: DraftTestset = {
@@ -191,6 +191,23 @@ describe("new evaluation draft", () => {
             message: "This field is required",
         })
         expect(validateDraft(run(draft, {type: "resetConcurrency"}))).toBeNull()
+    })
+
+    it("Expected input variables also read plain prompt messages", () => {
+        const names = expectedInputVariables([
+            {
+                data: {
+                    parameters: {
+                        prompt: {
+                            messages: [
+                                {role: "user", content: "Translate {{text}} to {{language}}"},
+                            ],
+                        },
+                    },
+                },
+            },
+        ])
+        expect(names).toEqual(["text", "language"])
     })
 
     it("Expected input variables join input keys and prompt variables", () => {

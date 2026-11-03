@@ -46,7 +46,7 @@ afterEach(async () => {
 const noop = () => undefined
 
 describe("application section", () => {
-    it("The app list shows only non-evaluator apps with their type", async () => {
+    it("The app list shows only non-evaluator apps", async () => {
         wizardData.apps = [
             {id: "a1", name: "Support bot", flags: {is_chat: true}},
             {id: "a2", name: "Summarizer"},
@@ -56,7 +56,7 @@ describe("application section", () => {
         await mount(<AppSection selectedId={null} onPick={noop} />)
 
         const rows = [...host.querySelectorAll("li")].map((li) => li.textContent)
-        expect(rows).toEqual(["Support botChat", "SummarizerCompletion", "Custom serviceCustom"])
+        expect(rows).toEqual(["Support bot", "Summarizer", "Custom service"])
         expect(host.textContent).not.toContain("Exact match")
     })
 
@@ -67,7 +67,7 @@ describe("application section", () => {
 
         await act(async () => host.querySelector("button")?.click())
 
-        expect(onPick).toHaveBeenCalledWith({id: "a2", name: "Summarizer", isCustom: true})
+        expect(onPick).toHaveBeenCalledWith({id: "a2", name: "Summarizer"})
     })
 
     it("A failed app list shows Could not load apps with a retry", async () => {
@@ -92,15 +92,7 @@ describe("application section", () => {
 
 describe("revision section", () => {
     it("Before an app is picked the revision section says Select an application first", async () => {
-        await mount(
-            <RevisionSection
-                kind="auto"
-                appId={null}
-                selected={[]}
-                onPick={noop}
-                onRemove={noop}
-            />,
-        )
+        await mount(<RevisionSection kind="auto" appId={null} selected={[]} onPick={noop} />)
         expect(host.textContent).toContain("Select an application first to load this section.")
         expect(Object.keys(pickers.latest)).toEqual([])
     })
@@ -109,7 +101,7 @@ describe("revision section", () => {
         let draft = createInitialDraft("human", {suffix: "abc12"})
         draft = newEvaluationReducer(draft, {
             type: "pickApp",
-            app: {id: "app-1", name: "Support bot", isCustom: false},
+            app: {id: "app-1", name: "Support bot"},
         })
         await mount(
             <RevisionSection
@@ -119,7 +111,6 @@ describe("revision section", () => {
                 onPick={(revision) => {
                     draft = newEvaluationReducer(draft, {type: "pickRevision", revision})
                 }}
-                onRemove={noop}
             />,
         )
         const picker = pickers.latest["new-evaluation-revision-app-1"]
@@ -134,15 +125,7 @@ describe("revision section", () => {
     })
 
     it("Auto mode lets the picker take several revisions", async () => {
-        await mount(
-            <RevisionSection
-                kind="auto"
-                appId="app-1"
-                selected={[]}
-                onPick={noop}
-                onRemove={noop}
-            />,
-        )
+        await mount(<RevisionSection kind="auto" appId="app-1" selected={[]} onPick={noop} />)
         expect(pickers.latest["new-evaluation-revision-app-1"].multiSelect).toBe(true)
     })
 })

@@ -155,7 +155,7 @@ const build = (kind: NewEvaluationKind, ...actions: NewEvaluationAction[]): NewE
 const filled = (kind: NewEvaluationKind, extra: NewEvaluationAction[] = []) =>
     build(
         kind,
-        {type: "pickApp", app: {id: ID.app, name: "Support bot", isCustom: false}},
+        {type: "pickApp", app: {id: ID.app, name: "Support bot"}},
         {
             type: "pickRevision",
             revision: {id: ID.revisionA, variantName: "default", version: 3},

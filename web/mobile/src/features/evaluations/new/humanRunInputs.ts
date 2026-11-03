@@ -57,7 +57,6 @@ export async function readHumanRunInputs({
     store = getDefaultStore(),
     projectId,
     name,
-    isCustomApp,
     revision,
     testset,
     evaluators,
@@ -65,7 +64,6 @@ export async function readHumanRunInputs({
     store?: Store
     projectId: string
     name: string
-    isCustomApp: boolean
     revision: DraftRevision
     testset: DraftTestset
     evaluators: readonly DraftEvaluator[]
@@ -87,8 +85,7 @@ export async function readHumanRunInputs({
     let hasMessagesInput = false
 
     // A custom app hosted at its own URL, with no URI, declares its inputs only in OpenAPI.
-    const legacyCustomApp =
-        isCustomApp && !revisionEntity?.data?.uri && Boolean(revisionEntity?.data?.url)
+    const legacyCustomApp = !revisionEntity?.data?.uri && Boolean(revisionEntity?.data?.url)
     if (inputKeys.length === 0 && legacyCustomApp) {
         const spec = await settleAtom(
             store,

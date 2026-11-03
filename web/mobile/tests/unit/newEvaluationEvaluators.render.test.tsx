@@ -117,6 +117,21 @@ describe("evaluators section", () => {
         expect(Object.keys(pickers.latest)).toEqual([])
     })
 
+    it("A failed evaluator list shows Could not load evaluators with a retry", async () => {
+        wizardData.evaluatorsError = true
+        const refetch = vi.fn()
+        wizardData.refetchEvaluators = refetch
+        await mount(section("auto"))
+
+        expect(host.textContent).toContain("Could not load evaluators")
+        expect(host.textContent).not.toContain("No evaluators yet")
+        const retry = [...host.querySelectorAll("button")].find((b) =>
+            /try again/i.test(b.textContent ?? ""),
+        )
+        await act(async () => retry?.click())
+        expect(refetch).toHaveBeenCalled()
+    })
+
     it("Open evaluators is absent while the evaluators view is off", async () => {
         await mount(section("auto"))
         expect(host.textContent).not.toContain("Open evaluators")

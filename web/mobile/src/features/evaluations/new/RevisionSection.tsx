@@ -26,14 +26,12 @@ export const RevisionSection = ({
     selected,
     disabled,
     onPick,
-    onRemove,
 }: {
     kind: NewEvaluationKind
     appId: string | null
     selected: readonly DraftRevision[]
     disabled?: boolean
     onPick: (revision: DraftRevision) => void
-    onRemove: (revisionId: string) => void
 }) => {
     const adapter = useMemo(
         () =>

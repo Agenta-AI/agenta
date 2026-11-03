@@ -9,14 +9,9 @@ import {useAtomValue} from "jotai"
 
 import type {DraftApp} from "./newEvaluationDraft"
 
-/** The app's type as /w labels it. */
-export const appTypeLabel = (app: Workflow): "Chat" | "Completion" | "Custom" =>
-    app.flags?.is_custom ? "Custom" : app.flags?.is_chat ? "Chat" : "Completion"
-
 export const toDraftApp = (app: Workflow): DraftApp => ({
     id: app.id,
     name: app.name || app.slug || app.id,
-    isCustom: Boolean(app.flags?.is_custom),
 })
 
 /** The apps of the project, never evaluators. Apps are non-evaluator workflows. */

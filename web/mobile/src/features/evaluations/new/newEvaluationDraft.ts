@@ -13,8 +13,6 @@ export type NewEvaluationSection =
 export interface DraftApp {
     id: string
     name: string
-    /** A custom app declares its inputs in OpenAPI. */
-    isCustom: boolean
 }
 
 export interface DraftRevision {
@@ -280,16 +278,16 @@ const asRecord = (value: unknown): Record<string, unknown> | null =>
         ? (value as Record<string, unknown>)
         : null
 
+/** A config value is either plain or wrapped as `{value}`. */
+const unwrap = (value: unknown): unknown => asRecord(value)?.value ?? value
+
 const promptVariables = (content: unknown): string[] => {
-    if (typeof content === "string") {
-        return [...content.matchAll(VARIABLE_PATTERN)].map((match) => match[1])
+    const body = unwrap(content)
+    if (typeof body === "string") {
+        return [...body.matchAll(VARIABLE_PATTERN)].map((match) => match[1])
     }
-    if (!Array.isArray(content)) return []
-    return content.flatMap((part) => {
-        const record = asRecord(part)
-        const text = asRecord(record?.text)?.value ?? record?.text
-        return typeof text === "string" ? promptVariables(text) : []
-    })
+    if (!Array.isArray(body)) return []
+    return body.flatMap((part) => promptVariables(asRecord(part)?.text))
 }
 
 /**
@@ -314,11 +312,10 @@ export const expectedInputVariables = (
 
         const prompts = config.prompt ?? parameters.prompts ?? []
         for (const prompt of Array.isArray(prompts) ? prompts : [prompts]) {
-            const messages = asRecord(asRecord(prompt)?.messages)?.value
+            const messages = unwrap(asRecord(prompt)?.messages)
             if (!Array.isArray(messages)) continue
             for (const message of messages) {
-                const content = asRecord(asRecord(message)?.content)?.value
-                for (const name of promptVariables(content)) {
+                for (const name of promptVariables(asRecord(message)?.content)) {
                     if (name.trim()) names.add(name.trim())
                 }
             }

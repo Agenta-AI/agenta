@@ -41,7 +41,7 @@ const isAiCritique = (revisionId: string): boolean => {
     return key !== null && LEGACY_AI_CRITIQUE_KEYS.has(key)
 }
 
-/** True when the project has no provider key. Cloud serves built-in models, so it never blocks. */
+/** True when the project has no provider key. An EE deployment serves built-in models, so it never blocks. */
 const lacksProviderKey = async (): Promise<boolean> => {
     if (isEE()) return false
     // The vault query is not mounted on this page, so read the answer of a fresh request.
@@ -136,7 +136,6 @@ export const useStartEvaluation = ({
                 const input = await readHumanRunInputs({
                     projectId,
                     name: draft.name.trim(),
-                    isCustomApp: draft.app?.isCustom ?? false,
                     revision,
                     testset,
                     evaluators: draft.evaluators,
