@@ -142,9 +142,7 @@ export const AddToTestsetSheet = ({
                     <div className="flex flex-wrap items-center gap-1.5 text-sm">
                         New columns:
                         {form.newColumns.map((column) => (
-                            <Badge key={column}>
-                                {column}
-                            </Badge>
+                            <Badge key={column}>{column}</Badge>
                         ))}
                     </div>
                     <AlertDialogFooter>

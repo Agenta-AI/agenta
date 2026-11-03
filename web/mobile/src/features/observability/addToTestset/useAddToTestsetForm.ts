@@ -37,6 +37,8 @@ export interface MappingRow {
     isNewColumn: boolean
 }
 
+export type ColumnsStatus = "idle" | "loading" | "error" | "ready"
+
 export const PREVIEW_ROW_LIMIT = 5
 
 const SAVE_FAILED = "Couldn't add the spans to the test set"
@@ -129,7 +131,7 @@ export const useAddToTestsetForm = ({
         retry: false,
     })
 
-    const columnsStatus = !testsetId
+    const columnsStatus: ColumnsStatus = !testsetId
         ? "idle"
         : columnsQuery.isError
           ? "error"
@@ -179,8 +181,7 @@ export const useAddToTestsetForm = ({
     const previewColumns = useMemo(() => Object.keys(previewRows[0] ?? {}), [previewRows])
 
     const hasCompleteMapping = state.mappings.some((row) => row.path.trim() && row.column.trim())
-    const targetReady =
-        target?.kind === "new" ? Boolean(newName.trim()) : columnsStatus === "ready"
+    const targetReady = target?.kind === "new" ? Boolean(newName.trim()) : columnsStatus === "ready"
     const canSubmit =
         spans.status === "ready" &&
         targetReady &&
@@ -209,7 +210,9 @@ export const useAddToTestsetForm = ({
                 })
                 invalidateTestsetsListCache()
                 toast.success(
-                    note ? `Test set created with message: "${note}"` : "Test set created successfully",
+                    note
+                        ? `Test set created with message: "${note}"`
+                        : "Test set created successfully",
                 )
             } else {
                 const latest = await fetchLatestRevision({projectId, testsetId: target.testsetId})
@@ -227,7 +230,9 @@ export const useAddToTestsetForm = ({
                 invalidateTestsetsListCache()
                 invalidateTestsetCache(target.testsetId)
                 invalidateRevisionsListCache(target.testsetId)
-                toast.success(note ? `Saved with message: "${note}"` : "Test set updated successfully")
+                toast.success(
+                    note ? `Saved with message: "${note}"` : "Test set updated successfully",
+                )
             }
             onSaved()
             return true

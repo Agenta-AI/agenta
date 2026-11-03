@@ -3,11 +3,9 @@ import {ArrowRightIcon, PlusIcon, TrashIcon} from "@phosphor-icons/react"
 
 import {cn} from "@/lib/utils"
 
-import type {MappingRow} from "./useAddToTestsetForm"
+import type {ColumnsStatus, MappingRow} from "./useAddToTestsetForm"
 
 const CREATE_NEW = "__create_new__"
-
-type ColumnsStatus = "idle" | "loading" | "error" | "ready"
 
 /**
  * Step 2: one row per mapping, a span data path to a test set column. A new test set has no
@@ -76,7 +74,9 @@ export const MappingRows = ({
                 {mappings.map((row, index) => {
                     // A column another row already maps to is not offered again.
                     const taken = new Set(
-                        mappings.filter((other) => other.id !== row.id).map((other) => other.column),
+                        mappings
+                            .filter((other) => other.id !== row.id)
+                            .map((other) => other.column),
                     )
                     const columnOptions = [
                         {value: CREATE_NEW, label: "Create New", searchValue: "Create New"},
@@ -109,7 +109,9 @@ export const MappingRows = ({
                                     <Combobox
                                         aria-label={`Column ${index + 1}`}
                                         options={columnOptions}
-                                        value={row.isNewColumn ? CREATE_NEW : row.column || undefined}
+                                        value={
+                                            row.isNewColumn ? CREATE_NEW : row.column || undefined
+                                        }
                                         onChange={(next) =>
                                             onEdit(
                                                 row.id,

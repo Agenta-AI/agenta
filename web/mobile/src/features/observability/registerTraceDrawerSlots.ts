@@ -22,11 +22,17 @@ const AddToQueuePicker = dynamic(() => import("@/features/annotations/AddToQueue
     ssr: false,
 })
 
+// The button chunk loads when a drawer header first renders; its sheet loads on the first click.
+const AddToTestsetDrawerButton = dynamic(() => import("./addToTestset/AddToTestsetDrawerButton"), {
+    ssr: false,
+})
+
 /** Fills the drawer's data slots; their fallback renders nothing, which left every tab empty. */
 export const registerTraceDrawerSlots = () => {
     configureTraceDrawerReferences({
         TraceSpanDrillInView: TraceSpanPanel as unknown as Slot,
         PrettyJsonView: TracePrettyJson as unknown as Slot,
         AddToQueuePopover: AddToQueuePicker,
+        AddToTestsetButton: AddToTestsetDrawerButton,
     })
 }

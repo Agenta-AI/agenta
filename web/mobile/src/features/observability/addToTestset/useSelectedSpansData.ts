@@ -34,10 +34,7 @@ export const useSelectedSpansData = (spanIds: readonly string[]) => {
           : "loading"
 
     const spansData = useMemo(
-        () =>
-            status === "ready"
-                ? queries.map((query) => extractAgData(query.data ?? null))
-                : [],
+        () => (status === "ready" ? queries.map((query) => extractAgData(query.data ?? null)) : []),
         [queries, status],
     )
 

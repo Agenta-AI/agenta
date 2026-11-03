@@ -42,7 +42,10 @@ export const MappingPreview = ({
                     </thead>
                     <tbody>
                         {rows.map((row, index) => (
-                            <tr key={index} className="border-border border-0 border-b border-solid last:border-b-0">
+                            <tr
+                                key={index}
+                                className="border-border border-0 border-b border-solid last:border-b-0"
+                            >
                                 {columns.map((column) => (
                                     <td
                                         key={column}

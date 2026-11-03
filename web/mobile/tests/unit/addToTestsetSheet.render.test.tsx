@@ -84,7 +84,11 @@ vi.mock("@/features/observability/addToTestset/useSelectedSpansData", async (imp
 import {AddToTestsetSheet} from "@/features/observability/addToTestset/AddToTestsetSheet"
 
 const span = (spanId: string, data: Record<string, unknown>) =>
-    ({trace_id: `trace-${spanId}`, span_id: spanId, attributes: {ag: {data}}}) as unknown as TraceSpan
+    ({
+        trace_id: `trace-${spanId}`,
+        span_id: spanId,
+        attributes: {ag: {data}},
+    }) as unknown as TraceSpan
 
 const SPANS = {
     "span-1": {inputs: {country: "France"}, outputs: "Paris"},

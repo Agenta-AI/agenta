@@ -11,7 +11,7 @@ import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 import {createRoot, type Root} from "react-dom/client"
-import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
+import {afterEach, beforeEach, describe, expect, it, vi, type Mock} from "vitest"
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 const http = vi.hoisted(() => ({
@@ -98,7 +98,7 @@ describe("add to test set form", () => {
     let root: Root
     let host: HTMLElement
     let latest: Form
-    let saved: ReturnType<typeof vi.fn>
+    let saved: Mock<() => void>
     let client: QueryClient
 
     const Probe = ({spanIds}: {spanIds: string[]}) => {
@@ -144,12 +144,13 @@ describe("add to test set form", () => {
             Promise.resolve({
                 data: {testset: {id: "ts-new", name: "Weather checks", slug: "weather-checks"}},
             })
-        saved = vi.fn()
+        saved = vi.fn<() => void>()
         client = new QueryClient({defaultOptions: {queries: {retry: false, gcTime: 0}}})
         const store = getDefaultStore()
         store.set(queryClientAtom, client)
         store.set(projectIdAtom, "project-1")
-        for (const [id, data] of Object.entries(SPANS)) traceSpanMolecule.local.set(id, span(id, data))
+        for (const [id, data] of Object.entries(SPANS))
+            traceSpanMolecule.local.set(id, span(id, data))
         host = document.createElement("div")
         document.body.appendChild(host)
         root = createRoot(host)
@@ -334,7 +335,9 @@ describe("add to test set form", () => {
 
         await pickExisting()
 
-        expect(latest.mappings.map(({path, column, isNewColumn}) => [path, column, isNewColumn])).toEqual([
+        expect(
+            latest.mappings.map(({path, column, isNewColumn}) => [path, column, isNewColumn]),
+        ).toEqual([
             ["data.inputs", "inputs", false],
             ["data.outputs", "outputs", true],
         ])

@@ -54,6 +54,7 @@ vi.mock("@/components/ScreenScaffold", () => ({
 vi.mock("@/lib/context", () => ({projectHomeUrl: () => "/home"}))
 vi.mock("@/features/context/useBindProjectContext", () => ({useBindProjectContext: vi.fn()}))
 vi.mock("@/features/context/useProjectPermission", () => ({
+    useProjectPermission: () => true,
     useProjectPermissionState: () => ({pending: false, allowed: true}),
 }))
 vi.mock("@/features/nav/AppShell", () => ({
