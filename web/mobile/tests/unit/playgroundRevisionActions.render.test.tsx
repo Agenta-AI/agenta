@@ -241,6 +241,8 @@ beforeEach(async () => {
     store.set(projectIdAtom, projectId)
     store.set(sessionAtom, true)
     router.query = {workspace_id: "ws-1", project_id: projectId, app_id: "app-1"}
+    // Each test opens on the latest revision, not the one the test before showed last.
+    window.localStorage.clear()
     router.replace.mockReset()
     router.replace.mockResolvedValue(true)
     calls.length = 0
