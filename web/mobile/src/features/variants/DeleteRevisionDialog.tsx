@@ -36,8 +36,11 @@ export const DeleteRevisionDialog = ({
     projectId: string
     appId: string
     onClose: () => void
-    /** Called once the revision is gone and the lists have loaded again. */
-    onDeleted?: (revisionId: string) => void
+    /**
+     * Called once the revision is gone and the lists have loaded again. The dialog stays open
+     * until it is done, so nothing else changes the screen meanwhile. It must not throw.
+     */
+    onDeleted?: (revisionId: string) => Promise<void> | void
 }) => {
     const queryClient = useQueryClient()
     const [shownRevisionId, setShownRevisionId] = useRevisionParam()
@@ -53,7 +56,7 @@ export const DeleteRevisionDialog = ({
             message.success("Deleted workflow successfully")
             await queryClient.invalidateQueries({queryKey: ["workflows"]})
             if (shownRevisionId === row.revisionId) setShownRevisionId(null)
-            onDeleted?.(row.revisionId)
+            await onDeleted?.(row.revisionId)
             onClose()
         } catch (error) {
             console.error("Delete revision failed", error)

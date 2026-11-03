@@ -15,12 +15,13 @@ import {
 } from "@agenta/entities/workflow"
 import {playgroundController} from "@agenta/playground"
 import {queryClient as hostQueryClient} from "@agenta/shared/api"
+import {idbQueryStorage} from "@agenta/shared/api/persist"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {QueryClientProvider, type QueryClient} from "@tanstack/react-query"
 import {getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 import {createRoot, type Root} from "react-dom/client"
-import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
+import {afterEach, beforeEach, describe, expect, it, onTestFinished, vi} from "vitest"
 
 import {PlaygroundScreen} from "@/features/playground/PlaygroundScreen"
 
@@ -77,7 +78,8 @@ interface Revision {
     workflow_variant_slug: string
     flags: Record<string, boolean>
     created_at: string
-    data: {uri: string; parameters: Record<string, unknown>}
+    /** A new variant's empty first revision has no data. */
+    data: {uri?: string; parameters?: Record<string, unknown>}
 }
 
 const prompt = (text: string) => ({
@@ -107,6 +109,12 @@ const world = {
     /** While set, the answer to that request waits for it. */
     holdList: null as Promise<void> | null,
     holdCommit: null as Promise<void> | null,
+    /** Set once a revision is archived. */
+    deleted: false,
+    /** While set, revision lists asked for after a delete wait for it. */
+    holdAfterDelete: null as Promise<void> | null,
+    /** Revision lists asked for after a delete fail. */
+    failAfterDelete: false,
 }
 const resetWorld = () => {
     world.revisions = [makeRevision("rev-1", 1, "First"), makeRevision("rev-2", 2, "Second")]
@@ -118,6 +126,9 @@ const resetWorld = () => {
     world.failCommit = false
     world.holdList = null
     world.holdCommit = null
+    world.deleted = false
+    world.holdAfterDelete = null
+    world.failAfterDelete = false
 }
 
 type Body = Record<string, unknown>
@@ -139,7 +150,8 @@ const answer = (url: string, body: Body): unknown => {
                 (!ids || ids.includes(revision.id)) &&
                 (!variants || variants.includes(revision.workflow_variant_id)),
         )
-        list = [...list].sort((a, b) => b.version - a.version)
+        // Newest first, as the server orders them.
+        list = [...list].sort((a, b) => b.created_at.localeCompare(a.created_at))
         const limit = (body.windowing as {limit?: number} | undefined)?.limit
         if (limit) list = list.slice(0, limit)
         return {count: list.length, workflow_revisions: list}
@@ -174,6 +186,7 @@ const answer = (url: string, body: Body): unknown => {
     const archive = url.match(/\/workflows\/revisions\/([^/]+)\/archive$/)
     if (archive) {
         world.revisions = world.revisions.filter((revision) => revision.id !== archive[1])
+        world.deleted = true
         return {count: 1, workflow_revision: {id: archive[1]}}
     }
     if (url.endsWith("/simple/environments/query")) {
@@ -237,6 +250,10 @@ beforeEach(async () => {
             await world.holdList
         }
         if (world.holdCommit && url.endsWith("/workflows/revisions/commit")) await world.holdCommit
+        if (world.deleted && url.endsWith("/workflows/revisions/query")) {
+            if (world.holdAfterDelete) await world.holdAfterDelete
+            if (world.failAfterDelete) throw new Error("Request failed with status code 500")
+        }
         if (world.failCommit && url.endsWith("/workflows/revisions/commit")) {
             throw new Error("Request failed with status code 500")
         }
@@ -657,7 +674,111 @@ describe("Deploy", () => {
     })
 })
 
+/** The persisted query cache, kept in memory: IndexedDB is the only part replaced. */
+const disk = new Map<string, Parameters<typeof idbQueryStorage.setItem>[1]>()
+const onDisk = (kind: string, id: string) =>
+    [...disk.values()].find(
+        ({queryKey}) =>
+            queryKey[0] === "workflows" &&
+            queryKey[1] === kind &&
+            queryKey[2] === id &&
+            queryKey[3] === projectId,
+    )
+
 describe("Delete", () => {
+    beforeEach(() => {
+        disk.clear()
+        vi.spyOn(idbQueryStorage, "getItem").mockImplementation(async (key) => disk.get(key))
+        vi.spyOn(idbQueryStorage, "setItem").mockImplementation(async (key, value) => {
+            disk.set(key, value)
+        })
+        vi.spyOn(idbQueryStorage, "removeItem").mockImplementation(async (key) => {
+            disk.delete(key)
+        })
+        vi.spyOn(idbQueryStorage, "entries").mockImplementation(async () => [...disk.entries()])
+    })
+    afterEach(() => vi.restoreAllMocks())
+
+    const deleteShown = async () => {
+        await openMenu("Revision actions")
+        await click("Delete")
+        await click("Delete")
+    }
+
+    it("After a delete, the persisted cache names the new latest revision and drops the deleted one", async () => {
+        await mount()
+        expect(onDisk("revision", "rev-2")).toBeDefined()
+
+        await deleteShown()
+
+        expect(shown()).toEqual(["rev-1"])
+        // A reload paints from this cache: it must not bring the deleted revision back.
+        expect((onDisk("latestRevision", "app-1")?.state.data as {id: string} | null)?.id).toBe(
+            "rev-1",
+        )
+        expect(onDisk("revision", "rev-2")).toBeUndefined()
+    })
+
+    it("After a delete, the newest revision with content is shown, not a new variant's empty seed", async () => {
+        await mount()
+        // Someone adds a variant meanwhile: its empty first revision is the newest one.
+        world.revisions.push({
+            ...makeRevision("rev-seed", 0, "", "var-2"),
+            created_at: "2026-11-08T00:00:00Z",
+            data: {},
+        })
+
+        await deleteShown()
+
+        expect(shown()).toEqual(["rev-1"])
+        expect(store.get(workflowLatestRevisionIdAtomFamily("app-1"))).toBe("rev-1")
+    })
+
+    it("The dialog stays open until the next revision is known, and a revision picked meanwhile stays", async () => {
+        world.revisions.push(makeRevision("rev-3", 3, "Third"))
+        await mount()
+        expect(shown()).toEqual(["rev-3"])
+        let release: () => void = () => undefined
+        world.holdAfterDelete = new Promise<void>((resolve) => (release = resolve))
+
+        await deleteShown()
+        expect(text()).toContain("Deleting…")
+
+        act(() =>
+            store.set(playgroundController.actions.switchEntity, {
+                currentEntityId: "rev-3",
+                newEntityId: "rev-1",
+            }),
+        )
+        release()
+        await settle()
+
+        expect(document.querySelector("[role=alertdialog]")).toBeNull()
+        expect(shown()).toEqual(["rev-1"])
+    })
+
+    it("When the next revision does not load, an error offers Try again, which shows it", async () => {
+        world.failAfterDelete = true
+        // The lists the dialog reloads fail at once instead of after three retries.
+        const defaults = client.getDefaultOptions()
+        client.setDefaultOptions({...defaults, queries: {...defaults.queries, retry: false}})
+        onTestFinished(() => client.setDefaultOptions(defaults))
+        await mount()
+
+        await deleteShown()
+
+        expect(document.querySelector("[role=alertdialog]")).toBeNull()
+        expect(text()).toContain("Couldn't load the newest revision.")
+        expect(find("Commit")).toBeUndefined()
+
+        world.failAfterDelete = false
+        await click("Try again")
+
+        expect(shown()).toEqual(["rev-1"])
+        expect(text()).not.toContain("Couldn't load the newest revision.")
+        expect(store.get(workflowLatestRevisionIdAtomFamily("app-1"))).toBe("rev-1")
+    })
+
     it("Delete archives only the shown revision and shows the latest one left", async () => {
         await mount()
         await openMenu("Revision actions")
