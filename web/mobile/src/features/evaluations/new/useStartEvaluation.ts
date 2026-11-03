@@ -6,12 +6,8 @@ import {
     createHumanEvaluationRun,
     fetchAllTestcaseIds,
 } from "@agenta/entities/evaluationRun"
-import {toProviderConnections, vaultSecretsQueryAtom} from "@agenta/entities/secret"
-import {normalizeWorkflowTypeKey, workflowMolecule} from "@agenta/entities/workflow"
-import {isEE} from "@agenta/shared/api"
-import {message, notification} from "@agenta/ui/app-message"
+import {message} from "@agenta/ui/app-message"
 import {useQueryClient} from "@tanstack/react-query"
-import {getDefaultStore} from "jotai"
 import {useRouter} from "next/router"
 
 import {RUNS_LIST_KEY} from "../list/runsListKey"
@@ -23,8 +19,7 @@ import {
     type NewEvaluationDraft,
     type NewEvaluationSection,
 } from "./newEvaluationDraft"
-
-const LEGACY_AI_CRITIQUE_KEYS = new Set(["auto_ai_critique", "ai_critique"])
+import {needsProviderKey, showProviderKeyMissing} from "./providerKey"
 
 export type StartEvaluationResult =
     | {status: "started"; kind: "auto" | "human"}
@@ -32,22 +27,6 @@ export type StartEvaluationResult =
     | {status: "blocked"}
     | {status: "failed"}
     | {status: "busy"}
-
-/** An AI critique runs a model, so it needs a provider key. Older evaluators carry a legacy key. */
-const isAiCritique = (revisionId: string): boolean => {
-    if (workflowMolecule.get.isLlm(revisionId)) return true
-    const uri = workflowMolecule.get.data(revisionId)?.data?.uri
-    const key = normalizeWorkflowTypeKey(uri)
-    return key !== null && LEGACY_AI_CRITIQUE_KEYS.has(key)
-}
-
-/** True when the project has no provider key. An EE deployment serves built-in models, so it never blocks. */
-const lacksProviderKey = async (): Promise<boolean> => {
-    if (isEE()) return false
-    // The vault query is not mounted on this page, so read the answer of a fresh request.
-    const {data} = await getDefaultStore().get(vaultSecretsQueryAtom).refetch({throwOnError: true})
-    return toProviderConnections(data ?? []).length === 0
-}
 
 /**
  * Start the draft as an auto or a human evaluation. A second call while one runs does nothing.
@@ -78,15 +57,8 @@ export const useStartEvaluation = ({
             testset: DraftTestset,
         ): Promise<StartEvaluationResult> => {
             try {
-                if (
-                    draft.evaluators.some((e) => isAiCritique(e.revisionId)) &&
-                    (await lacksProviderKey())
-                ) {
-                    notification.error({
-                        message: "LLM Key Missing",
-                        description: "Please provide at least one LLM key to access this feature.",
-                    })
-                    message.error("LLM keys are required for AI Critique configuration")
+                if (await needsProviderKey(draft.evaluators.map((e) => e.revisionId))) {
+                    showProviderKeyMissing()
                     void router.push(`${base}/settings?tab=llms`)
                     return {status: "blocked"}
                 }
