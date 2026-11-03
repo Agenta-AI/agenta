@@ -64,6 +64,7 @@ vi.mock("@agenta/playground-ui/panels/config", () => ({
     ),
     ConfigPanelSkeleton: () => <div data-testid="config-panel-skeleton" />,
     RevisionSwitcher: () => null,
+    CompareButton: () => null,
 }))
 vi.mock("@/features/playground/RevisionActions", () => ({RevisionActions: () => null}))
 vi.mock("@/features/playground/PlaygroundRunPane", () => ({

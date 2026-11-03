@@ -31,3 +31,4 @@ export {
     type GatewayToolPayload,
     type UseGatewayToolActionsParams,
 } from "./useGatewayToolActions"
+export {usePlaygroundScrollSync} from "./usePlaygroundScrollSync"
