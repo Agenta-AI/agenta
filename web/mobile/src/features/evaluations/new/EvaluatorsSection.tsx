@@ -2,8 +2,6 @@ import {evaluatorsListQueryAtom} from "@agenta/entities/workflow"
 import {useEnsureEvaluatorEnrichment} from "@agenta/entity-ui/selection"
 import {useAtomValue} from "jotai"
 
-import {useDeveloperViewEnabled} from "../../developer/developerViewAccess"
-
 import {AutoEvaluatorPicker} from "./AutoEvaluatorPicker"
 import {EvaluatorsEmpty} from "./EvaluatorsEmpty"
 import {HumanEvaluatorPicker} from "./HumanEvaluatorPicker"
@@ -31,8 +29,8 @@ export const EvaluatorsSection = ({
     hasApp: boolean
     selected: readonly DraftEvaluator[]
     disabled?: boolean
-    /** Where "Open evaluators" goes. */
-    evaluatorsHref: string
+    /** Where "Open evaluators" goes. Null while the evaluators view is off: no link then. */
+    evaluatorsHref: string | null
     onPick: (evaluator: DraftEvaluator) => void
     onRemove: (revisionId: string) => void
     onClear: () => void
@@ -40,11 +38,10 @@ export const EvaluatorsSection = ({
     // The sheet mounts this only while open, so the revision counts load only then.
     useEnsureEvaluatorEnrichment()
     const {count, isPending} = useEvaluatorCount()
-    const evaluatorsViewOn = useDeveloperViewEnabled("evaluators") === true
 
     if (!hasApp) return <SectionHint>Select an application first to load this section.</SectionHint>
     if (!isPending && count === 0) {
-        return <EvaluatorsEmpty evaluatorsHref={evaluatorsViewOn ? evaluatorsHref : null} />
+        return <EvaluatorsEmpty evaluatorsHref={evaluatorsHref} />
     }
 
     const Picker = kind === "human" ? HumanEvaluatorPicker : AutoEvaluatorPicker

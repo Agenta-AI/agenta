@@ -54,7 +54,8 @@ export const NewEvaluationForm = ({
     appId: string | null
     /** Revisions the caller picked before opening, e.g. from the playground. */
     initialRevisions?: DraftRevision[]
-    evaluatorsHref: string
+    /** Where "Open evaluators" goes. Null while the evaluators view is off. */
+    evaluatorsHref: string | null
     isStarting: boolean
     start: (draft: NewEvaluationDraft) => Promise<StartEvaluationResult>
     onClose: () => void

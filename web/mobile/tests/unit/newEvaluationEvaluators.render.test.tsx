@@ -24,9 +24,6 @@ vi.mock(
     "@agenta/entity-ui/selection",
     async () => (await import("../support/newEvaluationMocks")).selectionMock,
 )
-vi.mock("@/features/developer/developerViewAccess", () => ({
-    useDeveloperViewEnabled: () => env.evaluatorsViewOn,
-}))
 vi.mock("next/link", () => ({
     default: ({href, children}: {href: string; children: React.ReactNode}) => (
         <a href={href}>{children}</a>
@@ -59,7 +56,7 @@ const section = (kind: "auto" | "human") => (
         kind={kind}
         hasApp
         selected={[]}
-        evaluatorsHref="/w/ws/p/pr/evaluators"
+        evaluatorsHref={env.evaluatorsViewOn ? "/w/ws/p/pr/evaluators" : null}
         onPick={noop}
         onRemove={noop}
         onClear={noop}
@@ -137,7 +134,7 @@ describe("evaluators section", () => {
                 kind="auto"
                 hasApp={false}
                 selected={[]}
-                evaluatorsHref="/x"
+                evaluatorsHref={null}
                 onPick={noop}
                 onRemove={noop}
                 onClear={noop}

@@ -2,6 +2,8 @@ import type {CSSProperties} from "react"
 
 import {Sheet, SheetContent} from "@agenta/ui/ui"
 
+import {useDeveloperViewEnabled} from "../../developer/developerViewAccess"
+
 import type {DraftRevision, NewEvaluationKind} from "./newEvaluationDraft"
 import {NewEvaluationForm} from "./NewEvaluationForm"
 import {useStartEvaluation} from "./useStartEvaluation"
@@ -32,6 +34,7 @@ export const NewEvaluationSheet = ({
     onStarted: (kind: NewEvaluationKind) => void
 }) => {
     const {start, isStarting} = useStartEvaluation({projectId, base})
+    const evaluatorsViewOn = useDeveloperViewEnabled("evaluators") === true
 
     return (
         <Sheet open={kind !== null} onOpenChange={(next) => !next && !isStarting && onClose()}>
@@ -48,7 +51,7 @@ export const NewEvaluationSheet = ({
                         kind={kind}
                         appId={appId}
                         initialRevisions={initialRevisions}
-                        evaluatorsHref={`${base}/evaluators`}
+                        evaluatorsHref={evaluatorsViewOn ? `${base}/evaluators` : null}
                         isStarting={isStarting}
                         start={start}
                         onClose={onClose}
