@@ -447,6 +447,8 @@ export interface WorkflowListRef {
     /** The agent's access policy (owner and visibility): the Owner column and the private
      *  marker on the agents roster. */
     access: Workflow["access"]
+    /** The folder the workflow sits in (the Prompts page). */
+    folder_id: string | null
 }
 
 /**
@@ -473,6 +475,7 @@ export function toWorkflowListRef(w: Workflow): WorkflowListRef {
         updated_at: w.updated_at ?? null,
         created_by_id: w.created_by_id ?? null,
         access: w.access ?? null,
+        folder_id: w.folder_id ?? null,
     }
 }
 
@@ -2961,6 +2964,7 @@ export function seedCreatedWorkflowCache(
         created_by_id: revision.created_by_id ?? null,
         // A revision carries no access policy; the list refetch fills it.
         access: revision.access ?? null,
+        folder_id: revision.folder_id ?? null,
     }
 
     store.set(workflowLocalServerDataAtomFamily(revision.id), revision)
