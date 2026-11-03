@@ -66,9 +66,9 @@ export const useAutomationCreate = ({
     /** Pre-bound agent — the playground opens this already knowing whose automation it is. */
     defaultAgentId?: string | null
     /**
-     * The pre-bound agent's name. The playground binds by REVISION id, which the agents list
-     * cannot resolve, so the host passes the label it already has rather than leaving the
-     * generated name to fall back to "Untitled automation".
+     * The pre-bound agent's name. The agents list may not have loaded when the drawer opens, so
+     * the host passes the label it already has rather than leaving the generated name to fall
+     * back to "Untitled automation".
      */
     defaultAgentName?: string | null
     /**
