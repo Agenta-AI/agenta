@@ -9,15 +9,15 @@ import {useAtomValue} from "jotai"
 
 /**
  * The evaluators a live evaluation can run: the latest revision of each online capable,
- * non-human evaluator, named after the evaluator. Reading it fans out one revision request per evaluator, so only the
- * open sheet calls it.
+ * non-human evaluator, named after the evaluator. Reading it fans out one revision request
+ * per evaluator, so only the open sheet calls it.
  */
 export const useLiveEvaluators = () => {
     const state = useAtomValue(evaluatorConfigRevisionsQueryStateAtom)
     const list = useAtomValue(evaluatorsListQueryAtom)
     const evaluators = useMemo(() => {
         // A revision can carry its own name (often "default"); the user knows the evaluator's name.
-        const names = new Map((list.data?.refs ?? []).map((ref) => [ref.id, ref.name]))
+        const names = new Map((list.data?.refs ?? []).map((ref) => [ref.id, ref.name || ref.slug]))
         return selectLiveEvaluators(state.data).map((revision) => ({
             ...revision,
             name: (revision.workflow_id && names.get(revision.workflow_id)) || revision.name,

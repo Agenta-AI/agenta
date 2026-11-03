@@ -412,6 +412,22 @@ describe("live evaluation sheet", () => {
         expect(nameInput()?.value).toBe("My own name")
     })
 
+    it("An evaluator without a name is listed by its slug, not its revision name", async () => {
+        evaluators = [REGEX]
+        mockApi({
+            "/workflows/query": () => ({
+                count: 1,
+                workflows: [
+                    {id: ID.regex, name: null, slug: "tone-check", flags: {is_evaluator: true}},
+                ],
+            }),
+        })
+        await mount()
+        await openEvaluators()
+        const options = [...document.querySelectorAll("[role=option]")].map((o) => o.textContent)
+        expect(options).toEqual(["tone-check"])
+    })
+
     it("Only online capable evaluators are offered", async () => {
         evaluators = [REGEX, EXACT, JUDGE]
         await mount()
