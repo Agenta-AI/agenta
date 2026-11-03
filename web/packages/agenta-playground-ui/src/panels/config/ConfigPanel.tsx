@@ -3,12 +3,16 @@ import type {ReactNode} from "react"
 import type {ConfigViewMode} from "@agenta/entity-ui/drill-in"
 import {PlaygroundConfigSection} from "@agenta/entity-ui/drill-in"
 import {hasPendingHydrationAtomFamily} from "@agenta/playground"
+import {useMediaQuery} from "@agenta/ui/hooks"
 import {useAtomValue} from "jotai"
 
 import {ConfigPanelHeader} from "./ConfigPanelHeader"
 import {ConfigPanelSkeleton} from "./ConfigPanelSkeleton"
 
-/** The header is 48px tall and sticky, so the config's own section headers stick below it. */
+/**
+ * The header is 48px tall and sticky from `sm` up, so the config's own section headers stick below
+ * it. On a phone it can wrap onto two rows and scrolls away with the page.
+ */
 const HEADER_HEIGHT = 48
 
 export interface ConfigPanelProps {
@@ -37,6 +41,7 @@ export const ConfigPanel = ({
     actions,
 }: ConfigPanelProps) => {
     const hasPendingHydration = useAtomValue(hasPendingHydrationAtomFamily(revisionId))
+    const headerSticks = useMediaQuery("(min-width: 640px)")
 
     return (
         <section className="flex flex-col">
@@ -53,7 +58,7 @@ export const ConfigPanel = ({
                 <PlaygroundConfigSection
                     revisionId={revisionId}
                     viewMode={viewMode}
-                    stickyHeaderTop={HEADER_HEIGHT}
+                    stickyHeaderTop={headerSticks ? HEADER_HEIGHT : 0}
                 />
             )}
         </section>

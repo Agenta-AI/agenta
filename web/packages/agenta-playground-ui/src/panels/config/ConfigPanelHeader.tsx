@@ -66,7 +66,7 @@ export const ConfigPanelHeader = ({
     const isLatest = revisionId === latestId
 
     return (
-        <div className="sticky top-0 z-10 flex h-12 shrink-0 items-center justify-between gap-1 border-b border-border bg-background px-3 sm:gap-2 sm:px-4">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-1 border-b border-border bg-background px-3 max-sm:min-h-12 max-sm:py-1.5 sm:sticky sm:top-0 sm:z-10 sm:h-12 sm:flex-nowrap sm:gap-2 sm:px-4">
             <div className="flex min-w-0 items-center gap-1 text-sm">
                 {!isLocalDraft ? switcher : null}
                 {isLocalDraft ? (
@@ -94,17 +94,13 @@ export const ConfigPanelHeader = ({
                     />
                 )}
             </div>
-            <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+            <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
                 {actions}
                 <Select
                     value={viewMode}
                     onValueChange={(value) => onViewModeChange(value as ConfigViewMode)}
                 >
-                    <SelectTrigger
-                        size="sm"
-                        aria-label="Config view"
-                        className="w-16 shrink-0 max-sm:px-2 max-sm:[&_svg]:hidden sm:w-24"
-                    >
+                    <SelectTrigger size="sm" aria-label="Config view" className="w-24 shrink-0">
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
