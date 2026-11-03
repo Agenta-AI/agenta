@@ -1,16 +1,15 @@
-import {useCallback, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {createAnnotation, updateAnnotation} from "@agenta/entities/annotation"
-import {queryAllAnnotations, type AnnotationDto} from "@agenta/entities/annotation/dto"
+import type {AnnotationDto} from "@agenta/entities/annotation/dto"
 import {
     evaluatorsListQueryAtom,
     workflowLatestRevisionQueryAtomFamily,
 } from "@agenta/entities/workflow"
 import type {Workflow} from "@agenta/entities/workflow"
-import {getHostQueryClient} from "@agenta/shared/api"
+import {axios, getAgentaApiUrl, getHostQueryClient} from "@agenta/shared/api"
 import {activeUserIdAtom, projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
-import {useQuery} from "@tanstack/react-query"
 import {atom, useAtomValue} from "jotai"
 
 import {
@@ -32,6 +31,63 @@ const REQUIRED_TEXT = "Required"
 const REFRESHED_KEYS = [["trace-drawer-annotations"], ["trace-drawer"], ["annotations"]]
 
 const EMPTY_REVISIONS = atom(() => [])
+
+/**
+ * Reads the annotations linked to one span as stored, with a retry. A plain effect, not a react
+ * query: importing `useQuery` in this lazy chunk changes how the bundler splits the app shell.
+ */
+const useStoredAnnotations = ({
+    projectId,
+    traceId,
+    spanId,
+    enabled,
+}: {
+    projectId: string | null
+    traceId: string
+    spanId: string
+    enabled: boolean
+}) => {
+    const [state, setState] = useState<{data?: AnnotationDto[]; isPending: boolean}>({
+        isPending: true,
+    })
+    const [attempt, setAttempt] = useState(0)
+
+    useEffect(() => {
+        if (!enabled || !projectId) return
+        let current = true
+        setState({isPending: true})
+        readStoredAnnotations({projectId, traceId, spanId}).then(
+            (data) => current && setState({data, isPending: false}),
+            (cause: unknown) => {
+                console.error("Reading the saved annotations failed", cause)
+                if (current) setState({isPending: false})
+            },
+        )
+        return () => {
+            current = false
+        }
+    }, [enabled, projectId, traceId, spanId, attempt])
+
+    return {...state, refetch: () => setAttempt((count) => count + 1)}
+}
+
+/** The annotations linked to one span, as stored: the drawer's request, without its grouping. */
+const readStoredAnnotations = async ({
+    projectId,
+    traceId,
+    spanId,
+}: {
+    projectId: string
+    traceId: string
+    spanId: string
+}): Promise<AnnotationDto[]> => {
+    const response = await axios.post<{traces?: AnnotationDto[] | null}>(
+        `${getAgentaApiUrl()}/simple/traces/query`,
+        {trace: {links: [{trace_id: traceId, span_id: spanId}]}},
+        {params: {project_id: projectId}},
+    )
+    return response.data?.traces ?? []
+}
 
 /**
  * The trace annotate form: the sections for the user's own annotations, the evaluators others
@@ -63,25 +119,10 @@ export const useTraceAnnotationForm = ({
     // The drawer drops `null` outputs when it groups them, so an update read from it would erase
     // a saved "none of the above". The user's own annotations are read again as the API stores them.
     const hasOwn = Boolean(userId) && annotations.some((item) => item.createdById === userId)
-    // The same request the drawer sends, without its grouping.
-    const stored = useQuery({
-        queryKey: ["trace-annotate-stored", projectId, traceId, spanId],
-        queryFn: () =>
-            queryAllAnnotations({
-                projectId: projectId ?? undefined,
-                queries: {annotation: {links: [{trace_id: traceId, span_id: spanId}]}},
-            }),
-        enabled: Boolean(projectId) && hasOwn,
-        staleTime: 0,
-        gcTime: 0,
-        retry: false,
-    })
+    const stored = useStoredAnnotations({projectId, traceId, spanId, enabled: hasOwn})
 
     const storedOutputs = useMemo(
-        () =>
-            new Map(
-                (stored.data?.annotations ?? []).map((item) => [item.trace_id, item.data?.outputs]),
-            ),
+        () => new Map((stored.data ?? []).map((item) => [item.trace_id, item.data?.outputs])),
         [stored.data],
     )
     const picked = useMemo(() => {
