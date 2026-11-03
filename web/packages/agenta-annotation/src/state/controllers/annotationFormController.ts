@@ -1127,15 +1127,19 @@ function matchExistingAnnotations({
  */
 async function resolveInvocationStepKey({
     cachedSteps,
+    annotationSteps,
     projectId,
     runId,
     scenarioId,
 }: {
     cachedSteps: EvaluationResult[]
+    annotationSteps: EvaluationRunDataStep[]
     projectId: string
     runId: string
     scenarioId: string
 }): Promise<string | null> {
+    // An annotation result has a trace too (the annotation's own): it is never the invocation.
+    const annotationKeys = new Set(annotationSteps.map((step) => step.key))
     let steps = cachedSteps
 
     if (steps.length === 0) {
@@ -1151,7 +1155,7 @@ async function resolveInvocationStepKey({
     }
 
     for (const step of steps) {
-        if (step.trace_id && step.step_key) {
+        if (step.trace_id && step.step_key && !annotationKeys.has(step.step_key)) {
             return step.step_key
         }
     }
@@ -1384,6 +1388,7 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
             )
             invocationStepKey = await resolveInvocationStepKey({
                 cachedSteps: stepsQuery.data ?? [],
+                annotationSteps,
                 projectId,
                 runId,
                 scenarioId,

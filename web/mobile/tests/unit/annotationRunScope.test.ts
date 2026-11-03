@@ -31,6 +31,8 @@ const PROJECT = "project-1"
 const RUN = "run-1"
 const SCENARIO = "sc-1"
 const store = getDefaultStore()
+/** Results the API lists before the app result of the scenario. */
+let earlierResults: Record<string, unknown>[] = []
 
 const RUN_BODY = {
     id: RUN,
@@ -71,6 +73,7 @@ const writes = () =>
 const bodyOf = (url: string) => writes().find((call) => call.url === url)?.body
 
 beforeEach(() => {
+    earlierResults = []
     http.post.mockReset()
     http.patch.mockReset()
     http.get.mockReset()
@@ -87,6 +90,7 @@ beforeEach(() => {
                 data: {
                     count: 2,
                     results: [
+                        ...earlierResults,
                         {run_id: RUN, scenario_id: SCENARIO, step_key: "ts", testcase_id: "tc-1"},
                         {
                             run_id: RUN,
@@ -222,6 +226,50 @@ describe("annotation in run scope", () => {
         expect(bodyOf("http://api.test/evaluations/scenarios/")).toEqual({
             scenarios: [{id: SCENARIO, status: "success"}],
         })
+    })
+
+    it("An annotation result listed before the app result is not taken for the app output", async () => {
+        // Another evaluator of the run already annotated this scenario, and the API lists that
+        // annotation's result first.
+        RUN_BODY.data.steps.push({
+            key: "app.tone",
+            type: "annotation",
+            origin: "human",
+            references: {evaluator: {id: "wf-tone", slug: "tone"}},
+        })
+        earlierResults = [
+            {
+                run_id: RUN,
+                scenario_id: SCENARIO,
+                step_key: "app.tone",
+                trace_id: "ann-tone",
+                span_id: "ann-span-tone",
+                status: "success",
+            },
+        ]
+        try {
+            annotationSessionController.set.openRun({runId: RUN})
+            const traceRef = annotationSessionController.selectors.scenarioTraceRef(SCENARIO)
+            const stop = store.sub(traceRef, () => undefined)
+            await vi.waitFor(() =>
+                expect(store.get(traceRef)).toEqual({traceId: "trace-1", spanId: "span-1"}),
+            )
+            stop()
+
+            await openRunForm()
+            await annotationFormController.set.submitAnnotations({
+                scenarioId: SCENARIO,
+                markComplete: true,
+            })
+            const created = bodyOf("http://api.test/simple/traces/") as {trace: {links: unknown}}
+            expect(created.trace.links).toEqual({app: {trace_id: "trace-1", span_id: "span-1"}})
+            const stepResult = bodyOf("http://api.test/evaluations/results/") as {
+                results: {step_key: string}[]
+            }
+            expect(stepResult.results.map((result) => result.step_key)).toEqual(["app.quality"])
+        } finally {
+            RUN_BODY.data.steps.pop()
+        }
     })
 
     it("A failed create sets the submit error and sends no step result", async () => {
