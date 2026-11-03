@@ -12,6 +12,7 @@ import {
 } from "@agenta/entities/evaluationRun"
 import {
     makeHydrateScenariosTransform,
+    type HydrateFetchers,
     MOLECULE_BACKED_HYDRATE_FETCHERS,
 } from "@agenta/entities/evaluationRun/etl"
 import {projectIdAtom} from "@agenta/shared/state"
@@ -54,7 +55,14 @@ interface PageRequest {
     schema: ScenarioSchema
 }
 
-/** One page of scenarios, with the values of its rows read from the entities they point at. */
+/**
+ * One page of scenarios, with the values of its rows read from the entities they point at.
+ *
+ * The caches hold an empty answer for a scenario that had no results yet, so the results and
+ * metrics of these scenarios are read again, not taken from the cache. The shared hydration step
+ * hides a failed read (the values come back empty), so a failure is counted here and thrown: a
+ * row with missing values from a failed request must not look like a row without values.
+ */
 async function loadScenarioPage(
     request: PageRequest,
     cursor: string | null,
@@ -67,12 +75,31 @@ async function loadScenarioPage(
         cursor,
         order,
     })
+    const scenarioIds = page.scenarios.map((scenario) => scenario.id)
+    evaluationResultMolecule.actions.evictByScenarioIds({projectId, runId, scenarioIds})
+    evaluationMetricMolecule.actions.evictByScenarioIds({projectId, runId, scenarioIds})
+
+    let failed = false
+    const watch =
+        <A, R>(read: (args: A) => Promise<R>) =>
+        (args: A) =>
+            read(args).catch((error: unknown) => {
+                failed = true
+                throw error
+            })
+    const fetchers: HydrateFetchers = {
+        fetchResults: watch(MOLECULE_BACKED_HYDRATE_FETCHERS.fetchResults),
+        fetchMetrics: watch(MOLECULE_BACKED_HYDRATE_FETCHERS.fetchMetrics),
+        fetchTestcases: watch(MOLECULE_BACKED_HYDRATE_FETCHERS.fetchTestcases),
+        fetchTraces: watch(MOLECULE_BACKED_HYDRATE_FETCHERS.fetchTraces),
+    }
     const hydrate = makeHydrateScenariosTransform<EvaluationRunScenario>({
         projectId,
         runId,
-        fetchers: MOLECULE_BACKED_HYDRATE_FETCHERS,
+        fetchers,
     })
     const chunk = await hydrate({items: page.scenarios, cursor: page.nextCursor})
+    if (failed) throw new Error("The values of these scenarios did not load.")
     return {
         cursor,
         nextCursor: page.nextCursor,
@@ -82,8 +109,9 @@ async function loadScenarioPage(
 
 /**
  * Read again the pages that hold a scenario that has not finished, or that finished since the last
- * look (the caches still hold the empty values read while it ran). Other pages stay as they are.
- * Returns the ids still open after the read.
+ * look. Other pages stay as they are. An online run also reads its first page, where new
+ * scenarios arrive. When a page now ends elsewhere, the pages after it no longer start in the
+ * right place: they are dropped and load again on demand. Returns the ids still open.
  */
 async function refreshOpenPages(
     client: QueryClient,
@@ -96,27 +124,25 @@ async function refreshOpenPages(
 
     const needsRead = (row: ScenarioRowData) =>
         !isTerminalScenarioStatus(row.scenario.status) || previouslyOpen.has(row.scenario.id)
-    const stale = current.pages.filter((page) => page.rows.some(needsRead))
+    const readsNewest = request.order === "descending"
+    const stale = current.pages.filter(
+        (page) => page.rows.some(needsRead) || (readsNewest && page.cursor === null),
+    )
     if (stale.length === 0) return new Set()
 
-    const scenarioIds = stale.flatMap((page) =>
-        page.rows.filter(needsRead).map((row) => row.scenario.id),
-    )
-    const {projectId, runId} = request
-    evaluationResultMolecule.actions.evictByScenarioIds({projectId, runId, scenarioIds})
-    evaluationMetricMolecule.actions.evictByScenarioIds({projectId, runId, scenarioIds})
-
     const fresh = await Promise.all(stale.map((page) => loadScenarioPage(request, page.cursor)))
-    client.setQueryData<ScenarioPages>(key, (latest) =>
-        latest
-            ? {
-                  ...latest,
-                  pages: latest.pages.map(
-                      (page) => fresh.find((next) => next.cursor === page.cursor) ?? page,
-                  ),
-              }
-            : latest,
-    )
+    client.setQueryData<ScenarioPages>(key, (latest) => {
+        if (!latest) return latest
+        const pages: ScenarioPage[] = []
+        const pageParams: (string | null)[] = []
+        for (const [position, page] of latest.pages.entries()) {
+            const next = fresh.find((candidate) => candidate.cursor === page.cursor)
+            pages.push(next ?? page)
+            pageParams.push(latest.pageParams[position])
+            if (next && next.nextCursor !== page.nextCursor) break
+        }
+        return {pages, pageParams}
+    })
     return new Set(
         fresh.flatMap((page) =>
             page.rows

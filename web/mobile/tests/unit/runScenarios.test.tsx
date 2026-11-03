@@ -112,7 +112,7 @@ describe("useRunScenarios", () => {
         expect((scenarioCalls()[1].body as {windowing: unknown}).windowing).toEqual({
             limit: 50,
             order: "ascending",
-            next: "3",
+            next: "sc-3",
         })
         expect(latest.rows.map((row) => row.scenario.id)).toEqual(["sc-1", "sc-2", "sc-3", "sc-4"])
         expect(latest.hasMore).toBe(false)
@@ -157,5 +157,60 @@ describe("useRunScenarios", () => {
         expect(latest.isError).toBe(true)
         expect(latest.isPending).toBe(false)
         expect(latest.rows).toEqual([])
+    })
+
+    it("A failed values request is an error, not a row with empty values", async () => {
+        await mount({failMetrics: true})
+        expect(latest.isError).toBe(true)
+        expect(latest.rows).toEqual([])
+    })
+
+    it("Results read while a scenario ran are read again when the tab opens later", async () => {
+        const runId = await mount({scored: false})
+        expect(latest.rows[0].cells["evaluator:exact-match"][0].value).toBeUndefined()
+        const resultCalls = () =>
+            state.calls.filter((call) => call.url.endsWith("/evaluations/results/query")).length
+        const before = resultCalls()
+        state.scored = true
+        // A new visit of the tab: the same run, a new page load.
+        await act(async () => {
+            latest.refetch()
+        })
+        await settle()
+        expect(resultCalls()).toBeGreaterThan(before)
+        expect(latest.rows[0].cells["evaluator:exact-match"][0].value).toMatchObject({
+            type: "binary",
+        })
+        void runId
+    })
+
+    it("A new scenario of an online run appears at the top once the rows loaded are done", async () => {
+        await mount({live: true, runStatus: "running", ids: ["sc-2", "sc-1"]})
+        expect(latest.rows.map((row) => row.scenario.id)).toEqual(["sc-2", "sc-1"])
+        state.ids = ["sc-3", "sc-2", "sc-1"]
+        await settle(5000)
+        await settle(300)
+        expect(latest.rows.map((row) => row.scenario.id)).toEqual(["sc-3", "sc-2", "sc-1"])
+    })
+
+    it("Pages after a page that now ends elsewhere are dropped and load again on demand", async () => {
+        await mount({
+            live: true,
+            runStatus: "running",
+            ids: ["sc-4", "sc-3", "sc-2", "sc-1"],
+            pageSize: 2,
+        })
+        await act(async () => latest.loadMore())
+        await settle()
+        expect(latest.rows.map((row) => row.scenario.id)).toEqual(["sc-4", "sc-3", "sc-2", "sc-1"])
+        state.ids = ["sc-5", "sc-4", "sc-3", "sc-2", "sc-1"]
+        await settle(5000)
+        await settle(300)
+        // The first page now ends at sc-4; sc-3 would be lost if the old second page stayed.
+        expect(latest.rows.map((row) => row.scenario.id)).toEqual(["sc-5", "sc-4"])
+        expect(latest.hasMore).toBe(true)
+        await act(async () => latest.loadMore())
+        await settle()
+        expect(latest.rows.map((row) => row.scenario.id)).toEqual(["sc-5", "sc-4", "sc-3", "sc-2"])
     })
 })

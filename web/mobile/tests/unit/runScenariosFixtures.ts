@@ -14,6 +14,8 @@ export interface ScenarioServerState {
     failScenarios: boolean
     /** False: the evaluator has not scored any scenario yet. */
     scored: boolean
+    /** True: the metrics request fails. */
+    failMetrics: boolean
     calls: {url: string; body: unknown}[]
 }
 
@@ -26,6 +28,7 @@ export function newServerState(patch: Partial<ScenarioServerState> = {}): Scenar
         pageSize: 50,
         failScenarios: false,
         scored: true,
+        failMetrics: false,
         calls: [],
         ...patch,
     }
@@ -89,7 +92,8 @@ export function answerRequest(
     if (url.endsWith("/evaluations/scenarios/query")) {
         if (state.failScenarios) throw new Error("Request failed with status code 500")
         const windowing = (body?.windowing ?? {}) as {limit: number; next?: string}
-        const start = windowing.next ? Number(windowing.next) : 0
+        // The cursor names the last row of the page before, as the API's cursors do.
+        const start = windowing.next ? state.ids.indexOf(windowing.next) + 1 : 0
         const end = Math.min(start + state.pageSize, state.ids.length)
         return {
             data: {
@@ -100,7 +104,7 @@ export function answerRequest(
                     status: state.statuses[id] ?? "success",
                     testcase_id: `tc-${id}`,
                 })),
-                windowing: {next: end < state.ids.length ? String(end) : null},
+                windowing: {next: end < state.ids.length ? state.ids[end - 1] : null},
             },
         }
     }
@@ -121,6 +125,7 @@ export function answerRequest(
         }
     }
     if (url.endsWith("/evaluations/metrics/query")) {
+        if (state.failMetrics) throw new Error("Request failed with status code 500")
         const ids = ((body?.metrics as {scenario_ids?: string[]})?.scenario_ids ?? []) as string[]
         return {
             data: {
