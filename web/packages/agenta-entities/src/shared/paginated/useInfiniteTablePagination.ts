@@ -7,7 +7,7 @@
 
 import {useCallback, useEffect, useMemo} from "react"
 
-import {useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule, useSetAtomWithSchedule} from "jotai-scheduler"
 
 import type {InfiniteTableRowBase, WindowingState} from "../tableTypes"
@@ -28,6 +28,10 @@ interface PaginationResult<TableRow extends InfiniteTableRowBase> {
     totalRows: number
     loadNextPage: () => void
     resetPages: () => void
+    /** True when the last requested page failed. */
+    isError: boolean
+    /** Requests the last requested page again. */
+    refetch: () => void
     paginationInfo: {
         hasMore: boolean
         nextCursor: string | null
@@ -61,6 +65,33 @@ const useInfiniteTablePagination = <TableRow extends InfiniteTableRowBase>({
         () => store.atoms.scheduleNextPageAtomFamily({scopeId, pageSize}),
         [store, scopeId, pageSize],
     )
+
+    // The newest page is the one that can fail or be retried.
+    const lastPageStatusAtom = useMemo(
+        () =>
+            atom((get) => {
+                const {pages} = get(pagesAtom)
+                const lastPage = pages[pages.length - 1]
+                if (!lastPage) return null
+                const query = get(
+                    store.atoms.rowsQueryAtomFamily({
+                        scopeId,
+                        cursor: lastPage.cursor,
+                        limit: lastPage.limit,
+                        offset: lastPage.offset,
+                        windowing: lastPage.windowing ?? undefined,
+                    }),
+                )
+                return {isError: query.isError, refetch: query.refetch}
+            }),
+        [pagesAtom, store, scopeId],
+    )
+    const lastPageStatus = useAtomValue(lastPageStatusAtom)
+    const isError = Boolean(lastPageStatus?.isError)
+    const lastPageRefetch = lastPageStatus?.refetch
+    const refetch = useCallback(() => {
+        void lastPageRefetch?.()
+    }, [lastPageRefetch])
 
     const setPagesState = useSetAtom(pagesAtom)
     const scheduleNextPage = useSetAtomWithSchedule(scheduleAtom, {
@@ -141,6 +172,8 @@ const useInfiniteTablePagination = <TableRow extends InfiniteTableRowBase>({
         totalRows,
         loadNextPage,
         resetPages,
+        isError,
+        refetch,
         paginationInfo,
     }
 }

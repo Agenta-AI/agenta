@@ -4,6 +4,7 @@ import {InlineRenameInput} from "@agenta/sessions-ui"
 import {lastActiveLabel, NO_DESCRIPTION, type AgentListRow} from "./agentListView"
 import {AgentPrivateMarker} from "./AgentPrivateMarker"
 import {AGENT_RENAME_INPUT_CLASS, useAgentInlineRename} from "./useAgentInlineRename"
+import {agentMenuProps, type AgentRowActions} from "./useAgentRowActions"
 
 /**
  * What an agent's card holds — the frame draws the tile around it.
@@ -15,10 +16,12 @@ import {AGENT_RENAME_INPUT_CLASS, useAgentInlineRename} from "./useAgentInlineRe
 export const AgentCardBody = ({
     row,
     onOpen,
+    actions,
 }: {
     row: AgentListRow
     /** The card's own click already does this; the menu offers it in words. */
     onOpen: (row: AgentListRow) => void
+    actions: AgentRowActions
 }) => {
     const {rename, startFromMenu, handleCloseAutoFocus} = useAgentInlineRename(row)
 
@@ -76,6 +79,7 @@ export const AgentCardBody = ({
                         onOpen={() => onOpen(row)}
                         onRename={startFromMenu}
                         onCloseAutoFocus={handleCloseAutoFocus}
+                        {...agentMenuProps(row, actions)}
                     />
                 </span>
             </span>

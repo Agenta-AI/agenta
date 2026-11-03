@@ -75,6 +75,8 @@ export interface AgentListRow {
     /** The reader's own private agent: the lock after the name. Others' private agents never
      *  reach the list. */
     isPrivate: boolean
+    /** Put away: its menu offers Restore, never Archive. */
+    archived: boolean
     /** Sessions blocked on a person for this agent — the amber badge, and the Status facet. */
     waiting: number
 }
@@ -159,6 +161,7 @@ export const toAgentListRow = (
             workflow.access?.visibility === "private" &&
             Boolean(currentUserId) &&
             ownerId === currentUserId,
+        archived: Boolean(workflow.deleted_at),
         waiting,
     }
 }

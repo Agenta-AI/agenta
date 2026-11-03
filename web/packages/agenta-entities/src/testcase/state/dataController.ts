@@ -62,6 +62,7 @@ import {extractColumnsFromData, type Column} from "../core"
 
 import {testcaseMolecule} from "./molecule"
 import {testcasePaginatedStore, type TestcaseTableRow} from "./paginatedStore"
+import {testcaseEntityAtomFamily} from "./store"
 
 // ============================================================================
 // TYPES
@@ -88,6 +89,11 @@ export interface TestcaseDataConfig extends EntityDataConfigBase {
     localRows?: {id: string; data: Record<string, unknown>}[]
     /** Column keys for local mode (when data might be empty) */
     localColumnKeys?: string[]
+    /**
+     * Keep unsaved local rows (ids with the `new-` prefix) in server mode.
+     * An edit session needs them; a read-only table does not. Default: false.
+     */
+    includeNewRows?: boolean
 }
 
 /**
@@ -100,7 +106,8 @@ function areConfigsEqual(a: TestcaseDataConfig, b: TestcaseDataConfig): boolean 
         a.useLocal === b.useLocal &&
         a.pageSize === b.pageSize &&
         a.localRows === b.localRows &&
-        a.localColumnKeys === b.localColumnKeys
+        a.localColumnKeys === b.localColumnKeys &&
+        a.includeNewRows === b.includeNewRows
     )
 }
 
@@ -144,8 +151,10 @@ const rowsAtomFamily = atomFamily((config: TestcaseDataConfig) => {
         }
         const state = get(testcasePaginatedStore.selectors.state(paginatedParams))
 
-        // Filter out skeleton and new rows for server mode
-        return state.rows.filter((row) => !row.__isNew && !row.__isSkeleton)
+        // Filter out skeleton rows, and new rows unless the table is an edit session
+        return state.rows.filter(
+            (row) => !row.__isSkeleton && (config.includeNewRows || !row.__isNew),
+        )
     })
 }, areConfigsEqual)
 
@@ -186,11 +195,15 @@ const columnsAtomFamily = atomFamily((config: TestcaseDataConfig) => {
         const rows = get(rowsAtomFamily(config))
 
         // Extract columns from entity data (testcase.data)
-        // We need to look up entity data for each row since rows are identity-only
+        // We need to look up entity data for each row since rows are identity-only.
+        // In server mode the read subscribes to the entity, which carries the pending column
+        // renames, adds and removals, so the headers follow a column edit at once.
         const dataObjects: Record<string, unknown>[] = []
         for (const row of rows.slice(0, 20)) {
             // Sample first 20 rows
-            const entity = testcaseMolecule.get.data(row.id)
+            const entity = config.useLocal
+                ? testcaseMolecule.get.data(row.id)
+                : get(testcaseEntityAtomFamily(row.id))
             if (entity?.data) {
                 dataObjects.push(entity.data as Record<string, unknown>)
             }
