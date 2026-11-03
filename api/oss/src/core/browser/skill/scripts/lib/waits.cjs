@@ -56,6 +56,8 @@ function createWaits({ sliceMs, totalMs, now = Date.now, onChange = () => {} }) 
       return new Promise((resolve) => {
         const waiter = { reason, resolve };
         waiter.timer = setTimeout(() => {
+          // The last slice ends with the total time; it must not race the expiry into "still".
+          if (now() >= entry.startedAt + totalMs) return settle(reason, "expired");
           pending = pending.filter((w) => w !== waiter);
           resolve("still");
         }, Math.min(sliceMs, left));
