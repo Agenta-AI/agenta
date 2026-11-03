@@ -63,7 +63,11 @@ import {
 } from "../atoms/playground"
 import {executionByMessageIdAtomFamily, messageIdsAtomFamily, messagesByIdAtomFamily} from "../chat"
 import type {ChatMessage} from "../chat"
-import {createInitialExecutionState, executionStateAtomFamily} from "../execution"
+import {
+    cancelRunningResults,
+    createInitialExecutionState,
+    executionStateAtomFamily,
+} from "../execution"
 import type {ExecutionSession, RunResult} from "../execution"
 import {
     displayedEntityIdsAtom,
@@ -1880,6 +1884,14 @@ const setEntityIdsAtom = atom(null, (get, set, next: string[] | ((prev: string[]
         seen.add(id)
         return true
     })
+    // The test cases and results live under the anchor's loadable. When the anchor leaves (a
+    // commit or switch of the first revision), a run in flight keeps writing to the old loadable
+    // while its results move on as "running": stop every run there first, evaluators included.
+    const anchorLoadableId = get(derivedLoadableIdAtom)
+    const anchorEntityId = anchorLoadableId.split(":").slice(2).join(":")
+    if (anchorEntityId && !newIds.includes(anchorEntityId)) {
+        cancelRunningResults(get, set, anchorLoadableId)
+    }
     const existingByEntityId = new Map(currentRootNodes.map((node) => [node.entityId, node]))
     const resolver = getRunnableTypeResolver()
     const newRootNodes: PlaygroundNode[] = newIds.map((entityId) => {
@@ -2292,6 +2304,18 @@ const reconcileRowsToPrimaryAtom = atom(null, (get, set) => {
 const switchEntityAtom = atom(
     null,
     (get, set, {currentEntityId, newEntityId}: {currentEntityId: string; newEntityId: string}) => {
+        // A node after the first ones (an evaluator after an app) is swapped in place, so its
+        // links stay and the app stays first.
+        const nodes = get(playgroundNodesAtom)
+        const downstream = nodes.find((n) => n.depth > 0 && n.entityId === currentEntityId)
+        if (downstream) {
+            set(
+                playgroundNodesAtom,
+                nodes.map((n) => (n === downstream ? {...n, entityId: newEntityId} : n)),
+            )
+            _onSelectionChange?.(get(entityIdsAtom), [currentEntityId])
+            return
+        }
         const current = get(entityIdsAtom)
         const updated =
             current.length > 1
@@ -2302,6 +2326,65 @@ const switchEntityAtom = atom(
         _onSelectionChange?.(updated, [currentEntityId])
     },
 )
+
+/**
+ * Stops every run in flight under the current loadable. Called before the chain changes: a run
+ * keeps writing to the loadable and the nodes it started with, so its results would stay
+ * "running" in the changed chain.
+ */
+function cancelRunsInFlight(get: Getter, set: Setter) {
+    const loadableId = get(derivedLoadableIdAtom)
+    if (loadableId) cancelRunningResults(get, set, loadableId)
+}
+
+/**
+ * Runs an evaluator on an app's output: the app becomes the first node and the evaluator follows
+ * it, linked. Picking another app replaces the first one.
+ */
+const connectAppToEvaluatorAtom = atom(
+    null,
+    (
+        _get,
+        set,
+        params: {
+            appRevisionId: string
+            appLabel: string
+            evaluatorRevisionId: string
+            evaluatorLabel: string
+        },
+    ) => {
+        cancelRunsInFlight(_get, set)
+        const nodeId = set(changePrimaryNodeAtom, {
+            type: "workflow",
+            id: params.appRevisionId,
+            label: params.appLabel,
+        })
+        if (!nodeId) return
+        set(connectDownstreamNodeAtom, {
+            sourceNodeId: nodeId,
+            entity: {
+                type: "workflow",
+                id: params.evaluatorRevisionId,
+                label: params.evaluatorLabel,
+            },
+        })
+        // The test cases now feed the app: keys only the previous first node read go.
+        set(reconcileRowsToPrimaryAtom)
+    },
+)
+
+/** Undoes `connectAppToEvaluator`: the evaluator is the only node again. */
+const disconnectAppFromEvaluatorAtom = atom(null, (get, set) => {
+    const evaluator = get(playgroundNodesAtom).find((node) => node.depth > 0)
+    if (!evaluator) return
+    cancelRunsInFlight(get, set)
+    set(removeNodeAtom, evaluator.id)
+    set(changePrimaryNodeAtom, {
+        type: evaluator.entityType,
+        id: evaluator.entityId,
+        label: evaluator.label ?? evaluator.entityId,
+    })
+})
 
 // ============================================================================
 // CONTROLLER EXPORT
@@ -2399,6 +2482,10 @@ export const playgroundController = {
 
         /** Remove a node */
         removeNode: removeNodeAtom,
+        /** Put an app before an evaluator, linked (the evaluator playground's "Run on an app") */
+        connectAppToEvaluator: connectAppToEvaluatorAtom,
+        /** Remove the app before an evaluator */
+        disconnectAppFromEvaluator: disconnectAppFromEvaluatorAtom,
 
         /** Change the primary node */
         changePrimaryNode: changePrimaryNodeAtom,
