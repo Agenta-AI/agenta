@@ -30,6 +30,8 @@ export interface ScenarioRowData {
     scenario: EvaluationRunScenario
     /** Cells by group key, in the order of the group's columns. */
     cells: Record<string, ScenarioCell[]>
+    /** True when the traces of this scenario did not load: its outputs and scores are unknown. */
+    valuesFailed: boolean
 }
 
 /** A scenario row as the screen shows it: its position in the list comes with it. */
@@ -53,6 +55,7 @@ export function scenarioColumnGroups(schema: ScenarioSchema): RunColumnGroup[] {
 export function buildScenarioRowData(
     hydrated: HydratedScenarioRow<EvaluationRunScenario>,
     schema: ScenarioSchema,
+    valuesFailed = false,
 ): ScenarioRowData {
     const cells: Record<string, ScenarioCell[]> = {}
     // `resolveMappings` returns one column per mapping, in the mappings' order.
@@ -66,7 +69,7 @@ export function buildScenarioRowData(
             value: column.value,
         })
     })
-    return {scenario: hydrated.scenario, cells}
+    return {scenario: hydrated.scenario, cells, valuesFailed}
 }
 
 /** The rule `groupRunColumns` uses: a column needs a name, and internal dedup keys are not listed. */

@@ -11,6 +11,7 @@ import {ScenariosLoadMore} from "./ScenariosLoadMore"
 import {ScenarioTableRow} from "./ScenarioTableRow"
 import {ScenariosEmpty} from "./states/ScenariosEmpty"
 import {ScenariosLoadMoreError} from "./states/ScenariosLoadMoreError"
+import {ScenariosRefreshError} from "./states/ScenariosRefreshError"
 import {useRunScenarios} from "./useRunScenarios"
 import {useScenarioGroupLabels} from "./useScenarioGroupLabels"
 
@@ -80,11 +81,25 @@ export const ScenariosTab = ({runId}: {runId: string}) => {
                 rowKey={(row) => row.scenario.id}
                 onOpenRow={openRow}
                 empty={<ScenariosEmpty />}
-                renderRow={(row) => <ScenarioTableRow row={row} groups={columnGroups} />}
+                renderRow={(row) => (
+                    <ScenarioTableRow
+                        row={row}
+                        groups={columnGroups}
+                        onRetry={scenarios.retryValues}
+                    />
+                )}
                 renderCard={(row) => (
-                    <ScenarioCard row={row} groups={columnGroups} labels={labels} />
+                    <ScenarioCard
+                        row={row}
+                        groups={columnGroups}
+                        labels={labels}
+                        onRetry={scenarios.retryValues}
+                    />
                 )}
             />
+            {scenarios.refreshFailed ? (
+                <ScenariosRefreshError onRetry={scenarios.retryRefresh} />
+            ) : null}
             {scenarios.loadMoreError ? (
                 <ScenariosLoadMoreError onRetry={scenarios.loadMore} />
             ) : scenarios.hasMore ? (

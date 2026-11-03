@@ -6,6 +6,12 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it} from "vitest"
 
 import {
+    buildRunSummaryRows,
+    type RunSummaryInput,
+} from "@/features/evaluation-run/overview/runSummaryRows"
+import {RunSummaryTable} from "@/features/evaluation-run/overview/RunSummaryTable"
+
+import {
     BOOLEAN,
     CATEGORICAL,
     evaluatorMetric,
@@ -13,12 +19,6 @@ import {
     invocationMetric,
     NUMERIC,
 } from "./runOverviewFixtures"
-
-import {
-    buildRunSummaryRows,
-    type RunSummaryInput,
-} from "@/features/evaluation-run/overview/runSummaryRows"
-import {RunSummaryTable} from "@/features/evaluation-run/overview/RunSummaryTable"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 

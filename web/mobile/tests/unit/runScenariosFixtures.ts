@@ -16,6 +16,8 @@ export interface ScenarioServerState {
     scored: boolean
     /** True: the metrics request fails. */
     failMetrics: boolean
+    /** True: results point at traces, and the traces request fails. */
+    failTraces: boolean
     calls: {url: string; body: unknown}[]
 }
 
@@ -29,6 +31,7 @@ export function newServerState(patch: Partial<ScenarioServerState> = {}): Scenar
         failScenarios: false,
         scored: true,
         failMetrics: false,
+        failTraces: false,
         calls: [],
         ...patch,
     }
@@ -120,6 +123,7 @@ export function answerRequest(
                     step_key: "ts",
                     status: "success",
                     testcase_id: `tc-${id}`,
+                    ...(state.failTraces ? {trace_id: `trace-${id}`} : {}),
                 })),
             },
         }

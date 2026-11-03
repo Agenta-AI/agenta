@@ -219,4 +219,50 @@ describe("scenarios tab", () => {
         expect(cards[0].textContent).toContain("France")
         expect(cards[0].textContent).toContain("Exact Match: true")
     })
+
+    it("A row whose traces did not load says so and a retry loads it", async () => {
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async () => new Response("{}", {status: 400})),
+        )
+        await mount({failTraces: true, ids: ["sc-1"]})
+        const row = host.querySelector('[role="button"]')
+        expect(row?.textContent).toContain("France")
+        expect(row?.textContent).toContain("Could not load these values")
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async () => new Response(JSON.stringify({count: 0, traces: []}), {status: 200})),
+        )
+        await act(async () => buttonNamed("Try again")?.click())
+        await settle()
+        expect(host.textContent).not.toContain("Could not load these values")
+        expect(router.replace).not.toHaveBeenCalled()
+    })
+
+    it("A phone card of a row whose traces did not load shows the same retry", async () => {
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async () => new Response("{}", {status: 400})),
+        )
+        await mount({failTraces: true, ids: ["sc-1"]}, false)
+        expect(host.textContent).toContain("Could not load these values")
+        expect(buttonNamed("Try again")).toBeDefined()
+    })
+
+    it("A failed last refresh after the run finishes shows an inline retry", async () => {
+        await mount({runStatus: "running", statuses: {"sc-2": "running"}})
+        state.statuses = {}
+        state.runStatus = "evaluation_finished"
+        state.failScenarios = true
+        await settle(5000)
+        await settle(500)
+        expect(host.textContent).toContain("Could not update the latest values")
+        expect(host.querySelectorAll('[role="button"]')).toHaveLength(3)
+        state.failScenarios = false
+        await act(async () => buttonNamed("Try again")?.click())
+        await settle()
+        expect(host.textContent).not.toContain("Could not update the latest values")
+        expect(host.textContent).toContain("Success")
+        expect(host.textContent).not.toContain("Running")
+    })
 })

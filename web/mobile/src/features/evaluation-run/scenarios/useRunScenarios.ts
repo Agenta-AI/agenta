@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     evaluationMetricMolecule,
@@ -22,7 +22,8 @@ import {
     type InfiniteData,
     type QueryClient,
 } from "@tanstack/react-query"
-import {useAtomValue} from "jotai"
+import {getDefaultStore, useAtomValue} from "jotai"
+import {queryClientAtom} from "jotai-tanstack-query"
 
 import {
     buildScenarioRowData,
@@ -80,6 +81,7 @@ async function loadScenarioPage(
     evaluationMetricMolecule.actions.evictByScenarioIds({projectId, runId, scenarioIds})
 
     let failed = false
+    const failedTraceIds = new Set<string>()
     const watch =
         <A, R>(read: (args: A) => Promise<R>) =>
         (args: A) =>
@@ -91,7 +93,19 @@ async function loadScenarioPage(
         fetchResults: watch(MOLECULE_BACKED_HYDRATE_FETCHERS.fetchResults),
         fetchMetrics: watch(MOLECULE_BACKED_HYDRATE_FETCHERS.fetchMetrics),
         fetchTestcases: watch(MOLECULE_BACKED_HYDRATE_FETCHERS.fetchTestcases),
-        fetchTraces: watch(MOLECULE_BACKED_HYDRATE_FETCHERS.fetchTraces),
+        fetchTraces: async (args) => {
+            const found = await MOLECULE_BACKED_HYDRATE_FETCHERS.fetchTraces(args)
+            // The trace read hides its own failure. It leaves the cache without an entry for a
+            // trace it could not read, and with an empty entry for a trace that does not exist yet.
+            const cache = getDefaultStore().get(queryClientAtom)
+            for (const traceId of args.traceIds) {
+                if (found.has(traceId)) continue
+                if (cache.getQueryData(["trace-entity", args.projectId, traceId]) === undefined) {
+                    failedTraceIds.add(traceId)
+                }
+            }
+            return found
+        },
     }
     const hydrate = makeHydrateScenariosTransform<EvaluationRunScenario>({
         projectId,
@@ -103,32 +117,39 @@ async function loadScenarioPage(
     return {
         cursor,
         nextCursor: page.nextCursor,
-        rows: chunk.items.map((hydrated) => buildScenarioRowData(hydrated, schema)),
+        rows: chunk.items.map((hydrated) =>
+            buildScenarioRowData(
+                hydrated,
+                schema,
+                hydrated.results.some(
+                    (result) => result.trace_id != null && failedTraceIds.has(result.trace_id),
+                ),
+            ),
+        ),
     }
 }
 
 /**
- * Read again the pages that hold a scenario that has not finished, or that finished since the last
- * look. Other pages stay as they are. An online run also reads its first page, where new
- * scenarios arrive. When a page now ends elsewhere, the pages after it no longer start in the
- * right place: they are dropped and load again on demand. Returns the ids still open.
+ * Read again the pages that hold a scenario that has not finished (as the cache last saw it), or
+ * whose values failed to load. Other pages stay as they are. An online run also reads its first
+ * page, where new scenarios arrive, and so does a run whose first page is still empty. When a
+ * page now ends elsewhere, the pages after it no longer start in the right place: they are
+ * dropped and load again on demand.
  */
-async function refreshOpenPages(
-    client: QueryClient,
-    request: PageRequest,
-    previouslyOpen: ReadonlySet<string>,
-): Promise<Set<string>> {
+async function refreshOpenPages(client: QueryClient, request: PageRequest): Promise<void> {
     const key = runScenariosQueryKey(request.projectId, request.runId)
     const current = client.getQueryData<ScenarioPages>(key)
-    if (!current) return new Set(previouslyOpen)
+    if (!current) return
 
     const needsRead = (row: ScenarioRowData) =>
-        !isTerminalScenarioStatus(row.scenario.status) || previouslyOpen.has(row.scenario.id)
+        !isTerminalScenarioStatus(row.scenario.status) || row.valuesFailed
     const readsNewest = request.order === "descending"
     const stale = current.pages.filter(
-        (page) => page.rows.some(needsRead) || (readsNewest && page.cursor === null),
+        (page) =>
+            page.rows.some(needsRead) ||
+            (page.cursor === null && (readsNewest || page.rows.length === 0)),
     )
-    if (stale.length === 0) return new Set()
+    if (stale.length === 0) return
 
     const fresh = await Promise.all(stale.map((page) => loadScenarioPage(request, page.cursor)))
     client.setQueryData<ScenarioPages>(key, (latest) => {
@@ -143,13 +164,6 @@ async function refreshOpenPages(
         }
         return {pages, pageParams}
     })
-    return new Set(
-        fresh.flatMap((page) =>
-            page.rows
-                .filter((row) => !isTerminalScenarioStatus(row.scenario.status))
-                .map((row) => row.scenario.id),
-        ),
-    )
 }
 
 /**
@@ -193,21 +207,27 @@ export function useRunScenarios(runId: string) {
     )
 
     const live = Boolean(header) && !isTerminalRunStatus(header?.status)
-    const openIds = useRef<Set<string>>(new Set())
     const inFlight = useRef(false)
     const readAgain = useRef(false)
-    const latest = useRef({projectId, order, schema})
-    latest.current = {projectId, order, schema}
+    const loadMoreQueued = useRef(false)
+    const latest = useRef({projectId, order, schema, live, fetchNextPage: query.fetchNextPage})
+    latest.current = {projectId, order, schema, live, fetchNextPage: query.fetchNextPage}
+    const [refreshFailed, setRefreshFailed] = useState(false)
 
     const refreshRef = useRef<(rereadRun: boolean) => Promise<void>>(async () => undefined)
     const refresh = useCallback(
         async (rereadRun: boolean) => {
             const {projectId: project, order: currentOrder, schema: currentSchema} = latest.current
             if (!project) return
-            if (inFlight.current) {
+            // A refresh and a load of the next page both write the page list, and the later
+            // writer would drop what the other one wrote. They run one after the other.
+            if (
+                inFlight.current ||
+                client.isFetching({queryKey: runScenariosQueryKey(project, runId)}) > 0
+            ) {
                 // A read that overlaps another is not lost: the last pass of a finished run
                 // must not be dropped because a tick was still running.
-                if (!rereadRun) readAgain.current = true
+                readAgain.current = true
                 return
             }
             inFlight.current = true
@@ -215,16 +235,22 @@ export function useRunScenarios(runId: string) {
                 // The run page does not poll the run itself: read its status so a finished run is seen.
                 if (rereadRun)
                     await client.invalidateQueries({queryKey: evaluationRunQueryKey(runId)})
-                openIds.current = await refreshOpenPages(
-                    client,
-                    {projectId: project, runId, order: currentOrder, schema: currentSchema},
-                    openIds.current,
-                )
+                await refreshOpenPages(client, {
+                    projectId: project,
+                    runId,
+                    order: currentOrder,
+                    schema: currentSchema,
+                })
+                setRefreshFailed(false)
             } catch {
-                // The next tick tries again.
+                // While the run runs, the next tick tries again. Once it is done, nothing does.
+                setRefreshFailed(!latest.current.live)
             } finally {
                 inFlight.current = false
-                if (readAgain.current) {
+                if (loadMoreQueued.current) {
+                    loadMoreQueued.current = false
+                    void latest.current.fetchNextPage()
+                } else if (readAgain.current) {
                     readAgain.current = false
                     void refreshRef.current(false)
                 }
@@ -234,6 +260,14 @@ export function useRunScenarios(runId: string) {
     )
 
     refreshRef.current = refresh
+
+    // A read that waited for a load of the next page runs when that load ends.
+    const fetching = query.isFetching
+    useEffect(() => {
+        if (fetching || !readAgain.current) return
+        readAgain.current = false
+        void refreshRef.current(false)
+    }, [fetching])
 
     useEffect(() => {
         if (!live) return
@@ -255,12 +289,24 @@ export function useRunScenarios(runId: string) {
         void refresh(false)
     }, [live, refresh])
 
+    const loadMore = useCallback(() => {
+        if (inFlight.current) {
+            loadMoreQueued.current = true
+            return
+        }
+        void query.fetchNextPage()
+    }, [query])
+
     return {
         rows,
         columnGroups,
         order,
         hasMore: Boolean(query.hasNextPage),
-        loadMore: () => void query.fetchNextPage(),
+        loadMore,
+        /** Read again the rows whose values did not load. */
+        retryValues: () => void refresh(false),
+        refreshFailed,
+        retryRefresh: () => void refresh(false),
         isPending: query.isPending,
         isError: query.isError && !query.data,
         refetch: () => void query.refetch(),

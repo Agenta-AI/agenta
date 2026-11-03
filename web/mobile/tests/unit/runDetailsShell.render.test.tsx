@@ -122,7 +122,7 @@ function serveRun(spec: RunSpec | null) {
 /** The package batches run and metric requests for about 80 ms before it sends them. */
 const flush = () =>
     act(async () => {
-        for (let i = 0; i < 3; i++) await new Promise((resolve) => setTimeout(resolve, 100))
+        for (let i = 0; i < 10; i++) await new Promise((resolve) => setTimeout(resolve, 100))
     })
 
 async function mount(target = store) {

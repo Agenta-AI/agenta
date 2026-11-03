@@ -214,3 +214,78 @@ describe("useRunScenarios", () => {
         expect(latest.rows.map((row) => row.scenario.id)).toEqual(["sc-5", "sc-4", "sc-3", "sc-2"])
     })
 })
+
+describe("useRunScenarios failures and overlaps", () => {
+    it("A failed trace request marks the rows as failed and a retry loads them", async () => {
+        const fetchMock = vi.fn(async () => new Response("{}", {status: 400}))
+        vi.stubGlobal("fetch", fetchMock)
+        await mount({failTraces: true})
+        expect(latest.isError).toBe(false)
+        expect(latest.rows.map((row) => row.valuesFailed)).toEqual([true, true, true])
+        vi.unstubAllGlobals()
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async () => new Response(JSON.stringify({count: 0, traces: []}), {status: 200})),
+        )
+        await act(async () => latest.retryValues())
+        await settle()
+        expect(latest.rows.map((row) => row.valuesFailed)).toEqual([false, false, false])
+        vi.unstubAllGlobals()
+    })
+
+    it("A failed last read after the run finishes shows a retry", async () => {
+        await mount({runStatus: "running", statuses: {"sc-2": "running"}})
+        state.statuses = {}
+        state.runStatus = "evaluation_finished"
+        state.failScenarios = true
+        await settle(5000)
+        await settle(300)
+        expect(latest.refreshFailed).toBe(true)
+        state.failScenarios = false
+        await act(async () => latest.retryRefresh())
+        await settle()
+        expect(latest.refreshFailed).toBe(false)
+        expect(latest.rows.map((row) => row.scenario.status)).toEqual([
+            "success",
+            "success",
+            "success",
+        ])
+    })
+
+    it("A refresh that finishes first is not overwritten by a slower load more", async () => {
+        await mount({
+            runStatus: "running",
+            statuses: {"sc-1": "running"},
+            ids: ["sc-1", "sc-2", "sc-3", "sc-4"],
+            pageSize: 3,
+        })
+        const runId = `run-${counter}`
+        http.post.mockImplementation(async (url: string, body: Record<string, unknown>) => {
+            const next = (body?.windowing as {next?: string} | undefined)?.next
+            if (url.endsWith("/evaluations/scenarios/query") && next) {
+                await new Promise((resolve) => setTimeout(resolve, 7000))
+            }
+            return answerRequest(runId, state, url, body)
+        })
+        state.statuses = {}
+        await act(async () => latest.loadMore())
+        await settle(5000)
+        await settle(3000)
+        expect(latest.rows.map((row) => row.scenario.id)).toEqual(["sc-1", "sc-2", "sc-3", "sc-4"])
+        expect(latest.rows.map((row) => row.scenario.status)).toEqual([
+            "success",
+            "success",
+            "success",
+            "success",
+        ])
+    })
+
+    it("An empty run that is still running keeps reading its first page", async () => {
+        await mount({runStatus: "running", ids: []})
+        expect(latest.rows).toEqual([])
+        state.ids = ["sc-1"]
+        await settle(5000)
+        await settle(300)
+        expect(latest.rows.map((row) => row.scenario.id)).toEqual(["sc-1"])
+    })
+})
