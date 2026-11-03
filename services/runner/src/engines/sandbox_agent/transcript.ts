@@ -7,7 +7,11 @@ import {
   resolvePromptText,
   userTurnCarriesContent,
 } from "../../protocol.ts";
-import { approvalDecisionOf } from "../../responder.ts";
+import {
+  approvalDecisionOf,
+  buildCallShapeIndex,
+  coldReplayKey,
+} from "../../responder.ts";
 import { headCut, tailCut } from "../../text-cut.ts";
 import { attachmentMention } from "./attachments.ts";
 import {
@@ -60,9 +64,24 @@ export function approvalRenderHints(
     content: string | ContentBlock[] | undefined;
   }[],
 ): Map<ContentBlock, ApprovalRenderHint> {
+  const callShapeById = buildCallShapeIndex(history);
+
+  // The approval store's key (tool name + canonical args). A result with no args of its own and
+  // no recorded tool_call has an unknown call shape, so it gets no key and matches by name only.
+  const callKeyOf = (block: ContentBlock): string | undefined => {
+    if (
+      block.input === undefined &&
+      !(block.toolCallId && callShapeById.has(block.toolCallId))
+    ) {
+      return undefined;
+    }
+    return coldReplayKey(block, callShapeById);
+  };
+
   const toolResults: {
     block: ContentBlock;
     toolName: string | undefined;
+    key: string | undefined;
     decision: ReturnType<typeof approvalDecisionOf>;
   }[] = [];
 
@@ -71,40 +90,85 @@ export function approvalRenderHints(
     if (!Array.isArray(content)) continue;
     for (const block of content) {
       if (block?.type !== "tool_result") continue;
+      const shape = block.toolCallId
+        ? callShapeById.get(block.toolCallId)
+        : undefined;
+      const toolName = block.toolName ?? shape?.name;
       toolResults.push({
         block,
-        toolName: block.toolName,
+        toolName,
+        key: callKeyOf(block),
         decision: approvalDecisionOf(block),
       });
     }
   }
 
+  const isDeferredResult = (block: ContentBlock): boolean => {
+    return (
+      typeof block.output === "string" &&
+      block.output.startsWith(DEFERRED_NOT_EXECUTED_PREFIX)
+    );
+  };
+
+  // Rendering only. Each real result settles at most one earlier approval, in order. Match by
+  // the approval store's key first, over all approvals. Then match what is left by tool name when
+  // either side has no key, so an execution whose call shape is unknown still settles an approval
+  // instead of telling the model to run it again, without taking a result a keyed approval needs.
+  const keyMatch = (
+    entry: (typeof toolResults)[number],
+    later: (typeof toolResults)[number],
+  ): boolean =>
+    entry.key !== undefined && later.key !== undefined && entry.key === later.key;
+  const nameMatch = (
+    entry: (typeof toolResults)[number],
+    later: (typeof toolResults)[number],
+  ): boolean =>
+    (entry.key === undefined || later.key === undefined) &&
+    entry.toolName !== undefined &&
+    entry.toolName === later.toolName;
+
   const hints = new Map<ContentBlock, ApprovalRenderHint>();
+  const consumedResults = new Set<number>();
+  const approvals: number[] = [];
+  for (let index = 0; index < toolResults.length; index++) {
+    if (toolResults[index].decision === "allow") approvals.push(index);
+  }
+
+  for (const matches of [keyMatch, nameMatch]) {
+    for (const index of approvals) {
+      const entry = toolResults[index];
+      if (hints.has(entry.block)) continue;
+      for (
+        let laterIndex = index + 1;
+        laterIndex < toolResults.length;
+        laterIndex++
+      ) {
+        if (consumedResults.has(laterIndex)) continue;
+        const later = toolResults[laterIndex];
+        if (
+          later.decision === undefined &&
+          !isDeferredResult(later.block) &&
+          matches(entry, later)
+        ) {
+          consumedResults.add(laterIndex);
+          hints.set(entry.block, "executed");
+          break;
+        }
+      }
+    }
+  }
+
   const unresolved = new Map<
     string | undefined,
     { block: ContentBlock; index: number }[]
   >();
-
-  for (let index = 0; index < toolResults.length; index++) {
+  for (const index of approvals) {
     const entry = toolResults[index];
-    if (entry.decision !== "allow") continue;
-
-    // Rendering only: use tool-name proximity to suppress stale nudges. The actual approval
-    // decision store still matches on name + canonical args and never consumes by name alone.
-    const hasLaterRealResult = toolResults
-      .slice(index + 1)
-      .some(
-        (later) =>
-          later.toolName === entry.toolName && later.decision === undefined,
-      );
-    if (hasLaterRealResult) {
-      hints.set(entry.block, "executed");
-      continue;
-    }
-
-    const list = unresolved.get(entry.toolName) ?? [];
+    if (hints.has(entry.block)) continue;
+    const bucketKey = entry.key ?? entry.toolName;
+    const list = unresolved.get(bucketKey) ?? [];
     list.push({ block: entry.block, index });
-    unresolved.set(entry.toolName, list);
+    unresolved.set(bucketKey, list);
   }
 
   for (const list of unresolved.values()) {

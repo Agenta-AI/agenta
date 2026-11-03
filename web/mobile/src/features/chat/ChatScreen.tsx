@@ -146,13 +146,13 @@ export const ChatScreen = ({
     const lastEntityIdRef = useRef<string | null>(null)
     if (entityId) lastEntityIdRef.current = entityId
     // Held only across a pending switch: a session that failed to load must not borrow the last
-    // one, and neither may a session whose agent the reader cannot see.
-    if (unreachable || agentHidden) lastEntityIdRef.current = null
+    // one, and neither may a session the reader cannot open or whose agent they cannot see.
+    if (unreachable || agentHidden || access.blocked) lastEntityIdRef.current = null
     const heldEntityId = entityId ?? lastEntityIdRef.current
     // Held for the same gap: a blink to null re-scopes the files pane and the tab rail (#6542, #6544).
     const lastAgentIdRef = useRef<string | null>(null)
     if (resolvedAgentId) lastAgentIdRef.current = resolvedAgentId
-    if (unreachable) lastAgentIdRef.current = null
+    if (unreachable || access.blocked) lastAgentIdRef.current = null
     const heldAgentId = resolvedAgentId ?? lastAgentIdRef.current
     useReferenceToolDisplays(heldEntityId)
     // Only a FIRST load has nothing to hold — that is the one time a spinner is honest.
@@ -161,18 +161,28 @@ export const ChatScreen = ({
     const liveStream = liveness.data?.find((s) => s.session_id === sessionId)
     const running = Boolean(liveStream?.flags?.is_running)
     const sharedReader = Boolean(liveStream?.capabilities?.shared_reader)
+    // A chat the reader cannot open gets a page of its own: no tab strip, no config pane and no
+    // agent from the chat before it, so a private chat looks exactly like an unknown one.
+    if (access.blocked) {
+        return (
+            <AppShell workspaceId={workspaceId} projectId={projectId}>
+                <ScreenScaffold>
+                    <ChatNoAccess
+                        kind={access.blocked}
+                        sessionsHref={`/w/${workspaceId}/p/${projectId}/sessions`}
+                    />
+                </ScreenScaffold>
+            </AppShell>
+        )
+    }
+
     // The conversation is ALWAYS mounted — the mode only decides what sits beside it (and, on a
     // narrow frame, which of the two is on screen). Unmounting it on a mode flip would drop a
     // streaming turn.
     // Until the agent query settles, `entityId` is null for an agent-backed session too — so
     // committing to the replay branch here would tell the user the session is read-only when it
     // is not. `resolving` is query-PENDING, not fetching: a cached answer renders immediately.
-    const chat = access.blocked ? (
-        <ChatNoAccess
-            kind={access.blocked}
-            sessionsHref={`/w/${workspaceId}/p/${projectId}/sessions`}
-        />
-    ) : showLoading ? (
+    const chat = showLoading ? (
         <ChatLoading />
     ) : unreachable ? (
         <ChatUnreachable onRetry={retry} retrying={retrying} />

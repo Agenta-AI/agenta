@@ -1975,6 +1975,8 @@ export interface SandboxAgentOtel {
   ): void;
   /** Snapshot the ids whose tool calls have no terminal result yet. */
   openToolCallIds(): string[];
+  /** Whether `settleOpenToolCalls` already closed this tool-call id. */
+  wasForceSettled(toolCallId: string): boolean;
   /**
    * Mark a tool-call id as DENIED (the runner replied `reject` to its gate). Its closing failed
    * result then carries `denied: true` so the egress projects `tool-output-denied` (a decline)
@@ -2501,6 +2503,8 @@ export function createSandboxAgentOtel(
     if (toolCallId) deniedToolCallIds.add(toolCallId);
   }
 
+  // A call closed here may still reach a park seam a moment later; see `wasForceSettled`.
+  const forceSettledToolCallIds = new Set<string>();
   function settleOpenToolCalls(
     isExcluded: (id: string) => boolean,
     message: string,
@@ -2512,6 +2516,7 @@ export function createSandboxAgentOtel(
         entry.span.end();
       }
       toolSpans.delete(id);
+      forceSettledToolCallIds.add(id);
       record({ type: "tool_result", id, output: message, isError: true });
     }
   }
@@ -2683,6 +2688,7 @@ export function createSandboxAgentOtel(
     events: () => events,
     settleOpenToolCalls,
     openToolCallIds: () => [...toolSpans.keys()],
+    wasForceSettled: (toolCallId) => forceSettledToolCallIds.has(toolCallId),
     markToolCallDenied,
     usage: () => usage,
   };

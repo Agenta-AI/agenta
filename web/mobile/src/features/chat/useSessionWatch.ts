@@ -15,6 +15,34 @@ import {sessionWatchUrl, watchRetryDelayMs} from "./watchRelay"
  * into one full records refetch per attempt. */
 const MIN_INTERVAL_MS = 3_000
 
+const COALESCE_MS = 500
+
+/** Leading call at once; calls inside the window collapse into one trailing call at its end. */
+const coalesce = (fn: () => void) => {
+    let timer: number | undefined
+    let pending = false
+    const run = () => {
+        if (timer !== undefined) {
+            pending = true
+            return
+        }
+        fn()
+        timer = window.setTimeout(() => {
+            timer = undefined
+            if (pending) {
+                pending = false
+                run()
+            }
+        }, COALESCE_MS)
+    }
+    const cancel = () => {
+        if (timer !== undefined) window.clearTimeout(timer)
+        timer = undefined
+        pending = false
+    }
+    return {run, cancel}
+}
+
 /**
  * The rail's head window, not its paging tail.
  *
@@ -74,12 +102,14 @@ export const useSessionWatch = ({
         let lastNotifiedAt = 0
         let lastLivenessRefreshAt = 0
 
-        /** Reconnect coverage only — real `records-changed` events are never throttled. */
+        const recordsChanged = coalesce(() => onRecordsChangedRef.current())
+
+        /** Reconnect coverage only — real `records-changed` events are only coalesced. */
         const notifyOnConnect = () => {
             const now = Date.now()
             if (now - lastNotifiedAt < MIN_INTERVAL_MS) return
             lastNotifiedAt = now
-            onRecordsChangedRef.current()
+            recordsChanged.run()
         }
 
         const invalidateLiveness = (trackLegacyRefresh = false) => {
@@ -87,8 +117,8 @@ export const useSessionWatch = ({
             void queryClient.invalidateQueries({queryKey: livenessQueryKey(projectId)})
         }
 
-        const invalidateBadges = (trackLegacyRefresh = false) => {
-            invalidateLiveness(trackLegacyRefresh)
+        const badges = coalesce(() => {
+            invalidateLiveness()
             void queryClient.invalidateQueries({
                 queryKey: actionableInteractionsQueryKey(projectId),
             })
@@ -99,7 +129,7 @@ export const useSessionWatch = ({
             })
             void queryClient.invalidateQueries({queryKey: ["sidebar-sessions-pinned"]})
             void queryClient.invalidateQueries({queryKey: ["sidebar-sessions-waiting"]})
-        }
+        })
 
         const close = () => {
             source?.close()
@@ -136,10 +166,10 @@ export const useSessionWatch = ({
             // change landing in that window would miss both this refetch and the stream.
             es.addEventListener("ready", () => {
                 notifyOnConnect()
-                invalidateBadges()
+                badges.run()
             })
             es.addEventListener("records-changed", () => {
-                onRecordsChangedRef.current()
+                recordsChanged.run()
                 const now = Date.now()
                 if (
                     shouldRefreshLegacyObserverLiveness({
@@ -151,10 +181,13 @@ export const useSessionWatch = ({
                     invalidateLiveness(true)
                 }
             })
-            es.addEventListener("lifecycle", () => invalidateBadges(true))
+            es.addEventListener("lifecycle", () => {
+                lastLivenessRefreshAt = Date.now()
+                badges.run()
+            })
             es.addEventListener("interaction", (event) => {
                 onInteractionChangedRef.current?.(event as MessageEvent<string>)
-                invalidateBadges()
+                badges.run()
             })
             es.onerror = () => {
                 setConnected(false)
@@ -181,6 +214,8 @@ export const useSessionWatch = ({
             disposed = true
             document.removeEventListener("visibilitychange", onVisibility)
             if (retryHandle !== undefined) window.clearTimeout(retryHandle)
+            recordsChanged.cancel()
+            badges.cancel()
             close()
         }
     }, [sessionId, projectId, queryClient, sharedReaderAdvertised])

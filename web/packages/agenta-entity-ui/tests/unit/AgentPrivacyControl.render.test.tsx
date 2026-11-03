@@ -195,6 +195,13 @@ describe("AgentPrivacyDialog", () => {
             (b) => b.textContent?.trim() === shareDisclosureCopy.shareWithProject,
         )
 
+    it("the Shared with project choice says the agent's chats stay private", () => {
+        renderDialog({})
+        expect(document.body.textContent ?? "").toContain(
+            agentSharingCopy.lineProject("Acme support"),
+        )
+    })
+
     it("an open share confirmation closes and writes nothing once the state is not known or not the owner's", async () => {
         const onSetVisibility = renderDialog({})
         const card = Array.from(document.querySelectorAll<HTMLElement>('[role="radio"]')).find(

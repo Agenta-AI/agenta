@@ -125,3 +125,21 @@ export const moveWorkflowToFolder = async ({
         projectScopedRequest(projectId),
     )
 }
+
+/** Renames a prompt and sets its description. A metadata edit: it commits no revision. */
+export const renameWorkflow = async ({
+    projectId,
+    workflowId,
+    name,
+    description,
+}: {
+    projectId: string
+    workflowId: string
+    name: string
+    description: string
+}): Promise<void> => {
+    await getWorkflowsClient().editWorkflow(
+        {workflow_id: workflowId, workflow: {id: workflowId, name, description}},
+        projectScopedRequest(projectId),
+    )
+}

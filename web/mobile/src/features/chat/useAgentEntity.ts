@@ -1,6 +1,9 @@
 import {useCallback, useEffect, useRef} from "react"
 
-import {retrieveWorkflowRevision} from "@agenta/entities/workflow"
+import {
+    primeWorkflowRevisionDetailCacheImperative,
+    retrieveWorkflowRevision,
+} from "@agenta/entities/workflow"
 import {isValidUUID} from "@agenta/shared/utils"
 import {useQuery} from "@tanstack/react-query"
 
@@ -23,6 +26,8 @@ export const retrieveBoundRevision = async (projectId: string, boundId: string) 
     for (const ref of refs) {
         const revision = await retrieveWorkflowRevision({projectId, ...ref})
         if (revision?.id) {
+            // The workflow molecule reads this id next; without the prime it fetches it again.
+            primeWorkflowRevisionDetailCacheImperative(revision, {projectId})
             return {revisionId: revision.id, workflowId: revision.workflow_id ?? null}
         }
     }

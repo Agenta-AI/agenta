@@ -33,6 +33,7 @@ export type {
     TriggerDeliveriesResponse,
     TriggerDeliveryData,
     TriggerDeliveryQuery,
+    TriggerDeliveryWindowing,
     TriggerDeliveryResponse,
     TriggerProviderKind,
     TriggerReference,
@@ -93,10 +94,12 @@ export {
 } from "./core/scheduleBuilder"
 export type {CronCadence, CronTimeOfDay, ScheduleBuilderState} from "./core/scheduleBuilder"
 export {
+    FALLBACK_MESSAGE_SHAPE,
     getScheduleMessage,
     getScheduleMessagePreview,
     messageContentText,
     parseInputsFields,
+    misplacedMessageShape,
     remapMessageShape,
     setScheduleMessage,
 } from "./core/messageInputs"
@@ -195,6 +198,8 @@ export {
     triggerConnectionSubscriptionsAtomFamily,
     triggerDeliveryQueryAtomFamily,
     triggerDeliveriesAtomFamily,
+    triggerRecentDeliveriesAtomFamily,
+    RECENT_TRIGGER_DELIVERIES_LIMIT,
     triggerEventDetailQueryFamily,
     triggerEventsSearchAtom,
     triggerIntegrationConnectionsAtomFamily,

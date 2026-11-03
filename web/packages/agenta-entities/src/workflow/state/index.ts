@@ -93,6 +93,7 @@ export {
     type WorkflowListRef,
     // Single entity
     workflowQueryAtomFamily,
+    workflowIncludeArchivedAtom,
     workflowDraftAtomFamily,
     workflowBaseEntityAtomFamily,
     workflowEntityAtomFamily,
@@ -143,6 +144,7 @@ export {
     workflowArtifactScopedQueryAtomFamily,
     workflowVariantsScopedQueryAtomFamily,
     primeWorkflowArtifactCacheImperative,
+    primeWorkflowRevisionDetailCacheImperative,
 } from "./store"
 
 // Persisted agent-type map (cold-reload fallback for playgroundEarlyAgentStateAtom)

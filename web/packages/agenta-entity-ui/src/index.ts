@@ -477,7 +477,7 @@ export {
 // ENTITY TABLE (Generic entity list table)
 // ============================================================================
 
-export {EntityTable, type EntityTableProps} from "./shared"
+export {EntityTable, type EntityColumnHeader, type EntityTableProps} from "./shared"
 
 // ============================================================================
 // ENTITY ADAPTERS (registration for entity modals)

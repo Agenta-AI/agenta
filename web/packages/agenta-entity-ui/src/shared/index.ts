@@ -1,4 +1,4 @@
-export {EntityTable, type EntityTableProps} from "./EntityTable"
+export {EntityTable, type EntityColumnHeader, type EntityTableProps} from "./EntityTable"
 export {
     default as SharedGenerationResultUtils,
     type SharedGenerationResultUtilsProps,

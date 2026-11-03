@@ -487,6 +487,230 @@ describe("extractTemplateVariables — non-mustache regressions", () => {
         it("excludes mustache structural tags", () => {
             expect(extractTemplateVariables("{{#items}}", "jinja2")).toEqual([])
         })
+
+        it("extracts variables used only in control blocks", () => {
+            const template = [
+                "You are a support triage agent for {{ company }}.",
+                "{% if is_vip %}VIP{% else %}Standard{% endif %}",
+                "{% if tickets %}{% for ticket in tickets %}{{ ticket.id }}{% endfor %}{% endif %}",
+                "{{ customer_message }}",
+            ].join("\n")
+
+            expect(extractTemplateVariables(template, "jinja2")).toEqual([
+                "company",
+                "is_vip",
+                "tickets",
+                "customer_message",
+            ])
+        })
+
+        it("ignores constants, keywords, strings, filters, and tests", () => {
+            expect(
+                extractTemplateVariables(
+                    '{% if is_vip and status == "vip" and name|length > 0 and user is defined %}',
+                    "jinja2",
+                ),
+            ).toEqual(["is_vip", "status", "name"])
+        })
+
+        it("does not require a name that is only checked with `is defined`", () => {
+            expect(
+                extractTemplateVariables(
+                    "{% if extra is defined %}A{% endif %}{% if other is not undefined %}B{% endif %}",
+                    "jinja2",
+                ),
+            ).toEqual([])
+            expect(
+                extractTemplateVariables(
+                    "{% if extra is defined %}{{ extra }}{% endif %}{% if n is odd %}{% endif %}",
+                    "jinja2",
+                ),
+            ).toEqual(["extra", "n"])
+        })
+
+        it("skips whole number literals", () => {
+            expect(
+                extractTemplateVariables(
+                    "{% if amount > 1e3 or code == 0x1F or n < 1_000 or r > 1.5e-3 %}{% endif %}{{ items.0.name }}",
+                    "jinja2",
+                ),
+            ).toEqual(["amount", "code", "n", "r", "items"])
+        })
+
+        it("keeps statement names that are valid variables", () => {
+            expect(
+                extractTemplateVariables("{{ required }}{{ include }}{{ scoped }}", "jinja2"),
+            ).toEqual(["required", "include", "scoped"])
+            expect(
+                extractTemplateVariables(
+                    "{% for node in tree recursive %}{{ loop(node.children) }}{% endfor %}",
+                    "jinja2",
+                ),
+            ).toEqual(["tree"])
+        })
+
+        it("keeps Unicode names whole", () => {
+            expect(
+                extractTemplateVariables("{{ prénom }}{% if größe > 1 %}{% endif %}", "jinja2"),
+            ).toEqual(["prénom", "größe"])
+        })
+
+        it("binds a block assignment target after endset", () => {
+            expect(
+                extractTemplateVariables(
+                    "{% set label %}Hello {{ label }}{% endset %}{{ label }}",
+                    "jinja2",
+                ),
+            ).toEqual(["label"])
+            expect(
+                extractTemplateVariables(
+                    "{% set body %}{% set inner = 1 %}{{ inner }}{% endset %}{{ body }}{{ inner }}",
+                    "jinja2",
+                ),
+            ).toEqual(["inner"])
+            expect(
+                extractTemplateVariables(
+                    '{% set body | replace("x", replacement) %}{% set replacement = "y" %}x{% endset %}{{ body }}',
+                    "jinja2",
+                ),
+            ).toEqual([])
+        })
+
+        it("binds every name in separate parenthesized tuple targets", () => {
+            expect(
+                extractTemplateVariables(
+                    "{% for (a, b), (c, d) in rows %}{{ a }}{{ b }}{{ c }}{{ d }}{% endfor %}",
+                    "jinja2",
+                ),
+            ).toEqual(["rows"])
+        })
+
+        it("scopes set targets to the if branch that binds them", () => {
+            expect(
+                extractTemplateVariables(
+                    '{% if override %}{% set label = "Fixed" %}{{ label }}{% endif %}{{ label }}',
+                    "jinja2",
+                ),
+            ).toEqual(["override", "label"])
+            expect(
+                extractTemplateVariables(
+                    '{% if use_default %}{% set label = "Default" %}{% else %}{{ label }}{% endif %}',
+                    "jinja2",
+                ),
+            ).toEqual(["use_default", "label"])
+            expect(
+                extractTemplateVariables(
+                    '{% if vip %}{% set label = "A" %}{% elif x %}{% set label = "B" %}{% else %}{% set label = "C" %}{% endif %}{{ label }}',
+                    "jinja2",
+                ),
+            ).toEqual(["vip", "x"])
+            expect(
+                extractTemplateVariables(
+                    "{% for t in tickets %}{{ t }}{% else %}{{ t }}{% endfor %}",
+                    "jinja2",
+                ),
+            ).toEqual(["tickets", "t"])
+        })
+
+        it("excludes names the template binds itself", () => {
+            expect(
+                extractTemplateVariables(
+                    "{% set label = first_name|upper %}{% for key, value in mapping.items() %}{{ label }}{{ key }}{{ value }}{% endfor %}",
+                    "jinja2",
+                ),
+            ).toEqual(["first_name", "mapping"])
+        })
+
+        it("keeps dotted access, but not for a loop target", () => {
+            expect(extractTemplateVariables("{{ ticket.id }}", "jinja2")).toEqual(["ticket.id"])
+            expect(
+                extractTemplateVariables(
+                    "{% for ticket in tickets %}{{ ticket.id }}{% endfor %}",
+                    "jinja2",
+                ),
+            ).toEqual(["tickets"])
+        })
+
+        it("extracts variables from set right-hand sides and with bindings", () => {
+            expect(
+                extractTemplateVariables(
+                    "{% set total = count + 1 %}{% with owner = account.owner %}{{ owner.name }}{% endwith %}{{ total }}",
+                    "jinja2",
+                ),
+            ).toEqual(["count", "account.owner"])
+        })
+
+        it("ignores comments and raw blocks", () => {
+            expect(
+                extractTemplateVariables(
+                    "{# {% if hidden %} #}{% if visible %}{% raw %}{{ literal }}{% endraw %}{% endif %}",
+                    "jinja2",
+                ),
+            ).toEqual(["visible"])
+        })
+
+        it("ignores Jinja global functions", () => {
+            expect(
+                extractTemplateVariables("{% for i in range(3) %}{{ i }}{% endfor %}", "jinja2"),
+            ).toEqual([])
+        })
+
+        it("handles attribute set targets and half-typed set tags", () => {
+            expect(
+                extractTemplateVariables(
+                    "{% set ns = namespace(found=false) %}{% set ns.found = true %}{{ ns.found }}",
+                    "jinja2",
+                ),
+            ).toEqual([])
+            expect(extractTemplateVariables("{% set a b %}", "jinja2")).toEqual([])
+            expect(extractTemplateVariables("{% set ns. %}", "jinja2")).toEqual([])
+            expect(
+                extractTemplateVariables(
+                    "{% set label | upper %}Hi{% endset %}{{ label }}",
+                    "jinja2",
+                ),
+            ).toEqual([])
+            expect(
+                extractTemplateVariables(
+                    '{% set label | replace("x", replacement) %}Hi{% endset %}{{ label }}',
+                    "jinja2",
+                ),
+            ).toEqual(["replacement"])
+        })
+
+        it("ignores constants in plain interpolations", () => {
+            expect(extractTemplateVariables("{{ true }}{{ none }}{{ name }}", "jinja2")).toEqual([
+                "name",
+            ])
+        })
+
+        it("scans with right-hand sides before binding targets", () => {
+            expect(
+                extractTemplateVariables(
+                    "{% with a = {}, b = a.name %}{{ b }}{% endwith %}",
+                    "jinja2",
+                ),
+            ).toEqual(["a.name"])
+        })
+
+        it("does not leak bound names through filtered interpolations", () => {
+            expect(
+                extractTemplateVariables(
+                    "{% for t in tickets %}{{ t|upper }}{% endfor %}",
+                    "jinja2",
+                ),
+            ).toEqual(["tickets"])
+            expect(extractTemplateVariables("{{ name|upper }}", "jinja2")).toEqual(["name"])
+        })
+
+        it("treats attributes after a subscript as part of the root", () => {
+            expect(
+                extractTemplateVariables("{% if items[0].name %}yes{% endif %}", "jinja2"),
+            ).toEqual(["items"])
+            expect(
+                extractTemplateVariables('{% if user["profile"].email %}yes{% endif %}', "jinja2"),
+            ).toEqual(["user"])
+        })
     })
 
     describe("fstring", () => {

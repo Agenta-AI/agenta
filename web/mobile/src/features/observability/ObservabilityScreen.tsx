@@ -1,11 +1,11 @@
-import type {Key} from "react"
-import {useCallback, useEffect, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {useObservability, useSessions} from "@agenta/observability"
+import {useObservability} from "@agenta/observability"
 import {ObservabilityRangePicker, ObservabilityToolbar} from "@agenta/observability-ui"
 import {AddActionsDropdown, DeleteTraceModal, deleteTraceModalAtom} from "@agenta/observability-ui"
 import {PageLayout} from "@agenta/ui"
 import {useIsNarrowScreen} from "@agenta/ui/hooks"
+import {useQueryClient} from "@tanstack/react-query"
 import {useSetAtom} from "jotai"
 import {MessagesSquare, Network} from "lucide-react"
 import {useRouter} from "next/router"
@@ -22,6 +22,7 @@ import {NavDrawer} from "../nav/NavDrawer"
 
 import {ObservabilityAppFilter} from "./ObservabilityAppFilter"
 import {setObservabilityAppInUrl, useObservabilityAppScope} from "./observabilityAppScope"
+import {selectedTraceIds} from "./selectedTraceIds"
 import {SessionsList} from "./SessionsList"
 import {SessionsTable} from "./SessionsTable"
 import {TracesFilters} from "./TracesFilters"
@@ -100,23 +101,36 @@ const ObservabilityContent = ({
     const showsTable = !isNarrow
     const bodyRef = useRef<HTMLDivElement | null>(null)
 
-    const {fetchTraces} = useObservability()
-    const {refetchSessions} = useSessions()
+    // The selection lives in the shared atom: the toolbar's Delete button reads it to enable.
+    const {fetchTraces, traces, selectedRowKeys, setSelectedRowKeys} = useObservability()
+    // Not `useSessions()`: that would load sessions and their spans on the Traces tab too.
+    const queryClient = useQueryClient()
 
     // Swallow the refetch results: the toolbar only needs the promise to settle.
-    const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([])
     const {onExport, isExporting} = useTracesExportBinding()
     const openDeleteModal = useSetAtom(deleteTraceModalAtom)
+    // Rows are keyed by span id; delete and the queue take trace ids.
+    const traceIds = useMemo(
+        () => selectedTraceIds(traces, selectedRowKeys),
+        [traces, selectedRowKeys],
+    )
+    const clearSelection = useCallback(() => setSelectedRowKeys([]), [setSelectedRowKeys])
+    // The atom outlives the screen; a selection must not come back on the next visit.
+    useEffect(() => clearSelection, [clearSelection])
 
     const onDelete = useCallback(
-        () => openDeleteModal({isOpen: true, traceIds: selectedRowKeys.map(String)}),
-        [openDeleteModal, selectedRowKeys],
+        () => openDeleteModal({isOpen: true, traceIds, onClose: clearSelection}),
+        [openDeleteModal, traceIds, clearSelection],
     )
 
     const onRefresh = useCallback(async () => {
         if (tab === "traces") await fetchTraces()
-        else await refetchSessions()
-    }, [tab, fetchTraces, refetchSessions])
+        else
+            await Promise.all([
+                queryClient.invalidateQueries({queryKey: ["sessions"]}),
+                queryClient.invalidateQueries({queryKey: ["session_spans"]}),
+            ])
+    }, [tab, fetchTraces, queryClient])
 
     return (
         <>
@@ -167,12 +181,13 @@ const ObservabilityContent = ({
                                     <AddActionsDropdown
                                         queueAction={{
                                             itemType: "traces",
-                                            itemIds: selectedRowKeys.map(String),
+                                            itemIds: traceIds,
                                             label:
-                                                selectedRowKeys.length > 0
-                                                    ? `Add ${selectedRowKeys.length} selected to queue`
+                                                traceIds.length > 0
+                                                    ? `Add ${traceIds.length} selected to queue`
                                                     : "Add selected to queue",
-                                            disabled: selectedRowKeys.length === 0,
+                                            disabled: traceIds.length === 0,
+                                            onItemsAdded: clearSelection,
                                         }}
                                     />
                                 ) : undefined

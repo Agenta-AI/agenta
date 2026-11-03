@@ -14,6 +14,7 @@ import {
 } from "@/features/developer/developerViewAccess"
 import {DeveloperViewGate} from "@/features/developer/DeveloperViewGate"
 import type {DeveloperView} from "@/features/developer/developerViews"
+import PlaygroundPage from "@/pages/w/[workspace_id]/p/[project_id]/apps/[app_id]/playground"
 
 import {TEST_DEVELOPER_VIEWS} from "./developerViewFixtures"
 
@@ -22,7 +23,27 @@ vi.mock("@/features/developer/developerViews", async () => ({
 }))
 
 vi.mock("next/router", () => ({
-    useRouter: () => ({asPath: "/w/ws/p/pr/lab-hidden", back: vi.fn()}),
+    useRouter: () => ({
+        asPath: "/w/ws/p/pr/lab-hidden",
+        back: vi.fn(),
+        query: {workspace_id: "ws", project_id: "pr", app_id: "app-1"},
+    }),
+}))
+
+// Counts how many times the playground screen module loads. A hidden view must load none.
+const playgroundScreenLoads = vi.hoisted(() => ({count: 0}))
+
+vi.mock("@/features/playground/PlaygroundScreen", () => {
+    playgroundScreenLoads.count += 1
+    return {PlaygroundScreen: () => <p data-testid="playground-screen" />}
+})
+
+vi.mock("@/features/playground/states/PlaygroundSkeleton", () => ({
+    PlaygroundSkeleton: () => <p data-testid="playground-skeleton" />,
+}))
+
+vi.mock("@/features/nav/AppShell", () => ({
+    AppShell: ({children}: {children: ReactNode}) => <>{children}</>,
 }))
 
 // The prop the rail must pass is invisible in the DOM: expose it.
@@ -139,6 +160,44 @@ describe("developer views", () => {
             expect(endpoints!.routes?.[0]).toBe("/endpoints")
             expect(
                 isDeveloperViewEnabled(endpoints!, {previewOptedIn: false, forcedIds: new Set()}),
+            ).toBe(false)
+        })
+    })
+
+    describe("playground view", () => {
+        it("Playground route shows not found while the view is hidden", async () => {
+            const actual = await vi.importActual<{DEVELOPER_VIEWS: readonly DeveloperView[]}>(
+                "@/features/developer/developerViews",
+            )
+            const playground = actual.DEVELOPER_VIEWS.find((view) => view.id === "playground")
+            expect(playground).toBeDefined()
+            expect(playground!.stage).toBe("hidden")
+            expect(playground!.nav).toBeUndefined()
+            expect(playground!.routes?.[0]).toBe("/apps/[app_id]/playground")
+            expect(
+                isDeveloperViewEnabled(playground!, {previewOptedIn: false, forcedIds: new Set()}),
+            ).toBe(false)
+        })
+
+        it("A hidden playground view loads no screen code", () => {
+            render(<PlaygroundPage />)
+            expect(host.querySelector("[data-testid=not-found]")).not.toBeNull()
+            expect(host.querySelector("[data-testid=playground-screen]")).toBeNull()
+            expect(playgroundScreenLoads.count).toBe(0)
+        })
+    })
+
+    describe("evaluators view", () => {
+        it("Evaluators routes show not found while the view is hidden", async () => {
+            const actual = await vi.importActual<{DEVELOPER_VIEWS: readonly DeveloperView[]}>(
+                "@/features/developer/developerViews",
+            )
+            const evaluators = actual.DEVELOPER_VIEWS.find((view) => view.id === "evaluators")
+            expect(evaluators).toBeDefined()
+            expect(evaluators!.stage).toBe("hidden")
+            expect(evaluators!.routes).toEqual(["/evaluators", "/evaluators/archived"])
+            expect(
+                isDeveloperViewEnabled(evaluators!, {previewOptedIn: false, forcedIds: new Set()}),
             ).toBe(false)
         })
     })
