@@ -1,4 +1,4 @@
-import {useState} from "react"
+import {useCallback, useLayoutEffect, useRef, useState} from "react"
 
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {useMediaQuery} from "@agenta/ui/hooks"
@@ -39,13 +39,30 @@ const ObservabilitySessionDrawer = ({
     const [lastSessionId, setLastSessionId] = useState(sessionId)
     if (sessionId !== null && sessionId !== lastSessionId) setLastSessionId(sessionId)
     const shownSessionId = sessionId ?? lastSessionId
+    const open = sessionId !== null
+
+    // Radix gives focus back only to a registered trigger, and a row opens this drawer through the
+    // URL. So the drawer keeps the element that had focus when it opened (the row, after Enter)
+    // and focuses it again once the panel has slid out. A layout effect runs before the drawer
+    // moves focus inside itself.
+    const returnFocusTo = useRef<Element | null>(null)
+    useLayoutEffect(() => {
+        if (open) returnFocusTo.current = document.activeElement
+    }, [open])
+    const afterOpenChange = useCallback((isOpen: boolean) => {
+        const target = returnFocusTo.current
+        if (isOpen || !(target instanceof HTMLElement) || !target.isConnected) return
+        returnFocusTo.current = null
+        target.focus()
+    }, [])
 
     return (
         <EnhancedDrawer
             closable={false}
             title={null}
-            open={sessionId !== null}
+            open={open}
             onClose={close}
+            afterOpenChange={afterOpenChange}
             width={expanded ? EXPANDED_WIDTH : NORMAL_WIDTH}
             styles={{body: {padding: 0}}}
             destroyOnHidden

@@ -229,6 +229,19 @@ describe("ObservabilitySessionDrawer", () => {
         expect(router.replace).toHaveBeenCalledTimes(1)
     })
 
+    it("Closing gives focus back to the row that opened the drawer", async () => {
+        const row = document.createElement("div")
+        row.tabIndex = 0
+        document.body.append(row)
+        row.focus()
+        await shown("session-b")
+        await loaded()
+        expect(document.activeElement).not.toBe(row)
+        await shown(null)
+        await vi.waitFor(() => expect(document.activeElement).toBe(row))
+        row.remove()
+    })
+
     it("Traces render oldest first as Trace 1 and Trace 2", async () => {
         await shown()
         await loaded()
