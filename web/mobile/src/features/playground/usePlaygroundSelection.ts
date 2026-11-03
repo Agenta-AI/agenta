@@ -136,8 +136,10 @@ export const usePlaygroundSelection = ({appId}: {appId: string}): PlaygroundSele
         }
         if (kept.length === 0 && latestId) select([latestId])
         // `keptIds` only triggers the effect: in the commit that sets the playground up it is
-        // still the value from before, so the store is read instead.
-    }, [appId, keptIds, latestId, select, store])
+        // still the value from before, so the store is read instead. `appUsable` and
+        // `router.isReady` run it again in the commit that sets the playground up: the latest
+        // revision can answer before the app, and nothing else would run it then.
+    }, [appId, appUsable, keptIds, latestId, router.isReady, select, store])
 
     // Write the selection to `?revisions=`. Local drafts stay out until share links exist.
     useEffect(() => {

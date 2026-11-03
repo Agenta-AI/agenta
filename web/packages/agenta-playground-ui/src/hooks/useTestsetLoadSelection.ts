@@ -73,9 +73,14 @@ export const useTestsetLoadSelection = ({
         () => (searchTerm.trim() ? {...baseConfig, searchTerm} : baseConfig),
         [baseConfig, searchTerm],
     )
-    const totalLabel = useAtomValue(
-        useMemo(() => testcaseDataController.selectors.displayLabel(baseConfig), [baseConfig]),
+    // The rows the table lists. The store's own count also takes the playground's unsaved rows.
+    const tableRows = useAtomValue(
+        useMemo(() => testcaseDataController.selectors.rows(baseConfig), [baseConfig]),
     )
+    const hasMore = useAtomValue(
+        useMemo(() => testcaseDataController.selectors.hasMore(baseConfig), [baseConfig]),
+    )
+    const totalLabel = `${tableRows.length}${hasMore ? "+" : ""}`
 
     const setSelectedIds = useCallback(
         (ids: string[]) => {

@@ -66,9 +66,12 @@ const revisions = [
 /** Revisions one test adds to the fixtures above. */
 let added: (Omit<ReturnType<typeof revision>, "data"> & {data: object | null})[] = []
 let failRevisions = false
+/** While set, the app request waits for it, so a test can answer the revisions first. */
+let holdApp: Promise<void> | null = null
 
 http.post.mockImplementation(async (url: string, body: Record<string, {id: string}[]>) => {
     if (url.endsWith("/workflows/query")) {
+        await holdApp
         const ids = (body.workflow_refs ?? []).map((ref) => ref.id)
         return {data: {count: 1, workflows: ids.flatMap((id) => apps[id] ?? [])}}
     }
@@ -122,6 +125,7 @@ beforeEach(() => {
     store.set(projectIdAtom, projectId)
     store.set(sessionAtom, true)
     failRevisions = false
+    holdApp = null
     added = []
     router.replace.mockReset()
     router.replace.mockImplementation(async ({query}: {query: Record<string, string>}) => {
@@ -150,6 +154,21 @@ describe("usePlaygroundSelection", () => {
 
     it("Without revisions the latest revision is selected", async () => {
         await mount("app-1")
+
+        expect(selection.revisionIds).toEqual(["rev-2"])
+        expect(selection.status).toBe("ready")
+    })
+
+    it("Without revisions the latest revision opens when it answers before the app", async () => {
+        let releaseApp = () => undefined as void
+        holdApp = new Promise((resolve) => {
+            releaseApp = resolve
+        })
+        await mount("app-1")
+        expect(selection.status).toBe("loading")
+
+        releaseApp()
+        await settle()
 
         expect(selection.revisionIds).toEqual(["rev-2"])
         expect(selection.status).toBe("ready")

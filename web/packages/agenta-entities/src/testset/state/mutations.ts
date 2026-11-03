@@ -124,6 +124,8 @@ export interface SaveTestsetParams {
     testsetId: string
     revisionId?: string | null
     commitMessage?: string
+    /** Rows left out of the commit: a saved one stays unchanged, a new one is not saved. */
+    excludeIds?: ReadonlySet<string>
 }
 
 /**
@@ -176,7 +178,7 @@ const normalizeCommittedRows = (
 export const saveTestsetAtom = atom(
     null,
     async (get, set, params: SaveTestsetParams): Promise<SaveTestsetResult> => {
-        const {projectId, testsetId, revisionId, commitMessage} = params
+        const {projectId, testsetId, revisionId, commitMessage, excludeIds} = params
 
         if (!projectId || !testsetId) {
             return {success: false, error: new Error("Missing projectId or testsetId")}
@@ -226,8 +228,9 @@ export const saveTestsetAtom = atom(
         try {
             // Get all required state
             const columns = get(currentColumnsAtom)
-            const serverIds = get(testcaseIdsAtom)
-            const newIds = get(newEntityIdsAtom)
+            const included = (id: string) => !excludeIds?.has(id)
+            const serverIds = get(testcaseIdsAtom).filter(included)
+            const newIds = get(newEntityIdsAtom).filter(included)
             const deletedIds = get(deletedEntityIdsAtom)
 
             // Build patch operations from local changes

@@ -237,6 +237,18 @@ describe("The load dialog", () => {
         expect(store.get(testcaseMolecule.atoms.selectionDraft(CAPITALS_V2))).toBeNull()
     })
 
+    it("The footer counts the revision's rows, not the playground's unsaved rows", async () => {
+        // The playground holds one unsaved row of its own.
+        const added = store.set(testcaseMolecule.actions.add, {data: {country: ""}}) as {
+            id: string
+        }
+        await render({})
+        await clickText("Capitals")
+
+        expect(footer()).toContain("0 of 3 test cases selected")
+        store.set(testcaseMolecule.actions.delete, added.id)
+    })
+
     it("Nothing can be loaded before a row is picked", async () => {
         await render({})
         await clickText("Capitals")

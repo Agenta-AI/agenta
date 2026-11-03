@@ -49,10 +49,7 @@ import {
     clearNewEntityIdsAtom,
     currentRevisionIdAtom,
     deletedEntityIdsAtom,
-    markDeletedAtom,
     newEntityIdsAtom,
-    removeNewEntityIdAtom,
-    addNewEntityIdAtom,
     setCurrentRevisionIdAtom,
     clearDeletedIdsAtom,
     testcaseDraftAtomFamily,
@@ -453,21 +450,16 @@ const connectedHasLocalChangesAtomFamily = atomFamily((loadableId: string) =>
         // Check if there are any new or deleted entities
         const newEntityIds = get(newEntityIdsAtom)
         const deletedEntityIds = get(deletedEntityIdsAtom)
-        if (newEntityIds.length > 0 || deletedEntityIds.size > 0) {
+        const shownNewIds = newEntityIds.filter((id) => !state.hiddenTestcaseIds.has(id))
+        if (shownNewIds.length > 0 || deletedEntityIds.size > 0) {
             return true
         }
 
-        // Check hidden testcases (which are effectively "removed" from the testset)
-        const hiddenIds = state.hiddenTestcaseIds
-        for (const id of hiddenIds) {
-            if (!id.startsWith("new-") && !id.startsWith("local-")) {
-                return true
-            }
-        }
-
-        // Check if any testcase has been edited using entity-level isDirty
+        // Check if any shown testcase has been edited. Hidden rows are not saved, so they do
+        // not count.
         const displayRowIds = get(testcaseMolecule.atoms.displayRowIds)
         for (const id of displayRowIds) {
+            if (state.hiddenTestcaseIds.has(id)) continue
             const isDirty = get(testcaseMolecule.isDirty(id))
             if (isDirty) {
                 return true
@@ -1205,16 +1197,6 @@ const commitChangesAtom = atom(
             throw new Error("No project ID available")
         }
 
-        // Soft-delete hidden testcase IDs so they appear in TestsetRevisionDelta.deleted.
-        // hiddenTestcaseIds is a UI-only filter — we must convert to proper soft-deletes
-        // before calling saveTestsetAtom, which reads deletedEntityIdsAtom.
-        // Only server entities need to be deleted (local "new-"/"local-" IDs are not on server).
-        for (const id of state.hiddenTestcaseIds) {
-            if (!id.startsWith("new-") && !id.startsWith("local-")) {
-                set(markDeletedAtom, id)
-            }
-        }
-
         // Apply any pending output mappings before committing.
         // This ensures derived output values (from execution results) are included
         // in the testcase drafts and will be saved. This handles the case where
@@ -1233,28 +1215,18 @@ const commitChangesAtom = atom(
             throw new Error("Could not determine testset ID from revision")
         }
 
-        // A row added here and then deselected is not part of the commit. It is kept aside, and
-        // comes back if the commit fails.
-        const hiddenNewIds = get(newEntityIdsAtom).filter((id) => state.hiddenTestcaseIds.has(id))
-        for (const id of hiddenNewIds) set(removeNewEntityIdAtom, id)
-
-        const restoreHiddenNewIds = () => {
-            for (const id of hiddenNewIds) set(addNewEntityIdAtom, id)
-        }
-
-        // Delegate to saveTestsetAtom which reads from testcaseMolecule
+        // Delegate to saveTestsetAtom which reads from testcaseMolecule. Hidden rows (removed
+        // from the playground or deselected in "Manage test cases") are left out: a saved row
+        // stays in the test set unchanged, and a new row is not saved.
         const result = await set(saveTestsetAtom, {
             projectId,
             testsetId,
             revisionId: state.connectedSourceId,
             commitMessage: message,
-        }).catch((error: unknown) => {
-            restoreHiddenNewIds()
-            throw error
+            excludeIds: state.hiddenTestcaseIds,
         })
 
         if (!result.success) {
-            restoreHiddenNewIds()
             throw result.error ?? new Error("Commit failed")
         }
 

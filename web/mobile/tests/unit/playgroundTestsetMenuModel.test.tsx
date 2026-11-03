@@ -342,7 +342,7 @@ describe("Connecting a test set", () => {
 })
 
 describe("Syncing changes", () => {
-    it("Sync commit sends the edited, added and removed rows with the message", async () => {
+    it("Sync commit sends the edited and added rows with the message, and keeps a removed row", async () => {
         await pickLoad()
         await editCell(FRANCE, "Spain")
         await act(async () => store.set(loadableController.actions.addRow, loadableId(), {}))
@@ -378,7 +378,6 @@ describe("Syncing changes", () => {
                     rows: {
                         replace: [{id: FRANCE, data: {country: "Spain"}, set_id: TESTSET}],
                         add: [{data: {country: "Japan"}, set_id: TESTSET}],
-                        remove: [ITALY],
                     },
                 },
             },
@@ -465,7 +464,41 @@ describe("Syncing changes", () => {
                 testset_revision: {delta: {rows: {remove?: string[]}}}
             }
         ).testset_revision.delta.rows
-        expect([...(rows.remove ?? [])].sort()).toEqual([ITALY, PERU].sort())
+        // Deselected rows stay in the test set.
+        expect(rows.remove).toBeUndefined()
+        expect(menu().isConnected).toBe(true)
+    })
+
+    it("A deselected saved row is not deleted and keeps its saved value", async () => {
+        await pickLoad()
+        await editCell(ITALY, "Rome")
+        act(() => menu().manage())
+        await act(async () => menu().confirmEdit(picked(REVISION, [FRANCE])))
+        await settle()
+        // Deselecting alone is nothing to sync.
+        expect(menu().hasLocalChanges).toBe(false)
+        await editCell(FRANCE, "Spain")
+
+        await act(async () => {
+            await menu().syncSubmit({
+                entity: {type: "revision", id: REVISION},
+                message: null,
+                mode: "commit",
+            })
+        })
+
+        expect(postsTo("/testsets/revisions/commit")[0][1]).toMatchObject({
+            testset_revision: {
+                delta: {rows: {replace: [{id: FRANCE, data: {country: "Spain"}, set_id: TESTSET}]}},
+            },
+        })
+        const rows = (
+            postsTo("/testsets/revisions/commit")[0][1] as {
+                testset_revision: {delta: {rows: {remove?: string[]; replace?: {id: string}[]}}}
+            }
+        ).testset_revision.delta.rows
+        expect(rows.remove).toBeUndefined()
+        expect((rows.replace ?? []).map((row) => row.id)).toEqual([FRANCE])
     })
 
     it("After a commit the menu names the new version", async () => {
