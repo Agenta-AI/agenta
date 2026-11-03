@@ -4,6 +4,7 @@
  * Roles are enforced by the API; these atoms let a surface hide what the API would refuse.
  */
 export {
+    checkProjectPermission,
     fetchProjectPermission,
     projectPermissionQueryKey,
     projectPermissionQueryPrefix,
