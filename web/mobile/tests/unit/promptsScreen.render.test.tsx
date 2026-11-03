@@ -184,6 +184,45 @@ describe("PromptsScreen", () => {
         )
     })
 
+    it("Move to All prompts takes a prompt out of its folder and saves a null folder id", async () => {
+        const requests: {url: string; method?: string; body: unknown}[] = []
+        vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+            requests.push({
+                url: String(url),
+                method: init.method,
+                body: JSON.parse(String(init.body)),
+            })
+            return new Response(JSON.stringify({count: 1, workflow: {id: "p2", slug: "p2"}}), {
+                status: 200,
+                headers: {"content-type": "application/json"},
+            })
+        })
+        try {
+            router.query = {folderId: "f1"}
+            mount()
+            const summary = bodyRows().find((row) => row.textContent?.includes("Summary"))
+            openMenu(summary?.querySelector("[aria-label='Actions']") as Element)
+            const move = [...document.querySelectorAll("[role=menuitem]")].find(
+                (item) => item.textContent === "Move",
+            ) as HTMLElement
+            act(() => move.click())
+            const root = [...document.querySelectorAll("[role=treeitem]")].find(
+                (item) => item.textContent === "All prompts",
+            ) as HTMLButtonElement
+            expect(root.disabled).toBe(false)
+            act(() => root.click())
+            await act(async () => buttonByText("Move to All prompts")?.click())
+            await settle()
+
+            expect(requests).toHaveLength(1)
+            expect(requests[0].method).toBe("PUT")
+            expect(requests[0].url).toContain("/workflows/p2")
+            expect(requests[0].body).toEqual({workflow: {id: "p2", folder_id: null}})
+        } finally {
+            vi.unstubAllGlobals()
+        }
+    })
+
     it("A prompt row has no Open item while the overview is not built", () => {
         mount()
         const promptRow = bodyRows()[1]
