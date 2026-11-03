@@ -51,6 +51,9 @@ describe("chart scale math", () => {
             expect(() => ticks(low, high)).not.toThrow()
             expect(ticks(low, high).length).toBeGreaterThan(0)
         }
+        // Values this small keep their size: the domain does not collapse to zero.
+        const [low, high] = niceDomain(1e-200, 2e-200)
+        expect(high).toBeGreaterThan(low)
     })
 
     it("NaN and infinite values count as missing", () => {

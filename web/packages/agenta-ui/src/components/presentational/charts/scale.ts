@@ -37,8 +37,9 @@ export function niceStep(range: number, count: number): number {
 
 /** Rounds `value` to the precision of `step`, to drop float noise such as 0.30000000000000004. */
 function snap(value: number, step: number): number {
-    // toFixed accepts at most 100 digits.
-    const decimals = Math.min(100, Math.max(0, -Math.floor(Math.log10(step)) + 2))
+    const decimals = Math.max(0, -Math.floor(Math.log10(step)) + 2)
+    // toFixed accepts at most 100 digits; finer values have no float noise worth removing.
+    if (decimals > 100) return value
     return Number(value.toFixed(decimals))
 }
 

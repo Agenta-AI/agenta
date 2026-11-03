@@ -146,6 +146,26 @@ describe("LineChart", () => {
         expect(line.getAttribute("d")).not.toContain("NaN")
     })
 
+    it("Keyboard navigation stays on the drawn points when one has an invalid time", () => {
+        render(
+            <LineChart
+                title="Score over time"
+                height={200}
+                series={oneSeries}
+                formatX={formatX}
+                points={[
+                    {x: 1, values: {score: 1}},
+                    {x: Number.NaN, values: {score: 5}},
+                ]}
+            />,
+        )
+        const svg = screen.getByRole("img", {name: "Score over time"})
+        expect(() => {
+            fireEvent.focus(svg)
+            fireEvent.keyDown(svg, {key: "End"})
+        }).not.toThrow()
+    })
+
     it("Tiny values draw without throwing", () => {
         expect(() =>
             render(

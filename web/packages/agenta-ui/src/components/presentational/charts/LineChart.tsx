@@ -57,12 +57,10 @@ export function LineChart({
     yDomain,
     className,
 }: LineChartProps) {
-    const frame = useChartFrameState(unsortedPoints.length)
-    if (unsortedPoints.length === 0 || series.length === 0) return null
-
     // A point with an invalid time has no place on the axis: skip it.
     const points = unsortedPoints.filter((p) => Number.isFinite(p.x)).sort((a, b) => a.x - b.x)
-    if (points.length === 0) return null
+    const frame = useChartFrameState(points.length)
+    if (points.length === 0 || series.length === 0) return null
     const valueOf = (point: LinePoint, key: string) => finiteOrNull(point.values[key])
     const values = points.flatMap((p) =>
         series.map((s) => valueOf(p, s.key)).filter((v): v is number => v !== null),
