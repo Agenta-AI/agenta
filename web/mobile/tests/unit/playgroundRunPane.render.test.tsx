@@ -79,13 +79,6 @@ let host: HTMLDivElement
 const render = async () => {
     await act(async () => root.render(<PlaygroundRunPane revisionId="rev-1" />))
 }
-const settle = async () => {
-    for (let i = 0; i < 5; i++) {
-        await act(async () => {
-            await new Promise((resolve) => setTimeout(resolve, 15))
-        })
-    }
-}
 const byTestId = (id: string) => host.querySelector(`[data-testid="${id}"]`)
 
 beforeEach(() => {
@@ -115,9 +108,7 @@ describe("PlaygroundRunPane", () => {
         await render()
 
         // The chat panel loads on demand.
-        await settle()
-
-        expect(byTestId("chat-panel")?.textContent).toContain("rev-1")
+        await vi.waitFor(() => expect(byTestId("chat-panel")?.textContent).toContain("rev-1"))
         expect(byTestId("runs-panel")).toBeNull()
     })
 

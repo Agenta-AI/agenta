@@ -297,6 +297,16 @@ describe("The chat turns", () => {
         expect(tools).toHaveLength(1)
         expect(tools[0].content).toBe("Sent to Alex.")
         expect(runs).toHaveLength(1)
+        // The continuation run sends the tool result back to the model.
+        const sentMessages = (runs[0].body.data as {inputs: {messages: Record<string, unknown>[]}})
+            .inputs.messages
+        expect(sentMessages).toContainEqual(
+            expect.objectContaining({
+                role: "tool",
+                tool_call_id: "call_1",
+                content: "Sent to Alex.",
+            }),
+        )
     })
 
     it("Call tool fills the reply and does not run", async () => {
@@ -334,22 +344,35 @@ describe("The chat turns", () => {
     it("Repeats page through the replies", async () => {
         store.set(executionController.actions.setRepetitionCount, 2)
         let count = 0
-        answer = async () => reply(count++ === 0 ? "First take." : "Second take.")()
+        // The workflow service wraps the reply in `outputs`.
+        answer = async () =>
+            respond({
+                data: {
+                    outputs: {
+                        role: "assistant",
+                        content: count++ === 0 ? "First take." : "Second take.",
+                    },
+                },
+                trace_id: "trace-1",
+            })()
         await click("Run")
 
         expect(host.textContent).toContain("1 / 2")
-        const shown = host.textContent!
-        expect(shown.includes("First take.") !== shown.includes("Second take.")).toBe(true)
+        expect(host.textContent).toContain("First take.")
+        expect(host.textContent).not.toContain("Second take.")
 
         await click("Next repeat")
 
         expect(host.textContent).toContain("2 / 2")
-        expect(host.textContent !== shown).toBe(true)
+        expect(host.textContent).toContain("Second take.")
+        expect(host.textContent).not.toContain("First take.")
         expect(button("Next repeat")!.disabled).toBe(true)
 
         await click("Previous repeat")
 
         expect(host.textContent).toContain("1 / 2")
+        expect(host.textContent).toContain("First take.")
+        expect(host.textContent).not.toContain("Second take.")
     })
 
     it("Add message appends an empty user message and is disabled while running", async () => {

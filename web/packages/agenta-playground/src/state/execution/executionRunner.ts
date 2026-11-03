@@ -857,6 +857,9 @@ export async function executeStepForSessionWithExecutionItems(
                             ...(perSession2?.headers ?? {}),
                         },
                         abortSignal: abortController.signal,
+                        // Read the response like the first run, so every repeat has one shape.
+                        normalizeResponse: (responseData) =>
+                            normalizeWorkflowResponse(responseData),
                     })
 
                     repetitions.push({
