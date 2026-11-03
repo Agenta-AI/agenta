@@ -15,9 +15,9 @@ import {queryClientAtom} from "jotai-tanstack-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {ChatMessage} from "../../../packages/agenta-playground-ui/src/panels/chat/ChatMessage"
-
 import {usePlaygroundSelection} from "@/features/playground/usePlaygroundSelection"
+
+import {ChatMessage} from "../../../packages/agenta-playground-ui/src/panels/chat/ChatMessage"
 
 // The chat panel has no package entry yet, so the message is imported by its path.
 

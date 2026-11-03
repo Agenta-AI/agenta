@@ -20,9 +20,9 @@ import {queryClientAtom} from "jotai-tanstack-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {ChatTurns} from "../../../packages/agenta-playground-ui/src/panels/chat/ChatTurns"
-
 import {usePlaygroundSelection} from "@/features/playground/usePlaygroundSelection"
+
+import {ChatTurns} from "../../../packages/agenta-playground-ui/src/panels/chat/ChatTurns"
 
 // The chat panel has no package entry yet, so the turns are imported by their path.
 

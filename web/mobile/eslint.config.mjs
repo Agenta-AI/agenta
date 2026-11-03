@@ -76,6 +76,7 @@ const config = [
             "react-hooks/exhaustive-deps": "warn",
             "@typescript-eslint/no-explicit-any": "error",
             "@typescript-eslint/no-empty-object-type": "off",
+            "@typescript-eslint/no-empty-function": "off",
             "@typescript-eslint/ban-ts-comment": "off",
             "@typescript-eslint/no-unused-vars": [
                 "error",
