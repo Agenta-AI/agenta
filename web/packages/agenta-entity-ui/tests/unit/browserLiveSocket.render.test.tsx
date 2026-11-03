@@ -1,4 +1,4 @@
-import {act, createRef, useRef} from "react"
+import {StrictMode, act, createRef, useRef} from "react"
 
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it} from "vitest"
@@ -15,6 +15,7 @@ import {
 class FakeSocket {
     static OPEN = 1
     static last: FakeSocket | null = null
+    static all: FakeSocket[] = []
     readyState = 0
     sent: string[] = []
     onopen: (() => void) | null = null
@@ -23,6 +24,7 @@ class FakeSocket {
     onclose: ((event: {code: number}) => void) | null = null
     constructor(public url: string) {
         FakeSocket.last = this
+        FakeSocket.all.push(this)
     }
     send(data: string) {
         this.sent.push(data)
@@ -65,6 +67,29 @@ describe("useBrowserLiveSocket", () => {
 
     beforeEach(() => {
         phases.length = 0
+        FakeSocket.all = []
+    })
+
+    it("ignores a replaced socket that fails after the new one is live", () => {
+        // Strict Mode mounts twice: the first socket is closed while still connecting.
+        act(() =>
+            root.render(
+                <StrictMode>
+                    <Probe />
+                </StrictMode>,
+            ),
+        )
+        expect(FakeSocket.all).toHaveLength(2)
+        const [replaced, current] = FakeSocket.all
+        act(() => {
+            current.open()
+            current.receive({type: "status", control: "agent", url: "", title: "", waiting: ""})
+        })
+        act(() => {
+            replaced.onerror?.()
+            replaced.onclose?.({code: 1006})
+        })
+        expect(phases.at(-1)).toBe("live")
     })
 
     it("stays connecting through an open socket that the server then refuses", () => {

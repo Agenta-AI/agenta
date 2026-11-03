@@ -77,15 +77,20 @@ export const useBrowserLiveSocket = (
         setStatus(null)
         setNotice(null)
         setViewport(BROWSER_VIEWPORT)
+        // A new connection must not show the last frame of the browser it replaced.
+        const canvas = canvasRef.current
+        canvas?.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height)
         const socket = new WebSocket(url)
         socketRef.current = socket
         const paintFrame = createFramePainter(canvasRef)
         let failed = false
+        let disposed = false
         let shownUrl: string | null = null
         let notices = 0
         // An open socket is not live yet: the server accepts, then closes 4401/4403/4404.
         // The first status is what proves the browser answered.
         socket.onmessage = (event) => {
+            if (disposed) return
             const message = parseBrowserLiveMessage(event.data)
             if (message?.type === "frame") {
                 const {width, height} = message
@@ -108,16 +113,19 @@ export const useBrowserLiveSocket = (
                 setNotice({message: message.message, seq: ++notices})
             }
         }
+        // A socket closed while connecting (a reconnect, a remount) still fires error and close;
+        // they must not overwrite the state of the socket that replaced it.
         socket.onerror = () => {
+            if (disposed) return
             failed = true
             setConnection({phase: "error", reason: "Could not connect to the browser."})
         }
         socket.onclose = (event) => {
-            if (failed && !CLOSE_CODES[event.code]) return
+            if (disposed || (failed && !CLOSE_CODES[event.code])) return
             setConnection(closedBy(event.code))
         }
         return () => {
-            socket.onclose = null
+            disposed = true
             socket.close()
             socketRef.current = null
         }
