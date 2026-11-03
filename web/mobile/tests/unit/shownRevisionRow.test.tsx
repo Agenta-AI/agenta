@@ -18,8 +18,8 @@ vi.mock("@agenta/shared/api", async (original) => {
     return {...actual, axios: {...actual.axios, post: http.post}}
 })
 
-import {useShownRevisionRow} from "@/features/variants/useShownRevisionRow"
 import type {AppRevisionRow} from "@/features/variants/useAppRevisions"
+import {useShownRevisionRow} from "@/features/variants/useShownRevisionRow"
 
 let root: Root | undefined
 let latest: AppRevisionRow | null | undefined
