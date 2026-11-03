@@ -141,12 +141,16 @@ describe("chart scale math", () => {
     it("radar labels wrap shorter when 18 characters leave too little room", () => {
         // Axis 1 points right, so its label needs its full width beside the chart.
         const names = ["Latency", "Context recall over retrieved passages", "Cost", "Fluency"]
-        const options = {gap: 10, lineHeight: 13, minRadius: 24}
+        const options = {gap: 10, lineHeight: 13, targetRadius: 60}
         const wide = fitRadarLabels(600, 300, names, options)
         expect(wide.labels[1]).toEqual(["Context recall", "over retrieved pa…"])
-        const narrow = fitRadarLabels(240, 300, names, options)
-        expect(narrow.radius).toBeGreaterThanOrEqual(24)
+        const narrow = fitRadarLabels(320, 300, names, options)
+        expect(narrow.radius).toBeGreaterThanOrEqual(60)
         expect(Math.max(...narrow.labels.flat().map((line) => line.length))).toBeLessThan(18)
+        // Too small for the target with any length: the largest radius wins, never below 0.
+        const tiny = fitRadarLabels(60, 60, names, options)
+        expect(tiny.radius).toBeGreaterThanOrEqual(0)
+        expect(tiny.radius).toBeLessThan(60)
     })
 
     it("line segments break at null values", () => {

@@ -255,21 +255,21 @@ export function radarRadius(
 const RADAR_LINE_LENGTHS = [18, 14, 10, 7]
 
 /**
- * Wraps the axis names into labels and picks the largest radius that fits them. Labels wrap at
- * 18 characters; when that leaves less than `minRadius`, they wrap shorter. Only a chart too
- * narrow for even the shortest labels gets `minRadius` with labels that may be cut at the edge.
+ * Wraps the axis names into labels and picks the radius that fits them. Labels wrap at 18
+ * characters; while that leaves the radar smaller than `targetRadius`, they wrap shorter. When no
+ * length reaches the target, the length with the largest radius wins, so labels never leave the
+ * chart. The radius is never below 0.
  */
 export function fitRadarLabels(
     width: number,
     height: number,
     names: readonly string[],
-    {gap, lineHeight, minRadius}: {gap: number; lineHeight: number; minRadius: number},
+    {gap, lineHeight, targetRadius}: {gap: number; lineHeight: number; targetRadius: number},
 ): {labels: string[][]; radius: number} {
-    let labels: string[][] = []
-    let radius = 0
+    let best: {labels: string[][]; radius: number} = {labels: [], radius: -Infinity}
     for (const lineLength of RADAR_LINE_LENGTHS) {
-        labels = names.map((name) => wrapLabel(name, lineLength))
-        radius = radarRadius(
+        const labels = names.map((name) => wrapLabel(name, lineLength))
+        const radius = radarRadius(
             width,
             height,
             labels.map((lines) => ({
@@ -279,9 +279,10 @@ export function fitRadarLabels(
             })),
             gap,
         )
-        if (radius >= minRadius) return {labels, radius}
+        if (radius >= targetRadius) return {labels, radius}
+        if (radius > best.radius) best = {labels, radius}
     }
-    return {labels, radius: minRadius}
+    return {labels: best.labels, radius: Math.max(0, best.radius)}
 }
 
 /** Index of the axis nearest to the direction from the center to (`dx`, `dy`). */

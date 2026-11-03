@@ -153,7 +153,7 @@ export const Dark: Story = {
 export const Phone: Story = {
     args: Numeric.args,
     render: (args) => (
-        <div className="w-[358px]">
+        <div className="w-full max-w-[358px]">
             <ChartStoryFrame heading={args.title}>
                 <BarChart {...args} />
             </ChartStoryFrame>

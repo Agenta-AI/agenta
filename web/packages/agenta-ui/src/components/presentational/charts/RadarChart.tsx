@@ -23,7 +23,8 @@ const MIN_AXES = 3
 const RINGS = [0.25, 0.5, 0.75, 1]
 const LABEL_GAP = 10
 const LINE_HEIGHT = 13
-const MIN_RADIUS = 24
+/** Below this radius the labels wrap shorter to make room for the radar. */
+const TARGET_RADIUS = 60
 /** Space kept free along the edges of the chart. */
 const EDGE = 4
 
@@ -59,7 +60,7 @@ export function RadarChart({
         frame.width - EDGE * 2,
         height - EDGE * 2,
         axes.map((axis) => axis.name),
-        {gap: LABEL_GAP, lineHeight: LINE_HEIGHT, minRadius: MIN_RADIUS},
+        {gap: LABEL_GAP, lineHeight: LINE_HEIGHT, targetRadius: TARGET_RADIUS},
     )
     const at = (index: number, fraction: number) =>
         radarPoint(cx, cy, radius, index, count, fraction)
