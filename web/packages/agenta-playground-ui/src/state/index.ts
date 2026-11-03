@@ -8,3 +8,5 @@ export {
 } from "./focusDrawer"
 
 export {useNewPlaygroundInputsBodyAtom} from "./featureFlags"
+
+export {variableViewModeAtomFamily, type VariableViewModeKey} from "./variableViewMode"
