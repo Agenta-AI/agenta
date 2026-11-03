@@ -1,6 +1,5 @@
 import React, {useCallback} from "react"
 
-import {isGatewayToolSlug} from "@agenta/shared/utils"
 import {CaretDown, Lightning} from "@phosphor-icons/react"
 import {Dropdown, message as antMessage} from "antd"
 
@@ -10,31 +9,28 @@ import {
     type GatewayToolPayload,
 } from "../../hooks/useGatewayToolActions"
 
-export type GatewayToolPayloadInfo = GatewayToolPayload
-
 interface Props {
-    toolPayloads: GatewayToolPayloadInfo[]
+    toolPayloads: GatewayToolPayload[]
     /** Calls the tool and writes its result; `sendToChat` also runs the turn. */
-    onExecute: (payload: GatewayToolPayloadInfo, sendToChat: boolean) => Promise<GatewayToolOutcome>
+    onExecute: (payload: GatewayToolPayload, sendToChat: boolean) => Promise<GatewayToolOutcome>
     /** The `gatewayToolKey` of the call that runs now. */
     executingId: string | null
 }
 
 const GatewayToolExecuteButton: React.FC<Props> = ({toolPayloads, onExecute, executingId}) => {
     const handleExecute = useCallback(
-        async (p: GatewayToolPayloadInfo, sendToChat: boolean) => {
+        async (p: GatewayToolPayload, sendToChat: boolean) => {
             const outcome = await onExecute(p, sendToChat)
             if (!outcome.ok) antMessage.error("Tool execution failed")
         },
         [onExecute],
     )
 
-    const gatewayPayloads = toolPayloads.filter((p) => isGatewayToolSlug(p.name || ""))
-    if (gatewayPayloads.length === 0) return null
+    if (toolPayloads.length === 0) return null
 
     return (
         <div className="flex flex-col gap-1">
-            {gatewayPayloads.map((p) => (
+            {toolPayloads.map((p) => (
                 <Dropdown.Button
                     key={p.callId || p.name}
                     size="small"

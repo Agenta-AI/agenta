@@ -10,7 +10,8 @@ import {useAtomValue} from "jotai"
 
 import {useExecutionCell} from "./useExecutionCell"
 
-const hasToolCalls = (message: unknown): boolean => {
+/** Whether a chat message asks for tool calls. */
+export const hasToolCalls = (message: unknown): boolean => {
     const toolCalls = (message as {tool_calls?: unknown[]} | null | undefined)?.tool_calls
     return Array.isArray(toolCalls) && toolCalls.length > 0
 }
@@ -98,12 +99,9 @@ export function useChatTurn({entityId, turnId}: UseChatTurnParams) {
         assistantMessages,
         toolMessages,
         messageOverride,
-        fallbackAssistantMessage,
-        fallbackErrorMessage,
         displayedAssistantMessage,
         fallbackHasToolCalls,
         hasAssistantContent,
-        hasPendingToolContinuation,
         isToolContinuationRunning,
         isRerunning,
     }

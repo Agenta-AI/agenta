@@ -19,7 +19,6 @@ import {
     Paperclip,
 } from "@phosphor-icons/react"
 
-const MAX_SLOTS = 5
 const COPIED_MS = 1000
 
 export interface MessageToolbarProps {
@@ -29,8 +28,10 @@ export interface MessageToolbarProps {
     /** Add attachment is left out unless the message takes attachments (a user message). */
     onAddImage?: () => void
     onAddDocument?: () => void
-    imageCount?: number
-    documentCount?: number
+    /** False once the message has the most image slots it takes. */
+    canAddImage?: boolean
+    /** False once the message has the most document slots it takes. */
+    canAddDocument?: boolean
     /** The text Copy puts on the clipboard. */
     copyText: string
     onRemove: () => void
@@ -49,8 +50,8 @@ export const MessageToolbar = ({
     rerunDisabled,
     onAddImage,
     onAddDocument,
-    imageCount = 0,
-    documentCount = 0,
+    canAddImage: imageAllowed = true,
+    canAddDocument: documentAllowed = true,
     copyText,
     onRemove,
     collapsed,
@@ -69,8 +70,8 @@ export const MessageToolbar = ({
         timer.current = setTimeout(() => setCopied(false), COPIED_MS)
     }
 
-    const canAddImage = Boolean(onAddImage) && imageCount < MAX_SLOTS
-    const canAddDocument = Boolean(onAddDocument) && documentCount < MAX_SLOTS
+    const canAddImage = Boolean(onAddImage) && imageAllowed
+    const canAddDocument = Boolean(onAddDocument) && documentAllowed
     const copyLabel = copied ? "Copied" : "Copy"
 
     return (

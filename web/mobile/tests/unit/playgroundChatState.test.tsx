@@ -330,6 +330,42 @@ describe("The chat state hooks", () => {
         expect(user().uploadSlots).toHaveLength(0)
     })
 
+    it("Removing an upload keeps an identical upload in another slot", async () => {
+        await act(async () => {
+            store.set(executionItemController.actions.patchMessage, {
+                target: {turnId: turnIds[0], kind: "user"},
+                updater: (m) =>
+                    m
+                        ? {
+                              ...m,
+                              content: [
+                                  {type: "text", text: "Read these"},
+                                  {type: "image_url", image_url: {url: "https://img.test/old.png"}},
+                              ],
+                          }
+                        : m,
+            })
+        })
+        await act(async () => user().addUploadSlot("document"))
+        await act(async () => user().addUploadSlot("document"))
+        const [first, second] = user().uploadSlots.map((s) => s.id)
+        // Same content in both slots, filled in reverse order.
+        await act(async () =>
+            user().setSlotDocument(second, "data:text/plain;base64,U0FNRQ==", "b.txt", "txt"),
+        )
+        await act(async () =>
+            user().setSlotDocument(first, "data:text/plain;base64,U0FNRQ==", "a.txt", "txt"),
+        )
+
+        await act(async () => user().removeSlot(first))
+
+        const left = getAttachments(user().message!.content ?? null)
+        expect(left).toHaveLength(2)
+        expect(left[0]).toMatchObject({image_url: {url: "https://img.test/old.png"}})
+        expect(left[1]).toMatchObject({file: {filename: "b.txt"}})
+        expect(user().uploadSlots.map((s) => s.id)).toEqual([second])
+    })
+
     it("Replacing an upload keeps one image", async () => {
         await act(async () => user().addUploadSlot("image"))
         const slotId = user().uploadSlots[0].id

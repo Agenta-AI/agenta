@@ -84,8 +84,8 @@ export const ChatMessage = memo(
                 rerunDisabled={isUser && !model.hasBeenRun}
                 onAddImage={isUser ? () => model.addUploadSlot("image") : undefined}
                 onAddDocument={isUser ? () => model.addUploadSlot("document") : undefined}
-                imageCount={model.imageSlotCount}
-                documentCount={model.documentSlotCount}
+                canAddImage={model.canAddImage}
+                canAddDocument={model.canAddDocument}
                 copyText={text}
                 onRemove={model.remove}
                 collapsed={collapsed}

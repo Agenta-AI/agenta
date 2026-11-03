@@ -34,11 +34,12 @@ export interface UseTurnMessageParams {
 export interface UploadSlot {
     id: string
     type: "image" | "document"
+    /** The image the slot shows. */
     file?: PromptUploadFile
-    filled?: boolean
+    /** The file data the document slot shows. */
     value?: string
-    /** The url or file data of the attachment this slot put in the message. */
-    attached?: string
+    /** The index, among the message's attachments, of the attachment this slot added. */
+    index?: number
 }
 
 const MAX_SLOTS = 5
@@ -76,35 +77,9 @@ function toEditorText(content: MessageContent | undefined | null): string {
     return fallback
 }
 
-function attachmentValue(part: Attachment): string | undefined {
-    if (part.type === "image_url") return part.image_url.url
-    return part.file.file_data ?? part.file.file_id
-}
-
-/**
- * The attachment index each slot owns in `content`. A slot owns the LAST attachment with its
- * value that no other slot owns yet: slots append, so a slot's attachment comes after the ones
- * the message already had, even when an older one has the same value.
- */
-function slotAttachmentIndexes(
-    content: MessageContent,
-    slots: readonly UploadSlot[],
-): Map<string, number> {
-    const attachments = getAttachments(content)
-    const owned = new Map<string, number>()
-    const taken = new Set<number>()
-    for (let s = slots.length - 1; s >= 0; s--) {
-        const slot = slots[s]
-        if (!slot.attached) continue
-        for (let i = attachments.length - 1; i >= 0; i--) {
-            if (taken.has(i) || attachmentValue(attachments[i]) !== slot.attached) continue
-            owned.set(slot.id, i)
-            taken.add(i)
-            break
-        }
-    }
-    return owned
-}
+/** The slots after the attachment at `removed` left the message: later indexes move down. */
+const shiftSlotIndexes = (slots: UploadSlot[], removed: number) =>
+    slots.map((s) => (s.index !== undefined && s.index > removed ? {...s, index: s.index - 1} : s))
 
 /** `content` with the attachment at `index` swapped for `next`, in place. */
 function replaceAttachment(content: MessageContent, index: number, next: Attachment) {
@@ -213,7 +188,6 @@ export function useTurnMessage({
 
     const message = messageOverride ?? storedMessage
     const editorText = useMemo(() => toEditorText(message?.content), [message?.content])
-    const attachments = useMemo(() => getAttachments(message?.content ?? null), [message?.content])
     const toolPayloads = useMemo(
         () => (kind === "assistant" ? createToolCallPayloads(message?.tool_calls) : []),
         [kind, message?.tool_calls],
@@ -311,6 +285,8 @@ export function useTurnMessage({
     }, [])
     const imageSlotCount = uploadSlots.filter((s) => s.type === "image").length
     const documentSlotCount = uploadSlots.filter((s) => s.type === "document").length
+    const canAddImage = imageSlotCount < MAX_SLOTS
+    const canAddDocument = documentSlotCount < MAX_SLOTS
 
     const addUploadSlot = useCallback(
         (type: UploadSlot["type"]) =>
@@ -322,16 +298,20 @@ export function useTurnMessage({
         [setUploadSlots],
     )
 
-    /** Puts `part` in the message as the slot's attachment, replacing the one it added before. */
+    /**
+     * Puts `part` in the message as the slot's attachment, replacing the one it added before, and
+     * records its index on the slot.
+     */
     const attachToSlot = useCallback(
         (slotId: string, part: Attachment, append: (content: MessageContent) => MessageContent) => {
-            const slots = slotsRef.current
+            const owned = slotsRef.current.find((s) => s.id === slotId)?.index
+            let index = owned
             patchContent((content) => {
-                const index = slotAttachmentIndexes(content, slots).get(slotId)
-                return index === undefined
-                    ? append(content)
-                    : replaceAttachment(content, index, part)
+                if (owned !== undefined) return replaceAttachment(content, owned, part)
+                index = getAttachments(content).length
+                return append(content)
             })
+            return index
         },
         [patchContent],
     )
@@ -341,13 +321,11 @@ export function useTurnMessage({
             if (!file) return
             const base64 = typeof file.base64 === "string" ? file.base64 : undefined
             const url = base64 || file.url || file.thumbUrl
-            if (url) {
-                attachToSlot(slotId, imagePart(url), (content) => addImageToContent(content, url))
-            }
+            const index = url
+                ? attachToSlot(slotId, imagePart(url), (content) => addImageToContent(content, url))
+                : undefined
             setUploadSlots((prev) =>
-                prev.map((s) =>
-                    s.id === slotId ? {...s, file, ...(url ? {attached: url} : {})} : s,
-                ),
+                prev.map((s) => (s.id === slotId ? {...s, file, index: index ?? s.index} : s)),
             )
         },
         [attachToSlot, setUploadSlots],
@@ -355,13 +333,11 @@ export function useTurnMessage({
 
     const setSlotDocument = useCallback(
         (slotId: string, fileData: string, filename: string, format: string) => {
-            attachToSlot(slotId, filePart(fileData, filename, format), (content) =>
+            const index = attachToSlot(slotId, filePart(fileData, filename, format), (content) =>
                 addFileToContent(content, fileData, filename, format),
             )
             setUploadSlots((prev) =>
-                prev.map((s) =>
-                    s.id === slotId ? {...s, filled: true, value: fileData, attached: fileData} : s,
-                ),
+                prev.map((s) => (s.id === slotId ? {...s, value: fileData, index} : s)),
             )
         },
         [attachToSlot, setUploadSlots],
@@ -369,13 +345,13 @@ export function useTurnMessage({
 
     const removeSlot = useCallback(
         (slotId: string) => {
-            const slots = slotsRef.current
-            setUploadSlots((prev) => prev.filter((s) => s.id !== slotId))
-            if (!slots.find((s) => s.id === slotId)?.attached) return
-            patchContent((content) => {
-                const index = slotAttachmentIndexes(content, slots).get(slotId)
-                return index === undefined ? content : removeAttachmentFromContent(content, index)
+            const index = slotsRef.current.find((s) => s.id === slotId)?.index
+            setUploadSlots((prev) => {
+                const rest = prev.filter((s) => s.id !== slotId)
+                return index === undefined ? rest : shiftSlotIndexes(rest, index)
             })
+            if (index === undefined) return
+            patchContent((content) => removeAttachmentFromContent(content, index))
         },
         [patchContent, setUploadSlots],
     )
@@ -388,13 +364,11 @@ export function useTurnMessage({
     )
 
     // The attachments no open slot shows: the ones the message already had, and snippets.
+    const attachments = useMemo(() => getAttachments(message?.content ?? null), [message?.content])
     const listedIndexes = useMemo(() => {
-        const content = message?.content ?? null
-        const owned = new Set(slotAttachmentIndexes(content, uploadSlots).values())
-        return getAttachments(content)
-            .map((_, index) => index)
-            .filter((index) => !owned.has(index))
-    }, [message?.content, uploadSlots])
+        const owned = new Set(uploadSlots.map((s) => s.index))
+        return attachments.map((_, index) => index).filter((index) => !owned.has(index))
+    }, [attachments, uploadSlots])
     const listedAttachments = useMemo<MessageContent>(
         () => listedIndexes.map((index) => attachments[index]),
         [listedIndexes, attachments],
@@ -404,9 +378,10 @@ export function useTurnMessage({
         (listedIndex: number) => {
             const index = listedIndexes[listedIndex]
             if (index === undefined) return
+            setUploadSlots((prev) => shiftSlotIndexes(prev, index))
             patchContent((content) => removeAttachmentFromContent(content, index))
         },
-        [listedIndexes, patchContent],
+        [listedIndexes, patchContent, setUploadSlots],
     )
 
     return {
@@ -419,7 +394,6 @@ export function useTurnMessage({
         toolPayloads,
         resultHashes,
         results,
-        attachments,
         onChangeText,
         onChangeRole,
         rerun,
@@ -427,6 +401,8 @@ export function useTurnMessage({
         uploadSlots,
         imageSlotCount,
         documentSlotCount,
+        canAddImage,
+        canAddDocument,
         addUploadSlot,
         setSlotImage,
         setSlotDocument,
