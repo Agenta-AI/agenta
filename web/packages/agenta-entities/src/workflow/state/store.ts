@@ -1247,7 +1247,11 @@ export const workflowQueryAtomFamily = atomFamily((revisionId: string) =>
                 : undefined
 
         return {
-            queryKey: ["workflows", "revision", revisionId, projectId],
+            // The archived lookup is a different answer, so it gets its own entry. The default key
+            // stays as it was, because the detail cache is primed and read under it.
+            queryKey: includeArchived
+                ? ["workflows", "revision", revisionId, projectId, "archived"]
+                : ["workflows", "revision", revisionId, projectId],
             queryFn: async (): Promise<Workflow | null> => {
                 if (!projectId || !revisionId) return null
                 // Persist agent-ness wherever a revision is learned, keyed by its WORKFLOW id
