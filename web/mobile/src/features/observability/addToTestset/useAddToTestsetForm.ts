@@ -41,6 +41,9 @@ export type ColumnsStatus = "idle" | "loading" | "error" | "ready"
 
 export const PREVIEW_ROW_LIMIT = 5
 
+/** The option value of "Create New" in the test set and column pickers. */
+export const CREATE_NEW = "__create_new__"
+
 const SAVE_FAILED = "Couldn't add the spans to the test set"
 const NAME_TAKEN = "A test set with this name already exists"
 

@@ -16,7 +16,7 @@ export interface TraceMapping {
 }
 
 /** Structure checks and suggestions look at this many spans; rows use every span. */
-export const TRACE_MAPPING_SAMPLE_SIZE = 50
+const TRACE_MAPPING_SAMPLE_SIZE = 50
 
 const TRACE_DATA_PATH = "data"
 const INPUTS_KEY = "inputs"
@@ -33,6 +33,8 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const buildPath = (...parts: string[]) => parts.filter(Boolean).join(".")
 
+// Strict on purpose: unlike `getValueAtPath`, it never parses a JSON string, so a stringified
+// value is not mistaken for a message list.
 const getPath = (value: unknown, path: string): unknown => {
     let current = value
     for (const part of path.split(".")) {
@@ -101,7 +103,7 @@ const getVariableInputsLocation = (
  * (`data.inputs`, `data.outputs`). A chat span splits the variable inputs from the message
  * history, so a replay can fill both.
  */
-export const getCanonicalTraceMappingPaths = (data: unknown): string[] => {
+const getCanonicalTraceMappingPaths = (data: unknown): string[] => {
     if (!isRecord(data)) return []
     const outputs = getChildLocation(data, OUTPUTS_KEY)
     const outputPaths = outputs ? [outputs.path] : []
@@ -121,7 +123,7 @@ export const getCanonicalTraceMappingPaths = (data: unknown): string[] => {
 }
 
 /** The column auto mapping names for a path: its last segment, with prompts named `messages`. */
-export const getColumnNameForTraceMappingPath = (path: string): string => {
+const getColumnNameForTraceMappingPath = (path: string): string => {
     const name = path.split(".").pop() || path
     return name === "prompt" || name === "completion" ? "messages" : name
 }

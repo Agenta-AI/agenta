@@ -4,9 +4,7 @@ import {invalidateTestsetsListCache, testsetsListAtom} from "@agenta/entities/te
 import {Alert, Button, Combobox, Input} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
-import type {AddToTestsetTarget} from "./useAddToTestsetForm"
-
-const CREATE_NEW = "__create_new__"
+import {CREATE_NEW, type AddToTestsetTarget} from "./useAddToTestsetForm"
 
 /** Step 1: an existing test set to append to, or a new one and its name. */
 export const TestsetTargetField = ({

@@ -26,9 +26,6 @@ export {
 export {getNodeById} from "./nodeTree"
 
 export {
-    TRACE_MAPPING_SAMPLE_SIZE,
-    getCanonicalTraceMappingPaths,
-    getColumnNameForTraceMappingPath,
     suggestTraceMappings,
     getTraceMappingPathOptions,
     buildTestsetRowsFromTraces,

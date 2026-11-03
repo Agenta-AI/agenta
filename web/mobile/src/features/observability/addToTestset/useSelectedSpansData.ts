@@ -1,8 +1,6 @@
 import {useCallback, useMemo} from "react"
 
 import {extractAgData, traceSpanMolecule} from "@agenta/entities/trace"
-import {getHostQueryClient} from "@agenta/shared/api"
-import {projectIdAtom} from "@agenta/shared/state"
 import {atom, useAtomValue} from "jotai"
 
 export type SpansStatus = "loading" | "error" | "ready"
@@ -25,7 +23,6 @@ export const useSelectedSpansData = (spanIds: readonly string[]) => {
         [key],
     )
     const queries = useAtomValue(queriesAtom)
-    const projectId = useAtomValue(projectIdAtom)
 
     const status: SpansStatus = queries.some((query) => query.isError)
         ? "error"
@@ -39,11 +36,10 @@ export const useSelectedSpansData = (spanIds: readonly string[]) => {
     )
 
     const retry = useCallback(() => {
-        const client = getHostQueryClient()
-        for (const id of key.split(",").filter(Boolean)) {
-            void client.refetchQueries({queryKey: ["span", projectId, id]})
+        for (const query of queries) {
+            if ("refetch" in query && typeof query.refetch === "function") void query.refetch()
         }
-    }, [key, projectId])
+    }, [queries])
 
     return {status, spansData, retry}
 }

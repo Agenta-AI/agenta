@@ -1,11 +1,7 @@
-import {Alert, Button, Combobox, Input, SkeletonBlock} from "@agenta/ui/ui"
+import {Alert, Button, cn, Combobox, Input, SkeletonBlock} from "@agenta/ui/ui"
 import {ArrowRightIcon, PlusIcon, TrashIcon} from "@phosphor-icons/react"
 
-import {cn} from "@/lib/utils"
-
-import type {ColumnsStatus, MappingRow} from "./useAddToTestsetForm"
-
-const CREATE_NEW = "__create_new__"
+import {CREATE_NEW, type ColumnsStatus, type MappingRow} from "./useAddToTestsetForm"
 
 /**
  * Step 2: one row per mapping, a span data path to a test set column. A new test set has no
@@ -126,7 +122,7 @@ export const MappingRows = ({
                                 {showsName ? (
                                     <Input
                                         aria-label={`Column name ${index + 1}`}
-                                        placeholder="Column name (e.g., parent.child)"
+                                        placeholder="Column name"
                                         value={row.column}
                                         onChange={(event) =>
                                             onEdit(row.id, {column: event.target.value})
@@ -146,11 +142,6 @@ export const MappingRows = ({
                         </div>
                     )
                 })}
-                {mappings.some((row) => isNewTestset || row.isNewColumn) ? (
-                    <p className="text-muted-foreground m-0 text-xs">
-                        Tip: Use dot notation (e.g., parent.child) to create nested columns
-                    </p>
-                ) : null}
                 <Button variant="outline" size="sm" className="self-start" onClick={onAdd}>
                     <PlusIcon />
                     Add field
