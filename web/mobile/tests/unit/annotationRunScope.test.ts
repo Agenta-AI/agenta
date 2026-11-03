@@ -348,6 +348,22 @@ describe("annotation in run scope", () => {
         ])
     })
 
+    it("A run save fails when the annotation cannot be linked to the scenario", async () => {
+        await openRunForm()
+        const answer = http.post.getMockImplementation()
+        http.post.mockImplementation(async (url: string, ...rest: unknown[]) => {
+            if (url.endsWith("/evaluations/results/")) throw new Error("Request failed with 500")
+            return answer?.(url, ...rest)
+        })
+        await expect(
+            annotationFormController.set.submitAnnotations({
+                scenarioId: SCENARIO,
+                markComplete: true,
+            }),
+        ).rejects.toThrow()
+        expect(annotationFormController.get.submitError(SCENARIO)).toBeTruthy()
+    })
+
     it("A failed create sets the submit error and sends no step result", async () => {
         await openRunForm()
         const answer = http.post.getMockImplementation()

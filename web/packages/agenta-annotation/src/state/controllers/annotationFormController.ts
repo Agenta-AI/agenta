@@ -1279,7 +1279,7 @@ async function awaitStepResultUpserts({
     projectId,
     runId,
     scenarioId,
-}: PostSubmitOpsParams): Promise<void> {
+}: PostSubmitOpsParams): Promise<boolean> {
     const stepKeyBySlug = resolveStepKeyBySlug(annotationSteps)
 
     const promises = entries.map((entry) => {
@@ -1302,6 +1302,7 @@ async function awaitStepResultUpserts({
             console.warn("[annotationForm] Step result upsert failed:", result.reason)
         }
     }
+    return results.every((result) => result.status === "fulfilled")
 }
 
 /**
@@ -1616,7 +1617,7 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
                 evaluationRunMolecule.selectors.annotationSteps(runId),
             )
 
-            await awaitStepResultUpserts({
+            const linked = await awaitStepResultUpserts({
                 entries: submittedEntries,
                 annotationSteps: currentAnnotationSteps,
                 invocationStepKey,
@@ -1624,6 +1625,8 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
                 runId,
                 scenarioId,
             })
+            // A run finds its annotations only through these links: without one, the save failed.
+            if (!queueId && !linked) throw new Error("Could not link the annotation to the run")
 
             // Metrics are supplementary: a queue does not wait for them. A run's screens read the
             // scenario scores again right after the save, so a run waits.
