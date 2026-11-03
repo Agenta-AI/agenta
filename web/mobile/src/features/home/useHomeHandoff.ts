@@ -110,8 +110,7 @@ export const useHomeHandoff = (base: string, projectId: string) => {
                 // A template names the agent after itself; free text leaves the create core's
                 // own default to name it from the task.
                 name: templateName,
-                // Carries the template's accounts to the session's connect step. Absent for free
-                // text, which has nothing declarable to ask for.
+                // Loads the template's package. Absent for free text.
                 templateKey,
             })
             if (ok) return

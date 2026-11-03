@@ -24,7 +24,6 @@ from oss.src.core.access.controls import get_role, get_roles
 from oss.src.core.access.service import ROLE_SCOPE, get_access_service
 from oss.src.core.access.types import RbacEntitlementUnavailable, RoleNotOffered
 from oss.src.utils.context import get_auth_scope
-from oss.src.services.db_manager import get_project_by_workspace
 
 if is_ee():
     from ee.src.core.access.entitlements.service import (
@@ -188,7 +187,7 @@ async def assign_role_to_user(
     """
 
     try:
-        project = await get_project_by_workspace(workspace_id)
+        project = await organization_service.get_project_of_workspace_ref(workspace_id)
         if str(project.organization_id) != str(payload.organization_id):
             return JSONResponse(
                 status_code=400,
@@ -262,7 +261,7 @@ async def unassign_role_from_user(
     """
 
     try:
-        project = await get_project_by_workspace(workspace_id)
+        project = await organization_service.get_project_of_workspace_ref(workspace_id)
         if str(project.organization_id) != str(organization_id):
             return JSONResponse(
                 status_code=400,
@@ -337,7 +336,7 @@ async def remove_user_from_workspace(
         workspace_id (str): The ID of the workspace.
     """
 
-    project = await get_project_by_workspace(workspace_id)
+    project = await organization_service.get_project_of_workspace_ref(workspace_id)
     has_permission = await check_action_access(
         user_uid=request.state.user_id,
         project_id=str(project.id),

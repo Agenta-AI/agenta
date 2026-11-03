@@ -20,8 +20,6 @@ import {
     type QueueRowError,
     type QueueRowErrors,
 } from "../assets/queueOverlay"
-import {getPendingConnectInteractions} from "../clientTools/connectInteractions"
-import {getPendingElicitationInteractions} from "../clientTools/elicitationInteractions"
 
 import type {ComposerAttachment} from "./useComposerAttachments"
 import {usePendingSendEchoes} from "./usePendingSendEchoes"
@@ -211,15 +209,9 @@ export const useAgentChatQueue = ({
     // A stop voids the approval gate, so the aborted turn's lingering `approval-requested` part
     // must not read as "awaiting".
     const hitlPending = !stopped && isHitlPending(messages)
-    // Parked CLIENT TOOLS only, not approvals. The steer guard below reads this, and an approval
-    // gate must keep sending a typed message to the queue: answering it is what the dock's buttons
-    // are for, and a message is as likely to be consent as a redirect.
-    const parkedClientTools =
-        !stopped &&
-        (getPendingElicitationInteractions(messages).length > 0 ||
-            getPendingConnectInteractions(messages).length > 0)
-    const parkedClientToolsRef = useRef(parkedClientTools)
-    parkedClientToolsRef.current = parkedClientTools
+    // The steer guard reads this: a host settles whatever dock is parked, then steers the message in.
+    const hitlPendingRef = useRef(hitlPending)
+    hitlPendingRef.current = hitlPending
 
     const restoreRefusedSendRef = useRef(restoreRefusedSend)
     restoreRefusedSendRef.current = restoreRefusedSend
@@ -658,13 +650,11 @@ export const useAgentChatQueue = ({
         ) => {
             // Handled here and rethrown below, so a refusal before it is awaited is not unhandled.
             options?.after?.catch(() => undefined)
-            // A run parked on a client tool counts as busy. Its heartbeat is not in the snapshot
-            // (a parked run reads `idle`), but the turn is still open server-side: the host's
-            // dismiss-then-steer over a parked question or connection resumes it, and the steer
-            // lands in the resumed turn. Read through a ref, not the transcript: the call comes
-            // straight after the dismiss write, before anything has re-rendered. Approvals are
-            // deliberately excluded — see `parkedClientTools`.
-            if (!(serverBusyRef.current || parkedClientToolsRef.current)) {
+            // A run parked on the user counts as busy. Its heartbeat is not in the snapshot (a parked
+            // run reads `idle`), but the turn is still open server-side: the host settles the dock
+            // (question, connection, secret or approval), which resumes it, and the steer lands in
+            // the resumed turn. Read through a ref: the call comes straight after the dismiss write.
+            if (!(serverBusyRef.current || hitlPendingRef.current)) {
                 throw new Error("The session is not ready to accept a Steer input.")
             }
             const message: QueuedMessage = {

@@ -41,7 +41,7 @@ export interface CreateAgentParams {
     stagingSessionId?: string
     attachmentIds?: string[]
     initialMessage?: string
-    /** Account choices made in the starter setup step. */
+    /** Ignored: web/oss still passes it. Connection choices come from the project's live connections. */
     setup?: AgentSetupSelection
     /** Who sees the new agent. Omitted, the server keeps its default. */
     visibility?: Visibility
@@ -80,7 +80,6 @@ export const useCreateAgent = ({onError}: UseCreateAgentOptions = {}) => {
             initialMessage,
             stagingSessionId,
             attachmentIds,
-            setup,
             visibility,
         }: CreateAgentParams = {}): Promise<CreatedAgent | null> => {
             if (creating) return null
@@ -106,7 +105,6 @@ export const useCreateAgent = ({onError}: UseCreateAgentOptions = {}) => {
                         initialMessage,
                         stagingSessionId,
                         attachmentIds,
-                        setup,
                         visibility,
                     })
                     return {

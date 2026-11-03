@@ -68,7 +68,6 @@ function AntdTriggerRow({
     icon,
     name,
     nameMuted,
-    chip,
     subtitle,
     active,
     disabled,
@@ -78,7 +77,6 @@ function AntdTriggerRow({
     icon: ReactNode
     name: string
     nameMuted?: boolean
-    chip?: ReactNode
     subtitle: string
     active: boolean
     disabled?: boolean
@@ -105,19 +103,12 @@ function AntdTriggerRow({
                 </span>
             </AntTooltip>
             <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                    <span
-                        className={`truncate text-xs font-medium ${
-                            nameMuted ? "italic text-[var(--ag-colorTextTertiary)]" : ""
-                        }`}
-                    >
-                        {name}
-                    </span>
-                    {chip ? (
-                        <span className="ml-0.5 max-w-[170px] shrink-0 truncate rounded bg-[var(--ag-colorFillSecondary)] px-1.5 py-0.5 text-[10px] text-[var(--ag-colorTextSecondary)]">
-                            {chip}
-                        </span>
-                    ) : null}
+                <div
+                    className={`truncate text-xs font-medium ${
+                        nameMuted ? "italic text-[var(--ag-colorTextTertiary)]" : ""
+                    }`}
+                >
+                    {name}
                 </div>
                 <div className="mt-0.5 line-clamp-2 max-w-prose text-xs leading-snug text-[var(--ag-colorTextSecondary)]">
                     {subtitle}
@@ -187,12 +178,11 @@ export const AntdVsAgenta: Story = {
     render: () => (
         <div className="flex max-w-[1100px] flex-col">
             <Row
-                label="active · named · cron chip"
+                label="active · named"
                 a={
                     <AntdTriggerRow
                         icon={ICON}
                         name="Morning digest"
-                        chip="Every day at 09:00"
                         subtitle="Summarize yesterday's tickets."
                         active
                     />
@@ -201,7 +191,6 @@ export const AntdVsAgenta: Story = {
                     <TriggerRow
                         icon={ICON}
                         name="Morning digest"
-                        chip="Every day at 09:00"
                         subtitle="Summarize yesterday's tickets."
                         active
                         onOpen={noop}
@@ -238,7 +227,6 @@ export const AntdVsAgenta: Story = {
                     <AntdTriggerRow
                         icon={ICON}
                         name="Weekly report"
-                        chip="Every Monday at 08:00"
                         subtitle="Post the weekly summary to #ops."
                         active
                         disabled
@@ -248,7 +236,6 @@ export const AntdVsAgenta: Story = {
                     <TriggerRow
                         icon={ICON}
                         name="Weekly report"
-                        chip="Every Monday at 08:00"
                         subtitle="Post the weekly summary to #ops."
                         active
                         disabled
@@ -294,7 +281,6 @@ export const OpenState: Story = {
                         <AntdTriggerRow
                             icon={ICON}
                             name="Morning digest"
-                            chip="Every day at 09:00"
                             subtitle="Summarize yesterday's tickets."
                             active
                             menuOpen
@@ -310,7 +296,6 @@ export const OpenState: Story = {
                         <TriggerRow
                             icon={ICON}
                             name="Morning digest"
-                            chip="Every day at 09:00"
                             subtitle="Summarize yesterday's tickets."
                             active
                             onOpen={noop}

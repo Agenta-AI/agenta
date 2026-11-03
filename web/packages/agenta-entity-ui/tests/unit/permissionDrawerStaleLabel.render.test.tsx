@@ -59,6 +59,13 @@ const render = async () => {
             }),
         )
     })
+    // The drawer mounts its body two frames after it opens.
+    await act(
+        () =>
+            new Promise<void>((resolve) =>
+                requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+            ),
+    )
 }
 
 describe("a saved rule whose tool the source stopped listing", () => {

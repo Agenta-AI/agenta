@@ -30,6 +30,7 @@
         "./components/modal": "./src/components/modal/index.ts",
         "./components/page-width": "./src/components/pageWidth.ts",
         "./components/presentational": "./src/components/presentational/index.ts",
+        "./components/presentational/charts": "./src/components/presentational/charts/index.ts",
         "./components/selection": "./src/components/selection/index.ts",
         "./copy-tooltip": "./src/CopyTooltip/index.ts",
         "./create-menu": "./src/create-menu/index.ts",

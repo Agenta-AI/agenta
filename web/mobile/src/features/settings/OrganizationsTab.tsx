@@ -104,7 +104,6 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
                 switchSettingsContext(router, {
                     workspaceId: group.workspaceId,
                     projectId: first.project_id,
-                    tab: "organizationGeneral",
                 })
             }}
             onCreate={() => {

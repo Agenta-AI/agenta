@@ -9,6 +9,7 @@ import {sharingCopy} from "@/lib/sharingCopy"
 import {AgentCardBody} from "./AgentCardBody"
 import type {AgentListGroup, AgentListRow} from "./agentListView"
 import {AgentRowCells} from "./AgentRowCells"
+import type {AgentRowActions} from "./useAgentRowActions"
 
 /**
  * The columns, shared by the header row and every body row so the two can never drift.
@@ -72,12 +73,14 @@ export const AgentListTable = ({
     view,
     isLoading,
     onOpen,
+    actions,
     empty,
 }: {
     groups: AgentListGroup[]
     view: ListTableView
     isLoading: boolean
     onOpen: (row: AgentListRow) => void
+    actions: AgentRowActions
     empty: ReactNode
 }) => {
     // Picks the COLUMN SET, not a `display` value: header and body read one array. Asked as
@@ -115,8 +118,10 @@ export const AgentListTable = ({
             collapsedKeys={collapsed}
             onToggleGroup={toggleGroup}
             empty={empty}
-            renderRow={(row) => <AgentRowCells row={row} narrow={narrow} onOpen={onOpen} />}
-            renderCard={(row) => <AgentCardBody row={row} onOpen={onOpen} />}
+            renderRow={(row) => (
+                <AgentRowCells row={row} narrow={narrow} onOpen={onOpen} actions={actions} />
+            )}
+            renderCard={(row) => <AgentCardBody row={row} onOpen={onOpen} actions={actions} />}
         />
     )
 }

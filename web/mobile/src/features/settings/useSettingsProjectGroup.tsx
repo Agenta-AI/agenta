@@ -19,7 +19,6 @@ export interface SettingsProjectGroup {
 export const useSettingsProjectGroup = (
     workspaceId: string,
     projectId: string,
-    tab: string,
 ): SettingsProjectGroup => {
     const router = useRouter()
     const {currentGroup, currentProject} = useOrganizationProjects(workspaceId, projectId)
@@ -34,7 +33,6 @@ export const useSettingsProjectGroup = (
                 switchSettingsContext(router, {
                     workspaceId: project.workspace_id,
                     projectId: project.project_id,
-                    tab,
                 }),
         }))
         const projectName = currentProject.project_name ?? "Project"
@@ -49,5 +47,5 @@ export const useSettingsProjectGroup = (
             projectName,
             projectCount: currentGroup.projects.length,
         }
-    }, [currentGroup, currentProject, projectId, router, tab])
+    }, [currentGroup, currentProject, projectId, router])
 }

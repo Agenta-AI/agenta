@@ -1,6 +1,8 @@
 import {Html, Head, Main, NextScript} from "next/document"
 import Script from "next/script"
 
+import {mobileGateScript} from "@/lib/mobileGateScript"
+
 // Runs synchronously before paint to apply the persisted theme, preventing a
 // flash of the wrong theme on load. Same localStorage key as the desktop app
 // ("agenta-theme", JSON-encoded by usehooks-ts, default "system") so the
@@ -31,6 +33,8 @@ export default function Document() {
                 <meta property="og:image:height" content="1050" />
                 <meta name="twitter:card" content="summary_large_image" />
                 <meta name="twitter:image" content="https://agenta.ai/og/default.png" />
+                {/* Before anything else: it may leave the page. */}
+                <script dangerouslySetInnerHTML={{__html: mobileGateScript}} />
                 <script dangerouslySetInnerHTML={{__html: themeInitScript}} />
             </Head>
             <body>

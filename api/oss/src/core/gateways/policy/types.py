@@ -3,7 +3,7 @@
 from typing import Optional, Union
 
 from oss.src.core.access.permissions.types import Permission
-from oss.src.core.gateways.policy.dtos import SecretMode, SecretOwnerKind
+from oss.src.core.gateways.policy.dtos import SecretOwnerKind
 from oss.src.core.gateways.types import GatewaysError
 
 
@@ -44,13 +44,10 @@ class SecretNotFoundError(GatewaysError):
     caller learns whether they must connect or an administrator must
     (`secrets.md`: failure is never silent and never a fallback to none)."""
 
-    def __init__(self, *, mode: SecretMode, missing: SecretOwnerKind, target: str):
-        self.mode = mode
+    def __init__(self, *, missing: SecretOwnerKind, target: str):
         self.missing = missing
         self.target = target
-        super().__init__(
-            f"No {missing.value} secret for {target} under mode {mode.value}"
-        )
+        super().__init__(f"No {missing.value} secret for {target}")
 
 
 class SecretInvalidError(GatewaysError):

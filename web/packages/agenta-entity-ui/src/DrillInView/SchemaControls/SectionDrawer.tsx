@@ -14,6 +14,7 @@ import {EnhancedModal} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Button} from "@agenta/ui/ui"
 
+import {FormDrawerSkeleton} from "./DrawerSkeletons"
 import {SectionDrawerPanelContext} from "./sectionDrawerPanel"
 
 export interface SectionDrawerProps {
@@ -63,6 +64,7 @@ export function SectionDrawer({
                 width={width}
                 panelRef={setPanel}
                 destroyOnClose
+                bodyFallback={<FormDrawerSkeleton />}
                 title={
                     <div className="flex min-w-0 items-center gap-2">
                         {icon ? <span className="flex shrink-0 items-center">{icon}</span> : null}

@@ -30,7 +30,6 @@ from oss.src.services.db_manager import (
     admin_get_user_by_email as _db_get_user_by_email,
     admin_get_org_by_id as _db_get_org_by_id,
     admin_get_org_by_slug as _db_get_org_by_slug,
-    admin_get_workspace_by_id as _db_get_workspace_by_id,
     admin_get_project_by_id as _db_get_project_by_id,
     admin_get_api_key_by_id as _db_get_api_key_by_id,
     admin_get_api_key_by_prefix as _db_get_api_key_by_prefix,
@@ -40,14 +39,12 @@ from oss.src.services.db_manager import (
     admin_create_organization as _db_create_organization,
     admin_create_project as _db_create_project,
     admin_delete_organization as _db_delete_organization,
-    admin_delete_workspace as _db_delete_workspace,
     admin_delete_project as _db_delete_project,
     admin_delete_api_key as _db_delete_api_key,
     admin_delete_accounts_batch as _db_delete_accounts_batch,
     admin_delete_user_with_cascade as _db_delete_user_with_cascade,
     admin_transfer_ownership as _db_transfer_ownership,
     admin_delete_org_membership as _ee_delete_org_membership,
-    admin_delete_workspace_membership as _ee_delete_workspace_membership,
     admin_delete_project_membership as _ee_delete_project_membership,
     admin_delete_user_memberships as _ee_delete_user_memberships,
     admin_get_member_org_ids as _ee_get_member_org_ids,
@@ -530,24 +527,14 @@ _MEMBERSHIP_SCOPE_SQL = {
     "organization": (
         "SELECT user_id, organization_id FROM organization_members WHERE id = :id"
     ),
-    "workspace": (
-        "SELECT wm.user_id, w.organization_id FROM workspace_members wm "
-        "JOIN workspaces w ON w.id = wm.workspace_id WHERE wm.id = :id"
-    ),
     "project": (
         "SELECT pm.user_id, p.organization_id FROM project_members pm "
         "JOIN projects p ON p.id = pm.project_id WHERE pm.id = :id"
     ),
 }
 
-# A workspace reference after workspace removal step 2: an organization id names the
-# organization; a legacy workspace id names its organization (until step 2b).
-_ORGANIZATION_ALIAS_SQL = """
-SELECT o.id FROM organizations o WHERE o.id = :id
-UNION ALL
-SELECT w.organization_id FROM workspaces w WHERE w.id = :id
-LIMIT 1
-"""
+# A workspace reference after workspace removal: the organization id (design D6).
+_ORGANIZATION_ALIAS_SQL = "SELECT o.id FROM organizations o WHERE o.id = :id"
 
 _OLDEST_ORGANIZATION_MEMBERSHIP_SQL = """
 SELECT id, role FROM organization_members
@@ -583,7 +570,6 @@ async def _oldest_organization_membership(*, user_id: UUID, organization_id: UUI
 
 
 _ORGANIZATION_OF_SQL = {
-    "workspaces": "SELECT organization_id FROM workspaces WHERE id = :id",
     "projects": "SELECT organization_id FROM projects WHERE id = :id",
 }
 
@@ -1092,21 +1078,18 @@ class PlatformAdminAccountsService:
                     if org.id not in org_ids:
                         org_ids.append(org.id)
 
-        # Collect workspace and project IDs
+        # Collect workspace and project IDs. Workspaces were removed: a workspace id
+        # deletes nothing, and an organization id (the alias the API answers for a
+        # workspace) never deletes the organization.
         workspace_ids: List[UUID] = [UUID(wid) for wid in (target.workspace_ids or [])]
-        # An organization id with no workspace row (the alias workspace removal step 2
-        # answers) deletes nothing, never the organization.
         for wid in workspace_ids:
-            if not await _db_get_workspace_by_id(wid) and await _db_get_org_by_id(wid):
+            if await _db_get_org_by_id(wid):
                 raise AdminWorkspaceIsOrganizationError(str(wid))
         project_ids: List[UUID] = [UUID(pid) for pid in (target.project_ids or [])]
 
         if dry_run:
             # Report what would be deleted without writing
             deleted.organizations = [AdminDeletedEntity(id=str(oid)) for oid in org_ids]
-            deleted.workspaces = [
-                AdminDeletedEntity(id=str(wid)) for wid in workspace_ids
-            ]
             deleted.projects = [AdminDeletedEntity(id=str(pid)) for pid in project_ids]
             deleted.users = [AdminDeletedEntity(id=str(uid)) for uid in user_ids]
             return AdminDeleteResponse(dry_run=True, deleted=deleted)
@@ -1137,12 +1120,10 @@ class PlatformAdminAccountsService:
             # access, key and binding in them; read them before the delete.
             scope_snapshot = await read_scope_principals_before_delete(
                 organization_ids=org_ids,
-                workspace_ids=workspace_ids,
                 project_ids=project_ids,
             )
             await _db_delete_accounts_batch(
                 org_ids=org_ids,
-                workspace_ids=workspace_ids,
                 project_ids=project_ids,
                 user_ids=user_ids,
             )
@@ -1164,9 +1145,6 @@ class PlatformAdminAccountsService:
 
         deleted.projects = [
             AdminDeletedEntity(id=str(pid)) for pid in project_ids
-        ] or None
-        deleted.workspaces = [
-            AdminDeletedEntity(id=str(wid)) for wid in workspace_ids
         ] or None
         deleted.organizations = [
             AdminDeletedEntity(id=str(oid)) for oid in org_ids
@@ -1868,20 +1846,12 @@ class PlatformAdminAccountsService:
         *,
         workspace_id: str,
     ) -> AdminDeleteResponse:
+        # Workspaces were removed: an organization id (the alias the API answers for a
+        # workspace) deletes nothing, never the organization; any other id is unknown.
         wid = _parse_uuid(workspace_id, "workspace_id")
-        ws = await _db_get_workspace_by_id(wid)
-        if not ws:
-            # An organization id (the alias workspace removal step 2 answers) deletes
-            # nothing: never the organization.
-            if await _db_get_org_by_id(wid):
-                raise AdminWorkspaceIsOrganizationError(workspace_id)
-            raise AdminWorkspaceNotFoundError(workspace_id)
-
-        scope_snapshot = await read_scope_principals_before_delete(workspace_ids=[wid])
-        await _db_delete_workspace(wid)
-        await invalidate_scope_after_delete(snapshot=scope_snapshot)
-        deleted = AdminDeletedEntities(workspaces=[AdminDeletedEntity(id=workspace_id)])
-        return AdminDeleteResponse(dry_run=False, deleted=deleted)
+        if await _db_get_org_by_id(wid):
+            raise AdminWorkspaceIsOrganizationError(workspace_id)
+        raise AdminWorkspaceNotFoundError(workspace_id)
 
     async def delete_workspace_membership(
         self,
@@ -1891,17 +1861,15 @@ class PlatformAdminAccountsService:
     ) -> AdminDeleteResponse:
         if not is_ee():
             raise AdminNotImplementedError("delete_workspace_membership")
+        # The admin graph answers an organization membership for a workspace
+        # membership; anything else is unknown.
         mid = _parse_uuid(membership_id, "membership_id")
-        if await _membership_scope(membership_id=mid, scope_type="workspace") is None:
-            alias = await self._delete_organization_membership_alias(
-                organization_id=workspace_id, membership_id=mid
-            )
-            if alias is not None:
-                return alias
-        return await self._delete_ee_membership(
-            membership_id=membership_id,
-            scope_type="workspace",
+        alias = await self._delete_organization_membership_alias(
+            organization_id=workspace_id, membership_id=mid
         )
+        if alias is None:
+            raise AdminMembershipNotFoundError(membership_id)
+        return alias
 
     async def _delete_organization_membership_alias(
         self, *, organization_id: str, membership_id: UUID
@@ -2281,7 +2249,6 @@ class PlatformAdminAccountsService:
 
         delete_fn = {
             "organization": _ee_delete_org_membership,
-            "workspace": _ee_delete_workspace_membership,
             "project": _ee_delete_project_membership,
         }.get(scope_type)
         if delete_fn is None:

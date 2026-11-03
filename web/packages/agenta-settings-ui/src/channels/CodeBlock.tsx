@@ -13,6 +13,8 @@ export interface CodeBlockProps {
     maxHeightClass?: string
     /** More header actions, shown before Copy. */
     actions?: ReactNode
+    /** Runs when the browser refuses the copy. Without it the code just stays on screen. */
+    onCopyError?: () => void
     "data-testid"?: string
 }
 
@@ -23,6 +25,7 @@ export const CodeBlock = ({
     wrap = false,
     maxHeightClass = "max-h-64",
     actions,
+    onCopyError,
     "data-testid": testId,
 }: CodeBlockProps) => {
     const [copied, setCopied] = useState(false)
@@ -38,7 +41,8 @@ export const CodeBlock = ({
             await navigator.clipboard.writeText(code)
             setCopied(true)
         } catch {
-            /* the code stays on screen to select by hand */
+            // The code stays on screen to select by hand.
+            onCopyError?.()
         }
     }
 

@@ -18,6 +18,7 @@ import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Button} from "@agenta/ui/ui"
 import {Lightbulb} from "@phosphor-icons/react"
 
+import {MarkdownEditorSkeleton} from "./DrawerSkeletons"
 import {MarkdownEditor} from "./MarkdownEditor"
 
 export interface InstructionsDrawerProps {
@@ -72,6 +73,43 @@ export function InstructionsDrawer({
         [value, onChange],
     )
 
+    // The drawer is min(920, viewport), so below md this 240px column left the editor a few
+    // characters wide. The tips and scaffolds are aids, not the task.
+    const rail = (
+        <div className="hidden w-[240px] shrink-0 flex-col gap-3 md:flex">
+            {filename === "AGENTS.md" ? (
+                <div className="rounded-md bg-[var(--ag-rgba-051729-04,rgba(5,23,41,0.04))] p-3">
+                    <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-[var(--ag-c-586673)]">
+                        <Lightbulb size={14} />
+                        Writing a good AGENTS.md
+                    </div>
+                    <ul className="m-0 flex list-disc flex-col gap-1 pl-4 text-xs leading-snug text-[var(--ag-zinc-5)]">
+                        <li>Open with the agent&apos;s role and goal in one or two lines.</li>
+                        <li>Keep short, labelled sections (Role, Tools, Guardrails).</li>
+                        <li>Be concrete about the output format and hard limits.</li>
+                        <li>Prefer imperative instructions over long prose.</li>
+                    </ul>
+                </div>
+            ) : null}
+            <div>
+                <div className="mb-2 text-xs tracking-wide text-[var(--ag-zinc-5)]">Suggested</div>
+                <div className="flex flex-wrap gap-1.5">
+                    {SUGGESTIONS.map((s) => (
+                        <button
+                            key={s.label}
+                            type="button"
+                            disabled={disabled}
+                            onClick={() => appendSnippet(s.snippet)}
+                            className="cursor-pointer rounded-control border border-solid border-[var(--ag-c-EAEFF5)] bg-transparent px-2.5 py-1 text-xs text-[var(--ag-c-586673)] transition-colors hover:border-[var(--ag-zinc-5)] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            + {s.label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+        </div>
+    )
+
     return (
         <EnhancedDrawer
             rootClassName="ag-drawer-elevated"
@@ -92,6 +130,14 @@ export function InstructionsDrawer({
                 </div>
             }
             styles={{body: {padding: 16, overflow: "hidden"}}}
+            bodyFallback={
+                <div className="flex h-full min-h-0 gap-6">
+                    <div className="min-w-0 flex-1">
+                        <MarkdownEditorSkeleton />
+                    </div>
+                    {rail}
+                </div>
+            }
         >
             <div className="flex h-full min-h-0 gap-6">
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -105,50 +151,14 @@ export function InstructionsDrawer({
                         defaultView="rendered"
                         hideHeader
                         fill
+                        loadingSkeleton={<MarkdownEditorSkeleton />}
                         placeholder={
                             "# Role\n\nDescribe what the agent does and how it should behave…"
                         }
                     />
                 </div>
 
-                {/* The drawer is min(920, viewport), so below md this 240px column left the editor
-                    a few characters wide. The tips and scaffolds are aids, not the task. */}
-                <div className="hidden w-[240px] shrink-0 flex-col gap-3 md:flex">
-                    {filename === "AGENTS.md" ? (
-                        <div className="rounded-md bg-[var(--ag-rgba-051729-04,rgba(5,23,41,0.04))] p-3">
-                            <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-[var(--ag-c-586673)]">
-                                <Lightbulb size={14} />
-                                Writing a good AGENTS.md
-                            </div>
-                            <ul className="m-0 flex list-disc flex-col gap-1 pl-4 text-xs leading-snug text-[var(--ag-zinc-5)]">
-                                <li>
-                                    Open with the agent&apos;s role and goal in one or two lines.
-                                </li>
-                                <li>Keep short, labelled sections (Role, Tools, Guardrails).</li>
-                                <li>Be concrete about the output format and hard limits.</li>
-                                <li>Prefer imperative instructions over long prose.</li>
-                            </ul>
-                        </div>
-                    ) : null}
-                    <div>
-                        <div className="mb-2 text-xs tracking-wide text-[var(--ag-zinc-5)]">
-                            Suggested
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                            {SUGGESTIONS.map((s) => (
-                                <button
-                                    key={s.label}
-                                    type="button"
-                                    disabled={disabled}
-                                    onClick={() => appendSnippet(s.snippet)}
-                                    className="cursor-pointer rounded-control border border-solid border-[var(--ag-c-EAEFF5)] bg-transparent px-2.5 py-1 text-xs text-[var(--ag-c-586673)] transition-colors hover:border-[var(--ag-zinc-5)] disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                    + {s.label}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                </div>
+                {rail}
             </div>
         </EnhancedDrawer>
     )
