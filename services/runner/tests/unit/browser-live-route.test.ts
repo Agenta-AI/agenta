@@ -18,6 +18,7 @@ import { createAgentServer } from "../../src/server.ts";
 const LINK = {
   url: "wss://8790-sbx.proxy.example/live",
   headers: { "x-agenta-browser-token": "browser-token" },
+  page: { waiting: "", url: "https://example.com/", title: "Example" },
 };
 
 const servers: http.Server[] = [];

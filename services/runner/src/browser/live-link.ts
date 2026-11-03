@@ -6,8 +6,12 @@
  * `BROWSER_TOKEN_PATH` once it is ready. The api asks this route for the sandbox's preview link
  * and relays the person's WebSocket to it. The session labels (`sandbox-labels.ts`) find the
  * sandbox from any pod, also an in-process command sandbox. The browser runs only in a Daytona
- * sandbox, so a runner without Daytona has no live view.
+ * sandbox, except on a single-person dev stack that sets `AGENTA_BROWSER_ALLOW_SHARED_HOST=1`:
+ * there a local run starts it on this host, and every session sees that one browser.
  */
+import { readFile } from "node:fs/promises";
+import { hostname } from "node:os";
+
 import {
   buildDaytonaClient,
   daytonaLabelClient,
@@ -26,10 +30,18 @@ export const BROWSER_PROBE_TIMEOUT_MS = 3_000;
 export const LIVE_LINK_CACHE_MS = 5_000;
 export const LIVE_LINK_CACHE_MAX_ENTRIES = 512;
 
-/** Where the api connects, and the headers the connection carries. */
+/** What the browser's `/health` reports: the open page, and the agent's ask while it waits. */
+export interface BrowserPageState {
+  waiting: string;
+  url: string;
+  title: string;
+}
+
+/** Where the api connects, the headers the connection carries, and the page it shows. */
 export interface BrowserLiveLink {
   url: string;
   headers: Record<string, string>;
+  page: BrowserPageState;
 }
 
 export interface LiveLinkScope {
@@ -50,11 +62,14 @@ export interface LiveLinkClient {
   list(query: { labels: Record<string, string> }): AsyncIterable<LiveLinkSandbox>;
 }
 
-/** Whether the browser behind `healthUrl` answers 200 with these headers. */
+/** The page state of the browser behind `healthUrl`, or null when it does not answer. */
 export type BrowserProbe = (
   healthUrl: string,
   headers: Record<string, string>,
-) => Promise<boolean>;
+) => Promise<BrowserPageState | null>;
+
+const MAX_PAGE_TEXT = 2_048;
+const pageText = (value: unknown) => (typeof value === "string" ? value.slice(0, MAX_PAGE_TEXT) : "");
 
 export const probeBrowserHealth: BrowserProbe = async (healthUrl, headers) => {
   try {
@@ -65,13 +80,14 @@ export const probeBrowserHealth: BrowserProbe = async (healthUrl, headers) => {
     });
     if (res.status !== 200) {
       await res.body?.cancel();
-      return false;
+      return null;
     }
     // A proxy page can answer 200 too; only the browser answers `{ok: true}`.
-    const body = (await res.json().catch(() => null)) as { ok?: unknown } | null;
-    return body?.ok === true;
+    const body = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+    if (body?.ok !== true) return null;
+    return { waiting: pageText(body.waiting), url: pageText(body.url), title: pageText(body.title) };
   } catch {
-    return false;
+    return null;
   }
 };
 
@@ -101,10 +117,26 @@ export async function findBrowserLiveLink(
       "x-agenta-browser-token": token,
     };
     // The token file outlives its browser after a SIGKILL or a sandbox stop and start.
-    if (!(await probe(`${base}/health`, headers))) continue;
-    return { url: `${base.replace(/^http/, "ws")}/live`, headers };
+    const page = await probe(`${base}/health`, headers);
+    if (!page) continue;
+    return { url: `${base.replace(/^http/, "ws")}/live`, headers, page };
   }
   return undefined;
+}
+
+/** The browser a local run started on this host; the API reaches it by this container's name. */
+export async function findLocalBrowserLiveLink(
+  readToken: () => Promise<string> = () =>
+    readFile(BROWSER_TOKEN_PATH, "utf8").then((t) => t.trim(), () => ""),
+  host: string = hostname(),
+  probe: BrowserProbe = probeBrowserHealth,
+): Promise<BrowserLiveLink | undefined> {
+  const token = await readToken();
+  if (!token) return undefined;
+  const headers = { "x-agenta-browser-token": token };
+  const page = await probe(`http://127.0.0.1:${BROWSER_PORT}/health`, headers);
+  if (!page) return undefined;
+  return { url: `ws://${host}:${BROWSER_PORT}/live`, headers, page };
 }
 
 export type LiveLinkLookup = (scope: LiveLinkScope) => Promise<BrowserLiveLink | undefined>;
@@ -148,9 +180,11 @@ export function cacheLiveLinks(
 
 let client: LiveLinkClient | undefined;
 
-/** The live link on this deployment's Daytona; undefined when this runner has no Daytona. */
+/** The live link on this deployment's Daytona, else the shared-host browser when allowed. */
 export const browserLiveLink: LiveLinkLookup = cacheLiveLinks(async (scope) => {
   const config = loadRunnerConfig();
   client ??= daytonaLabelClient(config, () => buildDaytonaClient(config.daytona));
-  return client ? findBrowserLiveLink(client, scope) : undefined;
+  const link = client ? await findBrowserLiveLink(client, scope) : undefined;
+  if (link || process.env.AGENTA_BROWSER_ALLOW_SHARED_HOST !== "1") return link;
+  return findLocalBrowserLiveLink();
 });

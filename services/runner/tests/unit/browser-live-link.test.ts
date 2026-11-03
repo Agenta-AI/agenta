@@ -11,6 +11,7 @@ import {
   BROWSER_TOKEN_PATH,
   cacheLiveLinks,
   findBrowserLiveLink,
+  findLocalBrowserLiveLink,
   probeBrowserHealth,
   type BrowserLiveLink,
   type BrowserProbe,
@@ -55,8 +56,9 @@ function client(sandboxes: LiveLinkSandbox[], seen: Record<string, string>[] = [
   };
 }
 
-const alive: BrowserProbe = async () => true;
-const dead: BrowserProbe = async () => false;
+const PAGE = { waiting: "Sign in, then click I'm done.", url: "https://example.com/login", title: "Sign in" };
+const alive: BrowserProbe = async () => PAGE;
+const dead: BrowserProbe = async () => null;
 
 const LINK_OF_COMMANDS = {
   url: `wss://${BROWSER_PORT}-commands.proxy.example/live`,
@@ -65,6 +67,7 @@ const LINK_OF_COMMANDS = {
     "X-Daytona-Skip-Preview-Warning": "true",
     "x-agenta-browser-token": "browser-token",
   },
+  page: PAGE,
 };
 
 describe("findBrowserLiveLink", () => {
@@ -90,7 +93,7 @@ describe("findBrowserLiveLink", () => {
       SCOPE,
       async (url, headers) => {
         probes.push([url, headers]);
-        return true;
+        return PAGE;
       },
     );
     assert.deepEqual(probes, [
@@ -238,19 +241,59 @@ describe("probeBrowserHealth", () => {
     return { url: `http://127.0.0.1:${port}/health`, close: () => server.close() };
   }
 
-  it("counts only the browser's own answer as live", async () => {
-    const cases: [number, string, string, boolean][] = [
-      [200, '{"ok":true}', "application/json", true],
-      [200, "<html>preview warning</html>", "text/html", false],
-      [503, '{"ok":false}', "application/json", false],
+  it("counts only the browser's own answer as live, and reads its page state", async () => {
+    const empty = { waiting: "", url: "", title: "" };
+    const cases: [number, string, string, unknown][] = [
+      [200, '{"ok":true}', "application/json", empty],
+      [
+        200,
+        '{"ok":true,"waiting":"Sign in","url":"https://example.com/","title":"Example","extra":1}',
+        "application/json",
+        { waiting: "Sign in", url: "https://example.com/", title: "Example" },
+      ],
+      [200, '{"ok":true,"waiting":7,"title":null}', "application/json", empty],
+      [200, "<html>preview warning</html>", "text/html", null],
+      [503, '{"ok":false}', "application/json", null],
     ];
-    for (const [status, body, type, live] of cases) {
+    for (const [status, body, type, page] of cases) {
       const server = await serve(status, body, type);
       try {
-        assert.equal(await probeBrowserHealth(server.url, {}), live, `${status} ${body}`);
+        assert.deepEqual(await probeBrowserHealth(server.url, {}), page, `${status} ${body}`);
       } finally {
         server.close();
       }
     }
+  });
+});
+
+describe("findLocalBrowserLiveLink", () => {
+  const up: BrowserProbe = async () => PAGE;
+
+  it("points the api at this container's name, with the browser token", async () => {
+    const seen: Array<[string, Record<string, string>]> = [];
+    const link = await findLocalBrowserLiveLink(
+      async () => "tok",
+      "runner-host",
+      async (url, headers) => {
+        seen.push([url, headers]);
+        return PAGE;
+      },
+    );
+    assert.deepEqual(link, {
+      url: `ws://runner-host:${BROWSER_PORT}/live`,
+      headers: { "x-agenta-browser-token": "tok" },
+      page: PAGE,
+    });
+    assert.deepEqual(seen, [
+      [`http://127.0.0.1:${BROWSER_PORT}/health`, { "x-agenta-browser-token": "tok" }],
+    ]);
+  });
+
+  it("finds nothing without a token file", async () => {
+    assert.equal(await findLocalBrowserLiveLink(async () => "", "h", up), undefined);
+  });
+
+  it("finds nothing when a stale token's browser does not answer", async () => {
+    assert.equal(await findLocalBrowserLiveLink(async () => "tok", "h", dead), undefined);
   });
 });
