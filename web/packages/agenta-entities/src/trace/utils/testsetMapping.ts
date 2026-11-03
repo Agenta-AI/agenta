@@ -1,6 +1,6 @@
 import {isChatMessagesArray} from "@agenta/shared/utils"
 
-import {collectKeyPaths, getValueAtPath, matchColumnsWithSuggestions} from "./selectors"
+import {collectKeyPaths, getValueAtPath} from "./selectors"
 
 /**
  * Pure helpers that turn span data into test set rows.
@@ -22,6 +22,40 @@ const TRACE_DATA_PATH = "data"
 const INPUTS_KEY = "inputs"
 const OUTPUTS_KEY = "outputs"
 const RESERVED_INPUT_KEYS = new Set(["messages", "prompt", "tools", "functions"])
+
+/**
+ * Match suggested columns with existing testset columns
+ * Returns mappings with matched or suggested column names
+ *
+ * It lives here, not in `selectors`, because the app shell loads `selectors`: a helper there that
+ * only this module uses would ride into every page.
+ */
+export const matchColumnsWithSuggestions = (
+    suggestions: {data: string; suggestedColumn: string}[],
+    existingColumns: string[],
+): {data: string; column: string; isNew: boolean}[] => {
+    const existingColumnsLower = new Set(existingColumns.map((c) => c.toLowerCase()))
+
+    return suggestions.map(({data, suggestedColumn}) => {
+        const suggestedLower = suggestedColumn.toLowerCase()
+
+        // Find exact case match in existing columns
+        const matchedColumn = existingColumns.find((col) => col.toLowerCase() === suggestedLower)
+
+        if (matchedColumn) {
+            return {data, column: matchedColumn, isNew: false}
+        }
+
+        // Check if suggested column already exists (case-insensitive)
+        if (existingColumnsLower.has(suggestedLower)) {
+            const existing = existingColumns.find((c) => c.toLowerCase() === suggestedLower)
+            return {data, column: existing || suggestedColumn, isNew: false}
+        }
+
+        // New column
+        return {data, column: suggestedColumn, isNew: true}
+    })
+}
 
 interface ValueLocation {
     path: string

@@ -20,12 +20,12 @@ export {
     // Auto-mapping
     COLUMN_NAME_MAPPINGS,
     getSuggestedColumnName,
-    matchColumnsWithSuggestions,
 } from "./selectors"
 
 export {getNodeById} from "./nodeTree"
 
 export {
+    matchColumnsWithSuggestions,
     suggestTraceMappings,
     getTraceMappingPathOptions,
     buildTestsetRowsFromTraces,

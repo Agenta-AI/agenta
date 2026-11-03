@@ -1,4 +1,5 @@
 import {
+    type AddToQueuePopoverSlotProps,
     configureTraceDrawerReferences,
     type TraceDrawerReferenceSlots,
 } from "@agenta/observability-ui/traceDrawer"
@@ -16,23 +17,20 @@ const TraceSpanPanel = dynamic(() => import("./TraceSpanPanel"), {
     loading: TraceSpanPanelSkeleton,
 })
 
-// The shadcn picker loads on first open. The global drawers sit in the app shell, so a static
-// import here would put the picker in every page.
-const AddToQueuePicker = dynamic(() => import("@/features/annotations/AddToQueuePicker"), {
-    ssr: false,
-})
-
-// The button chunk loads when a drawer header first renders; its sheet loads on the first click.
-const AddToTestsetDrawerButton = dynamic(() => import("./addToTestset/AddToTestsetDrawerButton"), {
-    ssr: false,
-})
+// Every header action (the add-to-queue picker, add to test set) is in one chunk behind one
+// loader, registered under each slot name. The global drawers sit in the app shell, so a static
+// import here would put the actions in every page, and a loader per action would grow the shell.
+const HeaderAction = dynamic<AddToQueuePopoverSlotProps>(
+    () => import("./TraceDrawerHeaderActions"),
+    {ssr: false},
+)
 
 /** Fills the drawer's data slots; their fallback renders nothing, which left every tab empty. */
 export const registerTraceDrawerSlots = () => {
     configureTraceDrawerReferences({
         TraceSpanDrillInView: TraceSpanPanel as unknown as Slot,
         PrettyJsonView: TracePrettyJson as unknown as Slot,
-        AddToQueuePopover: AddToQueuePicker,
-        AddToTestsetButton: AddToTestsetDrawerButton,
+        AddToQueuePopover: HeaderAction,
+        AddToTestsetButton: HeaderAction as unknown as Slot,
     })
 }
