@@ -337,6 +337,15 @@ describe("evaluations screen", () => {
         expect(text()).toContain("No evaluations match your filters")
     })
 
+    it("An empty page with older runs left asks to load more, not Get Started", async () => {
+        env.query = {kind: "human"}
+        http.post.mockResolvedValue(page([], "cursor-1"))
+        await mount()
+        expect(text()).toContain("No matching evaluations in the newest runs")
+        expect(text()).not.toContain("Get Started")
+        expect(button(/Load more/)).toBeDefined()
+    })
+
     it("Load more shows while there is a next page and asks for it", async () => {
         http.post
             .mockResolvedValueOnce(page([makeRun("a")], "cursor-1"))

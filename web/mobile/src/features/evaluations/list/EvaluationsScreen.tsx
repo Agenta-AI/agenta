@@ -23,6 +23,7 @@ import {EvaluationKindTabs} from "./EvaluationKindTabs"
 import {EvaluationRunsTable} from "./EvaluationRunsTable"
 import {RunStatusFilter} from "./RunStatusFilter"
 import {EvaluationsEmpty} from "./states/EvaluationsEmpty"
+import {EvaluationsKeepLooking} from "./states/EvaluationsKeepLooking"
 import {EvaluationsNoMatch} from "./states/EvaluationsNoMatch"
 import {useEvaluationRunsFilters} from "./useEvaluationRunsFilters"
 import {useEvaluationRunsList} from "./useEvaluationRunsList"
@@ -134,7 +135,9 @@ export const EvaluationsScreen = ({
                                     scope={appId ? "app" : "project"}
                                     actions={actions}
                                     empty={
-                                        filtered ? (
+                                        list.hasNextPage ? (
+                                            <EvaluationsKeepLooking />
+                                        ) : filtered ? (
                                             <EvaluationsNoMatch onClear={filters.clearFilters} />
                                         ) : (
                                             <EvaluationsEmpty
