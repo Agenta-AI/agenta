@@ -36,7 +36,7 @@ const CSV = "question,answer\nWhere is my order?,It ships in two days\n"
 
 const PREVIEW_ROWS = [
     {question: "Where is my order?", answer: "It ships in two days", tag: "shipping"},
-    {question: "Can I change my plan?", answer: "Yes, from the billing page", tag: "billing"},
+    {question: "Can I change my plan?", answer: "Yes from the billing page", tag: "billing"},
     {question: "How do I reset my password?", answer: "Use the link on the sign-in page", tag: ""},
     {question: "Do you have an API?", answer: "Yes", tag: "api"},
     {question: "Who can see my data?", answer: "Only members of your project", tag: "privacy"},
