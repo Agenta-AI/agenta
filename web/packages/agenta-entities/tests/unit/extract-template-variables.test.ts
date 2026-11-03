@@ -510,7 +510,76 @@ describe("extractTemplateVariables — non-mustache regressions", () => {
                     '{% if is_vip and status == "vip" and name|length > 0 and user is defined %}',
                     "jinja2",
                 ),
-            ).toEqual(["is_vip", "status", "name", "user"])
+            ).toEqual(["is_vip", "status", "name"])
+        })
+
+        it("does not require a name that is only checked with `is defined`", () => {
+            expect(
+                extractTemplateVariables(
+                    "{% if extra is defined %}A{% endif %}{% if other is not undefined %}B{% endif %}",
+                    "jinja2",
+                ),
+            ).toEqual([])
+            expect(
+                extractTemplateVariables(
+                    "{% if extra is defined %}{{ extra }}{% endif %}{% if n is odd %}{% endif %}",
+                    "jinja2",
+                ),
+            ).toEqual(["extra", "n"])
+        })
+
+        it("skips whole number literals", () => {
+            expect(
+                extractTemplateVariables(
+                    "{% if amount > 1e3 or code == 0x1F or n < 1_000 or r > 1.5e-3 %}{% endif %}{{ items.0.name }}",
+                    "jinja2",
+                ),
+            ).toEqual(["amount", "code", "n", "r", "items"])
+        })
+
+        it("keeps statement names that are valid variables", () => {
+            expect(
+                extractTemplateVariables("{{ required }}{{ include }}{{ scoped }}", "jinja2"),
+            ).toEqual(["required", "include", "scoped"])
+            expect(
+                extractTemplateVariables(
+                    "{% for node in tree recursive %}{{ loop(node.children) }}{% endfor %}",
+                    "jinja2",
+                ),
+            ).toEqual(["tree"])
+        })
+
+        it("keeps Unicode names whole", () => {
+            expect(
+                extractTemplateVariables("{{ prénom }}{% if größe > 1 %}{% endif %}", "jinja2"),
+            ).toEqual(["prénom", "größe"])
+        })
+
+        it("scopes set targets to the if branch that binds them", () => {
+            expect(
+                extractTemplateVariables(
+                    '{% if override %}{% set label = "Fixed" %}{{ label }}{% endif %}{{ label }}',
+                    "jinja2",
+                ),
+            ).toEqual(["override", "label"])
+            expect(
+                extractTemplateVariables(
+                    '{% if use_default %}{% set label = "Default" %}{% else %}{{ label }}{% endif %}',
+                    "jinja2",
+                ),
+            ).toEqual(["use_default", "label"])
+            expect(
+                extractTemplateVariables(
+                    '{% if vip %}{% set label = "A" %}{% elif x %}{% set label = "B" %}{% else %}{% set label = "C" %}{% endif %}{{ label }}',
+                    "jinja2",
+                ),
+            ).toEqual(["vip", "x"])
+            expect(
+                extractTemplateVariables(
+                    "{% for t in tickets %}{{ t }}{% else %}{{ t }}{% endfor %}",
+                    "jinja2",
+                ),
+            ).toEqual(["tickets", "t"])
         })
 
         it("excludes names the template binds itself", () => {
