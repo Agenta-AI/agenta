@@ -18,6 +18,7 @@ import {
 } from "../../fixtures/workflow"
 // The chat panel has no package entry yet, so its parts are imported by their paths.
 
+import {withAppBoxSizing} from "./borderBox"
 import {selectRevision} from "./playgroundFixtures"
 
 /** A chat app's revision: one system message and the chat flag. */
@@ -243,6 +244,8 @@ const meta = {
     title: "@agenta/mobile/Developer/Playground/ChatTurns",
     component: Demo,
     parameters: {
+        // Full width, so a phone viewport shows the turns at the phone's width.
+        layout: "padded",
         agenta: {
             queries: (scope: StoryScope) =>
                 variantNameCellQueries(scope, {
@@ -253,6 +256,7 @@ const meta = {
             args: (scope: StoryScope) => ({revisionId: workflowIds(scope).revisionId}),
         },
     },
+    decorators: [withAppBoxSizing],
 } satisfies Meta<typeof Demo>
 
 export default meta

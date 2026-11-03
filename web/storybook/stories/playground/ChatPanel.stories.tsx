@@ -17,6 +17,7 @@ import {
     type WorkflowIds,
 } from "../../fixtures/workflow"
 
+import {withAppBoxSizing} from "./borderBox"
 import {selectRevision} from "./playgroundFixtures"
 
 /** A chat app's revision; the system message references a variable when `withVariable` is set. */
@@ -171,6 +172,7 @@ const meta = {
             args: (scope: StoryScope) => ({revisionId: workflowIds(scope).revisionId}),
         },
     },
+    decorators: [withAppBoxSizing],
 } satisfies Meta<typeof Demo>
 
 export default meta
