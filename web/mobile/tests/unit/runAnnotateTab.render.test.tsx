@@ -33,9 +33,10 @@ vi.mock("@agenta/shared/api", async (original) => {
     }
 })
 
-// The app output is read through the traces client; these tests do not look at it.
+// Traces (the app output, the annotation values of a row) are read through the traces client.
+const traceReads = vi.hoisted(() => vi.fn(async (_request: unknown) => ({traces: []})))
 vi.mock("@agenta/sdk/resources", async (original) => {
-    const traces = {queryTraces: async () => ({traces: []}), querySpans: async () => ({spans: []})}
+    const traces = {queryTraces: traceReads, querySpans: async () => ({spans: []})}
     return {
         ...(await original<typeof import("@agenta/sdk/resources")>()),
         getTracesClient: () => traces,
@@ -344,11 +345,14 @@ describe("run annotate tab", () => {
         const before = {traces: {}}
         client.setQueryData(annotationTrace, before)
         await click("True")
+        traceReads.mockClear()
         await click("Annotate")
         await settle()
 
-        // Dropped, then read again with the refreshed rows.
+        // The cached copy is dropped, and the refreshed rows read the annotation trace again.
         expect(client.getQueryData(annotationTrace)).not.toBe(before)
+        // The traces client takes ids without dashes.
+        expect(JSON.stringify(traceReads.mock.calls)).toContain("annsc1")
         expect(bodyOf("/simple/traces/")).toBeUndefined()
         const update = writes().find((call) => call.url.includes("/simple/traces/ann-sc-1"))
         expect(update?.url).toBe(`${API}/simple/traces/ann-sc-1`)
@@ -401,6 +405,39 @@ describe("run annotate tab", () => {
         await mountTab({annotated: {"sc-1": true}})
         expect(button("Annotate")).toBeUndefined()
         expect(button("False")?.closest("[inert]")).not.toBeNull()
+    })
+
+    it("Cmd or Ctrl+Enter saves the form, and a reader without edit rights saves nothing", async () => {
+        await mountTab()
+        await click("True")
+        const save = () =>
+            act(async () => {
+                document.dispatchEvent(
+                    new KeyboardEvent("keydown", {key: "Enter", ctrlKey: true, bubbles: true}),
+                )
+            })
+        await save()
+        await settle()
+        expect(bodyOf("/simple/traces/")).toBeDefined()
+        expect(toast.success).toHaveBeenCalledWith("Annotations saved successfully")
+
+        await act(async () => root.unmount())
+        root = createRoot(host)
+        access.canAnnotate = false
+        await mountTab()
+        // A change is pending, so only the missing edit right stops the save.
+        await act(async () =>
+            annotationFormController.set.updateMetric({
+                scenarioId: "sc-1",
+                slug: "quality",
+                fieldKey: "good",
+                value: false,
+            }),
+        )
+        state.calls.length = 0
+        await save()
+        await settle()
+        expect(writes()).toEqual([])
     })
 
     it("Next moves the form to the next scenario", async () => {

@@ -148,6 +148,10 @@ describe("scenarios tab", () => {
         expect(rows[0].textContent).toContain("Success")
         expect(rows[0].textContent).toContain("France")
         expect(rows[2].textContent).toContain("Chile")
+        // An automatic run has nothing to annotate by hand.
+        expect([...host.querySelectorAll("button")].map((b) => b.textContent)).not.toContain(
+            "Annotate",
+        )
     })
 
     it("Group headers use the test set and evaluator names", async () => {

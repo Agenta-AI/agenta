@@ -1287,30 +1287,32 @@ async function awaitStepResultUpserts({
 }
 
 /**
- * Fire-and-forget metric upserts — supplementary data, not critical for annotation resolution.
+ * Metric upserts — supplementary data, not critical for annotation resolution. A failure is
+ * logged, never thrown; the returned promise settles when every write has.
  */
-function fireMetricUpserts({
+function writeMetricUpserts({
     entries,
     annotationSteps,
     invocationStepKey,
     projectId,
     runId,
     scenarioId,
-}: PostSubmitOpsParams): void {
+}: PostSubmitOpsParams): Promise<void> {
     const stepKeyBySlug = resolveStepKeyBySlug(annotationSteps)
 
-    for (const entry of entries) {
+    const writes = entries.map((entry) => {
         const annotationStepKey =
             stepKeyBySlug.get(entry.slug) ?? `${invocationStepKey}.${entry.slug}`
 
-        upsertAnnotationMetrics({
+        return upsertAnnotationMetrics({
             projectId,
             runId,
             scenarioId,
             outputs: entry.outputs,
             stepKey: annotationStepKey,
         }).catch((err) => console.warn("[annotationForm] Metric save failed:", err))
-    }
+    })
+    return Promise.all(writes).then(() => undefined)
 }
 
 // ============================================================================
@@ -1605,8 +1607,9 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
                 scenarioId,
             })
 
-            // Fire-and-forget: metrics are supplementary
-            fireMetricUpserts({
+            // Metrics are supplementary: a queue does not wait for them. A run's screens read the
+            // scenario scores again right after the save, so a run waits.
+            const metricWrites = writeMetricUpserts({
                 entries: submittedEntries,
                 annotationSteps: currentAnnotationSteps,
                 invocationStepKey,
@@ -1614,6 +1617,7 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
                 runId,
                 scenarioId,
             })
+            if (!queueId) await metricWrites
         }
 
         const submittedAnnotations = responses.filter(isAnnotationResponse)

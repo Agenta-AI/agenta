@@ -1368,7 +1368,9 @@ const scenarioAnnotationsAtomFamily = atomFamily((scenarioId: string) =>
             return query.data ?? []
         }
 
-        // Path 2: Testcase-based resolution (for testcase queues without trace_id)
+        // Path 2: Testcase-based resolution (for testcase queues without trace_id). Never in a
+        // run opened directly: a test case query returns every run's annotations of that case.
+        if (get(runScopeIdAtom)) return []
         const testcaseRef = get(scenarioTestcaseRefAtomFamily(scenarioId))
         if (testcaseRef.testcaseId) {
             const testcaseQuery = get(
@@ -1392,6 +1394,7 @@ const scenarioAnnotationsQueryStateAtomFamily = atomFamily((scenarioId: string) 
             return get(scenarioAnnotationsQueryAtomFamily({scenarioId, annotationTraceIds}))
         }
 
+        if (get(runScopeIdAtom)) return null
         const testcaseRef = get(scenarioTestcaseRefAtomFamily(scenarioId))
         if (testcaseRef.testcaseId) {
             return get(
@@ -2004,7 +2007,7 @@ async function invalidateScenarioAnnotations(
                 }
             }
         }
-    } else if (projectId) {
+    } else if (projectId && !store.get(runScopeIdAtom)) {
         const testcaseRef = store.get(scenarioTestcaseRefAtomFamily(scenarioId))
         if (testcaseRef.testcaseId) {
             try {
