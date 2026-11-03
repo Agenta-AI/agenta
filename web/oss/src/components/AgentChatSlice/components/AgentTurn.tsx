@@ -19,7 +19,7 @@ interface AgentTurnProps {
     isStreaming: boolean
     /** The previous turn is a settled assistant turn with no content at all. */
     precededByEmptyAssistant: boolean
-    /** A user turn borrows the paired assistant turn's trace so its timestamp dates from the run. */
+    /** A user turn borrows the paired assistant turn's trace id to find its session turn's time. */
     turnTraceId?: string
     /** This turn is the inspector's current target — tint it. */
     inspected: boolean

@@ -984,14 +984,123 @@ async def test_watchdog_keeps_lost_continuation_recoverable():
         executions_dao=executions,
     )
 
-    assert not await service.settle_execution_lost(
+    settlement = await service.settle_execution_lost(
         project_id=project_id,
         session_id="session-1",
         execution_id="continuation-1",
         settled_at=datetime.now(timezone.utc),
     )
+    assert settlement.settled is False
     assert executions.continuation.state == SessionExecutionState.recoverable
     assert executions.continuation.terminal_outcome is None
+
+
+@pytest.mark.asyncio
+async def test_a_lost_turn_promotes_the_next_queued_input():
+    project_id = uuid4()
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+    items = _Inputs(
+        [
+            _pending_input(project_id, policy="queue", position=1),
+            _pending_input(project_id, policy="queue", position=2),
+        ]
+    )
+    commands = _Commands()
+    delivery = _Unreachable()
+    service = SessionCommandsService(
+        commands_dao=commands,
+        streams_service=None,
+        interactions_service=None,
+        lock_engine=None,
+        delivery=delivery,
+        executions_dao=executions,
+        inputs_dao=items,
+    )
+
+    settlement = await service.settle_execution_lost(
+        project_id=project_id,
+        session_id="session-1",
+        execution_id="source-1",
+        settled_at=datetime.now(timezone.utc),
+    )
+
+    assert settlement.settled is True
+    assert executions.source.terminal_outcome == "lost"
+    assert items.items[0].state == PendingInputState.promoted
+    assert items.items[1].state == PendingInputState.pending
+    assert commands.command.kind == SessionCommandKind.continue_input
+    assert commands.command.expected_turn_id == "source-1"
+    assert delivery.delivered == []
+
+    await service.deliver_input_admission(settlement.admission)
+
+    assert delivery.delivered == [commands.command]
+
+
+@pytest.mark.asyncio
+async def test_a_raised_delivery_leaves_the_promoted_input_recoverable():
+    project_id = uuid4()
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+
+    class _Raising(_Unreachable):
+        async def deliver(self, **kwargs):
+            raise RuntimeError("refusal settlement failed")
+
+    service = SessionCommandsService(
+        commands_dao=_Commands(),
+        streams_service=None,
+        interactions_service=None,
+        lock_engine=None,
+        delivery=_Raising(),
+        executions_dao=executions,
+        inputs_dao=_Inputs([_pending_input(project_id, policy="queue", position=1)]),
+    )
+    settlement = await service.settle_execution_lost(
+        project_id=project_id,
+        session_id="session-1",
+        execution_id="source-1",
+        settled_at=datetime.now(timezone.utc),
+    )
+
+    await service.deliver_input_admission(settlement.admission)
+
+    assert executions.continuation.state == SessionExecutionState.recoverable
+
+
+@pytest.mark.asyncio
+async def test_a_lost_turn_that_was_stopping_leaves_the_queue_parked():
+    project_id = uuid4()
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+    executions.source = executions.source.model_copy(
+        update={"state": SessionExecutionState.stopping}
+    )
+    items = _Inputs([_pending_input(project_id, policy="queue", position=1)])
+    service = SessionCommandsService(
+        commands_dao=_Commands(),
+        streams_service=None,
+        interactions_service=None,
+        lock_engine=None,
+        delivery=_Unreachable(),
+        executions_dao=executions,
+        inputs_dao=items,
+    )
+
+    settlement = await service.settle_execution_lost(
+        project_id=project_id,
+        session_id="session-1",
+        execution_id="source-1",
+        settled_at=datetime.now(timezone.utc),
+    )
+
+    assert settlement.settled is True
+    assert settlement.admission is None
+    assert items.items[0].state == PendingInputState.pending
 
 
 @pytest.mark.asyncio

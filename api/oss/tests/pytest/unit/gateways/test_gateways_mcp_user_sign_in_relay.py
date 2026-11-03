@@ -31,7 +31,6 @@ from oss.src.core.gateways.mcps.types import (
 from oss.src.core.gateways.policy.dtos import (
     BoundSecretRef,
     ResolvedSecret,
-    SecretMode,
     SecretOrigin,
     SecretOwner,
     SecretOwnerKind,
@@ -146,13 +145,11 @@ class _RecordingResolver:
 
     def __init__(self, *, secrets: Optional[List[ResolvedSecret]] = None, error=None):
         self.refs: List[BoundSecretRef] = []
-        self.modes: List[SecretMode] = []
         self._secrets = list(secrets or [])
         self._error = error
 
-    async def resolve(self, *, scope, ref, mode):
+    async def resolve(self, *, scope, ref):
         self.refs.append(ref)
-        self.modes.append(mode)
         if self._error is not None:
             raise self._error
         return self._secrets[min(len(self.refs), len(self._secrets)) - 1]
@@ -258,9 +255,7 @@ async def test_a_sign_in_deleted_since_run_start_is_not_found():
     dao = MockMCPEndpointsDAO()
     await _server(dao)
     resolver = _RecordingResolver(
-        error=SecretNotFoundError(
-            mode=SecretMode.USER_REQUIRED, missing=SecretOwnerKind.USER, target="x"
-        )
+        error=SecretNotFoundError(missing=SecretOwnerKind.USER, target="x")
     )
     service = _relay_service(
         mcp_endpoints_dao=dao,

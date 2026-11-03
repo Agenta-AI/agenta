@@ -244,6 +244,13 @@ it.each([{environments: []}, {environments: ["local"]}, {environments: ["local",
                 (node) => node.textContent?.includes("Advanced"),
             )!
             await act(async () => advanced.click())
+            // The drawer mounts its body two frames after it opens.
+            await act(
+                () =>
+                    new Promise<void>((resolve) =>
+                        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+                    ),
+            )
             expect(document.body.textContent?.includes("Execution environment")).toBe(
                 environments.length > 1,
             )

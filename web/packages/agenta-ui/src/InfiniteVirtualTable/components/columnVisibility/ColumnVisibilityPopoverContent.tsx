@@ -1,7 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {FolderOpenOutlined, FileOutlined} from "@ant-design/icons"
-import {ArrowCounterClockwise} from "@phosphor-icons/react"
+import {ArrowCounterClockwise, File as FileIcon, FolderOpen} from "@phosphor-icons/react"
 import {LOW_PRIORITY, useSetAtomWithSchedule} from "jotai-scheduler"
 
 import {Button} from "../../../components/ui/button"
@@ -28,6 +27,12 @@ export interface ColumnVisibilityPopoverContentProps<RowType extends object> {
 }
 
 type VisibilityTreeNode = CheckboxTreeNode & {searchLabel: string; children?: VisibilityTreeNode[]}
+
+/** The box antd's `.anticon` gave these icons: 1em wide, inline-block, 0.125em below the baseline. */
+const ANTD_ICON_BOX = {
+    size: "1em",
+    style: {display: "inline-block", verticalAlign: "-0.125em"},
+} as const
 
 const ColumnVisibilityPopoverContent = <RowType extends object>({
     onClose,
@@ -127,7 +132,11 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
                         label
                     ),
                 searchValues: [typeof label === "string" ? label : undefined, key],
-                icon: hasChildren ? <FolderOpenOutlined /> : <FileOutlined />,
+                icon: hasChildren ? (
+                    <FolderOpen {...ANTD_ICON_BOX} />
+                ) : (
+                    <FileIcon {...ANTD_ICON_BOX} />
+                ),
             }
         },
         [],
@@ -145,7 +154,11 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
                 const icon =
                     meta.icon ??
                     defaultMeta.icon ??
-                    (hasChildren ? <FolderOpenOutlined /> : <FileOutlined />)
+                    (hasChildren ? (
+                        <FolderOpen {...ANTD_ICON_BOX} />
+                    ) : (
+                        <FileIcon {...ANTD_ICON_BOX} />
+                    ))
                 const searchValues = meta.searchValues ??
                     defaultMeta.searchValues ?? [
                         node.label ?? undefined,

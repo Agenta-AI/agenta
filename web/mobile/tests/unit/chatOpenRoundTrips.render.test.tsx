@@ -31,6 +31,7 @@ vi.mock("@agenta/sdk/resources", () => ({
 // The fresh-session marker only; the rest of the session entity is not read here.
 vi.mock("@agenta/entities/session", () => ({
     isSessionFresh: (sessionId: string) => fresh.has(sessionId),
+    forgetSessionCreatedHere: () => undefined,
 }))
 // The session fetch the screen already makes carries the caller's sharing state.
 const header = vi.hoisted(() => ({data: null as unknown}))

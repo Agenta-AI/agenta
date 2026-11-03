@@ -75,7 +75,12 @@ export const AutomationDetailScreen = ({
     // One modal for both questions this screen can ask (leave without saving, delete) would mean
     // one of them waiting on the other; the menu owns its own.
     const {confirm, modal} = useConfirmModal()
-    const leave = useUnsavedGuard({dirty, confirm})
+    const leave = useUnsavedGuard({
+        dirty,
+        confirm,
+        title: "Leave without saving?",
+        message: "This automation has changes you haven't saved. Leaving discards them.",
+    })
 
     // `?view=runs` opens straight on the history — a list row that promises runs should not
     // land the reader on the config to find them.

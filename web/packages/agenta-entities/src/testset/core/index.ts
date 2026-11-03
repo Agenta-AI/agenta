@@ -32,6 +32,15 @@ export {
     isNewTestsetId,
 } from "./schema"
 
+// File import helpers (pure, no external dependencies)
+export {
+    detectTestsetFileType,
+    parseCsvRows,
+    readTestsetFilePreview,
+    type TestsetFileType,
+    type TestsetFilePreviewResult,
+} from "./fileImport"
+
 // API parameter types
 export type {
     RevisionListParams,

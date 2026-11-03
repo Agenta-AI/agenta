@@ -205,7 +205,8 @@ export const FirstRunTemplates = ({
                         >
                             <TemplateCard
                                 template={template}
-                                onSelect={disabled ? () => undefined : onPick}
+                                onSelect={onPick}
+                                disabled={disabled}
                             />
                         </div>
                     ))}

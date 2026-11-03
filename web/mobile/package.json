@@ -1,6 +1,6 @@
 {
     "name": "@agenta/mobile",
-    "version": "0.128.0",
+    "version": "0.128.4",
     "private": true,
     "engines": {
         "node": "24.x"
@@ -18,9 +18,12 @@
         "tokens:check": "tsx scripts/generate-shadcn-tokens.ts --check",
         "test": "pnpm run test:unit",
         "test:unit": "vitest run",
-        "test:watch": "vitest"
+        "test:watch": "vitest",
+        "speed:check": "node scripts/speed/check.mjs",
+        "speed:timing": "node scripts/speed/check.mjs --timing"
     },
     "dependencies": {
+        "@agenta/annotation": "workspace:../packages/agenta-annotation",
         "@agenta/auth": "workspace:../packages/agenta-auth",
         "@agenta/auth-ui": "workspace:../packages/agenta-auth-ui",
         "@agenta/automation-ui": "workspace:../packages/agenta-automation-ui",

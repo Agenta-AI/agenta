@@ -56,6 +56,8 @@ import {agentEntryHref} from "@/features/agents/agentEntry"
 import {shareDialogRequestAtom} from "@/features/chat/shareDialogState"
 import {useLeaveSession} from "@/features/chat/useLeaveSession"
 import {startBlankSession} from "@/features/chat/useStartBlankSession"
+import {developerNavItems} from "@/features/developer/developerNavItems"
+import {useEnabledDeveloperViews} from "@/features/developer/developerViewAccess"
 import {whatsNewAtom} from "@/features/education/whatsNewAtom"
 
 import {AgentsNavAction} from "./AgentsNavAction"
@@ -201,6 +203,7 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
             ? {faces: shortcutFaces(shortcut, mac), aria: shortcutAria(PALETTE_SHORTCUT_ID)}
             : undefined
     }, [mac])
+    const developerViews = useEnabledDeveloperViews()
     const wrapSessionRow = useCallback(
         (ref: SidebarEntityRef, node: ReactNode) =>
             createElement(SessionRowActions, {
@@ -292,8 +295,9 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                       },
                   ]
                 : []),
+            ...developerNavItems(projectURL, developerViews),
         ],
-        [loadMoreSessions, source, projectURL, wrapSessionRow, paletteShortcut],
+        [loadMoreSessions, source, projectURL, wrapSessionRow, paletteShortcut, developerViews],
     )
 }
 

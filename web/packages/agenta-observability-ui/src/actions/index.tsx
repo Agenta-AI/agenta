@@ -5,14 +5,10 @@ import {Button} from "@agenta/ui/ui"
 import {DropdownMenu, DropdownMenuContent, DropdownMenuTrigger} from "@agenta/ui/ui"
 import {DatabaseIcon, ListChecks, ListPlus, PlusIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
-import dynamic from "next/dynamic"
+
+import {getTraceDrawerReferences} from "../traceDrawer/referenceSlots"
 
 import {AddActionsDropdownProps} from "./types"
-
-const AddToQueuePopover = dynamic(
-    () => import("@agenta/annotation-ui/add-to-queue").then((m) => m.default),
-    {ssr: false},
-)
 
 /** Which queue action the (single) picker popover is serving. */
 type QueueScope = "selected" | "all-matching"
@@ -182,6 +178,7 @@ const AddActionsDropdown = ({
         </DropdownMenu>
     )
 
+    const {AddToQueuePopover} = getTraceDrawerReferences()
     const hasQueuePicker = Boolean(queueAction || queueAllMatchingAction)
     // When the picker is closed `queueScope` is null — fall back to whichever
     // action exists so the popover always has a coherent set of props.

@@ -198,6 +198,7 @@ const RowLabel = memo(function RowLabel({
             // Browsers drag anchors natively; without this the link ghost rides along with ours.
             draggable={false}
             href={item.link}
+            prefetch={item.prefetch}
             target={isExternal(item.link) ? "_blank" : undefined}
             rel={isExternal(item.link) ? "noopener noreferrer" : undefined}
             onClick={linkClickHandler(item, onItemSelect)}
@@ -473,6 +474,7 @@ export const FlyoutChildren = ({
                         {child.link ? (
                             <Link
                                 href={child.link}
+                                prefetch={child.prefetch}
                                 className="!text-inherit no-underline"
                                 target={isExternal(child.link) ? "_blank" : undefined}
                                 rel={isExternal(child.link) ? "noopener noreferrer" : undefined}
@@ -730,6 +732,7 @@ const RowLabelCollapsed = ({
         aria-label={item.title}
         className="absolute inset-0"
         href={item.link ?? "#"}
+        prefetch={item.prefetch}
         target={isExternal(item.link) ? "_blank" : undefined}
         rel={isExternal(item.link) ? "noopener noreferrer" : undefined}
         onClick={linkClickHandler(item, onItemSelect)}

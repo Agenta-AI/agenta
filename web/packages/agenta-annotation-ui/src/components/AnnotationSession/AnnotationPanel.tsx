@@ -22,7 +22,7 @@ import {Info} from "@phosphor-icons/react"
 import {Alert, Button, Collapse, Popover, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {useAnnotationFormState} from "../../hooks/useAnnotationFormState"
+import {useAnnotationFormState} from "../../state/useAnnotationFormState"
 
 import AnnotationFormField from "./AnnotationFormField"
 

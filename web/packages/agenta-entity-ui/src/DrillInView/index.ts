@@ -453,11 +453,18 @@ export type {ReferenceToolFormViewProps} from "./SchemaControls/ReferenceToolFor
 export {McpServerFormView} from "./SchemaControls/McpServerFormView"
 export type {McpServerFormViewProps} from "./SchemaControls/McpServerFormView"
 export {SkillFormView} from "./SchemaControls/SkillFormView"
+export {SkillFormSkeleton} from "./SchemaControls/DrawerSkeletons"
 export type {SkillFormViewProps} from "./SchemaControls/SkillFormView"
 export {SkillUploadZone} from "./SchemaControls/SkillUploadZone"
 export type {SkillUploadZoneProps} from "./SchemaControls/SkillUploadZone"
 export {scanSkillFromDataTransfer, scanSkillFromFileList} from "./SchemaControls/skillUpload"
 export type {ParsedSkill, SkillScanCandidate, SkillUploadScan} from "./SchemaControls/skillUpload"
+export {
+    buildSkillDownload,
+    composeSkillMarkdown,
+    downloadSkill,
+} from "./SchemaControls/skillDownload"
+export type {SkillDownload} from "./SchemaControls/skillDownload"
 
 // Agent config panel — presentational siblings of the AgentTemplateControl container (the
 // control itself stays code-split behind SchemaPropertyRenderer's lazy import). Prop-driven,

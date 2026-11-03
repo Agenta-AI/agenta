@@ -97,17 +97,27 @@ const isFoldable = (item: RenderItem): boolean =>
 const isMessage = (item: RenderItem): item is RenderItem & {kind: "part"; part: TextUIPart} =>
     item.kind === "part" && item.part.type === "text" && !!(item.part as TextUIPart).text?.trim()
 
-export const splitTurnActivity = (items: RenderItem[]): ActivitySplit => {
+export interface SplitTurnActivityOptions {
+    /** The run is over: messages written between steps fold in as thoughts. */
+    settled?: boolean
+}
+
+export const splitTurnActivity = (
+    items: RenderItem[],
+    {settled = false}: SplitTurnActivityOptions = {},
+): ActivitySplit => {
     // Read from the turn's own items: a notice can sit in a different message of the same run, so
     // the call it explains is not always beside it by the time the run is merged.
     const notices = noticesOf(items)
     const steps: ActivityStep[] = []
-    const messages: ActivitySplit["messages"] = []
+    // Each message with where it fell among the steps: `at` in the list, `work` steps seen so far.
+    const written: {index: number; part: TextUIPart; at: number; work: number}[] = []
+    let work = 0
     // Keyed by ordinal, not raw part position: the stream shuffles positions as it folds messages.
     let thoughts = 0
     items.forEach((item, position) => {
         if (isMessage(item)) {
-            messages.push({index: position, part: item.part})
+            written.push({index: position, part: item.part, at: steps.length, work})
             return
         }
         if (!isFoldable(item)) return
@@ -115,6 +125,7 @@ export const splitTurnActivity = (items: RenderItem[]): ActivitySplit => {
             const part = item.part as ReasoningUIPart
             const text = part.text ?? ""
             if (!text.trim()) return
+            work++
             steps.push({
                 kind: "thought",
                 key: `thought-${thoughts++}`,
@@ -125,6 +136,7 @@ export const splitTurnActivity = (items: RenderItem[]): ActivitySplit => {
         }
         if (item.kind === "clientTool") {
             if (hiddenQuestion(item.part)) return
+            work++
             steps.push({
                 kind: "client",
                 key: item.part.toolCallId ?? `client-${item.index}`,
@@ -135,10 +147,13 @@ export const splitTurnActivity = (items: RenderItem[]): ActivitySplit => {
         if (item.kind !== "tools") return
         item.parts.forEach((part, n) => {
             if (hiddenFromFold(part, notices)) return
+            work++
             const file = fileWritten(part)
             const last = steps[steps.length - 1]
+            // A message folded in after the last step would otherwise land after a later write.
+            const messageBetween = settled && written.at(-1)?.at === steps.length
             // A run of writes reads as one step: "Wrote a.md and 3 others".
-            if (file && last?.kind === "tool" && last.files.length) {
+            if (file && last?.kind === "tool" && last.files.length && !messageBetween) {
                 last.files = dedupeByPath([...last.files, file])
                 return
             }
@@ -150,6 +165,23 @@ export const splitTurnActivity = (items: RenderItem[]): ActivitySplit => {
             })
         })
     })
+    // Once the run is over the reader keeps the messages after the last step, or the last one.
+    const trailing = written.filter((message) => message.work === work)
+    const kept = new Set(!settled ? written : trailing.length ? trailing : written.slice(-1))
+    // Back to front, so each insert leaves the earlier `at` positions valid.
+    for (let i = written.length - 1; i >= 0; i--) {
+        const message = written[i]
+        if (kept.has(message)) continue
+        steps.splice(message.at, 0, {
+            kind: "thought",
+            key: `note-${i}`,
+            text: message.part.text,
+            streaming: false,
+        })
+    }
+    const messages = written
+        .filter((message) => kept.has(message))
+        .map(({index, part}) => ({index, part}))
     return {steps, messages}
 }
 
