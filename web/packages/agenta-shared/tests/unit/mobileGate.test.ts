@@ -788,17 +788,19 @@ describe("invite links", () => {
         }
     })
 
-    it("keeps a reset link on /m for a Classic mode user", () => {
-        expect(
-            decideMobileGate(
-                input({
-                    pathname: "/auth/reset-password",
-                    search: RESET_SEARCH,
-                    headers: docHeaders(DESKTOP_UA),
-                    cookie: cookies({[CLASSIC_MODE_COOKIE]: "1"}),
-                }),
-            ),
-        ).toEqual({kind: "pass"})
+    it("keeps the reset page on /m for a Classic mode user, with or without a token", () => {
+        for (const search of [RESET_SEARCH, ""]) {
+            expect(
+                decideMobileGate(
+                    input({
+                        pathname: "/auth/reset-password",
+                        search,
+                        headers: docHeaders(DESKTOP_UA),
+                        cookie: cookies({[CLASSIC_MODE_COOKIE]: "1"}),
+                    }),
+                ),
+            ).toEqual({kind: "pass"})
+        }
     })
 
     it("keeps an invite on /m for a Classic mode user", () => {

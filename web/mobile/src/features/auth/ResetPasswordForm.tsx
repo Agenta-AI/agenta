@@ -46,7 +46,10 @@ export const ResetPasswordForm = ({onDone, onInvalidLink}: ResetPasswordFormProp
                 autoFocus
                 size="lg"
                 className={FIELD_CLASS}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={(event) => {
+                    setPassword(event.target.value)
+                    setError(null)
+                }}
             />
             <Input
                 type="password"
@@ -57,7 +60,10 @@ export const ResetPasswordForm = ({onDone, onInvalidLink}: ResetPasswordFormProp
                 value={confirm}
                 size="lg"
                 className={FIELD_CLASS}
-                onChange={(event) => setConfirm(event.target.value)}
+                onChange={(event) => {
+                    setConfirm(event.target.value)
+                    setError(null)
+                }}
             />
             <LoadingButton type="submit" size="lg" loading={saving} className={KEYCAP_CLASS}>
                 {saving ? "Saving…" : "Set password"}

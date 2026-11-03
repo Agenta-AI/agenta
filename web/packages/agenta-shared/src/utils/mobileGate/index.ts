@@ -90,9 +90,12 @@ export function isInviteLink(pathname: string, search: string): boolean {
     return Boolean(params.get("token") && params.get("organization_id"))
 }
 
-/** A SuperTokens password reset link (`website_base_path` + `/reset-password?token=`); `/m` has the page. */
+/** The reset password page; only `/m` has it. */
+const RESET_PASSWORD_ROUTE_RE = /^\/auth\/reset-password\/?$/
+
+/** A SuperTokens password reset link (`website_base_path` + `/reset-password?token=`). */
 export function isResetPasswordLink(pathname: string, search: string): boolean {
-    if (!/^\/auth\/reset-password\/?$/.test(pathname)) return false
+    if (!RESET_PASSWORD_ROUTE_RE.test(pathname)) return false
     return Boolean(new URLSearchParams(search).get("token"))
 }
 
@@ -428,7 +431,7 @@ export function decideMobileGate(input: GateInput): GateDecision {
         if (
             INVITE_ROUTE_RE.test(input.pathname) ||
             isInviteLink(input.pathname, input.search) ||
-            isResetPasswordLink(input.pathname, input.search)
+            RESET_PASSWORD_ROUTE_RE.test(input.pathname)
         ) {
             return {kind: "pass"}
         }
