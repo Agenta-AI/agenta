@@ -1,6 +1,6 @@
 import {useState} from "react"
 
-import {Badge, Button} from "@agenta/ui/ui"
+import {Badge} from "@agenta/ui/ui"
 import {CaretDownIcon, CaretRightIcon} from "@phosphor-icons/react"
 
 import {useRevisionParam} from "../../revisions/useRevisionParam"
@@ -57,14 +57,14 @@ export const EvaluatorConfigCard = ({
                 </button>
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
-                        <Button
-                            variant="link"
-                            className="h-auto min-w-0 justify-start p-0 text-left font-semibold"
+                        <button
+                            type="button"
                             disabled={!revisionId}
                             onClick={() => revisionId && setRevisionId(revisionId)}
+                            className="m-0 min-w-0 cursor-pointer break-words border-0 bg-transparent p-0 text-left text-sm font-semibold text-foreground hover:underline disabled:cursor-default disabled:no-underline"
                         >
-                            <span className="truncate">{name}</span>
-                        </Button>
+                            {name}
+                        </button>
                         {latest ? (
                             <Badge variant="outlined">Latest</Badge>
                         ) : version === null ? null : (

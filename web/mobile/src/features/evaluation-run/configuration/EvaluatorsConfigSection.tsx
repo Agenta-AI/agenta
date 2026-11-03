@@ -9,7 +9,11 @@ export const EvaluatorsConfigSection = ({evaluators}: {evaluators: readonly Eval
     <ConfigSection
         id="config-evaluators"
         title="Evaluators"
-        subtitle={evaluators.length > 0 ? `${evaluators.length}` : null}
+        subtitle={
+            evaluators.length > 0
+                ? `${evaluators.length} ${evaluators.length === 1 ? "evaluator" : "evaluators"}`
+                : null
+        }
     >
         {evaluators.length === 0 ? (
             <p className="m-0 text-sm text-muted-foreground">
