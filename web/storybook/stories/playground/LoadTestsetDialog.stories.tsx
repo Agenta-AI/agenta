@@ -22,8 +22,7 @@ const meta = {
         connectedRevisionId: null,
         connectedTestsetId: null,
         singleSelect: false,
-        onLoad: fn(),
-        onEdit: fn(),
+        onConfirm: fn(),
         onCancel: fn(),
     },
 } satisfies Meta<typeof LoadTestsetDialog>

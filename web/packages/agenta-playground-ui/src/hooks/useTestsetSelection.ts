@@ -1,7 +1,8 @@
 /**
  * useTestsetSelection Hook
  *
- * Manages testset and revision selection state for the TestsetSelectionModal.
+ * Manages the picked test set and revision of a test set selection dialog (the old app's
+ * TestsetSelectionModal and the /m LoadTestsetDialog).
  * Handles loading revision info and tracking selection state.
  *
  * Note: The testsetName comes from the testset entity, not the revision.
@@ -9,7 +10,7 @@
  *
  * Selection behavior:
  * - Load mode: No auto-selection. User must manually select testcases.
- * - Edit mode: Selection is pre-initialized by TestsetDropdown before modal opens.
+ * - Edit mode: the caller seeds the selection draft before the dialog opens.
  *   This hook does NOT auto-select - it only manages the selected testset/revision.
  */
 
@@ -114,7 +115,7 @@ export function useTestsetSelection(
     // compare against it without taking selectedRevisionId as a useCallback dep.
     // Adding selectedRevisionId to the dep array would give handleSetSelection a
     // new reference on every revision change, which propagates through the inline
-    // arrow chain (LoadModeContent → TestsetSelectionSidebar → EntityPicker →
+    // arrow chain (the dialog → EntityPicker →
     // ListPopoverVariant) and can trigger useAutoSelectLatestChild's effect to
     // re-run while AutoSelectHandler is still mounted, causing a second
     // initSelectionDraft call that resets the user's in-progress selection.
@@ -123,7 +124,7 @@ export function useTestsetSelection(
 
     // Handle selection change (both revision and testset)
     // Note: This does NOT auto-select testcases. For edit mode, selection is
-    // pre-initialized by TestsetDropdown before opening the modal.
+    // seeded by the caller before the dialog opens.
     // For load mode, user must manually select testcases.
     const handleSetSelection = useCallback(
         (revisionId: string | null, testsetId: string | null) => {
@@ -135,11 +136,15 @@ export function useTestsetSelection(
             // second time because the user clicked the already-selected parent),
             // preserving the existing draft prevents a spurious selection reset
             // that would undo testcase selections the user already made.
+            // The preselected rows belong to the initial revision: another one starts empty.
             if (revisionId && revisionId !== selectedRevisionIdRef.current) {
-                initSelectionDraft(revisionId, preselectedIds)
+                initSelectionDraft(
+                    revisionId,
+                    revisionId === initialRevisionId ? preselectedIds : [],
+                )
             }
         },
-        [initSelectionDraft, preselectedIds],
+        [initSelectionDraft, initialRevisionId, preselectedIds],
     )
 
     return {

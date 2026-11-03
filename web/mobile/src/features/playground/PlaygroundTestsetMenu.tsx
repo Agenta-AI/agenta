@@ -61,8 +61,7 @@ export const PlaygroundTestsetMenu = () => {
                     connectedRevisionId={model.connectedRevisionId}
                     connectedTestsetId={model.connectedTestsetId}
                     singleSelect={model.isChat}
-                    onLoad={model.confirmLoad}
-                    onEdit={model.confirmEdit}
+                    onConfirm={dialog.kind === "edit" ? model.confirmEdit : model.confirmLoad}
                     onCancel={model.close}
                 />
             ) : null}

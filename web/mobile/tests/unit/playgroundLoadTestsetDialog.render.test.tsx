@@ -6,7 +6,7 @@
 import {act} from "react"
 
 import {testcaseMolecule} from "@agenta/entities/testcase"
-import type {TestsetEditPayload, TestsetLoadPayload} from "@agenta/playground-ui/hooks"
+import type {TestsetLoadPayload} from "@agenta/playground-ui/hooks"
 import {LoadTestsetDialog} from "@agenta/playground-ui/panels/testsets"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
@@ -36,6 +36,7 @@ const RIVERS = "3e2c9f40-4f50-4162-9d2e-3f4a5b6c7d8e"
 const CAPITALS_V1 = "5e0b1c2d-3949-4b5c-8d6e-9f0a1b2c3d4e"
 const CAPITALS_V2 = "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f"
 const RIVERS_V1 = "8b3e4f50-6c7d-4e8f-a091-2c3d4e5f6071"
+const NILE = "f1b2c3d4-0000-4000-8000-000000000009"
 
 const row = (n: number, country: string) => ({
     id: `a1b2c3d4-0000-4000-8000-00000000000${n}`,
@@ -95,7 +96,9 @@ const routeHttp = () => {
                     ? CAPITAL_ROWS
                     : ref === CAPITALS_V1
                       ? CAPITAL_ROWS.slice(0, 1)
-                      : []
+                      : ref === RIVERS_V1
+                        ? [{id: NILE, testset_id: RIVERS, data: {river: "Nile"}}]
+                        : []
             return {data: {count: testcases.length, testcases, windowing: {next: null}}}
         }
         return {data: {}}
@@ -107,8 +110,7 @@ let root: Root
 let host: HTMLDivElement
 let projectId = "proj-700"
 let wide = true
-const onLoad = vi.fn<(payload: TestsetLoadPayload) => void>()
-const onEdit = vi.fn<(payload: TestsetEditPayload) => void>()
+const onConfirm = vi.fn<(payload: TestsetLoadPayload) => void>()
 const onCancel = vi.fn()
 
 const render = async (props: {
@@ -125,8 +127,7 @@ const render = async (props: {
                     connectedRevisionId={props.connectedRevisionId ?? null}
                     connectedTestsetId={props.connectedRevisionId ? CAPITALS : null}
                     singleSelect={props.singleSelect ?? false}
-                    onLoad={onLoad}
-                    onEdit={onEdit}
+                    onConfirm={onConfirm}
                     onCancel={onCancel}
                 />
             </QueryClientProvider>,
@@ -224,7 +225,7 @@ describe("The load dialog", () => {
 
         await click(dialog(), "Load Selected")
 
-        expect(onLoad).toHaveBeenCalledWith({
+        expect(onConfirm).toHaveBeenCalledWith({
             revisionId: CAPITALS_V2,
             testcaseIds: [CAPITAL_ROWS[0].id, CAPITAL_ROWS[2].id],
             testsetName: "Capitals",
@@ -262,7 +263,7 @@ describe("The load dialog", () => {
 
         expect(footer()).toContain("1 of 3 test cases selected")
         await click(dialog(), "Load Selected")
-        expect(onLoad.mock.calls[0][0].testcaseIds).toEqual([CAPITAL_ROWS[1].id])
+        expect(onConfirm.mock.calls[0][0].testcaseIds).toEqual([CAPITAL_ROWS[1].id])
     })
 
     it("Search filters the rows", async () => {
@@ -289,7 +290,7 @@ describe("The load dialog", () => {
         await click(dialog(), "Cancel")
 
         expect(onCancel).toHaveBeenCalled()
-        expect(onLoad).not.toHaveBeenCalled()
+        expect(onConfirm).not.toHaveBeenCalled()
         expect(store.get(testcaseMolecule.atoms.selectionDraft(CAPITALS_V2))).toBeNull()
     })
 
@@ -302,10 +303,26 @@ describe("The load dialog", () => {
         await pick("Italy")
         await click(dialog(), "Update Selection")
 
-        expect(onEdit).toHaveBeenCalledWith({
-            revisionId: CAPITALS_V2,
-            testcaseIds: [CAPITAL_ROWS[0].id, CAPITAL_ROWS[1].id],
-        })
+        expect(onConfirm).toHaveBeenCalledWith(
+            expect.objectContaining({
+                revisionId: CAPITALS_V2,
+                testcaseIds: [CAPITAL_ROWS[0].id, CAPITAL_ROWS[1].id],
+            }),
+        )
+    })
+
+    it("Browsing another test set while managing starts with nothing picked", async () => {
+        // The playground shows one row of the connected revision.
+        store.set(testcaseMolecule.ids, [CAPITAL_ROWS[0].id])
+        store.set(testcaseMolecule.actions.initSelectionDraft, CAPITALS_V2, [CAPITAL_ROWS[0].id])
+        await render({mode: "edit", connectedRevisionId: CAPITALS_V2})
+
+        await clickText("Rivers")
+
+        expect(text()).toContain("Nile")
+        expect(footer()).toContain("0 of 1 test cases selected")
+        expect(button(dialog(), "Import Selected")?.disabled).toBe(true)
+        store.set(testcaseMolecule.ids, [])
     })
 
     it("On a phone the rows come after the test set step, with a way back", async () => {

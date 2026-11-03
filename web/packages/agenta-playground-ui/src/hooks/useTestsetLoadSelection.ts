@@ -8,7 +8,7 @@ import {
 } from "@agenta/entities/testcase"
 import {useAtomValue, useStore} from "jotai"
 
-import type {TestsetEditPayload, TestsetLoadPayload} from "./useTestsetMenuModel"
+import type {TestsetLoadPayload} from "./useTestsetMenuModel"
 import {useTestsetSelection} from "./useTestsetSelection"
 
 export interface UseTestsetLoadSelectionParams {
@@ -93,9 +93,8 @@ export const useTestsetLoadSelection = ({
     const canConfirm = !selectionDisabled && !!selectedRevisionId && selectedIds.length > 0
 
     /** The payload to act on. The draft goes first, uncommitted: the caller decides. */
-    const confirm = useCallback((): TestsetLoadPayload | TestsetEditPayload => {
+    const confirm = useCallback((): TestsetLoadPayload => {
         store.set(testcaseMolecule.actions.discardSelectionDraft, draftKey)
-        if (isEdit) return {revisionId: draftKey, testcaseIds: selectedIds}
         return {
             revisionId: draftKey,
             testcaseIds: selectedIds,
@@ -103,7 +102,7 @@ export const useTestsetLoadSelection = ({
             testsetId: revisionInfo?.testsetId ?? null,
             revisionVersion: revisionInfo?.version ?? null,
         }
-    }, [draftKey, isEdit, revisionInfo, selectedIds, store])
+    }, [draftKey, revisionInfo, selectedIds, store])
 
     const cancel = useCallback(() => {
         store.set(testcaseMolecule.actions.discardSelectionDraft, draftKey)

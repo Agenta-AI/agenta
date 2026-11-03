@@ -20,7 +20,7 @@ import {
 import {CaretLeft, MagnifyingGlass} from "@phosphor-icons/react"
 
 import {useTestsetLoadSelection} from "../../hooks/useTestsetLoadSelection"
-import type {TestsetEditPayload, TestsetLoadPayload} from "../../hooks/useTestsetMenuModel"
+import type {TestsetLoadPayload} from "../../hooks/useTestsetMenuModel"
 
 export interface LoadTestsetDialogProps {
     loadableId: string
@@ -30,8 +30,8 @@ export interface LoadTestsetDialogProps {
     connectedTestsetId: string | null
     /** A chat playground loads one test case at a time. */
     singleSelect: boolean
-    onLoad: (payload: TestsetLoadPayload) => void
-    onEdit: (payload: TestsetEditPayload) => void
+    /** The picked rows. In edit mode only the revision and the row ids matter. */
+    onConfirm: (payload: TestsetLoadPayload) => void
     onCancel: () => void
 }
 
@@ -45,8 +45,7 @@ export const LoadTestsetDialog = ({
     connectedRevisionId,
     connectedTestsetId,
     singleSelect,
-    onLoad,
-    onEdit,
+    onConfirm,
     onCancel,
 }: LoadTestsetDialogProps) => {
     const wide = useMediaQuery("(min-width: 768px)")
@@ -70,12 +69,6 @@ export const LoadTestsetDialog = ({
         selection.cancel()
         onCancel()
     }
-    const confirm = () => {
-        const payload = selection.confirm()
-        if (isEdit) onEdit(payload)
-        else onLoad(payload as TestsetLoadPayload)
-    }
-
     const showSets = wide || step === "sets"
     const showRows = wide || step === "rows"
 
@@ -197,7 +190,10 @@ export const LoadTestsetDialog = ({
                             Cancel
                         </Button>
                         {selection.selectionDisabled ? null : (
-                            <Button disabled={!selection.canConfirm} onClick={confirm}>
+                            <Button
+                                disabled={!selection.canConfirm}
+                                onClick={() => onConfirm(selection.confirm())}
+                            >
                                 {selection.confirmLabel}
                             </Button>
                         )}

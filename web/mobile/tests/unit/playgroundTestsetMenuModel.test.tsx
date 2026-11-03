@@ -86,6 +86,7 @@ interface CommitBody {
 
 let failCommit = false
 let failCreate = false
+let failCreatedRows = false
 
 const routeHttp = () => {
     http.get.mockImplementation(async (url: string) => {
@@ -121,6 +122,9 @@ const routeHttp = () => {
         }
         if (url.endsWith("/testcases/query")) {
             const ref = (body.testset_revision_ref as {id: string}).id
+            if (ref === CREATED_REVISION && failCreatedRows) {
+                throw new Error("Request failed with status code 502")
+            }
             const rows =
                 ref === REVISION ? savedRows() : ref === CREATED_REVISION ? createdRows() : []
             const testcases = ref === OTHER_REVISION ? otherRows() : rows
@@ -251,6 +255,7 @@ beforeEach(async () => {
     vi.clearAllMocks()
     failCommit = false
     failCreate = false
+    failCreatedRows = false
     routeHttp()
     store.set(queryClientAtom, new QueryClient({defaultOptions: {queries: {retry: false}}}))
     projectId = `proj-${Number(projectId.slice(5)) + 1}`
@@ -490,6 +495,32 @@ describe("Syncing changes", () => {
         expect(menu().label).toBe("Capitals copy")
         expect(rowValues()).toEqual(["Spain", "Italy"])
         expect(menu().hasLocalChanges).toBe(false)
+    })
+
+    it("When the new test set's rows do not load, the rows stay as local rows", async () => {
+        failCreatedRows = true
+        const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined)
+        await pickLoad()
+        await editCell(FRANCE, "Spain")
+
+        let result: Awaited<ReturnType<TestsetMenuModel["syncSubmit"]>> | undefined
+        await act(async () => {
+            result = await menu().syncSubmit({
+                entity: {type: "revision", id: REVISION},
+                message: null,
+                mode: "save-new",
+                entityName: "Capitals copy",
+                entitySlug: "capitals-copy",
+            })
+        })
+        await settle()
+
+        // Saved: the dialog closes and nothing is created twice.
+        expect(result).toEqual({success: true})
+        expect(postsTo("/simple/testsets/")).toHaveLength(1)
+        expect(menu().isConnected).toBe(false)
+        expect(rowValues()).toEqual(["Spain", "Italy"])
+        consoleError.mockRestore()
     })
 
     it("A failed save as new keeps the edits and the old connection", async () => {

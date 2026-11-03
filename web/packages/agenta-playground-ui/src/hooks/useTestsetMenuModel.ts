@@ -1,7 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {loadableController} from "@agenta/entities/loadable"
-import {fetchTestcasesPage, testcaseMolecule, type Testcase} from "@agenta/entities/testcase"
+import {testcaseMolecule} from "@agenta/entities/testcase"
 import {revisionMolecule} from "@agenta/entities/testset"
 import type {CommitSubmitParams, CommitSubmitResult} from "@agenta/entity-ui/modals"
 import {playgroundController, type ConnectToTestsetPayload} from "@agenta/playground"
@@ -11,18 +11,8 @@ import {
     resultsByKeyAtomFamily,
     type MessageExecution,
 } from "@agenta/playground/state"
-import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
 import {atom, useAtomValue, useStore} from "jotai"
-
-/** The rows the load dialog hands over when the user confirms. */
-export interface TestsetLoadPayload {
-    revisionId: string
-    testcaseIds: string[]
-    testsetName: string | null
-    testsetId: string | null
-    revisionVersion: number | null
-}
 
 /** What "Manage test cases" hands over: rows of the connected revision, or of another one. */
 export interface TestsetEditPayload {
@@ -30,9 +20,20 @@ export interface TestsetEditPayload {
     testcaseIds: string[]
 }
 
+/** The rows the load dialog hands over, with the test set they come from. */
+export interface TestsetLoadPayload extends TestsetEditPayload {
+    testsetName: string | null
+    testsetId: string | null
+    revisionVersion: number | null
+}
+
 /** The one dialog the test set menu has open, if any. */
 export type TestsetMenuDialog =
-    | {kind: "load"}
+    | {
+          kind: "load"
+          /** "Discard & Load": the edits go only once a new test set is confirmed. */
+          discardEdits?: boolean
+      }
     | {kind: "edit"}
     | {kind: "sync"}
     | {kind: "unsaved"; intent: "disconnect" | "change"}
@@ -85,18 +86,6 @@ const testcaseData = (ids: string[]) =>
         const data = testcaseMolecule.get.data(id)
         return data ? {...data} : {id}
     })
-
-/** Every row of a revision, page by page. */
-const fetchAllTestcases = async (projectId: string, revisionId: string) => {
-    const rows: Testcase[] = []
-    let cursor: string | null = null
-    do {
-        const page = await fetchTestcasesPage({projectId, revisionId, cursor})
-        rows.push(...page.testcases)
-        cursor = page.hasMore ? page.nextCursor : null
-    } while (cursor)
-    return rows
-}
 
 /**
  * The test set menu of the playground run pane: what it shows, the one dialog it has open, and
@@ -160,8 +149,6 @@ export const useTestsetMenuModel = (): TestsetMenuModel => {
 
     const [dialog, setDialog] = useState<TestsetMenuDialog | null>(null)
     const [saving, setSaving] = useState(false)
-    // "Discard & Load" drops the edits only when a new test set is confirmed.
-    const [discardOnLoad, setDiscardOnLoad] = useState(false)
 
     const isConnected = mode === "connected"
     const connectedRevisionId = isConnected ? (connectedSource?.id ?? null) : null
@@ -171,24 +158,16 @@ export const useTestsetMenuModel = (): TestsetMenuModel => {
         useMemo(() => revisionMolecule.queryOptional(connectedRevisionId), [connectedRevisionId]),
     )
 
-    const open = useCallback((next: TestsetMenuDialog) => {
-        setDiscardOnLoad(false)
-        setDialog(next)
-    }, [])
-
-    const close = useCallback(() => {
-        setDiscardOnLoad(false)
-        setDialog(null)
-    }, [])
+    const open = useCallback((next: TestsetMenuDialog) => setDialog(next), [])
+    const close = useCallback(() => setDialog(null), [])
 
     const connect = useCallback(() => open({kind: "load"}), [open])
     const sync = useCallback(() => open({kind: "sync"}), [open])
 
     const manage = useCallback(() => {
-        if (!loadableId) return
-        const draftKey = connectedRevisionId ?? loadableId
+        if (!loadableId || !connectedRevisionId) return
         const shown = store.get(loadableController.selectors.displayRowIds(loadableId))
-        store.set(testcaseMolecule.actions.initSelectionDraft, draftKey, shown)
+        store.set(testcaseMolecule.actions.initSelectionDraft, connectedRevisionId, shown)
         open({kind: "edit"})
     }, [connectedRevisionId, loadableId, open, store])
 
@@ -208,11 +187,7 @@ export const useTestsetMenuModel = (): TestsetMenuModel => {
 
     const confirmLoad = useCallback(
         (payload: TestsetLoadPayload) => {
-            // No real revision picked: nothing to connect to.
-            if (!loadableId || !payload.revisionId || payload.revisionId === "local") {
-                close()
-                return
-            }
+            if (!loadableId) return
             const connectPayload: ConnectToTestsetPayload = {
                 loadableId,
                 revisionId: payload.revisionId,
@@ -221,7 +196,7 @@ export const useTestsetMenuModel = (): TestsetMenuModel => {
                 testsetId: payload.testsetId,
                 revisionVersion: payload.revisionVersion,
             }
-            if (discardOnLoad) {
+            if (dialog?.kind === "load" && dialog.discardEdits) {
                 store.set(loadableController.actions.discardChanges, loadableId)
             }
             // In local mode the server ids must be empty, or stale ids count as draft rows below.
@@ -240,13 +215,23 @@ export const useTestsetMenuModel = (): TestsetMenuModel => {
             store.set(playgroundController.actions.connectToTestset, connectPayload)
             close()
         },
-        [close, discardOnLoad, isChat, isConnected, loadableId, open, store],
+        [close, dialog, isChat, isConnected, loadableId, open, store],
     )
 
     const confirmEdit = useCallback(
         (payload: TestsetEditPayload) => {
             if (!loadableId) return
-            if (payload.revisionId === connectedRevisionId) {
+            if (payload.revisionId === connectedRevisionId && isChat) {
+                // A chat playground holds one test case and its conversation: load the new pick
+                // the way a connect does, so the conversation follows it.
+                store.set(playgroundController.actions.connectToTestset, {
+                    loadableId,
+                    revisionId: payload.revisionId,
+                    testcases: testcaseData(payload.testcaseIds),
+                    testsetName: connectedSource?.name ?? "",
+                    testsetId: connectedTestset?.id ?? null,
+                })
+            } else if (payload.revisionId === connectedRevisionId) {
                 store.set(
                     loadableController.actions.updateTestcaseSelection,
                     loadableId,
@@ -260,7 +245,15 @@ export const useTestsetMenuModel = (): TestsetMenuModel => {
             }
             close()
         },
-        [close, connectedRevisionId, loadableId, store],
+        [
+            close,
+            connectedRevisionId,
+            connectedSource?.name,
+            connectedTestset?.id,
+            isChat,
+            loadableId,
+            store,
+        ],
     )
 
     const confirmKeepDrafts = useCallback(
@@ -283,8 +276,7 @@ export const useTestsetMenuModel = (): TestsetMenuModel => {
             const changing = dialog.intent === "change"
             if (choice === "discard") {
                 if (changing) {
-                    setDialog({kind: "load"})
-                    setDiscardOnLoad(true)
+                    open({kind: "load", discardEdits: true})
                     return
                 }
                 // The edits go first: a disconnect leaves them in the shared test case store.
@@ -341,6 +333,10 @@ export const useTestsetMenuModel = (): TestsetMenuModel => {
 
             const name = entityName?.trim()
             if (!name) return {success: false, error: "Test set name is required"}
+            // The rows as shown: the save clears the edits from the store.
+            const shownRows = store
+                .get(loadableController.selectors.rows(loadableId))
+                .map(({data}) => ({...data}))
             store.set(loadableController.actions.setName, loadableId, name)
             const result = await store.set(
                 loadableController.actions.saveAsNewTestset,
@@ -357,21 +353,28 @@ export const useTestsetMenuModel = (): TestsetMenuModel => {
                     ?.response?.status
                 return {success: false, error: SAVE_FAILED, errorStatus: status}
             }
-            // The save clears the edits from the store: the playground now shows the new test set.
-            const projectId = store.get(projectIdAtom)
-            const testcases = projectId ? await fetchAllTestcases(projectId, result.revisionId) : []
             store.set(loadableController.actions.setName, loadableId, null)
-            store.set(playgroundController.actions.connectToTestset, {
-                loadableId,
+            // The playground moves to the new test set. If its rows do not all load, they stay in
+            // the playground as local rows instead: the new test set is saved either way.
+            await store.set(playgroundController.actions.restoreLoadableConnection, {
                 revisionId: result.revisionId,
-                testcases,
-                testsetName: name,
+                sourceName: name,
                 testsetId: result.testsetId ?? null,
-                revisionVersion: null,
             })
+            const loaded = store.get(loadableController.selectors.displayRowIds(loadableId))
+            // A chat playground loads one test case.
+            const expected = isChat ? Math.min(shownRows.length, 1) : shownRows.length
+            if (loaded.length !== expected) {
+                console.error("Loading the new test set into the playground failed")
+                store.set(loadableController.actions.disconnect, loadableId)
+                store.set(playgroundController.actions.importTestcases, {
+                    loadableId,
+                    testcases: shownRows,
+                })
+            }
             return {success: true}
         },
-        [loadableId, store],
+        [isChat, loadableId, store],
     )
 
     const canSyncSubmit = useCallback(
