@@ -131,7 +131,8 @@ const button = (scope: ParentNode, label: string) =>
 
 beforeEach(() => {
     vi.clearAllMocks()
-    resetSession({evaluatorIds: ["ev-1"]})
+    // The session knows the workflow id and the revision id; only the revision holds the data.
+    resetSession({evaluatorIds: ["wf-1"], evaluatorRevisionIds: ["ev-1"]})
     fixture.queue = {
         id: "queue-1",
         name: "Support replies",
@@ -217,7 +218,7 @@ describe("the Configuration tab", () => {
     })
 
     it("No evaluators reads No evaluators configured for this queue.", async () => {
-        resetSession({evaluatorIds: []})
+        resetSession({evaluatorIds: [], evaluatorRevisionIds: []})
         fixture.queue = {id: "queue-1", name: "Support replies", data: {}}
         await render()
         expect(host.textContent).toContain("No evaluators configured for this queue.")

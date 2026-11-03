@@ -1,8 +1,11 @@
-import {useId} from "react"
+import {useId, useRef} from "react"
 
 import {InputNumber, Slider} from "@agenta/ui/ui"
 
 import {AnnotationFieldLabel} from "./AnnotationFieldLabel"
+
+/** Keys that move a slider toward its minimum. */
+const MINIMUM_KEYS = new Set(["Home", "ArrowLeft", "ArrowDown", "PageDown"])
 
 /**
  * A number metric. With both bounds it is a small input beside the label and a slider below; an
@@ -33,6 +36,12 @@ export const AnnotationNumberField = ({
     const ranged = min !== undefined && max !== undefined
 
     const empty = shown === null
+    // Radix reports a move only when the value changes. An empty slider sits at the minimum, so a
+    // press or key that lands on the minimum changes nothing there; these two catch it.
+    const moved = useRef(false)
+    const setToMinimum = () => {
+        if (empty && min !== undefined) emit(min)
+    }
 
     return (
         <div className="flex flex-col gap-1.5">
@@ -59,7 +68,19 @@ export const AnnotationNumberField = ({
                 }
             />
             {ranged ? (
-                <div inert={readOnly} className="mt-1">
+                <div
+                    inert={readOnly}
+                    className="mt-1"
+                    onPointerDownCapture={() => {
+                        moved.current = false
+                    }}
+                    onPointerUp={() => {
+                        if (!moved.current) setToMinimum()
+                    }}
+                    onKeyDown={(event) => {
+                        if (MINIMUM_KEYS.has(event.key)) setToMinimum()
+                    }}
+                >
                     {/* Radix moves only an existing thumb, so an unset value keeps one at the
                         minimum and hides it with the filled track: nothing reads as set, and the
                         first press or drag still lands where the pointer is. */}
@@ -72,7 +93,9 @@ export const AnnotationNumberField = ({
                         step={step}
                         value={[shown ?? min]}
                         onValueChange={([next]) => {
-                            if (next !== undefined) emit(next)
+                            if (next === undefined) return
+                            moved.current = true
+                            emit(next)
                         }}
                     />
                 </div>

@@ -7,6 +7,7 @@ import {useAtomValue} from "jotai"
 
 import {AnnotationFormPanel} from "./AnnotationFormPanel"
 import {ScenarioContent} from "./ScenarioContent"
+import {useIsTraceQueue} from "./useIsTraceQueue"
 import {useScenarioTraceOpener} from "./useScenarioTraceOpener"
 
 const SHEET_WIDTH = {"--ag-sheet-responsive-width": "1100px"} as CSSProperties
@@ -25,7 +26,7 @@ export const AnnotateScenarioSheet = ({
     onClose: () => void
 }) => {
     const id = scenarioId ?? ""
-    const isTraces = useAtomValue(annotationSessionController.selectors.queueKind()) !== "testcases"
+    const isTraces = useIsTraceQueue()
     const traceRef = useAtomValue(annotationSessionController.selectors.scenarioTraceRef(id))
     const testcaseRef = useAtomValue(annotationSessionController.selectors.scenarioTestcaseRef(id))
     const openTrace = useScenarioTraceOpener(id)

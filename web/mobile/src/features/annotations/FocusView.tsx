@@ -7,6 +7,7 @@ import {ScenarioContent} from "./ScenarioContent"
 import {ScenarioMessage} from "./ScenarioMessage"
 import {AllCaughtUp} from "./states/AllCaughtUp"
 import {useAnnotationKeyboardShortcuts} from "./useAnnotationKeyboardShortcuts"
+import {useIsTraceQueue} from "./useIsTraceQueue"
 import {useSubmitAnnotations} from "./useSubmitAnnotations"
 
 /**
@@ -22,11 +23,10 @@ export const FocusView = ({
 }) => {
     const currentId = useAtomValue(annotationSessionController.selectors.currentScenarioId())
     const scenarioId = currentId ?? ""
-    const scenariosQuery = useAtomValue(annotationSessionController.selectors.scenariosQuery())
     const scenarios = useAtomValue(annotationSessionController.selectors.scenarioRecords())
     const focusIds = useAtomValue(annotationSessionController.selectors.focusScenarioIds())
     const progress = useAtomValue(annotationSessionController.selectors.progress())
-    const isTraces = useAtomValue(annotationSessionController.selectors.queueKind()) !== "testcases"
+    const isTraces = useIsTraceQueue()
     const traceRef = useAtomValue(
         annotationSessionController.selectors.scenarioTraceRef(scenarioId),
     )
@@ -49,9 +49,6 @@ export const FocusView = ({
         enabled: Boolean(currentId),
     })
 
-    if (scenariosQuery.isError)
-        return <ScenarioMessage title="Failed to load annotation scenarios" />
-    if (scenarios.length === 0) return <ScenarioMessage title="No scenarios available" />
     if (progress.remaining === 0) return <AllCaughtUp observabilityHref={observabilityHref} />
     if (focusIds.length === 0 && !currentId) {
         return (

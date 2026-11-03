@@ -50,12 +50,12 @@ const Box = ({children}: {children: React.ReactNode}) => (
 )
 
 /** One evaluator of the queue: name, version, kind, then its details or its JSON. */
-export const QueueEvaluatorCard = ({evaluatorId}: {evaluatorId: string}) => {
+export const QueueEvaluatorCard = ({revisionId}: {revisionId: string}) => {
     const [open, setOpen] = useState(true)
     const [view, setView] = useState<"details" | "json">("details")
-    const query = useAtomValue(workflowMolecule.selectors.query(evaluatorId))
-    const evaluator = useAtomValue(workflowMolecule.selectors.data(evaluatorId))
-    const artifactName = useAtomValue(workflowMolecule.selectors.artifactName(evaluatorId))
+    const query = useAtomValue(workflowMolecule.selectors.query(revisionId))
+    const evaluator = useAtomValue(workflowMolecule.selectors.data(revisionId))
+    const artifactName = useAtomValue(workflowMolecule.selectors.artifactName(revisionId))
 
     const data = evaluator?.data as Record<string, unknown> | null | undefined
     const parameters = useMemo(() => extractEvaluatorParameters(data), [data])
@@ -75,7 +75,7 @@ export const QueueEvaluatorCard = ({evaluatorId}: {evaluatorId: string}) => {
         )
     }
 
-    const name = artifactName || evaluator?.slug || evaluatorId.slice(0, 8)
+    const name = artifactName || evaluator?.slug || revisionId.slice(0, 8)
     const isHuman = evaluator?.flags?.is_feedback ?? false
     const typeLabel = deriveEvaluatorTypeLabel(evaluator?.data?.uri)
     const description = evaluator?.description
@@ -128,7 +128,7 @@ export const QueueEvaluatorCard = ({evaluatorId}: {evaluatorId: string}) => {
                     {shownView === "json" ? (
                         <div className="overflow-hidden rounded-md border border-solid border-border">
                             <ReadOnlyEditor
-                                id={`queue-evaluator-${evaluatorId}`}
+                                id={`queue-evaluator-${revisionId}`}
                                 value={json}
                                 language="json"
                             />

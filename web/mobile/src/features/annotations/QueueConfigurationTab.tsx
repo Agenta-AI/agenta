@@ -30,7 +30,9 @@ export const QueueConfigurationTab = ({
     listHref: string
 }) => {
     const queue = useAtomValue(simpleQueueMolecule.selectors.data(queueId))
-    const evaluatorIds = useAtomValue(annotationSessionController.selectors.evaluatorIds())
+    const evaluatorRevisionIds = useAtomValue(
+        annotationSessionController.selectors.evaluatorRevisionIds(),
+    )
     const kind = queue?.data?.kind
     const kindLabel = queueKindLabel(kind)
     const description = queue?.description?.trim()
@@ -63,14 +65,14 @@ export const QueueConfigurationTab = ({
                     </div>
                 </QueueConfigSection>
                 <QueueConfigSection title="Evaluators">
-                    {evaluatorIds.length === 0 ? (
+                    {evaluatorRevisionIds.length === 0 ? (
                         <p className="m-0 p-4 text-sm text-muted-foreground">
                             No evaluators configured for this queue.
                         </p>
                     ) : (
                         <div className="flex flex-col divide-y divide-border">
-                            {evaluatorIds.map((id) => (
-                                <QueueEvaluatorCard key={id} evaluatorId={id} />
+                            {evaluatorRevisionIds.map((id) => (
+                                <QueueEvaluatorCard key={id} revisionId={id} />
                             ))}
                         </div>
                     )}

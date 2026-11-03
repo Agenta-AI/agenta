@@ -3,12 +3,14 @@ import {traceRootSpanAtomFamily} from "@agenta/entities/trace"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {useIsTraceQueue} from "./useIsTraceQueue"
+
 /**
  * Opens an item's trace in the global trace drawer, at its root span. Null for a test case queue
  * or an item without a trace yet.
  */
 export const useScenarioTraceOpener = (scenarioId: string): (() => void) | null => {
-    const isTraces = useAtomValue(annotationSessionController.selectors.queueKind()) !== "testcases"
+    const isTraces = useIsTraceQueue()
     const {traceId} = useAtomValue(
         annotationSessionController.selectors.scenarioTraceRef(scenarioId),
     )

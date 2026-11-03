@@ -45,12 +45,21 @@ vi.mock("@agenta/ui/hooks", () => ({useMediaQuery: () => true}))
 import {FocusView} from "@/features/annotations/FocusView"
 
 import {
+    calls,
     callsOf,
     fakeStore,
     handlers,
     patchSession,
     resetSession,
 } from "../support/annotationSessionFake"
+
+// Radix measures the slider thumb; jsdom has no ResizeObserver.
+const noop = () => undefined
+globalThis.ResizeObserver ??= class {
+    observe = noop
+    unobserve = noop
+    disconnect = noop
+} as unknown as typeof ResizeObserver
 
 let host: HTMLDivElement
 let root: Root
@@ -174,6 +183,49 @@ describe("the focus view", () => {
         expect(callsOf("submitAnnotations")).toEqual([
             {scenarioId: "s-1", queueId: "queue-1", markComplete: true},
         ])
+    })
+
+    describe("a number out of its range", () => {
+        // The fake controller keeps no values: it records the writes, so the order is the proof.
+        const typeNine = async () => {
+            patchSession({
+                hasFilledMetrics: {"s-1": true},
+                metrics: {
+                    "s-1": {tone: {score: {value: null, type: "integer", minimum: 1, maximum: 5}}},
+                },
+            })
+            handlers.submitAnnotations = async () => undefined
+            await render()
+            const input = host.querySelector("input[role=spinbutton]") as HTMLInputElement
+            input.focus()
+            const setter = Object.getOwnPropertyDescriptor(
+                HTMLInputElement.prototype,
+                "value",
+            )!.set!
+            await act(async () => {
+                setter.call(input, "9")
+                input.dispatchEvent(new Event("input", {bubbles: true}))
+            })
+            return input
+        }
+        const names = () => calls.map(([name]) => name).filter((n) => /updateMetric|submit/.test(n))
+        const lastValue = () => (callsOf("updateMetric").at(-1) as {value: number}).value
+
+        it("Ctrl Enter sends the value clamped to the maximum", async () => {
+            const input = await typeNine()
+            await press(input, {key: "Enter", ctrlKey: true})
+            expect(lastValue()).toBe(5)
+            expect(names().at(-1)).toBe("submitAnnotations")
+        })
+
+        it("The button sends the value clamped to the maximum", async () => {
+            await typeNine()
+            const submit = button("Mark completed")!
+            await act(async () => submit.focus())
+            await act(async () => submit.click())
+            expect(lastValue()).toBe(5)
+            expect(names().at(-1)).toBe("submitAnnotations")
+        })
     })
 
     it("A first completion shows Scenario completed and a second save shows Updated feedback", async () => {

@@ -43,6 +43,9 @@ export const useAnnotationKeyboardShortcuts = (shortcuts: AnnotationShortcuts) =
             if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
                 event.preventDefault()
                 event.stopPropagation()
+                // A number field clamps to its range when it loses focus, so leave the field first:
+                // the submit then sends the clamped value, as the button does.
+                if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
                 if (current.canSubmit) current.onSubmit()
                 return
             }

@@ -149,6 +149,30 @@ describe("an annotation field", () => {
         expect(host.querySelector("[role=slider]")?.getAttribute("aria-valuenow")).toBe("0.4")
     })
 
+    it("The minimum of an empty slider can be picked by a key or a press", async () => {
+        const thumbOf = () => host.querySelector("[role=slider]") as HTMLElement
+        await render({value: null, type: "integer", minimum: 1, maximum: 5})
+        await act(async () =>
+            thumbOf().dispatchEvent(new KeyboardEvent("keydown", {key: "Home", bubbles: true})),
+        )
+        expect(onChange).toHaveBeenLastCalledWith(1)
+
+        onChange.mockClear()
+        const thumb = thumbOf()
+        thumb.setPointerCapture = noop
+        await act(async () => {
+            thumb.dispatchEvent(new Event("pointerdown", {bubbles: true}))
+            thumb.dispatchEvent(new Event("pointerup", {bubbles: true}))
+        })
+        expect(onChange).toHaveBeenLastCalledWith(1)
+
+        // A set slider is left alone by a press that does not move it.
+        onChange.mockClear()
+        await render({value: 3, type: "integer", minimum: 1, maximum: 5})
+        await act(async () => thumbOf().dispatchEvent(new Event("pointerup", {bubbles: true})))
+        expect(onChange).not.toHaveBeenCalled()
+    })
+
     it("A read-only number keeps both controls out of reach", async () => {
         await render({value: 3, type: "integer", minimum: 1, maximum: 5}, true)
         const input = host.querySelector("input") as HTMLInputElement

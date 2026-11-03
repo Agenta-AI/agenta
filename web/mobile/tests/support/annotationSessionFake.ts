@@ -55,6 +55,7 @@ export interface FakeSessionState {
     listColumnDefs: unknown[]
     evaluatorStepRefs: unknown[]
     evaluatorIds: string[]
+    evaluatorRevisionIds: string[]
     traceRefs: Record<string, {traceId: string; spanId: string}>
     testcaseRefs: Record<string, {testcaseId: string}>
     testcases: Record<string, {isPending: boolean; isError: boolean; data: unknown}>
@@ -99,6 +100,7 @@ export const initialSessionState = (): FakeSessionState => ({
     listColumnDefs: [],
     evaluatorStepRefs: [{slug: "tone"}],
     evaluatorIds: [],
+    evaluatorRevisionIds: [],
     traceRefs: {},
     testcaseRefs: {},
     testcases: {},
@@ -178,6 +180,7 @@ export const annotationSessionController = {
         listColumnDefs: () => read("listColumnDefs", (s) => s.listColumnDefs),
         evaluatorStepRefs: () => read("evaluatorStepRefs", (s) => s.evaluatorStepRefs),
         evaluatorIds: () => read("evaluatorIds", (s) => s.evaluatorIds),
+        evaluatorRevisionIds: () => read("evaluatorRevisionIds", (s) => s.evaluatorRevisionIds),
         scenarioTraceRef: (id: string) => read(`trace:${id}`, (s) => s.traceRefs[id] ?? NO_TRACE),
         scenarioTestcaseRef: (id: string) =>
             read(`testcase:${id}`, (s) => s.testcaseRefs[id] ?? NO_TESTCASE),
