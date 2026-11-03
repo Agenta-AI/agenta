@@ -83,3 +83,5 @@ export {
     type MetricSummary,
     type RadarMetricInput,
 } from "./metricStats"
+
+export {findScenarioTraceResult} from "./scenarioTrace"

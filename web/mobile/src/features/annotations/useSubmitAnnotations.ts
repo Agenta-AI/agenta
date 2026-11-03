@@ -20,7 +20,7 @@ export const useSubmitAnnotations = (
     scenarioId: string,
     scope: AnnotationScope,
     /** Runs after a save, for the screen to read what the save changed. */
-    onSaved?: () => void,
+    onSaved?: (scenarioId: string) => void,
 ) => {
     const queueId = "queueId" in scope ? scope.queueId : undefined
     const runId = "runId" in scope ? scope.runId : undefined
@@ -51,7 +51,7 @@ export const useSubmitAnnotations = (
             await submitAnnotations({
                 scenarioId,
                 queueId,
-                markComplete: runId ? true : !isCompleted,
+                markComplete: !isCompleted,
             })
         } catch (cause) {
             console.error("Saving the annotations failed", cause)
@@ -65,7 +65,7 @@ export const useSubmitAnnotations = (
                   ? "Updated feedback"
                   : "Scenario completed",
         )
-        onSaved?.()
+        onSaved?.(scenarioId)
     }, [submitAnnotations, scenarioId, queueId, runId, isCompleted, onSaved])
 
     return {

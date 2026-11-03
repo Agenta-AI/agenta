@@ -42,7 +42,7 @@ const GROUP_COLUMN_WIDTH = 220
  */
 export const ScenariosTab = ({runId, header}: {runId: string; header: RunHeader}) => {
     const router = useRouter()
-    const canAnnotate = header.kind === "human"
+    const isHumanRun = header.kind === "human"
     const [annotatingId, setAnnotatingId] = useState<string | null>(null)
     const scenarios = useRunScenarios(runId)
     const labels = useScenarioGroupLabels(scenarios.columnGroups)
@@ -58,9 +58,9 @@ export const ScenariosTab = ({runId, header}: {runId: string; header: RunHeader}
                 label: labels[group.key] ?? group.label,
                 width: `minmax(${GROUP_COLUMN_WIDTH}px,2fr)`,
             })),
-            ...(canAnnotate ? [{key: "actions", label: "", width: "110px"}] : []),
+            ...(isHumanRun ? [{key: "actions", label: "", width: "110px"}] : []),
         ],
-        [columnGroups, labels, canAnnotate],
+        [columnGroups, labels, isHumanRun],
     )
     const groups = useMemo<ListTableGroup<ScenarioRow>[]>(
         () => [{key: "scenarios", label: null, rows}],
@@ -110,7 +110,7 @@ export const ScenariosTab = ({runId, header}: {runId: string; header: RunHeader}
                             groups={columnGroups}
                             onRetry={scenarios.retryValues}
                         />
-                        {canAnnotate ? (
+                        {isHumanRun ? (
                             <ScenarioAnnotateButton
                                 onClick={() => setAnnotatingId(row.scenario.id)}
                             />
@@ -125,7 +125,7 @@ export const ScenariosTab = ({runId, header}: {runId: string; header: RunHeader}
                             labels={labels}
                             onRetry={scenarios.retryValues}
                         />
-                        {canAnnotate ? (
+                        {isHumanRun ? (
                             <ScenarioAnnotateButton
                                 onClick={() => setAnnotatingId(row.scenario.id)}
                             />

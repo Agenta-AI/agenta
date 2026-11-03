@@ -41,6 +41,7 @@ import {
 } from "@agenta/entities/annotation"
 import {
     evaluationRunMolecule,
+    findScenarioTraceResult,
     queryEvaluationResults,
     type EvaluationResult,
     type EvaluationRunDataStep,
@@ -1138,8 +1139,6 @@ async function resolveInvocationStepKey({
     runId: string
     scenarioId: string
 }): Promise<string | null> {
-    // An annotation result has a trace too (the annotation's own): it is never the invocation.
-    const annotationKeys = new Set(annotationSteps.map((step) => step.key))
     let steps = cachedSteps
 
     if (steps.length === 0) {
@@ -1154,12 +1153,7 @@ async function resolveInvocationStepKey({
         }
     }
 
-    for (const step of steps) {
-        if (step.trace_id && step.step_key && !annotationKeys.has(step.step_key)) {
-            return step.step_key
-        }
-    }
-    return null
+    return findScenarioTraceResult(steps, annotationSteps)?.step_key || null
 }
 
 interface SubmittedEntry {

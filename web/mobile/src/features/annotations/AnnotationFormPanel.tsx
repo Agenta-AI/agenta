@@ -40,7 +40,7 @@ export const AnnotationFormPanel = ({
     scenarioId: string
     showSubmit?: boolean
     readOnly?: boolean
-    onSaved?: () => void
+    onSaved?: (scenarioId: string) => void
 }) => {
     const inRun = Boolean(scope.runId)
     const {metrics, evaluators, evaluatorResolution, updateMetric} =
@@ -72,7 +72,7 @@ export const AnnotationFormPanel = ({
     const header = (
         <AnnotationPanelHeader
             description={description}
-            isCompleted={inRun ? null : submission.isCompleted}
+            isCompleted={inRun ? undefined : submission.isCompleted}
         />
     )
     const nothingLoaded = stepRefs.length > 0 && evaluators.length === 0

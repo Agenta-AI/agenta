@@ -31,7 +31,7 @@ export const RunAnnotateBody = ({
     groups: RunColumnGroup[]
     labels: Record<string, string>
     onRetry: () => void
-    onSaved: () => void
+    onSaved: (scenarioId: string) => void
 }) => {
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const canAnnotate = useProjectPermission(projectId, "edit_annotations")

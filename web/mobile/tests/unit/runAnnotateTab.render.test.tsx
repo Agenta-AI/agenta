@@ -74,6 +74,7 @@ let host: HTMLDivElement
 let root: Root
 let counter = 0
 let state: ScenarioServerState
+let client: QueryClient
 
 /** What the server holds beyond the shared fixtures: outputs and annotations per scenario. */
 interface HumanRun {
@@ -232,7 +233,7 @@ async function mount(
         }
         return {data: {}}
     })
-    const client = new QueryClient({defaultOptions: {queries: {retry: false}}})
+    client = new QueryClient({defaultOptions: {queries: {retry: false}}})
     http.client = client
     client.setQueryData(["workflows", "latestRevision", "wf-quality", PROJECT], QUALITY)
     store.set(queryClientAtom, client)
@@ -338,10 +339,16 @@ describe("run annotate tab", () => {
         expect(chosen?.textContent).toBe("False")
         expect(button("Annotate")?.disabled).toBe(true)
 
+        // The Scenarios rows read a text value from the annotation's trace, which is cached.
+        const annotationTrace = ["trace-entity", PROJECT, "ann-sc-1"]
+        const before = {traces: {}}
+        client.setQueryData(annotationTrace, before)
         await click("True")
         await click("Annotate")
         await settle()
 
+        // Dropped, then read again with the refreshed rows.
+        expect(client.getQueryData(annotationTrace)).not.toBe(before)
         expect(bodyOf("/simple/traces/")).toBeUndefined()
         const update = writes().find((call) => call.url.includes("/simple/traces/ann-sc-1"))
         expect(update?.url).toBe(`${API}/simple/traces/ann-sc-1`)

@@ -1107,16 +1107,8 @@ const scenarioTraceRefAtomFamily = atomFamily((scenarioId: string) =>
         const runId = get(activeRunIdAtom)
         if (!runId || !scenarioId) return directRef
 
-        // The first result with a trace that is not an annotation: an annotation result carries
-        // the annotation's own trace, and the API may list it before the app's.
-        const annotationKeys = new Set(
-            get(evaluationRunMolecule.selectors.annotationSteps(runId)).map((step) => step.key),
-        )
-        const steps = get(evaluationRunMolecule.selectors.scenarioSteps({runId, scenarioId})).data
-        const step = (steps ?? []).find(
-            (result) => result.trace_id && !annotationKeys.has(result.step_key),
-        )
-        if (step?.trace_id) return {traceId: step.trace_id, spanId: step.span_id ?? ""}
+        const stepRef = get(evaluationRunMolecule.selectors.scenarioTraceRef({runId, scenarioId}))
+        if (stepRef.traceId) return stepRef
 
         return directRef
     }),
