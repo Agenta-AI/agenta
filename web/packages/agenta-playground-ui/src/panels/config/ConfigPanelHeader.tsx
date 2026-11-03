@@ -7,6 +7,7 @@ import type {ConfigViewMode} from "@agenta/entity-ui/drill-in"
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
 import {message} from "@agenta/ui/app-message"
 import {Tag} from "@agenta/ui/components"
+import {useMediaQuery} from "@agenta/ui/hooks"
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -40,6 +41,8 @@ export const ConfigPanelHeader = ({
     switcher,
     actions,
 }: ConfigPanelHeaderProps) => {
+    // On a phone the bar has no room for the "Last modified" tag.
+    const showLatestTag = useMediaQuery("(min-width: 640px)")
     const discard = useSetAtom(workflowMolecule.actions.discard)
     const discardDraft = () => {
         try {
@@ -86,6 +89,7 @@ export const ConfigPanelHeader = ({
                         showRevisionAsTag
                         hasChanges={isDirty}
                         isLatest={isLatest}
+                        showLatestTag={showLatestTag}
                         onDiscardDraft={discardDraft}
                     />
                 )}
@@ -96,7 +100,11 @@ export const ConfigPanelHeader = ({
                     value={viewMode}
                     onValueChange={(value) => onViewModeChange(value as ConfigViewMode)}
                 >
-                    <SelectTrigger size="sm" aria-label="Config view" className="w-24 shrink-0">
+                    <SelectTrigger
+                        size="sm"
+                        aria-label="Config view"
+                        className="w-20 shrink-0 sm:w-24"
+                    >
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
