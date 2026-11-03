@@ -42,6 +42,7 @@ interface Row {
 const HEADERS: Header[] = [
     {key: "question", label: "question", title: "question", isGroup: false, groupPath: null},
     {key: "meta", label: "meta", title: "meta", isGroup: true, groupPath: null},
+    {key: "meta.lang", label: "lang", title: "lang", isGroup: false, groupPath: "meta"},
 ]
 const ROWS: Row[] = [
     {id: "case-1", key: "case-1"},
@@ -194,7 +195,14 @@ describe("Test set grid", () => {
 
         await click(button("Delete and save"))
 
-        expect(editor.deleteColumns).toHaveBeenCalledWith(["meta.lang", "meta.tone"])
+        // The nested values sit under one top-level key, the only key the server can remove.
+        expect(editor.deleteColumns).toHaveBeenCalledWith(["meta"])
+    })
+
+    it("A column inside a nested value has no actions", () => {
+        mount(fakeEditor())
+        expect(host.querySelector('[data-header="meta.lang"]')?.textContent).toBe("lang")
+        expect(byLabel("Column lang actions")).toBeNull()
     })
 
     it("Row delete shows Save to apply changes", async () => {

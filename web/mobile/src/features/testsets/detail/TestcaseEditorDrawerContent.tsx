@@ -6,23 +6,9 @@ import {
     type RootDrawerViewMode,
     type TestcaseDataEditorColumn,
 } from "@agenta/entity-ui/testcase"
-import type {PropertyType} from "@agenta/ui/drill-in"
 import {useAtomValue, useSetAtom} from "jotai"
 
-const defaultValueForType = (type: PropertyType): unknown => {
-    switch (type) {
-        case "number":
-            return 0
-        case "boolean":
-            return false
-        case "object":
-            return {}
-        case "array":
-            return []
-        default:
-            return ""
-    }
-}
+import {replaceDataUpdate} from "./testcaseDataUpdate"
 
 /**
  * The body of the testcase drawer: the testcase data as a form, JSON or YAML. An edit goes to
@@ -62,15 +48,9 @@ export const TestcaseEditorDrawerContent = ({
         [columns],
     )
 
-    // The editor hands back the whole testcase. The update merges, so a key the reader removed
-    // is sent as undefined, which removes it.
+    // The editor hands back the whole testcase data.
     const handleChange = useCallback(
-        (next: Record<string, unknown>) => {
-            const removed = Object.keys(value).filter((key) => !(key in next))
-            update(testcaseId, {
-                data: {...next, ...Object.fromEntries(removed.map((key) => [key, undefined]))},
-            })
-        },
+        (next: Record<string, unknown>) => update(testcaseId, replaceDataUpdate(value, next)),
         [testcaseId, update, value],
     )
 
@@ -94,7 +74,6 @@ export const TestcaseEditorDrawerContent = ({
                     features={{typeChips: true, rootViewMode: false, columnMapping: false}}
                     rootViewMode={rootViewMode}
                     collapseSignal={collapseSignal}
-                    getDefaultValueForType={defaultValueForType}
                 />
             </div>
         </div>

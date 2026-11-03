@@ -95,7 +95,11 @@ describe("ColumnDialog", () => {
 
     it("A delete on a new test set does not mention a save", async () => {
         const onSubmit = vi.fn(async () => ({ok: true, revisionId: null}) as const)
-        render({kind: "delete", columnKey: "answer"}, false, onSubmit)
+        render(
+            {kind: "delete", columnKey: "answer", columnKeys: ["answer"], isGroup: false},
+            false,
+            onSubmit,
+        )
 
         expect(document.body.textContent).not.toContain("saves a new version")
         await act(async () => button("Delete").click())

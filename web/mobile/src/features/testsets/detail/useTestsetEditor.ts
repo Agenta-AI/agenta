@@ -410,15 +410,14 @@ export function useTestsetEditor({
         [applyColumnChange, loadedColumnKeys],
     )
 
-    /** Deletes columns in one change: one column, or every column under a group header. */
+    /**
+     * Deletes columns in one change. The keys are top-level row keys: the server removes those
+     * only, so a group of nested values is deleted by its top-level key.
+     */
     const deleteColumns = useCallback(
         (columnKeys: string[]): Promise<ColumnEdit> =>
             applyColumnChange({kind: "remove", columnKeys}),
         [applyColumnChange],
-    )
-    const deleteColumn = useCallback(
-        (columnKey: string): Promise<ColumnEdit> => deleteColumns([columnKey]),
-        [deleteColumns],
     )
 
     /** Drops every unsaved row, column and edit, and the draft of the revision itself. */
@@ -498,7 +497,6 @@ export function useTestsetEditor({
         deleteRows,
         addColumn,
         renameColumn,
-        deleteColumn,
         deleteColumns,
         columnEditBlocked,
         discard,

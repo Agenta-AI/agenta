@@ -119,4 +119,32 @@ describe("Testcase drawer", () => {
 
         expect(store.get(testcaseMolecule.atoms.data(id ?? ""))?.data).toEqual({question: "Q2"})
     })
+
+    it("Cancel puts the row back, and a field added in the drawer goes away", () => {
+        const id = store.set(testcaseMolecule.actions.add, {data: {question: "Q"}})?.id ?? ""
+        const start = store.get(testcaseMolecule.atoms.data(id))
+        act(() =>
+            root.render(
+                <TestcaseEditorDrawer
+                    testcaseId={id}
+                    testcaseNumber={1}
+                    columns={[]}
+                    viewOnly={false}
+                    hasPrevious={false}
+                    hasNext={false}
+                    onPrevious={vi.fn()}
+                    onNext={vi.fn()}
+                    onClose={vi.fn()}
+                    onOpenCommit={vi.fn()}
+                />,
+            ),
+        )
+        act(() => {
+            store.set(testcaseMolecule.actions.update, id, {data: {question: "Q2", extra: "x"}})
+        })
+
+        act(() => (seen.drawer?.onRestoreSessionStart as (data: unknown) => void)(start))
+
+        expect(store.get(testcaseMolecule.atoms.data(id))?.data).toEqual({question: "Q"})
+    })
 })

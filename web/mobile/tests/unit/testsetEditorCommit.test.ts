@@ -390,7 +390,7 @@ describe("useTestsetEditor commit over the real package state", () => {
     it("Delete saves at once as its own version with only the removal", async () => {
         await mount()
 
-        expect(await act(() => editor().deleteColumn("answer"))).toEqual({
+        expect(await act(() => editor().deleteColumns(["answer"]))).toEqual({
             ok: true,
             revisionId: NEW_REVISION,
         })
@@ -403,11 +403,11 @@ describe("useTestsetEditor commit over the real package state", () => {
         })
     })
 
-    it("Deleting a group saves one version that removes every nested column", async () => {
-        rowsOnServer = [{id: "case-1", data: {question: "Q", meta: {lang: "en", tone: "calm"}}}]
+    it("Deleting columns saves one version that removes them all", async () => {
+        rowsOnServer = [{id: "case-1", data: {question: "Q", answer: "A", meta: {lang: "en"}}}]
         await mount()
 
-        expect(await act(() => editor().deleteColumns(["meta.lang", "meta.tone"]))).toEqual({
+        expect(await act(() => editor().deleteColumns(["answer", "meta"]))).toEqual({
             ok: true,
             revisionId: NEW_REVISION,
         })
@@ -415,7 +415,7 @@ describe("useTestsetEditor commit over the real package state", () => {
         expect(commitBodies()).toHaveLength(1)
         expect(commitBody()?.testset_revision.delta).toEqual({
             rows: undefined,
-            columns: {remove: ["meta.lang", "meta.tone"]},
+            columns: {remove: ["answer", "meta"]},
         })
     })
 
@@ -447,7 +447,7 @@ describe("useTestsetEditor commit over the real package state", () => {
         expect(editor().columnEditBlocked).toBe("Save or discard your row changes first")
         expect(await act(() => editor().renameColumn("answer", "reply"))).toEqual(refusal)
         expect(await act(() => editor().addColumn("country"))).toEqual(refusal)
-        expect(await act(() => editor().deleteColumn("answer"))).toEqual(refusal)
+        expect(await act(() => editor().deleteColumns(["answer"]))).toEqual(refusal)
 
         expect(commitBodies()).toHaveLength(0)
         expect(store.get(revisionMolecule.atoms.pendingColumnOps(REVISION))).toMatchObject({
@@ -621,7 +621,7 @@ describe("useTestsetEditor commit over the real package state", () => {
         const release = holdRequests()
         let saving: Promise<unknown> = Promise.resolve()
         act(() => {
-            saving = editor().deleteColumn("answer")
+            saving = editor().deleteColumns(["answer"])
         })
         await flush()
         run(() => store.set(testcaseMolecule.actions.update, "case-1", {data: {answer: "14 days"}}))
@@ -697,7 +697,7 @@ describe("useTestsetEditor commit over the real package state", () => {
         }
         expect(await act(() => editor().addColumn("country"))).toEqual(refused)
         expect(await act(() => editor().renameColumn("answer", "reply"))).toEqual(refused)
-        expect(await act(() => editor().deleteColumn("answer"))).toEqual(refused)
+        expect(await act(() => editor().deleteColumns(["answer"]))).toEqual(refused)
         expect(commitBodies()).toHaveLength(0)
     })
 
@@ -751,7 +751,7 @@ describe("useTestsetEditor commit over the real package state", () => {
                 }),
             )
 
-            await act(() => editor().deleteColumn("country"))
+            await act(() => editor().deleteColumns(["country"]))
             await act(() => editor().addColumn("country"))
 
             await commit()
@@ -769,7 +769,7 @@ describe("useTestsetEditor commit over the real package state", () => {
                 }),
             )
 
-            await act(() => editor().deleteColumn("question"))
+            await act(() => editor().deleteColumns(["question"]))
             expect(await act(() => editor().renameColumn("answer", "question"))).toEqual({
                 ok: true,
                 revisionId: null,
@@ -787,7 +787,7 @@ describe("useTestsetEditor commit over the real package state", () => {
             await act(() => editor().addColumn("b"))
             run(() => store.set(testcaseMolecule.actions.update, rowId ?? "", {data: {b: "keep"}}))
 
-            await act(() => editor().deleteColumn("a"))
+            await act(() => editor().deleteColumns(["a"]))
             expect(await act(() => editor().renameColumn("b", "a"))).toEqual({
                 ok: true,
                 revisionId: null,

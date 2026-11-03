@@ -270,7 +270,8 @@ export const testcaseDataController = createEntityDataController<
  *
  * The grid calls it when the reader scrolls near the end. Rows on later pages join the same
  * row list, so an edit to one of them reaches the save like an edit on the first page.
- * Local mode has one page and does nothing.
+ * Local mode has one page and does nothing. The rule is the one `useInfiniteTablePagination`
+ * uses; this atom runs it outside React so the grid does not re-render on every page change.
  */
 export const loadMoreTestcasesAtom = atom(null, (get, set, config: TestcaseDataConfig) => {
     if (config.useLocal) return

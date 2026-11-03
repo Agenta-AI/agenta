@@ -21,8 +21,8 @@ import type {ColumnEdit} from "./useTestsetEditor"
 export type ColumnDialogStep =
     | {kind: "add"}
     | {kind: "rename"; columnKey: string}
-    /** `groupColumns` is set for a group header: the columns under it, deleted together. */
-    | {kind: "delete"; columnKey: string; groupColumns?: string[]}
+    /** `columnKeys` are the row keys the delete removes; `isGroup` for a group header. */
+    | {kind: "delete"; columnKey: string; columnKeys: string[]; isGroup: boolean}
 
 const SAVES_VERSION = "This saves a new version of the test set right away."
 const NAME_TIP =
@@ -74,14 +74,14 @@ export const ColumnDialog = ({
             ? "Add Column"
             : step.kind === "rename"
               ? "Rename Column"
-              : step.groupColumns
+              : step.isGroup
                 ? "Delete Group"
                 : "Delete Column"
     const verb = step.kind === "add" ? "Add" : step.kind === "rename" ? "Rename" : "Delete"
     const confirmLabel = savesVersion ? `${verb} and save` : verb
     const description = isDelete
-        ? step.groupColumns
-            ? `Are you sure you want to delete the group "${step.columnKey}" and its ${step.groupColumns.length} columns? This will remove them from all testcases.`
+        ? step.isGroup
+            ? `Are you sure you want to delete the group "${step.columnKey}" and every column in it? This will remove them from all testcases.`
             : `Are you sure you want to delete the column "${step.columnKey}"? This will remove the column from all testcases.`
         : savesVersion
           ? SAVES_VERSION

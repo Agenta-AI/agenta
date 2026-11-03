@@ -4,6 +4,7 @@ import {testcaseMolecule, type Column, type Testcase} from "@agenta/entities/tes
 import {TestcaseDrawer, type TestcaseDrawerContentRenderProps} from "@agenta/entity-ui/testcase"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {replaceDataUpdate} from "./testcaseDataUpdate"
 import {TestcaseEditorDrawerContent} from "./TestcaseEditorDrawerContent"
 
 /**
@@ -44,11 +45,12 @@ export const TestcaseEditorDrawer = ({
     const isDirty = useAtomValue(testcaseMolecule.atoms.isDirty(id))
     const update = useSetAtom(testcaseMolecule.actions.update)
 
+    // Cancel puts the row back as it was when the drawer opened, fields added since included.
     const restore = useCallback(
         (start: Testcase) => {
-            if (id) update(id, {data: start.data ?? {}})
+            if (id) update(id, replaceDataUpdate(testcase?.data ?? {}, start.data ?? {}))
         },
-        [id, update],
+        [id, testcase?.data, update],
     )
 
     const renderContent = useCallback(

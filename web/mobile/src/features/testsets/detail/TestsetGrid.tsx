@@ -11,6 +11,7 @@ import {useAtomValue} from "jotai"
 
 import {AddColumnButton, ColumnDialog, type ColumnDialogStep} from "./ColumnDialogs"
 import {ColumnHeaderActions} from "./ColumnHeaderActions"
+import {columnHeaderTarget} from "./columnHeaderTarget"
 import {TestcaseRowMenu} from "./TestcaseRowMenu"
 import type {TestsetEditor} from "./useTestsetEditor"
 
@@ -94,34 +95,33 @@ export const TestsetGrid = ({
     )
 
     const renderColumnHeader = useCallback(
-        (header: EntityColumnHeader) => (
-            <ColumnHeaderActions
-                header={header}
-                blockedReason={editor.columnEditBlocked}
-                onRename={() => setStep({kind: "rename", columnKey: header.key})}
-                onDelete={() =>
-                    setStep(
-                        header.isGroup
-                            ? {
-                                  kind: "delete",
-                                  columnKey: header.key,
-                                  groupColumns: columns
-                                      .map((column) => column.key)
-                                      .filter((key) => key.startsWith(`${header.key}.`)),
-                              }
-                            : {kind: "delete", columnKey: header.key},
-                    )
-                }
-            />
-        ),
+        (header: EntityColumnHeader) => {
+            const columnKeys = columnHeaderTarget(header, columns)
+            if (!columnKeys) return header.title
+            return (
+                <ColumnHeaderActions
+                    header={header}
+                    blockedReason={editor.columnEditBlocked}
+                    onRename={() => setStep({kind: "rename", columnKey: header.key})}
+                    onDelete={() =>
+                        setStep({
+                            kind: "delete",
+                            columnKey: header.key,
+                            columnKeys,
+                            isGroup: header.isGroup,
+                        })
+                    }
+                />
+            )
+        },
         [columns, editor.columnEditBlocked],
     )
 
     const submitStep = useCallback(
         (name: string) => {
-            if (step?.kind === "add") return editor.addColumn(name)
             if (step?.kind === "rename") return editor.renameColumn(step.columnKey, name)
-            return editor.deleteColumns(step?.groupColumns ?? [name])
+            if (step?.kind === "delete") return editor.deleteColumns(step.columnKeys)
+            return editor.addColumn(name)
         },
         [editor, step],
     )
