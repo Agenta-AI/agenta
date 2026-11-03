@@ -38,8 +38,14 @@ export const useAppArchive = ({
         message.success("App archived")
         // Leave before the lists refresh: the app is gone then, and this page would flash
         // "not found" while the navigation runs.
-        await router.push(`${base}/apps`)
-        invalidateWorkflowsListCache()
-        invalidateWorkflowCache(appId)
+        try {
+            await router.push(`${base}/apps`)
+        } catch (error) {
+            // The app is archived. A failed navigation must not read as a failed archive.
+            console.error("Leaving an archived app failed", error)
+        } finally {
+            invalidateWorkflowsListCache()
+            invalidateWorkflowCache(appId)
+        }
     }, [projectId, appId, base, router])
 }

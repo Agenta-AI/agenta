@@ -71,9 +71,11 @@ export const useAppRename = ({projectId, app}: {projectId: string; app: Workflow
                 return false
             } finally {
                 inFlight.current = false
+                // Also after a failure: the package reads the app back after its write, and a
+                // failed read leaves a saved rename behind that the caches would not show.
+                invalidateWorkflowsListCache()
+                invalidateWorkflowCache(app.id)
             }
-            invalidateWorkflowsListCache()
-            invalidateWorkflowCache(app.id)
             return true
         },
         [projectId, app.id, descriptionState],

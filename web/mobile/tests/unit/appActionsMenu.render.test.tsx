@@ -15,6 +15,7 @@ import {validateAppName} from "@/features/app-overview/useAppRename"
 // Only the HTTP layer is replaced. The save functions, the artifact query and the cache
 // invalidation are the packages' own.
 const http = vi.hoisted(() => ({post: vi.fn(), put: vi.fn(), get: vi.fn()}))
+const refresh = vi.hoisted(() => ({lists: vi.fn(), one: vi.fn()}))
 const toast = vi.hoisted(() => ({success: vi.fn(), error: vi.fn()}))
 const env = vi.hoisted(() => ({
     permissions: {edit_workflows: true} as Record<string, boolean>,
@@ -26,6 +27,23 @@ vi.mock("@agenta/shared/api", async (original) => ({
     axios: http,
     getAgentaApiUrl: () => "https://api.test",
 }))
+// The real cache refreshers run. The wrappers only record that they were called.
+vi.mock("@agenta/entities/workflow", async (original) => {
+    const real = await original<typeof import("@agenta/entities/workflow")>()
+    return {
+        ...real,
+        invalidateWorkflowsListCache: (
+            ...args: Parameters<typeof real.invalidateWorkflowsListCache>
+        ) => {
+            refresh.lists()
+            return real.invalidateWorkflowsListCache(...args)
+        },
+        invalidateWorkflowCache: (...args: Parameters<typeof real.invalidateWorkflowCache>) => {
+            refresh.one(args[0])
+            return real.invalidateWorkflowCache(...args)
+        },
+    }
+})
 vi.mock("@agenta/ui/app-message", () => ({message: toast}))
 vi.mock("next/router", () => ({useRouter: () => ({push: env.push, query: {}})}))
 vi.mock("@/features/context/useProjectPermission", () => ({
@@ -144,6 +162,8 @@ beforeEach(() => {
     env.push.mockReset()
     toast.success.mockReset()
     toast.error.mockReset()
+    refresh.lists.mockReset()
+    refresh.one.mockReset()
     http.post.mockReset().mockImplementation((url: string, body: never) => answerQuery(url, body))
     http.put.mockReset().mockResolvedValue({data: {}})
     http.get.mockReset().mockResolvedValue({data: {}})
@@ -278,6 +298,27 @@ describe("app actions menu", () => {
         expect(field("Name")?.value).toBe("Support assistant")
     })
 
+    it("The caches refresh even when the read after the rename fails", async () => {
+        vi.spyOn(console, "error").mockImplementation(() => undefined)
+        await mount()
+        await openMenu()
+        await clickItem("Rename")
+        await settle()
+        // The package reads the app back after its PUT. Fail only that read.
+        const answer = http.post.getMockImplementation()
+        http.post.mockImplementation((url: string, body: never) =>
+            url.endsWith("/workflows/revisions/query")
+                ? Promise.reject(new Error("read failed"))
+                : answer?.(url, body),
+        )
+        await type(field("Name"), "Support assistant")
+        await act(async () => byText("Save changes")?.click())
+        await settle()
+        expect(http.put).toHaveBeenCalledTimes(1)
+        expect(refresh.lists).toHaveBeenCalled()
+        expect(refresh.one).toHaveBeenCalledWith("app-1")
+    })
+
     it("Archive sends one archive request on a double click and goes to the project home", async () => {
         http.post.mockImplementation((url: string, body: never) =>
             url.endsWith("/archive")
@@ -301,6 +342,27 @@ describe("app actions menu", () => {
         expect(archives[0][0]).toBe("https://api.test/workflows/app-1/archive")
         expect(toast.success).toHaveBeenCalledWith("App archived")
         expect(env.push).toHaveBeenCalledWith("/w/ws/p/pr/apps")
+    })
+
+    it("A failed navigation after the archive does not read as a failed archive", async () => {
+        http.post.mockImplementation((url: string, body: never) =>
+            url.endsWith("/archive")
+                ? Promise.resolve({data: {count: 1, workflow: STORED}})
+                : answerQuery(url, body),
+        )
+        env.push.mockRejectedValue(new Error("route cancelled"))
+        vi.spyOn(console, "error").mockImplementation(() => undefined)
+        await mount()
+        await openMenu()
+        await clickItem("Archive app")
+        const confirm = [...document.querySelectorAll<HTMLElement>("button")].filter(
+            (el) => el.textContent?.trim() === "Archive app",
+        )
+        await act(async () => confirm.at(-1)?.click())
+        await settle()
+        expect(document.querySelector("[role=alertdialog]")).toBeNull()
+        expect(refresh.lists).toHaveBeenCalled()
+        expect(refresh.one).toHaveBeenCalledWith("app-1")
     })
 
     it("A failed archive keeps the confirm open and says Failed to archive app", async () => {
