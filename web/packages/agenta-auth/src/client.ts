@@ -323,6 +323,31 @@ export async function signUpDetailed(
     }
 }
 
+/* ── password reset (the link carries the token; SuperTokens reads it from the URL) ── */
+
+export type ResetPasswordOutcome =
+    | {kind: "ok"}
+    | {kind: "invalid-link"}
+    | {kind: "field-error"; message: string}
+    | {kind: "error"}
+
+export async function submitNewPasswordDetailed(password: string): Promise<ResetPasswordOutcome> {
+    ensureAuthInit()
+    try {
+        const response = await EmailPassword.submitNewPassword({
+            formFields: [{id: "password", value: password}],
+        })
+        if (response.status === "OK") return {kind: "ok"}
+        if (response.status === "RESET_PASSWORD_INVALID_TOKEN_ERROR") return {kind: "invalid-link"}
+        return {
+            kind: "field-error",
+            message: response.formFields[0]?.error ?? "Choose a different password.",
+        }
+    } catch {
+        return {kind: "error"}
+    }
+}
+
 /* ── detailed OTP consume (attempts left / expired need their own copy on the form) ── */
 
 export type OtpDetailedOutcome =
