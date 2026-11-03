@@ -19,8 +19,8 @@ const REFINE_FAILED = "Couldn't refine the prompt. Try again."
 /**
  * The refine conversation for one prompt of one revision. The state lives in the dialog, so it
  * is gone when the dialog closes. Each round refines the result of the round before; `refine`
- * ignores a call while a round runs and resolves to whether the round worked. `apply` writes the result into the revision's draft (it
- * saves nothing).
+ * ignores a call while a round runs and resolves to whether the round worked. `apply` writes
+ * the result into the revision's draft (it saves nothing).
  */
 export function useRefinePrompt(revisionId: string, promptKey: string) {
     const store = useStore()
