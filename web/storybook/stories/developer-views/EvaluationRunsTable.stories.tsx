@@ -48,7 +48,7 @@ const makeActions = (canEdit: boolean): RunRowActions => ({
     viewTestset: noop,
     remove: noop,
     isBusy: () => false,
-    modal: null,
+    modal: <></>,
 })
 
 type StepKind = "auto" | "human" | "custom"

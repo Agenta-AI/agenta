@@ -5,8 +5,6 @@ import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {makeRun, page} from "./evaluationRunsFixtures"
-
 import {
     parseKindTab,
     parseStatuses,
@@ -14,6 +12,8 @@ import {
     type EvaluationKindTab,
 } from "@/features/evaluations/list/useEvaluationRunsFilters"
 import {useEvaluationRunsList} from "@/features/evaluations/list/useEvaluationRunsList"
+
+import {makeRun, page} from "./evaluationRunsFixtures"
 
 const http = vi.hoisted(() => ({post: vi.fn()}))
 const router = vi.hoisted(() => ({
