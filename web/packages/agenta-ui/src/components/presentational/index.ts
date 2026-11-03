@@ -308,21 +308,3 @@ export {
     userBubbleContentClass,
     type ChatBubbleProps,
 } from "./chat"
-
-// ============================================================================
-// CHARTS
-// ============================================================================
-
-export {
-    BarChart,
-    ChartLegend,
-    LineChart,
-    RadarChart,
-    type BarChartDatum,
-    type BarChartProps,
-    type ChartSeries,
-    type LineChartProps,
-    type LinePoint,
-    type RadarAxis,
-    type RadarChartProps,
-} from "./charts"

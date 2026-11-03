@@ -44,6 +44,15 @@ describe("chart scale math", () => {
         expect(ticks(0, Infinity)).toEqual([0])
     })
 
+    it("values far below one do not make the tick math throw", () => {
+        for (const tiny of [1e-97, 1e-100, 1e-200, 5e-324]) {
+            expect(() => niceMax(tiny)).not.toThrow()
+            const [low, high] = niceDomain(0, tiny)
+            expect(() => ticks(low, high)).not.toThrow()
+            expect(ticks(low, high).length).toBeGreaterThan(0)
+        }
+    })
+
     it("NaN and infinite values count as missing", () => {
         expect(finiteOrNull(3)).toBe(3)
         expect(finiteOrNull(Number.NaN)).toBeNull()

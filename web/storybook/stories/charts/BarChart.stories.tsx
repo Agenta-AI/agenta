@@ -1,4 +1,4 @@
-import {BarChart, type BarChartProps} from "@agenta/ui/components/presentational"
+import {BarChart, type BarChartProps} from "@agenta/ui/components/presentational/charts"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 import {ChartStoryFrame} from "./ChartStoryFrame"

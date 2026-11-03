@@ -27,6 +27,8 @@ export function niceStep(range: number, count: number): number {
     if (!(range > 0) || count < 1) return 1
     const raw = range / count
     const power = 10 ** Math.floor(Math.log10(raw))
+    // Below float precision the power rounds to 0: one step spans the whole range.
+    if (!(power > 0)) return range
     const fraction = raw / power
     const nice =
         fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 2.5 ? 2.5 : fraction <= 5 ? 5 : 10
@@ -35,7 +37,8 @@ export function niceStep(range: number, count: number): number {
 
 /** Rounds `value` to the precision of `step`, to drop float noise such as 0.30000000000000004. */
 function snap(value: number, step: number): number {
-    const decimals = Math.max(0, -Math.floor(Math.log10(step)) + 2)
+    // toFixed accepts at most 100 digits.
+    const decimals = Math.min(100, Math.max(0, -Math.floor(Math.log10(step)) + 2))
     return Number(value.toFixed(decimals))
 }
 

@@ -100,11 +100,13 @@ function ChartTooltip({
     tooltip: ChartTooltipModel
 }) {
     // Open towards the wider side, and never wider than that side, so it stays inside the chart.
+    // The box is at least 80 px wide, but never wider than the chart itself.
     const opensRight = tooltip.x <= width / 2
     const room = (opensRight ? width - tooltip.x : tooltip.x) - TOOLTIP_OFFSET
-    const side = opensRight
-        ? {left: tooltip.x + TOOLTIP_OFFSET}
-        : {right: width - tooltip.x + TOOLTIP_OFFSET}
+    const maxWidth = Math.min(width, Math.max(80, Math.min(TOOLTIP_MAX_WIDTH, room)))
+    const edge = opensRight ? tooltip.x + TOOLTIP_OFFSET : width - tooltip.x + TOOLTIP_OFFSET
+    const clamped = Math.min(Math.max(0, edge), width - maxWidth)
+    const side = opensRight ? {left: clamped} : {right: clamped}
     return (
         <div
             id={id}
@@ -113,7 +115,7 @@ function ChartTooltip({
             style={{
                 ...side,
                 top: Math.max(0, tooltip.y - TOOLTIP_OFFSET),
-                maxWidth: Math.max(80, Math.min(TOOLTIP_MAX_WIDTH, room)),
+                maxWidth,
             }}
         >
             <div className="mb-0.5 break-words font-medium">{tooltip.label}</div>

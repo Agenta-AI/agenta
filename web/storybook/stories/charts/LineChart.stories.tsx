@@ -1,4 +1,8 @@
-import {LineChart, type LineChartProps, type LinePoint} from "@agenta/ui/components/presentational"
+import {
+    LineChart,
+    type LineChartProps,
+    type LinePoint,
+} from "@agenta/ui/components/presentational/charts"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 import {ChartStoryFrame} from "./ChartStoryFrame"

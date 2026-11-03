@@ -125,6 +125,70 @@ describe("LineChart", () => {
         expect(screen.getByRole("tooltip").textContent).toContain("Run A: 1")
     })
 
+    it("A point with an invalid time is skipped and the rest still draws", () => {
+        const {container} = render(
+            <LineChart
+                title="Score over time"
+                height={200}
+                series={oneSeries}
+                formatX={formatX}
+                points={[
+                    {x: 1, values: {score: 1}},
+                    {x: Number.NaN, values: {score: 5}},
+                    {x: 3, values: {score: 3}},
+                ]}
+            />,
+        )
+        const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1)
+        expect(rows.map((row) => row.textContent)).toEqual(["t11", "t33"])
+        const [line] = linesOf(container, "score")
+        expect(numbersOf(line.getAttribute("d")).every(Number.isFinite)).toBe(true)
+        expect(line.getAttribute("d")).not.toContain("NaN")
+    })
+
+    it("Tiny values draw without throwing", () => {
+        expect(() =>
+            render(
+                <LineChart
+                    title="Score over time"
+                    height={200}
+                    series={oneSeries}
+                    formatX={formatX}
+                    points={[
+                        {x: 1, values: {score: 1e-100}},
+                        {x: 2, values: {score: 2e-100}},
+                    ]}
+                />,
+            ),
+        ).not.toThrow()
+    })
+
+    it("The tooltip stays inside a chart narrower than 160 px", () => {
+        stubChartWidth(120)
+        render(
+            <LineChart
+                title="Score over time"
+                height={200}
+                formatX={formatX}
+                series={oneSeries}
+                points={[
+                    {x: 0, values: {score: 1}},
+                    {x: 100, values: {score: 3}},
+                ]}
+            />,
+        )
+        const svg = screen.getByRole("img", {name: "Score over time"})
+        for (const clientX of [0, 60, 120]) {
+            fireEvent.mouseMove(svg, {clientX, clientY: 60})
+            const style = screen.getByRole("tooltip").style
+            const maxWidth = parseFloat(style.maxWidth)
+            const edge = style.left ? parseFloat(style.left) : parseFloat(style.right)
+            expect(maxWidth).toBeLessThanOrEqual(120)
+            expect(edge).toBeGreaterThanOrEqual(0)
+            expect(edge + maxWidth).toBeLessThanOrEqual(120)
+        }
+    })
+
     it("Line and grid colors come from theme tokens", () => {
         const {container} = render(
             <LineChart

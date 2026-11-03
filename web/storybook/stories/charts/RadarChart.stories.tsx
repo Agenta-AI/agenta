@@ -2,7 +2,7 @@ import {
     RadarChart,
     type RadarAxis,
     type RadarChartProps,
-} from "@agenta/ui/components/presentational"
+} from "@agenta/ui/components/presentational/charts"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 import {ChartStoryFrame} from "./ChartStoryFrame"
