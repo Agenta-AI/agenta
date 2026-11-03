@@ -8,6 +8,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {useExecutionRow} from "../../hooks/useExecutionRow"
 import {openPlaygroundFocusDrawerAtom} from "../../state/focusDrawer"
+import {EvaluatorScoreCards} from "../evaluator/EvaluatorScoreCards"
 import {InputsList} from "../inputs"
 
 import {RowActions} from "./RowActions"
@@ -26,7 +27,8 @@ export interface CompletionRowProps {
 
 /**
  * One test case: the caret that folds the row, its label (which opens the focus drawer), the sync
- * tag, the row actions, the run control, then the inputs and the result. "Collapse all" in the
+ * tag, the row actions, the run control, then the inputs, the result, and the score of each
+ * evaluator that runs after the app. "Collapse all" in the
  * header folds every row; the caret on one row then overrides it for that row until the next
  * "collapse all".
  */
@@ -110,6 +112,7 @@ export const CompletionRow = memo(
                                 renderTraceFooter={renderTraceFooter}
                             />
                         </div>
+                        <EvaluatorScoreCards rowId={rowId} entityId={entityId} />
                     </div>
                 </HeightCollapse>
             </section>

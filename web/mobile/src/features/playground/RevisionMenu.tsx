@@ -39,8 +39,9 @@ export const RevisionMenu = ({
     deleteHint: string | null
     onCopyConfig: () => void
     onRevert: () => void
-    onDeploy: () => void
-    onDelete: () => void
+    /** Left out on a revision that cannot be deployed or deleted here: the item goes. */
+    onDeploy?: () => void
+    onDelete?: () => void
 }) => (
     <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -49,10 +50,12 @@ export const RevisionMenu = ({
             </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-[200px]">
-            <DropdownMenuItem className="sm:hidden" disabled={!canDeploy} onSelect={onDeploy}>
-                <Rocket aria-hidden size={14} />
-                <MenuLabel hint={deployHint}>Deploy</MenuLabel>
-            </DropdownMenuItem>
+            {onDeploy ? (
+                <DropdownMenuItem className="sm:hidden" disabled={!canDeploy} onSelect={onDeploy}>
+                    <Rocket aria-hidden size={14} />
+                    <MenuLabel hint={deployHint}>Deploy</MenuLabel>
+                </DropdownMenuItem>
+            ) : null}
             <DropdownMenuItem onSelect={onCopyConfig}>
                 <Copy aria-hidden size={14} />
                 Copy raw config
@@ -62,10 +65,12 @@ export const RevisionMenu = ({
                 <ArrowCounterClockwise aria-hidden size={14} />
                 Revert Changes
             </DropdownMenuItem>
-            <DropdownMenuItem variant="destructive" disabled={!canDelete} onSelect={onDelete}>
-                <Trash aria-hidden size={14} />
-                <MenuLabel hint={deleteHint}>Delete</MenuLabel>
-            </DropdownMenuItem>
+            {onDelete ? (
+                <DropdownMenuItem variant="destructive" disabled={!canDelete} onSelect={onDelete}>
+                    <Trash aria-hidden size={14} />
+                    <MenuLabel hint={deleteHint}>Delete</MenuLabel>
+                </DropdownMenuItem>
+            ) : null}
         </DropdownMenuContent>
     </DropdownMenu>
 )

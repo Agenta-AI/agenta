@@ -83,6 +83,13 @@ export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
         stage: "hidden",
     },
     {
+        id: "evaluator-playground",
+        label: "Evaluator playground",
+        description: "Edit an evaluator and run it on test cases or on an app's output.",
+        routes: ["/evaluators/playground"],
+        stage: "hidden",
+    },
+    {
         id: "observability-app-filter",
         label: "Filter by app",
         description:
