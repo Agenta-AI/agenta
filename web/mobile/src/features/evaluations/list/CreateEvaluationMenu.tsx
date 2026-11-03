@@ -35,8 +35,6 @@ const ITEMS: {kind: CreatableKind; title: string; description: string}[] = [
     },
 ]
 
-export const CREATABLE_KINDS: readonly CreatableKind[] = ITEMS.map((item) => item.kind)
-
 /** The kind that a tab's create button starts, or null where the tab has none. */
 export const creatableKindOf = (tab: EvaluationKindTab): CreatableKind | null =>
     tab === "all" ? null : tab

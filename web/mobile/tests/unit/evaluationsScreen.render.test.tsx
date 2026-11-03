@@ -5,9 +5,9 @@ import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {makeRun, page} from "./evaluationRunsFixtures"
-
 import {EvaluationsScreen} from "@/features/evaluations/list/EvaluationsScreen"
+
+import {makeRun, page} from "./evaluationRunsFixtures"
 
 const http = vi.hoisted(() => ({post: vi.fn(), delete: vi.fn()}))
 const env = vi.hoisted(() => ({
@@ -271,15 +271,6 @@ describe("evaluations screen", () => {
         ])
         await act(async () => items[2].click())
         expect(onCreate).toHaveBeenCalledWith("online")
-    })
-
-    it("App scope leaves Live evaluation out of the create menu", async () => {
-        env.query = {app: "app-1"}
-        await mount({onCreate: vi.fn()})
-        await openMenuOf(button(/New evaluation|Start evaluation/))
-        const menu = [...document.querySelectorAll("[role=menuitem]")].map((el) => el.textContent)
-        expect(menu.join(" ")).not.toContain("Live evaluation")
-        expect(menu).toHaveLength(3)
     })
 
     it("A kind tab create button opens that kind directly", async () => {

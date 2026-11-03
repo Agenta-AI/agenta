@@ -10,6 +10,7 @@
  * @packageDocumentation
  */
 
+import {getEvaluationsClient, getQueriesClient} from "@agenta/sdk/resources"
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 
 import {testcasesResponseSchema} from "../../testcase/core/schema"
@@ -260,8 +261,8 @@ export async function createLiveEvaluation({
     evaluatorRevisionId,
     slugSuffix,
 }: CreateLiveEvaluationParams): Promise<{runId: string}> {
-    const params = {project_id: projectId}
-    const baseUrl = getAgentaApiUrl()
+    const options = {queryParams: {project_id: projectId}}
+    const queries = getQueriesClient()
 
     const data: LiveQueryData = {}
     const filtering = toFilteringPayload(filters)
@@ -269,8 +270,7 @@ export async function createLiveEvaluation({
     if (filtering) data.filtering = filtering
     if (windowing) data.windowing = windowing
 
-    const queryResponse = await axios.post(
-        `${baseUrl}/simple/queries/`,
+    const queryResponse = await queries.createSimpleQuery(
         {
             query: {
                 slug: buildQuerySlug(name, slugSuffix),
@@ -279,24 +279,20 @@ export async function createLiveEvaluation({
                 ...(filtering || windowing ? {data} : {}),
             },
         },
-        {params},
+        options,
     )
-    const queryId = queryResponse.data?.query?.id
-    if (typeof queryId !== "string") throw new Error("The query response has no query id.")
+    const queryId = queryResponse.query?.id
+    if (!queryId) throw new Error("The query response has no query id.")
 
     try {
-        const revisionResponse = await axios.post(
-            `${baseUrl}/queries/revisions/retrieve`,
+        const revisionResponse = await queries.retrieveQueryRevision(
             {query_ref: {id: queryId}},
-            {params},
+            options,
         )
-        const queryRevisionId = revisionResponse.data?.query_revision?.id
-        if (typeof queryRevisionId !== "string") {
-            throw new Error("The query has no query revision.")
-        }
+        const queryRevisionId = revisionResponse.query_revision?.id
+        if (!queryRevisionId) throw new Error("The query has no query revision.")
 
-        const evaluationResponse = await axios.post(
-            `${baseUrl}/simple/evaluations/`,
+        const evaluationResponse = await getEvaluationsClient().createSimpleEvaluation(
             {
                 evaluation: {
                     name,
@@ -310,14 +306,14 @@ export async function createLiveEvaluation({
                     },
                 },
             },
-            {params},
+            options,
         )
-        const runId = evaluationResponse.data?.evaluation?.id
-        if (typeof runId !== "string") throw new Error("The evaluation response has no run id.")
+        const runId = evaluationResponse.evaluation?.id
+        if (!runId) throw new Error("The evaluation response has no run id.")
         return {runId}
     } catch (error) {
-        await axios
-            .post(`${baseUrl}/simple/queries/${queryId}/archive`, undefined, {params})
+        await queries
+            .archiveSimpleQuery({query_id: queryId}, options)
             .catch((archiveError: unknown) =>
                 console.error("Could not archive the live evaluation query", archiveError),
             )

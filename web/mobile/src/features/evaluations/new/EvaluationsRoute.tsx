@@ -21,6 +21,8 @@ const LiveEvaluationSheet = dynamic(
 )
 
 const CREATE_KINDS: readonly CreatableKind[] = ["auto", "human", "online"]
+// Live evaluations are project wide, so an app scoped list does not offer them.
+const APP_CREATE_KINDS: readonly CreatableKind[] = ["auto", "human"]
 
 /** The runs list with the wizard and the live evaluation sheet behind its create entry. */
 export const EvaluationsRoute = ({
@@ -62,7 +64,7 @@ export const EvaluationsRoute = ({
                 workspaceId={workspaceId}
                 projectId={projectId}
                 onCreate={handleCreate}
-                createKinds={CREATE_KINDS}
+                createKinds={filters.appId ? APP_CREATE_KINDS : CREATE_KINDS}
             />
             {loaded ? (
                 <NewEvaluationSheet

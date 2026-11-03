@@ -58,7 +58,6 @@ export const LiveEvaluationForm = ({
     const {draft, update, pickEvaluator, validate, errors} = useLiveEvaluationForm(initial)
     const evaluators = useLiveEvaluators()
     const picked = evaluators.evaluators.find((e) => e.id === draft.evaluatorRevisionId)
-    const noneSupported = !evaluators.isPending && evaluators.evaluators.length === 0
 
     const handleSubmit = async (event: FormEvent) => {
         event.preventDefault()
@@ -144,7 +143,7 @@ export const LiveEvaluationForm = ({
                 >
                     <LiveEvaluatorSection
                         list={evaluators}
-                        value={draft.evaluatorRevisionId}
+                        picked={picked}
                         error={errors.evaluator}
                         disabled={isCreating}
                         evaluatorsHref={evaluatorsHref}
@@ -161,7 +160,7 @@ export const LiveEvaluationForm = ({
                 <LoadingButton
                     type="submit"
                     loading={isCreating}
-                    disabled={isCreating || noneSupported}
+                    disabled={isCreating || evaluators.noneSupported}
                 >
                     Create live evaluation
                 </LoadingButton>

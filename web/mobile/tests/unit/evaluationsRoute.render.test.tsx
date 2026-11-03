@@ -10,14 +10,17 @@ import {DEVELOPER_VIEWS} from "@/features/developer/developerViews"
 import EvaluationsPage from "@/pages/w/[workspace_id]/p/[project_id]/evaluations"
 
 const screen = vi.hoisted(() => vi.fn())
-const nav = vi.hoisted(() => ({replace: vi.fn()}))
+const nav = vi.hoisted(() => ({
+    replace: vi.fn(),
+    query: {workspace_id: "ws", project_id: "pr"} as Record<string, string>,
+}))
 
 vi.mock("@agenta/auth-ui", () => ({
     NotFoundScreen: () => createElement("p", {"data-testid": "not-found"}),
 }))
 vi.mock("next/router", () => ({
     useRouter: () => ({
-        query: {workspace_id: "ws", project_id: "pr"},
+        query: nav.query,
         pathname: "/w/[workspace_id]/p/[project_id]/evaluations",
         asPath: "/",
         back: vi.fn(),
@@ -32,8 +35,14 @@ vi.mock("next/dynamic", () => ({
     },
 }))
 vi.mock("@/features/evaluations/list/EvaluationsScreen", () => ({
-    EvaluationsScreen: ({onCreate}: {onCreate: (kind: string) => void}) => {
-        screen()
+    EvaluationsScreen: ({
+        onCreate,
+        createKinds,
+    }: {
+        onCreate: (kind: string) => void
+        createKinds: string[]
+    }) => {
+        screen(createKinds)
         return createElement(
             "button",
             {"data-testid": "create-live", onClick: () => onCreate("online")},
@@ -66,6 +75,7 @@ beforeEach(() => {
     document.body.appendChild(host)
     root = createRoot(host)
     screen.mockReset()
+    nav.query = {workspace_id: "ws", project_id: "pr"}
 })
 
 afterEach(() => {
@@ -105,5 +115,14 @@ describe("evaluations route", () => {
             undefined,
             {shallow: true},
         )
+    })
+
+    it("An app scoped list offers no live evaluation", async () => {
+        vi.stubEnv("NEXT_PUBLIC_AGENTA_DEVELOPER_VIEWS", "evaluations")
+        await mount()
+        expect(screen).toHaveBeenLastCalledWith(["auto", "human", "online"])
+        nav.query = {workspace_id: "ws", project_id: "pr", app: "app-1"}
+        await mount()
+        expect(screen).toHaveBeenLastCalledWith(["auto", "human"])
     })
 })

@@ -8,6 +8,8 @@
  * @packageDocumentation
  */
 
+import type {AgentaApi} from "@agentaai/api-client"
+
 import {isOnlineCapableEvaluator} from "../../workflow/core/schema"
 
 /**
@@ -22,26 +24,10 @@ export interface LiveFilterRow {
     isPermanent?: boolean
 }
 
-export interface LiveQueryCondition {
-    field: string
-    key?: string
-    operator: string
-    value: unknown
-}
-
-export interface LiveQueryFiltering {
-    operator: "and"
-    conditions: LiveQueryCondition[]
-}
-
-export interface LiveQueryWindowing {
-    rate: number
-}
-
-export interface LiveQueryData {
-    filtering?: LiveQueryFiltering
-    windowing?: LiveQueryWindowing
-}
+type LiveQueryCondition = AgentaApi.Condition
+type LiveQueryFiltering = AgentaApi.FilteringInput
+type LiveQueryWindowing = AgentaApi.Windowing
+export type LiveQueryData = AgentaApi.QueryRevisionDataInput
 
 /** Locked first row of every live evaluation query: only invocation traces. */
 export const LIVE_INVOCATION_FILTER = {
@@ -68,10 +54,12 @@ export function toFilteringPayload(filters: LiveFilterRow[]): LiveQueryFiltering
     const conditions = filters
         .filter((filter) => filter.field)
         .map((filter): LiveQueryCondition => {
+            // The filter builder checks the operator and the value of each row, so they are
+            // trusted here as the wire types.
             const condition: LiveQueryCondition = {
                 field: filter.field,
-                operator: filter.operator.trim() || "is",
-                value: filter.value,
+                operator: (filter.operator.trim() || "is") as AgentaApi.Condition.Operator,
+                value: filter.value as AgentaApi.Condition.Value,
             }
             const key = filter.key?.trim()
             if (key && filter.field !== "references") condition.key = key

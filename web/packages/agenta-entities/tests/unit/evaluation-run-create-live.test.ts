@@ -1,11 +1,25 @@
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
+// The live create goes through the generated API clients: they are the HTTP seam here. Each
+// client method records its call under its endpoint path and answers like the API body.
 const {postMock} = vi.hoisted(() => ({postMock: vi.fn()}))
 
-vi.mock("@agenta/shared/api", () => ({
-    axios: {post: postMock, delete: vi.fn()},
-    getAgentaApiUrl: () => "https://agenta.test/api",
-}))
+vi.mock("@agenta/sdk/resources", () => {
+    const endpoint =
+        (path: (body: {query_id?: string}) => string) =>
+        async (body: {query_id?: string}, options: unknown) =>
+            (await postMock(`https://agenta.test/api${path(body)}`, body, options)).data
+    return {
+        getQueriesClient: () => ({
+            createSimpleQuery: endpoint(() => "/simple/queries/"),
+            retrieveQueryRevision: endpoint(() => "/queries/revisions/retrieve"),
+            archiveSimpleQuery: endpoint((body) => `/simple/queries/${body.query_id}/archive`),
+        }),
+        getEvaluationsClient: () => ({
+            createSimpleEvaluation: endpoint(() => "/simple/evaluations/"),
+        }),
+    }
+})
 
 import {
     buildQuerySlug,
@@ -16,7 +30,7 @@ import {
 } from "../../src/evaluationRun"
 
 const API = "https://agenta.test/api"
-const PARAMS = {params: {project_id: "p1"}}
+const PARAMS = {queryParams: {project_id: "p1"}}
 
 const base = {
     projectId: "p1",
@@ -146,7 +160,7 @@ describe("createLiveEvaluation", () => {
         expect(postMock).toHaveBeenCalledTimes(4)
         expect(postMock.mock.calls[3]).toEqual([
             `${API}/simple/queries/q-1/archive`,
-            undefined,
+            {query_id: "q-1"},
             PARAMS,
         ])
     })

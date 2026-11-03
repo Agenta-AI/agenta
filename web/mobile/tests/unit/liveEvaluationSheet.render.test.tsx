@@ -12,7 +12,8 @@ import {RUNS_LIST_KEY} from "@/features/evaluations/list/runsListKey"
 import {LiveEvaluationSheet} from "@/features/evaluations/live/LiveEvaluationSheet"
 import type {LiveEvaluationDraft} from "@/features/evaluations/live/useLiveEvaluationForm"
 
-// Only the HTTP layer is mocked. The live create, the evaluator stores and the vault store are real.
+// Only the HTTP layer is mocked (axios and the generated clients). The live create, the evaluator
+// stores and the vault store are real.
 const http = vi.hoisted(() => ({post: vi.fn(), get: vi.fn(), delete: vi.fn()}))
 const toast = vi.hoisted(() => ({
     message: {success: vi.fn(), error: vi.fn(), warning: vi.fn()},
@@ -28,10 +29,26 @@ vi.mock("@agenta/shared/api", async (original) => ({
     axios: http,
     getAgentaApiUrl: () => "https://api.test",
 }))
-vi.mock("@agenta/sdk/resources", async (original) => ({
-    ...(await original<object>()),
-    getSecretsClient: () => vault,
-}))
+// The live create goes through the generated clients. Each method records its call under its
+// endpoint path, in the same list as the axios calls, and answers like the API body.
+vi.mock("@agenta/sdk/resources", async (original) => {
+    const endpoint =
+        (path: (body: {query_id?: string}) => string) =>
+        async (body: {query_id?: string}, options: unknown) =>
+            (await http.post(`https://api.test${path(body)}`, body, options)).data
+    return {
+        ...(await original<object>()),
+        getSecretsClient: () => vault,
+        getQueriesClient: () => ({
+            createSimpleQuery: endpoint(() => "/simple/queries/"),
+            retrieveQueryRevision: endpoint(() => "/queries/revisions/retrieve"),
+            archiveSimpleQuery: endpoint((body) => `/simple/queries/${body.query_id}/archive`),
+        }),
+        getEvaluationsClient: () => ({
+            createSimpleEvaluation: endpoint(() => "/simple/evaluations/"),
+        }),
+    }
+})
 vi.mock("@agenta/ui/app-message", () => toast)
 vi.mock("next/router", () => ({useRouter: () => ({push: nav.push, query: {}})}))
 vi.mock("@/features/developer/developerViewAccess", () => ({
@@ -48,7 +65,7 @@ globalThis.ResizeObserver ??= class {
 } as unknown as typeof ResizeObserver
 
 const API = "https://api.test"
-const PARAMS = {params: {project_id: "pr"}}
+const PARAMS = {queryParams: {project_id: "pr"}}
 const ID = {
     regex: "66666666-6666-4666-8666-666666666666",
     regexRevision: "77777777-7777-4777-8777-777777777777",
@@ -121,7 +138,8 @@ const mockApi = (overrides: Record<string, (body: unknown) => unknown> = {}) => 
                         workflow_revisions: evaluators.map((e) => ({
                             id: e.revisionId,
                             workflow_id: e.id,
-                            name: e.name,
+                            // Revisions often keep the default name, not the evaluator's.
+                            name: "default",
                             version: 2,
                             flags: {is_evaluator: true, ...e.flags},
                             data: {
@@ -158,13 +176,18 @@ const mockApi = (overrides: Record<string, (body: unknown) => unknown> = {}) => 
     vault.listSecrets.mockResolvedValue([])
 }
 
-const settle = async () => {
-    for (let turn = 0; turn < 6; turn++) {
-        await act(async () => {
-            await new Promise((resolve) => setTimeout(resolve, 0))
-        })
-    }
+const tick = () =>
+    act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+/** Lets the requests answer: a few turns, then more until `done` holds or the turns run out. */
+const settle = async (done: () => boolean = () => true) => {
+    for (let turn = 0; turn < 6; turn++) await tick()
+    for (let turn = 0; turn < 60 && !done(); turn++) await tick()
 }
+
+const evaluatorsSettled = () => !document.querySelector("[data-slot=combobox-trigger][aria-busy]")
 
 const mount = async (initial?: Partial<LiveEvaluationDraft>) => {
     await act(async () =>
@@ -183,7 +206,7 @@ const mount = async (initial?: Partial<LiveEvaluationDraft>) => {
             ),
         ),
     )
-    await settle()
+    await settle(evaluatorsSettled)
 }
 
 const text = () => document.body.textContent ?? ""
@@ -223,7 +246,7 @@ const pickEvaluator = async (name: string) => {
 
 const submit = async () => {
     await act(async () => button(/^Create live evaluation$/)?.click())
-    await settle()
+    await settle(() => !document.querySelector("form [aria-busy=true]"))
 }
 
 const createRequests = () =>
