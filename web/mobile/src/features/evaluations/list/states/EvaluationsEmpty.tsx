@@ -57,14 +57,20 @@ const COPY: Record<EvaluationKindTab, EmptyCopy> = {
 export const EvaluationsEmpty = ({
     kind,
     onCreate,
+    createKinds,
     createMenu,
 }: {
     kind: EvaluationKindTab
     onCreate?: (kind: CreatableKind) => void
+    /** The kinds this page can start. Absent: all of them. */
+    createKinds?: readonly CreatableKind[]
     createMenu?: ReactNode
 }) => {
     const copy = COPY[kind]
-    const start = copy.start
+    const start =
+        copy.start && (!createKinds || createKinds.includes(copy.start.kind))
+            ? copy.start
+            : undefined
     return (
         <Empty className="py-14">
             <EmptyHeader>

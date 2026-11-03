@@ -41,15 +41,19 @@ const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
  * The evaluation runs of a project, or of one app with `?app=`. Filters live in the URL.
  *
  * `onCreate` starts a new evaluation of a kind. Without it the page offers no create button.
+ * `createKinds` limits the kinds the create entry offers.
  */
 export const EvaluationsScreen = ({
     workspaceId,
     projectId,
     onCreate,
+    createKinds,
 }: {
     workspaceId: string
     projectId: string
     onCreate?: (kind: CreatableKind) => void
+    /** The kinds the create entry offers. Absent: all of them. */
+    createKinds?: readonly CreatableKind[]
 }) => {
     useBindProjectContext(projectId)
     const filters = useEvaluationRunsFilters()
@@ -71,6 +75,7 @@ export const EvaluationsScreen = ({
             <CreateEvaluationMenu
                 tab={kind}
                 onCreate={onCreate}
+                kinds={createKinds}
                 label={kind === "all" ? "Start evaluation" : "New evaluation"}
             />
         ) : null
@@ -143,11 +148,13 @@ export const EvaluationsScreen = ({
                                             <EvaluationsEmpty
                                                 kind={kind}
                                                 onCreate={canCreate ? onCreate : undefined}
+                                                createKinds={createKinds}
                                                 createMenu={
                                                     canCreate && onCreate ? (
                                                         <CreateEvaluationMenu
                                                             tab="all"
                                                             onCreate={onCreate}
+                                                            kinds={createKinds}
                                                             label="Start evaluation"
                                                         />
                                                     ) : null

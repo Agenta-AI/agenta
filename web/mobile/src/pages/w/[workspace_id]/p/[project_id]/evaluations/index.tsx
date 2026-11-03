@@ -1,7 +1,7 @@
 import {useRouter} from "next/router"
 
 import {DeveloperViewGate} from "@/features/developer/DeveloperViewGate"
-import {EvaluationsScreen} from "@/features/evaluations/list/EvaluationsScreen"
+import {EvaluationsRoute} from "@/features/evaluations/new/EvaluationsRoute"
 
 export default function EvaluationsPage() {
     const router = useRouter()
@@ -11,7 +11,7 @@ export default function EvaluationsPage() {
     if (!workspaceId || !projectId) return null
     return (
         <DeveloperViewGate viewId="evaluations">
-            <EvaluationsScreen workspaceId={workspaceId} projectId={projectId} />
+            <EvaluationsRoute workspaceId={workspaceId} projectId={projectId} />
         </DeveloperViewGate>
     )
 }
