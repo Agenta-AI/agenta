@@ -34,7 +34,6 @@ from oss.src.core.gateways.policy.dtos import (
     BoundSecretRef,
     GatewayPlane,
     ProviderKeyRef,
-    SecretMode,
 )
 from oss.src.core.gateways.policy.resolution import SecretsResolver
 from oss.src.core.gateways.policy.service import GatewayPolicyService
@@ -425,9 +424,7 @@ def _rows(w) -> Dict[str, tuple]:
             return
         ref = target.secret_ref()
         if ref is not None:
-            await llm.resolver.resolve(
-                scope=scope, ref=ref, mode=SecretMode.PROJECT_ONLY
-            )
+            await llm.resolver.resolve(scope=scope, ref=ref)
 
     def resolve(scope, **kw):
         return llm.resolve_agent_connection(
@@ -472,7 +469,6 @@ def _rows(w) -> Dict[str, tuple]:
             lambda: w["mcp"].resolve(
                 scope=s1,
                 ref=ProviderKeyRef(provider_key="mock"),
-                mode=SecretMode.PROJECT_ONLY,
             ),
             [w["p1"]],
         ),
@@ -480,7 +476,6 @@ def _rows(w) -> Dict[str, tuple]:
             lambda: w["mcp"].resolve(
                 scope=s1,
                 ref=BoundSecretRef(secret_id=w["openai"].id),
-                mode=SecretMode.PROJECT_ONLY,
             ),
             [w["p1"]],
         ),

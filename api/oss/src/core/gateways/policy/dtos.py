@@ -25,14 +25,6 @@ class GatewayPlane(str, Enum):
     MCP = "mcp"
 
 
-class SecretMode(str, Enum):
-    """Declared per resolution site, not per call (`secrets.md`)."""
-
-    USER_OPTIONAL = "user_optional"  # the user's if present, else the project's
-    USER_REQUIRED = "user_required"  # the user's, or fail — never fall back
-    PROJECT_ONLY = "project_only"  # always the project's; ignore user secrets
-
-
 class SecretOrigin(str, Enum):
     """Whose money the call spends — the payer. `vault` is the customer's own
     secret; `local` is platform-funded. Vocabulary fixed by `secrets.md`;

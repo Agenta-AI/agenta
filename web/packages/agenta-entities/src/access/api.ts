@@ -12,6 +12,29 @@ export const fetchProjectPermission = async (
     action: string,
 ): Promise<boolean> => {
     try {
+        return await checkProjectPermission(projectId, action)
+    } catch {
+        return false
+    }
+}
+
+const httpStatusOf = (error: unknown): number | undefined => {
+    if (typeof error !== "object" || error === null) return undefined
+    const fern = (error as {statusCode?: unknown}).statusCode
+    if (typeof fern === "number") return fern
+    const axios = (error as {response?: {status?: unknown}}).response?.status
+    return typeof axios === "number" ? axios : undefined
+}
+
+/**
+ * The same check, but only a refusal (HTTP 403) reads as "no". A network error or a server error
+ * throws, so a caller can tell "not allowed" from "could not find out" and ask again.
+ */
+export const checkProjectPermission = async (
+    projectId: string,
+    action: string,
+): Promise<boolean> => {
+    try {
         await getAccessClient().checkPermissions(
             {
                 action,
@@ -23,8 +46,9 @@ export const fetchProjectPermission = async (
             {queryParams: {project_id: projectId}},
         )
         return true
-    } catch {
-        return false
+    } catch (error) {
+        if (httpStatusOf(error) === 403) return false
+        throw error
     }
 }
 
