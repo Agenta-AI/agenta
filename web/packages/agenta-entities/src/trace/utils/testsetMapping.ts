@@ -154,11 +154,17 @@ export const suggestTraceMappings = ({
     )
 }
 
-/** Every path a mapping can read in the sampled spans, objects included. */
+/**
+ * Every path a mapping can read in the sampled spans, objects included. `collectKeyPaths` keeps
+ * the outputs whole, so the fields inside an outputs object are added here: the path picker
+ * offers only these paths, and a field such as `data.outputs.answer` must be a choice.
+ */
 export const getTraceMappingPathOptions = (spansData: readonly Record<string, unknown>[]) => {
     const paths = new Set<string>()
+    const add = (path: string) => paths.add(path)
     for (const data of sample(spansData)) {
-        collectKeyPaths(data, TRACE_DATA_PATH, true).forEach((path) => paths.add(path))
+        collectKeyPaths(data, TRACE_DATA_PATH, true).forEach(add)
+        collectKeyPaths(data[OUTPUTS_KEY], `${TRACE_DATA_PATH}.${OUTPUTS_KEY}`, true).forEach(add)
     }
     return [...paths]
 }

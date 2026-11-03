@@ -73,6 +73,24 @@ describe("trace to test set mapping", () => {
         expect(paths).toEqual(["data.inputs", "data.inputs.country", "data.outputs"])
     })
 
+    it("Fields inside an outputs object are path choices, and rows read them", () => {
+        const spansData = [{inputs: {country: "France"}, outputs: {answer: "Paris", meta: {n: 1}}}]
+        const paths = getTraceMappingPathOptions(spansData)
+        expect(paths).toEqual([
+            "data.inputs",
+            "data.inputs.country",
+            "data.outputs",
+            "data.outputs.answer",
+            "data.outputs.meta",
+            "data.outputs.meta.n",
+        ])
+        const rows = buildTestsetRowsFromTraces({
+            spansData,
+            mappings: [{path: "data.outputs.answer", column: "answer"}],
+        })
+        expect(rows).toEqual([{answer: "Paris"}])
+    })
+
     it("Rows set an empty string for a missing value and keep objects as objects", () => {
         const rows = buildTestsetRowsFromTraces({
             spansData: [chat("tides"), {inputs: {}, outputs: null}],
