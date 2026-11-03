@@ -53,7 +53,11 @@ export const VariantRowMenu = ({
             </DropdownMenuItem>
             {playgroundHref ? (
                 <DropdownMenuItem asChild>
-                    <Link href={playgroundHref(row)} prefetch={false}>
+                    <Link
+                        href={playgroundHref(row)}
+                        prefetch={false}
+                        className="text-foreground no-underline"
+                    >
                         <Play aria-hidden size={14} />
                         Open in playground
                     </Link>
