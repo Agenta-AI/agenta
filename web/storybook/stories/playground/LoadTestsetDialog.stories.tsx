@@ -94,3 +94,11 @@ export const EditMode: Story = {
         await body(canvasElement).findByText("Paris")
     },
 }
+
+/** With `onCreate` the sets column starts with "Create a new test set". */
+export const WithCreate: Story = {
+    args: {onCreate: fn()},
+    play: async ({canvasElement}) => {
+        await body(canvasElement).findByRole("button", {name: "Create a new test set"})
+    },
+}

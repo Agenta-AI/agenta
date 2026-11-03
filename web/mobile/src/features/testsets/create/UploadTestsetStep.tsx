@@ -6,7 +6,7 @@ import {Loader2} from "lucide-react"
 
 import {TestsetFileDrop} from "./TestsetFileDrop"
 import {useTestsetFilePick} from "./useTestsetFilePick"
-import {useUploadTestset} from "./useUploadTestset"
+import {useUploadTestset, type CreatedTestset} from "./useUploadTestset"
 
 const fileBaseName = (fileName: string): string => fileName.replace(/\.[^./\\]+$/, "")
 
@@ -40,6 +40,7 @@ export const UploadTestsetStep = ({
     projectId,
     base,
     onClose,
+    onCreated,
     onPendingChange,
     onScratch,
     onApi,
@@ -49,8 +50,11 @@ export const UploadTestsetStep = ({
     onClose: () => void
     /** Tells the dialog a save is running, so it stays open until the save ends. */
     onPendingChange: (pending: boolean) => void
-    onScratch: () => void
-    onApi: () => void
+    /** The host's next step after an upload, instead of opening the new test set page. */
+    onCreated?: (created: CreatedTestset) => void
+    /** Leave both out to hide the manual ways. */
+    onScratch?: () => void
+    onApi?: () => void
 }) => {
     const picked = useTestsetFilePick()
     const [name, setName] = useState("")
@@ -58,6 +62,7 @@ export const UploadTestsetStep = ({
         projectId,
         base,
         onDone: onClose,
+        onCreated,
     })
 
     useEffect(() => onPendingChange(pending), [onPendingChange, pending])
@@ -112,7 +117,7 @@ export const UploadTestsetStep = ({
                             </p>
                         ) : null}
                     </form>
-                ) : (
+                ) : onScratch && onApi ? (
                     <div className="flex flex-col gap-2">
                         <p className="m-0 text-sm text-muted-foreground">
                             Or create a test set manually
@@ -132,7 +137,7 @@ export const UploadTestsetStep = ({
                             />
                         </div>
                     </div>
-                )}
+                ) : null}
             </div>
             {file ? (
                 <DialogFooter>
