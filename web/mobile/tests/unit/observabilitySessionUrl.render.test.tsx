@@ -7,6 +7,7 @@
  */
 import {act, type ReactNode} from "react"
 
+import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -118,9 +119,11 @@ describe("observability session URL", () => {
     const render = () =>
         act(() =>
             root.render(
-                <Provider store={createStore()}>
-                    <ObservabilityScreen workspaceId="ws" projectId="pr" />
-                </Provider>,
+                <QueryClientProvider client={new QueryClient()}>
+                    <Provider store={createStore()}>
+                        <ObservabilityScreen workspaceId="ws" projectId="pr" />
+                    </Provider>
+                </QueryClientProvider>,
             ),
         )
     const button = (label: string) =>
