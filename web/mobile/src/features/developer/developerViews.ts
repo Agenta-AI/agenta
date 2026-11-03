@@ -7,6 +7,7 @@ import {
     GitBranchIcon,
     FolderSimpleIcon,
     ChartDonut,
+    ChartBar,
 } from "@phosphor-icons/react"
 
 /**
@@ -80,6 +81,14 @@ export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
         label: "Playground",
         description: "Edit and run prompt and chat apps.",
         routes: ["/apps/[app_id]/playground"],
+        stage: "hidden",
+    },
+    {
+        id: "evaluations",
+        label: "Evaluations",
+        description: "Show the Evaluations page under Developer in the navigation.",
+        routes: ["/evaluations"],
+        nav: {icon: ChartBar, section: "developer"},
         stage: "hidden",
     },
     {
