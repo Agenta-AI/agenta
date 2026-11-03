@@ -10,11 +10,10 @@ import {PlaygroundSkeleton} from "../../../mobile/src/features/playground/states
 import type {StoryScope} from "../../.storybook/decorators/withAgentaData"
 import {workflowIds} from "../../fixtures/workflow"
 
-import {promptRevisionQueries} from "./playgroundFixtures"
+import {promptRevisionQueries, selectRevision} from "./playgroundFixtures"
 
 /**
- * The /m prompt playground page: the top bar, the config pane and the run pane (a placeholder
- * until runs land). Below `md` one pane shows at a time, picked with Configuration / Generations.
+ * The /m prompt playground page: the top bar, the config pane and the run pane (test cases, run and output). Below `md` one pane shows at a time, picked with Configuration / Generations.
  * The route's data lifecycle has unit tests; the loaded page here reads a seeded revision.
  */
 const Demo = ({
@@ -27,6 +26,7 @@ const Demo = ({
     withDraftEdit?: boolean
 }) => {
     useState(() => {
+        selectRevision(revisionId)
         if (!withDraftEdit) return
         // An unsaved edit to the prompt: the header shows the Draft tag.
         const revision = workflowMolecule.get.data(revisionId)
