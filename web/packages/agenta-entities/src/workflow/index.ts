@@ -193,6 +193,8 @@ export {
     resolveScript,
 } from "./core"
 
+export {pickModelName} from "./core/pickModelName"
+
 // Flag query type
 export type {WorkflowQueryFlags} from "./core"
 
@@ -232,6 +234,7 @@ export {
     queryWorkflowRevisionsByWorkflow,
     queryWorkflowRevisionsByWorkflows,
     queryWorkflowRevisions,
+    archiveWorkflowRevision,
     type WorkflowRevisionWindowing,
     // Retrieve (single revision by ref — slug/version/id)
     retrieveWorkflowRevision,
