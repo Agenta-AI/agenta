@@ -19,13 +19,19 @@ interface ConfirmRequest {
  * The retry sets a bypass flag rather than unbinding the listener: the effect is keyed on `dirty`,
  * which has not changed by then. `leave` is that same bypass, for the navigations that are not a
  * question — after a delete there is no longer anything to save.
+ *
+ * `title` and `message` are the question; each screen words it for what it would lose.
  */
 export const useUnsavedGuard = ({
     dirty,
     confirm,
+    title,
+    message,
 }: {
     dirty: boolean
     confirm: (request: ConfirmRequest) => void
+    title: string
+    message: string
 }) => {
     const router = useRouter()
     const bypass = useRef(false)
@@ -48,14 +54,16 @@ export const useUnsavedGuard = ({
     useEffect(() => {
         if (!dirty) return
 
-        const onRouteChangeStart = (url: string) => {
+        const onRouteChangeStart = (url: string, {shallow}: {shallow: boolean}) => {
+            // A shallow change stays on this page (a screen writing its own query): nothing is lost.
+            if (shallow) return
             if (bypass.current) {
                 bypass.current = false
                 return
             }
             confirm({
-                title: "Leave without saving?",
-                message: "This automation has changes you haven't saved. Leaving discards them.",
+                title,
+                message,
                 onOk: () => {
                     bypass.current = true
                     void router.push(url).catch(() => undefined)
@@ -63,12 +71,12 @@ export const useUnsavedGuard = ({
             })
             router.events.emit("routeChangeError")
             // The Next.js idiom for cancelling a navigation; nothing catches it.
-            throw "Route change aborted — this automation has unsaved changes"
+            throw "Route change aborted: there are unsaved changes"
         }
 
         router.events.on("routeChangeStart", onRouteChangeStart)
         return () => router.events.off("routeChangeStart", onRouteChangeStart)
-    }, [confirm, dirty, router])
+    }, [confirm, dirty, message, router, title])
 
     return useCallback(
         (url: string) => {

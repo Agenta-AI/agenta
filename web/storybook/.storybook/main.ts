@@ -107,6 +107,9 @@ const config: StorybookConfig = {
             // (@storybook/nextjs transforms next/font/google natively, incl. in the
             // transpiled @agenta/oss provider, so no font stub is needed.)
             "@/oss": path.resolve(ossDir, "src"),
+            // The /m app's own alias, for stories that render /m screens. After "@/oss", which
+            // webpack tries first.
+            "@": path.resolve(__dirname, "../../mobile/src"),
         }
         for (const pkg of SINGLETONS) {
             try {
