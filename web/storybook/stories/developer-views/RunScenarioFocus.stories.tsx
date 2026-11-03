@@ -12,6 +12,7 @@ const FocusStory = ({runId, human}: {runId: string; human?: boolean}) => (
     <div className="text-foreground">
         <ScenarioFocusSheet
             runId={runId}
+            poll
             header={{
                 name: "Capitals check",
                 description: null,

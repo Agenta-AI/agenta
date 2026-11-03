@@ -4,6 +4,7 @@ import type {RunHeader} from "@agenta/entities/evaluationRun"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {Sheet, SheetContent, SheetDescription, SheetTitle} from "@agenta/ui/ui"
 
+import {ScenariosLoadMoreError} from "../scenarios/states/ScenariosLoadMoreError"
 import {ScenariosRefreshError} from "../scenarios/states/ScenariosRefreshError"
 import {useRunScenarios} from "../scenarios/useRunScenarios"
 import {useScenarioGroupLabels} from "../scenarios/useScenarioGroupLabels"
@@ -102,6 +103,7 @@ export const ScenarioFocusSheet = ({
                             labels={labels}
                             onRetry={scenarios.retryValues}
                         />
+                        {loadMoreError ? <ScenariosLoadMoreError onRetry={loadMore} /> : null}
                         {scenarios.refreshFailed ? (
                             <ScenariosRefreshError onRetry={scenarios.retryRefresh} />
                         ) : null}

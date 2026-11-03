@@ -38,7 +38,8 @@ export const ScenarioFocusBody = ({
     const outputs = cellsOf("application")
     const evaluators = groups.filter(({group}) => group.kind === "evaluator")
     const open = !isTerminalScenarioStatus(row.scenario.status)
-    const failed = isFailed(row.invocation?.status) || isFailed(row.scenario.status)
+    // A scenario can fail in its evaluators while the app answered: only the app's own result counts.
+    const failed = row.invocation ? isFailed(row.invocation.status) : isFailed(row.scenario.status)
     const traceId = row.invocation?.traceId ?? null
 
     return (
