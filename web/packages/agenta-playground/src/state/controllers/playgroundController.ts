@@ -2327,65 +2327,6 @@ const switchEntityAtom = atom(
     },
 )
 
-/**
- * Stops every run in flight under the current loadable. Called before the chain changes: a run
- * keeps writing to the loadable and the nodes it started with, so its results would stay
- * "running" in the changed chain.
- */
-function cancelRunsInFlight(get: Getter, set: Setter) {
-    const loadableId = get(derivedLoadableIdAtom)
-    if (loadableId) cancelRunningResults(get, set, loadableId)
-}
-
-/**
- * Runs an evaluator on an app's output: the app becomes the first node and the evaluator follows
- * it, linked. Picking another app replaces the first one.
- */
-const connectAppToEvaluatorAtom = atom(
-    null,
-    (
-        _get,
-        set,
-        params: {
-            appRevisionId: string
-            appLabel: string
-            evaluatorRevisionId: string
-            evaluatorLabel: string
-        },
-    ) => {
-        cancelRunsInFlight(_get, set)
-        const nodeId = set(changePrimaryNodeAtom, {
-            type: "workflow",
-            id: params.appRevisionId,
-            label: params.appLabel,
-        })
-        if (!nodeId) return
-        set(connectDownstreamNodeAtom, {
-            sourceNodeId: nodeId,
-            entity: {
-                type: "workflow",
-                id: params.evaluatorRevisionId,
-                label: params.evaluatorLabel,
-            },
-        })
-        // The test cases now feed the app: keys only the previous first node read go.
-        set(reconcileRowsToPrimaryAtom)
-    },
-)
-
-/** Undoes `connectAppToEvaluator`: the evaluator is the only node again. */
-const disconnectAppFromEvaluatorAtom = atom(null, (get, set) => {
-    const evaluator = get(playgroundNodesAtom).find((node) => node.depth > 0)
-    if (!evaluator) return
-    cancelRunsInFlight(get, set)
-    set(removeNodeAtom, evaluator.id)
-    set(changePrimaryNodeAtom, {
-        type: evaluator.entityType,
-        id: evaluator.entityId,
-        label: evaluator.label ?? evaluator.entityId,
-    })
-})
-
 // ============================================================================
 // CONTROLLER EXPORT
 // ============================================================================
@@ -2482,10 +2423,6 @@ export const playgroundController = {
 
         /** Remove a node */
         removeNode: removeNodeAtom,
-        /** Put an app before an evaluator, linked (the evaluator playground's "Run on an app") */
-        connectAppToEvaluator: connectAppToEvaluatorAtom,
-        /** Remove the app before an evaluator */
-        disconnectAppFromEvaluator: disconnectAppFromEvaluatorAtom,
 
         /** Change the primary node */
         changePrimaryNode: changePrimaryNodeAtom,

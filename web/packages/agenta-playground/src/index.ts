@@ -35,6 +35,7 @@
 
 export {
     playgroundController,
+    evaluatorChainController,
     outputConnectionController,
     entitySelectorController,
     executionController,

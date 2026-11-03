@@ -327,6 +327,7 @@ export {
     pendingHydrations,
     pendingHydrationsAtom,
     playgroundController,
+    evaluatorChainController,
     playgroundSnapshotController,
     setOnSelectionChangeCallback,
     setRunnableTypeResolver,

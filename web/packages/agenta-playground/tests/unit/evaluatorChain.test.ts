@@ -11,6 +11,7 @@ import {createStore} from "jotai"
 import {describe, expect, it} from "vitest"
 
 import {outputConnectionsAtom} from "../../src/state/atoms/connections"
+import {evaluatorChainController} from "../../src/state/controllers/evaluatorChainController"
 import {playgroundController} from "../../src/state/controllers/playgroundController"
 import {cancelTestsMutationAtom} from "../../src/state/execution"
 import {resultsByKeyAtomFamily, startRunAtom} from "../../src/state/execution"
@@ -42,7 +43,7 @@ const openEvaluator = (store: Store, evaluatorId: string) => {
 }
 
 const connect = (store: Store, appId: string, evaluatorId: string) =>
-    store.set(playgroundController.actions.connectAppToEvaluator, {
+    store.set(evaluatorChainController.actions.connectAppToEvaluator, {
         appRevisionId: appId,
         appLabel: "Support bot",
         evaluatorRevisionId: evaluatorId,
@@ -122,7 +123,7 @@ describe("disconnectAppFromEvaluator", () => {
         openEvaluator(store, "eval-d1")
         connect(store, "app-d1", "eval-d1")
 
-        store.set(playgroundController.actions.disconnectAppFromEvaluator)
+        store.set(evaluatorChainController.actions.disconnectAppFromEvaluator)
 
         expect(nodesOf(store)).toEqual([{entityId: "eval-d1", label: "Exact match", depth: 0}])
         expect(edgesOf(store)).toEqual([])
@@ -136,7 +137,7 @@ describe("disconnectAppFromEvaluator", () => {
         const store = createStore()
         openEvaluator(store, "eval-e1")
 
-        store.set(playgroundController.actions.disconnectAppFromEvaluator)
+        store.set(evaluatorChainController.actions.disconnectAppFromEvaluator)
 
         expect(nodesOf(store)).toEqual([{entityId: "eval-e1", label: "Exact match", depth: 0}])
     })
@@ -147,7 +148,7 @@ describe("disconnectAppFromEvaluator", () => {
         connect(store, "app-f1", "eval-f1")
         const {loadableId, controller} = startChainRun(store, "app-f1", "eval-f1", "run-f1")
 
-        store.set(playgroundController.actions.disconnectAppFromEvaluator)
+        store.set(evaluatorChainController.actions.disconnectAppFromEvaluator)
 
         expect(controller.signal.aborted).toBe(true)
         expect(Object.values(statusesIn(store, loadableId))).toEqual(["cancelled", "cancelled"])

@@ -2,7 +2,7 @@ import {useCallback, useEffect, useState} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 import type {WorkflowRevisionSelectionResult} from "@agenta/entity-ui/selection"
-import {playgroundController} from "@agenta/playground"
+import {evaluatorChainController, playgroundController} from "@agenta/playground"
 import type {RunOnMode} from "@agenta/playground-ui/panels/evaluator"
 import {preloadEditorPlugins} from "@agenta/ui/editor"
 import {useAtomValue, useStore} from "jotai"
@@ -43,7 +43,7 @@ export const EvaluatorPlaygroundScreen = ({
     const connectApp = useCallback(
         (app: WorkflowRevisionSelectionResult) => {
             if (!evaluatorRevisionId) return
-            store.set(playgroundController.actions.connectAppToEvaluator, {
+            store.set(evaluatorChainController.actions.connectAppToEvaluator, {
                 appRevisionId: app.id,
                 appLabel: app.label,
                 evaluatorRevisionId,
@@ -53,7 +53,7 @@ export const EvaluatorPlaygroundScreen = ({
         [evaluatorRevisionId, name, store],
     )
     const disconnectApp = useCallback(
-        () => store.set(playgroundController.actions.disconnectAppFromEvaluator),
+        () => store.set(evaluatorChainController.actions.disconnectAppFromEvaluator),
         [store],
     )
     const pickRunOn = useCallback(
