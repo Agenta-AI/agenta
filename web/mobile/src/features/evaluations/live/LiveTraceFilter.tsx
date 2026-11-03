@@ -28,7 +28,8 @@ export const LiveTraceFilter = ({
             columns={columns}
             onApplyFilter={apply}
             onClearFilter={apply}
-            buttonProps={{disabled}}
+            // The trigger sits inside the live evaluation form: as a submit button it would create.
+            buttonProps={{disabled, htmlType: "button"}}
         />
     )
 }

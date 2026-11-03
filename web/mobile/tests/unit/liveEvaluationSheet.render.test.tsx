@@ -378,6 +378,20 @@ describe("live evaluation sheet", () => {
         expect(text()).toContain("2 filters • Sampling 25% • Live traffic")
     })
 
+    it("Opening the trace filter does not submit the form", async () => {
+        await mount()
+        await typeName("Support replies")
+        await pickEvaluator("Tone check")
+
+        await act(async () =>
+            document.querySelector<HTMLButtonElement>("button[aria-label=Filter]")?.click(),
+        )
+        await settle()
+
+        expect(createRequests()).toEqual([])
+        expect(text()).toContain("Apply")
+    })
+
     it("Empty name shows Enter a name and sends nothing", async () => {
         await mount()
         await pickEvaluator("Tone check")
