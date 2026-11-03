@@ -377,7 +377,7 @@ export function EntityCommitContent({
                     "flex flex-col gap-4",
                     hasDiffData
                         ? isAgentCommit
-                            ? "order-2 w-full shrink-0 overflow-hidden border-t border-[var(--ag-colorBorderSecondary)] px-6 py-5 min-h-0 sm:w-[400px] sm:border-t-0 sm:border-l"
+                            ? "order-2 box-border w-full shrink-0 overflow-hidden border-t border-[var(--ag-colorBorderSecondary)] px-6 py-5 min-h-0 sm:w-[400px] sm:border-t-0 sm:border-l"
                             : "w-full shrink-0 overflow-y-auto sm:w-[320px]"
                         : "w-full",
                 )}
