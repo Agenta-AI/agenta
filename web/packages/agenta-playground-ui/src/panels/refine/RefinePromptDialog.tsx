@@ -110,11 +110,11 @@ export const RefinePromptDialog = ({revisionId, promptKey, onClose}: RefinePromp
                             pane === "preview" ? "flex" : "hidden",
                         )}
                     >
-                        <div className="flex items-center justify-between gap-3 border-0 border-b border-solid border-border px-4 py-2 sm:py-3">
+                        <div className="flex items-center gap-3 border-0 border-b border-solid border-border px-4 py-2 sm:py-3">
                             <p className="m-0 hidden text-[13px] font-medium text-foreground sm:block">
                                 Refine prompt
                             </p>
-                            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <label className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
                                 Diff
                                 <Switch
                                     size="sm"
