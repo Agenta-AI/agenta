@@ -169,7 +169,7 @@ const body = (canvasElement: HTMLElement) => within(canvasElement.ownerDocument.
 
 const pickTone = async (canvasElement: HTMLElement) => {
     const screen = body(canvasElement)
-    await userEvent.click(await screen.findByRole("button", {name: "Add Evaluator"}))
+    await userEvent.click((await screen.findAllByRole("button", {name: "Add Evaluator"}))[0])
     await userEvent.click(await screen.findByRole("checkbox", {name: "Tone"}))
     await userEvent.click(screen.getByRole("button", {name: "Annotate"}))
     await userEvent.click(await screen.findByRole("radio", {name: "True"}))
@@ -214,7 +214,7 @@ export const EditExisting: Story = {
 export const RequiredError: Story = {
     play: async ({canvasElement}) => {
         const screen = body(canvasElement)
-        await userEvent.click(await screen.findByRole("button", {name: "Add Evaluator"}))
+        await userEvent.click((await screen.findAllByRole("button", {name: "Add Evaluator"}))[0])
         await userEvent.click(await screen.findByRole("checkbox", {name: "Quality"}))
         await userEvent.click(screen.getByRole("button", {name: "Annotate"}))
         await userEvent.type(await screen.findByLabelText("comment"), "Too short")
@@ -246,7 +246,7 @@ export const SelectEvaluators: Story = {
     args: {annotations: [ownAnnotation("tone", {friendly: false})]},
     play: async ({canvasElement}) => {
         const screen = body(canvasElement)
-        await userEvent.click(await screen.findByRole("button", {name: "Add Evaluator"}))
+        await userEvent.click((await screen.findAllByRole("button", {name: "Add Evaluator"}))[0])
         await expect(await screen.findByRole("checkbox", {name: "Tone"})).toBeDisabled()
     },
 }
@@ -255,7 +255,7 @@ export const SelectEvaluatorsEmpty: Story = {
     parameters: {agenta: {queries: fixtures([])}},
     play: async ({canvasElement}) => {
         const screen = body(canvasElement)
-        await userEvent.click(await screen.findByRole("button", {name: "Add Evaluator"}))
+        await userEvent.click((await screen.findAllByRole("button", {name: "Add Evaluator"}))[0])
         await expect(await screen.findByText("There are no available evaluators")).toBeVisible()
     },
 }
