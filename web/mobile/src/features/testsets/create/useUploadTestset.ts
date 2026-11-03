@@ -6,22 +6,9 @@ import {useQueryClient} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
 import {refreshTestsetLists} from "./refreshTestsetLists"
+import {uploadFailureMessage} from "./uploadFailure"
 
 export const UPLOAD_FAILED = "Couldn't create the test set from this file"
-
-const malformedMessage = (fileType: TestsetFileType): string =>
-    `The file you uploaded is either malformed or is not a valid ${fileType.toUpperCase()} file`
-
-/**
- * The server answers 400 "Failed to read ... file" when it cannot parse the file. An older
- * path answers 422 with `csvdata` in the detail. Both mean the file is malformed.
- */
-const isMalformedFile = (error: unknown): boolean => {
-    const {statusCode, body} = error as {statusCode?: number; body?: {detail?: unknown}}
-    const detail = JSON.stringify(body?.detail ?? "")
-    if (statusCode === 400) return detail.includes("Failed to read")
-    return statusCode === 422 && detail.includes("csvdata")
-}
 
 /**
  * Create a test set from a file that already passed the check. A server refusal turns into
@@ -58,7 +45,7 @@ export function useUploadTestset({
                     })
                 } catch (cause) {
                     console.error("Creating a test set from a file failed", cause)
-                    setError(isMalformedFile(cause) ? malformedMessage(fileType) : UPLOAD_FAILED)
+                    setError(uploadFailureMessage(cause, fileType, UPLOAD_FAILED))
                     return
                 }
                 message.success("Test set uploaded successfully")

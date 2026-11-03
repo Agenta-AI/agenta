@@ -20,6 +20,7 @@ type ToolbarEditor = Pick<
     | "hasUnsavedChanges"
     | "changesSummary"
     | "isSaving"
+    | "columnEditBlocked"
     | "addRow"
     | "discard"
     | "commit"
@@ -31,6 +32,8 @@ type ToolbarEditor = Pick<
  * of it: no buttons, and no prompt because nothing can be unsaved.
  *
  * `onImport` is optional: the Import button shows only when the page can open the import step.
+ * Import saves a new revision that replaces every row, so like a column change it waits until
+ * unsaved row edits are saved or discarded, and its tooltip says why.
  * `onRowAdded` lets the page open the new row in the drawer. The page holds `commitOpen`, so
  * the testcase drawer can open the same commit step.
  */
@@ -110,12 +113,16 @@ export const TestsetToolbar = ({
                         </Button>
                     ) : null}
                     {onImport ? (
-                        <SimpleTooltip title="Import CSV/JSON file as new revision">
+                        <SimpleTooltip
+                            title={
+                                editor.columnEditBlocked ?? "Import CSV/JSON file as new revision"
+                            }
+                        >
                             <span className="inline-flex">
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    disabled={isNew || isSaving}
+                                    disabled={isNew || editor.columnEditBlocked !== null}
                                     onClick={onImport}
                                 >
                                     <UploadSimple aria-hidden size={14} />

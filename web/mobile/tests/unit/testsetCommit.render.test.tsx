@@ -71,6 +71,7 @@ const fakeEditor = (over: Partial<Editor> = {}): Editor => ({
         hasChanges: true,
     },
     isSaving: false,
+    columnEditBlocked: "Save or discard your row changes first",
     addRow: vi.fn(() => "new-1"),
     discard: vi.fn(),
     commit: vi.fn(async () => "rev-9"),
@@ -81,6 +82,7 @@ describe("Testset toolbar, commit and leave prompt", () => {
     let root: Root
     let host: HTMLDivElement
 
+    const onImport = vi.fn()
     const mount = (editor: Editor, canEdit = true, revisionStatus: "ready" | "loading" = "ready") =>
         act(() =>
             root.render(
@@ -91,7 +93,7 @@ describe("Testset toolbar, commit and leave prompt", () => {
                         base="/w/ws/p/pr"
                         canEdit={canEdit}
                         revisions={{latestVersion: 5, load: vi.fn(), status: revisionStatus}}
-                        onImport={vi.fn()}
+                        onImport={onImport}
                     />
                 </>,
             ),
@@ -238,11 +240,24 @@ describe("Testset toolbar, commit and leave prompt", () => {
         expect(button("Import")?.disabled).toBe(true)
     })
 
+    it("Import is off while rows have unsaved changes, as column changes are", async () => {
+        await mount(fakeEditor())
+        expect(button("Import")?.disabled).toBe(true)
+    })
+
+    it("Import opens the import step when nothing is unsaved", async () => {
+        await mount(fakeEditor({hasUnsavedChanges: false, columnEditBlocked: null}))
+        expect(button("Import")?.disabled).toBe(false)
+        await click("Import")
+        expect(onImport).toHaveBeenCalledTimes(1)
+    })
+
     it("Every toolbar action is off while a save runs", async () => {
         await mount(fakeEditor({isSaving: true}))
         expect(button("Add row")?.disabled).toBe(true)
         expect(button("Discard")?.disabled).toBe(true)
         expect(button("Commit")?.disabled).toBe(true)
+        expect(button("Import")?.disabled).toBe(true)
     })
 
     it("A reader who may not edit sees no toolbar and no leave prompt", async () => {
