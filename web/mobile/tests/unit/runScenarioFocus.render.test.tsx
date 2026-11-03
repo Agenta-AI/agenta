@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import {act, createElement} from "react"
+import {act, createElement, type ReactNode} from "react"
 
 import type {RunHeader} from "@agenta/entities/evaluationRun"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
@@ -44,6 +44,7 @@ const store = getDefaultStore()
 let host: HTMLDivElement
 let root: Root
 let counter = 0
+let tree: ReactNode = null
 let state: ScenarioServerState
 let client: QueryClient
 
@@ -77,19 +78,16 @@ async function mount(
     client = new QueryClient({defaultOptions: {queries: {retry: false}}})
     store.set(queryClientAtom, client)
     router.query = focus ? {focusScenarioId: focus, focusRunId: runId, tab: "scenarios"} : {}
-    await act(async () => {
-        root.render(
-            createElement(
-                Provider,
-                {store},
-                createElement(
-                    QueryClientProvider,
-                    {client},
-                    createElement(ScenarioFocusSheet, {runId, header: header(kind)}),
-                ),
-            ),
-        )
-    })
+    tree = createElement(
+        Provider,
+        {store},
+        createElement(
+            QueryClientProvider,
+            {client},
+            createElement(ScenarioFocusSheet, {runId, header: header(kind), poll: true}),
+        ),
+    )
+    await act(async () => root.render(tree))
     await settle()
     await settle()
     return runId
@@ -131,6 +129,10 @@ beforeEach(() => {
     store.set(sessionAtom, true)
     Object.values(http).forEach((fn) => fn.mockReset())
     router.replace.mockReset()
+    // A navigation changes the address the page reads on its next render.
+    router.replace.mockImplementation((target: {query: Record<string, string>}) => {
+        router.query = target.query
+    })
 })
 
 afterEach(() => {
@@ -182,6 +184,8 @@ describe("scenario focus drawer", () => {
         expect(
             state.calls.filter((call) => call.url.endsWith("/evaluations/scenarios/query")),
         ).toHaveLength(2)
+        await act(async () => root.render(tree))
+        expect(text()).toContain("Test case #3")
     })
 
     it("A scenario on a later page loads pages until it is found", async () => {

@@ -169,9 +169,10 @@ async function refreshOpenPages(client: QueryClient, request: PageRequest): Prom
 /**
  * The scenarios of one run, page by page, with the values of each row. Opening the tab only reads.
  * While the run runs, rows that have not finished are read again every few seconds; pages whose
- * rows are all done are left alone.
+ * rows are all done are left alone. Two screens that show the same run pass `poll: false` on one
+ * of them, so only one reads again.
  */
-export function useRunScenarios(runId: string) {
+export function useRunScenarios(runId: string, {poll = true}: {poll?: boolean} = {}) {
     const projectId = useAtomValue(projectIdAtom)
     const runQuery = useAtomValue(evaluationRunQueryAtomFamily(runId))
     const header = useAtomValue(runHeaderAtomFamily(runId))
@@ -270,16 +271,17 @@ export function useRunScenarios(runId: string) {
     }, [fetching])
 
     useEffect(() => {
-        if (!live) return
+        if (!live || !poll) return
         const timer = setInterval(() => {
             if (!document.hidden) void refresh(true)
         }, SCENARIOS_REFRESH_MS)
         return () => clearInterval(timer)
-    }, [live, refresh])
+    }, [live, poll, refresh])
 
     // One last read when the run finishes: its last scenarios may have finished since the last tick.
     const wasLive = useRef(false)
     useEffect(() => {
+        if (!poll) return
         if (live) {
             wasLive.current = true
             return
@@ -287,7 +289,7 @@ export function useRunScenarios(runId: string) {
         if (!wasLive.current) return
         wasLive.current = false
         void refresh(false)
-    }, [live, refresh])
+    }, [live, poll, refresh])
 
     const loadMore = useCallback(() => {
         if (inFlight.current) {

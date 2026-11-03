@@ -4,6 +4,7 @@ import type {RunHeader} from "@agenta/entities/evaluationRun"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {Sheet, SheetContent, SheetDescription, SheetTitle} from "@agenta/ui/ui"
 
+import {ScenariosRefreshError} from "../scenarios/states/ScenariosRefreshError"
 import {useRunScenarios} from "../scenarios/useRunScenarios"
 import {useScenarioGroupLabels} from "../scenarios/useScenarioGroupLabels"
 
@@ -19,9 +20,18 @@ import {useFocusScenarioParam} from "./useFocusScenarioParam"
  * A page must load this file with `next/dynamic` and render it only once a scenario is focused.
  * The drawer reads pages until it finds the scenario; Next on the last loaded row reads one more.
  */
-export const ScenarioFocusSheet = ({runId, header}: {runId: string; header: RunHeader}) => {
+export const ScenarioFocusSheet = ({
+    runId,
+    header,
+    poll,
+}: {
+    runId: string
+    header: RunHeader
+    /** False while the Scenarios tab is open: it already reads the live rows again. */
+    poll: boolean
+}) => {
     const [scenarioId, setScenarioId] = useFocusScenarioParam(runId)
-    const scenarios = useRunScenarios(runId)
+    const scenarios = useRunScenarios(runId, {poll})
     const labels = useScenarioGroupLabels(scenarios.columnGroups)
     const {rows, hasMore, loadMore, isPending, isFetchingMore, loadMoreError} = scenarios
     const [advanceFrom, setAdvanceFrom] = useState<string | null>(null)
@@ -38,7 +48,12 @@ export const ScenarioFocusSheet = ({runId, header}: {runId: string; header: RunH
 
     // Next was pressed on the last loaded row: move on once the next page has arrived.
     useEffect(() => {
-        if (!advanceFrom || !current || current.scenario.id !== advanceFrom) return
+        if (!advanceFrom) return
+        // The user picked another row, or the next page failed: the wish to move on is void.
+        if (!current || current.scenario.id !== advanceFrom || loadMoreError) {
+            setAdvanceFrom(null)
+            return
+        }
         const next = rows[position + 1]
         if (next) {
             setAdvanceFrom(null)
@@ -46,7 +61,7 @@ export const ScenarioFocusSheet = ({runId, header}: {runId: string; header: RunH
         } else if (!hasMore) {
             setAdvanceFrom(null)
         }
-    }, [advanceFrom, current, rows, position, hasMore, setScenarioId])
+    }, [advanceFrom, current, rows, position, hasMore, loadMoreError, setScenarioId])
 
     const onNext = () => {
         if (!current) return
@@ -87,7 +102,12 @@ export const ScenarioFocusSheet = ({runId, header}: {runId: string; header: RunH
                             labels={labels}
                             onRetry={scenarios.retryValues}
                         />
+                        {scenarios.refreshFailed ? (
+                            <ScenariosRefreshError onRetry={scenarios.retryRefresh} />
+                        ) : null}
                     </>
+                ) : loadMoreError ? (
+                    <LoadError title="Could not load more scenarios" onRetry={loadMore} />
                 ) : notFound ? (
                     <ScenarioFocusNotFound onClose={() => setScenarioId(null)} />
                 ) : (

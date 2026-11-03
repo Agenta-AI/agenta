@@ -25,7 +25,7 @@ const ScenariosTab = dynamic<{runId: string; header: RunHeader}>(
 )
 
 // The scenario drawer loads only once a scenario is focused.
-const ScenarioFocusSheet = dynamic<{runId: string; header: RunHeader}>(
+const ScenarioFocusSheet = dynamic<{runId: string; header: RunHeader; poll: boolean}>(
     () => import("./focus/ScenarioFocusSheet").then((module) => module.ScenarioFocusSheet),
     {ssr: false},
 )
@@ -78,7 +78,9 @@ export const RunDetailsBody = ({runId}: {runId: string}) => {
                 </TabsList>
             </div>
             <Body runId={runId} header={header} />
-            {focusedScenarioId ? <ScenarioFocusSheet runId={runId} header={header} /> : null}
+            {focusedScenarioId ? (
+                <ScenarioFocusSheet runId={runId} header={header} poll={shown !== "scenarios"} />
+            ) : null}
         </Tabs>
     )
 }
