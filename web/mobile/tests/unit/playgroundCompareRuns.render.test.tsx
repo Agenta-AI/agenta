@@ -6,6 +6,7 @@
  */
 import {act} from "react"
 
+import {projectPermissionQueryKey} from "@agenta/entities/access"
 import {executionItemController, playgroundController} from "@agenta/playground"
 import {CompareLayout} from "@agenta/playground-ui/panels/compare"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
@@ -38,6 +39,8 @@ vi.mock("@agenta/shared/api", async (original) => {
 
 let projectId = "proj-0"
 let chat = false
+/** The variable the older revision's prompt uses. */
+let olderVariable = "country"
 /** Two revisions of one app. Each one's prompt names it, so a run tells which one ran. */
 const revision = (id: string, version: number, name: string) => ({
     id,
@@ -53,7 +56,12 @@ const revision = (id: string, version: number, name: string) => ({
             prompt: {
                 messages: chat
                     ? [{role: "system", content: `${name} helps {{traveller}}.`}]
-                    : [{role: "user", content: `${name}: the capital of {{country}}?`}],
+                    : [
+                          {
+                              role: "user",
+                              content: `${name}: the capital of {{${id === "rev-1" ? olderVariable : "country"}}}?`,
+                          },
+                      ],
                 llm_config: {model: "gpt-4o-mini"},
             },
         },
@@ -81,12 +89,16 @@ let hold = false
 const answerFor = (body: string) => {
     const first = body.includes("First")
     const text = first ? "Paris says First" : "Lyon says Second"
-    return chat ? {data: {role: "assistant", content: text}, trace_id: "t"} : {data: text}
+    const traceId = first ? "trace-first" : "trace-second"
+    return chat
+        ? {data: {role: "assistant", content: text}, trace_id: traceId}
+        : {data: text, trace_id: traceId}
 }
 
 const store = getDefaultStore()
 let root: Root
 let host: HTMLDivElement
+let client: QueryClient
 
 const Harness = () => {
     const {status, revisionIds} = usePlaygroundSelection({appId: "app-1"})
@@ -155,7 +167,8 @@ beforeEach(() => {
             disconnect() {}
         },
     )
-    store.set(queryClientAtom, new QueryClient({defaultOptions: {queries: {retry: false}}}))
+    client = new QueryClient({defaultOptions: {queries: {retry: false}}})
+    store.set(queryClientAtom, client)
     projectId = `proj-${Number(projectId.slice(5)) + 1}`
     store.set(projectIdAtom, projectId)
     store.set(sessionAtom, true)
@@ -163,8 +176,11 @@ beforeEach(() => {
     router.replace.mockResolvedValue(true)
     runs.length = 0
     hold = false
-    vi.stubGlobal("fetch", async (_url: string, init: RequestInit & {signal?: AbortSignal}) => {
+    olderVariable = "country"
+    vi.stubGlobal("fetch", async (url: string, init: RequestInit & {signal?: AbortSignal}) => {
         const body = String(init.body)
+        // The trace footer and the averages read permissions and traces too: only runs count.
+        if (!url.includes("/invoke")) return new Response("{}", {status: 404})
         runs.push(body)
         if (hold) {
             return new Promise<Response>((_resolve, reject) =>
@@ -273,6 +289,128 @@ describe("Column order", () => {
         await settle()
 
         expect(rowIds()).toEqual(before)
+    })
+})
+
+describe("Revisions with different variables", () => {
+    it("The input column asks for every variable any revision uses", async () => {
+        olderVariable = "city"
+        await start(false)
+
+        expect(host.querySelector('[data-testid="input-variable-country"]')).not.toBeNull()
+        expect(host.querySelector('[data-testid="input-variable-city"]')).not.toBeNull()
+    })
+})
+
+describe("State across column changes", () => {
+    const result = (rowId: string, revisionId: string) =>
+        store.get(executionItemController.selectors.fullResult({rowId, entityId: revisionId}))
+
+    it("Closing the first column keeps the other revision's output", async () => {
+        await start(false)
+        await click("Run all")
+        const [row] = rowIds()
+
+        await act(async () => store.set(playgroundController.actions.removeEntity, "rev-2"))
+        await settle()
+
+        expect(JSON.stringify(result(row, "rev-1")?.output)).toContain("Paris says First")
+    })
+
+    it("A commit of a moved column keeps the outputs of the column that stays", async () => {
+        await start(false)
+        await click("Run all")
+        const [row] = rowIds()
+        // rev-1 moves to the front; rev-2 still holds the test cases.
+        await click("Move left", host.querySelector('[data-testid="variant-card-rev-1"]')!)
+
+        await act(async () =>
+            store.set(playgroundController.actions.switchEntity, {
+                currentEntityId: "rev-1",
+                newEntityId: "rev-3",
+            }),
+        )
+        await settle()
+
+        expect(JSON.stringify(result(row, "rev-2")?.output)).toContain("Lyon says Second")
+        expect(JSON.stringify(result(row, "rev-3")?.output)).toContain("Paris says First")
+    })
+
+    it("A commit of the column that holds the test cases keeps the other outputs", async () => {
+        await start(false)
+        await click("Run all")
+        const [row] = rowIds()
+        await click("Move left", host.querySelector('[data-testid="variant-card-rev-1"]')!)
+
+        await act(async () =>
+            store.set(playgroundController.actions.switchEntity, {
+                currentEntityId: "rev-2",
+                newEntityId: "rev-3",
+            }),
+        )
+        await settle()
+
+        expect(JSON.stringify(result(row, "rev-1")?.output)).toContain("Paris says First")
+        expect(JSON.stringify(result(row, "rev-3")?.output)).toContain("Lyon says Second")
+    })
+
+    it("Closing the first chat column keeps the conversation", async () => {
+        await start(true)
+        const [turn] = rowIds()
+        await act(async () => {
+            store.set(executionItemController.actions.patchMessage, {
+                target: {turnId: turn, kind: "user"},
+                updater: (m) => (m ? {...m, content: "Where should I go in May?"} : m),
+            })
+        })
+        await settle()
+        await click("Run", host.querySelector(`[data-testid="compare-row-${turn}"]`)!)
+
+        await act(async () => store.set(playgroundController.actions.removeEntity, "rev-2"))
+        await settle()
+
+        const messages = Object.values(
+            store.get(executionItemController.selectors.messagesById) as Record<
+                string,
+                {content: unknown}
+            >,
+        ).map((message) => JSON.stringify(message.content))
+        expect(messages.some((text) => text.includes("Where should I go in May?"))).toBe(true)
+        expect(messages.some((text) => text.includes("Paris says First"))).toBe(true)
+    })
+})
+
+describe("Variant card averages", () => {
+    it("Show the latency and cost from each revision's run traces", async () => {
+        client.setQueryData(projectPermissionQueryKey(projectId, "view_spans"), true)
+        const summary = (duration: number, cost: number, tokens: number) => ({
+            rootSpan: {
+                trace_id: "t",
+                span_id: "s",
+                attributes: {
+                    ag: {
+                        metrics: {
+                            duration: {cumulative: {total: duration}},
+                            costs: {cumulative: {total: cost}},
+                            tokens: {cumulative: {total: tokens}},
+                        },
+                    },
+                },
+            },
+            errorSpans: [],
+        })
+        client.setQueryData(["trace-summary", projectId, "trace-first"], summary(1500, 0.002, 30))
+        client.setQueryData(["trace-summary", projectId, "trace-second"], summary(500, 0.001, 10))
+        await start(false)
+        const card = (id: string) =>
+            host.querySelector(`[data-testid="variant-card-${id}"]`)?.textContent ?? ""
+        expect(card("rev-1")).toContain("-")
+
+        await click("Run all")
+
+        expect(card("rev-1")).toContain("1.5")
+        expect(card("rev-2")).toContain("500")
+        expect(card("rev-1")).toContain("30")
     })
 })
 

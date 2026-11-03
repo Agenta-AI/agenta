@@ -1907,51 +1907,64 @@ const setEntityIdsAtom = atom(null, (get, set, next: string[] | ((prev: string[]
     // URL hydration, applyPlaygroundSelection, SUB 4 validation, removeEntity.
     // Putting the re-link at this level fixes commit, drawer-mode commit, and
     // any future caller that swaps an entity, with one change.
+    //
+    // The test cases, chat messages and results live under the loadable of the ANCHOR entity
+    // (`derivedLoadableIdAtom`), which is not always index 0: a reorder in compare mode keeps the
+    // anchor where it was. So a swap is an anchor swap when it replaces the anchor, and when the
+    // anchor leaves without a replacement (a closed column) the state moves to the entity that
+    // becomes the anchor, which is the new index 0.
     if (currentRootNodes.length > 0 && newRootNodes.length > 0) {
         const currentIdSet = new Set(currentIds)
         const newIdSet = new Set(newIds)
+        const oldLoadableId = get(derivedLoadableIdAtom)
+        const anchorEntityId = oldLoadableId.split(":").slice(2).join(":")
         const positionalSwaps = currentIds.flatMap((oldEntityId, index) => {
             const newEntityId = newIds[index]
             if (!newEntityId || oldEntityId === newEntityId) return []
             // Guard against reorders: only a true swap when the old ID is gone
             // from the new selection AND the new ID wasn't already selected.
             if (newIdSet.has(oldEntityId) || currentIdSet.has(newEntityId)) return []
-            return [{oldEntityId, newEntityId, isAnchorSwap: index === 0}]
+            return [{oldEntityId, newEntityId, isAnchorSwap: oldEntityId === anchorEntityId}]
         })
+        const newAnchorNode = newRootNodes[0]
+        const newAnchorLoadableId = `testset:${newAnchorNode.entityType}:${newAnchorNode.entityId}`
 
-        if (positionalSwaps.length > 0) {
-            const oldLoadableId = get(derivedLoadableIdAtom)
-            const newAnchorNode = newRootNodes[0]
-            const newAnchorLoadableId = `testset:${newAnchorNode.entityType}:${newAnchorNode.entityId}`
-
-            // Process non-anchor swaps first. The anchor swap MOVES data away
-            // from `oldLoadableId` and clears it, so any non-anchor rewrites
-            // that target `oldLoadableId` must run before that clear.
-            for (const swap of positionalSwaps) {
-                if (swap.isAnchorSwap) continue
-                relinkLoadableSessions(get, set, {
-                    oldEntityId: swap.oldEntityId,
-                    newEntityId: swap.newEntityId,
-                    oldLoadableId,
-                    newLoadableId: oldLoadableId,
-                })
-            }
-            const anchorSwap = positionalSwaps.find((swap) => swap.isAnchorSwap)
-            if (anchorSwap) {
-                relinkLoadableSessions(get, set, {
-                    oldEntityId: anchorSwap.oldEntityId,
-                    newEntityId: anchorSwap.newEntityId,
-                    oldLoadableId,
-                    newLoadableId: newAnchorLoadableId,
-                })
-                // After the loadable re-link, the testcase row store is still
-                // carrying every key the *previous* primary populated (chat
-                // `messages`, old completion variables, etc.). Reconcile each
-                // row against the NEW primary's input schema so the UI shows
-                // only the relevant variables and execution doesn't have to
-                // strip them later (#4525 / AGE-3793).
-                pruneTestcaseRowsForEntity(get, set, anchorSwap.newEntityId)
-            }
+        // Process non-anchor swaps first. The anchor swap MOVES data away
+        // from `oldLoadableId` and clears it, so any non-anchor rewrites
+        // that target `oldLoadableId` must run before that clear.
+        for (const swap of positionalSwaps) {
+            if (swap.isAnchorSwap) continue
+            relinkLoadableSessions(get, set, {
+                oldEntityId: swap.oldEntityId,
+                newEntityId: swap.newEntityId,
+                oldLoadableId,
+                newLoadableId: oldLoadableId,
+            })
+        }
+        const anchorSwap = positionalSwaps.find((swap) => swap.isAnchorSwap)
+        if (anchorSwap) {
+            relinkLoadableSessions(get, set, {
+                oldEntityId: anchorSwap.oldEntityId,
+                newEntityId: anchorSwap.newEntityId,
+                oldLoadableId,
+                newLoadableId: newAnchorLoadableId,
+            })
+            // After the loadable re-link, the testcase row store is still
+            // carrying every key the *previous* primary populated (chat
+            // `messages`, old completion variables, etc.). Reconcile each
+            // row against the NEW primary's input schema so the UI shows
+            // only the relevant variables and execution doesn't have to
+            // strip them later (#4525 / AGE-3793).
+            pruneTestcaseRowsForEntity(get, set, anchorSwap.newEntityId)
+        } else if (anchorEntityId && !newIdSet.has(anchorEntityId) && oldLoadableId) {
+            // The anchor was closed: the shared state moves, and every other entity keeps its
+            // own sessions (the closed entity's are left behind under its id, unused).
+            relinkLoadableSessions(get, set, {
+                oldEntityId: anchorEntityId,
+                newEntityId: anchorEntityId,
+                oldLoadableId,
+                newLoadableId: newAnchorLoadableId,
+            })
         }
     }
 

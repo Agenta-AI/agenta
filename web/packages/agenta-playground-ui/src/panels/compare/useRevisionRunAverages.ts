@@ -1,21 +1,9 @@
 import {useMemo} from "react"
 
+import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {executionItemController} from "@agenta/playground"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@agenta/shared/utils"
 import {atom, useAtomValue} from "jotai"
-
-interface RunMetrics {
-    duration?: {total?: number}
-    costs?: {total?: number}
-    tokens?: {total?: number}
-}
-
-/** The metrics of a run's root span, summed over its children when the span has them. */
-const metricsOf = (output: unknown): RunMetrics | null => {
-    const node = (output as {response?: {tree?: {nodes?: {metrics?: Record<string, unknown>}[]}}})
-        ?.response?.tree?.nodes?.[0]
-    return ((node?.metrics?.acc ?? node?.metrics?.unit) as RunMetrics | undefined) ?? null
-}
 
 export interface RevisionRunAverages {
     latency: string
@@ -27,7 +15,9 @@ const EMPTY: RevisionRunAverages = {latency: "-", tokens: "-", cost: "-"}
 
 /**
  * The average latency, tokens and cost of a revision's latest run on each test case, as the
- * variant card shows them. "-" before any run that reported metrics.
+ * variant card shows them. The numbers come from each run's trace, the same source as the
+ * line under each output; with repeats the last repeat counts. "-" until a trace reports them,
+ * and for a reader who may not view traces.
  */
 export const useRevisionRunAverages = (revisionId: string): RevisionRunAverages => {
     const averages = useMemo(
@@ -39,18 +29,19 @@ export const useRevisionRunAverages = (revisionId: string): RevisionRunAverages 
                 let tokens = 0
                 let count = 0
                 for (const rowId of rowIds) {
-                    const output = get(
+                    const result = get(
                         executionItemController.selectors.fullResult({
                             rowId,
                             entityId: revisionId,
                         }),
-                    )?.output as unknown
-                    // With repeats the output is a list: the last repeat counts.
-                    const metrics = metricsOf(Array.isArray(output) ? output.at(-1) : output)
-                    if (!metrics) continue
-                    duration += Number(metrics.duration?.total ?? 0)
-                    cost += Number(metrics.costs?.total ?? 0)
-                    tokens += Number(metrics.tokens?.total ?? 0)
+                    )
+                    const traceId = result?.repetitions?.at(-1)?.traceId ?? result?.traceId
+                    if (!traceId) continue
+                    const {metrics} = get(traceDataSummaryAtomFamily(traceId))
+                    if (metrics.durationMs === undefined) continue
+                    duration += metrics.durationMs
+                    cost += metrics.totalCost ?? 0
+                    tokens += metrics.totalTokens ?? 0
                     count += 1
                 }
                 if (count === 0) return EMPTY
