@@ -4,10 +4,17 @@ import {
 } from "@agenta/observability-ui/traceDrawer"
 import dynamic from "next/dynamic"
 
+import {TraceSpanPanelSkeleton} from "./states/TraceSpanPanelSkeleton"
 import {TracePrettyJson} from "./TracePrettyJson"
-import {TraceSpanPanel} from "./TraceSpanPanel"
 
 type Slot = TraceDrawerReferenceSlots["TraceSpanDrillInView"]
+
+// The drill-in panel loads when a span is first on screen. It pulls in the JSON tree and its
+// editor, which a page with no open trace never needs.
+const TraceSpanPanel = dynamic(() => import("./TraceSpanPanel"), {
+    ssr: false,
+    loading: TraceSpanPanelSkeleton,
+})
 
 // The shadcn picker loads on first open. The global drawers sit in the app shell, so a static
 // import here would put the picker in every page.
