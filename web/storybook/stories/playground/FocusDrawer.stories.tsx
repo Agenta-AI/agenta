@@ -4,6 +4,8 @@ import {executionItemController, playgroundController} from "@agenta/playground"
 import {buildResultKey, resultsByKeyAtomFamily} from "@agenta/playground/state"
 import {FocusDrawer} from "@agenta/playground-ui/panels/focus"
 import {openPlaygroundFocusDrawerAtom} from "@agenta/playground-ui/state"
+import {Button} from "@agenta/ui/ui"
+import {ListChecks} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {getDefaultStore} from "jotai"
 import {userEvent, within} from "storybook/test"
@@ -47,12 +49,15 @@ const Demo = ({
     outcome = "result",
     rows = 3,
     startAt = 1,
+    addToQueue = false,
 }: {
     revisionId: string
     outcome?: Outcome
     rows?: number
     /** 0-based row the drawer opens on. */
     startAt?: number
+    /** Show the header's Add to queue control (a test case of a connected test set). */
+    addToQueue?: boolean
 }) => {
     useState(() => {
         selectRevision(revisionId)
@@ -70,7 +75,20 @@ const Demo = ({
         seedOutcome(ids[startAt], revisionId, outcome)
         store.set(openPlaygroundFocusDrawerAtom, {rowId: ids[startAt], entityId: revisionId})
     })
-    return <FocusDrawer />
+    return (
+        <FocusDrawer
+            renderAddToQueue={
+                addToQueue
+                    ? () => (
+                          <Button size="sm" variant="outline">
+                              <ListChecks aria-hidden size={14} />
+                              Add to queue
+                          </Button>
+                      )
+                    : undefined
+            }
+        />
+    )
 }
 
 const meta = {
@@ -137,5 +155,11 @@ export const Repeats: Story = {
 export const Phone: Story = {
     args: {revisionId: "", outcome: "result"},
     parameters: {viewport: {defaultViewport: "mobile1"}},
+    play: async ({canvasElement}) => ready(canvasElement),
+}
+
+/** A test case of a connected test set: the header offers Add to queue. */
+export const AddToQueue: Story = {
+    args: {revisionId: "", outcome: "result", addToQueue: true},
     play: async ({canvasElement}) => ready(canvasElement),
 }
