@@ -4,6 +4,7 @@ import {loadableController} from "@agenta/entities/loadable"
 import {testcaseMolecule} from "@agenta/entities/testcase"
 import {playgroundController} from "@agenta/playground"
 import {Tag} from "@agenta/ui/components/presentational"
+import {X} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 /**
@@ -26,5 +27,25 @@ export const RowSyncTag = ({rowId}: {rowId: string}) => {
     const isNew = rowId.startsWith("new-") || rowId.startsWith("local-")
     if (isNew) return <Tag sync="new" />
     if (!isDirty) return null
-    return <Tag sync="modified" dismissible onDismiss={() => discard(rowId)} />
+    // The discard control is a native button, so the keyboard reaches it. Preflight is off, so
+    // it is reset here. The shared Tag's own dismiss is a span the old app still renders.
+    return (
+        <Tag
+            sync="modified"
+            label={
+                <>
+                    Edited
+                    <button
+                        type="button"
+                        title="Discard changes"
+                        aria-label="Discard changes"
+                        className="-mr-0.5 ml-1 inline-flex cursor-pointer border-0 bg-transparent p-0 text-colorIcon"
+                        onClick={() => discard(rowId)}
+                    >
+                        <X size={12} />
+                    </button>
+                </>
+            }
+        />
+    )
 }
