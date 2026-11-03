@@ -43,6 +43,8 @@ const Demo = ({
                             sourceRevisionId: revisionId,
                             runnableType: "workflow" as const,
                             patch: {parameters: {}},
+                            createLocalDraft: false,
+                            selectionIndex: 0,
                         },
                     ],
                 ]),

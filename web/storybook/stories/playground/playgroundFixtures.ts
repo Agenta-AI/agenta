@@ -1,4 +1,4 @@
-import type {Workflow} from "@agenta/entities/workflow"
+import {workflowFlagsSchema, type Workflow} from "@agenta/entities/workflow"
 import type {QueryKey} from "@tanstack/react-query"
 
 import type {StoryScope} from "../../.storybook/decorators/withAgentaData"
@@ -11,7 +11,8 @@ export const promptRevision = (ids: WorkflowIds): Workflow =>
         name: "default",
         version: 3,
         message: "Ask for the capital only",
-        flags: {is_application: true},
+        // Every flag false but is_application: a prompt app, not an agent.
+        flags: workflowFlagsSchema.parse({is_application: true}),
         data: {
             uri: "agenta:builtin:completion:v0",
             parameters: {
