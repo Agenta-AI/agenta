@@ -21,7 +21,7 @@ export interface GatewayToolCallResponse {
             content?: string
             role?: string
             tool_call_id?: string
-        }
+        } | null
     }
 }
 
