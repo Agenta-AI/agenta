@@ -2,7 +2,7 @@
 /**
  * The prompt playground screen: its states, the desktop split and the phone switch, the route
  * out for an agent app, and the in-app leave guard. The selection hook has its own test; here it
- * is a fixture. The config panel is a stub.
+ * is a fixture. The config panel and the run pane are stubs.
  */
 import {act} from "react"
 
@@ -64,6 +64,11 @@ vi.mock("@agenta/playground-ui/panels/config", () => ({
     ),
     ConfigPanelSkeleton: () => <div data-testid="config-panel-skeleton" />,
 }))
+vi.mock("@/features/playground/PlaygroundRunPane", () => ({
+    PlaygroundRunPane: ({revisionId}: {revisionId: string}) => (
+        <div data-testid="run-pane">{revisionId}</div>
+    ),
+}))
 vi.mock("@/features/chat/DrillInBridgeProvider", () => ({
     DrillInBridgeProvider: ({children}: {children: React.ReactNode}) => children,
 }))
@@ -124,13 +129,13 @@ afterEach(async () => {
 })
 
 describe("PlaygroundScreen", () => {
-    it("A prompt app shows its config pane and the run placeholder", async () => {
+    it("A prompt app shows its config pane and its run pane", async () => {
         await render()
 
         expect(host.querySelector("h1")?.textContent).toBe("Greeter")
         expect(host.textContent).toContain("Playground")
         expect(byTestId("config-panel")?.textContent).toBe("rev-1")
-        expect(byTestId("run-pane-placeholder")).not.toBeNull()
+        expect(byTestId("run-pane")?.textContent).toBe("rev-1")
         expect(byTestId("page-title")?.textContent).toBe("Playground | Greeter")
     })
 
@@ -139,7 +144,7 @@ describe("PlaygroundScreen", () => {
         await render()
 
         expect(isShown("config-panel")).toBe(true)
-        expect(isShown("run-pane-placeholder")).toBe(false)
+        expect(isShown("run-pane")).toBe(false)
 
         const generations = [...host.querySelectorAll<HTMLElement>('[role="radio"]')].find(
             (option) => option.textContent === "Generations",
@@ -147,7 +152,7 @@ describe("PlaygroundScreen", () => {
         await act(async () => generations.click())
 
         expect(isShown("config-panel")).toBe(false)
-        expect(isShown("run-pane-placeholder")).toBe(true)
+        expect(isShown("run-pane")).toBe(true)
         // Hidden, not unmounted: the config editor keeps its state across the switch.
         expect(byTestId("config-panel")).not.toBeNull()
     })
