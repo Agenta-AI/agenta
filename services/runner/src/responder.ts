@@ -412,7 +412,7 @@ export function extractApprovalDecisions(
   log?: (msg: string) => void,
 ): Map<string, unknown[]> {
   const decisions = new Map<string, unknown[]>();
-  const callShapeById = buildCallShapeIndex(request);
+  const callShapeById = buildCallShapeIndex(request.messages);
   // Diagnostics for one specific disagreement. The cold-replay transcript predicate
   // (`approvalRenderHints`) and this function read the SAME blocks with the SAME
   // `storedApprovalDecisionOf` test, so a turn that reports `resumeFrame=approval` while this
@@ -513,7 +513,7 @@ export function extractClientToolOutputs(
   request: AgentRunRequest,
 ): Map<string, unknown[]> {
   const outputs = new Map<string, unknown[]>();
-  const callShapeById = buildCallShapeIndex(request);
+  const callShapeById = buildCallShapeIndex(request.messages);
   for (const block of currentTurnToolResultBlocks(request)) {
     if (approvalDecisionOf(block) !== undefined) continue; // an approval, not a client output
     // Pause terminalization sentinels are not client outputs: deferred work may re-park, while
@@ -530,11 +530,11 @@ export function extractClientToolOutputs(
 
 /** Recover each tool call's name + args keyed by its id, so a reply that carries only the id
  * (e.g. an `{approved}` envelope) can be bound to the cold-replay name+args anchor. */
-function buildCallShapeIndex(
-  request: AgentRunRequest,
+export function buildCallShapeIndex(
+  messages: readonly { content?: string | ContentBlock[] }[] | undefined,
 ): Map<string, { name?: string; input?: unknown }> {
   const index = new Map<string, { name?: string; input?: unknown }>();
-  for (const message of request.messages ?? []) {
+  for (const message of messages ?? []) {
     const content = message?.content;
     if (!Array.isArray(content)) continue;
     for (const block of content) {
@@ -587,7 +587,7 @@ function* currentTurnToolResultBlocks(
 
 /** The cold-replay name+args key for a tool_result, recovering name/args from the correlated
  * tool_call block when the result block itself carries only an id. Never a bare name or an id. */
-function coldReplayKey(
+export function coldReplayKey(
   block: ContentBlock,
   callShapeById: Map<string, { name?: string; input?: unknown }>,
 ): string | undefined {
