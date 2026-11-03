@@ -14,7 +14,7 @@ export const FocusOutputs = ({rowId, entityId, renderTraceFooter}: FocusOutputsP
     const row = useExecutionRow({entityId, rowId})
     const result = (row.displayResult ?? null) as React.ComponentProps<typeof RunResult>["result"]
     return (
-        <div className="flex flex-col gap-2 border-0 border-t border-solid border-border pt-3">
+        <div className="flex flex-col gap-2 px-4 pb-4 pt-3">
             <span className="text-xs font-medium text-muted-foreground">Output</span>
             <RunResult
                 isRunning={row.isBusy}

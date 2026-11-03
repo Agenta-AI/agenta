@@ -60,8 +60,8 @@ export const CompletionRow = memo(
                 data-testid={`completion-row-${rowId}`}
                 className="flex flex-col gap-3 border-0 border-b border-solid border-border px-4 py-3"
             >
-                <div className="flex items-center gap-2">
-                    <div className="flex min-w-0 items-center rounded-md bg-muted text-xs text-foreground">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
+                    <div className="flex shrink-0 items-center rounded-md bg-muted text-xs text-foreground">
                         <button
                             type="button"
                             aria-expanded={!collapsed}
@@ -77,25 +77,26 @@ export const CompletionRow = memo(
                         <button
                             type="button"
                             onClick={() => openDetails({rowId, entityId})}
-                            className="min-w-0 truncate rounded-md border-0 bg-transparent py-0.5 pl-0 pr-2 text-xs text-foreground"
+                            className="whitespace-nowrap rounded-md border-0 bg-transparent py-0.5 pl-0 pr-2 text-xs text-foreground"
                         >
                             {`test case ${index + 1}`}
                         </button>
                     </div>
                     <RowSyncTag rowId={rowId} />
-                    <div className="flex-1" />
-                    <RowActions
-                        canRemove={canRemove}
-                        hasRepeats={!collapsed && Boolean(row.repetitionProps)}
-                        onOpenDetails={() => openDetails({rowId, entityId})}
-                        onRemove={() => deleteRow(rowId)}
-                        onDuplicate={() => duplicateRow(rowId)}
-                    />
-                    {row.isBusy ? (
-                        <RunButton mode="cancel" onClick={row.cancelRow} />
-                    ) : (
-                        <RunButton onClick={row.runRow} disabled={row.isRunning} />
-                    )}
+                    <div className="ml-auto flex items-center gap-2">
+                        <RowActions
+                            canRemove={canRemove}
+                            hasRepeats={!collapsed && Boolean(row.repetitionProps)}
+                            onOpenDetails={() => openDetails({rowId, entityId})}
+                            onRemove={() => deleteRow(rowId)}
+                            onDuplicate={() => duplicateRow(rowId)}
+                        />
+                        {row.isBusy ? (
+                            <RunButton mode="cancel" onClick={row.cancelRow} />
+                        ) : (
+                            <RunButton onClick={row.runRow} disabled={row.isRunning} />
+                        )}
+                    </div>
                 </div>
                 <HeightCollapse open={!collapsed} animate={clicked} contentClassName="w-full">
                     <div className="flex flex-col gap-3">
