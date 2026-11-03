@@ -21,7 +21,10 @@ export const RunStatusFilter = ({
         <DropdownMenuTrigger asChild>
             <Button size="sm" variant="outline" aria-label="Filter by status">
                 <Funnel aria-hidden size={14} />
-                {value.length > 0 ? `Status (${value.length})` : "Status"}
+                {/* A phone has no room for the word until a status is picked. */}
+                <span className={value.length > 0 ? undefined : "hidden sm:inline"}>
+                    {value.length > 0 ? `Status (${value.length})` : "Status"}
+                </span>
             </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-[180px]">
