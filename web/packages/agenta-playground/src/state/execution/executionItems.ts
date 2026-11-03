@@ -320,6 +320,7 @@ function toTransformMessage(message: ChatMessage): TransformMessage {
 function mapLifecyclePhase(status: RunStatus): ExecutionItemLifecyclePhase {
     if (status === "running" || status === "pending") return "running"
     if (status === "error") return "failed"
+    if (status === "skipped") return "idle"
     return status
 }
 

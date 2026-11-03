@@ -12,6 +12,7 @@ import {createStore} from "jotai"
 import {describe, expect, it} from "vitest"
 
 import {outputConnectionsAtom} from "../../src/state/atoms/connections"
+import {messageIdsAtomFamily, messagesByIdAtomFamily} from "../../src/state/chat/messageAtoms"
 import {evaluatorChainController} from "../../src/state/controllers/evaluatorChainController"
 import {playgroundController} from "../../src/state/controllers/playgroundController"
 import {cancelTestsMutationAtom} from "../../src/state/execution"
@@ -62,6 +63,12 @@ const startChainRun = (store: Store, appId: string, evaluatorId: string, runId: 
     return {loadableId, controller}
 }
 
+/** Results still running or waiting, in the old and the current loadable. */
+const runningIn = (store: Store, oldLoadableId: string) =>
+    [oldLoadableId, store.get(playgroundController.selectors.loadableId())]
+        .flatMap((id) => Object.values(store.get(resultsByKeyAtomFamily(id))))
+        .filter((result) => result.status === "running" || result.status === "pending")
+
 const statusesIn = (store: Store, loadableId: string) =>
     Object.fromEntries(
         Object.entries(store.get(resultsByKeyAtomFamily(loadableId))).map(([key, result]) => [
@@ -111,10 +118,7 @@ describe("connectAppToEvaluator", () => {
         connect(store, "app-c2", "eval-c1")
 
         expect(controller.signal.aborted).toBe(true)
-        expect(statusesIn(store, loadableId)).toEqual({
-            "row-1:sess:app-c1": "cancelled",
-            "row-1:sess:app-c1:eval-c1": "cancelled",
-        })
+        expect(runningIn(store, loadableId)).toEqual([])
     })
 })
 
@@ -164,6 +168,31 @@ describe("a connected test set when the app changes", () => {
     })
 })
 
+describe("a chat conversation when the app changes", () => {
+    it("moves to the new app, and the old app's results go", () => {
+        const store = createStore()
+        openEvaluator(store, "eval-l1")
+        connect(store, "app-l1", "eval-l1")
+        const oldLoadableId = store.get(playgroundController.selectors.loadableId())
+        store.set(messageIdsAtomFamily(oldLoadableId), ["message-1"])
+        store.set(messagesByIdAtomFamily(oldLoadableId), {
+            "message-1": {id: "message-1", role: "user", content: "Hello", sessionId: "shared"},
+        } as never)
+        store.set(startRunAtom, {
+            loadableId: oldLoadableId,
+            stepId: "row-1",
+            sessionId: "sess:app-l1",
+            runId: "run-l1",
+        })
+
+        connect(store, "app-l2", "eval-l1")
+
+        const newLoadableId = store.get(playgroundController.selectors.loadableId())
+        expect(store.get(messageIdsAtomFamily(newLoadableId))).toEqual(["message-1"])
+        expect(statusesIn(store, newLoadableId)).toEqual({})
+    })
+})
+
 describe("disconnectAppFromEvaluator", () => {
     it("leaves the evaluator alone, with no link", () => {
         const store = createStore()
@@ -198,7 +227,7 @@ describe("disconnectAppFromEvaluator", () => {
         store.set(evaluatorChainController.actions.disconnectAppFromEvaluator)
 
         expect(controller.signal.aborted).toBe(true)
-        expect(Object.values(statusesIn(store, loadableId))).toEqual(["cancelled", "cancelled"])
+        expect(runningIn(store, loadableId)).toEqual([])
     })
 })
 

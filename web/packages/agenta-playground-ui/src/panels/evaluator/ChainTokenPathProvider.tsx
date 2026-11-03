@@ -49,8 +49,8 @@ const suggest = (
 
 /**
  * The prompt editor's `{{$.…}}` typeahead for an evaluator that runs after an app: `$.inputs.*`
- * offers the evaluator's own inputs and `$.outputs.*` the app's outputs, which is what the
- * evaluator receives when the chain runs. Any other editor keeps the plain typeahead.
+ * offers the evaluator's own inputs and the app's inputs, and `$.outputs.*` the app's outputs,
+ * which is what the evaluator receives when the chain runs. Any other editor keeps the plain typeahead.
  */
 export const ChainTokenPathProvider = ({
     entityId,
@@ -71,6 +71,13 @@ export const ChainTokenPathProvider = ({
             [entityId, upstreamId],
         ),
     ) as RunnablePort[]
+    // The evaluator receives the test case, so the app's inputs are there too.
+    const appInputs = useAtomValue(
+        useMemo(
+            () => (upstreamId ? workflowMolecule.selectors.inputPorts(upstreamId) : NO_PORTS),
+            [upstreamId],
+        ),
+    ) as RunnablePort[]
     const outputs = useAtomValue(
         useMemo(
             () => (upstreamId ? workflowMolecule.selectors.outputPorts(upstreamId) : NO_PORTS),
@@ -80,11 +87,15 @@ export const ChainTokenPathProvider = ({
 
     const getSuggestions = useCallback<TokenPathSuggestionsGetter>(
         ([slot, ...afterSlot], query) => {
-            if (slot === "inputs") return suggest(inputs, afterSlot, query, "input")
+            if (slot === "inputs") {
+                const keys = new Set(inputs.map((port) => port.key))
+                const merged = [...inputs, ...appInputs.filter((port) => !keys.has(port.key))]
+                return suggest(merged, afterSlot, query, "input")
+            }
             if (slot === "outputs") return suggest(outputs, afterSlot, query, "output")
             return []
         },
-        [inputs, outputs],
+        [inputs, appInputs, outputs],
     )
 
     if (!upstreamId) return <>{children}</>

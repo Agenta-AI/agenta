@@ -7,24 +7,32 @@
 import {atom, type Getter, type Setter} from "jotai"
 
 import {playgroundNodesAtom} from "../atoms/playground"
-import {cancelRunningResults} from "../execution"
+import {cancelRunningResults, resetExecutionAtom} from "../execution"
 import {derivedLoadableIdAtom} from "../execution/selectors"
 import type {EntitySelection} from "../types"
 
-import {moveLoadableState, playgroundController} from "./playgroundController"
+import {playgroundController, relinkLoadableSessions} from "./playgroundController"
 
 /**
- * Makes `entity` the first node. The test cases and the test set connection live under the first
- * node's loadable, so they move with it. Runs in flight are stopped first: a run keeps writing to
- * the loadable and the nodes it started with, so its results would stay "running".
+ * Makes `entity` the first node. The test cases, the test set connection and a chat conversation
+ * live under the first node's loadable, so they move with it, as on a commit. The results belong
+ * to the old first node and go. Runs in flight are stopped first: a run keeps writing to the
+ * loadable and the nodes it started with, so its results would stay "running".
  */
 function replaceFirstNode(get: Getter, set: Setter, entity: EntitySelection): string | null {
+    const oldEntityId = get(playgroundNodesAtom)[0]?.entityId
     const oldLoadableId = get(derivedLoadableIdAtom)
     if (oldLoadableId) cancelRunningResults(get, set, oldLoadableId)
     const nodeId = set(playgroundController.actions.changePrimaryNode, entity)
     const newLoadableId = get(derivedLoadableIdAtom)
-    if (oldLoadableId && newLoadableId !== oldLoadableId) {
-        moveLoadableState(get, set, {oldLoadableId, newLoadableId, newEntityId: entity.id})
+    if (oldEntityId && oldLoadableId && newLoadableId !== oldLoadableId) {
+        relinkLoadableSessions(get, set, {
+            oldEntityId,
+            newEntityId: entity.id,
+            oldLoadableId,
+            newLoadableId,
+        })
+        set(resetExecutionAtom, {loadableId: newLoadableId})
     }
     return nodeId
 }

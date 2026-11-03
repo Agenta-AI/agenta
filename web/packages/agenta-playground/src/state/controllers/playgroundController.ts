@@ -2058,7 +2058,7 @@ const removeEntityAtom = atom(null, (get, set, entityId: string) => {
  *    per-revision session ID still needs rewriting in place so the new
  *    revision's column finds its responses.
  */
-function relinkLoadableSessions(
+export function relinkLoadableSessions(
     get: Getter,
     set: Setter,
     {
@@ -2172,7 +2172,7 @@ function relinkLoadableSessions(
  * Moves a loadable's test set connection, hidden and deselected rows to another loadable, linked
  * to `newEntityId`, and resets the old one.
  */
-export function moveLoadableState(
+function moveLoadableState(
     get: Getter,
     set: Setter,
     {

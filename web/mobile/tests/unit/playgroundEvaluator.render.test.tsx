@@ -9,6 +9,7 @@ import {act} from "react"
 
 import {playgroundController} from "@agenta/playground"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
+import {useTokenPathSuggestions} from "@agenta/ui/editor"
 import {QueryClient} from "@tanstack/react-query"
 import {getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
@@ -46,11 +47,23 @@ vi.mock("@agenta/playground-ui/panels/evaluator", async (original) => ({
         </button>
     ),
 }))
+/** What the prompt editor's `{{$.inputs.` and `{{$.outputs.` typeahead would offer. */
+const Suggestions = () => {
+    const getSuggestions = useTokenPathSuggestions()
+    if (!getSuggestions) return null
+    const labels = (slot: string) => getSuggestions([slot], "").map((item) => item.label)
+    return (
+        <output data-testid="token-paths">
+            {JSON.stringify({inputs: labels("inputs"), outputs: labels("outputs")})}
+        </output>
+    )
+}
 vi.mock("@agenta/playground-ui/panels/config", () => ({
     ConfigPanel: ({revisionId, actions}: {revisionId: string; actions?: React.ReactNode}) => (
         <div data-testid="config-panel">
             {revisionId}
             {actions}
+            <Suggestions />
         </div>
     ),
     ConfigPanelSkeleton: () => null,
@@ -93,6 +106,14 @@ const evaluatorRevision = {
     data: {
         uri: "agenta:builtin:auto_exact_match:v0",
         parameters: {correct_answer_key: "correct_answer"},
+        // The expected answer is required: a test case without it skips the evaluator.
+        schemas: {
+            inputs: {
+                type: "object",
+                properties: {correct_answer: {type: "string"}},
+                required: ["correct_answer"],
+            },
+        },
     },
 }
 const committedEvaluatorRevision = {...evaluatorRevision, id: "eval-rev-2", version: 3}
@@ -185,6 +206,18 @@ const click = async (label: string) => {
     await act(async () => target!.click())
     await settle()
 }
+const typeInto = async (variable: string, value: string) => {
+    const field = host.querySelector<HTMLTextAreaElement>(
+        `[data-testid="input-variable-${variable}"] textarea`,
+    )!
+    await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(
+            field,
+            value,
+        )
+        field.dispatchEvent(new Event("input", {bubbles: true}))
+    })
+}
 const graph = () =>
     store
         .get(playgroundController.selectors.nodes())
@@ -243,6 +276,16 @@ describe("The evaluator playground", () => {
         expect(router.replace).not.toHaveBeenCalled()
     })
 
+    it("The evaluator's prompt typeahead offers the app's inputs and outputs only when chained", async () => {
+        expect(host.querySelector('[data-testid="token-paths"]')).toBeNull()
+
+        await click("Pick app")
+
+        expect(JSON.parse(host.querySelector('[data-testid="token-paths"]')!.textContent!)).toEqual(
+            {inputs: ["country"], outputs: ["output"]},
+        )
+    })
+
     it("Disconnect app leaves the evaluator alone again", async () => {
         await click("Pick app")
 
@@ -265,16 +308,8 @@ describe("The evaluator playground", () => {
 
     it("Run on an app runs the app, then the evaluator on its output", async () => {
         await click("Pick app")
-        const field = host.querySelector<HTMLTextAreaElement>(
-            '[data-testid="input-variable-country"] textarea',
-        )!
-        await act(async () => {
-            Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(
-                field,
-                "France",
-            )
-            field.dispatchEvent(new Event("input", {bubbles: true}))
-        })
+        await typeInto("country", "France")
+        await typeInto("correct_answer", "Paris")
         await click("Run")
 
         expect(calls.map((call) => call.url)).toEqual([
@@ -291,7 +326,7 @@ describe("The evaluator playground", () => {
         expect(evaluator).toEqual({
             interface: {uri: "agenta:builtin:auto_exact_match:v0"},
             data: {
-                inputs: {country: "France"},
+                inputs: {correct_answer: "Paris", country: "France"},
                 outputs: "Paris",
                 parameters: {correct_answer_key: "correct_answer"},
             },
@@ -340,7 +375,7 @@ describe("The evaluator playground", () => {
     })
 
     it("Cancel stops the app's request, and its late answer changes nothing", async () => {
-        let release = () => undefined
+        let release: () => void = () => undefined
         appGate = new Promise<void>((resolve) => {
             release = resolve
         })
@@ -360,48 +395,15 @@ describe("The evaluator playground", () => {
     })
 
     it("A skipped evaluator says why", async () => {
-        const {completeRunAtom, startRunAtom} = await import("@agenta/playground/state")
-        const {executionItemController} = await import("@agenta/playground")
         await click("Pick app")
-        const nodes = store.get(playgroundController.selectors.nodes())
-        const loadableId = store.get(playgroundController.selectors.loadableId())
-        const [stepId] = store.get(executionItemController.selectors.executionRowIds) as string[]
-        // What a chain run writes when the evaluator lacks a required input.
-        for (const sessionId of ["sess:app-rev-1", "sess:app-rev-1:eval-rev-1"]) {
-            store.set(startRunAtom, {loadableId, stepId, sessionId, runId: "run-1"})
-        }
-        store.set(completeRunAtom, {
-            loadableId,
-            stepId,
-            sessionId: "sess:app-rev-1",
-            result: {
-                output: {response: {data: "Paris"}},
-                chainResults: {
-                    [nodes[1].id]: {
-                        executionId: "skipped-1",
-                        nodeId: nodes[1].id,
-                        nodeLabel: "Exact match",
-                        nodeType: "workflow",
-                        stageIndex: 1,
-                        status: "skipped",
-                        startedAt: "2026-11-01T00:00:00Z",
-                        completedAt: "2026-11-01T00:00:00Z",
-                        error: {message: "Missing required inputs: correct_answer"},
-                        traceId: null,
-                    },
-                },
-            },
-        })
-        store.set(completeRunAtom, {
-            loadableId,
-            stepId,
-            sessionId: "sess:app-rev-1:eval-rev-1",
-            result: {output: {response: {data: undefined}}},
-        })
-        await settle()
+        await typeInto("country", "France")
 
+        await click("Run")
+
+        // Only the app ran: the test case has no expected answer.
+        expect(calls).toHaveLength(1)
         const card = host.querySelector('[data-testid="evaluator-score-eval-rev-1"]')!
-        expect(card.textContent).toBe("Exact matchMissing required inputs: correct_answer")
+        expect(card.textContent).toContain("correct_answer")
     })
 
     it("Leaving the page clears the chain", async () => {

@@ -133,7 +133,15 @@ export interface ExecutionStep {
 /**
  * Run status - extends ExecutionStatus with "pending" for pre-start state
  */
-export type RunStatus = "idle" | "pending" | "running" | "success" | "error" | "cancelled"
+export type RunStatus =
+    | "idle"
+    | "pending"
+    | "running"
+    | "success"
+    | "error"
+    | "cancelled"
+    /** A chain stage that did not run because a required input is missing */
+    | "skipped"
 
 /**
  * Result of executing a step for a specific session

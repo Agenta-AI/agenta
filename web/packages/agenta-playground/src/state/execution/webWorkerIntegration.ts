@@ -36,6 +36,7 @@ import {executeStepForSessionWithExecutionItems} from "./executionRunner"
 import {
     startRunAtom,
     failRunAtom,
+    skipRunAtom,
     cancelRunAtom,
     completeRunAtom,
     updateChainProgressAtom,
@@ -447,6 +448,15 @@ export const triggerExecutionAtom = atom(
                                     })
                                     continue
                                 }
+                                if (stageResult.status === "skipped") {
+                                    set(skipRunAtom, {
+                                        loadableId,
+                                        stepId: rowId,
+                                        sessionId: stageSessionId,
+                                        reason: stageResult.error?.message || "Skipped",
+                                    })
+                                    continue
+                                }
                                 set(completeRunAtom, {
                                     loadableId,
                                     stepId: rowId,
@@ -557,6 +567,15 @@ export const triggerExecutionAtom = atom(
                                         stepId: rowId,
                                         sessionId: stageSessionId,
                                         error: stageResult.error || {message: "Execution failed"},
+                                    })
+                                    continue
+                                }
+                                if (stageResult.status === "skipped") {
+                                    set(skipRunAtom, {
+                                        loadableId,
+                                        stepId: rowId,
+                                        sessionId: stageSessionId,
+                                        reason: stageResult.error?.message || "Skipped",
                                     })
                                     continue
                                 }
