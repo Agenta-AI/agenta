@@ -110,3 +110,13 @@ export const Dark: Story = {
     args: TwoSeries.args,
     globals: {theme: "dark"},
 }
+
+/** A chart narrower than 160 px: the tooltip stays inside it. */
+export const Narrow: Story = {
+    args: TwoSeries.args,
+    render: (args) => (
+        <div className="w-[140px] rounded-lg border border-colorBorderSecondary bg-colorBgContainer p-2">
+            <LineChart {...args} />
+        </div>
+    ),
+}
