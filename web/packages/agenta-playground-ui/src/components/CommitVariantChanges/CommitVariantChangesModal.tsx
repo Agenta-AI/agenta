@@ -26,8 +26,10 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     variantId,
     onSuccess,
     appId,
+    appSlug,
     onAfterCommit,
     createVisibility,
+    commitDeployOptions: hostDeployOptions,
     ...props
 }) => {
     const {onCancel, open} = props
@@ -47,10 +49,11 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     const variantSlug = runnableData?.slug
 
     // Environments offered in the footer's "Commit & deploy to …" split-button dropdown.
-    const commitDeployOptions = useMemo<CommitDeployOption[]>(
+    const fixedDeployOptions = useMemo<CommitDeployOption[]>(
         () => Object.keys(environmentColors).map((env) => ({key: env, label: env})),
         [],
     )
+    const commitDeployOptions = hostDeployOptions ?? fixedDeployOptions
 
     const handleClose = useCallback(() => {
         onCancel?.({} as never)
@@ -70,6 +73,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
             const newRevisionData = workflowMolecule.get.data(newRevisionId)
             const refs = {
                 revisionId: newRevisionId,
+                applicationSlug: appSlug ?? undefined,
                 applicationId:
                     newRevisionData?.workflow_id || runnableData?.workflow_id || appId || "",
                 workflowVariantId:
@@ -98,7 +102,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                 message.error(`Couldn't publish ${label} to ${failed.join(", ")}`)
             }
         },
-        [publish, runnableData, appId],
+        [publish, runnableData, appId, appSlug],
     )
 
     const handleSubmit = useCallback(

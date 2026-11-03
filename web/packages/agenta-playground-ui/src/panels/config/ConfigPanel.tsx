@@ -1,3 +1,5 @@
+import type {ReactNode} from "react"
+
 import type {ConfigViewMode} from "@agenta/entity-ui/drill-in"
 import {PlaygroundConfigSection} from "@agenta/entity-ui/drill-in"
 import {hasPendingHydrationAtomFamily} from "@agenta/playground"
@@ -14,6 +16,10 @@ export interface ConfigPanelProps {
     /** Form, JSON or YAML. The screen keeps it, so it lasts while the page is open. */
     viewMode: ConfigViewMode
     onViewModeChange: (mode: ConfigViewMode) => void
+    /** The revision picker shown in the header. */
+    switcher?: ReactNode
+    /** Buttons shown in the header, before the view switch. */
+    actions?: ReactNode
 }
 
 /**
@@ -23,7 +29,13 @@ export interface ConfigPanelProps {
  * The editor waits while a shared link still has draft edits to apply to this revision, so it
  * never shows the saved config first and then jumps.
  */
-export const ConfigPanel = ({revisionId, viewMode, onViewModeChange}: ConfigPanelProps) => {
+export const ConfigPanel = ({
+    revisionId,
+    viewMode,
+    onViewModeChange,
+    switcher,
+    actions,
+}: ConfigPanelProps) => {
     const hasPendingHydration = useAtomValue(hasPendingHydrationAtomFamily(revisionId))
 
     return (
@@ -32,6 +44,8 @@ export const ConfigPanel = ({revisionId, viewMode, onViewModeChange}: ConfigPane
                 revisionId={revisionId}
                 viewMode={viewMode}
                 onViewModeChange={onViewModeChange}
+                switcher={switcher}
+                actions={actions}
             />
             {hasPendingHydration ? (
                 <ConfigPanelSkeleton />

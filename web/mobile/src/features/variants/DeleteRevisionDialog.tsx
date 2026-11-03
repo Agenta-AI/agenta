@@ -18,7 +18,7 @@ import {useQueryClient} from "@tanstack/react-query"
 
 import {useRevisionParam} from "../revisions/useRevisionParam"
 
-import type {AppRevisionRow} from "./useAppRevisions"
+import type {DialogRevision} from "./DeployRevisionDialog"
 import {useIsOnlyRevision} from "./useIsOnlyRevision"
 
 /**
@@ -30,11 +30,14 @@ export const DeleteRevisionDialog = ({
     projectId,
     appId,
     onClose,
+    onDeleted,
 }: {
-    row: AppRevisionRow
+    row: DialogRevision
     projectId: string
     appId: string
     onClose: () => void
+    /** Called once the revision is gone and the lists have loaded again. */
+    onDeleted?: (revisionId: string) => void
 }) => {
     const queryClient = useQueryClient()
     const [shownRevisionId, setShownRevisionId] = useRevisionParam()
@@ -50,6 +53,7 @@ export const DeleteRevisionDialog = ({
             message.success("Deleted workflow successfully")
             await queryClient.invalidateQueries({queryKey: ["workflows"]})
             if (shownRevisionId === row.revisionId) setShownRevisionId(null)
+            onDeleted?.(row.revisionId)
             onClose()
         } catch (error) {
             console.error("Delete revision failed", error)

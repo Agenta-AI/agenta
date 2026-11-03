@@ -71,6 +71,7 @@ export const PlaygroundScreen = ({
                 <PlaygroundWorkspace
                     workspaceId={workspaceId}
                     projectId={projectId}
+                    appId={appId}
                     appName={selection.appName}
                     revisionId={primaryRevisionId}
                     onWorkflowRevisionCommitted={followCommit}
