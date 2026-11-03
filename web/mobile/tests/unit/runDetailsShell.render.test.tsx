@@ -110,6 +110,7 @@ function serveRun(spec: RunSpec | null) {
             return {data: {count: run ? 1 : 0, runs: run ? [run] : []}}
         }
         if (url.endsWith("/evaluations/metrics/query")) return {data: {count: 0, metrics: []}}
+        if (url.endsWith("/evaluations/scenarios/query")) return {data: {count: 0, scenarios: []}}
         if (url.endsWith(`/simple/evaluations/${id}/stop`)) return {data: {evaluation: {id}}}
         if (url.endsWith(`/simple/evaluations/${id}/start`)) throw new Error("Request failed")
         throw new Error(`unexpected request ${url}`)
@@ -235,6 +236,31 @@ describe("run details page", () => {
         expect(fetched.filter((line) => !/^(GET|POST \S+\/query)\b/.test(line))).toEqual([])
         vi.unstubAllGlobals()
         store.set(sessionAtom, false)
+    })
+
+    it("The Scenarios tab loads only when it is opened", async () => {
+        serveRun({})
+        await mount()
+        expect(http.post.mock.calls.map((call) => String(call[0]))).not.toContain(
+            "https://agenta.test/api/evaluations/scenarios/query",
+        )
+        expect(host.textContent).not.toContain("No scenarios")
+    })
+
+    it("Opening the Scenarios tab sends no write request", async () => {
+        serveRun({status: "running", live: true, active: true, references: true})
+        router.query = {...router.query, view: "scenarios"}
+        await mount()
+        await flush()
+        expect(host.textContent).toContain("No scenarios")
+        expect(http.post.mock.calls.map((call) => String(call[0]))).toContain(
+            "https://agenta.test/api/evaluations/scenarios/query",
+        )
+        expect(http.patch).not.toHaveBeenCalled()
+        expect(http.put).not.toHaveBeenCalled()
+        expect(http.delete).not.toHaveBeenCalled()
+        const posted = http.post.mock.calls.map((call) => String(call[0]))
+        expect(posted.filter((url) => !url.endsWith("/query"))).toEqual([])
     })
 
     it("Pausing an active online run calls stop and shows Evaluation stopped", async () => {

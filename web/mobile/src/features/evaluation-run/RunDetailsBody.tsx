@@ -8,20 +8,29 @@ import {
 import {LoadError} from "@agenta/ui/components/presentational"
 import {Tabs, TabsList, TabsTrigger} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
-
-import {OverviewTab} from "./overview/OverviewTab"
-import {RunDetailsSkeleton} from "./states/RunDetailsSkeleton"
-import {useRunDetailsView, type RunDetailsView} from "./useRunDetailsView"
+import dynamic from "next/dynamic"
 
 import {PageNotFound} from "@/components/PageNotFound"
 
+import {OverviewTab} from "./overview/OverviewTab"
+import {ScenariosSkeleton} from "./scenarios/states/ScenariosSkeleton"
+import {RunDetailsSkeleton} from "./states/RunDetailsSkeleton"
+import {useRunDetailsView, type RunDetailsView} from "./useRunDetailsView"
+
+// The scenario table and its cell renderers load when the tab opens, not with the page.
+const ScenariosTab = dynamic<{runId: string; header: RunHeader}>(
+    () => import("./scenarios/ScenariosTab").then((module) => module.ScenariosTab),
+    {ssr: false, loading: () => <ScenariosSkeleton />},
+)
+
 /**
  * The tabs built so far. A tab without a body shows disabled, and its view falls back to
- * Overview, until the Scenarios, Configuration and Annotate work lands.
+ * Overview, until the Configuration and Annotate work lands.
  */
 type TabBody = ComponentType<{runId: string; header: RunHeader}>
 const TAB_BODIES: Partial<Record<RunDetailsView, TabBody>> & {overview: TabBody} = {
     overview: OverviewTab,
+    scenarios: ScenariosTab,
 }
 
 /** The run page under its title: the tabs and the open tab, or the run's load state. */
