@@ -34,7 +34,13 @@ export function useTestsetLeaveGuard({
             setProceed({go: () => void request.onOk()}),
         [],
     )
-    const leave = useUnsavedGuard({dirty, confirm: askBeforeLeaving})
+    // `LeavePrompt` asks its own question, so the guard's title and message are not shown here.
+    const leave = useUnsavedGuard({
+        dirty,
+        confirm: askBeforeLeaving,
+        title: "Unsaved changes",
+        message: "You have unsaved changes in your test set.",
+    })
 
     useEffect(() => {
         if (!dirty) return
