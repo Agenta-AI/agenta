@@ -51,9 +51,13 @@ const COMMITTED_REVISION = "7a2d3e4f-5b6c-4d7e-9f80-1b2c3d4e5f60"
 const CREATED_TESTSET = "2d1b8e3f-3e4f-4051-8c1d-2e3f4a5b6c7d"
 const CREATED_REVISION = "9c4f5061-7d8e-4f90-b1a2-3d4e5f607182"
 
+const PERU = "a1b2c3d4-0000-4000-8000-000000000003"
+/** A third saved row, for the tests that need one. */
+let withPeru = false
 const savedRows = () => [
     {id: "a1b2c3d4-0000-4000-8000-000000000001", testset_id: TESTSET, data: {country: "France"}},
     {id: "a1b2c3d4-0000-4000-8000-000000000002", testset_id: TESTSET, data: {country: "Italy"}},
+    ...(withPeru ? [{id: PERU, testset_id: TESTSET, data: {country: "Peru"}}] : []),
 ]
 const otherRows = () => [
     {id: "b1b2c3d4-0000-4000-8000-000000000003", testset_id: TESTSET, data: {country: "Peru"}},
@@ -193,6 +197,15 @@ const routeHttp = () => {
     })
 }
 
+/** What the dialog hands over in manage mode. */
+const picked = (revisionId: string, testcaseIds: string[]) => ({
+    revisionId,
+    testcaseIds,
+    testsetName: null,
+    testsetId: null,
+    revisionVersion: null,
+})
+
 const store = getDefaultStore()
 let root: Root
 let host: HTMLDivElement
@@ -256,6 +269,7 @@ beforeEach(async () => {
     failCommit = false
     failCreate = false
     failCreatedRows = false
+    withPeru = false
     routeHttp()
     store.set(queryClientAtom, new QueryClient({defaultOptions: {queries: {retry: false}}}))
     projectId = `proj-${Number(projectId.slice(5)) + 1}`
@@ -379,9 +393,7 @@ describe("Syncing changes", () => {
         await editCell(added, "Japan")
         act(() => menu().manage())
 
-        await act(async () =>
-            menu().confirmEdit({revisionId: REVISION, testcaseIds: [FRANCE, ITALY, added]}),
-        )
+        await act(async () => menu().confirmEdit(picked(REVISION, [FRANCE, ITALY, added])))
         await settle()
         expect(rowValues()).toEqual(["France", "Italy", "Japan"])
 
@@ -409,9 +421,7 @@ describe("Syncing changes", () => {
         await editCell(rowIds()[2], "Japan")
         await editCell(FRANCE, "Spain")
         act(() => menu().manage())
-        await act(async () =>
-            menu().confirmEdit({revisionId: REVISION, testcaseIds: [FRANCE, ITALY]}),
-        )
+        await act(async () => menu().confirmEdit(picked(REVISION, [FRANCE, ITALY])))
         await settle()
         expect(rowValues()).toEqual(["Spain", "Italy"])
 
@@ -429,6 +439,33 @@ describe("Syncing changes", () => {
             }
         ).testset_revision.delta.rows
         expect(rows.add).toBeUndefined()
+    })
+
+    it("A row deselected in an earlier Manage stays out after a second Manage", async () => {
+        withPeru = true
+        await pickLoad(REVISION, [FRANCE, ITALY, PERU])
+        act(() => menu().manage())
+        await act(async () => menu().confirmEdit(picked(REVISION, [FRANCE, ITALY])))
+        await settle()
+        act(() => menu().manage())
+        await act(async () => menu().confirmEdit(picked(REVISION, [FRANCE])))
+        await settle()
+        expect(rowValues()).toEqual(["France"])
+
+        await act(async () => {
+            await menu().syncSubmit({
+                entity: {type: "revision", id: REVISION},
+                message: null,
+                mode: "commit",
+            })
+        })
+
+        const rows = (
+            postsTo("/testsets/revisions/commit")[0][1] as {
+                testset_revision: {delta: {rows: {remove?: string[]}}}
+            }
+        ).testset_revision.delta.rows
+        expect([...(rows.remove ?? [])].sort()).toEqual([ITALY, PERU].sort())
     })
 
     it("After a commit the menu names the new version", async () => {
@@ -717,7 +754,7 @@ describe("Managing the test cases", () => {
         act(() => menu().manage())
         expect(menu().dialog).toEqual({kind: "edit"})
 
-        await act(async () => menu().confirmEdit({revisionId: REVISION, testcaseIds: [ITALY]}))
+        await act(async () => menu().confirmEdit(picked(REVISION, [ITALY])))
         await settle()
 
         expect(menu().dialog).toBeNull()
@@ -731,10 +768,12 @@ describe("Managing the test cases", () => {
         await loadRows(OTHER_REVISION)
 
         await act(async () =>
-            menu().confirmEdit({
-                revisionId: OTHER_REVISION,
-                testcaseIds: otherRows().map((row) => row.id),
-            }),
+            menu().confirmEdit(
+                picked(
+                    OTHER_REVISION,
+                    otherRows().map((row) => row.id),
+                ),
+            ),
         )
         await settle()
 

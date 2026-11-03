@@ -71,7 +71,9 @@ export interface TestsetMenuModel {
     disconnect: () => void
     close: () => void
     confirmLoad: (payload: TestsetLoadPayload) => void
-    confirmEdit: (payload: TestsetEditPayload) => void
+    /** The dialog hands over the load payload; only the revision and the rows matter here, but a
+     * chat playground that picks from another revision connects to it. */
+    confirmEdit: (payload: TestsetLoadPayload) => void
     confirmKeepDrafts: (keep: boolean) => void
     resolveUnsaved: (choice: "save" | "discard") => Promise<void>
     syncSubmit: (params: CommitSubmitParams) => Promise<CommitSubmitResult>
@@ -233,7 +235,7 @@ export const useTestsetMenuModel = (): TestsetMenuModel => {
     )
 
     const confirmEdit = useCallback(
-        (payload: TestsetEditPayload) => {
+        (payload: TestsetLoadPayload) => {
             if (!loadableId) return
             const shown = store.get(loadableController.selectors.displayRowIds(loadableId))
             const unchanged =
@@ -244,22 +246,34 @@ export const useTestsetMenuModel = (): TestsetMenuModel => {
                 close()
                 return
             }
-            if (payload.revisionId === connectedRevisionId && isChat) {
+            const sameRevision = payload.revisionId === connectedRevisionId
+            if (isChat) {
                 // A chat playground holds one test case and its conversation: load the new pick
-                // the way a connect does, so the conversation follows it. Unsaved edits would be
-                // replaced, so that asks first.
-                const switchPayload: ConnectToTestsetPayload = {
-                    loadableId,
-                    revisionId: payload.revisionId,
-                    testcases: payload.testcaseIds.map((id) => ({id})),
-                    testsetName: connectedSource?.name ?? "",
-                    testsetId: connectedTestset?.id ?? null,
-                }
+                // the way a connect does (from another revision too), so the conversation follows
+                // it and no second row shares it. Unsaved edits would be replaced: that asks first.
+                const switchPayload: ConnectToTestsetPayload = sameRevision
+                    ? {
+                          loadableId,
+                          revisionId: payload.revisionId,
+                          testcases: payload.testcaseIds.map((id) => ({id})),
+                          testsetName: connectedSource?.name ?? "",
+                          testsetId: connectedTestset?.id ?? null,
+                      }
+                    : {
+                          loadableId,
+                          revisionId: payload.revisionId,
+                          testcases: payload.testcaseIds.map((id) => ({id})),
+                          testsetName: payload.testsetName ?? "",
+                          testsetId: payload.testsetId,
+                          revisionVersion: payload.revisionVersion,
+                      }
                 if (hasLocalChanges) {
                     open({
                         kind: "keep-drafts",
                         draftCount: 1,
-                        testsetName: connectedSource?.name ?? null,
+                        testsetName: sameRevision
+                            ? (connectedSource?.name ?? null)
+                            : payload.testsetName,
                         chat: true,
                         payload: switchPayload,
                         discardEdits: true,
@@ -267,7 +281,7 @@ export const useTestsetMenuModel = (): TestsetMenuModel => {
                     return
                 }
                 switchChatCase(switchPayload)
-            } else if (payload.revisionId === connectedRevisionId) {
+            } else if (sameRevision) {
                 store.set(
                     loadableController.actions.updateTestcaseSelection,
                     loadableId,

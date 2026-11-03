@@ -5,6 +5,7 @@
  */
 import {act} from "react"
 
+import {loadableController} from "@agenta/entities/loadable"
 import {fetchTestcasesPage, testcaseMolecule} from "@agenta/entities/testcase"
 import {executionItemController} from "@agenta/playground"
 import {useTestsetMenuModel, type TestsetMenuModel} from "@agenta/playground-ui/hooks"
@@ -42,6 +43,8 @@ vi.mock("@agenta/ui/app-message", () => ({
 
 const TESTSET = "0b9f6c1e-1c2d-4e3f-8a9b-0c1d2e3f4a5b"
 const REVISION = "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f"
+const OTHER_REVISION = "8b3e4f50-6c7d-4e8f-a091-2c3d4e5f6071"
+const ROME = "b1b2c3d4-0000-4000-8000-000000000003"
 const LISBON = "a1b2c3d4-0000-4000-8000-000000000001"
 const OSLO = "a1b2c3d4-0000-4000-8000-000000000002"
 const rows = [
@@ -77,7 +80,7 @@ const chatRevision = {
 }
 
 http.get.mockResolvedValue({data: {}})
-http.post.mockImplementation(async (url: string) => {
+http.post.mockImplementation(async (url: string, body: Record<string, unknown>) => {
     if (url.endsWith("/workflows/query")) {
         return {data: {count: 1, workflows: [{id: "app-1", name: "Trips", flags: {}}]}}
     }
@@ -85,9 +88,29 @@ http.post.mockImplementation(async (url: string) => {
         return {data: {count: 1, workflow_revisions: [chatRevision]}}
     }
     if (url.endsWith("/testcases/query")) {
-        return {data: {count: rows.length, testcases: rows, windowing: {next: null}}}
+        const ref = (body.testset_revision_ref as {id: string}).id
+        const testcases =
+            ref === OTHER_REVISION
+                ? [
+                      {
+                          id: ROME,
+                          testset_id: TESTSET,
+                          data: {name: "Kai", messages: [{role: "user", content: "Rome in June?"}]},
+                      },
+                  ]
+                : rows
+        return {data: {count: testcases.length, testcases, windowing: {next: null}}}
     }
     return {data: {}}
+})
+
+/** What the dialog hands over in manage mode. */
+const picked = (revisionId: string, testcaseIds: string[]) => ({
+    revisionId,
+    testcaseIds,
+    testsetName: null,
+    testsetId: null,
+    revisionVersion: null,
 })
 
 const store = getDefaultStore()
@@ -156,12 +179,12 @@ describe("The test set menu in a chat playground", () => {
         // Confirming the same test case keeps the conversation as it is.
         const before = store.get(executionItemController.selectors.messageIds)
         act(() => model!.manage())
-        await act(async () => model!.confirmEdit({revisionId: REVISION, testcaseIds: [LISBON]}))
+        await act(async () => model!.confirmEdit(picked(REVISION, [LISBON])))
         await settle()
         expect(store.get(executionItemController.selectors.messageIds)).toBe(before)
 
         act(() => model!.manage())
-        await act(async () => model!.confirmEdit({revisionId: REVISION, testcaseIds: [OSLO]}))
+        await act(async () => model!.confirmEdit(picked(REVISION, [OSLO])))
         await settle()
 
         expect(userMessages()).toEqual(["A week in Oslo?"])
@@ -194,7 +217,7 @@ describe("The test set menu in a chat playground", () => {
         expect(model!.hasLocalChanges).toBe(true)
 
         act(() => model!.manage())
-        await act(async () => model!.confirmEdit({revisionId: REVISION, testcaseIds: [OSLO]}))
+        await act(async () => model!.confirmEdit(picked(REVISION, [OSLO])))
         await settle()
 
         expect(model!.dialog).toMatchObject({kind: "keep-drafts", chat: true})
@@ -208,5 +231,41 @@ describe("The test set menu in a chat playground", () => {
         expect(
             (store.get(testcaseMolecule.data(LISBON)) as {data: Record<string, unknown>}).data.name,
         ).toBe("Alex")
+    })
+
+    it("Importing a test case from another revision replaces the chat test case", async () => {
+        await act(async () => {
+            await fetchTestcasesPage({projectId, revisionId: REVISION})
+            await fetchTestcasesPage({projectId, revisionId: OTHER_REVISION})
+        })
+        await act(async () =>
+            model!.confirmLoad({
+                revisionId: REVISION,
+                testcaseIds: [LISBON],
+                testsetName: "Trips",
+                testsetId: TESTSET,
+                revisionVersion: 2,
+            }),
+        )
+        await settle()
+
+        act(() => model!.manage())
+        await act(async () =>
+            model!.confirmEdit({
+                revisionId: OTHER_REVISION,
+                testcaseIds: [ROME],
+                testsetName: "Trips",
+                testsetId: TESTSET,
+                revisionVersion: 1,
+            }),
+        )
+        await settle()
+
+        expect(userMessages()).toEqual(["Rome in June?"])
+        expect(store.get(loadableController.selectors.displayRowIds(model!.loadableId!))).toEqual([
+            ROME,
+        ])
+        expect(model!.connectedRevisionId).toBe(OTHER_REVISION)
+        expect(model!.label).toBe("Trips (v1)")
     })
 })

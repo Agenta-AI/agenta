@@ -325,6 +325,20 @@ describe("The test set menu in the run pane", () => {
         expect(document.body.textContent).toContain("Discard unsaved changes?")
     })
 
+    it("Leaving drops the edits of a row deselected in Manage", async () => {
+        await connect()
+        await editFrance()
+        await act(async () =>
+            store.set(loadableController.actions.updateTestcaseSelection, loadableId(), [ITALY]),
+        )
+        await settle()
+
+        act(() => root.unmount())
+        root = createRoot(host)
+
+        expect(store.get(testcaseMolecule.atoms.draft(FRANCE))).toBeNull()
+    })
+
     it("Leaving clears the connected test set", async () => {
         await connect()
         await editFrance()

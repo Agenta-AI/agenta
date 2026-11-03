@@ -1091,6 +1091,9 @@ const connectToSourceAtom = atom(
  */
 const disconnectAtom = atom(null, (get, set, loadableId: string) => {
     const state = get(loadableStateAtomFamily(loadableId))
+    // Rows hidden from the connected source are gone with it, and so are their edits: a later
+    // connect to the same source must not bring an edit back.
+    for (const id of state.hiddenTestcaseIds) set(testcaseDraftAtomFamily(id), null)
     set(loadableStateAtomFamily(loadableId), {
         ...state,
         connectedSourceId: null,
@@ -1126,8 +1129,9 @@ const updateTestcaseSelectionAtom = atom(
         // Calculate new hidden set:
         // - Remove from hidden: IDs that are now selected (unhide)
         // - Add to hidden: IDs that exist but are not selected (hide)
+        // Rows hidden by an earlier update are no longer in the display ids: keep them hidden.
         const newHiddenIds = new Set<string>()
-        for (const id of allDisplayRowIds) {
+        for (const id of [...state.hiddenTestcaseIds, ...allDisplayRowIds]) {
             if (!selectedSet.has(id)) {
                 // This ID exists but is not selected - hide it
                 newHiddenIds.add(id)
