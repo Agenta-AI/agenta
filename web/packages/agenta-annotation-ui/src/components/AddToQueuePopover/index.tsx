@@ -1,6 +1,11 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {
+    createQueueDrawerOpenAtom,
+    createQueueDrawerDefaultKindAtom,
+    createQueueDrawerSelectionAtom,
+} from "@agenta/annotation"
+import {
     simpleQueueMolecule,
     simpleQueuePaginatedStore,
     simpleQueuesListDataAtom,
@@ -15,11 +20,6 @@ import {Button, Divider, Input, Popover, Skeleton, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigationSafe} from "../../context"
-import {
-    createQueueDrawerOpenAtom,
-    createQueueDrawerDefaultKindAtom,
-    createQueueDrawerSelectionAtom,
-} from "../../state/atoms"
 import CreateQueueDrawer from "../CreateQueueDrawer"
 
 const ANNOTATION_QUEUE_TABLE_PARAMS = {

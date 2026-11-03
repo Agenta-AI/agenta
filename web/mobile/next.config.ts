@@ -32,6 +32,7 @@ const nextConfig: NextConfig = {
     // transpile the full dependency closure (chat → entities/playground/shared;
     // entities → sdk/api-client/shared/ui).
     transpilePackages: [
+        "@agenta/annotation",
         "@agenta/auth",
         "@agenta/auth-ui",
         "@agenta/sdk",

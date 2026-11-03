@@ -12,6 +12,8 @@ them — styling and import rules here are deliberately different. Design doc:
 
 - **No antd. Ever.** No `antd`, `@ant-design/*`, `@ant-design/x`, and no direct
   Lexical imports (the composer uses `@agenta/ui/rich-chat-input`).
+  No `@agenta/annotation-ui` either (it is built on antd); annotation state and helpers come
+  from `@agenta/annotation`.
   UI comes from the shared shadcn kit in `@agenta/ui/ui`. Chat is built on `@agenta/chat`.
   Icons come from `@phosphor-icons/react` or `lucide-react`.
 - **No app-layer imports.** Never import `@/oss/*`, `@agenta/oss`, or
