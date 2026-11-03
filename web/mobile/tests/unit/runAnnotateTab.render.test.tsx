@@ -367,6 +367,34 @@ describe("run annotate tab", () => {
         expect(toast.success).toHaveBeenCalledWith("Annotations saved successfully")
     })
 
+    it("Leaving during a save still drops the replaced annotation's cached trace", async () => {
+        await mountTab({annotated: {"sc-1": false}})
+        const annotationTrace = ["trace-entity", PROJECT, "ann-sc-1"]
+        const before = {traces: {}}
+        client.setQueryData(annotationTrace, before)
+        const answerPatch = http.patch.getMockImplementation()
+        let finish: () => void = () => undefined
+        http.patch.mockImplementation(async (url: string, body: unknown) => {
+            if (url.includes("/simple/traces/")) {
+                await new Promise<void>((resolve) => {
+                    finish = resolve
+                })
+            }
+            return answerPatch?.(url, body)
+        })
+        await click("True")
+        await click("Annotate")
+
+        // The reader leaves the tab while the update is on its way.
+        await act(async () => root.unmount())
+        root = createRoot(host)
+        finish()
+        for (let i = 0; i < 3; i++) await settle()
+
+        expect(toast.success).toHaveBeenCalledWith("Annotations saved successfully")
+        expect(client.getQueryData(annotationTrace)).toBeUndefined()
+    })
+
     it("A failed submit shows Couldn't save the annotations and keeps the values", async () => {
         vi.spyOn(console, "error").mockImplementation(() => undefined)
         await mountTab({failCreate: true})

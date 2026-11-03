@@ -8,6 +8,7 @@ import {ScenarioFocusBody} from "./ScenarioFocusBody"
 
 import {AnnotationFormPanel} from "@/features/annotations/AnnotationFormPanel"
 import {ScenarioMessage} from "@/features/annotations/ScenarioMessage"
+import type {OnAnnotationsSaved} from "@/features/annotations/useSubmitAnnotations"
 import {useProjectPermission} from "@/features/context/useProjectPermission"
 
 /** The scenario's own values; the evaluator scores are what the form edits. */
@@ -31,7 +32,7 @@ export const RunAnnotateBody = ({
     groups: RunColumnGroup[]
     labels: Record<string, string>
     onRetry: () => void
-    onSaved: (scenarioId: string) => void
+    onSaved: OnAnnotationsSaved
 }) => {
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const canAnnotate = useProjectPermission(projectId, "edit_annotations")

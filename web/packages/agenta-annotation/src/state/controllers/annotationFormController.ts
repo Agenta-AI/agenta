@@ -540,6 +540,24 @@ async function upsertAnnotationMetrics({
 }
 
 /**
+ * Recompute a scenario's metrics, then the run's aggregate from them. The Overview of a run reads
+ * the aggregate, which the scenario refresh alone leaves as it was. A failure is logged only.
+ */
+async function refreshRunMetrics(projectId: string, runId: string, scenarioId: string) {
+    try {
+        for (const metrics of [{run_id: runId, scenario_id: scenarioId}, {run_id: runId}]) {
+            await axios.post(
+                `/evaluations/metrics/refresh`,
+                {metrics},
+                {params: {project_id: projectId}},
+            )
+        }
+    } catch (error) {
+        console.warn("[annotationForm] Metrics refresh failed:", error)
+    }
+}
+
+/**
  * Check if all scenarios in a run are complete, and if so update the run status.
  */
 async function checkAndUpdateRunStatus(projectId: string, runId: string) {
@@ -1585,7 +1603,7 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
         // Phase 6: Post-submit ops (step results + metrics)
         // Step result upserts are AWAITED — they link annotations to the scenario
         // so that path-1 (step-based) resolution finds them on next load.
-        // Metric upserts remain fire-and-forget (nice-to-have, not critical).
+        // Metric upserts are supplementary: a queue save does not wait for them, a run save does.
         if (runId && invocationStepKey) {
             const submittedEntries = buildSubmittedEntries({
                 metrics,
@@ -1625,6 +1643,9 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
             scenarioId,
             submittedAnnotations,
         )
+
+        // A run's screens read its metrics again right after the save: refresh them first.
+        if (!queueId && runId) await refreshRunMetrics(projectId, runId, scenarioId)
 
         // Phase 7: Invalidate caches
         if (traceId) {

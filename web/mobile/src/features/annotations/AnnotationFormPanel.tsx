@@ -14,7 +14,11 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {AnnotationEvaluatorSection} from "./AnnotationEvaluatorSection"
 import {AnnotationPanelHeader} from "./AnnotationPanelHeader"
 import {useAnnotationFormState} from "./useAnnotationFormState"
-import {SUBMIT_FAILURE_TEXT, useSubmitAnnotations} from "./useSubmitAnnotations"
+import {
+    SUBMIT_FAILURE_TEXT,
+    useSubmitAnnotations,
+    type OnAnnotationsSaved,
+} from "./useSubmitAnnotations"
 
 const PanelMessage = ({children}: {children: string}) => (
     <div className="flex flex-1 items-center justify-center p-4 text-center text-sm text-muted-foreground">
@@ -40,7 +44,7 @@ export const AnnotationFormPanel = ({
     scenarioId: string
     showSubmit?: boolean
     readOnly?: boolean
-    onSaved?: (scenarioId: string) => void
+    onSaved?: OnAnnotationsSaved
 }) => {
     const inRun = Boolean(scope.runId)
     const {metrics, evaluators, evaluatorResolution, updateMetric} =

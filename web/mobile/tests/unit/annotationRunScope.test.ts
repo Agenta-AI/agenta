@@ -188,7 +188,7 @@ describe("annotation in run scope", () => {
             scenarioId: SCENARIO,
             markComplete: true,
         })
-        await vi.waitFor(() => expect(bodyOf("http://api.test/evaluations/metrics/")).toBeDefined())
+        // A run save waits for its metric writes, so they are done here.
 
         expect(bodyOf("http://api.test/evaluations/results/")).toEqual({
             results: [
@@ -333,6 +333,19 @@ describe("annotation in run scope", () => {
         finishMetrics()
         await save
         expect(saved).toBe(true)
+    })
+
+    it("A run save refreshes the scenario metrics, then the run metrics", async () => {
+        await openRunForm()
+        await annotationFormController.set.submitAnnotations({
+            scenarioId: SCENARIO,
+            markComplete: true,
+        })
+        const refreshes = writes().filter(({url}) => url.endsWith("/evaluations/metrics/refresh"))
+        expect(refreshes.map(({body}) => body)).toEqual([
+            {metrics: {run_id: RUN, scenario_id: SCENARIO}},
+            {metrics: {run_id: RUN}},
+        ])
     })
 
     it("A failed create sets the submit error and sends no step result", async () => {

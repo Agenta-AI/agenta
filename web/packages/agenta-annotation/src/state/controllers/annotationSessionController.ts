@@ -2057,8 +2057,9 @@ async function invalidateScenarioAnnotations(
         }
     }
 
-    // Step 3: Trigger metrics refresh then refetch (fire-and-forget, independent)
-    if (projectId && runId) {
+    // Step 3: Trigger metrics refresh then refetch (fire-and-forget, independent). A run opened
+    // directly refreshes its scenario and run metrics itself, in order, after the save.
+    if (projectId && runId && !store.get(runScopeIdAtom)) {
         axios
             .post(
                 `/evaluations/metrics/refresh`,
