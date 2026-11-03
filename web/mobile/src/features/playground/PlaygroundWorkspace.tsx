@@ -17,6 +17,11 @@ const CatalogDrawer = dynamic(
     () => import("@agenta/entity-ui/gatewayTool").then((m) => m.CatalogDrawer),
     {ssr: false},
 )
+// The wand on a prompt section opens it; it loads when first opened.
+const RefinePromptDialog = dynamic(
+    () => import("@agenta/playground-ui/panels/refine").then((m) => m.RefinePromptDialog),
+    {ssr: false},
+)
 
 /**
  * The loaded playground: the top bar, then the selected revision's config beside its runs.
@@ -44,6 +49,7 @@ export const PlaygroundWorkspace = ({
     // the lists load again and the page takes it out, and an edit made then would be lost.
     const [deletedId, setDeletedId] = useState<string | null>(null)
     const readOnly = deletedId === revisionId
+    const [refineKey, setRefineKey] = useState<string | null>(null)
 
     return (
         <div className="flex h-full min-h-0 flex-col bg-background">
@@ -59,6 +65,7 @@ export const PlaygroundWorkspace = ({
                             readOnly={readOnly}
                             viewMode={viewMode}
                             onViewModeChange={setViewMode}
+                            onRefinePrompt={setRefineKey}
                             switcher={
                                 <RevisionSwitcher
                                     appId={appId}
@@ -83,6 +90,14 @@ export const PlaygroundWorkspace = ({
                 runs={<PlaygroundRunPane revisionId={revisionId} />}
             />
             <CatalogDrawer />
+            {refineKey ? (
+                <RefinePromptDialog
+                    key={`${revisionId}:${refineKey}`}
+                    revisionId={revisionId}
+                    promptKey={refineKey}
+                    onClose={() => setRefineKey(null)}
+                />
+            ) : null}
             {switchDialog}
         </div>
     )
