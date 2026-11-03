@@ -7,6 +7,7 @@ export {
 export {
     queryEvaluationRunsPage,
     evaluationRunsListQueryKey,
+    evaluationRunQueryKey,
     seedEvaluationRunCache,
     type EvaluationRunsPageParams,
     type EvaluationRunsPage,

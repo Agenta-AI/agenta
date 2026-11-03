@@ -99,6 +99,8 @@ export {
     type HumanRunApp,
     type HumanRunEvaluator,
     type HumanRunSpec,
+    type HumanRunStep,
+    type HumanRunMapping,
     type HumanRunTestset,
 } from "./core"
 
@@ -112,6 +114,7 @@ export {
     queryEvaluationResults,
     queryEvaluationRunsPage,
     evaluationRunsListQueryKey,
+    evaluationRunQueryKey,
     seedEvaluationRunCache,
     deleteEvaluationRuns,
     startOnlineEvaluation,

@@ -123,6 +123,8 @@ export async function queryEvaluationRunsPage(
             if (!keep(run)) continue
             matches.push(run)
             if (matches.length === limit) {
+                // The API cursor is the id of the last row of a page (`id < next`), so the
+                // id of the last returned run resumes right after it.
                 const pageConsumed = index === page.runs.length - 1
                 return {runs: matches, nextCursor: pageConsumed ? page.next : run.id}
             }
@@ -163,6 +165,9 @@ export function evaluationRunsListQueryKey(
     ]
 }
 
+/** Query key of one run in the cache that the run details read. */
+export const evaluationRunQueryKey = (runId: string) => ["evaluationRun", runId] as const
+
 /**
  * Put listed runs in the run cache that the run details read, so a row click
  * opens the run without a second request. A run cached in the last 60 seconds
@@ -174,7 +179,7 @@ export function seedEvaluationRunCache(
 ): void {
     const now = Date.now()
     for (const run of runs) {
-        const queryKey = ["evaluationRun", run.id]
+        const queryKey = evaluationRunQueryKey(run.id)
         const state = queryClient.getQueryState(queryKey)
         if (state?.data && now - state.dataUpdatedAt < FRESH_RUN_MS) continue
         queryClient.setQueryData(queryKey, run)

@@ -44,7 +44,7 @@ export interface CreateAutoEvaluationRunsParams {
 }
 
 export interface CreateAutoEvaluationRunsResult {
-    /** Ids of the created runs, in the order of `applicationRevisionIds`. */
+    /** Ids of the created runs, in the order of `applicationRevisionIds`, without the failed ones. */
     runIds: string[]
     /** App revisions whose run could not be created. */
     failedRevisionIds: string[]
@@ -122,7 +122,12 @@ export async function createAutoEvaluationRuns({
 
 const TESTCASE_PAGE_SIZE = 500
 
-/** Ids of every test case in a test set revision. */
+/**
+ * Ids of every test case in a test set revision.
+ *
+ * Does not use `fetchTestcasesPage`: that function turns a failed request into an
+ * empty page, and a short list here would create a run with missing scenarios.
+ */
 export async function fetchAllTestcaseIds({
     projectId,
     testsetRevisionId,
@@ -188,6 +193,7 @@ export async function createHumanEvaluationRun({
             throw new Error("The scenarios do not match the test cases.")
         }
 
+        // Only the input step is done. The other steps wait for the app output and the annotation.
         const [inputStep, ...otherSteps] = spec.data.steps
         const results = scenarioIds.flatMap((scenarioId, index) => {
             const base = {testcase_id: testcaseIds[index], scenario_id: scenarioId, run_id: runId}

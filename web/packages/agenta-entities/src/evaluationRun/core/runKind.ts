@@ -12,6 +12,7 @@
 
 export type EvaluationRunKind = "auto" | "human" | "online" | "custom"
 
+// "online" runs are shown as "Live". "custom" runs come from the SDK.
 export const EVALUATION_KIND_LABELS: Record<EvaluationRunKind, string> = {
     auto: "Auto",
     human: "Human",
@@ -97,8 +98,9 @@ export function isTerminalRunStatus(status: string | null | undefined): boolean 
 
 /**
  * True when a list should keep refreshing for this run: it has a status that is
- * not terminal, and it is an auto or SDK run. Live runs stay `running` while
- * active and human runs stay open until annotated, so they never count.
+ * not terminal, and it is an auto or SDK run. Live runs are expected to stay
+ * `running` while active and human runs to stay open until annotated, so they
+ * never count.
  */
 export function isRunInProgress(run: RunKindInput | null | undefined): boolean {
     if (!run?.status || isTerminalRunStatus(run.status)) return false
