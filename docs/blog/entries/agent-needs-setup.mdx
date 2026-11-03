@@ -24,9 +24,9 @@ An agent names the exact model, provider API key, subscription login, MCP server
 
 The new app now checks the agent when you open it.
 
-- **In the editor**, each missing item shows **Needs setup** and the reason, such as **Not found in this project**, **Not shared with this project**, **Turned off** or **Sign-in expired**. Click the item to fix it. This replaces older labels such as **Connect key**, **Unavailable** and **Reconnect**.
-- **In chat**, when the model needs setup, a banner says **This agent needs setup**, with a **Set up** button. You can keep typing, and Send turns on once the model is set up.
-- **Runs go on without a missing tool.** A missing MCP server, secret or connected app is left out, and the agent runs without it. Only a missing model stops a run, and it stops before the agent starts.
+- **In the editor**, each missing item shows **Needs setup** and the reason, such as **Not found in this project**, **Not shared with this project**, **Turned off** or **Sign-in expired**. Click the item to fix it.
+- **In chat**, when the model needs setup, a banner above the chat box reads **This agent needs setup** with the line **The model needs setup before this agent can run.** If you can fix it, a **Set up** button opens the model picker. You can keep typing, and Send turns on once the model is set up.
+- **Runs go on without a missing tool.** A missing MCP server, secret or connected app is left out, and the agent runs without it. Only a missing model, provider API key or subscription login stops a run, and it stops before the agent starts.
 - **Automations.** When a schedule or event fires and the model needs setup, the run is recorded once as **Skipped: agent needs setup**, and the schedule stays on. It used to be retried five times and recorded as failed. You can't turn on a schedule or trigger, or connect the agent to a channel, until its model is set up. Saving your changes is never blocked.
 
 ## Improvements
