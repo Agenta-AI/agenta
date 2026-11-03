@@ -154,7 +154,7 @@ export {
     // Run details
     queryEvaluationScenariosPage,
     queryRunLevelMetrics,
-    type EvaluationScenario,
+    type EvaluationRunScenario,
     type EvaluationScenariosPage,
     type EvaluationScenariosPageParams,
 } from "./api"

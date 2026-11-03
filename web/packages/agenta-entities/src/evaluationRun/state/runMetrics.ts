@@ -77,13 +77,20 @@ export const runLevelMetricsQueryAtomFamily = atomFamily((runId: string) =>
             queryFn: async (): Promise<EvaluationMetric[]> => {
                 if (!projectId) return []
                 const metrics = await runMetricsBatchFetcher({projectId, runId})
-                // Refresh the run too, so the poll sees it finish.
-                if (poll) {
-                    void getHostQueryClient().invalidateQueries({
-                        queryKey: evaluationRunQueryKey(runId),
-                    })
-                }
-                return metrics
+                if (!poll) return metrics
+                // Refresh the run too, so the poll sees it finish. When it finished since the last
+                // look, the numbers above may be older than its last scenario: fetch them once
+                // more. A run that was not loaded yet gets no second fetch.
+                const client = getHostQueryClient()
+                const runKey = evaluationRunQueryKey(runId)
+                const before = client.getQueryData<EvaluationRun | null>(runKey)
+                await client.invalidateQueries({queryKey: runKey})
+                const after = client.getQueryData<EvaluationRun | null>(runKey)
+                const justFinished =
+                    Boolean(before) &&
+                    !isTerminalRunStatus(before?.status) &&
+                    isTerminalRunStatus(after?.status)
+                return justFinished ? runMetricsBatchFetcher({projectId, runId}) : metrics
             },
             enabled: Boolean(runId && projectId),
             staleTime: 30_000,

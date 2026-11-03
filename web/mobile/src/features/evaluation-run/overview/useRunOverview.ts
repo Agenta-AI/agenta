@@ -23,17 +23,24 @@ export interface OverviewNames {
     variant: string | null
 }
 
-/** Everything the Overview tab of one run reads. Compare runs are a later step. */
-export function useRunOverview(runId: string) {
-    const references = useAtomValue(runReferencesAtomFamily(runId))
-    const metricsQuery = useAtomValue(runLevelMetricsQueryAtomFamily(runId))
-    const catalog = useAtomValue(runMetricCatalogAtomFamily(runId))
+interface OverviewNameIds {
+    evaluatorIds: string[]
+    testsetIds: string[]
+    applicationId: string | null
+    revisionId: string | null
+}
 
+/**
+ * The names the overview shows. The atom is rebuilt only when an id changes: the catalog and the
+ * references are new arrays after every poll, and a new atom would read all the names again.
+ */
+export function useOverviewNames(ids: OverviewNameIds): OverviewNames {
+    const {applicationId, revisionId} = ids
+    const evaluatorKey = [...new Set(ids.evaluatorIds)].join(",")
+    const testsetKey = ids.testsetIds.join(",")
     const namesAtom = useMemo(() => {
-        const evaluatorIds = [...new Set(catalog.flatMap((entry) => entry.evaluatorId ?? []))]
-        const testsetIds = references?.testsets.map((testset) => testset.testsetId) ?? []
-        const applicationId = references?.applicationId ?? null
-        const revisionId = references?.revisionId ?? null
+        const evaluatorIds = evaluatorKey ? evaluatorKey.split(",") : []
+        const testsetIds = testsetKey ? testsetKey.split(",") : []
         return atom<OverviewNames>((get) => ({
             evaluators: Object.fromEntries(
                 evaluatorIds.map((id) => [id, get(workflowArtifactQueryAtomFamily(id)).data?.name]),
@@ -44,8 +51,22 @@ export function useRunOverview(runId: string) {
                 : null,
             variant: revisionId ? get(workflowMolecule.selectors.variantLabel(revisionId)) : null,
         }))
-    }, [catalog, references])
-    const names = useAtomValue(namesAtom)
+    }, [evaluatorKey, testsetKey, applicationId, revisionId])
+    return useAtomValue(namesAtom)
+}
+
+/** Everything the Overview tab of one run reads. Compare runs are a later step. */
+export function useRunOverview(runId: string) {
+    const references = useAtomValue(runReferencesAtomFamily(runId))
+    const metricsQuery = useAtomValue(runLevelMetricsQueryAtomFamily(runId))
+    const catalog = useAtomValue(runMetricCatalogAtomFamily(runId))
+
+    const names = useOverviewNames({
+        evaluatorIds: catalog.flatMap((entry) => entry.evaluatorId ?? []),
+        testsetIds: references?.testsets.map((testset) => testset.testsetId) ?? [],
+        applicationId: references?.applicationId ?? null,
+        revisionId: references?.revisionId ?? null,
+    })
 
     const metrics = useMemo<OverviewMetric[]>(
         () =>

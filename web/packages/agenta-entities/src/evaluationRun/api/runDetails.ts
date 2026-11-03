@@ -12,7 +12,7 @@ import {z} from "zod"
 
 import {evaluationMetricsResponseSchema, type EvaluationMetric} from "../core"
 
-export const evaluationScenarioSchema = z.object({
+export const evaluationRunScenarioSchema = z.object({
     id: z.string(),
     run_id: z.string(),
     status: z.string().nullable().optional(),
@@ -22,10 +22,10 @@ export const evaluationScenarioSchema = z.object({
     updated_at: z.string().nullable().optional(),
     created_by_id: z.string().nullable().optional(),
 })
-export type EvaluationScenario = z.infer<typeof evaluationScenarioSchema>
+export type EvaluationRunScenario = z.infer<typeof evaluationRunScenarioSchema>
 
 const scenariosPageResponseSchema = z.object({
-    scenarios: z.array(evaluationScenarioSchema).default([]),
+    scenarios: z.array(evaluationRunScenarioSchema).default([]),
     windowing: z.object({next: z.string().nullable().optional()}).nullable().optional(),
 })
 
@@ -39,7 +39,7 @@ export interface EvaluationScenariosPageParams {
 }
 
 export interface EvaluationScenariosPage {
-    scenarios: EvaluationScenario[]
+    scenarios: EvaluationRunScenario[]
     nextCursor: string | null
 }
 

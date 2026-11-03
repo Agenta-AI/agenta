@@ -30,10 +30,10 @@ export {
     type CreateAutoEvaluationRunsResult,
 } from "./createRuns"
 export {
-    evaluationScenarioSchema,
+    evaluationRunScenarioSchema,
     queryEvaluationScenariosPage,
     queryRunLevelMetrics,
-    type EvaluationScenario,
+    type EvaluationRunScenario,
     type EvaluationScenariosPage,
     type EvaluationScenariosPageParams,
 } from "./runDetails"
