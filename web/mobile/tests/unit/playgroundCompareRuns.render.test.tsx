@@ -300,6 +300,29 @@ describe("Revisions with different variables", () => {
         expect(host.querySelector('[data-testid="input-variable-country"]')).not.toBeNull()
         expect(host.querySelector('[data-testid="input-variable-city"]')).not.toBeNull()
     })
+
+    it("Running both revisions keeps the value each one needs", async () => {
+        olderVariable = "city"
+        await start(false)
+        const field = (key: string) =>
+            host.querySelector<HTMLTextAreaElement>(
+                `[data-testid="input-variable-${key}"] textarea`,
+            )!
+        await typeInto(field("country"), "France")
+        await typeInto(field("city"), "Lyon")
+
+        await click("Run all")
+
+        const first = runs.find((body) => body.includes("First"))!
+        const second = runs.find((body) => body.includes("Second"))!
+        expect(first).toContain("Lyon")
+        expect(second).toContain("France")
+        const [row] = rowIds()
+        const data = store.get(executionItemController.selectors.rowData(row)) as {
+            data?: Record<string, unknown>
+        } | null
+        expect(data?.data ?? data).toMatchObject({country: "France", city: "Lyon"})
+    })
 })
 
 describe("State across column changes", () => {
@@ -377,6 +400,24 @@ describe("State across column changes", () => {
         ).map((message) => JSON.stringify(message.content))
         expect(messages.some((text) => text.includes("Where should I go in May?"))).toBe(true)
         expect(messages.some((text) => text.includes("Paris says First"))).toBe(true)
+    })
+})
+
+describe("Closing the first column during a run", () => {
+    it("stops the runs, so no column waits for a reply that lands elsewhere", async () => {
+        await start(false)
+        hold = true
+        await click("Run all")
+        const [row] = rowIds()
+
+        await act(async () => store.set(playgroundController.actions.removeEntity, "rev-2"))
+        await settle()
+
+        const left = store.get(
+            executionItemController.selectors.fullResult({rowId: row, entityId: "rev-1"}),
+        )
+        expect(left?.status).not.toBe("running")
+        expect(left?.status).not.toBe("pending")
     })
 })
 

@@ -63,7 +63,11 @@ import {
 } from "../atoms/playground"
 import {executionByMessageIdAtomFamily, messageIdsAtomFamily, messagesByIdAtomFamily} from "../chat"
 import type {ChatMessage} from "../chat"
-import {createInitialExecutionState, executionStateAtomFamily} from "../execution"
+import {
+    cancelTestsMutationAtom,
+    createInitialExecutionState,
+    executionStateAtomFamily,
+} from "../execution"
 import type {ExecutionSession, RunResult} from "../execution"
 import {
     displayedEntityIdsAtom,
@@ -85,6 +89,7 @@ import {
 import {pruneDanglingConnections} from "../helpers/connectionGraph"
 import {
     collectDownstreamReferencedColumns,
+    collectOtherRootInputKeys,
     collectTestsetServerColumns,
     reconcileRowDataForEntity,
     resolveEntityInputContract,
@@ -1928,6 +1933,14 @@ const setEntityIdsAtom = atom(null, (get, set, next: string[] | ((prev: string[]
         })
         const newAnchorNode = newRootNodes[0]
         const newAnchorLoadableId = `testset:${newAnchorNode.entityType}:${newAnchorNode.entityId}`
+        const anchorSwap = positionalSwaps.find((swap) => swap.isAnchorSwap)
+        const anchorClosed = !anchorSwap && Boolean(anchorEntityId) && !newIdSet.has(anchorEntityId)
+        // A run in flight keeps writing to the loadable it started under. The state is about to
+        // move, so stop the runs first; otherwise a column would wait for a reply that lands in
+        // the old place.
+        if ((anchorSwap || anchorClosed) && oldLoadableId !== newAnchorLoadableId) {
+            set(cancelTestsMutationAtom, {})
+        }
 
         // Process non-anchor swaps first. The anchor swap MOVES data away
         // from `oldLoadableId` and clears it, so any non-anchor rewrites
@@ -1941,7 +1954,6 @@ const setEntityIdsAtom = atom(null, (get, set, next: string[] | ((prev: string[]
                 newLoadableId: oldLoadableId,
             })
         }
-        const anchorSwap = positionalSwaps.find((swap) => swap.isAnchorSwap)
         if (anchorSwap) {
             relinkLoadableSessions(get, set, {
                 oldEntityId: anchorSwap.oldEntityId,
@@ -1955,8 +1967,8 @@ const setEntityIdsAtom = atom(null, (get, set, next: string[] | ((prev: string[]
             // row against the NEW primary's input schema so the UI shows
             // only the relevant variables and execution doesn't have to
             // strip them later (#4525 / AGE-3793).
-            pruneTestcaseRowsForEntity(get, set, anchorSwap.newEntityId)
-        } else if (anchorEntityId && !newIdSet.has(anchorEntityId) && oldLoadableId) {
+            pruneTestcaseRowsForEntity(get, set, anchorSwap.newEntityId, newIds)
+        } else if (anchorClosed && oldLoadableId) {
             // The anchor was closed: the shared state moves, and every other entity keeps its
             // own sessions (the closed entity's are left behind under its id, unused).
             relinkLoadableSessions(get, set, {
@@ -2213,7 +2225,14 @@ type PruneStatus = "acted" | "noop" | "unresolved"
  * keys to `undefined`, which the store's update reducer interprets as a
  * delete. Drafts are created as needed (one per affected row).
  */
-function pruneTestcaseRowsForEntity(get: Getter, set: Setter, entityId: string): PruneStatus {
+function pruneTestcaseRowsForEntity(
+    get: Getter,
+    set: Setter,
+    entityId: string,
+    rootEntityIds: string[] = get(playgroundNodesAtom)
+        .filter((node) => node.depth === 0)
+        .map((node) => node.entityId),
+): PruneStatus {
     const contract = resolveEntityInputContract(get, entityId)
 
     // Unresolved, non-evaluator contract → we can't strict-filter safely yet.
@@ -2233,6 +2252,9 @@ function pruneTestcaseRowsForEntity(get: Getter, set: Setter, entityId: string):
     // locally are covered too; same value for every row, hence hoisted.
     for (const column of collectTestsetServerColumns(get)) {
         protectedColumns.add(column)
+    }
+    for (const key of collectOtherRootInputKeys(get, rootEntityIds, entityId)) {
+        protectedColumns.add(key)
     }
 
     const updates: {id: string; updates: {data: Record<string, unknown>}}[] = []
