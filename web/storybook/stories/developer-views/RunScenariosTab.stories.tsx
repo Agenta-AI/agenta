@@ -184,7 +184,7 @@ const seeded = (
 
 const FINISHED = Array.from({length: 8}, () => "success")
 
-export const AutoFilled: Story = {parameters: {agenta: seeded(FINISHED, {hasNext: true})}}
+export const AutoFilled: Story = {parameters: {agenta: seeded(FINISHED)}}
 
 export const Running: Story = {
     parameters: {
