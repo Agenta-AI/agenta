@@ -7,9 +7,11 @@ import {CaretDown, CaretRight} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useExecutionRow} from "../../hooks/useExecutionRow"
+import {openPlaygroundFocusDrawerAtom} from "../../state/focusDrawer"
 import {InputsList} from "../inputs"
 
 import {RowActions} from "./RowActions"
+import {RowSyncTag} from "./RowSyncTag"
 import {RunResult} from "./RunResult"
 
 export interface CompletionRowProps {
@@ -23,9 +25,10 @@ export interface CompletionRowProps {
 }
 
 /**
- * One test case: its label (which folds the row), remove and duplicate, the run control, then the
- * inputs and the result. "Collapse all" in the header folds every row; a click on one row's label
- * then overrides it for that row until the next "collapse all".
+ * One test case: the caret that folds the row, its label (which opens the focus drawer), the sync
+ * tag, the row actions, the run control, then the inputs and the result. "Collapse all" in the
+ * header folds every row; the caret on one row then overrides it for that row until the next
+ * "collapse all".
  */
 export const CompletionRow = memo(
     ({
@@ -39,6 +42,7 @@ export const CompletionRow = memo(
         const row = useExecutionRow({entityId, rowId})
         const deleteRow = useSetAtom(executionItemController.actions.deleteRow)
         const duplicateRow = useSetAtom(executionItemController.actions.duplicateRow)
+        const openDetails = useSetAtom(openPlaygroundFocusDrawerAtom)
 
         const allCollapsed = useAtomValue(executionItemController.selectors.allRowsCollapsed)
         const [own, setOwn] = useState<boolean | null>(null)
@@ -57,21 +61,33 @@ export const CompletionRow = memo(
                 className="flex flex-col gap-3 border-0 border-b border-solid border-border px-4 py-3"
             >
                 <div className="flex items-center gap-2">
-                    <button
-                        type="button"
-                        aria-expanded={!collapsed}
-                        onClick={() => {
-                            setClicked(true)
-                            setOwn(!collapsed)
-                        }}
-                        className="flex min-w-0 items-center gap-1 rounded-md border-0 bg-muted px-2 py-0.5 text-xs text-foreground"
-                    >
-                        {collapsed ? <CaretRight size={12} /> : <CaretDown size={12} />}
-                        <span className="truncate">{`testcase ${index + 1}`}</span>
-                    </button>
+                    <div className="flex min-w-0 items-center rounded-md bg-muted text-xs text-foreground">
+                        <button
+                            type="button"
+                            aria-expanded={!collapsed}
+                            aria-label={collapsed ? "Expand test case" : "Collapse test case"}
+                            onClick={() => {
+                                setClicked(true)
+                                setOwn(!collapsed)
+                            }}
+                            className="flex items-center rounded-md border-0 bg-transparent py-0.5 pl-2 pr-1 text-foreground"
+                        >
+                            {collapsed ? <CaretRight size={12} /> : <CaretDown size={12} />}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => openDetails({rowId, entityId})}
+                            className="min-w-0 truncate rounded-md border-0 bg-transparent py-0.5 pl-0 pr-2 text-xs text-foreground"
+                        >
+                            {`testcase ${index + 1}`}
+                        </button>
+                    </div>
+                    <RowSyncTag rowId={rowId} />
                     <div className="flex-1" />
                     <RowActions
                         canRemove={canRemove}
+                        hasRepeats={!collapsed && Boolean(row.repetitionProps)}
+                        onOpenDetails={() => openDetails({rowId, entityId})}
                         onRemove={() => deleteRow(rowId)}
                         onDuplicate={() => duplicateRow(rowId)}
                     />

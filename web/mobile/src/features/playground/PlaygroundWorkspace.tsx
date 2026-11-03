@@ -6,6 +6,7 @@ import dynamic from "next/dynamic"
 
 import {DrillInBridgeProvider} from "../chat/DrillInBridgeProvider"
 
+import {PlaygroundFocusDrawerHost} from "./PlaygroundFocusDrawerHost"
 import {PlaygroundHeader} from "./PlaygroundHeader"
 import {PlaygroundRunPane} from "./PlaygroundRunPane"
 import {PlaygroundSplit} from "./PlaygroundSplit"
@@ -84,6 +85,7 @@ export const PlaygroundWorkspace = ({
             />
             <CatalogDrawer />
             {switchDialog}
+            <PlaygroundFocusDrawerHost />
         </div>
     )
 }
