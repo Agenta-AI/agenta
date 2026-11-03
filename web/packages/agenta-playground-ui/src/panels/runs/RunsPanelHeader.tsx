@@ -7,13 +7,16 @@ import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 export interface RunsPanelHeaderProps {
     entityId: string
+    /** The title that folds the panel. */
+    label?: string
 }
 
 /**
- * The bar above the rows: "Generations" folds every row, Clear empties the outputs, Run all runs
- * every row and turns into Cancel while they run. Ctrl or ⌘ with Enter runs all.
+ * The bar above the rows: the label ("Generations" by default) folds every row, Clear empties the
+ * outputs, Run all runs every row and turns into Cancel while they run. Ctrl or ⌘ with Enter runs
+ * all.
  */
-export const RunsPanelHeader = ({entityId}: RunsPanelHeaderProps) => {
+export const RunsPanelHeader = ({entityId, label = "Generations"}: RunsPanelHeaderProps) => {
     const {isRunning} = useAtomValue(executionItemController.selectors.headerData(entityId)) as {
         isRunning?: boolean
     }
@@ -31,7 +34,7 @@ export const RunsPanelHeader = ({entityId}: RunsPanelHeaderProps) => {
     return (
         <div className="sticky top-0 z-10 flex h-12 shrink-0 items-center justify-between gap-4 border-0 border-b border-solid border-border bg-background px-4">
             <CollapsibleGroupHeader
-                label="Generations"
+                label={label}
                 isCollapsed={allCollapsed}
                 onClick={() => setAllCollapsed(!allCollapsed)}
                 iconSize={16}

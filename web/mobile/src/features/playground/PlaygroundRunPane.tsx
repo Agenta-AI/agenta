@@ -5,13 +5,19 @@ import {workflowMolecule} from "@agenta/entities/workflow"
 import {executionController} from "@agenta/playground"
 import {RunsPanel, RunsPanelSkeleton} from "@agenta/playground-ui/panels/runs"
 import {useAtomValue} from "jotai"
+import dynamic from "next/dynamic"
 
 import {PlaygroundTraceFooter} from "./PlaygroundTraceFooter"
-import {RunPanePlaceholder} from "./RunPanePlaceholder"
+
+// A completion app never downloads the chat panel.
+const ChatPanel = dynamic(
+    () => import("@agenta/playground-ui/panels/chat").then((module) => module.ChatPanel),
+    {ssr: false, loading: () => <RunsPanelSkeleton />},
+)
 
 /**
  * The run pane of the selected revision. A completion app runs its test cases here. A chat app
- * keeps the empty placeholder until chat lands.
+ * runs its conversation.
  */
 export const PlaygroundRunPane = ({revisionId}: {revisionId: string}) => {
     const query = useAtomValue(workflowMolecule.selectors.query(revisionId))
@@ -22,13 +28,9 @@ export const PlaygroundRunPane = ({revisionId}: {revisionId: string}) => {
         (traceId: string) => <PlaygroundTraceFooter traceId={traceId} />,
         [],
     )
+    const footer = canViewSpans ? renderTraceFooter : undefined
 
     if (query.isPending || isChat === undefined) return <RunsPanelSkeleton />
-    if (isChat) return <RunPanePlaceholder />
-    return (
-        <RunsPanel
-            revisionId={revisionId}
-            renderTraceFooter={canViewSpans ? renderTraceFooter : undefined}
-        />
-    )
+    if (isChat) return <ChatPanel revisionId={revisionId} renderTraceFooter={footer} />
+    return <RunsPanel revisionId={revisionId} renderTraceFooter={footer} />
 }

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * The run pane of the selected revision: which of the skeleton, the placeholder and the runs panel
+ * The run pane of the selected revision: which of the skeleton, the chat panel and the runs panel
  * it shows, whether the trace footer is offered, and what the footer does. The panels and the
  * queries are stubs; their own tests cover them.
  */
@@ -44,6 +44,20 @@ vi.mock("@agenta/playground-ui/panels/runs", () => ({
     ),
     RunsPanelSkeleton: () => <div data-testid="runs-panel-skeleton" />,
 }))
+vi.mock("@agenta/playground-ui/panels/chat", () => ({
+    ChatPanel: ({
+        revisionId,
+        renderTraceFooter,
+    }: {
+        revisionId: string
+        renderTraceFooter?: (traceId: string) => React.ReactNode
+    }) => (
+        <div data-testid="chat-panel">
+            {revisionId}
+            {renderTraceFooter?.("trace-1")}
+        </div>
+    ),
+}))
 vi.mock("@agenta/entity-ui", () => ({
     SharedGenerationResultUtils: ({
         traceId,
@@ -86,14 +100,15 @@ describe("PlaygroundRunPane", () => {
         await render()
 
         expect(byTestId("runs-panel")?.textContent).toContain("rev-1")
-        expect(byTestId("run-pane-placeholder")).toBeNull()
+        expect(byTestId("chat-panel")).toBeNull()
     })
 
-    it("A chat app keeps the placeholder", async () => {
+    it("A chat app shows the chat pane", async () => {
         store.set(atoms.isChat, true)
         await render()
 
-        expect(byTestId("run-pane-placeholder")).not.toBeNull()
+        // The chat panel loads on demand.
+        await vi.waitFor(() => expect(byTestId("chat-panel")?.textContent).toContain("rev-1"))
         expect(byTestId("runs-panel")).toBeNull()
     })
 
