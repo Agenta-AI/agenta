@@ -12,7 +12,7 @@ import {CompareLayout} from "@agenta/playground-ui/panels/compare"
 import {ConfigPanel} from "@agenta/playground-ui/panels/config"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {getDefaultStore, useAtomValue} from "jotai"
-import {within} from "storybook/test"
+import {expect, userEvent, within} from "storybook/test"
 
 import type {StoryScope} from "../../.storybook/decorators/withAgentaData"
 import {
@@ -159,4 +159,35 @@ export const ChatThreeColumns: Story = {
     args: {revisionId: "", columns: 3},
     parameters: {agenta: {queries: queries(true)}},
     play: async ({canvasElement}) => ready(canvasElement),
+}
+
+const fitsTheScreen = (canvasElement: HTMLElement) => {
+    const root = canvasElement.ownerDocument.documentElement
+    expect(root.scrollWidth).toBeLessThanOrEqual(root.clientWidth)
+    const layout = canvasElement.querySelector("[data-testid=compare-layout]")
+    for (const area of layout?.children ?? []) {
+        expect(area.scrollWidth).toBeLessThanOrEqual(area.clientWidth + 1)
+    }
+}
+
+/** On a phone the config columns stack, one under the other: no sideways scroll. */
+export const PhoneConfiguration: Story = {
+    args: {revisionId: "", columns: 2},
+    parameters: {viewport: {defaultViewport: "mobile1"}},
+    play: async ({canvasElement}) => {
+        await ready(canvasElement)
+        fitsTheScreen(canvasElement)
+    },
+}
+
+/** On a phone the input column and each output stack, each output under its revision's name. */
+export const PhoneGenerations: Story = {
+    args: {revisionId: "", columns: 2},
+    parameters: {viewport: {defaultViewport: "mobile1"}},
+    play: async ({canvasElement}) => {
+        const canvas = within(canvasElement)
+        await ready(canvasElement)
+        await userEvent.click((await canvas.findAllByText("Generations"))[0])
+        fitsTheScreen(canvasElement)
+    },
 }

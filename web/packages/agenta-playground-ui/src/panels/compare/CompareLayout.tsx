@@ -34,7 +34,8 @@ export interface CompareLayoutProps {
  * The playground with two or more revisions side by side. The config area (variants, then one
  * config column per revision) sits above the run area (inputs, then one output column per
  * revision). Both areas scroll sideways together, so each output stays under its config. Below
- * `md` one area shows at a time, picked with a Configuration / Generations switch.
+ * `md` one area shows at a time, picked with a Configuration / Generations switch, and the
+ * columns stack, so only the page scrolls, and only up and down.
  */
 export const CompareLayout = ({
     revisionIds,
@@ -82,13 +83,13 @@ export const CompareLayout = ({
             <div
                 ref={setConfigArea}
                 className={cn(
-                    "min-h-0 overflow-x-auto overflow-y-hidden",
+                    "min-h-0 overflow-y-auto md:overflow-x-auto md:overflow-y-hidden",
                     twoAreas ? "basis-1/2 border-b border-border" : "flex-1",
                     !showConfig && "hidden",
                 )}
             >
-                <div className="flex h-full min-w-fit">
-                    <div className={cn(LEAD_COLUMN, "h-full overflow-y-auto")}>
+                <div className="flex flex-col md:h-full md:min-w-fit md:flex-row">
+                    <div className={cn(LEAD_COLUMN, "md:h-full md:overflow-y-auto")}>
                         <VariantColumn revisionIds={revisionIds} onClose={onClose} onShow={show} />
                     </div>
                     {revisionIds.map((revisionId) => (
@@ -96,7 +97,7 @@ export const CompareLayout = ({
                             key={revisionId}
                             data-testid={`compare-config-${revisionId}`}
                             data-compare-column={revisionId}
-                            className={cn(REVISION_COLUMN, "h-full overflow-y-auto")}
+                            className={cn(REVISION_COLUMN, "md:h-full md:overflow-y-auto")}
                         >
                             {renderConfig(revisionId)}
                         </div>

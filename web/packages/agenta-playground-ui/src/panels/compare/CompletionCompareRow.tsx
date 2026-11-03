@@ -12,6 +12,7 @@ import {RowSyncTag} from "../runs/RowSyncTag"
 import {RunResult} from "../runs/RunResult"
 
 import {LEAD_COLUMN, REVISION_COLUMN} from "./columns"
+import {OutputLabel} from "./CompareRowsHeader"
 
 type TemplateFormat = "mustache" | "curly" | "fstring" | "jinja2"
 
@@ -30,6 +31,7 @@ const OutputCell = ({
             data-testid={`compare-output-${rowId}-${revisionId}`}
             className={`${REVISION_COLUMN} border-b p-3`}
         >
+            <OutputLabel revisionId={revisionId} />
             <RunResult
                 isRunning={cell.isRunning}
                 result={cell.displayResult as React.ComponentProps<typeof RunResult>["result"]}
@@ -76,7 +78,10 @@ export const CompletionCompareRow = memo(
         const showDetails = () => openDetails({rowId, entityId: revisionIds[0]})
 
         return (
-            <div data-testid={`compare-row-${rowId}`} className="flex min-w-fit">
+            <div
+                data-testid={`compare-row-${rowId}`}
+                className="flex flex-col md:min-w-fit md:flex-row"
+            >
                 <div className={`${LEAD_COLUMN} flex flex-col gap-3 border-b p-3`}>
                     <div className="flex flex-wrap items-center gap-2">
                         <button
