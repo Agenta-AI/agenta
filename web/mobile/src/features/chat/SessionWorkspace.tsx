@@ -56,6 +56,7 @@ import {ConfigPaneLoading} from "./states/ConfigPaneLoading"
 import {useDriveUrlSync} from "./useDriveUrlSync"
 import {useLeaveSession} from "./useLeaveSession"
 import {sessionHeaderKey} from "./useSessionHeader"
+import {useSessionTabClose} from "./useSessionTabClose"
 import {useStartBlankSession} from "./useStartBlankSession"
 import {useTriggerTestRun} from "./useTriggerTestRun"
 
@@ -312,13 +313,14 @@ export const SessionWorkspace = ({
         prevAlternateRef.current = panesMustAlternate
     }, [panesMustAlternate, dockOpen, configCollapsed, setConfigCollapsed])
 
-    // The switcher publishes its list order, so `Alt+1…9` addresses the rows it shows. A phone
+    // The rail publishes the tabs it renders, so `Alt+1…9` addresses what is on screen. A phone
     // sends no Alt chord, so mounting this on a touch surface is inert rather than harmful.
     const router = useRouter()
     const tabScope = sessionTabScope(agentId)
     const openTabIds = useAtomValue(renderedSessionTabsAtomFamily(tabScope))
     const shortcutSessions = useMemo(() => openTabIds.map((id) => ({id})), [openTabIds])
     const startBlank = useStartBlankSession(base)
+    const closeTabs = useSessionTabClose({agentId, sessionId, base})
     // Archiving the session you are on has to move you off it.
     const sessionActions = useSessionActions({onRemoved: useLeaveSession(base)})
     // Read from the session row the screen already caches (it carries the reader's sharing
@@ -362,6 +364,10 @@ export const SessionWorkspace = ({
         onNewSession: useCallback(() => {
             if (agentId) startBlank(agentId)
         }, [agentId, startBlank]),
+        onCloseSession: useCallback(
+            (id: string) => closeTabs([id], openTabIds),
+            [closeTabs, openTabIds],
+        ),
         onSearch: useCallback(() => setBarPanel("switcher"), [setBarPanel]),
         onToggleConfigPanel: useCallback(
             () => setConfigCollapsed(!configCollapsed),

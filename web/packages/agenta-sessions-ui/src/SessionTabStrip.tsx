@@ -78,6 +78,8 @@ export interface SessionTabStripProps {
      * `SessionTabDragItem` with a matching id. Omit for a fixed strip.
      */
     reorder?: {ids: string[]; onReorder: (ids: string[]) => void}
+    /** Only the chips and extras, for a host bar that already draws the height and hairline. */
+    bare?: boolean
     className?: string
 }
 
@@ -101,6 +103,7 @@ export const SessionTabStrip = ({
     leadingExtra,
     remeasureKey,
     reorder,
+    bare = false,
     className,
 }: SessionTabStripProps) => {
     // Edge fade is applied per side only where the strip is actually scrolled past its content, so
@@ -222,7 +225,9 @@ export const SessionTabStrip = ({
         <div
             role="tablist"
             className={clsx(
-                "flex h-[48px] w-full min-w-0 shrink-0 items-center gap-2 overflow-hidden border-x-0 border-t-0 border-b border-solid border-[var(--ag-surface-card-border)] bg-[var(--ag-surface-canvas)] px-3",
+                "flex w-full min-w-0 shrink-0 items-center gap-2 overflow-hidden",
+                !bare &&
+                    "h-[48px] border-x-0 border-t-0 border-b border-solid border-[var(--ag-surface-card-border)] bg-[var(--ag-surface-canvas)] px-3",
                 className,
             )}
         >

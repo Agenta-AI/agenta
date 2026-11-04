@@ -2,7 +2,15 @@ import {useEffect, useRef} from "react"
 
 import {AGENT_CHIP_BOX, AGENT_CHIP_FALLBACK, useAgentIconChrome} from "@agenta/entity-ui/agent"
 import {sessionRowVm} from "@agenta/sessions/row"
-import {InlineRenameInput, useInlineRename} from "@agenta/sessions-ui"
+import {
+    InlineRenameInput,
+    SessionTabRail,
+    SessionTabStrip,
+    sessionMenuAccess,
+    useInlineRename,
+    useRequestSessionTabRename,
+    withSessionShortcutKeys,
+} from "@agenta/sessions-ui"
 import {userAtom} from "@agenta/shared/state"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {
@@ -13,8 +21,9 @@ import {
     SimpleTooltip,
     SkeletonBlock,
 } from "@agenta/ui/ui"
-import {CaretDownIcon, PlusIcon, RobotIcon} from "@phosphor-icons/react"
+import {CaretDownIcon, MagnifyingGlassIcon, RobotIcon} from "@phosphor-icons/react"
 import {useAtom, useAtomValue} from "jotai"
+import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 
@@ -24,14 +33,15 @@ import {canRenameSession, sessionBarPanelAtom, sessionRenameRequestAtom} from ".
 import {SessionOrderPublisher} from "./SessionOrderPublisher"
 import {SessionSwitcherPanel} from "./SessionSwitcherPanel"
 import {useSessionHeader} from "./useSessionHeader"
+import {useSessionTabClose} from "./useSessionTabClose"
 import {useStartBlankSession} from "./useStartBlankSession"
 
 const RENAME_INPUT =
     "border-border bg-background text-foreground focus:border-primary box-border h-control-sm min-w-0 flex-1 rounded-control-sm border border-solid px-2 text-sm outline-none [font-family:inherit]"
 
 /**
- * Which session is on screen, and the way to any other: a trigger that opens this agent's list,
- * with New session beside it. On a phone the trigger is the bar's title.
+ * Which session is on screen, and the way to any other: a rail of this agent's sessions, with a
+ * search for the rest. On a phone it is the bar's title, which opens that same search.
  */
 export const SessionSwitcher = ({
     sessionId,
@@ -63,6 +73,8 @@ export const SessionSwitcher = ({
     })
     const menu = useSessionRowMenu(base)
     const startBlank = useStartBlankSession(base)
+    const router = useRouter()
+    const closeTabs = useSessionTabClose({agentId, sessionId, base})
     const header = useSessionHeader(projectId, sessionId)
     const stream = header.data ?? null
     const [panel, setPanel] = useAtom(sessionBarPanelAtom)
@@ -82,6 +94,7 @@ export const SessionSwitcher = ({
 
     // Raised outside this component, so it arrives as a count; only a new count starts an edit.
     const renameRequest = useAtomValue(sessionRenameRequestAtom)
+    const requestTabRename = useRequestSessionTabRename()
     const seenRequest = useRef(renameRequest)
     const {start: startRename, cancel: cancelRename} = rename
     // This component outlives a session switch: a draft must not land on the next session.
@@ -89,8 +102,10 @@ export const SessionSwitcher = ({
     useEffect(() => {
         if (seenRequest.current === renameRequest) return
         seenRequest.current = renameRequest
-        if (canRename) startRename()
-    }, [canRename, renameRequest, startRename])
+        if (!canRename) return
+        if (phone) startRename()
+        else requestTabRename(sessionId)
+    }, [canRename, phone, renameRequest, requestTabRename, sessionId, startRename])
 
     // Opened from the composer with `Alt+K`, closing hands the caret back to it.
     const searchRef = useRef<HTMLInputElement>(null)
@@ -98,7 +113,7 @@ export const SessionSwitcher = ({
 
     const sessionsPanel = (
         <PopoverContent
-            align="start"
+            align={phone ? "start" : "end"}
             collisionPadding={8}
             aria-label="Sessions"
             className={`${phone ? "w-[calc(100vw-16px)]" : "w-[360px]"} overflow-hidden p-0`}
@@ -134,6 +149,28 @@ export const SessionSwitcher = ({
         <span className="min-w-0 max-w-[200px] truncate lg:max-w-[240px]">{title}</span>
     )
     const order = agentId || !agentResolving ? <SessionOrderPublisher agentId={agentId} /> : null
+    const openSession = (id: string) => {
+        if (id !== sessionId) void router.push(`${base}/sessions/${id}`)
+    }
+    // The rail shows the recent few; this finds the rest.
+    const search = (
+        <Popover open={open} onOpenChange={(next) => setPanel(next ? "switcher" : null)}>
+            <SimpleTooltip
+                title={
+                    <span className="flex items-center gap-1.5">
+                        Search sessions <ShortcutKeys id="session.search" tone="inverse" />
+                    </span>
+                }
+            >
+                <PopoverTrigger asChild>
+                    <Button variant="ghost" size="icon-sm" aria-label="Search sessions">
+                        <MagnifyingGlassIcon />
+                    </Button>
+                </PopoverTrigger>
+            </SimpleTooltip>
+            {sessionsPanel}
+        </Popover>
+    )
 
     if (phone) {
         return (
@@ -177,46 +214,41 @@ export const SessionSwitcher = ({
     return (
         <>
             <PageTitle title={stream?.name} />
-            {order}
-            <Popover open={open} onOpenChange={(next) => setPanel(next ? "switcher" : null)}>
-                <div className="flex items-center gap-1">
-                    {rename.renaming ? (
-                        <span className="flex w-[200px] lg:w-[260px]">
-                            <InlineRenameInput rename={rename} className={RENAME_INPUT} />
-                        </span>
-                    ) : (
-                        <PopoverTrigger asChild>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                aria-label={`${title}, switch session`}
-                            >
-                                {label}
-                                <CaretDownIcon data-icon="inline-end" aria-hidden />
-                            </Button>
-                        </PopoverTrigger>
-                    )}
-                    {onNew ? (
-                        <SimpleTooltip
-                            title={
-                                <span className="flex items-center gap-1.5">
-                                    New session <ShortcutKeys id="session.new" tone="inverse" />
-                                </span>
-                            }
-                        >
-                            <Button
-                                variant="outline"
-                                size="icon-sm"
-                                aria-label="New session"
-                                onClick={onNew}
-                            >
-                                <PlusIcon />
-                            </Button>
-                        </SimpleTooltip>
-                    ) : null}
-                </div>
-                {sessionsPanel}
-            </Popover>
+            <div className="w-[300px] min-w-0 lg:w-[440px] xl:w-[592px]">
+                {agentId || !agentResolving ? (
+                    <SessionTabRail
+                        bare
+                        agentId={agentId ?? undefined}
+                        policy={{origin: "exclude-trigger", expansions: []}}
+                        limit={12}
+                        withPinned
+                        lowPriority
+                        activeSessionId={sessionId}
+                        activeFallbackTitle={stream?.name}
+                        menuFor={(vm) =>
+                            withSessionShortcutKeys(menu.menuFor(vm), {
+                                isActive: vm.id === sessionId,
+                            })
+                        }
+                        onMenuSelect={menu.onMenuSelect}
+                        onRenameTab={menu.onRenameRow}
+                        canRenameTab={(vm) =>
+                            sessionMenuAccess(
+                                {ownerUserId: vm.stream.owner_user_id ?? null},
+                                me?.id,
+                            ) !== "member"
+                        }
+                        onClose={(vm, ordered) => closeTabs([vm.id], ordered)}
+                        onCloseMany={closeTabs}
+                        onSelect={(vm) => openSession(vm.id)}
+                        onSelectUnlisted={openSession}
+                        onNew={onNew}
+                        extra={search}
+                    />
+                ) : (
+                    <SessionTabStrip bare extra={search} />
+                )}
+            </div>
         </>
     )
 }

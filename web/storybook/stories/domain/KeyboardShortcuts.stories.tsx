@@ -221,6 +221,8 @@ export const PanelTooltips: Story = {
                         {label: "Pin", id: undefined},
                         {label: "Archive", id: "session.archive"},
                         {label: "Delete", id: undefined},
+                        {label: "Close", id: "session.close"},
+                        {label: "Close other tabs", id: undefined},
                     ].map((row) => (
                         // Mirrors the real ContextMenuItem: a full-width flex row, so a
                         // misalignment here is the same misalignment the app would show.

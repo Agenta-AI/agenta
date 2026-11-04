@@ -77,7 +77,6 @@ export const PLAYGROUND_SHORTCUTS: readonly Shortcut[] = [
         label: "Go to session 1 to 9",
         modifiers: ["alt"],
         key: "1…9",
-        when: "in the order of the session list",
     },
     {
         id: "session.step",
@@ -94,6 +93,14 @@ export const PLAYGROUND_SHORTCUTS: readonly Shortcut[] = [
         modifiers: ["alt"],
         key: "+",
         when: "the agent has answered once",
+    },
+    {
+        id: "session.close",
+        group: "sessions",
+        label: "Close the session",
+        modifiers: ["alt"],
+        key: "W",
+        when: "two or more are open",
     },
     {
         id: "session.rename",
