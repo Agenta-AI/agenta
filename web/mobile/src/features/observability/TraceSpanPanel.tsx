@@ -23,3 +23,5 @@ export const TraceSpanPanel = ({
         defaultCollapsed={defaultCollapsed}
     />
 )
+
+export default TraceSpanPanel

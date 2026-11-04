@@ -121,7 +121,7 @@ export {testcasePaginatedStore} from "./state"
  * const columns = useAtomValue(testcaseDataController.selectors.columns(config))
  * ```
  */
-export {testcaseDataController} from "./state"
+export {loadMoreTestcasesAtom, testcaseDataController} from "./state"
 
 export type {TestcaseTableRow, TestcasePaginatedMeta, TestcaseDataConfig} from "./state"
 

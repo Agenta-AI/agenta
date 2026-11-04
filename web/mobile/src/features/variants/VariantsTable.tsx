@@ -24,6 +24,9 @@ const WIDE_COLUMNS: ListTableColumn[] = [
 ]
 const NARROW_COLUMNS: ListTableColumn[] = [NAME, CREATED_ON("104px"), ACTIONS]
 
+const NO_COLLAPSED: ReadonlySet<string> = new Set()
+const NO_DELETE = () => undefined
+
 /** Tailwind's `sm`. Below it only Name and Created on stay. */
 const WIDE_QUERY = "(min-width: 640px)"
 
@@ -34,8 +37,8 @@ export const VariantsTable = ({
     latestRevisionId,
     canDeploy,
     canDelete,
-    playgroundHref,
-    collapsed,
+    playgroundHref = null,
+    collapsed = NO_COLLAPSED,
     onCollapsedChange,
     onOpen,
     onDeploy,
@@ -47,12 +50,15 @@ export const VariantsTable = ({
     latestRevisionId: string | null
     canDeploy: boolean
     canDelete: boolean
-    playgroundHref: ((row: AppRevisionRow) => string) | null
-    collapsed: ReadonlySet<string>
-    onCollapsedChange: (next: Set<string>) => void
+    /** Absent or null: the menu has no "Open in playground". */
+    playgroundHref?: ((row: AppRevisionRow) => string) | null
+    /** Absent: every group is open and none can fold. */
+    collapsed?: ReadonlySet<string>
+    onCollapsedChange?: (next: Set<string>) => void
     onOpen: (row: AppRevisionRow) => void
     onDeploy: (row: AppRevisionRow) => void
-    onDelete: (row: AppRevisionRow) => void
+    /** Absent with `canDelete` false: the menu has no Delete. */
+    onDelete?: (row: AppRevisionRow) => void
     empty: ReactNode
 }) => {
     const narrow = !useMediaQuery(WIDE_QUERY)
@@ -60,7 +66,7 @@ export const VariantsTable = ({
         (key: string) => {
             const next = new Set(collapsed)
             if (!next.delete(key)) next.add(key)
-            onCollapsedChange(next)
+            onCollapsedChange?.(next)
         },
         [collapsed, onCollapsedChange],
     )
@@ -87,7 +93,7 @@ export const VariantsTable = ({
                     playgroundHref={playgroundHref}
                     onOpen={onOpen}
                     onDeploy={onDeploy}
-                    onDelete={onDelete}
+                    onDelete={onDelete ?? NO_DELETE}
                 />
             )}
         />

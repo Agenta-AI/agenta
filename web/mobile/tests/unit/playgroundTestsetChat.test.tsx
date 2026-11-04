@@ -16,9 +16,9 @@ import {queryClientAtom} from "jotai-tanstack-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {settle} from "../support/playgroundHarness"
-
 import {usePlaygroundSelection} from "@/features/playground/usePlaygroundSelection"
+
+import {settle} from "../support/playgroundHarness"
 
 const {http, router} = vi.hoisted(() => ({
     http: {post: vi.fn(), get: vi.fn()},

@@ -205,7 +205,12 @@ export const ColumnRenameSaved: Story = {
 
 export const ColumnDeleteSaved: Story = {
     args: base,
-    render: () => <ColumnDialogStory step={{kind: "delete", columnKey: "answer"}} savesVersion />,
+    render: () => (
+        <ColumnDialogStory
+            step={{kind: "delete", columnKey: "answer", columnKeys: ["answer"], isGroup: false}}
+            savesVersion
+        />
+    ),
 }
 
 export const ColumnRenameNewTestset: Story = {

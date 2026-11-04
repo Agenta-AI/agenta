@@ -120,7 +120,11 @@ export const EvaluatorsScreen = ({
         setInUseRunCount(null)
     }, [])
     const confirmArchive = useCallback(async () => {
-        const outcome = await archive(archiveEntries, {checkInUse: runs.allowed || runs.pending})
+        // Skip the check only on a confirmed refusal. A lookup that failed knows nothing, so the
+        // check runs, and if it fails too the archive is blocked.
+        const outcome = await archive(archiveEntries, {
+            checkInUse: runs.allowed || runs.pending || runs.failed,
+        })
         if (outcome.status === "in-use") {
             setInUseRunCount(outcome.runCount)
             return
@@ -128,7 +132,7 @@ export const EvaluatorsScreen = ({
         if (outcome.status === "failed") return
         setSelected(new Set())
         closeDialog()
-    }, [archive, archiveEntries, runs.allowed, runs.pending, closeDialog])
+    }, [archive, archiveEntries, runs.allowed, runs.pending, runs.failed, closeDialog])
     const changeCategory = useCallback(
         (next: typeof category) => {
             setSelected(new Set())

@@ -1,11 +1,7 @@
 import {useMemo, useState} from "react"
 
-import {
-    appEnvironmentsLoadableAtomFamily,
-    environmentsListQueryAtomFamily,
-    type AppDeploymentRow,
-} from "@agenta/entities/environment"
-import {workflowVariantsListDataAtomFamily, type Workflow} from "@agenta/entities/workflow"
+import {environmentsListQueryAtomFamily, type AppDeploymentRow} from "@agenta/entities/environment"
+import type {Workflow} from "@agenta/entities/workflow"
 import {useSettledValue} from "@agenta/shared/hooks"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableToolbar} from "@agenta/ui/list-table"
@@ -29,6 +25,7 @@ import {RevertDeploymentDialog} from "./RevertDeploymentDialog"
 import {DeploymentsEmpty} from "./states/DeploymentsEmpty"
 import {EnvironmentCardsSkeleton} from "./states/EnvironmentCardsSkeleton"
 import {useAppDeploymentHistory} from "./useAppDeploymentHistory"
+import {useAppEnvironments} from "./useAppEnvironments"
 
 const RevisionDrawerHost = dynamic(
     () => import("../revisions/RevisionDrawerHost").then((module) => module.RevisionDrawerHost),
@@ -47,32 +44,8 @@ export const DeploymentsTab = ({
     base: string
 }) => {
     const {read, write} = useUrlParams()
-    const storedEnvironments = useAtomValue(appEnvironmentsLoadableAtomFamily(app.id))
+    const {environments, variantNames} = useAppEnvironments(app.id)
     const environmentList = useAtomValue(environmentsListQueryAtomFamily(false))
-    const variants = useAtomValue(workflowVariantsListDataAtomFamily(app.id))
-    const variantNames = useMemo(
-        () =>
-            new Map(
-                variants.flatMap((variant) => {
-                    const name = variant.name || variant.slug
-                    return name ? [[variant.id, name] as const] : []
-                }),
-            ),
-        [variants],
-    )
-    // The cards store the variant name from the deployment; show the current name after a rename.
-    const environments = useMemo(
-        () => ({
-            ...storedEnvironments,
-            data: storedEnvironments.data.map((entry) => ({
-                ...entry,
-                deployedVariantName:
-                    (entry.deployedVariantId ? variantNames.get(entry.deployedVariantId) : null) ??
-                    entry.deployedVariantName,
-            })),
-        }),
-        [storedEnvironments, variantNames],
-    )
     const canDeploy = useProjectPermission(projectId, "deploy_environments")
     const endpointsEnabled = useDeveloperViewEnabled("endpoints")
     const playgroundEnabled = useDeveloperViewEnabled("playground") === true

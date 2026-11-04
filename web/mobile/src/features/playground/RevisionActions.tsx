@@ -79,6 +79,7 @@ export const RevisionActions = ({
     onCommitted,
     onArchived,
     evaluator = false,
+    onClose,
 }: {
     workspaceId: string
     projectId: string
@@ -95,6 +96,8 @@ export const RevisionActions = ({
      * the Evaluators page.
      */
     evaluator?: boolean
+    /** Takes the revision off the compare view; absent in the single view. */
+    onClose?: () => void
 }) => {
     const store = useStore()
     const queryClient = useQueryClient()
@@ -242,6 +245,7 @@ export const RevisionActions = ({
                                 ? undefined
                                 : () => setOpen({kind: "delete", revision: shownRevision()})
                         }
+                        onClose={onClose}
                     />
                 </>
             )}

@@ -38,3 +38,4 @@ export {
     type TestsetMenuDialog,
     type TestsetMenuModel,
 } from "./useTestsetMenuModel"
+export {usePlaygroundScrollSync} from "./usePlaygroundScrollSync"

@@ -1,6 +1,8 @@
 import {MediaViewerHost} from "@agenta/entity-ui/drive"
+import {isDrawerOpenAtom} from "@agenta/observability/traceDrawer"
 import {TraceDrawer} from "@agenta/observability-ui/traceDrawer"
 import {useMediaQuery} from "@agenta/ui/hooks"
+import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
@@ -23,6 +25,11 @@ const QueueSheetGate = () => {
     return enabled ? <CreateQueueSheetHost /> : null
 }
 
+// The member query loads with the drawer, not with the shell: no page needs it until a trace opens.
+const TraceDrawerMembers = dynamic(() => import("@/features/observability/TraceDrawerMembers"), {
+    ssr: false,
+})
+
 // Registered when this module loads, not while rendering: `Component` renders before this
 // component in `_app`, and a screen that read the slots first would get the antd defaults.
 registerTraceDrawerSlots()
@@ -44,9 +51,11 @@ export const GlobalDrawers = () => {
     bindTraceDrawerSeams(router, {playground})
     // The split puts a 320px tree beside a content pane of at least 400px, so it stacks below 720px.
     const wide = useMediaQuery("(min-width: 720px)")
+    const traceOpen = useAtomValue(isDrawerOpenAtom)
     return (
         <>
             <TraceDrawer layout={wide ? "split" : "stacked"} />
+            {traceOpen ? <TraceDrawerMembers /> : null}
             {/* These dialogs open by atom, so they mount wherever an entry point can set them. */}
             <FeatureGuideDialog />
             <WhatsNewDialog />

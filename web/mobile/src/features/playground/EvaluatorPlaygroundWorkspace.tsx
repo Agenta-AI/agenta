@@ -49,7 +49,7 @@ export const EvaluatorPlaygroundWorkspace = ({
     onWorkflowRevisionCommitted: (revisionId: string) => void
 }) => {
     const [viewMode, setViewMode] = useState<ConfigViewMode>("form")
-    const {switchTo, modal: switchDialog} = useSwitchRevision(evaluatorRevisionId)
+    const {switchTo, modal: switchDialog} = useSwitchRevision()
     const evaluator = useAtomValue(workflowMolecule.selectors.data(evaluatorRevisionId))
     const nodes = useAtomValue(playgroundController.selectors.nodes())
     const appLabel = appRevisionId ? (nodes[0]?.label ?? null) : null
@@ -82,7 +82,7 @@ export const EvaluatorPlaygroundWorkspace = ({
                                     <RevisionSwitcher
                                         appId={evaluatorId}
                                         revisionId={evaluatorRevisionId}
-                                        onSwitch={switchTo}
+                                        onSwitch={(id) => switchTo(evaluatorRevisionId, id)}
                                     />
                                 }
                                 actions={

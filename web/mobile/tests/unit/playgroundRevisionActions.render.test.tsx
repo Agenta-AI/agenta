@@ -305,6 +305,11 @@ const mount = async () => {
     for (let i = 0; i < 40 && shown().length === 0; i++) await settle()
 }
 const shown = () => store.get(playgroundController.selectors.entityIds())
+/** A delete reloads the app's lists before the selection follows: on a busy machine that takes longer than one settle. */
+const expectShown = async (ids: string[]) => {
+    for (let i = 0; i < 40 && shown().join() !== ids.join(); i++) await settle()
+    expect(shown()).toEqual(ids)
+}
 const label = (el: Element) => el.textContent?.trim() ?? ""
 /** Looks inside the dialog that is open, if there is one: the bar has a Commit and a Deploy too. */
 const find = (name: string) => {
@@ -732,7 +737,7 @@ describe("Delete", () => {
 
         expect(document.querySelector("[role=alertdialog]")).toBeNull()
         expect(router.replace).toHaveBeenCalledWith(appUrl(), undefined, {shallow: true})
-        expect(shown()).toEqual(["rev-1"])
+        await expectShown(["rev-1"])
         // A reload paints from the persisted cache: it must not bring the deleted revision back.
         expect(onDisk("revision", "rev-2")).toBeUndefined()
         const latestOnDisk = onDisk("latestRevision", "app-1")?.state.data as {id: string} | null
@@ -763,7 +768,7 @@ describe("Delete", () => {
         expect(writes().map((call) => call.url)).toEqual([
             expect.stringContaining("/workflows/revisions/rev-2/archive"),
         ])
-        expect(shown()).toEqual(["rev-1"])
+        await expectShown(["rev-1"])
         expect(isDirty("rev-1")).toBe(true)
         expect(router.replace).not.toHaveBeenCalledWith(appUrl(), undefined, {shallow: true})
     })
@@ -787,7 +792,7 @@ describe("Delete", () => {
         release()
         await settle()
 
-        expect(shown()).toEqual(["rev-1"])
+        await expectShown(["rev-1"])
         expect(editor()?.getAttribute("data-disabled")).toBe("false")
     })
 
@@ -804,7 +809,7 @@ describe("Delete", () => {
         expect(writes().map((call) => call.url)).toEqual([
             expect.stringContaining("/workflows/revisions/rev-2/archive"),
         ])
-        expect(shown()).toEqual(["rev-1"])
+        await expectShown(["rev-1"])
         expect(isDirty("rev-1")).toBe(true)
         expect(store.get(workflowMolecule.selectors.configuration("rev-1"))).toMatchObject(
             prompt("Kept"),
@@ -828,7 +833,7 @@ describe("Delete", () => {
         world.failAfterDelete = false
         await click("Try again")
 
-        expect(shown()).toEqual(["rev-1"])
+        await expectShown(["rev-1"])
         expect(text()).not.toContain("Playground is unable to communicate with the service")
     })
 
@@ -844,7 +849,7 @@ describe("Delete", () => {
         expect(archives[0].url).toContain("/workflows/revisions/rev-2/archive")
         expect(archives[0].params).toEqual({project_id: projectId})
         expect(archives[0].body).toEqual({})
-        expect(shown()).toEqual(["rev-1"])
+        await expectShown(["rev-1"])
         // The app's cached latest revision follows, so the next visit does not reopen rev-2.
         expect(store.get(workflowLatestRevisionIdAtomFamily("app-1"))).toBe("rev-1")
     })
