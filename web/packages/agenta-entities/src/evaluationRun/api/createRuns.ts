@@ -10,10 +10,18 @@
  * @packageDocumentation
  */
 
+import {getEvaluationsClient, getQueriesClient} from "@agenta/sdk/resources"
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 
 import {testcasesResponseSchema} from "../../testcase/core/schema"
 import type {HumanRunSpec} from "../core/humanRunConfig"
+import {
+    buildQuerySlug,
+    toFilteringPayload,
+    toWindowingPayload,
+    type LiveFilterRow,
+    type LiveQueryData,
+} from "../core/liveQuery"
 
 import {deleteEvaluationRuns} from "./runActions"
 
@@ -217,4 +225,98 @@ export async function createHumanEvaluationRun({
     }
 
     return {runId}
+}
+
+// ============================================================================
+// LIVE EVALUATION
+// ============================================================================
+
+export interface CreateLiveEvaluationParams {
+    projectId: string
+    name: string
+    description: string
+    /** Every filter row, the locked invocation row included. */
+    filters: LiveFilterRow[]
+    /** Percent between 0 and 100, or null for no sampling. */
+    samplingRate: number | null
+    evaluatorRevisionId: string
+    /** Makes the query slug unique; passed in so tests are stable. */
+    slugSuffix: string
+}
+
+/**
+ * Create a live evaluation: the trace query, then a live run that reads the
+ * query revision and runs one evaluator on each matching trace.
+ *
+ * The API starts the run on create, whatever `is_active` says. When a request
+ * after the query fails, the query is archived (best effort) and the error is
+ * thrown, so no orphan query stays behind.
+ */
+export async function createLiveEvaluation({
+    projectId,
+    name,
+    description,
+    filters,
+    samplingRate,
+    evaluatorRevisionId,
+    slugSuffix,
+}: CreateLiveEvaluationParams): Promise<{runId: string}> {
+    const options = {queryParams: {project_id: projectId}}
+    const queries = getQueriesClient()
+
+    const data: LiveQueryData = {}
+    const filtering = toFilteringPayload(filters)
+    const windowing = toWindowingPayload(samplingRate)
+    if (filtering) data.filtering = filtering
+    if (windowing) data.windowing = windowing
+
+    const queryResponse = await queries.createSimpleQuery(
+        {
+            query: {
+                slug: buildQuerySlug(name, slugSuffix),
+                name,
+                description,
+                ...(filtering || windowing ? {data} : {}),
+            },
+        },
+        options,
+    )
+    const queryId = queryResponse.query?.id
+    if (!queryId) throw new Error("The query response has no query id.")
+
+    try {
+        const revisionResponse = await queries.retrieveQueryRevision(
+            {query_ref: {id: queryId}},
+            options,
+        )
+        const queryRevisionId = revisionResponse.query_revision?.id
+        if (!queryRevisionId) throw new Error("The query has no query revision.")
+
+        const evaluationResponse = await getEvaluationsClient().createSimpleEvaluation(
+            {
+                evaluation: {
+                    name,
+                    description,
+                    flags: {is_live: true, is_closed: false, is_active: false},
+                    data: {
+                        status: "pending",
+                        query_steps: {[queryRevisionId]: "auto"},
+                        evaluator_steps: {[evaluatorRevisionId]: "auto"},
+                        repeats: 1,
+                    },
+                },
+            },
+            options,
+        )
+        const runId = evaluationResponse.evaluation?.id
+        if (!runId) throw new Error("The evaluation response has no run id.")
+        return {runId}
+    } catch (error) {
+        await queries
+            .archiveSimpleQuery({query_id: queryId}, options)
+            .catch((archiveError: unknown) =>
+                console.error("Could not archive the live evaluation query", archiveError),
+            )
+        throw error
+    }
 }

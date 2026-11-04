@@ -9,8 +9,8 @@ import {Plus} from "@phosphor-icons/react"
 
 import type {EvaluationKindTab} from "./useEvaluationRunsFilters"
 
-/** The kinds a user can start from this page. Live creation is not offered yet. */
-export type CreatableKind = "auto" | "human" | "custom"
+/** The kinds a user can start from this page. */
+export type CreatableKind = "auto" | "human" | "online" | "custom"
 
 const ITEMS: {kind: CreatableKind; title: string; description: string}[] = [
     {
@@ -24,6 +24,11 @@ const ITEMS: {kind: CreatableKind; title: string; description: string}[] = [
         description: "Collect human votes or ratings on evaluation outputs.",
     },
     {
+        kind: "online",
+        title: "Live evaluation",
+        description: "Evaluate live traffic with an automatic evaluator.",
+    },
+    {
         kind: "custom",
         title: "SDK evaluation",
         description: "Run evaluations programmatically using the Agenta SDK.",
@@ -32,12 +37,9 @@ const ITEMS: {kind: CreatableKind; title: string; description: string}[] = [
 
 /** The kind that a tab's create button starts, or null where the tab has none. */
 export const creatableKindOf = (tab: EvaluationKindTab): CreatableKind | null =>
-    tab === "auto" || tab === "human" || tab === "custom" ? tab : null
+    tab === "all" ? null : tab
 
-/**
- * The create entry. The All tab opens a menu of kinds. A kind tab opens that kind directly,
- * and the Live tab has none.
- */
+/** The create entry. The All tab opens a menu of kinds. A kind tab opens that kind directly. */
 export const CreateEvaluationMenu = ({
     tab,
     onCreate,

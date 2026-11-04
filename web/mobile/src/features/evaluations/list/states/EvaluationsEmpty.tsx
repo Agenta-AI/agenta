@@ -1,7 +1,7 @@
 import type {ReactNode} from "react"
 
 import {Button, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle} from "@agenta/ui/ui"
-import {Code, Play, Users} from "@phosphor-icons/react"
+import {Code, Lightning, Play, Users} from "@phosphor-icons/react"
 
 import type {CreatableKind} from "../CreateEvaluationMenu"
 import type {EvaluationKindTab} from "../useEvaluationRunsFilters"
@@ -40,6 +40,11 @@ const COPY: Record<EvaluationKindTab, EmptyCopy> = {
         description:
             "Monitor and evaluate your LLM outputs in real-time. Set up continuous evaluation on production traffic to catch issues early.",
         learnMoreHref: "https://agenta.ai/docs/evaluation/concepts#evaluation-workflows",
+        start: {
+            kind: "online",
+            label: "Create Evaluation",
+            icon: <Lightning aria-hidden size={14} />,
+        },
     },
     custom: {
         title: "Get Started with SDK Evaluations",

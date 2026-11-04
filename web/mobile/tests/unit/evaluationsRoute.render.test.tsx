@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import {act, createElement} from "react"
+import {act, createElement, lazy, Suspense, type ComponentType} from "react"
 
 import {activeUserIdAtom} from "@agenta/shared/state"
 import {createStore, Provider} from "jotai"
@@ -10,18 +10,51 @@ import {DEVELOPER_VIEWS} from "@/features/developer/developerViews"
 import EvaluationsPage from "@/pages/w/[workspace_id]/p/[project_id]/evaluations"
 
 const screen = vi.hoisted(() => vi.fn())
+const nav = vi.hoisted(() => ({
+    replace: vi.fn(),
+    query: {workspace_id: "ws", project_id: "pr"} as Record<string, string>,
+}))
 
 vi.mock("@agenta/auth-ui", () => ({
     NotFoundScreen: () => createElement("p", {"data-testid": "not-found"}),
 }))
 vi.mock("next/router", () => ({
-    useRouter: () => ({query: {workspace_id: "ws", project_id: "pr"}, asPath: "/", back: vi.fn()}),
+    useRouter: () => ({
+        query: nav.query,
+        pathname: "/w/[workspace_id]/p/[project_id]/evaluations",
+        asPath: "/",
+        back: vi.fn(),
+        replace: nav.replace,
+    }),
+}))
+vi.mock("next/dynamic", () => ({
+    default: (loader: () => Promise<ComponentType<Record<string, unknown>>>) => {
+        const Lazy = lazy(() => loader().then((component) => ({default: component})))
+        return (props: Record<string, unknown>) =>
+            createElement(Suspense, {fallback: null}, createElement(Lazy, props))
+    },
 }))
 vi.mock("@/features/evaluations/list/EvaluationsScreen", () => ({
-    EvaluationsScreen: () => {
-        screen()
-        return createElement("p", null, "Evaluations screen")
+    EvaluationsScreen: ({
+        onCreate,
+        createKinds,
+    }: {
+        onCreate: (kind: string) => void
+        createKinds: string[]
+    }) => {
+        screen(createKinds)
+        return createElement(
+            "button",
+            {"data-testid": "create-live", onClick: () => onCreate("online")},
+            "Evaluations screen",
+        )
     },
+}))
+vi.mock("@/features/evaluations/live/LiveEvaluationSheet", () => ({
+    LiveEvaluationSheet: ({open, onCreated}: {open: boolean; onCreated: () => void}) =>
+        open
+            ? createElement("button", {"data-testid": "live-created", onClick: onCreated}, "Live")
+            : null,
 }))
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
@@ -42,6 +75,7 @@ beforeEach(() => {
     document.body.appendChild(host)
     root = createRoot(host)
     screen.mockReset()
+    nav.query = {workspace_id: "ws", project_id: "pr"}
 })
 
 afterEach(() => {
@@ -64,5 +98,31 @@ describe("evaluations route", () => {
         vi.stubEnv("NEXT_PUBLIC_AGENTA_DEVELOPER_VIEWS", "evaluations")
         await mount()
         expect(host.textContent).toContain("Evaluations screen")
+    })
+
+    it("A created live evaluation opens the Live tab", async () => {
+        vi.stubEnv("NEXT_PUBLIC_AGENTA_DEVELOPER_VIEWS", "evaluations")
+        await mount()
+        await act(async () => host.querySelector<HTMLElement>("[data-testid=create-live]")?.click())
+        await act(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 0))
+        })
+        await act(async () =>
+            host.querySelector<HTMLElement>("[data-testid=live-created]")?.click(),
+        )
+        expect(nav.replace).toHaveBeenCalledWith(
+            expect.objectContaining({query: expect.objectContaining({kind: "online"})}),
+            undefined,
+            {shallow: true},
+        )
+    })
+
+    it("An app scoped list offers no live evaluation", async () => {
+        vi.stubEnv("NEXT_PUBLIC_AGENTA_DEVELOPER_VIEWS", "evaluations")
+        await mount()
+        expect(screen).toHaveBeenLastCalledWith(["auto", "human", "online"])
+        nav.query = {workspace_id: "ws", project_id: "pr", app: "app-1"}
+        await mount()
+        expect(screen).toHaveBeenLastCalledWith(["auto", "human"])
     })
 })

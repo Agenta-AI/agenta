@@ -102,6 +102,11 @@ export {
     type HumanRunStep,
     type HumanRunMapping,
     type HumanRunTestset,
+    buildQuerySlug,
+    LIVE_INVOCATION_FILTER,
+    parseSamplingRate,
+    selectLiveEvaluators,
+    type LiveFilterRow,
 } from "./core"
 
 // ============================================================================
@@ -121,6 +126,7 @@ export {
     stopOnlineEvaluation,
     createAutoEvaluationRuns,
     createHumanEvaluationRun,
+    createLiveEvaluation,
     fetchAllTestcaseIds,
     DEFAULT_EVALUATION_CONCURRENCY,
     type EvaluationRunsPageParams,
@@ -130,6 +136,7 @@ export {
     type EvaluationConcurrency,
     type CreateAutoEvaluationRunsParams,
     type CreateAutoEvaluationRunsResult,
+    type CreateLiveEvaluationParams,
     findEvaluationRunsUsing,
 } from "./api"
 

@@ -258,16 +258,19 @@ describe("evaluations screen", () => {
         )
     })
 
-    it("The All tab create menu lists the auto, human and SDK types with their descriptions", async () => {
-        await mount({onCreate: vi.fn()})
+    it("The All menu offers Live evaluation", async () => {
+        const onCreate = vi.fn()
+        await mount({onCreate})
         await openMenuOf(button(/New evaluation|Start evaluation/))
-        const menu = [...document.querySelectorAll("[role=menuitem]")].map((el) => el.textContent)
-        expect(menu).toEqual([
+        const items = [...document.querySelectorAll<HTMLElement>("[role=menuitem]")]
+        expect(items.map((el) => el.textContent)).toEqual([
             "Auto evaluationRun test sets with configured evaluators for fast iteration.",
             "Human evaluationCollect human votes or ratings on evaluation outputs.",
+            "Live evaluationEvaluate live traffic with an automatic evaluator.",
             "SDK evaluationRun evaluations programmatically using the Agenta SDK.",
         ])
-        expect(menu.join(" ")).not.toContain("Live evaluation")
+        await act(async () => items[2].click())
+        expect(onCreate).toHaveBeenCalledWith("online")
     })
 
     it("A kind tab create button opens that kind directly", async () => {
@@ -278,10 +281,28 @@ describe("evaluations screen", () => {
         expect(onCreate).toHaveBeenCalledWith("human")
     })
 
-    it("The Live tab has no create button", async () => {
+    it("The Live tab shows a create button", async () => {
+        env.query = {kind: "online"}
+        const onCreate = vi.fn()
+        await mount({onCreate})
+        await act(async () => button(/New evaluation/)?.click())
+        expect(onCreate).toHaveBeenCalledWith("online")
+    })
+
+    it("The Live empty state starts a live evaluation", async () => {
+        env.query = {kind: "online"}
+        const onCreate = vi.fn()
+        await mount({onCreate})
+        expect(text()).toContain("Get Started with Live Evaluation")
+        await act(async () => button(/^Create Evaluation$/)?.click())
+        expect(onCreate).toHaveBeenCalledWith("online")
+    })
+
+    it("A reader without edit rights sees no Live entry", async () => {
+        env.permissions = {}
         env.query = {kind: "online"}
         await mount({onCreate: vi.fn()})
-        expect(button(/New evaluation|Start evaluation/)).toBeUndefined()
+        expect(button(/New evaluation|Create Evaluation/)).toBeUndefined()
     })
 
     it("A reader without edit rights sees no create button", async () => {
