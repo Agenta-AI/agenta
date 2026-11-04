@@ -46,4 +46,25 @@ describe("updateWorkflow read-back", () => {
         )
         expect(postMock).not.toHaveBeenCalled()
     })
+
+    it("throws when nothing was written and the read fails", async () => {
+        postMock.mockRejectedValue(new Error("read failed"))
+        await expect(updateWorkflow("pr", {id: "app-1"})).rejects.toThrow("read failed")
+    })
+
+    it("throws when the revision commit fails after the metadata write", async () => {
+        postMock.mockRejectedValue(new Error("commit failed"))
+        await expect(
+            updateWorkflow("pr", {id: "app-1", name: "New", data: {uri: "agenta:custom:x:v0"}}),
+        ).rejects.toThrow("commit failed")
+    })
+
+    it("returns null when a commit worked but the read-back fails", async () => {
+        postMock.mockResolvedValueOnce({data: {}}).mockRejectedValueOnce(new Error("read failed"))
+        const result = await updateWorkflow("pr", {
+            id: "app-1",
+            data: {uri: "agenta:custom:x:v0"},
+        })
+        expect(result).toBeNull()
+    })
 })
