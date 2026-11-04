@@ -9,8 +9,7 @@ import {FilesPaneToggle, useSessionFilesPane} from "@agenta/entity-ui/drive"
 import {AgentPageHeader, AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
 import {isBrowserEnabled} from "@agenta/shared/api"
 import {KeyboardShortcutsSheet, useShortcutsSheetHotkey} from "@agenta/ui/shortcuts"
-import {Button} from "@agenta/ui/ui"
-import {LockSimpleIcon, PlusIcon} from "@phosphor-icons/react"
+import {LockSimpleIcon} from "@phosphor-icons/react"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {sharingCopy} from "@/lib/sharingCopy"
@@ -24,7 +23,6 @@ import {SessionSharingControl} from "./SessionSharingControl"
 import {SessionSwitcher} from "./SessionSwitcher"
 import {ShareMenu} from "./ShareMenu"
 import {useSessionHeader} from "./useSessionHeader"
-import {useStartBlankSession} from "./useStartBlankSession"
 
 /**
  * The session workspace's one bar: which agent, which session, and what you can do with them. It
@@ -71,8 +69,6 @@ export const SessionTopBar = ({
     // version now, so the status offers it at once.
     const heldCommit = useAtomValue(heldCommitAtomFamily(sessionId))
     const stream = useSessionHeader(projectId, sessionId).data ?? null
-    const base = `/w/${workspaceId}/p/${projectId}`
-    const startBlank = useStartBlankSession(base)
 
     const [shortcutsOpen, setShortcutsOpen] = useState(false)
     useShortcutsSheetHotkey(useCallback(() => setShortcutsOpen(true), []))
@@ -105,6 +101,7 @@ export const SessionTopBar = ({
             agentId={agentId}
             agentResolving={agentResolving}
             agentName={agentName}
+            agentHidden={agentHidden}
             workspaceId={workspaceId}
             projectId={projectId}
             phone={phone}
@@ -154,7 +151,7 @@ export const SessionTopBar = ({
 
     if (phone) {
         return (
-            <header className="flex h-14 shrink-0 items-center gap-0.5 border-x-0 border-b border-t-0 border-solid border-[var(--ag-shell-line)] bg-[var(--ag-surface-raised)] px-1.5">
+            <header className="flex h-12 shrink-0 items-center gap-0.5 border-x-0 border-b border-t-0 border-solid border-[var(--ag-shell-line)] bg-[var(--ag-surface-raised)] px-1.5">
                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
                 {switcher ?? (
                     <span className="min-w-0 flex-1 truncate text-center text-[15px] font-semibold">
@@ -162,16 +159,6 @@ export const SessionTopBar = ({
                     </span>
                 )}
                 {revision}
-                {hasSessions && agentId ? (
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label="New session"
-                        onClick={() => startBlank(agentId)}
-                    >
-                        <PlusIcon />
-                    </Button>
-                ) : null}
                 {more}
                 {share}
                 {shortcuts}

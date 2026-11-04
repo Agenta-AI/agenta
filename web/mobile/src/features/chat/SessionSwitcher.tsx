@@ -1,5 +1,6 @@
 import {useEffect, useRef} from "react"
 
+import {AGENT_CHIP_BOX, AGENT_CHIP_FALLBACK, useAgentIconChrome} from "@agenta/entity-ui/agent"
 import {sessionRowVm} from "@agenta/sessions/row"
 import {InlineRenameInput, useInlineRename} from "@agenta/sessions-ui"
 import {userAtom} from "@agenta/shared/state"
@@ -15,7 +16,7 @@ import {
     SimpleTooltip,
     SkeletonBlock,
 } from "@agenta/ui/ui"
-import {CaretDownIcon, PlusIcon} from "@phosphor-icons/react"
+import {CaretDownIcon, PlusIcon, RobotIcon} from "@phosphor-icons/react"
 import {useAtom, useAtomValue} from "jotai"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -40,6 +41,7 @@ export const SessionSwitcher = ({
     agentId,
     agentResolving,
     agentName,
+    agentHidden,
     workspaceId,
     projectId,
     phone,
@@ -48,14 +50,20 @@ export const SessionSwitcher = ({
     agentId?: string | null
     /** A null `agentId` is not yet the answer. */
     agentResolving: boolean
-    /** The title's second line on a phone. */
     agentName: string
+    /** A private agent the reader cannot see: the phone title shows the plain chip. */
+    agentHidden: boolean
     workspaceId: string
     projectId: string
     phone: boolean
 }) => {
     const base = `/w/${workspaceId}/p/${projectId}`
     const me = useAtomValue(userAtom)
+    const chip = useAgentIconChrome(agentHidden ? null : agentId, {
+        size: 13,
+        fallbackGlyph: <RobotIcon size={15} />,
+        fallbackClassName: AGENT_CHIP_FALLBACK,
+    })
     const menu = useSessionRowMenu(base)
     const startBlank = useStartBlankSession(base)
     const header = useSessionHeader(projectId, sessionId)
@@ -122,21 +130,23 @@ export const SessionSwitcher = ({
                         type="button"
                         aria-haspopup="dialog"
                         aria-expanded={open}
-                        aria-label={`${title}, switch session`}
+                        aria-label={`${title} in ${agentName}, switch session`}
                         onClick={() => setPanel("switcher")}
-                        className="active:bg-accent text-foreground flex h-11 min-w-0 flex-1 cursor-pointer flex-col items-center justify-center gap-px rounded-control border-0 bg-transparent px-1.5 [font-family:inherit]"
+                        className="active:bg-accent text-foreground flex h-10 min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-control border-0 bg-transparent px-1.5 text-sm font-semibold [font-family:inherit]"
                     >
-                        <span className="flex min-w-0 max-w-[220px] items-center gap-1 text-sm font-semibold leading-5">
-                            {label}
-                            <CaretDownIcon
-                                size={12}
-                                aria-hidden
-                                className="text-muted-foreground shrink-0"
-                            />
+                        <span
+                            aria-hidden
+                            className={`${AGENT_CHIP_BOX} ${chip.className}`}
+                            style={chip.style}
+                        >
+                            {chip.glyph}
                         </span>
-                        <span className="text-muted-foreground max-w-[220px] truncate text-xs leading-[15px]">
-                            {agentName}
-                        </span>
+                        {label}
+                        <CaretDownIcon
+                            size={12}
+                            aria-hidden
+                            className="text-muted-foreground shrink-0"
+                        />
                     </button>
                 )}
                 <Sheet open={open} onOpenChange={(next) => setPanel(next ? "switcher" : null)}>

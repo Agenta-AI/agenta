@@ -110,7 +110,7 @@ export const SessionSwitcherPanel = ({
                     >
                         <PlusIcon size={14} aria-hidden className="text-muted-foreground" />
                         New session
-                        <span className="ml-auto">
+                        <span className="ml-auto hidden md:block">
                             <ShortcutKeys id="session.new" />
                         </span>
                     </button>
