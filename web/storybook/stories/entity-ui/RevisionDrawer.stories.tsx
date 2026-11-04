@@ -122,7 +122,7 @@ export const Variant: Story = {
     },
     play: async () => {
         const screen = body()
-        await screen.findByText("Workflow Revision")
+        await screen.findByRole("heading", {name: "Revision"})
         await userEvent.click(await screen.findByRole("button", {name: "Next revision"}))
         await waitFor(() =>
             expect(screen.getByRole("button", {name: "Previous revision"})).toBeEnabled(),

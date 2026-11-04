@@ -24,6 +24,8 @@ export interface FakeMetricField {
 
 export interface FakeSessionState {
     activeQueueId: string | null
+    /** The run opened with `openRun`, without a queue. */
+    activeRunId: string | null
     activeView: "annotate" | "list" | "configuration"
     currentScenarioId: string | null
     scenarioIds: string[]
@@ -73,6 +75,7 @@ export interface FakeSessionState {
 
 export const initialSessionState = (): FakeSessionState => ({
     activeQueueId: "queue-1",
+    activeRunId: null,
     activeView: "annotate",
     currentScenarioId: "s-1",
     scenarioIds: ["s-1", "s-2"],
@@ -153,6 +156,7 @@ const IDLE_QUERY = {isPending: true, isError: false, data: null}
 export const annotationSessionController = {
     selectors: {
         activeQueueId: () => read("activeQueueId", (s) => s.activeQueueId),
+        activeRunId: () => read("activeRunId", (s) => s.activeRunId),
         activeView: () => read("activeView", (s) => s.activeView),
         currentScenarioId: () => read("currentScenarioId", (s) => s.currentScenarioId),
         scenarioIds: () => read("scenarioIds", (s) => s.scenarioIds),
@@ -196,6 +200,7 @@ export const annotationSessionController = {
     },
     actions: {
         openQueue: action("openQueue"),
+        openRun: action("openRun"),
         closeSession: action("closeSession"),
         applyRouteState: action("applyRouteState"),
         setActiveView: action("setActiveView"),

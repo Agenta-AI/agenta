@@ -39,6 +39,7 @@ vi.mock("@agenta/entities/workflow", () => ({
     appWorkflowsListQueryStateAtom: {id: "apps"},
     workflowLatestRevisionIdAtomFamily: () => ({id: "latest"}),
     workflowVariantsListDataAtomFamily: () => ({id: "variants"}),
+    workflowVariantsQueryAtomFamily: () => ({id: "variantsQuery"}),
     workflowMolecule: {selectors: {data: () => ({id: "entity"})}},
     pickModelName: () => "",
 }))
@@ -49,9 +50,11 @@ vi.mock("jotai", async (importOriginal) => ({
             ? fixture.apps
             : atom.id === "variants"
               ? []
-              : atom.id === "latest"
-                ? "rev-3"
-                : null,
+              : atom.id === "variantsQuery"
+                ? {data: {workflow_variants: []}, isPending: false}
+                : atom.id === "latest"
+                  ? "rev-3"
+                  : null,
 }))
 vi.mock("@agenta/ui/hooks", () => ({useMediaQuery: () => true}))
 vi.mock("@agenta/entities/shared", () => ({UserAuthorLabel: () => createElement("span")}))

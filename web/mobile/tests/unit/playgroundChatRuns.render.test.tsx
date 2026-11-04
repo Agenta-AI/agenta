@@ -152,9 +152,15 @@ beforeEach(async () => {
     vi.stubGlobal(
         "ResizeObserver",
         class {
-            observe() {}
-            unobserve() {}
-            disconnect() {}
+            observe() {
+                return undefined
+            }
+            unobserve() {
+                return undefined
+            }
+            disconnect() {
+                return undefined
+            }
         },
     )
     window.localStorage.removeItem("agenta:playground:mode")

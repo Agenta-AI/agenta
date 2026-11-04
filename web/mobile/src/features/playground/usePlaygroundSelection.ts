@@ -1,11 +1,11 @@
 import {useCallback, useEffect, useRef} from "react"
 
+import {loadableController} from "@agenta/entities/loadable"
 import {isLocalDraftId} from "@agenta/entities/shared"
+import {clearChangesAtom} from "@agenta/entities/testset"
 import {
     discardLocalServerDataAtom,
     workflowDetailQueryAtomFamily,
-    workflowLatestRevisionIdAtomFamily,
-    workflowLatestRevisionQueryAtomFamily,
     workflowMolecule,
 } from "@agenta/entities/workflow"
 import {
@@ -18,6 +18,7 @@ import {atomFamily} from "jotai-family"
 import {queryClientAtom} from "jotai-tanstack-query"
 import {useRouter} from "next/router"
 
+import {playgroundLatestRevisionIdAtomFamily} from "./playgroundLatestRevision"
 import {parseRevisionIds} from "./playgroundUrl"
 
 /** How far the app and its selected revisions have loaded. */
@@ -59,7 +60,7 @@ const keptRevisionIdsAtomFamily = atomFamily((appId: string) =>
  *
  * On mount it selects the revisions in `?revisions=` (in order), or the app's latest revision.
  * It writes the selection back to `?revisions=`, drops ids that are not revisions of this app,
- * and on unmount it clears the playground nodes and runs: the agent session screen uses the same
+ * and on unmount it clears the playground nodes, runs and test set connection: the agent session screen uses the same
  * store, so nothing from here may outlive the route.
  */
 export const usePlaygroundSelection = ({appId}: {appId: string}): PlaygroundSelection => {
@@ -69,8 +70,9 @@ export const usePlaygroundSelection = ({appId}: {appId: string}): PlaygroundSele
     const store = useStore()
 
     const detail = useAtomValue(workflowDetailQueryAtomFamily(appId))
-    const latestQuery = useAtomValue(workflowLatestRevisionQueryAtomFamily(appId))
-    const latestId = useAtomValue(workflowLatestRevisionIdAtomFamily(appId))
+    const latestQuery = useAtomValue(playgroundLatestRevisionIdAtomFamily(appId))
+    // A failed reload keeps the previous answer, which can be a revision just deleted: not used.
+    const latestId = latestQuery.isError ? null : (latestQuery.data ?? null)
     // The controller calls the selected revisions "entity ids"; this screen calls them revisions.
     const revisionIds = useAtomValue(playgroundController.selectors.entityIds())
     const keptIds = useAtomValue(keptRevisionIdsAtomFamily(appId))
@@ -105,8 +107,15 @@ export const usePlaygroundSelection = ({appId}: {appId: string}): PlaygroundSele
         return () => {
             setUpForAppRef.current = null
             const selected = store.get(playgroundController.selectors.entityIds())
+            const loadableId = store.get(playgroundController.selectors.loadableId())
             // Runs first: they are found through the selection that `resetAll` removes.
             store.set(executionItemController.actions.clearAll)
+            // The test case store is shared with the test set editor: the connection and the
+            // unsaved test case edits go with the page.
+            if (loadableId) {
+                store.set(clearChangesAtom)
+                store.set(loadableController.actions.disconnect, loadableId)
+            }
             store.set(playgroundController.actions.resetAll)
             store.set(playgroundInitializedAtom, false)
             // Leaving asked to discard unsaved changes: the drafts go with the page.
@@ -127,8 +136,10 @@ export const usePlaygroundSelection = ({appId}: {appId: string}): PlaygroundSele
         }
         if (kept.length === 0 && latestId) select([latestId])
         // `keptIds` only triggers the effect: in the commit that sets the playground up it is
-        // still the value from before, so the store is read instead.
-    }, [appId, keptIds, latestId, select, store])
+        // still the value from before, so the store is read instead. `appUsable` and
+        // `router.isReady` run it again in the commit that sets the playground up: the latest
+        // revision can answer before the app, and nothing else would run it then.
+    }, [appId, appUsable, keptIds, latestId, router.isReady, select, store])
 
     // Write the selection to `?revisions=`. Local drafts stay out until share links exist.
     useEffect(() => {
@@ -153,7 +164,7 @@ export const usePlaygroundSelection = ({appId}: {appId: string}): PlaygroundSele
             predicate: ({queryKey: [scope, kind, a, b]}) =>
                 scope === "workflows" &&
                 ((kind === "detail" && b === appId) ||
-                    (kind === "latestRevision" && a === appId) ||
+                    (kind === "playgroundLatest" && a === appId) ||
                     (kind === "revision" && selected.has(String(a)))),
         })
     }, [appId, store])

@@ -6,7 +6,11 @@
  */
 import {act, createElement} from "react"
 
-import {testcaseDataController, testcaseMolecule} from "@agenta/entities/testcase"
+import {
+    loadMoreTestcasesAtom,
+    testcaseDataController,
+    testcaseMolecule,
+} from "@agenta/entities/testcase"
 import {revisionMolecule} from "@agenta/entities/testset"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
@@ -15,6 +19,7 @@ import {queryClientAtom} from "jotai-tanstack-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
+import {TestcaseEditorDrawerContent} from "@/features/testsets/detail/TestcaseEditorDrawerContent"
 import {useRevisionsList} from "@/features/testsets/detail/useRevisionsList"
 import {useTestsetEditor} from "@/features/testsets/detail/useTestsetEditor"
 
@@ -23,6 +28,25 @@ const http = vi.hoisted(() => ({get: vi.fn(), post: vi.fn(), put: vi.fn()}))
 vi.mock("@agenta/shared/api", async (original) => ({
     ...(await original<object>()),
     axios: http,
+}))
+/**
+ * The JSON code input inside the drawer. Only this Lexical input is a stub: the drawer and the
+ * package `TestcaseDataEditor` around it are real, so their projection and merge run.
+ */
+const jsonInput = vi.hoisted(() => ({
+    text: "",
+    type: null as null | ((text: string) => void),
+}))
+vi.mock("@agenta/ui/drill-in", async (original) => ({
+    ...(await original<object>()),
+    JsonEditorWithLocalState: (props: {
+        initialValue: string
+        onValidChange: (text: string) => void
+    }) => {
+        jsonInput.text = props.initialValue
+        jsonInput.type = props.onValidChange
+        return null
+    },
 }))
 vi.mock("@agenta/ui/app-message", () => ({
     message: {success: vi.fn(), error: vi.fn(), info: vi.fn(), loading: vi.fn(() => vi.fn())},
@@ -53,6 +77,8 @@ const manyRows = () =>
     }))
 
 let rowsOnServer: {id: string; data: Record<string, unknown>}[] = serverRows()
+/** When set, the rows query answers this many rows per page and a cursor for the rest. */
+let rowsPerPage: number | null = null
 let failFullRevision = false
 let failCommit = false
 let revisionsInList: {id: string; version: string}[] = []
@@ -85,8 +111,19 @@ const routeHttp = () => {
     })
     http.post.mockImplementation(async (url: string, body: Record<string, unknown>) => {
         if (url.endsWith("/testcases/query") && body.testset_revision_ref) {
-            const rows = rowsOnServer
-            return {data: {count: rows.length, testcases: rows, windowing: {next: null}}}
+            // The cursor is the index of the next row. A page loaded by an earlier test in the
+            // same scope asks again with its cursor, and gets only the rows past it.
+            const cursor = (body.windowing as {next?: string} | undefined)?.next
+            const start = cursor ? Number(cursor) : 0
+            const rows = rowsOnServer.slice(start, start + (rowsPerPage ?? rowsOnServer.length))
+            const end = start + rows.length
+            return {
+                data: {
+                    count: rows.length,
+                    testcases: rows,
+                    windowing: {next: end < rowsOnServer.length ? String(end) : null},
+                },
+            }
         }
         if (url.endsWith("/simple/testsets/")) {
             return {
@@ -235,6 +272,7 @@ describe("useTestsetEditor commit over the real package state", () => {
         vi.clearAllMocks()
         revisionsInList = []
         rowsOnServer = serverRows()
+        rowsPerPage = null
         failFullRevision = false
         failCommit = false
         fullRevisionData = undefined
@@ -271,6 +309,115 @@ describe("useTestsetEditor commit over the real package state", () => {
         ])
     })
 
+    it("An edit to a saved row on the second page is sent as a row replace", async () => {
+        rowsOnServer = manyRows()
+        rowsPerPage = 20
+        await mount()
+        const rowIds = () =>
+            store
+                .get(testcaseDataController.selectors.rows(editor().tableConfig))
+                .map((row) => row.id)
+        expect(rowIds()).toHaveLength(20)
+
+        // The grid calls this when the reader scrolls near the end.
+        act(() => store.set(loadMoreTestcasesAtom, editor().tableConfig))
+        await flush()
+        expect(rowIds()).toHaveLength(25)
+
+        run(() => store.set(testcaseMolecule.actions.update, "case-23", {data: {answer: "No"}}))
+        expect(editor().changesSummary.updatedTestcases).toBe(1)
+
+        expect(await commit()).toBe(NEW_REVISION)
+
+        expect(commitBody()?.testset_revision.delta).toEqual({
+            columns: undefined,
+            rows: {
+                replace: [
+                    {
+                        id: "case-23",
+                        data: {question: "Question 23", answer: "No", reply: "Old reply"},
+                        set_id: TESTSET,
+                    },
+                ],
+            },
+        })
+    })
+
+    /** Opens the drawer on a row in the JSON view, as the page does. */
+    const openDrawerJson = async (testcaseId: string) => {
+        await mount()
+        act(() =>
+            root.render(
+                createElement(
+                    QueryClientProvider,
+                    {client: queryClient},
+                    createElement(Probe, {routeId: REVISION}),
+                    createElement(TestcaseEditorDrawerContent, {
+                        testcaseId,
+                        isNewRow: false,
+                        viewOnly: false,
+                        initialPath: [],
+                        onPathChange: () => undefined,
+                        rootViewMode: "json",
+                        collapseSignal: 0,
+                    }),
+                ),
+            ),
+        )
+        await flush()
+    }
+
+    /** Types the given object into the JSON view. */
+    const typeJson = (value: Record<string, unknown>) =>
+        act(() => jsonInput.type?.(JSON.stringify(value, null, 2)))
+
+    it("A JSON edit in the drawer keeps an untouched null field null", async () => {
+        rowsOnServer = [{id: "case-1", data: {question: "Q", answer: null}}]
+        await openDrawerJson("case-1")
+        expect(JSON.parse(jsonInput.text)).toEqual({question: "Q", answer: null})
+
+        typeJson({question: "Q2", answer: null})
+        expect(await commit()).toBe(NEW_REVISION)
+
+        expect(commitBody()?.testset_revision.delta).toEqual({
+            columns: undefined,
+            rows: {
+                replace: [{id: "case-1", data: {question: "Q2", answer: null}, set_id: TESTSET}],
+            },
+        })
+    })
+
+    it("A field added in the drawer JSON is saved and a field removed there is dropped", async () => {
+        await openDrawerJson("case-2")
+
+        typeJson({answer: "Only to Canada", region: "North America"})
+        expect(await commit()).toBe(NEW_REVISION)
+
+        expect(commitBody()?.testset_revision.delta).toEqual({
+            columns: undefined,
+            rows: {
+                replace: [
+                    {
+                        id: "case-2",
+                        data: {answer: "Only to Canada", region: "North America"},
+                        set_id: TESTSET,
+                    },
+                ],
+            },
+        })
+    })
+
+    it("A field that only a row past the first 20 has shows in the drawer", async () => {
+        rowsOnServer = manyRows()
+        await openDrawerJson("case-23")
+
+        expect(JSON.parse(jsonInput.text)).toEqual({
+            question: "Question 23",
+            answer: "Yes",
+            reply: "Old reply",
+        })
+    })
+
     it("Rename saves at once as its own version with only the rename", async () => {
         await mount()
 
@@ -296,7 +443,7 @@ describe("useTestsetEditor commit over the real package state", () => {
     it("Delete saves at once as its own version with only the removal", async () => {
         await mount()
 
-        expect(await act(() => editor().deleteColumn("answer"))).toEqual({
+        expect(await act(() => editor().deleteColumns(["answer"]))).toEqual({
             ok: true,
             revisionId: NEW_REVISION,
         })
@@ -306,6 +453,22 @@ describe("useTestsetEditor commit over the real package state", () => {
         expect(commitBody()?.testset_revision.delta).toEqual({
             rows: undefined,
             columns: {remove: ["answer"]},
+        })
+    })
+
+    it("Deleting columns saves one version that removes them all", async () => {
+        rowsOnServer = [{id: "case-1", data: {question: "Q", answer: "A", meta: {lang: "en"}}}]
+        await mount()
+
+        expect(await act(() => editor().deleteColumns(["answer", "meta"]))).toEqual({
+            ok: true,
+            revisionId: NEW_REVISION,
+        })
+
+        expect(commitBodies()).toHaveLength(1)
+        expect(commitBody()?.testset_revision.delta).toEqual({
+            rows: undefined,
+            columns: {remove: ["answer", "meta"]},
         })
     })
 
@@ -337,7 +500,7 @@ describe("useTestsetEditor commit over the real package state", () => {
         expect(editor().columnEditBlocked).toBe("Save or discard your row changes first")
         expect(await act(() => editor().renameColumn("answer", "reply"))).toEqual(refusal)
         expect(await act(() => editor().addColumn("country"))).toEqual(refusal)
-        expect(await act(() => editor().deleteColumn("answer"))).toEqual(refusal)
+        expect(await act(() => editor().deleteColumns(["answer"]))).toEqual(refusal)
 
         expect(commitBodies()).toHaveLength(0)
         expect(store.get(revisionMolecule.atoms.pendingColumnOps(REVISION))).toMatchObject({
@@ -511,7 +674,7 @@ describe("useTestsetEditor commit over the real package state", () => {
         const release = holdRequests()
         let saving: Promise<unknown> = Promise.resolve()
         act(() => {
-            saving = editor().deleteColumn("answer")
+            saving = editor().deleteColumns(["answer"])
         })
         await flush()
         run(() => store.set(testcaseMolecule.actions.update, "case-1", {data: {answer: "14 days"}}))
@@ -587,7 +750,7 @@ describe("useTestsetEditor commit over the real package state", () => {
         }
         expect(await act(() => editor().addColumn("country"))).toEqual(refused)
         expect(await act(() => editor().renameColumn("answer", "reply"))).toEqual(refused)
-        expect(await act(() => editor().deleteColumn("answer"))).toEqual(refused)
+        expect(await act(() => editor().deleteColumns(["answer"]))).toEqual(refused)
         expect(commitBodies()).toHaveLength(0)
     })
 
@@ -641,7 +804,7 @@ describe("useTestsetEditor commit over the real package state", () => {
                 }),
             )
 
-            await act(() => editor().deleteColumn("country"))
+            await act(() => editor().deleteColumns(["country"]))
             await act(() => editor().addColumn("country"))
 
             await commit()
@@ -659,7 +822,7 @@ describe("useTestsetEditor commit over the real package state", () => {
                 }),
             )
 
-            await act(() => editor().deleteColumn("question"))
+            await act(() => editor().deleteColumns(["question"]))
             expect(await act(() => editor().renameColumn("answer", "question"))).toEqual({
                 ok: true,
                 revisionId: null,
@@ -677,7 +840,7 @@ describe("useTestsetEditor commit over the real package state", () => {
             await act(() => editor().addColumn("b"))
             run(() => store.set(testcaseMolecule.actions.update, rowId ?? "", {data: {b: "keep"}}))
 
-            await act(() => editor().deleteColumn("a"))
+            await act(() => editor().deleteColumns(["a"]))
             expect(await act(() => editor().renameColumn("b", "a"))).toEqual({
                 ok: true,
                 revisionId: null,
