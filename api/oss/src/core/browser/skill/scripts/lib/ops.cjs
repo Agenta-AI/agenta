@@ -125,7 +125,9 @@ async function refuseSecretField(locator) {
 }
 
 const OPS = {
-  async navigate(page, { url }) {
+  async navigate(page, { url, newTab }) {
+    if (newTab && (url === "back" || url === "forward"))
+      throw fail("invalid_arguments", "A new tab has no history. Pass a url.");
     if (url === "back") await page.goBack({ timeout: NAVIGATION_TIMEOUT_MS }).catch(() => {});
     else if (url === "forward")
       await page.goForward({ timeout: NAVIGATION_TIMEOUT_MS }).catch(() => {});

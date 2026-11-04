@@ -12,7 +12,7 @@ const { pidAlive, readPid, withLock } = require("./lock.cjs");
 
 const USAGE = `agenta-browser: drive one Chromium that keeps running between commands.
 
-  open <url>                     open a page (also: open back, open forward)
+  open <url> [--new-tab]         open a page (also: open back, open forward); --new-tab keeps this tab open
   read [ref] [--interactive]     read the page, or one part of it by ref
   find <text>                    find text on the page, with its list item or row
   click <ref>                    click (or: click --role button --name "Save")
@@ -26,7 +26,7 @@ const USAGE = `agenta-browser: drive one Chromium that keeps running between com
 Pay and delete controls are refused until you add --intent pay or --intent delete.
 Only add it after the person said yes. Put -- before text that starts with --.`;
 
-const BOOLEAN_FLAGS = new Set(["submit", "interactive"]);
+const BOOLEAN_FLAGS = new Set(["submit", "interactive", "new-tab"]);
 const VALUE_FLAGS = new Set(["role", "name", "intent"]);
 
 // Only known flags are flags; anything else, and everything after `--`, is text.
@@ -53,7 +53,7 @@ function request(command, { positional: p, flags: f }) {
   const rest = (f.role ? p : p.slice(1)).join(" ");
   switch (command) {
     case "open":
-      return ["/op", { op: "navigate", args: { url: p.join(" ") } }];
+      return ["/op", { op: "navigate", args: { url: p.join(" "), newTab: f["new-tab"] } }];
     case "read":
       return ["/op", { op: "read_page", args: { ref: p[0], filter: f.interactive ? "interactive" : undefined } }];
     case "find":

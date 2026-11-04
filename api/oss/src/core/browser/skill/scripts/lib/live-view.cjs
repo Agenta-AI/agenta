@@ -51,13 +51,15 @@ function createLiveView(session) {
   }
 
   async function statusMessage() {
-    const page = session.activePage && !session.activePage.isClosed() ? session.activePage : null;
+    const tabs = await session.tabs();
+    const active = tabs.find((tab) => tab.active);
     return {
       type: "status",
       control: session.control,
       waiting: session.waits.reason(),
-      url: page ? page.url() : "",
-      title: page ? await page.title().catch(() => "") : "",
+      url: active?.url ?? "",
+      title: active?.title ?? "",
+      tabs,
     };
   }
 
@@ -133,6 +135,13 @@ function createLiveView(session) {
     }
     if (message.type === "control") {
       session.setControl(message.take ? "user" : "agent");
+      return;
+    }
+    if (message.type === "tab") {
+      const tab = session.pageById(Number(message.id));
+      if (!tab || tab === session.activePage) return;
+      session.setControl("user");
+      await session.switchTo(tab);
       return;
     }
     const page = session.activePage;

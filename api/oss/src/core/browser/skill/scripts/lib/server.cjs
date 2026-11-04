@@ -108,6 +108,9 @@ async function serve() {
     return run;
   }
 
+  // The page the agent last saw. A ref it holds belongs to this page, not to one the person moved to.
+  let agentPage = null;
+
   async function tabs(index) {
     const pages = session.context.pages();
     if (index === undefined) {
@@ -116,8 +119,8 @@ async function serve() {
     }
     const page = pages[Number(index) - 1];
     if (!page) return null;
-    session.setActivePage(page);
-    await page.bringToFront().catch(() => {});
+    await session.switchTo(page);
+    agentPage = page;
     return pageView(page);
   }
 
@@ -136,9 +139,22 @@ async function serve() {
       }
       const handler = OPS[op];
       if (!handler) return agentError("invalid_arguments", `Unknown command ${op}.`);
-      const page = await session.currentPage();
+      const previous = args.newTab ? session.activePage : null;
+      const page = args.newTab ? await session.openTab() : await session.currentPage();
+      if (args.ref && agentPage && page !== agentPage)
+        return agentError("tab_changed", "The person moved to another tab. Nothing was done.", {
+          next_step: "Run `agenta-browser read` and use a ref from the new result.",
+        });
       const before = new Set(session.context.pages());
-      const text = await handler(page, args);
+      const text = await handler(page, args).catch(async (e) => {
+        // A refused or failed site leaves no blank tab behind, and the agent where it was.
+        if (args.newTab) {
+          if (previous && !previous.isClosed()) await session.switchTo(previous);
+          await page.close().catch(() => {});
+        }
+        throw e;
+      });
+      agentPage = page;
       const all = session.context.pages();
       const opened = all.filter((p) => !before.has(p));
       await session.saveState().catch((e) => log(`save failed: ${errorText(e)}`));
@@ -165,7 +181,8 @@ async function serve() {
         next_step: "Tell the person what you need and stop. They can reply when they are ready.",
       });
     await session.saveState().catch(() => {});
-    return { ok: true, text: `The person is done.\n${await pageView(await session.currentPage())}` };
+    agentPage = await session.currentPage();
+    return { ok: true, text: `The person is done.\n${await pageView(agentPage)}` };
   }
 
   async function shutdown(code) {

@@ -29,6 +29,13 @@ test("role and name select the target; the rest is the value", () => {
   ]);
 });
 
+test("open --new-tab keeps the url whole, on either side of the flag", () => {
+  const opened = ["/op", { op: "navigate", args: { url: "example.com", newTab: true } }];
+  assert.deepEqual(line("open", "example.com", "--new-tab"), opened);
+  assert.deepEqual(line("open", "--new-tab", "example.com"), opened);
+  assert.equal(line("open", "example.com")[1].args.newTab, undefined);
+});
+
 test("read --interactive and wait and tab", () => {
   assert.deepEqual(line("read", "--interactive"), ["/op", { op: "read_page", args: { ref: undefined, filter: "interactive" } }]);
   assert.deepEqual(line("wait", "Please", "sign", "in"), ["/wait", { reason: "Please sign in" }]);

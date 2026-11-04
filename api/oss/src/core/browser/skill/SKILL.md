@@ -13,6 +13,7 @@ ref, never by screen position.
 
 ```
 node <skill folder>/scripts/agenta-browser.cjs open example.com
+node <skill folder>/scripts/agenta-browser.cjs open example.org --new-tab  # keep this tab open too
 node <skill folder>/scripts/agenta-browser.cjs read            # the page, or an outline of a long page
 node <skill folder>/scripts/agenta-browser.cjs read e40        # one part of the page
 node <skill folder>/scripts/agenta-browser.cjs find "invoice"  # matches, with their row or list item
@@ -27,8 +28,14 @@ node <skill folder>/scripts/agenta-browser.cjs wait "Please sign in to example.c
 action, the command prints only what changed on the page, or the new page when it moved. Put
 `--` before text that starts with `--`, for example `type e8 -- "--verbose"`.
 
-When a command opens a new tab, you stay on the tab you were on. The output lists the new tab
-and its number; run `tab <number>` to use it.
+`open` replaces the page in the current tab. To work with several sites, use `open <url> --new-tab`:
+the earlier tabs stay open, and you move to the new one. Commands run one at a time, on one tab.
+
+When a click or other command opens a new tab, you stay on the tab you were on. The output lists
+the new tab and its number; run `tab <number>` to use it.
+
+The person can switch tabs in the live view. If a command says the person moved to another tab,
+run `read` before you act.
 
 ## Signing in, 2FA and CAPTCHA
 

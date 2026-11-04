@@ -182,6 +182,70 @@ test("open, read, click, type, set, tabs, wait and the pay refusal through the r
   assert.equal(fs.existsSync(path.join(runDir, "pid")), false);
 });
 
+test("the agent opens tabs, a viewer sees and switches them, and an old ref is refused", { skip: !NODE_MODULES && "playwright-core with Chromium is not installed", timeout: 120_000 }, async (t) => {
+  const site = await serveFixture();
+  const origin = `http://127.0.0.1:${site.address().port}`;
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "agenta-browser-tabs-"));
+  const port = await freePort();
+  const runDir = path.join(cwd, "run");
+  const env = {
+    ...process.env,
+    NODE_PATH: NODE_MODULES,
+    AGENTA_BROWSER_ALLOW_SHARED_HOST: "1",
+    AGENTA_BROWSER_DIR: runDir,
+    AGENTA_BROWSER_PORT: String(port),
+  };
+  const cli = makeCli(env, cwd);
+  t.after(async () => {
+    await cli("stop");
+    site.close();
+  });
+
+  const shop = await cli("open", `${origin}/`);
+  const help = await cli("open", `${origin}/next`, "--new-tab");
+  assert.equal(help.code, 0, help.out);
+  assert.match(help.out, /^Page: Help/);
+  assert.doesNotMatch(help.out, /new tab opened/);
+  assert.match((await cli("tab")).out, /  1\. Shop .*\n\* 2\. Help/);
+
+  const refused = await cli("open", "file:///etc/passwd", "--new-tab");
+  assert.equal(refused.code, 1, refused.out);
+  assert.match(refused.out, /site_not_allowed/);
+  const after = await cli("tab");
+  assert.match(after.out, /\* 2\. Help/);
+  assert.doesNotMatch(after.out, / 3\. /);
+
+  const { ws: WebSocket } = require(path.join(NODE_MODULES, "playwright-core", "lib", "utilsBundle"));
+  const token = fs.readFileSync(path.join(runDir, "token"), "utf8");
+  const viewer = new WebSocket(`ws://127.0.0.1:${port}/live`, { headers: { "x-agenta-browser-token": token } });
+  let status = null;
+  viewer.on("message", (raw) => {
+    const message = JSON.parse(String(raw));
+    if (message.type === "status") status = message;
+  });
+  const until = async (done) => {
+    for (let i = 0; i < 100 && !done(); i++) await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.ok(done(), JSON.stringify(status));
+  };
+  await until(() => status);
+  assert.deepEqual(status.tabs.map(({ title, active }) => [title, active]), [["Shop", false], ["Help", true]]);
+
+  await cli("tab", "2");
+  const helpRead = await cli("read");
+  viewer.send(JSON.stringify({ type: "tab", id: status.tabs[0].id }));
+  await until(() => status.title === "Shop" && status.control === "user");
+  assert.deepEqual(status.tabs.map(({ active }) => active), [true, false]);
+  viewer.send(JSON.stringify({ type: "control", take: false }));
+  await until(() => status.control === "agent");
+
+  const stale = await cli("click", refOf(shop.out, 'link "Open help"'));
+  assert.equal(stale.code, 1, stale.out);
+  assert.match(stale.out, /tab_changed/);
+  assert.match(helpRead.out, /^Page: Help/);
+  assert.match((await cli("read")).out, /^Page: Shop/);
+  viewer.close();
+});
+
 test("refs inside an iframe work and checks hold there; secret fields are never typed into", { skip: !NODE_MODULES && "playwright-core with Chromium is not installed", timeout: 120_000 }, async (t) => {
   const site = await serveFixture();
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "agenta-browser-frame-"));

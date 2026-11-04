@@ -56,7 +56,7 @@ test("the live view shows the open reason between wait calls", async () => {
   assert.equal(await waits.wait("Solve the CAPTCHA"), "still");
   const ws = viewer();
   await new Promise((r) => setTimeout(r, 20));
-  assert.deepEqual(ws.sent.find((m) => m.type === "status"), { type: "status", control: "agent", waiting: "Solve the CAPTCHA", url: "", title: "" });
+  assert.deepEqual(ws.sent.find((m) => m.type === "status"), { type: "status", control: "agent", waiting: "Solve the CAPTCHA", url: "", title: "", tabs: [] });
 });
 
 test("a reason expires after its total time, counted from the first wait", async () => {
