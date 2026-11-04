@@ -2,6 +2,7 @@
 import {act, type ReactNode} from "react"
 
 import {activeUserIdAtom} from "@agenta/shared/state"
+import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -62,6 +63,8 @@ vi.mock("@/features/testsets/list/useTestsetRowActions", () => ({
 import {DEVELOPER_VIEWS} from "@/features/developer/developerViews"
 import {TestsetsListScreen} from "@/features/testsets/list/TestsetsListScreen"
 import TestsetsPage from "@/pages/w/[workspace_id]/p/[project_id]/testsets/index"
+
+import {stubAxiosHttp, until} from "./testsetHttp"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
@@ -171,12 +174,109 @@ describe("Testsets list screen", () => {
         expect(host.textContent).toContain("No test sets match “zeta”")
     })
 
-    it("Create new testset shows only to a reader who may edit and has a create flow", async () => {
-        const onCreate = vi.fn()
-        await mount(<TestsetsListScreen workspaceId="ws" projectId="pr" onCreate={onCreate} />)
+    it("Create new testset shows only to a reader who may edit", async () => {
+        await mount(<TestsetsListScreen workspaceId="ws" projectId="pr" />)
         expect(host.textContent).not.toContain("Create new testset")
         state.allowed = new Set(["edit_testsets"])
-        await mount(<TestsetsListScreen workspaceId="ws" projectId="pr" onCreate={onCreate} />)
+        await mount(<TestsetsListScreen workspaceId="ws" projectId="pr" />)
         expect(host.textContent).toContain("Create new testset")
+    })
+
+    it("Create new testset opens the create dialog", {timeout: 25000}, async () => {
+        vi.useRealTimers()
+        state.allowed = new Set(["edit_testsets"])
+        await mount(
+            <QueryClientProvider client={new QueryClient()}>
+                <TestsetsListScreen workspaceId="ws" projectId="pr" />
+            </QueryClientProvider>,
+        )
+        const button = Array.from(host.querySelectorAll("button")).find(
+            (item) => item.textContent === "Create new testset",
+        )!
+        await act(async () => button.click())
+        // The dialog is a lazy chunk; the first load transforms its files.
+        await act(async () => {
+            await vi.waitFor(
+                () => expect(document.body.textContent).toContain("Create new test set"),
+                {timeout: 20000},
+            )
+        })
+    })
+
+    it("A dialog left open closes when the project changes", {timeout: 25000}, async () => {
+        vi.useRealTimers()
+        state.allowed = new Set(["edit_testsets"])
+        const client = new QueryClient()
+        const screen = (projectId: string) => (
+            <QueryClientProvider client={client}>
+                <TestsetsListScreen workspaceId="ws" projectId={projectId} />
+            </QueryClientProvider>
+        )
+        await mount(screen("pr"))
+        const button = Array.from(host.querySelectorAll("button")).find(
+            (item) => item.textContent === "Create new testset",
+        )!
+        await act(async () => button.click())
+        await act(async () => {
+            await vi.waitFor(
+                () => expect(document.body.textContent).toContain("Create new test set"),
+                {timeout: 20000},
+            )
+        })
+
+        await mount(screen("other"))
+        expect(document.body.textContent).not.toContain("Click or drag file to this area")
+    })
+
+    it("A rename that finishes late does not close a newer dialog", {timeout: 25000}, async () => {
+        vi.useRealTimers()
+        state.allowed = new Set(["edit_testsets"])
+        state.list = {...state.list, testsets: [{id: "t1", name: "Alpha set"}]}
+        let finish: () => void = () => undefined
+        const gate = new Promise<void>((resolve) => (finish = resolve))
+        const sent = stubAxiosHttp(async () => {
+            await gate
+            return {data: {testset: {id: "t1", name: "Renamed"}}}
+        })
+        const client = new QueryClient()
+        const screen = (projectId: string) => (
+            <QueryClientProvider client={client}>
+                <TestsetsListScreen workspaceId="ws" projectId={projectId} />
+            </QueryClientProvider>
+        )
+        const byText = (selector: string, text: string) =>
+            Array.from(document.querySelectorAll<HTMLElement>(selector)).find(
+                (el) => el.textContent === text,
+            )!
+
+        await mount(screen("pr"))
+        await act(async () => {
+            document
+                .querySelector('[aria-label="Testset actions"]')
+                ?.dispatchEvent(
+                    new MouseEvent("pointerdown", {bubbles: true, cancelable: true, button: 0}),
+                )
+        })
+        await act(async () => byText('[role="menuitem"]', "Rename").click())
+        await until(() => expect(document.body.textContent).toContain("Rename test set"))
+        const typed = document.body.querySelector<HTMLInputElement>('[role="dialog"] input')!
+        await act(async () => {
+            Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(
+                typed,
+                "Renamed",
+            )
+            typed.dispatchEvent(new Event("input", {bubbles: true}))
+        })
+        await act(async () => byText("button", "Rename").click())
+        await until(() => expect(sent.map((item) => item.method)).toEqual(["PUT"]))
+
+        // The reader moves to another project and opens a new dialog while the rename runs.
+        await mount(screen("other"))
+        await act(async () => byText("button", "Create new testset").click())
+        await until(() => expect(document.body.textContent).toContain("Create new test set"))
+
+        await act(async () => finish())
+        await act(async () => undefined)
+        expect(document.body.textContent).toContain("Create new test set")
     })
 })

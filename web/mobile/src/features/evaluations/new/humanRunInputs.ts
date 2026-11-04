@@ -1,0 +1,158 @@
+import type {BuildHumanRunConfigInput} from "@agenta/entities/evaluationRun"
+import {evaluatorOutputKeys} from "@agenta/entities/evaluationRun"
+import {
+    extractAllEndpointSchemas,
+    extractInputKeysFromSchema,
+} from "@agenta/entities/shared/openapi"
+import {fetchTestcasesPage} from "@agenta/entities/testcase"
+import {
+    appOpenApiSchemaAtomFamily,
+    appRoutePathAtomFamily,
+    workflowMolecule,
+} from "@agenta/entities/workflow"
+import {getDefaultStore, type Atom} from "jotai"
+
+import type {DraftEvaluator, DraftRevision, DraftTestset} from "./newEvaluationDraft"
+
+type Store = ReturnType<typeof getDefaultStore>
+
+const SETTLE_TIMEOUT_MS = 15_000
+/** An app with no inputs never fills its schema, so that wait is short. */
+const SCHEMA_WAIT_MS = 5_000
+
+/** Resolve with the atom's value once `ready` accepts it. Subscribing is what starts its query. */
+export const settleAtom = <T>(
+    store: Store,
+    atom: Atom<T>,
+    ready: (value: T) => boolean,
+    timeoutMs = SETTLE_TIMEOUT_MS,
+): Promise<T> =>
+    new Promise((resolve, reject) => {
+        let unsubscribe: () => void = () => undefined
+        const timer = setTimeout(() => {
+            unsubscribe()
+            reject(new Error("The evaluation inputs did not load in time."))
+        }, timeoutMs)
+        const check = () => {
+            const value = store.get(atom)
+            if (!ready(value)) return
+            clearTimeout(timer)
+            unsubscribe()
+            resolve(value)
+        }
+        unsubscribe = store.sub(atom, check)
+        check()
+    })
+
+const propertyNames = (schema: unknown): string[] => {
+    const properties = (schema as {properties?: unknown} | null | undefined)?.properties
+    return properties && typeof properties === "object" ? Object.keys(properties) : []
+}
+
+/**
+ * Read what `buildHumanRunConfig` needs from the stores, waiting for what has not loaded yet.
+ * Each evaluator slug is the slug of the evaluator workflow, never of its revision.
+ */
+export async function readHumanRunInputs({
+    store = getDefaultStore(),
+    projectId,
+    name,
+    revision,
+    testset,
+    evaluators,
+}: {
+    store?: Store
+    projectId: string
+    name: string
+    revision: DraftRevision
+    testset: DraftTestset
+    evaluators: readonly DraftEvaluator[]
+}): Promise<BuildHumanRunConfigInput> {
+    const revisionEntity = await settleAtom(
+        store,
+        workflowMolecule.selectors.data(revision.id),
+        (entity) => Boolean(entity),
+    )
+
+    // The input schema comes from the revision or from its inspected interface.
+    const inputSchema = await settleAtom(
+        store,
+        workflowMolecule.selectors.inputSchema(revision.id),
+        (value) => value !== null,
+        SCHEMA_WAIT_MS,
+    ).catch(() => null)
+    let inputKeys = propertyNames(inputSchema)
+    let hasMessagesInput = false
+
+    // A custom app hosted at its own URL, with no URI, declares its inputs only in OpenAPI.
+    const legacyCustomApp = !revisionEntity?.data?.uri && Boolean(revisionEntity?.data?.url)
+    if (inputKeys.length === 0 && legacyCustomApp) {
+        const spec = await settleAtom(
+            store,
+            appOpenApiSchemaAtomFamily(revision.id),
+            (value) => value !== null,
+            SCHEMA_WAIT_MS,
+        ).catch(() => null)
+        const routePath = store.get(appRoutePathAtomFamily(revision.id)) || ""
+        if (spec) {
+            inputKeys = extractInputKeysFromSchema(spec as never, routePath)
+            hasMessagesInput = Boolean(
+                extractAllEndpointSchemas(spec as never, routePath).primaryEndpoint?.messagesSchema,
+            )
+        }
+    }
+
+    const firstPage = await fetchTestcasesPage({
+        projectId,
+        revisionId: testset.revisionId,
+        limit: 1,
+    })
+    // `fetchTestcasesPage` turns a failed request into an empty page, which must not read as "no columns".
+    if (firstPage.testcases.length === 0) throw new Error("The test set has no test cases.")
+    const columns = Object.keys(firstPage.testcases[0]?.data ?? {}).filter(
+        (column) => !column.startsWith("__"),
+    )
+
+    const resolvedEvaluators = await Promise.all(
+        evaluators.map(async (evaluator) => {
+            const entity = await settleAtom(
+                store,
+                workflowMolecule.selectors.data(evaluator.revisionId),
+                (value) => Boolean(value),
+            )
+            const slug = await settleAtom(
+                store,
+                workflowMolecule.selectors.artifactSlug(evaluator.revisionId),
+                (value) => Boolean(value),
+            )
+            return {
+                revisionId: evaluator.revisionId,
+                workflowId: entity?.workflow_id ?? evaluator.evaluatorId,
+                variantId: entity?.workflow_variant_id ?? null,
+                slug: slug ?? "",
+                outputKeys: evaluatorOutputKeys(
+                    entity?.data as Record<string, unknown> | undefined,
+                ),
+            }
+        }),
+    )
+
+    return {
+        name,
+        testset: {
+            id: testset.testsetId,
+            name: testset.name,
+            revisionId: testset.revisionId,
+            columns,
+        },
+        revision: {
+            id: revision.id,
+            name: revision.variantName,
+            workflowId: revisionEntity?.workflow_id ?? null,
+            variantId: revisionEntity?.workflow_variant_id ?? null,
+        },
+        inputKeys,
+        hasMessagesInput,
+        evaluators: resolvedEvaluators,
+    }
+}

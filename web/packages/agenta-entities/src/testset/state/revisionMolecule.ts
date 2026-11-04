@@ -177,24 +177,21 @@ const revisionWithTestcasesQueryAtomFamily = atomFamily((revisionId: string) =>
                     return null
                 }
 
-                try {
-                    const response = await axios.post(
-                        `${getAgentaApiUrl()}/testsets/revisions/query`,
-                        {
-                            testset_revision_refs: [{id: revisionId}],
-                            windowing: {limit: 1},
-                        },
-                        {params: {project_id: projectId, include_testcases: true}},
-                    )
+                // A failed read throws, so the query reports `isError` and a screen can offer a
+                // retry. Returning null here would look the same as a revision with no test cases.
+                const response = await axios.post(
+                    `${getAgentaApiUrl()}/testsets/revisions/query`,
+                    {
+                        testset_revision_refs: [{id: revisionId}],
+                        windowing: {limit: 1},
+                    },
+                    {params: {project_id: projectId, include_testcases: true}},
+                )
 
-                    const revisions = response.data?.testset_revisions ?? []
-                    if (revisions.length === 0) return null
+                const revisions = response.data?.testset_revisions ?? []
+                if (revisions.length === 0) return null
 
-                    return normalizeRevision(revisions[0])
-                } catch (error) {
-                    console.error("[revisionWithTestcasesQuery] Failed to fetch:", error)
-                    return null
-                }
+                return normalizeRevision(revisions[0])
             },
             enabled: isEnabled,
             staleTime: 5 * 60 * 1000,
