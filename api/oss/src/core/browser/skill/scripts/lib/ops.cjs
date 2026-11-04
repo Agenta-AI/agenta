@@ -27,8 +27,12 @@ const MAX_FIND_MATCHES = 20;
 const fail = (code, message, extra) =>
   Object.assign(new Error(message), { code, ...extra });
 
+// The same command can succeed later for these; every other failure needs a changed request.
+const RETRYABLE_CODES = new Set(["page_stuck", "page_timeout", "user_in_control"]);
+
 function agentError(code, message, { next_step } = {}) {
-  return { ok: false, error: { code, message, ...(next_step ? { next_step } : {}) } };
+  const retryable = RETRYABLE_CODES.has(code);
+  return { ok: false, error: { code, message, retryable, ...(next_step ? { next_step } : {}) } };
 }
 
 // The message only: the agent reads it, and a stack trace would leak internals.
