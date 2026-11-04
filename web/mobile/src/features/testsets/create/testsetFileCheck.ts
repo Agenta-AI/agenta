@@ -11,7 +11,7 @@ export const UNSUPPORTED_FORMAT = "Unsupported file format. Please upload a CSV 
 export const INVALID_CSV =
     "Invalid CSV format. Ensure it has comma-separated values with headers in the first row."
 export const INVALID_JSON =
-    "Invalid JSON format. Ensure it's an array of objects with consistent keys."
+    "Invalid JSON format. Ensure it's an array of objects with column names as keys."
 
 export type TestsetFileCheck =
     | {ok: true; fileType: TestsetFileType; rows: Record<string, unknown>[]}

@@ -33,7 +33,13 @@ vi.mock("@agenta/entities/organization", () => ({
     removeFromWorkspace: vi.fn(),
 }))
 
+vi.mock("@agenta/auth", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@agenta/auth")>()),
+    getEmailSignInMode: () => "password",
+}))
+
 vi.mock("@agenta/entities/profile", () => ({
+    requestPasswordReset: vi.fn(),
     useProfile: () => ({user: SELF}),
     updateUsername: vi.fn(),
 }))

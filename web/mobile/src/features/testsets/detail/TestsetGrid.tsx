@@ -85,6 +85,7 @@ export const TestsetGrid = ({
                         onCopyId={() =>
                             void copyToClipboard(row.id).then((copied) => {
                                 if (copied) message.success("Copied")
+                                else message.error("Couldn't copy the ID")
                             })
                         }
                     />
