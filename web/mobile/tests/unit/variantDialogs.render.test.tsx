@@ -199,7 +199,7 @@ describe("DeleteRevisionDialog", () => {
             button("Delete")?.click()
         })
         await flush()
-        expect(fixture.success).toHaveBeenCalledWith("Deleted workflow successfully")
+        expect(fixture.success).toHaveBeenCalledWith("Deleted revision successfully")
         expect(fixture.setRevisionParam).toHaveBeenCalledWith(null)
         expect(onClose).toHaveBeenCalled()
     })

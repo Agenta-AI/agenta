@@ -131,9 +131,9 @@ export type MoveItem =
     | {kind: "prompt"; id: string; folderId: string | null}
 
 /**
- * Whether the item may go into the destination. There is no root destination: the API drops a
- * null folder id. A folder cannot go into itself or a folder below it, and nothing goes where it
- * already is.
+ * Whether the item may go into the destination. A null destination is the top level: a prompt
+ * may go there, a folder may not (the folders API keeps the parent when it gets a null). A
+ * folder cannot go into itself or a folder below it, and nothing goes where it already is.
  */
 export const isValidMoveTarget = ({
     foldersById,
@@ -144,7 +144,8 @@ export const isValidMoveTarget = ({
     item: MoveItem
     destinationId: string | null
 }): boolean => {
-    if (!destinationId || !foldersById.has(destinationId)) return false
+    if (destinationId === null) return item.kind === "prompt" && item.folderId !== null
+    if (!foldersById.has(destinationId)) return false
     if (item.kind === "prompt") return item.folderId !== destinationId
     if (destinationId === item.id) return false
     if (folderChain(foldersById, destinationId).some((folder) => folder.id === item.id)) {

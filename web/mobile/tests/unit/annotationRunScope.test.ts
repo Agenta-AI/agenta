@@ -64,7 +64,19 @@ const QUALITY = {
     description: "Is the reply good",
     flags: {is_evaluator: true, is_feedback: true},
     data: {
-        schemas: {outputs: {type: "object", properties: {good: {type: "boolean"}}}},
+        // Optional fields: a text, a single choice with a "none of the above" null option, and a
+        // number. A save must not send them while they are empty.
+        schemas: {
+            outputs: {
+                type: "object",
+                properties: {
+                    good: {type: "boolean"},
+                    note: {type: "string"},
+                    tone: {type: ["string", "null"], enum: ["warm", "cold", null]},
+                    clarity: {type: "integer", minimum: 1, maximum: 5},
+                },
+            },
+        },
     },
 }
 
@@ -120,6 +132,8 @@ beforeEach(() => {
 
 afterEach(() => {
     annotationSessionController.set.closeSession()
+    // The form keeps edits per scenario id, and every test uses the same one.
+    annotationFormController.set.resetEdits(SCENARIO)
 })
 
 /** Open the run and wait until its evaluator is resolved, as a mounted form would. */
@@ -180,6 +194,78 @@ describe("annotation in run scope", () => {
                 meta: {name: "Quality", description: "Is the reply good", tags: ["good"]},
             },
         })
+    })
+
+    it("An update sends the fields the user set and keeps a saved null answer, also after the user changes it and sets it back", async () => {
+        // The scenario already holds this user's Quality annotation, with "none of the above".
+        const existing = {
+            trace_id: "ann-1",
+            span_id: "ann-span-1",
+            data: {outputs: {good: true, note: "short", tone: null}},
+            references: {evaluator: {id: "wf-quality", slug: "quality"}},
+            links: {app: {trace_id: "trace-1", span_id: "span-1"}},
+            origin: "human",
+            kind: "adhoc",
+            channel: "web",
+            meta: {name: "Quality", description: "", tags: ["good", "note", "tone"]},
+        }
+        earlierResults = [
+            {
+                run_id: RUN,
+                scenario_id: SCENARIO,
+                step_key: "app.quality",
+                trace_id: "ann-1",
+                span_id: "ann-span-1",
+                status: "success",
+            },
+        ]
+        const answer = http.post.getMockImplementation()
+        http.post.mockImplementation(async (url: string, ...rest: unknown[]) => {
+            if (url.endsWith("/simple/traces/query")) {
+                return {data: {count: 1, traces: [existing]}}
+            }
+            return answer?.(url, ...rest)
+        })
+        annotationSessionController.set.openRun({runId: RUN})
+        const annotations = annotationSessionController.selectors.scenarioAnnotations(SCENARIO)
+        const stop = store.sub(annotations, () => undefined)
+        await vi.waitFor(() => expect(store.get(annotations)).toHaveLength(1))
+        stop()
+        const evaluators = annotationFormController.selectors.evaluators(SCENARIO)
+        const stopEvaluators = store.sub(evaluators, () => undefined)
+        await vi.waitFor(() => expect(store.get(evaluators)).toHaveLength(1))
+        stopEvaluators()
+        annotationFormController.set.setScenarioContext({
+            scenarioId: SCENARIO,
+            annotations: store.get(annotations),
+            traceId: "trace-1",
+            spanId: "span-1",
+            testcaseId: "tc-1",
+        })
+        for (const [fieldKey, value] of [
+            ["good", false],
+            ["note", ""],
+            ["clarity", 4],
+            ["tone", "warm"],
+            ["tone", null],
+        ] as const) {
+            annotationFormController.set.updateMetric({
+                scenarioId: SCENARIO,
+                slug: "quality",
+                fieldKey,
+                value,
+            })
+        }
+        await annotationFormController.set.submitAnnotations({
+            scenarioId: SCENARIO,
+            markComplete: true,
+        })
+
+        expect(bodyOf("http://api.test/simple/traces/")).toBeUndefined()
+        const patched = bodyOf("http://api.test/simple/traces/ann-1") as {
+            trace: {data: unknown}
+        }
+        expect(patched.trace.data).toEqual({outputs: {good: false, tone: null, clarity: 4}})
     })
 
     it("Submitting in run scope upserts the annotation step result and the scenario metrics", async () => {

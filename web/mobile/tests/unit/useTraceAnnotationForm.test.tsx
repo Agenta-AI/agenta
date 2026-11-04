@@ -5,7 +5,7 @@
 import {act} from "react"
 
 import type {AnnotationDto} from "@agenta/entities/annotation/dto"
-import {activeUserIdAtom, projectIdAtom} from "@agenta/shared/state"
+import {activeUserIdAtom, projectIdAtom, userAtom} from "@agenta/shared/state"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
@@ -42,7 +42,17 @@ import {useTraceAnnotationForm} from "@/features/observability/annotate/useTrace
 type Form = ReturnType<typeof useTraceAnnotationForm>
 
 const PROJECT = "project-1"
+/** An annotation names its author by the user `id`; the login `uid` is a different value. */
 const ALEX = "user-alex"
+const ALEX_UID = "login-alex"
+const SAM = "user-sam"
+
+/** The signed-in user, as `ContextSync` sets it: the profile in `userAtom`, the `uid` as active id. */
+const signIn = (id: string, uid: string) => {
+    const store = getDefaultStore()
+    store.set(userAtom, {id, uid, username: id, email: `${id}@example.com`})
+    store.set(activeUserIdAtom, uid)
+}
 
 const revision = (slug: string, properties: Record<string, unknown>, required: string[] = []) => ({
     id: `rev-${slug}`,
@@ -167,7 +177,7 @@ describe("trace annotation form", () => {
         const store = getDefaultStore()
         store.set(queryClientAtom, client)
         store.set(projectIdAtom, PROJECT)
-        store.set(activeUserIdAtom, ALEX)
+        signIn(ALEX, ALEX_UID)
         host = document.createElement("div")
         document.body.appendChild(host)
         root = createRoot(host)
@@ -177,6 +187,7 @@ describe("trace annotation form", () => {
         await act(async () => root.unmount())
         host.remove()
         getDefaultStore().set(projectIdAtom, null)
+        getDefaultStore().set(userAtom, null)
         vi.restoreAllMocks()
     })
 
@@ -239,6 +250,39 @@ describe("trace annotation form", () => {
                 {params: {project_id: PROJECT}},
             ],
         ])
+    })
+
+    it("A second open after a save edits the first annotation, not a new one", async () => {
+        const first = {
+            ...ownAnnotation("tone", {friendly: true}),
+            trace_id: saved.trace.trace_id,
+            span_id: saved.trace.span_id,
+        } as AnnotationDto
+        await mount({annotations: [first]})
+        expect(latest.ownSlugs).toEqual(["tone"])
+        expect(latest.sections[0].fields.friendly.value).toBe(true)
+
+        await act(async () => latest.setValue("tone", "friendly", false))
+        await save()
+
+        expect(creates()).toEqual([])
+        expect(http.patch.mock.calls.map(([url, body]) => [url, body.trace.data])).toEqual([
+            ["http://api.test/simple/traces/ann-new", {outputs: {friendly: false}}],
+        ])
+    })
+
+    it("Another user's annotation opens empty and a save creates their own", async () => {
+        signIn(SAM, "login-sam")
+        await mount({annotations: [ownAnnotation("tone", {friendly: true})]})
+        expect(latest.ownSlugs).toEqual([])
+        expect(latest.sections.map((section) => section.slug)).toEqual(["tone"])
+        expect(latest.sections[0].fields.friendly.value).toBeNull()
+
+        await act(async () => latest.setValue("tone", "friendly", false))
+        await save()
+
+        expect(http.patch).not.toHaveBeenCalled()
+        expect(creates().map(([, body]) => body.trace.data)).toEqual([{outputs: {friendly: false}}])
     })
 
     it("Save refetches the trace drawer annotations", async () => {

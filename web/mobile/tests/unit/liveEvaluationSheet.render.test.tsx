@@ -392,6 +392,25 @@ describe("live evaluation sheet", () => {
         expect(text()).toContain("Apply")
     })
 
+    it("The trace filter offers no annotation field, which the live query cannot apply", async () => {
+        await mount()
+        await act(async () =>
+            document.querySelector<HTMLButtonElement>("button[aria-label=Filter]")?.click(),
+        )
+        await act(async () => button(/^Add$/)?.click())
+        const field = button(/^Field$/)
+        await act(async () => {
+            field?.focus()
+            field?.dispatchEvent(new KeyboardEvent("keydown", {key: "Enter", bubbles: true}))
+        })
+
+        const entries = [...document.querySelectorAll("[role=menuitem]")].map((node) =>
+            node.textContent?.trim(),
+        )
+        expect(entries).toContain("Status")
+        expect(entries).not.toContain("Annotation")
+    })
+
     it("Empty name shows Enter a name and sends nothing", async () => {
         await mount()
         await pickEvaluator("Tone check")

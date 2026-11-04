@@ -23,6 +23,7 @@ const fixture = vi.hoisted(() => ({
     error: vi.fn(),
     permissions: {deploy_environments: true} as Record<string, boolean>,
     pickable: [] as unknown[],
+    members: [] as {user: {id: string; username?: string; email?: string}}[],
 }))
 
 vi.mock("next/router", () => ({
@@ -40,7 +41,10 @@ vi.mock("@agenta/entities/workflow", () => ({
     workflowVariantsListDataAtomFamily: () => ({id: "variants"}),
 }))
 vi.mock("@agenta/entities/runnable", () => ({publishMutationAtom: {id: "publish"}}))
-vi.mock("@agenta/entities/shared", () => ({UserAuthorLabel: () => createElement("span")}))
+vi.mock("@agenta/entities/shared", () => ({
+    UserAuthorLabel: ({name, fallback}: {name?: string | null; fallback?: string}) =>
+        createElement("span", null, name || fallback),
+}))
 vi.mock("jotai", async (importOriginal) => ({
     ...(await importOriginal<typeof import("jotai")>()),
     useAtomValue: (atom: {id: string}) => {
@@ -69,6 +73,9 @@ vi.mock("../../src/features/context/useProjectPermission", () => ({
 }))
 vi.mock("../../src/features/developer/developerViewAccess", () => ({
     useDeveloperViewEnabled: () => false,
+}))
+vi.mock("../../src/features/settings/useSettingsOrg", () => ({
+    useSettingsOrg: () => ({org: {data: {default_workspace: {members: fixture.members}}}}),
 }))
 vi.mock("../../src/features/variants/useAppDeploymentHistory", () => ({
     useAppDeploymentHistory: () => fixture.history,
@@ -124,6 +131,7 @@ const mount = (element: ReactNode) =>
 const mountTab = () =>
     mount(
         createElement(DeploymentsTab, {
+            workspaceId: "ws",
             projectId: "p-1",
             app: app as never,
             base: "/w/ws/p/p-1",
@@ -149,6 +157,7 @@ beforeEach(() => {
     ]
     fixture.history.data = []
     fixture.pickable = []
+    fixture.members = []
 })
 
 afterEach(() => {
@@ -183,6 +192,22 @@ describe("DeploymentsTab", () => {
         fixture.history.data = [historyRow("e1", 1, "rev-1")]
         mountTab()
         expect(text()).toContain("Renamed v1")
+    })
+
+    it("Modified by shows the member's username, as in /w", () => {
+        fixture.members = [
+            {user: {id: "user-1", username: "sam.lee", email: "sam@example.com"}},
+            {user: {id: "user-2", email: "alex@example.com"}},
+        ]
+        fixture.history.data = [
+            {...historyRow("e1", 1, "rev-1"), authorId: "user-1"},
+            {...historyRow("e2", 2, "rev-2"), authorId: "user-2"},
+            {...historyRow("e3", 3, "rev-3"), authorId: "gone-user"},
+        ]
+        mountTab()
+        expect(text()).toContain("sam.lee")
+        expect(text()).toContain("alex@example.com")
+        expect(text()).toContain("—")
     })
 
     it("Environment cards and the deploy dialog show the variant's current name", () => {

@@ -44,7 +44,7 @@ const ENVIRONMENTS = [env("production", true), env("staging", true), env("develo
 
 const snippetsFor = (isChat: boolean) => {
     const params = buildAppEndpointParams({
-        inputSchema: isChat ? null : {properties: {country: {type: "string"}}},
+        inputs: isChat ? [] : [{key: "country", schema: {type: "string"}}],
         environmentSlug: "production",
         isChat,
         appSlug: isChat ? "support-chat" : "capital-finder",

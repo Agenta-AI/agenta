@@ -5,38 +5,12 @@ import type {Meta, StoryObj} from "@storybook/nextjs"
 import {fn, userEvent, within} from "storybook/test"
 
 import {withAppBoxSizing} from "./borderBox"
+import {testsetMenuModel} from "./testsetMenuModel"
 
 /**
  * The test set menu of the /m playground run pane and its two questions: keep the draft test
  * cases when a test set loads, and save the test set edits before leaving the test set.
  */
-const model = (overrides: Partial<TestsetMenuModel> = {}): TestsetMenuModel => ({
-    loadableId: "testset:workflow:story",
-    visible: true,
-    label: "Test set",
-    isConnected: false,
-    hasLocalChanges: false,
-    hasSuccessfulResults: false,
-    isChat: false,
-    connectedRevisionId: null,
-    connectedTestsetId: null,
-    dialog: null,
-    saving: false,
-    connect: fn(),
-    sync: fn(),
-    manage: fn(),
-    change: fn(),
-    disconnect: fn(),
-    close: fn(),
-    confirmLoad: fn(),
-    confirmEdit: fn(),
-    confirmKeepDrafts: fn(),
-    resolveUnsaved: fn(),
-    syncSubmit: fn(),
-    canSyncSubmit: fn(),
-    ...overrides,
-})
-
 const Bar = ({menu}: {menu: TestsetMenuModel}) => (
     <div className="flex justify-end bg-background p-4 text-foreground">
         <TestsetMenu model={menu} />
@@ -48,7 +22,7 @@ const meta = {
     component: Bar,
     decorators: [withAppBoxSizing],
     parameters: {layout: "fullscreen"},
-    args: {menu: model()},
+    args: {menu: testsetMenuModel()},
 } satisfies Meta<typeof Bar>
 
 export default meta
@@ -62,12 +36,14 @@ const open = async (canvasElement: HTMLElement) => {
 export const Local: Story = {play: async ({canvasElement}) => open(canvasElement)}
 
 export const Connected: Story = {
-    args: {menu: model({isConnected: true, label: "Capitals (v2)"})},
+    args: {menu: testsetMenuModel({isConnected: true, label: "Capitals (v2)"})},
     play: async ({canvasElement}) => open(canvasElement),
 }
 
 export const ConnectedWithEdits: Story = {
-    args: {menu: model({isConnected: true, hasLocalChanges: true, label: "Capitals (v2)"})},
+    args: {
+        menu: testsetMenuModel({isConnected: true, hasLocalChanges: true, label: "Capitals (v2)"}),
+    },
     play: async ({canvasElement}) => open(canvasElement),
 }
 

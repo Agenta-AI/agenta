@@ -1,8 +1,8 @@
-import {useEffect} from "react"
+import {useCallback, useEffect} from "react"
 
 import {bindObservabilityScopeAtom, type ObservabilityScope} from "@agenta/observability"
 import {atom, useStore} from "jotai"
-import type {NextRouter} from "next/router"
+import {useRouter, type NextRouter} from "next/router"
 
 import {currentQuery} from "./bindTraceDrawerSeams"
 
@@ -19,7 +19,7 @@ const mobileObservabilityScopeAtom = atom((get): ObservabilityScope => {
 })
 
 /** Writes `?app=` keeping the other params (`trace`, `span`); `null` removes it. */
-export const setObservabilityAppInUrl = (router: NextRouter, appId: string | null) => {
+const setObservabilityAppInUrl = (router: NextRouter, appId: string | null) => {
     const query = currentQuery(router, window.location.search)
     if (appId) query.app = appId
     else delete query.app
@@ -39,8 +39,10 @@ const writeAppScope = (store: Store, appId: string | null) => {
  * Scopes the traces and sessions queries to `appId`, or project wide for `null`.
  *
  * Written during render, before the children that run the queries render: an effect alone would
- * let a project wide request go out first. Leaving the screen puts the scope back to project wide,
- * because the global trace drawer reads it on every page.
+ * let a project wide request go out first. That write is safe only while no mounted component
+ * reads the scope, so a pick in the toolbar goes through `useSelectObservabilityApp`, which writes
+ * the scope in the event. Leaving the screen puts the scope back to project wide, because the
+ * global trace drawer reads it on every page.
  */
 export const useObservabilityAppScope = (appId: string | null) => {
     const store = useStore()
@@ -50,4 +52,21 @@ export const useObservabilityAppScope = (appId: string | null) => {
     // Kept apart from the cleanup, so an app change never passes through project wide.
     useEffect(() => writeAppScope(store, appId), [store, appId])
     useEffect(() => () => writeAppScope(store, null), [store])
+}
+
+/**
+ * The app picker's change handler: it scopes the queries in the event, then writes `?app=`. The
+ * screen's render after the URL change then finds the scope already set, so it does not update
+ * the mounted filters while it renders.
+ */
+export const useSelectObservabilityApp = () => {
+    const store = useStore()
+    const router = useRouter()
+    return useCallback(
+        (appId: string | null) => {
+            writeAppScope(store, appId)
+            setObservabilityAppInUrl(router, appId)
+        },
+        [store, router],
+    )
 }

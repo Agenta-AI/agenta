@@ -12,9 +12,10 @@ describe("app endpoint params", () => {
     it("Invoke params list every schema input with its default or add_a_value", () => {
         const params = JSON.parse(
             buildAppEndpointParams({
-                inputSchema: {
-                    properties: {country: {type: "string", default: "France"}, topic: {}},
-                },
+                inputs: [
+                    {key: "country", schema: {type: "string", default: "France"}},
+                    {key: "topic"},
+                ],
                 environmentSlug: "production",
                 isChat: false,
                 appSlug: "capital",
@@ -27,10 +28,50 @@ describe("app endpoint params", () => {
         })
     })
 
+    it("Prompt variables without a schema get the add_a_value placeholder", () => {
+        const params = JSON.parse(
+            buildAppEndpointParams({
+                inputs: [{key: "country"}],
+                environmentSlug: "development",
+                isChat: false,
+                appSlug: "capital",
+            }),
+        )
+        expect(params.data.inputs).toEqual({country: "add_a_value"})
+    })
+
+    it("A chat app keeps its prompt variables next to the user message", () => {
+        const params = JSON.parse(
+            buildAppEndpointParams({
+                inputs: [{key: "country"}, {key: "messages"}],
+                environmentSlug: "development",
+                isChat: true,
+                appSlug: "bot",
+            }),
+        )
+        expect(params.data.inputs).toEqual({
+            country: "add_a_value",
+            messages: [{role: "user", content: ""}],
+        })
+    })
+
+    it("Odd variable names stay quoted in every language", () => {
+        const params = buildAppEndpointParams({
+            inputs: [{key: `it's "x"`}],
+            environmentSlug: "development",
+            isChat: false,
+            appSlug: "a",
+        })
+        const snippets = buildInvokeAppSnippets({url: "https://x/invoke", params, isChat: false})
+        expect(snippets.python).toContain(`"it's \\"x\\"": "add_a_value"`)
+        expect(snippets.bash).toContain(`"it'\\''s \\"x\\"": "add_a_value"`)
+        expect(snippets.typescript).toContain(`"it's \\"x\\"": "add_a_value"`)
+    })
+
     it("Chat app params add an empty user message", () => {
         const params = JSON.parse(
             buildAppEndpointParams({
-                inputSchema: null,
+                inputs: [],
                 environmentSlug: "staging",
                 isChat: true,
                 appSlug: "bot",
@@ -42,7 +83,7 @@ describe("app endpoint params", () => {
     it("Params omit the application reference when the app has no slug", () => {
         const params = JSON.parse(
             buildAppEndpointParams({
-                inputSchema: null,
+                inputs: [],
                 environmentSlug: "none",
                 isChat: false,
                 appSlug: null,
@@ -53,7 +94,7 @@ describe("app endpoint params", () => {
 
     it("Params are indented by two spaces", () => {
         const text = buildAppEndpointParams({
-            inputSchema: null,
+            inputs: [],
             environmentSlug: "none",
             isChat: false,
             appSlug: null,
@@ -65,13 +106,13 @@ describe("app endpoint params", () => {
 describe("invoke snippets", () => {
     const url = "https://api.example.com/services/x/invoke"
     const plain = buildAppEndpointParams({
-        inputSchema: null,
+        inputs: [],
         environmentSlug: "production",
         isChat: false,
         appSlug: "a",
     })
     const chat = buildAppEndpointParams({
-        inputSchema: null,
+        inputs: [],
         environmentSlug: "production",
         isChat: true,
         appSlug: "a",
@@ -112,14 +153,12 @@ describe("invoke snippets", () => {
 
     it("Python and cURL stay valid for boolean, null and apostrophe defaults", () => {
         const params = buildAppEndpointParams({
-            inputSchema: {
-                properties: {
-                    on: {default: true},
-                    off: {default: false},
-                    none: {default: null},
-                    note: {default: "What's new?"},
-                },
-            },
+            inputs: [
+                {key: "on", schema: {default: true}},
+                {key: "off", schema: {default: false}},
+                {key: "none", schema: {default: null}},
+                {key: "note", schema: {default: "What's new?"}},
+            ],
             environmentSlug: "production",
             isChat: false,
             appSlug: "a",
@@ -136,15 +175,16 @@ describe("invoke snippets", () => {
 
     it("Every language keeps nested, numeric and quoted defaults and a quoted URL", () => {
         const params = buildAppEndpointParams({
-            inputSchema: {
-                properties: {
-                    n: {default: 1.5},
-                    text: {default: 'say "hi" \\ it\'s'},
-                    nested: {
+            inputs: [
+                {key: "n", schema: {default: 1.5}},
+                {key: "text", schema: {default: 'say "hi" \\ it\'s'}},
+                {
+                    key: "nested",
+                    schema: {
                         default: JSON.parse('{"list":[1,null,true],"deep":{"__proto__":{"x":1}}}'),
                     },
                 },
-            },
+            ],
             environmentSlug: "production",
             isChat: false,
             appSlug: "a",
@@ -169,7 +209,7 @@ describe("invoke snippets", () => {
 
     it("A non-chat app with a messages input gets no session header", () => {
         const params = buildAppEndpointParams({
-            inputSchema: {properties: {messages: {}}},
+            inputs: [{key: "messages"}],
             environmentSlug: "production",
             isChat: false,
             appSlug: "a",

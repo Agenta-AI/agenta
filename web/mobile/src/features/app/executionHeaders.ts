@@ -1,7 +1,5 @@
-import {useEffect} from "react"
-
-import {executionItemController} from "@agenta/playground"
-import {useSetAtom} from "jotai"
+import {executionHeadersAtom} from "@agenta/playground/execution-headers"
+import {getDefaultStore} from "jotai"
 
 import {getAccessToken} from "@/lib/auth"
 
@@ -12,7 +10,12 @@ const getAuthHeaders = async (): Promise<Record<string, string>> => {
 }
 
 /**
- * Registers the auth-header provider the playground's run requests use.
+ * Registers the auth-header provider the playground's run requests use, in the store the app
+ * provides. The app shell calls it at module scope, so the provider is in place before any page
+ * renders and before any run can start.
+ *
+ * It imports only the header atom, not `executionItemController`: the shell loads on every page,
+ * and the controller pulls the whole execution runner in with it.
  *
  * `buildAgentRequest` used to append `project_id` to the invoke URL only alongside an
  * Authorization header, so a run with no header ran against the caller's DEFAULT project and
@@ -20,10 +23,7 @@ const getAuthHeaders = async (): Promise<Record<string, string>> => {
  * stays for the requests that read the Bearer token itself. A cookie session with no readable
  * access token sends none, and still runs in the right project.
  */
-export const ExecutionHeaders = () => {
-    const setHeaders = useSetAtom(executionItemController.actions.setExecutionHeaders)
-    useEffect(() => {
-        setHeaders(() => getAuthHeaders)
-    }, [setHeaders])
-    return null
+export const registerExecutionHeaders = () => {
+    // A function value must be wrapped: jotai reads a bare function as an updater.
+    getDefaultStore().set(executionHeadersAtom, () => getAuthHeaders)
 }

@@ -117,12 +117,26 @@ export const usePlaygroundTestcaseEditorModel = (testcaseId: string) => {
         [entityData?.data, suggestedDefaults],
     )
 
-    // The last number or boolean each field held, kept while the user types text into it.
+    // The last number or boolean each field held, kept while the user types text into it. Text
+    // that the form did not write (the JSON view, say) is the type the user chose, so it wins.
     const nativeTypes = useRef(new Map<string, string>())
+    const formWrites = useRef(new Map<string, unknown>())
     useEffect(() => {
-        for (const [key, value] of Object.entries(entityData?.data ?? {})) {
+        const data = entityData?.data ?? {}
+        // Once another value replaces the form's last write, or the field goes, it no longer counts.
+        const prefix = `${testcaseId}:`
+        for (const [id, written] of formWrites.current) {
+            if (!id.startsWith(prefix)) continue
+            const key = id.slice(prefix.length)
+            if (!(key in data) || data[key] !== written) formWrites.current.delete(id)
+        }
+        for (const [key, value] of Object.entries(data)) {
+            const id = `${testcaseId}:${key}`
+            const fromForm = formWrites.current.has(id)
             if (typeof value === "number" || typeof value === "boolean") {
-                nativeTypes.current.set(`${testcaseId}:${key}`, typeof value)
+                nativeTypes.current.set(id, typeof value)
+            } else if (typeof value === "string" && nativeTypes.current.has(id) && !fromForm) {
+                nativeTypes.current.set(id, "string")
             }
         }
     }, [entityData?.data, testcaseId])
@@ -142,6 +156,7 @@ export const usePlaygroundTestcaseEditorModel = (testcaseId: string) => {
                           value,
                           nativeTypes.current.get(`${testcaseId}:${key}`) ?? schemaMap[key]?.type,
                       )
+                formWrites.current.set(`${testcaseId}:${key}`, data[key])
             }
             updateTestcase(testcaseId, {data})
         },

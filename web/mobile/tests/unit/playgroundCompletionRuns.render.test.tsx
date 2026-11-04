@@ -246,4 +246,16 @@ describe("The completion run pane", () => {
         expect(button("Run")).toBeDefined()
         expect(host.querySelector('[aria-expanded="false"]')).not.toBeNull()
     })
+
+    it("The header bar wraps in a narrow pane, so Run all stays on screen", () => {
+        // jsdom has no layout: this checks the bar may wrap instead of keeping one fixed row.
+        const runAll = button("Run all")!
+        const bar = runAll.closest<HTMLElement>(".sticky")!
+        const actions = button("Clear")!.closest<HTMLElement>("div")!
+
+        expect(bar.classList).toContain("flex-wrap")
+        expect(bar.classList).not.toContain("h-12")
+        expect(actions.contains(runAll)).toBe(true)
+        expect(actions.classList).toContain("flex-wrap")
+    })
 })

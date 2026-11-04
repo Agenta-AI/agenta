@@ -93,7 +93,7 @@ describe("RevisionDrawer", () => {
 
     it("The title follows the kind", async () => {
         for (const [kind, title] of [
-            ["variant", "Workflow Revision"],
+            ["variant", "Revision"],
             ["deployment", "Deployment"],
             ["evaluator", "Evaluator"],
         ] as const) {

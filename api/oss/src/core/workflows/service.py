@@ -1751,6 +1751,10 @@ class WorkflowsService:
             exclude_none=True,
             exclude={"flags"},
         )
+        # exclude_none drops a null folder_id, but a null sent on purpose moves the
+        # workflow to the top level.
+        if "folder_id" in workflow_edit.model_fields_set:
+            artifact_edit_kwargs["folder_id"] = workflow_edit.folder_id
         if "flags" in workflow_edit.model_fields_set:
             artifact_flags = self._artifact_flags_from_any(workflow_edit.flags)
             artifact_edit_kwargs["flags"] = (
