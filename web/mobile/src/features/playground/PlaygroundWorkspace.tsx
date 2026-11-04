@@ -23,6 +23,11 @@ const PlaygroundCompare = dynamic(
     () => import("./PlaygroundCompare").then((m) => m.PlaygroundCompare),
     {ssr: false},
 )
+// The wand on a prompt section opens it; it loads when first opened.
+const RefinePromptDialog = dynamic(
+    () => import("@agenta/playground-ui/panels/refine").then((m) => m.RefinePromptDialog),
+    {ssr: false},
+)
 
 /**
  * The loaded playground: the top bar, then the selected revision's config beside its runs, or,
@@ -51,6 +56,7 @@ export const PlaygroundWorkspace = ({
     // A revision the server has deleted is read only from that moment. It stays on screen until
     // the lists load again and the page takes it out, and an edit made then would be lost.
     const [deletedId, setDeletedId] = useState<string | null>(null)
+    const [refine, setRefine] = useState<{revisionId: string; promptKey: string} | null>(null)
     const primaryId = revisionIds[0]
     // Only an agent's model settings commit from inside the editor; a prompt commits from its bar.
     const followEditorCommit = useCallback(
@@ -66,6 +72,8 @@ export const PlaygroundWorkspace = ({
         onSwitch: switchTo,
         onCommitted: onWorkflowRevisionCommitted,
         onArchived: setDeletedId,
+        onRefinePrompt: (revisionId: string, promptKey: string) =>
+            setRefine({revisionId, promptKey}),
     }
 
     return (
@@ -100,6 +108,14 @@ export const PlaygroundWorkspace = ({
                 )}
             </DrillInBridgeProvider>
             <CatalogDrawer />
+            {refine ? (
+                <RefinePromptDialog
+                    key={`${refine.revisionId}:${refine.promptKey}`}
+                    revisionId={refine.revisionId}
+                    promptKey={refine.promptKey}
+                    onClose={() => setRefine(null)}
+                />
+            ) : null}
             {switchDialog}
             <PlaygroundFocusDrawerHost />
         </div>

@@ -50,14 +50,16 @@ const SAVE_RUNNING = "Wait for the current save to finish"
 type ColumnChange =
     | {kind: "add"; columnKey: string}
     | {kind: "rename"; oldKey: string; newKey: string}
-    | {kind: "remove"; columnKey: string}
+    | {kind: "remove"; columnKeys: string[]}
 
 const columnSavedMessage = (change: ColumnChange) =>
     change.kind === "add"
         ? `Added column "${change.columnKey}" and saved a new version`
         : change.kind === "rename"
           ? `Renamed column "${change.oldKey}" to "${change.newKey}" and saved a new version`
-          : `Deleted column "${change.columnKey}" and saved a new version`
+          : change.columnKeys.length === 1
+            ? `Deleted column "${change.columnKeys[0]}" and saved a new version`
+            : `Deleted ${change.columnKeys.length} columns and saved a new version`
 
 /** The commit delta of one column change, as the server applies it to every row. */
 const columnDelta = (change: ColumnChange): TestsetRevisionDeltaColumns =>
@@ -65,7 +67,7 @@ const columnDelta = (change: ColumnChange): TestsetRevisionDeltaColumns =>
         ? {add: [change.columnKey]}
         : change.kind === "rename"
           ? {replace: [[change.oldKey, change.newKey]]}
-          : {remove: [change.columnKey]}
+          : {remove: change.columnKeys}
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
     typeof value === "object" && value !== null && !Array.isArray(value)
@@ -270,10 +272,10 @@ export function useTestsetEditor({
                 return
             }
             if (change.kind === "remove") {
-                removeColumnReducer({revisionId: routeId, columnKey: change.columnKey})
-                rewriteNewRows((data) =>
-                    change.columnKey in data ? {[change.columnKey]: undefined} : null,
-                )
+                for (const columnKey of change.columnKeys) {
+                    removeColumnReducer({revisionId: routeId, columnKey})
+                    rewriteNewRows((data) => (columnKey in data ? {[columnKey]: undefined} : null))
+                }
                 return
             }
             const {oldKey, newKey} = change
@@ -408,8 +410,13 @@ export function useTestsetEditor({
         [applyColumnChange, loadedColumnKeys],
     )
 
-    const deleteColumn = useCallback(
-        (columnKey: string): Promise<ColumnEdit> => applyColumnChange({kind: "remove", columnKey}),
+    /**
+     * Deletes columns in one change. The keys are top-level row keys: the server removes those
+     * only, so a group of nested values is deleted by its top-level key.
+     */
+    const deleteColumns = useCallback(
+        (columnKeys: string[]): Promise<ColumnEdit> =>
+            applyColumnChange({kind: "remove", columnKeys}),
         [applyColumnChange],
     )
 
@@ -490,7 +497,7 @@ export function useTestsetEditor({
         deleteRows,
         addColumn,
         renameColumn,
-        deleteColumn,
+        deleteColumns,
         columnEditBlocked,
         discard,
         commit,

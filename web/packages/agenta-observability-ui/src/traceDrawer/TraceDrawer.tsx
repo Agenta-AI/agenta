@@ -4,8 +4,17 @@ import {traceDrawerClearParams} from "@agenta/observability/traceDrawer"
 import {closeTraceDrawerAtom, isDrawerOpenAtom} from "@agenta/observability/traceDrawer"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {useAtomValue, useSetAtom} from "jotai"
+import dynamic from "next/dynamic"
 
-import TraceDrawerContent, {type TraceDrawerLayout} from "./TraceDrawerContent"
+import type {TraceDrawerLayout} from "./TraceDrawerContent"
+import TraceDrawerContentSkeleton from "./TraceDrawerContentSkeleton"
+
+// The body loads on the first open, so a host that mounts the drawer on every page carries only
+// the panel. The panel opens at once and shows the skeleton until the body arrives.
+const TraceDrawerContent = dynamic(() => import("./TraceDrawerContent"), {
+    ssr: false,
+    loading: TraceDrawerContentSkeleton,
+})
 
 interface TraceDrawerProps {
     /**

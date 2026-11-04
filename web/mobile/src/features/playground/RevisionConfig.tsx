@@ -18,6 +18,7 @@ export const RevisionConfig = ({
     onSwitch,
     onCommitted,
     onArchived,
+    onRefinePrompt,
     onClose,
 }: {
     workspaceId: string
@@ -32,6 +33,8 @@ export const RevisionConfig = ({
     /** A commit of this revision made a new revision. */
     onCommitted: (fromRevisionId: string, toRevisionId: string) => void
     onArchived: (revisionId: string) => void
+    /** The wand on one of this revision's prompts: opens the refine dialog for it. */
+    onRefinePrompt: (revisionId: string, promptKey: string) => void
     onClose?: (revisionId: string) => void
 }) => (
     <ConfigPanel
@@ -39,6 +42,7 @@ export const RevisionConfig = ({
         readOnly={readOnly}
         viewMode={viewMode}
         onViewModeChange={onViewModeChange}
+        onRefinePrompt={(promptKey) => onRefinePrompt(revisionId, promptKey)}
         switcher={
             <RevisionSwitcher
                 appId={appId}

@@ -26,6 +26,8 @@ export interface ConfigPanelProps {
     switcher?: ReactNode
     /** Buttons shown in the header, before the view switch. */
     actions?: ReactNode
+    /** Shows the wand on each prompt section; called with the prompt's key in the config. */
+    onRefinePrompt?: (promptKey: string) => void
 }
 
 /**
@@ -42,6 +44,7 @@ export const ConfigPanel = ({
     onViewModeChange,
     switcher,
     actions,
+    onRefinePrompt,
 }: ConfigPanelProps) => {
     const hasPendingHydration = useAtomValue(hasPendingHydrationAtomFamily(revisionId))
     const headerSticks = useMediaQuery("(min-width: 640px)")
@@ -63,6 +66,7 @@ export const ConfigPanel = ({
                     disabled={readOnly}
                     viewMode={viewMode}
                     stickyHeaderTop={headerSticks ? HEADER_HEIGHT : 0}
+                    onRefinePrompt={onRefinePrompt}
                 />
             )}
         </section>

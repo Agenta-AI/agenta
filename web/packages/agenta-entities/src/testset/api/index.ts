@@ -21,6 +21,9 @@ export {
     fetchVariantDetail,
 } from "./api"
 
+// Its own module, so a bundle that never calls it does not carry it.
+export {fetchRevisionColumnKeys} from "./columnKeys"
+
 // Mutation API functions
 export {
     // Testset CRUD

@@ -74,7 +74,11 @@ describe("Testset row actions", () => {
 
         await act(async () => actions().openLatest(row))
 
-        expect(fetchLatestRevision).toHaveBeenCalledWith({projectId: "pr", testsetId: "t-alpha"})
+        expect(fetchLatestRevision).toHaveBeenCalledWith({
+            projectId: "pr",
+            testsetId: "t-alpha",
+            includeArchived: false,
+        })
         expect(push).toHaveBeenCalledWith(`${BASE}/testsets/rev-3`)
     })
 
