@@ -11,7 +11,7 @@ import {useRouter} from "next/router"
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
 const FOOTER_ROW =
-    "flex h-9 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-3 text-left text-sm text-foreground [font-family:inherit] hover:bg-accent"
+    "flex h-9 w-full max-md:h-11 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-3 text-left text-sm text-foreground [font-family:inherit] hover:bg-accent"
 
 const LIST_POLICY = {origin: "exclude-trigger", expansions: []} as const
 

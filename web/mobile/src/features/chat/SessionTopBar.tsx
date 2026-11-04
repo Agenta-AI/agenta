@@ -9,7 +9,8 @@ import {FilesPaneToggle, useSessionFilesPane} from "@agenta/entity-ui/drive"
 import {AgentPageHeader, AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
 import {isBrowserEnabled} from "@agenta/shared/api"
 import {KeyboardShortcutsSheet, useShortcutsSheetHotkey} from "@agenta/ui/shortcuts"
-import {LockSimpleIcon} from "@phosphor-icons/react"
+import {Button} from "@agenta/ui/ui"
+import {LockSimpleIcon, PlusIcon} from "@phosphor-icons/react"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {sharingCopy} from "@/lib/sharingCopy"
@@ -23,6 +24,7 @@ import {SessionSharingControl} from "./SessionSharingControl"
 import {SessionSwitcher} from "./SessionSwitcher"
 import {ShareMenu} from "./ShareMenu"
 import {useSessionHeader} from "./useSessionHeader"
+import {useStartBlankSession} from "./useStartBlankSession"
 
 /**
  * The session workspace's one bar: which agent, which session, and what you can do with them. It
@@ -69,6 +71,7 @@ export const SessionTopBar = ({
     // version now, so the status offers it at once.
     const heldCommit = useAtomValue(heldCommitAtomFamily(sessionId))
     const stream = useSessionHeader(projectId, sessionId).data ?? null
+    const startBlank = useStartBlankSession(`/w/${workspaceId}/p/${projectId}`)
 
     const [shortcutsOpen, setShortcutsOpen] = useState(false)
     useShortcutsSheetHotkey(useCallback(() => setShortcutsOpen(true), []))
@@ -159,6 +162,16 @@ export const SessionTopBar = ({
                     </span>
                 )}
                 {revision}
+                {hasSessions && agentId ? (
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="New session"
+                        onClick={() => startBlank(agentId)}
+                    >
+                        <PlusIcon />
+                    </Button>
+                ) : null}
                 {more}
                 {share}
                 {shortcuts}

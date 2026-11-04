@@ -10,9 +10,6 @@ import {
     Popover,
     PopoverContent,
     PopoverTrigger,
-    Sheet,
-    SheetContent,
-    SheetTitle,
     SimpleTooltip,
     SkeletonBlock,
 } from "@agenta/ui/ui"
@@ -34,7 +31,7 @@ const RENAME_INPUT =
 
 /**
  * Which session is on screen, and the way to any other: a trigger that opens this agent's list,
- * with New session beside it. On a phone the trigger is the bar's title and the list a sheet.
+ * with New session beside it. On a phone the trigger is the bar's title.
  */
 export const SessionSwitcher = ({
     sessionId,
@@ -99,15 +96,37 @@ export const SessionSwitcher = ({
     const searchRef = useRef<HTMLInputElement>(null)
     const focusBeforeOpen = useRef<HTMLElement | null>(null)
 
-    const panelBody = (
-        <SessionSwitcherPanel
-            agentId={agentId}
-            base={base}
-            activeSessionId={sessionId}
-            onNew={onNew}
-            onClose={close}
-            searchRef={searchRef}
-        />
+    const sessionsPanel = (
+        <PopoverContent
+            align="start"
+            collisionPadding={8}
+            aria-label="Sessions"
+            className={`${phone ? "w-[calc(100vw-16px)]" : "w-[360px]"} overflow-hidden p-0`}
+            onOpenAutoFocus={(event) => {
+                event.preventDefault()
+                focusBeforeOpen.current = document.activeElement as HTMLElement | null
+                // A phone keeps its keyboard down until the person taps the search.
+                if (!phone) searchRef.current?.focus()
+            }}
+            onInteractOutside={() => {
+                focusBeforeOpen.current = null
+            }}
+            onCloseAutoFocus={(event) => {
+                const previous = focusBeforeOpen.current
+                if (!previous?.isConnected || previous === document.body) return
+                event.preventDefault()
+                previous.focus()
+            }}
+        >
+            <SessionSwitcherPanel
+                agentId={agentId}
+                base={base}
+                activeSessionId={sessionId}
+                onNew={onNew}
+                onClose={close}
+                searchRef={searchRef}
+            />
+        </PopoverContent>
     )
     const label = header.isPending ? (
         <SkeletonBlock active className="h-3.5 w-32" />
@@ -121,45 +140,36 @@ export const SessionSwitcher = ({
             <>
                 <PageTitle title={stream?.name} />
                 {order}
-                {rename.renaming ? (
-                    <span className="flex h-9 min-w-0 flex-1 px-1">
-                        <InlineRenameInput rename={rename} className={RENAME_INPUT} />
-                    </span>
-                ) : (
-                    <button
-                        type="button"
-                        aria-haspopup="dialog"
-                        aria-expanded={open}
-                        aria-label={`${title} in ${agentName}, switch session`}
-                        onClick={() => setPanel("switcher")}
-                        className="active:bg-accent text-foreground flex h-10 min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-control border-0 bg-transparent px-1.5 text-sm font-semibold [font-family:inherit]"
-                    >
-                        <span
-                            aria-hidden
-                            className={`${AGENT_CHIP_BOX} ${chip.className}`}
-                            style={chip.style}
-                        >
-                            {chip.glyph}
+                <Popover open={open} onOpenChange={(next) => setPanel(next ? "switcher" : null)}>
+                    {rename.renaming ? (
+                        <span className="flex h-9 min-w-0 flex-1 px-1">
+                            <InlineRenameInput rename={rename} className={RENAME_INPUT} />
                         </span>
-                        {label}
-                        <CaretDownIcon
-                            size={12}
-                            aria-hidden
-                            className="text-muted-foreground shrink-0"
-                        />
-                    </button>
-                )}
-                <Sheet open={open} onOpenChange={(next) => setPanel(next ? "switcher" : null)}>
-                    <SheetContent
-                        side="responsive"
-                        aria-describedby={undefined}
-                        onOpenAutoFocus={(event) => event.preventDefault()}
-                        className="flex flex-col pb-[env(safe-area-inset-bottom)]"
-                    >
-                        <SheetTitle className="sr-only">Sessions</SheetTitle>
-                        {panelBody}
-                    </SheetContent>
-                </Sheet>
+                    ) : (
+                        <PopoverTrigger asChild>
+                            <button
+                                type="button"
+                                aria-label={`${title} in ${agentName}, switch session`}
+                                className="active:bg-accent text-foreground flex h-10 min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-control border-0 bg-transparent px-1.5 text-sm font-semibold [font-family:inherit]"
+                            >
+                                <span
+                                    aria-hidden
+                                    className={`${AGENT_CHIP_BOX} ${chip.className}`}
+                                    style={chip.style}
+                                >
+                                    {chip.glyph}
+                                </span>
+                                {label}
+                                <CaretDownIcon
+                                    size={12}
+                                    aria-hidden
+                                    className="text-muted-foreground shrink-0"
+                                />
+                            </button>
+                        </PopoverTrigger>
+                    )}
+                    {sessionsPanel}
+                </Popover>
             </>
         )
     }
@@ -205,27 +215,7 @@ export const SessionSwitcher = ({
                         </SimpleTooltip>
                     ) : null}
                 </div>
-                <PopoverContent
-                    align="start"
-                    aria-label="Sessions"
-                    className="w-[360px] overflow-hidden p-0"
-                    onOpenAutoFocus={(event) => {
-                        event.preventDefault()
-                        focusBeforeOpen.current = document.activeElement as HTMLElement | null
-                        searchRef.current?.focus()
-                    }}
-                    onInteractOutside={() => {
-                        focusBeforeOpen.current = null
-                    }}
-                    onCloseAutoFocus={(event) => {
-                        const previous = focusBeforeOpen.current
-                        if (!previous?.isConnected || previous === document.body) return
-                        event.preventDefault()
-                        previous.focus()
-                    }}
-                >
-                    {panelBody}
-                </PopoverContent>
+                {sessionsPanel}
             </Popover>
         </>
     )

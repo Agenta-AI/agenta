@@ -131,7 +131,7 @@ const Row = ({
         <div
             onClick={() => onOpenRow(vm)}
             className={clsx(
-                "group relative box-border mb-1 flex h-[30px] w-full cursor-pointer select-none items-center gap-[10px] rounded-md px-3 text-sm leading-[30px]",
+                "group relative box-border mb-1 flex h-[30px] w-full cursor-pointer select-none items-center gap-[10px] rounded-md px-3 text-sm leading-[30px] max-md:h-10 max-md:leading-10",
                 // A fill, not the rail's inset ring: on the popover's white the ring read as a
                 // drawn box. Same step the selected tab chip wears, so the two agree.
                 active
@@ -385,7 +385,10 @@ export const SessionCardList = ({
             return (
                 <div className="flex flex-col" aria-busy>
                     {COMPACT_SKELETON_TITLE_WIDTHS.map((width) => (
-                        <div key={width} className="mb-1 flex h-[30px] items-center gap-[10px] px-3">
+                        <div
+                            key={width}
+                            className="mb-1 flex h-[30px] items-center gap-[10px] px-3 max-md:h-10"
+                        >
                             <SkeletonBlock active shape="circle" className="size-2.5 shrink-0" />
                             <SkeletonBlock active className={clsx("h-3", width)} />
                             <SkeletonBlock active className="ml-auto h-3 w-12 shrink-0" />
