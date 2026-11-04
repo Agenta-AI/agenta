@@ -35,9 +35,9 @@ vi.mock("next/router", () => ({
     }),
 }))
 
-import {answerRequest, newServerState, type ScenarioServerState} from "./runScenariosFixtures"
-
 import {ScenariosTab} from "@/features/evaluation-run/scenarios/ScenariosTab"
+
+import {answerRequest, newServerState, type ScenarioServerState} from "./runScenariosFixtures"
 
 /** The scenarios tab only needs the run kind: an automatic run has no Annotate action. */
 const AUTO_RUN: RunHeader = {

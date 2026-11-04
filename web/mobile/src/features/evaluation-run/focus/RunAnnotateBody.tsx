@@ -2,14 +2,14 @@ import type {RunColumnGroup} from "@agenta/entities/evaluationRun/etl"
 import {projectIdAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
 
-import type {ScenarioRow} from "../scenarios/scenarioColumns"
-
-import {ScenarioFocusBody} from "./ScenarioFocusBody"
-
 import {AnnotationFormPanel} from "@/features/annotations/AnnotationFormPanel"
 import {ScenarioMessage} from "@/features/annotations/ScenarioMessage"
 import type {OnAnnotationsSaved} from "@/features/annotations/useSubmitAnnotations"
 import {useProjectPermission} from "@/features/context/useProjectPermission"
+
+import type {ScenarioRow} from "../scenarios/scenarioColumns"
+
+import {ScenarioFocusBody} from "./ScenarioFocusBody"
 
 /** The scenario's own values; the evaluator scores are what the form edits. */
 const CONTENT_KINDS = new Set(["testset", "application"])
