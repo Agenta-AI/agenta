@@ -4,10 +4,14 @@
  * reload or a colleague opens restores the same thing.
  */
 import type {TraceSpanNode} from "@agenta/entities/trace"
+import {isDrawerOpenAtom, openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {parseSnapshot} from "@agenta/playground/snapshot"
-import {describe, expect, it} from "vitest"
+import {getDefaultStore} from "jotai"
+import type {NextRouter} from "next/router"
+import {describe, expect, it, vi} from "vitest"
 
 import {
+    openTraceInPlayground,
     resolveTracePlaygroundTarget,
     tracePlaygroundTarget,
 } from "@/features/observability/tracePlayground"
@@ -223,5 +227,30 @@ describe("resolveTracePlaygroundTarget", () => {
             kind: "link",
             href: "/w/ws-1/p/proj-1/apps/app-1/playground?revisions=rev-1",
         })
+    })
+})
+
+describe("openTraceInPlayground", () => {
+    it("The drawer stays open until the playground page shows", async () => {
+        const store = getDefaultStore()
+        store.set(openTraceDrawerAtom, {traceId: "trace-1"})
+        let finish: (done: boolean) => void = () => undefined
+        const push = vi.fn(() => new Promise<boolean>((resolve) => (finish = resolve)))
+        const router = {query: {workspace_id: "ws-1", project_id: "proj-1"}, push}
+
+        await openTraceInPlayground(
+            router as unknown as NextRouter,
+            span({
+                attributes: {ag: {data: {}, references: {evaluator_revision: {id: "ev-rev-1"}}}},
+            }),
+        )
+
+        expect(push).toHaveBeenCalledWith(
+            "/w/ws-1/p/proj-1/evaluators/playground?revisions=ev-rev-1",
+        )
+        // Closing now would clear `?trace` and cancel the navigation while the page loads.
+        expect(store.get(isDrawerOpenAtom)).toBe(true)
+        finish(true)
+        await vi.waitFor(() => expect(store.get(isDrawerOpenAtom)).toBe(false))
     })
 })

@@ -145,7 +145,11 @@ export const openTraceInPlayground = async (router: NextRouter, span: TraceSpanN
         )
         return null
     }
-    getDefaultStore().set(closeTraceDrawerAtom)
-    void router.push(target.href).catch(() => undefined)
+    // Close the drawer once the new page shows. A closed drawer clears `?trace` from the address,
+    // and that push cancels the playground navigation while its page still loads.
+    void router
+        .push(target.href)
+        .then(() => getDefaultStore().set(closeTraceDrawerAtom))
+        .catch(() => undefined)
     return null
 }
