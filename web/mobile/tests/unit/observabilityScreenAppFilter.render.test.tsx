@@ -31,6 +31,8 @@ vi.mock("@agenta/observability", async (importOriginal) => ({
         traces: [],
         selectedRowKeys: [],
         setSelectedRowKeys: vi.fn(),
+        filters: [],
+        traceTabs: "trace",
     }),
     useSessions: () => ({refetchSessions: vi.fn()}),
 }))
