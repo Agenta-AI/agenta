@@ -33,6 +33,7 @@ export {
 
 export type {
     OpenQueuePayload,
+    OpenRunPayload,
     AnnotationProgress,
     AnnotationSessionCallbacks,
     AnnotationColumnDef,

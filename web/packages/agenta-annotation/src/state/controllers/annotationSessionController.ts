@@ -91,6 +91,7 @@ import type {
     AnnotationColumnDef,
     ScenarioListColumnDef,
     OpenQueuePayload,
+    OpenRunPayload,
     ApplyRouteStatePayload,
     AnnotationProgress,
     AnnotationSessionCallbacks,
@@ -110,8 +111,13 @@ const activeQueueIdAtom = atom<string | null>(null)
 /** The active queue's type (simple or evaluation) */
 const activeQueueTypeAtom = atom<QueueType | null>(null)
 
-/** The evaluation run ID — derived from queue data via simpleQueueMolecule */
+/** A run opened for annotation without a queue (`openRun`); null in a queue session. */
+const runScopeIdAtom = atom<string | null>(null)
+
+/** The evaluation run ID: the run opened directly, else the queue's run from simpleQueueMolecule */
 const activeRunIdAtom = atom<string | null>((get) => {
+    const runScopeId = get(runScopeIdAtom)
+    if (runScopeId) return runScopeId
     const queueId = get(activeQueueIdAtom)
     if (!queueId) return null
     return get(simpleQueueMolecule.selectors.runId(queueId))
@@ -1362,7 +1368,9 @@ const scenarioAnnotationsAtomFamily = atomFamily((scenarioId: string) =>
             return query.data ?? []
         }
 
-        // Path 2: Testcase-based resolution (for testcase queues without trace_id)
+        // Path 2: Testcase-based resolution (for testcase queues without trace_id). Never in a
+        // run opened directly: a test case query returns every run's annotations of that case.
+        if (get(runScopeIdAtom)) return []
         const testcaseRef = get(scenarioTestcaseRefAtomFamily(scenarioId))
         if (testcaseRef.testcaseId) {
             const testcaseQuery = get(
@@ -1386,6 +1394,7 @@ const scenarioAnnotationsQueryStateAtomFamily = atomFamily((scenarioId: string) 
             return get(scenarioAnnotationsQueryAtomFamily({scenarioId, annotationTraceIds}))
         }
 
+        if (get(runScopeIdAtom)) return null
         const testcaseRef = get(scenarioTestcaseRefAtomFamily(scenarioId))
         if (testcaseRef.testcaseId) {
             return get(
@@ -1924,9 +1933,11 @@ const scenarioMetricForEvaluatorAtomFamily = atomFamily(
 async function invalidateScenarioAnnotations(
     scenarioId: string,
     fallbackAnnotations: Annotation[] = [],
+    /** The run the save wrote to; the session may have closed while it ran. */
+    savedRunId: string | null = null,
 ) {
     const store = getStore()
-    const runId = store.get(activeRunIdAtom)
+    const runId = savedRunId ?? store.get(activeRunIdAtom)
     const projectId = store.get(projectIdAtom)
     let freshSteps: EvaluationResult[] | null = null
 
@@ -1998,7 +2009,7 @@ async function invalidateScenarioAnnotations(
                 }
             }
         }
-    } else if (projectId) {
+    } else if (projectId && !store.get(runScopeIdAtom)) {
         const testcaseRef = store.get(scenarioTestcaseRefAtomFamily(scenarioId))
         if (testcaseRef.testcaseId) {
             try {
@@ -2048,8 +2059,9 @@ async function invalidateScenarioAnnotations(
         }
     }
 
-    // Step 3: Trigger metrics refresh then refetch (fire-and-forget, independent)
-    if (projectId && runId) {
+    // Step 3: Trigger metrics refresh then refetch (fire-and-forget, independent). A run opened
+    // directly refreshes its scenario and run metrics itself, in order, after the save.
+    if (projectId && runId && !store.get(runScopeIdAtom)) {
         axios
             .post(
                 `/evaluations/metrics/refresh`,
@@ -2098,6 +2110,17 @@ const openQueueAtom = atom(null, (_get, set, payload: OpenQueuePayload) => {
 
     // Notify callback
     _onQueueOpened?.(queueId, queueType)
+})
+
+/**
+ * Open one evaluation run for annotation, without a queue. The form controller then annotates the
+ * run's scenarios; the caller owns navigation, since the session lists only queue scenarios.
+ */
+const openRunAtom = atom(null, (_get, set, payload: OpenRunPayload) => {
+    set(closeSessionAtom)
+    set(runScopeIdAtom, payload.runId)
+    // Saving must not move to another scenario: the run screens choose the scenario themselves.
+    set(focusAutoNextAtom, false)
 })
 
 /**
@@ -2372,6 +2395,7 @@ const closeSessionAtom = atom(null, (get, set) => {
     // Derived atoms (activeRunIdAtom, scenarioIdsAtom, scenarioRecordsAtom)
     // clear automatically when activeQueueIdAtom becomes null.
     set(activeQueueIdAtom, null)
+    set(runScopeIdAtom, null)
     set(activeQueueTypeAtom, null)
     set(focusedScenarioIdAtom, null)
     set(completedScenarioIdsAtom, new Set())
@@ -3543,6 +3567,8 @@ export const annotationSessionController = {
     actions: {
         /** Open a queue for annotation */
         openQueue: openQueueAtom,
+        /** Open an evaluation run for annotation, without a queue */
+        openRun: openRunAtom,
         /** Navigate to next scenario */
         navigateNext: navigateNextAtom,
         /** Navigate to previous scenario */
@@ -3650,6 +3676,7 @@ export const annotationSessionController = {
     // ========================================================================
     set: {
         openQueue: (payload: OpenQueuePayload) => getStore().set(openQueueAtom, payload),
+        openRun: (payload: OpenRunPayload) => getStore().set(openRunAtom, payload),
         navigateNext: () => getStore().set(navigateNextAtom),
         navigatePrev: () => getStore().set(navigatePrevAtom),
         navigateToIndex: (index: number) => getStore().set(navigateToIndexAtom, index),

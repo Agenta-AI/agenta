@@ -35,6 +35,7 @@ import type {
     EvaluationRunDataStep,
     EvaluationResult,
 } from "../core"
+import {findScenarioTraceResult} from "../core"
 
 // ============================================================================
 // HELPERS
@@ -458,25 +459,20 @@ export const scenarioStepsQueryAtomFamily = atomFamily(
 )
 
 /**
- * Derived atom: extract trace_id and span_id from the "input" step of a scenario.
- * The input step (or first step with a trace_id) provides the trace reference.
+ * Derived atom: the trace a scenario annotates (`findScenarioTraceResult`): the first result with
+ * a trace that is not an annotation result.
  */
 const scenarioTraceRefAtomFamily = atomFamily(
     ({runId, scenarioId}: ScenarioStepsKey) =>
         atom((get) => {
             const query = get(scenarioStepsQueryAtomFamily({runId, scenarioId}))
-            const steps = query.data ?? []
-
-            // Find the first step with a trace_id (typically the "input" step)
-            for (const step of steps) {
-                if (step.trace_id) {
-                    return {
-                        traceId: step.trace_id,
-                        spanId: step.span_id ?? "",
-                    }
-                }
-            }
-            return {traceId: "", spanId: ""}
+            const step = findScenarioTraceResult(
+                query.data ?? [],
+                get(annotationStepsAtomFamily(runId)),
+            )
+            return step?.trace_id
+                ? {traceId: step.trace_id, spanId: step.span_id ?? ""}
+                : {traceId: "", spanId: ""}
         }),
     (a: ScenarioStepsKey, b: ScenarioStepsKey) =>
         a.runId === b.runId && a.scenarioId === b.scenarioId,

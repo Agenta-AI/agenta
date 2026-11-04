@@ -5,6 +5,7 @@ import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableToolbar} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
 import dynamic from "next/dynamic"
+import Link from "next/link"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
@@ -130,6 +131,11 @@ export const TestsetsListScreen = ({
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
                                     Testsets
                                 </h1>
+                                <Button asChild variant="ghost" size="sm">
+                                    <Link href={`${base}/testsets/archived`} prefetch={false}>
+                                        Archived
+                                    </Link>
+                                </Button>
                                 {createHandler ? (
                                     <Button size="sm" onClick={createHandler}>
                                         Create new testset

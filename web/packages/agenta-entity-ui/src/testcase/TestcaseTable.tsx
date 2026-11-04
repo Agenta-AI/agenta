@@ -25,6 +25,7 @@
 import {useCallback, useMemo, type ReactNode} from "react"
 
 import {
+    loadMoreTestcasesAtom,
     testcaseMolecule as testcase,
     testcaseDataController,
     type Column,
@@ -33,6 +34,7 @@ import {
 } from "@agenta/entities/testcase"
 import {SmartCellContent, TextCellContent} from "@agenta/ui/cell-renderers"
 import type {ColumnDefs, RowHeightFeatureConfig, TypeChipConfig} from "@agenta/ui/table"
+import {useSetAtom} from "jotai"
 
 import {EntityTable, type EntityColumnHeader} from "../shared"
 
@@ -178,6 +180,10 @@ export function TestcaseTable({
         [getTypeChipValue],
     )
 
+    // A server table loads later pages as the reader scrolls; a local one has one page.
+    const loadMore = useSetAtom(loadMoreTestcasesAtom)
+    const loadNextPage = useCallback(() => loadMore(config), [config, loadMore])
+
     return (
         <EntityTable<TestcaseTableRow, TestcaseDataConfig, Column>
             controller={testcaseDataController}
@@ -197,6 +203,7 @@ export function TestcaseTable({
             appendColumns={appendColumns}
             renderColumnHeader={renderColumnHeader}
             headerExtra={headerExtra}
+            loadNextPage={config.useLocal ? undefined : loadNextPage}
             typeChips={typeChips}
             renderCell={renderCell}
             emptyMessage="No testcases found"

@@ -41,6 +41,7 @@ import {
 } from "@agenta/entities/annotation"
 import {
     evaluationRunMolecule,
+    findScenarioTraceResult,
     queryEvaluationResults,
     type EvaluationResult,
     type EvaluationRunDataStep,
@@ -536,6 +537,24 @@ async function upsertAnnotationMetrics({
         },
         {params: {project_id: projectId}},
     )
+}
+
+/**
+ * Recompute a scenario's metrics, then the run's aggregate from them. The Overview of a run reads
+ * the aggregate, which the scenario refresh alone leaves as it was. A failure is logged only.
+ */
+async function refreshRunMetrics(projectId: string, runId: string, scenarioId: string) {
+    try {
+        for (const metrics of [{run_id: runId, scenario_id: scenarioId}, {run_id: runId}]) {
+            await axios.post(
+                `/evaluations/metrics/refresh`,
+                {metrics},
+                {params: {project_id: projectId}},
+            )
+        }
+    } catch (error) {
+        console.warn("[annotationForm] Metrics refresh failed:", error)
+    }
 }
 
 /**
@@ -1050,6 +1069,24 @@ function buildStepReferences(annotationSteps: EvaluationRunDataStep[]): Map<stri
 }
 
 /**
+ * The test set and test case references of a run-scoped annotation. The test set is named only when
+ * the run reads a single one, since a scenario result does not say which test set it came from.
+ */
+function buildRunScopeReferences(
+    steps: EvaluationRunDataStep[],
+    testcaseId: string | undefined,
+): {testset?: {id: string}; testcase?: {id: string}} {
+    const testsetIds = steps.flatMap((step) => {
+        const id = step.type === "input" ? step.references?.testset?.id : null
+        return id ? [id] : []
+    })
+    return {
+        ...(testsetIds.length === 1 ? {testset: {id: testsetIds[0]}} : {}),
+        ...(testcaseId ? {testcase: {id: testcaseId}} : {}),
+    }
+}
+
+/**
  * Match existing annotations to evaluator slugs.
  * In testcase mode, uses queue-scoped matching with conflict detection.
  * In trace mode, matches by evaluator reference.
@@ -1109,11 +1146,13 @@ function matchExistingAnnotations({
  */
 async function resolveInvocationStepKey({
     cachedSteps,
+    annotationSteps,
     projectId,
     runId,
     scenarioId,
 }: {
     cachedSteps: EvaluationResult[]
+    annotationSteps: EvaluationRunDataStep[]
     projectId: string
     runId: string
     scenarioId: string
@@ -1132,12 +1171,7 @@ async function resolveInvocationStepKey({
         }
     }
 
-    for (const step of steps) {
-        if (step.trace_id && step.step_key) {
-            return step.step_key
-        }
-    }
-    return null
+    return findScenarioTraceResult(steps, annotationSteps)?.step_key || null
 }
 
 interface SubmittedEntry {
@@ -1245,7 +1279,7 @@ async function awaitStepResultUpserts({
     projectId,
     runId,
     scenarioId,
-}: PostSubmitOpsParams): Promise<void> {
+}: PostSubmitOpsParams): Promise<boolean> {
     const stepKeyBySlug = resolveStepKeyBySlug(annotationSteps)
 
     const promises = entries.map((entry) => {
@@ -1268,33 +1302,36 @@ async function awaitStepResultUpserts({
             console.warn("[annotationForm] Step result upsert failed:", result.reason)
         }
     }
+    return results.every((result) => result.status === "fulfilled")
 }
 
 /**
- * Fire-and-forget metric upserts — supplementary data, not critical for annotation resolution.
+ * Metric upserts — supplementary data, not critical for annotation resolution. A failure is
+ * logged, never thrown; the returned promise settles when every write has.
  */
-function fireMetricUpserts({
+function writeMetricUpserts({
     entries,
     annotationSteps,
     invocationStepKey,
     projectId,
     runId,
     scenarioId,
-}: PostSubmitOpsParams): void {
+}: PostSubmitOpsParams): Promise<void> {
     const stepKeyBySlug = resolveStepKeyBySlug(annotationSteps)
 
-    for (const entry of entries) {
+    const writes = entries.map((entry) => {
         const annotationStepKey =
             stepKeyBySlug.get(entry.slug) ?? `${invocationStepKey}.${entry.slug}`
 
-        upsertAnnotationMetrics({
+        return upsertAnnotationMetrics({
             projectId,
             runId,
             scenarioId,
             outputs: entry.outputs,
             stepKey: annotationStepKey,
         }).catch((err) => console.warn("[annotationForm] Metric save failed:", err))
-    }
+    })
+    return Promise.all(writes).then(() => undefined)
 }
 
 // ============================================================================
@@ -1303,7 +1340,7 @@ function fireMetricUpserts({
 
 /** Submit annotations and optionally mark a not-yet-completed scenario complete */
 const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotationsPayload) => {
-    const {scenarioId, queueId, markComplete} = payload
+    const {scenarioId, queueId = "", markComplete} = payload
     const rawProjectId = get(projectIdAtom)
     const traceSpan = get(traceSpanByScenarioAtomFamily(scenarioId))
     const scenarioStatuses = get(annotationSessionController.selectors.scenarioStatuses())
@@ -1339,6 +1376,14 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
             ? get(evaluationRunMolecule.selectors.annotationSteps(activeRunId))
             : []
         const stepRefsByEvalId = buildStepReferences(annotationSteps)
+        // A run annotated without a queue also names the test set and test case it rated.
+        const runScopeReferences =
+            !queueId && activeRunId
+                ? buildRunScopeReferences(
+                      get(evaluationRunMolecule.selectors.steps(activeRunId)),
+                      traceSpan.testcaseId,
+                  )
+                : {}
 
         // Phase 2: Match existing annotations to evaluator slugs
         const existingBySlug = matchExistingAnnotations({
@@ -1358,6 +1403,7 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
             )
             invocationStepKey = await resolveInvocationStepKey({
                 cachedSteps: stepsQuery.data ?? [],
+                annotationSteps,
                 projectId,
                 runId,
                 scenarioId,
@@ -1519,6 +1565,7 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
                             ...(stepRefs?.evaluator_revision
                                 ? {evaluator_revision: stepRefs.evaluator_revision}
                                 : {}),
+                            ...runScopeReferences,
                         },
                         links: {
                             [linksKey]: {
@@ -1557,7 +1604,7 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
         // Phase 6: Post-submit ops (step results + metrics)
         // Step result upserts are AWAITED — they link annotations to the scenario
         // so that path-1 (step-based) resolution finds them on next load.
-        // Metric upserts remain fire-and-forget (nice-to-have, not critical).
+        // Metric upserts are supplementary: a queue save does not wait for them, a run save does.
         if (runId && invocationStepKey) {
             const submittedEntries = buildSubmittedEntries({
                 metrics,
@@ -1570,7 +1617,7 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
                 evaluationRunMolecule.selectors.annotationSteps(runId),
             )
 
-            await awaitStepResultUpserts({
+            const linked = await awaitStepResultUpserts({
                 entries: submittedEntries,
                 annotationSteps: currentAnnotationSteps,
                 invocationStepKey,
@@ -1578,9 +1625,12 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
                 runId,
                 scenarioId,
             })
+            // A run finds its annotations only through these links: without one, the save failed.
+            if (!queueId && !linked) throw new Error("Could not link the annotation to the run")
 
-            // Fire-and-forget: metrics are supplementary
-            fireMetricUpserts({
+            // Metrics are supplementary: a queue does not wait for them. A run's screens read the
+            // scenario scores again right after the save, so a run waits.
+            const metricWrites = writeMetricUpserts({
                 entries: submittedEntries,
                 annotationSteps: currentAnnotationSteps,
                 invocationStepKey,
@@ -1588,13 +1638,18 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
                 runId,
                 scenarioId,
             })
+            if (!queueId) await metricWrites
         }
 
         const submittedAnnotations = responses.filter(isAnnotationResponse)
         await annotationSessionController.cache.invalidateScenarioAnnotations(
             scenarioId,
             submittedAnnotations,
+            runId,
         )
+
+        // A run's screens read its metrics again right after the save: refresh them first.
+        if (!queueId && runId) await refreshRunMetrics(projectId, runId, scenarioId)
 
         // Phase 7: Invalidate caches
         if (traceId) {

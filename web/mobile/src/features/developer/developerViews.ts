@@ -7,6 +7,7 @@ import {
     GitBranchIcon,
     FolderSimpleIcon,
     ChartDonut,
+    ChartBar,
 } from "@phosphor-icons/react"
 
 /**
@@ -83,6 +84,14 @@ export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
         stage: "hidden",
     },
     {
+        id: "evaluations",
+        label: "Evaluations",
+        description: "Evaluation runs and their results.",
+        routes: ["/evaluations", "/evaluations/results/[evaluation_id]"],
+        nav: {icon: ChartBar, section: "developer"},
+        stage: "hidden",
+    },
+    {
         id: "observability-app-filter",
         label: "Filter by app",
         description:
@@ -127,6 +136,21 @@ export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
         description: "Automatic and human evaluators, with archive and restore.",
         routes: ["/evaluators", "/evaluators/archived"],
         nav: {icon: ChartDonut, section: "developer"},
+        stage: "hidden",
+    },
+    {
+        id: "app-overview",
+        label: "App overview",
+        description:
+            "The overview of a prompt or custom app: deployments, recent prompts and evaluations.",
+        routes: ["/apps/[app_id]/overview"],
+        stage: "hidden",
+    },
+    {
+        id: "observability-actions",
+        label: "Trace actions",
+        description:
+            "Add to testset, Annotate, annotation filters and queue all matching traces on the traces page.",
         stage: "hidden",
     },
 ]
