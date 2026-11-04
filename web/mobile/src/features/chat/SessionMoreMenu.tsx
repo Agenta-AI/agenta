@@ -128,8 +128,9 @@ export const SessionMoreMenu = ({
             ? [
                   {
                       key: "sessions",
-                      label: "Session history",
+                      label: "Search sessions",
                       icon: <ChatsCircleIcon size={15} aria-hidden />,
+                      shortcut: "session.search",
                       afterClose: true,
                       onSelect: () => setPanel("switcher"),
                   },

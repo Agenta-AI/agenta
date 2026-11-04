@@ -25,8 +25,6 @@ lists the shortcuts we should reconsider.
 
 ## Controls to reconsider
 
-- "Session history" in the ⋯ menu opens the session search, so it repeats that control. It
-  stays because the design shows it.
 - Chat mode (`chatPanelMaximizedAtom`) has no control on `/m` any more. `Alt+K` used to toggle
   it. The flag can still arrive from the old desktop app through local storage, and the bar's
   "Show configuration" clears it.

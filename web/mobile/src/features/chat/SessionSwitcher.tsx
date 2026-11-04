@@ -12,16 +12,8 @@ import {
     withSessionShortcutKeys,
 } from "@agenta/sessions-ui"
 import {userAtom} from "@agenta/shared/state"
-import {ShortcutKeys} from "@agenta/ui/shortcuts"
-import {
-    Button,
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-    SimpleTooltip,
-    SkeletonBlock,
-} from "@agenta/ui/ui"
-import {CaretDownIcon, MagnifyingGlassIcon, RobotIcon} from "@phosphor-icons/react"
+import {Popover, PopoverAnchor, PopoverContent, PopoverTrigger, SkeletonBlock} from "@agenta/ui/ui"
+import {CaretDownIcon, RobotIcon} from "@phosphor-icons/react"
 import {useAtom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -40,8 +32,8 @@ const RENAME_INPUT =
     "border-border bg-background text-foreground focus:border-primary box-border h-control-sm min-w-0 flex-1 rounded-control-sm border border-solid px-2 text-sm outline-none [font-family:inherit]"
 
 /**
- * Which session is on screen, and the way to any other: a rail of this agent's sessions, with a
- * search for the rest. On a phone it is the bar's title, which opens that same search.
+ * Which session is on screen, and the way to any other: a rail of this agent's sessions. `Alt+K`
+ * and the ⋯ menu open a search for the rest. On a phone the bar's title opens that search.
  */
 export const SessionSwitcher = ({
     sessionId,
@@ -152,25 +144,6 @@ export const SessionSwitcher = ({
     const openSession = (id: string) => {
         if (id !== sessionId) void router.push(`${base}/sessions/${id}`)
     }
-    // The rail shows the recent few; this finds the rest.
-    const search = (
-        <Popover open={open} onOpenChange={(next) => setPanel(next ? "switcher" : null)}>
-            <SimpleTooltip
-                title={
-                    <span className="flex items-center gap-1.5">
-                        Search sessions <ShortcutKeys id="session.search" tone="inverse" />
-                    </span>
-                }
-            >
-                <PopoverTrigger asChild>
-                    <Button variant="ghost" size="icon-sm" aria-label="Search sessions">
-                        <MagnifyingGlassIcon />
-                    </Button>
-                </PopoverTrigger>
-            </SimpleTooltip>
-            {sessionsPanel}
-        </Popover>
-    )
 
     if (phone) {
         return (
@@ -214,41 +187,45 @@ export const SessionSwitcher = ({
     return (
         <>
             <PageTitle title={stream?.name} />
-            <div className="w-[300px] min-w-0 lg:w-[440px] xl:w-[592px]">
-                {agentId || !agentResolving ? (
-                    <SessionTabRail
-                        bare
-                        agentId={agentId ?? undefined}
-                        policy={{origin: "exclude-trigger", expansions: []}}
-                        limit={12}
-                        withPinned
-                        lowPriority
-                        activeSessionId={sessionId}
-                        activeFallbackTitle={stream?.name}
-                        menuFor={(vm) =>
-                            withSessionShortcutKeys(menu.menuFor(vm), {
-                                isActive: vm.id === sessionId,
-                            })
-                        }
-                        onMenuSelect={menu.onMenuSelect}
-                        onRenameTab={menu.onRenameRow}
-                        canRenameTab={(vm) =>
-                            sessionMenuAccess(
-                                {ownerUserId: vm.stream.owner_user_id ?? null},
-                                me?.id,
-                            ) !== "member"
-                        }
-                        onClose={(vm, ordered) => closeTabs([vm.id], ordered)}
-                        onCloseMany={closeTabs}
-                        onSelect={(vm) => openSession(vm.id)}
-                        onSelectUnlisted={openSession}
-                        onNew={onNew}
-                        extra={search}
-                    />
-                ) : (
-                    <SessionTabStrip bare extra={search} />
-                )}
-            </div>
+            <Popover open={open} onOpenChange={(next) => setPanel(next ? "switcher" : null)}>
+                <PopoverAnchor asChild>
+                    <div className="w-[300px] min-w-0 lg:w-[440px] xl:w-[592px]">
+                        {agentId || !agentResolving ? (
+                            <SessionTabRail
+                                bare
+                                agentId={agentId ?? undefined}
+                                policy={{origin: "exclude-trigger", expansions: []}}
+                                limit={12}
+                                withPinned
+                                lowPriority
+                                activeSessionId={sessionId}
+                                activeFallbackTitle={stream?.name}
+                                menuFor={(vm) =>
+                                    withSessionShortcutKeys(menu.menuFor(vm), {
+                                        isActive: vm.id === sessionId,
+                                    })
+                                }
+                                onMenuSelect={menu.onMenuSelect}
+                                onRenameTab={menu.onRenameRow}
+                                canRenameTab={(vm) =>
+                                    sessionMenuAccess(
+                                        {ownerUserId: vm.stream.owner_user_id ?? null},
+                                        me?.id,
+                                    ) !== "member"
+                                }
+                                onClose={(vm, ordered) => closeTabs([vm.id], ordered)}
+                                onCloseMany={closeTabs}
+                                onSelect={(vm) => openSession(vm.id)}
+                                onSelectUnlisted={openSession}
+                                onNew={onNew}
+                            />
+                        ) : (
+                            <SessionTabStrip bare />
+                        )}
+                    </div>
+                </PopoverAnchor>
+                {sessionsPanel}
+            </Popover>
         </>
     )
 }
