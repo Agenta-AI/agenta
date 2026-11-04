@@ -48,7 +48,7 @@ export const PaneEdgeToggle = ({
                 }}
                 className={clsx(
                     "border-border bg-background text-muted-foreground hover:text-foreground absolute top-1/2 z-20 box-border flex h-10 w-5 -translate-y-1/2 cursor-pointer items-center justify-center border border-solid p-0 shadow-sm",
-                    open ? "-translate-x-1/2 rounded-full" : "rounded-r-full border-l-0",
+                    open ? "-translate-x-1/2 rounded-[10px]" : "rounded-r-[10px] border-l-0",
                 )}
             >
                 <Caret size={12} aria-hidden />
