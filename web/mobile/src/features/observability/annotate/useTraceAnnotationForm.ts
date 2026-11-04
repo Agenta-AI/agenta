@@ -8,7 +8,7 @@ import {
 } from "@agenta/entities/workflow"
 import type {Workflow} from "@agenta/entities/workflow"
 import {axios, getAgentaApiUrl, getHostQueryClient} from "@agenta/shared/api"
-import {activeUserIdAtom, projectIdAtom} from "@agenta/shared/state"
+import {projectIdAtom, userAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
 import {atom, useAtomValue} from "jotai"
 
@@ -108,7 +108,9 @@ export const useTraceAnnotationForm = ({
     onSaved: () => void
 }) => {
     const projectId = useAtomValue(projectIdAtom)
-    const userId = useAtomValue(activeUserIdAtom)
+    // The profile `id`, which an annotation stores as its author. Not `activeUserIdAtom`: that is
+    // the login `uid`, a different value, so no annotation would ever read as the user's own.
+    const userId = useAtomValue(userAtom)?.id ?? null
     const {evaluators: humanEvaluators} = useHumanEvaluators()
     const allEvaluators = useAtomValue(evaluatorsListQueryAtom)
     // What this sheet saved, by annotation trace id. It stands in for the drawer's copy for the
