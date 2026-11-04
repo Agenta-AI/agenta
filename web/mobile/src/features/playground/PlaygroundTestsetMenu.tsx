@@ -5,7 +5,7 @@ import {useTestsetMenuModel} from "@agenta/playground-ui/hooks"
 import {TestsetMenu} from "@agenta/playground-ui/panels/runs"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useStore} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
@@ -13,6 +13,7 @@ import {useProjectPermission} from "../context/useProjectPermission"
 import type {CreatedTestset} from "../testsets/create/useUploadTestset"
 
 import {createdTestsetPayload} from "./createdTestsetLoad"
+import {runTraceIds} from "./playgroundRunTraces"
 
 // Each dialog downloads when it first opens: the menu button is all the run pane loads.
 const LoadTestsetDialog = dynamic(
@@ -66,7 +67,9 @@ export const PlaygroundTestsetMenu = () => {
     const {dialog, loadableId} = model
     const [syncMode, setSyncMode] = useState("commit")
     const [creating, setCreating] = useState(false)
-    const [adding, setAdding] = useState(false)
+    // The traces of the runs to add, read when the user picks "Add to test set".
+    const [adding, setAdding] = useState<string[] | null>(null)
+    const store = useStore()
     const router = useRouter()
     const projectId = useAtomValue(projectIdAtom) as string | null
     const canAddToTestset = useProjectPermission(projectId ?? "", "edit_testsets")
@@ -99,10 +102,14 @@ export const PlaygroundTestsetMenu = () => {
         <>
             <TestsetMenu
                 model={model}
-                onAddToTestset={canAddToTestset ? () => setAdding(true) : undefined}
+                onAddToTestset={
+                    canAddToTestset
+                        ? () => setAdding(runTraceIds(store.get, loadableId))
+                        : undefined
+                }
             />
             {adding ? (
-                <PlaygroundAddToTestset loadableId={loadableId} onClose={() => setAdding(false)} />
+                <PlaygroundAddToTestset traceIds={adding} onClose={() => setAdding(null)} />
             ) : null}
             {dialog?.kind === "load" || dialog?.kind === "edit" ? (
                 <LoadTestsetDialog
