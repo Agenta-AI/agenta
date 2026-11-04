@@ -17,6 +17,10 @@ export {
     type UseTurnMessageParams,
 } from "./useTurnMessage"
 export {useChatTurn, type ChatTurnModel, type UseChatTurnParams} from "./useChatTurn"
+export {
+    usePlaygroundTestcaseEditorModel,
+    type SuggestedColumn,
+} from "./usePlaygroundTestcaseEditorModel"
 export {useChatConfigMessages} from "./useChatConfigMessages"
 export {
     gatewayToolKey,

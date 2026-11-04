@@ -153,6 +153,28 @@ describe("InputVariableCard", () => {
         expect(onValueChange).not.toHaveBeenCalled()
     })
 
+    it("A key added in JSON view is kept", async () => {
+        await render({
+            name: "geo",
+            value: {region: "EU"},
+            expectedType: "object",
+            expectedSchema: {type: "object", properties: {region: {type: "string"}}},
+        })
+        await act(async () =>
+            store.set(variableViewModeAtomFamily({rowId: "row-1", varName: "geo"}), "json"),
+        )
+
+        await type(
+            host.querySelector('[data-testid="code"]')!,
+            '{"region": "EU", "note": "added by hand"}',
+        )
+
+        expect(onValueChange).toHaveBeenLastCalledWith("geo", {
+            region: "EU",
+            note: "added by hand",
+        })
+    })
+
     it("The chosen view belongs to one row and one variable", async () => {
         const card = (rowId: string, name: string) => (
             <InputVariableCard
