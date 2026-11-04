@@ -8,7 +8,7 @@ const http = require("node:http");
 const fs = require("node:fs");
 const crypto = require("node:crypto");
 const config = require("./config.cjs");
-const { createSession } = require("./browser.cjs");
+const { createSession, titleOf } = require("./browser.cjs");
 const { createLiveView, webSocketServer } = require("./live-view.cjs");
 const { OPS, agentError, errorText, opError } = require("./ops.cjs");
 const { pageView } = require("./page-text.cjs");
@@ -50,10 +50,7 @@ function reply(res, status, body) {
 }
 
 const tabLine = (page, i, active) =>
-  page
-    .title()
-    .catch(() => "")
-    .then((title) => `${page === active ? "*" : " "} ${i + 1}. ${title || "(no title)"} (${page.url()})`);
+  titleOf(page).then((title) => `${page === active ? "*" : " "} ${i + 1}. ${title || "(no title)"} (${page.url()})`);
 
 async function newTabsNote(opened, all) {
   if (!opened.length) return "";
@@ -91,6 +88,17 @@ async function serve() {
     return given.length === expected.length && crypto.timingSafeEqual(given, expected);
   }
 
+  function withinOpTime(work) {
+    let timer;
+    const stuck = new Promise((_, reject) => {
+      timer = setTimeout(
+        () => reject(Object.assign(new Error("page stuck"), { code: "page_stuck" })),
+        config.OP_TIMEOUT_MS,
+      );
+    });
+    return Promise.race([work, stuck]).finally(() => clearTimeout(timer));
+  }
+
   // One command at a time: parallel commands would interleave on the one tab.
   let opChain = Promise.resolve();
   function serially(work) {
@@ -98,7 +106,8 @@ async function serve() {
       busy++;
       session.lastActivity = Date.now();
       try {
-        return await work();
+        // A frozen page must not hold every later command behind this one.
+        return await withinOpTime(work());
       } finally {
         busy--;
         session.lastActivity = Date.now();
@@ -200,19 +209,20 @@ async function serve() {
     if (req.method === "GET" && url.pathname === "/health") {
       if (!session.connected()) return reply(res, 503, { ok: false });
       // The app shows this without opening the live view: the page, and the agent's ask.
-      const page = session.activePage && !session.activePage.isClosed() ? session.activePage : null;
+      // A frozen page must not stop this answering: a silent /health gets the browser restarted.
+      const active = (await session.tabs()).find((tab) => tab.active);
       return reply(res, 200, {
         ok: true,
         waiting: waits.reason(),
-        url: page ? page.url() : "",
-        title: page ? await page.title().catch(() => "") : "",
+        url: active?.url ?? "",
+        title: active?.title ?? "",
       });
     }
     if (req.method !== "POST") return reply(res, 404, { ok: false });
     if (!isLoopback(req.socket.remoteAddress)) return reply(res, 403, { ok: false });
     const body = await readJson(req);
     if (url.pathname === "/op")
-      return reply(res, 200, await serially(() => runOp(String(body.op || ""), body.args || {})));
+      return reply(res, 200, await serially(() => runOp(String(body.op || ""), body.args || {})).catch(opError));
     if (url.pathname === "/wait") return reply(res, 200, await waitForPerson(body.reason));
     if (url.pathname === "/save") {
       const saved = await serially(session.saveState);

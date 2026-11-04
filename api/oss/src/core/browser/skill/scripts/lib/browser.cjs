@@ -132,4 +132,4 @@ function createSession({ stateFile, waits }) {
   return session;
 }
 
-module.exports = { createSession };
+module.exports = { createSession, titleOf };

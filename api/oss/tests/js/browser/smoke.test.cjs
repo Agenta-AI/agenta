@@ -39,6 +39,18 @@ const PAGES = {
     <a href="/next" target="_blank">Open help</a>
     <p id="out"></p>`,
   "/next": "<title>Help</title><h1>Help page</h1>",
+  "/rerender": `<title>Search</title><input aria-label="Find"><p id="out"></p><script>
+    const first = document.querySelector("input");
+    first.addEventListener("focus", () => setTimeout(() => {
+      const next = document.createElement("input");
+      next.setAttribute("aria-label", "Find");
+      next.value = first.value;
+      next.onkeydown = (e) => { if (e.key === "Enter") out.textContent = "Searched " + next.value; };
+      first.replaceWith(next);
+      next.focus();
+    }, 40));
+  </script>`,
+  "/spin": `<title>Spin</title><button onclick="for (;;);">Freeze</button>`,
   "/signed-in": "<title>Account</title><h1>Welcome back</h1>",
   "/framed": `<title>Framed</title><h1>Outer page</h1><iframe src="/consent" title="Consent"></iframe>`,
   "/consent": `<button onclick="this.textContent='Rejected'">Reject all</button><button>Pay with card</button>`,
@@ -47,6 +59,7 @@ const PAGES = {
 
 function serveFixture() {
   const server = http.createServer((req, res) => {
+    if (req.url === "/hang") return;
     const body = PAGES[new URL(req.url, "http://x").pathname];
     const pathname = new URL(req.url, "http://x").pathname;
     const cookies = ["sid=s1; Path=/; Max-Age=3600"];
@@ -290,6 +303,45 @@ test("a sign-in survives a killed browser when the person never clicked I'm done
   process.kill(Number(fs.readFileSync(path.join(runDir, "pid"), "utf8")), "SIGKILL");
   viewer.terminate();
   assert.ok(saved().includes("login"), `saved cookies: ${saved()}`);
+});
+
+test("typing reaches a field that replaces itself on focus", { skip: !NODE_MODULES && "playwright-core with Chromium is not installed", timeout: 60_000 }, async (t) => {
+  const site = await serveFixture();
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "agenta-browser-rerender-"));
+  const env = { ...process.env, NODE_PATH: NODE_MODULES, AGENTA_BROWSER_ALLOW_SHARED_HOST: "1", AGENTA_BROWSER_DIR: path.join(cwd, "run"), AGENTA_BROWSER_PORT: String(await freePort()) };
+  const cli = makeCli(env, cwd);
+  t.after(async () => {
+    await cli("stop");
+    site.close();
+  });
+  const page = await cli("open", `http://127.0.0.1:${site.address().port}/rerender`);
+  const typed = await cli("type", refOf(page.out, 'textbox "Find"'), "shoes", "--submit");
+  assert.equal(typed.code, 0, typed.out);
+  assert.match(typed.out, /Searched shoes/);
+});
+
+test("a site that never answers is a timeout, and a frozen page keeps the browser and its tabs", { skip: !NODE_MODULES && "playwright-core with Chromium is not installed", timeout: 120_000 }, async (t) => {
+  const site = await serveFixture();
+  const origin = `http://127.0.0.1:${site.address().port}`;
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "agenta-browser-stuck-"));
+  const env = { ...process.env, NODE_PATH: NODE_MODULES, AGENTA_BROWSER_ALLOW_SHARED_HOST: "1", AGENTA_BROWSER_DIR: path.join(cwd, "run"), AGENTA_BROWSER_PORT: String(await freePort()), AGENTA_BROWSER_OP_TIMEOUT_MS: "35000" };
+  const cli = makeCli(env, cwd);
+  t.after(async () => {
+    await cli("stop");
+    site.closeAllConnections();
+    site.close();
+  });
+  await cli("open", `${origin}/next`);
+  const hung = await cli("open", `${origin}/hang`);
+  assert.equal(hung.code, 1, hung.out);
+  assert.match(hung.out, /page_timeout/);
+
+  const spin = await cli("open", `${origin}/spin`, "--new-tab");
+  const frozen = cli("click", refOf(spin.out, 'button "Freeze"'));
+  await new Promise((resolve) => setTimeout(resolve, 1_500));
+  const tabs = await cli("tab");
+  assert.equal((await frozen).code, 1);
+  assert.match(tabs.out, / 1\. .*\n.* 2\. /);
 });
 
 test("refs inside an iframe work and checks hold there; secret fields are never typed into", { skip: !NODE_MODULES && "playwright-core with Chromium is not installed", timeout: 120_000 }, async (t) => {

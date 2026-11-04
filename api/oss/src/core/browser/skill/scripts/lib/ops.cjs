@@ -135,12 +135,13 @@ const OPS = {
       if (!String(url || "").trim()) throw fail("invalid_arguments", "url is required");
       const target = withScheme(url);
       if (!navigationAllowed(target)) throw fail("site_not_allowed", target);
+      const from = page.url();
       try {
         await page.goto(target, { waitUntil: "domcontentloaded", timeout: NAVIGATION_TIMEOUT_MS });
       } catch (e) {
         if (/Timeout .*exceeded/.test(e.message)) {
           // A slow page that already opened is still a result: return what has loaded.
-          if (page.url() !== "about:blank" && navigationAllowed(page.url()))
+          if (page.url() !== from && navigationAllowed(page.url()))
             return `[The page did not finish loading in ${NAVIGATION_TIMEOUT_MS / 1000} s. This is what has loaded.]\n${await pageView(page)}`;
           throw fail("page_timeout", target);
         }
@@ -215,11 +216,15 @@ const OPS = {
     if (submit) await requireIntent(locator, args.intent, "submit");
     const before = await snapshotLines(page);
     await locator.click({ timeout: ACTION_TIMEOUT_MS });
+    // Some fields replace themselves after focus (Wikipedia's search), so the keys go to whatever
+    // holds focus, as a person's do. That must not be a secret field the click moved focus to.
+    const focused = page.locator(":focus");
+    if (await focused.count()) await refuseSecretField(focused);
     // Type over the selection, as a person does: clearing first re-renders some inputs and the keys go astray.
-    await locator.press("ControlOrMeta+a", { timeout: ACTION_TIMEOUT_MS });
-    await locator.pressSequentially(String(text ?? ""), { delay: 15, timeout: ACTION_TIMEOUT_MS * 3 });
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.keyboard.type(String(text ?? ""), { delay: 15 });
     if (submit) {
-      await locator.press("Enter", { timeout: ACTION_TIMEOUT_MS });
+      await page.keyboard.press("Enter");
       await settle(page);
     }
     await page.waitForTimeout(300);
@@ -265,6 +270,10 @@ function opError(e) {
       next_step: 'Run `agenta-browser wait "<why>"` and ask the person to sign in in the live view.',
     });
   if (e.code === "site_not_allowed") return agentError("site_not_allowed", `${e.message} cannot be opened.`);
+  if (e.code === "page_stuck")
+    return agentError("page_stuck", "The page stopped responding. The command may not have finished.", {
+      next_step: "Run `agenta-browser tab` and move to another tab, or open the page again.",
+    });
   if (e.code === "page_timeout")
     return agentError("page_timeout", `${e.message} did not start loading in ${NAVIGATION_TIMEOUT_MS / 1000} s.`, {
       next_step: "Try once more; if it fails again, tell the person the site is not responding.",
