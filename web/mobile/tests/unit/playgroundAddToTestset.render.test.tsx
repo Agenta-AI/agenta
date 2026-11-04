@@ -8,6 +8,7 @@
 import {act, type ReactNode} from "react"
 
 import {executionItemController, playgroundController} from "@agenta/playground"
+import {repetitionCountAtom} from "@agenta/playground/state"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {getDefaultStore} from "jotai"
@@ -26,7 +27,8 @@ import {
     typeInto,
 } from "../support/playgroundHarness"
 
-const {http, router, api} = vi.hoisted(() => ({
+const {http, router, api, toast} = vi.hoisted(() => ({
+    toast: {success: vi.fn(), error: vi.fn(), info: vi.fn(), loading: vi.fn(() => vi.fn())},
     http: {post: vi.fn(), get: vi.fn()},
     api: {
         querySpans: vi.fn(),
@@ -58,9 +60,7 @@ vi.mock("@agenta/sdk/resources", async (original) => ({
     getTestsetsClient: () => ({queryTestsets: api.queryTestsets}),
     getAccessClient: () => ({checkPermissions: api.checkPermissions}),
 }))
-vi.mock("@agenta/ui/app-message", () => ({
-    message: {success: vi.fn(), error: vi.fn(), info: vi.fn(), loading: vi.fn(() => vi.fn())},
-}))
+vi.mock("@agenta/ui/app-message", () => ({message: toast}))
 vi.mock("@agenta/ui/ui", async (original) => {
     const actual = await original<typeof import("@agenta/ui/ui")>()
     return {
@@ -95,6 +95,8 @@ vi.mock("@agenta/ui/ui", async (original) => {
 const TRACE = "0af7651916cd43dd8448eb211c80319c"
 const SPAN = "b7ad6b7169203331"
 const OTHER_TRACE = "1bf8762a27de54ee9559fc322d91420d"
+const REPEAT_TRACE = "2c09873b38ef65ff0660ad433ea2531e"
+const REPEAT_SPAN = "d9cf8d9380425553"
 
 /** The spans the tracing API holds: the playground run's root span, and one of another trace. */
 const spans = [
@@ -109,6 +111,16 @@ const spans = [
         attributes: {
             ag: {data: {inputs: {country: "France"}, outputs: "The capital of France is Paris."}},
         },
+    },
+    {
+        trace_id: REPEAT_TRACE,
+        span_id: REPEAT_SPAN,
+        parent_id: null,
+        span_name: "completion",
+        start_time: "2026-11-04T10:00:02Z",
+        end_time: "2026-11-04T10:00:03Z",
+        status_code: "STATUS_CODE_OK",
+        attributes: {ag: {data: {inputs: {country: "France"}, outputs: "Paris."}}},
     },
     {
         trace_id: OTHER_TRACE,
@@ -261,11 +273,12 @@ beforeEach(() => {
     vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
         if (!String(url).includes("/invoke")) return new Response("{}", {status: 404})
         runs.push(String(init.body))
+        const repeat = runs.length > 1
         return new Response(
             JSON.stringify({
-                data: "The capital of France is Paris.",
-                trace_id: TRACE,
-                span_id: SPAN,
+                data: repeat ? "Paris." : "The capital of France is Paris.",
+                trace_id: repeat ? REPEAT_TRACE : TRACE,
+                span_id: repeat ? REPEAT_SPAN : SPAN,
             }),
             {status: 200},
         )
@@ -283,11 +296,70 @@ afterEach(() => {
     act(() => root.unmount())
     host.remove()
     vi.unstubAllGlobals()
+    store.set(repetitionCountAtom, 1)
     store.set(executionItemController.actions.clearAll)
     store.set(playgroundController.actions.resetAll)
 })
 
+const openSheet = async () => {
+    await openMenu()
+    const item = menuItem("Add to test set")
+    expect(item, "the Add to test set item").toBeDefined()
+    await act(async () => item!.click())
+    await until(() => document.querySelector('select[aria-label="Test set"]'))
+}
+
+/** Picks the test set, commits, and returns the rows the commit adds. */
+const commitRows = async () => {
+    await choose("Test set", "ts-1")
+    await until(() => button(sheet()!, "Commit")?.disabled === false)
+    await act(async () => button(sheet()!, "Commit")!.click())
+    await settle()
+    const commits = http.post.mock.calls.filter(([url]) =>
+        String(url).endsWith("/testsets/revisions/commit"),
+    )
+    expect(commits).toHaveLength(1)
+    return (commits[0][1] as {testset_revision: {delta: {rows: {add: unknown[]}}}}).testset_revision
+        .delta.rows.add
+}
+
 describe("Add to test set from the playground", {timeout: 30_000}, () => {
+    it("A run with two repeats adds both repeats as rows", async () => {
+        store.set(repetitionCountAtom, 2)
+        await mount()
+        await runFrance()
+        await until(() => runs.length > 1)
+        expect(runs).toHaveLength(2)
+
+        await openSheet()
+
+        expect(await commitRows()).toEqual([
+            {
+                data: {inputs: {country: "France"}, outputs: "The capital of France is Paris."},
+                set_id: "ts-1",
+            },
+            {data: {inputs: {country: "France"}, outputs: "Paris."}, set_id: "ts-1"},
+        ])
+    })
+
+    it("Without trace access, no sheet opens and an error shows", async () => {
+        api.checkPermissions.mockImplementation(async ({action}: {action: string}) => {
+            if (action === "view_spans") {
+                throw Object.assign(new Error("Forbidden"), {statusCode: 403})
+            }
+            return {}
+        })
+        await mount()
+        await runFrance()
+
+        await openMenu()
+        await act(async () => menuItem("Add to test set")!.click())
+        await until(() => toast.error.mock.calls.length > 0)
+
+        expect(toast.error).toHaveBeenCalledWith("Couldn't load the selected spans")
+        expect(sheet()).toBeNull()
+    })
+
     it("Commits the run's inputs and outputs to the picked test set", async () => {
         await mount()
         await runFrance()

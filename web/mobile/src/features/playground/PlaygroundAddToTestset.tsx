@@ -14,9 +14,14 @@ import {AddToTestsetSheet} from "../observability/addToTestset/AddToTestsetSheet
 
 /** The traces of this page's finished runs: each test case run, and each chat turn. */
 const runTraceIds = (get: Getter, loadableId: string): string[] => {
+    // A run with repeats keeps each repeat's trace, the first one included, in `repetitions`.
     const runs = Object.values(get(resultsByKeyAtomFamily(loadableId)))
         .filter((result) => result?.status === "success")
-        .map((result) => result.traceId)
+        .flatMap((result) =>
+            result.repetitions?.length
+                ? result.repetitions.map((repeat) => repeat.traceId)
+                : [result.traceId],
+        )
     const turns = get(isChatModeAtom)
         ? Object.values(
               get(executionByMessageIdAtomFamily(loadableId)) as Record<string, MessageExecution>,
@@ -30,7 +35,8 @@ const runTraceIds = (get: Getter, loadableId: string): string[] => {
 /**
  * "Add to test set" from the playground, as in /w: every finished run goes to the sheet as the
  * root span of its trace, which holds the run's inputs and outputs. The runs are read once, when
- * the user picks the item; the sheet opens when their spans are known.
+ * the user picks the item; the sheet opens when every run's span is known. If one is missing,
+ * nothing opens: a sheet with some of the runs would add fewer rows than the page shows.
  */
 const PlaygroundAddToTestset = ({
     loadableId,
@@ -46,18 +52,19 @@ const PlaygroundAddToTestset = ({
             atom((get) => {
                 const summaries = traceIds.map((id) => get(traceDataSummaryAtomFamily(id)))
                 if (summaries.some((summary) => summary.isPending)) return null
-                return summaries.flatMap((summary) => summary.rootSpan?.span_id ?? [])
+                const ids = summaries.flatMap((summary) => summary.rootSpan?.span_id ?? [])
+                return ids.length === traceIds.length ? ids : []
             }),
         [traceIds],
     )
     const spanIds = useAtomValue(spansAtom)
-    const noSpans = spanIds?.length === 0
+    const failed = spanIds?.length === 0
 
     useEffect(() => {
-        if (!noSpans) return
+        if (!failed) return
         message.error("Couldn't load the selected spans")
         onClose()
-    }, [noSpans, onClose])
+    }, [failed, onClose])
 
     return spanIds?.length ? <AddToTestsetSheet spanIds={spanIds} onClose={onClose} /> : null
 }

@@ -42,11 +42,21 @@ const PlaygroundNewEvaluationSheet = ({
     onClose: () => void
 }) => {
     const revisions = useDraftRevisions(revisionIds)
-    // The wizard reads its picks once, when it opens: it waits for the variant names.
-    const variantsPending = useAtomValue(workflowVariantsQueryAtomFamily(appId)).isPending
+    // The wizard reads its picks once, when it opens: it waits for each revision and the
+    // variant names, so no chip opens with a placeholder label.
+    const loadingAtom = useMemo(
+        () =>
+            atom(
+                (get) =>
+                    get(workflowVariantsQueryAtomFamily(appId)).isPending ||
+                    revisionIds.some((id) => get(workflowMolecule.selectors.query(id)).isPending),
+            ),
+        [appId, revisionIds],
+    )
+    const loading = useAtomValue(loadingAtom)
     return (
         <NewEvaluationSheet
-            kind={open && !variantsPending ? "auto" : null}
+            kind={open && !loading ? "auto" : null}
             projectId={projectId}
             base={base}
             appId={appId}
