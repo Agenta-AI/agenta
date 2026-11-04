@@ -10,7 +10,7 @@ Tell the right people, once, when an automation starts failing, and stay quiet u
 The system SHALL open an `automation_failing` notification with `dedup_key`
 `automation:<automation_id>` when a trigger delivery of a not-deleted automation is settled as
 `failed` or `skipped` and ended less than 1 hour before the pass. The system SHALL NOT open one for
-`succeeded`, `cancelled` or `waiting`, or for a trigger delivery that is not settled (`102`, `409`,
+`completed`, `cancelled` or `waiting`, or for a trigger delivery that is not settled (`102`, `409`,
 `200`).
 
 #### Scenario: First failed run
@@ -37,6 +37,10 @@ The system SHALL open an `automation_failing` notification with `dedup_key`
 - **WHEN** a trigger delivery is settled as `failed`, and its automation is deleted or no longer exists
 - **THEN** the system SHALL NOT open a notification
 
+#### Scenario: Email off when the failure happened
+- **WHEN** an automation failed while email was off, and email is turned on while it still fails
+- **THEN** no email SHALL be sent until the automation is fixed and fails again
+
 #### Scenario: First pass after the deploy
 - **WHEN** the feature is deployed, and an automation failed 6 hours earlier and was edited since
 - **THEN** the pass SHALL settle that trigger delivery and SHALL NOT open a notification
@@ -59,17 +63,18 @@ open, more failures of the automation SHALL send nothing.
 
 ### Requirement: What resolves a notification
 The system SHALL resolve the open notification of an automation when a trigger delivery of the
-automation that started after the notification's `failed_at` is settled as `succeeded`, and after
-a person's successful edit, start, refresh or delete of the automation. It SHALL NOT resolve it on
-a stop, a revoke, a schedule stopped at its end time, or a pause by the dispatcher. Resolving SHALL
-set `state` `resolved` and `resolved_at`. No email SHALL be sent about the fix.
+automation that started after the notification's `failed_at` is settled as `completed`, with
+`resolved_at` set to that trigger delivery's `created_at`; and after a person's successful edit,
+start, refresh or delete of the automation, with `resolved_at` set to the time of the action. It
+SHALL NOT resolve it on a stop, a revoke, a schedule stopped at its end time, or a pause by the
+dispatcher. No email SHALL be sent about the fix.
 
 #### Scenario: Success after failure
-- **WHEN** an automation has an open notification and its next run is settled as `succeeded`
+- **WHEN** an automation has an open notification and its next run is settled as `completed`
 - **THEN** the notification SHALL be resolved and no email SHALL be sent
 
 #### Scenario: Older run succeeds after a newer failure
-- **WHEN** a long run starts, a `422` opens a notification, and then the long run is settled as `succeeded`
+- **WHEN** a long run starts, a `422` opens a notification, and then the long run is settled as `completed`
 - **THEN** the notification SHALL stay open
 
 #### Scenario: Fail, fix, fail
@@ -89,8 +94,17 @@ set `state` `resolved` and `resolved_at`. No email SHALL be sent about the fix.
 - **THEN** the edit SHALL succeed and the error SHALL be logged with ids only
 
 ### Requirement: Failures older than the last fix
-The system SHALL NOT open a notification for a trigger delivery whose `created_at` is earlier than
-the `resolved_at` of a resolved notification with the same key.
+The system SHALL NOT open a notification for a failed or skipped trigger delivery whose `created_at`
+is earlier than the `resolved_at` of a resolved notification with the same key, or earlier than the
+`created_at` of a trigger delivery of the same automation settled as `completed`.
+
+#### Scenario: Failure that started after a success
+- **WHEN** run S starts at 10:00 and succeeds, run F starts at 10:05 and fails, S settles at 10:07 and resolves an open notification, and F settles at 10:12
+- **THEN** the system SHALL open a new notification for F
+
+#### Scenario: Older run fails after a newer success
+- **WHEN** run D starts at 10:00, run S starts at 10:05 and is settled `completed`, and then D fails and is settled `failed`
+- **THEN** the system SHALL NOT open a notification
 
 #### Scenario: Run started before the edit
 - **WHEN** an automation has an open notification, a person edits it, and a run that started before the edit is settled as `failed` after the edit
@@ -151,6 +165,10 @@ an HTML part with every value escaped. It SHALL NOT contain the raw error text o
 #### Scenario: Name with a line break
 - **WHEN** an automation name contains a carriage return and a line feed
 - **THEN** the subject SHALL have them replaced by one space, and the email SHALL be sent
+
+#### Scenario: Name with a direction override
+- **WHEN** an automation name contains U+202E or U+2028
+- **THEN** each SHALL be replaced by a space in the subject and the body
 
 #### Scenario: Very long name
 - **WHEN** an automation name has 300 characters

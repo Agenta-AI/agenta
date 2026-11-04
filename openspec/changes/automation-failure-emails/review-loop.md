@@ -39,3 +39,38 @@ Not taken:
 - Dropping `notifications.state` for `resolved_at IS NULL` (simplify). The naming lens asked for `state` like `session_commands.state`. One DAO method writes both.
 - Cooldowns, per-recipient caps and per-project fairness (security). They change the agreed rule "fail, fix, fail sends two". The send pass caps all email at 100 per minute. Flapping is known limit 9.
 - A retention sweep (security). Known limit 10.
+
+## Round 2
+
+| Lens | Rating | Blockers |
+|---|---|---|
+| Grounding and logic | 0 blockers, 4 major, 6 minor | none |
+| Simplify | Medium | |
+| Naming and layering | Medium | |
+| Security | Medium | |
+
+Fixed:
+
+- A success no longer hides a newer failure. `resolved_at` is the start of the successful run, or the time of the person's action (D19).
+- A failure older than a completed run of the same automation opens nothing (rule A4).
+- Waiting `202` rows cannot hold back the pass. Start-time rows and `202` rows are read in two queries, and `202` rows newest first.
+- `turn_endings` returns the newest `done`. A `202` row settles once, at its first final `done`. The design does not assume that a continuation reuses the turn (known limit 6).
+- Rule A0 uses the time of the status write for `400`, `403`, `422` and `500`.
+- The partial index is on `(created_at, id)`, and the DAO writes its conditions as literal SQL so a prepared statement matches it.
+- `send_rendered_email` does not reuse the wrappers that log exceptions.
+- Email off, then on: documented and specified (known limit 11).
+- Membership at send time is decided by `check_human` only. A new `UsersDAOInterface.fetch_emails` reads the address. No second membership reader.
+- The send logic is in `NotificationsService.send_pending`. The task files hold only the loop and the lease.
+- The `automation_failing` kind (template, reason catalog, `view_triggers`) lives in `core/triggers` and is registered at startup. `core/notifications` imports nothing from `core/triggers`.
+- At most 10 notification deliveries per project per send pass (D18). This drops no email.
+- Name normalization covers the Unicode categories Cc, Cf, Zl and Zp.
+- `completed` replaces `succeeded`, as in `RunnerEnding`.
+- `automation_kind` and the impossible project check are removed.
+- The notification delivery states and the word `channel` are recorded in the naming section.
+- The lease helpers are named (`acquire_lock`, `renew_lock`, `release_lock`).
+- Known limit 3 says that a re-claimed row has a new id.
+
+Not taken:
+
+- Renaming `channel` to `medium`. The naming section records an Avoid entry instead. A v2 Slack channel will most likely send through `core/channels`, so the word fits.
+- Keeping the partial index small with a deploy-date bound. The candidate queries read only the last 24 hours, so the old entries cost size, not time.

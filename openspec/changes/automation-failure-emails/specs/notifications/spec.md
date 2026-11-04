@@ -25,9 +25,10 @@ lifecycle columns). Both SHALL have the primary key `(project_id, id)` and one f
 - **THEN** it SHALL have exactly two `email` notification deliveries, and a second insert for the same recipient and channel SHALL fail
 
 ### Requirement: Notification kinds
-Each kind SHALL declare its template and the permission a recipient needs. The template SHALL render
-from the notification's `data` and the recipient's email only. The notifications code SHALL NOT read
-the tables of the domain that opened the notification.
+Each kind SHALL declare its template and the permission a recipient needs, and SHALL be registered
+with the notifications service at startup by the domain that owns it. The template SHALL render from
+the notification's `data` and the recipient's email only. The notifications code SHALL NOT import or
+read the domain that opened the notification.
 
 #### Scenario: Automation deleted after the open
 - **WHEN** an automation's notification is open and pending, and the automation is soft-deleted by a person
@@ -53,10 +54,10 @@ Notifications SHALL still be recorded.
 
 ### Requirement: Send pass
 The system SHALL send `pending` email notification deliveries in a pass that runs every 60 seconds
-in the API, on at most one replica at a time under a Redis lease, at most 100 per pass, oldest first.
-Before it sends, it SHALL mark a notification delivery `skipped` if its notification is resolved,
-the recipient is no longer a project member or was deleted, or the recipient no longer has the
-kind's permission. A success SHALL set `sent` and `sent_at`. A failure SHALL add 1 to
+in the API, on at most one replica at a time under a Redis lease, at most 100 per pass and at most
+10 per project per pass, oldest first. Before it sends, it SHALL mark a notification delivery
+`skipped` if its notification is resolved, `AccessService.check_human` no longer allows the kind's
+permission for the recipient, or the recipient has no email (deleted user). A success SHALL set `sent` and `sent_at`. A failure SHALL add 1 to
 `attempt_count`, and at 5 SHALL set `failed`. Logs SHALL carry ids and the exception type only.
 A send SHALL NOT run in a web request.
 
@@ -76,15 +77,19 @@ A send SHALL NOT run in a web request.
 - **WHEN** a recipient is removed from the project while the notification delivery is pending
 - **THEN** the send pass SHALL mark it `skipped`
 
+#### Scenario: One large project
+- **WHEN** one project has 2,000 pending notification deliveries and another project has 1
+- **THEN** the next send pass SHALL send the other project's email, and at most 10 of the large project's
+
 #### Scenario: Platform outage
 - **WHEN** 300 automations fail at the same time
-- **THEN** the send pass SHALL send at most 100 emails per pass
+- **THEN** the send pass SHALL send at most 100 emails per pass, and the rest on the next passes
 
 ### Requirement: Email sender
 `emailing.py` SHALL provide `send_rendered_email(to_email, subject, html, text)`. It SHALL send a
 plain-text part and an HTML part through SMTP if it is set up, else SendGrid, with a 30-second client
 timeout. It SHALL raise when no provider is set up, when the SendGrid client cannot be built, and
-when the provider fails. The invitation emails SHALL keep their content and their behavior.
+when the provider fails. It SHALL NOT log the recipient's address. The invitation emails SHALL keep their content and their behavior.
 
 #### Scenario: Plain-text part
 - **WHEN** a notification email is sent through SMTP or SendGrid
