@@ -289,6 +289,18 @@ describe("runScenarioInvocation", () => {
         )
     })
 
+    it("When the status reset fails, the success is not stored and Run stays", async () => {
+        serveApi("failure")
+        http.patch.mockRejectedValue(new Error("Network Error"))
+        appAnswers(200, {data: "Paris", trace_id: TRACE_HEX})
+
+        const result = await runScenarioInvocation(params)
+
+        expect(result).toEqual({ok: false, reason: "request-failed", detail: "Network Error"})
+        // The stored result stays failed, so the screen still offers Run again.
+        expect(postsTo("/evaluations/results/")).toEqual([])
+    })
+
     it("A closed run returns run-closed and does not call the app", async () => {
         client.setQueryData(evaluationRunQueryKey(RUN), run(fullReferences, true))
 

@@ -117,6 +117,9 @@ async function invoke({
         const succeeded = execution.status === "success"
         const errorMessage = execution.error?.message ?? "Invocation failed"
 
+        // A success after a failure sets the scenario back to waiting before the success is
+        // stored: if this request fails, the result stays failed and Run is offered again.
+        if (succeeded && failedBefore) await setScenarioStatus(projectId, scenarioId, "pending")
         await upsertInvocationResult(projectId, {
             run_id: runId,
             scenario_id: scenarioId,
@@ -127,11 +130,8 @@ async function invoke({
             references,
             ...(succeeded ? {outputs: execution.output} : {error: {message: errorMessage}}),
         })
-        // A failed run marks the scenario failed; a later success sets it back to waiting.
-        if (!succeeded || failedBefore) {
-            await setScenarioStatus(projectId, scenarioId, succeeded ? "pending" : "failure")
-        }
         if (succeeded) await refreshMetrics(projectId, runId, scenarioId)
+        else await setScenarioStatus(projectId, scenarioId, "failure")
         invalidateScenario(projectId, runId, scenarioId)
 
         return succeeded
