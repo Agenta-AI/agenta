@@ -101,8 +101,9 @@ const Harness = ({appId}: {appId: string}) => {
     return null
 }
 
+// Long enough for the address write, which waits for the edits to stop.
 const settle = async () => {
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 30; i++) {
         await act(async () => {
             await new Promise((resolve) => setTimeout(resolve, 15))
         })
@@ -127,6 +128,8 @@ beforeEach(() => {
     failRevisions = false
     holdApp = null
     added = []
+    // Each test opens with no remembered selection.
+    window.localStorage.clear()
     router.replace.mockReset()
     router.replace.mockImplementation(async ({query}: {query: Record<string, string>}) => {
         router.query = query
@@ -229,13 +232,16 @@ describe("usePlaygroundSelection", () => {
         await mount("app-1")
 
         expect(router.replace).toHaveBeenCalledWith(
-            {pathname: router.pathname, query: expect.objectContaining({revisions: "rev-2"})},
+            expect.objectContaining({
+                pathname: router.pathname,
+                query: expect.objectContaining({revisions: "rev-2"}),
+            }),
             undefined,
-            {shallow: true},
+            {shallow: true, scroll: false},
         )
     })
 
-    it("Local draft ids are not written to the URL", async () => {
+    it("A local draft is named by its revision in the URL and kept in the hash", async () => {
         await mount("app-1", "rev-1")
         const localId = createLocalDraftFromWorkflowRevision("rev-1")!
         router.replace.mockClear()
@@ -244,8 +250,12 @@ describe("usePlaygroundSelection", () => {
         await settle()
 
         expect(selection.revisionIds).toEqual(["rev-1", localId])
-        expect(router.replace).not.toHaveBeenCalled()
         expect(router.query.revisions).toBe("rev-1")
+        expect(router.replace).toHaveBeenLastCalledWith(
+            expect.objectContaining({hash: expect.stringMatching(/^pgSnapshot=/)}),
+            undefined,
+            {shallow: true, scroll: false},
+        )
     })
 
     it("A local draft id with no draft behind it is dropped", async () => {

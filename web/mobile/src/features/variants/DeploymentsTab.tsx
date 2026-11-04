@@ -14,6 +14,8 @@ import Link from "next/link"
 import {useProjectPermission} from "../context/useProjectPermission"
 import {useDeveloperViewEnabled} from "../developer/developerViewAccess"
 import {useUrlParams} from "../developer/useUrlParams"
+import {playgroundHref} from "../playground/playgroundUrl"
+import {OpenInPlaygroundButton} from "../revisions/OpenInPlaygroundButton"
 import {useRevisionParam} from "../revisions/useRevisionParam"
 import {useSettingsOrg} from "../settings/useSettingsOrg"
 
@@ -62,6 +64,7 @@ export const DeploymentsTab = ({
     )
     const canDeploy = useProjectPermission(projectId, "deploy_environments")
     const endpointsEnabled = useDeveloperViewEnabled("endpoints")
+    const playgroundEnabled = useDeveloperViewEnabled("playground") === true
     const [revisionId, setRevisionId] = useRevisionParam()
     const [search, setSearch] = useState("")
     const term = useSettledValue(search).trim()
@@ -176,11 +179,18 @@ export const DeploymentsTab = ({
                     kind="deployment"
                     navigationIds={navigationIds}
                     actions={
-                        canRevert(shownRow) ? (
-                            <Button size="sm" onClick={() => setRevertRow(shownRow)}>
-                                Revert
-                            </Button>
-                        ) : null
+                        <>
+                            {playgroundEnabled ? (
+                                <OpenInPlaygroundButton
+                                    href={playgroundHref(base, app.id, [revisionId])}
+                                />
+                            ) : null}
+                            {canRevert(shownRow) ? (
+                                <Button size="sm" onClick={() => setRevertRow(shownRow)}>
+                                    Revert
+                                </Button>
+                            ) : null}
+                        </>
                     }
                 />
             ) : null}

@@ -26,13 +26,15 @@ const getRowId = (id: string) => id
 
 export interface FocusDrawerProps {
     renderTraceFooter?: (traceId: string) => ReactNode
+    /** The header's "Add to queue" control for the open test case; none when absent. */
+    renderAddToQueue?: (itemIds: string[]) => ReactNode
 }
 
 /**
  * One test case in a drawer: its inputs as a form, JSON or YAML, previous and next to move through
  * the rows, and its output under the form. Form edits write to the test case at once.
  */
-export const FocusDrawer = ({renderTraceFooter}: FocusDrawerProps) => {
+export const FocusDrawer = ({renderTraceFooter, renderAddToQueue}: FocusDrawerProps) => {
     const [{isOpen, rowId, entityId}, setDrawer] = useAtom(playgroundFocusDrawerAtom)
     const close = useSetAtom(closePlaygroundFocusDrawerAtom)
     const updateTestcase = useSetAtom(testcaseMolecule.actions.update)
@@ -178,6 +180,7 @@ export const FocusDrawer = ({renderTraceFooter}: FocusDrawerProps) => {
             isError={false}
             isDirty={false}
             renderContent={renderContent}
+            renderAddToQueue={renderAddToQueue}
             enableRootViewMode
         />
     )

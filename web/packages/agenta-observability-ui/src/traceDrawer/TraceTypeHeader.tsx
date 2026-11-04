@@ -226,7 +226,7 @@ const TraceTypeHeader = ({
                     />
                 </TooltipWithCopyAction>
                 {/* Like the slotted actions, the button exists only when the host binds the
-                    playground action. `/m` does not bind it, so `/m` shows no button. */}
+                    playground action. `/m` binds it only while its playground view is on. */}
                 {openTraceInPlayground && (
                     <SimpleTooltip
                         title={!canOpenInPlayground ? openInPlaygroundState.reason : undefined}

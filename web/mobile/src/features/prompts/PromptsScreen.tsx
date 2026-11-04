@@ -1,13 +1,16 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
+import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
+import {useDeveloperViewEnabled} from "../developer/developerViewAccess"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
+import {playgroundHref} from "../playground/playgroundUrl"
 
 import type {PromptsDialog} from "./promptDialogState"
 import type {PromptRowActions} from "./promptRowActions"
@@ -23,7 +26,8 @@ const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
 
 /**
  * The Prompts page: folders and prompts in one list, with a breadcrumb for the open folder, a
- * search box and the folder writes. A prompt row opens nothing until the prompt page exists.
+ * search box and the folder writes. A prompt row opens the prompt in the playground while that
+ * view is on.
  */
 export const PromptsScreen = ({
     workspaceId,
@@ -42,10 +46,18 @@ export const PromptsScreen = ({
     const [dialog, setDialog] = useState<PromptsDialog | null>(null)
     const closeDialog = useCallback(() => setDialog(null), [])
     const {openFolder} = browser
+    const router = useRouter()
+    const playgroundEnabled = useDeveloperViewEnabled("playground") === true
 
     const rowActions = useMemo<PromptRowActions>(
         () => ({
             openFolder: (row) => openFolder(row.folder.id),
+            openPrompt: playgroundEnabled
+                ? (row) =>
+                      void router.push(
+                          playgroundHref(`/w/${workspaceId}/p/${projectId}`, row.prompt.id),
+                      )
+                : null,
             rename: (row) =>
                 setDialog(
                     row.kind === "folder"
@@ -65,7 +77,7 @@ export const PromptsScreen = ({
                         : {kind: "archivePrompt", prompt: row.prompt},
                 ),
         }),
-        [openFolder],
+        [openFolder, playgroundEnabled, projectId, router, workspaceId],
     )
 
     return (
