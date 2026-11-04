@@ -126,12 +126,12 @@ const Row = ({
     )
 
     const row = compact ? (
-        // The rail's row, restated: one line, 28px, the glyph on the left and the time on the
+        // The rail's row, restated: one line, 30px, the glyph on the left and the time on the
         // right. The whole row opens; the title is still the button so the keyboard reaches it.
         <div
             onClick={() => onOpenRow(vm)}
             className={clsx(
-                "group relative box-border mb-1 flex h-7 w-full cursor-pointer select-none items-center gap-[10px] rounded-md px-3 text-sm leading-7",
+                "group relative box-border mb-1 flex h-[30px] w-full cursor-pointer select-none items-center gap-[10px] rounded-md px-3 text-sm leading-[30px]",
                 // A fill, not the rail's inset ring: on the popover's white the ring read as a
                 // drawn box. Same step the selected tab chip wears, so the two agree.
                 active
@@ -379,13 +379,13 @@ export const SessionCardList = ({
     )
 
     if (list.isPending) {
-        // Compact: the rail row's own geometry — 28px, glyph, title, time — so the rows land on
+        // Compact: the rail row's own geometry — 30px, glyph, title, time — so the rows land on
         // the placeholder without a shift.
         if (compact) {
             return (
                 <div className="flex flex-col" aria-busy>
                     {COMPACT_SKELETON_TITLE_WIDTHS.map((width) => (
-                        <div key={width} className="mb-1 flex h-7 items-center gap-[10px] px-3">
+                        <div key={width} className="mb-1 flex h-[30px] items-center gap-[10px] px-3">
                             <SkeletonBlock active shape="circle" className="size-2.5 shrink-0" />
                             <SkeletonBlock active className={clsx("h-3", width)} />
                             <SkeletonBlock active className="ml-auto h-3 w-12 shrink-0" />
