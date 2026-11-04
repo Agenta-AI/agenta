@@ -78,6 +78,7 @@ export const RevisionActions = ({
     readOnly,
     onCommitted,
     onArchived,
+    evaluator = false,
     onClose,
 }: {
     workspaceId: string
@@ -89,7 +90,12 @@ export const RevisionActions = ({
     /** A commit made a new revision: show it. */
     onCommitted: (revisionId: string) => void
     /** The server deleted this revision. The page takes it out after the lists load again. */
-    onArchived: (revisionId: string) => void
+    onArchived?: (revisionId: string) => void
+    /**
+     * An evaluator revision: no Deploy, as in the old playground, and no Delete, which stays on
+     * the Evaluators page.
+     */
+    evaluator?: boolean
     /** Takes the revision off the compare view; absent in the single view. */
     onClose?: () => void
 }) => {
@@ -207,17 +213,19 @@ export const RevisionActions = ({
                 </>
             ) : (
                 <>
-                    <WithTooltip title={deployReason ?? "Deploy"} className="max-sm:hidden">
-                        <Button
-                            size="icon-sm"
-                            variant="ghost"
-                            aria-label="Deploy"
-                            disabled={unavailable || !canDeploy}
-                            onClick={() => setOpen({kind: "deploy", revision: shownRevision()})}
-                        >
-                            <Rocket aria-hidden />
-                        </Button>
-                    </WithTooltip>
+                    {evaluator ? null : (
+                        <WithTooltip title={deployReason ?? "Deploy"} className="max-sm:hidden">
+                            <Button
+                                size="icon-sm"
+                                variant="ghost"
+                                aria-label="Deploy"
+                                disabled={unavailable || !canDeploy}
+                                onClick={() => setOpen({kind: "deploy", revision: shownRevision()})}
+                            >
+                                <Rocket aria-hidden />
+                            </Button>
+                        </WithTooltip>
+                    )}
                     {commitButton}
                     <RevisionMenu
                         dirty={dirty}
@@ -227,8 +235,16 @@ export const RevisionActions = ({
                         deleteHint={deleteReason}
                         onCopyConfig={() => void copyConfig()}
                         onRevert={discard}
-                        onDeploy={() => setOpen({kind: "deploy", revision: shownRevision()})}
-                        onDelete={() => setOpen({kind: "delete", revision: shownRevision()})}
+                        onDeploy={
+                            evaluator
+                                ? undefined
+                                : () => setOpen({kind: "deploy", revision: shownRevision()})
+                        }
+                        onDelete={
+                            evaluator
+                                ? undefined
+                                : () => setOpen({kind: "delete", revision: shownRevision()})
+                        }
                         onClose={onClose}
                     />
                 </>
@@ -239,7 +255,7 @@ export const RevisionActions = ({
                     revisionId={revisionId}
                     appId={appId}
                     appSlug={app.data?.slug ?? null}
-                    canDeploy={canDeploy}
+                    canDeploy={canDeploy && !evaluator}
                     onClose={() => setOpen(null)}
                     onCommitted={onCommitted}
                 />

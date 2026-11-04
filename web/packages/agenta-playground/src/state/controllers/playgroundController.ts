@@ -64,6 +64,7 @@ import {
 import {executionByMessageIdAtomFamily, messageIdsAtomFamily, messagesByIdAtomFamily} from "../chat"
 import type {ChatMessage} from "../chat"
 import {
+    cancelRunningResults,
     cancelTestsMutationAtom,
     createInitialExecutionState,
     executionStateAtomFamily,
@@ -1885,6 +1886,14 @@ const setEntityIdsAtom = atom(null, (get, set, next: string[] | ((prev: string[]
         seen.add(id)
         return true
     })
+    // The test cases and results live under the anchor's loadable. When the anchor leaves (a
+    // commit or switch of the first revision), a run in flight keeps writing to the old loadable
+    // while its results move on as "running": stop every run there first, evaluators included.
+    const leavingLoadableId = get(derivedLoadableIdAtom)
+    const leavingAnchorId = leavingLoadableId.split(":").slice(2).join(":")
+    if (leavingAnchorId && !newIds.includes(leavingAnchorId)) {
+        cancelRunningResults(get, set, leavingLoadableId)
+    }
     const existingByEntityId = new Map(currentRootNodes.map((node) => [node.entityId, node]))
     const resolver = getRunnableTypeResolver()
     const newRootNodes: PlaygroundNode[] = newIds.map((entityId) => {
@@ -2071,7 +2080,7 @@ const removeEntityAtom = atom(null, (get, set, entityId: string) => {
  *    per-revision session ID still needs rewriting in place so the new
  *    revision's column finds its responses.
  */
-function relinkLoadableSessions(
+export function relinkLoadableSessions(
     get: Getter,
     set: Setter,
     {
@@ -2175,22 +2184,38 @@ function relinkLoadableSessions(
         // commit must move the whole loadable context. Migrating only execution
         // results drops connectedSourceId and makes the connected testset appear
         // disconnected under the new revision.
-        const oldLoadableStateAtom = loadableStateAtomFamily(oldLoadableId)
-        const oldLoadableState = get(oldLoadableStateAtom)
-        set(loadableStateAtomFamily(newLoadableId), {
-            ...oldLoadableState,
-            linkedRunnableId: newEntityId,
-            hiddenTestcaseIds: new Set(oldLoadableState.hiddenTestcaseIds),
-            disabledOutputMappingRowIds: new Set(oldLoadableState.disabledOutputMappingRowIds),
-        })
-
-        // Evict the old family key so future lookups receive fresh default state.
-        // Reset the captured atom as well for any subscribers that still hold it.
-        loadableStateAtomFamily.remove(oldLoadableId)
-        set(oldLoadableStateAtom, get(loadableStateAtomFamily(oldLoadableId)))
+        moveLoadableState(get, set, {oldLoadableId, newLoadableId, newEntityId})
     } else if (execRewrote) {
         set(executionStateAtomFamily(oldLoadableId), nextExecState)
     }
+}
+
+/**
+ * Moves a loadable's test set connection, hidden and deselected rows to another loadable, linked
+ * to `newEntityId`, and resets the old one.
+ */
+function moveLoadableState(
+    get: Getter,
+    set: Setter,
+    {
+        oldLoadableId,
+        newLoadableId,
+        newEntityId,
+    }: {oldLoadableId: string; newLoadableId: string; newEntityId: string},
+) {
+    const oldLoadableStateAtom = loadableStateAtomFamily(oldLoadableId)
+    const oldLoadableState = get(oldLoadableStateAtom)
+    set(loadableStateAtomFamily(newLoadableId), {
+        ...oldLoadableState,
+        linkedRunnableId: newEntityId,
+        hiddenTestcaseIds: new Set(oldLoadableState.hiddenTestcaseIds),
+        disabledOutputMappingRowIds: new Set(oldLoadableState.disabledOutputMappingRowIds),
+    })
+
+    // Evict the old family key so future lookups receive fresh default state.
+    // Reset the captured atom as well for any subscribers that still hold it.
+    loadableStateAtomFamily.remove(oldLoadableId)
+    set(oldLoadableStateAtom, get(loadableStateAtomFamily(oldLoadableId)))
 }
 
 type PruneStatus = "acted" | "noop" | "unresolved"
@@ -2327,6 +2352,18 @@ const reconcileRowsToPrimaryAtom = atom(null, (get, set) => {
 const switchEntityAtom = atom(
     null,
     (get, set, {currentEntityId, newEntityId}: {currentEntityId: string; newEntityId: string}) => {
+        // A node after the first ones (an evaluator after an app) is swapped in place, so its
+        // links stay and the app stays first.
+        const nodes = get(playgroundNodesAtom)
+        const downstream = nodes.find((n) => n.depth > 0 && n.entityId === currentEntityId)
+        if (downstream) {
+            set(
+                playgroundNodesAtom,
+                nodes.map((n) => (n === downstream ? {...n, entityId: newEntityId} : n)),
+            )
+            _onSelectionChange?.(get(entityIdsAtom), [currentEntityId])
+            return
+        }
         const current = get(entityIdsAtom)
         const updated =
             current.length > 1

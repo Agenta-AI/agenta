@@ -1,23 +1,14 @@
 import {useCallback, useEffect, useRef} from "react"
 
-import {loadableController} from "@agenta/entities/loadable"
 import {isLocalDraftId} from "@agenta/entities/shared"
-import {clearChangesAtom} from "@agenta/entities/testset"
-import {
-    discardLocalServerDataAtom,
-    workflowDetailQueryAtomFamily,
-    workflowMolecule,
-} from "@agenta/entities/workflow"
-import {
-    executionItemController,
-    playgroundController,
-    playgroundInitializedAtom,
-} from "@agenta/playground"
+import {workflowDetailQueryAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
+import {playgroundController, playgroundInitializedAtom} from "@agenta/playground"
 import {atom, useAtomValue, useStore} from "jotai"
 import {atomFamily} from "jotai-family"
 import {queryClientAtom} from "jotai-tanstack-query"
 import {useRouter} from "next/router"
 
+import {clearPlayground} from "./clearPlayground"
 import {playgroundLatestRevisionIdAtomFamily} from "./playgroundLatestRevision"
 import {parseRevisionIds} from "./playgroundUrl"
 
@@ -106,23 +97,7 @@ export const usePlaygroundSelection = ({appId}: {appId: string}): PlaygroundSele
         store.set(playgroundInitializedAtom, true)
         return () => {
             setUpForAppRef.current = null
-            const selected = store.get(playgroundController.selectors.entityIds())
-            const loadableId = store.get(playgroundController.selectors.loadableId())
-            // Runs first: they are found through the selection that `resetAll` removes.
-            store.set(executionItemController.actions.clearAll)
-            // The test case store is shared with the test set editor: the connection and the
-            // unsaved test case edits go with the page.
-            if (loadableId) {
-                store.set(clearChangesAtom)
-                store.set(loadableController.actions.disconnect, loadableId)
-            }
-            store.set(playgroundController.actions.resetAll)
-            store.set(playgroundInitializedAtom, false)
-            // Leaving asked to discard unsaved changes: the drafts go with the page.
-            for (const id of selected) {
-                if (isLocalDraftId(id)) store.set(discardLocalServerDataAtom, id)
-                else store.set(workflowMolecule.actions.discard, id)
-            }
+            clearPlayground(store)
         }
     }, [appId, appUsable, router.isReady, select, store])
 

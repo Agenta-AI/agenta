@@ -1,8 +1,13 @@
 import type {ReactNode} from "react"
 
+import {EvaluatorPicker} from "@agenta/playground-ui/panels/evaluator"
+
 import {NavDrawer} from "../nav/NavDrawer"
 
-/** The playground's top bar: the app's name, what this page is, and the page's actions. */
+/**
+ * The playground's top bar: the app's name, what this page is, the evaluators that score it, and
+ * the page's actions.
+ */
 export const PlaygroundHeader = ({
     workspaceId,
     projectId,
@@ -18,6 +23,9 @@ export const PlaygroundHeader = ({
         <NavDrawer workspaceId={workspaceId} projectId={projectId} />
         <h1 className="m-0 min-w-0 truncate text-sm font-semibold text-foreground">{appName}</h1>
         <span className="shrink-0 text-sm text-muted-foreground">Playground</span>
-        {actions ? <div className="ml-auto flex shrink-0 items-center gap-2">{actions}</div> : null}
+        <div className="ml-auto flex min-w-0 items-center justify-end gap-2">
+            <EvaluatorPicker />
+            {actions}
+        </div>
     </header>
 )
