@@ -5,18 +5,17 @@ import {useSessionCardList} from "@agenta/sessions/state"
 import {SessionCardList} from "@agenta/sessions-ui"
 import {useDebounceInput} from "@agenta/shared/hooks"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
-import {ArrowRightIcon, MagnifyingGlassIcon, PlusIcon} from "@phosphor-icons/react"
-import Link from "next/link"
+import {MagnifyingGlassIcon, PlusIcon} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
 const FOOTER_ROW =
-    "flex h-9 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-3 text-left text-sm text-foreground no-underline [font-family:inherit] hover:bg-accent"
+    "flex h-9 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-3 text-left text-sm text-foreground [font-family:inherit] hover:bg-accent"
 
 const LIST_POLICY = {origin: "exclude-trigger", expansions: []} as const
 
-/** This agent's sessions: search, the list, and the two ways out of it. */
+/** This agent's sessions: search, the list, and New session. */
 export const SessionSwitcherPanel = ({
     agentId,
     base,
@@ -99,8 +98,8 @@ export const SessionSwitcherPanel = ({
                     onRenameRow={menu.onRenameRow}
                 />
             </div>
-            <div className="border-border shrink-0 border-x-0 border-b-0 border-t border-solid p-1.5">
-                {onNew ? (
+            {onNew ? (
+                <div className="border-border shrink-0 border-x-0 border-b-0 border-t border-solid p-1.5">
                     <button
                         type="button"
                         className={FOOTER_ROW}
@@ -115,20 +114,8 @@ export const SessionSwitcherPanel = ({
                             <ShortcutKeys id="session.new" />
                         </span>
                     </button>
-                ) : null}
-                <Link
-                    href={`${base}/sessions${agentId ? `?agent=${agentId}` : ""}`}
-                    onClick={onClose}
-                    className={FOOTER_ROW}
-                >
-                    All sessions
-                    <ArrowRightIcon
-                        size={14}
-                        aria-hidden
-                        className="text-muted-foreground ml-auto"
-                    />
-                </Link>
-            </div>
+                </div>
+            ) : null}
         </div>
     )
 }
