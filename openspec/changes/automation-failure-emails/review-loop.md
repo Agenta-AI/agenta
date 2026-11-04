@@ -109,3 +109,27 @@ Not taken:
 - The watchdog-then-runner `done` case (`/code-review`). After the watchdog ends a turn, the runner's later records are quarantined and not read (G24a), so this case cannot happen.
 - Making edits record their time to remove known limit 1 (`/code-review`). The platform pause writes `updated_at` too (G3), so a fix through `updated_at` would drop real `403` failures. Writing a marker row on every edit adds rows for a rare case. Known limit 1 stays.
 - A backoff for the backlog of unfinished runs (`/code-review`). Known limit 12.
+
+## Round 4 (final)
+
+Two reviewers ran in parallel. The final pass ran on Fable, as the owner asked.
+
+| Review | Result |
+|---|---|
+| Final pass (Fable) | 0 blockers, 1 major, 6 minor. Spot-checked 31 facts: none wrong. Verdict: ready to implement once the major is written in. |
+| Round 4 interrogation | 0 blockers, 0 major, 6 minor |
+| `/security-review` | No findings. The branch changes Markdown only; the design's security points are covered by the earlier security lenses. |
+
+Fixed:
+
+- Major: the candidate queries page with a keyset cursor on `(created_at, id)`. Without it, a pass read the same 500 rows 20 times.
+- A pass settles all pages in memory first, then applies healthy rows, then failed and skipped rows oldest first. A failure and a newer success in the same pass open nothing, and "Failing since" is the oldest failure.
+- The A3 resolve, the user resolve and `note_failure` are each one `UPDATE ... WHERE state = 'open'`. `note_failure` uses `GREATEST`. Times in `data` are compared as `timestamptz`.
+- The reconcile step also resolves notifications of soft-deleted automations, and checks both trigger tables.
+- Both leases pass `ttl=300` and the `owner` token on renew and release. Lease names use the `locking.py` namespace and key form.
+- The open SQL names its time `:started_at`.
+- The index revision reads `pg_index.indisvalid` in Python and drops an invalid index in the same autocommit block.
+- The `resolved_at` index serves rule A5, not A4.
+- New scenarios: a run cancelled by a person, a subscription refresh, a failure and a newer success in one pass, pages that move forward.
+
+Not taken: none.

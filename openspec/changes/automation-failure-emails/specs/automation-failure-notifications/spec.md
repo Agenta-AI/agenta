@@ -107,6 +107,18 @@ dispatcher. No email SHALL be sent about the fix.
 - **WHEN** a subscription has an open notification, and a person deletes its connection from the tools settings
 - **THEN** the next outcome pass SHALL resolve the notification
 
+#### Scenario: Run cancelled by a person
+- **WHEN** an automation has an open notification, and its next run is cancelled by a person
+- **THEN** the notification SHALL stay open, and no new notification SHALL open
+
+#### Scenario: Subscription refreshed
+- **WHEN** a subscription has an open notification, and a person refreshes it
+- **THEN** the notification SHALL be resolved
+
+#### Scenario: Failure and newer success in one pass
+- **WHEN** a `500` starts at 10:00 and a run that starts at 10:01 completes, and both settle in the same pass
+- **THEN** the system SHALL NOT open a notification
+
 #### Scenario: Person stops the automation
 - **WHEN** an automation with an open notification is stopped by a person
 - **THEN** the notification SHALL stay open

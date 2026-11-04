@@ -84,6 +84,10 @@ through a partial index that leaves out settled rows.
 - **WHEN** two API replicas run
 - **THEN** only the replica that holds the lease SHALL run a pass
 
+#### Scenario: Pages move forward
+- **WHEN** 1,200 `202` trigger deliveries of the last 24 hours have no `done`
+- **THEN** one pass SHALL read three different pages of them, not the same page three times
+
 #### Scenario: Many runs still going
 - **WHEN** 20,000 `202` trigger deliveries of the last 24 hours have no `done`, and a schedule writes a new `400`
 - **THEN** the next pass SHALL settle the `400`

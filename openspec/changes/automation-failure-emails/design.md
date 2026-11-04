@@ -119,7 +119,7 @@ trigger layer already uses "paused" for an automation that is turned off (`meta.
 | G42 | `asyncio.wait_for` around `asyncio.to_thread` does not stop the thread. | Python `asyncio` semantics; `emailing.py:127`, `:194` |
 | G43 | "Email is set up" is `env.smtp.enabled or env.sendgrid.enabled`. | `env.py:2209-2211`, `:2226-2229` |
 | G44 | `AgentaConfig` groups feature configs. No notifications config exists. `env.agenta.web_url` is `AGENTA_WEB_URL`. `AGENTA_ACCESS_EMAIL_DISABLED` is the sign-in email method, not a general switch. | `env.py:206-210`, `:861-906`, `:2386-2404` |
-| G45 | The API lifespan starts background loops with `asyncio.create_task`. `attachment_sweep_loop` holds a Redis lease so one replica runs each pass. `api/oss/src/utils/locking.py` has shared `acquire_lock`, `renew_lock` and `release_lock`. `bootstrap_access()` runs in the API, so `check_human` works in a background task. | `api/entrypoints/routers.py:417-434`, `:801`; `api/oss/src/tasks/asyncio/sessions/attachment_sweep.py:18-173`; `api/oss/src/utils/locking.py:78`, `:157`, `:223` |
+| G45 | The API lifespan starts background loops with `asyncio.create_task`. `attachment_sweep_loop` holds a Redis lease so one replica runs each pass, with its own Lua helpers. `api/oss/src/utils/locking.py` has shared `acquire_lock`, `renew_lock` and `release_lock`: the key is `lock:<namespace>:...`, the default TTL is `AGENTA_LOCK_TTL` (15 s), and `renew_lock` checks ownership only when it gets the `owner` token that `acquire_lock` returned. `bootstrap_access()` runs in the API, so `check_human` works in a background task. | `api/entrypoints/routers.py:417-434`, `:801`; `api/oss/src/tasks/asyncio/sessions/attachment_sweep.py:18-173`; `api/oss/src/utils/locking.py:78-151`, `:157-222`, `:223` |
 | G46 | The automation page is `/m/w/{workspace_id}/p/{project_id}/automations/{automation_id}`. The API answers the organization id where a workspace id was. | `web/mobile/src/pages/w/[workspace_id]/p/[project_id]/automations/[automation_id].tsx`; `web/mobile/src/features/automations/AutomationListScreen.tsx:115`; `api/AGENTS.md` |
 | G47 | The screen reads `status.message`: `success`, `failed`, `skipped`, and anything else is pending. | `web/packages/agenta-automation-ui/src/automationModel.ts:160-171` |
 | G48 | The latest `core_oss` revision is `oss000000062`. Sibling delivery tables use the key `(project_id, id)`. A partial unique index on open rows is named like `uq_session_commands_open_target`. | `api/oss/databases/postgres/migrations/core_oss/versions/`; `api/oss/src/dbs/postgres/triggers/dbes.py:107`; `api/oss/src/dbs/postgres/sessions/commands/dbes.py:44` |
@@ -150,7 +150,7 @@ trigger layer already uses "paused" for an automation that is turned off (`meta.
 | D19 | `resolved_at` is the time from which the automation counts as fixed: the start (`created_at`) of the healthy run, or the time of the person's action. | A4 compares a failure's start with it. With the settle time instead, a failure that started after a success but settled after it would be dropped. | design |
 | D20 | A run that ends `waiting` counts as healthy, like `completed`. A `cancelled` run counts as neither. | A run that reached an approval request started and worked. Without this, an automation whose runs always ask for approval would keep a notification open for good and hide the next real failure. | design |
 | D21 | While a notification is open, each new failure updates `data.last_failed_at`. A healthy run resolves the notification only if it started at or after `last_failed_at`. | A newer failure while open (for example a `403` that pauses the automation) must not be resolved by an older healthy run. `at or after` lets a re-claimed `500` that keeps its `created_at` (G7) resolve its own notification when the retry works. | design |
-| D22 | Each outcome pass resolves open `automation_failing` notifications whose automation no longer exists. | Hard deletes come from more than one router (G31a). One reconcile step covers all of them. | design |
+| D22 | Each outcome pass resolves open `automation_failing` notifications whose automation no longer exists or is deleted. | Hard deletes come from more than one router (G31a). One reconcile step covers all of them. | design |
 
 
 ## 3. Architecture
@@ -195,7 +195,7 @@ Dependency direction: `core/triggers` → `core/notifications` → `core/access`
 | `kind` | `VARCHAR` not null | `automation_failing` in v1 |
 | `dedup_key` | `VARCHAR` not null | `automation:<automation_id>` |
 | `state` | `VARCHAR` not null | `open` or `resolved` |
-| `data` | `JSONB` not null | for `automation_failing`: `automation_id`, `automation_name`, `failed_at` (start of the first failure), `last_failed_at` (start of the newest failure while open), `reason_code`, `link` |
+| `data` | `JSONB` not null | for `automation_failing`: `automation_id`, `automation_name`, `failed_at` (start of the first failure), `last_failed_at` (start of the newest failure while open; times are UTC ISO 8601 strings, always compared as `timestamptz`, never as text), `reason_code`, `link` |
 | `resolved_at` | `TIMESTAMPTZ` null | the time from which the automation counts as fixed (D19) |
 | lifecycle | | `created_at` (default `CURRENT_TIMESTAMP`), `updated_at`, `deleted_at`, `created_by_id`, `updated_by_id`, `deleted_by_id` |
 
@@ -204,7 +204,7 @@ Primary key `(project_id, id)` (G48). Indexes:
 - `uq_notifications_project_id_dedup_key_open`: unique `(project_id, dedup_key)` `WHERE state = 'open'`.
   One open notification per automation, also when two passes race.
 - `ix_notifications_project_id_dedup_key_resolved_at`: `(project_id, dedup_key, resolved_at)`, for
-  rule A4.
+  rule A5.
 
 `state` names the lifecycle like `session_commands.state`. `resolved_at` is set if and only if
 `state = 'resolved'`, and one DAO method writes both.
@@ -257,7 +257,10 @@ Two revisions in `api/oss/databases/postgres/migrations/core_oss/versions/`, aft
 2. `CREATE INDEX CONCURRENTLY` for both `trigger_deliveries` indexes (4.3) inside
    `op.get_context().autocommit_block()`, as
    `oss000000012_add_gateway_connections_provider_account_index.py` does. If an earlier build
-   failed and left an invalid index, drop it first. Downgrade: `DROP INDEX CONCURRENTLY IF EXISTS`.
+   failed and left an invalid index, the revision reads `pg_index.indisvalid` from Python and then
+   runs `DROP INDEX CONCURRENTLY` in the same autocommit block, before the create. `DROP INDEX
+   CONCURRENTLY` cannot run in a `DO` block or a transaction. Downgrade:
+   `DROP INDEX CONCURRENTLY IF EXISTS`.
 
 Both pass the migration gate: revision 1 creates new tables only, and revision 2 is a concurrent
 index. Old code ignores the new tables and the new `data` keys, so a rollout in either direction is
@@ -265,8 +268,10 @@ safe.
 
 ## 5. Trigger outcome pass
 
-Every 60 s under the lease `locks:triggers:outcome-pass` (TTL 300 s, renewed after each page), with
-`acquire_lock`, `renew_lock` and `release_lock` (G45). If renewal fails, the pass stops. It runs
+Every 60 s under a lease with namespace `triggers` and key `outcome-pass`, through `acquire_lock`,
+`renew_lock` and `release_lock` (G45), with `ttl=300`. The pass keeps the token that `acquire_lock`
+returns and passes it as `owner=` to `renew_lock` and `release_lock`. It renews after each page. If
+renewal fails, the pass stops. It runs
 whether email is on or off.
 
 ### 5.1 Candidates
@@ -277,6 +282,12 @@ Two queries per pass, each in pages of 500, each with at most 20 pages:
    pile up.
 2. **Run rows** (`202`), newest first. A run that is still going is read again on every pass. Newest
    first keeps a backlog of running or lost runs from holding back the runs that just ended.
+
+Pages use keyset paging on the index columns. The first page has no cursor condition. Each next page
+adds `AND (created_at, id) > (:last_created_at, :last_id)` for query 1, or
+`AND (created_at, id) < (:last_created_at, :last_id)` for query 2, with the last row of the page
+before. Unsettled rows stay in the index until the pass writes them, so without the cursor every page
+would return the same rows.
 
 ```sql
 SELECT project_id, id, schedule_id, subscription_id, status, data, created_at, updated_at
@@ -335,8 +346,11 @@ WHERE project_id = :project_id AND id = :id
 
 ### 5.3 Apply
 
-Each page is applied in `created_at` order (oldest first), also for the `202` query, so the
-first failure of an automation in a page opens its notification. For each settled trigger delivery
+A pass first reads all its pages and settles every row in memory (5.2). Then it applies the rules
+in this order: all healthy rows (A3), then all failed and skipped rows oldest first (A4, A5), then
+the other rows. So a healthy run that started after a failure in the same pass stops that failure
+from opening a notification (the healthy-delivery check of A5 reads the rows settled in this pass
+and the stored ones), and "Failing since" is the oldest failure of the pass. For each settled trigger delivery
 `D`, `A` is `D`'s automation, read by `project_id` and id, with deleted rows. Every read and write
 filters by `D.project_id`. The steps run in this order, and each one is idempotent (D15):
 
@@ -354,8 +368,8 @@ between the read and the write (G7, G8). Its notification is still right: that s
 |---|---|
 | A1 | `D.outcome` is `cancelled`: settle only. |
 | A2 | `A` is missing or deleted: settle only (G15, G28). |
-| A3 | `D` is healthy: resolve the open notification of `automation:<A.id>`, with `resolved_at = D.created_at`, if `D.created_at` is at or after its `data.last_failed_at` (D21). |
-| A4 | `D.outcome` is `failed` or `skipped`, and a notification of `automation:<A.id>` is open: set its `data.last_failed_at` to the later of the two values and `D.created_at` (`NotificationsDAOInterface.note_failure`). |
+| A3 | `D` is healthy: resolve the open notification of `automation:<A.id>`, with `resolved_at = D.created_at`, if `D.created_at` is at or after its `data.last_failed_at` (D21). One `UPDATE ... WHERE state = 'open' AND (data->>'last_failed_at')::timestamptz <= :started_at`, so a concurrent `note_failure` or user resolve is not overwritten. |
+| A4 | `D.outcome` is `failed` or `skipped`, and a notification of `automation:<A.id>` is open: set its `data.last_failed_at` to `GREATEST` of its value and `D.created_at` (`NotificationsDAOInterface.note_failure`), guarded by `WHERE state = 'open'`. If a person resolved it in the meantime, the write changes nothing, and `D` started before that resolve, so A5 drops it later. |
 | A5 | `D.outcome` is `failed` or `skipped`, nothing is open, and `D` ended (5.2) less than 1 hour ago (D17): open a notification, unless one for that key has `resolved_at` later than `D.created_at`, or `TriggersDAOInterface.exists_healthy_delivery_after` finds a healthy trigger delivery of `A` that started after `D`. |
 
 All comparisons use start times (`created_at`):
@@ -379,23 +393,25 @@ INSERT INTO notifications (project_id, id, kind, dedup_key, state, data, created
 SELECT :project_id, :id, 'automation_failing', :key, 'open', CAST(:data AS jsonb), now()
 WHERE NOT EXISTS (
   SELECT 1 FROM notifications
-  WHERE project_id = :project_id AND dedup_key = :key AND resolved_at > :failed_at)
+  WHERE project_id = :project_id AND dedup_key = :key AND resolved_at > :started_at)
 ON CONFLICT (project_id, dedup_key) WHERE state = 'open' DO NOTHING
 RETURNING id;
 ```
 
-`NotificationsDAOInterface.fetch_open(project_id, dedup_key)` decides between A4 and A5. The
+`:started_at` is `D.created_at`, the start of the failed run. `NotificationsDAOInterface.fetch_open(project_id, dedup_key)` decides between A4 and A5. The
 recipients (section 6) are chosen only for A5, before the insert. If a row is returned, the same DAO
 method inserts one `pending` email notification delivery per recipient, in the same database
 transaction. Both tables belong to the notifications DAO, so no transaction crosses DAOs (D15). If
 two passes race, the insert of one returns no row, and that pass treats it as A4.
 
-Resolve: `state = 'resolved'` and `resolved_at` (D19). Pending notification deliveries are not
+Resolve: `state = 'resolved'` and `resolved_at` (D19), always with `WHERE state = 'open'`. Pending notification deliveries are not
 touched: the send pass skips them (7.1).
 
 Reconcile (D22): at the end of each pass, read the open `automation_failing` notifications, and
-resolve those whose automation `TriggersDAOInterface.query_missing_automations` reports as gone,
-with `resolved_at = now()`. The set of open notifications is small, so this is one read per pass.
+resolve those, with `resolved_at = now()`, whose automation
+`TriggersDAOInterface.query_missing_automations(project_id, automation_ids)` reports as gone: no row
+in `trigger_schedules` or `trigger_subscriptions`, or a row with `deleted_at` set. This also covers a
+soft delete whose resolve failed (5.4). The set of open notifications is small, so this is one read per pass.
 
 ### 5.4 Resolve on user actions
 
@@ -426,8 +442,9 @@ notification delivery, and a warning with ids only is logged.
 
 ### 7.1 Send pass
 
-`NotificationsService.send_pending`, every 60 s under the lease `locks:notifications:send-pass`
-(TTL 300 s), renewed after each send. If renewal fails, the pass stops, so a second replica cannot
+`NotificationsService.send_pending`, every 60 s under a lease with namespace `notifications` and key
+`send-pass` (`ttl=300`, the owner token passed on each renewal, as in section 5), renewed after each
+send. If renewal fails, the pass stops, so a second replica cannot
 send the same pending rows while the first one is still sending.
 
 1. Read up to 100 `pending` notification deliveries, oldest first, at most 10 per project (D18),
