@@ -39,7 +39,7 @@ export const BrowserPreviewSlot = ({sessionId, working}: {sessionId: string; wor
                     initial={reduced ? false : "initial"}
                     animate="animate"
                     exit="exit"
-                    className="pb-3"
+                    className="-mt-6 pb-3"
                 >
                     <BrowserPreviewCard sessionId={sessionId} onOpen={() => setPaneOpen(true)} />
                 </motion.div>
