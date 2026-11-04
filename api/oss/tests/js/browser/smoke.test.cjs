@@ -218,7 +218,8 @@ test("the agent opens tabs, a viewer sees and switches them, and an old ref is r
     site.close();
   });
 
-  const shop = await cli("open", `${origin}/`);
+  const shop = await cli("open", `${origin}/`, "--new-tab");
+  assert.doesNotMatch((await cli("tab")).out, /about:blank/);
   const help = await cli("open", `${origin}/next`, "--new-tab");
   assert.equal(help.code, 0, help.out);
   assert.match(help.out, /^Page: Help/);

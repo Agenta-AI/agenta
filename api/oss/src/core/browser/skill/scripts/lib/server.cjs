@@ -148,8 +148,10 @@ async function serve() {
       }
       const handler = OPS[op];
       if (!handler) return agentError("invalid_arguments", `Unknown command ${op}.`);
-      const previous = args.newTab ? session.activePage : null;
-      const page = args.newTab ? await session.openTab() : await session.currentPage();
+      // A browser's first tab is blank: a new tab would leave it behind, empty.
+      const newTab = args.newTab && session.activePage?.url() !== "about:blank";
+      const previous = newTab ? session.activePage : null;
+      const page = newTab ? await session.openTab() : await session.currentPage();
       if (args.ref && agentPage && page !== agentPage)
         return agentError("tab_changed", "The person moved to another tab. Nothing was done.", {
           next_step: "Run `agenta-browser read` and use a ref from the new result.",
@@ -157,7 +159,7 @@ async function serve() {
       const before = new Set(session.context.pages());
       const text = await handler(page, args).catch(async (e) => {
         // A refused or failed site leaves no blank tab behind, and the agent where it was.
-        if (args.newTab) {
+        if (newTab) {
           if (previous && !previous.isClosed()) await session.switchTo(previous);
           await page.close().catch(() => {});
         }
