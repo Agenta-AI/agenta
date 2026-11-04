@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useState} from "react"
 
+import {phoneViewportAtom} from "@agenta/chat/state"
 import {browserLiveStatusQueryAtomFamily, browserPaneOpenAtomFamily} from "@agenta/entities/browser"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {AgentIdentity} from "@agenta/entity-ui/agent"
@@ -7,7 +8,6 @@ import {BrowserPaneToggle} from "@agenta/entity-ui/browser"
 import {FilesPaneToggle, useSessionFilesPane} from "@agenta/entity-ui/drive"
 import {AgentPageHeader, AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
 import {isBrowserEnabled} from "@agenta/shared/api"
-import {useMediaQuery} from "@agenta/ui/hooks"
 import {KeyboardShortcutsSheet, useShortcutsSheetHotkey} from "@agenta/ui/shortcuts"
 import {Button} from "@agenta/ui/ui"
 import {LockSimpleIcon, PlusIcon} from "@phosphor-icons/react"
@@ -66,9 +66,8 @@ export const SessionTopBar = ({
     workspaceId: string
     projectId: string
 }) => {
-    // Tailwind's `md`, the width the workspace itself splits at.
-    const twoPane = useMediaQuery("(min-width: 768px)")
-    const phone = !twoPane
+    // Seeded at load, unlike a media query: the bar's two layouts must not swap after mount.
+    const phone = useAtomValue(phoneViewportAtom)
     // artifactName resolves from a revision id or a workflow id, so either handle names the agent.
     const name = useAtomValue(workflowMolecule.selectors.artifactName(entityId ?? agentId ?? ""))
     const agentName = agentHidden ? sharingCopy.privateAgent : name || "Agent"
@@ -153,7 +152,9 @@ export const SessionTopBar = ({
             />
         ) : null
 
-    const shortcuts = <KeyboardShortcutsSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+    const shortcuts = (
+        <KeyboardShortcutsSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+    )
 
     if (phone) {
         return (
@@ -201,10 +202,12 @@ export const SessionTopBar = ({
                         {agentName}
                     </span>
                 ) : (
-                    <AgentIdentity workflowId={agentId} name={agentName} />
+                    <>
+                        <AgentIdentity workflowId={agentId} name={agentName} />
+                        {revision}
+                    </>
                 )
             }
-            revision={revision}
             center={switcher}
             actions={
                 <>
@@ -219,12 +222,10 @@ export const SessionTopBar = ({
                         <FilesPaneToggle open={filesOpen} onToggle={toggleFiles} />
                     ) : null}
                     {more}
-                    {share ? (
-                        <>
-                            <span aria-hidden className="bg-border mx-1 h-[18px] w-px shrink-0" />
-                            {share}
-                        </>
+                    {agentId && !agentHidden ? (
+                        <span aria-hidden className="bg-border mx-1 h-[18px] w-px shrink-0" />
                     ) : null}
+                    {share}
                     {shortcuts}
                 </>
             }

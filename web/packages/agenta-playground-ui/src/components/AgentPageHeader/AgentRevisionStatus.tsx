@@ -197,7 +197,7 @@ export const AgentRevisionStatus = ({
                 </SimpleTooltip>
             ) : null}
 
-            {!merged && version !== null ? (
+            {!merged && !quiet && version !== null ? (
                 historyWorkflowId ? (
                     <SimpleTooltip title="Version history">
                         <button

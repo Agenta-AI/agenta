@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react"
+import {useCallback, useEffect, useState, type RefObject} from "react"
 
 import type {SessionRowVm} from "@agenta/sessions/row"
 import {useSessionCardList} from "@agenta/sessions/state"
@@ -23,6 +23,7 @@ export const SessionSwitcherPanel = ({
     activeSessionId,
     onNew,
     onClose,
+    searchRef,
 }: {
     agentId?: string | null
     /** `/w/:workspace/p/:project` */
@@ -31,18 +32,28 @@ export const SessionSwitcherPanel = ({
     /** Omit where there is no agent to start a session with. */
     onNew?: () => void
     onClose: () => void
+    /** The host decides when the search takes focus: a phone keeps its keyboard down. */
+    searchRef?: RefObject<HTMLInputElement | null>
 }) => {
     const router = useRouter()
     const menu = useSessionRowMenu(base)
     const [search, setSearch] = useState("")
     const [typed, setTyped] = useDebounceInput<string>(search, setSearch, 250, "")
-    const listArgs = {agentId: agentId ?? undefined, policy: LIST_POLICY, limit: 30, withPinned: true}
+    const listArgs = {
+        agentId: agentId ?? undefined,
+        policy: LIST_POLICY,
+        limit: 30,
+        withPinned: true,
+    }
     const list = useSessionCardList({...listArgs, search})
 
-    const openRow = (vm: SessionRowVm) => {
-        onClose()
-        if (vm.id !== activeSessionId) void router.push(`${base}/sessions/${vm.id}`)
-    }
+    const openRow = useCallback(
+        (vm: SessionRowVm) => {
+            onClose()
+            if (vm.id !== activeSessionId) void router.push(`${base}/sessions/${vm.id}`)
+        },
+        [activeSessionId, base, onClose, router],
+    )
 
     // Enter can beat the search: it waits for the answer, so it never opens a row from before.
     const [enterQueued, setEnterQueued] = useState(false)
@@ -52,7 +63,7 @@ export const SessionSwitcherPanel = ({
         if (!enterQueued || !answered) return
         setEnterQueued(false)
         if (firstRow) openRow(firstRow)
-    })
+    }, [answered, enterQueued, firstRow, openRow])
 
     return (
         <div className="flex min-h-0 flex-col">
@@ -63,7 +74,7 @@ export const SessionSwitcherPanel = ({
                     className="text-muted-foreground shrink-0"
                 />
                 <input
-                    autoFocus
+                    ref={searchRef}
                     value={typed}
                     aria-label="Search this agent's sessions"
                     placeholder="Search this agent's sessions"

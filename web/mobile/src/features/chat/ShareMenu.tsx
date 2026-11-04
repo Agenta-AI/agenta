@@ -29,8 +29,8 @@ import {pendingTasksAtom, stashPendingTaskAtom} from "../home/pendingTask"
 
 import {sessionBarPanelAtom} from "./sessionBarState"
 import {SessionSharingControl} from "./SessionSharingControl"
-import {SharePanel} from "./SharePanel"
 import {ShareMenuItem} from "./ShareMenuItem"
+import {SharePanel} from "./SharePanel"
 import {useAgentPrivacyProps} from "./useAgentPrivacyProps"
 import {useSessionSharing} from "./useSessionSharing"
 
@@ -129,7 +129,13 @@ export const ShareMenu = ({
         store.set(stashPendingTaskAtom, {sessionId, task: {agentId, text}})
     }
 
-    const templateRow = (testId: string, text: string, icon: ReactNode, title: string, note: string) => (
+    const templateRow = (
+        testId: string,
+        text: string,
+        icon: ReactNode,
+        title: string,
+        note: string,
+    ) => (
         <button
             type="button"
             disabled={pending}
@@ -161,7 +167,7 @@ export const ShareMenu = ({
                 showSession
                     ? {
                           name: sessionName,
-                          hint: sharing ? sessionShareSummary(sharing) : null,
+                          hint: sharing?.my_role === "owner" ? sessionShareSummary(sharing) : null,
                           control: (
                               <SessionSharingControl
                                   sessionId={sessionId}

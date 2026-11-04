@@ -48,9 +48,9 @@ vi.stubGlobal("localStorage", {
 vi.stubGlobal(
     "ResizeObserver",
     class {
-        observe() {}
-        unobserve() {}
-        disconnect() {}
+        observe = vi.fn()
+        unobserve = vi.fn()
+        disconnect = vi.fn()
     },
 )
 

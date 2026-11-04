@@ -67,7 +67,7 @@ export const AgentPageHeader = ({
             // sizes to its content, as it always did.
             className={`${
                 center
-                    ? "grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center"
+                    ? "grid grid-cols-[minmax(0,1fr)_auto_minmax(max-content,1fr)] items-center"
                     : "flex items-center justify-between"
             } min-h-[48px] shrink-0 gap-2 border-x-0 border-t-0 border-b border-solid border-[var(--ag-shell-line)] bg-[var(--ag-surface-raised)] px-2.5 py-2 sm:min-h-0 sm:gap-4 ${
                 className ?? ""

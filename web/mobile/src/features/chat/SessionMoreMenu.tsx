@@ -3,10 +3,9 @@ import {useRef, useState, type ReactNode} from "react"
 import {revealConfigPaneAtom} from "@agenta/chat/state"
 import {browserLiveStatusQueryAtomFamily, browserPaneOpenAtomFamily} from "@agenta/entities/browser"
 import {workflowMolecule} from "@agenta/entities/workflow"
-import {useSessionFilesPane} from "@agenta/entity-ui/drive"
 import {AgentIdentity} from "@agenta/entity-ui/agent"
+import {useSessionFilesPane} from "@agenta/entity-ui/drive"
 import {openAgentVersionHistoryAtom} from "@agenta/playground-ui/agent-version-history"
-import {sessionMenuAccess} from "@agenta/sessions-ui"
 import {isBrowserEnabled} from "@agenta/shared/api"
 import {playgroundInspectorEnabledAtom, userAtom} from "@agenta/shared/state"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
@@ -37,7 +36,7 @@ import {
 } from "@phosphor-icons/react"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
-import {sessionBarPanelAtom, sessionRenameRequestAtom} from "./sessionBarState"
+import {canRenameSession, sessionBarPanelAtom, sessionRenameRequestAtom} from "./sessionBarState"
 import {SessionInspectorSheet} from "./SessionInspectorSheet"
 import {useSessionHeader} from "./useSessionHeader"
 
@@ -110,10 +109,7 @@ export const SessionMoreMenu = ({
         setPanel((current) => (next ? "more" : current === "more" ? null : current))
 
     const agentVisible = Boolean(agentId) && !agentHidden
-    const canRename =
-        hasSessions &&
-        stream !== null &&
-        sessionMenuAccess({ownerUserId: stream.owner_user_id ?? null}, me?.id) !== "member"
+    const canRename = hasSessions && canRenameSession(stream, me?.id)
 
     const session: MoreAction[] = [
         ...(entityId && agentVisible
@@ -298,11 +294,7 @@ export const SessionMoreMenu = ({
             <DropdownMenu open={open} onOpenChange={onOpenChange}>
                 <SimpleTooltip title="More actions">
                     <DropdownMenuTrigger asChild>
-                        <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label="More actions"
-                        >
+                        <Button variant="ghost" size="icon-sm" aria-label="More actions">
                             <DotsThreeIcon weight="bold" />
                         </Button>
                     </DropdownMenuTrigger>
