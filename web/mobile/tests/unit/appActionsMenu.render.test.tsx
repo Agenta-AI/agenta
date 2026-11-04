@@ -319,6 +319,26 @@ describe("app actions menu", () => {
         expect(refresh.one).toHaveBeenCalledWith("app-1")
     })
 
+    it("A saved rename is a success when the read after it fails", async () => {
+        vi.spyOn(console, "error").mockImplementation(() => undefined)
+        await mount()
+        await openMenu()
+        await clickItem("Rename")
+        await settle()
+        const answer = http.post.getMockImplementation()
+        http.post.mockImplementation((url: string, body: never) =>
+            url.endsWith("/workflows/revisions/query")
+                ? Promise.reject(new Error("read failed"))
+                : answer?.(url, body),
+        )
+        await type(field("Name"), "Support assistant")
+        await act(async () => byText("Save changes")?.click())
+        await settle()
+        expect(http.put).toHaveBeenCalledTimes(1)
+        expect(toast.error).not.toHaveBeenCalled()
+        expect(document.querySelector("[role=dialog]")).toBeNull()
+    })
+
     it("Archive sends one archive request on a double click and goes to the project home", async () => {
         http.post.mockImplementation((url: string, body: never) =>
             url.endsWith("/archive")
