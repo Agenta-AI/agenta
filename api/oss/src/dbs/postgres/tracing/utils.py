@@ -20,6 +20,7 @@ from sqlalchemy.dialects.postgresql import aggregate_order_by
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.dbs.postgres.tracing.dbes import SpanDBE
+from oss.src.core.tracing.utils.filtering import annotation_feedback_condition
 
 from oss.src.core.tracing.dtos import (
     Filtering,
@@ -747,7 +748,10 @@ def _handle_has_annotation_field(
 
     if feedback:
         clauses.extend(
-            _handle_attributes_field(Condition(**feedback), entity=annotation)
+            _handle_attributes_field(
+                annotation_feedback_condition(feedback),
+                entity=annotation,
+            )
         )
 
     exists = (

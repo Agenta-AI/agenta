@@ -496,7 +496,10 @@ def _parse_attribute_alias_condition(condition: Condition) -> None:
 def _parse_annotation_value(
     condition: Condition,
 ) -> Tuple[Optional[str], Optional[Condition]]:
-    """The evaluator slug and the feedback condition of an annotation picker row."""
+    """The evaluator slug and the feedback condition of an annotation picker row.
+
+    Parsing a row twice gives the same result, because a reused query is parsed again.
+    """
     if condition.operator not in _L_OPS:
         raise FilteringException(
             f"'{condition.field}' only supports list operators.",
@@ -532,18 +535,23 @@ def _parse_annotation_value(
         )
 
     try:
-        feedback_condition = Condition(
-            field=Fields.ATTRIBUTES.value,
-            key=f"ag.data.outputs.{feedback['field']}",
-            operator=feedback.get("operator") or ComparisonOperator.IS,
-            value=feedback.get("value"),
-        )
+        feedback_condition = annotation_feedback_condition(feedback)
     except ValidationError as e:
         raise FilteringException(
             f"'{condition.field}' feedback operator or value is not supported.",
         ) from e
 
     return evaluator, feedback_condition
+
+
+def annotation_feedback_condition(feedback: dict) -> Condition:
+    """The attribute condition on the annotation's outputs for a feedback filter."""
+    return Condition(
+        field=Fields.ATTRIBUTES.value,
+        key=f"ag.data.outputs.{feedback['field']}",
+        operator=feedback.get("operator") or ComparisonOperator.IS,
+        value=feedback.get("value"),
+    )
 
 
 def _evaluator_references_condition(
@@ -565,7 +573,11 @@ def _parse_has_annotation_condition(condition: Condition) -> None:
     condition.value = {
         "evaluator": evaluator,
         "feedback": (
-            feedback.model_dump(mode="json", exclude_none=True)
+            {
+                "field": feedback.key[len("ag.data.outputs.") :],
+                "operator": feedback.operator.value,
+                "value": feedback.value,
+            }
             if feedback is not None
             else None
         ),

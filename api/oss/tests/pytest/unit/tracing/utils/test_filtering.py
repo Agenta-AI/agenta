@@ -348,15 +348,15 @@ def test_parse_condition_normalizes_has_annotation_value():
 
     assert parse_condition(condition) is condition
     assert condition.field == Fields.HAS_ANNOTATION
-    assert condition.value == {
+    normalized = {
         "evaluator": "exact-match",
-        "feedback": {
-            "field": "attributes",
-            "key": "ag.data.outputs.success",
-            "operator": "is",
-            "value": True,
-        },
+        "feedback": {"field": "success", "operator": "is", "value": True},
     }
+    assert condition.value == normalized
+
+    # A reused query is parsed again on its next page.
+    assert parse_condition(condition) is condition
+    assert condition.value == normalized
 
 
 def test_parse_condition_accepts_has_annotation_without_evaluator_or_feedback():
@@ -526,3 +526,30 @@ def test_parse_filtering_raises_for_unknown_nested_condition_type():
 
     with pytest.raises(FilteringException, match="Unsupported condition type"):
         parse_filtering(filtering)
+
+
+def test_parse_filtering_of_picker_fields_is_idempotent():
+    filtering = Filtering(
+        conditions=[
+            Condition(field="attributes.ag.session.id", operator="is", value="s-1"),
+            Condition(
+                field="custom", key="attributes.ag.tags.env", operator="is", value="x"
+            ),
+            Condition(
+                field="is_annotation",
+                operator="in",
+                value=[{"evaluator": "e", "feedback": {"field": "score", "value": 1}}],
+            ),
+            Condition(
+                field="has_annotation",
+                operator="not_in",
+                value=[{"evaluator": "e", "feedback": {"field": "score", "value": 1}}],
+            ),
+        ]
+    )
+
+    parse_filtering(filtering)
+    once = filtering.model_dump(mode="json")
+    parse_filtering(filtering)
+
+    assert filtering.model_dump(mode="json") == once
