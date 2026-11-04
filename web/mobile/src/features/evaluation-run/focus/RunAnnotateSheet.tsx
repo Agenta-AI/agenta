@@ -6,6 +6,7 @@ import type {ScenarioRow} from "../scenarios/scenarioColumns"
 import {RunAnnotateBody} from "./RunAnnotateBody"
 import {ScenarioFocusSkeleton} from "./states/ScenarioFocusSkeleton"
 import {useRunAnnotationSession} from "./useRunAnnotationSession"
+import {useScenarioInvocation} from "./useScenarioInvocation"
 
 /**
  * Annotates one scenario of a human run without leaving the Scenarios tab. A page must load this
@@ -27,6 +28,7 @@ export const RunAnnotateSheet = ({
     onClose: () => void
 }) => {
     const {isOpen, onSaved} = useRunAnnotationSession(runId)
+    const invocation = useScenarioInvocation(runId, row)
 
     return (
         <Sheet open onOpenChange={(open) => !open && onClose()}>
@@ -47,6 +49,7 @@ export const RunAnnotateSheet = ({
                             labels={labels}
                             onRetry={onRetry}
                             onSaved={onSaved}
+                            invocation={invocation}
                         />
                     ) : (
                         <ScenarioFocusSkeleton />

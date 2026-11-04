@@ -127,3 +127,8 @@ export type {
     ExecuteWorkflowRevisionParams,
     ExecuteWorkflowRevisionResult,
 } from "./executeWorkflowRevision"
+export {runScenarioInvocation} from "./state/evaluationRunInvocation"
+export type {
+    RunScenarioInvocationParams,
+    RunScenarioInvocationResult,
+} from "./state/evaluationRunInvocation"
