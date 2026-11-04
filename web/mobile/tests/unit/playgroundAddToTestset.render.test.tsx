@@ -197,7 +197,8 @@ const runs: string[] = []
 
 /** Waits until `done` holds: the full suite runs many files at once, so time varies. */
 const until = async (done: () => unknown) => {
-    for (let i = 0; i < 60 && !done(); i++) await settle()
+    const end = Date.now() + 40_000
+    while (!done() && Date.now() < end) await settle()
 }
 
 const store = getDefaultStore()
@@ -252,8 +253,11 @@ const runFrance = async () => {
 
 const sheet = () => document.querySelector<HTMLElement>("[role=dialog]")
 const choose = async (label: string, value: string) => {
-    const element = document.querySelector<HTMLSelectElement>(`select[aria-label="${label}"]`)
-    expect(element, label).not.toBeNull()
+    const select = () => document.querySelector<HTMLSelectElement>(`select[aria-label="${label}"]`)
+    // The options arrive with their list: wait for the one to pick.
+    await until(() => select()?.querySelector(`option[value="${value}"]`))
+    const element = select()
+    expect(element?.querySelector(`option[value="${value}"]`), `${label} ${value}`).not.toBeNull()
     await act(async () => {
         element!.value = value
         element!.dispatchEvent(new Event("change", {bubbles: true}))
@@ -310,20 +314,21 @@ const openSheet = async () => {
 }
 
 /** Picks the test set, commits, and returns the rows the commit adds. */
+const commits = () =>
+    http.post.mock.calls.filter(([url]) => String(url).endsWith("/testsets/revisions/commit"))
+
 const commitRows = async () => {
     await choose("Test set", "ts-1")
     await until(() => button(sheet()!, "Commit")?.disabled === false)
+    expect(button(sheet()!, "Commit")?.disabled, "Commit enabled").toBe(false)
     await act(async () => button(sheet()!, "Commit")!.click())
-    await settle()
-    const commits = http.post.mock.calls.filter(([url]) =>
-        String(url).endsWith("/testsets/revisions/commit"),
-    )
-    expect(commits).toHaveLength(1)
-    return (commits[0][1] as {testset_revision: {delta: {rows: {add: unknown[]}}}}).testset_revision
-        .delta.rows.add
+    await until(() => commits().length > 0)
+    expect(commits()).toHaveLength(1)
+    return (commits()[0][1] as {testset_revision: {delta: {rows: {add: unknown[]}}}})
+        .testset_revision.delta.rows.add
 }
 
-describe("Add to test set from the playground", {timeout: 30_000}, () => {
+describe("Add to test set from the playground", {timeout: 90_000}, () => {
     it("A run with two repeats adds both repeats as rows", async () => {
         store.set(repetitionCountAtom, 2)
         await mount()

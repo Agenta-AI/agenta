@@ -107,7 +107,8 @@ const routeHttp = () => {
 
 /** Waits until `done` holds: the full suite runs many files at once, so time varies. */
 const until = async (done: () => unknown) => {
-    for (let i = 0; i < 60 && !done(); i++) await settle()
+    const end = Date.now() + 40_000
+    while (!done() && Date.now() < end) await settle()
 }
 
 const store = getDefaultStore()
@@ -199,7 +200,7 @@ afterEach(() => {
     store.set(playgroundController.actions.resetAll)
 })
 
-describe("New Evaluation from the playground", {timeout: 30_000}, () => {
+describe("New Evaluation from the playground", {timeout: 90_000}, () => {
     it("Opens the auto evaluation wizard with exactly the revisions on screen", async () => {
         await mount("rev-2,rev-1")
 
