@@ -125,6 +125,7 @@ function createLiveView(session) {
   });
 
   async function applyInput(message) {
+    session.noteInput();
     if (message.type === "done") {
       session.setControl("agent");
       session.waits.done();

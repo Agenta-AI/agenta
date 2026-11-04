@@ -4,7 +4,7 @@
 // changes and "status" when anything the live view shows changes.
 
 const { EventEmitter } = require("node:events");
-const { VIEWPORT } = require("./config.cjs");
+const { USER_IDLE_MS, VIEWPORT } = require("./config.cjs");
 const { stateStore } = require("./state.cjs");
 
 function createSession({ stateFile, waits }) {
@@ -17,6 +17,7 @@ function createSession({ stateFile, waits }) {
     store: stateStore(stateFile),
     waits,
     lastActivity: Date.now(),
+    lastInput: 0,
   });
 
   session.connected = () => Boolean(session.browser?.isConnected());
@@ -34,10 +35,18 @@ function createSession({ stateFile, waits }) {
   };
 
   session.setControl = (next) => {
+    if (next === "user") session.noteInput();
     if (session.control === next) return;
     session.control = next;
     session.emit("status");
   };
+
+  session.noteInput = () => {
+    session.lastInput = Date.now();
+  };
+
+  session.personActive = () =>
+    session.control === "user" && Date.now() - session.lastInput < USER_IDLE_MS;
 
   session.saveState = async () =>
     session.store.save(await session.context.storageState());

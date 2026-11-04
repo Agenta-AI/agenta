@@ -28,6 +28,8 @@ const config = {
   WAIT_SLICE_MS: ms("AGENTA_BROWSER_WAIT_SLICE_MS", 90_000),
   WAIT_TOTAL_MS: ms("AGENTA_BROWSER_WAIT_TOTAL_MS", 25 * 60_000),
   IDLE_EXIT_MS: ms("AGENTA_BROWSER_IDLE_MS", 15 * 60_000),
+  // Control held this long with no input no longer blocks the agent: the person has moved on.
+  USER_IDLE_MS: ms("AGENTA_BROWSER_USER_IDLE_MS", 20_000),
   START_TIMEOUT_MS: ms("AGENTA_BROWSER_START_TIMEOUT_MS", 60_000),
 };
 

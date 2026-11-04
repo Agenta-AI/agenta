@@ -122,10 +122,11 @@ async function serve() {
   }
 
   async function runOp(op, args = {}) {
-    if (session.control === "user")
+    if (session.personActive())
       return agentError("user_in_control", "A person is controlling the browser.", {
         next_step: 'Run `agenta-browser wait "<why>"` and continue when it returns.',
       });
+    session.setControl("agent");
     try {
       if (op === "tab") {
         const text = await tabs(args.index);
