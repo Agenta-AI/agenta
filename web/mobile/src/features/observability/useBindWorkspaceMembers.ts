@@ -12,7 +12,7 @@ const workspaceMembersListAtom = atom<WorkspaceMember[]>([])
  * Names the annotation authors. Without a bound member list, an author shows as a raw user id.
  * This loads the workspace's members the way Settings does (the same query, so they are shared)
  * and hands them to the package's member seam. Call it only from code that loads lazily
- * (`TraceDrawerMembers`): the app shell must not carry the member query.
+ * (`TraceDrawerMembers` and the session drawer): the app shell must not carry the member query.
  */
 export const useBindWorkspaceMembers = () => {
     const router = useRouter()

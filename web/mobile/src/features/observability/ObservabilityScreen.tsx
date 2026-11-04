@@ -8,6 +8,7 @@ import {useIsNarrowScreen} from "@agenta/ui/hooks"
 import {useQueryClient} from "@tanstack/react-query"
 import {useSetAtom} from "jotai"
 import {MessagesSquare, Network} from "lucide-react"
+import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -23,12 +24,19 @@ import {NavDrawer} from "../nav/NavDrawer"
 import {ObservabilityAppFilter} from "./ObservabilityAppFilter"
 import {setObservabilityAppInUrl, useObservabilityAppScope} from "./observabilityAppScope"
 import {selectedTraceIds} from "./selectedTraceIds"
+import {useObservabilitySessionUrl} from "./sessionDrawer/useObservabilitySessionUrl"
 import {SessionsList} from "./SessionsList"
 import {SessionsTable} from "./SessionsTable"
 import {TracesFilters} from "./TracesFilters"
 import {TracesList} from "./TracesList"
 import {TracesTable} from "./TracesTable"
 import {useTracesExportBinding} from "./useTracesExportBinding"
+
+// Loaded on the first session opened, so the page everyone opens does not carry the drawer.
+const ObservabilitySessionDrawer = dynamic(
+    () => import("./sessionDrawer/ObservabilitySessionDrawer"),
+    {ssr: false},
+)
 
 type ObservabilityTab = "traces" | "sessions"
 
@@ -93,6 +101,11 @@ const ObservabilityContent = ({
         [router],
     )
     const tracesFilters = tab === "traces" ? <TracesFilters /> : undefined
+
+    const session = useObservabilitySessionUrl()
+    // Mounted once a session has been opened, and kept so the panel can slide out.
+    const [sessionDrawerRequested, setSessionDrawerRequested] = useState(false)
+    if (session.sessionId !== null && !sessionDrawerRequested) setSessionDrawerRequested(true)
 
     const isNarrow = useIsNarrowScreen()
     // Selection lives in the table; the narrow card list has none. Anything that acts on a
@@ -204,10 +217,10 @@ const ObservabilityContent = ({
                             {tab === "sessions" ? (
                                 !showsTable ? (
                                     <div className="min-h-0 flex-1 overflow-y-auto pb-6">
-                                        <SessionsList />
+                                        <SessionsList onOpenSession={session.open} />
                                     </div>
                                 ) : (
-                                    <SessionsTable />
+                                    <SessionsTable onOpenSession={session.open} />
                                 )
                             ) : !showsTable ? (
                                 <div className="min-h-0 flex-1 overflow-y-auto pb-6">
@@ -221,6 +234,12 @@ const ObservabilityContent = ({
                             )}
                         </div>
                         <DeleteTraceModal />
+                        {sessionDrawerRequested ? (
+                            <ObservabilitySessionDrawer
+                                sessionId={session.sessionId}
+                                onSelectSession={session.open}
+                            />
+                        ) : null}
                     </PageLayout>
                 </ScreenScaffold>
             </AppShell>
