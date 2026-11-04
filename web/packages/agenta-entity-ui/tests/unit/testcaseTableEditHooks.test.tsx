@@ -3,14 +3,18 @@
  * and the edit session flag. The grid itself is replaced by a plain table, so the test sees
  * what TestcaseTable and EntityTable hand to it.
  */
-import {atom} from "jotai"
 import {act, type ReactNode} from "react"
+
+import type {TestcaseDataConfig} from "@agenta/entities/testcase"
+import {atom} from "jotai"
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import type {TestcaseDataConfig} from "@agenta/entities/testcase"
-
-const seen = vi.hoisted(() => ({configs: [] as unknown[]}))
+const seen = vi.hoisted(() => ({
+    configs: [] as unknown[],
+    shell: null as null | {loadNextPage: () => void; enableInfiniteScroll?: boolean},
+    loadMore: [] as unknown[],
+}))
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 vi.mock("@agenta/entities/testcase", async (importOriginal) => {
@@ -46,11 +50,17 @@ vi.mock("@agenta/entities/testcase", async (importOriginal) => {
             resetSelection: noop,
         },
     }
-    return {...original, testcaseDataController: controller}
+    const loadMoreTestcasesAtom = atom(null, (_get, _set, config: unknown) => {
+        seen.loadMore.push(config)
+    })
+    return {...original, testcaseDataController: controller, loadMoreTestcasesAtom}
 })
 
-type Row = {id: string; key: string}
-type Col = {
+interface Row {
+    id: string
+    key: string
+}
+interface Col {
     key: string
     title?: ReactNode
     children?: Col[]
@@ -63,36 +73,43 @@ vi.mock("@agenta/ui/table", async (importOriginal) => {
         ...original,
         InfiniteVirtualTableFeatureShell: (props: {
             columns: Col[]
-            pagination: {rows: Row[]}
+            pagination: {rows: Row[]; loadNextPage: () => void}
+            tableScope?: {enableInfiniteScroll?: boolean}
             primaryActions?: ReactNode
             tableProps?: {onRow?: (record: Row) => {onClick?: () => void}}
-        }) => (
-            <div>
-                <div data-testid="toolbar">{props.primaryActions}</div>
-                <table>
-                    <thead>
-                        <tr>
-                            {props.columns.map((column) => (
-                                <th key={column.key}>{column.title}</th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {props.pagination.rows.map((record) => (
-                            <tr
-                                key={record.id}
-                                data-row={record.id}
-                                onClick={props.tableProps?.onRow?.(record).onClick}
-                            >
+        }) => {
+            seen.shell = {
+                loadNextPage: props.pagination.loadNextPage,
+                enableInfiniteScroll: props.tableScope?.enableInfiniteScroll,
+            }
+            return (
+                <div>
+                    <div data-testid="toolbar">{props.primaryActions}</div>
+                    <table>
+                        <thead>
+                            <tr>
                                 {props.columns.map((column) => (
-                                    <td key={column.key}>{column.render?.(null, record)}</td>
+                                    <th key={column.key}>{column.title}</th>
                                 ))}
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        ),
+                        </thead>
+                        <tbody>
+                            {props.pagination.rows.map((record) => (
+                                <tr
+                                    key={record.id}
+                                    data-row={record.id}
+                                    onClick={props.tableProps?.onRow?.(record).onClick}
+                                >
+                                    {props.columns.map((column) => (
+                                        <td key={column.key}>{column.render?.(null, record)}</td>
+                                    ))}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )
+        },
     }
 })
 
@@ -111,6 +128,8 @@ const mount = async (node: ReactNode) => {
 
 beforeEach(() => {
     seen.configs = []
+    seen.shell = null
+    seen.loadMore = []
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
@@ -167,5 +186,17 @@ describe("TestcaseTable edit hooks", () => {
         )
         const heads = [...container.querySelectorAll("th")].map((th) => th.textContent)
         expect(heads).toEqual(["question", "Menu"])
+    })
+
+    it("A server table loads the next page on scroll; a local table has one page", async () => {
+        await mount(<TestcaseTable config={config} />)
+        expect(seen.shell?.enableInfiniteScroll).toBe(true)
+        act(() => seen.shell?.loadNextPage())
+        expect(seen.loadMore).toEqual([config])
+
+        await mount(<TestcaseTable config={{...config, useLocal: true}} />)
+        expect(seen.shell?.enableInfiniteScroll).toBe(false)
+        act(() => seen.shell?.loadNextPage())
+        expect(seen.loadMore).toHaveLength(1)
     })
 })

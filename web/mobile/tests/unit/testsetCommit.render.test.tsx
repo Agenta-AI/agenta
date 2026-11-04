@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import {act} from "react"
+import {act, useState} from "react"
 
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -37,7 +37,14 @@ vi.mock("@/features/testsets/detail/changesDiff", async (importOriginal) => ({
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
-type Editor = Parameters<typeof TestsetToolbar>[0]["editor"]
+type ToolbarProps = Parameters<typeof TestsetToolbar>[0]
+type Editor = ToolbarProps["editor"]
+
+/** The toolbar with the commit step state the page holds. */
+const ToolbarHost = (props: Omit<ToolbarProps, "commitOpen" | "onCommitOpenChange">) => {
+    const [commitOpen, setCommitOpen] = useState(false)
+    return <TestsetToolbar {...props} commitOpen={commitOpen} onCommitOpenChange={setCommitOpen} />
+}
 
 const fakeEditor = (over: Partial<Editor> = {}): Editor => ({
     isNew: false,
@@ -78,7 +85,7 @@ describe("Testset toolbar, commit and leave prompt", () => {
         act(() =>
             root.render(
                 <>
-                    <TestsetToolbar
+                    <ToolbarHost
                         editor={editor}
                         routeId="rev-2"
                         base="/w/ws/p/pr"
@@ -251,7 +258,7 @@ describe("Testset toolbar, commit and leave prompt", () => {
         const editor = fakeEditor()
         await act(() =>
             root.render(
-                <TestsetToolbar
+                <ToolbarHost
                     editor={editor}
                     routeId="rev-2"
                     base="/w/ws/p/pr"
