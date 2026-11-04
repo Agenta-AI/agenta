@@ -1,3 +1,4 @@
+import {isBrowserEnabled} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
@@ -13,7 +14,7 @@ export const browserLiveStatusQueryAtomFamily = atomFamily((sessionId: string) =
             queryKey: ["browser-live-status", projectId, sessionId],
             queryFn: () => fetchBrowserLiveStatus(projectId as string, sessionId),
             refetchOnWindowFocus: false,
-            enabled: !!projectId && !!sessionId,
+            enabled: isBrowserEnabled() && !!projectId && !!sessionId,
         }
     }),
 )
