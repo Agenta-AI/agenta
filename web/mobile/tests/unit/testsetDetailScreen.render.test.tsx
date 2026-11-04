@@ -64,7 +64,8 @@ vi.mock("@agenta/entities/testcase", () => {
         {id: "case-1", key: "case-1"},
         {id: "case-2", key: "case-2"},
     ])
-    return {testcaseDataController: {selectors: {rows: () => rows}}}
+    const columns = atom([{key: "question"}])
+    return {testcaseDataController: {selectors: {rows: () => rows, columns: () => columns}}}
 })
 vi.mock("@agenta/entity-ui/testcase", async () => ({
     useTestcaseDrawerNavigation: (

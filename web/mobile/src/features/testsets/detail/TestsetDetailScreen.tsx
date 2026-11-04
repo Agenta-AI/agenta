@@ -1,4 +1,4 @@
-import {useCallback, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {testcaseDataController, type TestcaseTableRow} from "@agenta/entities/testcase"
 import {useTestcaseDrawerNavigation} from "@agenta/entity-ui/testcase"
@@ -32,6 +32,11 @@ import {useUpdateTestsetDetails} from "./useUpdateTestsetDetails"
 // The drawer pulls the rich editor, so it loads on the first row the reader opens.
 const TestcaseEditorDrawer = dynamic(
     () => import("./TestcaseEditorDrawer").then((module) => module.TestcaseEditorDrawer),
+    {ssr: false},
+)
+// The import dialog loads on the first Import click.
+const ImportRevisionDialog = dynamic(
+    () => import("./ImportRevisionDialog").then((module) => module.ImportRevisionDialog),
     {ssr: false},
 )
 
@@ -101,7 +106,13 @@ export const TestsetDetailScreen = ({
         setOpenRowId(id)
     }, [])
 
+    // The import dialog mounts only while open, so each open starts with no file.
+    const [importOpen, setImportOpen] = useState(false)
+    const openImport = useCallback(() => setImportOpen(true), [])
+
     const rows = useAtomValue(testcaseDataController.selectors.rows(editor.tableConfig))
+    const columns = useAtomValue(testcaseDataController.selectors.columns(editor.tableConfig))
+    const columnKeys = useMemo(() => columns.map((column) => column.key), [columns])
     const navigation = useTestcaseDrawerNavigation({
         rows,
         getRowId: rowId,
@@ -131,6 +142,7 @@ export const TestsetDetailScreen = ({
                 base={base}
                 canEdit={canEdit}
                 revisions={revisions}
+                onImport={openImport}
                 onRowAdded={openRow}
                 commitOpen={commitOpen}
                 onCommitOpenChange={setCommitOpen}
@@ -182,6 +194,17 @@ export const TestsetDetailScreen = ({
                 </ScreenScaffold>
             </AppShell>
             {archive.modal}
+            {importOpen && header?.testsetId ? (
+                <ImportRevisionDialog
+                    open
+                    projectId={projectId}
+                    testsetId={header.testsetId}
+                    testsetName={header.testsetName}
+                    currentColumns={columnKeys}
+                    onClose={() => setImportOpen(false)}
+                    onImported={(id) => go(testsetRevisionPath(base, id))}
+                />
+            ) : null}
             {drawerLoaded ? (
                 <TestcaseEditorDrawer
                     testcaseId={openRowId}
