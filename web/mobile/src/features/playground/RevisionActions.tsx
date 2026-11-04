@@ -78,6 +78,7 @@ export const RevisionActions = ({
     readOnly,
     onCommitted,
     onArchived,
+    onClose,
 }: {
     workspaceId: string
     projectId: string
@@ -89,6 +90,8 @@ export const RevisionActions = ({
     onCommitted: (revisionId: string) => void
     /** The server deleted this revision. The page takes it out after the lists load again. */
     onArchived: (revisionId: string) => void
+    /** Takes the revision off the compare view; absent in the single view. */
+    onClose?: () => void
 }) => {
     const store = useStore()
     const queryClient = useQueryClient()
@@ -226,6 +229,7 @@ export const RevisionActions = ({
                         onRevert={discard}
                         onDeploy={() => setOpen({kind: "deploy", revision: shownRevision()})}
                         onDelete={() => setOpen({kind: "delete", revision: shownRevision()})}
+                        onClose={onClose}
                     />
                 </>
             )}
