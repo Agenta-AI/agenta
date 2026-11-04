@@ -2,8 +2,9 @@
 
 ## Goal
 
-Send every agent failure to PostHog with its reason, so the team can see what fails most and
-build test cases from real failures. Where the deployment allows it, the event also holds the
+Send agent failures to PostHog with their reason, so the team can see what fails most and build
+test cases from real failures. Delivery is best effort: the classes under "Not covered" are left
+out, and a report that passes its 5 second limit loses its unsent events. Where the deployment allows it, the event also holds the
 prompt that led to the failure.
 
 ## Where the capture sits
@@ -102,7 +103,8 @@ new runner code still reaches PostHog.
 - **Secrets.** The runner redacts records at the persist sink, so the capture reads redacted text.
   `prompt` is cut to 4000 characters and `message` to 1000.
 - **Redelivery.** The worker can see a record twice. The event `uuid` is the `record_id` and the
-  `timestamp` is the record time, so PostHog treats a repeat as the same event.
+  `timestamp` is the record time, so PostHog treats a repeat as the same event. This also needs the same `distinct_id`. A session
+  whose owner changes between deliveries counts twice, and this case is rare enough to accept.
 - **Prompt on a resumed turn.** Locally 772 of 864 failing turns hold their own user message. The
   other 92 are continuations. The prompt then falls back to the latest user message before the
   failure.
