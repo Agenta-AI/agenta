@@ -1,11 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
-import {
-    CLOUD_CONFIG,
-    OSS_CONFIG,
-    POSTHOG_CONFIG,
-    generateOrRetrieveDistinctId,
-} from "@agenta/shared/analytics"
+import {CLOUD_CONFIG, OSS_CONFIG, POSTHOG_CONFIG} from "@agenta/shared/analytics"
 import {useAtom} from "jotai"
 import {useRouter} from "next/router"
 import type {PostHog} from "posthog-js"
@@ -54,10 +49,9 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
                     if (process.env.NODE_ENV === "development") posthog.debug()
                     if (!initCapturedRef.current) {
                         initCapturedRef.current = true
-                        const distinctId = generateOrRetrieveDistinctId()
-                        if (distinctId) {
-                            posthog.identify?.(distinctId)
-                        }
+                        // The browser stays anonymous until the profile loads; then
+                        // usePostHogAg identifies it by user id, which merges this browser
+                        // into that person.
                         posthog.capture?.("$pageview", {$current_url: window.location.href})
                     }
                 },

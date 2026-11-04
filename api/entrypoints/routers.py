@@ -18,6 +18,7 @@ from oss.src.core.sessions.commands.delivery import (
     deliver_continue_interaction,
 )
 from oss.src.utils.common import is_ee
+from oss.src.utils.instance import announce_instance, load_instance_id
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.server_tracing import instrument_fastapi, setup_server_tracing
 from oss.src.utils.helpers import (
@@ -385,6 +386,11 @@ async def lifespan(*args, **kwargs):
     warn_deprecated_env_vars()
     validate_required_env_vars()
     validate_platform_runtime_key()
+
+    # Analytics tags every event with this deployment's id. Best-effort: analytics
+    # must never block startup.
+    await load_instance_id()
+    await announce_instance()
 
     await _triggers_broker.startup()
     await _channels_inbox_broker.startup()

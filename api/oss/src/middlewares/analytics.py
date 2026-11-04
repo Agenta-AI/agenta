@@ -8,6 +8,7 @@ from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.common import is_oss
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.instance import INSTANCE_GROUP, get_instance_id
 from oss.src.utils.lazy import _load_posthog
 
 log = get_module_logger(__name__)
@@ -108,7 +109,42 @@ async def _set_activation_property(
         log.error(f"Error setting activation property '{property_name}': {e}")
 
 
-def capture_oss_deployment_created(user_email: str, organization_id: str):
+def capture_user_event(
+    user_id: str,
+    event: str,
+    properties: Optional[dict] = None,
+    email: Optional[str] = None,
+) -> None:
+    """Capture an event for a user. No-op if PostHog is not configured.
+
+    The person is the user's id, which is unique per deployment: the same email on two
+    deployments is two people. The email is only a person property. Every event names
+    the deployment it came from.
+    """
+    posthog = _load_posthog()
+    if posthog is None or not user_id:
+        return
+
+    properties = dict(properties or {})
+    instance_id = get_instance_id()
+    if instance_id:
+        properties["instance_id"] = instance_id
+    if email:
+        properties.setdefault("$set", {})["email"] = email
+
+    posthog.capture(
+        event,
+        distinct_id=str(user_id),
+        properties=properties,
+        groups={INSTANCE_GROUP: instance_id} if instance_id else None,
+    )
+
+
+def capture_oss_deployment_created(
+    user_id: str,
+    user_email: str,
+    organization_id: str,
+):
     """
     Captures the 'oss_deployment_created' event in PostHog.
     This event is triggered when the first user signs up in an OSS instance.
@@ -116,21 +152,17 @@ def capture_oss_deployment_created(user_email: str, organization_id: str):
     """
 
     if is_oss():
-        posthog = _load_posthog()
-        if posthog is None:
-            return
-
         try:
-            posthog.capture(
-                distinct_id=user_email,
+            capture_user_event(
+                user_id=user_id,
                 event="oss_deployment_created",
                 properties={
                     "organization_id": organization_id,
                     "deployment_type": "oss",
-                    "$set": {"email": user_email},
                 },
+                email=user_email,
             )
-            log.info(f"Captured 'oss_deployment_created' event for {user_email}")
+            log.info(f"Captured 'oss_deployment_created' event for {user_id}")
         except Exception as e:
             log.error(f"Error capturing 'oss_deployment_created' event: {e}")
 
@@ -238,22 +270,18 @@ async def analytics_middleware(request: Request, call_next: Callable):
                 )
                 # --------------------------------------------------------------
 
-            distinct_id = None
-
-            try:
-                distinct_id = request.state.user_email
-            except Exception:  # pylint: disable=bare-except
-                pass
+            distinct_id = getattr(request.state, "user_id", None)
+            user_email = getattr(request.state, "user_email", None)
 
             if distinct_id:
+                distinct_id = str(distinct_id)
                 posthog = _load_posthog()
                 if posthog is not None:
-                    properties["$set"] = {"email": distinct_id}
-
-                    posthog.capture(
-                        distinct_id=distinct_id,
+                    capture_user_event(
+                        user_id=distinct_id,
                         event=event_name,
-                        properties=properties or {},
+                        properties=properties,
+                        email=user_email,
                     )
 
                     # Check if this is an activation event

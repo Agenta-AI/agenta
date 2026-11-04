@@ -5,7 +5,7 @@ from urllib.parse import urlparse, urlunparse
 import httpx
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.lazy import _load_posthog
+from oss.src.middlewares.analytics import capture_user_event
 
 from supertokens_python.recipe.thirdparty.provider import (
     ProviderInput,
@@ -198,21 +198,20 @@ async def _create_account(email: str, uid: str) -> bool:
     # Both editions: create_accounts creates the user and, when the
     # allowlist permits, a personal organization. Users not allowed to
     # create an organization sign in org-less and join via invitation.
-    await create_accounts(payload)
+    user = await create_accounts(payload)
 
-    posthog = _load_posthog()
-    if posthog is not None:
+    if user is not None:
         try:
-            posthog.capture(
-                distinct_id=auth_info.email,
+            capture_user_event(
+                user_id=str(user.id),
                 event="user_signed_up_v1",
                 properties={
                     "source": "auth",
                     "is_ee": is_ee(),
                     "cloud_region": _get_signup_cloud_region(_get_signup_cloud_url()),
                     "cloud_url": _get_signup_cloud_url(),
-                    "$set": {"email": auth_info.email},
                 },
+                email=auth_info.email,
             )
         except Exception as exc:
             log.warning(

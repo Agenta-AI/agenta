@@ -1,45 +1,31 @@
 import {afterEach, describe, expect, it, vi} from "vitest"
 
-import {
-    analyticsIdentity,
-    captureFirstAgentIntent,
-    classifyAgentIntent,
-    generateOrRetrieveDistinctId,
-} from "../../src/analytics"
+import {analyticsIdentity, captureFirstAgentIntent, classifyAgentIntent} from "../../src/analytics"
 
 afterEach(() => vi.unstubAllGlobals())
 
 describe("shared desktop and mobile analytics", () => {
-    it("reads the existing desktop visitor ID", () => {
-        vi.stubGlobal("localStorage", {getItem: () => "existing-desktop-id"})
-        expect(generateOrRetrieveDistinctId()).toBe("existing-desktop-id")
-    })
-
-    it("stores a new visitor ID under the same key", () => {
-        const setItem = vi.fn()
-        vi.stubGlobal("localStorage", {getItem: () => null, setItem})
-        const id = generateOrRetrieveDistinctId()
-        expect(setItem).toHaveBeenCalledWith("posthog_distinct_id", id)
-        expect(id).toMatch(/^[a-f0-9-]{36}$/)
-    })
-
-    it("survives unavailable browser storage with a stable in-memory ID", () => {
-        vi.stubGlobal("localStorage", {
-            getItem: () => {
-                throw new Error("denied")
-            },
+    it("identifies by the backend user id and keeps email as a property", () => {
+        const user = {
+            id: "user-1",
+            email: "test@agenta.ai",
+            username: "test",
+            instance_id: "instance-1",
+        }
+        expect(analyticsIdentity(user)).toEqual({
+            id: "user-1",
+            properties: {email: "test@agenta.ai", username: "test"},
+            instanceId: "instance-1",
         })
-        expect(generateOrRetrieveDistinctId()).toBe(generateOrRetrieveDistinctId())
     })
 
-    it("uses email on cloud, the visitor ID on OSS, and preserves person properties", () => {
-        const user = {email: "person@example.test", username: "Person"}
-        expect(analyticsIdentity(user, true, "visitor")).toEqual({id: user.email, properties: user})
-        expect(analyticsIdentity(user, false, "visitor")).toEqual({id: "visitor", properties: user})
-        expect(analyticsIdentity(null, true, "visitor")).toEqual({
-            id: "visitor",
+    it("stays anonymous until the profile has a user id", () => {
+        expect(analyticsIdentity(null)).toEqual({
+            id: null,
             properties: undefined,
+            instanceId: null,
         })
+        expect(analyticsIdentity({email: "test@agenta.ai"}).id).toBeNull()
     })
 
     it("classifies text without sending it as an event property", () => {

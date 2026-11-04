@@ -1,11 +1,10 @@
-import {useCallback, useMemo, useRef} from "react"
+import {useCallback, useMemo} from "react"
 
-import {analyticsIdentity, generateOrRetrieveDistinctId} from "@agenta/shared/analytics"
+import {INSTANCE_GROUP, analyticsIdentity} from "@agenta/shared/analytics"
 import {useAtom} from "jotai"
 import {type PostHog} from "posthog-js"
 
 import useIsomorphicLayoutEffect from "@/oss/hooks/useIsomorphicLayoutEffect"
-import {isDemo} from "@/oss/lib/helpers/utils"
 import {useProfileData} from "@/oss/state/profile"
 
 import {getEnv} from "../../dynamicEnv"
@@ -16,22 +15,18 @@ interface ExtendedPostHog extends PostHog {
     capture: PostHog["capture"]
 }
 
+// Shared by every component that calls the hook, so each identity change is sent once.
+let identifiedKey: string | null = null
+
 export const usePostHogAg = (): ExtendedPostHog | null => {
     const trackingEnabled = getEnv("NEXT_PUBLIC_POSTHOG_API_KEY") !== ""
     const {user} = useProfileData()
     const [posthog] = useAtom(posthogAtom)
-    const baseDistinctId = useMemo(() => generateOrRetrieveDistinctId(), [])
-    const {id: analyticsId, properties: personProps} = useMemo(
-        () => analyticsIdentity(user, isDemo(), baseDistinctId),
-        [user, baseDistinctId],
-    )
-    const identifiedRef = useRef<string | null>(null)
-    const personPropsIdentifiedRef = useRef<string | null>(null)
-    const aliasedRef = useRef(false)
-
-    const identifiedPersonPropsKey = useMemo(() => {
-        return personProps ? `${analyticsId}:${JSON.stringify(personProps)}` : null
-    }, [analyticsId, personProps])
+    const {
+        id: analyticsId,
+        properties: personProps,
+        instanceId,
+    } = useMemo(() => analyticsIdentity(user), [user])
     const baseCapture = useMemo(() => posthog?.capture?.bind(posthog), [posthog])
     const baseIdentify = useMemo(() => posthog?.identify?.bind(posthog), [posthog])
     const capture: PostHog["capture"] = useCallback(
@@ -61,33 +56,17 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
     }, [posthog, trackingEnabled])
 
     useIsomorphicLayoutEffect(() => {
-        if (!user?.email) {
-            personPropsIdentifiedRef.current = null
-            aliasedRef.current = false
-        }
-    }, [user?.email])
-
-    useIsomorphicLayoutEffect(() => {
         if (!posthog) return
+        // No user id yet: stay anonymous. Identifying earlier (for example with a device
+        // id) would block PostHog from merging this browser into the user's person.
         if (!analyticsId) return
-        const shouldIdentify =
-            identifiedRef.current !== analyticsId ||
-            (identifiedPersonPropsKey !== null &&
-                personPropsIdentifiedRef.current !== identifiedPersonPropsKey)
+        const key = JSON.stringify([analyticsId, personProps ?? null, instanceId])
+        if (identifiedKey === key && posthog.get_distinct_id?.() === analyticsId) return
 
-        if (!shouldIdentify) return
-
-        if (isDemo() && user?.email && baseDistinctId !== analyticsId && !aliasedRef.current) {
-            posthog.alias?.(analyticsId, baseDistinctId)
-            aliasedRef.current = true
-        }
-
-        identifiedRef.current = analyticsId
-        if (identifiedPersonPropsKey) {
-            personPropsIdentifiedRef.current = identifiedPersonPropsKey
-        }
+        identifiedKey = key
         identify(analyticsId, personProps)
-    }, [analyticsId, baseDistinctId, identify, personProps, posthog, user?.email])
+        if (instanceId && trackingEnabled) posthog.group?.(INSTANCE_GROUP, instanceId)
+    }, [analyticsId, identify, instanceId, personProps, posthog, trackingEnabled])
 
     if (!posthog) return null
     return Object.assign(posthog, {identify, capture}) as ExtendedPostHog

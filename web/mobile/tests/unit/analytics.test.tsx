@@ -8,7 +8,12 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 const state = vi.hoisted(() => ({
     key: "test-project-key",
     cloud: true,
-    user: null as {email: string; username: string} | null,
+    user: null as {
+        id: string
+        email: string
+        username: string
+        instance_id?: string
+    } | null,
     path: "/w/ws/p/project/sessions/one",
     listeners: new Set<() => void>(),
     reporter: null as ((payload: Record<string, unknown>) => void) | null,
@@ -16,6 +21,7 @@ const state = vi.hoisted(() => ({
     capture: vi.fn(),
     alias: vi.fn(),
     identify: vi.fn(),
+    group: vi.fn(),
     optOut: vi.fn(),
     reset: vi.fn(),
     init: vi.fn(),
@@ -42,6 +48,7 @@ vi.mock("posthog-js", () => ({
         capture: state.capture,
         alias: state.alias,
         identify: state.identify,
+        group: state.group,
         get_distinct_id: () => state.distinctId,
         opt_out_capturing: state.optOut,
         reset: state.reset,
@@ -66,6 +73,9 @@ const render = async () => {
 
 beforeEach(async () => {
     vi.clearAllMocks()
+    state.identify.mockImplementation((id: string) => {
+        state.distinctId = id
+    })
     state.key = "test-project-key"
     state.cloud = true
     state.user = null
@@ -73,7 +83,6 @@ beforeEach(async () => {
     state.path = "/w/ws/p/project/sessions/one"
     state.listeners.clear()
     localStorage.clear()
-    localStorage.setItem("posthog_distinct_id", "desktop-visitor")
     window.history.replaceState({}, "", `/m${state.path}`)
     vi.stubGlobal(
         "matchMedia",
@@ -84,6 +93,7 @@ beforeEach(async () => {
             capture: state.capture,
             alias: state.alias,
             identify: state.identify,
+            group: state.group,
             get_distinct_id: () => state.distinctId,
             opt_out_capturing: state.optOut,
             reset: state.reset,
@@ -114,7 +124,8 @@ describe("mobile PostHog parity", () => {
                 },
             }),
         )
-        expect(state.identify).toHaveBeenCalledWith("desktop-visitor", undefined)
+        // The browser stays anonymous until the profile loads.
+        expect(state.identify).not.toHaveBeenCalled()
         expect(state.capture.mock.calls.filter(([event]) => event === "$pageview")).toEqual([
             ["$pageview", {$current_url: window.location.href}],
         ])
@@ -124,27 +135,53 @@ describe("mobile PostHog parity", () => {
         expect(state.listeners.size).toBe(1)
     })
 
-    it("identifies a hydrated cloud profile and reuses desktop identity and properties", async () => {
+    it("identifies a hydrated profile by user id, with email as a property", async () => {
         await render()
-        state.user = {email: "person@example.test", username: "Person"}
+        state.user = {id: "user-1", email: "test@agenta.ai", username: "test"}
         await render()
-        expect(state.alias).toHaveBeenCalledWith("person@example.test", "desktop-visitor")
-        expect(state.identify).toHaveBeenLastCalledWith("person@example.test", state.user)
-        const count = state.identify.mock.calls.length
+        expect(state.identify.mock.calls).toEqual([
+            ["user-1", {email: "test@agenta.ai", username: "test"}],
+        ])
         await render()
-        expect(state.identify).toHaveBeenCalledTimes(count)
+        expect(state.identify).toHaveBeenCalledTimes(1)
         state.user = {...state.user, username: "Renamed"}
         await render()
-        expect(state.alias).toHaveBeenCalledTimes(1)
-        expect(state.identify).toHaveBeenLastCalledWith("person@example.test", state.user)
+        expect(state.identify).toHaveBeenLastCalledWith("user-1", {
+            email: "test@agenta.ai",
+            username: "Renamed",
+        })
+        expect(state.alias).not.toHaveBeenCalled()
     })
 
-    it("keeps the desktop visitor ID for self-hosted users", async () => {
-        state.cloud = false
-        state.user = {email: "person@example.test", username: "Person"}
+    it("attaches the deployment as the instance group", async () => {
+        state.user = {
+            id: "user-1",
+            email: "test@agenta.ai",
+            username: "test",
+            instance_id: "instance-1",
+        }
         await render()
-        expect(state.identify).toHaveBeenCalledWith("desktop-visitor", state.user)
-        expect(state.alias).not.toHaveBeenCalled()
+        expect(state.group).toHaveBeenCalledWith("instance", "instance-1")
+    })
+
+    it("identifies the same person again after an analytics reset", async () => {
+        state.user = {id: "user-1", email: "test@agenta.ai", username: "test"}
+        await render()
+        state.distinctId = "anonymous-after-reset"
+        state.user = {...state.user}
+        await render()
+        expect(state.identify).toHaveBeenCalledTimes(2)
+    })
+
+    it("identifies self-hosted users the same way, never by a device id", async () => {
+        state.cloud = false
+        await render()
+        expect(state.identify).not.toHaveBeenCalled()
+        state.user = {id: "user-1", email: "test@agenta.ai", username: "test"}
+        await render()
+        expect(state.identify.mock.calls).toEqual([
+            ["user-1", {email: "test@agenta.ai", username: "test"}],
+        ])
     })
 
     it("captures client navigation, but never the sign-in page, and removes listeners", async () => {

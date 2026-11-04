@@ -1,5 +1,3 @@
-import {v4 as uuidv4} from "uuid"
-
 export const CLOUD_CONFIG = {
     session_recording: {
         maskAllInputs: false,
@@ -15,39 +13,29 @@ export const POSTHOG_CONFIG = {
     capture_pageview: false as const,
 }
 
-let fallbackDistinctId: string | undefined
-
-export const generateOrRetrieveDistinctId = (): string => {
-    try {
-        if (typeof localStorage !== "undefined") {
-            const stored = localStorage.getItem("posthog_distinct_id")
-            if (stored) return stored
-            const id = uuidv4()
-            localStorage.setItem("posthog_distinct_id", id)
-            return id
-        }
-    } catch {
-        // Blocked storage must not prevent the app from loading.
-    }
-    return (fallbackDistinctId ??= uuidv4())
-}
+export const INSTANCE_GROUP = "instance"
 
 export interface AnalyticsUser {
+    id?: string | null
     email?: string | null
     username?: string | null
+    instance_id?: string | null
 }
 
-export function analyticsIdentity(
-    user: AnalyticsUser | null | undefined,
-    cloud: boolean,
-    baseId: string,
-) {
+/**
+ * The analytics person is the user id the backend assigned, the same id the API uses for
+ * server events. It is unique per deployment, so one email on two deployments is two people,
+ * while one user on two browsers is one person. The email is only a person property.
+ * Until the profile loads there is no id and the browser stays anonymous.
+ */
+export function analyticsIdentity(user: AnalyticsUser | null | undefined) {
     const properties: Record<string, unknown> = {}
     if (user?.email) properties.email = user.email
     if (user?.username) properties.username = user.username
     return {
-        id: cloud && user?.email ? user.email : baseId,
+        id: user?.id || null,
         properties: Object.keys(properties).length ? properties : undefined,
+        instanceId: user?.instance_id || null,
     }
 }
 

@@ -2,8 +2,7 @@ import {useEffect, useRef} from "react"
 
 import {useProfile} from "@agenta/entities/profile"
 import {setAgentCreationFailureReporter} from "@agenta/entities/workflow/agentCreationTelemetry"
-import {analyticsIdentity, generateOrRetrieveDistinctId} from "@agenta/shared/analytics"
-import {isEE} from "@agenta/shared/api/env"
+import {INSTANCE_GROUP, analyticsIdentity} from "@agenta/shared/analytics"
 import {useAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -16,7 +15,6 @@ export const Analytics = () => {
     const {user} = useProfile()
     const [client, setClient] = useAtom(posthogAtom)
     const identityRef = useRef<string | null>(null)
-    const aliasedIdRef = useRef<string | null>(null)
     const initialPageviewRef = useRef(false)
     const authRoute = isAnalyticsAuthRoute(router.asPath || router.pathname || "")
     const enabled = Boolean(getEnv("NEXT_PUBLIC_POSTHOG_API_KEY"))
@@ -34,23 +32,15 @@ export const Analytics = () => {
 
     useEffect(() => {
         if (!client || !enabled || authRoute) return
-        if (!user?.email) aliasedIdRef.current = null
-        const baseId = generateOrRetrieveDistinctId()
-        const {id, properties} = analyticsIdentity(user, isEE(), baseId)
-        const key = JSON.stringify([id, properties])
-        if (identityRef.current === key) return
+        // No user id yet: stay anonymous. Identifying earlier (for example with a device id)
+        // would block PostHog from merging this browser into the user's person.
+        const {id, properties, instanceId} = analyticsIdentity(user)
+        if (!id) return
+        const key = JSON.stringify([id, properties, instanceId])
         try {
-            if (
-                isEE() &&
-                user?.email &&
-                baseId !== id &&
-                aliasedIdRef.current !== id &&
-                client.get_distinct_id() !== id
-            ) {
-                client.alias(id, baseId)
-                aliasedIdRef.current = id
-            }
+            if (identityRef.current === key && client.get_distinct_id() === id) return
             client.identify(id, properties)
+            if (instanceId) client.group(INSTANCE_GROUP, instanceId)
             identityRef.current = key
         } catch {
             // A blocked analytics client must not affect profile hydration.
@@ -93,10 +83,7 @@ export const Analytics = () => {
     }, [client, enabled, authRoute])
 
     useEffect(() => {
-        if (authRoute) {
-            identityRef.current = null
-            aliasedIdRef.current = null
-        }
+        if (authRoute) identityRef.current = null
         if (!enabled) client?.opt_out_capturing()
     }, [authRoute, client, enabled])
 
