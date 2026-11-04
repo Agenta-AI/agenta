@@ -16,6 +16,10 @@ import {queryClientAtom} from "jotai-tanstack-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
+import {PlaygroundRunPane} from "@/features/playground/PlaygroundRunPane"
+import {usePlaygroundLeaveGuard} from "@/features/playground/usePlaygroundLeaveGuard"
+import {usePlaygroundSelection} from "@/features/playground/usePlaygroundSelection"
+
 import {
     button,
     click,
@@ -24,10 +28,6 @@ import {
     stubResizeObserver,
     typeInto,
 } from "../support/playgroundHarness"
-
-import {PlaygroundRunPane} from "@/features/playground/PlaygroundRunPane"
-import {usePlaygroundLeaveGuard} from "@/features/playground/usePlaygroundLeaveGuard"
-import {usePlaygroundSelection} from "@/features/playground/usePlaygroundSelection"
 
 const {http, router, loads} = vi.hoisted(() => {
     const handlers = new Map<string, Set<(...args: unknown[]) => void>>()

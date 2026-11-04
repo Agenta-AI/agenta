@@ -31,7 +31,7 @@
             "/w/[workspace_id]/p/[project_id]/endpoints": 1108024,
             "/w/[workspace_id]/p/[project_id]/evaluators": 1112799,
             "/w/[workspace_id]/p/[project_id]/evaluators/archived": 1110815,
-            "/w/[workspace_id]/p/[project_id]/evaluators/playground": 1108000,
+            "/w/[workspace_id]/p/[project_id]/evaluators/playground": 1103974,
             "/w/[workspace_id]/p/[project_id]/observability": 1240244,
             "/w/[workspace_id]/p/[project_id]/onboarding/[[...step]]": 1121181,
             "/w/[workspace_id]/p/[project_id]/prompts": 1114362,
