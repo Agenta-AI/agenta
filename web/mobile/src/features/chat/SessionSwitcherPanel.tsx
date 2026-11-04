@@ -77,7 +77,10 @@ export const SessionSwitcherPanel = ({
                     value={typed}
                     aria-label="Search this agent's sessions"
                     placeholder="Search this agent's sessions"
-                    onChange={(event) => setTyped(event.target.value)}
+                    onChange={(event) => {
+                        setEnterQueued(false)
+                        setTyped(event.target.value)
+                    }}
                     onKeyDown={(event) => {
                         if (event.key === "Enter" && typed.trim()) setEnterQueued(true)
                     }}
