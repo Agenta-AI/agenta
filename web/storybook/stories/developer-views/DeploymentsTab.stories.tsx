@@ -59,6 +59,7 @@ const Demo = ({state, canRevert = true}: DemoProps) => (
                     rows={state === "noHistory" ? [] : HISTORY}
                     isLoading={false}
                     variantNames={new Map([["v-support", "Support"]])}
+                    authorNames={new Map()}
                     currentRevisionId="rev-3"
                     canRevert={canRevert}
                     onOpen={() => undefined}

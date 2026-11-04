@@ -8,34 +8,43 @@ const API_KEY_PLACEHOLDER = "YOUR_API_KEY"
 
 const SESSION_BAGGAGE = "ag.session.id=your_session_id"
 
+/** One input of the deployed revision, as `workflowMolecule.selectors.inputPorts` gives it. */
+export interface AppEndpointInput {
+    key: string
+    /** The input's JSON Schema, when the revision declares one. */
+    schema?: unknown
+}
+
 export interface AppEndpointParamsInput {
-    /** The JSON Schema of the deployed revision's inputs. */
-    inputSchema: Record<string, unknown> | null
+    /**
+     * The deployed revision's inputs. They come from its input schema, or from the variables in
+     * its prompt templates when the schema lists none.
+     */
+    inputs: readonly AppEndpointInput[]
     environmentSlug: string
     isChat: boolean
     appSlug: string | null
 }
 
 /**
- * The example request body for an app: one input per schema property (its default, else a
+ * The example request body for an app: one entry per input (its schema default, else a
  * placeholder), a user message for a chat app, and the app and environment references.
  */
 export const buildAppEndpointParams = ({
-    inputSchema,
+    inputs,
     environmentSlug,
     isChat,
     appSlug,
 }: AppEndpointParamsInput): string => {
-    const inputs: Record<string, unknown> = {}
-    const properties = inputSchema?.properties as Record<string, unknown> | undefined
-    for (const [key, definition] of Object.entries(properties ?? {})) {
-        const fallback = (definition as {default?: unknown} | undefined)?.default
-        inputs[key] = fallback === undefined ? "add_a_value" : fallback
+    const values: Record<string, unknown> = {}
+    for (const {key, schema} of inputs) {
+        const fallback = (schema as {default?: unknown} | undefined)?.default
+        values[key] = fallback === undefined ? "add_a_value" : fallback
     }
-    if (isChat) inputs.messages = [{role: "user", content: ""}]
+    if (isChat) values.messages = [{role: "user", content: ""}]
     return JSON.stringify(
         {
-            data: {inputs},
+            data: {inputs: values},
             references: {
                 ...(appSlug ? {application: {slug: appSlug}} : {}),
                 environment: {slug: environmentSlug},

@@ -16,7 +16,7 @@ import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
-import {flattenTree, promptType, type PromptItem, type PromptsRow} from "./promptRow"
+import {flattenTree, type PromptsRow} from "./promptRow"
 
 const FOLDER_PARAM = "folderId"
 
@@ -61,11 +61,7 @@ export const usePromptsBrowser = () => {
     }, [unknownFolder, openFolder])
     const folderId = unknownFolder ? null : urlFolderId
 
-    const prompts = useMemo<PromptItem[]>(
-        () =>
-            promptsQuery.data.map((workflow) => ({...workflow, type: promptType(workflow.flags)})),
-        [promptsQuery.data],
-    )
+    const prompts = promptsQuery.data
 
     const term = search.trim()
     const rows = useMemo<PromptsRow[]>(() => {

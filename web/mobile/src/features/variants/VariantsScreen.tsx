@@ -80,6 +80,7 @@ export const VariantsScreen = ({
                 <TabsContent value="deployments" className="pt-3">
                     <DeploymentsTab
                         key={app.id}
+                        workspaceId={workspaceId}
                         projectId={projectId}
                         app={app}
                         base={`/w/${workspaceId}/p/${projectId}`}
