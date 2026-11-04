@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * Agent sharing around the channels on /m: the Publish panel of a private agent is the same as a
- * shared agent's (a private agent answers in channels), and the privacy control learns which
+ * shared agent's (a private agent answers in channels), and the privacy dialog learns which
  * channel connections are still off, from the connections Publish already read.
  */
 import {act, createElement} from "react"
@@ -9,14 +9,17 @@ import {act, createElement} from "react"
 import type {ChannelConnection, ChannelConnections} from "@agenta/settings-ui"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
-import {renderToStaticMarkup} from "react-dom/server"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
-const {publishOptions, controlProps, workflows} = vi.hoisted(() => ({
+const {publishOptions, dialogProps, workflows, publish} = vi.hoisted(() => ({
     publishOptions: [] as Record<string, unknown>[],
-    controlProps: [] as Record<string, unknown>[],
+    dialogProps: [] as Record<string, unknown>[],
     workflows: {current: [] as Record<string, unknown>[]},
+    publish: {
+        openHub: vi.fn(),
+        connections: {slack: null, telegram: null, whatsapp: null} as unknown,
+    },
 }))
 
 vi.mock("@agenta/entities/workflow", async (importOriginal) => {
@@ -39,29 +42,29 @@ vi.mock("../../src/features/agents/useAgentPublishPanel", () => ({
     useAgentPublishPanel: (options: Record<string, unknown>) => {
         publishOptions.push(options)
         return {
-            openHub: vi.fn(),
+            openHub: publish.openHub,
             reload: vi.fn().mockResolvedValue(undefined),
-            connections: {slack: null, telegram: null, whatsapp: null},
+            connections: publish.connections,
             panel: null,
         }
     },
 }))
 
-vi.mock("@agenta/entity-ui/sharing", () => ({
-    AgentPrivacyControl: (props: Record<string, unknown>) => {
-        controlProps.push(props)
+vi.mock("@agenta/entity-ui/sharing", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@agenta/entity-ui/sharing")>()),
+    AgentPrivacyDialog: (props: Record<string, unknown>) => {
+        dialogProps.push(props)
         return null
     },
-    AgentPrivacyDialog: () => null,
-    sharingWriteResultFromError: () => "failed",
 }))
 
-vi.mock("@agenta/entities/sharing", async () => {
+vi.mock("@agenta/entities/sharing", async (importOriginal) => {
     const {atom: mockAtom} = await import("jotai")
     // One atom each: a new atom on every render would subscribe again on every render.
     const query = mockAtom({data: undefined, isPending: false, isError: false, refetch: vi.fn()})
     const members = mockAtom({data: {members: []}, isPending: false, isError: false})
     return {
+        ...(await importOriginal<typeof import("@agenta/entities/sharing")>()),
         agentSharingQueryAtomFamily: () => query,
         sharingMembersQueryAtomFamily: () => members,
         sharingMemberRosterQueryAtom: mockAtom({data: [], isPending: false, isError: false}),
@@ -75,12 +78,15 @@ vi.mock("../../src/features/context/useCurrentProject", () => ({
     useCurrentProject: () => ({project_name: "Acme support"}),
 }))
 
+vi.mock("../../src/features/chat/useSessionHeader", () => ({
+    useSessionHeader: () => ({data: null}),
+}))
+
 vi.mock("@tanstack/react-query", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@tanstack/react-query")>()),
     useQueryClient: () => ({invalidateQueries: vi.fn()}),
 }))
 
-import {AgentPrivacyHost} from "../../src/features/chat/AgentPrivacyHost"
 import {ShareMenu} from "../../src/features/chat/ShareMenu"
 
 let root: Root | null = null
@@ -98,9 +104,12 @@ const mountShareMenu = () => {
                 createElement(ShareMenu, {
                     agentId: "agent-1",
                     sessionId: "session-1",
+                    sessionName: "Refund question",
+                    showSession: true,
                     canRequestTemplate: false,
                     workspaceId: "workspace-1",
                     projectId: "project-1",
+                    phone: false,
                 }),
             ),
         )
@@ -109,7 +118,9 @@ const mountShareMenu = () => {
 
 beforeEach(() => {
     publishOptions.length = 0
-    controlProps.length = 0
+    dialogProps.length = 0
+    publish.openHub.mockClear()
+    publish.connections = {slack: null, telegram: null, whatsapp: null}
 })
 
 afterEach(() => {
@@ -132,12 +143,13 @@ describe("the Publish panel of a private agent", () => {
         ]
         mountShareMenu()
         const options = publishOptions.at(-1)!
+        expect(options.agentName).toBe("Support triage")
         expect(options).not.toHaveProperty("agentPrivate")
         expect(options).not.toHaveProperty("onShareAgent")
     })
 })
 
-describe("the privacy control's channel state", () => {
+describe("the privacy dialog's channel state", () => {
     const slack = (over: Partial<ChannelConnection>): ChannelConnection => ({
         platform: "slack",
         kind: "hosted",
@@ -155,28 +167,18 @@ describe("the privacy control's channel state", () => {
         agentConnections: {slack: rows, telegram: [], whatsapp: []},
         allConnections: rows,
     })
-    const render = (rows: ChannelConnection[]) =>
-        renderToStaticMarkup(
-            createElement(
-                Provider,
-                {store: createStore()},
-                createElement(AgentPrivacyHost, {
-                    agentId: "agent-1",
-                    agentName: "Support triage",
-                    workspaceId: "workspace-1",
-                    projectId: "project-1",
-                    connections: connections(rows),
-                    onOpenChannels: () => undefined,
-                }),
-            ),
-        )
+    const render = (rows: ChannelConnection[]) => {
+        publish.connections = connections(rows)
+        mountShareMenu()
+    }
 
     it("names a platform whose connection is still off", () => {
         render([slack({connectionId: "a", workspaceName: "Acme", agentOff: true})])
-        const props = controlProps.at(-1)!
+        const props = dialogProps.at(-1)!
         expect(props.channelsOff).toEqual(["Slack"])
         expect(props).not.toHaveProperty("channelConnections")
-        expect(typeof props.onOpenChannels).toBe("function")
+        ;(props.onOpenChannels as () => void)()
+        expect(publish.openHub).toHaveBeenCalledTimes(1)
     })
 
     it("names nothing when every connection answers", () => {
@@ -184,6 +186,6 @@ describe("the privacy control's channel state", () => {
             slack({connectionId: "a", workspaceName: "Acme"}),
             slack({connectionId: "b", workspaceName: "Beta"}),
         ])
-        expect(controlProps.at(-1)!.channelsOff).toEqual([])
+        expect(dialogProps.at(-1)!.channelsOff).toEqual([])
     })
 })
