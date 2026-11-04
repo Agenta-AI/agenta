@@ -61,10 +61,10 @@ vi.mock("next/router", () => ({
     }),
 }))
 
-import {answerRequest, newServerState, type ScenarioServerState} from "./runScenariosFixtures"
-
 import {RunAnnotateTab} from "@/features/evaluation-run/focus/RunAnnotateTab"
 import {ScenariosTab} from "@/features/evaluation-run/scenarios/ScenariosTab"
+
+import {answerRequest, newServerState, type ScenarioServerState} from "./runScenariosFixtures"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 

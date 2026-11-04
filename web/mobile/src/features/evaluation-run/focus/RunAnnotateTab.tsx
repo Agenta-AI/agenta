@@ -5,6 +5,10 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useAtomValue} from "jotai"
 
+import {useAnnotationKeyboardShortcuts} from "@/features/annotations/useAnnotationKeyboardShortcuts"
+import {useSubmitAnnotations} from "@/features/annotations/useSubmitAnnotations"
+import {useProjectPermission} from "@/features/context/useProjectPermission"
+
 import {RunStatusTag} from "../overview/RunStatusTag"
 import {ScenariosLoadMoreError} from "../scenarios/states/ScenariosLoadMoreError"
 import {ScenariosRefreshError} from "../scenarios/states/ScenariosRefreshError"
@@ -17,10 +21,6 @@ import {RunAnnotateEmpty} from "./states/RunAnnotateEmpty"
 import {RunAnnotateSkeleton} from "./states/RunAnnotateSkeleton"
 import {useRunAnnotationSession} from "./useRunAnnotationSession"
 import {useScenarioStepper} from "./useScenarioStepper"
-
-import {useAnnotationKeyboardShortcuts} from "@/features/annotations/useAnnotationKeyboardShortcuts"
-import {useSubmitAnnotations} from "@/features/annotations/useSubmitAnnotations"
-import {useProjectPermission} from "@/features/context/useProjectPermission"
 
 /**
  * The Annotate tab of a human run: one scenario at a time, its inputs and output beside the

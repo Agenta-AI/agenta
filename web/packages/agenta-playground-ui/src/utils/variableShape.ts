@@ -84,6 +84,7 @@ export function buildSchemaStrictShape(
  *  testcase's current value) in parallel against `skel`. At every depth:
  *  - Keys in `original` that aren't in `skel` (the "stash") are preserved.
  *  - Keys in `skel` are taken from `edit` (recursing if nested).
+ *  - Keys in `edit` that aren't in `skel` are kept: the user added them.
  *
  *  This is the inverse of `buildSchemaStrictShape`: the user only sees /
  *  edits schema keys, but the underlying value keeps the stash so that
@@ -110,6 +111,9 @@ export function mergeEditWithStash(edit: unknown, original: unknown, skel: unkno
         if (k in editRec) {
             result[k] = mergeEditWithStash(editRec[k], originalRec[k], skelV)
         }
+    }
+    for (const [k, v] of Object.entries(editRec)) {
+        if (!(k in skelRec)) result[k] = v
     }
     return result
 }

@@ -13,6 +13,7 @@ import dynamic from "next/dynamic"
 
 import {ScratchTestsetStep} from "./ScratchTestsetStep"
 import {UploadTestsetStep} from "./UploadTestsetStep"
+import type {CreatedTestset} from "./useUploadTestset"
 
 // The snippets live in a large package; load them only when a reader opens this step.
 const ApiTestsetStep = dynamic(() => import("./ApiTestsetStep").then((m) => m.ApiTestsetStep), {
@@ -35,16 +36,20 @@ const HEADINGS: Record<Step, {title: string; description: string}> = {
 
 /**
  * Create a test set: from a file, from scratch or with the API. The host mounts it only while it
- * is open, so closing it clears the step, the file and the name.
+ * is open, so closing it clears the step, the file and the name. With `onCreated` the host takes
+ * over after an upload (the page does not open) and only the file upload is offered, because the
+ * other two ways leave the page.
  */
 export const CreateTestsetDialog = ({
     projectId,
     base,
     onClose,
+    onCreated,
 }: {
     projectId: string
     base: string
     onClose: () => void
+    onCreated?: (created: CreatedTestset) => void | Promise<void>
 }) => {
     const [step, setStep] = useState<Step>("choose")
     const [saving, setSaving] = useState(false)
@@ -77,9 +82,10 @@ export const CreateTestsetDialog = ({
                         projectId={projectId}
                         base={base}
                         onClose={onClose}
+                        onCreated={onCreated}
                         onPendingChange={setSaving}
-                        onScratch={() => setStep("scratch")}
-                        onApi={() => setStep("api")}
+                        onScratch={onCreated ? undefined : () => setStep("scratch")}
+                        onApi={onCreated ? undefined : () => setStep("api")}
                     />
                 ) : null}
                 {step === "scratch" ? <ScratchTestsetStep base={base} onClose={onClose} /> : null}

@@ -28,70 +28,111 @@ export interface TypeChipProps {
     onClick?: () => void
 }
 
+// The fallbacks serve /m, which has no antd variables; the preset variables follow light and dark.
 const STYLES: Record<
     ChipVariant,
     {bg: string; fg: string; label: string; border?: string; italic?: boolean}
 > = {
-    string: {bg: "var(--ant-green-1)", fg: "var(--ant-green-7)", label: "string"},
-    number: {bg: "var(--ant-purple-1)", fg: "var(--ant-purple-6)", label: "number"},
-    boolean: {bg: "var(--ant-orange-1)", fg: "var(--ant-orange-7)", label: "boolean"},
+    string: {
+        bg: "var(--ant-green-1, var(--ag-preset-green-bg))",
+        fg: "var(--ant-green-7, var(--ag-preset-green-text))",
+        label: "string",
+    },
+    number: {
+        bg: "var(--ant-purple-1, var(--ag-preset-purple-bg))",
+        fg: "var(--ant-purple-6, var(--ag-preset-purple-text))",
+        label: "number",
+    },
+    boolean: {
+        bg: "var(--ant-orange-1, var(--ag-preset-orange-bg))",
+        fg: "var(--ant-orange-7, var(--ag-preset-orange-text))",
+        label: "boolean",
+    },
     null: {
-        bg: "var(--ant-color-fill-secondary)",
-        fg: "var(--ant-color-text-tertiary)",
+        bg: "var(--ant-color-fill-secondary, var(--muted))",
+        fg: "var(--ant-color-text-tertiary, var(--muted-foreground))",
         label: "null",
     },
-    "json-object": {bg: "var(--ant-blue-1)", fg: "var(--ant-blue-6)", label: "object"},
-    "json-array": {bg: "var(--ant-cyan-1)", fg: "var(--ant-cyan-6)", label: "array"},
+    "json-object": {
+        bg: "var(--ant-blue-1, var(--ag-preset-blue-bg))",
+        fg: "var(--ant-blue-6, var(--ag-preset-blue-text))",
+        label: "object",
+    },
+    "json-array": {
+        bg: "var(--ant-cyan-1, var(--ag-preset-cyan-bg))",
+        fg: "var(--ant-cyan-6, var(--ag-preset-cyan-text))",
+        label: "array",
+    },
     markdown: {
-        bg: "var(--ant-purple-1)",
-        fg: "var(--ant-purple-6)",
+        bg: "var(--ant-purple-1, var(--ag-preset-purple-bg))",
+        fg: "var(--ant-purple-6, var(--ag-preset-purple-text))",
         label: "markdown",
-        border: "1px dashed var(--ant-purple-6)",
+        border: "1px dashed var(--ant-purple-6, var(--ag-preset-purple-text))",
         italic: true,
     },
     messages: {
-        bg: "var(--ant-purple-1)",
-        fg: "var(--ant-purple-6)",
+        bg: "var(--ant-purple-1, var(--ag-preset-purple-bg))",
+        fg: "var(--ant-purple-6, var(--ag-preset-purple-text))",
         label: "messages",
-        border: "1px dashed var(--ant-purple-6)",
+        border: "1px dashed var(--ant-purple-6, var(--ag-preset-purple-text))",
         italic: true,
     },
     "tool-calls": {
-        bg: "var(--ant-green-1)",
-        fg: "var(--ant-green-7)",
+        bg: "var(--ant-green-1, var(--ag-preset-green-bg))",
+        fg: "var(--ant-green-7, var(--ag-preset-green-text))",
         label: "tool-calls",
-        border: "1px dashed var(--ant-green-7)",
+        border: "1px dashed var(--ant-green-7, var(--ag-preset-green-text))",
         italic: true,
     },
-    "dotted-key": {bg: "var(--ant-orange-1)", fg: "var(--ant-orange-7)", label: "dotted-key"},
-    mixed: {bg: "var(--ant-orange-1)", fg: "var(--ant-orange-7)", label: "mixed"},
-    collision: {bg: "var(--ant-red-1)", fg: "var(--ant-red-6)", label: "⚠ collision"},
-    shadowed: {bg: "var(--ant-red-1)", fg: "var(--ant-red-6)", label: "⚠ shadowed"},
+    "dotted-key": {
+        bg: "var(--ant-orange-1, var(--ag-preset-orange-bg))",
+        fg: "var(--ant-orange-7, var(--ag-preset-orange-text))",
+        label: "dotted-key",
+    },
+    mixed: {
+        bg: "var(--ant-orange-1, var(--ag-preset-orange-bg))",
+        fg: "var(--ant-orange-7, var(--ag-preset-orange-text))",
+        label: "mixed",
+    },
+    collision: {
+        bg: "var(--ant-red-1, var(--ag-preset-red-bg))",
+        fg: "var(--ant-red-6, var(--ag-preset-red-text))",
+        label: "⚠ collision",
+    },
+    shadowed: {
+        bg: "var(--ant-red-1, var(--ag-preset-red-bg))",
+        fg: "var(--ant-red-6, var(--ag-preset-red-text))",
+        label: "⚠ shadowed",
+    },
     "not-authored": {
-        bg: "var(--ant-color-fill-tertiary)",
-        fg: "var(--ant-color-text-secondary)",
+        bg: "var(--ant-color-fill-tertiary, var(--muted))",
+        fg: "var(--ant-color-text-secondary, var(--muted-foreground))",
         label: "not authored",
     },
     optional: {
-        bg: "var(--ant-color-fill-tertiary)",
-        fg: "var(--ant-color-text-secondary)",
+        bg: "var(--ant-color-fill-tertiary, var(--muted))",
+        fg: "var(--ant-color-text-secondary, var(--muted-foreground))",
         label: "optional",
     },
-    path: {bg: "var(--ant-color-fill-secondary)", fg: "var(--ant-color-text)", label: "path"},
+    path: {
+        bg: "var(--ant-color-fill-secondary, var(--muted))",
+        fg: "var(--ant-color-text, var(--foreground))",
+        label: "path",
+    },
     unused: {
-        bg: "var(--ant-color-fill-tertiary)",
-        fg: "var(--ant-color-text-secondary)",
+        bg: "var(--ant-color-fill-tertiary, var(--muted))",
+        fg: "var(--ant-color-text-secondary, var(--muted-foreground))",
         label: "unused",
     },
     draft: {
-        bg: "var(--ant-magenta-1)",
-        fg: "var(--ant-magenta-7)",
+        bg: "var(--ant-magenta-1, var(--ag-preset-magenta-bg))",
+        fg: "var(--ant-magenta-7, var(--ag-preset-magenta-text))",
         label: "draft",
-        border: "1px dashed var(--ant-magenta-7)",
+        border: "1px dashed var(--ant-magenta-7, var(--ag-preset-magenta-text))",
     },
     chain: {
-        bg: "var(--ant-geekblue-1)",
-        fg: "var(--ant-geekblue-7)",
+        bg: "var(--ant-geekblue-1, var(--ag-preset-geekblue-bg))",
+        fg: "var(--ant-geekblue-7, var(--ag-preset-geekblue-text))",
         label: "chain",
     },
 }

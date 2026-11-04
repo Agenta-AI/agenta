@@ -1,16 +1,11 @@
-import {useMemo, useState} from "react"
+import {useState} from "react"
 
-import {workflowLatestRevisionIdAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
-import {
-    createWorkflowRevisionAdapter,
-    TreeSelectPopupContent,
-    type WorkflowRevisionSelectionResult,
-} from "@agenta/entity-ui/selection"
-import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
-import {playgroundController} from "@agenta/playground"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {Button, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {CaretDown} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
+
+import {RevisionTree} from "./RevisionTree"
 
 export interface RevisionSwitcherProps {
     /** The app whose variants and revisions the list shows. */
@@ -40,30 +35,6 @@ export const RevisionSwitcher = ({appId, revisionId, onSwitch}: RevisionSwitcher
     const [open, setOpen] = useState(false)
     const query = useAtomValue(workflowMolecule.selectors.query(revisionId))
     const name = useAtomValue(workflowMolecule.selectors.variantLabel(revisionId))
-    const shown = useAtomValue(playgroundController.selectors.entityIds())
-    const latestId = useAtomValue(workflowLatestRevisionIdAtomFamily(appId))
-
-    const adapter = useMemo(
-        () =>
-            createWorkflowRevisionAdapter({
-                workflowId: appId,
-                excludeRevisionZero: true,
-                variantOverrides: {
-                    getLabel: (entity: unknown) => {
-                        const variant = entity as {name?: string; id?: string}
-                        return variant.name ?? variant.id ?? "Unnamed"
-                    },
-                },
-                revisionOverrides: {
-                    getLabel: (entity: unknown) =>
-                        `v${(entity as {version?: number}).version ?? 0}`,
-                },
-                emptyMessage: "No variants found",
-                loadingMessage: "Loading variants...",
-            }),
-        [appId],
-    )
-    const disabledIds = useMemo(() => new Set(shown), [shown])
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
@@ -82,34 +53,13 @@ export const RevisionSwitcher = ({appId, revisionId, onSwitch}: RevisionSwitcher
             </PopoverTrigger>
             <PopoverContent align="start" className="w-[296px] p-0">
                 {open ? (
-                    <TreeSelectPopupContent<WorkflowRevisionSelectionResult>
-                        adapter={adapter}
+                    <RevisionTree
+                        appId={appId}
                         selectedValue={revisionId}
-                        disabledChildIds={disabledIds}
-                        renderChildTitle={(child) => {
-                            const revision = child as {
-                                id: string
-                                version?: number
-                                variantName?: string
-                            }
-                            return (
-                                <VariantDetailsWithStatus
-                                    className="w-full"
-                                    variantName={revision.variantName ?? ""}
-                                    revision={revision.version ?? 0}
-                                    variant={revision}
-                                    hideName
-                                    showBadges
-                                    isLatest={revision.id === latestId}
-                                />
-                            )
-                        }}
-                        onSelect={(selection) => {
+                        onSelect={(id) => {
                             setOpen(false)
-                            onSwitch(selection.id)
+                            onSwitch(id)
                         }}
-                        width={280}
-                        maxHeight={400}
                     />
                 ) : null}
             </PopoverContent>

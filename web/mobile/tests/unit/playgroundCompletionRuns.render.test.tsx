@@ -147,7 +147,7 @@ afterEach(() => {
 describe("The completion run pane", () => {
     it("Lists the variables the prompt references as input cards", () => {
         expect(rows()).toHaveLength(1)
-        expect(host.textContent).toContain("testcase 1")
+        expect(host.textContent).toContain("test case 1")
         expect(host.querySelector('[data-testid="input-variable-country"]')).not.toBeNull()
     })
 
@@ -171,7 +171,7 @@ describe("The completion run pane", () => {
         await click("Test case")
 
         expect(rows()).toHaveLength(2)
-        expect(host.textContent).toContain("testcase 2")
+        expect(host.textContent).toContain("test case 2")
     })
 
     it("Remove is disabled on the last row and removes a row otherwise", async () => {
