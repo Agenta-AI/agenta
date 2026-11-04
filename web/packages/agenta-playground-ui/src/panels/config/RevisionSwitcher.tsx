@@ -91,12 +91,11 @@ export const RevisionSwitcher = ({appId, revisionId, onSwitch}: RevisionSwitcher
                                 id: string
                                 version?: number
                                 variantName?: string
-                                name?: string
                             }
                             return (
                                 <VariantDetailsWithStatus
                                     className="w-full"
-                                    variantName={revision.variantName ?? revision.name ?? ""}
+                                    variantName={revision.variantName ?? ""}
                                     revision={revision.version ?? 0}
                                     variant={revision}
                                     hideName

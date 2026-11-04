@@ -119,7 +119,7 @@ describe("Import a file as a new revision", () => {
 
         await choose(new File(["{not json"], "cases.json"))
         expect(alertText()).toBe(
-            "Invalid JSON format. Ensure it's an array of objects with consistent keys.",
+            "Invalid JSON format. Ensure it's an array of objects with column names as keys.",
         )
         expect(importButton().disabled).toBe(true)
     })
@@ -133,7 +133,7 @@ describe("Import a file as a new revision", () => {
 
         await choose(new File(["[]"], "cases.json"))
         expect(alertText()).toBe(
-            "Invalid JSON format. Ensure it's an array of objects with consistent keys.",
+            "Invalid JSON format. Ensure it's an array of objects with column names as keys.",
         )
         expect(importButton().disabled).toBe(true)
     })

@@ -144,7 +144,7 @@ describe("run row actions", () => {
         expect(http.delete).toHaveBeenCalledTimes(1)
     })
 
-    it("A failed delete shows Failed to delete evaluations and keeps the row", async () => {
+    it("A failed delete keeps the confirm open with the error and Delete, and keeps the row", async () => {
         http.delete.mockRejectedValue(new Error("boom"))
         client.setQueryData(["evaluationRun", "r1"], makeRun("r1"))
         const invalidate = vi.spyOn(client, "invalidateQueries")
@@ -153,7 +153,8 @@ describe("run row actions", () => {
         await clickItem("Delete")
         await act(async () => confirmButton()?.click())
         await settle()
-        expect(toast.error).toHaveBeenCalledWith("Failed to delete evaluations")
+        expect(document.body.textContent).toContain("Failed to delete evaluations")
+        expect(confirmButton()).toBeDefined()
         expect(toast.success).not.toHaveBeenCalled()
         expect(invalidate).not.toHaveBeenCalled()
         expect(client.getQueryData(["evaluationRun", "r1"])).toBeDefined()

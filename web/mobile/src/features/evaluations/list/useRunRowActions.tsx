@@ -117,8 +117,8 @@ export const useRunRowActions = ({projectId, base}: {projectId: string; base: st
                             await deleteEvaluationRuns({projectId, runIds: [run.id]})
                         } catch (error) {
                             console.error("Could not delete the evaluation", error)
-                            message.error("Failed to delete evaluations")
-                            return
+                            // Thrown, so the confirm stays open with the message and its Delete retry.
+                            throw new Error("Failed to delete evaluations")
                         }
                         queryClient.removeQueries({queryKey: evaluationRunQueryKey(run.id)})
                         message.success("Deleted successfully")
