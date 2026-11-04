@@ -11,7 +11,7 @@ overrides = [{ name = "certifi", specifier = ">=2026.10.18" }]
 
 [[package]]
 name = "agenta"
-version = "0.128.5"
+version = "0.128.6"
 source = { editable = "../sdks/python" }
 dependencies = [
     { name = "agenta-client" },
@@ -90,7 +90,7 @@ dev = [
 
 [[package]]
 name = "agenta-client"
-version = "0.128.5"
+version = "0.128.6"
 source = { editable = "../clients/python" }
 dependencies = [
     { name = "httpx" },
@@ -304,7 +304,7 @@ wheels = [
 
 [[package]]
 name = "api"
-version = "0.128.5"
+version = "0.128.6"
 source = { virtual = "." }
 dependencies = [
     { name = "agenta", extra = ["server-tracing"] },

@@ -16,6 +16,8 @@ import {openEvaluatorDrawerAtom} from "@/oss/state/evaluator/evaluatorDrawerStor
 import TabLabel from "../assets/TabLabel"
 import {NewEvaluationModalContentProps} from "../types"
 
+import {newEvaluationEvaluatorDrawerParams} from "./evaluatorDrawerParams"
+
 const tabsContainerClass =
     "h-full flex [&_.ant-tabs-content-holder]:pl-4 [&_.ant-tabs-content-holder]:flex-1 " +
     "[&_.ant-tabs-content-holder]:overflow-auto [&_.ant-tabs-tab]:text-colorTextSecondary " +
@@ -133,13 +135,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                 return
             }
 
-            openEvaluatorDrawer({
-                entityId: localId,
-                mode: "create",
-                onEvaluatorCreated,
-                // Created inline: stay in this modal instead of opening the new evaluator's page.
-                postCreateNavigation: "stay",
-            })
+            openEvaluatorDrawer(newEvaluationEvaluatorDrawerParams(localId, onEvaluatorCreated))
             onSelectTemplate?.(evaluator)
         },
         [openEvaluatorDrawer, onSelectTemplate, onEvaluatorCreated],
