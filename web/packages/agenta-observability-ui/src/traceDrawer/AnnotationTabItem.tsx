@@ -116,11 +116,15 @@ const AnnotationTabItem = ({annotations}: {annotations: AnnotationDto[]}) => {
                         title: "Note",
                         key: "text",
                         dataIndex: "value",
-                        render: (_value, note) => (
-                            <div className="w-fit text-wrap">
-                                {getStringOrJson(note.value as string)}
-                            </div>
-                        ),
+                        render: (_value, note) => {
+                            const rawNote =
+                                typeof note.value === "object" &&
+                                note.value !== null &&
+                                "value" in note.value
+                                    ? (note.value as {value: unknown}).value
+                                    : note.value
+                            return <div className="w-fit text-wrap">{getStringOrJson(rawNote)}</div>
+                        },
                     },
                 ]}
                 dataSource={Object.entries(notes).map(([key, value]) => ({key, value}))}
