@@ -36,6 +36,18 @@ The outcome of a started run SHALL come from the turn's `session_executions` row
 - **WHEN** a `202` trigger delivery's turn has an execution settled `stopped`
 - **THEN** it SHALL get `data.outcome` `cancelled`
 
+#### Scenario: Approval answered before the pass
+- **WHEN** a `202` trigger delivery's turn paused, and a person answered the approval before the next pass, so the execution settled `continued`
+- **THEN** it SHALL get `data.outcome` `waiting`
+
+#### Scenario: Stop finds the turn gone
+- **WHEN** a `202` trigger delivery's turn has an execution settled `not_running`
+- **THEN** it SHALL get `data.outcome` `cancelled`
+
+#### Scenario: Access refusal with an error code
+- **WHEN** a `202` trigger delivery's turn has an execution settled `failed` whose `error.code` is `access_denied`
+- **THEN** it SHALL get `data.reason_code` `access_denied` without waiting for the records
+
 #### Scenario: Run waits for a person
 - **WHEN** a `202` trigger delivery's turn has no settled execution, and its newest `done` has `stopReason` `paused`
 - **THEN** it SHALL get `data.outcome` `waiting`

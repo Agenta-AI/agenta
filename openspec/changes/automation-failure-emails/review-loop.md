@@ -172,3 +172,16 @@ Not taken (from the clean-room design):
 - Sending the email inside the producer, with no send pass. It ties the dispatcher and the outcome pass to email latency, and a crash between claim and send would need a sweep anyway.
 - Email for `409` and no email for `422`. These are owner decisions D5 and D6, still open. The clean-room view is recorded here for the owner: it sees `409` as "every event fails until re-auth", and `422` as "never set up, not a regression". The design keeps its defaults: a revoke turns the provider trigger off, so `409` is rare (G9); a `422` can follow an admin deleting the model key, which is a regression.
 - A hook in the records worker post-commit. The outcome now comes from `session_executions`, which the ingest route writes before the records stream, so no hook is needed.
+
+### Round 5 verification (Fable)
+
+A Fable pass checked the round 5 edit against the code. It confirmed G24c end to end (the ingest route settles first turns; the watchdog settles first turns too; the key matches the delivery's `run_id`), the admin auth on `/admin/` routes, and that no stale term was left. It found 0 blockers, 2 major and 4 minor.
+
+Fixed:
+
+- Major: `session_executions.terminal_outcome` also takes `continued` (an approval was answered) and `not_running` (a Stop found the turn gone). New rows O9a (`continued` → `waiting`) and O9b (any unknown value → `cancelled` with a warning), and O9 covers `not_running`. Without O9a, a run whose approval was answered before the pass would never settle.
+- Major: the cron tasks name the real image files: the `COPY` lines and crontab loops in the OSS and EE `Dockerfile.gh` and `Dockerfile.dev`, and the dev compose mounts. The Railway cron image is built from the API image and needs no change. The settle script is named `deliveries.sh`, because `triggers.sh` finds its interval by matching its own name.
+- D11 says why cron fits (it matches the schedule refresh and keeps trigger work out of the API worker lifecycle), not that lifespan loops cannot work.
+- G45 says why a 45-second request is safe: gunicorn's `--timeout 60` is a heartbeat check for uvicorn workers, and `curl --max-time 60` is above the budget.
+- O7 reads `session_executions.error.code` first, so an access refusal gets its code without the 5-minute wait.
+- The requirement "One open notification per automation" is named in task 4.1.
