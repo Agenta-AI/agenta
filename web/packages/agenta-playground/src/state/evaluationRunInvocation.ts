@@ -114,8 +114,13 @@ async function invoke({
             inputData: (testcase.data ?? {}) as Record<string, unknown>,
             projectId,
         })
-        const succeeded = execution.status === "success"
-        const errorMessage = execution.error?.message ?? "Invocation failed"
+        // The annotation links to the output's trace: an answer without one cannot be annotated.
+        const succeeded = execution.status === "success" && Boolean(execution.traceId)
+        const errorMessage =
+            execution.error?.message ??
+            (execution.status === "success"
+                ? "The app answered without a trace"
+                : "Invocation failed")
 
         // A success after a failure sets the scenario back to waiting before the success is
         // stored: if this request fails, the result stays failed and Run is offered again.

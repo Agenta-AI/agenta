@@ -301,6 +301,16 @@ describe("runScenarioInvocation", () => {
         expect(postsTo("/evaluations/results/")).toEqual([])
     })
 
+    it("An answer without a trace is stored as a failure, so Run stays", async () => {
+        appAnswers(200, {data: "Paris"})
+
+        const result = await runScenarioInvocation(params)
+
+        expect(result).toMatchObject({ok: false, reason: "invocation-failed"})
+        const [stored] = postsTo("/evaluations/results/") as {results: {status: string}[]}[]
+        expect(stored.results[0].status).toBe("failure")
+    })
+
     it("A closed run returns run-closed and does not call the app", async () => {
         client.setQueryData(evaluationRunQueryKey(RUN), run(fullReferences, true))
 
