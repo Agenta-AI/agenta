@@ -389,12 +389,15 @@ export async function fetchAgentaToolsAccess(
  * @param variantId - The workflow variant ID
  * @param projectId - Project ID
  * @param flags - Optional query flags for filtering
+ * @param opts.includeArchived - Also return archived revisions
+ * @param opts.windowing - Page the revisions, newest first
  * @returns Revisions response with workflow_revisions array
  */
 export async function queryWorkflowRevisions(
     variantId: string,
     projectId: string,
     flags?: WorkflowQueryFlags,
+    opts?: {includeArchived?: boolean; windowing?: WorkflowRevisionWindowing},
 ): Promise<WorkflowRevisionsResponse> {
     if (!projectId || !variantId) {
         return {count: 0, workflow_revisions: []}
@@ -405,6 +408,8 @@ export async function queryWorkflowRevisions(
         {
             workflow_variant_refs: [{id: variantId}],
             workflow_revision: flags ? {flags} : undefined,
+            ...(opts?.includeArchived ? {include_archived: true} : {}),
+            ...(opts?.windowing ? {windowing: opts.windowing} : {}),
         },
         {params: {project_id: projectId}},
     )
