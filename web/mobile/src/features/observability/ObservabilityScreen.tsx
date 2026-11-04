@@ -8,6 +8,7 @@ import {useIsNarrowScreen} from "@agenta/ui/hooks"
 import {useQueryClient} from "@tanstack/react-query"
 import {useSetAtom} from "jotai"
 import {MessagesSquare, Network} from "lucide-react"
+import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -20,15 +21,24 @@ import {canDeveloperViewBeEnabled, useDeveloperViewEnabled} from "../developer/d
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
+import {useAddToTestsetAction} from "./addToTestset/useAddToTestsetAction"
 import {ObservabilityAppFilter} from "./ObservabilityAppFilter"
 import {setObservabilityAppInUrl, useObservabilityAppScope} from "./observabilityAppScope"
+import {useAddAllMatchingAction} from "./queueAll/useAddAllMatchingAction"
 import {selectedTraceIds} from "./selectedTraceIds"
+import {useObservabilitySessionUrl} from "./sessionDrawer/useObservabilitySessionUrl"
 import {SessionsList} from "./SessionsList"
 import {SessionsTable} from "./SessionsTable"
 import {TracesFilters} from "./TracesFilters"
 import {TracesList} from "./TracesList"
 import {TracesTable} from "./TracesTable"
 import {useTracesExportBinding} from "./useTracesExportBinding"
+
+// Loaded on the first session opened, so the page everyone opens does not carry the drawer.
+const ObservabilitySessionDrawer = dynamic(
+    () => import("./sessionDrawer/ObservabilitySessionDrawer"),
+    {ssr: false},
+)
 
 type ObservabilityTab = "traces" | "sessions"
 
@@ -94,6 +104,11 @@ const ObservabilityContent = ({
     )
     const tracesFilters = tab === "traces" ? <TracesFilters /> : undefined
 
+    const session = useObservabilitySessionUrl()
+    // Mounted once a session has been opened, and kept so the panel can slide out.
+    const [sessionDrawerRequested, setSessionDrawerRequested] = useState(false)
+    if (session.sessionId !== null && !sessionDrawerRequested) setSessionDrawerRequested(true)
+
     const isNarrow = useIsNarrowScreen()
     // Selection lives in the table; the narrow card list has none. Anything that acts on a
     // selection is only meaningful when the table is what is on screen.
@@ -102,7 +117,8 @@ const ObservabilityContent = ({
     const bodyRef = useRef<HTMLDivElement | null>(null)
 
     // The selection lives in the shared atom: the toolbar's Delete button reads it to enable.
-    const {fetchTraces, traces, selectedRowKeys, setSelectedRowKeys} = useObservability()
+    const {fetchTraces, traces, selectedRowKeys, setSelectedRowKeys, filters, sort, traceTabs} =
+        useObservability()
     // Not `useSessions()`: that would load sessions and their spans on the Traces tab too.
     const queryClient = useQueryClient()
 
@@ -117,6 +133,16 @@ const ObservabilityContent = ({
     const clearSelection = useCallback(() => setSelectedRowKeys([]), [setSelectedRowKeys])
     // The atom outlives the screen; a selection must not come back on the next visit.
     useEffect(() => clearSelection, [clearSelection])
+    const addToTestset = useAddToTestsetAction(projectId, selectedRowKeys.map(String))
+    const queueAllMatching = useAddAllMatchingAction({
+        workspaceId,
+        projectId,
+        appId: (appFilterEnabled && routeAppId) || "",
+        filters,
+        sort,
+        traceTabs,
+        hasTraces: traces.length > 0,
+    })
 
     const onDelete = useCallback(
         () => openDeleteModal({isOpen: true, traceIds, onClose: clearSelection}),
@@ -179,6 +205,7 @@ const ObservabilityContent = ({
                             actionsSlot={
                                 tab === "traces" && showsTable ? (
                                     <AddActionsDropdown
+                                        testsetAction={addToTestset.testsetAction}
                                         queueAction={{
                                             itemType: "traces",
                                             itemIds: traceIds,
@@ -189,6 +216,7 @@ const ObservabilityContent = ({
                                             disabled: traceIds.length === 0,
                                             onItemsAdded: clearSelection,
                                         }}
+                                        queueAllMatchingAction={queueAllMatching}
                                     />
                                 ) : undefined
                             }
@@ -204,10 +232,10 @@ const ObservabilityContent = ({
                             {tab === "sessions" ? (
                                 !showsTable ? (
                                     <div className="min-h-0 flex-1 overflow-y-auto pb-6">
-                                        <SessionsList />
+                                        <SessionsList onOpenSession={session.open} />
                                     </div>
                                 ) : (
-                                    <SessionsTable />
+                                    <SessionsTable onOpenSession={session.open} />
                                 )
                             ) : !showsTable ? (
                                 <div className="min-h-0 flex-1 overflow-y-auto pb-6">
@@ -221,6 +249,13 @@ const ObservabilityContent = ({
                             )}
                         </div>
                         <DeleteTraceModal />
+                        {sessionDrawerRequested ? (
+                            <ObservabilitySessionDrawer
+                                sessionId={session.sessionId}
+                                onSelectSession={session.open}
+                            />
+                        ) : null}
+                        {addToTestset.sheet}
                     </PageLayout>
                 </ScreenScaffold>
             </AppShell>
