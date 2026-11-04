@@ -512,7 +512,7 @@ export const SessionWorkspace = ({
                                         lastDockKindRef.current === "browser" ? (
                                             <BrowserPane
                                                 sessionId={sessionId}
-                                                closeControl={twoPane ? "none" : "back"}
+                                                closeControl={twoPane ? "collapse" : "back"}
                                                 onClose={() => setBrowserOpen(false)}
                                             />
                                         ) : filesSlide.keepMounted ? (

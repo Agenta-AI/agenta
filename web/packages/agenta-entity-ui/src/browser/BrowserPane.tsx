@@ -1,8 +1,8 @@
 import {useRef} from "react"
 
 import {projectIdAtom} from "@agenta/shared/state"
-import {Button} from "@agenta/ui/ui"
-import {CaretDoubleLeft, Globe} from "@phosphor-icons/react"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {CaretDoubleLeft, CaretDoubleRight, Globe} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {ROW_ICON_BTN} from "../drive/DriveHeader"
@@ -42,12 +42,12 @@ const stateTag = (connection: BrowserLiveConnection, status: BrowserLiveStatus |
 /** The agent's browser, docked like the Files pane; `closeControl` follows that pane's. */
 export const BrowserPane = ({
     sessionId,
-    closeControl = "none",
+    closeControl = "collapse",
     onClose,
 }: {
     sessionId: string
-    closeControl?: "back" | "none"
-    onClose?: () => void
+    closeControl?: "back" | "collapse"
+    onClose: () => void
 }) => {
     const projectId = useAtomValue(projectIdAtom)
     const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -60,7 +60,7 @@ export const BrowserPane = ({
     return (
         <section aria-label="Agent browser" className="flex h-full min-h-0 w-full flex-col">
             <div className="flex h-[48px] shrink-0 items-center gap-1.5 border-0 border-b border-solid border-[var(--ag-surface-card-border)] px-2">
-                {closeControl === "back" && onClose ? (
+                {closeControl === "back" ? (
                     <Button
                         variant="ghost"
                         size="icon-sm"
@@ -76,6 +76,19 @@ export const BrowserPane = ({
                     {status?.title || "Browser"}
                 </span>
                 <span className="ml-auto shrink-0">{stateTag(connection, status)}</span>
+                {closeControl === "collapse" ? (
+                    <SimpleTooltip title="Hide browser">
+                        <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label="Close browser"
+                            onClick={onClose}
+                            className={ROW_ICON_BTN}
+                        >
+                            <CaretDoubleRight size={15} />
+                        </Button>
+                    </SimpleTooltip>
+                ) : null}
             </div>
             <div className="flex min-h-0 flex-1 flex-col p-2">
                 <BrowserLiveSurface
