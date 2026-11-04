@@ -278,6 +278,14 @@ describe("fetchAllPreviewTracesWithMeta (Phase 5 CQ2 — rate-limit pacing)", ()
         expect(res.rateLimit).toEqual({remaining: null, limit: null})
     })
 
+    it("rethrows a failure when the caller asks for it", async () => {
+        const failure = new Error("500")
+        querySpans.mockReturnValueOnce({withRawResponse: () => Promise.reject(failure)})
+        await expect(
+            fetchAllPreviewTracesWithMeta({focus: "span"}, "", "proj-9", undefined, true),
+        ).rejects.toBe(failure)
+    })
+
     it("rethrows AbortError so the export can cancel", async () => {
         const abort = new DOMException("Aborted", "AbortError")
         querySpans.mockReturnValueOnce({withRawResponse: () => Promise.reject(abort)})

@@ -88,11 +88,20 @@ interface Toast {
     action?: {label: string; onClick: () => void}
 }
 
-const scan = async (input: AddAllMatchingInput, controller: AbortController) => {
+/**
+ * One scan. `added` holds the trace ids this run, and the runs it retries, added to the queue: the
+ * scan skips them, and the counts it shows include them.
+ */
+const scan = async (
+    input: AddAllMatchingInput,
+    controller: AbortController,
+    added: Set<string>,
+) => {
     const {queue, projectId, appId, pageSignal, onViewQueue} = input
     // A newer run, or leaving the page, takes the toast away from this run.
     const owned = () => current === controller && !pageSignal.aborted
     const query = buildTraceQueryParams(input.filters, input.sort, input.traceTabs)
+    const addedBefore = added.size
     const queueName = queue.name || "queue"
     const maxItems = await readQueueCap(projectId)
     const max = count(maxItems)
@@ -108,12 +117,11 @@ const scan = async (input: AddAllMatchingInput, controller: AbortController) => 
             content: <QueueToast title={title} description={description} />,
         })
     const cancel = {label: "Cancel", onClick: () => controller.abort()}
-    let queued = 0
     const showRunning = () =>
         show({
             type: "loading",
             title: `Queuing traces to "${queueName}"`,
-            description: `Queued ${count(queued)} of up to ${max} traces…`,
+            description: `Queued ${count(added.size)} of up to ${max} traces…`,
             duration: 0,
             action: cancel,
         })
@@ -123,7 +131,7 @@ const scan = async (input: AddAllMatchingInput, controller: AbortController) => 
             type: "loading",
             title: "Rate limited, pausing",
             description:
-                `Queued ${count(queued)} of up to ${max} traces. The server is throttling ` +
+                `Queued ${count(added.size)} of up to ${max} traces. The server is throttling ` +
                 `requests; retrying in ${Math.ceil(delayMs / 1000)}s…`,
             duration: 0,
             action: cancel,
@@ -149,10 +157,9 @@ const scan = async (input: AddAllMatchingInput, controller: AbortController) => 
                     async () => {
                         // The batch sink sends the next batch without asking; stop it here.
                         controller.signal.throwIfAborted()
-                        return (
-                            (await addSimpleQueueTraces(projectId, queueId, traceIds)).queue_id ??
-                            null
-                        )
+                        const response = await addSimpleQueueTraces(projectId, queueId, traceIds)
+                        if (response.queue_id) for (const id of traceIds) added.add(id)
+                        return response.queue_id ?? null
                     },
                     {
                         signal: controller.signal,
@@ -163,9 +170,10 @@ const scan = async (input: AddAllMatchingInput, controller: AbortController) => 
             signal: controller.signal,
             // The page fetcher paces itself from the rate limit headers.
             pageDelayMs: 0,
-            maxItems,
-            onProgress: (progress) => {
-                queued = progress.queued
+            excludeTraceIds: added,
+            // The cap counts the traces the retried runs added.
+            maxItems: Math.max(maxItems - added.size, 0),
+            onProgress: () => {
                 if (!controller.signal.aborted) showRunning()
             },
         })
@@ -177,12 +185,12 @@ const scan = async (input: AddAllMatchingInput, controller: AbortController) => 
             show({
                 type: "warning",
                 title: "Cancelled",
-                description: `${count(result.queued)} traces queued to "${queueName}" before you stopped.`,
+                description: `${count(added.size)} traces queued to "${queueName}" before you stopped.`,
                 duration: 6,
             })
             return
         }
-        if (result.queued === 0) {
+        if (added.size === 0) {
             show({
                 type: "info",
                 title: "Nothing queued",
@@ -193,7 +201,7 @@ const scan = async (input: AddAllMatchingInput, controller: AbortController) => 
         }
         show({
             type: "success",
-            title: `Queued ${count(result.queued)} traces`,
+            title: `Queued ${count(added.size)} traces`,
             description:
                 result.stoppedBy === "cap"
                     ? `Queued to "${queueName}". Hit the ${max}-trace limit for one run. ` +
@@ -208,36 +216,34 @@ const scan = async (input: AddAllMatchingInput, controller: AbortController) => 
                 : undefined,
         })
     } catch (error) {
-        if (error instanceof BatchFlushError && error.flushedCount > 0) refreshQueueCaches(queue.id)
+        if (added.size > addedBefore) refreshQueueCaches(queue.id)
         if (!owned()) return
-        const retry = {label: "Retry", onClick: () => void runAddAllMatching(input)}
+        const retry = {label: "Retry", onClick: () => void start(input, added)}
         if (error instanceof BatchFlushError) {
             show({
                 type: "error",
                 title: "Queue add incomplete",
-                description: `Queued ${count(error.flushedCount)} traces; ${count(error.failedCount)} failed to queue.`,
+                description: `Queued ${count(added.size)} traces; ${count(error.failedCount)} failed to queue.`,
                 duration: 0,
                 action: retry,
             })
             return
         }
         console.error("Adding all matching traces to a queue failed", error)
+        const partial = added.size > 0
         show({
             type: "error",
-            title: "Queue add failed",
-            description: "Something went wrong. Try again.",
+            title: partial ? "Queue add incomplete" : "Queue add failed",
+            description: partial
+                ? `Queued ${count(added.size)} traces before the scan stopped. Try again to queue the rest.`
+                : "Something went wrong. Try again.",
             duration: 0,
             action: retry,
         })
     }
 }
 
-/**
- * Scans every trace that matches the traces page query and adds the trace ids to `queue`, with a
- * toast that shows the progress and how the run ended. Retry starts the whole scan again,
- * so it sends the traces that were already queued once more.
- */
-export const runAddAllMatching = async (input: AddAllMatchingInput): Promise<void> => {
+const start = async (input: AddAllMatchingInput, added: Set<string>): Promise<void> => {
     current?.abort()
     const controller = new AbortController()
     current = controller
@@ -247,8 +253,16 @@ export const runAddAllMatching = async (input: AddAllMatchingInput): Promise<voi
     // Leaving the page also clears the toast, so no Retry or stale progress is left on the next page.
     input.pageSignal.addEventListener("abort", () => message.destroy(TOAST_KEY), {once: true})
     try {
-        await scan(input, controller)
+        await scan(input, controller, added)
     } finally {
         input.pageSignal.removeEventListener("abort", stop)
     }
 }
+
+/**
+ * Scans every trace that matches the traces page query and adds the trace ids to `queue`, with a
+ * toast that shows the progress and how the run ended. Retry scans again and sends only the
+ * traces that were not added.
+ */
+export const runAddAllMatching = (input: AddAllMatchingInput): Promise<void> =>
+    start(input, new Set())

@@ -25,10 +25,15 @@ export interface RateLimitRetryOptions {
     onRetry?: (delayMs: number, attempt: number) => void
 }
 
-/** True when `err` looks like an HTTP 429, across the error shapes we see. */
+/** True when `err` looks like an HTTP 429: an axios error, or the generated client's `statusCode`. */
 const isRateLimitError = (err: unknown): boolean => {
-    const e = err as {status?: number; response?: {status?: number}; message?: string} | null
-    if (e?.status === 429 || e?.response?.status === 429) return true
+    const e = err as {
+        status?: number
+        statusCode?: number
+        response?: {status?: number}
+        message?: string
+    } | null
+    if ((e?.status ?? e?.statusCode ?? e?.response?.status) === 429) return true
     const message = (e?.message ?? "").toLowerCase()
     return message.includes("rate limit") || message.includes("too many requests")
 }
@@ -38,10 +43,18 @@ const isRateLimitError = (err: unknown): boolean => {
  * parsed from the detail message, else the fallback. Capped at `MAX_DELAY_MS`.
  */
 const getRetryDelayMs = (err: unknown, fallbackMs: number): number => {
-    const e = err as {response?: {headers?: Record<string, unknown>}; message?: string} | null
+    const e = err as {
+        response?: {headers?: Record<string, unknown>}
+        rawResponse?: {headers: Headers}
+        message?: string
+    } | null
 
     const headers = e?.response?.headers
-    const headerValue = headers?.["retry-after"] ?? headers?.["Retry-After"]
+    // The generated client keeps the `Headers` of the response on `rawResponse`.
+    const headerValue =
+        headers?.["retry-after"] ??
+        headers?.["Retry-After"] ??
+        e?.rawResponse?.headers.get("retry-after")
     const headerSeconds =
         typeof headerValue === "number"
             ? headerValue
