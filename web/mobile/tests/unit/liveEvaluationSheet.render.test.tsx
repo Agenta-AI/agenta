@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import {act, createElement} from "react"
 
-import type {Filter} from "@agenta/observability"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {getDefaultStore} from "jotai"
@@ -393,43 +392,23 @@ describe("live evaluation sheet", () => {
         expect(text()).toContain("Apply")
     })
 
-    it("An annotation filter row offers the evaluator and feedback controls", async () => {
-        const annotated = {
-            field: "has_annotation",
-            operator: "in",
-            value: [{evaluator: "tone-check"}],
-        } as Filter
-        await mount({userFilters: [annotated]})
-        await typeName("Support replies")
-        await pickEvaluator("Tone check")
-
+    it("The trace filter offers no annotation field, which the live query cannot apply", async () => {
+        await mount()
         await act(async () =>
             document.querySelector<HTMLButtonElement>("button[aria-label=Filter]")?.click(),
         )
-        // The form's own evaluator select is one; the annotation row adds the second.
-        await vi.waitFor(() =>
-            expect(
-                document.querySelectorAll("input[role=combobox][aria-label=Evaluator]"),
-            ).toHaveLength(2),
-        )
-        await act(async () => button(/^Apply$/)?.click())
-
-        await submit()
-
-        const [, body] = createRequests()[0]
-        expect(body).toMatchObject({
-            query: {
-                data: {
-                    filtering: {
-                        operator: "and",
-                        conditions: [
-                            {field: "trace_type", operator: "is", value: "invocation"},
-                            annotated,
-                        ],
-                    },
-                },
-            },
+        await act(async () => button(/^Add$/)?.click())
+        const field = button(/^Field$/)
+        await act(async () => {
+            field?.focus()
+            field?.dispatchEvent(new KeyboardEvent("keydown", {key: "Enter", bubbles: true}))
         })
+
+        const entries = [...document.querySelectorAll("[role=menuitem]")].map((node) =>
+            node.textContent?.trim(),
+        )
+        expect(entries).toContain("Status")
+        expect(entries).not.toContain("Annotation")
     })
 
     it("Empty name shows Enter a name and sends nothing", async () => {
