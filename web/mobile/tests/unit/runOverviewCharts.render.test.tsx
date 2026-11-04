@@ -4,6 +4,10 @@ import {act, createElement, type ReactNode} from "react"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
+import {MetricCard} from "@/features/evaluation-run/overview/MetricCard"
+import {MetricCardsSection} from "@/features/evaluation-run/overview/MetricCardsSection"
+import {RunRadarCard} from "@/features/evaluation-run/overview/RunRadarCard"
+
 import {
     BOOLEAN,
     CATEGORICAL,
@@ -12,10 +16,6 @@ import {
     NUMERIC,
     RUN_ID,
 } from "./runOverviewFixtures"
-
-import {MetricCard} from "@/features/evaluation-run/overview/MetricCard"
-import {MetricCardsSection} from "@/features/evaluation-run/overview/MetricCardsSection"
-import {RunRadarCard} from "@/features/evaluation-run/overview/RunRadarCard"
 
 // The charts are tested in @agenta/ui. Here, record what each card hands them.
 const charts = vi.hoisted(() => ({bar: [] as unknown[], line: [] as unknown[]}))

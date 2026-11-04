@@ -2,15 +2,15 @@ import {runHeaderAtomFamily} from "@agenta/entities/evaluationRun"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useAtomValue} from "jotai"
 
+import {PageTitle} from "@/components/PageTitle"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
+
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
 import {RunDetailsBody} from "./RunDetailsBody"
 import {RunDetailsHeader} from "./RunDetailsHeader"
-
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
 
