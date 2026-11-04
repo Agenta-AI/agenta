@@ -5,6 +5,9 @@ import {preloadEditorPlugins} from "@agenta/ui/editor"
 import {useStore} from "jotai"
 import {useRouter} from "next/router"
 
+import {PageNotFound} from "@/components/PageNotFound"
+import {PageTitle} from "@/components/PageTitle"
+
 import {agentEntryHref} from "../agents/agentEntry"
 
 import {PlaygroundWorkspace} from "./PlaygroundWorkspace"
@@ -12,9 +15,6 @@ import {PlaygroundLoadError} from "./states/PlaygroundLoadError"
 import {PlaygroundSkeleton} from "./states/PlaygroundSkeleton"
 import {usePlaygroundLeaveGuard} from "./usePlaygroundLeaveGuard"
 import {usePlaygroundSelection} from "./usePlaygroundSelection"
-
-import {PageNotFound} from "@/components/PageNotFound"
-import {PageTitle} from "@/components/PageTitle"
 
 /**
  * The prompt playground for one app: the config of the selected revision beside its runs.
