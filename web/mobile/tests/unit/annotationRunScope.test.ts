@@ -64,8 +64,8 @@ const QUALITY = {
     description: "Is the reply good",
     flags: {is_evaluator: true, is_feedback: true},
     data: {
-        // Optional fields the tests leave untouched: a text, a single choice with a "none of the
-        // above" null option, and a number.
+        // Optional fields: a text, a single choice with a "none of the above" null option, and a
+        // number. A save must not send them while they are empty.
         schemas: {
             outputs: {
                 type: "object",
