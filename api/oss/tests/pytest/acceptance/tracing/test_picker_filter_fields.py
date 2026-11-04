@@ -51,21 +51,23 @@ def picker_traces(authed_api):
     )
     assert response.status_code == 202
 
-    response = authed_api(
-        "POST",
-        "/simple/traces/",
-        json={
-            "trace": {
-                "origin": "custom",
-                "kind": "adhoc",
-                "channel": "api",
-                "data": {"outputs": {"score": 1}},
-                "references": {"evaluator": {"slug": evaluator_slug}},
-                "links": {"invocation": annotated},
-            }
-        },
-    )
-    assert response.status_code in (200, 202)
+    # Two annotations on the same trace, each with one of the two outputs.
+    for outputs in ({"score": 1}, {"approved": True}):
+        response = authed_api(
+            "POST",
+            "/simple/traces/",
+            json={
+                "trace": {
+                    "origin": "custom",
+                    "kind": "adhoc",
+                    "channel": "api",
+                    "data": {"outputs": outputs},
+                    "references": {"evaluator": {"slug": evaluator_slug}},
+                    "links": {"invocation": annotated},
+                }
+            },
+        )
+        assert response.status_code in (200, 202)
 
     wait_for_response(
         authed_api,
@@ -167,12 +169,48 @@ class TestPickerFilterFields:
             == set()
         )
 
+    def test_has_annotation_feedbacks_must_hold_on_one_annotation(
+        self, authed_api, picker_traces
+    ):
+        session = _session(picker_traces["session_id"])
+
+        def feedback(field, value):
+            return {
+                "field": "has_annotation",
+                "operator": "in",
+                "value": [{"feedback": {"field": [field], "value": value}}],
+            }
+
+        assert _trace_ids(authed_api, session, feedback("score", 1)) == {
+            picker_traces["annotated"]
+        }
+        assert (
+            _trace_ids(
+                authed_api, session, feedback("score", 1), feedback("approved", True)
+            )
+            == set()
+        )
+
     def test_unknown_field_is_a_400_not_a_dropped_condition(self, authed_api):
         response = authed_api(
             "POST",
             "/tracing/spans/query",
             json={
                 "focus": "trace",
+                "filter": {
+                    "conditions": [
+                        {"field": "no_such_field", "operator": "is", "value": "x"}
+                    ]
+                },
+            },
+        )
+        assert response.status_code == 400
+
+    def test_unknown_field_on_analytics_is_a_400_not_an_empty_result(self, authed_api):
+        response = authed_api(
+            "POST",
+            "/spans/analytics/query",
+            json={
                 "filter": {
                     "conditions": [
                         {"field": "no_such_field", "operator": "is", "value": "x"}

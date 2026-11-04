@@ -90,7 +90,7 @@ class QueriesService:
         self.tracing_service = tracing_service
 
     @staticmethod
-    def validate_query_revision_data(
+    def validate_query_revision_filtering(
         data: Optional[QueryRevisionData],
     ) -> None:
         """Raise `FilteringException` for a filter the tracing query cannot apply.
@@ -114,7 +114,7 @@ class QueriesService:
         except Exception:
             return None
 
-        cls.validate_query_revision_data(parsed)
+        cls.validate_query_revision_filtering(parsed)
 
         persisted_data: Dict[str, Any] = {}
         if parsed.formatting is not None:
@@ -1075,7 +1075,7 @@ class SimpleQueriesService:
         #
         query_id: Optional[UUID] = None,
     ) -> Optional[SimpleQuery]:
-        QueriesService.validate_query_revision_data(simple_query_create.data)
+        QueriesService.validate_query_revision_filtering(simple_query_create.data)
 
         # ----------------------------------------------------------------------
         # Query
@@ -1322,7 +1322,7 @@ class SimpleQueriesService:
         if str(query_id) != str(simple_query_edit.id):
             return None
 
-        QueriesService.validate_query_revision_data(simple_query_edit.data)
+        QueriesService.validate_query_revision_filtering(simple_query_edit.data)
 
         # ----------------------------------------------------------------------
         # Query

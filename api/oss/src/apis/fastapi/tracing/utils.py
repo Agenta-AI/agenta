@@ -1,12 +1,14 @@
+from functools import wraps
 from typing import Optional, Union, Tuple, List
 from json import loads
 from datetime import datetime
 
-from fastapi import Query
+from fastapi import HTTPException, Query
 
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.tracing.dtos import (
+    FilteringException,
     Formatting,
     Windowing,
     Filtering,
@@ -19,6 +21,27 @@ from oss.src.core.tracing.dtos import (
 from oss.src.core.tracing.utils.parsing import parse_timestamp_to_datetime
 
 log = get_module_logger(__name__)
+
+
+def handle_filtering_exceptions():
+    """Answer 400 for a filter that the tracing query cannot apply.
+
+    Place it inside `suppress_exceptions`, so the error is not hidden behind a
+    default response.
+    """
+
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            try:
+                return await func(*args, **kwargs)
+            except FilteringException as e:
+                raise HTTPException(status_code=400, detail=str(e)) from e
+
+        return wrapper
+
+    return decorator
+
 
 # --- PARSE QUERY DTO ---
 

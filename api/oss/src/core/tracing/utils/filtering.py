@@ -1,6 +1,6 @@
 """Filtering/query parsing helpers for tracing."""
 
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import ValidationError
 
@@ -493,114 +493,132 @@ def _parse_attribute_alias_condition(condition: Condition) -> None:
     condition.key = key
 
 
-def _parse_annotation_value(
-    condition: Condition,
-) -> Tuple[Optional[str], Optional[Condition]]:
-    """The evaluator slug and the feedback condition of an annotation picker row.
-
-    Parsing a row twice gives the same result, because a reused query is parsed again.
-    """
-    if condition.operator not in _L_OPS:
-        raise FilteringException(
-            f"'{condition.field}' only supports list operators.",
-        )
-
-    value: Any = condition.value
-    if isinstance(value, list):
-        if len(value) > 1:
-            raise FilteringException(
-                f"'{condition.field}' value must be one annotation filter.",
-            )
-        value = value[0] if value else None
-    value = value or {}
-
-    if not isinstance(value, dict):
-        raise FilteringException(
-            f"'{condition.field}' value must be an object with an 'evaluator' and a 'feedback'.",
-        )
-
-    evaluator = value.get("evaluator") or None
-    if evaluator is not None and not isinstance(evaluator, str):
-        raise FilteringException(
-            f"'{condition.field}' evaluator must be an evaluator slug.",
-        )
-
-    feedback = value.get("feedback") or None
-    if feedback is None:
-        return evaluator, None
-
-    if not isinstance(feedback, dict) or not feedback.get("field"):
-        raise FilteringException(
-            f"'{condition.field}' feedback must name an output field.",
-        )
-
-    try:
-        feedback_condition = annotation_feedback_condition(feedback)
-    except ValidationError as e:
-        raise FilteringException(
-            f"'{condition.field}' feedback operator or value is not supported.",
-        ) from e
-
-    return evaluator, feedback_condition
+_OUTPUTS_PREFIX = "ag.data.outputs."
 
 
 def annotation_feedback_condition(feedback: dict) -> Condition:
     """The attribute condition on the annotation's outputs for a feedback filter."""
     return Condition(
         field=Fields.ATTRIBUTES.value,
-        key=f"ag.data.outputs.{feedback['field']}",
+        key=f"{_OUTPUTS_PREFIX}{feedback['field']}",
         operator=feedback.get("operator") or ComparisonOperator.IS,
         value=feedback.get("value"),
     )
 
 
-def _evaluator_references_condition(
-    evaluator: str,
-    operator: Any,
-) -> Condition:
-    condition = Condition(
-        field=Fields.REFERENCES.value,
-        operator=operator,
-        value=[{"slug": evaluator}],
-    )
-    _parse_references_condition(condition)
-    return condition
+def _parse_feedback_fields(field_name: str, feedback: Any) -> List[str]:
+    fields = feedback.get("field") if isinstance(feedback, dict) else None
+    fields = fields if isinstance(fields, list) else [fields]
+
+    if not fields or not all(isinstance(f, str) and f for f in fields):
+        raise FilteringException(
+            f"'{field_name}' feedback must name one or more output fields.",
+        )
+
+    return fields
+
+
+def _parse_annotation_filters(condition: Condition) -> List[Dict[str, Any]]:
+    """The annotation filters of an annotation picker row, one per feedback field.
+
+    Every filter must hold on the same annotation, as on the traces page. The result
+    is also a valid row value, so a reused query that is parsed again keeps it.
+    """
+    if condition.operator not in _L_OPS:
+        raise FilteringException(
+            f"'{condition.field}' only supports list operators.",
+        )
+
+    items: Any = condition.value
+    if items is None:
+        items = []
+    if not isinstance(items, list):
+        items = [items]
+
+    filters: List[Dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            raise FilteringException(
+                f"'{condition.field}' value must be objects with an 'evaluator' and a 'feedback'.",
+            )
+
+        evaluator = item.get("evaluator") or None
+        if evaluator is not None and not isinstance(evaluator, str):
+            raise FilteringException(
+                f"'{condition.field}' evaluator must be an evaluator slug.",
+            )
+        if evaluator is not None:
+            filters.append({"evaluator": evaluator})
+
+        feedback = item.get("feedback") or None
+        if feedback is None:
+            continue
+
+        for field in _parse_feedback_fields(condition.field, feedback):
+            parsed = {
+                "field": field,
+                "operator": feedback.get("operator") or ComparisonOperator.IS.value,
+                "value": feedback.get("value"),
+            }
+            try:
+                annotation_feedback_condition(parsed)
+            except ValidationError as e:
+                raise FilteringException(
+                    f"'{condition.field}' feedback operator or value is not supported.",
+                ) from e
+            filters.append({"feedback": parsed})
+
+    return filters
 
 
 def _parse_has_annotation_condition(condition: Condition) -> None:
-    evaluator, feedback = _parse_annotation_value(condition)
-
-    condition.value = {
-        "evaluator": evaluator,
-        "feedback": (
-            {
-                "field": feedback.key[len("ag.data.outputs.") :],
-                "operator": feedback.operator.value,
-                "value": feedback.value,
-            }
-            if feedback is not None
-            else None
-        ),
-    }
+    condition.value = _parse_annotation_filters(condition)
 
 
 def _parse_is_annotation_condition(condition: Condition) -> Filtering:
-    evaluator, feedback = _parse_annotation_value(condition)
+    conditions: List[Union[Condition, Filtering]] = []
+    for item in _parse_annotation_filters(condition):
+        if "evaluator" in item:
+            references = Condition(
+                field=Fields.REFERENCES.value,
+                operator=condition.operator,
+                value=[{"slug": item["evaluator"]}],
+            )
+            _parse_references_condition(references)
+            conditions.append(references)
+        else:
+            conditions.append(annotation_feedback_condition(item["feedback"]))
 
-    if evaluator is None and feedback is None:
+    if not conditions:
         raise FilteringException(
             f"'{condition.field}' needs an evaluator or a feedback.",
         )
 
-    conditions: list = []
-    if evaluator is not None:
-        conditions.append(
-            _evaluator_references_condition(evaluator, condition.operator),
-        )
-    if feedback is not None:
-        conditions.append(feedback)
-
     return Filtering(operator=LogicalOperator.AND, conditions=conditions)
+
+
+def _merge_has_annotation_conditions(
+    conditions: List[Union[Condition, Filtering]],
+) -> List[Union[Condition, Filtering]]:
+    """Join the has_annotation rows of one AND into one condition.
+
+    The traces page reads all of them in one annotation query, so their evaluators
+    and feedbacks must hold on the same annotation. The first row's operator wins.
+    """
+    merged: List[Union[Condition, Filtering]] = []
+    first: Optional[Condition] = None
+    for condition in conditions:
+        if (
+            isinstance(condition, Condition)
+            and condition.field == Fields.HAS_ANNOTATION
+        ):
+            if first is not None:
+                first.value = [*first.value, *condition.value]
+                continue
+            first = condition
+        merged.append(condition)
+
+    return merged
 
 
 # FILTERING / CONDITION
@@ -623,6 +641,9 @@ def parse_filtering(
             raise FilteringException(
                 f"Unsupported condition type '{type(condition)}'.",
             )
+
+    if filtering.operator == LogicalOperator.AND:
+        conditions = _merge_has_annotation_conditions(conditions)
 
     filtering.conditions = conditions
 

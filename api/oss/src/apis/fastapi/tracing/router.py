@@ -12,6 +12,7 @@ from oss.src.apis.fastapi.tracing.utils import (
     parse_query_from_body_request,
     parse_analytics_from_params_request,
     parse_analytics_from_body_request,
+    handle_filtering_exceptions,
 )
 from oss.src.apis.fastapi.tracing.models import (
     OTelLinksResponse,
@@ -457,6 +458,7 @@ class TracingRouter:
 
     @intercept_exceptions()
     @suppress_exceptions(default=AnalyticsResponse(), exclude=[HTTPException])
+    @handle_filtering_exceptions()
     async def fetch_analytics(
         self,
         request: Request,
@@ -549,6 +551,7 @@ class TracingRouter:
 
     @intercept_exceptions()
     @suppress_exceptions(default=OldAnalyticsResponse(), exclude=[HTTPException])
+    @handle_filtering_exceptions()
     async def fetch_legacy_analytics(
         self,
         request: Request,
@@ -1335,6 +1338,7 @@ class SpansRouter:
 
     @intercept_exceptions()
     @suppress_exceptions(default=AnalyticsResponse(), exclude=[HTTPException])
+    @handle_filtering_exceptions()
     async def query_analytics(
         self,
         request: Request,

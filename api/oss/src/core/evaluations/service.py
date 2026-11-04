@@ -410,7 +410,7 @@ class EvaluationsService:
                 return False
 
             try:
-                QueriesService.validate_query_revision_data(query_revision.data)
+                QueriesService.validate_query_revision_filtering(query_revision.data)
             except FilteringException as e:
                 log.warning(
                     "[LIVE] Live query filter cannot be applied.",

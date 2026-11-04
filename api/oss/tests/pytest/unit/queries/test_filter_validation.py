@@ -10,7 +10,7 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
-from oss.src.apis.fastapi.queries.router import handle_filtering_exceptions
+from oss.src.apis.fastapi.tracing.utils import handle_filtering_exceptions
 from oss.src.core.queries.dtos import QueryRevisionData, SimpleQueryCreate
 from oss.src.core.queries.service import QueriesService, SimpleQueriesService
 from oss.src.core.tracing.dtos import FilteringException

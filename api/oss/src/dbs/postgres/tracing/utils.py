@@ -713,13 +713,11 @@ def _handle_has_annotation_field(
     condition: Condition,
 ) -> List[ClauseElement]:
     """Match spans that an annotation trace links to (`in`), or traces that no
-    annotation trace links to (`not_in`), optionally only annotations by one
-    evaluator and with one feedback value."""
+    annotation trace links to (`not_in`). Every evaluator and feedback filter of
+    the condition must hold on that same annotation."""
     # ------------------------- #
-    value = condition.value or {}
+    filters = condition.value or []
     operator = condition.operator
-    evaluator = value.get("evaluator")
-    feedback = value.get("feedback")
     # ------------------------- #
 
     annotation = aliased(SpanDBE, name="annotation")
@@ -736,23 +734,25 @@ def _handle_has_annotation_field(
         ),
     ]
 
-    if evaluator:
-        clauses.append(
-            annotation.references.contains(
-                cast(
-                    bindparam(None, dumps([{"slug": evaluator}]), type_=Text),
-                    JSONB,
+    for item in filters:
+        if item.get("evaluator"):
+            clauses.append(
+                annotation.references.contains(
+                    cast(
+                        bindparam(
+                            None, dumps([{"slug": item["evaluator"]}]), type_=Text
+                        ),
+                        JSONB,
+                    )
                 )
             )
-        )
-
-    if feedback:
-        clauses.extend(
-            _handle_attributes_field(
-                annotation_feedback_condition(feedback),
-                entity=annotation,
+        if item.get("feedback"):
+            clauses.extend(
+                _handle_attributes_field(
+                    annotation_feedback_condition(item["feedback"]),
+                    entity=annotation,
+                )
             )
-        )
 
     exists = (
         select(literal_column("1"))

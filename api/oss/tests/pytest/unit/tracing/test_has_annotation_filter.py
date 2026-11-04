@@ -69,3 +69,21 @@ def test_picker_attribute_field_filters_on_the_attributes_column():
 def test_filter_raises_for_unknown_field():
     with pytest.raises(FilteringException, match="Unsupported condition field"):
         build_filter([Condition(field="unknown", operator="is", value="x")])
+
+
+def test_has_annotation_rows_must_hold_on_the_same_annotation():
+    sql = _sql(
+        Condition(
+            field="has_annotation",
+            operator="in",
+            value=[{"feedback": {"field": "quality", "value": True}}],
+        ),
+        Condition(
+            field="has_annotation",
+            operator="in",
+            value=[{"feedback": {"field": ["safe"], "value": True}}],
+        ),
+    )
+
+    assert sql.count("EXISTS") == 1
+    assert sql.count("annotation.attributes @>") == 2

@@ -341,22 +341,78 @@ def test_parse_condition_normalizes_has_annotation_value():
         value=[
             {
                 "evaluator": "exact-match",
-                "feedback": {"field": "success", "operator": "is", "value": True},
+                "feedback": {
+                    "field": "success",
+                    "operator": "is",
+                    "value": True,
+                    "valueType": "boolean",
+                },
             }
         ],
     )
 
     assert parse_condition(condition) is condition
     assert condition.field == Fields.HAS_ANNOTATION
-    normalized = {
-        "evaluator": "exact-match",
-        "feedback": {"field": "success", "operator": "is", "value": True},
-    }
+    normalized = [
+        {"evaluator": "exact-match"},
+        {"feedback": {"field": "success", "operator": "is", "value": True}},
+    ]
     assert condition.value == normalized
 
     # A reused query is parsed again on its next page.
     assert parse_condition(condition) is condition
     assert condition.value == normalized
+
+
+def test_parse_condition_reads_a_feedback_field_list_as_one_filter_per_field():
+    # The "any evaluator" picker saves the field as a list, also for one field.
+    condition = Condition(
+        field="has_annotation",
+        operator="not_in",
+        value=[{"feedback": {"field": ["score"], "operator": "gte", "value": 1}}],
+    )
+
+    parse_condition(condition)
+
+    assert condition.value == [
+        {"feedback": {"field": "score", "operator": "gte", "value": 1}}
+    ]
+
+    several = Condition(
+        field="is_annotation",
+        operator="in",
+        value=[{"feedback": {"field": ["quality", "safe"], "value": True}}],
+    )
+    keys = [c.key for c in parse_condition(several).conditions]
+    assert keys == ["ag.data.outputs.quality", "ag.data.outputs.safe"]
+
+
+def test_parse_filtering_joins_has_annotation_rows_into_one_annotation():
+    # The traces page reads all has_annotation rows in one annotation query.
+    filtering = Filtering(
+        conditions=[
+            Condition(
+                field="has_annotation",
+                operator="in",
+                value=[{"feedback": {"field": "quality", "value": True}}],
+            ),
+            Condition(field="trace_type", operator="is", value="invocation"),
+            Condition(
+                field="has_annotation",
+                operator="in",
+                value=[{"feedback": {"field": "safe", "value": True}}],
+            ),
+        ]
+    )
+
+    parse_filtering(filtering)
+
+    [has_annotation, trace_type] = filtering.conditions
+    assert trace_type.field == Fields.TRACE_TYPE
+    assert has_annotation.value == [
+        {"feedback": {"field": "quality", "operator": "is", "value": True}},
+        {"feedback": {"field": "safe", "operator": "is", "value": True}},
+    ]
 
 
 def test_parse_condition_accepts_has_annotation_without_evaluator_or_feedback():
@@ -365,7 +421,7 @@ def test_parse_condition_accepts_has_annotation_without_evaluator_or_feedback():
 
     parse_condition(condition)
 
-    assert condition.value == {"evaluator": None, "feedback": None}
+    assert condition.value == []
 
 
 @pytest.mark.parametrize(
@@ -377,15 +433,7 @@ def test_parse_condition_accepts_has_annotation_without_evaluator_or_feedback():
         ),
         (
             Condition(field="has_annotation", operator="in", value="exact-match"),
-            "'has_annotation' value must be an object",
-        ),
-        (
-            Condition(
-                field="has_annotation",
-                operator="in",
-                value=[{"evaluator": "a"}, {"evaluator": "b"}],
-            ),
-            "'has_annotation' value must be one annotation filter.",
+            "'has_annotation' value must be objects",
         ),
         (
             Condition(
@@ -393,7 +441,7 @@ def test_parse_condition_accepts_has_annotation_without_evaluator_or_feedback():
                 operator="in",
                 value=[{"feedback": {"operator": "is", "value": 1}}],
             ),
-            "'has_annotation' feedback must name an output field.",
+            "'has_annotation' feedback must name one or more output fields.",
         ),
         (
             Condition(
