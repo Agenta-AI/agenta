@@ -5,8 +5,8 @@ import {CaretLeftIcon, CaretRightIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
 
 /**
- * The pill on the left panel's edge that opens and closes it. Open, it sits across the panel's
- * edge; closed, it hangs off the workspace's edge with only its inner half showing.
+ * The pill that opens and closes the left panel. One shape in both states: open, it sits across
+ * the panel's edge; closed, it rests against the workspace's edge.
  */
 export const PaneEdgeToggle = ({
     open,
@@ -47,8 +47,8 @@ export const PaneEdgeToggle = ({
                     transition: animate ? `left ${PANE_SLIDE_MS}ms ease` : undefined,
                 }}
                 className={clsx(
-                    "border-border bg-background text-muted-foreground hover:text-foreground absolute top-1/2 z-20 box-border flex h-10 w-5 -translate-y-1/2 cursor-pointer items-center justify-center border border-solid p-0 shadow-sm",
-                    open ? "-translate-x-1/2 rounded-[10px]" : "rounded-r-[10px] border-l-0",
+                    "border-border bg-background text-muted-foreground hover:text-foreground absolute top-1/2 z-20 box-border flex h-10 w-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-solid p-0 shadow-sm",
+                    open && "-translate-x-1/2",
                 )}
             >
                 <Caret size={12} aria-hidden />
