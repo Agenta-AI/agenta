@@ -9,6 +9,22 @@ const crypto = require("node:crypto");
 
 const EMPTY = { cookies: [], origins: [] };
 
+// Nothing marks an entry as a sign-in. Tokens run to a few KB; larger entries are a site's cache
+// (Wikipedia keeps 1 MB of scripts), and every save stores the whole file again.
+const MAX_SAVED_ITEM_CHARS = 32 * 1024;
+
+function withoutCaches(state) {
+  const origins = (state.origins || [])
+    .map((origin) => ({
+      ...origin,
+      localStorage: (origin.localStorage || []).filter(
+        (item) => item.value.length <= MAX_SAVED_ITEM_CHARS,
+      ),
+    }))
+    .filter((origin) => origin.localStorage.length);
+  return { ...state, origins };
+}
+
 const cookieKey = (c) => `${c.name}\u0000${c.domain}\u0000${c.path}`;
 const originKey = (o) => o.origin;
 
@@ -82,7 +98,8 @@ function stateStore(file) {
     file,
     loaded: () => base,
     // Returns false when this browser changed nothing, so a read never rewrites the file.
-    save(ours) {
+    save(state) {
+      const ours = withoutCaches(state);
       if (sameState(base, ours)) return false;
       const merged = mergeState(base, ours, readState(file));
       writeAtomic(file, JSON.stringify(merged));
@@ -92,4 +109,4 @@ function stateStore(file) {
   };
 }
 
-module.exports = { mergeState, stateStore };
+module.exports = { MAX_SAVED_ITEM_CHARS, mergeState, stateStore };

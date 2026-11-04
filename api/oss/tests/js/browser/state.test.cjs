@@ -7,7 +7,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { load } = require("./lib.cjs");
 
-const { stateStore } = load("state");
+const { MAX_SAVED_ITEM_CHARS, stateStore } = load("state");
 
 const cookie = (name, domain, value) => ({ name, domain, path: "/", value, expires: -1, httpOnly: true, secure: true, sameSite: "Lax" });
 const read = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
@@ -64,4 +64,40 @@ test("a command run from a subfolder saves sign-ins in the agent's shared folder
   const expected = path.join(root, "agent-files", ".agenta-browser", "state.json");
   assert.equal(defaultStateFile(root), expected);
   assert.equal(defaultStateFile(path.join(root, "project", "src")), expected);
+});
+
+test("a save keeps cookies and small entries and drops cache-sized ones", () => {
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "agenta-state-")), "state.json");
+  const token = { name: "auth", value: "t".repeat(8_000) };
+  const cache = { name: "modules", value: "c".repeat(MAX_SAVED_ITEM_CHARS + 1) };
+  stateStore(file).save({
+    cookies: [{ name: "sid", value: "s".repeat(4_000), domain: "a.test", path: "/" }],
+    origins: [
+      { origin: "https://a.test", localStorage: [token, cache] },
+      { origin: "https://cache.test", localStorage: [cache] },
+    ],
+  });
+  const saved = JSON.parse(fs.readFileSync(file, "utf8"));
+  assert.equal(saved.cookies.length, 1);
+  assert.deepEqual(saved.origins, [{ origin: "https://a.test", localStorage: [token] }]);
+});
+
+test("a file that already holds a large entry shrinks on the next save", () => {
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "agenta-state-")), "state.json");
+  const cache = { name: "modules", value: "c".repeat(MAX_SAVED_ITEM_CHARS + 1) };
+  const old = { cookies: [], origins: [{ origin: "https://a.test", localStorage: [cache] }] };
+  fs.writeFileSync(file, JSON.stringify(old));
+  stateStore(file).save(old);
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, "utf8")).origins, []);
+});
+
+test("a change only in a dropped entry writes nothing", () => {
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "agenta-state-")), "state.json");
+  const store = stateStore(file);
+  const withCache = (fill) => ({
+    cookies: [{ name: "sid", value: "s", domain: "a.test", path: "/" }],
+    origins: [{ origin: "https://a.test", localStorage: [{ name: "m", value: fill.repeat(MAX_SAVED_ITEM_CHARS + 1) }] }],
+  });
+  assert.equal(store.save(withCache("a")), true);
+  assert.equal(store.save(withCache("b")), false);
 });
