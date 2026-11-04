@@ -218,7 +218,7 @@ export const ShareMenu = ({
                     </SheetContent>
                 </Sheet>
             ) : (
-                <>
+                <div className="flex items-center">
                     <Popover
                         open={open}
                         onOpenChange={(next) => setBarPanel(next ? "share" : null)}
@@ -247,7 +247,7 @@ export const ShareMenu = ({
                         <Broadcast data-icon="inline-start" />
                         Publish
                     </Button>
-                </>
+                </div>
             )}
             <AgentPrivacyDialog
                 {...privacy}
