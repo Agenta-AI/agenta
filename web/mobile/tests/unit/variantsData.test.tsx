@@ -113,6 +113,23 @@ describe("useAppRevisions", () => {
         ).toEqual([["rev-2", "First"]])
     })
 
+    it("A revision of a variant the list does not hold never reads as the revision name", async () => {
+        fixture.queryVariants.mockResolvedValue({workflow_variants: []})
+        fixture.queryRevisions.mockResolvedValue({
+            workflow_revisions: [
+                {...revision("rev-1", 1), name: "default", variant_slug: "chat-v2"},
+                {...revision("rev-2", 2), workflow_variant_id: "var-9", name: "default"},
+            ],
+            windowing: {next: null},
+        })
+        render(createElement(Probe, {search: ""}))
+        await flush()
+        expect(latest?.rows.map((row: AppRevisionRow) => row.variantName)).toEqual([
+            "chat-v2",
+            "Unknown variant",
+        ])
+    })
+
     it("A first commit at version 0 with parameters is kept, an empty seed is not", async () => {
         fixture.queryVariants.mockResolvedValue({workflow_variants: []})
         fixture.queryRevisions.mockResolvedValue({

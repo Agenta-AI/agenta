@@ -21,6 +21,9 @@ export interface AppRevisionRow {
     createdById: string | null
 }
 
+/** The label for a variant the variants list does not hold, such as an archived one. */
+export const UNKNOWN_VARIANT_NAME = "Unknown variant"
+
 export const appRevisionsKey = (projectId: string, appId: string, search: string) =>
     ["workflows", "app-revisions", projectId, appId, search] as const
 
@@ -88,7 +91,11 @@ export const useAppRevisions = ({
                         revisionId: revision.id,
                         workflowId: revision.workflow_id ?? appId,
                         variantId,
-                        variantName: variant?.name ?? variant?.slug ?? revision.name ?? variantId,
+                        variantName:
+                            variant?.name ??
+                            variant?.slug ??
+                            revision.variant_slug ??
+                            UNKNOWN_VARIANT_NAME,
                         variantSlug: variant?.slug ?? revision.variant_slug ?? null,
                         version: Number(revision.version),
                         model: pickModelName(revision.data?.parameters ?? null),
