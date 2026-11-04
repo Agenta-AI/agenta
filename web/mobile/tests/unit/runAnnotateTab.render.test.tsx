@@ -47,9 +47,10 @@ vi.mock("@agenta/sdk/resources", async (original) => {
 const toast = vi.hoisted(() => ({success: vi.fn(), error: vi.fn(), info: vi.fn()}))
 vi.mock("@agenta/ui/app-message", () => ({message: toast}))
 
-const access = vi.hoisted(() => ({canAnnotate: true}))
+const access = vi.hoisted(() => ({canAnnotate: true, canRun: true}))
 vi.mock("@/features/context/useProjectPermission", () => ({
-    useProjectPermission: () => access.canAnnotate,
+    useProjectPermission: (_projectId: string, action: string) =>
+        action === "edit_evaluation_results" ? access.canRun : access.canAnnotate,
 }))
 
 const router = vi.hoisted(() => ({query: {} as Record<string, string>, replace: vi.fn()}))
@@ -87,6 +88,10 @@ interface HumanRun {
     withEvaluator: boolean
     /** True: creating an annotation fails. */
     failCreate: boolean
+    /** True: the app step is a human step that points at an app revision, as a run made in /m. */
+    humanInvocation: boolean
+    /** True: the run is closed. */
+    closed: boolean
 }
 let human: HumanRun
 
@@ -99,6 +104,28 @@ const QUALITY = {
     flags: {is_evaluator: true, is_feedback: true},
     data: {schemas: {outputs: {type: "object", properties: {good: {type: "boolean"}}}}},
 }
+
+const APP_ID = "0190a000-0000-7000-8000-00000000a001"
+const VARIANT_ID = "0190a000-0000-7000-8000-00000000a002"
+const REVISION_ID = "0190a000-0000-7000-8000-00000000a003"
+const APP_REVISION = {
+    id: REVISION_ID,
+    slug: "geo-bot-v1",
+    version: 1,
+    workflow_id: APP_ID,
+    workflow_variant_id: VARIANT_ID,
+    flags: {is_chat: false},
+    data: {
+        uri: "agenta:custom:completion:v0",
+        url: "https://svc.test/services/geo",
+        parameters: {temperature: 0},
+    },
+}
+const TRACE_HEX = "0123456789abcdef0123456789abcdef"
+const SPAN_HEX = "0123456789abcdef"
+
+/** The app the human run calls: `fetch` from the playground runner. */
+const appCall = vi.hoisted(() => vi.fn())
 
 const header: RunHeader = {
     name: "Capitals review",
@@ -145,11 +172,17 @@ function answer(runId: string, url: string, body: Record<string, unknown> | unde
             .map(([id, good]) => annotationOf(id, good))
         return {data: {count: annotations.length, traces: annotations}}
     }
-    if (
-        url.endsWith("/evaluations/results/") ||
-        url.endsWith("/evaluations/metrics/") ||
-        url.endsWith("/evaluations/metrics/refresh")
-    ) {
+    if (url.endsWith("/evaluations/results/")) {
+        state.calls.push({url, body})
+        // The server keeps a successful app result: the next read of the scenario returns it.
+        for (const result of (body?.results ?? []) as Record<string, string>[]) {
+            if (result.step_key === "app" && result.status === "success") {
+                human.outputs.push(result.scenario_id)
+            }
+        }
+        return {data: {}}
+    }
+    if (url.endsWith("/evaluations/metrics/") || url.endsWith("/evaluations/metrics/refresh")) {
         state.calls.push({url, body})
         return {data: {}}
     }
@@ -162,6 +195,22 @@ function answer(runId: string, url: string, body: Record<string, unknown> | unde
         run.data.mappings = run.data.mappings.filter(
             (mapping) => (mapping.column as {kind: string}).kind !== "annotation",
         )
+        if (human.closed) {
+            Object.assign(reply.data?.runs?.[0] as object, {
+                flags: {is_live: false, is_active: false, is_closed: true},
+            })
+        }
+        if (human.humanInvocation) {
+            const app = run.data.steps.find((step) => step.key === "app")
+            Object.assign(app ?? {}, {
+                origin: "human",
+                references: {
+                    application: {id: APP_ID},
+                    application_variant: {id: VARIANT_ID},
+                    application_revision: {id: REVISION_ID},
+                },
+            })
+        }
         if (human.withEvaluator) {
             run.data.steps.push({
                 key: "app.quality",
@@ -219,8 +268,17 @@ async function mount(
         annotated: {},
         withEvaluator: true,
         failCreate: false,
+        humanInvocation: false,
+        closed: false,
         ...patch,
     }
+    http.get.mockImplementation(async (url: string) => {
+        state.calls.push({url, body: undefined})
+        if (url === `${API}/workflows/revisions/${REVISION_ID}`) {
+            return {data: {count: 1, workflow_revision: APP_REVISION}}
+        }
+        throw new Error(`unexpected GET ${url}`)
+    })
     http.post.mockImplementation(async (url: string, body: Record<string, unknown>) =>
         answer(runId, url, body),
     )
@@ -278,6 +336,9 @@ beforeEach(() => {
     router.query = {view: "focus"}
     router.replace.mockReset()
     access.canAnnotate = true
+    access.canRun = true
+    appCall.mockReset()
+    vi.stubGlobal("fetch", appCall)
 })
 
 afterEach(async () => {
@@ -288,6 +349,7 @@ afterEach(async () => {
     for (const id of ["sc-1", "sc-2", "sc-3"]) annotationFormController.set.resetEdits(id)
     host.remove()
     vi.useRealTimers()
+    vi.unstubAllGlobals()
 })
 
 describe("run annotate tab", () => {
@@ -514,5 +576,146 @@ describe("run annotate sheet", () => {
             app: {trace_id: "trace-sc-2", span_id: "span-sc-2"},
         })
         expect(toast.success).toHaveBeenCalledWith("Annotations saved successfully")
+    })
+})
+
+describe("run the app of a human run", () => {
+    const appAnswers = (status: number, body: unknown) =>
+        appCall.mockResolvedValue(
+            new Response(JSON.stringify(body), {
+                status,
+                headers: {"Content-Type": "application/json"},
+            }),
+        )
+    /** A run made in /m: no scenario has run its app yet. */
+    const pending = () => ({outputs: [] as string[], humanInvocation: true})
+    /** Run loads the runner on demand, then calls the app and stores the result. */
+    const run = async (label = "Run") => {
+        await click(label)
+        await act(async () => vi.dynamicImportSettled())
+        for (let i = 0; i < 5; i++) await settle()
+    }
+
+    it("A pending invocation shows Generate output to annotate with a Run button", async () => {
+        await mountTab(pending())
+        expect(text()).toContain("Generate output to annotate")
+        expect(button("Run")?.disabled).toBe(false)
+        expect(button("Annotate")).toBeUndefined()
+    })
+
+    it("Opening a scenario with a pending invocation sends no request until Run is clicked", async () => {
+        await mountTab(pending())
+        await click("Next")
+        expect(text()).toContain("Scenario #2")
+        expect(appCall).not.toHaveBeenCalled()
+        expect(http.get).not.toHaveBeenCalled()
+        expect(writes()).toEqual([])
+    })
+
+    it("Run calls the app and then shows the form", async () => {
+        appAnswers(200, {data: "Paris", trace_id: TRACE_HEX, span_id: SPAN_HEX})
+        const runId = await mountTab(pending())
+
+        await run()
+
+        expect(appCall).toHaveBeenCalledOnce()
+        const [, init] = appCall.mock.calls[0]
+        expect(JSON.parse(init.body).data.inputs).toEqual({country: "France"})
+        expect(bodyOf("/evaluations/results/")).toEqual({
+            results: [
+                {
+                    run_id: runId,
+                    scenario_id: "sc-1",
+                    step_key: "app",
+                    status: "success",
+                    trace_id: "01234567-89ab-cdef-0123-456789abcdef",
+                    span_id: "01234567-89ab-cdef-0123-456789abcdef",
+                    references: {
+                        application: {id: APP_ID},
+                        application_variant: {id: VARIANT_ID},
+                        application_revision: {id: REVISION_ID},
+                    },
+                    outputs: "Paris",
+                },
+            ],
+        })
+        expect(toast.success).toHaveBeenCalledWith("Invocation completed")
+        expect(text()).not.toContain("Generate output to annotate")
+
+        // The scenario can now be annotated.
+        await click("True")
+        await click("Annotate")
+        await settle()
+        const created = bodyOf("/simple/traces/") as {trace: {links: unknown}}
+        expect(created.trace.links).toEqual({app: {trace_id: "trace-sc-1", span_id: "span-sc-1"}})
+        expect(toast.success).toHaveBeenCalledWith("Annotations saved successfully")
+    })
+
+    it("A failed run shows Couldn't run this scenario and Run again", async () => {
+        vi.spyOn(console, "error").mockImplementation(() => undefined)
+        appAnswers(500, {detail: "The model refused"})
+        await mountTab(pending())
+
+        await run()
+
+        expect(toast.error).toHaveBeenCalledWith("Couldn't run this scenario")
+        expect(text()).toContain("Couldn't run this scenario")
+        // The raw error stays out of the screen.
+        expect(text()).not.toContain("The model refused")
+        expect(bodyOf("/evaluations/scenarios/")).toEqual({
+            scenarios: [{id: "sc-1", status: "failure"}],
+        })
+
+        appAnswers(200, {data: "Paris", trace_id: TRACE_HEX})
+        await run("Run again")
+        expect(appCall).toHaveBeenCalledTimes(2)
+        expect(toast.success).toHaveBeenCalledWith("Invocation completed")
+        expect(text()).not.toContain("Couldn't run this scenario")
+    })
+
+    it("A reader without the right to write results sees no Run button", async () => {
+        access.canRun = false
+        await mountTab(pending())
+        expect(button("Run")).toBeUndefined()
+        expect(text()).toContain("Run the invocation to generate output before annotating.")
+    })
+
+    it("A closed run shows no Run button", async () => {
+        await mountTab({...pending(), closed: true})
+        expect(button("Run")).toBeUndefined()
+        expect(text()).toContain("Run the invocation to generate output before annotating.")
+    })
+
+    it("Cmd or Ctrl+Enter runs the app while the scenario has no output", async () => {
+        appAnswers(200, {data: "Paris", trace_id: TRACE_HEX})
+        await mountTab(pending())
+        await act(async () => {
+            document.dispatchEvent(
+                new KeyboardEvent("keydown", {key: "Enter", ctrlKey: true, bubbles: true}),
+            )
+        })
+        await act(async () => vi.dynamicImportSettled())
+        for (let i = 0; i < 5; i++) await settle()
+        expect(appCall).toHaveBeenCalledOnce()
+    })
+
+    it("The annotate sheet has the same Run button", async () => {
+        appAnswers(200, {data: "Lima", trace_id: TRACE_HEX})
+        router.query = {view: "scenarios"}
+        await mount((runId) => createElement(ScenariosTab, {runId, header}), pending())
+        const actions = () => buttons().filter((entry) => entry.textContent === "Annotate")
+        await act(() => vi.waitFor(() => expect(actions()).toHaveLength(3)))
+        await act(async () => actions()[1].click())
+        await act(async () => vi.dynamicImportSettled())
+        for (let i = 0; i < 5; i++) await settle()
+
+        const dialog = () => document.body.querySelector('[role="dialog"]')
+        expect(dialog()?.textContent).toContain("Generate output to annotate")
+        await run()
+
+        const result = bodyOf("/evaluations/results/") as {results: {scenario_id: string}[]}
+        expect(result.results[0].scenario_id).toBe("sc-2")
+        expect(dialog()?.textContent).not.toContain("Generate output to annotate")
+        expect(dialog()?.textContent).toContain("Annotate")
     })
 })
