@@ -196,7 +196,7 @@ describe("annotation in run scope", () => {
         })
     })
 
-    it("An update sends the fields the user set and keeps a saved null answer", async () => {
+    it("An update sends the fields the user set and keeps a saved null answer, also after the user changes it and sets it back", async () => {
         // The scenario already holds this user's Quality annotation, with "none of the above".
         const existing = {
             trace_id: "ann-1",
@@ -246,6 +246,8 @@ describe("annotation in run scope", () => {
             ["good", false],
             ["note", ""],
             ["clarity", 4],
+            ["tone", "warm"],
+            ["tone", null],
         ] as const) {
             annotationFormController.set.updateMetric({
                 scenarioId: SCENARIO,

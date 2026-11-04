@@ -188,21 +188,20 @@ function flattenAnnotationOutputs(annotation: Annotation): Record<string, unknow
  * The outputs a save sends for one evaluator: only the fields that hold a value, as the trace
  * annotate drawer sends them. A field left empty is not sent, so an untouched optional field is
  * not saved as `""` or `null`. One exception: a `null` answer ("none of the above") the existing
- * annotation saved is kept while the user leaves that field alone.
+ * annotation saved is kept while the field still holds `null`, also when the user changed it and
+ * set it back.
  */
 function buildSubmitOutputs({
     fields,
     existing,
-    editedKeys,
 }: {
     fields: Record<string, {value: unknown}>
     existing?: Annotation
-    editedKeys: ReadonlySet<string>
 }): Record<string, unknown> {
     const saved = existing ? flattenAnnotationOutputs(existing) : {}
     const outputs: Record<string, unknown> = {}
     for (const [key, field] of Object.entries(fields)) {
-        const keepSavedNull = field.value === null && saved[key] === null && !editedKeys.has(key)
+        const keepSavedNull = field.value === null && saved[key] === null
         if (!isEmptyValue(field.value) || keepSavedNull) outputs[key] = field.value
     }
     return outputs
@@ -1430,7 +1429,6 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
         // Phase 4: Build and execute annotation create/update promises
         const promises: Promise<unknown>[] = []
         const outputsBySlug = new Map<string, Record<string, unknown>>()
-        const edits = get(editsAtomFamily(scenarioId))
         let resolvedSpanId = spanId
 
         for (const [slug, fields] of Object.entries(metrics)) {
@@ -1440,11 +1438,7 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
             if (!evaluator) continue
 
             const existingAnn = existingBySlug.get(slug)
-            const outputs = buildSubmitOutputs({
-                fields,
-                existing: existingAnn,
-                editedKeys: new Set(Object.keys(edits[slug] ?? {})),
-            })
+            const outputs = buildSubmitOutputs({fields, existing: existingAnn})
             outputsBySlug.set(slug, outputs)
             if (existingAnn) {
                 const updatedTags = isTestcaseMode
