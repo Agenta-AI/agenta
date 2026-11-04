@@ -2,6 +2,7 @@ import {useEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent} fr
 
 import {userItemKey} from "@agenta/entities/accountChoice"
 import {
+    isUserSecretBinding,
     personalAccountsAccessAtom,
     personalNamedSecretsAtom,
     useVaultSecret,
@@ -25,6 +26,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {ACCOUNT_COPY} from "../accounts/copy"
 import {useAccountChoice} from "../accounts/useAccountChoice"
+import {useItemAccount} from "../accounts/useItemAccount"
 import {
     AgentSecretAttachmentModal,
     ENV_NAME,
@@ -93,6 +95,7 @@ export const SecretRequestDock = ({
     const [entryChoice, setEntryChoice] = useState<boolean | null>(null)
     const [editingEnv, setEditingEnv] = useState(false)
     const [vault, setVault] = useState<VaultRead>("checking")
+    const [typing, setTyping] = useState(false)
     const valueRef = useRef<HTMLTextAreaElement>(null)
 
     const commit = useSetAtom(commitAgentCredentialsAtom)
@@ -132,7 +135,7 @@ export const SecretRequestDock = ({
         }
     }, [])
 
-    const subject = request
+    const resolved = request
         ? resolveSecretDockSubject({
               request,
               bindings,
@@ -141,6 +144,10 @@ export const SecretRequestDock = ({
               vault: entity ? vault : "checking",
           })
         : undefined
+    // A late vault answer must not swap the card, and clear the value, under a person typing.
+    const heldSubject = useRef(resolved)
+    if (!typing) heldSubject.current = resolved
+    const subject = heldSubject.current
     const attachment =
         subject?.kind === "attached" || subject?.kind === "missing" ? subject : undefined
     const replaceable = subject ? replaceableRow(subject) : undefined
@@ -169,6 +176,10 @@ export const SecretRequestDock = ({
     const personalRow = replaceable?.ownerKind === "user"
     const savesPersonal = replacing ? personalRow : owner === "user"
     const {choose: storeChoice} = useAccountChoice(workflowId, userItemKey("secret", envName))
+    const {account: ownAccount} = useItemAccount(
+        {revisionId: targetId, agent: agent ?? {}},
+        userItemKey("secret", attachment?.binding.binding.name ?? envName),
+    )
 
     const settle = (output: Record<string, unknown>) => {
         if (settling || meta.settled) return
@@ -246,6 +257,7 @@ export const SecretRequestDock = ({
     const handleSaved = async (saved: SavedSecret) => {
         // A failed settle must come back to Continue: the field is already cleared.
         setEntryChoice(false)
+        setTyping(false)
         if (subject?.kind === "attached" && !envChanged) {
             configured(subject.binding.secret, envName, targetId)
             return
@@ -289,8 +301,11 @@ export const SecretRequestDock = ({
             return
         }
         if (subject?.kind !== "attached") return
-        if (envChanged) void attach(subject.binding.secret, false)
-        else configured(subject.binding.secret, envName, targetId)
+        if (!envChanged) configured(subject.binding.secret, envName, targetId)
+        // A person's choice is stored per variable, so a rename carries it to the new name.
+        else if (isUserSecretBinding(subject.binding) && ownAccount?.match) {
+            void attachPersonal(ownAccount.secret_id ?? undefined, false)
+        } else void attach(subject.binding.secret, false)
     }
 
     const submitOnEnter = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -303,7 +318,12 @@ export const SecretRequestDock = ({
     const pasteTrimmed = (event: ClipboardEvent<HTMLTextAreaElement>) => {
         if (form.textValue) return
         event.preventDefault()
-        form.setTextValue(event.clipboardData.getData("text").trim())
+        changeValue(event.clipboardData.getData("text").trim())
+    }
+
+    const changeValue = (next: string) => {
+        form.setTextValue(next)
+        setTyping(!!next.trim())
     }
 
     const changeEnv = (next: string) => {
@@ -371,7 +391,7 @@ export const SecretRequestDock = ({
                             className="max-h-24 min-h-8 flex-1 resize-none font-mono [-webkit-text-security:disc] [field-sizing:content]"
                             placeholder={replacing ? "Paste a new value" : "Paste the value"}
                             value={form.textValue}
-                            onChange={(event) => form.setTextValue(event.target.value)}
+                            onChange={(event) => changeValue(event.target.value)}
                             onKeyDown={submitOnEnter}
                             onPaste={pasteTrimmed}
                             autoComplete="off"

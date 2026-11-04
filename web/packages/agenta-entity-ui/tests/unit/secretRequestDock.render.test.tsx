@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
     secrets: [] as unknown[],
     personal: [] as unknown[],
     entityLoaded: true,
+    ownAccount: undefined as unknown,
     dirty: false,
     access: "off",
     refetch: vi.fn(async () => ({isError: false})),
@@ -56,6 +57,9 @@ vi.mock("@agenta/ui/app-message", () => ({
 }))
 vi.mock("../../src/accounts/useAccountChoice", () => ({
     useAccountChoice: () => ({choose: state.choose}),
+}))
+vi.mock("../../src/accounts/useItemAccount", () => ({
+    useItemAccount: () => ({account: state.ownAccount}),
 }))
 vi.mock("../../src/secret/AgentSecretAttachmentModal", () => ({
     ENV_NAME: /^[A-Za-z_][A-Za-z0-9_]*$/,
@@ -165,6 +169,7 @@ beforeEach(() => {
     state.secrets = []
     state.personal = []
     state.entityLoaded = true
+    state.ownAccount = undefined
     state.dirty = false
     state.access = "off"
     state.modal.props = null
@@ -433,6 +438,44 @@ describe("review fixes", () => {
 
         expect(valueField()).toBeNull()
         expect(button("Continue")?.disabled).toBe(false)
+    })
+})
+
+describe("review comments", () => {
+    it("keeps the typed value when a late vault answer finds a match", async () => {
+        await mount()
+        await typeInto(valueField()!, "sk_typed")
+        state.secrets = [stripeRow]
+        await mount()
+
+        expect(valueField()?.value).toBe("sk_typed")
+        expect(button("Continue")).toBeUndefined()
+    })
+
+    it("carries a person's choice to the renamed variable", async () => {
+        state.bindings = [{secret: {account_source: "user"}, binding: stripeBinding.binding}]
+        state.ownAccount = {match: true, secret_id: "own-1"}
+        await mount()
+        await renameTo("BILLING_KEY")
+        await click(button("Continue"))
+
+        expect(state.choose).toHaveBeenCalledExactlyOnceWith({secretId: "own-1"})
+        expect(state.commit).toHaveBeenCalledWith({
+            revisionId: "rev-1",
+            bindings: [
+                {secret: {account_source: "user"}, binding: {type: "env", name: "BILLING_KEY"}},
+            ],
+        })
+    })
+
+    it("renames without storing a choice when the person has none", async () => {
+        state.bindings = [{secret: {account_source: "user"}, binding: stripeBinding.binding}]
+        await mount()
+        await renameTo("BILLING_KEY")
+        await click(button("Continue"))
+
+        expect(state.choose).not.toHaveBeenCalled()
+        expect(state.commit).toHaveBeenCalledTimes(1)
     })
 })
 
