@@ -36,6 +36,16 @@ class RecordsDAOInterface:
     ) -> List[SessionRecord]:
         raise NotImplementedError
 
+    async def get_failure_context(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: Optional[str],
+    ) -> List[SessionRecord]:
+        """The session's user messages and this turn's tool calls, in send order."""
+        raise NotImplementedError
+
     async def get_records_page(
         self,
         *,
