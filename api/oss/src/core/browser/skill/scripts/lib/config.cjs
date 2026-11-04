@@ -30,8 +30,12 @@ const config = {
   IDLE_EXIT_MS: ms("AGENTA_BROWSER_IDLE_MS", 15 * 60_000),
   // Control held this long with no input no longer blocks the agent: the person has moved on.
   USER_IDLE_MS: ms("AGENTA_BROWSER_USER_IDLE_MS", 20_000),
-  // A frozen page never answers; the longest honest command (a slow `type`) stays well inside this.
+  // A frozen page never answers. A command past this stops, and the next one runs.
   OP_TIMEOUT_MS: ms("AGENTA_BROWSER_OP_TIMEOUT_MS", 75_000),
+  // Live view input and screencast calls: a person feels anything longer as a dead view.
+  LIVE_TIMEOUT_MS: ms("AGENTA_BROWSER_LIVE_TIMEOUT_MS", 3_000),
+  // The agent's `wait` calls follow each other; a gap this long means the turn ended.
+  WAIT_GRACE_MS: ms("AGENTA_BROWSER_WAIT_GRACE_MS", 120_000),
   // A person can sign in and never click I'm done, and a sandbox can die with no shutdown.
   SAVE_EVERY_MS: ms("AGENTA_BROWSER_SAVE_EVERY_MS", 5_000),
   // A sign-in's cookies can land well after the last click, at the end of a redirect chain.

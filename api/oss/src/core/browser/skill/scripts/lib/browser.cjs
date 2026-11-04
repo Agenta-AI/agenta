@@ -4,22 +4,29 @@
 // changes and "status" when anything the live view shows changes.
 
 const { EventEmitter } = require("node:events");
-const { USER_IDLE_MS, VIEWPORT } = require("./config.cjs");
+const { LIVE_TIMEOUT_MS, USER_IDLE_MS, VIEWPORT } = require("./config.cjs");
 const { stateStore } = require("./state.cjs");
 
-// A tab that hangs must not hold back the status of the others.
-const TITLE_WAIT_MS = 1_000;
+// A frozen page never answers a Playwright or CDP call, and those calls take no time limit.
+function within(work, ms, fallback) {
+  let timer;
+  const late = new Promise((resolve) => {
+    timer = setTimeout(resolve, ms, fallback);
+  });
+  return Promise.race([work, late]).finally(() => clearTimeout(timer));
+}
 
-const titleOf = (page) =>
-  Promise.race([
-    page.title().catch(() => ""),
-    new Promise((resolve) => setTimeout(resolve, TITLE_WAIT_MS, "")),
-  ]);
+const TITLE_WAIT_MS = 1_000;
+const STATE_WAIT_MS = 3_000;
+
+const titleOf = (page) => within(page.title().catch(() => ""), TITLE_WAIT_MS, "");
 
 function createSession({ stateFile, waits }) {
   const session = new EventEmitter();
   const tabIds = new WeakMap();
   let lastTabId = 0;
+  let stateRead = null;
+  let saving = null;
   Object.assign(session, {
     browser: null,
     context: null,
@@ -29,6 +36,7 @@ function createSession({ stateFile, waits }) {
     waits,
     lastActivity: Date.now(),
     lastInput: 0,
+    origins: [],
   });
 
   session.connected = () => Boolean(session.browser?.isConnected());
@@ -46,7 +54,7 @@ function createSession({ stateFile, waits }) {
   };
 
   session.switchTo = async (page) => {
-    await page.bringToFront().catch(() => {});
+    await within(page.bringToFront().catch(() => {}), LIVE_TIMEOUT_MS);
     session.setActivePage(page);
   };
 
@@ -83,8 +91,31 @@ function createSession({ stateFile, waits }) {
   session.personActive = () =>
     session.control === "user" && Date.now() - session.lastInput < USER_IDLE_MS;
 
-  session.saveState = async () =>
-    session.store.save(await session.context.storageState());
+  // A frozen tab never answers for its site's local storage, but cookies need no page. So the
+  // read that is stuck stays the only one, and saves go on with the storage last read.
+  async function readState() {
+    if (!stateRead) {
+      stateRead = session.context.storageState();
+      stateRead.catch(() => {}).finally(() => {
+        stateRead = null;
+      });
+      const state = await within(stateRead, STATE_WAIT_MS);
+      if (state) {
+        session.origins = state.origins;
+        return state;
+      }
+    }
+    return { cookies: await session.context.cookies(), origins: session.origins };
+  }
+
+  session.saveState = () => {
+    saving ??= readState()
+      .then((state) => session.store.save(state))
+      .finally(() => {
+        saving = null;
+      });
+    return saving;
+  };
 
   function trackPage(page) {
     tabIds.set(page, ++lastTabId);
@@ -112,6 +143,7 @@ function createSession({ stateFile, waits }) {
     session.browser = browser;
     browser.on("disconnected", () => session.emit("disconnected"));
     const saved = session.store.loaded();
+    session.origins = saved?.origins ?? [];
     session.context = await browser.newContext({
       viewport: VIEWPORT,
       userAgent: `Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${browser.version()} Safari/537.36`,
@@ -132,4 +164,4 @@ function createSession({ stateFile, waits }) {
   return session;
 }
 
-module.exports = { createSession, titleOf };
+module.exports = { createSession, titleOf, within };

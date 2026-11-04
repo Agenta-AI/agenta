@@ -3,7 +3,8 @@
 // The live view: a person watches the active tab as a JPEG screencast over a WebSocket, sends
 // mouse and keyboard input, takes control, and clicks "I'm done" to end the agent's `wait`.
 
-const { NAVIGATION_TIMEOUT_MS, VIEWPORT } = require("./config.cjs");
+const { within } = require("./browser.cjs");
+const { LIVE_TIMEOUT_MS, NAVIGATION_TIMEOUT_MS, VIEWPORT } = require("./config.cjs");
 const { navigationAllowed, withScheme } = require("./ops.cjs");
 
 const PLAYWRIGHT_PIN = "1.62.0 (services/runner/images/sandbox/install-agent-tools.sh)";
@@ -36,8 +37,12 @@ const hostOf = (rawUrl) => {
 
 const MOUSE_BUTTONS = new Set(["left", "middle", "right"]);
 
+const CONTROL_MESSAGES = new Set(["control", "done", "tab"]);
+
 function createLiveView(session) {
   const viewers = new Set();
+  const stuckPages = new WeakSet();
+  let controller = null;
   let screencast = null;
   let inputChain = Promise.resolve();
 
@@ -72,8 +77,8 @@ function createLiveView(session) {
     const current = screencast;
     screencast = null;
     if (!current) return;
-    await current.session.send("Page.stopScreencast").catch(() => {});
-    await current.session.detach().catch(() => {});
+    await within(current.session.send("Page.stopScreencast").catch(() => {}), LIVE_TIMEOUT_MS);
+    await within(current.session.detach().catch(() => {}), LIVE_TIMEOUT_MS);
   }
 
   // Restarts run one after another: two overlapping ones would each attach a CDP session and
@@ -104,14 +109,21 @@ function createLiveView(session) {
         .then(() => cdp.send("Page.screencastFrameAck", { sessionId }))
         .catch(() => {});
     });
-    await cdp.send("Page.startScreencast", {
-      format: "jpeg",
-      quality: 60,
-      maxWidth: VIEWPORT.width,
-      maxHeight: VIEWPORT.height,
-    });
+    await within(
+      cdp.send("Page.startScreencast", {
+        format: "jpeg",
+        quality: 60,
+        maxWidth: VIEWPORT.width,
+        maxHeight: VIEWPORT.height,
+      }),
+      LIVE_TIMEOUT_MS,
+    );
     // Chrome sends no screencast frame for a page that is not repainting, so a new viewer gets one explicitly.
-    const still = await page.screenshot({ type: "jpeg", quality: 60 }).catch(() => null);
+    const still = await within(
+      page.screenshot({ type: "jpeg", quality: 60 }).catch(() => null),
+      LIVE_TIMEOUT_MS,
+      null,
+    );
     if (still && screencast && screencast.page === page)
       broadcast({
         type: "frame",
@@ -126,24 +138,24 @@ function createLiveView(session) {
     if (viewers.size) restartScreencast().catch(() => {});
   });
 
-  async function applyInput(message) {
+  // These must work while the page is frozen, so they never wait behind page input.
+  async function applyControl(message) {
     session.noteInput();
     if (message.type === "done") {
       session.setControl("agent");
       session.waits.done();
-      return;
-    }
-    if (message.type === "control") {
+    } else if (message.type === "control") {
       session.setControl(message.take ? "user" : "agent");
-      return;
-    }
-    if (message.type === "tab") {
+    } else {
       const tab = session.pageById(Number(message.id));
       if (!tab || tab === session.activePage) return;
       session.setControl("user");
       await session.switchTo(tab);
-      return;
     }
+  }
+
+  async function applyInput(message) {
+    session.noteInput();
     const page = session.activePage;
     if (!page || page.isClosed()) return;
     switch (message.type) {
@@ -189,6 +201,15 @@ function createLiveView(session) {
     }
   }
 
+  // A frozen page takes input for as long as it stays frozen; the queue must not wait on it.
+  async function applyToLivePage(message) {
+    const page = session.activePage;
+    if (!page || stuckPages.has(page)) return;
+    const done = {};
+    const work = applyInput(message).finally(() => stuckPages.delete(page));
+    if ((await within(work, LIVE_TIMEOUT_MS, done)) === done) stuckPages.add(page);
+  }
+
   function attachViewer(ws) {
     viewers.add(ws);
     session.lastActivity = Date.now();
@@ -203,15 +224,17 @@ function createLiveView(session) {
       } catch {
         return;
       }
+      if (message.type !== "done" && !(message.type === "control" && !message.take)) controller = ws;
+      if (CONTROL_MESSAGES.has(message.type)) return void applyControl(message).catch(() => {});
       // One at a time, in arrival order: overlapping key presses would scramble typed text.
-      inputChain = inputChain.then(() => applyInput(message)).catch(() => {});
+      inputChain = inputChain.then(() => applyToLivePage(message)).catch(() => {});
     });
     // Closing the view hands control back but does not end a wait: only "I'm done" does.
     ws.on("close", () => {
       viewers.delete(ws);
       session.lastActivity = Date.now();
+      if (ws === controller || !viewers.size) session.setControl("agent");
       if (!viewers.size) {
-        session.setControl("agent");
         screencastChain = screencastChain.then(stopScreencast).catch(() => {});
       }
     });

@@ -101,3 +101,13 @@ test("a change only in a dropped entry writes nothing", () => {
   assert.equal(store.save(withCache("a")), true);
   assert.equal(store.save(withCache("b")), false);
 });
+
+test("a save keeps earlier sign-ins when the file cannot be read", () => {
+  const file = tempFile();
+  const store = stateStore(file);
+  const sid = cookie("sid", "github.com", "a1");
+  store.save({ cookies: [sid], origins: [] });
+  fs.rmSync(file);
+  store.save({ cookies: [sid, cookie("sid", "linear.app", "b1")], origins: [] });
+  assert.equal(read(file).cookies.length, 2);
+});

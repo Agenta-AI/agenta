@@ -8,7 +8,7 @@ const http = require("node:http");
 const fs = require("node:fs");
 const crypto = require("node:crypto");
 const config = require("./config.cjs");
-const { createSession, titleOf } = require("./browser.cjs");
+const { createSession, titleOf, within } = require("./browser.cjs");
 const { createLiveView, webSocketServer } = require("./live-view.cjs");
 const { OPS, agentError, errorText, opError } = require("./ops.cjs");
 const { pageView } = require("./page-text.cjs");
@@ -75,6 +75,7 @@ async function serve() {
   const waits = createWaits({
     sliceMs: config.WAIT_SLICE_MS,
     totalMs: config.WAIT_TOTAL_MS,
+    graceMs: config.WAIT_GRACE_MS,
     onChange: () => session.emit("status"),
   });
   session = createSession({ stateFile, waits });
@@ -88,15 +89,17 @@ async function serve() {
     return given.length === expected.length && crypto.timingSafeEqual(given, expected);
   }
 
+  // Past the limit the next command runs. `op.stopped` tells this one to touch nothing more.
   function withinOpTime(work) {
+    const op = { stopped: false };
     let timer;
     const stuck = new Promise((_, reject) => {
-      timer = setTimeout(
-        () => reject(Object.assign(new Error("page stuck"), { code: "page_stuck" })),
-        config.OP_TIMEOUT_MS,
-      );
+      timer = setTimeout(() => {
+        op.stopped = true;
+        reject(Object.assign(new Error("page stuck"), { code: "page_stuck" }));
+      }, config.OP_TIMEOUT_MS);
     });
-    return Promise.race([work, stuck]).finally(() => clearTimeout(timer));
+    return Promise.race([work(op), stuck]).finally(() => clearTimeout(timer));
   }
 
   // One command at a time: parallel commands would interleave on the one tab.
@@ -107,7 +110,7 @@ async function serve() {
       session.lastActivity = Date.now();
       try {
         // A frozen page must not hold every later command behind this one.
-        return await withinOpTime(work());
+        return await withinOpTime(work);
       } finally {
         busy--;
         session.lastActivity = Date.now();
@@ -133,7 +136,7 @@ async function serve() {
     return pageView(page);
   }
 
-  async function runOp(op, args = {}) {
+  async function runOp(op, args = {}, run = {}) {
     if (session.personActive())
       return agentError("user_in_control", "A person is controlling the browser.", {
         next_step: 'Run `agenta-browser wait "<why>"` and continue when it returns.',
@@ -157,14 +160,15 @@ async function serve() {
           next_step: "Run `agenta-browser read` and use a ref from the new result.",
         });
       const before = new Set(session.context.pages());
-      const text = await handler(page, args).catch(async (e) => {
+      const text = await handler(page, { ...args, run }).catch(async (e) => {
         // A refused or failed site leaves no blank tab behind, and the agent where it was.
-        if (newTab) {
+        if (newTab && !run.stopped) {
           if (previous && !previous.isClosed()) await session.switchTo(previous);
           await page.close().catch(() => {});
         }
         throw e;
       });
+      if (run.stopped) return null;
       agentPage = page;
       const all = session.context.pages();
       const opened = all.filter((p) => !before.has(p));
@@ -193,11 +197,13 @@ async function serve() {
       });
     await session.saveState().catch(() => {});
     agentPage = await session.currentPage();
-    return { ok: true, text: `The person is done.\n${await pageView(agentPage)}` };
+    // The click is already spent: a frozen page must not lose it to the CLI's time limit.
+    const view = await within(pageView(agentPage), 10_000, "The page is not responding. Run `agenta-browser tab`.");
+    return { ok: true, text: `The person is done.\n${view}` };
   }
 
   async function shutdown(code) {
-    await serially(session.saveState).catch(() => {});
+    await session.saveState().catch(() => {});
     await session.browser?.close().catch(() => {});
     process.exit(code);
   }
@@ -224,10 +230,10 @@ async function serve() {
     if (!isLoopback(req.socket.remoteAddress)) return reply(res, 403, { ok: false });
     const body = await readJson(req);
     if (url.pathname === "/op")
-      return reply(res, 200, await serially(() => runOp(String(body.op || ""), body.args || {})).catch(opError));
+      return reply(res, 200, await serially((run) => runOp(String(body.op || ""), body.args || {}, run)).catch(opError));
     if (url.pathname === "/wait") return reply(res, 200, await waitForPerson(body.reason));
     if (url.pathname === "/save") {
-      const saved = await serially(session.saveState);
+      const saved = await session.saveState();
       return reply(res, 200, { ok: true, text: saved ? "Saved the sign-ins." : "Nothing changed." });
     }
     if (url.pathname === "/stop") {
@@ -286,7 +292,7 @@ async function serve() {
 
   setInterval(() => {
     if (Date.now() - session.lastInput < config.SAVE_AFTER_INPUT_MS)
-      serially(session.saveState).catch((e) => log(`save failed: ${errorText(e)}`));
+      session.saveState().catch((e) => log(`save failed: ${errorText(e)}`));
   }, config.SAVE_EVERY_MS).unref();
 
   const idleCheck = setInterval(

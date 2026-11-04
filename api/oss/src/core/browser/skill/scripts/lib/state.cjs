@@ -101,7 +101,8 @@ function stateStore(file) {
     save(state) {
       const ours = withoutCaches(state);
       if (sameState(base, ours)) return false;
-      const merged = mergeState(base, ours, readState(file));
+      // A file this save cannot read is not an empty one: that would drop every other sign-in.
+      const merged = mergeState(base, ours, readState(file) ?? base);
       writeAtomic(file, JSON.stringify(merged));
       base = ours;
       return true;

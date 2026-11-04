@@ -8,10 +8,21 @@
 //   open -> expired   when `totalMs` passed since the first `wait` with the reason
 //   done | expired    answered once by the next `wait` with the reason, then forgotten
 //   a call -> "still" when its slice ends first; the reason stays open
+//   no call for `graceMs` after a slice or a done: the turn ended, so the reason is forgotten
 
-function createWaits({ sliceMs, totalMs, now = Date.now, onChange = () => {} }) {
+function createWaits({ sliceMs, totalMs, graceMs = 120_000, now = Date.now, onChange = () => {} }) {
   const reasons = new Map(); // reason -> { startedAt, state: "open" | "done" | "expired", timer }
   let pending = []; // { reason, resolve, timer }
+
+  function forgetLater(reason, entry) {
+    clearTimeout(entry.grace);
+    entry.grace = setTimeout(() => {
+      clearTimeout(entry.timer);
+      if (reasons.get(reason) === entry) reasons.delete(reason);
+      onChange();
+    }, graceMs);
+    entry.grace.unref?.();
+  }
 
   function settle(reason, state) {
     const entry = reasons.get(reason);
@@ -25,6 +36,7 @@ function createWaits({ sliceMs, totalMs, now = Date.now, onChange = () => {} }) 
       reasons.delete(reason);
       waiter.resolve(state);
     }
+    if (!resolved.length) forgetLater(reason, entry);
     onChange();
   }
 
@@ -43,6 +55,7 @@ function createWaits({ sliceMs, totalMs, now = Date.now, onChange = () => {} }) 
   return {
     wait(reason) {
       const entry = open(reason);
+      clearTimeout(entry.grace);
       if (entry.state !== "open") {
         reasons.delete(reason);
         return Promise.resolve(entry.state);
@@ -59,6 +72,7 @@ function createWaits({ sliceMs, totalMs, now = Date.now, onChange = () => {} }) 
           // The last slice ends with the total time; it must not race the expiry into "still".
           if (now() >= entry.startedAt + totalMs) return settle(reason, "expired");
           pending = pending.filter((w) => w !== waiter);
+          forgetLater(reason, entry);
           resolve("still");
         }, Math.min(sliceMs, left));
         pending.push(waiter);

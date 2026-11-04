@@ -11,9 +11,9 @@ const { createWaits } = load("waits");
 const { createSession } = load("browser");
 const { createLiveView } = load("live-view");
 
-function setup({ sliceMs = 150, totalMs = 10_000 } = {}) {
+function setup({ sliceMs = 150, totalMs = 10_000, graceMs } = {}) {
   let session;
-  const waits = createWaits({ sliceMs, totalMs, onChange: () => session.emit("status") });
+  const waits = createWaits({ sliceMs, totalMs, graceMs, onChange: () => session.emit("status") });
   session = createSession({ stateFile: path.join(os.tmpdir(), "agenta-browser-unused.json"), waits });
   const live = createLiveView(session);
   const viewer = () => {
@@ -77,4 +77,21 @@ test("I'm done clicked between two wait calls answers the next wait", async () =
   assert.equal(waits.reason(), "");
   assert.equal(await waits.wait("Please sign in"), "done");
   assert.equal(await waits.wait("Please sign in"), "still");
+});
+
+test("a reason nobody waits on any more stops showing", async () => {
+  const { waits } = setup({ sliceMs: 20, graceMs: 40 });
+  assert.equal(await waits.wait("Sign in"), "still");
+  assert.equal(waits.reason(), "Sign in");
+  await new Promise((r) => setTimeout(r, 80));
+  assert.equal(waits.reason(), "");
+  assert.equal(waits.active(), false);
+});
+
+test("an old I'm done does not answer a later wait", async () => {
+  const { waits } = setup({ sliceMs: 20, graceMs: 40 });
+  assert.equal(await waits.wait("Sign in"), "still");
+  waits.done();
+  await new Promise((r) => setTimeout(r, 80));
+  assert.equal(await waits.wait("Sign in"), "still");
 });

@@ -48,7 +48,8 @@ function navigationAllowed(rawUrl) {
 
 function withScheme(raw) {
   const target = String(raw || "").trim();
-  return /^[a-z]+:/i.test(target) ? target : `https://${target}`;
+  const hostAndPort = /^[\w.-]+:\d+([/?#]|$)/.test(target);
+  return /^[a-z]+:/i.test(target) && !hostAndPort ? target : `https://${target}`;
 }
 
 function refLocator(page, ref) {
@@ -123,6 +124,47 @@ async function refuseSecretField(locator) {
     .catch(() => false);
   if (secret) throw fail("secret_field", "secret field");
 }
+
+// Where keys go now, in any frame: a click can move focus, and a site can replace the field.
+async function focusedField(page) {
+  for (const frame of page.frames()) {
+    const field = await frame
+      .evaluate(() => {
+        if (!document.hasFocus()) return null;
+        let el = document.activeElement;
+        while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
+        if (!el || el === document.body || /^I?FRAME$/.test(el.tagName)) return null;
+        const notText = ["button", "checkbox", "file", "image", "radio", "reset", "submit"];
+        const input = el instanceof HTMLInputElement;
+        return {
+          secret: input && (el.type === "password" || /one-time-code/.test(el.autocomplete || "")),
+          editable:
+            el.isContentEditable ||
+            ((input || el instanceof HTMLTextAreaElement) &&
+              !el.readOnly &&
+              !el.disabled &&
+              !(input && notText.includes(el.type))),
+        };
+      })
+      .catch(() => null);
+    if (field) return { ...field, frame };
+  }
+  return null;
+}
+
+async function requireTextFocus(page) {
+  let field = null;
+  for (let tries = 0; tries < 10 && !field; tries++) {
+    field = await focusedField(page);
+    if (!field) await page.waitForTimeout(100);
+  }
+  if (field?.secret) throw fail("secret_field", "secret field");
+  if (!field?.editable)
+    throw fail("invalid_arguments", "Focus is not in a text field, so nothing more was typed.");
+  return field;
+}
+
+const TYPE_CHUNK_CHARS = 40;
 
 const OPS = {
   async navigate(page, { url, newTab }) {
@@ -204,7 +246,7 @@ const OPS = {
   },
 
   async type(page, args) {
-    const { text, submit } = args;
+    const { text, submit, run = {} } = args;
     // Keys that submit or move focus would act past the pay and delete check; `submit` presses Enter.
     if (/[\r\n\t]/.test(String(text ?? "")))
       throw fail("invalid_arguments", "Text cannot hold Enter or Tab; use --submit.");
@@ -216,14 +258,22 @@ const OPS = {
     if (submit) await requireIntent(locator, args.intent, "submit");
     const before = await snapshotLines(page);
     await locator.click({ timeout: ACTION_TIMEOUT_MS });
-    // Some fields replace themselves after focus (Wikipedia's search), so the keys go to whatever
-    // holds focus, as a person's do. That must not be a secret field the click moved focus to.
-    const focused = page.locator(":focus");
-    if (await focused.count()) await refuseSecretField(focused);
+    // Some fields replace themselves after focus (Wikipedia's search), so keys go to what holds
+    // focus, as a person's do. It is checked before every chunk: a site can move it at any time.
+    await requireTextFocus(page);
     // Type over the selection, as a person does: clearing first re-renders some inputs and the keys go astray.
     await page.keyboard.press("ControlOrMeta+a");
-    await page.keyboard.type(String(text ?? ""), { delay: 15 });
+    const keys = String(text ?? "");
+    if (!keys) await page.keyboard.press("Delete");
+    const delay = keys.length > TYPE_CHUNK_CHARS * 10 ? 0 : 15;
+    for (let at = 0; at < keys.length && !run.stopped; at += TYPE_CHUNK_CHARS) {
+      await requireTextFocus(page);
+      await page.keyboard.type(keys.slice(at, at + TYPE_CHUNK_CHARS), { delay });
+    }
+    if (run.stopped) return "";
     if (submit) {
+      const { frame } = await requireTextFocus(page);
+      await requireIntent(frame.locator(":focus"), args.intent, "submit");
       await page.keyboard.press("Enter");
       await settle(page);
     }

@@ -50,7 +50,10 @@ const PAGES = {
       next.focus();
     }, 40));
   </script>`,
-  "/spin": `<title>Spin</title><button onclick="for (;;);">Freeze</button>`,
+  "/spin": `<title>Spin</title><script>localStorage.setItem("k", "v")</script><button onclick="for (;;);">Freeze</button>`,
+  "/to-frame": `<title>To frame</title><input aria-label="Name" onfocus="document.querySelector('iframe').contentDocument.querySelector('input').focus()"><iframe srcdoc="<input type=password aria-label=Secret>"></iframe>`,
+  "/to-button": `<title>To button</title><input aria-label="Name" onfocus="document.querySelector('button').focus()"><button onclick="this.textContent='Account deleted'">Delete account</button>`,
+  "/field": `<title>Field</title><input aria-label="Name" value="old" oninput="document.title = 'Length ' + this.value.length">`,
   "/signed-in": "<title>Account</title><h1>Welcome back</h1>",
   "/framed": `<title>Framed</title><h1>Outer page</h1><iframe src="/consent" title="Consent"></iframe>`,
   "/consent": `<button onclick="this.textContent='Rejected'">Reject all</button><button>Pay with card</button>`,
@@ -343,6 +346,130 @@ test("a site that never answers is a timeout, and a frozen page keeps the browse
   const tabs = await cli("tab");
   assert.equal((await frozen).code, 1);
   assert.match(tabs.out, / 1\. .*\n.* 2\. /);
+});
+
+const stuckEnv = async (cwd, extra = {}) => ({
+  ...process.env,
+  NODE_PATH: NODE_MODULES,
+  AGENTA_BROWSER_ALLOW_SHARED_HOST: "1",
+  AGENTA_BROWSER_DIR: path.join(cwd, "run"),
+  AGENTA_BROWSER_PORT: String(await freePort()),
+  ...extra,
+});
+
+const openViewer = async (env) => {
+  const { ws: WebSocket } = require(path.join(NODE_MODULES, "playwright-core", "lib", "utilsBundle"));
+  const token = fs.readFileSync(path.join(env.AGENTA_BROWSER_DIR, "token"), "utf8");
+  const socket = new WebSocket(`ws://127.0.0.1:${env.AGENTA_BROWSER_PORT}/live`, { headers: { "x-agenta-browser-token": token } });
+  const viewer = { socket, status: null, send: (m) => socket.send(JSON.stringify(m)) };
+  socket.on("message", (raw) => {
+    const message = JSON.parse(String(raw));
+    if (message.type === "status") viewer.status = message;
+  });
+  await new Promise((resolve) => socket.on("open", resolve));
+  return viewer;
+};
+
+const until = async (done, ms = 8_000) => {
+  for (let at = Date.now(); Date.now() - at < ms && !done(); ) await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.ok(done());
+};
+
+test("a frozen tab on its own site blocks neither the agent nor the person", { skip: !NODE_MODULES && "playwright-core with Chromium is not installed", timeout: 90_000 }, async (t) => {
+  const site = await serveFixture();
+  const port = site.address().port;
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "agenta-browser-frozen-"));
+  const env = await stuckEnv(cwd, { AGENTA_BROWSER_OP_TIMEOUT_MS: "20000", AGENTA_BROWSER_WAIT_SLICE_MS: "15000" });
+  const cli = makeCli(env, cwd);
+  t.after(async () => {
+    await cli("stop");
+    site.close();
+  });
+  await cli("open", `http://localhost:${port}/next`);
+  const spin = await cli("open", `http://127.0.0.1:${port}/spin`, "--new-tab");
+  await cli("click", refOf(spin.out, 'button "Freeze"'));
+
+  await cli("tab", "1");
+  const started = Date.now();
+  const read = await cli("read");
+  assert.equal(read.code, 0, read.out);
+  assert.match(read.out, /^Page: Help/);
+  assert.ok(Date.now() - started < 8_000, "read waited on the frozen tab");
+
+  await cli("tab", "2");
+  const viewer = await openViewer(env);
+  await until(() => viewer.status);
+  viewer.send({ type: "mouse", event: "move", x: 5, y: 5 });
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  const waiting = cli("wait", "Fix this");
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  viewer.send({ type: "tab", id: viewer.status.tabs[0].id });
+  await until(() => viewer.status.title === "Help");
+  viewer.send({ type: "done" });
+  assert.match((await waiting).out, /^The person is done\.\nPage: Help/);
+  viewer.socket.close();
+});
+
+test("typing goes only into an editable, non-secret field that holds focus", { skip: !NODE_MODULES && "playwright-core with Chromium is not installed", timeout: 60_000 }, async (t) => {
+  const site = await serveFixture();
+  const origin = `http://127.0.0.1:${site.address().port}`;
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "agenta-browser-typing-"));
+  const cli = makeCli(await stuckEnv(cwd), cwd);
+  t.after(async () => {
+    await cli("stop");
+    site.close();
+  });
+
+  const frame = await cli("open", `${origin}/to-frame`);
+  assert.match((await cli("type", refOf(frame.out, 'textbox "Name"'), "hunter2")).out, /secret_field/);
+
+  const button = await cli("open", `${origin}/to-button`);
+  const typed = await cli("type", refOf(button.out, 'textbox "Name"'), "a b");
+  assert.equal(typed.code, 1, typed.out);
+  assert.doesNotMatch((await cli("read")).out, /Account deleted/);
+
+  const field = await cli("open", `${origin}/field`);
+  const cleared = await cli("type", refOf(field.out, 'textbox "Name"'), "");
+  assert.equal(cleared.code, 0, cleared.out);
+  assert.doesNotMatch((await cli("read")).out, /old/);
+});
+
+test("a command past its time limit stops typing", { skip: !NODE_MODULES && "playwright-core with Chromium is not installed", timeout: 60_000 }, async (t) => {
+  const site = await serveFixture();
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "agenta-browser-cancel-"));
+  const cli = makeCli(await stuckEnv(cwd, { AGENTA_BROWSER_OP_TIMEOUT_MS: "1500" }), cwd);
+  t.after(async () => {
+    await cli("stop");
+    site.close();
+  });
+  const page = await cli("open", `http://127.0.0.1:${site.address().port}/field`);
+  const typed = await cli("type", refOf(page.out, 'textbox "Name"'), "x".repeat(400));
+  assert.match(typed.out, /page_stuck/);
+  const length = async () => (await cli("tab")).out.match(/Length \d+/)?.[0];
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  const stopped = await length();
+  await new Promise((resolve) => setTimeout(resolve, 1_500));
+  assert.equal(await length(), stopped);
+});
+
+test("control goes back when the viewer who took it leaves, though another still watches", { skip: !NODE_MODULES && "playwright-core with Chromium is not installed", timeout: 60_000 }, async (t) => {
+  const site = await serveFixture();
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "agenta-browser-handback-"));
+  const env = await stuckEnv(cwd);
+  const cli = makeCli(env, cwd);
+  t.after(async () => {
+    await cli("stop");
+    site.close();
+  });
+  await cli("open", `http://127.0.0.1:${site.address().port}/next`);
+  const pane = await openViewer(env);
+  const preview = await openViewer(env);
+  await until(() => pane.status && preview.status);
+  pane.send({ type: "control", take: true });
+  await until(() => preview.status.control === "user");
+  pane.socket.close();
+  await until(() => preview.status.control === "agent");
+  preview.socket.close();
 });
 
 test("refs inside an iframe work and checks hold there; secret fields are never typed into", { skip: !NODE_MODULES && "playwright-core with Chromium is not installed", timeout: 120_000 }, async (t) => {

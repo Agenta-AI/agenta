@@ -42,3 +42,11 @@ test("read --interactive and wait and tab", () => {
   assert.deepEqual(line("tab", "2"), ["/op", { op: "tab", args: { index: "2" } }]);
   assert.equal(line("dance"), null);
 });
+
+test("a host and port is a host, not a scheme", () => {
+  const { navigationAllowed, withScheme } = load("ops");
+  assert.equal(withScheme("localhost:3000/app"), "https://localhost:3000/app");
+  assert.equal(withScheme("example.com"), "https://example.com");
+  assert.equal(navigationAllowed(withScheme("file:///etc/passwd")), false);
+  assert.equal(navigationAllowed(withScheme("javascript:alert(1)")), false);
+});
