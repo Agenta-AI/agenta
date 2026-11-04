@@ -5,7 +5,7 @@ import {useAtomValue} from "jotai"
 
 import {useLivenessPoll} from "../sessions/useLivenessPoll"
 
-const TURN_POLL_MS = 10_000
+const TURN_POLL_MS = 4_000
 const RUNNING_POLL_MS = 30_000
 
 /** Keeps the session's browser status fresh; mount once per session screen. */

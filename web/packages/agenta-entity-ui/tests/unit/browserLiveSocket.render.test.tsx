@@ -1,9 +1,10 @@
-import {StrictMode, act, createRef, useRef} from "react"
+import {StrictMode, act, createRef, useRef, type ComponentProps} from "react"
 
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {BrowserLiveSurface} from "../../src/browser/BrowserLiveSurface"
+import {BrowserPreviewView} from "../../src/browser/BrowserPreviewCard"
 import {BrowserTabStrip} from "../../src/browser/BrowserTabStrip"
 import type {BrowserLiveClientMessage} from "../../src/browser/live"
 import {
@@ -212,5 +213,45 @@ describe("BrowserTabStrip", () => {
         renderStrip([tab(1, "Shop", true), tab(2, "")])
         expect(chips().map((chip) => chip.getAttribute("aria-selected"))).toEqual(["true", "false"])
         expect(chips()[1].textContent).toContain("docs.example.com")
+    })
+})
+
+describe("BrowserPreviewView", () => {
+    const renderView = (over: Partial<ComponentProps<typeof BrowserPreviewView>> = {}) => {
+        let opened = 0
+        act(() =>
+            root.render(
+                <BrowserPreviewView
+                    title="Hacker News"
+                    url="https://news.ycombinator.com/"
+                    tabCount={1}
+                    live
+                    canvasRef={createRef()}
+                    onOpen={() => opened++}
+                    {...over}
+                />,
+            ),
+        )
+        return () => opened
+    }
+    const card = () => container.querySelector("button") as HTMLButtonElement
+
+    it("opens the pane from anywhere on the card", () => {
+        const opened = renderView()
+        act(() => card().click())
+        expect(opened()).toBe(1)
+    })
+
+    it("counts tabs only when there are several", () => {
+        renderView()
+        expect(card().textContent).not.toContain("tabs")
+        renderView({tabCount: 3})
+        expect(card().textContent).toContain("3 tabs")
+    })
+
+    it("falls back to the host, and stays hidden until the browser answers", () => {
+        renderView({title: "", live: false})
+        expect(card().textContent).toContain("news.ycombinator.com")
+        expect(card().className).toContain("hidden")
     })
 })
