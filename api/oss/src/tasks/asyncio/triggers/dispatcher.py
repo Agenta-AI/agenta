@@ -9,6 +9,7 @@ cron path) against its bound workflow, dedups on ``event_id``, maps
 Self-contained so it can run inside its own TaskIQ worker process.
 """
 
+import re
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, Optional, Union
 from uuid import UUID, uuid4
@@ -48,6 +49,7 @@ from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.types import (
     WorkflowDetachedStartNeverSent,
     WorkflowDetachedStartRejected,
+    WorkflowServiceUrlMissing,
 )
 from oss.src.utils.logging import get_module_logger
 
@@ -90,11 +92,19 @@ def _agent_deleted_error() -> AgentError:
     )
 
 
+_FAILURE_CODE_SHAPE = re.compile(r"[A-Za-z0-9_.-]{1,64}")
+
+
 def _start_failure_code(error: Exception) -> str:
-    """A gateway 502 or 504 can follow an accepted start, so only a proven refusal is named."""
+    """A gateway 502 or 504 can follow an accepted start, so only a proven refusal is named.
+
+    The service writes `failure_code`, and it goes out with no detail flag, so anything not
+    shaped like a code is dropped.
+    """
     if isinstance(error, WorkflowDetachedStartRejected):
-        return error.failure_code or "start_rejected"
-    if isinstance(error, WorkflowDetachedStartNeverSent):
+        code = error.failure_code or ""
+        return code if _FAILURE_CODE_SHAPE.fullmatch(code) else "start_rejected"
+    if isinstance(error, (WorkflowDetachedStartNeverSent, WorkflowServiceUrlMissing)):
         return "start_never_sent"
     return "start_unconfirmed"
 
