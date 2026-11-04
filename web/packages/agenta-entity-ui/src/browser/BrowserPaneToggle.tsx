@@ -27,9 +27,9 @@ export function BrowserPaneToggle({
                     aria-label={open ? "Hide browser pane" : "Show browser pane"}
                     aria-pressed={open}
                     onClick={onToggle}
-                    className="relative h-7 w-7 shrink-0 p-0"
+                    className="relative"
                 >
-                    <Globe size={14} weight={open ? "fill" : "regular"} />
+                    <Globe weight={open ? "fill" : "regular"} />
                     {needsYou ? (
                         <span
                             aria-hidden

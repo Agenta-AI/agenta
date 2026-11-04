@@ -1,6 +1,7 @@
-import {useRef, useState, type KeyboardEvent} from "react"
+import {useEffect, useState} from "react"
 
 import type {SessionRowVm} from "@agenta/sessions/row"
+import {useSessionCardList} from "@agenta/sessions/state"
 import {SessionCardList} from "@agenta/sessions-ui"
 import {useDebounceInput} from "@agenta/shared/hooks"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
@@ -12,6 +13,8 @@ import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
 const FOOTER_ROW =
     "flex h-9 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-3 text-left text-sm text-foreground no-underline [font-family:inherit] hover:bg-accent"
+
+const LIST_POLICY = {origin: "exclude-trigger", expansions: []} as const
 
 /** This agent's sessions: search, the list, and the two ways out of it. */
 export const SessionSwitcherPanel = ({
@@ -31,20 +34,25 @@ export const SessionSwitcherPanel = ({
 }) => {
     const router = useRouter()
     const menu = useSessionRowMenu(base)
-    const listRef = useRef<HTMLDivElement>(null)
     const [search, setSearch] = useState("")
     const [typed, setTyped] = useDebounceInput<string>(search, setSearch, 250, "")
+    const listArgs = {agentId: agentId ?? undefined, policy: LIST_POLICY, limit: 30, withPinned: true}
+    const list = useSessionCardList({...listArgs, search})
 
     const openRow = (vm: SessionRowVm) => {
         onClose()
         if (vm.id !== activeSessionId) void router.push(`${base}/sessions/${vm.id}`)
     }
 
-    const openFirstResult = (event: KeyboardEvent<HTMLInputElement>) => {
-        if (event.key !== "Enter") return
-        // Each row's first button is its title, which is the open action.
-        listRef.current?.querySelector("button")?.click()
-    }
+    // Enter can beat the search: it waits for the answer, so it never opens a row from before.
+    const [enterQueued, setEnterQueued] = useState(false)
+    const answered = typed === search && !list.isStale && !list.isPending
+    const firstRow = list.groups.flatMap((group) => group.rows)[0]
+    useEffect(() => {
+        if (!enterQueued || !answered) return
+        setEnterQueued(false)
+        if (firstRow) openRow(firstRow)
+    })
 
     return (
         <div className="flex min-h-0 flex-col">
@@ -60,20 +68,16 @@ export const SessionSwitcherPanel = ({
                     aria-label="Search this agent's sessions"
                     placeholder="Search this agent's sessions"
                     onChange={(event) => setTyped(event.target.value)}
-                    onKeyDown={openFirstResult}
+                    onKeyDown={(event) => {
+                        if (event.key === "Enter" && typed.trim()) setEnterQueued(true)
+                    }}
                     className="text-foreground placeholder:text-muted-foreground min-w-0 flex-1 border-0 bg-transparent text-sm outline-none [font-family:inherit]"
                 />
             </label>
             {/* bg-popover: the sticky group headings paint `bg-inherit` and need a surface. */}
-            <div
-                ref={listRef}
-                className="ag-scroll-quiet bg-popover max-h-[320px] min-h-0 overflow-y-auto p-1.5"
-            >
+            <div className="ag-scroll-quiet bg-popover max-h-[320px] min-h-0 overflow-y-auto p-1.5">
                 <SessionCardList
-                    agentId={agentId ?? undefined}
-                    policy={{origin: "exclude-trigger", expansions: []}}
-                    limit={30}
-                    withPinned
+                    {...listArgs}
                     search={search}
                     density="compact"
                     activeRowId={activeSessionId}

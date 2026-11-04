@@ -5,6 +5,7 @@ import {InlineRenameInput, sessionMenuAccess, useInlineRename} from "@agenta/ses
 import {userAtom} from "@agenta/shared/state"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {
+    Button,
     Popover,
     PopoverAnchor,
     PopoverContent,
@@ -28,7 +29,7 @@ import {useSessionHeader} from "./useSessionHeader"
 import {useStartBlankSession} from "./useStartBlankSession"
 
 const RENAME_INPUT =
-    "border-border bg-background text-foreground focus:border-primary h-full min-w-0 flex-1 rounded-md border border-solid px-2 text-sm outline-none [font-family:inherit]"
+    "border-border bg-background text-foreground focus:border-primary box-border h-control-sm min-w-0 flex-1 rounded-control-sm border border-solid px-2 text-sm outline-none [font-family:inherit]"
 
 /**
  * Which session is on screen, and the way to any other: a trigger that opens this agent's list,
@@ -83,6 +84,10 @@ export const SessionSwitcher = ({
         if (canRename) startRename()
     }, [canRename, renameRequest, startRename])
 
+    // Anchored, not triggered, so Radix has no trigger to refocus: give the caret back ourselves.
+    const triggerRef = useRef<HTMLButtonElement>(null)
+    const focusBeforeOpen = useRef<HTMLElement | null>(null)
+
     const panelBody = (
         <SessionSwitcherPanel
             agentId={agentId}
@@ -95,7 +100,7 @@ export const SessionSwitcher = ({
     const label = header.isPending ? (
         <SkeletonBlock active className="h-3.5 w-32" />
     ) : (
-        <span className="min-w-0 truncate">{title}</span>
+        <span className="min-w-0 max-w-[200px] truncate lg:max-w-[240px]">{title}</span>
     )
     const order =
         agentId || !agentResolving ? <SessionOrderPublisher agentId={agentId} /> : null
@@ -116,7 +121,7 @@ export const SessionSwitcher = ({
                         aria-expanded={open}
                         aria-label={`${title}, switch session`}
                         onClick={() => setPanel("switcher")}
-                        className="active:bg-accent text-foreground flex h-11 min-w-0 flex-1 cursor-pointer flex-col items-center justify-center gap-px rounded-lg border-0 bg-transparent px-1.5 [font-family:inherit]"
+                        className="active:bg-accent text-foreground flex h-11 min-w-0 flex-1 cursor-pointer flex-col items-center justify-center gap-px rounded-control border-0 bg-transparent px-1.5 [font-family:inherit]"
                     >
                         <span className="flex max-w-full min-w-0 items-center gap-1 text-[15px] font-semibold leading-5">
                             {label}
@@ -133,9 +138,9 @@ export const SessionSwitcher = ({
                 )}
                 <Sheet open={open} onOpenChange={(next) => setPanel(next ? "switcher" : null)}>
                     <SheetContent
-                        side="bottom"
+                        side="responsive"
                         aria-describedby={undefined}
-                        className="flex max-h-[85dvh] flex-col rounded-t-2xl pb-[env(safe-area-inset-bottom)]"
+                        className="flex flex-col pb-[env(safe-area-inset-bottom)]"
                     >
                         <SheetTitle className="px-4 pb-1 pt-4 text-base">Sessions</SheetTitle>
                         {panelBody}
@@ -151,49 +156,42 @@ export const SessionSwitcher = ({
             {order}
             <Popover open={open} onOpenChange={(next) => setPanel(next ? "switcher" : null)}>
                 <PopoverAnchor asChild>
-                    <div className="bg-background ring-border flex h-[30px] w-[200px] items-stretch overflow-hidden rounded-lg ring-1 lg:w-[260px]">
+                    <div className="flex items-center gap-1">
                         {rename.renaming ? (
-                            <span className="flex min-w-0 flex-1">
+                            <span className="flex w-[200px] lg:w-[260px]">
                                 <InlineRenameInput rename={rename} className={RENAME_INPUT} />
                             </span>
                         ) : (
-                            <button
-                                type="button"
+                            <Button
+                                ref={triggerRef}
+                                variant="outline"
+                                size="sm"
                                 aria-haspopup="dialog"
                                 aria-expanded={open}
                                 aria-label={`${title}, switch session`}
                                 onClick={() => setPanel(open ? null : "switcher")}
-                                className="hover:bg-accent aria-expanded:bg-accent text-foreground flex min-w-0 flex-1 cursor-pointer items-center justify-between gap-2 border-0 bg-transparent pl-3 pr-2.5 text-[13px] font-medium [font-family:inherit]"
                             >
                                 {label}
-                                <CaretDownIcon
-                                    size={12}
-                                    aria-hidden
-                                    className="text-muted-foreground shrink-0"
-                                />
-                            </button>
+                                <CaretDownIcon data-icon="inline-end" aria-hidden />
+                            </Button>
                         )}
                         {onNew ? (
-                            <>
-                                <span aria-hidden className="bg-border w-px shrink-0" />
-                                <SimpleTooltip
-                                    title={
-                                        <span className="flex items-center gap-1.5">
-                                            New session{" "}
-                                            <ShortcutKeys id="session.new" tone="inverse" />
-                                        </span>
-                                    }
+                            <SimpleTooltip
+                                title={
+                                    <span className="flex items-center gap-1.5">
+                                        New session <ShortcutKeys id="session.new" tone="inverse" />
+                                    </span>
+                                }
+                            >
+                                <Button
+                                    variant="outline"
+                                    size="icon-sm"
+                                    aria-label="New session"
+                                    onClick={onNew}
                                 >
-                                    <button
-                                        type="button"
-                                        aria-label="New session"
-                                        onClick={onNew}
-                                        className="hover:bg-accent text-muted-foreground flex w-[30px] shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0"
-                                    >
-                                        <PlusIcon size={14} aria-hidden />
-                                    </button>
-                                </SimpleTooltip>
-                            </>
+                                    <PlusIcon />
+                                </Button>
+                            </SimpleTooltip>
                         ) : null}
                     </div>
                 </PopoverAnchor>
@@ -201,6 +199,18 @@ export const SessionSwitcher = ({
                     align="center"
                     aria-label="Sessions"
                     className="w-[360px] overflow-hidden p-0"
+                    onOpenAutoFocus={() => {
+                        focusBeforeOpen.current = document.activeElement as HTMLElement | null
+                    }}
+                    onCloseAutoFocus={(event) => {
+                        event.preventDefault()
+                        const previous = focusBeforeOpen.current
+                        const target =
+                            previous?.isConnected && previous !== document.body
+                                ? previous
+                                : triggerRef.current
+                        target?.focus()
+                    }}
                 >
                     {panelBody}
                 </PopoverContent>

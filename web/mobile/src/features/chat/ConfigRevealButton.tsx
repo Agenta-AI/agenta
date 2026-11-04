@@ -26,9 +26,8 @@ export const ConfigRevealButton = () => {
                 aria-label="Show configuration"
                 aria-keyshortcuts={shortcutAria("panel.config")}
                 onClick={() => revealConfig()}
-                className="h-7 w-7 shrink-0 p-0"
             >
-                <Sidebar size={16} />
+                <Sidebar />
             </Button>
         </SimpleTooltip>
     )

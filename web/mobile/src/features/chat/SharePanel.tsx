@@ -1,11 +1,10 @@
 import type {ReactNode} from "react"
 
+import {IconTile} from "@agenta/ui/ui"
 import {LinkIcon, UsersIcon} from "@phosphor-icons/react"
 
 const SECTION = "flex flex-col gap-2.5 px-3.5 py-3"
 const LABEL = "text-muted-foreground text-xs"
-const TILE =
-    "bg-muted text-foreground flex size-[30px] shrink-0 items-center justify-center rounded-lg"
 
 /** The Share panel's three parts, the same in a popover and in a phone's sheet. */
 export const SharePanel = ({
@@ -26,9 +25,9 @@ export const SharePanel = ({
         <section className={SECTION}>
             <span className={LABEL}>{agentAccessLabel}</span>
             <div className="flex items-start gap-2.5">
-                <span aria-hidden className={TILE}>
-                    <UsersIcon size={15} />
-                </span>
+                <IconTile tone="muted" aria-hidden>
+                    <UsersIcon />
+                </IconTile>
                 <div className="flex min-w-0 flex-1 flex-col gap-2">{agentAccess}</div>
             </div>
         </section>
@@ -36,9 +35,9 @@ export const SharePanel = ({
             <section className={SECTION}>
                 <span className={LABEL}>This chat</span>
                 <div className="flex items-center gap-2.5">
-                    <span aria-hidden className={TILE}>
-                        <LinkIcon size={15} />
-                    </span>
+                    <IconTile tone="muted" aria-hidden>
+                        <LinkIcon />
+                    </IconTile>
                     <span className="flex min-w-0 flex-1 flex-col">
                         <span className="truncate text-[13px] font-medium">{session.name}</span>
                         {session.hint ? (

@@ -238,6 +238,8 @@ export const useSessionCardList = ({
     }, [shouldTopUp, fetchNextPage])
 
     return {
+        /** The rows on show are the last search's: the new one is still on its way. */
+        isStale: listQuery.isPlaceholderData,
         groups,
         isPending: listQuery.isPending || awaitingTopUp,
         isEmpty: isEmpty && !awaitingTopUp,

@@ -9,7 +9,8 @@ import {AgentPageHeader, AgentRevisionStatus} from "@agenta/playground-ui/agent-
 import {isBrowserEnabled} from "@agenta/shared/api"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {KeyboardShortcutsSheet, useShortcutsSheetHotkey} from "@agenta/ui/shortcuts"
-import {LockSimpleIcon} from "@phosphor-icons/react"
+import {Button} from "@agenta/ui/ui"
+import {LockSimpleIcon, PlusIcon} from "@phosphor-icons/react"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {sharingCopy} from "@/lib/sharingCopy"
@@ -165,14 +166,14 @@ export const SessionTopBar = ({
                 )}
                 {revision}
                 {hasSessions && agentId ? (
-                    <button
-                        type="button"
+                    <Button
+                        variant="ghost"
+                        size="icon"
                         aria-label="New session"
                         onClick={() => startBlank(agentId)}
-                        className="active:bg-accent text-foreground flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent p-0 text-xl leading-none"
                     >
-                        +
-                    </button>
+                        <PlusIcon />
+                    </Button>
                 ) : null}
                 {more}
                 {share}

@@ -50,6 +50,8 @@ interface MoreAction {
     /** Registry id of the row's keycaps. */
     shortcut?: string
     onSelect: () => void
+    /** The action takes focus, so it runs once the menu has handed focus back. */
+    afterClose?: boolean
 }
 
 /** The session bar's overflow: a menu on a desktop, a sheet that also holds Share on a phone. */
@@ -92,14 +94,20 @@ export const SessionMoreMenu = ({
     const version = useAtomValue(workflowMolecule.selectors.data(revisionId))?.version
     const isDirty = useAtomValue(workflowMolecule.selectors.isDirty(revisionId))
 
-    // The name's editor takes focus, so it must start after the menu has given focus back.
-    const renamePending = useRef(false)
-    const onCloseAutoFocus = (event: Event) => {
-        if (!renamePending.current) return
-        renamePending.current = false
-        event.preventDefault()
-        requestRename((count) => count + 1)
+    const pendingAction = useRef<(() => void) | null>(null)
+    const select = (action: MoreAction) => {
+        if (action.afterClose) pendingAction.current = action.onSelect
+        else action.onSelect()
     }
+    const onCloseAutoFocus = (event: Event) => {
+        if (!pendingAction.current) return
+        event.preventDefault()
+        pendingAction.current()
+        pendingAction.current = null
+    }
+    // Only ever closes this panel: the action just chosen may have opened another.
+    const onOpenChange = (next: boolean) =>
+        setPanel((current) => (next ? "more" : current === "more" ? null : current))
 
     const agentVisible = Boolean(agentId) && !agentHidden
     const canRename =
@@ -125,6 +133,7 @@ export const SessionMoreMenu = ({
                       key: "sessions",
                       label: "Session history",
                       icon: <ChatsCircleIcon size={15} aria-hidden />,
+                      afterClose: true,
                       onSelect: () => setPanel("switcher"),
                   },
               ]
@@ -136,9 +145,8 @@ export const SessionMoreMenu = ({
                       label: "Rename session",
                       icon: <PencilSimpleIcon size={15} aria-hidden />,
                       shortcut: "session.rename",
-                      onSelect: () => {
-                          renamePending.current = true
-                      },
+                      afterClose: true,
+                      onSelect: () => requestRename((count) => count + 1),
                   },
               ]
             : []),
@@ -217,9 +225,9 @@ export const SessionMoreMenu = ({
                 key={action.key}
                 type="button"
                 onClick={() => {
-                    // Before `onSelect`: an action may open the next panel.
+                    // Before `select`: an action may open the next panel.
                     setPanel(null)
-                    action.onSelect()
+                    select(action)
                 }}
                 className="active:bg-accent text-foreground flex min-h-12 w-full cursor-pointer items-center gap-3 border-0 bg-transparent px-4 text-left text-[15px] [font-family:inherit]"
             >
@@ -234,20 +242,19 @@ export const SessionMoreMenu = ({
             <>
                 <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     aria-label="More actions"
                     aria-haspopup="dialog"
                     onClick={() => setPanel("more")}
-                    className="h-9 w-9 shrink-0 p-0"
                 >
-                    <DotsThreeIcon size={20} weight="bold" />
+                    <DotsThreeIcon weight="bold" />
                 </Button>
-                <Sheet open={open} onOpenChange={(next) => setPanel(next ? "more" : null)}>
+                <Sheet open={open} onOpenChange={onOpenChange}>
                     <SheetContent
-                        side="bottom"
+                        side="responsive"
                         aria-describedby={undefined}
                         onCloseAutoFocus={onCloseAutoFocus}
-                        className="flex max-h-[85dvh] flex-col overflow-y-auto rounded-t-2xl pb-[calc(12px+env(safe-area-inset-bottom))]"
+                        className="flex flex-col overflow-y-auto pb-[calc(12px+env(safe-area-inset-bottom))]"
                     >
                         <SheetTitle className="sr-only">More actions</SheetTitle>
                         {/* The bar's title only names the agent, so its edits live here. */}
@@ -272,7 +279,7 @@ export const SessionMoreMenu = ({
     }
 
     const item = (action: MoreAction) => (
-        <DropdownMenuItem key={action.key} className="gap-2" onSelect={action.onSelect}>
+        <DropdownMenuItem key={action.key} className="gap-2" onSelect={() => select(action)}>
             <span className="text-muted-foreground flex shrink-0">{action.icon}</span>
             {action.label}
             {action.meta ? (
@@ -288,16 +295,15 @@ export const SessionMoreMenu = ({
 
     return (
         <>
-            <DropdownMenu open={open} onOpenChange={(next) => setPanel(next ? "more" : null)}>
+            <DropdownMenu open={open} onOpenChange={onOpenChange}>
                 <SimpleTooltip title="More actions">
                     <DropdownMenuTrigger asChild>
                         <Button
                             variant="ghost"
                             size="icon-sm"
                             aria-label="More actions"
-                            className="h-7 w-7 shrink-0 p-0"
                         >
-                            <DotsThreeIcon size={16} weight="bold" />
+                            <DotsThreeIcon weight="bold" />
                         </Button>
                     </DropdownMenuTrigger>
                 </SimpleTooltip>

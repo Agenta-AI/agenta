@@ -203,9 +203,9 @@ export const ShareMenu = ({
             {phone ? (
                 <Sheet open={open} onOpenChange={(next) => setBarPanel(next ? "share" : null)}>
                     <SheetContent
-                        side="bottom"
+                        side="responsive"
                         aria-describedby={undefined}
-                        className="flex max-h-[85dvh] flex-col overflow-y-auto rounded-t-2xl pb-[env(safe-area-inset-bottom)]"
+                        className="flex flex-col overflow-y-auto pb-[env(safe-area-inset-bottom)]"
                     >
                         <SheetTitle className="px-4 pt-4 text-base">Share</SheetTitle>
                         {panel}
