@@ -32,6 +32,14 @@ export interface ScenarioRowData {
     cells: Record<string, ScenarioCell[]>
     /** True when the traces of this scenario did not load: its outputs and scores are unknown. */
     valuesFailed: boolean
+    /** The result of the scenario's invocation step, when it has one yet. */
+    invocation: ScenarioInvocation | null
+}
+
+/** What the run produced for one scenario: where its trace is and how the step ended. */
+export interface ScenarioInvocation {
+    traceId: string | null
+    status: string | null
 }
 
 /** A scenario row as the screen shows it: its position in the list comes with it. */
@@ -69,7 +77,14 @@ export function buildScenarioRowData(
             value: column.value,
         })
     })
-    return {scenario: hydrated.scenario, cells, valuesFailed}
+    const invocationKeys = new Set(
+        schema.steps.filter((step) => step.type === "invocation").map((step) => step.key),
+    )
+    const result = hydrated.results.find((entry) => invocationKeys.has(entry.step_key))
+    const invocation = result
+        ? {traceId: result.trace_id ?? null, status: result.status ?? null}
+        : null
+    return {scenario: hydrated.scenario, cells, valuesFailed, invocation}
 }
 
 /** The rule `groupRunColumns` uses: a column needs a name, and internal dedup keys are not listed. */

@@ -341,3 +341,24 @@ describe("run details page", () => {
         expect(http.post).not.toHaveBeenCalled()
     })
 })
+
+describe("scenario focus drawer", () => {
+    it("The focus drawer code loads only when a scenario is focused", async () => {
+        serveRun({})
+        await mount()
+        expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+    })
+
+    it("A focused scenario opens the drawer, and opening it sends no write request", async () => {
+        const id = serveRun({})
+        router.query = {...router.query, focusScenarioId: "sc-1", focusRunId: id}
+        await mount()
+        await flush()
+        expect(document.body.textContent).toContain("This scenario is not in this evaluation")
+        const posted = http.post.mock.calls.map((call) => String(call[0]))
+        expect(posted.filter((url) => !url.endsWith("/query"))).toEqual([])
+        expect(http.patch).not.toHaveBeenCalled()
+        expect(http.put).not.toHaveBeenCalled()
+        expect(http.delete).not.toHaveBeenCalled()
+    })
+})

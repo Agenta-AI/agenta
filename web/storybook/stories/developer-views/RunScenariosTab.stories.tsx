@@ -113,6 +113,7 @@ function rowFor(runId: string, position: number, status: string): ScenarioRowDat
     const done = status === "success"
     return {
         scenario,
+        invocation: null,
         cells: {
             "testset:capitals": [
                 {name: "question", kind: "testset", path: "data.question", value: question},

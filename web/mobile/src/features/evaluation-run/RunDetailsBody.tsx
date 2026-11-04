@@ -16,6 +16,7 @@ import {PageNotFound} from "@/components/PageNotFound"
 import {useRevisionParam} from "../revisions/useRevisionParam"
 
 import {ConfigurationSkeleton} from "./configuration/states/ConfigurationSkeleton"
+import {useFocusScenarioParam} from "./focus/useFocusScenarioParam"
 import {OverviewTab} from "./overview/OverviewTab"
 import {ScenariosSkeleton} from "./scenarios/states/ScenariosSkeleton"
 import {RunDetailsSkeleton} from "./states/RunDetailsSkeleton"
@@ -31,6 +32,12 @@ interface TabBodyProps {
 const ScenariosTab = dynamic<TabBodyProps>(
     () => import("./scenarios/ScenariosTab").then((module) => module.ScenariosTab),
     {ssr: false, loading: () => <ScenariosSkeleton />},
+)
+
+// The scenario drawer loads only once a scenario is focused.
+const ScenarioFocusSheet = dynamic<{runId: string; header: RunHeader; poll: boolean}>(
+    () => import("./focus/ScenarioFocusSheet").then((module) => module.ScenarioFocusSheet),
+    {ssr: false},
 )
 
 // The configuration tab, with its sections and the JSON editor, loads when the tab opens.
@@ -62,6 +69,7 @@ export const RunDetailsBody = ({projectId, runId}: {projectId: string; runId: st
     const header = useAtomValue(runHeaderAtomFamily(runId))
     const references = useAtomValue(runReferencesAtomFamily(runId))
     const {tabs, view, setView} = useRunDetailsView(header)
+    const [focusedScenarioId] = useFocusScenarioParam(runId)
     const [openRevisionId] = useRevisionParam()
 
     if (runQuery.isSuccess && !runQuery.data) return <PageNotFound />
@@ -95,6 +103,9 @@ export const RunDetailsBody = ({projectId, runId}: {projectId: string; runId: st
                 </TabsList>
             </div>
             <Body projectId={projectId} runId={runId} header={header} />
+            {focusedScenarioId ? (
+                <ScenarioFocusSheet runId={runId} header={header} poll={shown !== "scenarios"} />
+            ) : null}
             {openRevisionId ? (
                 <RevisionDrawerHost
                     kind={openRevisionId === references?.revisionId ? "variant" : "evaluator"}
