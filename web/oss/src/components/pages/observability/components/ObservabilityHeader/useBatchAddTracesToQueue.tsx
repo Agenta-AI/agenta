@@ -322,10 +322,11 @@ export const useBatchAddTracesToQueue = () => {
                         })
                         return
                     }
+                    console.error("Adding all matching traces to a queue failed", err)
                     notification.error({
                         key,
                         message: "Queue add failed",
-                        description: err instanceof Error ? err.message : "Something went wrong.",
+                        description: "Something went wrong. Try again.",
                         duration: 0,
                         btn: retryBtn,
                     })
