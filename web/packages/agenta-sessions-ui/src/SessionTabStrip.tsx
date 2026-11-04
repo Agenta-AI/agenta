@@ -239,11 +239,14 @@ export const SessionTabStrip = ({
         el.addEventListener("scroll", onScroll, {passive: true})
         el.addEventListener("pointerdown", onDown)
         window.addEventListener("pointerup", onUp)
+        // A touch pan ends in `pointercancel`, not `pointerup`.
+        window.addEventListener("pointercancel", onUp)
         return () => {
             clearTimeout(timer)
             el.removeEventListener("scroll", onScroll)
             el.removeEventListener("pointerdown", onDown)
             window.removeEventListener("pointerup", onUp)
+            window.removeEventListener("pointercancel", onUp)
         }
     }, [reorderable, showTabs, snap])
 
