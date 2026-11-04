@@ -10,6 +10,13 @@ import {uploadFailureMessage} from "./uploadFailure"
 
 export const UPLOAD_FAILED = "Couldn't create the test set from this file"
 
+/** A test set the upload made, with the name the reader typed. */
+export interface CreatedTestset {
+    testsetId: string
+    revisionId: string | null
+    name: string
+}
+
 /**
  * Create a test set from a file that already passed the check. A server refusal turns into
  * plain words for the reader; the server's text goes to the console only.
@@ -18,10 +25,13 @@ export function useUploadTestset({
     projectId,
     base,
     onDone,
+    onCreated,
 }: {
     projectId: string
     base: string
     onDone: () => void
+    /** Replaces the jump to the new test set page. The dialog stays open until it settles. */
+    onCreated?: (created: CreatedTestset) => void | Promise<void>
 }) {
     const router = useRouter()
     const queryClient = useQueryClient()
@@ -50,13 +60,21 @@ export function useUploadTestset({
                 }
                 message.success("Test set uploaded successfully")
                 void refreshTestsetLists(queryClient)
-                if (created.revisionId) void router.push(`${base}/testsets/${created.revisionId}`)
+                if (onCreated) {
+                    await onCreated({
+                        testsetId: created.testsetId,
+                        revisionId: created.revisionId,
+                        name: testsetName,
+                    })
+                } else if (created.revisionId) {
+                    void router.push(`${base}/testsets/${created.revisionId}`)
+                }
                 onDone()
             } finally {
                 setPending(false)
             }
         },
-        [base, onDone, projectId, queryClient, router],
+        [base, onCreated, onDone, projectId, queryClient, router],
     )
 
     const clearError = useCallback(() => setError(null), [])
