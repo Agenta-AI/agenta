@@ -3,6 +3,7 @@ import {useEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent} fr
 import {userItemKey} from "@agenta/entities/accountChoice"
 import {
     personalAccountsAccessAtom,
+    personalNamedSecretsAtom,
     useVaultSecret,
     type AgentSecretBinding,
 } from "@agenta/entities/secret"
@@ -101,6 +102,7 @@ export const SecretRequestDock = ({
     const entity = useAtomValue(workflowMolecule.selectors.data(targetId))
     const workflowId = useAtomValue(workflowMolecule.selectors.workflowId(targetId)) ?? ""
     const access = useAtomValue(personalAccountsAccessAtom)
+    const personalSecrets = useAtomValue(personalNamedSecretsAtom)
     const {namedSecrets, mutate: refetchVault} = useVaultSecret()
 
     const agent = configuration?.agent as
@@ -131,7 +133,13 @@ export const SecretRequestDock = ({
     }, [])
 
     const subject = request
-        ? resolveSecretDockSubject({request, bindings, secrets: namedSecrets, vault})
+        ? resolveSecretDockSubject({
+              request,
+              bindings,
+              secrets: [...namedSecrets, ...personalSecrets],
+              // Until the revision loads, no binding reads the same as an unattached secret.
+              vault: entity ? vault : "checking",
+          })
         : undefined
     const attachment =
         subject?.kind === "attached" || subject?.kind === "missing" ? subject : undefined
@@ -158,6 +166,8 @@ export const SecretRequestDock = ({
     const owners = newSecretOwners(access === "on", canEditSecrets)
     const owner = owners?.[0] ?? "project"
     const replacing = entry && !!replaceable
+    const personalRow = replaceable?.ownerKind === "user"
+    const savesPersonal = replacing ? personalRow : owner === "user"
     const {choose: storeChoice} = useAccountChoice(workflowId, userItemKey("secret", envName))
 
     const settle = (output: Record<string, unknown>) => {
@@ -226,16 +236,22 @@ export const SecretRequestDock = ({
         }
     }
 
+    // "Only me": the item takes each person's own secret, and this one is the choice.
+    const attachPersonal = async (secretId: string | undefined, justSaved: boolean) => {
+        const stored = secretId ? await storeChoice({secretId}) : false
+        if (stored !== true) message.error(ACCOUNT_COPY.choiceFailed)
+        await attach({account_source: "user"}, justSaved)
+    }
+
     const handleSaved = async (saved: SavedSecret) => {
+        // A failed settle must come back to Continue: the field is already cleared.
+        setEntryChoice(false)
         if (subject?.kind === "attached" && !envChanged) {
             configured(subject.binding.secret, envName, targetId)
             return
         }
-        if (owner === "user" && !replacing) {
-            // "Only me": the item takes each person's own secret, and this one is the choice.
-            const stored = saved.id ? await storeChoice({secretId: saved.id}) : false
-            if (stored !== true) message.error(ACCOUNT_COPY.choiceFailed)
-            await attach({account_source: "user"}, true)
+        if (savesPersonal) {
+            await attachPersonal(saved.id, true)
             return
         }
         await attach({slug: saved.slug}, true)
@@ -247,7 +263,7 @@ export const SecretRequestDock = ({
         initialSecret: replaceable ? {...replaceable, content: undefined, writeOnly: true} : null,
         initialName: request?.name,
         initialDefaultEnvVar: request?.envVar,
-        ownerKind: owner === "user" && !replacing ? "user" : undefined,
+        ownerKind: savesPersonal ? "user" : undefined,
         onSaved: (saved) => void handleSaved(saved),
     })
 
@@ -268,7 +284,8 @@ export const SecretRequestDock = ({
             return
         }
         if (subject?.kind === "vault") {
-            void attach({slug: subject.row.slug ?? ""}, false)
+            if (subject.row.ownerKind === "user") void attachPersonal(subject.row.id, false)
+            else void attach({slug: subject.row.slug ?? ""}, false)
             return
         }
         if (subject?.kind !== "attached") return
@@ -318,8 +335,11 @@ export const SecretRequestDock = ({
                 : "You do not have permission to add this secret. Ask a project admin."
             : subject?.kind === "missing"
               ? "The saved secret was deleted. Add its value again."
-              : null
-    const alert = error ?? (editingEnv ? envError : null)
+              : replacing && !personalRow && !request.rejected
+                ? "This replaces the saved value for every agent that uses it."
+                : null
+    const alert = error ?? (request ? envError : null)
+    const detail = alert ?? notice ?? request?.reason
     const title = request
         ? request.rejected
             ? `${request.name} did not work`
@@ -336,8 +356,9 @@ export const SecretRequestDock = ({
                 <p className="m-0 truncate text-sm font-medium">{title}</p>
                 <p
                     className={`m-0 mt-0.5 line-clamp-2 text-xs ${alert ? "text-error" : "text-colorTextSecondary"}`}
+                    title={detail}
                 >
-                    {alert ?? notice ?? request?.reason}
+                    {detail}
                 </p>
 
                 {entry ? (

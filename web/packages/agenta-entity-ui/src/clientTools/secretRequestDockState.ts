@@ -53,7 +53,7 @@ export const resolveSecretDockSubject = ({
     if (index < 0) {
         const textSecrets = secrets.filter((row) => row.format === CustomSecretFormat.Text)
         const row = matchRequestedSecret(textSecrets, request)
-        return row ? {kind: "vault", row} : {kind: "empty"}
+        return row?.slug ? {kind: "vault", row} : {kind: "empty"}
     }
     const binding = bindings[index]
     if (isUserSecretBinding(binding) || vault === "failed") {

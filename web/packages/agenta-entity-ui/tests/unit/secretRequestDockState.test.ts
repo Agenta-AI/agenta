@@ -75,6 +75,10 @@ describe("resolveSecretDockSubject", () => {
         expect(resolve([], [row()])).toEqual({kind: "vault", row: row()})
     })
 
+    it("does not offer a match with no slug to attach", () => {
+        expect(resolve([], [row({slug: undefined})])).toEqual({kind: "empty"})
+    })
+
     it("does not offer a JSON secret as a match", () => {
         expect(resolve([], [row({format: "json" as NamedSecretRow["format"]})])).toEqual({
             kind: "empty",

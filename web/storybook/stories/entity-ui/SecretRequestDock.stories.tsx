@@ -96,7 +96,10 @@ export const ReadyToContinue: Story = {
 export const Rejected: Story = {
     args: {
         ...baseArgs,
-        meta: {...metaFor(), input: {...metaFor().input, reason: "GitHub refused it", rejected: true}},
+        meta: {
+            ...metaFor(),
+            input: {...metaFor().input, reason: "GitHub refused it", rejected: true},
+        },
     },
     parameters: storyParameters(true),
 }

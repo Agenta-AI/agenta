@@ -7,6 +7,8 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 const state = vi.hoisted(() => ({
     bindings: [] as unknown[],
     secrets: [] as unknown[],
+    personal: [] as unknown[],
+    entityLoaded: true,
     dirty: false,
     access: "off",
     refetch: vi.fn(async () => ({isError: false})),
@@ -27,6 +29,7 @@ vi.mock("@agenta/entities/secret", () => ({
     isUserSecretBinding: (item: {secret: {account_source?: string}}) =>
         item.secret.account_source === "user",
     personalAccountsAccessAtom: {read: () => state.access},
+    personalNamedSecretsAtom: {read: () => state.personal},
     useVaultSecret: () => ({
         namedSecrets: state.secrets,
         loading: false,
@@ -43,7 +46,7 @@ vi.mock("@agenta/entities/workflow", () => ({
             }),
             isDirty: () => ({read: () => state.dirty}),
             artifactName: () => ({read: () => "Billing agent"}),
-            data: () => ({read: () => ({id: "rev-1"})}),
+            data: () => ({read: () => (state.entityLoaded ? {id: "rev-1"} : undefined)}),
             workflowId: () => ({read: () => "agent-1"}),
         },
     },
@@ -160,6 +163,8 @@ beforeEach(() => {
     ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
     state.bindings = []
     state.secrets = []
+    state.personal = []
+    state.entityLoaded = true
     state.dirty = false
     state.access = "off"
     state.modal.props = null
@@ -381,6 +386,53 @@ describe("a saved secret", () => {
         expect(valueField()).toBeNull()
         await click(await menuItem("Change value"))
         expect(host.querySelector('[data-testid="modal"]')).not.toBeNull()
+    })
+})
+
+describe("review fixes", () => {
+    it("shows why Save is off when the agent sent an invalid variable", async () => {
+        await mount({input: {...input, env_var: "stripe-key"}})
+        await typeInto(valueField()!, "sk_live")
+        expect(button("Save")?.disabled).toBe(true)
+        expect(host.textContent).toContain("do not start with a digit")
+    })
+
+    it("warns that Change value reaches every agent using the secret", async () => {
+        state.secrets = [stripeRow]
+        await mount()
+        await click(await menuItem("Change value"))
+        expect(host.textContent).toContain(
+            "This replaces the saved value for every agent that uses it.",
+        )
+    })
+
+    it("offers a person's own saved secret and stores it as the choice", async () => {
+        state.access = "on"
+        state.personal = [{...stripeRow, id: "own-1", ownerKind: "user"}]
+        await mount()
+        await click(button("Continue"))
+
+        expect(state.save).not.toHaveBeenCalled()
+        expect(state.choose).toHaveBeenCalledExactlyOnceWith({secretId: "own-1"})
+        expect(onOutput.mock.calls[0][0].output.secret).toEqual({account_source: "user"})
+    })
+
+    it("waits for the revision before deciding nothing is attached", async () => {
+        state.entityLoaded = false
+        await mount()
+        expect(valueField()).toBeNull()
+        expect(host.textContent).toContain("Checking...")
+    })
+
+    it("comes back to Continue when a replaced value does not settle", async () => {
+        state.bindings = [stripeBinding]
+        state.secrets = [stripeRow]
+        await mount({input: {...input, rejected: true}, settledFalse: true})
+        await typeInto(valueField()!, "sk_new")
+        await click(button("Save"))
+
+        expect(valueField()).toBeNull()
+        expect(button("Continue")?.disabled).toBe(false)
     })
 })
 
