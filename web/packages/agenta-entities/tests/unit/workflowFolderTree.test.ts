@@ -95,6 +95,16 @@ describe("workflow folder tree", () => {
         expect(isValidMoveTarget({foldersById, item: promptItem, destinationId: "b"})).toBe(true)
     })
 
+    it("Only a prompt inside a folder can move to the top level", () => {
+        const foldersById = indexFolders(FOLDERS)
+        const inFolder = {kind: "prompt", id: "p", folderId: "a"} as const
+        const atTop = {kind: "prompt", id: "p", folderId: null} as const
+        expect(isValidMoveTarget({foldersById, item: inFolder, destinationId: null})).toBe(true)
+        expect(isValidMoveTarget({foldersById, item: atTop, destinationId: null})).toBe(false)
+        const folder = {kind: "folder", id: "a1"} as const
+        expect(isValidMoveTarget({foldersById, item: folder, destinationId: null})).toBe(false)
+    })
+
     it("The slug keeps letters from any language", () => {
         expect(folderSlug("Données  clés")).toBe("données-clés")
         expect(folderSlug("  My Folder_1! ")).toBe("my-folder_1")

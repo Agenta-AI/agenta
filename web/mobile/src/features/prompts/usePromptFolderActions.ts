@@ -172,7 +172,6 @@ export const usePromptFolderActions = ({
             run(
                 canEditPrompts,
                 async () => {
-                    if (!destinationId) return fail(promptsCopy.guard.noDestination)
                     if (
                         !isValidMoveTarget({
                             foldersById,
