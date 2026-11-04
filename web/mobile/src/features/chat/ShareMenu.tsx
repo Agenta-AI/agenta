@@ -224,7 +224,7 @@ export const ShareMenu = ({
                         onOpenChange={(next) => setBarPanel(next ? "share" : null)}
                     >
                         <PopoverTrigger asChild>
-                            <Button variant="outline" size="sm" data-testid="share-menu-share">
+                            <Button variant="ghost" size="sm" data-testid="share-menu-share">
                                 <UsersIcon data-icon="inline-start" />
                                 Share
                             </Button>
@@ -239,7 +239,7 @@ export const ShareMenu = ({
                         </PopoverContent>
                     </Popover>
                     <Button
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
                         onClick={publish.openHub}
                         data-testid="share-menu-publish"
