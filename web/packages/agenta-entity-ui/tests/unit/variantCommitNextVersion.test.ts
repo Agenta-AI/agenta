@@ -5,7 +5,7 @@
  */
 import {createStore} from "jotai"
 import {atom} from "jotai"
-import {describe, expect, it, vi} from "vitest"
+import {beforeEach, describe, expect, it, vi} from "vitest"
 
 const revisions = vi.hoisted(() => ({
     current: {
@@ -15,6 +15,7 @@ const revisions = vi.hoisted(() => ({
         data: {parameters: {prompt: {messages: []}}},
     },
     refs: [] as {id: string; version: number | null; created_at: string | null}[],
+    newestWithArchived: null as number | null,
 }))
 
 vi.mock("@agenta/entities/workflow", async (importOriginal) => {
@@ -30,6 +31,7 @@ vi.mock("@agenta/entities/workflow", async (importOriginal) => {
             },
         },
         workflowRevisionRefsByVariantAtomFamily: () => atom(revisions.refs),
+        workflowVariantNewestVersionAtomFamily: () => atom(revisions.newestWithArchived),
     }
 })
 
@@ -42,6 +44,10 @@ const targetVersionOf = () => {
 }
 
 describe("variant commit dialog: next version", () => {
+    beforeEach(() => {
+        revisions.newestWithArchived = null
+    })
+
     it("shows the variant's newest version plus one when the commit starts from an older revision", () => {
         revisions.refs = [
             {id: "rev-10", version: 10, created_at: null},
@@ -58,5 +64,12 @@ describe("variant commit dialog: next version", () => {
     it("falls back to the current version plus one while the variant's list has not loaded", () => {
         revisions.refs = []
         expect(targetVersionOf()).toBe(10)
+    })
+
+    it("counts an archived revision that is the variant's newest", () => {
+        // The list hides archived revisions, but the server still numbers after them.
+        revisions.refs = [{id: "rev-9", version: 9, created_at: null}]
+        revisions.newestWithArchived = 10
+        expect(targetVersionOf()).toBe(11)
     })
 })

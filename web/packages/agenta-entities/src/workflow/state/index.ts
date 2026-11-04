@@ -85,6 +85,7 @@ export {
     workflowVariantsCachedListAtomFamily,
     workflowRevisionsQueryAtomFamily,
     workflowRevisionRefsByVariantAtomFamily,
+    workflowVariantNewestVersionAtomFamily,
     workflowRevisionsListDataAtomFamily,
     // Revision by workflow (for 2-level hierarchy)
     workflowRevisionsByWorkflowQueryAtomFamily,
