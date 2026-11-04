@@ -55,6 +55,9 @@ export const bindTraceDrawerSeams = (router: NextRouter, {playground}: {playgrou
 
     bindTraceDrawerClearParams(() => {
         const query = currentQuery(router, window.location.search)
+        // The drawer also clears after its close animation. By then the Playground button can
+        // have moved to another page, and a push there would drop that page's hash.
+        if (!("trace" in query) && !("span" in query)) return
         delete query.trace
         delete query.span
         void router.push({pathname: router.pathname, query}, undefined, {shallow: true})
