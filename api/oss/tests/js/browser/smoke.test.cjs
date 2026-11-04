@@ -477,8 +477,9 @@ test("viewer input keeps its page and its order", { skip: !NODE_MODULES && "play
   viewer.send({ type: "key", event: "down", key: "Control" });
   viewer.send({ type: "text", text: "paste" });
   viewer.send({ type: "key", event: "up", key: "Control" });
-  await settled();
-  assert.match((await cli("tab")).out, /1\. Value paste/);
+  let tabs = "";
+  for (let at = Date.now(); Date.now() - at < 10_000 && !/1\. Value paste/.test(tabs); await settled()) tabs = (await cli("tab")).out;
+  assert.match(tabs, /1\. Value paste/);
 
   for (let i = 0; i < 8; i++) viewer.send({ type: "text", text: "x".repeat(40) });
   viewer.send({ type: "tab", id: viewer.status.tabs[1].id });
@@ -504,7 +505,8 @@ test("a command past its time limit stops typing", { skip: !NODE_MODULES && "pla
   const typed = await cli("type", refOf(page.out, 'textbox "Name"'), "x".repeat(400));
   assert.match(typed.out, /page_stuck/);
   const length = async () => (await cli("tab")).out.match(/Length \d+/)?.[0];
-  await new Promise((resolve) => setTimeout(resolve, 300));
+  // The chunk in progress finishes: 40 keys at up to 35 ms each.
+  await new Promise((resolve) => setTimeout(resolve, 2_000));
   const stopped = await length();
   await new Promise((resolve) => setTimeout(resolve, 1_500));
   assert.equal(await length(), stopped);

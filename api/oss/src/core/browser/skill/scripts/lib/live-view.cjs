@@ -150,8 +150,7 @@ function createLiveView(session) {
   // These must work while the page is frozen, so they never wait behind page input.
   async function applyControl(message) {
     session.noteInput();
-    // Input already queued belongs to what the person just left: it must not land on the next tab
-    // or take control back from the agent.
+    // Input already queued finishes on its own page, but must not take control back.
     if (message.type !== "control" || !message.take) inputEpoch++;
     if (message.type === "done") {
       session.setControl("agent");
@@ -166,12 +165,12 @@ function createLiveView(session) {
     }
   }
 
-  async function applyInput(message, page) {
+  async function applyInput(message, page, takeControl) {
     session.noteInput();
     if (page.isClosed()) return;
     switch (message.type) {
       case "mouse": {
-        session.setControl("user");
+        takeControl();
         const x = Number(message.x) || 0;
         const y = Number(message.y) || 0;
         const button = MOUSE_BUTTONS.has(message.button) ? message.button : "left";
@@ -183,7 +182,7 @@ function createLiveView(session) {
         return;
       }
       case "key":
-        session.setControl("user");
+        takeControl();
         if (message.event === "down") {
           if (MODIFIERS.has(message.key)) heldModifiers.add(message.key);
           await page.keyboard.down(String(message.key));
@@ -193,7 +192,7 @@ function createLiveView(session) {
         }
         return;
       case "text":
-        session.setControl("user");
+        takeControl();
         // A paste arrives with its Ctrl or Cmd still held, which would turn the text into shortcuts.
         for (const key of heldModifiers) await page.keyboard.up(key);
         heldModifiers.clear();
@@ -201,13 +200,13 @@ function createLiveView(session) {
         await page.keyboard.type(String(message.text || ""));
         return;
       case "reload":
-        session.setControl("user");
+        takeControl();
         await page
           .reload({ waitUntil: "domcontentloaded", timeout: NAVIGATION_TIMEOUT_MS })
           .catch(() => broadcast({ type: "notice", message: "The page did not reload." }));
         return;
       case "navigate": {
-        session.setControl("user");
+        takeControl();
         const target = withScheme(message.url);
         // The viewer typed this address: say why it did not open, so the bar is never left lying.
         if (!navigationAllowed(target)) {
@@ -224,12 +223,12 @@ function createLiveView(session) {
 
   // A frozen page takes input for as long as it stays frozen; the queue must not wait on it.
   async function applyToLivePage(message, page, epoch) {
-    const release = message.event === "up";
-    if (!page || (epoch !== inputEpoch && !release)) return;
+    if (!page) return;
     // The address bar can still rescue a frozen tab; a held button must still come up.
-    if (stuckPages.has(page) && !PAGE_LOADS.has(message.type) && !release) return;
+    if (stuckPages.has(page) && !PAGE_LOADS.has(message.type) && message.event !== "up") return;
+    const takeControl = () => epoch === inputEpoch && session.setControl("user");
     const late = {};
-    const work = applyInput(message, page).finally(() => stuckPages.delete(page));
+    const work = applyInput(message, page, takeControl).finally(() => stuckPages.delete(page));
     if ((await within(work, inputLimit(message), late)) === late) stuckPages.add(page);
   }
 
