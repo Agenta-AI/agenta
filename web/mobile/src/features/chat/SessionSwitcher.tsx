@@ -146,7 +146,7 @@ export const SessionSwitcher = ({
                         onOpenAutoFocus={(event) => event.preventDefault()}
                         className="flex flex-col pb-[env(safe-area-inset-bottom)]"
                     >
-                        <SheetTitle className="px-4 pb-1 pt-4 text-base">Sessions</SheetTitle>
+                        <SheetTitle className="sr-only">Sessions</SheetTitle>
                         {panelBody}
                     </SheetContent>
                 </Sheet>
