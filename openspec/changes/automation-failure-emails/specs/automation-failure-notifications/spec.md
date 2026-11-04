@@ -15,7 +15,7 @@ The system SHALL open an `automation_failing` notification with `dedup_key`
 
 #### Scenario: First failed run
 - **WHEN** an automation with no open notification has a trigger delivery settled as `failed`
-- **THEN** the system SHALL open one notification, with the trigger delivery's `reason_code`, its `created_at` as `failed_at`, and its id as `trigger_delivery_id`
+- **THEN** the system SHALL open one notification, with the trigger delivery's `reason_code`, and its `created_at` as `failed_at` and `last_failed_at`
 
 #### Scenario: Platform pauses the automation
 - **WHEN** the dispatcher writes a `403` trigger delivery with `error_details.code` `agent_deleted` and pauses the automation
@@ -41,6 +41,10 @@ The system SHALL open an `automation_failing` notification with `dedup_key`
 - **WHEN** an automation failed while email was off, and email is turned on while it still fails
 - **THEN** no email SHALL be sent until the automation is fixed and fails again
 
+#### Scenario: Success settles late
+- **WHEN** a notification is open, and the outcome pass was down for 2 hours while the next run completed
+- **THEN** the first pass after the outage SHALL resolve the notification
+
 #### Scenario: First pass after the deploy
 - **WHEN** the feature is deployed, and an automation failed 6 hours earlier and was edited since
 - **THEN** the pass SHALL settle that trigger delivery and SHALL NOT open a notification
@@ -62,9 +66,11 @@ open, more failures of the automation SHALL send nothing.
 - **THEN** the system SHALL open three notifications, one per automation
 
 ### Requirement: What resolves a notification
-The system SHALL resolve the open notification of an automation when a trigger delivery of the
-automation that started after the notification's `failed_at` is settled as `completed`, with
-`resolved_at` set to that trigger delivery's `created_at`; and after a person's successful edit,
+While a notification is open, each new failed or skipped trigger delivery of the automation SHALL
+set `data.last_failed_at` to the later of its value and the trigger delivery's `created_at`. The
+system SHALL resolve the open notification when a trigger delivery of the automation that started
+at or after `data.last_failed_at` is settled as `completed` or `waiting`, with `resolved_at` set to
+that trigger delivery's `created_at`; and after a person's successful edit,
 start, refresh or delete of the automation, with `resolved_at` set to the time of the action. It
 SHALL NOT resolve it on a stop, a revoke, a schedule stopped at its end time, or a pause by the
 dispatcher. No email SHALL be sent about the fix.
@@ -85,6 +91,22 @@ dispatcher. No email SHALL be sent about the fix.
 - **WHEN** a notification opens, and a person edits the automation before the send pass runs
 - **THEN** the send pass SHALL skip its notification deliveries and send no email
 
+#### Scenario: Newer failure while open
+- **WHEN** a `500` opens a notification at 10:00, a long run starts at 10:05, a `403` at 10:10 pauses the automation, and the long run then completes
+- **THEN** the notification SHALL stay open
+
+#### Scenario: Runs that wait for approval
+- **WHEN** a `422` opened a notification, a person sets up the model, and the next run ends waiting for an approval
+- **THEN** the notification SHALL be resolved
+
+#### Scenario: Re-claimed start succeeds
+- **WHEN** a `500` opened a notification, and a repeated event claims the same trigger delivery again and its run completes
+- **THEN** the notification SHALL be resolved
+
+#### Scenario: Connection deleted
+- **WHEN** a subscription has an open notification, and a person deletes its connection from the tools settings
+- **THEN** the next outcome pass SHALL resolve the notification
+
 #### Scenario: Person stops the automation
 - **WHEN** an automation with an open notification is stopped by a person
 - **THEN** the notification SHALL stay open
@@ -96,7 +118,7 @@ dispatcher. No email SHALL be sent about the fix.
 ### Requirement: Failures older than the last fix
 The system SHALL NOT open a notification for a failed or skipped trigger delivery whose `created_at`
 is earlier than the `resolved_at` of a resolved notification with the same key, or earlier than the
-`created_at` of a trigger delivery of the same automation settled as `completed`.
+`created_at` of a trigger delivery of the same automation settled as `completed` or `waiting`.
 
 #### Scenario: Failure that started after a success
 - **WHEN** run S starts at 10:00 and succeeds, run F starts at 10:05 and fails, S settles at 10:07 and resolves an open notification, and F settles at 10:12

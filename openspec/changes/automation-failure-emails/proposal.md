@@ -47,7 +47,7 @@ What counts as a failure, one email per automation:
 | `409 failed` | A person revoked the subscription | no |
 | `200 success` with `is_test` | A test capture | no |
 
-A notification is resolved by the next successful run, or by a person's edit, start, refresh or
+A notification is resolved by the next run that completes or reaches an approval, or by a person's edit, start, refresh or
 delete of the automation.
 
 ## Capabilities
@@ -80,9 +80,9 @@ None. No shipped spec covers automations.
 
 - API: new domain `api/oss/src/core/notifications/` and `api/oss/src/dbs/postgres/notifications/`;
   `api/oss/src/core/triggers/outcomes.py` and `failure_notifications.py`; two loops in the API
-  lifespan; `emailing.py`; `env.py`; new methods on `RecordsDAOInterface`,
-  `TriggersDAOInterface` and `MembershipsService`.
-- Database: one `core_oss` revision that creates two tables, and one that builds a partial index on
+  lifespan; `emailing.py`; `env.py`; a new `UsersDAOInterface` and `UsersDAO`; new methods on
+  `RecordsDAOInterface`, `TriggersDAOInterface` and `MembershipsService`.
+- Database: one `core_oss` revision that creates two tables, and one that builds two indexes on
   `trigger_deliveries` concurrently. No column is added to an existing table.
 - Frontend: `web/packages/agenta-automation-ui` reads `data.outcome` on `202` trigger deliveries.
 - Editions: OSS and EE, from the shared `core_oss` chain.

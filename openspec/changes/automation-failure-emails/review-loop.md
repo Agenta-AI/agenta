@@ -74,3 +74,38 @@ Not taken:
 
 - Renaming `channel` to `medium`. The naming section records an Avoid entry instead. A v2 Slack channel will most likely send through `core/channels`, so the word fits.
 - Keeping the partial index small with a deploy-date bound. The candidate queries read only the last 24 hours, so the old entries cost size, not time.
+
+## Round 3
+
+Lenses: a fresh full interrogation (grounding, logic, implementability, consistency,
+over-engineering), and the `/code-review` skill at level high on the branch.
+
+| Review | Result |
+|---|---|
+| Interrogation | 0 blockers, 3 major, 7 minor |
+| `/code-review` (high) | 10 findings |
+
+Fixed:
+
+- A newer failure while a notification is open (for example a `403` that pauses the automation) is no longer resolved by an older healthy run. `data.last_failed_at` tracks the newest failure (D21, rule A4).
+- A run that ends `waiting` counts as healthy (D20). An automation whose runs always ask for approval no longer keeps a notification open for good.
+- A re-claimed `500` whose retry works resolves its own notification (`at or after`, D21).
+- The 1-hour limit applies to opens only (rule A5). A healthy run that settles late still resolves.
+- The send lease has a TTL of 300 s, is renewed after each send, and stops the pass when lost. No second replica sends the same rows.
+- An exception before a send counts as a failed attempt.
+- A connection delete from any router is covered by a reconcile step that resolves notifications of automations that no longer exist (D22).
+- New index `(project_id, schedule_id, created_at)` for the healthy-run check on schedules (G12).
+- The DAO methods that the rules need are named: `exists_healthy_delivery_after`, `query_missing_automations`, `fetch_open`, `note_failure`.
+- `UsersDAOInterface` and `UsersDAO` are new files, stated as such (G36).
+- `TriggersService` takes the notifications service as an optional argument, so its 11 tests keep working (G31).
+- The pending index is `(project_id, created_at) WHERE state = 'pending'`.
+- SMTP uses `env.smtp.timeout or 30` and `_get_sender_email`.
+- Each page is applied oldest first, so "Failing since" is the first failure.
+- `trigger_delivery_id` is removed from `notifications.data` (no reader).
+- G8 and G12 citations; G24a, G24b and G31a added; known limits 1, 3, 6, 8 and 12 rewritten.
+
+Not taken:
+
+- The watchdog-then-runner `done` case (`/code-review`). After the watchdog ends a turn, the runner's later records are quarantined and not read (G24a), so this case cannot happen.
+- Making edits record their time to remove known limit 1 (`/code-review`). The platform pause writes `updated_at` too (G3), so a fix through `updated_at` would drop real `403` failures. Writing a marker row on every edit adds rows for a rare case. Known limit 1 stays.
+- A backoff for the backlog of unfinished runs (`/code-review`). Known limit 12.

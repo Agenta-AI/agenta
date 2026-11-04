@@ -54,8 +54,8 @@ Notifications SHALL still be recorded.
 
 ### Requirement: Send pass
 The system SHALL send `pending` email notification deliveries in a pass that runs every 60 seconds
-in the API, on at most one replica at a time under a Redis lease, at most 100 per pass and at most
-10 per project per pass, oldest first. Before it sends, it SHALL mark a notification delivery
+in the API, on at most one replica at a time under a Redis lease that it renews after each send and
+stops on losing, at most 100 per pass and at most 10 per project per pass, oldest first. Before it sends, it SHALL mark a notification delivery
 `skipped` if its notification is resolved, `AccessService.check_human` no longer allows the kind's
 permission for the recipient, or the recipient has no email (deleted user). A success SHALL set `sent` and `sent_at`. A failure SHALL add 1 to
 `attempt_count`, and at 5 SHALL set `failed`. Logs SHALL carry ids and the exception type only.
@@ -72,6 +72,14 @@ A send SHALL NOT run in a web request.
 #### Scenario: Provider hangs
 - **WHEN** the provider does not answer
 - **THEN** the client timeout of 30 seconds SHALL end the call, and the pass SHALL count a failed attempt
+
+#### Scenario: Provider hangs for a long time
+- **WHEN** every send waits for its timeout, and a pass would outlive the lease TTL
+- **THEN** the pass SHALL renew the lease after each send, and no second replica SHALL send the same notification delivery
+
+#### Scenario: Rendering fails
+- **WHEN** rendering a notification delivery raises an error
+- **THEN** it SHALL count as a failed attempt, and after 5 the notification delivery SHALL be `failed`
 
 #### Scenario: Recipient removed before the send
 - **WHEN** a recipient is removed from the project while the notification delivery is pending
