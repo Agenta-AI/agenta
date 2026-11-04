@@ -14,15 +14,10 @@ import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {useOpenModelSetup} from "./useOpenModelSetup"
 
 /**
- * Build's left pane: the SHARED config panel under the SHARED "Configuration" header, with the
- * SHARED Files region — the same three components the desktop playground renders.
+ * Build's left pane: the SHARED config panel with the SHARED Files region.
  *
  * The drive is session-scoped, so the session is passed straight in: this surface already knows
  * which conversation it is (the desktop has to resolve it from its open tabs instead).
- *
- * Deploy and the overflow menu are absent, not reproduced: both still read this app's app-layer
- * state on the desktop side, and the header takes them as slots precisely so a surface that
- * cannot offer them simply does not.
  */
 export const ConfigPane = ({
     entityId,

@@ -7,8 +7,8 @@ import {useRouter} from "next/router"
 /**
  * Close session tabs, and go wherever losing the current one leaves you.
  *
- * Closing is LOCAL: the sessions themselves are untouched, so a closed one stays in the history
- * menu and on the sessions page, and opening it makes it a tab again. A session is a URL here, so
+ * Closing is LOCAL: the sessions themselves are untouched, so a closed one stays in the session
+ * search and on the sessions page, and opening it makes it a tab again. A session is a URL here, so
  * closing the tab you are on is a route change to the nearest survivor.
  */
 export const useSessionTabClose = ({

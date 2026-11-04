@@ -73,6 +73,9 @@ export const SessionSwitcher = ({
     // Held back while resolving: an unscoped list would show the whole project, then re-key.
     const open = panel === "switcher" && (Boolean(agentId) || !agentResolving)
     const close = () => setPanel(null)
+    // Only ever closes this panel: another may have opened on the same press.
+    const onOpenChange = (next: boolean) =>
+        setPanel((current) => (next ? "switcher" : current === "switcher" ? null : current))
     const onNew = agentId ? () => startBlank(agentId) : undefined
 
     const title = stream
@@ -150,7 +153,7 @@ export const SessionSwitcher = ({
             <>
                 <PageTitle title={stream?.name} />
                 {order}
-                <Popover open={open} onOpenChange={(next) => setPanel(next ? "switcher" : null)}>
+                <Popover open={open} onOpenChange={onOpenChange}>
                     {rename.renaming ? (
                         <span className="flex h-9 min-w-0 flex-1 px-1">
                             <InlineRenameInput rename={rename} className={RENAME_INPUT} />
@@ -187,7 +190,7 @@ export const SessionSwitcher = ({
     return (
         <>
             <PageTitle title={stream?.name} />
-            <Popover open={open} onOpenChange={(next) => setPanel(next ? "switcher" : null)}>
+            <Popover open={open} onOpenChange={onOpenChange}>
                 <PopoverAnchor asChild>
                     <div className="w-[300px] min-w-0 lg:w-[440px] xl:w-[592px]">
                         {agentId || !agentResolving ? (

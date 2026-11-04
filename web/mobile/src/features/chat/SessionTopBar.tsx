@@ -7,6 +7,7 @@ import {AgentIdentity} from "@agenta/entity-ui/agent"
 import {BrowserPaneToggle} from "@agenta/entity-ui/browser"
 import {FilesPaneToggle, useSessionFilesPane} from "@agenta/entity-ui/drive"
 import {AgentPageHeader, AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
+import {sessionRowVm} from "@agenta/sessions/row"
 import {isBrowserEnabled} from "@agenta/shared/api"
 import {KeyboardShortcutsSheet, useShortcutsSheetHotkey} from "@agenta/ui/shortcuts"
 import {Button} from "@agenta/ui/ui"
@@ -62,7 +63,7 @@ export const SessionTopBar = ({
     workspaceId: string
     projectId: string
 }) => {
-    // Seeded at load, unlike a media query: the bar's two layouts must not swap after mount.
+    // Seeded at load, unlike a media query, so the first paint already has the right layout.
     const phone = useAtomValue(phoneViewportAtom)
     // artifactName resolves from a revision id or a workflow id, so either handle names the agent.
     const name = useAtomValue(workflowMolecule.selectors.artifactName(entityId ?? agentId ?? ""))
@@ -71,6 +72,9 @@ export const SessionTopBar = ({
     // version now, so the status offers it at once.
     const heldCommit = useAtomValue(heldCommitAtomFamily(sessionId))
     const stream = useSessionHeader(projectId, sessionId).data ?? null
+    const sessionName = stream
+        ? sessionRowVm(stream, {pinned: false, pending: undefined}).title
+        : "New session"
     const startBlank = useStartBlankSession(`/w/${workspaceId}/p/${projectId}`)
 
     const [shortcutsOpen, setShortcutsOpen] = useState(false)
@@ -130,7 +134,7 @@ export const SessionTopBar = ({
             <ShareMenu
                 agentId={agentId}
                 sessionId={sessionId}
-                sessionName={stream?.name ?? "New session"}
+                sessionName={sessionName}
                 showSession={hasSessions}
                 // No revision = read-only replay: no conversation to send into.
                 canRequestTemplate={Boolean(entityId) && canSend}
@@ -141,7 +145,7 @@ export const SessionTopBar = ({
         ) : hasSessions ? (
             <SessionSharingControl
                 sessionId={sessionId}
-                sessionName={stream?.name ?? ""}
+                sessionName={sessionName}
                 workspaceId={workspaceId}
                 projectId={projectId}
                 agentId={agentId}

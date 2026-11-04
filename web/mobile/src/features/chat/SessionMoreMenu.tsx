@@ -1,6 +1,10 @@
 import {useRef, useState, type ReactNode} from "react"
 
-import {configPanelCollapsedAtom, revealConfigPaneAtom} from "@agenta/chat/state"
+import {
+    chatPanelMaximizedAtom,
+    configPanelCollapsedAtom,
+    revealConfigPaneAtom,
+} from "@agenta/chat/state"
 import {browserLiveStatusQueryAtomFamily, browserPaneOpenAtomFamily} from "@agenta/entities/browser"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {AgentIdentity} from "@agenta/entity-ui/agent"
@@ -82,11 +86,16 @@ export const SessionMoreMenu = ({
     const openHistory = useSetAtom(openAgentVersionHistoryAtom)
     const revealConfig = useSetAtom(revealConfigPaneAtom)
     const [configCollapsed, setConfigCollapsed] = useAtom(configPanelCollapsedAtom)
+    const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
+    const moreTriggerRef = useRef<HTMLButtonElement>(null)
     const inspectorEnabled = useAtomValue(playgroundInspectorEnabledAtom)
     const me = useAtomValue(userAtom)
     const stream = useSessionHeader(projectId, sessionId).data ?? null
     const [inspectOpen, setInspectOpen] = useState(false)
-    const {toggle: toggleFiles} = useSessionFilesPane(agentId ?? sessionId, sessionId)
+    const {open: filesOpen, toggle: toggleFiles} = useSessionFilesPane(
+        agentId ?? sessionId,
+        sessionId,
+    )
     const browser = useAtomValue(browserLiveStatusQueryAtomFamily(sessionId)).data
     const [browserOpen, setBrowserOpen] = useAtom(browserPaneOpenAtomFamily(sessionId))
 
@@ -102,6 +111,8 @@ export const SessionMoreMenu = ({
     const onCloseAutoFocus = (event: Event) => {
         if (!pendingAction.current) return
         event.preventDefault()
+        // Where focus returns once the action's own surface closes.
+        moreTriggerRef.current?.focus()
         pendingAction.current()
         pendingAction.current = null
     }
@@ -110,6 +121,7 @@ export const SessionMoreMenu = ({
         setPanel((current) => (next ? "more" : current === "more" ? null : current))
 
     const agentVisible = Boolean(agentId) && !agentHidden
+    const configShown = !configCollapsed && !chatMaximized
     const canRename = hasSessions && canRenameSession(stream, me?.id)
 
     const session: MoreAction[] = [
@@ -160,13 +172,14 @@ export const SessionMoreMenu = ({
             : []),
     ]
     const phoneOnly: MoreAction[] = [
-        ...(entityId && !agentHidden
+        // An open dock outranks the configuration on a phone, so the row would do nothing.
+        ...(entityId && !agentHidden && !filesOpen && !browserOpen
             ? [
                   {
                       key: "config",
-                      label: configCollapsed ? "Configuration" : "Hide configuration",
+                      label: configShown ? "Hide configuration" : "Configuration",
                       icon: <SidebarIcon size={15} aria-hidden />,
-                      onSelect: () => (configCollapsed ? revealConfig() : setConfigCollapsed(true)),
+                      onSelect: () => (configShown ? setConfigCollapsed(true) : revealConfig()),
                   },
               ]
             : []),
@@ -239,6 +252,7 @@ export const SessionMoreMenu = ({
         return (
             <>
                 <Button
+                    ref={moreTriggerRef}
                     variant="ghost"
                     size="icon"
                     aria-label="More actions"
@@ -255,7 +269,7 @@ export const SessionMoreMenu = ({
                         className="flex flex-col overflow-y-auto pb-[calc(12px+env(safe-area-inset-bottom))]"
                     >
                         <SheetTitle className="sr-only">More actions</SheetTitle>
-                        {/* The bar's title only names the agent, so its edits live here. */}
+                        {/* The bar shows the session, so the agent's edits live here. */}
                         <div className="px-4 pb-2 pt-4">
                             {agentHidden ? (
                                 <span className="text-sm font-medium">{agentName}</span>
@@ -296,7 +310,12 @@ export const SessionMoreMenu = ({
             <DropdownMenu open={open} onOpenChange={onOpenChange}>
                 <SimpleTooltip title="More actions">
                     <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon-sm" aria-label="More actions">
+                        <Button
+                            ref={moreTriggerRef}
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label="More actions"
+                        >
                             <DotsThreeIcon weight="bold" />
                         </Button>
                     </DropdownMenuTrigger>

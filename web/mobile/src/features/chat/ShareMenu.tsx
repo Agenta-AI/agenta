@@ -94,6 +94,9 @@ export const ShareMenu = ({
     const [barPanel, setBarPanel] = useAtom(sessionBarPanelAtom)
     const open = barPanel === "share"
     const close = () => setBarPanel(null)
+    // Only ever closes this panel: another may have opened on the same press.
+    const onOpenChange = (next: boolean) =>
+        setBarPanel((current) => (next ? "share" : current === "share" ? null : current))
 
     // Nothing is read until Share first opens; the dialog outlives the panel that opened it.
     const [engaged, setEngaged] = useState(false)
@@ -209,7 +212,7 @@ export const ShareMenu = ({
     return (
         <>
             {phone ? (
-                <Sheet open={open} onOpenChange={(next) => setBarPanel(next ? "share" : null)}>
+                <Sheet open={open} onOpenChange={onOpenChange}>
                     <SheetContent
                         side="responsive"
                         aria-describedby={undefined}
@@ -221,10 +224,7 @@ export const ShareMenu = ({
                 </Sheet>
             ) : (
                 <div className="flex items-center">
-                    <Popover
-                        open={open}
-                        onOpenChange={(next) => setBarPanel(next ? "share" : null)}
-                    >
+                    <Popover open={open} onOpenChange={onOpenChange}>
                         <PopoverTrigger asChild>
                             <Button variant="ghost" size="sm" data-testid="share-menu-share">
                                 <UsersIcon data-icon="inline-start" />

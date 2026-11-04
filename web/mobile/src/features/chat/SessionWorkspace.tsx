@@ -171,7 +171,7 @@ export const SessionWorkspace = ({
     })
     const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
     // Collapsing the config panel is separate from the Build/Chat mode: the desktop keeps you in
-    // Build with the panel out of the way, and the top bar's "»" brings it back.
+    // Build with the panel out of the way, and the edge pill brings it back.
     // Follow the revision an auto-commit produced. Pin it rather than unpinning: unpinning falls
     // back to the latest-revision query, which is stale for a beat, so a commit made FROM an
     // older revision would land the pane on whatever that query last cached. The desktop gets
@@ -199,7 +199,7 @@ export const SessionWorkspace = ({
     //
     // `collapseConfigByDefault` surfaces (the create-an-agent page) LAND collapsed no matter
     // what the session pages stored — the two surfaces must not share their landing state. The
-    // mount-scoped override does it: any user write (the `»` reveal, the pane's own collapse)
+    // mount-scoped override does it: any user write (the edge pill, `Alt+C`)
     // clears it, so the controls work immediately and the preference resumes from that tap.
     const setConfigOverride = useSetAtom(configPanelCollapsedOverrideAtom)
     useEffect(() => {
@@ -269,6 +269,8 @@ export const SessionWorkspace = ({
     // pointer-up, not per frame, so a drag does not hammer localStorage.
     const [storedPaneWidth, setStoredPaneWidth] = useAtom(rightPanelWidthAtom)
     const [paneSize, setPaneSize] = useState(storedPaneWidth)
+    // What the split actually draws, which a narrow window clamps below `paneSize`.
+    const [paneDrawnSize, setPaneDrawnSize] = useState(0)
     useEffect(() => setPaneSize(storedPaneWidth), [storedPaneWidth])
     // The files pane keeps its own persisted width — the two panes are dragged independently.
     const [storedFilesWidth, setStoredFilesWidth] = useAtom(filesPaneWidthAtom)
@@ -313,7 +315,7 @@ export const SessionWorkspace = ({
         prevAlternateRef.current = panesMustAlternate
     }, [panesMustAlternate, dockOpen, configCollapsed, setConfigCollapsed])
 
-    // The rail publishes the tabs it renders, so `Alt+1…9` addresses what is on screen. A phone
+    // The rail (or a phone's list) publishes its order, so `Alt+1…9` follows it. A phone
     // sends no Alt chord, so mounting this on a touch surface is inert rather than harmful.
     const router = useRouter()
     const tabScope = sessionTabScope(agentId)
@@ -339,6 +341,10 @@ export const SessionWorkspace = ({
     )
     const requestRename = useSetAtom(sessionRenameRequestAtom)
     const setBarPanel = useSetAtom(sessionBarPanelAtom)
+    const closeSession = useCallback(
+        (id: string) => closeTabs([id], openTabIds),
+        [closeTabs, openTabIds],
+    )
     useSessionShortcuts({
         sessions: shortcutSessions,
         activeId: sessionId,
@@ -364,14 +370,12 @@ export const SessionWorkspace = ({
         onNewSession: useCallback(() => {
             if (agentId) startBlank(agentId)
         }, [agentId, startBlank]),
-        onCloseSession: useCallback(
-            (id: string) => closeTabs([id], openTabIds),
-            [closeTabs, openTabIds],
-        ),
+        // A phone shows no tabs, so there is nothing for Alt+W to close.
+        onCloseSession: phoneViewport ? undefined : closeSession,
         onSearch: useCallback(() => setBarPanel("switcher"), [setBarPanel]),
         onToggleConfigPanel: useCallback(
-            () => setConfigCollapsed(!configCollapsed),
-            [configCollapsed, setConfigCollapsed],
+            () => (showConfig ? setConfigCollapsed(true) : revealConfig()),
+            [revealConfig, setConfigCollapsed, showConfig],
         ),
         onToggleFilesPane: toggleFilesPane,
     })
@@ -454,7 +458,7 @@ export const SessionWorkspace = ({
                         (!hideSessionSwitcher || showConfig) ? (
                             <PaneEdgeToggle
                                 open={showConfig}
-                                offset={showPane ? paneSize : 0}
+                                offset={showPane ? paneDrawnSize : 0}
                                 animate={configSlide.animate}
                                 label={showConfig ? "Hide configuration" : "Show configuration"}
                                 shortcutId="panel.config"
@@ -466,6 +470,7 @@ export const SessionWorkspace = ({
                         <SplitPane
                             paneSide="start"
                             paneSize={twoPane && showPane ? paneSize : 0}
+                            onDisplayedSize={setPaneDrawnSize}
                             paneMin={RIGHT_PANEL_MIN}
                             paneMax={RIGHT_PANEL_MAX}
                             // Not the desktop's 460 chat floor: `md` is 768, and 768-460 leaves
@@ -535,9 +540,8 @@ export const SessionWorkspace = ({
                                                     scope={filesScope}
                                                     sessionId={sessionId}
                                                     onSelectionChange={driveLink.onSelectionChange}
-                                                    // The session bar's icon closes the pane — on a
-                                                    // phone that bar is off screen with it, so the
-                                                    // pane's own control does.
+                                                    // The bar's icon closes the pane on a desktop;
+                                                    // a phone gets the pane's own control.
                                                     closeControl={twoPane ? "none" : "back"}
                                                     expanded={filesExpanded}
                                                     onToggleExpand={filesLayout.toggleExpand}
