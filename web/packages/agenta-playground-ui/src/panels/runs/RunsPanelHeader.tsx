@@ -1,3 +1,5 @@
+import type {ReactNode} from "react"
+
 import {executionController, executionItemController} from "@agenta/playground"
 import {CollapsibleGroupHeader, RunButton} from "@agenta/ui/components/presentational"
 import {useRunAllShortcut} from "@agenta/ui/hooks"
@@ -10,6 +12,8 @@ export interface RunsPanelHeaderProps {
     entityId?: string
     /** The title that folds the panel. */
     label?: string
+    /** The test set menu, left of Clear. */
+    testsetMenu?: ReactNode
 }
 
 /**
@@ -18,7 +22,11 @@ export interface RunsPanelHeaderProps {
  * all. In the compare view (no `entityId`) Run all runs every revision, and the label does not fold:
  * the compare rows have no fold.
  */
-export const RunsPanelHeader = ({entityId, label = "Generations"}: RunsPanelHeaderProps) => {
+export const RunsPanelHeader = ({
+    entityId,
+    label = "Generations",
+    testsetMenu,
+}: RunsPanelHeaderProps) => {
     const {isRunning} = useAtomValue(
         entityId
             ? executionItemController.selectors.headerData(entityId)
@@ -59,7 +67,8 @@ export const RunsPanelHeader = ({entityId, label = "Generations"}: RunsPanelHead
             ) : (
                 <span className="text-base font-semibold text-nowrap">{label}</span>
             )}
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2">
+                {testsetMenu}
                 <SimpleTooltip title="Clear all" side="bottom">
                     <Button
                         variant="outline"

@@ -10,12 +10,14 @@ export interface ChatPanelProps {
     revisionId: string
     /** The line under each reply with the run's numbers and the trace link. */
     renderTraceFooter?: (traceId: string) => ReactNode
+    /** The test set menu in the header. */
+    testsetMenu?: ReactNode
 }
 
 /** The run pane of a chat app: the header bar, the prompt's variables and messages, the turns. */
-export const ChatPanel = ({revisionId, renderTraceFooter}: ChatPanelProps) => (
+export const ChatPanel = ({revisionId, renderTraceFooter, testsetMenu}: ChatPanelProps) => (
     <section className="flex flex-col">
-        <RunsPanelHeader entityId={revisionId} label="Chat" />
+        <RunsPanelHeader entityId={revisionId} label="Chat" testsetMenu={testsetMenu} />
         <ChatInputsBlock entityId={revisionId} />
         <ChatTurns entityId={revisionId} renderTraceFooter={renderTraceFooter} />
     </section>
