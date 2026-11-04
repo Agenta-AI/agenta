@@ -54,6 +54,15 @@ const page = (first: number, count: number) =>
     Array.from({length: count}, (_, index) => span(first + index, first + index))
 
 let pages: unknown[][] = []
+/** The trace query answers with this error response for the request number it is set for. */
+let failedReads = new Map<number, () => Response>()
+const errorResponse =
+    (status: number, headers: Record<string, string> = {}) =>
+    () =>
+        new Response(JSON.stringify({detail: "trace store unavailable"}), {
+            status,
+            headers: {"content-type": "application/json", ...headers},
+        })
 const traceRequests: {url: URL; body: Record<string, unknown>}[] = []
 /** While set, the second trace page waits for it, so a test can act mid-scan. */
 let holdSecondPage: Promise<void> | null = null
@@ -64,6 +73,8 @@ const stubTraceQuery = () => {
         const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>
         traceRequests.push({url, body})
         if (traceRequests.length === 2 && holdSecondPage) await holdSecondPage
+        const failure = failedReads.get(traceRequests.length)
+        if (failure) return failure()
         const spans = pages[traceRequests.length - 1] ?? []
         return new Response(JSON.stringify({count: spans.length, spans}), {
             status: 200,
@@ -121,6 +132,7 @@ beforeEach(() => {
     store.set(queryClientAtom, queryClient)
     store.set(projectIdAtom, PROJECT)
     pages = []
+    failedReads = new Map()
     traceRequests.length = 0
     holdSecondPage = null
     holdFirstAdd = null
@@ -265,17 +277,88 @@ describe("Add all matching to a queue", () => {
         })
         expect(JSON.stringify(shown?.description)).not.toContain("queue store unavailable")
 
-        // Retry runs the whole scan again from the first page.
+        // Retry scans again from the first page and sends only the traces that were not added.
         shown?.action?.onClick()
         await vi.waitFor(() => expect(last("success")).toBeDefined())
         expect(traceRequests).toHaveLength(4)
         const newest = (index: number) =>
             Date.parse((traceRequests[index].body.windowing as {newest: string}).newest)
         expect(newest(2)).toBeGreaterThanOrEqual(newest(0))
-        expect(
-            addCalls().map((call) => (call.body as {trace_ids: string[]}).trace_ids.length),
-        ).toEqual([250, 50, 250, 50])
+        const ids = (from: number, to: number) =>
+            Array.from({length: to - from}, (_, index) => `trace-${from + index}`)
+        expect(addCalls().map((call) => call.body)).toEqual([
+            {trace_ids: ids(0, 250)},
+            {trace_ids: ids(250, 300)},
+            {trace_ids: ids(250, 300)},
+        ])
         expect(last("success")).toMatchObject({title: "Queued 300 traces"})
+    })
+
+    it("A failed page read stops the scan as failed, and Retry sends only the rest", async () => {
+        const logged = vi.spyOn(console, "error").mockImplementation(() => undefined)
+        // The second page read fails. The first run of Retry finds ten more traces.
+        pages = [page(0, 300), [], page(0, 310), []]
+        failedReads.set(2, errorResponse(400))
+
+        await runAddAllMatching(input())
+
+        expect(traceRequests).toHaveLength(2)
+        const ids = (from: number, to: number) =>
+            Array.from({length: to - from}, (_, index) => `trace-${from + index}`)
+        // The traces read before the failure are still added.
+        expect(addCalls().map((call) => call.body)).toEqual([
+            {trace_ids: ids(0, 250)},
+            {trace_ids: ids(250, 300)},
+        ])
+        expect(last("success")).toBeUndefined()
+        const failed = last("error")
+        expect(failed).toMatchObject({
+            title: "Queue add failed",
+            description: "Something went wrong. Try again.",
+            action: {label: "Retry"},
+        })
+        expect(logged).toHaveBeenCalled()
+
+        failed?.action?.onClick()
+        await vi.waitFor(() => expect(last("success")).toBeDefined())
+        expect(traceRequests).toHaveLength(4)
+        expect(addCalls().map((call) => call.body)).toEqual([
+            {trace_ids: ids(0, 250)},
+            {trace_ids: ids(250, 300)},
+            {trace_ids: ids(300, 310)},
+        ])
+        expect(last("success")).toMatchObject({title: "Queued 310 traces"})
+    })
+
+    it("A rate limited page read pauses, says so, and goes on", async () => {
+        vi.useFakeTimers({toFake: ["setTimeout", "clearTimeout"]})
+        try {
+            // The client retries a 429 three times by itself; the fourth 429 reaches the scan.
+            pages = [page(0, 2), [], [], [], [], []]
+            for (const request of [2, 3, 4, 5]) {
+                failedReads.set(request, errorResponse(429, {"retry-after": "1"}))
+            }
+
+            let finished = false
+            const running = runAddAllMatching(input()).finally(() => (finished = true))
+            while (!finished) await vi.advanceTimersByTimeAsync(500)
+            await running
+
+            expect(traceRequests).toHaveLength(6)
+            expect(shown()).toContainEqual(
+                expect.objectContaining({
+                    title: "Rate limited, pausing",
+                    description:
+                        "Queued 0 of up to 1,000 traces. The server is throttling requests; retrying in 1s…",
+                }),
+            )
+            expect(addCalls().map((call) => call.body)).toEqual([
+                {trace_ids: ["trace-0", "trace-1"]},
+            ])
+            expect(last("success")).toMatchObject({title: "Queued 2 traces"})
+        } finally {
+            vi.useRealTimers()
+        }
     })
 
     it("The run stops at the plan cap and says so", async () => {

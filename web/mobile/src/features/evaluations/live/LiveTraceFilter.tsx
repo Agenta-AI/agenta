@@ -2,12 +2,12 @@ import {useMemo} from "react"
 
 import {LIVE_INVOCATION_FILTER} from "@agenta/entities/evaluationRun"
 import {getFilterColumns, type Filter} from "@agenta/observability"
-import {FilterDialog} from "@agenta/observability-ui"
+
+import {AnnotatedTracesFilter} from "@/features/observability/filters/AnnotatedTracesFilter"
 
 /**
- * The trace filter of a live evaluation: the shared filter dialog with the invocation row
- * locked at the top. It shows and returns only the user's rows. The evaluator and feedback
- * row of annotation filters is not offered here yet.
+ * The trace filter of a live evaluation: the traces filter dialog, with its annotation row,
+ * and the invocation row locked at the top. It shows and returns only the user's rows.
  */
 export const LiveTraceFilter = ({
     userFilters,
@@ -23,7 +23,7 @@ export const LiveTraceFilter = ({
     const apply = (rows: Filter[]) => onChange(rows.filter((row) => !row.isPermanent))
 
     return (
-        <FilterDialog
+        <AnnotatedTracesFilter
             filterData={filterData}
             columns={columns}
             onApplyFilter={apply}

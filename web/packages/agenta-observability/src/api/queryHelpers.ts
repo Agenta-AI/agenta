@@ -298,6 +298,7 @@ export const executeTraceQuery = async ({
     hasAnnotationOperator,
     signal,
     readAllPages = false,
+    throwOnError = false,
 }: {
     params: Record<string, unknown>
     pageParam?: {newest?: string}
@@ -313,6 +314,8 @@ export const executeTraceQuery = async ({
      * that show a whole set, such as one session.
      */
     readAllPages?: boolean
+    /** Rethrow a failed page read instead of answering with an empty page. */
+    throwOnError?: boolean
 }) => {
     const windowParams = {...params}
     let data: unknown = []
@@ -329,6 +332,7 @@ export const executeTraceQuery = async ({
             appId,
             projectId ?? "",
             signal,
+            {throwOnError},
         )
         lastRateLimit = result.rateLimit
         if (!readAllPages) return result.data
@@ -350,6 +354,7 @@ export const executeTraceQuery = async ({
                 appId,
                 projectId ?? "",
                 signal,
+                {throwOnError},
             )
             lastRateLimit = more.rateLimit
             data = mergeTracePages(data, more.data)

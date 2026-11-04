@@ -392,6 +392,45 @@ describe("live evaluation sheet", () => {
         expect(text()).toContain("Apply")
     })
 
+    it("An annotation filter row offers the evaluator and feedback controls", async () => {
+        const annotated = {
+            field: "has_annotation",
+            operator: "in",
+            value: [{evaluator: "tone-check"}],
+        }
+        await mount({userFilters: [annotated]})
+        await typeName("Support replies")
+        await pickEvaluator("Tone check")
+
+        await act(async () =>
+            document.querySelector<HTMLButtonElement>("button[aria-label=Filter]")?.click(),
+        )
+        // The form's own evaluator select is one; the annotation row adds the second.
+        await vi.waitFor(() =>
+            expect(
+                document.querySelectorAll("input[role=combobox][aria-label=Evaluator]"),
+            ).toHaveLength(2),
+        )
+        await act(async () => button(/^Apply$/)?.click())
+
+        await submit()
+
+        const [, body] = createRequests()[0]
+        expect(body).toMatchObject({
+            query: {
+                data: {
+                    filtering: {
+                        operator: "and",
+                        conditions: [
+                            {field: "trace_type", operator: "is", value: "invocation"},
+                            annotated,
+                        ],
+                    },
+                },
+            },
+        })
+    })
+
     it("Empty name shows Enter a name and sends nothing", async () => {
         await mount()
         await pickEvaluator("Tone check")
