@@ -178,6 +178,8 @@ class BrowserRouter:
                 code = await _relay(websocket, upstream, still_allowed)
         except Exception as e:  # noqa: BLE001  # pylint: disable=broad-except
             log.warning("browser.live", outcome="relay_failed", error=str(e))
+            # A stale link or a browser that just stopped: the app says no browser is running.
+            code = _CLOSE_NO_BROWSER
         with suppress(Exception):
             await websocket.close(code=code)
 

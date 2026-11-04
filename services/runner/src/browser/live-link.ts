@@ -26,7 +26,7 @@ import { loadRunnerConfig } from "../config/runner-config.ts";
 export const BROWSER_PORT = 8790;
 export const BROWSER_TOKEN_PATH = "/tmp/agenta-browser/token";
 export const BROWSER_PROBE_TIMEOUT_MS = 3_000;
-/** The api polls once every 10 s per open session tab; this absorbs repeat and parallel tabs. */
+/** The app polls every 4 to 10 s per open session tab; this absorbs repeat and parallel tabs. */
 export const LIVE_LINK_CACHE_MS = 5_000;
 export const LIVE_LINK_CACHE_MAX_ENTRIES = 512;
 

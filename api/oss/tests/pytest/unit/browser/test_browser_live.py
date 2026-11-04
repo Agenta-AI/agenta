@@ -268,6 +268,25 @@ def test_websocket_relays_both_ways(browser_on, monkeypatch):
     assert upstream.connected_to == (LINK.url, LINK.headers)
 
 
+def test_websocket_says_no_browser_when_the_upstream_refuses(browser_on, monkeypatch):
+    _signed_in(monkeypatch, browser_router.ResourceCheck.ALLOWED)
+    _with_link(monkeypatch, _FakeUpstream())
+
+    def refused(*args, **kwargs):
+        raise ConnectionError("stale token")
+
+    monkeypatch.setattr(browser_router, "connect", refused)
+
+    with (
+        pytest.raises(WebSocketDisconnect) as closed,
+        _client().websocket_connect(
+            "/browser/live?session_id=s1", headers={"origin": ORIGIN}
+        ) as ws,
+    ):
+        ws.receive_text()
+    assert closed.value.code == browser_router._CLOSE_NO_BROWSER
+
+
 def test_websocket_closes_when_access_is_revoked(browser_on, monkeypatch):
     monkeypatch.setattr(env.sessions, "live_auth_recheck_seconds", 0.05)
     _signed_in(
