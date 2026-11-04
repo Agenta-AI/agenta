@@ -6,8 +6,8 @@ import {Sidebar} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
 /**
- * The session bar's control that brings the collapsed config pane back. First run has no such
- * control in its bar and uses [[CollapsedConfigRail]], which has the room to say what it opens.
+ * Floats at the conversation's top-left and brings the collapsed config pane back. First run
+ * uses [[CollapsedConfigRail]] instead, which has the room to say what it opens.
  */
 export const ConfigRevealButton = () => {
     const revealConfig = useSetAtom(revealConfigPaneAtom)
@@ -21,7 +21,7 @@ export const ConfigRevealButton = () => {
             }
         >
             <Button
-                variant="ghost"
+                variant="outline"
                 size="icon-sm"
                 aria-label="Show configuration"
                 aria-keyshortcuts={shortcutAria("panel.config")}

@@ -45,6 +45,7 @@ import {useAutomationUrlSync} from "../automations/useAutomationUrlSync"
 import {AppShell} from "../nav/AppShell"
 
 import {CollapsedConfigRail} from "./CollapsedConfigRail"
+import {ConfigRevealButton} from "./ConfigRevealButton"
 import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {sessionBarPanelAtom, sessionRenameRequestAtom} from "./sessionBarState"
 import {resolveSessionPanes} from "./sessionPanes"
@@ -431,7 +432,6 @@ export const SessionWorkspace = ({
                         agentResolving={agentResolving}
                         canSend={canSend}
                         hasSessions={!hideSessionSwitcher}
-                        configCollapsed={configCollapsed || chatMaximized}
                         workspaceId={workspaceId}
                         projectId={projectId}
                     />
@@ -536,7 +536,17 @@ export const SessionWorkspace = ({
                                             configCollapsed ? (
                                                 <CollapsedConfigRail />
                                             ) : null}
-                                            <div className="min-h-0 min-w-0 flex-1">{chat}</div>
+                                            <div className="relative min-h-0 min-w-0 flex-1">
+                                                {twoPane &&
+                                                !hideSessionSwitcher &&
+                                                configEntityId &&
+                                                (configCollapsed || chatMaximized) ? (
+                                                    <div className="absolute left-2 top-2 z-10">
+                                                        <ConfigRevealButton />
+                                                    </div>
+                                                ) : null}
+                                                {chat}
+                                            </div>
                                         </div>
                                     }
                                 />

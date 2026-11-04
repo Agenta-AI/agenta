@@ -17,7 +17,6 @@ import {sharingCopy} from "@/lib/sharingCopy"
 
 import {NavDrawer} from "../nav/NavDrawer"
 
-import {ConfigRevealButton} from "./ConfigRevealButton"
 import {heldCommitAtomFamily} from "./selectedRevision"
 import {sessionBarPanelAtom} from "./sessionBarState"
 import {SessionMoreMenu} from "./SessionMoreMenu"
@@ -42,7 +41,6 @@ export const SessionTopBar = ({
     agentHidden = false,
     canSend = true,
     hasSessions,
-    configCollapsed,
     workspaceId,
     projectId,
 }: {
@@ -61,8 +59,6 @@ export const SessionTopBar = ({
     canSend?: boolean
     /** False on first run: one draft session, so no switcher and no session controls. */
     hasSessions: boolean
-    /** The config pane is off screen, so the bar offers it back. */
-    configCollapsed: boolean
     workspaceId: string
     projectId: string
 }) => {
@@ -186,15 +182,8 @@ export const SessionTopBar = ({
     return (
         <AgentPageHeader
             className="md:min-h-12"
-            leading={
-                <>
-                    {/* Nav is the drawer below `lg`; it hides itself where the rail takes over. */}
-                    <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                    {hasSessions && configCollapsed && entityId && !agentHidden ? (
-                        <ConfigRevealButton />
-                    ) : null}
-                </>
-            }
+            // Nav is the drawer below `lg`; it hides itself where the rail takes over.
+            leading={<NavDrawer workspaceId={workspaceId} projectId={projectId} />}
             identity={
                 agentHidden ? (
                     <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
