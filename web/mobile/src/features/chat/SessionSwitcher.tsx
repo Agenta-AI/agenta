@@ -65,7 +65,7 @@ export const SessionSwitcher = ({
     const close = () => setPanel(null)
     const onNew = agentId ? () => startBlank(agentId) : undefined
 
-    const title = stream ? sessionRowVm(stream, {}).title : "New session"
+    const title = stream ? sessionRowVm(stream, {pinned: false, pending: undefined}).title : "New session"
     const canRename =
         stream !== null &&
         sessionMenuAccess({ownerUserId: stream.owner_user_id ?? null}, me?.id) !== "member"
