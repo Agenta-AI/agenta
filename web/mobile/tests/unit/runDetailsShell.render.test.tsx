@@ -50,6 +50,12 @@ vi.mock("@/features/context/useBindProjectContext", () => ({
     useBindProjectContext: () => undefined,
 }))
 vi.mock("@/components/PageTitle", () => ({PageTitle: () => null}))
+// Counts how many times the drawer module is loaded: a page that loads it eagerly counts one.
+const drawerModule = vi.hoisted(() => ({loads: 0}))
+vi.mock("@/features/revisions/RevisionDrawerHost", () => {
+    drawerModule.loads += 1
+    return {RevisionDrawerHost: () => createElement("div", {"data-testid": "revision-drawer"})}
+})
 vi.mock("@agenta/auth-ui", () => ({
     NotFoundScreen: () => createElement("p", {"data-testid": "not-found"}),
 }))
@@ -207,6 +213,20 @@ describe("run details tabs", () => {
 })
 
 describe("run details page", () => {
+    it("The revision drawer code loads only when a revision is open", async () => {
+        serveRun({})
+        await mount()
+        await flush()
+        expect(host.querySelector('[data-testid="revision-drawer"]')).toBeNull()
+        expect(drawerModule.loads).toBe(0)
+
+        router.query = {...router.query, revisionId: "rev-1"}
+        await mount()
+        await flush()
+        expect(host.querySelector('[data-testid="revision-drawer"]')).not.toBeNull()
+        expect(drawerModule.loads).toBe(1)
+    })
+
     it("Opening a run sends no write request", async () => {
         // Every read the page makes, including the name lookups of the test set, app, variant
         // and evaluator: through axios or through fetch (the Fern client).

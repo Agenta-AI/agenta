@@ -471,6 +471,14 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
 
         useEffect(() => {
             editor.setEditable(!disabled)
+            if (!disabled) return
+            // Plugins turn editing off while they load content and back on afterwards. A
+            // disabled editor stays off. The reset waits one tick: Lexical is still telling the
+            // other listeners about the change, and a reset inside this call would reach them
+            // before the change they are already handling.
+            return editor.registerEditableListener((editable) => {
+                if (editable) queueMicrotask(() => editor.setEditable(false))
+            })
         }, [disabled, editor])
 
         const hydrateRichTextFromControlledValue = useCallback(
