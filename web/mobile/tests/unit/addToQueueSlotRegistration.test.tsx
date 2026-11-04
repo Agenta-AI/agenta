@@ -35,5 +35,6 @@ describe("add to queue slot registration", () => {
         await import("@/features/app/GlobalDrawers")
         expect(configure).toHaveBeenCalledTimes(1)
         expect(configure.mock.calls[0][0]).toHaveProperty("AddToQueuePopover")
+        expect(configure.mock.calls[0][0]).toHaveProperty("AddToTestsetButton")
     })
 })

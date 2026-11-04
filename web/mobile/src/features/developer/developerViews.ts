@@ -129,4 +129,11 @@ export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
         nav: {icon: ChartDonut, section: "developer"},
         stage: "hidden",
     },
+    {
+        id: "observability-add-to-testset",
+        label: "Add to test set from traces",
+        description:
+            "Show Add to testset in the traces toolbar and the trace drawer, to save spans as test cases.",
+        stage: "hidden",
+    },
 ]

@@ -21,6 +21,7 @@ import {canDeveloperViewBeEnabled, useDeveloperViewEnabled} from "../developer/d
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
+import {useAddToTestsetAction} from "./addToTestset/useAddToTestsetAction"
 import {ObservabilityAppFilter} from "./ObservabilityAppFilter"
 import {setObservabilityAppInUrl, useObservabilityAppScope} from "./observabilityAppScope"
 import {selectedTraceIds} from "./selectedTraceIds"
@@ -130,6 +131,7 @@ const ObservabilityContent = ({
     const clearSelection = useCallback(() => setSelectedRowKeys([]), [setSelectedRowKeys])
     // The atom outlives the screen; a selection must not come back on the next visit.
     useEffect(() => clearSelection, [clearSelection])
+    const addToTestset = useAddToTestsetAction(projectId, selectedRowKeys.map(String))
 
     const onDelete = useCallback(
         () => openDeleteModal({isOpen: true, traceIds, onClose: clearSelection}),
@@ -192,6 +194,7 @@ const ObservabilityContent = ({
                             actionsSlot={
                                 tab === "traces" && showsTable ? (
                                     <AddActionsDropdown
+                                        testsetAction={addToTestset.testsetAction}
                                         queueAction={{
                                             itemType: "traces",
                                             itemIds: traceIds,
@@ -240,6 +243,7 @@ const ObservabilityContent = ({
                                 onSelectSession={session.open}
                             />
                         ) : null}
+                        {addToTestset.sheet}
                     </PageLayout>
                 </ScreenScaffold>
             </AppShell>

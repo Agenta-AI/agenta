@@ -115,6 +115,7 @@ export {
     // Fetch
     fetchRevision,
     fetchRevisionWithTestcases,
+    fetchRevisionColumnKeys,
     fetchLatestRevisionWithTestcases,
     fetchRevisionsList,
     fetchLatestRevision,
