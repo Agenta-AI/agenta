@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import {act, createElement} from "react"
 
+import type {Filter} from "@agenta/observability"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {getDefaultStore} from "jotai"
@@ -397,7 +398,7 @@ describe("live evaluation sheet", () => {
             field: "has_annotation",
             operator: "in",
             value: [{evaluator: "tone-check"}],
-        }
+        } as Filter
         await mount({userFilters: [annotated]})
         await typeName("Support replies")
         await pickEvaluator("Tone check")
