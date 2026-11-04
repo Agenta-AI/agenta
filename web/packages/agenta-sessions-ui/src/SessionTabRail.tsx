@@ -52,12 +52,7 @@ import {
 import {SessionRowContextMenu} from "./SessionRowContextMenu"
 import {SessionTab} from "./SessionTab"
 import {SessionTabDragItem} from "./SessionTabDragItem"
-import {
-    EDGE_FADE_END_PX,
-    EDGE_FADE_START_PX,
-    SessionTabStrip,
-    TAB_DIVIDER,
-} from "./SessionTabStrip"
+import {EDGE_FADE_END_PX, EDGE_FADE_START_PX, SessionTabStrip, TAB_DIVIDER} from "./SessionTabStrip"
 import {useInlineRename} from "./useInlineRename"
 
 /** A rename asked for from outside the rail (Alt+R) — the tab for this session opens its editor. */
@@ -530,6 +525,7 @@ export const SessionTabRail = ({
             remeasureKey={rows.length}
             reorder={reorderable ? {ids: orderedIds, onReorder: handleReorder} : undefined}
             bare={bare}
+            snap={bare}
             className={className}
         >
             {tabs.isPending && rows.length === 0
