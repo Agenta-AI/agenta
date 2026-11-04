@@ -9,6 +9,7 @@ import {ChatTurn} from "../chat/ChatTurn"
 import {InputsList} from "../inputs"
 
 import {LEAD_COLUMN, REVISION_COLUMN} from "./columns"
+import {OutputLabel} from "./CompareRowsHeader"
 
 export interface ChatCompareRowProps {
     turnId: string
@@ -49,7 +50,10 @@ export const ChatCompareRow = memo(
         const addUserMessage = useSetAtom(executionItemController.actions.addUserMessage)
 
         return (
-            <div data-testid={`compare-row-${turnId}`} className="flex min-w-fit">
+            <div
+                data-testid={`compare-row-${turnId}`}
+                className="flex flex-col md:min-w-fit md:flex-row"
+            >
                 <div className={`${LEAD_COLUMN} flex flex-col gap-3 border-b p-3`}>
                     {isFirstTurn
                         ? variableRowIds.map((rowId) => (
@@ -89,6 +93,7 @@ export const ChatCompareRow = memo(
                         data-testid={`compare-output-${turnId}-${revisionId}`}
                         className={`${REVISION_COLUMN} border-b p-3`}
                     >
+                        <OutputLabel revisionId={revisionId} />
                         <ChatTurn
                             entityId={revisionId}
                             turnId={turnId}

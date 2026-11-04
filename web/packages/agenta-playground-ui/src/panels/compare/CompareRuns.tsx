@@ -38,7 +38,7 @@ export const CompareRuns = ({revisionIds, renderTraceFooter}: CompareRunsProps) 
     if (isChat === undefined) return null
 
     return (
-        <div className="flex min-w-fit flex-col">
+        <div className="flex flex-col md:min-w-fit">
             <CompareRowsHeader revisionIds={revisionIds} />
             {isChat
                 ? rowIds.map((turnId, index) => (
