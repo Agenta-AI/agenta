@@ -8,9 +8,24 @@ export interface BrowserViewport {
 /** The viewport `agenta-browser` renders before its first frame says otherwise. */
 export const BROWSER_VIEWPORT: BrowserViewport = {width: 1280, height: 800}
 
+/** `id` stays with a tab while others open and close. */
+export interface BrowserLiveTab {
+    id: number
+    title: string
+    url: string
+    active: boolean
+}
+
 export type BrowserLiveServerMessage =
     | {type: "frame"; data: string; width: number; height: number}
-    | {type: "status"; control: "agent" | "user"; url: string; title: string; waiting: string}
+    | {
+          type: "status"
+          control: "agent" | "user"
+          url: string
+          title: string
+          waiting: string
+          tabs: BrowserLiveTab[]
+      }
     | {type: "notice"; message: string}
 
 export type BrowserLiveClientMessage =
@@ -29,6 +44,7 @@ export type BrowserLiveClientMessage =
     | {type: "done"}
     | {type: "navigate"; url: string}
     | {type: "reload"}
+    | {type: "tab"; id: number}
 
 /** Cookies authenticate the live socket, so the API origin must be the app's. */
 export const browserLiveUrl = (projectId: string, sessionId: string): string => {
@@ -41,6 +57,22 @@ export const browserLiveUrl = (projectId: string, sessionId: string): string => 
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === "object" && value !== null
+
+const parseTabs = (raw: unknown): BrowserLiveTab[] =>
+    Array.isArray(raw)
+        ? raw.filter(isRecord).flatMap((tab) =>
+              typeof tab.id === "number"
+                  ? [
+                        {
+                            id: tab.id,
+                            title: typeof tab.title === "string" ? tab.title : "",
+                            url: typeof tab.url === "string" ? tab.url : "",
+                            active: tab.active === true,
+                        },
+                    ]
+                  : [],
+          )
+        : []
 
 export const parseBrowserLiveMessage = (raw: unknown): BrowserLiveServerMessage | null => {
     if (typeof raw !== "string") return null
@@ -66,6 +98,7 @@ export const parseBrowserLiveMessage = (raw: unknown): BrowserLiveServerMessage 
             url: typeof data.url === "string" ? data.url : "",
             title: typeof data.title === "string" ? data.title : "",
             waiting: typeof data.waiting === "string" ? data.waiting : "",
+            tabs: parseTabs(data.tabs),
         }
     }
     if (data.type === "notice" && typeof data.message === "string") {

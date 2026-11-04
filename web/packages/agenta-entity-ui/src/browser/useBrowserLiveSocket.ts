@@ -108,6 +108,7 @@ export const useBrowserLiveSocket = (
                     url: message.url,
                     title: message.title,
                     waiting: message.waiting,
+                    tabs: message.tabs,
                 })
             } else if (message?.type === "notice") {
                 setNotice({message: message.message, seq: ++notices})

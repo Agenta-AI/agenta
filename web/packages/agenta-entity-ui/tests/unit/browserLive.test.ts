@@ -38,6 +38,7 @@ describe("parseBrowserLiveMessage", () => {
             url: "https://example.com/",
             title: "Example",
             waiting: "Log in to the shop",
+            tabs: [],
         })
         expect(parseBrowserLiveMessage(JSON.stringify({type: "status", control: "x"}))).toEqual({
             type: "status",
@@ -45,6 +46,23 @@ describe("parseBrowserLiveMessage", () => {
             url: "",
             title: "",
             waiting: "",
+            tabs: [],
+        })
+    })
+
+    it("reads the tabs of a status and drops a tab with no id", () => {
+        const message = parseBrowserLiveMessage(
+            JSON.stringify({
+                type: "status",
+                tabs: [
+                    {id: 3, title: "Shop", url: "https://a.test/", active: true},
+                    {title: "x"},
+                    7,
+                ],
+            }),
+        )
+        expect(message).toMatchObject({
+            tabs: [{id: 3, title: "Shop", url: "https://a.test/", active: true}],
         })
     })
 

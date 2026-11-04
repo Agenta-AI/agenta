@@ -49,6 +49,7 @@ const page: BrowserLiveStatus = {
     url: "https://shop.example.com/cart",
     title: "Cart",
     waiting: "",
+    tabs: [],
 }
 
 export const Connecting: Story = {args: {connection: {phase: "connecting"}}}

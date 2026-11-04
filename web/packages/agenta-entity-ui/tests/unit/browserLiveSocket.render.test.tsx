@@ -1,9 +1,10 @@
 import {StrictMode, act, createRef, useRef} from "react"
 
 import {createRoot} from "react-dom/client"
-import {afterEach, beforeEach, describe, expect, it} from "vitest"
+import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {BrowserLiveSurface} from "../../src/browser/BrowserLiveSurface"
+import {BrowserTabStrip} from "../../src/browser/BrowserTabStrip"
 import type {BrowserLiveClientMessage} from "../../src/browser/live"
 import {
     useBrowserLiveSocket,
@@ -123,6 +124,7 @@ describe("useBrowserLiveSocket", () => {
 describe("BrowserLiveSurface control buttons", () => {
     const live: BrowserLiveConnection = {phase: "live"}
     const status = (over: Partial<BrowserLiveStatus>): BrowserLiveStatus => ({
+        tabs: [],
         control: "agent",
         url: "https://example.com/",
         title: "Example",
@@ -170,5 +172,45 @@ describe("BrowserLiveSurface control buttons", () => {
     it("hides I'm done when nothing waits", () => {
         renderSurface(status({control: "user"}))
         expect(container.textContent).not.toContain("I'm done")
+    })
+})
+
+describe("BrowserTabStrip", () => {
+    beforeEach(() => {
+        vi.stubGlobal(
+            "ResizeObserver",
+            class {
+                observe() {}
+                disconnect() {}
+            },
+        )
+    })
+    afterEach(() => {
+        vi.unstubAllGlobals()
+    })
+
+    const tab = (id: number, title: string, active = false) => ({
+        id,
+        title,
+        url: "https://docs.example.com/",
+        active,
+    })
+    const renderStrip = (tabs: ReturnType<typeof tab>[]) => {
+        const picked: number[] = []
+        act(() => root.render(<BrowserTabStrip tabs={tabs} onSelect={(id) => picked.push(id)} />))
+        return picked
+    }
+    const chips = () => [...container.querySelectorAll<HTMLElement>('[role="tab"]')]
+
+    it("switches to the tab the person picks, by its id, and ignores the one on screen", () => {
+        const picked = renderStrip([tab(4, "Shop", true), tab(9, "Help")])
+        act(() => chips().forEach((chip) => chip.click()))
+        expect(picked).toEqual([9])
+    })
+
+    it("marks the tab on screen and names a tab with no title by its host", () => {
+        renderStrip([tab(1, "Shop", true), tab(2, "")])
+        expect(chips().map((chip) => chip.getAttribute("aria-selected"))).toEqual(["true", "false"])
+        expect(chips()[1].textContent).toContain("docs.example.com")
     })
 })
