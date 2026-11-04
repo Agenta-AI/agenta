@@ -33,7 +33,7 @@ const isRateLimitError = (err: unknown): boolean => {
         response?: {status?: number}
         message?: string
     } | null
-    if (e?.status === 429 || e?.statusCode === 429 || e?.response?.status === 429) return true
+    if ((e?.status ?? e?.statusCode ?? e?.response?.status) === 429) return true
     const message = (e?.message ?? "").toLowerCase()
     return message.includes("rate limit") || message.includes("too many requests")
 }
@@ -54,7 +54,7 @@ const getRetryDelayMs = (err: unknown, fallbackMs: number): number => {
     const headerValue =
         headers?.["retry-after"] ??
         headers?.["Retry-After"] ??
-        e?.rawResponse?.headers?.get?.("retry-after")
+        e?.rawResponse?.headers?.get("retry-after")
     const headerSeconds =
         typeof headerValue === "number"
             ? headerValue

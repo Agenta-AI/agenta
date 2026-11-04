@@ -282,9 +282,7 @@ describe("fetchAllPreviewTracesWithMeta (Phase 5 CQ2 — rate-limit pacing)", ()
         const failure = new Error("500")
         querySpans.mockReturnValueOnce({withRawResponse: () => Promise.reject(failure)})
         await expect(
-            fetchAllPreviewTracesWithMeta({focus: "span"}, "", "proj-9", undefined, {
-                throwOnError: true,
-            }),
+            fetchAllPreviewTracesWithMeta({focus: "span"}, "", "proj-9", undefined, true),
         ).rejects.toBe(failure)
     })
 

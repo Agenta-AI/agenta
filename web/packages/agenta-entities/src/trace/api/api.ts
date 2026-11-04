@@ -182,7 +182,7 @@ export async function fetchAllPreviewTracesWithMeta(
     projectId: string,
     signal?: AbortSignal,
     /** Rethrow a failed request instead of answering with an empty page. */
-    {throwOnError = false}: {throwOnError?: boolean} = {},
+    throwOnError?: boolean,
 ): Promise<PreviewTracesWithMetaResult> {
     const opts = projectScopedRequest(projectId, appId, signal)
     const empty: PreviewTracesRateLimit = {remaining: null, limit: null}

@@ -101,6 +101,7 @@ const scan = async (
     // A newer run, or leaving the page, takes the toast away from this run.
     const owned = () => current === controller && !pageSignal.aborted
     const query = buildTraceQueryParams(input.filters, input.sort, input.traceTabs)
+    const addedBefore = added.size
     const queueName = queue.name || "queue"
     const maxItems = await readQueueCap(projectId)
     const max = count(maxItems)
@@ -215,7 +216,7 @@ const scan = async (
                 : undefined,
         })
     } catch (error) {
-        if (error instanceof BatchFlushError && error.flushedCount > 0) refreshQueueCaches(queue.id)
+        if (added.size > addedBefore) refreshQueueCaches(queue.id)
         if (!owned()) return
         const retry = {label: "Retry", onClick: () => void start(input, added)}
         if (error instanceof BatchFlushError) {

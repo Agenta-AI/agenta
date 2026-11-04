@@ -299,6 +299,7 @@ describe("Add all matching to a queue", () => {
         // The second page read fails. The first run of Retry finds ten more traces.
         pages = [page(0, 300), [], page(0, 310), []]
         failedReads.set(2, errorResponse(400))
+        const invalidate = vi.spyOn(queryClient, "invalidateQueries")
 
         await runAddAllMatching(input())
 
@@ -318,6 +319,8 @@ describe("Add all matching to a queue", () => {
             action: {label: "Retry"},
         })
         expect(logged).toHaveBeenCalled()
+        // The queue pages show the traces this failed run added.
+        expect(invalidate).toHaveBeenCalledWith({queryKey: ["simpleQueue", "queue-1"], exact: true})
 
         failed?.action?.onClick()
         await vi.waitFor(() => expect(last("success")).toBeDefined())

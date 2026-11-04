@@ -298,7 +298,7 @@ export const executeTraceQuery = async ({
     hasAnnotationOperator,
     signal,
     readAllPages = false,
-    throwOnError = false,
+    throwOnError,
 }: {
     params: Record<string, unknown>
     pageParam?: {newest?: string}
@@ -332,7 +332,7 @@ export const executeTraceQuery = async ({
             appId,
             projectId ?? "",
             signal,
-            {throwOnError},
+            throwOnError,
         )
         lastRateLimit = result.rateLimit
         if (!readAllPages) return result.data
@@ -354,7 +354,7 @@ export const executeTraceQuery = async ({
                 appId,
                 projectId ?? "",
                 signal,
-                {throwOnError},
+                throwOnError,
             )
             lastRateLimit = more.rateLimit
             data = mergeTracePages(data, more.data)
