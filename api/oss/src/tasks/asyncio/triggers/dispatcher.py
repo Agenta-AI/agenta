@@ -38,6 +38,7 @@ from oss.src.core.sessions.dtos import (
     SessionTriggerAttribution,
     SessionTriggerKind,
 )
+from oss.src.tasks.asyncio.sessions.failure_reporter import AgentFailureReporter
 from oss.src.core.sessions.streams.interfaces import TriggerSessionClaimsDAOInterface
 from oss.src.core.sharing.admission import TRIGGER_DISPATCH_BOUNDARY, RunAdmission
 from oss.src.core.sharing.dtos import SharedItemKind
@@ -99,6 +100,7 @@ class TriggersDispatcher:
         dispatch_fn: Optional[Callable] = None,
         access_service: Optional[AccessService] = None,
         sharing_service: Optional[SharingService] = None,
+        failure_reporter: Optional[AgentFailureReporter] = None,
     ):
         self.triggers_dao = triggers_dao
         # Admits every fire (the principal and the resolved agent) before the claim.
@@ -110,6 +112,7 @@ class TriggersDispatcher:
         self._access_service = access_service
         # Every root builds the dispatcher after bootstrap_access().
         self.sharing_service = sharing_service or get_sharing_service()
+        self.failure_reporter = failure_reporter
 
     @property
     def access_service(self) -> AccessService:
@@ -528,6 +531,18 @@ class TriggersDispatcher:
                 await self._abandon_claimed_session(
                     project_id=project_id, session_id=session_id
                 )
+                if self.failure_reporter is not None:
+                    await self.failure_reporter.report_trigger_start(
+                        project_id=project_id,
+                        session_id=session_id,
+                        user_id=user_id,
+                        failure_code=(
+                            e.failure_code
+                            if isinstance(e, WorkflowDetachedStartRejected)
+                            else None
+                        ),
+                        message=str(e),
+                    )
                 raise
             await self._complete_delivery(
                 project_id=project_id,
