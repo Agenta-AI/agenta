@@ -17,7 +17,7 @@ from websockets.asyncio.client import ClientConnection, connect
 from oss.src.apis.fastapi.shared.utils import is_valid_session_id, web_origin
 from oss.src.apis.fastapi.sharing.utils import (
     ResourceCheck,
-    allow_resource,
+    check_resource,
     check_resource_for,
     session_resource,
 )
@@ -85,11 +85,12 @@ class BrowserRouter:
         if (
             not env.browser.enabled
             or not is_valid_session_id(session_id)
-            or not await allow_resource(
+            or await check_resource(
                 request,
                 action=Permission.RUN_SESSIONS,
                 resource=session_resource(session_id),
             )
+            != ResourceCheck.ALLOWED
         ):
             return BrowserLiveStatusResponse(running=False)
         link = await fetch_browser_live_link(

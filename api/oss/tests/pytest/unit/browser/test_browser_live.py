@@ -383,16 +383,16 @@ def test_the_browser_skill_is_listed_only_with_the_flag_and_always_resolves():
     assert listed("true") == "True True"
 
 
-def _status(monkeypatch, link):
+def _status(monkeypatch, link, decision=browser_router.ResourceCheck.ALLOWED):
     monkeypatch.setattr(env.browser, "enabled", True)
 
     async def allow(*args, **kwargs):
-        return True
+        return decision
 
     async def found(**kwargs):
         return link
 
-    monkeypatch.setattr(browser_router, "allow_resource", allow)
+    monkeypatch.setattr(browser_router, "check_resource", allow)
     monkeypatch.setattr(browser_router, "fetch_browser_live_link", found)
     request = type("R", (), {"state": type("S", (), {"project_id": PROJECT_ID})()})()
     return asyncio.run(
@@ -403,6 +403,14 @@ def _status(monkeypatch, link):
             ),
         )
     )
+
+
+def test_status_is_not_running_for_a_person_who_cannot_run_the_session(monkeypatch):
+    for decision in (
+        browser_router.ResourceCheck.FORBIDDEN,
+        browser_router.ResourceCheck.HIDDEN,
+    ):
+        assert _status(monkeypatch, LINK, decision).running is False
 
 
 def test_status_carries_the_page_and_the_agents_ask(monkeypatch):
