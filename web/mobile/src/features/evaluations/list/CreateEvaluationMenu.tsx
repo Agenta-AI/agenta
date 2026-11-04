@@ -41,17 +41,21 @@ export const creatableKindOf = (tab: EvaluationKindTab): CreatableKind | null =>
 export const CreateEvaluationMenu = ({
     tab,
     onCreate,
+    kinds,
     label = "New evaluation",
     variant = "default",
 }: {
     tab: EvaluationKindTab
     onCreate: (kind: CreatableKind) => void
+    /** The kinds this page can start. Absent: all of them. */
+    kinds?: readonly CreatableKind[]
     label?: string
     variant?: "default" | "outline"
 }) => {
+    const items = kinds ? ITEMS.filter((item) => kinds.includes(item.kind)) : ITEMS
     if (tab !== "all") {
         const kind = creatableKindOf(tab)
-        if (!kind) return null
+        if (!kind || (kinds && !kinds.includes(kind))) return null
         return (
             <Button size="sm" variant={variant} onClick={() => onCreate(kind)}>
                 <Plus aria-hidden size={14} />
@@ -69,7 +73,7 @@ export const CreateEvaluationMenu = ({
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-[300px]">
-                {ITEMS.map((item) => (
+                {items.map((item) => (
                     <DropdownMenuItem
                         key={item.kind}
                         className="flex-col items-start gap-0.5"
