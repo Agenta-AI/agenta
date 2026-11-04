@@ -2,76 +2,97 @@
 
 ## Purpose
 
-A small, generic base that records what happened and delivers it to people on a channel. v1 has
-one kind (`automation_failing`) and one channel (`email`). A new kind or channel adds code, not
-tables.
+A small, generic base that records what happened and delivers it to people on a channel. v1 has one
+kind (`automation_failing`) and one channel (`email`). A new kind or channel adds code, not tables.
 
 ## ADDED Requirements
 
 ### Requirement: Notification storage
-The system SHALL store notifications in a `notifications` table with `id`, `project_id`, `kind`,
-`dedup_key`, `status` (`open` or `resolved`), `data`, `resolved_at` and the six lifecycle columns,
-and SHALL store deliveries in a `notification_deliveries` table with `id`, `project_id`,
-`notification_id`, `user_id`, `channel`, `status` (`pending`, `sent`, `failed` or `skipped`),
-`attempts`, `sent_at` and the six lifecycle columns. Each table SHALL have one foreign key,
-`project_id` to `projects.id` with `ON DELETE CASCADE`. The schema SHALL be created in the shared
-`core_oss` chain, so OSS and EE get the same tables.
+The system SHALL store notifications in `notifications` (`project_id`, `id`, `kind`, `dedup_key`,
+`state` `open` or `resolved`, `data`, `resolved_at`, and the six lifecycle columns) and notification
+deliveries in `notification_deliveries` (`project_id`, `id`, `notification_id`, `user_id`,
+`channel`, `state` `pending`, `sent`, `failed` or `skipped`, `attempt_count`, `sent_at`, and the six
+lifecycle columns). Both SHALL have the primary key `(project_id, id)` and one foreign key,
+`project_id` to `projects.id` with `ON DELETE CASCADE`. They SHALL be created in the shared
+`core_oss` chain. They SHALL NOT store an email address.
 
 #### Scenario: Project deleted
 - **WHEN** a project is deleted
-- **THEN** its notifications and deliveries SHALL be deleted with it
+- **THEN** its notifications and notification deliveries SHALL be deleted with it
 
-#### Scenario: One delivery per recipient and channel
+#### Scenario: One notification delivery per recipient and channel
 - **WHEN** a notification is opened for two recipients
-- **THEN** it SHALL have exactly two `email` deliveries, and a second insert for the same recipient and channel SHALL fail
+- **THEN** it SHALL have exactly two `email` notification deliveries, and a second insert for the same recipient and channel SHALL fail
+
+### Requirement: Notification kinds
+Each kind SHALL declare its template and the permission a recipient needs. The template SHALL render
+from the notification's `data` and the recipient's email only. The notifications code SHALL NOT read
+the tables of the domain that opened the notification.
+
+#### Scenario: Automation deleted after the open
+- **WHEN** an automation's notification is open and pending, and the automation is soft-deleted by a person
+- **THEN** the delete SHALL resolve the notification, and the send pass SHALL skip its notification deliveries without reading the automation
 
 ### Requirement: Email switch
-The system SHALL read `AGENTA_NOTIFICATIONS_EMAIL_ENABLED` (default `true`) through
-`env.agenta.notifications.email_enabled`. When it is `false`, or when neither SMTP nor SendGrid is
-set up, new email deliveries SHALL be created with status `skipped`, and notifications SHALL still
-be recorded.
+The system SHALL read `AGENTA_NOTIFICATIONS_EMAIL_ENABLED` (default `true`) as
+`env.agenta.notifications.email_enabled` on each send pass. When it is `false`, or when neither SMTP
+nor SendGrid is set up, the send pass SHALL mark pending email notification deliveries `skipped`.
+Notifications SHALL still be recorded.
 
 #### Scenario: Switch off
 - **WHEN** `AGENTA_NOTIFICATIONS_EMAIL_ENABLED` is `false` and an automation fails
-- **THEN** a notification SHALL be opened, its email delivery SHALL be `skipped`, and no email SHALL be sent
+- **THEN** a notification SHALL be opened, its email notification delivery SHALL become `skipped`, and no email SHALL be sent
+
+#### Scenario: Switch turned off with emails pending
+- **WHEN** notification deliveries are pending, and the switch is turned off
+- **THEN** the next send pass SHALL mark them `skipped`
 
 #### Scenario: No email provider
 - **WHEN** the switch is on, and SMTP and SendGrid are both not set up
-- **THEN** email deliveries SHALL be `skipped`
+- **THEN** email notification deliveries SHALL become `skipped`
 
 ### Requirement: Send pass
-The system SHALL send `pending` email deliveries in a pass that runs every 60 seconds in the API, on
-at most one replica at a time under a Redis lease, and sends at most 100 per pass, oldest first.
-Before it sends, it SHALL mark the delivery `skipped` if its notification is resolved, its user is
-deleted, or (for `automation_failing`) its automation is deleted. Each send SHALL time out after
-30 seconds. A success SHALL set `sent` and `sent_at`. A failure SHALL add 1 to `attempts`, and at
-5 attempts SHALL set `failed` and log an error. A send SHALL NOT run in a web request.
+The system SHALL send `pending` email notification deliveries in a pass that runs every 60 seconds
+in the API, on at most one replica at a time under a Redis lease, at most 100 per pass, oldest first.
+Before it sends, it SHALL mark a notification delivery `skipped` if its notification is resolved,
+the recipient is no longer a project member or was deleted, or the recipient no longer has the
+kind's permission. A success SHALL set `sent` and `sent_at`. A failure SHALL add 1 to
+`attempt_count`, and at 5 SHALL set `failed`. Logs SHALL carry ids and the exception type only.
+A send SHALL NOT run in a web request.
 
 #### Scenario: Provider down for three minutes
 - **WHEN** the email provider fails for three minutes and then works
-- **THEN** the delivery SHALL be retried on each pass and SHALL end as `sent`
+- **THEN** the notification delivery SHALL be tried on each pass and SHALL end as `sent`
 
 #### Scenario: Provider always fails
-- **WHEN** every send of a delivery fails
-- **THEN** after 5 attempts the delivery SHALL be `failed` and an error SHALL be logged
+- **WHEN** every send of a notification delivery fails
+- **THEN** after 5 attempts it SHALL be `failed`, and the error log SHALL contain no email address
 
 #### Scenario: Provider hangs
-- **WHEN** a send does not return within 30 seconds
-- **THEN** the pass SHALL count it as a failed attempt and continue with the next delivery
+- **WHEN** the provider does not answer
+- **THEN** the client timeout of 30 seconds SHALL end the call, and the pass SHALL count a failed attempt
+
+#### Scenario: Recipient removed before the send
+- **WHEN** a recipient is removed from the project while the notification delivery is pending
+- **THEN** the send pass SHALL mark it `skipped`
 
 #### Scenario: Platform outage
 - **WHEN** 300 automations fail at the same time
 - **THEN** the send pass SHALL send at most 100 emails per pass
 
 ### Requirement: Email sender
-`emailing.py` SHALL provide a function that sends a given subject, HTML body and plain-text body
-through SMTP if it is set up, else SendGrid, and SHALL raise when neither is set up or the provider
-fails. The existing invitation emails SHALL keep their content and their behavior when no provider
-is set up.
+`emailing.py` SHALL provide `send_rendered_email(to_email, subject, html, text)`. It SHALL send a
+plain-text part and an HTML part through SMTP if it is set up, else SendGrid, with a 30-second client
+timeout. It SHALL raise when no provider is set up, when the SendGrid client cannot be built, and
+when the provider fails. The invitation emails SHALL keep their content and their behavior.
 
 #### Scenario: Plain-text part
 - **WHEN** a notification email is sent through SMTP or SendGrid
 - **THEN** the message SHALL contain a plain-text part and an HTML part
+
+#### Scenario: SendGrid client cannot be built
+- **WHEN** SendGrid is set up but its client fails to build
+- **THEN** `send_rendered_email` SHALL raise, and the notification delivery SHALL NOT be marked `sent`
 
 #### Scenario: Invitation unchanged
 - **WHEN** an organization invitation is sent and no provider is set up
