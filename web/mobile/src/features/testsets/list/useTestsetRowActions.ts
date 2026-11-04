@@ -37,7 +37,16 @@ const ARCHIVE_FAILED = "Couldn't archive this test set"
  * `archive` throws a plain `Error` when it cannot archive. The confirm dialog shows that text and
  * stays open, so the reader never sees an API message.
  */
-export function useTestsetRowActions({projectId, base}: {projectId: string; base: string}) {
+export function useTestsetRowActions({
+    projectId,
+    base,
+    includeArchived = false,
+}: {
+    projectId: string
+    base: string
+    /** Open the revisions of archived testsets, as the archived list does. */
+    includeArchived?: boolean
+}) {
     const router = useRouter()
     const queryClient = useQueryClient()
     const running = useRef(new Set<string>())
@@ -64,7 +73,11 @@ export function useTestsetRowActions({projectId, base}: {projectId: string; base
         (row: TestsetRowRef) =>
             guarded(row.id, async () => {
                 try {
-                    const revision = await fetchLatestRevision({projectId, testsetId: row.id})
+                    const revision = await fetchLatestRevision({
+                        projectId,
+                        testsetId: row.id,
+                        includeArchived,
+                    })
                     // Version 0 is the empty placeholder every Testset starts with.
                     if (!revision || revision.version <= 0) {
                         message.error("This test set has no saved revision yet")
@@ -75,7 +88,7 @@ export function useTestsetRowActions({projectId, base}: {projectId: string; base
                     message.error("Couldn't open this test set")
                 }
             }),
-        [base, guarded, projectId, router],
+        [base, guarded, includeArchived, projectId, router],
     )
 
     const exportTestset = useCallback(

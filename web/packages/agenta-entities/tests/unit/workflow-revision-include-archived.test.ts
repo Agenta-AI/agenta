@@ -54,4 +54,26 @@ describe("workflowQueryAtomFamily", () => {
         await run(false, "rev-active")
         expect(axiosPostMock.mock.calls[0][1]).not.toHaveProperty("include_archived")
     })
+
+    it("a revision cached as missing with the flag off is fetched again with the flag on", async () => {
+        const queryClient = new QueryClient()
+        const store = createStore()
+        store.set(queryClientAtom, queryClient)
+        store.set(projectIdAtom, PROJECT_ID)
+        store.set(sessionAtom, true)
+
+        store.set(workflowIncludeArchivedAtom, false)
+        const first = store.sub(workflowQueryAtomFamily("rev-archived"), () => {})
+        await vi.waitFor(() => expect(axiosPostMock).toHaveBeenCalledTimes(1))
+        first()
+
+        axiosPostMock.mockResolvedValue({
+            data: {count: 1, workflow_revisions: [{id: "rev-archived", workflow_id: "wf-1"}]},
+        })
+        store.set(workflowIncludeArchivedAtom, true)
+        const second = store.sub(workflowQueryAtomFamily("rev-archived"), () => {})
+        await vi.waitFor(() => expect(axiosPostMock).toHaveBeenCalledTimes(2))
+        expect(axiosPostMock.mock.calls[1][1]).toMatchObject({include_archived: true})
+        second()
+    })
 })
