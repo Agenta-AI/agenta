@@ -5,6 +5,7 @@
  */
 
 export {playgroundController, setOnSelectionChangeCallback} from "./playgroundController"
+export {evaluatorChainController} from "./evaluatorChainController"
 export type {ConnectToTestsetPayload, OpenFromTraceResult} from "./playgroundController"
 export {outputConnectionController} from "./outputConnectionController"
 export {entitySelectorController} from "./entitySelectorController"

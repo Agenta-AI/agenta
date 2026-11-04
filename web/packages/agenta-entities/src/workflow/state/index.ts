@@ -137,6 +137,7 @@ export {
     workflowLatestRevisionIdAtomFamily,
     workflowAppTypeAtomFamily,
     workflowLatestRevisionQueryAtomFamily,
+    reloadWorkflowLatestRevisionAtom,
     // Static catalog schema (agent-template etc.) — exported for early prefetch
     agTypeSchemaAtomFamily,
     // Artifact (workflow-level container — entity display name)

@@ -1,0 +1,65 @@
+---
+title: "Know what an agent is missing before you run it"
+slug: agent-needs-setup
+date: 2026-10-30
+tags: [v0.128.0]
+description: "When a model, key, MCP server, secret or connected app an agent uses goes missing, the new app marks it Needs setup instead of letting the run fail. Invites now open in the new app."
+---
+
+<Summary>
+
+When something an agent uses goes missing, the new app now tells you before a run fails. The item shows **Needs setup** in the agent editor, with the reason under it. If the model can't run, a banner above the chat box says so, and Send stays off until you set it up.
+
+- A missing MCP server, secret or connected app no longer stops a run. The agent runs without it.
+- A scheduled or event run whose model needs setup is recorded once as skipped, instead of being retried five times.
+- Invite links open in the new app, and new teammates land in the project they were invited to.
+
+</Summary>
+
+{/* truncate */}
+
+## Know what an agent is missing
+
+An agent names the exact model, provider API key, subscription login, MCP server, secret and connected app it uses. Any of them can go missing later: someone deletes it, turns it off or stops sharing it with the project, or the model is no longer offered. Until now each kind failed in its own way. Some failed the run, an MCP server failed at its first tool call, and the editor showed nothing for a deleted MCP server or a missing key.
+
+The new app now checks the agent when you open it.
+
+- **In the editor**, each missing item shows **Needs setup** and the reason, such as **Not found in this project**, **Not shared with this project**, **Turned off** or **Sign-in expired**. Click the item to fix it.
+- **In chat**, when the model needs setup, a banner above the chat box reads **This agent needs setup** with the line **The model needs setup before this agent can run.** If you can fix it, a **Set up** button opens the model picker. You can keep typing, and Send turns on once the model is set up.
+- **Runs go on without a missing tool.** A missing MCP server, secret or connected app is left out, and the agent runs without it. Only a missing model, provider API key or subscription login stops a run, and it stops before the agent starts.
+- **Automations.** When a schedule or event fires and the model needs setup, the run is recorded once as **Skipped: agent needs setup**, and the schedule stays on. It used to be retried five times and recorded as failed. You can't turn on a schedule or trigger, or connect the agent to a channel, until its model is set up. Saving your changes is never blocked.
+
+## Improvements
+
+- **Choose who your Slack agent answers, and in which channels.** Under **Access**, set **Who can message it** to **Specific people** and find them by name or email. Under **Advanced**, set **Channels it answers in** to **Only these channels** and check the channels it should answer in. Each agent keeps its own list, even when several agents share one Slack app. Someone not on the list who messages the agent directly or mentions it gets one private note, at most once a day. Telegram agents get the same choice for groups. See [Connect an agent to Slack](/guides/connect-slack).
+- **Invites open in the new app.** An invited person signs in to the new app, accepts the invite and lands in the invited project. A new account answers the onboarding questions and skips the credits and first-agent steps. Invite links sent before this release still work. [See the change](https://github.com/Agenta-AI/agenta/pull/7940).
+- If your deployment doesn't send email, inviting someone from **Members** in the new app's Settings now shows the invite link with a **Copy** button, so you can share it yourself.
+- **An automation runs as whoever last saved it.** When you save a change to someone else's automation, even a new name, it runs with your access from then on. Pausing, resuming and deleting don't change who it runs as. See [Automations](/concepts/automations#an-automation-runs-as-whoever-last-saved-it).
+- Runs sent from your own app show their name and an external tag in **Analytics**, instead of **Unknown agent**.
+- Event automations include the event that started the run in the agent's message. In the editor, you can insert event fields into the instruction and preview what the agent will receive.
+- When you comment on a file preview, click a staged comment tile to jump to its comment. Element picking pauses while a note is open, and Alt+M turns comment mode on and off.
+- The **What's New** dialog groups features, improvements and fixes by release.
+- **Picking a template creates the agent right away** and opens its first chat. The agent asks for accounts in the chat when it needs one, and accounts already connected in the project are used automatically.
+- **Download a skill** as SKILL.md, or as a .zip with its bundled files, from the skill editor or the skill's **⋮** menu.
+- **Switching sessions is faster** in the new app. In our dev tests, switching session tabs took 1 to 18 ms, down from 1.25 to 6.1 seconds.
+- Once a run ends, the agent's in-between messages fold into the steps above the answer.
+- When the agent waits on a secret request or an approval, typing a message answers it and sends your message to the agent.
+- Files the answer links to, such as a zip built with a shell command, get a file card with **Download**.
+- Switching organization or project from Settings keeps you on the same screen and shows the new project's connections, schedules and subscriptions.
+- Organization admins can manage domains, OIDC SSO providers and the organization slug in **Settings > Access and security** in the new app. These were read-only there before.
+- On deployments with password sign-in, admins can create a one-time password reset link for a member from **Settings > Members** in the new app.
+- The agent menu has **Open in playground**, which starts a new chat with the agent.
+- **Self-hosting:** new Pi sessions in the local sandbox start faster. In our tests, a new session was ready in about 0.4 seconds instead of 1.3.
+
+## Bug fixes
+
+- Signing in with Google, GitHub or another provider finishes, instead of sending you back to the login page when your browser held data from an earlier session.
+- A failed sign-in stops loading so you can try again, and reloading a used sign-in link tells you to sign in again.
+- MCP servers that showed an OAuth error on their own page when you clicked **Connect** now connect, without you setting up an OAuth app.
+- Sent messages stay in the chat when you switch sessions, and messages sent from a connection or question card show up right away. A steered turn is no longer labeled **Stopped**.
+- After a failed MCP connection, closing the connect sheet shows the server as **Not signed in** without a reload.
+- Signed-out visitors who open a `/w` or `/auth` link reach the new sign-in page.
+- A Claude agent turn longer than 60 minutes no longer ends without its final message.
+- A queued message runs on its own when the turn before it stops responding and is closed.
+- Opening a skill no longer asks you to discard edits nobody made.
+- Archived agents on the **Agents** page show **Restore** in their menu instead of **Archive agent**.

@@ -1,10 +1,10 @@
-import {useCallback, useState} from "react"
+import {useCallback, useState, type ReactNode} from "react"
 
 import {ConfirmModal} from "./ConfirmModal"
 
 interface ConfirmRequest {
     title: string
-    message: string
+    message: ReactNode
     /** Names the act on the button. Absent falls back to the generic answer. */
     okText?: string
     danger?: boolean

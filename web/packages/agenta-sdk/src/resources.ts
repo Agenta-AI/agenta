@@ -20,6 +20,7 @@ import {KeysClient} from "@agentaai/api-client/resources/keys"
 import {MountsClient} from "@agentaai/api-client/resources/mounts"
 import {OrganizationsClient} from "@agentaai/api-client/resources/organizations"
 import {ProjectsClient} from "@agentaai/api-client/resources/projects"
+import {QueriesClient} from "@agentaai/api-client/resources/queries"
 import {SecretsClient} from "@agentaai/api-client/resources/secrets"
 import {SessionsClient} from "@agentaai/api-client/resources/sessions"
 import {SharingClient} from "@agentaai/api-client/resources/sharing"
@@ -125,6 +126,11 @@ export function getEventsClient(): EventsClient {
 let _evaluations: EvaluationsClient | undefined
 export function getEvaluationsClient(): EvaluationsClient {
     return (_evaluations ??= new EvaluationsClient(buildClientOptions()))
+}
+
+let _queries: QueriesClient | undefined
+export function getQueriesClient(): QueriesClient {
+    return (_queries ??= new QueriesClient(buildClientOptions()))
 }
 
 let _sessions: SessionsClient | undefined

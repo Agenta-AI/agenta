@@ -94,6 +94,15 @@ export interface TestcaseDataConfig extends EntityDataConfigBase {
      * An edit session needs them; a read-only table does not. Default: false.
      */
     includeNewRows?: boolean
+    /** Shows only the loaded rows with a value that contains this text (any case). */
+    searchTerm?: string
+}
+
+/** Whether a cell value, or a value nested in it, contains the search text. */
+const valueMatches = (value: unknown, term: string): boolean => {
+    if (value === null || value === undefined) return false
+    const text = typeof value === "string" ? value : JSON.stringify(value)
+    return text.toLowerCase().includes(term)
 }
 
 /**
@@ -107,7 +116,8 @@ function areConfigsEqual(a: TestcaseDataConfig, b: TestcaseDataConfig): boolean 
         a.pageSize === b.pageSize &&
         a.localRows === b.localRows &&
         a.localColumnKeys === b.localColumnKeys &&
-        a.includeNewRows === b.includeNewRows
+        a.includeNewRows === b.includeNewRows &&
+        a.searchTerm === b.searchTerm
     )
 }
 
@@ -152,9 +162,15 @@ const rowsAtomFamily = atomFamily((config: TestcaseDataConfig) => {
         const state = get(testcasePaginatedStore.selectors.state(paginatedParams))
 
         // Filter out skeleton rows, and new rows unless the table is an edit session
-        return state.rows.filter(
+        const rows = state.rows.filter(
             (row) => !row.__isSkeleton && (config.includeNewRows || !row.__isNew),
         )
+        const term = config.searchTerm?.trim().toLowerCase()
+        if (!term) return rows
+        return rows.filter((row) => {
+            const data = get(testcaseEntityAtomFamily(row.id))?.data
+            return !!data && Object.values(data).some((value) => valueMatches(value, term))
+        })
     })
 }, areConfigsEqual)
 
@@ -263,4 +279,32 @@ export const testcaseDataController = createEntityDataController<
     columns: (config) => columnsAtomFamily(config),
     configEquals: areConfigsEqual,
     counts: (config) => countsAtomFamily(config),
+})
+
+/**
+ * Loads the next page of a server-mode table, when there is one and no page is loading.
+ *
+ * The grid calls it when the reader scrolls near the end. Rows on later pages join the same
+ * row list, so an edit to one of them reaches the save like an edit on the first page.
+ * Local mode has one page and does nothing. The rule is the one `useInfiniteTablePagination`
+ * uses; this atom runs it outside React so the grid does not re-render on every page change.
+ */
+export const loadMoreTestcasesAtom = atom(null, (get, set, config: TestcaseDataConfig) => {
+    if (config.useLocal) return
+    const key = {scopeId: config.scopeId, pageSize: config.pageSize ?? 100}
+    const tableAtoms = testcasePaginatedStore.store.store.atoms
+    const info = get(tableAtoms.paginationInfoAtomFamily(key))
+    if (!info.hasMore || !info.nextCursor || info.isFetching) return
+    const totalRows = get(tableAtoms.combinedRowsAtomFamily(key)).length
+    set(tableAtoms.scheduleNextPageAtomFamily(key), {
+        nextCursor: info.nextCursor,
+        nextOffset: info.nextOffset ?? totalRows,
+        nextWindowing: info.nextWindowing ?? {
+            next: info.nextCursor,
+            order: "ascending",
+            limit: key.pageSize,
+            stop: null,
+        },
+        totalRows,
+    })
 })

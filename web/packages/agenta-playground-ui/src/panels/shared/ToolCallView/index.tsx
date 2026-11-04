@@ -238,6 +238,8 @@ const ToolCallView: React.FC<ToolCallViewProps> = ({resultData, className, foote
                         editorType="borderless"
                         disabled
                         editorProps={{codeOnly: true}}
+                        className="[&_.agenta-rich-text-editor]:!min-h-0"
+                        editorClassName="min-h-4"
                         header={<ToolCallViewHeader name={p.name} callId={p.callId} />}
                         footer={idx === payloads.length - 1 ? footer : undefined}
                     />

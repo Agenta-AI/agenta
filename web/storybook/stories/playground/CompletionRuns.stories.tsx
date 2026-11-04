@@ -1,6 +1,6 @@
 import {useState} from "react"
 
-import {executionItemController} from "@agenta/playground"
+import {executionItemController, playgroundController} from "@agenta/playground"
 import {RunsPanel} from "@agenta/playground-ui/panels/runs"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {getDefaultStore} from "jotai"
@@ -20,14 +20,36 @@ const Demo = ({
     revisionId,
     rows = 1,
     collapsed = false,
+    connected = false,
 }: {
     revisionId: string
     rows?: number
     collapsed?: boolean
+    /** Connects the playground to a test set, then edits the second row and adds a third. */
+    connected?: boolean
 }) => {
     useState(() => {
         selectRevision(revisionId)
         const store = getDefaultStore()
+        if (connected) {
+            store.set(playgroundController.actions.connectToTestset, {
+                loadableId: store.get(playgroundController.selectors.loadableId()) as string,
+                revisionId: "story-testset-revision",
+                testcases: [
+                    {id: "tc-1", country: "France"},
+                    {id: "tc-2", country: "Italy"},
+                ],
+                testsetName: "Capitals",
+                testsetId: "story-testset",
+                revisionVersion: 2,
+            })
+            store.set(executionItemController.actions.setTestcaseCellValue, {
+                testcaseId: "tc-2",
+                column: "country",
+                value: "Spain",
+            })
+            store.set(executionItemController.actions.addRow)
+        }
         for (let i = 1; i < rows; i++) store.set(executionItemController.actions.addRow)
         store.set(executionItemController.selectors.allRowsCollapsed, collapsed)
     })
@@ -54,7 +76,7 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 const ready = async (canvasElement: HTMLElement) => {
-    await within(canvasElement).findByText("testcase 1")
+    await within(canvasElement).findByText("test case 1")
 }
 
 /** One empty test case, before any run. */
@@ -72,6 +94,14 @@ export const ThreeRows: Story = {
 export const Collapsed: Story = {
     args: {revisionId: "", rows: 3, collapsed: true},
     play: async ({canvasElement}) => ready(canvasElement),
+}
+
+/** Connected to a test set: one unchanged row, one "Edited" row and one "New" row. */
+export const ConnectedRows: Story = {
+    args: {revisionId: "", connected: true},
+    play: async ({canvasElement}) => {
+        await within(canvasElement).findByText("Edited")
+    },
 }
 
 /** At 390px the header and the row controls wrap inside the pane. */

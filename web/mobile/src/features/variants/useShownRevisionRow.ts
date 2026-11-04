@@ -3,11 +3,11 @@ import {useMemo} from "react"
 import {
     pickModelName,
     workflowMolecule,
-    workflowVariantsListDataAtomFamily,
+    workflowVariantsQueryAtomFamily,
 } from "@agenta/entities/workflow"
 import {useAtomValue} from "jotai"
 
-import type {AppRevisionRow} from "./useAppRevisions"
+import {UNKNOWN_VARIANT_NAME, type AppRevisionRow} from "./useAppRevisions"
 
 /**
  * The row for the revision open in the drawer. A loaded row is used as is. A revision outside
@@ -25,18 +25,23 @@ export const useShownRevisionRow = ({
 }): AppRevisionRow | null => {
     const loaded = revisionId ? (rows.find((row) => row.revisionId === revisionId) ?? null) : null
     const entity = useAtomValue(workflowMolecule.selectors.data(loaded ? "" : (revisionId ?? "")))
-    const variants = useAtomValue(workflowVariantsListDataAtomFamily(appId))
+    const variantsQuery = useAtomValue(workflowVariantsQueryAtomFamily(appId))
+    const variants = variantsQuery.data?.workflow_variants
+    const variantsLoading = variantsQuery.isPending
 
     return useMemo(() => {
         if (loaded) return loaded
         if (!revisionId || !entity?.id || entity.workflow_id !== appId) return null
+        // The variant's name is not known yet. Show no row until it is, not the revision's name.
+        if (variantsLoading) return null
         const variantId = entity.workflow_variant_id ?? entity.variant_id ?? ""
-        const variant = variants.find((item) => item.id === variantId)
+        const variant = variants?.find((item) => item.id === variantId)
         return {
             revisionId,
             workflowId: appId,
             variantId,
-            variantName: variant?.name ?? variant?.slug ?? entity.name ?? variantId,
+            variantName:
+                variant?.name ?? variant?.slug ?? entity.variant_slug ?? UNKNOWN_VARIANT_NAME,
             variantSlug: variant?.slug ?? entity.variant_slug ?? null,
             version: Number(entity.version ?? 0),
             model: pickModelName(entity.data?.parameters ?? null),
@@ -44,5 +49,5 @@ export const useShownRevisionRow = ({
             createdAt: entity.created_at ?? null,
             createdById: entity.created_by_id ?? null,
         }
-    }, [appId, entity, loaded, revisionId, variants])
+    }, [appId, entity, loaded, revisionId, variants, variantsLoading])
 }

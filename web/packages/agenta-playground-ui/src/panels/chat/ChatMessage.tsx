@@ -38,6 +38,8 @@ export interface ChatMessageProps {
     messageOverride?: SimpleChatMessage | null
     /** Content under the message, such as the repeat pager of the last reply. */
     footer?: ReactNode
+    /** Replaces the message's own re-run, for example to re-run every revision in compare. */
+    onRerun?: () => void
 }
 
 const TOOL_ROLE_OPTIONS = [{label: "tool", value: "tool"}]
@@ -62,7 +64,15 @@ const EMPTY_TEXT_PLACEHOLDER_CLASS =
  * editor for each call.
  */
 export const ChatMessage = memo(
-    ({entityId, rowId, kind, toolIndex = 0, messageOverride, footer}: ChatMessageProps) => {
+    ({
+        entityId,
+        rowId,
+        kind,
+        toolIndex = 0,
+        messageOverride,
+        footer,
+        onRerun,
+    }: ChatMessageProps) => {
         const model = useTurnMessage({entityId, rowId, kind, toolIndex, messageOverride})
         const {message, role, isError, editorText, toolPayloads} = model
         const isTool = kind === "tool"
@@ -101,7 +111,7 @@ export const ChatMessage = memo(
 
         const toolbar = (text: string) => (
             <MessageToolbar
-                onRerun={isTool ? undefined : model.rerun}
+                onRerun={isTool ? undefined : (onRerun ?? model.rerun)}
                 rerunDisabled={isUser && !model.hasBeenRun}
                 onAddImage={isUser ? () => model.addUploadSlot("image") : undefined}
                 onAddDocument={isUser ? () => model.addUploadSlot("document") : undefined}

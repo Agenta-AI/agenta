@@ -94,6 +94,7 @@ export type {
 
 export {
     createExecutionItemHandle,
+    cancelRunningResults,
     resolveAgConfigCandidate,
     buildCompletionExecutionItem,
     buildChatExecutionItem,
