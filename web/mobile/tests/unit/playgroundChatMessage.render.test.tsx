@@ -15,9 +15,9 @@ import {queryClientAtom} from "jotai-tanstack-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {ChatMessage} from "../../../packages/agenta-playground-ui/src/panels/chat/ChatMessage"
-
 import {usePlaygroundSelection} from "@/features/playground/usePlaygroundSelection"
+
+import {ChatMessage} from "../../../packages/agenta-playground-ui/src/panels/chat/ChatMessage"
 
 // The chat panel has no package entry yet, so the message is imported by its path.
 
@@ -257,9 +257,15 @@ beforeEach(async () => {
     vi.stubGlobal(
         "ResizeObserver",
         class {
-            observe() {}
-            unobserve() {}
-            disconnect() {}
+            observe() {
+                return undefined
+            }
+            unobserve() {
+                return undefined
+            }
+            disconnect() {
+                return undefined
+            }
         },
     )
     window.localStorage.removeItem("agenta:playground:mode")
@@ -386,7 +392,7 @@ describe("A chat message", () => {
     })
 
     it("A failed snippet shows a plain message", async () => {
-        const error = vi.spyOn(console, "error").mockImplementation(() => {})
+        const error = vi.spyOn(console, "error").mockImplementation(() => undefined)
         const reader = vi.spyOn(FileReader.prototype, "readAsDataURL").mockImplementation(function (
             this: FileReader,
         ) {

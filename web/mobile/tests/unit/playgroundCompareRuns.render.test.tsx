@@ -162,9 +162,15 @@ beforeEach(() => {
     vi.stubGlobal(
         "ResizeObserver",
         class {
-            observe() {}
-            unobserve() {}
-            disconnect() {}
+            observe() {
+                return undefined
+            }
+            unobserve() {
+                return undefined
+            }
+            disconnect() {
+                return undefined
+            }
         },
     )
     client = new QueryClient({defaultOptions: {queries: {retry: false}}})
