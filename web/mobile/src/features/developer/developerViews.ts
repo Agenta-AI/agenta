@@ -61,6 +61,14 @@ export interface DeveloperView {
  */
 export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
     {
+        id: "app-overview",
+        label: "App overview",
+        description:
+            "The overview of a prompt or custom app: deployments, recent prompts and evaluations.",
+        routes: ["/apps/[app_id]/overview"],
+        stage: "hidden",
+    },
+    {
         id: "archived-apps",
         label: "Archived apps",
         description: "Archived apps, with Restore.",

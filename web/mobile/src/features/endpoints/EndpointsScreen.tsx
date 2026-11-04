@@ -14,6 +14,7 @@ import {PageNotFound} from "@/components/PageNotFound"
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
+import {AppOverviewLink} from "../app-overview/AppOverviewLink"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
@@ -106,6 +107,10 @@ export const EndpointsScreen = ({
                                     <PlugsIcon aria-hidden className="shrink-0" />
                                     API endpoint
                                 </h1>
+                                <AppOverviewLink
+                                    base={`/w/${workspaceId}/p/${projectId}`}
+                                    appId={app?.id ?? null}
+                                />
                             </div>
                         </div>
                     }

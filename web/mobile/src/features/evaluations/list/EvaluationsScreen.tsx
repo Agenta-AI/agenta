@@ -12,6 +12,7 @@ import dynamic from "next/dynamic"
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
+import {AppOverviewLink} from "../../app-overview/AppOverviewLink"
 import {useBindProjectContext} from "../../context/useBindProjectContext"
 import {AppShell} from "../../nav/AppShell"
 import {NavDrawer} from "../../nav/NavDrawer"
@@ -94,6 +95,10 @@ export const EvaluationsScreen = ({
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px]">
                                     Evaluations
                                 </h1>
+                                <AppOverviewLink
+                                    base={`/w/${workspaceId}/p/${projectId}`}
+                                    appId={appId}
+                                />
                                 <ObservabilityAppFilter
                                     projectId={projectId}
                                     value={appId}
