@@ -17,6 +17,7 @@ export const agentSharingCopy = {
 
     panelTitle: "Who can see this agent",
     linePrivate: "Only you can see and use it in Agenta.",
+    rowProject: (project: string) => `Everyone in ${project} can use it`,
     /** The second sentence is a draft: sharing the agent does not share its chats. */
     lineProject: (project: string) =>
         `Everyone in ${project} can see and use it. Chats with it stay private: share each chat from its own Share button.`,

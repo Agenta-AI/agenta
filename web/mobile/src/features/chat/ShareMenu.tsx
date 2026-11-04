@@ -156,6 +156,7 @@ export const ShareMenu = ({
             agentAccess={
                 <AgentPrivacySummary
                     {...privacy}
+                    layout="row"
                     writes={writes}
                     onChange={() => {
                         close()
@@ -164,7 +165,8 @@ export const ShareMenu = ({
                 />
             }
             session={
-                showSession
+                // A draft has no sharing state yet, so there is nothing to act on.
+                showSession && sharing
                     ? {
                           name: sessionName,
                           hint: sharing?.my_role === "owner" ? sessionShareSummary(sharing) : null,

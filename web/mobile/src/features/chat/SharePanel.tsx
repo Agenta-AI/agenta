@@ -1,7 +1,7 @@
 import type {ReactNode} from "react"
 
 import {IconTile} from "@agenta/ui/ui"
-import {LinkIcon, UsersIcon} from "@phosphor-icons/react"
+import {LinkIcon} from "@phosphor-icons/react"
 
 const SECTION = "flex flex-col gap-2.5 px-3.5 py-3"
 const LABEL = "text-muted-foreground text-xs"
@@ -24,12 +24,7 @@ export const SharePanel = ({
     <div className="divide-border flex flex-col divide-x-0 divide-y divide-solid">
         <section className={SECTION}>
             <span className={LABEL}>{agentAccessLabel}</span>
-            <div className="flex items-start gap-2.5">
-                <IconTile tone="muted" aria-hidden>
-                    <UsersIcon />
-                </IconTile>
-                <div className="flex min-w-0 flex-1 flex-col gap-2">{agentAccess}</div>
-            </div>
+            {agentAccess}
         </section>
         {session ? (
             <section className={SECTION}>
