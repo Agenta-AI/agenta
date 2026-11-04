@@ -124,13 +124,12 @@ export const usePlaygroundTestcaseEditorModel = (testcaseId: string) => {
     useEffect(() => {
         for (const [key, value] of Object.entries(entityData?.data ?? {})) {
             const id = `${testcaseId}:${key}`
+            // Once another value replaces the form's last write, that write no longer counts.
+            const fromForm = formWrites.current.get(id) === value
+            if (!fromForm) formWrites.current.delete(id)
             if (typeof value === "number" || typeof value === "boolean") {
                 nativeTypes.current.set(id, typeof value)
-            } else if (
-                typeof value === "string" &&
-                nativeTypes.current.has(id) &&
-                formWrites.current.get(id) !== value
-            ) {
+            } else if (typeof value === "string" && nativeTypes.current.has(id) && !fromForm) {
                 nativeTypes.current.set(id, "string")
             }
         }

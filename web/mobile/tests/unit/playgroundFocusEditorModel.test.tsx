@@ -190,6 +190,19 @@ describe("The focus drawer form model", () => {
         expect(rowData().age).toBe("00420")
     })
 
+    it("Text the JSON view writes counts even when the form once wrote the same text", async () => {
+        await seed({age: 42})
+        await act(async () => model.handleEditorChange({...model.editorValue, age: ""}))
+        await settle()
+        // The JSON view sets a number, then the same empty text the form wrote before.
+        await seed({age: 42})
+        await seed({age: ""})
+        await act(async () => model.handleEditorChange({...model.editorValue, age: "0042"}))
+        await settle()
+
+        expect(rowData().age).toBe("0042")
+    })
+
     it("A field still turns back into a number after the form clears it on the way", async () => {
         await seed({age: 42})
 
