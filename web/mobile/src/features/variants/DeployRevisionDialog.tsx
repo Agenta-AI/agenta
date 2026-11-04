@@ -20,6 +20,12 @@ import {useAtomValue} from "jotai"
 import type {AppRevisionRow} from "./useAppRevisions"
 import {useDeployRevision} from "./useDeploymentWrites"
 
+/** What the dialog needs of a revision: the variants list and the playground both supply it. */
+export type DialogRevision = Pick<
+    AppRevisionRow,
+    "revisionId" | "variantName" | "version" | "variantId" | "variantSlug"
+>
+
 /**
  * Deploy one revision to an environment the reader picks. Mount it only while a revision is
  * chosen: each mount starts with nothing picked and an empty note.
@@ -30,7 +36,7 @@ export const DeployRevisionDialog = ({
     appSlug,
     onClose,
 }: {
-    row: AppRevisionRow
+    row: DialogRevision
     appId: string
     appSlug: string | null
     onClose: () => void

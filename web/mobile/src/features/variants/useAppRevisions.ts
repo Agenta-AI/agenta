@@ -39,7 +39,7 @@ const hasContent = (value: unknown): boolean => {
  * parameters, no script, no other config). A version 0 that holds anything is a real first commit
  * and stays.
  */
-const isEmptySeed = (revision: {
+export const isEmptySeed = (revision: {
     version?: number | string | null
     data?: Record<string, unknown> | null
 }) => Number(revision.version ?? 0) <= 0 && !Object.values(revision.data ?? {}).some(hasContent)

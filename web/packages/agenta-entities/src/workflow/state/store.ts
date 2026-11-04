@@ -961,6 +961,9 @@ export const agentWorkflowsListQueryStateAtom = atom<ListQueryState<Workflow>>((
 // LATEST REVISION (lightweight dedicated query)
 // ============================================================================
 
+/** Bumped by `reloadWorkflowLatestRevisionAtom` so the query below reads its options again. */
+const workflowLatestRevisionGenerationAtomFamily = atomFamily((_workflowId: string) => atom(0))
+
 /**
  * Query atom family for fetching the latest revision of a workflow.
  * Uses cache-aware batch fetching by workflow ID, avoiding N+1 calls when
@@ -968,6 +971,7 @@ export const agentWorkflowsListQueryStateAtom = atom<ListQueryState<Workflow>>((
  */
 export const workflowLatestRevisionQueryAtomFamily = atomFamily((workflowId: string) =>
     atomWithQuery((get) => {
+        get(workflowLatestRevisionGenerationAtomFamily(workflowId))
         const projectId = get(workflowProjectIdAtom)
         const queryClient = get(queryClientAtom)
         return {
@@ -996,6 +1000,33 @@ export const workflowLatestRevisionQueryAtomFamily = atomFamily((workflowId: str
             persister: catalogPersister.persisterFn<Workflow | null, (string | null)[]>,
         }
     }),
+)
+
+/**
+ * Loads a workflow's latest revision again, as on first open. It is for a change that no commit
+ * announces, such as a deleted revision. Invalidating the query is not enough: it answers from its
+ * own cached entry before it asks the server, and it stays disabled while an entry was cached
+ * when it was built. So the entry goes from memory and from disk first, and then the query is
+ * built again.
+ *
+ * A revision list that nothing shows goes too: `workflowLatestRevisionIdAtomFamily` reads it
+ * while the query loads, and an invalidated list that nothing shows is not fetched again.
+ */
+export const reloadWorkflowLatestRevisionAtom = atom(
+    null,
+    async (get, set, workflowId: string): Promise<void> => {
+        const projectId = get(workflowProjectIdAtom)
+        const queryClient = get(queryClientAtom)
+        const queryKey = ["workflows", "latestRevision", workflowId, projectId]
+        queryClient.removeQueries({queryKey, exact: true})
+        queryClient.removeQueries({
+            queryKey: ["workflows", "revisionsByWorkflow", workflowId, projectId],
+            exact: true,
+            type: "inactive",
+        })
+        await catalogPersister.removeQueries({queryKey, exact: true}).catch(() => undefined)
+        set(workflowLatestRevisionGenerationAtomFamily(workflowId), (generation) => generation + 1)
+    },
 )
 
 /**
