@@ -126,7 +126,7 @@ export const SessionSwitcher = ({
                         onClick={() => setPanel("switcher")}
                         className="active:bg-accent text-foreground flex h-11 min-w-0 flex-1 cursor-pointer flex-col items-center justify-center gap-px rounded-control border-0 bg-transparent px-1.5 [font-family:inherit]"
                     >
-                        <span className="flex max-w-full min-w-0 items-center gap-1 text-[15px] font-semibold leading-5">
+                        <span className="flex min-w-0 max-w-[220px] items-center gap-1 text-sm font-semibold leading-5">
                             {label}
                             <CaretDownIcon
                                 size={12}
@@ -134,7 +134,7 @@ export const SessionSwitcher = ({
                                 className="text-muted-foreground shrink-0"
                             />
                         </span>
-                        <span className="text-muted-foreground max-w-full truncate text-xs leading-[15px]">
+                        <span className="text-muted-foreground max-w-[220px] truncate text-xs leading-[15px]">
                             {agentName}
                         </span>
                     </button>
