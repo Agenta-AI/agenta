@@ -63,6 +63,28 @@ export {
 } from "./humanRunConfig"
 
 export {
+    booleanTruePercent,
+    format3Sig,
+    formatCost,
+    formatDuration,
+    formatTokens,
+    frequencyBars,
+    histogramBars,
+    isAggregatableMetric,
+    isBooleanMetricStats,
+    metricSummary,
+    normalizeMetricStats,
+    radarAxes,
+    RADAR_FALLBACK_INVOCATION_IDS,
+    type MetricBar,
+    type MetricBin,
+    type MetricFrequency,
+    type MetricStats,
+    type MetricSummary,
+    type RadarMetricInput,
+} from "./metricStats"
+
+export {
     buildQuerySlug,
     LIVE_INVOCATION_FILTER,
     parseSamplingRate,

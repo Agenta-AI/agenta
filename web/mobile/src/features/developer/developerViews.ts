@@ -61,14 +61,6 @@ export interface DeveloperView {
  */
 export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
     {
-        id: "app-overview",
-        label: "App overview",
-        description:
-            "The overview of a prompt or custom app: deployments, recent prompts and evaluations.",
-        routes: ["/apps/[app_id]/overview"],
-        stage: "hidden",
-    },
-    {
         id: "archived-apps",
         label: "Archived apps",
         description: "Archived apps, with Restore.",
@@ -94,8 +86,8 @@ export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
     {
         id: "evaluations",
         label: "Evaluations",
-        description: "Show the Evaluations page under Developer in the navigation.",
-        routes: ["/evaluations"],
+        description: "Evaluation runs and their results.",
+        routes: ["/evaluations", "/evaluations/results/[evaluation_id]"],
         nav: {icon: ChartBar, section: "developer"},
         stage: "hidden",
     },
@@ -144,6 +136,14 @@ export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
         description: "Automatic and human evaluators, with archive and restore.",
         routes: ["/evaluators", "/evaluators/archived"],
         nav: {icon: ChartDonut, section: "developer"},
+        stage: "hidden",
+    },
+    {
+        id: "app-overview",
+        label: "App overview",
+        description:
+            "The overview of a prompt or custom app: deployments, recent prompts and evaluations.",
+        routes: ["/apps/[app_id]/overview"],
         stage: "hidden",
     },
     {
