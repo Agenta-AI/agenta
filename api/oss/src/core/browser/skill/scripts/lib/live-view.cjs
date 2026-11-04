@@ -38,6 +38,7 @@ const hostOf = (rawUrl) => {
 const MOUSE_BUTTONS = new Set(["left", "middle", "right"]);
 
 const CONTROL_MESSAGES = new Set(["control", "done", "tab"]);
+const PAGE_LOADS = new Set(["navigate", "reload"]);
 
 function createLiveView(session) {
   const viewers = new Set();
@@ -207,7 +208,8 @@ function createLiveView(session) {
     if (!page || stuckPages.has(page)) return;
     const done = {};
     const work = applyInput(message).finally(() => stuckPages.delete(page));
-    if ((await within(work, LIVE_TIMEOUT_MS, done)) === done) stuckPages.add(page);
+    const limit = PAGE_LOADS.has(message.type) ? NAVIGATION_TIMEOUT_MS : LIVE_TIMEOUT_MS;
+    if ((await within(work, limit, done)) === done) stuckPages.add(page);
   }
 
   function attachViewer(ws) {
