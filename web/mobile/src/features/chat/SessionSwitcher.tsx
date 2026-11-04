@@ -196,7 +196,7 @@ export const SessionSwitcher = ({
                     ) : null}
                 </div>
                 <PopoverContent
-                    align="center"
+                    align="start"
                     aria-label="Sessions"
                     className="w-[360px] overflow-hidden p-0"
                     onOpenAutoFocus={(event) => {
