@@ -447,7 +447,6 @@ export const SessionWorkspace = ({
                         configEntityId &&
                         (!hideSessionSwitcher || showConfig) ? (
                             <PaneEdgeToggle
-                                side="left"
                                 open={showConfig}
                                 offset={showPane ? paneSize : 0}
                                 animate={configSlide.animate}
@@ -456,17 +455,6 @@ export const SessionWorkspace = ({
                                 onToggle={() =>
                                     showConfig ? setConfigCollapsed(true) : revealConfig()
                                 }
-                            />
-                        ) : null}
-                        {twoPane && !filesExpanded && !hideSessionSwitcher ? (
-                            <PaneEdgeToggle
-                                side="right"
-                                open={showFiles}
-                                offset={showFiles ? filesPaneSize : 0}
-                                animate={filesSlide.animate}
-                                label={showFiles ? "Hide side panel" : "Show files"}
-                                shortcutId="panel.files"
-                                onToggle={() => (showFiles ? closeDock() : toggleFilesPane())}
                             />
                         ) : null}
                         <SplitPane
