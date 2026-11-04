@@ -122,6 +122,11 @@ export {
     type MetricStats,
     type MetricSummary,
     type RadarMetricInput,
+    buildQuerySlug,
+    LIVE_INVOCATION_FILTER,
+    parseSamplingRate,
+    selectLiveEvaluators,
+    type LiveFilterRow,
 } from "./core"
 
 // ============================================================================
@@ -141,6 +146,7 @@ export {
     stopOnlineEvaluation,
     createAutoEvaluationRuns,
     createHumanEvaluationRun,
+    createLiveEvaluation,
     fetchAllTestcaseIds,
     DEFAULT_EVALUATION_CONCURRENCY,
     type EvaluationRunsPageParams,
@@ -150,6 +156,7 @@ export {
     type EvaluationConcurrency,
     type CreateAutoEvaluationRunsParams,
     type CreateAutoEvaluationRunsResult,
+    type CreateLiveEvaluationParams,
     findEvaluationRunsUsing,
     // Run details
     queryEvaluationScenariosPage,
