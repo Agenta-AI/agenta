@@ -28,7 +28,7 @@ export interface ScenarioInvocationState {
     running: boolean
     /** The last run of the app for this scenario failed. */
     failed: boolean
-    /** The reader may run the app (`edit_evaluation_results`). */
+    /** The reader may run the app (`edit_evaluation_results`) and the run is not closed. */
     canRun: boolean
     run: () => void
 }
@@ -44,7 +44,8 @@ export function useScenarioInvocation(
 ): ScenarioInvocationState {
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const canRun = useProjectPermission(projectId, "edit_evaluation_results")
-    const steps = useAtomValue(evaluationRunQueryAtomFamily(runId)).data?.data?.steps
+    const run = useAtomValue(evaluationRunQueryAtomFamily(runId)).data
+    const steps = run?.data?.steps
     const stepKey =
         steps?.find((step) => step.type === "invocation" && step.origin === "human")?.key ?? null
     const queryClient = useQueryClient()
@@ -57,7 +58,7 @@ export function useScenarioInvocation(
         Boolean(stepKey && row) && !SUCCESS_STATUSES.has(status) && !IN_FLIGHT_STATUSES.has(status)
     const running = runs[key] === "running"
 
-    const run = useCallback(() => {
+    const start = useCallback(() => {
         if (!stepKey || !scenarioId) return
         const settle = (next: "failed" | null) =>
             setRuns(({[key]: _done, ...rest}) => (next ? {...rest, [key]: next} : rest))
@@ -92,7 +93,8 @@ export function useScenarioInvocation(
         pending,
         running,
         failed: runs[key] === "failed" || FAILED_STATUSES.has(status),
-        canRun,
-        run,
+        // A closed run refuses new results: the app would be called for nothing.
+        canRun: canRun && !run?.flags?.is_closed,
+        run: start,
     }
 }

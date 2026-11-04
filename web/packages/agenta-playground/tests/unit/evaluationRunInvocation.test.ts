@@ -26,8 +26,9 @@ const INVOKE_URL = "https://svc.test/services/completion/v0/invoke?project_id=pr
 const TRACE_HEX = "0123456789abcdef0123456789abcdef"
 const SPAN_HEX = "0123456789abcdef"
 
-const run = (invocationReferences: Record<string, {id: string}>) => ({
+const run = (invocationReferences: Record<string, {id: string}>, closed = false) => ({
     id: RUN,
+    flags: {is_closed: closed},
     name: "Tickets",
     status: "running",
     data: {
@@ -79,7 +80,7 @@ const store = getDefaultStore()
 const client = store.get(queryClientAtom)
 
 /** Serve the API: the run, its step results, the test case and the revision. */
-function serveApi() {
+function serveApi(invocationStatus?: string) {
     http.get.mockImplementation(async (url: string) => {
         if (url === `https://agenta.test/api/workflows/revisions/${REVISION}`) {
             return {data: {count: 1, workflow_revision: revision}}
@@ -105,6 +106,7 @@ function serveApi() {
                             run_id: RUN,
                             scenario_id: SCENARIO,
                             step_key: STEP,
+                            ...(invocationStatus ? {status: invocationStatus} : {}),
                         },
                     ],
                 },
@@ -271,5 +273,30 @@ describe("runScenarioInvocation", () => {
         expect(result).toEqual({ok: false, reason: "request-failed", detail: "Network Error"})
         expect(fetchMock).not.toHaveBeenCalled()
         expect(postsTo("/evaluations/results/")).toEqual([])
+    })
+
+    it("A successful run after a failed one sets the scenario back to pending", async () => {
+        serveApi("failure")
+        appAnswers(200, {data: "Paris", trace_id: TRACE_HEX})
+
+        expect(await runScenarioInvocation(params)).toEqual({ok: true})
+
+        expect(http.patch).toHaveBeenCalledOnce()
+        expect(http.patch).toHaveBeenCalledWith(
+            "https://agenta.test/api/evaluations/scenarios/",
+            {scenarios: [{id: SCENARIO, status: "pending"}]},
+            {params: {project_id: PROJECT}},
+        )
+    })
+
+    it("A closed run returns run-closed and does not call the app", async () => {
+        client.setQueryData(evaluationRunQueryKey(RUN), run(fullReferences, true))
+
+        const result = await runScenarioInvocation(params)
+
+        expect(result).toMatchObject({ok: false, reason: "run-closed"})
+        expect(fetchMock).not.toHaveBeenCalled()
+        expect(http.get).not.toHaveBeenCalled()
+        expect(http.post).not.toHaveBeenCalled()
     })
 })

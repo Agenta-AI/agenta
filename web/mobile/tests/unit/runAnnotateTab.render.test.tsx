@@ -90,6 +90,8 @@ interface HumanRun {
     failCreate: boolean
     /** True: the app step is a human step that points at an app revision, as a run made in /m. */
     humanInvocation: boolean
+    /** True: the run is closed. */
+    closed: boolean
 }
 let human: HumanRun
 
@@ -193,6 +195,11 @@ function answer(runId: string, url: string, body: Record<string, unknown> | unde
         run.data.mappings = run.data.mappings.filter(
             (mapping) => (mapping.column as {kind: string}).kind !== "annotation",
         )
+        if (human.closed) {
+            Object.assign(reply.data?.runs?.[0] as object, {
+                flags: {is_live: false, is_active: false, is_closed: true},
+            })
+        }
         if (human.humanInvocation) {
             const app = run.data.steps.find((step) => step.key === "app")
             Object.assign(app ?? {}, {
@@ -262,6 +269,7 @@ async function mount(
         withEvaluator: true,
         failCreate: false,
         humanInvocation: false,
+        closed: false,
         ...patch,
     }
     http.get.mockImplementation(async (url: string) => {
@@ -668,6 +676,12 @@ describe("run the app of a human run", () => {
     it("A reader without the right to write results sees no Run button", async () => {
         access.canRun = false
         await mountTab(pending())
+        expect(button("Run")).toBeUndefined()
+        expect(text()).toContain("Run the invocation to generate output before annotating.")
+    })
+
+    it("A closed run shows no Run button", async () => {
+        await mountTab({...pending(), closed: true})
         expect(button("Run")).toBeUndefined()
         expect(text()).toContain("Run the invocation to generate output before annotating.")
     })

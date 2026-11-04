@@ -37,8 +37,9 @@ export type RunScenarioInvocationResult =
            * `missing-reference`: the run or scenario lacks the app revision or the test case.
            * `invocation-failed`: the app answered with an error (stored on the step).
            * `request-failed`: a request to the API failed.
+           * `run-closed`: the run is closed; the API would refuse the result, so the app is not called.
            */
-          reason: "missing-reference" | "invocation-failed" | "request-failed"
+          reason: "missing-reference" | "invocation-failed" | "request-failed" | "run-closed"
           /** Technical detail for the logs, not for the user. */
           detail: string
       }
@@ -73,6 +74,9 @@ async function invoke({
         const run =
             getHostQueryClient().getQueryData<EvaluationRun | null>(evaluationRunQueryKey(runId)) ??
             (await fetchEvaluationRun({id: runId, projectId}))
+        if (run?.flags?.is_closed) {
+            return {ok: false, reason: "run-closed", detail: `Run ${runId} is closed.`}
+        }
         const steps = run?.data?.steps ?? []
         const step = steps.find((entry) => entry.key === stepKey && entry.type === "invocation")
         const refs = step?.references ?? {}
@@ -98,6 +102,9 @@ async function invoke({
         )
         const results = await queryEvaluationResults({projectId, runId, scenarioIds: [scenarioId]})
         const testcaseId = results.find((result) => inputKeys.has(result.step_key))?.testcase_id
+        const failedBefore = FAILED_STATUSES.has(
+            results.find((result) => result.step_key === stepKey)?.status?.toLowerCase() ?? "",
+        )
         if (!testcaseId) return missing(`Scenario ${scenarioId} has no test case.`)
         const testcase = await fetchTestcase({projectId, testcaseId})
         if (!testcase) throw new Error(`Test case ${testcaseId} did not load.`)
@@ -120,15 +127,11 @@ async function invoke({
             references,
             ...(succeeded ? {outputs: execution.output} : {error: {message: errorMessage}}),
         })
-        if (!succeeded) {
-            await axios.patch(
-                `${getAgentaApiUrl()}/evaluations/scenarios/`,
-                {scenarios: [{id: scenarioId, status: "failure"}]},
-                {params: {project_id: projectId}},
-            )
-        } else {
-            await refreshMetrics(projectId, runId, scenarioId)
+        // A failed run marks the scenario failed; a later success sets it back to waiting.
+        if (!succeeded || failedBefore) {
+            await setScenarioStatus(projectId, scenarioId, succeeded ? "pending" : "failure")
         }
+        if (succeeded) await refreshMetrics(projectId, runId, scenarioId)
         invalidateScenario(projectId, runId, scenarioId)
 
         return succeeded
@@ -141,6 +144,16 @@ async function invoke({
             detail: error instanceof Error ? error.message : String(error),
         }
     }
+}
+
+const FAILED_STATUSES = new Set(["failure", "failed", "error", "errors"])
+
+async function setScenarioStatus(projectId: string, scenarioId: string, status: string) {
+    await axios.patch(
+        `${getAgentaApiUrl()}/evaluations/scenarios/`,
+        {scenarios: [{id: scenarioId, status}]},
+        {params: {project_id: projectId}},
+    )
 }
 
 /** The API upserts on (run, scenario, step key), so one POST creates or replaces the result. */
