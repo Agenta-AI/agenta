@@ -122,11 +122,17 @@ export const usePlaygroundTestcaseEditorModel = (testcaseId: string) => {
     const nativeTypes = useRef(new Map<string, string>())
     const formWrites = useRef(new Map<string, unknown>())
     useEffect(() => {
-        for (const [key, value] of Object.entries(entityData?.data ?? {})) {
+        const data = entityData?.data ?? {}
+        // Once another value replaces the form's last write, or the field goes, it no longer counts.
+        const prefix = `${testcaseId}:`
+        for (const [id, written] of formWrites.current) {
+            if (!id.startsWith(prefix)) continue
+            const key = id.slice(prefix.length)
+            if (!(key in data) || data[key] !== written) formWrites.current.delete(id)
+        }
+        for (const [key, value] of Object.entries(data)) {
             const id = `${testcaseId}:${key}`
-            // Once another value replaces the form's last write, that write no longer counts.
-            const fromForm = formWrites.current.get(id) === value
-            if (!fromForm) formWrites.current.delete(id)
+            const fromForm = formWrites.current.has(id)
             if (typeof value === "number" || typeof value === "boolean") {
                 nativeTypes.current.set(id, typeof value)
             } else if (typeof value === "string" && nativeTypes.current.has(id) && !fromForm) {

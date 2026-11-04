@@ -203,6 +203,19 @@ describe("The focus drawer form model", () => {
         expect(rowData().age).toBe("0042")
     })
 
+    it("Text the JSON view writes counts after it removed the field and added it back", async () => {
+        await seed({age: 42})
+        await act(async () => model.handleEditorChange({...model.editorValue, age: ""}))
+        await settle()
+        // The JSON view removes the field (it writes `undefined`), then adds it back as "".
+        await seed({age: undefined})
+        await seed({age: ""})
+        await act(async () => model.handleEditorChange({...model.editorValue, age: "0042"}))
+        await settle()
+
+        expect(rowData().age).toBe("0042")
+    })
+
     it("A field still turns back into a number after the form clears it on the way", async () => {
         await seed({age: 42})
 
