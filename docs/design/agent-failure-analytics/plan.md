@@ -38,7 +38,7 @@ into events, and the worker publishes them. Failures follow the same shape.
 | `access` | `error` | `access_denied` |
 | `platform` | `error` | `execution_lost`, `runner_capacity`, `turn_index_taken`, `session_records_incomplete` |
 | `runner` | `error` | `runner_error`, `internal_error`, no code, any unknown code |
-| `trigger` | No record. `TriggersDispatcher` catches a rejected start. | `failure_code` of the rejection |
+| `trigger` | No record. `TriggersDispatcher` catches a rejected start. | `failure_code` of the rejection, `start_never_sent`, or `start_unconfirmed` when a gateway error leaves the start unproven. No text. |
 
 A failed `run_tool` call is an external tool failure. `tool_integration` and `tool_action` name
 the real target, for example `github` and `FIND_PULL_REQUESTS`.
@@ -106,6 +106,8 @@ new runner code still reaches PostHog.
 - **Prompt on a resumed turn.** Locally 772 of 864 failing turns hold their own user message. The
   other 92 are continuations. The prompt then falls back to the latest user message before the
   failure.
+- **Bounded wait.** The worker waits on the report before it acknowledges a batch, and the reads have
+  no timeout of their own. Each report stops after 5 seconds and loses its unsent events.
 - **Read cost.** `get_records` loads the whole session, with tool output. A new narrow DAO read
   loads only what the event needs.
 - **Identity.** The middleware uses the email as `distinct_id`, so this does too. Local data has

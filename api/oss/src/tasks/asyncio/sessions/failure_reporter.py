@@ -1,10 +1,10 @@
+import asyncio
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple, Union
 from uuid import UUID, uuid4
 
 from oss.src.core.sessions.records.dtos import SessionRecord
 from oss.src.core.sessions.records.failures import (
-    AGENT_FAILURE_MESSAGE_LIMIT,
     AgentFailure,
     AgentFailureSource,
     failure_from_record,
@@ -21,14 +21,18 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 AGENT_FAILURE_EVENT = "agent_failure"
+# Callers wait on the report before they acknowledge a batch or finish a trigger task, and
+# the database reads here have no timeout of their own.
+REPORT_TIMEOUT_SECONDS = 5
 
 _INTERNAL_FIELDS = {"record_id", "tool_call_id", "occurred_at"}
 _DETAIL_FIELDS = {"message", "prompt"}
 
 
 def _reporting_enabled() -> bool:
-    # The built-in key makes `env.posthog.enabled` true on a self-hosted stack too, so the
-    # edition is the gate that keeps these events inside Agenta's own deployments.
+    # The built-in key makes `env.posthog.enabled` true on every OSS stack. EE example files
+    # also ship an Agenta key, so a self-hosted EE stack sends these events to Agenta unless
+    # it sets its own key. Customer text stays behind `agent_failure_details` for that reason.
     return is_ee() and env.posthog.enabled
 
 
@@ -94,40 +98,14 @@ class AgentFailureReporter:
             return
 
         try:
-            groups: Dict[Tuple[str, Optional[str]], List[AgentFailure]] = {}
-            for record in records:
-                failure = failure_from_record(record)
-                if failure is not None:
-                    groups.setdefault((failure.session_id, failure.turn_id), []).append(
-                        failure
-                    )
-
-            emails: Dict[str, Optional[str]] = {}
-            for (session_id, turn_id), failures in groups.items():
-                try:
-                    if session_id not in emails:
-                        emails[session_id] = await self._session_owner_email(
-                            project_id=project_id,
-                            session_id=session_id,
-                        )
-                    for failure in await self._with_context(
-                        project_id=project_id,
-                        session_id=session_id,
-                        turn_id=turn_id,
-                        failures=failures,
-                    ):
-                        _send(
-                            failure,
-                            organization_id=organization_id,
-                            email=emails[session_id],
-                        )
-                except Exception:
-                    log.warning(
-                        "[AGENT FAILURE] Report failed for a turn",
-                        project_id=str(project_id),
-                        session_id=session_id,
-                        exc_info=True,
-                    )
+            await asyncio.wait_for(
+                self._report(
+                    organization_id=organization_id,
+                    project_id=project_id,
+                    records=records,
+                ),
+                timeout=REPORT_TIMEOUT_SECONDS,
+            )
         except Exception:
             log.warning(
                 "[AGENT FAILURE] Report failed",
@@ -135,14 +113,55 @@ class AgentFailureReporter:
                 exc_info=True,
             )
 
+    async def _report(
+        self,
+        *,
+        organization_id: Optional[UUID],
+        project_id: UUID,
+        records: List[SessionRecord],
+    ) -> None:
+        groups: Dict[Tuple[str, Optional[str]], List[AgentFailure]] = {}
+        for record in records:
+            failure = failure_from_record(record)
+            if failure is not None:
+                groups.setdefault((failure.session_id, failure.turn_id), []).append(
+                    failure
+                )
+
+        emails: Dict[str, Optional[str]] = {}
+        for (session_id, turn_id), failures in groups.items():
+            try:
+                if session_id not in emails:
+                    emails[session_id] = await self._session_owner_email(
+                        project_id=project_id,
+                        session_id=session_id,
+                    )
+                for failure in await self._with_context(
+                    project_id=project_id,
+                    session_id=session_id,
+                    turn_id=turn_id,
+                    failures=failures,
+                ):
+                    _send(
+                        failure,
+                        organization_id=organization_id,
+                        email=emails[session_id],
+                    )
+            except Exception:
+                log.warning(
+                    "[AGENT FAILURE] Report failed for a turn",
+                    project_id=str(project_id),
+                    session_id=session_id,
+                    exc_info=True,
+                )
+
     async def report_trigger_start(
         self,
         *,
         project_id: UUID,
         session_id: str,
         user_id: Optional[Union[UUID, str]],
-        failure_code: Optional[str],
-        message: Optional[str],
+        failure_code: str,
     ) -> None:
         if not _reporting_enabled():
             return
@@ -155,13 +174,12 @@ class AgentFailureReporter:
                 occurred_at=datetime.now(timezone.utc),
                 source=AgentFailureSource.TRIGGER,
                 code=failure_code,
-                message=message[:AGENT_FAILURE_MESSAGE_LIMIT] if message else None,
             )
-            _send(
-                failure,
-                organization_id=None,
-                email=await self._user_email(user_id=user_id),
+            email = await asyncio.wait_for(
+                self._user_email(user_id=user_id),
+                timeout=REPORT_TIMEOUT_SECONDS,
             )
+            _send(failure, organization_id=None, email=email)
         except Exception:
             log.warning(
                 "[AGENT FAILURE] Trigger report failed",

@@ -1,5 +1,6 @@
 """Agent failures reach PostHog once each, with the right reason and without leaking text."""
 
+import asyncio
 import zlib
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -26,7 +27,10 @@ from oss.src.core.triggers.dtos import (
     TriggerScheduleFlags,
 )
 from oss.src.core.workflows.dtos import ResolvedTarget
-from oss.src.core.workflows.types import WorkflowDetachedStartRejected
+from oss.src.core.workflows.types import (
+    WorkflowDetachedStartNeverSent,
+    WorkflowDetachedStartRejected,
+)
 from oss.src.tasks.asyncio.sessions.records_worker import RecordsWorker
 from oss.src.tasks.asyncio.triggers.dispatcher import TriggersDispatcher
 from oss.src.utils.env import env
@@ -509,11 +513,35 @@ async def test_a_failing_posthog_never_raises(posthog, monkeypatch):
         project_id=PROJECT,
         session_id=SESSION,
         user_id=OWNER,
-        failure_code=None,
-        message="boom",
+        failure_code="start_unconfirmed",
     )
 
     assert posthog.capture.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_a_stalled_lookup_ends_at_the_timeout(posthog, monkeypatch):
+    monkeypatch.setattr(reporter_module, "REPORT_TIMEOUT_SECONDS", 0.01)
+
+    async def stall(_user_id):
+        await asyncio.sleep(60)
+
+    monkeypatch.setattr(reporter_module.db_manager, "get_user_with_id", stall)
+
+    await asyncio.wait_for(
+        _report(_reporter(), [_record("error", {"code": "x"})]), timeout=1
+    )
+    await asyncio.wait_for(
+        _reporter().report_trigger_start(
+            project_id=PROJECT,
+            session_id=SESSION,
+            user_id=OWNER,
+            failure_code="start_unconfirmed",
+        ),
+        timeout=1,
+    )
+
+    assert posthog.events == []
 
 
 @pytest.mark.asyncio
@@ -525,7 +553,6 @@ async def test_a_trigger_start_is_reported_for_the_trigger_owner(posthog, monkey
         session_id=SESSION,
         user_id=OWNER,
         failure_code="agent_run_failed",
-        message="m" * 1500,
     )
 
     event = posthog.events[0]
@@ -536,7 +563,6 @@ async def test_a_trigger_start_is_reported_for_the_trigger_owner(posthog, monkey
         "session_id": SESSION,
         "failure_source": "trigger",
         "failure_code": "agent_run_failed",
-        "message": "m" * 1000,
     }
     reporter_module.db_manager.get_user_with_id.assert_awaited_once_with(str(OWNER))
 
@@ -549,8 +575,7 @@ async def test_oss_reports_no_trigger_start(posthog, monkeypatch):
         project_id=PROJECT,
         session_id=SESSION,
         user_id=None,
-        failure_code=None,
-        message="boom",
+        failure_code="start_unconfirmed",
     )
 
     assert posthog.events == []
@@ -670,9 +695,11 @@ def _dispatcher(*, failure, failure_reporter):
             WorkflowDetachedStartRejected("HTTP 422", failure_code="agent_run_failed"),
             "agent_run_failed",
         ),
-        (RuntimeError("HTTP 422"), None),
+        (WorkflowDetachedStartRejected("HTTP 422"), "start_rejected"),
+        (WorkflowDetachedStartNeverSent("HTTP 502"), "start_never_sent"),
+        (RuntimeError("HTTP 502"), "start_unconfirmed"),
     ],
-    ids=["rejected_start", "other_start_failure"],
+    ids=["rejected_start", "uncoded_rejection", "never_sent", "unconfirmed_start"],
 )
 @pytest.mark.asyncio
 async def test_a_failed_start_is_reported_and_still_raises(
@@ -697,7 +724,6 @@ async def test_a_failed_start_is_reported_and_still_raises(
         session_id=dao.claim_trigger_delivery.await_args.kwargs["session_id"],
         user_id=OWNER,
         failure_code=failure_code,
-        message="HTTP 422",
     )
 
 

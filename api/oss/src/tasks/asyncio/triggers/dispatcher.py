@@ -45,7 +45,10 @@ from oss.src.core.sharing.dtos import SharedItemKind
 from oss.src.core.sharing.service import SharingService, get_sharing_service
 from oss.src.core.sharing.types import AdmissionDenied
 from oss.src.core.workflows.service import WorkflowsService
-from oss.src.core.workflows.types import WorkflowDetachedStartRejected
+from oss.src.core.workflows.types import (
+    WorkflowDetachedStartNeverSent,
+    WorkflowDetachedStartRejected,
+)
 from oss.src.utils.logging import get_module_logger
 
 from agenta.sdk.agents.requirements import (
@@ -85,6 +88,15 @@ def _agent_deleted_error() -> AgentError:
         retryable=False,
         next_step="Point the trigger at another agent, then turn it on again.",
     )
+
+
+def _start_failure_code(error: Exception) -> str:
+    """A gateway 502 or 504 can follow an accepted start, so only a proven refusal is named."""
+    if isinstance(error, WorkflowDetachedStartRejected):
+        return error.failure_code or "start_rejected"
+    if isinstance(error, WorkflowDetachedStartNeverSent):
+        return "start_never_sent"
+    return "start_unconfirmed"
 
 
 class TriggersDispatcher:
@@ -536,12 +548,7 @@ class TriggersDispatcher:
                         project_id=project_id,
                         session_id=session_id,
                         user_id=user_id,
-                        failure_code=(
-                            e.failure_code
-                            if isinstance(e, WorkflowDetachedStartRejected)
-                            else None
-                        ),
-                        message=str(e),
+                        failure_code=_start_failure_code(e),
                     )
                 raise
             await self._complete_delivery(
