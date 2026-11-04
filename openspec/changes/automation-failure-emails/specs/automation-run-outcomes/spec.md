@@ -12,28 +12,32 @@ The system SHALL settle a trigger delivery by writing `data.outcome` (`completed
 `cancelled`, `waiting` or `skipped`) and, for `failed` and `skipped`, `data.reason_code`. It SHALL
 NOT change the trigger delivery's `status`, and SHALL NOT add a column to `trigger_deliveries`.
 
-#### Scenario: Run succeeds
-- **WHEN** a `202` trigger delivery's turn has a `done` record with no `stopReason`, no `error` record, and the `done` was stored at least 5 minutes ago
+The outcome of a started run SHALL come from the turn's `session_executions` row
+(`terminal_outcome`). The tracing records SHALL be read only for a turn with no settled execution
+(to find `paused` or `cancelled`) and for the error code of a `failed` turn.
+
+#### Scenario: Run completes
+- **WHEN** a `202` trigger delivery's turn has an execution settled `completed`
 - **THEN** the trigger delivery SHALL get `data.outcome` `completed`, and its `status` SHALL stay `202 dispatched`
 
-#### Scenario: Error record and a plain done
-- **WHEN** a `202` trigger delivery's turn has an `error` record with `attributes.code` `credential_delivery_failed` and a `done` record with no `stopReason`
+#### Scenario: Run fails with an error code
+- **WHEN** a `202` trigger delivery's turn has an execution settled `failed`, and an `error` record with `attributes.code` `credential_delivery_failed`
 - **THEN** it SHALL get `data.outcome` `failed` and `data.reason_code` `credential_delivery_failed`
 
 #### Scenario: Watchdog ends a lost run
-- **WHEN** the watchdog writes `error` with code `execution_lost` and a plain `done` for a `202` trigger delivery's turn
+- **WHEN** the watchdog settles a `202` trigger delivery's turn as `lost`
 - **THEN** it SHALL get `data.outcome` `failed` and `data.reason_code` `execution_lost`
 
-#### Scenario: Error stop reason with no error code
-- **WHEN** a `202` trigger delivery's `done` has `stopReason` `error`, and no `error` record has a code
-- **THEN** it SHALL get `data.outcome` `failed` and `data.reason_code` `runner_error`
+#### Scenario: Runner thaws after the watchdog
+- **WHEN** the watchdog settled a turn as `lost`, and the runner later sends a `done` with no `stopReason`
+- **THEN** the trigger delivery SHALL keep `data.outcome` `failed`
 
 #### Scenario: User stops the run
-- **WHEN** a `202` trigger delivery's `done` has `stopReason` `cancelled`
+- **WHEN** a `202` trigger delivery's turn has an execution settled `stopped`
 - **THEN** it SHALL get `data.outcome` `cancelled`
 
 #### Scenario: Run waits for a person
-- **WHEN** a `202` trigger delivery's `done` has `stopReason` `paused`
+- **WHEN** a `202` trigger delivery's turn has no settled execution, and its newest `done` has `stopReason` `paused`
 - **THEN** it SHALL get `data.outcome` `waiting`
 
 #### Scenario: Start-time failures
@@ -44,21 +48,21 @@ NOT change the trigger delivery's `status`, and SHALL NOT add a column to `trigg
 - **WHEN** a trigger delivery has status `102`, `409` or `200`
 - **THEN** the system SHALL NOT write `data.outcome`
 
-### Requirement: Wait for late error records
-The system SHALL NOT settle a `202` trigger delivery until its newest `done` record has been stored
-for at least 5 minutes. A `202` trigger delivery SHALL settle once. Records stored for its turn after
-it settled SHALL NOT change its outcome.
+### Requirement: Wait for the error code
+For a turn whose execution settled `failed`, the system SHALL wait up to 5 minutes after
+`settled_at` for an `error` record with a code, and then SHALL use `runner_error` as the reason. A
+`202` trigger delivery SHALL settle once.
 
-#### Scenario: Error stored one minute after done
-- **WHEN** a turn's plain `done` is stored, and its `error` record is stored 1 minute later
-- **THEN** the trigger delivery SHALL get `data.outcome` `failed`
+#### Scenario: Error code stored one minute later
+- **WHEN** a turn's execution settles `failed`, and its `error` record is stored 1 minute later
+- **THEN** the trigger delivery SHALL get that record's code as `data.reason_code`
 
-#### Scenario: Error stored after the trigger delivery was settled
-- **WHEN** a turn's `error` record is stored 20 minutes after its plain `done`
-- **THEN** the trigger delivery SHALL keep `data.outcome` `completed`
+#### Scenario: Error code never stored
+- **WHEN** a turn's execution settles `failed`, and no `error` record with a code exists after 5 minutes
+- **THEN** the trigger delivery SHALL get `data.outcome` `failed` and `data.reason_code` `runner_error`
 
 #### Scenario: Run still going
-- **WHEN** a `202` trigger delivery's turn has no `done` record
+- **WHEN** a `202` trigger delivery's turn has no settled execution and no `paused` or `cancelled` `done`
 - **THEN** it SHALL stay unsettled, and each pass SHALL read it again while it is less than 24 hours old
 
 ### Requirement: Settled once per status
@@ -75,14 +79,16 @@ its new status.
 - **THEN** the settle write SHALL change no row
 
 ### Requirement: One pass at a time, bounded
-The outcome pass SHALL run every 60 seconds in the API, on at most one replica at a time under a
-Redis lease, whether email is on or off. Each pass SHALL read start-time trigger deliveries (`400`,
-`403`, `422`, `500`) oldest first and `202` trigger deliveries newest first, at most 10,000 of each,
-through a partial index that leaves out settled rows.
+The outcome pass SHALL run behind the admin route `POST /admin/triggers/deliveries/settle`, which cron
+calls every minute, whether email is on or off. It SHALL hold a guard lock renewed with its owner
+token, and a request that finds the guard held SHALL return at once. Each pass SHALL read
+start-time trigger deliveries (`400`, `403`, `422`, `500`) oldest first and `202` trigger deliveries
+newest first, with keyset paging, through a partial index that leaves out settled rows, and SHALL
+stop after 45 seconds of work.
 
-#### Scenario: Two API replicas
-- **WHEN** two API replicas run
-- **THEN** only the replica that holds the lease SHALL run a pass
+#### Scenario: Two requests at once
+- **WHEN** cron calls the route while the previous pass still runs
+- **THEN** the second request SHALL return at once and settle nothing
 
 #### Scenario: Pages move forward
 - **WHEN** 1,200 `202` trigger deliveries of the last 24 hours have no `done`

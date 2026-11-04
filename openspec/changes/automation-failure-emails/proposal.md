@@ -9,9 +9,10 @@ the review rounds.
 
 An automation (a schedule or an event subscription) can stop working, and nobody is told:
 
-- After a run starts, its trigger delivery stays at `202 dispatched` for good. Nothing records how
-  the run ended (`api/entrypoints/worker_queues.py:285-291`). The automations screen shows a failed
-  run as pending.
+- After a run starts, its trigger delivery stays at `202 dispatched` for good
+  (`api/entrypoints/worker_queues.py:285-291`). The run's outcome is recorded in `session_executions`
+  (`api/oss/src/apis/fastapi/sessions/router.py:1601-1616`), but nothing copies it to the trigger
+  delivery, so the automations screen shows a failed run as pending.
 - When the platform pauses an automation (`403`: its agent was deleted, access was denied, or it has
   no principal), only the trigger delivery and the automation's `meta.paused_reason` record it
   (`api/oss/src/tasks/asyncio/triggers/dispatcher.py:651-685`, `api/oss/src/dbs/postgres/triggers/dao.py:69-88`).
@@ -22,15 +23,15 @@ An automation (a schedule or an event subscription) can stop working, and nobody
 
 ## What Changes
 
-- **Run outcomes.** A background pass settles each trigger delivery: it writes how the run ended to
-  `data.outcome`. The automations screen shows the real result. This runs whether or not email is on.
+- **Run outcomes.** A pass that cron starts every minute settles each trigger delivery: it copies how
+  the run ended from `session_executions` to `data.outcome`. The automations screen shows the real result. This runs whether or not email is on.
 - **Failure notifications.** When an automation starts failing, the pass opens one notification for
   it. It stays open until the automation is fixed. While it is open, more failures send nothing.
 - **Notifications base.** Two new tables: `notifications` (what happened, one open row per key) and
   `notification_deliveries` (who gets it, on which channel). v1 has one kind, `automation_failing`,
   and one channel, `email`.
-- **Email.** A second background pass sends pending notification deliveries, with HTML and plain
-  text, escaped values, a 30-second client timeout, and 5 attempts.
+- **Email.** A second pass that cron starts every minute sends the new notification deliveries, with HTML and plain
+  text, escaped values, a 15-second client timeout, and 5 attempts.
 - **Switch.** `AGENTA_NOTIFICATIONS_EMAIL_ENABLED` (default `true`) turns email off. Notifications
   are still recorded, and their notification deliveries become `skipped`.
 
@@ -79,11 +80,14 @@ None. No shipped spec covers automations.
 ## Impact
 
 - API: new domain `api/oss/src/core/notifications/` and `api/oss/src/dbs/postgres/notifications/`;
-  `api/oss/src/core/triggers/outcomes.py` and `failure_notifications.py`; two loops in the API
-  lifespan; `emailing.py`; `env.py`; a new `UsersDAOInterface` and `UsersDAO`; new methods on
+  `api/oss/src/core/triggers/outcomes.py` and `failure_notifications.py`; two admin routes
+  (`POST /admin/triggers/deliveries/settle`, `POST /admin/notifications/send`); `emailing.py`;
+  `env.py`; a shared link helper in `api/oss/src/utils/links.py`; new methods on
   `RecordsDAOInterface`, `TriggersDAOInterface` and `MembershipsService`.
+- Cron: two new lines that call the admin routes every minute, in every deployment's cron container.
 - Database: one `core_oss` revision that creates two tables, and one that builds two indexes on
   `trigger_deliveries` concurrently. No column is added to an existing table.
-- Frontend: `web/packages/agenta-automation-ui` reads `data.outcome` on `202` trigger deliveries.
+- Frontend: `web/packages/agenta-automation-ui` reads `data.outcome` on `202` trigger deliveries, and
+  the zod schema in `web/packages/agenta-entities` gains `outcome` and `reason_code`.
 - Editions: OSS and EE, from the shared `core_oss` chain.
 - Self-hosting: the release notes and the self-hosting docs name `AGENTA_NOTIFICATIONS_EMAIL_ENABLED`.

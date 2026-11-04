@@ -133,3 +133,42 @@ Fixed:
 - New scenarios: a run cancelled by a person, a subscription refresh, a failure and a newer success in one pass, pages that move forward.
 
 Not taken: none.
+
+## Round 5: against the existing system (Fable)
+
+The owner asked for a full interrogation on Fable that judges the plan against the existing codebase,
+not against the design itself. Two Fable agents ran in parallel:
+
+- A **clean-room design** from the code only, without reading this change.
+- An **interrogation** of this change against what the codebase already has.
+
+| Review | Result |
+|---|---|
+| Interrogation (Fable) | 1 blocker, 3 major, 4 minor. Verdict: not ready until the blocker and the placement are fixed. |
+| Clean-room design (Fable) | An independent design. It agreed on the notification base, the recipients, the switch, `send_rendered_email` and the `data` write-back without a new column, and differed on the points below. |
+
+Checked in the code by the author before the edit:
+
+- `settle_execution_ended` runs for every runner `done` with an ending on the ingest route, and `settle` creates the row if missing (`api/oss/src/apis/fastapi/sessions/router.py:1601-1616`, `api/oss/src/dbs/postgres/sessions/executions/dao.py:67-98`, `:183-230`). The clean-room design read only the records worker path, which settles continuations only, and so missed it.
+- Cron runs `POST /admin/triggers/schedules/refresh` every minute in docker compose, Railway and Helm (`api/oss/src/crons/triggers.txt`, `hosting/railway/oss/template/template.json:363-365`, `hosting/kubernetes/helm/values.yaml:497-500`).
+- The shared stream consumer deletes an entry before it acknowledges it (`api/oss/src/tasks/asyncio/shared/consumer.py:388-398`), so a second consumer group on `streams:sessions` would lose entries.
+
+Fixed:
+
+- Blocker: the outcome of a started run comes from `session_executions` (D23, G24c). The tracing records are read only for a `paused` or `cancelled` turn with no settled execution and for the error code. The 5-minute wait on every run is gone; only a `failed` run waits up to 5 minutes for its error code (O6).
+- Major: both passes run behind admin routes that cron calls every minute, like the schedule refresh (D11, G45). No lifespan loops: a lifespan loop runs once per gunicorn worker.
+- Major: G21 is corrected. The channels outbox consumes `streams:sessions`, and a second group would lose entries.
+- Major: no new users domain. `MembershipsService.fetch_member_emails` reads the address in the memberships DAO, which already reads `users` (G36).
+- Notification delivery states follow `ChannelDeliveryState`: `created`, `sent`, `failed`, plus `skipped`.
+- The link uses the `web_url` check and path quoting of `current_session_response`, moved to `api/oss/src/utils/links.py` (G24e).
+- The zod schema `triggerDeliveryDataSchema` gains `outcome` and `reason_code` (G24f).
+- G45 corrected: `attachment_sweep_loop` uses its own Lua helpers, not `locking.py`.
+- Client timeouts are 15 s, so a 45-second pass sends at least two emails when the provider hangs.
+- The proposal no longer says that nothing records how a run ended.
+
+Not taken (from the clean-room design):
+
+- Writing `200` or `500` into the trigger delivery's `status`. A `500` is re-claimable by a repeated event (G7), so the automation would run again (D24).
+- Sending the email inside the producer, with no send pass. It ties the dispatcher and the outcome pass to email latency, and a crash between claim and send would need a sweep anyway.
+- Email for `409` and no email for `422`. These are owner decisions D5 and D6, still open. The clean-room view is recorded here for the owner: it sees `409` as "every event fails until re-auth", and `422` as "never set up, not a regression". The design keeps its defaults: a revoke turns the provider trigger off, so `409` is rare (G9); a `422` can follow an admin deleting the model key, which is a regression.
+- A hook in the records worker post-commit. The outcome now comes from `session_executions`, which the ingest route writes before the records stream, so no hook is needed.

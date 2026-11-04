@@ -11,7 +11,7 @@ kind (`automation_failing`) and one channel (`email`). A new kind or channel add
 The system SHALL store notifications in `notifications` (`project_id`, `id`, `kind`, `dedup_key`,
 `state` `open` or `resolved`, `data`, `resolved_at`, and the six lifecycle columns) and notification
 deliveries in `notification_deliveries` (`project_id`, `id`, `notification_id`, `user_id`,
-`channel`, `state` `pending`, `sent`, `failed` or `skipped`, `attempt_count`, `sent_at`, and the six
+`channel`, `state` `created`, `sent`, `failed` or `skipped`, `attempt_count`, `sent_at`, and the six
 lifecycle columns). Both SHALL have the primary key `(project_id, id)` and one foreign key,
 `project_id` to `projects.id` with `ON DELETE CASCADE`. They SHALL be created in the shared
 `core_oss` chain. They SHALL NOT store an email address.
@@ -31,21 +31,21 @@ the notification's `data` and the recipient's email only. The notifications code
 read the domain that opened the notification.
 
 #### Scenario: Automation deleted after the open
-- **WHEN** an automation's notification is open and pending, and the automation is soft-deleted by a person
+- **WHEN** an automation's notification is open and its email is not sent yet, and the automation is soft-deleted by a person
 - **THEN** the delete SHALL resolve the notification, and the send pass SHALL skip its notification deliveries without reading the automation
 
 ### Requirement: Email switch
 The system SHALL read `AGENTA_NOTIFICATIONS_EMAIL_ENABLED` (default `true`) as
 `env.agenta.notifications.email_enabled` on each send pass. When it is `false`, or when neither SMTP
-nor SendGrid is set up, the send pass SHALL mark pending email notification deliveries `skipped`.
+nor SendGrid is set up, the send pass SHALL mark `created` email notification deliveries `skipped`.
 Notifications SHALL still be recorded.
 
 #### Scenario: Switch off
 - **WHEN** `AGENTA_NOTIFICATIONS_EMAIL_ENABLED` is `false` and an automation fails
 - **THEN** a notification SHALL be opened, its email notification delivery SHALL become `skipped`, and no email SHALL be sent
 
-#### Scenario: Switch turned off with emails pending
-- **WHEN** notification deliveries are pending, and the switch is turned off
+#### Scenario: Switch turned off with emails not sent
+- **WHEN** notification deliveries are `created`, and the switch is turned off
 - **THEN** the next send pass SHALL mark them `skipped`
 
 #### Scenario: No email provider
@@ -53,13 +53,15 @@ Notifications SHALL still be recorded.
 - **THEN** email notification deliveries SHALL become `skipped`
 
 ### Requirement: Send pass
-The system SHALL send `pending` email notification deliveries in a pass that runs every 60 seconds
-in the API, on at most one replica at a time under a Redis lease that it renews after each send and
-stops on losing, at most 100 per pass and at most 10 per project per pass, oldest first. Before it sends, it SHALL mark a notification delivery
+The system SHALL send `created` email notification deliveries in a pass behind the admin route
+`POST /admin/notifications/send`, which cron calls every minute. The pass SHALL hold a guard lock
+that it renews with its owner token after each send, SHALL stop when renewal fails or after 45
+seconds of work, and SHALL send at most 100 per pass and at most 10 per project per pass, oldest
+first. Before it sends, it SHALL mark a notification delivery
 `skipped` if its notification is resolved, `AccessService.check_human` no longer allows the kind's
 permission for the recipient, or the recipient has no email (deleted user). A success SHALL set `sent` and `sent_at`. A failure SHALL add 1 to
 `attempt_count`, and at 5 SHALL set `failed`. Logs SHALL carry ids and the exception type only.
-A send SHALL NOT run in a web request.
+A send SHALL NOT run in a user's request.
 
 #### Scenario: Provider down for three minutes
 - **WHEN** the email provider fails for three minutes and then works
@@ -71,22 +73,22 @@ A send SHALL NOT run in a web request.
 
 #### Scenario: Provider hangs
 - **WHEN** the provider does not answer
-- **THEN** the client timeout of 30 seconds SHALL end the call, and the pass SHALL count a failed attempt
+- **THEN** the client timeout of 15 seconds SHALL end the call, and the pass SHALL count a failed attempt
 
 #### Scenario: Provider hangs for a long time
-- **WHEN** every send waits for its timeout, and a pass would outlive the lease TTL
-- **THEN** the pass SHALL renew the lease after each send, and no second replica SHALL send the same notification delivery
+- **WHEN** every send waits for its timeout, and cron calls the route again while a pass is still running
+- **THEN** the second request SHALL find the guard held and return at once, and no notification delivery SHALL be sent twice
 
 #### Scenario: Rendering fails
 - **WHEN** rendering a notification delivery raises an error
 - **THEN** it SHALL count as a failed attempt, and after 5 the notification delivery SHALL be `failed`
 
 #### Scenario: Recipient removed before the send
-- **WHEN** a recipient is removed from the project while the notification delivery is pending
+- **WHEN** a recipient is removed from the project while the notification delivery is not sent yet
 - **THEN** the send pass SHALL mark it `skipped`
 
 #### Scenario: One large project
-- **WHEN** one project has 2,000 pending notification deliveries and another project has 1
+- **WHEN** one project has 2,000 unsent notification deliveries and another project has 1
 - **THEN** the next send pass SHALL send the other project's email, and at most 10 of the large project's
 
 #### Scenario: Platform outage
@@ -95,7 +97,7 @@ A send SHALL NOT run in a web request.
 
 ### Requirement: Email sender
 `emailing.py` SHALL provide `send_rendered_email(to_email, subject, html, text)`. It SHALL send a
-plain-text part and an HTML part through SMTP if it is set up, else SendGrid, with a 30-second client
+plain-text part and an HTML part through SMTP if it is set up, else SendGrid, with a 15-second client
 timeout. It SHALL raise when no provider is set up, when the SendGrid client cannot be built, and
 when the provider fails. It SHALL NOT log the recipient's address. The invitation emails SHALL keep their content and their behavior.
 
