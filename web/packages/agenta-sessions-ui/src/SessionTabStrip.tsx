@@ -23,8 +23,8 @@ import {Reorder} from "motion/react"
  * overflow. Applied per-side ONLY where content is actually clipped (scrolled past) — a strip
  * that fits (e.g. a single tab) gets no fade, so its lone item isn't dimmed at the edges. The
  * lengths are the Home agents list's (26px in, 34px out), so the two scrollers read the same. */
-const EDGE_FADE_START_PX = 26
-const EDGE_FADE_END_PX = 34
+export const EDGE_FADE_START_PX = 26
+export const EDGE_FADE_END_PX = 34
 const fadeMask = (left: boolean, right: boolean): string => {
     const start = left ? `transparent 0, #000 ${EDGE_FADE_START_PX}px` : "#000 0"
     const end = right ? `#000 calc(100% - ${EDGE_FADE_END_PX}px), transparent 100%` : "#000 100%"
@@ -48,6 +48,28 @@ const chipsWidth = (el: HTMLElement): number => {
     if (!first || !last) return 0
     const trailing = parseFloat(getComputedStyle(last).marginRight) || 0
     return last.offsetLeft + last.offsetWidth + trailing - first.offsetLeft
+}
+
+/** How long a scroll must rest before it counts as stopped. */
+const SNAP_IDLE_MS = 140
+
+/**
+ * Where the scroller should rest: the chip start closest to `scrollLeft`, clear of the left fade.
+ * Null at either end of the strip, where there is nothing to settle.
+ */
+const snapTarget = (el: HTMLElement): number | null => {
+    const max = el.scrollWidth - el.clientWidth
+    if (el.scrollLeft <= 1 || el.scrollLeft >= max - 1) return null
+    const first = el.firstElementChild as HTMLElement | null
+    if (!first) return null
+    let target: number | null = null
+    for (const child of Array.from(el.children) as HTMLElement[]) {
+        const stop = Math.min(max, child.offsetLeft - first.offsetLeft - EDGE_FADE_START_PX)
+        if (target === null || Math.abs(stop - el.scrollLeft) < Math.abs(target - el.scrollLeft)) {
+            target = Math.max(0, stop)
+        }
+    }
+    return target
 }
 
 export interface SessionTabStripProps {
@@ -78,6 +100,10 @@ export interface SessionTabStripProps {
      * `SessionTabDragItem` with a matching id. Omit for a fixed strip.
      */
     reorder?: {ids: string[]; onReorder: (ids: string[]) => void}
+    /** Only the chips and extras, for a host bar that already draws the height and hairline. */
+    bare?: boolean
+    /** Settle on the nearest chip when a scroll stops, so none rests cut off at the start. */
+    snap?: boolean
     className?: string
 }
 
@@ -101,6 +127,8 @@ export const SessionTabStrip = ({
     leadingExtra,
     remeasureKey,
     reorder,
+    bare = false,
+    snap = false,
     className,
 }: SessionTabStripProps) => {
     // Edge fade is applied per side only where the strip is actually scrolled past its content, so
@@ -184,6 +212,41 @@ export const SessionTabStrip = ({
         [measureFade],
     )
     // Remeasure when the tab set changes, and after the add button moves (it resizes the scroller).
+    const reorderable = Boolean(reorder)
+    useEffect(() => {
+        const el = stripElRef.current
+        if (!snap || !el) return
+        let timer: ReturnType<typeof setTimeout> | undefined
+        // A held pointer is a drag in progress: the chip under it must not move.
+        let pressed = false
+        const settle = () => {
+            if (pressed) return
+            const target = snapTarget(el)
+            // No `behavior`: the strip's CSS smooth scroll applies, and it honours reduced motion.
+            if (target !== null && Math.abs(target - el.scrollLeft) > 1) el.scrollTo({left: target})
+        }
+        const onScroll = () => {
+            clearTimeout(timer)
+            timer = setTimeout(settle, SNAP_IDLE_MS)
+        }
+        const onDown = () => {
+            pressed = true
+        }
+        const onUp = () => {
+            pressed = false
+            onScroll()
+        }
+        el.addEventListener("scroll", onScroll, {passive: true})
+        el.addEventListener("pointerdown", onDown)
+        window.addEventListener("pointerup", onUp)
+        return () => {
+            clearTimeout(timer)
+            el.removeEventListener("scroll", onScroll)
+            el.removeEventListener("pointerdown", onDown)
+            window.removeEventListener("pointerup", onUp)
+        }
+    }, [reorderable, showTabs, snap])
+
     useEffect(() => {
         measureFade()
     }, [remeasureKey, pinAdd, measureFade])
@@ -222,7 +285,9 @@ export const SessionTabStrip = ({
         <div
             role="tablist"
             className={clsx(
-                "flex h-[48px] w-full min-w-0 shrink-0 items-center gap-2 overflow-hidden border-x-0 border-t-0 border-b border-solid border-[var(--ag-surface-card-border)] bg-[var(--ag-surface-canvas)] px-3",
+                "flex w-full min-w-0 shrink-0 items-center gap-2 overflow-hidden",
+                !bare &&
+                    "h-[48px] border-x-0 border-t-0 border-b border-solid border-[var(--ag-surface-card-border)] bg-[var(--ag-surface-canvas)] px-3",
                 className,
             )}
         >

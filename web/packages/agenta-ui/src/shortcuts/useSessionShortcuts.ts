@@ -14,7 +14,8 @@ export interface UseSessionShortcutsParams {
     onRename: (id: string) => void
     onArchive: (id: string) => void
     onNewSession: () => void
-    onCloseSession: (id: string) => void
+    /** Omit where sessions are not tabs: `Alt+W` then stays the browser's. */
+    onCloseSession?: (id: string) => void
     onSearch: () => void
     onToggleConfigPanel: () => void
     onToggleFilesPane: () => void
@@ -144,7 +145,7 @@ export function useSessionShortcuts({
             } else if (e.code === "KeyA") {
                 claim()
                 onArchive(activeId)
-            } else if (e.code === "KeyW" && sessions.length > 1) {
+            } else if (e.code === "KeyW" && onCloseSession && sessions.length > 1) {
                 claim()
                 onCloseSession(activeId)
             }

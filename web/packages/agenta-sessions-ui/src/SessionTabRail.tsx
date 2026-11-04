@@ -1,5 +1,5 @@
 /**
- * THE session tab rail — the horizontal strip of session chips that sits above a conversation, so
+ * THE session tab rail — the horizontal strip of session chips in the session bar, so
  * switching sessions is one tap and the neighbours stay visible.
  *
  * The strip and the chips are the SAME components the desktop playground's tab bar renders
@@ -11,7 +11,6 @@
  * capped or grouped result (a gate opening, a pin, a newer session) cannot blink its tab out.
  * Only the host's verbs arrive as props: how a chip opens, and what "new" means.
  */
-import type {ReactNode} from "react"
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {sessionRowStatusMeta, type SessionRowVm} from "@agenta/sessions/row"
@@ -34,7 +33,7 @@ import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {SimpleTooltip, SkeletonBlock} from "@agenta/ui/ui"
 import {PencilSimpleIcon, XIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
-import {atom, useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import InlineRenameInput from "./InlineRenameInput"
 import {type SessionMenuEntry} from "./menu"
@@ -52,7 +51,7 @@ import {
 import {SessionRowContextMenu} from "./SessionRowContextMenu"
 import {SessionTab} from "./SessionTab"
 import {SessionTabDragItem} from "./SessionTabDragItem"
-import {SessionTabStrip, TAB_DIVIDER} from "./SessionTabStrip"
+import {EDGE_FADE_END_PX, EDGE_FADE_START_PX, SessionTabStrip, TAB_DIVIDER} from "./SessionTabStrip"
 import {useInlineRename} from "./useInlineRename"
 
 /** A rename asked for from outside the rail (Alt+R) — the tab for this session opens its editor. */
@@ -111,17 +110,14 @@ export interface SessionTabRailProps extends UseSessionCardListArgs {
      * users expect to arrange. Off leaves the rail in list order.
      */
     reorderable?: boolean
-    /** Right-aligned extras, pinned outside the scroller (files opener, history menu). */
-    extra?: ReactNode
-    /** Leading extra, pinned before the scroller — the config-panel reveal control, rendered at
-     * the spot the config panel disappeared from. */
-    leadingExtra?: ReactNode
+    /** See `SessionTabStrip`: the host bar draws the chrome. */
+    bare?: boolean
     className?: string
 }
 
 /**
- * Keeps the active chip in view, scrolling ONLY when it is off-screen — scrolling on every
- * activation yanked the rail back when you clicked a chip you could already see. A just-created
+ * Keeps the active chip in view, scrolling ONLY when it is off-screen or under an edge fade —
+ * scrolling on every activation yanked the rail back when you clicked a chip you could see. A just-created
  * session always needs it: its chip is appended last, past the right edge of a full strip.
  */
 const useRevealWhenActive = (active: boolean) => {
@@ -138,8 +134,11 @@ const useRevealWhenActive = (active: boolean) => {
             if (!scroller) return
             const t = tab.getBoundingClientRect()
             const s = scroller.getBoundingClientRect()
-            const delta =
-                t.right > s.right ? t.right - s.right : t.left < s.left ? t.left - s.left : 0
+            // Clear of the edge fades too, or the chip lands in view but half dissolved. The
+            // browser clamps the scroll, and at either end the strip drops that side's fade.
+            const end = s.right - EDGE_FADE_END_PX
+            const start = s.left + EDGE_FADE_START_PX
+            const delta = t.right > end ? t.right - end : t.left < start ? t.left - start : 0
             if (delta === 0) return
             // Instant, like the wheel handler: `scroll-smooth` would leave the next frame
             // measuring a rect mid-flight, and the correction below would compound.
@@ -198,14 +197,13 @@ const RailTab = ({
     const rename = useInlineRename({current: vm.title, onCommit: onRename ?? renameUnavailable})
     const startRename = rename.start
     // Alt+R is raised outside the rail, so the request arrives as state. The nonce is consumed once.
-    const request = useAtomValue(renameTabRequestAtom)
-    const consumedNonceRef = useRef<number | null>(null)
+    const [request, setRequest] = useAtom(renameTabRequestAtom)
     useEffect(() => {
         if (!onRename || request?.sessionId !== vm.id) return
-        if (consumedNonceRef.current === request.nonce) return
-        consumedNonceRef.current = request.nonce
+        // Cleared, or the next mount of this tab would open its editor again.
+        setRequest(null)
         startRename()
-    }, [onRename, request, startRename, vm.id])
+    }, [onRename, request, setRequest, startRename, vm.id])
     const handleMenuSelect = useCallback(
         (key: string) => {
             // Deferred, not run here: an input that mounts inside the menu's focus trap is
@@ -399,8 +397,6 @@ export const SessionTabRail = ({
     activeSessionId,
     onSelect,
     onNew,
-    extra,
-    leadingExtra,
     activeFallbackTitle,
     menuFor,
     onMenuSelect,
@@ -410,6 +406,7 @@ export const SessionTabRail = ({
     onRenameTab,
     canRenameTab,
     reorderable = true,
+    bare,
     className,
     ...listArgs
 }: SessionTabRailProps) => {
@@ -514,10 +511,10 @@ export const SessionTabRail = ({
                     New session <ShortcutKeys id="session.new" tone="inverse" />
                 </span>
             }
-            extra={extra}
-            leadingExtra={leadingExtra}
             remeasureKey={rows.length}
             reorder={reorderable ? {ids: orderedIds, onReorder: handleReorder} : undefined}
+            bare={bare}
+            snap={bare}
             className={className}
         >
             {tabs.isPending && rows.length === 0

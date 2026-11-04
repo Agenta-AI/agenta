@@ -1,3 +1,5 @@
+import {IconTile} from "@agenta/ui/ui"
+
 /** One Share menu row: an icon tile, a title, and a one-line description. */
 export const ShareMenuItem = ({
     icon,
@@ -9,10 +11,9 @@ export const ShareMenuItem = ({
     description: string
 }) => (
     <>
-        {/* Same tile as the Publish hub cards, so the menu and the panel read as one. */}
-        <span className="box-border flex size-8 flex-none items-center justify-center rounded-lg border border-solid border-border text-foreground">
+        <IconTile tone="muted" aria-hidden>
             {icon}
-        </span>
+        </IconTile>
         <span className="flex min-w-0 flex-col">
             <span>{title}</span>
             <span className="truncate text-xs text-muted-foreground">{description}</span>

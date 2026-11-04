@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
- * The session header's share actions on /m. Publish opens the channels panel. The Templates menu's
- * items send the same requests as the /w playground header, as the CURRENT session's pending
+ * The session header's share actions on /m. Publish opens the channels panel. The Share panel's
+ * template rows send the same requests as the /w playground header, as the CURRENT session's pending
  * task. The conversation sends a pending task once, like a typed message, and never through the
  * composer, so one tap is one visible user message and the unsent draft stays.
  */
@@ -31,13 +31,22 @@ vi.mock("@agenta/entities/workflow", async (importOriginal) => {
     }
 })
 
-// The privacy control reads the sharing API; this suite is about Templates and Publish.
-vi.mock("../../src/features/chat/AgentPrivacyHost", () => ({
-    AgentPrivacyHost: () => null,
+// Privacy and session sharing have their own suites; this one is about the templates and Publish.
+vi.mock("@agenta/entity-ui/sharing", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@agenta/entity-ui/sharing")>()),
+    AgentPrivacyDialog: () => null,
+}))
+
+vi.mock("../../src/features/chat/useAgentPrivacyProps", () => ({
+    useAgentPrivacyProps: () => ({agentName: "Agent", projectName: "Acme support"}),
+}))
+
+vi.mock("../../src/features/chat/useSessionSharing", () => ({
+    useSessionSharing: () => ({sharing: undefined, owner: undefined}),
 }))
 
 vi.mock("../../src/features/agents/useAgentPublishPanel", () => ({
-    useAgentPublishPanel: () => ({openHub, panel: null}),
+    useAgentPublishPanel: () => ({openHub, reload: vi.fn(), panel: null}),
 }))
 
 const AGENT = "agent-1"
@@ -59,35 +68,33 @@ const mount = ({canRequestTemplate = true}: {canRequestTemplate?: boolean} = {})
                 createElement(ShareMenu, {
                     agentId: AGENT,
                     sessionId: SESSION,
+                    sessionName: "Refund question",
+                    showSession: true,
                     canRequestTemplate,
                     workspaceId: "workspace-1",
                     projectId: "project-1",
+                    phone: false,
                 }),
             ),
         )
     })
 }
 
-const trigger = () =>
-    document.querySelector<HTMLButtonElement>('[data-testid="template-menu-button"]')
+const shareButton = () =>
+    document.querySelector<HTMLButtonElement>('[data-testid="share-menu-share"]')
 const publishButton = () =>
     document.querySelector<HTMLButtonElement>('[data-testid="share-menu-publish"]')
-const menuItem = (key: "save-zip" | "share-marketplace") =>
-    document.querySelector<HTMLElement>(`[data-testid="share-menu-${key}"]`)
+const templateRow = (key: "save-zip" | "share-marketplace") =>
+    document.querySelector<HTMLButtonElement>(`[data-testid="share-menu-${key}"]`)
 
-/** Open the real menu the way a finger or mouse does (pointerdown on the trigger). */
-const openMenu = async () => {
-    await act(async () => {
-        trigger()?.dispatchEvent(
-            new MouseEvent("pointerdown", {bubbles: true, cancelable: true, button: 0}),
-        )
-    })
+const openShare = async () => {
+    await act(async () => shareButton()?.click())
 }
 
-/** Open the menu and pick an item, so the menu's own close-on-select runs. */
+/** Open Share and pick a row, so the panel's own close runs. */
 const choose = async (key: "save-zip" | "share-marketplace") => {
-    await openMenu()
-    await act(async () => menuItem(key)?.click())
+    await openShare()
+    await act(async () => templateRow(key)?.click())
 }
 
 beforeEach(() => {
@@ -106,14 +113,14 @@ afterEach(() => {
 })
 
 describe("ShareMenu (/m)", () => {
-    it("is a Publish button beside a Templates menu that holds the two template items", async () => {
+    it("is a Publish button beside a Share panel that holds the two template rows", async () => {
         mount()
         expect(publishButton()?.textContent).toBe("Publish")
-        expect(trigger()?.getAttribute("aria-label")).toBe("Templates")
-        expect(menuItem("save-zip")).toBeNull()
-        await openMenu()
-        expect(menuItem("save-zip")?.textContent).toContain("Save as template")
-        expect(menuItem("share-marketplace")?.textContent).toContain("Share in the marketplace")
+        expect(shareButton()?.textContent).toBe("Share")
+        expect(templateRow("save-zip")).toBeNull()
+        await openShare()
+        expect(templateRow("save-zip")?.textContent).toContain("Save as template")
+        expect(templateRow("share-marketplace")?.textContent).toContain("Share in the marketplace")
     })
 
     it("opens the channels panel from Publish", async () => {
@@ -122,10 +129,13 @@ describe("ShareMenu (/m)", () => {
         expect(openHub).toHaveBeenCalledTimes(1)
     })
 
-    it("shows only Publish without a live conversation", async () => {
+    it("leaves the template rows out of Share without a live conversation", async () => {
         mount({canRequestTemplate: false})
+        await openShare()
+        expect(document.body.textContent).toContain("Who can see this agent")
+        expect(templateRow("save-zip")).toBeNull()
+        expect(templateRow("share-marketplace")).toBeNull()
         expect(publishButton()).not.toBeNull()
-        expect(trigger()).toBeNull()
     })
 
     it.each([
@@ -142,37 +152,45 @@ describe("ShareMenu (/m)", () => {
                 [SESSION]: {agentId: AGENT, text: message},
             })
             expect(composerDraftBySession.get(SESSION)).toBe("half-written question")
+            expect(templateRow(key)).toBeNull()
         },
     )
 
-    it("disables the template items, not Publish, while a request is unsent", async () => {
+    it("disables the template rows, not Publish, while a request is unsent", async () => {
         mount()
         await choose("save-zip")
-        await openMenu()
+        await openShare()
 
-        expect(menuItem("save-zip")?.hasAttribute("data-disabled")).toBe(true)
-        expect(menuItem("share-marketplace")?.hasAttribute("data-disabled")).toBe(true)
+        expect(templateRow("save-zip")?.disabled).toBe(true)
+        expect(templateRow("share-marketplace")?.disabled).toBe(true)
         expect(publishButton()?.disabled).toBe(false)
     })
 
-    it("parks nothing more while a request is still unsent", async () => {
+    it("parks nothing more on a double tap that lands before the re-render", async () => {
         mount()
-        await choose("save-zip")
-        await choose("share-marketplace")
+        await openShare()
+        const first = templateRow("save-zip")!
+        const second = templateRow("share-marketplace")!
+        act(() => {
+            first.click()
+            // Still enabled: only the store read can stop this tap.
+            expect(second.disabled).toBe(false)
+            second.click()
+        })
 
         expect(store.get(pendingTasksAtom)).toEqual({
             [SESSION]: {agentId: AGENT, text: SAVE_AS_TEMPLATE_MESSAGE},
         })
     })
 
-    it("enables the template items again once the conversation took the request", async () => {
+    it("enables the template rows again once the conversation took the request", async () => {
         mount()
         await choose("save-zip")
         act(() => {
             store.set(takePendingTaskAtom, SESSION)
         })
-        await openMenu()
+        await openShare()
 
-        expect(menuItem("save-zip")?.hasAttribute("data-disabled")).toBe(false)
+        expect(templateRow("save-zip")?.disabled).toBe(false)
     })
 })

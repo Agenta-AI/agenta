@@ -51,6 +51,6 @@ export const resolveSessionPanes = ({
     // That swap needs two panes to mean anything. On a phone it put the sessions list where the
     // chat belongs, with no way out: `/m` reads the maximized flag and never writes it, and the
     // desktop playground writes it to the same origin. A phone in maximized mode shows the
-    // conversation, and the tab rail above it still reaches every session.
+    // conversation, and the title's dropdown still reaches every session.
     return {showConfig, showPane: showConfig || (twoPane && chatMaximized), showFiles: filesOpen}
 }

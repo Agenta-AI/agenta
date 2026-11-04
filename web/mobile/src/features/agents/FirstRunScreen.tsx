@@ -282,7 +282,7 @@ export const FirstRunScreen = ({
             // The mounting screen renders the shell around this body; a second one stacks rails.
             bare
             // No session exists yet, so the tab strip has nothing to switch between.
-            hideSessionTabs
+            hideSessionSwitcher
             // Lead with the question, not the form — the configuration is one `»` away.
             collapseConfigByDefault
         />
