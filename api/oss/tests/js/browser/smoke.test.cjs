@@ -39,6 +39,7 @@ const PAGES = {
     <a href="/next" target="_blank">Open help</a>
     <p id="out"></p>`,
   "/next": "<title>Help</title><h1>Help page</h1>",
+  "/signed-in": "<title>Account</title><h1>Welcome back</h1>",
   "/framed": `<title>Framed</title><h1>Outer page</h1><iframe src="/consent" title="Consent"></iframe>`,
   "/consent": `<button onclick="this.textContent='Rejected'">Reject all</button><button>Pay with card</button>`,
   "/login": `<title>Login</title><input aria-label="Email"><input aria-label="Password" type="password"><input aria-label="Code" autocomplete="one-time-code">`,
@@ -47,7 +48,10 @@ const PAGES = {
 function serveFixture() {
   const server = http.createServer((req, res) => {
     const body = PAGES[new URL(req.url, "http://x").pathname];
-    res.writeHead(body ? 200 : 404, { "content-type": "text/html", "set-cookie": "sid=s1; Path=/; Max-Age=3600" });
+    const pathname = new URL(req.url, "http://x").pathname;
+    const cookies = ["sid=s1; Path=/; Max-Age=3600"];
+    if (pathname === "/signed-in") cookies.push("login=yes; Path=/; Max-Age=3600");
+    res.writeHead(body ? 200 : 404, { "content-type": "text/html", "set-cookie": cookies });
     res.end(body || "");
   });
   return new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve(server)));
@@ -244,6 +248,48 @@ test("the agent opens tabs, a viewer sees and switches them, and an old ref is r
   assert.match(helpRead.out, /^Page: Help/);
   assert.match((await cli("read")).out, /^Page: Shop/);
   viewer.close();
+});
+
+test("a sign-in survives a killed browser when the person never clicked I'm done", { skip: !NODE_MODULES && "playwright-core with Chromium is not installed", timeout: 60_000 }, async (t) => {
+  const site = await serveFixture();
+  const origin = `http://127.0.0.1:${site.address().port}`;
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "agenta-browser-autosave-"));
+  fs.mkdirSync(path.join(cwd, "agent-files"));
+  const port = await freePort();
+  const runDir = path.join(cwd, "run");
+  const env = {
+    ...process.env,
+    NODE_PATH: NODE_MODULES,
+    AGENTA_BROWSER_ALLOW_SHARED_HOST: "1",
+    AGENTA_BROWSER_DIR: runDir,
+    AGENTA_BROWSER_PORT: String(port),
+    AGENTA_BROWSER_SAVE_EVERY_MS: "100",
+  };
+  const cli = makeCli(env, cwd);
+  t.after(async () => {
+    await cli("stop");
+    site.close();
+  });
+
+  await cli("open", `${origin}/`);
+  const { ws: WebSocket } = require(path.join(NODE_MODULES, "playwright-core", "lib", "utilsBundle"));
+  const token = fs.readFileSync(path.join(runDir, "token"), "utf8");
+  const viewer = new WebSocket(`ws://127.0.0.1:${port}/live`, { headers: { "x-agenta-browser-token": token } });
+  await new Promise((resolve) => viewer.on("open", resolve));
+  viewer.send(JSON.stringify({ type: "navigate", url: `${origin}/signed-in` }));
+
+  const saved = () => {
+    try {
+      const file = path.join(cwd, "agent-files", ".agenta-browser", "state.json");
+      return JSON.parse(fs.readFileSync(file, "utf8")).cookies.map((c) => c.name);
+    } catch {
+      return [];
+    }
+  };
+  for (let i = 0; i < 60 && !saved().includes("login"); i++) await new Promise((resolve) => setTimeout(resolve, 50));
+  process.kill(Number(fs.readFileSync(path.join(runDir, "pid"), "utf8")), "SIGKILL");
+  viewer.terminate();
+  assert.ok(saved().includes("login"), `saved cookies: ${saved()}`);
 });
 
 test("refs inside an iframe work and checks hold there; secret fields are never typed into", { skip: !NODE_MODULES && "playwright-core with Chromium is not installed", timeout: 120_000 }, async (t) => {

@@ -272,6 +272,11 @@ async function serve() {
   session.lastActivity = Date.now();
   log("ready");
 
+  setInterval(() => {
+    if (Date.now() - session.lastInput < config.SAVE_AFTER_INPUT_MS)
+      serially(session.saveState).catch((e) => log(`save failed: ${errorText(e)}`));
+  }, config.SAVE_EVERY_MS).unref();
+
   const idleCheck = setInterval(
     () => {
       const idle = Date.now() - session.lastActivity >= config.IDLE_EXIT_MS;

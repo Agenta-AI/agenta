@@ -30,6 +30,10 @@ const config = {
   IDLE_EXIT_MS: ms("AGENTA_BROWSER_IDLE_MS", 15 * 60_000),
   // Control held this long with no input no longer blocks the agent: the person has moved on.
   USER_IDLE_MS: ms("AGENTA_BROWSER_USER_IDLE_MS", 20_000),
+  // A person can sign in and never click I'm done, and a sandbox can die with no shutdown.
+  SAVE_EVERY_MS: ms("AGENTA_BROWSER_SAVE_EVERY_MS", 5_000),
+  // A sign-in's cookies can land well after the last click, at the end of a redirect chain.
+  SAVE_AFTER_INPUT_MS: ms("AGENTA_BROWSER_SAVE_AFTER_INPUT_MS", 60_000),
   START_TIMEOUT_MS: ms("AGENTA_BROWSER_START_TIMEOUT_MS", 60_000),
 };
 
