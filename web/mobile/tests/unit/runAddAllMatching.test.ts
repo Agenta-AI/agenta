@@ -314,8 +314,8 @@ describe("Add all matching to a queue", () => {
         expect(last("success")).toBeUndefined()
         const failed = last("error")
         expect(failed).toMatchObject({
-            title: "Queue add failed",
-            description: "Something went wrong. Try again.",
+            title: "Queue add incomplete",
+            description: "Queued 300 traces before the scan stopped. Try again to queue the rest.",
             action: {label: "Retry"},
         })
         expect(logged).toHaveBeenCalled()

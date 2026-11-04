@@ -230,10 +230,13 @@ const scan = async (
             return
         }
         console.error("Adding all matching traces to a queue failed", error)
+        const partial = added.size > 0
         show({
             type: "error",
-            title: "Queue add failed",
-            description: "Something went wrong. Try again.",
+            title: partial ? "Queue add incomplete" : "Queue add failed",
+            description: partial
+                ? `Queued ${count(added.size)} traces before the scan stopped. Try again to queue the rest.`
+                : "Something went wrong. Try again.",
             duration: 0,
             action: retry,
         })
