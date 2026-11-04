@@ -989,16 +989,18 @@ export const LiveConversation = ({
                         {/* Parked question forms, between approval and connect — the same order as
                         desktop, and the same order as the keyboard precedence. */}
                         {secrets.front ? (
-                            <ContentRail>
-                                <SecretRequestDock
-                                    key={secrets.front.toolCallId}
-                                    meta={secrets.front}
-                                    revisionId={entityId}
-                                    onAdoptRevision={adoptSecretRevision}
-                                    canEditSecrets={canEditSecrets}
-                                    onOutput={secrets.settle}
-                                />
-                            </ContentRail>
+                            <div className="bg-background shrink-0 px-3 pt-3 pb-0">
+                                <ContentRail>
+                                    <SecretRequestDock
+                                        key={secrets.front.toolCallId}
+                                        meta={secrets.front}
+                                        revisionId={entityId}
+                                        onAdoptRevision={adoptSecretRevision}
+                                        canEditSecrets={canEditSecrets}
+                                        onOutput={secrets.settle}
+                                    />
+                                </ContentRail>
+                            </div>
                         ) : null}
                         {elicits.open ? (
                             <div className="bg-background shrink-0 px-3 pt-3 pb-0">

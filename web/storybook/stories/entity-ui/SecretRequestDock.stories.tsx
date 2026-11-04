@@ -83,14 +83,26 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-/** Pending request before a secret has been attached. Configure opens the native shared drawer. */
+/** Nothing saved yet: the value goes straight into the card, with the variable beside it. */
 export const Pending: Story = {args: baseArgs}
 
-/** Reload recovery: the requested variable is already present, so Continue resumes without create. */
+/** The requested variable is attached, so Continue resumes and Change value opens the field. */
 export const ReadyToContinue: Story = {
     args: baseArgs,
     parameters: storyParameters(true),
 }
+
+/** The agent tried the saved value and it failed, so the card asks for a new one first. */
+export const Rejected: Story = {
+    args: {
+        ...baseArgs,
+        meta: {...metaFor(), input: {...metaFor().input, reason: "GitHub refused it", rejected: true}},
+    },
+    parameters: storyParameters(true),
+}
+
+/** Without edit permission there is no field, and the card says why. */
+export const ReadOnly: Story = {args: {...baseArgs, canEditSecrets: false}}
 
 /** A malformed platform request stays bounded and cannot open the setup flow. */
 export const Unavailable: Story = {

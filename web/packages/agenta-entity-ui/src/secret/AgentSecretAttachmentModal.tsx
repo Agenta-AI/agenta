@@ -75,7 +75,7 @@ export interface AgentSecretAttachmentModalProps {
     container?: HTMLElement | null
 }
 
-const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
+export const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
 const SECRET_FIELD_ID = "agent-secret-attach-secret"
 const ENV_FIELD_ID = "agent-secret-attach-env"
 /** The picker option that swaps in the inline create fields. */

@@ -1,13 +1,44 @@
-import {useState} from "react"
+import {useEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent} from "react"
 
-import type {AgentSecretBinding} from "@agenta/entities/secret"
+import {userItemKey} from "@agenta/entities/accountChoice"
+import {
+    personalAccountsAccessAtom,
+    useVaultSecret,
+    type AgentSecretBinding,
+} from "@agenta/entities/secret"
 import {commitAgentCredentialsAtom, workflowMolecule} from "@agenta/entities/workflow"
 import type {ClientToolMeta} from "@agenta/shared/clientTools"
-import {Button} from "@agenta/ui/ui"
-import {Key} from "@phosphor-icons/react"
+import {message} from "@agenta/ui/app-message"
+import {
+    Button,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    Input,
+    LoadingButton,
+    Textarea,
+} from "@agenta/ui/ui"
+import {DotsThree, PencilSimple} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {AgentSecretAttachmentModal} from "../secret"
+import {ACCOUNT_COPY} from "../accounts/copy"
+import {useAccountChoice} from "../accounts/useAccountChoice"
+import {
+    AgentSecretAttachmentModal,
+    ENV_NAME,
+    newSecretOwners,
+    PASSWORD_MANAGER_OPT_OUT,
+    useSecretForm,
+    type SavedSecret,
+} from "../secret"
+
+import {
+    parseSecretRequest,
+    replaceableRow,
+    resolveSecretDockSubject,
+    type VaultRead,
+} from "./secretRequestDockState"
 
 interface SecretRequestDockProps {
     meta: ClientToolMeta
@@ -21,6 +52,20 @@ interface SecretRequestDockProps {
         toolCallId: string
         output: Record<string, unknown>
     }) => void | boolean | Promise<void | boolean>
+}
+
+const VALUE_FIELD_LABEL = "Secret value"
+const VAULT_READ_TIMEOUT_MS = 3000
+
+/** Text already typed in the focused field, which a new card must not take the keys from. */
+const typingElsewhere = () => {
+    const active = document.activeElement
+    if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) {
+        return active.value.trim().length > 0
+    }
+    return active instanceof HTMLElement && active.isContentEditable
+        ? (active.textContent ?? "").trim().length > 0
+        : false
 }
 
 export const SecretRequestDock = ({
@@ -37,34 +82,84 @@ export const SecretRequestDock = ({
         setSeenRevisionId(revisionId)
         setTargetId(revisionId)
     }
-    const [open, setOpen] = useState(false)
+    const [modalOpen, setModalOpen] = useState(false)
     const [settling, setSettling] = useState(false)
+    const [committing, setCommitting] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+    // Saved in the vault but not attached: Continue retries the attachment, not the save.
+    const [unattached, setUnattached] = useState<AgentSecretBinding["secret"] | null>(null)
+    // Null follows the request; a person's "Change value" or "Keep saved value" overrides it.
+    const [entryChoice, setEntryChoice] = useState<boolean | null>(null)
+    const [editingEnv, setEditingEnv] = useState(false)
+    const [vault, setVault] = useState<VaultRead>("checking")
+    const valueRef = useRef<HTMLTextAreaElement>(null)
+
     const commit = useSetAtom(commitAgentCredentialsAtom)
     const configuration = useAtomValue(workflowMolecule.selectors.configuration(targetId))
     const dirty = useAtomValue(workflowMolecule.selectors.isDirty(targetId))
     const artifactName = useAtomValue(workflowMolecule.selectors.artifactName(targetId))
     const entity = useAtomValue(workflowMolecule.selectors.data(targetId))
+    const workflowId = useAtomValue(workflowMolecule.selectors.workflowId(targetId)) ?? ""
+    const access = useAtomValue(personalAccountsAccessAtom)
+    const {namedSecrets, mutate: refetchVault} = useVaultSecret()
+
     const agent = configuration?.agent as
         | {sandbox?: {credentials?: AgentSecretBinding[]}}
         | undefined
     const bindings = agent?.sandbox?.credentials ?? []
-    const input = meta.input as {name?: unknown; env_var?: unknown; reason?: unknown} | undefined
-    const valid =
-        typeof input?.name === "string" &&
-        typeof input?.env_var === "string" &&
-        typeof input?.reason === "string"
-    const request = valid
-        ? {
-              name: input.name as string,
-              envVar: input.env_var as string,
-              reason: input.reason as string,
-          }
-        : undefined
+    const request = parseSecretRequest(meta.input)
     const label = artifactName || "This agent"
-    const existingIndex = request
-        ? bindings.findIndex((item) => item.binding.name === request.envVar)
-        : -1
-    const existing = existingIndex >= 0 ? bindings[existingIndex] : undefined
+
+    // The vault query never refetches itself; `refetchVault` changes identity, so it is not a dep.
+    useEffect(() => {
+        let current = true
+        const finish = (read: VaultRead) => {
+            if (!current) return
+            current = false
+            setVault(read)
+        }
+        // A failing vault retries for a long time, and the card must not sit without an action.
+        const timer = setTimeout(() => finish("failed"), VAULT_READ_TIMEOUT_MS)
+        Promise.resolve(refetchVault()).then(
+            (result) => finish((result as {isError?: boolean})?.isError ? "failed" : "fresh"),
+            () => finish("failed"),
+        )
+        return () => {
+            current = false
+            clearTimeout(timer)
+        }
+    }, [])
+
+    const subject = request
+        ? resolveSecretDockSubject({request, bindings, secrets: namedSecrets, vault})
+        : undefined
+    const attachment =
+        subject?.kind === "attached" || subject?.kind === "missing" ? subject : undefined
+    const replaceable = subject ? replaceableRow(subject) : undefined
+    const hasSaved = subject?.kind === "vault" || subject?.kind === "attached"
+    const inlineValue =
+        canEditSecrets && !!subject && subject.kind !== "checking" && (!hasSaved || !!replaceable)
+    const entry =
+        inlineValue && !unattached && (entryChoice ?? (!hasSaved || request?.rejected === true))
+
+    const [envVar, setEnvVar] = useState(request?.envVar ?? "")
+    const envName = envVar.trim()
+    const envInvalid = !ENV_NAME.test(envName)
+    const envTaken = bindings.some(
+        (item, index) => index !== attachment?.index && item.binding.name === envName,
+    )
+    const envError = envInvalid
+        ? "Use letters, digits, and underscores; do not start with a digit."
+        : envTaken
+          ? "This environment variable is already attached."
+          : null
+    const envChanged = envName !== attachment?.binding.binding.name
+
+    const owners = newSecretOwners(access === "on", canEditSecrets)
+    const owner = owners?.[0] ?? "project"
+    const replacing = entry && !!replaceable
+    const {choose: storeChoice} = useAccountChoice(workflowId, userItemKey("secret", envName))
+
     const settle = (output: Record<string, unknown>) => {
         if (settling || meta.settled) return
         setSettling(true)
@@ -83,12 +178,154 @@ export const SecretRequestDock = ({
     /** A "user" secret reports `{account_source: "user"}` in place of a slug. */
     const configured = (
         secret: AgentSecretBinding["secret"],
-        envVar: string,
+        name: string,
         nextRevisionId: string,
     ) => {
         onAdoptRevision(nextRevisionId)
-        settle({status: "configured", secret, env_var: envVar, revision_id: nextRevisionId})
+        settle({status: "configured", secret, env_var: name, revision_id: nextRevisionId})
     }
+
+    const commitBinding = async ({
+        baseRevisionId,
+        credential,
+        editIndex,
+    }: {
+        baseRevisionId: string
+        credential: AgentSecretBinding
+        editIndex?: number
+    }) => {
+        const nextBindings =
+            editIndex === undefined
+                ? [...bindings, credential]
+                : bindings.map((item, index) => (index === editIndex ? credential : item))
+        const result = await commit({revisionId: baseRevisionId, bindings: nextBindings})
+        setTargetId(result.revisionId)
+        return result
+    }
+
+    const attach = async (secret: AgentSecretBinding["secret"], justSaved: boolean) => {
+        setCommitting(true)
+        setError(null)
+        try {
+            const result = await commitBinding({
+                baseRevisionId: targetId,
+                credential: {secret, binding: {type: "env", name: envName}},
+                editIndex: attachment?.index,
+            })
+            setUnattached(null)
+            configured(secret, envName, result.revisionId)
+        } catch (cause) {
+            setUnattached(secret)
+            setError(
+                `${justSaved ? "Saved in the vault, not attached. " : ""}${
+                    cause instanceof Error ? cause.message : "The secret could not be attached."
+                }`,
+            )
+        } finally {
+            setCommitting(false)
+        }
+    }
+
+    const handleSaved = async (saved: SavedSecret) => {
+        if (subject?.kind === "attached" && !envChanged) {
+            configured(subject.binding.secret, envName, targetId)
+            return
+        }
+        if (owner === "user" && !replacing) {
+            // "Only me": the item takes each person's own secret, and this one is the choice.
+            const stored = saved.id ? await storeChoice({secretId: saved.id}) : false
+            if (stored !== true) message.error(ACCOUNT_COPY.choiceFailed)
+            await attach({account_source: "user"}, true)
+            return
+        }
+        await attach({slug: saved.slug}, true)
+    }
+
+    const form = useSecretForm({
+        open: entry,
+        // The vault returns the stored value on some records. A replacement never shows it.
+        initialSecret: replaceable ? {...replaceable, content: undefined, writeOnly: true} : null,
+        initialName: request?.name,
+        initialDefaultEnvVar: request?.envVar,
+        ownerKind: owner === "user" && !replacing ? "user" : undefined,
+        onSaved: (saved) => void handleSaved(saved),
+    })
+
+    // A phone keyboard would cover the card as it arrives, so there the field waits for a tap.
+    useEffect(() => {
+        if (!entry || typingElsewhere()) return
+        if (window.matchMedia?.("(pointer: coarse)").matches) return
+        valueRef.current?.focus()
+    }, [entry])
+
+    const busy = settling || committing || form.saving
+    const blocked = busy || dirty || !entity || !!envError
+    const canSubmit = !blocked && !!form.textValue.trim()
+
+    const continueWithSaved = () => {
+        if (unattached) {
+            void attach(unattached, false)
+            return
+        }
+        if (subject?.kind === "vault") {
+            void attach({slug: subject.row.slug ?? ""}, false)
+            return
+        }
+        if (subject?.kind !== "attached") return
+        if (envChanged) void attach(subject.binding.secret, false)
+        else configured(subject.binding.secret, envName, targetId)
+    }
+
+    const submitOnEnter = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+        if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return
+        event.preventDefault()
+        if (canSubmit) void form.submit()
+    }
+
+    // A copied value often carries the terminal's newline, which would become part of the secret.
+    const pasteTrimmed = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+        if (form.textValue) return
+        event.preventDefault()
+        form.setTextValue(event.clipboardData.getData("text").trim())
+    }
+
+    const changeEnv = (next: string) => {
+        setEnvVar(next)
+        form.setDefaultEnvVar(next.trim())
+        setError(null)
+    }
+
+    const canContinue =
+        !!unattached ||
+        subject?.kind === "attached" ||
+        (subject?.kind === "vault" && canEditSecrets)
+    const ready = subject && subject.kind !== "checking"
+    const showContinue = ready && !entry && canContinue
+    const canRename = canEditSecrets && !!entity
+    // The dialog keeps what the card leaves out: another saved secret, the owner, a personal value.
+    const hasOptions =
+        canEditSecrets &&
+        !!ready &&
+        (namedSecrets.length > 0 || (owners?.length ?? 0) > 1 || (hasSaved && !replaceable))
+    const canToggleEntry = inlineValue && hasSaved && !unattached
+    const notice = !request
+        ? "This request is missing its setup details."
+        : dirty
+          ? "Save or discard your agent changes first."
+          : ready && !canEditSecrets
+            ? canContinue
+                ? "You do not have permission to change this secret."
+                : "You do not have permission to add this secret. Ask a project admin."
+            : subject?.kind === "missing"
+              ? "The saved secret was deleted. Add its value again."
+              : null
+    const alert = error ?? (editingEnv ? envError : null)
+    const title = request
+        ? request.rejected
+            ? `${request.name} did not work`
+            : request.name
+        : "Secret setup unavailable"
+
     return (
         <>
             <div
@@ -96,93 +333,164 @@ export const SecretRequestDock = ({
                 role="region"
                 aria-label="Secret request"
             >
-                <div className="flex items-center gap-2 text-xs font-medium">
-                    <Key size={14} />
-                    Secret needed to continue
-                </div>
-                <p className="mb-1 mt-3 text-sm">
-                    <strong className="font-semibold">
-                        {request?.name ?? "Secret setup unavailable"}
-                    </strong>
-                    {request
-                        ? ` · ${request.reason}`
-                        : "This request is missing its setup details."}
+                <p className="m-0 truncate text-sm font-medium">{title}</p>
+                <p
+                    className={`m-0 mt-0.5 line-clamp-2 text-xs ${alert ? "text-error" : "text-colorTextSecondary"}`}
+                >
+                    {alert ?? notice ?? request?.reason}
                 </p>
-                <p className="mb-3 text-xs text-colorTextSecondary">
-                    {existing
-                        ? "This secret is attached. Continue with the saved configuration."
-                        : `Available for future runs of ${label}.`}
-                </p>
-                <div className="flex justify-end gap-2">
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={settling}
-                        onClick={() => settle({status: "cancelled"})}
-                    >
-                        Not now
-                    </Button>
-                    {existing ? (
-                        <>
-                            <Button
-                                variant="outline"
+
+                {entry ? (
+                    <div className="ph-no-capture mt-3 flex items-start gap-2">
+                        <Textarea
+                            ref={valueRef}
+                            {...PASSWORD_MANAGER_OPT_OUT}
+                            aria-label={VALUE_FIELD_LABEL}
+                            rows={1}
+                            className="max-h-24 min-h-8 flex-1 resize-none font-mono [-webkit-text-security:disc] [field-sizing:content]"
+                            placeholder={replacing ? "Paste a new value" : "Paste the value"}
+                            value={form.textValue}
+                            onChange={(event) => form.setTextValue(event.target.value)}
+                            onKeyDown={submitOnEnter}
+                            onPaste={pasteTrimmed}
+                            autoComplete="off"
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            spellCheck={false}
+                            disabled={busy}
+                        />
+                        <LoadingButton
+                            loading={form.saving || committing}
+                            disabled={!canSubmit}
+                            onClick={() => void form.submit()}
+                        >
+                            Save
+                        </LoadingButton>
+                    </div>
+                ) : null}
+
+                <div className="mt-2 flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 flex-1 items-center">
+                        {request ? (
+                            editingEnv ? (
+                                <Input
+                                    aria-label="Environment variable"
+                                    autoFocus
+                                    size="sm"
+                                    className="h-6 w-full max-w-72 font-mono text-xs"
+                                    value={envVar}
+                                    onChange={(event) => changeEnv(event.target.value)}
+                                    onBlur={() => {
+                                        if (!envError) setEditingEnv(false)
+                                    }}
+                                    onKeyDown={(event) => {
+                                        if (event.key !== "Enter" && event.key !== "Escape") return
+                                        event.preventDefault()
+                                        if (event.key === "Escape") {
+                                            changeEnv(
+                                                attachment?.binding.binding.name ?? request.envVar,
+                                            )
+                                            setEditingEnv(false)
+                                        } else if (!envError) {
+                                            setEditingEnv(false)
+                                        }
+                                    }}
+                                    autoComplete="off"
+                                    spellCheck={false}
+                                    aria-invalid={!!envError || undefined}
+                                />
+                            ) : (
+                                <button
+                                    type="button"
+                                    className="group inline-flex min-w-0 items-center gap-1.5 border-0 bg-transparent p-0 font-mono text-xs text-colorTextSecondary enabled:cursor-pointer enabled:hover:text-colorText"
+                                    aria-label={`Change environment variable ${envName}`}
+                                    title={envName}
+                                    disabled={!canRename || busy}
+                                    onClick={() => setEditingEnv(true)}
+                                >
+                                    <span className="truncate">{envName}</span>
+                                    {canRename ? (
+                                        <PencilSimple
+                                            size={11}
+                                            className="shrink-0 opacity-60 group-hover:opacity-100"
+                                        />
+                                    ) : null}
+                                </button>
+                            )
+                        ) : null}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                        {!ready && request ? (
+                            <span className="px-2 text-xs text-colorTextSecondary">
+                                Checking...
+                            </span>
+                        ) : null}
+                        {canToggleEntry || hasOptions ? (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        aria-label="Secret options"
+                                        disabled={busy}
+                                    >
+                                        <DotsThree size={16} />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    {canToggleEntry ? (
+                                        <DropdownMenuItem onSelect={() => setEntryChoice(!entry)}>
+                                            {entry ? "Keep saved value" : "Change value"}
+                                        </DropdownMenuItem>
+                                    ) : null}
+                                    {hasOptions ? (
+                                        <DropdownMenuItem
+                                            disabled={dirty}
+                                            onSelect={() => setModalOpen(true)}
+                                        >
+                                            {hasSaved && !replaceable
+                                                ? "Change value"
+                                                : "More options"}
+                                        </DropdownMenuItem>
+                                    ) : null}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        ) : null}
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={busy}
+                            onClick={() => settle({status: "cancelled"})}
+                        >
+                            Not now
+                        </Button>
+                        {showContinue ? (
+                            <LoadingButton
                                 size="sm"
-                                disabled={settling || dirty || !canEditSecrets}
-                                onClick={() => setOpen(true)}
-                            >
-                                Configure
-                            </Button>
-                            <Button
-                                size="sm"
-                                disabled={settling || dirty}
-                                onClick={() =>
-                                    configured(existing.secret, existing.binding.name, targetId)
-                                }
+                                loading={committing}
+                                disabled={blocked}
+                                onClick={continueWithSaved}
                             >
                                 Continue
-                            </Button>
-                        </>
-                    ) : (
-                        <Button
-                            size="sm"
-                            disabled={!valid || settling || !canEditSecrets}
-                            onClick={() => setOpen(true)}
-                        >
-                            Configure
-                        </Button>
-                    )}
+                            </LoadingButton>
+                        ) : null}
+                    </div>
                 </div>
-                {existing && !canEditSecrets ? (
-                    <p className="mb-0 mt-2 text-right text-xs text-colorTextSecondary">
-                        You do not have permission to change this secret attachment.
-                    </p>
-                ) : null}
             </div>
             <AgentSecretAttachmentModal
-                open={open}
-                onClose={() => setOpen(false)}
+                open={modalOpen}
+                onClose={() => setModalOpen(false)}
                 target={{revisionId: targetId, label}}
-                request={request}
+                request={request ? {...request, envVar: envName} : undefined}
                 bindings={bindings}
                 baseRevisionId={targetId}
-                editingBinding={existing ? {index: existingIndex, value: existing} : undefined}
+                editingBinding={
+                    attachment ? {index: attachment.index, value: attachment.binding} : undefined
+                }
                 dirty={dirty}
                 disabled={!entity || !canEditSecrets}
                 canCreateSecret={canEditSecrets}
-                commitBinding={async ({baseRevisionId, credential, editIndex}) => {
-                    const nextBindings =
-                        editIndex === undefined
-                            ? [...bindings, credential]
-                            : bindings.map((item, index) =>
-                                  index === editIndex ? credential : item,
-                              )
-                    const result = await commit({
-                        revisionId: baseRevisionId,
-                        bindings: nextBindings,
-                    })
-                    setTargetId(result.revisionId)
-                    return result
-                }}
+                commitBinding={commitBinding}
                 onAttached={({credential, revisionId: next}) =>
                     configured(credential.secret, credential.binding.name, next)
                 }
