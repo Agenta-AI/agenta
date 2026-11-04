@@ -88,7 +88,7 @@ describe("evaluations route", () => {
     it("Evaluations route shows not found while the view is hidden", async () => {
         const view = DEVELOPER_VIEWS.find((entry) => entry.id === "evaluations")
         expect(view?.stage).toBe("hidden")
-        expect(view?.routes).toEqual(["/evaluations"])
+        expect(view?.routes).toEqual(["/evaluations", "/evaluations/results/[evaluation_id]"])
         await mount()
         expect(host.querySelector("[data-testid=not-found]")).not.toBeNull()
         expect(screen).not.toHaveBeenCalled()
