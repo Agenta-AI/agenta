@@ -3,13 +3,17 @@ import {useCallback, useEffect, useRef} from "react"
 import {isLocalDraftId} from "@agenta/entities/shared"
 import {workflowDetailQueryAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {playgroundController, playgroundInitializedAtom} from "@agenta/playground"
+import {projectIdAtom} from "@agenta/shared/state"
 import {atom, useAtomValue, useStore} from "jotai"
 import {atomFamily} from "jotai-family"
 import {queryClientAtom} from "jotai-tanstack-query"
 import {useRouter} from "next/router"
 
 import {clearPlayground} from "./clearPlayground"
-import {playgroundLatestRevisionIdAtomFamily} from "./playgroundLatestRevision"
+import {
+    playgroundLatestRevisionIdAtomFamily,
+    playgroundLatestRevisionKey,
+} from "./playgroundLatestRevision"
 import {parseRevisionIds} from "./playgroundUrl"
 
 /** How far the app and its selected revisions have loaded. */
@@ -109,10 +113,20 @@ export const usePlaygroundSelection = ({appId}: {appId: string}): PlaygroundSele
         if (kept.length !== current.length) {
             store.set(playgroundController.actions.setEntityIds, kept)
         }
-        if (kept.length === 0 && latestId) select([latestId])
-        // `keptIds` only triggers the effect: in the commit that sets the playground up it is
-        // still the value from before, so the store is read instead. `appUsable` and
-        // `router.isReady` run it again in the commit that sets the playground up: the latest
+        if (kept.length === 0) {
+            // The latest revision comes from the query cache, not from `latestId`. The query
+            // library tells this screen of a new answer on a later task. Right after a delete
+            // the reload has answered, but `latestId` can still be the deleted revision.
+            const queryClient = store.get(queryClientAtom)
+            const latest = queryClient.getQueryState<string | null>(
+                playgroundLatestRevisionKey(appId, store.get(projectIdAtom)),
+            )
+            // A failed reload keeps the previous answer, which can be a revision just deleted.
+            if (latest && latest.status !== "error" && latest.data) select([latest.data])
+        }
+        // `keptIds` and `latestId` only trigger the effect: in the commit that sets the
+        // playground up `keptIds` is still the value from before, so the store is read instead.
+        // `appUsable` and `router.isReady` run it again in the commit that sets the playground up: the latest
         // revision can answer before the app, and nothing else would run it then.
     }, [appId, appUsable, keptIds, latestId, router.isReady, select, store])
 
