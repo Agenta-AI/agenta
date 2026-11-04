@@ -1,4 +1,4 @@
-import {useCallback, useMemo, useRef} from "react"
+import {useCallback, useMemo} from "react"
 
 import {analyticsIdentity, generateOrRetrieveDistinctId} from "@agenta/shared/analytics"
 import {useAtom} from "jotai"
@@ -16,6 +16,9 @@ interface ExtendedPostHog extends PostHog {
     capture: PostHog["capture"]
 }
 
+// Shared by every component that calls the hook, so each identity change is sent once.
+let identifiedKey: string | null = null
+
 export const usePostHogAg = (): ExtendedPostHog | null => {
     const trackingEnabled = getEnv("NEXT_PUBLIC_POSTHOG_API_KEY") !== ""
     const {user} = useProfileData()
@@ -25,13 +28,6 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
         () => analyticsIdentity(user, isDemo(), baseDistinctId),
         [user, baseDistinctId],
     )
-    const identifiedRef = useRef<string | null>(null)
-    const personPropsIdentifiedRef = useRef<string | null>(null)
-    const aliasedRef = useRef(false)
-
-    const identifiedPersonPropsKey = useMemo(() => {
-        return personProps ? `${analyticsId}:${JSON.stringify(personProps)}` : null
-    }, [analyticsId, personProps])
     const baseCapture = useMemo(() => posthog?.capture?.bind(posthog), [posthog])
     const baseIdentify = useMemo(() => posthog?.identify?.bind(posthog), [posthog])
     const capture: PostHog["capture"] = useCallback(
@@ -61,33 +57,17 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
     }, [posthog, trackingEnabled])
 
     useIsomorphicLayoutEffect(() => {
-        if (!user?.email) {
-            personPropsIdentifiedRef.current = null
-            aliasedRef.current = false
-        }
-    }, [user?.email])
-
-    useIsomorphicLayoutEffect(() => {
         if (!posthog) return
         if (!analyticsId) return
-        const shouldIdentify =
-            identifiedRef.current !== analyticsId ||
-            (identifiedPersonPropsKey !== null &&
-                personPropsIdentifiedRef.current !== identifiedPersonPropsKey)
+        // Cloud identifies by email only. PostHog merges the anonymous browser into the email
+        // person on identify; an earlier identify(deviceId) would block that merge.
+        if (isDemo() && !user?.email) return
+        const key = JSON.stringify([analyticsId, personProps ?? null])
+        if (identifiedKey === key && posthog.get_distinct_id?.() === analyticsId) return
 
-        if (!shouldIdentify) return
-
-        if (isDemo() && user?.email && baseDistinctId !== analyticsId && !aliasedRef.current) {
-            posthog.alias?.(analyticsId, baseDistinctId)
-            aliasedRef.current = true
-        }
-
-        identifiedRef.current = analyticsId
-        if (identifiedPersonPropsKey) {
-            personPropsIdentifiedRef.current = identifiedPersonPropsKey
-        }
+        identifiedKey = key
         identify(analyticsId, personProps)
-    }, [analyticsId, baseDistinctId, identify, personProps, posthog, user?.email])
+    }, [analyticsId, identify, personProps, posthog, user?.email])
 
     if (!posthog) return null
     return Object.assign(posthog, {identify, capture}) as ExtendedPostHog

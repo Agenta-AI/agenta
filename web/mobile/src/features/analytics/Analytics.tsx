@@ -16,7 +16,6 @@ export const Analytics = () => {
     const {user} = useProfile()
     const [client, setClient] = useAtom(posthogAtom)
     const identityRef = useRef<string | null>(null)
-    const aliasedIdRef = useRef<string | null>(null)
     const initialPageviewRef = useRef(false)
     const authRoute = isAnalyticsAuthRoute(router.asPath || router.pathname || "")
     const enabled = Boolean(getEnv("NEXT_PUBLIC_POSTHOG_API_KEY"))
@@ -34,22 +33,14 @@ export const Analytics = () => {
 
     useEffect(() => {
         if (!client || !enabled || authRoute) return
-        if (!user?.email) aliasedIdRef.current = null
+        // Cloud identifies by email only. PostHog merges the anonymous browser into the email
+        // person on identify; an earlier identify(deviceId) would block that merge.
+        if (isEE() && !user?.email) return
         const baseId = generateOrRetrieveDistinctId()
         const {id, properties} = analyticsIdentity(user, isEE(), baseId)
         const key = JSON.stringify([id, properties])
-        if (identityRef.current === key) return
         try {
-            if (
-                isEE() &&
-                user?.email &&
-                baseId !== id &&
-                aliasedIdRef.current !== id &&
-                client.get_distinct_id() !== id
-            ) {
-                client.alias(id, baseId)
-                aliasedIdRef.current = id
-            }
+            if (identityRef.current === key && client.get_distinct_id() === id) return
             client.identify(id, properties)
             identityRef.current = key
         } catch {
@@ -93,10 +84,7 @@ export const Analytics = () => {
     }, [client, enabled, authRoute])
 
     useEffect(() => {
-        if (authRoute) {
-            identityRef.current = null
-            aliasedIdRef.current = null
-        }
+        if (authRoute) identityRef.current = null
         if (!enabled) client?.opt_out_capturing()
     }, [authRoute, client, enabled])
 

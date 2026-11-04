@@ -66,6 +66,9 @@ const render = async () => {
 
 beforeEach(async () => {
     vi.clearAllMocks()
+    state.identify.mockImplementation((id: string) => {
+        state.distinctId = id
+    })
     state.key = "test-project-key"
     state.cloud = true
     state.user = null
@@ -114,7 +117,8 @@ describe("mobile PostHog parity", () => {
                 },
             }),
         )
-        expect(state.identify).toHaveBeenCalledWith("desktop-visitor", undefined)
+        // Cloud stays anonymous until the profile loads.
+        expect(state.identify).not.toHaveBeenCalled()
         expect(state.capture.mock.calls.filter(([event]) => event === "$pageview")).toEqual([
             ["$pageview", {$current_url: window.location.href}],
         ])
@@ -124,19 +128,26 @@ describe("mobile PostHog parity", () => {
         expect(state.listeners.size).toBe(1)
     })
 
-    it("identifies a hydrated cloud profile and reuses desktop identity and properties", async () => {
+    it("identifies a hydrated cloud profile by email only, without an alias", async () => {
         await render()
         state.user = {email: "person@example.test", username: "Person"}
         await render()
-        expect(state.alias).toHaveBeenCalledWith("person@example.test", "desktop-visitor")
-        expect(state.identify).toHaveBeenLastCalledWith("person@example.test", state.user)
-        const count = state.identify.mock.calls.length
+        expect(state.identify.mock.calls).toEqual([["person@example.test", state.user]])
         await render()
-        expect(state.identify).toHaveBeenCalledTimes(count)
+        expect(state.identify).toHaveBeenCalledTimes(1)
         state.user = {...state.user, username: "Renamed"}
         await render()
-        expect(state.alias).toHaveBeenCalledTimes(1)
         expect(state.identify).toHaveBeenLastCalledWith("person@example.test", state.user)
+        expect(state.alias).not.toHaveBeenCalled()
+    })
+
+    it("identifies the same person again after an analytics reset", async () => {
+        state.user = {email: "person@example.test", username: "Person"}
+        await render()
+        state.distinctId = "anonymous-after-reset"
+        state.user = {...state.user}
+        await render()
+        expect(state.identify).toHaveBeenCalledTimes(2)
     })
 
     it("keeps the desktop visitor ID for self-hosted users", async () => {

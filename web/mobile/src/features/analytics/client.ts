@@ -36,7 +36,9 @@ export function loadPostHog(): Promise<PostHog | null> {
                         loaded: (client) => {
                             if (process.env.NODE_ENV === "development") client.debug()
                             try {
-                                client.identify(generateOrRetrieveDistinctId())
+                                // Cloud stays anonymous until the profile loads, so the later
+                                // identify(email) can merge this browser into the email person.
+                                if (!isEE()) client.identify(generateOrRetrieveDistinctId())
                             } catch {
                                 // Identification must not prevent initialization from settling.
                             }

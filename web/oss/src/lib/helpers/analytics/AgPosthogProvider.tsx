@@ -54,7 +54,10 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
                     if (process.env.NODE_ENV === "development") posthog.debug()
                     if (!initCapturedRef.current) {
                         initCapturedRef.current = true
-                        const distinctId = generateOrRetrieveDistinctId()
+                        // Cloud stays anonymous until the profile loads, so the later
+                        // identify(email) in usePostHogAg can merge this browser into the
+                        // email person.
+                        const distinctId = isDemo() ? null : generateOrRetrieveDistinctId()
                         if (distinctId) {
                             posthog.identify?.(distinctId)
                         }
