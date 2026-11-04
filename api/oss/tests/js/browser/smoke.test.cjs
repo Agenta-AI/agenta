@@ -53,6 +53,9 @@ const PAGES = {
   "/spin": `<title>Spin</title><script>localStorage.setItem("k", "v")</script><button onclick="for (;;);">Freeze</button>`,
   "/to-frame": `<title>To frame</title><input aria-label="Name" onfocus="document.querySelector('iframe').contentDocument.querySelector('input').focus()"><iframe srcdoc="<input type=password aria-label=Secret>"></iframe>`,
   "/to-button": `<title>To button</title><input aria-label="Name" onfocus="document.querySelector('button').focus()"><button onclick="this.textContent='Account deleted'">Delete account</button>`,
+  "/rich": `<title>Rich</title><iframe title="Editor" srcdoc="<body contenteditable=true role=textbox aria-label=Body></body>"></iframe>`,
+  "/shadow": `<title>Shadow</title><div id="host"></div><script>const r = host.attachShadow({ mode: "open" }); r.innerHTML = '<input aria-label="Inner" onkeydown="if (event.key === \\'Enter\\') document.title = \\'Sent \\' + this.value">';</script>`,
+  "/two": `<title>Two</title><input aria-label="Name" autofocus oninput="document.title = 'Value ' + this.value">`,
   "/field": `<title>Field</title><input aria-label="Name" value="old" oninput="document.title = 'Length ' + this.value.length">`,
   "/signed-in": "<title>Account</title><h1>Welcome back</h1>",
   "/framed": `<title>Framed</title><h1>Outer page</h1><iframe src="/consent" title="Consent"></iframe>`,
@@ -432,6 +435,61 @@ test("typing goes only into an editable, non-secret field that holds focus", { s
   const cleared = await cli("type", refOf(field.out, 'textbox "Name"'), "");
   assert.equal(cleared.code, 0, cleared.out);
   assert.doesNotMatch((await cli("read")).out, /old/);
+});
+
+test("typing works in iframe editors and shadow fields", { skip: !NODE_MODULES && "playwright-core with Chromium is not installed", timeout: 60_000 }, async (t) => {
+  const site = await serveFixture();
+  const origin = `http://127.0.0.1:${site.address().port}`;
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "agenta-browser-editors-"));
+  const cli = makeCli(await stuckEnv(cwd), cwd);
+  t.after(async () => {
+    await cli("stop");
+    site.close();
+  });
+  const rich = await cli("open", `${origin}/rich`);
+  const typed = await cli("type", refOf(rich.out, 'textbox "Body"'), "hello");
+  assert.equal(typed.code, 0, typed.out);
+  const shadow = await cli("open", `${origin}/shadow`);
+  const sent = await cli("type", refOf(shadow.out, 'textbox "Inner"'), "hi", "--submit");
+  assert.equal(sent.code, 0, sent.out);
+  assert.match((await cli("tab")).out, /Sent hi/);
+});
+
+test("viewer input keeps its page and its order", { skip: !NODE_MODULES && "playwright-core with Chromium is not installed", timeout: 60_000 }, async (t) => {
+  const site = await serveFixture();
+  const origin = `http://127.0.0.1:${site.address().port}`;
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "agenta-browser-order-"));
+  const env = await stuckEnv(cwd, { AGENTA_BROWSER_USER_IDLE_MS: "300" });
+  const cli = makeCli(env, cwd);
+  t.after(async () => {
+    await cli("stop");
+    site.close();
+  });
+  const first = await cli("open", `${origin}/two`);
+  const second = await cli("open", `${origin}/two`, "--new-tab");
+  await cli("click", refOf(second.out, 'textbox "Name"'));
+  await cli("tab", "1");
+  await cli("click", refOf(first.out, 'textbox "Name"'));
+  const viewer = await openViewer(env);
+  await until(() => viewer.status);
+  const settled = () => new Promise((resolve) => setTimeout(resolve, 600));
+
+  viewer.send({ type: "key", event: "down", key: "Control" });
+  viewer.send({ type: "text", text: "paste" });
+  viewer.send({ type: "key", event: "up", key: "Control" });
+  await settled();
+  assert.match((await cli("tab")).out, /1\. Value paste/);
+
+  for (let i = 0; i < 8; i++) viewer.send({ type: "text", text: "x".repeat(40) });
+  viewer.send({ type: "tab", id: viewer.status.tabs[1].id });
+  await settled();
+  assert.doesNotMatch((await cli("tab")).out, /2\. Value x/);
+
+  for (let i = 0; i < 8; i++) viewer.send({ type: "text", text: "y".repeat(40) });
+  viewer.send({ type: "done" });
+  await settled();
+  assert.equal(viewer.status.control, "agent");
+  viewer.socket.close();
 });
 
 test("a command past its time limit stops typing", { skip: !NODE_MODULES && "playwright-core with Chromium is not installed", timeout: 60_000 }, async (t) => {

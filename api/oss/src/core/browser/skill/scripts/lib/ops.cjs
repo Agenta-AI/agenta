@@ -133,12 +133,14 @@ async function focusedField(page) {
         if (!document.hasFocus()) return null;
         let el = document.activeElement;
         while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
-        if (!el || el === document.body || /^I?FRAME$/.test(el.tagName)) return null;
+        const editorBody = el === document.body && (el.isContentEditable || document.designMode === "on");
+        if (!el || (el === document.body && !editorBody) || /^I?FRAME$/.test(el.tagName)) return null;
         const notText = ["button", "checkbox", "file", "image", "radio", "reset", "submit"];
         const input = el instanceof HTMLInputElement;
         return {
           secret: input && (el.type === "password" || /one-time-code/.test(el.autocomplete || "")),
           editable:
+            editorBody ||
             el.isContentEditable ||
             ((input || el instanceof HTMLTextAreaElement) &&
               !el.readOnly &&
@@ -240,6 +242,7 @@ const OPS = {
     const locator = await resolveTarget(page, args);
     await requireIntent(locator, args.intent, "click");
     const before = await snapshotLines(page);
+    if (args.run?.stopped) return "";
     await locator.click({ timeout: ACTION_TIMEOUT_MS });
     await settle(page);
     return changesSince(page, before, `Clicked ${targetName(args)}.`, { mayNavigate: true });
@@ -261,19 +264,22 @@ const OPS = {
     // Some fields replace themselves after focus (Wikipedia's search), so keys go to what holds
     // focus, as a person's do. It is checked before every chunk: a site can move it at any time.
     await requireTextFocus(page);
+    if (run.stopped) return "";
     // Type over the selection, as a person does: clearing first re-renders some inputs and the keys go astray.
     await page.keyboard.press("ControlOrMeta+a");
     const keys = String(text ?? "");
-    if (!keys) await page.keyboard.press("Delete");
+    if (!keys && !submit) await page.keyboard.press("Delete");
     const delay = keys.length > TYPE_CHUNK_CHARS * 10 ? 0 : 15;
-    for (let at = 0; at < keys.length && !run.stopped; at += TYPE_CHUNK_CHARS) {
+    for (let at = 0; at < keys.length; at += TYPE_CHUNK_CHARS) {
       await requireTextFocus(page);
+      if (run.stopped) return "";
       await page.keyboard.type(keys.slice(at, at + TYPE_CHUNK_CHARS), { delay });
     }
-    if (run.stopped) return "";
     if (submit) {
       const { frame } = await requireTextFocus(page);
-      await requireIntent(frame.locator(":focus"), args.intent, "submit");
+      // `:focus` also matches the shadow hosts around the field; the last match is the field.
+      await requireIntent(frame.locator(":focus").last(), args.intent, "submit");
+      if (run.stopped) return "";
       await page.keyboard.press("Enter");
       await settle(page);
     }
@@ -292,6 +298,7 @@ const OPS = {
     await refuseSecretField(locator);
     await requireIntent(locator, args.intent, "set");
     const before = await snapshotLines(page);
+    if (args.run?.stopped) return "";
     const kind = await locator.evaluate((el) =>
       el.tagName === "SELECT"
         ? "select"
