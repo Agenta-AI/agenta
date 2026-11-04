@@ -10,6 +10,7 @@ import {
     filesPaneWidthAtom,
     phoneViewportAtom,
     resolveConfigPanelCollapsed,
+    revealConfigPaneAtom,
     RIGHT_PANEL_MAX,
     RIGHT_PANEL_MIN,
     rightPanelWidthAtom,
@@ -45,7 +46,7 @@ import {useAutomationUrlSync} from "../automations/useAutomationUrlSync"
 import {AppShell} from "../nav/AppShell"
 
 import {CollapsedConfigRail} from "./CollapsedConfigRail"
-import {ConfigRevealButton} from "./ConfigRevealButton"
+import {PaneEdgeToggle} from "./PaneEdgeToggle"
 import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {sessionBarPanelAtom, sessionRenameRequestAtom} from "./sessionBarState"
 import {resolveSessionPanes} from "./sessionPanes"
@@ -280,6 +281,7 @@ export const SessionWorkspace = ({
     const filesSlide = usePaneSlide(showFiles)
 
     const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
+    const revealConfig = useSetAtom(revealConfigPaneAtom)
 
     // "Create with AI" in the config pane writes a prompt into the composer. On a phone the pane
     // covers the conversation, so hand the screen back to the chat where the prompt landed.
@@ -438,7 +440,35 @@ export const SessionWorkspace = ({
 
                     {/* One split at every width. On a phone the pane it does not show is CSS-hidden
                         rather than dropped, which is what keeps both halves mounted exactly once. */}
-                    <div className="min-h-0 min-w-0 flex-1">
+                    <div className="relative min-h-0 min-w-0 flex-1">
+                        {/* Up here because the panes clip, and a pill sits across their edge. */}
+                        {twoPane &&
+                        !filesExpanded &&
+                        configEntityId &&
+                        (!hideSessionSwitcher || showConfig) ? (
+                            <PaneEdgeToggle
+                                side="left"
+                                open={showConfig}
+                                offset={showPane ? paneSize : 0}
+                                animate={configSlide.animate}
+                                label={showConfig ? "Hide configuration" : "Show configuration"}
+                                shortcutId="panel.config"
+                                onToggle={() =>
+                                    showConfig ? setConfigCollapsed(true) : revealConfig()
+                                }
+                            />
+                        ) : null}
+                        {twoPane && !filesExpanded && !hideSessionSwitcher ? (
+                            <PaneEdgeToggle
+                                side="right"
+                                open={showFiles}
+                                offset={showFiles ? filesPaneSize : 0}
+                                animate={filesSlide.animate}
+                                label={showFiles ? "Hide side panel" : "Show files"}
+                                shortcutId="panel.files"
+                                onToggle={() => (showFiles ? closeDock() : toggleFilesPane())}
+                            />
+                        ) : null}
                         <SplitPane
                             paneSide="start"
                             paneSize={twoPane && showPane ? paneSize : 0}
@@ -536,17 +566,7 @@ export const SessionWorkspace = ({
                                             configCollapsed ? (
                                                 <CollapsedConfigRail />
                                             ) : null}
-                                            <div className="relative min-h-0 min-w-0 flex-1">
-                                                {twoPane &&
-                                                !hideSessionSwitcher &&
-                                                configEntityId &&
-                                                (configCollapsed || chatMaximized) ? (
-                                                    <div className="absolute left-2 top-2 z-10">
-                                                        <ConfigRevealButton />
-                                                    </div>
-                                                ) : null}
-                                                {chat}
-                                            </div>
+                                            <div className="min-h-0 min-w-0 flex-1">{chat}</div>
                                         </div>
                                     }
                                 />

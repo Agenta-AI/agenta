@@ -2,15 +2,9 @@ import {useCallback} from "react"
 
 import {automationRunHistoryDrawerAtom} from "@agenta/automation-ui"
 import {ModelSetupBanner} from "@agenta/chat/components"
-import {configPanelCollapsedAtom} from "@agenta/chat/state"
 import type {TriggerOwnerRef} from "@agenta/entity-ui/drill-in"
 import {StorageFilesHeader, StorageSection} from "@agenta/entity-ui/drive"
 import {AgentBuildPanel} from "@agenta/playground-ui/agent-build"
-import {AgentConfigHeader} from "@agenta/playground-ui/agent-config-header"
-import {shortcutAria} from "@agenta/shared/utils"
-import {ShortcutKeys} from "@agenta/ui/shortcuts"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
-import {Sidebar} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
 import {useProjectPermissionState} from "../context/useProjectPermission"
@@ -41,7 +35,6 @@ export const ConfigPane = ({
     filesScope: string
     projectId: string
 }) => {
-    const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
     const openModelSetup = useOpenModelSetup()
     // A commit made here pins the new revision to this session.
     const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
@@ -64,7 +57,7 @@ export const ConfigPane = ({
                 <AgentBuildPanel
                     revisionId={entityId}
                     disabled={!editAccess.pending && !editAccess.allowed}
-                    stickyHeaderTop={48}
+                    stickyHeaderTop={0}
                     banner={
                         <div className="px-4">
                             <ModelSetupBanner
@@ -91,38 +84,6 @@ export const ConfigPane = ({
                     // `SessionWorkspace` mounts the drawers: a linked one must open with this pane collapsed.
                     automationDrawer={null}
                     onOpenRunHistory={openRunHistory}
-                    header={
-                        <AgentConfigHeader
-                            revisionId={entityId}
-                            // `/m` mounts the auto-commit engine, so this header shows Save
-                            // rather than Commit. The desktop playground keeps Commit.
-                            autoSave
-                            // The desktop's collapse: the header owns "«", the top bar owns the
-                            // "»" that brings the panel back. Without a way OUT, the restore
-                            // control in the bar could never be reached.
-                            trailing={
-                                <SimpleTooltip
-                                    title={
-                                        <span className="flex items-center gap-1.5">
-                                            Hide configuration{" "}
-                                            <ShortcutKeys id="panel.config" tone="inverse" />
-                                        </span>
-                                    }
-                                >
-                                    <Button
-                                        variant="ghost"
-                                        size="icon-sm"
-                                        aria-label="Hide configuration"
-                                        aria-keyshortcuts={shortcutAria("panel.config")}
-                                        onClick={() => setConfigCollapsed(true)}
-                                        className="h-7 w-7 shrink-0 p-0"
-                                    >
-                                        <Sidebar size={16} weight="fill" mirrored />
-                                    </Button>
-                                </SimpleTooltip>
-                            }
-                        />
-                    }
                 />
             </DrillInBridgeProvider>
         </div>

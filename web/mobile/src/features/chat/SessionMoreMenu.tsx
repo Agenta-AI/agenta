@@ -1,6 +1,6 @@
 import {useRef, useState, type ReactNode} from "react"
 
-import {revealConfigPaneAtom} from "@agenta/chat/state"
+import {configPanelCollapsedAtom, revealConfigPaneAtom} from "@agenta/chat/state"
 import {browserLiveStatusQueryAtomFamily, browserPaneOpenAtomFamily} from "@agenta/entities/browser"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {AgentIdentity} from "@agenta/entity-ui/agent"
@@ -81,6 +81,7 @@ export const SessionMoreMenu = ({
     const requestRename = useSetAtom(sessionRenameRequestAtom)
     const openHistory = useSetAtom(openAgentVersionHistoryAtom)
     const revealConfig = useSetAtom(revealConfigPaneAtom)
+    const [configCollapsed, setConfigCollapsed] = useAtom(configPanelCollapsedAtom)
     const inspectorEnabled = useAtomValue(playgroundInspectorEnabledAtom)
     const me = useAtomValue(userAtom)
     const stream = useSessionHeader(projectId, sessionId).data ?? null
@@ -162,9 +163,9 @@ export const SessionMoreMenu = ({
             ? [
                   {
                       key: "config",
-                      label: "Configuration",
+                      label: configCollapsed ? "Configuration" : "Hide configuration",
                       icon: <SidebarIcon size={15} aria-hidden />,
-                      onSelect: revealConfig,
+                      onSelect: () => (configCollapsed ? revealConfig() : setConfigCollapsed(true)),
                   },
               ]
             : []),
