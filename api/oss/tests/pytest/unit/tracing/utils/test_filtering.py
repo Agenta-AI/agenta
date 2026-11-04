@@ -186,12 +186,234 @@ def test_parse_condition_for_enum_timestamp_uuid_and_string_fields():
     assert created_by.value == TRACE_UUID
 
 
-def test_parse_condition_ignores_unknown_field_instead_of_raising():
+def test_parse_condition_raises_for_unknown_field():
+    # A dropped condition widens the filter: a live evaluation then scores every trace.
     condition = Condition(field="unknown", operator=ComparisonOperator.IS, value="x")
+
+    with pytest.raises(
+        FilteringException, match=escape("Unsupported condition field 'unknown'.")
+    ):
+        parse_condition(condition)
+
+
+# The trace filter picker stores these field names in saved queries. Each case is the
+# picker row and the condition the traces page sends for it (`buildTraceQueryParams`).
+@pytest.mark.parametrize(
+    "row,expected",
+    [
+        (
+            {
+                "field": "attributes.ag.session.id",
+                "operator": "is",
+                "value": "s-1",
+            },
+            {"key": "ag.session.id", "operator": ComparisonOperator.IS, "value": "s-1"},
+        ),
+        (
+            {
+                "field": "attributes.ag.metrics.costs.cumulative.total",
+                "operator": "gt",
+                "value": 0.5,
+            },
+            {
+                "key": "ag.metrics.costs.cumulative.total",
+                "operator": NumericOperator.GT,
+                "value": 0.5,
+            },
+        ),
+        (
+            {
+                "field": "input_keys",
+                "key": "attributes.ag.data.inputs.country",
+                "operator": "is",
+                "value": "Peru",
+            },
+            {
+                "key": "ag.data.inputs.country",
+                "operator": ComparisonOperator.IS,
+                "value": "Peru",
+            },
+        ),
+        (
+            {
+                "field": "output_keys",
+                "key": "attributes.ag.data.outputs.answer",
+                "operator": "contains",
+                "value": "Lima",
+            },
+            {
+                "key": "ag.data.outputs.answer",
+                "operator": StringOperator.CONTAINS,
+                "value": "Lima",
+            },
+        ),
+        (
+            {
+                "field": "custom",
+                "key": "attributes.ag.tags.env",
+                "operator": "is_not",
+                "value": "prod",
+            },
+            {
+                "key": "ag.tags.env",
+                "operator": ComparisonOperator.IS_NOT,
+                "value": "prod",
+            },
+        ),
+        (
+            {"field": "custom", "key": "ag.tags.env", "operator": "is", "value": "x"},
+            {"key": "ag.tags.env", "operator": ComparisonOperator.IS, "value": "x"},
+        ),
+    ],
+)
+def test_parse_condition_maps_picker_attribute_fields(row, expected):
+    condition = Condition(**row)
+
+    assert parse_condition(condition) is condition
+    assert condition.field == Fields.ATTRIBUTES
+    assert condition.key == expected["key"]
+    assert condition.operator == expected["operator"]
+    assert condition.value == expected["value"]
+
+
+@pytest.mark.parametrize("field", ["custom", "input_keys", "output_keys"])
+def test_parse_condition_raises_for_picker_key_field_without_key(field):
+    with pytest.raises(FilteringException, match=escape(f"'{field}' key is required")):
+        parse_condition(Condition(field=field, operator="is", value="x"))
+
+
+def test_parse_condition_maps_is_annotation_to_evaluator_and_feedback_conditions():
+    condition = Condition(
+        field="is_annotation",
+        operator="in",
+        value=[
+            {
+                "evaluator": "exact-match",
+                "feedback": {
+                    "field": "score",
+                    "operator": "gte",
+                    "value": 0.5,
+                    "valueType": "number",
+                },
+            }
+        ],
+    )
+
+    parsed = parse_condition(condition)
+
+    assert isinstance(parsed, Filtering)
+    assert parsed.operator == LogicalOperator.AND
+    references, feedback = parsed.conditions
+    assert references.field == Fields.REFERENCES
+    assert references.operator == ListOperator.IN
+    assert references.value == [{"slug": "exact-match"}]
+    assert feedback.field == Fields.ATTRIBUTES
+    assert feedback.key == "ag.data.outputs.score"
+    assert feedback.operator == NumericOperator.GTE
+    assert feedback.value == 0.5
+
+
+def test_parse_filtering_replaces_is_annotation_with_its_conditions():
+    filtering = Filtering(
+        operator=LogicalOperator.OR,
+        conditions=[
+            Condition(field="trace_type", operator="is", value="invocation"),
+            Condition(
+                field="is_annotation",
+                operator="not_in",
+                value={"evaluator": "exact-match"},
+            ),
+        ],
+    )
+
+    parse_filtering(filtering)
+
+    nested = filtering.conditions[1]
+    assert isinstance(nested, Filtering)
+    assert nested.conditions[0].field == Fields.REFERENCES
+    assert nested.conditions[0].operator == ListOperator.NOT_IN
+
+
+def test_parse_condition_normalizes_has_annotation_value():
+    condition = Condition(
+        field="has_annotation",
+        operator="in",
+        value=[
+            {
+                "evaluator": "exact-match",
+                "feedback": {"field": "success", "operator": "is", "value": True},
+            }
+        ],
+    )
+
+    assert parse_condition(condition) is condition
+    assert condition.field == Fields.HAS_ANNOTATION
+    assert condition.value == {
+        "evaluator": "exact-match",
+        "feedback": {
+            "field": "attributes",
+            "key": "ag.data.outputs.success",
+            "operator": "is",
+            "value": True,
+        },
+    }
+
+
+def test_parse_condition_accepts_has_annotation_without_evaluator_or_feedback():
+    # "Has any annotation", as on the traces page.
+    condition = Condition(field="has_annotation", operator="not_in", value=[])
 
     parse_condition(condition)
 
-    assert condition.value == "x"
+    assert condition.value == {"evaluator": None, "feedback": None}
+
+
+@pytest.mark.parametrize(
+    "condition,expected_message",
+    [
+        (
+            Condition(field="has_annotation", operator="is", value=[]),
+            "'has_annotation' only supports list operators.",
+        ),
+        (
+            Condition(field="has_annotation", operator="in", value="exact-match"),
+            "'has_annotation' value must be an object",
+        ),
+        (
+            Condition(
+                field="has_annotation",
+                operator="in",
+                value=[{"evaluator": "a"}, {"evaluator": "b"}],
+            ),
+            "'has_annotation' value must be one annotation filter.",
+        ),
+        (
+            Condition(
+                field="has_annotation",
+                operator="in",
+                value=[{"feedback": {"operator": "is", "value": 1}}],
+            ),
+            "'has_annotation' feedback must name an output field.",
+        ),
+        (
+            Condition(
+                field="has_annotation",
+                operator="in",
+                value=[{"feedback": {"field": "score", "operator": "nope"}}],
+            ),
+            "'has_annotation' feedback operator or value is not supported.",
+        ),
+        (
+            Condition(field="is_annotation", operator="in", value=[]),
+            "'is_annotation' needs an evaluator or a feedback.",
+        ),
+    ],
+)
+def test_parse_condition_raises_for_invalid_annotation_rows(
+    condition, expected_message
+):
+    with pytest.raises(FilteringException, match=escape(expected_message)):
+        parse_condition(condition)
 
 
 def test_parse_filtering_recurses_nested_filters_and_parse_query_delegates():

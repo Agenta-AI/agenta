@@ -1,3 +1,4 @@
+from functools import wraps
 from typing import Optional
 from uuid import UUID
 
@@ -15,6 +16,7 @@ from oss.src.core.shared.dtos import (
 )
 from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.queries.dtos import QueryRevision, QueryRevisionCommit
+from oss.src.core.tracing.dtos import FilteringException
 from oss.src.core.queries.service import (
     QueriesService,
     SimpleQueriesService,
@@ -61,6 +63,22 @@ from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 
 
 log = get_module_logger(__name__)
+
+
+def handle_filtering_exceptions():
+    """Answer 400 for a query filter that the tracing query cannot apply."""
+
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            try:
+                return await func(*args, **kwargs)
+            except FilteringException as e:
+                raise HTTPException(status_code=400, detail=str(e)) from e
+
+        return wrapper
+
+    return decorator
 
 
 def _to_plain_dict(value):
@@ -726,6 +744,7 @@ class QueriesRouter:
 
     @intercept_exceptions()
     @handle_git_exceptions()
+    @handle_filtering_exceptions()
     async def create_query_revision(
         self,
         request: Request,
@@ -798,6 +817,7 @@ class QueriesRouter:
         return query_revision_response
 
     @intercept_exceptions()
+    @handle_filtering_exceptions()
     async def edit_query_revision(
         self,
         request: Request,
@@ -933,6 +953,7 @@ class QueriesRouter:
         return query_revisions_response
 
     @intercept_exceptions()
+    @handle_filtering_exceptions()
     async def commit_query_revision(
         self,
         request: Request,
@@ -1183,6 +1204,7 @@ class SimpleQueriesRouter:
     # SIMPLE QUERIES -----------------------------------------------------------
 
     @intercept_exceptions()
+    @handle_filtering_exceptions()
     async def create_simple_query(
         self,
         request: Request,
@@ -1243,6 +1265,7 @@ class SimpleQueriesRouter:
         return simple_query_response
 
     @intercept_exceptions()
+    @handle_filtering_exceptions()
     async def edit_simple_query(
         self,
         request: Request,

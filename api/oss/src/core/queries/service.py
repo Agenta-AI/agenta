@@ -23,6 +23,7 @@ from oss.src.core.tracing.dtos import (
     Focus,
     Format,
 )
+from oss.src.core.tracing.utils.filtering import parse_filtering
 from oss.src.core.tracing.utils.parsing import (
     parse_trace_id_from_uuid,
     parse_span_id_from_uuid,
@@ -89,7 +90,19 @@ class QueriesService:
         self.tracing_service = tracing_service
 
     @staticmethod
+    def validate_query_revision_data(
+        data: Optional[QueryRevisionData],
+    ) -> None:
+        """Raise `FilteringException` for a filter the tracing query cannot apply.
+
+        The stored filtering keeps the client's field names, so a copy is parsed.
+        """
+        if data is not None and data.filtering is not None:
+            parse_filtering(data.filtering.model_copy(deep=True))
+
+    @classmethod
     def _sanitize_persisted_query_revision_data(
+        cls,
         data: Optional[Any],
     ) -> Optional[Dict[str, Any]]:
         """Persist only canonical query revision fields."""
@@ -100,6 +113,8 @@ class QueriesService:
             parsed = QueryRevisionData.model_validate(data)
         except Exception:
             return None
+
+        cls.validate_query_revision_data(parsed)
 
         persisted_data: Dict[str, Any] = {}
         if parsed.formatting is not None:
@@ -1060,6 +1075,8 @@ class SimpleQueriesService:
         #
         query_id: Optional[UUID] = None,
     ) -> Optional[SimpleQuery]:
+        QueriesService.validate_query_revision_data(simple_query_create.data)
+
         # ----------------------------------------------------------------------
         # Query
         # ----------------------------------------------------------------------
@@ -1304,6 +1321,8 @@ class SimpleQueriesService:
     ) -> Optional[SimpleQuery]:
         if str(query_id) != str(simple_query_edit.id):
             return None
+
+        QueriesService.validate_query_revision_data(simple_query_edit.data)
 
         # ----------------------------------------------------------------------
         # Query
