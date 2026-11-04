@@ -1,5 +1,9 @@
 export {SessionShareDialog, type SessionShareDialogProps} from "./SessionShareDialog"
-export {SessionShareButton, type SessionShareButtonProps} from "./SessionShareButton"
+export {
+    SessionShareButton,
+    sessionShareSummary,
+    type SessionShareButtonProps,
+} from "./SessionShareButton"
 export {SessionAccessChip, type SessionAccessChipProps} from "./SessionAccessChip"
 export {SessionGrantRoleMenu, type SessionGrantRoleMenuProps} from "./SessionGrantRoleMenu"
 export {useSharingPerson} from "./useSharingPerson"

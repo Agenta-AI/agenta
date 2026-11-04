@@ -31,7 +31,7 @@ import {SIDEBAR_DEFAULT_WIDTH} from "@agenta/navigation"
 import {registerAgentAutoCommitHandler} from "@agenta/playground/state"
 import {sessionRoutePath} from "@agenta/sessions/link"
 import {renderedSessionTabsAtomFamily, sessionTabScope} from "@agenta/sessions/state"
-import {useRequestSessionTabRename, useSessionActions} from "@agenta/sessions-ui"
+import {useSessionActions} from "@agenta/sessions-ui"
 import {getHostQueryClient, isBrowserEnabled} from "@agenta/shared/api"
 import {composerPrefillRequestAtom} from "@agenta/shared/state"
 import {useMediaQuery} from "@agenta/ui/hooks"
@@ -46,15 +46,14 @@ import {AppShell} from "../nav/AppShell"
 
 import {CollapsedConfigRail} from "./CollapsedConfigRail"
 import {selectedRevisionAtomFamily} from "./selectedRevision"
+import {sessionBarPanelAtom, sessionRenameRequestAtom} from "./sessionBarState"
 import {resolveSessionPanes} from "./sessionPanes"
 import {SessionsPane} from "./SessionsPane"
-import {SessionTabs} from "./SessionTabs"
 import {SessionTopBar} from "./SessionTopBar"
 import {ConfigPaneLoading} from "./states/ConfigPaneLoading"
 import {useDriveUrlSync} from "./useDriveUrlSync"
 import {useLeaveSession} from "./useLeaveSession"
 import {sessionHeaderKey} from "./useSessionHeader"
-import {useSessionTabClose} from "./useSessionTabClose"
 import {useStartBlankSession} from "./useStartBlankSession"
 import {useTriggerTestRun} from "./useTriggerTestRun"
 
@@ -115,7 +114,7 @@ export const SessionWorkspace = ({
     projectId,
     chat,
     bare = false,
-    hideSessionTabs = false,
+    hideSessionSwitcher = false,
     collapseConfigByDefault = false,
     deepLinks = false,
 }: {
@@ -145,10 +144,10 @@ export const SessionWorkspace = ({
      */
     bare?: boolean
     /**
-     * Hide the session tab strip. Before the agent is created there is exactly one draft session
-     * and no history, so the strip is a rail with nothing to switch between.
+     * Hide the session switcher. Before the agent is created there is exactly one draft session
+     * and no history, so there is nothing to switch between.
      */
-    hideSessionTabs?: boolean
+    hideSessionSwitcher?: boolean
     /**
      * Start with the config pane collapsed, the way a phone already does. First run leads with the
      * question and the composer; the configuration is one `»` away rather than half the screen
@@ -310,15 +309,13 @@ export const SessionWorkspace = ({
         prevAlternateRef.current = panesMustAlternate
     }, [panesMustAlternate, dockOpen, configCollapsed, setConfigCollapsed])
 
-    // The SAME session shortcuts the desktop playground binds. The rail publishes the tabs it
-    // renders, so `Alt+1…9` addresses exactly what is on screen. A phone sends no Alt chord, so
-    // mounting this on a touch surface is inert rather than harmful.
+    // The switcher publishes its list order, so `Alt+1…9` addresses the rows it shows. A phone
+    // sends no Alt chord, so mounting this on a touch surface is inert rather than harmful.
     const router = useRouter()
     const tabScope = sessionTabScope(agentId)
     const openTabIds = useAtomValue(renderedSessionTabsAtomFamily(tabScope))
     const shortcutSessions = useMemo(() => openTabIds.map((id) => ({id})), [openTabIds])
     const startBlank = useStartBlankSession(base)
-    const closeTabs = useSessionTabClose({agentId, sessionId, base})
     // Archiving the session you are on has to move you off it.
     const sessionActions = useSessionActions({onRemoved: useLeaveSession(base)})
     // Read from the session row the screen already caches (it carries the reader's sharing
@@ -335,9 +332,8 @@ export const SessionWorkspace = ({
         },
         [projectId],
     )
-    // Alt+R opens the active TAB's inline editor — the rail listens for this request.
-    const requestTabRename = useRequestSessionTabRename()
-    const setChatMaximized = useSetAtom(chatPanelMaximizedAtom)
+    const requestRename = useSetAtom(sessionRenameRequestAtom)
+    const setBarPanel = useSetAtom(sessionBarPanelAtom)
     useSessionShortcuts({
         sessions: shortcutSessions,
         activeId: sessionId,
@@ -347,7 +343,7 @@ export const SessionWorkspace = ({
             },
             [base, router, sessionId],
         ),
-        onRename: requestTabRename,
+        onRename: useCallback(() => requestRename((count) => count + 1), [requestRename]),
         onArchive: useCallback(
             (id: string) => {
                 // Archiving an owned chat is its owner's verb; the shortcut follows the menu.
@@ -363,16 +359,7 @@ export const SessionWorkspace = ({
         onNewSession: useCallback(() => {
             if (agentId) startBlank(agentId)
         }, [agentId, startBlank]),
-        onCloseSession: useCallback(
-            (id: string) => closeTabs([id], openTabIds),
-            [closeTabs, openTabIds],
-        ),
-        // No search box in the sessions pane yet — reveal the pane, which is the half of the
-        // desktop's binding that exists here.
-        onSearch: useCallback(
-            () => setChatMaximized(!chatMaximized),
-            [chatMaximized, setChatMaximized],
-        ),
+        onSearch: useCallback(() => setBarPanel("switcher"), [setBarPanel]),
         onToggleConfigPanel: useCallback(
             () => setConfigCollapsed(!configCollapsed),
             [configCollapsed, setConfigCollapsed],
@@ -441,7 +428,10 @@ export const SessionWorkspace = ({
                         onUpdate={pinRevision}
                         agentId={agentId}
                         agentHidden={agentHidden}
+                        agentResolving={agentResolving}
                         canSend={canSend}
+                        hasSessions={!hideSessionSwitcher}
+                        configCollapsed={configCollapsed || chatMaximized}
                         workspaceId={workspaceId}
                         projectId={projectId}
                     />
@@ -537,32 +527,16 @@ export const SessionWorkspace = ({
                                             inert={filesExpanded || (!twoPane && showFiles)}
                                         >
                                             {/* Where the collapsed pane went, on a surface with no
-                                                tab rail to carry its reveal — the empty column
-                                                becomes the pane's own edge instead of dead canvas.
-                                                Needs the width for a vertical label, so `md` up. */}
-                                            {hideSessionTabs &&
+                                                reveal in its bar: the empty column becomes the
+                                                pane's own edge instead of dead canvas. Needs the
+                                                width for a vertical label, so `md` up. */}
+                                            {hideSessionSwitcher &&
                                             twoPane &&
                                             !chatMaximized &&
                                             configCollapsed ? (
                                                 <CollapsedConfigRail />
                                             ) : null}
-                                            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                                                {/* The rail belongs to the WORKSPACE, not to one
-                                                    conversation. It used to live inside the
-                                                    conversation's pinned header, so keying that per
-                                                    session remounted the rail too and reset its
-                                                    scroll to 0. Up here it simply stays put. */}
-                                                {hideSessionTabs ? null : (
-                                                    <SessionTabs
-                                                        sessionId={sessionId}
-                                                        projectId={projectId}
-                                                        workspaceId={workspaceId}
-                                                        agentId={agentId}
-                                                        agentResolving={agentResolving}
-                                                    />
-                                                )}
-                                                <div className="min-h-0 flex-1">{chat}</div>
-                                            </div>
+                                            <div className="min-h-0 min-w-0 flex-1">{chat}</div>
                                         </div>
                                     }
                                 />

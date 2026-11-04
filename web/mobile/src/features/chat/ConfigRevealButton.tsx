@@ -1,4 +1,4 @@
-import {configPanelCollapsedAtom} from "@agenta/chat/state"
+import {revealConfigPaneAtom} from "@agenta/chat/state"
 import {shortcutAria} from "@agenta/shared/utils"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
@@ -6,13 +6,11 @@ import {Sidebar} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
 /**
- * The `»` that brings the collapsed config pane back.
- *
- * Its own component so the tab rail is not the only thing that can offer it. A surface with no
- * tab rail uses [[CollapsedConfigRail]] instead, which has the room to say what it opens.
+ * The session bar's control that brings the collapsed config pane back. First run has no such
+ * control in its bar and uses [[CollapsedConfigRail]], which has the room to say what it opens.
  */
 export const ConfigRevealButton = () => {
-    const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
+    const revealConfig = useSetAtom(revealConfigPaneAtom)
 
     return (
         <SimpleTooltip
@@ -27,7 +25,7 @@ export const ConfigRevealButton = () => {
                 size="icon-sm"
                 aria-label="Show configuration"
                 aria-keyshortcuts={shortcutAria("panel.config")}
-                onClick={() => setConfigCollapsed(false)}
+                onClick={() => revealConfig()}
                 className="h-7 w-7 shrink-0 p-0"
             >
                 <Sidebar size={16} />

@@ -1,17 +1,10 @@
 import {useState} from "react"
 
-import {personName} from "@agenta/sessions-ui/sharing"
-import {
-    Button,
-    LoadingButton,
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-    SkeletonBlock,
-} from "@agenta/ui/ui"
+import {Popover, PopoverContent, PopoverTrigger, SkeletonBlock} from "@agenta/ui/ui"
 import {CaretDownIcon, LockSimpleIcon, UsersIcon, WarningCircleIcon} from "@phosphor-icons/react"
 
 import {AgentPrivacyDialog, type AgentPrivacyProps} from "./AgentPrivacyDialog"
+import {AgentPrivacySummary} from "./AgentPrivacySummary"
 import {agentSharingCopy as copy} from "./copy"
 import {useAgentSharingWrites} from "./useAgentSharingWrites"
 
@@ -25,7 +18,7 @@ export type AgentPrivacyControlProps = AgentPrivacyProps & {
  * values so nothing beside it moves. Someone who is not the owner always sees "Shared".
  */
 export const AgentPrivacyControl = (props: AgentPrivacyControlProps) => {
-    const {projectName, sharing, loading = false, loadError = false, onRetry, owner, onOpen} = props
+    const {sharing, loading = false, loadError = false, onOpen} = props
     const [panelOpen, setPanelOpen] = useState(false)
     const [dialogOpen, setDialogOpen] = useState(false)
     const writes = useAgentSharingWrites(props)
@@ -35,7 +28,6 @@ export const AgentPrivacyControl = (props: AgentPrivacyControlProps) => {
     const known = Boolean(sharing) && !loadError
     const isOwner = known && sharing?.my_role === "owner"
     const shownPrivate = isOwner && sharing?.policy.visibility === "private"
-    const ownerless = !sharing?.policy.owner_user_id || sharing?.owner_is_active === false
 
     return (
         <>
@@ -79,83 +71,14 @@ export const AgentPrivacyControl = (props: AgentPrivacyControlProps) => {
                 </PopoverTrigger>
                 <PopoverContent align="end" className="flex w-[300px] flex-col gap-2.5 p-3.5">
                     <span className="text-sm font-semibold">{copy.panelTitle}</span>
-                    {loadError ? (
-                        <>
-                            <p className="m-0 text-sm">{copy.loadError}</p>
-                            {onRetry ? (
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="self-start"
-                                    onClick={onRetry}
-                                >
-                                    {copy.retry}
-                                </Button>
-                            ) : null}
-                        </>
-                    ) : !known ? (
-                        <SkeletonBlock className="h-4 w-full" />
-                    ) : (
-                        <p className="m-0 text-sm">
-                            {shownPrivate ? copy.linePrivate : copy.lineProject(projectName)}
-                        </p>
-                    )}
-                    {known && ownerless && !isOwner ? (
-                        // Why the agent has no owner, as the dialog says it (QA D10).
-                        <p className="m-0 text-xs text-muted-foreground">
-                            {!sharing?.policy.owner_user_id
-                                ? copy.noOwner
-                                : sharing?.can_take_ownership
-                                  ? copy.ownerLeft(
-                                        personName(owner) || sharing.policy.owner_user_id,
-                                    )
-                                  : `${copy.ownerLeft(
-                                        personName(owner) || sharing.policy.owner_user_id,
-                                    )} ${copy.ownerLeftNonAdmin}`}
-                        </p>
-                    ) : null}
-                    {known && owner && !ownerless ? (
-                        <span className="text-xs">
-                            {isOwner ? copy.panelOwnerYou(personName(owner)) : personName(owner)}
-                            {isOwner ? null : (
-                                <span className="text-muted-foreground"> · {copy.ownerRole}</span>
-                            )}
-                        </span>
-                    ) : null}
-                    {isOwner ? (
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            className="self-start"
-                            onClick={() => {
-                                setPanelOpen(false)
-                                setDialogOpen(true)
-                            }}
-                        >
-                            {copy.change}
-                        </Button>
-                    ) : known && ownerless && sharing?.can_take_ownership ? (
-                        <>
-                            <LoadingButton
-                                size="sm"
-                                className="self-start"
-                                loading={writes.saving === "take"}
-                                onClick={() => {
-                                    void writes.takeOwnership().then((ok) => {
-                                        if (!ok) {
-                                            setPanelOpen(false)
-                                            setDialogOpen(true)
-                                        }
-                                    })
-                                }}
-                            >
-                                {copy.takeOwnership}
-                            </LoadingButton>
-                            <span className="text-xs text-muted-foreground">
-                                {copy.takeOwnershipHelp}
-                            </span>
-                        </>
-                    ) : null}
+                    <AgentPrivacySummary
+                        {...props}
+                        writes={writes}
+                        onChange={() => {
+                            setPanelOpen(false)
+                            setDialogOpen(true)
+                        }}
+                    />
                 </PopoverContent>
             </Popover>
             <AgentPrivacyDialog

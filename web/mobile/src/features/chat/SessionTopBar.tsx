@@ -1,106 +1,230 @@
-import {useCallback, useState} from "react"
+import {useCallback, useEffect, useState} from "react"
 
+import {browserLiveStatusQueryAtomFamily, browserPaneOpenAtomFamily} from "@agenta/entities/browser"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {AgentIdentity} from "@agenta/entity-ui/agent"
+import {BrowserPaneToggle} from "@agenta/entity-ui/browser"
+import {FilesPaneToggle, useSessionFilesPane} from "@agenta/entity-ui/drive"
 import {AgentPageHeader, AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
+import {isBrowserEnabled} from "@agenta/shared/api"
+import {useMediaQuery} from "@agenta/ui/hooks"
 import {KeyboardShortcutsSheet, useShortcutsSheetHotkey} from "@agenta/ui/shortcuts"
 import {LockSimpleIcon} from "@phosphor-icons/react"
-import {useAtomValue} from "jotai"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {sharingCopy} from "@/lib/sharingCopy"
 
 import {NavDrawer} from "../nav/NavDrawer"
 
+import {ConfigRevealButton} from "./ConfigRevealButton"
 import {heldCommitAtomFamily} from "./selectedRevision"
+import {sessionBarPanelAtom} from "./sessionBarState"
+import {SessionMoreMenu} from "./SessionMoreMenu"
+import {SessionSharingControl} from "./SessionSharingControl"
+import {SessionSwitcher} from "./SessionSwitcher"
 import {ShareMenu} from "./ShareMenu"
+import {useSessionHeader} from "./useSessionHeader"
+import {useStartBlankSession} from "./useStartBlankSession"
 
 /**
- * The session workspace's top bar — the desktop playground's header on this surface: which agent
- * you are working on, which revision, and whether it is saved.
+ * The session workspace's one bar: which agent, which session, and what you can do with them. It
+ * spans both panes, so the identity belongs to the workspace and not to either pane.
  *
- * No Build/Chat switch: the desktop hides it too (`SHOW_MODE_SWITCH = false` in its playground
- * header). The config panel is shown or collapsed, and that is the whole model — a mode switch on
- * top of a collapse gives two controls for one piece of state.
- *
- * It spans both panes (config and conversation), exactly as the desktop bar spans its panels, so
- * the identity belongs to the workspace and not to either pane.
+ * No Build/Chat switch: the config pane is shown or collapsed, and that is the whole model.
  */
 export const SessionTopBar = ({
     entityId,
     sessionId,
     onUpdate,
     agentId,
+    agentResolving = false,
     agentHidden = false,
     canSend = true,
+    hasSessions,
+    configCollapsed,
     workspaceId,
     projectId,
 }: {
     /** The revision under edit. Absent = a session with no turns yet (nothing committed to show). */
     entityId: string | null
-    /** The session on screen; the Share menu's template items send their request here. */
+    /** The session on screen. */
     sessionId: string
     /** Pin this session to a newer version the user asked for. */
     onUpdate: (revisionId: string) => void
     agentId?: string | null
+    /** A null `agentId` is not yet the answer. */
+    agentResolving?: boolean
     /** A private agent the reader cannot see: a lock and "Private agent", nothing to act on. */
     agentHidden?: boolean
-    /** False when the reader may not send here: no Templates menu (its items send a message). */
+    /** False when the reader may not send here: no template requests (they send a message). */
     canSend?: boolean
+    /** False on first run: one draft session, so no switcher and no session controls. */
+    hasSessions: boolean
+    /** The config pane is off screen, so the bar offers it back. */
+    configCollapsed: boolean
     workspaceId: string
     projectId: string
 }) => {
+    // Tailwind's `md`, the width the workspace itself splits at.
+    const twoPane = useMediaQuery("(min-width: 768px)")
+    const phone = !twoPane
     // artifactName resolves from a revision id or a workflow id, so either handle names the agent.
     const name = useAtomValue(workflowMolecule.selectors.artifactName(entityId ?? agentId ?? ""))
+    const agentName = agentHidden ? sharingCopy.privateAgent : name || "Agent"
     // A commit the session held back (unsaved config edits) is a reason to check for a newer
-    // version now, so the pill offers it at once.
+    // version now, so the status offers it at once.
     const heldCommit = useAtomValue(heldCommitAtomFamily(sessionId))
-    // No header button for the shortcuts sheet; `?` still opens it.
+    const stream = useSessionHeader(projectId, sessionId).data ?? null
+    const base = `/w/${workspaceId}/p/${projectId}`
+    const startBlank = useStartBlankSession(base)
+
     const [shortcutsOpen, setShortcutsOpen] = useState(false)
     useShortcutsSheetHotkey(useCallback(() => setShortcutsOpen(true), []))
 
+    // A panel belongs to the session it was opened on.
+    const setPanel = useSetAtom(sessionBarPanelAtom)
+    useEffect(() => () => setPanel(null), [sessionId, setPanel])
+
+    const {open: filesOpen, toggle: toggleFiles} = useSessionFilesPane(
+        agentId ?? sessionId,
+        sessionId,
+    )
+    const browser = useAtomValue(browserLiveStatusQueryAtomFamily(sessionId)).data
+    const [browserOpen, setBrowserOpen] = useAtom(browserPaneOpenAtomFamily(sessionId))
+
+    const revision =
+        entityId && !agentHidden ? (
+            <AgentRevisionStatus
+                revisionId={entityId}
+                historyWorkflowId={agentId}
+                onUpdate={onUpdate}
+                checkKey={heldCommit ? `${sessionId}:${heldCommit}` : sessionId}
+                hideWhenSettled
+            />
+        ) : undefined
+
+    const switcher = hasSessions ? (
+        <SessionSwitcher
+            sessionId={sessionId}
+            agentId={agentId}
+            agentResolving={agentResolving}
+            agentName={agentName}
+            workspaceId={workspaceId}
+            projectId={projectId}
+            phone={phone}
+        />
+    ) : null
+
+    const more = (
+        <SessionMoreMenu
+            sessionId={sessionId}
+            entityId={entityId}
+            agentId={agentId}
+            agentName={agentName}
+            agentHidden={agentHidden}
+            hasSessions={hasSessions}
+            projectId={projectId}
+            phone={phone}
+            onOpenShortcuts={() => setShortcutsOpen(true)}
+        />
+    )
+
+    const share =
+        agentId && !agentHidden ? (
+            <ShareMenu
+                agentId={agentId}
+                sessionId={sessionId}
+                sessionName={stream?.name ?? "New session"}
+                showSession={hasSessions}
+                // No revision = read-only replay: no conversation to send into.
+                canRequestTemplate={Boolean(entityId) && canSend}
+                workspaceId={workspaceId}
+                projectId={projectId}
+                phone={phone}
+            />
+        ) : hasSessions ? (
+            <SessionSharingControl
+                sessionId={sessionId}
+                sessionName={stream?.name ?? ""}
+                workspaceId={workspaceId}
+                projectId={projectId}
+                agentId={agentId}
+            />
+        ) : null
+
+    const shortcuts = <KeyboardShortcutsSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+
+    if (phone) {
+        return (
+            <header className="flex h-14 shrink-0 items-center gap-0.5 border-x-0 border-b border-t-0 border-solid border-[var(--ag-shell-line)] bg-[var(--ag-surface-raised)] px-1.5">
+                <NavDrawer workspaceId={workspaceId} projectId={projectId} />
+                {switcher ?? (
+                    <span className="min-w-0 flex-1 truncate text-center text-[15px] font-semibold">
+                        {agentName}
+                    </span>
+                )}
+                {revision}
+                {hasSessions && agentId ? (
+                    <button
+                        type="button"
+                        aria-label="New session"
+                        onClick={() => startBlank(agentId)}
+                        className="active:bg-accent text-foreground flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent p-0 text-xl leading-none"
+                    >
+                        +
+                    </button>
+                ) : null}
+                {more}
+                {share}
+                {shortcuts}
+            </header>
+        )
+    }
+
     return (
         <AgentPageHeader
-            // Nav is the DRAWER here, as on every other screen in this app — not a bespoke back
-            // chevron. It hides itself at lg, where the rail takes over and the bar then opens with
-            // the agent icon exactly like the desktop playground's. Getting back to the sessions
-            // list is the drawer's Sessions entry, or the tab rail above the conversation.
-            leading={<NavDrawer workspaceId={workspaceId} projectId={projectId} />}
-            // One slot for both halves: the shared identity owns the chip and the inline rename,
-            // and falls back to a plain chip + label when no agent is resolved yet.
+            className="md:min-h-12"
+            leading={
+                <>
+                    {/* Nav is the drawer below `lg`; it hides itself where the rail takes over. */}
+                    <NavDrawer workspaceId={workspaceId} projectId={projectId} />
+                    {hasSessions && configCollapsed && entityId && !agentHidden ? (
+                        <ConfigRevealButton />
+                    ) : null}
+                </>
+            }
             identity={
                 agentHidden ? (
                     <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
                         <LockSimpleIcon size={14} aria-hidden className="shrink-0" />
-                        {sharingCopy.privateAgent}
+                        {agentName}
                     </span>
                 ) : (
-                    <AgentIdentity workflowId={agentId} name={name || "Agent"} />
+                    <AgentIdentity workflowId={agentId} name={agentName} />
                 )
             }
-            revision={
-                entityId && !agentHidden ? (
-                    <AgentRevisionStatus
-                        revisionId={entityId}
-                        historyWorkflowId={agentId}
-                        onUpdate={onUpdate}
-                        checkKey={heldCommit ? `${sessionId}:${heldCommit}` : sessionId}
-                    />
-                ) : undefined
-            }
-            // The desktop puts this at the header's right edge too, not on the tab strip.
+            revision={revision}
+            center={switcher}
             actions={
                 <>
-                    {agentId && !agentHidden ? (
-                        <ShareMenu
-                            agentId={agentId}
-                            sessionId={sessionId}
-                            // No revision = read-only replay: no conversation to send into.
-                            canRequestTemplate={Boolean(entityId) && canSend}
-                            workspaceId={workspaceId}
-                            projectId={projectId}
+                    {hasSessions && isBrowserEnabled() && (browser?.running || browserOpen) ? (
+                        <BrowserPaneToggle
+                            open={browserOpen}
+                            onToggle={() => setBrowserOpen(!browserOpen)}
+                            needsYou={Boolean(browser?.waiting) && !browserOpen}
                         />
                     ) : null}
-                    <KeyboardShortcutsSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+                    {hasSessions ? (
+                        <FilesPaneToggle open={filesOpen} onToggle={toggleFiles} />
+                    ) : null}
+                    {more}
+                    {share ? (
+                        <>
+                            <span aria-hidden className="bg-border mx-1 h-[18px] w-px shrink-0" />
+                            {share}
+                        </>
+                    ) : null}
+                    {shortcuts}
                 </>
             }
         />

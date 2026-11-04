@@ -21,6 +21,8 @@ export interface AgentPageHeaderProps {
     title?: string
     /** Revision controls — the variant picker and/or `AgentRevisionStatus`. Preceded by a divider. */
     revision?: ReactNode
+    /** Centered between the identity and the actions, whatever their widths: the session switcher. */
+    center?: ReactNode
     /** Right-edge cluster: the mode switch, settings, and the desktop's evaluation actions. */
     actions?: ReactNode
     /** The agent's chip. Mobile passes a plain AgentGlyph; the desktop passes an interactive one
@@ -52,6 +54,7 @@ export const AgentPageHeader = ({
     name,
     title,
     revision,
+    center,
     actions,
     className,
     icon,
@@ -62,7 +65,11 @@ export const AgentPageHeader = ({
             // 48px against the desktop app's 41 (py-2 + a 24px row + the border) and pushed the
             // ENTIRE config pane 7px down — every ink band below it, uniformly. From `sm` up it
             // sizes to its content, as it always did.
-            className={`flex min-h-[48px] shrink-0 items-center justify-between gap-2 border-x-0 border-t-0 border-b border-solid border-[var(--ag-shell-line)] bg-[var(--ag-surface-raised)] px-2.5 py-2 sm:min-h-0 sm:gap-4 ${
+            className={`${
+                center
+                    ? "grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center"
+                    : "flex items-center justify-between"
+            } min-h-[48px] shrink-0 gap-2 border-x-0 border-t-0 border-b border-solid border-[var(--ag-shell-line)] bg-[var(--ag-surface-raised)] px-2.5 py-2 sm:min-h-0 sm:gap-4 ${
                 className ?? ""
             }`}
         >
@@ -108,6 +115,8 @@ export const AgentPageHeader = ({
                     </span>
                 )}
             </div>
+
+            {center}
 
             {/* flex-1 has a zero basis, so with min-w-0 this cluster gets only what the identity
             leaves and its buttons spill left over the name. Below `sm` it keeps its content width

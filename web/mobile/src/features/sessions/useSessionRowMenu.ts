@@ -160,6 +160,12 @@ export const useSessionRowMenu = (base: string) => {
         [actions],
     )
 
+    const onRenameStream = useCallback(
+        (session: SessionStream, name: string) =>
+            actions.commitRename(targetForStream(session), name),
+        [actions],
+    )
+
     const entriesForStream = useCallback(
         (session: SessionStream) =>
             withOwnerNote(
@@ -177,5 +183,13 @@ export const useSessionRowMenu = (base: string) => {
         [actions],
     )
 
-    return {open, menuFor, onMenuSelect, onRenameRow, entriesForStream, selectForStream}
+    return {
+        open,
+        menuFor,
+        onMenuSelect,
+        onRenameRow,
+        onRenameStream,
+        entriesForStream,
+        selectForStream,
+    }
 }

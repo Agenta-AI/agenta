@@ -1,4 +1,4 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useEffect, useMemo, useState, type ReactNode} from "react"
 
 import {
     agentWorkflowsListQueryStateAtom,
@@ -6,39 +6,59 @@ import {
     SHARE_TEMPLATE_IN_MARKETPLACE_MESSAGE,
 } from "@agenta/entities/workflow"
 import {
+    AgentPrivacyDialog,
+    AgentPrivacySummary,
+    agentSharingCopy,
+    useAgentSharingWrites,
+} from "@agenta/entity-ui/sharing"
+import {sessionShareSummary} from "@agenta/sessions-ui/sharing"
+import {
     Button,
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-    SimpleTooltip,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+    Sheet,
+    SheetContent,
+    SheetTitle,
 } from "@agenta/ui/ui"
-import {Broadcast, ExportIcon, FileZip, Storefront} from "@phosphor-icons/react"
-import {useAtomValue, useStore} from "jotai"
+import {Broadcast, FileZip, Storefront, UsersIcon} from "@phosphor-icons/react"
+import {useAtom, useAtomValue, useStore} from "jotai"
 
 import {useAgentPublishPanel} from "../agents/useAgentPublishPanel"
 import {pendingTasksAtom, stashPendingTaskAtom} from "../home/pendingTask"
 
-import {AgentPrivacyHost} from "./AgentPrivacyHost"
+import {sessionBarPanelAtom} from "./sessionBarState"
+import {SessionSharingControl} from "./SessionSharingControl"
+import {SharePanel} from "./SharePanel"
 import {ShareMenuItem} from "./ShareMenuItem"
+import {useAgentPrivacyProps} from "./useAgentPrivacyProps"
+import {useSessionSharing} from "./useSessionSharing"
 
 /**
- * The session header's share actions: a Templates menu with the two template requests, the
- * agent's privacy control, then Publish. Templates only for someone who can send here.
+ * The session bar's Share and Publish. Share gathers who can use the agent, this chat's sharing
+ * and the template requests; each row opens the flow that already owns it. On a phone both
+ * buttons live in the ⋯ sheet, which reaches them through `sessionBarPanelAtom`.
  */
 export const ShareMenu = ({
     agentId,
     sessionId,
+    sessionName,
+    showSession,
     canRequestTemplate,
     workspaceId,
     projectId,
+    phone,
 }: {
     agentId: string
     sessionId: string
+    sessionName: string
+    /** False on first run, where no chat exists to share yet. */
+    showSession: boolean
     /** False without a live conversation (read-only replay, or no session yet). */
     canRequestTemplate: boolean
     workspaceId: string
     projectId: string
+    phone: boolean
 }) => {
     const store = useStore()
     const pending = useAtomValue(pendingTasksAtom)[sessionId] !== undefined
@@ -71,82 +91,164 @@ export const ShareMenu = ({
     // A privacy write can change the agent's channel connections: read them again after it.
     const reloadChannels = useCallback(() => void reload().catch(() => null), [reload])
 
+    const [barPanel, setBarPanel] = useAtom(sessionBarPanelAtom)
+    const open = barPanel === "share"
+    const close = () => setBarPanel(null)
+
+    // Nothing is read until Share first opens; the dialog outlives the panel that opened it.
+    const [engaged, setEngaged] = useState(false)
+    const [privacyDialogOpen, setPrivacyDialogOpen] = useState(false)
+    useEffect(() => {
+        if (open) setEngaged(true)
+    }, [open])
+    const privacy = useAgentPrivacyProps({
+        agentId,
+        agentName,
+        access: agentsQuery.data ? (agent ? (agent.access ?? null) : undefined) : undefined,
+        workspaceId,
+        projectId,
+        connections: publish.connections,
+        onOpenChannels: publish.openHub,
+        onChanged: reloadChannels,
+        engaged: engaged || privacyDialogOpen,
+    })
+    const writes = useAgentSharingWrites(privacy)
+    const {sharing} = useSessionSharing(sessionId, projectId)
+
+    // The phone's ⋯ sheet asks for the hub here, where the panel lives.
+    const {openHub} = publish
+    useEffect(() => {
+        if (barPanel !== "publish") return
+        setBarPanel(null)
+        openHub()
+    }, [barPanel, openHub, setBarPanel])
+
     const sendTemplateRequest = (text: string) => {
         // Read the store, not the render: a double tap lands before the re-render.
         if (store.get(pendingTasksAtom)[sessionId]) return
         store.set(stashPendingTaskAtom, {sessionId, task: {agentId, text}})
     }
 
+    const templateRow = (testId: string, text: string, icon: ReactNode, title: string, note: string) => (
+        <button
+            type="button"
+            disabled={pending}
+            data-testid={testId}
+            onClick={() => {
+                close()
+                sendTemplateRequest(text)
+            }}
+            className="hover:bg-accent text-foreground flex w-full cursor-pointer items-center gap-2.5 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-sm [font-family:inherit] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+            <ShareMenuItem icon={icon} title={title} description={note} />
+        </button>
+    )
+
+    const panel = (
+        <SharePanel
+            agentAccessLabel={agentSharingCopy.panelTitle}
+            agentAccess={
+                <AgentPrivacySummary
+                    {...privacy}
+                    writes={writes}
+                    onChange={() => {
+                        close()
+                        setPrivacyDialogOpen(true)
+                    }}
+                />
+            }
+            session={
+                showSession
+                    ? {
+                          name: sessionName,
+                          hint: sharing ? sessionShareSummary(sharing) : null,
+                          control: (
+                              <SessionSharingControl
+                                  sessionId={sessionId}
+                                  sessionName={sessionName}
+                                  workspaceId={workspaceId}
+                                  projectId={projectId}
+                                  agentId={agentId}
+                                  onOpened={close}
+                              />
+                          ),
+                      }
+                    : null
+            }
+            reuse={
+                canRequestTemplate ? (
+                    <>
+                        {templateRow(
+                            "share-menu-save-zip",
+                            SAVE_AS_TEMPLATE_MESSAGE,
+                            <FileZip />,
+                            "Save as template",
+                            "Download a .zip to reuse it",
+                        )}
+                        {templateRow(
+                            "share-menu-share-marketplace",
+                            SHARE_TEMPLATE_IN_MARKETPLACE_MESSAGE,
+                            <Storefront />,
+                            "Share in the marketplace",
+                            "Let other teams start from it",
+                        )}
+                    </>
+                ) : null
+            }
+        />
+    )
+
     return (
         <>
-            {canRequestTemplate ? (
-                <DropdownMenu>
-                    <SimpleTooltip title="Templates">
-                        <DropdownMenuTrigger asChild>
-                            <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label="Templates"
-                                className="h-7 w-7 shrink-0 p-0"
-                                data-testid="template-menu-button"
-                            >
-                                <ExportIcon size={14} />
+            {phone ? (
+                <Sheet open={open} onOpenChange={(next) => setBarPanel(next ? "share" : null)}>
+                    <SheetContent
+                        side="bottom"
+                        aria-describedby={undefined}
+                        className="flex max-h-[85dvh] flex-col overflow-y-auto rounded-t-2xl pb-[env(safe-area-inset-bottom)]"
+                    >
+                        <SheetTitle className="px-4 pt-4 text-base">Share</SheetTitle>
+                        {panel}
+                    </SheetContent>
+                </Sheet>
+            ) : (
+                <>
+                    <Popover
+                        open={open}
+                        onOpenChange={(next) => setBarPanel(next ? "share" : null)}
+                    >
+                        <PopoverTrigger asChild>
+                            <Button variant="outline" size="sm" data-testid="share-menu-share">
+                                <UsersIcon data-icon="inline-start" />
+                                Share
                             </Button>
-                        </DropdownMenuTrigger>
-                    </SimpleTooltip>
-                    <DropdownMenuContent align="end" className="w-72">
-                        <DropdownMenuItem
-                            className="gap-2.5 py-1.5"
-                            disabled={pending}
-                            onSelect={() => sendTemplateRequest(SAVE_AS_TEMPLATE_MESSAGE)}
-                            data-testid="share-menu-save-zip"
+                        </PopoverTrigger>
+                        <PopoverContent
+                            align="end"
+                            aria-label="Share"
+                            className="w-[380px] overflow-hidden p-0"
                         >
-                            <ShareMenuItem
-                                icon={<FileZip />}
-                                title="Save as template"
-                                description="Download a .zip to reuse it"
-                            />
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                            className="gap-2.5 py-1.5"
-                            disabled={pending}
-                            onSelect={() =>
-                                sendTemplateRequest(SHARE_TEMPLATE_IN_MARKETPLACE_MESSAGE)
-                            }
-                            data-testid="share-menu-share-marketplace"
-                        >
-                            <ShareMenuItem
-                                icon={<Storefront />}
-                                title="Share in the marketplace"
-                                description="Let other teams start from it"
-                            />
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-            ) : null}
-            {canRequestTemplate ? (
-                <span aria-hidden className="h-5 w-px shrink-0 bg-colorBorderSecondary" />
-            ) : null}
-            {/* Who can see this agent: between Templates and Publish, at every width. */}
-            <AgentPrivacyHost
-                agentId={agentId}
-                agentName={agentName}
-                access={agentsQuery.data ? (agent ? (agent.access ?? null) : undefined) : undefined}
-                workspaceId={workspaceId}
-                projectId={projectId}
-                connections={publish.connections}
-                onOpenChannels={publish.openHub}
-                onChanged={reloadChannels}
+                            <p className="m-0 px-3.5 pt-3.5 text-[15px] font-semibold">Share</p>
+                            {panel}
+                        </PopoverContent>
+                    </Popover>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={publish.openHub}
+                        data-testid="share-menu-publish"
+                    >
+                        <Broadcast data-icon="inline-start" />
+                        Publish
+                    </Button>
+                </>
+            )}
+            <AgentPrivacyDialog
+                {...privacy}
+                open={privacyDialogOpen}
+                onOpenChange={setPrivacyDialogOpen}
+                writes={writes}
             />
-            <Button
-                variant="ghost"
-                size="sm"
-                onClick={publish.openHub}
-                data-testid="share-menu-publish"
-            >
-                <Broadcast data-icon="inline-start" />
-                Publish
-            </Button>
             {publish.panel}
         </>
     )
