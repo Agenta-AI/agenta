@@ -237,8 +237,10 @@ describe("annotation queue picker", () => {
             AddToQueuePopover: ComponentType<React.ComponentProps<typeof AddToQueuePicker>>
         }
         await mount({}, slots.AddToQueuePopover)
-        await act(async () => undefined)
-        expect(document.body.textContent).toContain("Select annotation queue")
+        // The slot loads the shared header actions chunk first.
+        await vi.waitFor(() =>
+            expect(document.body.textContent).toContain("Select annotation queue"),
+        )
         expect(fixture.antdLoaded).not.toHaveBeenCalled()
     })
 })

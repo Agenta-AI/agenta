@@ -48,7 +48,7 @@ export const RunDetailsScreen = ({
                     }
                 >
                     <div className={`min-w-0 px-4 pb-12 pt-3 ${PAGE_FRAME}`}>
-                        <RunDetailsBody runId={runId} />
+                        <RunDetailsBody projectId={projectId} runId={runId} />
                     </div>
                 </ScreenScaffold>
             </AppShell>

@@ -12,6 +12,7 @@ import {PageNotFound} from "@/components/PageNotFound"
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
+import {AppOverviewLink} from "../app-overview/AppOverviewLink"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {DeveloperAppPicker} from "../developer/DeveloperAppPicker"
 import {useUrlParams} from "../developer/useUrlParams"
@@ -102,6 +103,10 @@ export const VariantsScreen = ({
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px]">
                                     Registry
                                 </h1>
+                                <AppOverviewLink
+                                    base={`/w/${workspaceId}/p/${projectId}`}
+                                    appId={app?.id ?? null}
+                                />
                                 <DeveloperAppPicker
                                     apps={apps.data}
                                     value={appId}
