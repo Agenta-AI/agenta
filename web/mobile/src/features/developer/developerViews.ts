@@ -130,10 +130,9 @@ export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
         stage: "hidden",
     },
     {
-        id: "observability-add-to-testset",
-        label: "Add to test set from traces",
-        description:
-            "Show Add to testset in the traces toolbar and the trace drawer, to save spans as test cases.",
+        id: "observability-actions",
+        label: "Trace actions",
+        description: "Add to testset and Annotate in the traces toolbar and the trace drawer.",
         stage: "hidden",
     },
 ]

@@ -17,6 +17,12 @@ vi.mock("@/features/observability/addToTestset/AddToTestsetDrawerButton", () => 
     ),
 }))
 
+vi.mock("@/features/observability/annotate/TraceAnnotateButton", () => ({
+    TraceAnnotateButton: ({traceSpanIds}: {traceSpanIds?: {spanId?: string}}) => (
+        <div>annotate:{traceSpanIds?.spanId}</div>
+    ),
+}))
+
 import TraceDrawerHeaderAction from "@/features/observability/TraceDrawerHeaderActions"
 
 describe("trace drawer header actions", () => {
@@ -47,5 +53,19 @@ describe("trace drawer header actions", () => {
     it("The add to test set slot renders the test set button", () => {
         act(() => root.render(<TraceDrawerHeaderAction label="Add to testset" spanIds={["s-1"]} />))
         expect(host.textContent).toBe("testset:s-1")
+    })
+
+    it("The annotate slot renders the annotate button", () => {
+        act(() =>
+            root.render(
+                <TraceDrawerHeaderAction
+                    label="Annotate"
+                    data={[]}
+                    traceSpanIds={{traceId: "t-1", spanId: "s-1"}}
+                    queryKey="trace-drawer-annotations"
+                />,
+            ),
+        )
+        expect(host.textContent).toBe("annotate:s-1")
     })
 })

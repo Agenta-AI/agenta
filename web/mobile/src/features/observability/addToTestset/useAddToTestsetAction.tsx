@@ -2,7 +2,7 @@ import {useState} from "react"
 
 import dynamic from "next/dynamic"
 
-import {useAddToTestsetAccess} from "./useAddToTestsetAccess"
+import {useTraceActionAccess} from "../useTraceActionAccess"
 
 // The sheet is its own chunk: the traces page loads it on the first click only.
 const AddToTestsetSheet = dynamic(() => import("./AddToTestsetSheet"), {ssr: false})
@@ -12,7 +12,7 @@ const AddToTestsetSheet = dynamic(() => import("./AddToTestsetSheet"), {ssr: fal
  * table row keys are span ids) and the trace drawer button (the active span).
  */
 export const useAddToTestsetAction = (projectId: string, selectedSpanIds: readonly string[]) => {
-    const allowed = useAddToTestsetAccess(projectId)
+    const allowed = useTraceActionAccess(projectId, "edit_testsets")
     const [openFor, setOpenFor] = useState<readonly string[] | null>(null)
 
     const testsetAction = allowed
