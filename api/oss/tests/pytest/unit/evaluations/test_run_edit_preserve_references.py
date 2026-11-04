@@ -1,3 +1,4 @@
+from copy import deepcopy
 from datetime import datetime, timezone
 from uuid import uuid4
 import pytest
@@ -181,9 +182,11 @@ async def test_edit_runs_without_data_preserves_references(monkeypatch):
 
     runs_dbes = []
     edit_dtos = []
+    expected_references = []
     for i in range(2):
         run_id = uuid4()
         refs = [{"testset": {"id": str(uuid4())}, "key": f"key_{i}"}]
+        expected_references.append(deepcopy(refs))
         run_dbe = EvaluationRunDBE(
             id=run_id,
             project_id=project_id,
@@ -220,9 +223,4 @@ async def test_edit_runs_without_data_preserves_references(monkeypatch):
     assert len(results) == 2
     for i, run_dbe in enumerate(runs_dbes):
         assert run_dbe.name == f"renamed-run-{i}"
-        assert run_dbe.references == [
-            {
-                "testset": {"id": run_dbe.references[0]["testset"]["id"]},
-                "key": f"key_{i}",
-            }
-        ]
+        assert run_dbe.references == expected_references[i]
