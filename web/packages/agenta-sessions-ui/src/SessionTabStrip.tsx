@@ -23,8 +23,8 @@ import {Reorder} from "motion/react"
  * overflow. Applied per-side ONLY where content is actually clipped (scrolled past) — a strip
  * that fits (e.g. a single tab) gets no fade, so its lone item isn't dimmed at the edges. The
  * lengths are the Home agents list's (26px in, 34px out), so the two scrollers read the same. */
-const EDGE_FADE_START_PX = 26
-const EDGE_FADE_END_PX = 34
+export const EDGE_FADE_START_PX = 26
+export const EDGE_FADE_END_PX = 34
 const fadeMask = (left: boolean, right: boolean): string => {
     const start = left ? `transparent 0, #000 ${EDGE_FADE_START_PX}px` : "#000 0"
     const end = right ? `#000 calc(100% - ${EDGE_FADE_END_PX}px), transparent 100%` : "#000 100%"

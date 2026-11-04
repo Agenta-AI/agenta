@@ -52,7 +52,12 @@ import {
 import {SessionRowContextMenu} from "./SessionRowContextMenu"
 import {SessionTab} from "./SessionTab"
 import {SessionTabDragItem} from "./SessionTabDragItem"
-import {SessionTabStrip, TAB_DIVIDER} from "./SessionTabStrip"
+import {
+    EDGE_FADE_END_PX,
+    EDGE_FADE_START_PX,
+    SessionTabStrip,
+    TAB_DIVIDER,
+} from "./SessionTabStrip"
 import {useInlineRename} from "./useInlineRename"
 
 /** A rename asked for from outside the rail (Alt+R) — the tab for this session opens its editor. */
@@ -122,8 +127,8 @@ export interface SessionTabRailProps extends UseSessionCardListArgs {
 }
 
 /**
- * Keeps the active chip in view, scrolling ONLY when it is off-screen — scrolling on every
- * activation yanked the rail back when you clicked a chip you could already see. A just-created
+ * Keeps the active chip in view, scrolling ONLY when it is off-screen or under an edge fade —
+ * scrolling on every activation yanked the rail back when you clicked a chip you could see. A just-created
  * session always needs it: its chip is appended last, past the right edge of a full strip.
  */
 const useRevealWhenActive = (active: boolean) => {
@@ -140,8 +145,11 @@ const useRevealWhenActive = (active: boolean) => {
             if (!scroller) return
             const t = tab.getBoundingClientRect()
             const s = scroller.getBoundingClientRect()
-            const delta =
-                t.right > s.right ? t.right - s.right : t.left < s.left ? t.left - s.left : 0
+            // Clear of the edge fades too, or the chip lands in view but half dissolved. The
+            // browser clamps the scroll, and at either end the strip drops that side's fade.
+            const end = s.right - EDGE_FADE_END_PX
+            const start = s.left + EDGE_FADE_START_PX
+            const delta = t.right > end ? t.right - end : t.left < start ? t.left - start : 0
             if (delta === 0) return
             // Instant, like the wheel handler: `scroll-smooth` would leave the next frame
             // measuring a rect mid-flight, and the correction below would compound.
