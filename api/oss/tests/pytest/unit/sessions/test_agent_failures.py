@@ -30,6 +30,7 @@ from oss.src.core.workflows.dtos import ResolvedTarget
 from oss.src.core.workflows.types import (
     WorkflowDetachedStartNeverSent,
     WorkflowDetachedStartRejected,
+    WorkflowServiceUrlMissing,
 )
 from oss.src.tasks.asyncio.sessions.records_worker import RecordsWorker
 from oss.src.tasks.asyncio.triggers.dispatcher import TriggersDispatcher
@@ -696,10 +697,24 @@ def _dispatcher(*, failure, failure_reporter):
             "agent_run_failed",
         ),
         (WorkflowDetachedStartRejected("HTTP 422"), "start_rejected"),
+        (
+            WorkflowDetachedStartRejected(
+                "HTTP 422", failure_code="token sk-123 was refused"
+            ),
+            "start_rejected",
+        ),
         (WorkflowDetachedStartNeverSent("HTTP 502"), "start_never_sent"),
+        (WorkflowServiceUrlMissing(), "start_never_sent"),
         (RuntimeError("HTTP 502"), "start_unconfirmed"),
     ],
-    ids=["rejected_start", "uncoded_rejection", "never_sent", "unconfirmed_start"],
+    ids=[
+        "rejected_start",
+        "uncoded_rejection",
+        "free_text_code",
+        "never_sent",
+        "no_service_url",
+        "unconfirmed_start",
+    ],
 )
 @pytest.mark.asyncio
 async def test_a_failed_start_is_reported_and_still_raises(
