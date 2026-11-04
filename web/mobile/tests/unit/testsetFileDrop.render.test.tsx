@@ -66,7 +66,7 @@ describe("Test set file drop", () => {
     it("An invalid JSON file shows Invalid JSON format", async () => {
         await choose(new File(["{not json"], "broken.json"))
         expect(host.querySelector('[role="alert"]')?.textContent).toBe(
-            "Invalid JSON format. Ensure it's an array of objects with consistent keys.",
+            "Invalid JSON format. Ensure it's an array of objects with column names as keys.",
         )
     })
 

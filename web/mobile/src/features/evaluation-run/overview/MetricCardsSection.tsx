@@ -41,7 +41,20 @@ export const MetricCardsSection = ({
     }, [error])
 
     if (cards.length === 0 && error) {
-        return <Alert type="error" showIcon message="Unable to load evaluator metrics" />
+        return (
+            <Alert
+                type="error"
+                showIcon
+                message="Unable to load evaluator metrics"
+                action={
+                    onRetry ? (
+                        <Button size="sm" onClick={onRetry}>
+                            Try again
+                        </Button>
+                    ) : undefined
+                }
+            />
+        )
     }
     if (cards.length === 0 && pending) {
         return (

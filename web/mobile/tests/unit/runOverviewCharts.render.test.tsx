@@ -146,6 +146,29 @@ describe("overview charts", () => {
         log.mockRestore()
     })
 
+    it("A first metrics load error offers a retry", () => {
+        vi.spyOn(console, "error").mockImplementation(() => undefined)
+        const retry = vi.fn()
+        render(
+            createElement(MetricCardsSection, {
+                runId: RUN_ID,
+                runName: "Capitals check",
+                online: false,
+                metrics: [],
+                hasEvaluators: true,
+                pending: false,
+                error: new Error("Request failed with status code 500"),
+                onRetry: retry,
+            }),
+        )
+        expect(host.textContent).toContain("Unable to load evaluator metrics")
+        const button = Array.from(host.querySelectorAll("button")).find(
+            (node) => node.textContent === "Try again",
+        )
+        act(() => button?.click())
+        expect(retry).toHaveBeenCalledTimes(1)
+    })
+
     it("A failed refresh keeps the cards, warns, and offers a retry", () => {
         vi.spyOn(console, "error").mockImplementation(() => undefined)
         const retry = vi.fn()

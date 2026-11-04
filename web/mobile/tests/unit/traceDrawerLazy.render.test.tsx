@@ -157,15 +157,20 @@ const watchLoadingPanel = () => {
     return {seen, stop: () => observer.disconnect()}
 }
 
+/** Whether a drawer body has loaded in this file, so a test run alone still expects the right panel. */
+let bodyLoaded = false
+
 /**
  * Opens the drawer and waits for its body. The body's code loads once per page, so only the
  * first open in this file shows the loading panel; later opens get the body at once.
  */
-const openAndExpectDrawer = async (open: () => void, {firstOpen}: {firstOpen: boolean}) => {
+const openAndExpectDrawer = async (open: () => void) => {
+    const firstOpen = !bodyLoaded
     const watch = watchLoadingPanel()
     await act(async () => open())
     await vi.waitFor(() => expect(drawerPanel()).not.toBeNull(), {timeout: 10_000})
     watch.stop()
+    bodyLoaded = true
     expect(watch.seen.loading).toBe(firstOpen)
     expect(loadingPanel()).toBeNull()
 }
@@ -191,14 +196,14 @@ describe("the trace drawer loads on demand", () => {
         expect(drawerPanel()).toBeNull()
 
         const viewTrace = document.querySelector<HTMLElement>('[aria-label="View trace"]')
-        await openAndExpectDrawer(() => viewTrace!.click(), {firstOpen: true})
+        await openAndExpectDrawer(() => viewTrace!.click())
     })
 
     it("opens from a row of the traces list, with the shell's slots and the authors' names", async () => {
         const store = await render(<TracesListWithRow />)
 
         const row = document.querySelector<HTMLElement>('[data-testid="trace-row"] [role="button"]')
-        await openAndExpectDrawer(() => row!.click(), {firstOpen: false})
+        await openAndExpectDrawer(() => row!.click())
         // The add-to-queue slot was registered by the shell, before the drawer chunk existed.
         await vi.waitFor(() =>
             expect(document.querySelector('[data-testid="m-add-to-queue"]')).not.toBeNull(),
