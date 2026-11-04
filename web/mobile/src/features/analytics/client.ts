@@ -3,7 +3,6 @@ import {
     OSS_CONFIG,
     POSTHOG_CONFIG,
     captureFirstAgentIntent,
-    generateOrRetrieveDistinctId,
     type FirstAgentIntentPayload,
 } from "@agenta/shared/analytics"
 import {isEE} from "@agenta/shared/api/env"
@@ -35,13 +34,8 @@ export function loadPostHog(): Promise<PostHog | null> {
                         ...(isEE() ? CLOUD_CONFIG : OSS_CONFIG),
                         loaded: (client) => {
                             if (process.env.NODE_ENV === "development") client.debug()
-                            try {
-                                // Cloud stays anonymous until the profile loads, so the later
-                                // identify(email) can merge this browser into the email person.
-                                if (!isEE()) client.identify(generateOrRetrieveDistinctId())
-                            } catch {
-                                // Identification must not prevent initialization from settling.
-                            }
+                            // The browser stays anonymous until the profile loads; Analytics
+                            // then identifies it by user id.
                             resolve(client as PostHog)
                         },
                     })

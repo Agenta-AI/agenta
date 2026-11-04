@@ -184,6 +184,7 @@ async def create_organization_for_signup(
         )
     elif is_first_organization:
         analytics.capture_oss_deployment_created(
+            user_id=str(user.id),
             user_email=organization_email,
             organization_id=str(organization.id),
         )

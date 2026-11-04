@@ -19,4 +19,6 @@ export interface User {
      * missing or unparseable as "no".
      */
     created_at?: string
+    /** This deployment's id, sent with the profile for analytics. */
+    instance_id?: string | null
 }

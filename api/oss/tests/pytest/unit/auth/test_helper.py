@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -339,11 +339,16 @@ async def test_signup_on_lookalike_domain_is_not_blocked(
     create_accounts = AsyncMock()
     monkeypatch.setattr(overrides, "create_accounts", create_accounts)
     monkeypatch.setattr(overrides, "get_user_with_email", AsyncMock(return_value=None))
-    monkeypatch.setattr(overrides, "_load_posthog", lambda: None)
+    capture_user_event = MagicMock()
+    monkeypatch.setattr(overrides, "capture_user_event", capture_user_event)
 
     assert await overrides._create_account(email, "uid") is True
 
     create_accounts.assert_awaited_once()
+    # The signup event identifies the person by user id; the email is a property.
+    _, kwargs = capture_user_event.call_args
+    assert kwargs["user_id"] == str(create_accounts.return_value.id)
+    assert kwargs["email"] == email
 
 
 def _block_only_emails(monkeypatch, blocked_emails):

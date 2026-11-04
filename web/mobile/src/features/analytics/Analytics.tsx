@@ -2,8 +2,7 @@ import {useEffect, useRef} from "react"
 
 import {useProfile} from "@agenta/entities/profile"
 import {setAgentCreationFailureReporter} from "@agenta/entities/workflow/agentCreationTelemetry"
-import {analyticsIdentity, generateOrRetrieveDistinctId} from "@agenta/shared/analytics"
-import {isEE} from "@agenta/shared/api/env"
+import {INSTANCE_GROUP, analyticsIdentity} from "@agenta/shared/analytics"
 import {useAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -33,15 +32,15 @@ export const Analytics = () => {
 
     useEffect(() => {
         if (!client || !enabled || authRoute) return
-        // Cloud identifies by email only. PostHog merges the anonymous browser into the email
-        // person on identify; an earlier identify(deviceId) would block that merge.
-        if (isEE() && !user?.email) return
-        const baseId = generateOrRetrieveDistinctId()
-        const {id, properties} = analyticsIdentity(user, isEE(), baseId)
-        const key = JSON.stringify([id, properties])
+        // No user id yet: stay anonymous. Identifying earlier (for example with a device id)
+        // would block PostHog from merging this browser into the user's person.
+        const {id, properties, instanceId} = analyticsIdentity(user)
+        if (!id) return
+        const key = JSON.stringify([id, properties, instanceId])
         try {
             if (identityRef.current === key && client.get_distinct_id() === id) return
             client.identify(id, properties)
+            if (instanceId) client.group(INSTANCE_GROUP, instanceId)
             identityRef.current = key
         } catch {
             // A blocked analytics client must not affect profile hydration.

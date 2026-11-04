@@ -15,6 +15,8 @@ class User(TimestampModel):
     email: str
     username: str
     profile_picture: Optional[str] = None
+    # This deployment's id, for analytics. Not part of the user record.
+    instance_id: Optional[str] = None
 
 
 class UserUpdate(BaseModel):

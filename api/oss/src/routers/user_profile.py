@@ -8,6 +8,7 @@ from oss.src.middlewares.auth import is_interactive_session
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.common import APIRouter
+from oss.src.utils.instance import get_instance_id
 from oss.src.models.api.user_models import User
 from oss.src.models.api.user_models import UserUpdate
 from oss.src.services import db_manager, user_service
@@ -44,6 +45,8 @@ async def user_profile(request: Request):
     )
 
     if user is not None:
+        # Set on read, so a profile cached before the instance id existed carries it.
+        user.instance_id = get_instance_id()
         return user
 
     user = await db_manager.get_user_with_id(user_id=request.state.user_id)
@@ -74,6 +77,7 @@ async def user_profile(request: Request):
         value=user,
     )
 
+    user.instance_id = get_instance_id()
     return user
 
 
