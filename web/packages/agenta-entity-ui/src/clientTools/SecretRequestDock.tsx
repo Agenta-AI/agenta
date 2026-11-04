@@ -10,7 +10,6 @@ import {
 } from "@agenta/entities/secret"
 import {commitAgentCredentialsAtom, workflowMolecule} from "@agenta/entities/workflow"
 import type {ClientToolMeta} from "@agenta/shared/clientTools"
-import {message} from "@agenta/ui/app-message"
 import {
     Button,
     DropdownMenu,
@@ -57,6 +56,13 @@ interface SecretRequestDockProps {
     }) => void | boolean | Promise<void | boolean>
 }
 
+interface UnattachedSecret {
+    secret: AgentSecretBinding["secret"]
+    /** A person's own secret still needs its choice stored before the attachment. */
+    choiceFor?: string
+    choiceMissing?: boolean
+}
+
 const VALUE_FIELD_LABEL = "Secret value"
 const VAULT_READ_TIMEOUT_MS = 3000
 
@@ -90,7 +96,7 @@ export const SecretRequestDock = ({
     const [committing, setCommitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
     // Saved in the vault but not attached: Continue retries the attachment, not the save.
-    const [unattached, setUnattached] = useState<AgentSecretBinding["secret"] | null>(null)
+    const [unattached, setUnattached] = useState<UnattachedSecret | null>(null)
     // Null follows the request; a person's "Change value" or "Keep saved value" overrides it.
     const [entryChoice, setEntryChoice] = useState<boolean | null>(null)
     const [editingEnv, setEditingEnv] = useState(false)
@@ -236,7 +242,7 @@ export const SecretRequestDock = ({
             setUnattached(null)
             configured(secret, envName, result.revisionId)
         } catch (cause) {
-            setUnattached(secret)
+            setUnattached({secret})
             setError(
                 `${justSaved ? "Saved in the vault, not attached. " : ""}${
                     cause instanceof Error ? cause.message : "The secret could not be attached."
@@ -249,9 +255,17 @@ export const SecretRequestDock = ({
 
     // "Only me": the item takes each person's own secret, and this one is the choice.
     const attachPersonal = async (secretId: string | undefined, justSaved: boolean) => {
+        setCommitting(true)
         const stored = secretId ? await storeChoice({secretId}) : false
-        if (stored !== true) message.error(ACCOUNT_COPY.choiceFailed)
-        await attach({account_source: "user"}, justSaved)
+        const secret = {account_source: "user"} as AgentSecretBinding["secret"]
+        if (stored !== true) {
+            // A run reads the value through this choice, so the agent must not hear "configured".
+            setCommitting(false)
+            setUnattached({secret, choiceFor: secretId, choiceMissing: true})
+            setError(ACCOUNT_COPY.choiceFailed)
+            return
+        }
+        await attach(secret, justSaved)
     }
 
     const handleSaved = async (saved: SavedSecret) => {
@@ -291,8 +305,12 @@ export const SecretRequestDock = ({
     const canSubmit = !blocked && !!form.textValue.trim()
 
     const continueWithSaved = () => {
+        if (unattached?.choiceMissing) {
+            void attachPersonal(unattached.choiceFor, false)
+            return
+        }
         if (unattached) {
-            void attach(unattached, false)
+            void attach(unattached.secret, false)
             return
         }
         if (subject?.kind === "vault") {

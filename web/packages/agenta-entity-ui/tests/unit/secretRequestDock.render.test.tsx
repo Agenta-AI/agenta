@@ -468,6 +468,23 @@ describe("review comments", () => {
         })
     })
 
+    it("does not report configured until the person's choice is stored", async () => {
+        state.access = "on"
+        state.choose.mockResolvedValueOnce(false)
+        await mount()
+        await typeInto(valueField()!, "sk_live")
+        await click(button("Save"))
+
+        expect(host.textContent).toContain("Could not save your choice. Try again.")
+        expect(state.commit).not.toHaveBeenCalled()
+        expect(onOutput).not.toHaveBeenCalled()
+
+        await click(button("Continue"))
+        expect(state.save).toHaveBeenCalledTimes(1)
+        expect(state.choose).toHaveBeenCalledTimes(2)
+        expect(onOutput.mock.calls[0][0].output.secret).toEqual({account_source: "user"})
+    })
+
     it("renames without storing a choice when the person has none", async () => {
         state.bindings = [{secret: {account_source: "user"}, binding: stripeBinding.binding}]
         await mount()
