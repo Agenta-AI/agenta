@@ -9,7 +9,7 @@ import {
 import {message} from "@agenta/ui/app-message"
 import {TypeChip, type ChipVariant} from "@agenta/ui/type-chip"
 import {Badge, Button, SimpleTooltip} from "@agenta/ui/ui"
-import {CaretDown, CaretRight, CopySimple, Info} from "@phosphor-icons/react"
+import {CaretDown, CaretRight, CopySimple, Database, Info} from "@phosphor-icons/react"
 
 const EXPECTED_CHIP: Partial<Record<NonNullable<ExpectedType>, ChipVariant>> = {
     object: "json-object",
@@ -41,6 +41,8 @@ export interface InputVariableCardHeaderProps {
     helpText?: string
     /** The prompt uses this variable, the test case does not have it yet. */
     isDraft?: boolean
+    /** The test set the row comes from, when the row is connected to one. */
+    connectedSourceName?: string | null
     mode: ViewType
     options: ViewOption[]
     onModeChange: (mode: ViewType) => void
@@ -56,6 +58,7 @@ export const InputVariableCardHeader = ({
     expectedType,
     helpText,
     isDraft,
+    connectedSourceName,
     mode,
     options,
     onModeChange,
@@ -95,6 +98,15 @@ export const InputVariableCardHeader = ({
                 ) : null}
             </div>
             <div className="flex shrink-0 items-center gap-1">
+                {connectedSourceName ? (
+                    <SimpleTooltip title={`Synced from ${connectedSourceName}`} side="top">
+                        <Database
+                            size={14}
+                            aria-label="Synced from test set"
+                            className="shrink-0 text-muted-foreground"
+                        />
+                    </SimpleTooltip>
+                ) : null}
                 <SimpleTooltip title="Copy value" side="top">
                     <Button
                         variant="ghost"

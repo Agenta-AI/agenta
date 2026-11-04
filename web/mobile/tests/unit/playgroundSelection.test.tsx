@@ -63,10 +63,15 @@ const revisions = [
     revision("rev-a", "agent-app", 1, {is_agent: true}),
     revision("rev-b", "agent-app", 2, {is_agent: true}),
 ]
+/** Revisions one test adds to the fixtures above. */
+let added: (Omit<ReturnType<typeof revision>, "data"> & {data: object | null})[] = []
 let failRevisions = false
+/** While set, the app request waits for it, so a test can answer the revisions first. */
+let holdApp: Promise<void> | null = null
 
 http.post.mockImplementation(async (url: string, body: Record<string, {id: string}[]>) => {
     if (url.endsWith("/workflows/query")) {
+        await holdApp
         const ids = (body.workflow_refs ?? []).map((ref) => ref.id)
         return {data: {count: 1, workflows: ids.flatMap((id) => apps[id] ?? [])}}
     }
@@ -74,9 +79,12 @@ http.post.mockImplementation(async (url: string, body: Record<string, {id: strin
         if (failRevisions) throw new Error("network down")
         const byId = (body.workflow_revision_refs ?? []).map((ref) => ref.id)
         const byApp = (body.workflow_refs ?? []).map((ref) => ref.id)
-        const found = revisions.filter(
-            (item) => byId.includes(item.id) || byApp.includes(item.workflow_id),
-        )
+        // Newest first, as the server orders them.
+        let found = [...revisions, ...added]
+            .filter((item) => byId.includes(item.id) || byApp.includes(item.workflow_id))
+            .sort((a, b) => b.created_at.localeCompare(a.created_at))
+        const limit = (body as {windowing?: {limit?: number}}).windowing?.limit
+        if (limit) found = found.slice(0, limit)
         return {data: {count: found.length, workflow_revisions: found}}
     }
     return {data: {}}
@@ -117,6 +125,8 @@ beforeEach(() => {
     store.set(projectIdAtom, projectId)
     store.set(sessionAtom, true)
     failRevisions = false
+    holdApp = null
+    added = []
     router.replace.mockReset()
     router.replace.mockImplementation(async ({query}: {query: Record<string, string>}) => {
         router.query = query
@@ -146,6 +156,72 @@ describe("usePlaygroundSelection", () => {
         await mount("app-1")
 
         expect(selection.revisionIds).toEqual(["rev-2"])
+        expect(selection.status).toBe("ready")
+    })
+
+    it("Without revisions the latest revision opens when it answers before the app", async () => {
+        let releaseApp = () => undefined as void
+        holdApp = new Promise((resolve) => {
+            releaseApp = resolve
+        })
+        await mount("app-1")
+        expect(selection.status).toBe("loading")
+
+        releaseApp()
+        await settle()
+
+        expect(selection.revisionIds).toEqual(["rev-2"])
+        expect(selection.status).toBe("ready")
+    })
+
+    it("Without revisions a newer variant's empty seed is skipped for the latest revision", async () => {
+        added = [
+            {...revision("rev-seed", "app-1", 0), created_at: "2026-11-05T00:00:00Z", data: null},
+        ]
+
+        await mount("app-1")
+
+        expect(selection.revisionIds).toEqual(["rev-2"])
+        expect(selection.status).toBe("ready")
+    })
+
+    it("A new variant with an empty seed and a later revision opens the later revision", async () => {
+        added = [
+            {
+                ...revision("rev-seed", "app-1", 0),
+                workflow_variant_id: "app-1-variant-2",
+                created_at: "2026-11-05T00:00:00Z",
+                data: null,
+            },
+            {
+                ...revision("rev-new", "app-1", 1),
+                workflow_variant_id: "app-1-variant-2",
+                created_at: "2026-11-06T00:00:00Z",
+            },
+        ]
+
+        await mount("app-1")
+
+        expect(selection.revisionIds).toEqual(["rev-new"])
+        expect(selection.status).toBe("ready")
+    })
+
+    it("A version 0 that holds a config opens as the latest revision", async () => {
+        apps["app-v0"] = {id: "app-v0", name: "Seeded", flags: {}}
+        added = [
+            {
+                ...revision("rev-v0", "app-v0", 0),
+                created_at: "2026-11-05T00:00:00Z",
+                data: {
+                    uri: "agenta:builtin:completion:v0",
+                    parameters: {prompt: {messages: [{role: "user", content: "Hi"}]}},
+                },
+            },
+        ]
+
+        await mount("app-v0")
+
+        expect(selection.revisionIds).toEqual(["rev-v0"])
         expect(selection.status).toBe("ready")
     })
 

@@ -328,6 +328,30 @@ export const completeRunAtom = atom(
 )
 
 /**
+ * Mark a chain stage skipped, with the reason (a required input is missing). The stage did not
+ * run, so it has no output.
+ */
+export const skipRunAtom = atom(
+    null,
+    (
+        get,
+        set,
+        payload: {loadableId: string; stepId: string; sessionId: string; reason: string},
+    ) => {
+        const {loadableId, stepId, sessionId, reason} = payload
+        const resultsByKey = {...get(resultsByKeyAtomFamily(loadableId))}
+        const key = buildResultKey(stepId, sessionId)
+        resultsByKey[key] = {
+            ...(resultsByKey[key] ?? {sessionId}),
+            status: "skipped",
+            error: {message: reason},
+            completedAt: Date.now(),
+        }
+        set(resultsByKeyAtomFamily(loadableId), resultsByKey)
+    },
+)
+
+/**
  * Fail a run with error
  */
 export const failRunAtom = atom(
