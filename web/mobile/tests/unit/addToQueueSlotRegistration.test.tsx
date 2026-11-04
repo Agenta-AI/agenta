@@ -9,9 +9,15 @@ vi.mock("@agenta/observability-ui/traceDrawer", () => ({
     configureTraceDrawerReferences: configure,
     TraceDrawer: () => null,
 }))
+vi.mock("@agenta/observability/traceDrawer", async () => {
+    const {atom} = await import("jotai")
+    return {isDrawerOpenAtom: atom(false)}
+})
 vi.mock("next/dynamic", () => ({default: () => () => null}))
 vi.mock("@/features/observability/TracePrettyJson", () => ({TracePrettyJson: () => null}))
-vi.mock("@/features/observability/TraceSpanPanel", () => ({TraceSpanPanel: () => null}))
+vi.mock("@/features/observability/states/TraceSpanPanelSkeleton", () => ({
+    TraceSpanPanelSkeleton: () => null,
+}))
 vi.mock("@/features/observability/bindTraceDrawerSeams", () => ({bindTraceDrawerSeams: vi.fn()}))
 vi.mock("@/features/education/FeatureGuideDialog", () => ({FeatureGuideDialog: () => null}))
 vi.mock("@/features/education/WhatsNewDialog", () => ({WhatsNewDialog: () => null}))
@@ -29,5 +35,7 @@ describe("add to queue slot registration", () => {
         await import("@/features/app/GlobalDrawers")
         expect(configure).toHaveBeenCalledTimes(1)
         expect(configure.mock.calls[0][0]).toHaveProperty("AddToQueuePopover")
+        expect(configure.mock.calls[0][0]).toHaveProperty("AddToTestsetButton")
+        expect(configure.mock.calls[0][0]).toHaveProperty("AnnotateDrawerButton")
     })
 })

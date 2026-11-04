@@ -150,13 +150,18 @@ export async function fetchRevisionsList({
 export async function fetchLatestRevision({
     projectId,
     testsetId,
-}: RevisionListParams): Promise<Revision | null> {
+    includeArchived = false,
+}: RevisionListParams & {
+    /** Also read the revisions of an archived testset. */
+    includeArchived?: boolean
+}): Promise<Revision | null> {
     const response = await axios.post(
         `${getAgentaApiUrl()}/testsets/revisions/query`,
         {
             testset_refs: [{id: testsetId}],
             windowing: {limit: 1, order: "descending"},
             include_testcases: false,
+            ...(includeArchived ? {include_archived: true} : {}),
         },
         {params: {project_id: projectId}},
     )

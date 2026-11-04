@@ -6,7 +6,14 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
-import {ArrowCounterClockwise, Copy, DotsThreeVertical, Rocket, Trash} from "@phosphor-icons/react"
+import {
+    ArrowCounterClockwise,
+    Copy,
+    DotsThreeVertical,
+    Rocket,
+    Trash,
+    X,
+} from "@phosphor-icons/react"
 
 /** A menu item's name, with the reason under it when the reader may not use it. */
 const MenuLabel = ({hint, children}: {hint: string | null; children: string}) => (
@@ -18,7 +25,8 @@ const MenuLabel = ({hint, children}: {hint: string | null; children: string}) =>
 
 /**
  * The menu behind the three dots. Deploy sits here on a phone, where the bar has no room for it.
- * A verb the reader may not use stays in the list, disabled.
+ * A verb the reader may not use stays in the list, disabled. "Close panel" shows in the compare
+ * view only.
  */
 export const RevisionMenu = ({
     dirty,
@@ -30,6 +38,7 @@ export const RevisionMenu = ({
     onRevert,
     onDeploy,
     onDelete,
+    onClose,
 }: {
     dirty: boolean
     canDeploy: boolean
@@ -42,6 +51,8 @@ export const RevisionMenu = ({
     /** Left out on a revision that cannot be deployed or deleted here: the item goes. */
     onDeploy?: () => void
     onDelete?: () => void
+    /** Takes the revision off the compare view. */
+    onClose?: () => void
 }) => (
     <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -69,6 +80,12 @@ export const RevisionMenu = ({
                 <DropdownMenuItem variant="destructive" disabled={!canDelete} onSelect={onDelete}>
                     <Trash aria-hidden size={14} />
                     <MenuLabel hint={deleteHint}>Delete</MenuLabel>
+                </DropdownMenuItem>
+            ) : null}
+            {onClose ? (
+                <DropdownMenuItem onSelect={onClose}>
+                    <X aria-hidden size={14} />
+                    Close panel
                 </DropdownMenuItem>
             ) : null}
         </DropdownMenuContent>

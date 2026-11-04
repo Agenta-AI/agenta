@@ -65,6 +65,7 @@ import {executionByMessageIdAtomFamily, messageIdsAtomFamily, messagesByIdAtomFa
 import type {ChatMessage} from "../chat"
 import {
     cancelRunningResults,
+    cancelTestsMutationAtom,
     createInitialExecutionState,
     executionStateAtomFamily,
 } from "../execution"
@@ -89,6 +90,7 @@ import {
 import {pruneDanglingConnections} from "../helpers/connectionGraph"
 import {
     collectDownstreamReferencedColumns,
+    collectOtherRootInputKeys,
     collectTestsetServerColumns,
     reconcileRowDataForEntity,
     resolveEntityInputContract,
@@ -1887,10 +1889,10 @@ const setEntityIdsAtom = atom(null, (get, set, next: string[] | ((prev: string[]
     // The test cases and results live under the anchor's loadable. When the anchor leaves (a
     // commit or switch of the first revision), a run in flight keeps writing to the old loadable
     // while its results move on as "running": stop every run there first, evaluators included.
-    const anchorLoadableId = get(derivedLoadableIdAtom)
-    const anchorEntityId = anchorLoadableId.split(":").slice(2).join(":")
-    if (anchorEntityId && !newIds.includes(anchorEntityId)) {
-        cancelRunningResults(get, set, anchorLoadableId)
+    const leavingLoadableId = get(derivedLoadableIdAtom)
+    const leavingAnchorId = leavingLoadableId.split(":").slice(2).join(":")
+    if (leavingAnchorId && !newIds.includes(leavingAnchorId)) {
+        cancelRunningResults(get, set, leavingLoadableId)
     }
     const existingByEntityId = new Map(currentRootNodes.map((node) => [node.entityId, node]))
     const resolver = getRunnableTypeResolver()
@@ -1919,51 +1921,71 @@ const setEntityIdsAtom = atom(null, (get, set, next: string[] | ((prev: string[]
     // URL hydration, applyPlaygroundSelection, SUB 4 validation, removeEntity.
     // Putting the re-link at this level fixes commit, drawer-mode commit, and
     // any future caller that swaps an entity, with one change.
+    //
+    // The test cases, chat messages and results live under the loadable of the ANCHOR entity
+    // (`derivedLoadableIdAtom`), which is not always index 0: a reorder in compare mode keeps the
+    // anchor where it was. So a swap is an anchor swap when it replaces the anchor, and when the
+    // anchor leaves without a replacement (a closed column) the state moves to the entity that
+    // becomes the anchor, which is the new index 0.
     if (currentRootNodes.length > 0 && newRootNodes.length > 0) {
         const currentIdSet = new Set(currentIds)
         const newIdSet = new Set(newIds)
+        const oldLoadableId = get(derivedLoadableIdAtom)
+        const anchorEntityId = oldLoadableId.split(":").slice(2).join(":")
         const positionalSwaps = currentIds.flatMap((oldEntityId, index) => {
             const newEntityId = newIds[index]
             if (!newEntityId || oldEntityId === newEntityId) return []
             // Guard against reorders: only a true swap when the old ID is gone
             // from the new selection AND the new ID wasn't already selected.
             if (newIdSet.has(oldEntityId) || currentIdSet.has(newEntityId)) return []
-            return [{oldEntityId, newEntityId, isAnchorSwap: index === 0}]
+            return [{oldEntityId, newEntityId, isAnchorSwap: oldEntityId === anchorEntityId}]
         })
+        const newAnchorNode = newRootNodes[0]
+        const newAnchorLoadableId = `testset:${newAnchorNode.entityType}:${newAnchorNode.entityId}`
+        const anchorSwap = positionalSwaps.find((swap) => swap.isAnchorSwap)
+        const anchorClosed = !anchorSwap && Boolean(anchorEntityId) && !newIdSet.has(anchorEntityId)
+        // A run in flight keeps writing to the loadable it started under. The state is about to
+        // move, so stop the runs first; otherwise a column would wait for a reply that lands in
+        // the old place.
+        if ((anchorSwap || anchorClosed) && oldLoadableId !== newAnchorLoadableId) {
+            set(cancelTestsMutationAtom, {})
+        }
 
-        if (positionalSwaps.length > 0) {
-            const oldLoadableId = get(derivedLoadableIdAtom)
-            const newAnchorNode = newRootNodes[0]
-            const newAnchorLoadableId = `testset:${newAnchorNode.entityType}:${newAnchorNode.entityId}`
-
-            // Process non-anchor swaps first. The anchor swap MOVES data away
-            // from `oldLoadableId` and clears it, so any non-anchor rewrites
-            // that target `oldLoadableId` must run before that clear.
-            for (const swap of positionalSwaps) {
-                if (swap.isAnchorSwap) continue
-                relinkLoadableSessions(get, set, {
-                    oldEntityId: swap.oldEntityId,
-                    newEntityId: swap.newEntityId,
-                    oldLoadableId,
-                    newLoadableId: oldLoadableId,
-                })
-            }
-            const anchorSwap = positionalSwaps.find((swap) => swap.isAnchorSwap)
-            if (anchorSwap) {
-                relinkLoadableSessions(get, set, {
-                    oldEntityId: anchorSwap.oldEntityId,
-                    newEntityId: anchorSwap.newEntityId,
-                    oldLoadableId,
-                    newLoadableId: newAnchorLoadableId,
-                })
-                // After the loadable re-link, the testcase row store is still
-                // carrying every key the *previous* primary populated (chat
-                // `messages`, old completion variables, etc.). Reconcile each
-                // row against the NEW primary's input schema so the UI shows
-                // only the relevant variables and execution doesn't have to
-                // strip them later (#4525 / AGE-3793).
-                pruneTestcaseRowsForEntity(get, set, anchorSwap.newEntityId)
-            }
+        // Process non-anchor swaps first. The anchor swap MOVES data away
+        // from `oldLoadableId` and clears it, so any non-anchor rewrites
+        // that target `oldLoadableId` must run before that clear.
+        for (const swap of positionalSwaps) {
+            if (swap.isAnchorSwap) continue
+            relinkLoadableSessions(get, set, {
+                oldEntityId: swap.oldEntityId,
+                newEntityId: swap.newEntityId,
+                oldLoadableId,
+                newLoadableId: oldLoadableId,
+            })
+        }
+        if (anchorSwap) {
+            relinkLoadableSessions(get, set, {
+                oldEntityId: anchorSwap.oldEntityId,
+                newEntityId: anchorSwap.newEntityId,
+                oldLoadableId,
+                newLoadableId: newAnchorLoadableId,
+            })
+            // After the loadable re-link, the testcase row store is still
+            // carrying every key the *previous* primary populated (chat
+            // `messages`, old completion variables, etc.). Reconcile each
+            // row against the NEW primary's input schema so the UI shows
+            // only the relevant variables and execution doesn't have to
+            // strip them later (#4525 / AGE-3793).
+            pruneTestcaseRowsForEntity(get, set, anchorSwap.newEntityId, newIds)
+        } else if (anchorClosed && oldLoadableId) {
+            // The anchor was closed: the shared state moves, and every other entity keeps its
+            // own sessions (the closed entity's are left behind under its id, unused).
+            relinkLoadableSessions(get, set, {
+                oldEntityId: anchorEntityId,
+                newEntityId: anchorEntityId,
+                oldLoadableId,
+                newLoadableId: newAnchorLoadableId,
+            })
         }
     }
 
@@ -2228,7 +2250,14 @@ type PruneStatus = "acted" | "noop" | "unresolved"
  * keys to `undefined`, which the store's update reducer interprets as a
  * delete. Drafts are created as needed (one per affected row).
  */
-function pruneTestcaseRowsForEntity(get: Getter, set: Setter, entityId: string): PruneStatus {
+function pruneTestcaseRowsForEntity(
+    get: Getter,
+    set: Setter,
+    entityId: string,
+    rootEntityIds: string[] = get(playgroundNodesAtom)
+        .filter((node) => node.depth === 0)
+        .map((node) => node.entityId),
+): PruneStatus {
     const contract = resolveEntityInputContract(get, entityId)
 
     // Unresolved, non-evaluator contract → we can't strict-filter safely yet.
@@ -2248,6 +2277,9 @@ function pruneTestcaseRowsForEntity(get: Getter, set: Setter, entityId: string):
     // locally are covered too; same value for every row, hence hoisted.
     for (const column of collectTestsetServerColumns(get)) {
         protectedColumns.add(column)
+    }
+    for (const key of collectOtherRootInputKeys(get, rootEntityIds, entityId)) {
+        protectedColumns.add(key)
     }
 
     const updates: {id: string; updates: {data: Record<string, unknown>}}[] = []

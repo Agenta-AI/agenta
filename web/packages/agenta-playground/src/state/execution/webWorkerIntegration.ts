@@ -20,6 +20,7 @@ import {entityIdsAtom, playgroundNodesAtom} from "../atoms/playground"
 import {clearSessionResponsesAtom, messageIdsAtomFamily, messagesByIdAtomFamily} from "../chat"
 import {
     collectDownstreamReferencedColumns,
+    collectOtherRootInputKeys,
     collectTestsetServerColumns,
     reconcileRowDataForEntity,
 } from "../helpers/entityInputContract"
@@ -353,6 +354,12 @@ export const triggerExecutionAtom = atom(
         const protectedColumns = collectDownstreamReferencedColumns(get, nodes)
         for (const column of collectTestsetServerColumns(get)) {
             protectedColumns.add(column)
+        }
+        // The request itself is filtered per entity later; this clean only decides what the
+        // shared row keeps.
+        const rootEntityIds = nodes.filter((n) => n.depth === 0).map((n) => n.entityId)
+        for (const key of collectOtherRootInputKeys(get, rootEntityIds, rootEntityId)) {
+            protectedColumns.add(key)
         }
         const reconciledRow = reconcileRowDataForEntity(get, rootEntityId, rawTestcaseData, {
             protectedKeys: protectedColumns,

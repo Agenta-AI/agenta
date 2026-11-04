@@ -10,7 +10,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {CompletionRow} from "./CompletionRow"
 
 /** The prompt's template format, so a chat-shaped input tokenizes the right `{{...}}` syntax. */
-const readTemplateFormat = (
+export const readTemplateFormat = (
     parameters: Record<string, unknown> | undefined,
 ): "mustache" | "curly" | "fstring" | "jinja2" => {
     const prompt = parameters?.prompt as Record<string, unknown> | undefined

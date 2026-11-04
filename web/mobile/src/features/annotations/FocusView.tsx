@@ -37,7 +37,7 @@ export const FocusView = ({
     const hasPrev = useAtomValue(annotationSessionController.selectors.hasPrev())
     const navigateNext = useSetAtom(annotationSessionController.actions.navigateNext)
     const navigatePrev = useSetAtom(annotationSessionController.actions.navigatePrev)
-    const submission = useSubmitAnnotations(scenarioId, queueId)
+    const submission = useSubmitAnnotations(scenarioId, {queueId})
 
     useAnnotationKeyboardShortcuts({
         onPrev: () => navigatePrev(),
