@@ -321,7 +321,7 @@ const moved = (ids: string[], index: number, direction: -1 | 1): string[] => {
 }
 
 /** Placeholder chips while the first rows load — a long, a short and a middling title. */
-const SKELETON_CHIP_WIDTHS = ["w-40", "w-28", "w-36"]
+const SKELETON_CHIP_WIDTHS = ["w-32", "w-24", "w-28"]
 
 /** The pending tab has no stream yet, so it wears the same idle chrome every quiet row does. */
 const IDLE_STATUS = sessionRowStatusMeta("idle")
