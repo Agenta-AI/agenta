@@ -82,6 +82,8 @@ export const installStoryHandlers = () => {
             hasPendingChanges: {...state.hasPendingChanges, [scenarioId]: false},
         }))
     }
+    handlers.openRun = (_get, set, payload) =>
+        update(set, () => ({activeQueueId: null, activeRunId: (payload as {runId: string}).runId}))
     handlers.navigateNext = (get, set) => move(get, set, 1)
     handlers.navigatePrev = (get, set) => move(get, set, -1)
     handlers.navigateToIndex = (get, set, index) => {

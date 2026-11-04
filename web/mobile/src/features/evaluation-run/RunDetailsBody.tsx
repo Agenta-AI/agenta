@@ -16,6 +16,7 @@ import {PageNotFound} from "@/components/PageNotFound"
 import {useRevisionParam} from "../revisions/useRevisionParam"
 
 import {ConfigurationSkeleton} from "./configuration/states/ConfigurationSkeleton"
+import {RunAnnotateSkeleton} from "./focus/states/RunAnnotateSkeleton"
 import {useFocusScenarioParam} from "./focus/useFocusScenarioParam"
 import {OverviewTab} from "./overview/OverviewTab"
 import {ScenariosSkeleton} from "./scenarios/states/ScenariosSkeleton"
@@ -32,6 +33,12 @@ interface TabBodyProps {
 const ScenariosTab = dynamic<TabBodyProps>(
     () => import("./scenarios/ScenariosTab").then((module) => module.ScenariosTab),
     {ssr: false, loading: () => <ScenariosSkeleton />},
+)
+
+// The Annotate tab brings the annotation controllers: it loads when the tab opens.
+const RunAnnotateTab = dynamic<TabBodyProps>(
+    () => import("./focus/RunAnnotateTab").then((module) => module.RunAnnotateTab),
+    {ssr: false, loading: () => <RunAnnotateSkeleton />},
 )
 
 // The scenario drawer loads only once a scenario is focused.
@@ -54,13 +61,14 @@ const RevisionDrawerHost = dynamic(
 
 /**
  * The tabs built so far. A tab without a body shows disabled, and its view falls back to
- * Overview, until the Annotate work lands.
+ * Overview.
  */
 type TabBody = ComponentType<TabBodyProps>
 const TAB_BODIES: Partial<Record<RunDetailsView, TabBody>> & {overview: TabBody} = {
     overview: OverviewTab,
     scenarios: ScenariosTab,
     configuration: ConfigurationTab,
+    focus: RunAnnotateTab,
 }
 
 /** The run page under its title: the tabs and the open tab, or the run's load state. */
@@ -104,7 +112,11 @@ export const RunDetailsBody = ({projectId, runId}: {projectId: string; runId: st
             </div>
             <Body projectId={projectId} runId={runId} header={header} />
             {focusedScenarioId ? (
-                <ScenarioFocusSheet runId={runId} header={header} poll={shown !== "scenarios"} />
+                <ScenarioFocusSheet
+                    runId={runId}
+                    header={header}
+                    poll={shown !== "scenarios" && shown !== "focus"}
+                />
             ) : null}
             {openRevisionId ? (
                 <RevisionDrawerHost

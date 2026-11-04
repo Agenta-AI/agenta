@@ -122,6 +122,7 @@ export {
     type MetricStats,
     type MetricSummary,
     type RadarMetricInput,
+    findScenarioTraceResult,
     buildQuerySlug,
     LIVE_INVOCATION_FILTER,
     parseSamplingRate,

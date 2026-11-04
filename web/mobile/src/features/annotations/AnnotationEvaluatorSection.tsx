@@ -6,11 +6,13 @@ import {AnnotationField} from "./AnnotationField"
 export const AnnotationEvaluatorSection = ({
     slug,
     fields,
+    readOnly = false,
     errors,
     onChange,
 }: {
     slug: string
     fields: Record<string, AnnotationMetricField>
+    readOnly?: boolean
     errors?: Record<string, string>
     onChange: (slug: string, fieldKey: string, value: unknown) => void
 }) => {
@@ -27,6 +29,7 @@ export const AnnotationEvaluatorSection = ({
                     <AnnotationField
                         fieldKey={fieldKey}
                         field={field}
+                        readOnly={readOnly}
                         onChange={(value) => onChange(slug, fieldKey, value)}
                     />
                     {errors?.[fieldKey] ? (

@@ -84,6 +84,7 @@ export {
     type RadarMetricInput,
 } from "./metricStats"
 
+export {findScenarioTraceResult} from "./scenarioTrace"
 export {
     buildQuerySlug,
     LIVE_INVOCATION_FILTER,
