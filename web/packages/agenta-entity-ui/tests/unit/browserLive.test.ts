@@ -115,6 +115,11 @@ describe("isCommandKey", () => {
         ...mods,
     })
 
+    it("leaves composition keys to the text field", () => {
+        expect(isCommandKey(key("Dead"))).toBe(false)
+        expect(isCommandKey(key("Process"))).toBe(false)
+    })
+
     it("sends named keys as key events", () => {
         expect(isCommandKey(key("Enter"))).toBe(true)
         expect(isCommandKey(key("Backspace"))).toBe(true)

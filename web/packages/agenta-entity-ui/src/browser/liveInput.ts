@@ -29,4 +29,5 @@ export const isCommandKey = (event: {
 }) =>
     event.key !== "Unidentified" &&
     event.key !== "Process" &&
+    event.key !== "Dead" &&
     (event.key.length > 1 || event.ctrlKey || event.metaKey || event.altKey)
