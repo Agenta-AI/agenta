@@ -45,7 +45,7 @@ const isRateLimitError = (err: unknown): boolean => {
 const getRetryDelayMs = (err: unknown, fallbackMs: number): number => {
     const e = err as {
         response?: {headers?: Record<string, unknown>}
-        rawResponse?: {headers?: Headers}
+        rawResponse?: {headers: Headers}
         message?: string
     } | null
 
@@ -54,7 +54,7 @@ const getRetryDelayMs = (err: unknown, fallbackMs: number): number => {
     const headerValue =
         headers?.["retry-after"] ??
         headers?.["Retry-After"] ??
-        e?.rawResponse?.headers?.get("retry-after")
+        e?.rawResponse?.headers.get("retry-after")
     const headerSeconds =
         typeof headerValue === "number"
             ? headerValue
