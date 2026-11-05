@@ -367,16 +367,18 @@ def test_the_email_has_every_part(monkeypatch):
     assert email.subject == 'Automation "Daily report" in Growth is failing'
     assert email.text == (
         'Automation "Daily report" is failing\n\n'
-        "Agenta could not start the run.\n\n"
+        "The automation Daily report in project Growth "
+        "has been failing since Nov 5, 2026, 11:50 UTC.\n\n"
+        "Why it failed: Agenta could not start the run.\n\n"
         f"Open automation: {link}\n\n"
-        "Project: Growth\n"
-        "Failing since: 2026-11-05 11:50 UTC\n\n"
         "Nothing to change. If it keeps failing, contact support. "
         "You will not get another email about this until it is fixed.\n\n"
         "Agenta - AI coworkers that learn how you work.\nhttps://agenta.ai\n"
     )
     assert f'<a href="{link}"' in email.html
     assert "Open automation</a>" in email.html
+    assert ">Nov 5, 2026, 11:50 UTC</span>" in email.html
+    assert ">Why it failed</p>" in email.html
     assert "cid:agenta-logo-light" in email.html
     assert [image.cid for image in email.inline_images] == [
         "agenta-logo-light",
@@ -424,7 +426,7 @@ def test_the_email_has_every_part(monkeypatch):
 def test_the_reason_catalog(reason_code, reason, action):
     email = render_automation_failing(PROJECT_ID, _data(reason_code=reason_code))
 
-    assert f"\n\n{reason}\n\n" in email.text
+    assert f"\n\nWhy it failed: {reason}\n\n" in email.text
     assert f"\n\n{action} You will not get another email" in email.text
     assert html_lib.escape(reason, quote=True) in email.html
 
@@ -487,6 +489,10 @@ def test_an_automation_with_no_name(name):
             '402: {"message":"This request requires more credits."}',
             "This request requires more credits.",
         ),
+        (
+            'Internal agent error: 402: {"message":"More credits required."}',
+            "More credits required.",
+        ),
         ('402: {"message":"cut off', ""),
         ('500: {"code":1}', ""),
         ("line one\nline two\x00", "line one line two"),
@@ -507,7 +513,7 @@ def test_the_email_gives_the_real_reason_and_escapes_it():
         _data(reason_code="runner_error", error_message="Bad <b>model</b>."),
     )
 
-    assert "\n\nBad <b>model</b>.\n\n" in email.text
+    assert "\n\nWhy it failed: Bad <b>model</b>.\n\n" in email.text
     assert "Bad &lt;b&gt;model&lt;/b&gt;." in email.html
     assert "<b>model" not in email.html
     assert "The agent's run ended with an error." not in email.text

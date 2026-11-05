@@ -431,11 +431,24 @@ async def test_turn_signals_skip_codeless_quarantined_and_deleted_records(
     await _record(project_id, "t1", 6, "done", {"type": "done", "stopReason": "paused"})
     await _record(project_id, "t1", 7, "done", {"type": "done", "stopReason": "error"})
     await _record(project_id, "t2", 8, "done", {"type": "done"})
+    await _record(
+        project_id,
+        "t4",
+        10,
+        "error",
+        {"type": "error", "code": "older", "message": "Older message."},
+    )
+    await _record(project_id, "t4", 11, "error", {"type": "error", "code": "newest"})
     await _record(project_id, "t3", 9, "message", {"type": "message"})
 
     signals = await RecordsDAO().turn_signals(
         project_id=project_id,
-        keys=[("session-1", "t1"), ("session-1", "t2"), ("session-1", "t3")],
+        keys=[
+            ("session-1", "t1"),
+            ("session-1", "t2"),
+            ("session-1", "t3"),
+            ("session-1", "t4"),
+        ],
     )
 
     assert {key: value.model_dump() for key, value in signals.items()} == {
@@ -443,6 +456,11 @@ async def test_turn_signals_skip_codeless_quarantined_and_deleted_records(
             "stop_reason": "error",
             "error_code": "credential_delivery_failed",
             "error_message": "The credential was not delivered.",
+        },
+        ("session-1", "t4"): {
+            "stop_reason": None,
+            "error_code": "newest",
+            "error_message": None,
         },
         ("session-1", "t2"): {
             "stop_reason": None,

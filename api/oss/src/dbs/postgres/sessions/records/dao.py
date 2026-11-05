@@ -523,7 +523,7 @@ class RecordsDAO(RecordsDAOInterface):
                 turn.stop_reason = stop_reason
             elif code:
                 turn.error_code = code
-                turn.error_message = message or turn.error_message
+                turn.error_message = message
             elif turn.error_code is None:
                 # The runner's fallback adds a codeless error after a coded one.
                 turn.error_message = message or turn.error_message

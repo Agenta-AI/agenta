@@ -12,12 +12,12 @@ from oss.src.core.emails.branded import (
     FROM_NAME,
     LOGOS,
     TEXT_FOOTER,
-    Detail,
+    Strong,
     button_block,
-    details_block,
-    details_text,
+    labeled_block,
     note_block,
     render_layout,
+    summary_block,
 )
 from oss.src.core.memberships.service import MembershipsService
 from oss.src.core.notifications.dtos import NotificationKind, RenderedEmail
@@ -275,7 +275,7 @@ def normalize_name(name: Optional[str]) -> str:
 
 def plain_error_message(message: Optional[str]) -> str:
     """The run's error as a person should read it, or "" when it has nothing to say."""
-    text = _one_line(message)
+    text = _TECHNICAL_PREFIX.sub("", _one_line(message))
 
     body = _PROVIDER_BODY.match(text)
     if body:
@@ -285,9 +285,8 @@ def plain_error_message(message: Optional[str]) -> str:
             return ""
         if not isinstance(text, str):
             return ""
-        text = _one_line(text)
+        text = _TECHNICAL_PREFIX.sub("", _one_line(text))
 
-    text = _TECHNICAL_PREFIX.sub("", text)
     if len(text) > ERROR_MESSAGE_LIMIT:
         return text[: ERROR_MESSAGE_LIMIT - 3].rstrip() + "..."
     return text
@@ -296,7 +295,8 @@ def plain_error_message(message: Optional[str]) -> str:
 def render_automation_failing(project_id: UUID, data: Dict[str, Any]) -> RenderedEmail:
     automation_name = normalize_name(data.get("automation_name")) or UNTITLED_AUTOMATION
     project_name = normalize_name(data.get("project_name"))
-    failed_at = datetime.fromisoformat(data["failed_at"]).strftime("%Y-%m-%d %H:%M UTC")
+    failed_at = datetime.fromisoformat(data["failed_at"])
+    failed_at = f"{failed_at:%b} {failed_at.day}, {failed_at:%Y, %H:%M} UTC"
     reason, action = REASON_CATALOG.get(data.get("reason_code"), _RUN_ERROR)
     reason = data.get("error_message") or reason
     link = "/".join(
@@ -311,7 +311,10 @@ def render_automation_failing(project_id: UUID, data: Dict[str, Any]) -> Rendere
         ]
     )
     headline = f'Automation "{automation_name}" is failing'
-    details = [Detail("PROJECT", project_name), Detail("FAILING SINCE", failed_at)]
+    summary = (
+        f"The automation {automation_name} in project {project_name} "
+        f"has been failing since {failed_at}."
+    )
     note = f"{action} You will not get another email about this until it is fixed."
 
     return RenderedEmail(
@@ -320,16 +323,26 @@ def render_automation_failing(project_id: UUID, data: Dict[str, Any]) -> Rendere
             subject=headline,
             preheader=reason,
             headline=headline,
-            description=reason,
             blocks=[
+                summary_block(
+                    parts=[
+                        "The automation ",
+                        Strong(automation_name),
+                        " in project ",
+                        Strong(project_name),
+                        " has been failing since ",
+                        Strong(failed_at),
+                        ".",
+                    ]
+                ),
+                labeled_block(label="Why it failed", text=reason),
                 button_block(label="Open automation", url=link),
-                details_block(items=details),
                 note_block(note=note),
             ],
         ),
         text=(
-            f"{headline}\n\n{reason}\n\nOpen automation: {link}\n\n"
-            f"{details_text(items=details)}\n\n{note}\n\n{TEXT_FOOTER}"
+            f"{headline}\n\n{summary}\n\nWhy it failed: {reason}\n\n"
+            f"Open automation: {link}\n\n{note}\n\n{TEXT_FOOTER}"
         ),
         inline_images=LOGOS,
         from_name=FROM_NAME,
