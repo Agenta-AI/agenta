@@ -74,8 +74,15 @@ export const valueToPathLabel = (value: string | number): string => {
         : stringValue
 }
 
+/**
+ * The full attribute path for a key the user typed. A path that starts with `attributes.`
+ * stays as it is and one that starts with `ag.` gets the `attributes.` prefix. Any other key
+ * is read below `treePath` when the field has one: on the Input Key field (`ag.data.inputs`)
+ * a typed `country` becomes `attributes.ag.data.inputs.country`, the path traces store.
+ */
 export const normalizeAttributeSearch = (
     value: string | undefined,
+    treePath?: string,
 ): {value: string; pathLabel: string} | undefined => {
     const trimmed = value?.trim()
     if (!trimmed) return undefined
@@ -84,6 +91,10 @@ export const normalizeAttributeSearch = (
     }
     if (trimmed.startsWith("ag.")) {
         return {value: `attributes.${trimmed}`, pathLabel: trimmed}
+    }
+    if (treePath) {
+        const path = `${treePath}.${trimmed}`
+        return {value: `attributes.${path}`, pathLabel: path}
     }
     return {value: trimmed, pathLabel: trimmed}
 }
@@ -233,10 +244,11 @@ export const buildKeyTreeData = (
     options: SelectOption[] | undefined,
     searchTerm: string | undefined,
     currentKey: string | undefined,
+    treePath?: string,
 ): FilterTreeOption[] => {
     const optionValues = collectOptionValues(options)
     const additional: FilterTreeOption[] = []
-    const normalizedSearch = normalizeAttributeSearch(searchTerm)
+    const normalizedSearch = normalizeAttributeSearch(searchTerm, treePath)
     if (normalizedSearch && !optionValues.has(normalizedSearch.value)) {
         additional.push(buildCustomTreeNode(normalizedSearch.value, normalizedSearch.pathLabel))
     }
@@ -281,6 +293,31 @@ export const extractAnnotationValue = (
     if (annotation.feedback && typeof annotation.feedback === "object")
         next.feedback = {...annotation.feedback}
     return Object.keys(next).length > 0 ? next : undefined
+}
+
+const INCOMPLETE_IS_ANNOTATION_MESSAGE =
+    "Pick an evaluator or a feedback for the Is Annotation filter."
+
+const namesEvaluatorOrFeedback = (entry: unknown): boolean => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return false
+    const {evaluator, feedback} = entry as AnnotationFilterValue
+    if (typeof evaluator === "string" && evaluator) return true
+    const field = feedback?.field
+    return Array.isArray(field) ? field.some(Boolean) : Boolean(field)
+}
+
+/**
+ * The message for an Is Annotation row that names neither an evaluator nor a feedback
+ * field, or undefined when every such row names one. The API refuses that row with an
+ * error that shows the field's code name, so check it before saving.
+ */
+export const findIncompleteIsAnnotationFilter = (filters: Filter[]): string | undefined => {
+    const incomplete = filters.some((filter) => {
+        if (filter.field !== "is_annotation") return false
+        const entries = Array.isArray(filter.value) ? filter.value : []
+        return !entries.some(namesEvaluatorOrFeedback)
+    })
+    return incomplete ? INCOMPLETE_IS_ANNOTATION_MESSAGE : undefined
 }
 
 const cloneItem = (item: FilterItem): FilterItem => JSON.parse(JSON.stringify(item)) as FilterItem
@@ -628,7 +665,13 @@ export const sanitizeFilterItems = (items: FilterItem[], fieldMap: FilterFieldMa
             }
             if (isException) valueToSend = fc.defaultValue ?? valueToSend
 
-            const keyForFilter = key && key !== "" ? key : fc.queryKey
+            // A row saved before typed keys were read below the field's tree path can hold a
+            // bare key such as `country`. Send the full path so it matches the traces.
+            const typedKey =
+                fc.keyInput?.treePath && typeof key === "string"
+                    ? (normalizeAttributeSearch(key, fc.keyInput.treePath)?.value ?? key)
+                    : key
+            const keyForFilter = typedKey && typedKey !== "" ? typedKey : fc.queryKey
             const filterForNormalization: Filter = {
                 field: fc.baseField,
                 operator,
