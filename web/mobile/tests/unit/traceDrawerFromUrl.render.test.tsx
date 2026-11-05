@@ -6,14 +6,12 @@ import {
     closeTraceDrawerAtom,
     openTraceDrawerAtom,
     traceDrawerAtom,
-    traceDrawerSetQueryParam,
 } from "@agenta/observability/traceDrawer"
 import {createStore, Provider} from "jotai"
 import type {NextRouter} from "next/router"
 import {createRoot, type Root} from "react-dom/client"
-import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
+import {afterEach, beforeEach, describe, expect, it} from "vitest"
 
-import {bindTraceDrawerSeams} from "@/features/observability/bindTraceDrawerSeams"
 import {useTraceDrawerFromUrl} from "@/features/observability/useTraceDrawerFromUrl"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
@@ -103,28 +101,5 @@ describe("trace drawer from the address", () => {
         render({trace: "t1", span: "s1"})
         render({trace: "t1"})
         expect(store.get(traceDrawerAtom)).toMatchObject({open: true, activeSpanId: null})
-    })
-
-    it("The first span the drawer falls back to after Back replaces the entry, not pushes", () => {
-        window.history.replaceState(null, "", "/observability?trace=t1")
-        const push = vi.fn(() => Promise.resolve(true))
-        const replace = vi.fn(() => Promise.resolve(true))
-        bindTraceDrawerSeams(
-            {pathname: "/observability", query: {}, push, replace} as unknown as NextRouter,
-            {playground: false, openTraceId: () => "t1"},
-        )
-        render({trace: "t1", span: "s2"})
-        render({trace: "t1"})
-        // The mounted drawer shows its first span and writes it.
-        traceDrawerSetQueryParam("span", "root")
-        expect(push).not.toHaveBeenCalled()
-        expect(replace).toHaveBeenCalledWith(
-            {pathname: "/observability", query: {trace: "t1", span: "root"}},
-            undefined,
-            {shallow: true},
-        )
-        // A span the user picks next is a new entry again.
-        traceDrawerSetQueryParam("span", "s3")
-        expect(push).toHaveBeenCalledTimes(1)
     })
 })

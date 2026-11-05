@@ -5,6 +5,7 @@ import {
     openTraceDrawerAtom,
     setTraceDrawerActiveSpanAtom,
     traceDrawerAtom,
+    traceDrawerResolvedActiveSpanIdAtom,
 } from "@agenta/observability/traceDrawer"
 import {useSetAtom, useStore} from "jotai"
 import type {NextRouter} from "next/router"
@@ -63,9 +64,13 @@ export const useTraceDrawerFromUrl = (router: NextRouter) => {
         // The drawer's own span clicks write the address after its state: they match already.
         // Back to an address with no span clears the selected one.
         if (drawer.activeSpanId === spanId) return
-        // With no span the drawer falls back to its first one and writes it to the address:
-        // that write must not push an entry over the one Back went to.
-        if (!spanId) replaceNextTraceDrawerSpanWrite()
+        const shown = store.get(traceDrawerResolvedActiveSpanIdAtom)
         setSpan(spanId)
+        // With no span the drawer falls back to its first one and writes it to the address. That
+        // write must not push an entry over the one Back went to. When the drawer already showed
+        // its first span, nothing is written, and the next pick must push as usual.
+        if (!spanId && store.get(traceDrawerResolvedActiveSpanIdAtom) !== shown) {
+            replaceNextTraceDrawerSpanWrite()
+        }
     }, [spanId, traceId, setSpan, store])
 }
