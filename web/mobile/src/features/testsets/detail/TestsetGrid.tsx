@@ -61,7 +61,12 @@ export const TestsetGrid = ({
     // Search narrows the grid only. The editor keeps reading every row, because the save
     // looks for edited rows in its list.
     const [searchTerm, setSearchTerm] = useState("")
-    const search = useDebouncedAtomSearch(setSearchTerm, 300)
+    // A new search clears the selection, so a bulk delete never hits rows the reader cannot see.
+    const applySearch = useCallback((term: string) => {
+        setSearchTerm(term)
+        setSelected([])
+    }, [])
+    const search = useDebouncedAtomSearch(applySearch, 300)
     const gridConfig = useMemo(
         () => (searchTerm.trim() ? {...tableConfig, searchTerm} : tableConfig),
         [searchTerm, tableConfig],

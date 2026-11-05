@@ -207,8 +207,10 @@ const columnsAtomFamily = atomFamily((config: TestcaseDataConfig) => {
             return config.localColumnKeys.map((key) => ({key, label: key}))
         }
 
-        // Get rows first
-        const rows = get(rowsAtomFamily(config))
+        // Every row, not only the ones a search matches: a search must not hide columns.
+        const rows = get(
+            rowsAtomFamily(config.searchTerm ? {...config, searchTerm: undefined} : config),
+        )
 
         // Extract columns from entity data (testcase.data)
         // We need to look up entity data for each row since rows are identity-only.

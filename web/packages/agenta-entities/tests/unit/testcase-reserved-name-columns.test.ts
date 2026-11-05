@@ -1,7 +1,6 @@
 /**
- * A user column may have the name of a field of the testcase itself (`meta`, `tags`, `flags`,
- * `id`). Those fields sit outside `testcase.data`, so inside `data` the name is a user column:
- * the grid shows it and an edit to it counts as a change. Only internal keys stay hidden.
+ * Testcase fields (`meta`, `tags`, `id`) sit outside `testcase.data`, so inside `data` those
+ * names are user columns. Only internal keys stay hidden.
  */
 
 import {projectIdAtom} from "@agenta/shared/state"
@@ -44,6 +43,11 @@ describe("columns named like testcase fields", () => {
         expect(columns.map((column) => column.key)).toEqual(["country", "_note"])
         expect(isInternalDataField("meta")).toBe(false)
         expect(isInternalDataField("__isNew")).toBe(true)
+    })
+
+    it("gives a testcase with no data no columns, not its own fields", () => {
+        const columns = extractColumnsFromData([{id: "tc-1", meta: {a: 1}, data: null}])
+        expect(columns).toEqual([])
     })
 
     it("counts an edit to a meta value as a change", () => {

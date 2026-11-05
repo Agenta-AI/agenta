@@ -157,11 +157,13 @@ describe("Test set grid", () => {
         host.remove()
     })
 
-    it("Search narrows the grid rows and leaves the editor rows alone", async () => {
+    it("Search narrows the grid rows, leaves the editor rows alone and clears the selection", async () => {
         vi.useFakeTimers()
         try {
             const editor = fakeEditor()
             mount(editor)
+            await click(button("Select all"))
+            expect(button("Delete")?.hasAttribute("disabled")).toBe(false)
             const box = byLabel("Search testcases...") as HTMLInputElement
             expect(box).not.toBeNull()
             await act(async () => {
@@ -179,6 +181,8 @@ describe("Test set grid", () => {
                 "Peru",
             )
             expect(editor.tableConfig).not.toHaveProperty("searchTerm")
+            // The rows selected before the search are no longer selected.
+            expect(button("Delete")?.hasAttribute("disabled")).toBe(true)
         } finally {
             vi.useRealTimers()
         }

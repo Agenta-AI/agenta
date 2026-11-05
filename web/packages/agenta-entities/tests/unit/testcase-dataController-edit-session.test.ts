@@ -72,3 +72,18 @@ describe("testcaseDataController rows in server mode", () => {
         expect(readRows(store, true)).toEqual(["tc-2"])
     })
 })
+
+describe("testcaseDataController search", () => {
+    it("narrows the rows and keeps every column", () => {
+        const store = createStore()
+        store.set(testcaseMolecule.actions.add, {data: {country: "Peru", capital: "Lima"}})
+        store.set(testcaseMolecule.actions.add, {data: {country: "Chad", note: "inland"}})
+        const config = {scopeId: "scope-search", revisionId: "rev-1", includeNewRows: true}
+        const searched = {...config, searchTerm: "peru"}
+
+        expect(store.get(testcaseDataController.selectors.rows(searched))).toHaveLength(1)
+        expect(
+            store.get(testcaseDataController.selectors.columns(searched)).map((c) => c.key),
+        ).toEqual(["country", "capital", "note"])
+    })
+})
