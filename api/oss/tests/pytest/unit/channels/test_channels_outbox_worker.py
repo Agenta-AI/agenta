@@ -1379,6 +1379,33 @@ async def test_a_fold_still_empty_after_the_re_reads_tells_the_chat(
     )
 
 
+@pytest.mark.asyncio
+async def test_a_turn_of_only_whitespace_tells_the_chat(
+    monkeypatch, worker, channels_dao, records_dao
+):
+    monkeypatch.setattr(
+        "oss.src.tasks.asyncio.channels.outbox._EMPTY_FOLD_BACKOFF_SECONDS", 0
+    )
+    _, thread = await _seed_connection_and_thread(channels_dao, "sess-blank")
+    records_dao.seed(
+        session_id="sess-blank",
+        turn_id="turn-blank",
+        record_type="message",
+        attributes={"text": "\n\n"},
+    )
+
+    await worker.on_turn_ended(
+        project_id=PROJECT_ID,
+        thread=thread,
+        turn_id="turn-blank",
+        session_id="sess-blank",
+    )
+
+    from oss.src.core.channels.render.render import NO_ANSWER_TEXT
+
+    assert _delivered_text(channels_dao) == NO_ANSWER_TEXT
+
+
 class _PlatformRejected(Exception):
     """A platform answer that refused the call, shaped like the adapters' own
     API errors: it carries the HTTP status, so the outbox knows nothing was
