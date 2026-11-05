@@ -49,7 +49,14 @@ describe("mobileRouteFor with developer views", () => {
     const rows: [string, string, string | null][] = [
         [`${P}/apps/a1`, "", `${M}/apps/a1/overview`],
         [`${P}/apps/a1/overview`, "", `${M}/apps/a1/overview`],
-        [`${P}/apps/a1/playground`, "?revisions=r1", `${M}/apps/a1/playground`],
+        [`${P}/apps/a1/playground`, "?revisions=r1", `${M}/apps/a1/playground?revisions=r1`],
+        [
+            `${P}/apps/a1/playground`,
+            "?revisions=a%2Cb&x=1",
+            `${M}/apps/a1/playground?revisions=a%2Cb`,
+        ],
+        [`${P}/apps/a1/playground`, "", `${M}/apps/a1/playground`],
+        [`${P}/apps/a1/variants`, "?revisions=r1", `${M}/variants?app=a1`],
         [`${P}/apps/a1/variants`, "", `${M}/variants?app=a1`],
         [`${P}/apps/a1/deployments`, "", `${M}/variants?app=a1`],
         [`${P}/apps/a1/endpoints`, "", `${M}/endpoints?app=a1`],

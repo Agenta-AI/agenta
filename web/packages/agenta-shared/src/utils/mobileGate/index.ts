@@ -300,7 +300,10 @@ export function mobileRouteFor(
                 segments.slice(3),
             )
             // A section with no view of its own (sessions, ...) still lands on the app's screen.
-            if (appRoute !== undefined) return appRoute ? `${base}${appRoute}` : null
+            // The playground's own selection rides along: both apps read `?revisions=`.
+            const revisions = second === "playground" ? params.get("revisions") : null
+            const selection = revisions ? `?revisions=${encodeURIComponent(revisions)}` : ""
+            if (appRoute !== undefined) return appRoute ? `${base}${appRoute}${selection}` : null
         }
         // Every other app-scoped desktop page (playground, overview, sessions, deployments…)
         // collapses to the agent's own screen — the only agent surface `/m` has.
