@@ -84,6 +84,25 @@ def test_saved_query_rejects_a_field_the_tracing_query_cannot_apply():
             "two bounds for 'btwn'",
         ),
         (
+            {
+                "field": "attributes",
+                "key": "ag.metrics.duration.cumulative",
+                "operator": "btwn",
+                "value": [None, 10],
+            },
+            "two bounds for 'btwn'",
+        ),
+        (
+            {
+                "field": "has_annotation",
+                "operator": "in",
+                "value": [
+                    {"feedback": {"field": "grade", "operator": "has", "value": "x"}}
+                ],
+            },
+            "'attributes' does not support dict operators",
+        ),
+        (
             {"field": "custom", "key": "ag.tags", "operator": "has", "value": "env"},
             "'attributes' does not support dict operators",
         ),

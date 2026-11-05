@@ -733,6 +733,35 @@ def parse_condition(
 _KNOWN_FIELDS = {field.value for field in Fields}
 
 
+def _raise_on_unsupported_condition(condition: Condition) -> None:
+    if condition.field not in _KNOWN_FIELDS:
+        raise FilteringException(
+            f"Unsupported condition field '{condition.field}'.",
+        )
+
+    if condition.field == Fields.ATTRIBUTES and condition.operator in _D_OPS:
+        raise FilteringException(
+            "'attributes' does not support dict operators.",
+        )
+
+    if condition.operator == NumericOperator.BETWEEN and not (
+        isinstance(condition.value, list)
+        and len(condition.value) == 2
+        and all(bound is not None for bound in condition.value)
+    ):
+        raise FilteringException(
+            f"'{condition.field}' value must be two bounds for 'btwn'.",
+        )
+
+    if condition.field == Fields.HAS_ANNOTATION:
+        # Each feedback becomes an attribute condition on the annotation.
+        for item in condition.value or []:
+            if "feedback" in item:
+                _raise_on_unsupported_condition(
+                    annotation_feedback_condition(item["feedback"]),
+                )
+
+
 def _raise_on_unsupported_conditions(filtering: Filtering) -> None:
     if filtering.operator == LogicalOperator.NOT and len(filtering.conditions) != 1:
         raise FilteringException(
@@ -742,24 +771,8 @@ def _raise_on_unsupported_conditions(filtering: Filtering) -> None:
     for condition in filtering.conditions:
         if isinstance(condition, Filtering):
             _raise_on_unsupported_conditions(condition)
-            continue
-
-        if condition.field not in _KNOWN_FIELDS:
-            raise FilteringException(
-                f"Unsupported condition field '{condition.field}'.",
-            )
-
-        if condition.field == Fields.ATTRIBUTES and condition.operator in _D_OPS:
-            raise FilteringException(
-                "'attributes' does not support dict operators.",
-            )
-
-        if condition.operator == NumericOperator.BETWEEN and not (
-            isinstance(condition.value, list) and len(condition.value) == 2
-        ):
-            raise FilteringException(
-                f"'{condition.field}' value must be two bounds for 'btwn'.",
-            )
+        else:
+            _raise_on_unsupported_condition(condition)
 
 
 def validate_filtering(
