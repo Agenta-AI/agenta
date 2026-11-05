@@ -1,4 +1,4 @@
-import {beforeEach, describe, expect, it} from "vitest"
+import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 // The suite runs on `node`. The cookie reader only needs `localStorage` (see classicMode.test.ts).
 const entries: Record<string, string> = {}
@@ -95,7 +95,12 @@ const W_UNMAPPED = "/w/ws/p/p/evaluations"
 const W_SETTINGS = "/w/ws/p/p/settings"
 
 describe("beta developer mode routing", () => {
-    beforeEach(() => localStorage.clear())
+    beforeEach(() => {
+        localStorage.clear()
+        // The deployment offers beta developer mode (`AGENTA_BETA_DEVELOPER_MODE=true`).
+        vi.stubGlobal("__env", {NEXT_PUBLIC_AGENTA_BETA_DEVELOPER_MODE: "true"})
+    })
+    afterEach(() => vi.unstubAllGlobals())
 
     describe("Developer Mode on, beta on: /w addresses send a desktop browser to /m", () => {
         const rows: [string, UserState][] = [

@@ -12,6 +12,7 @@ import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 
+import {isBetaDeveloperModeEnabled} from "../api/env"
 import type {User} from "../types/user"
 
 import {
@@ -167,11 +168,17 @@ export const readSettledAdvancedNavHidden = (user: User | null): boolean | null 
 
 const BETA_DEVELOPER_MODE_KEY = "beta-developer-mode"
 
+const storedBetaDeveloperModeFlagAtom = userScopedFlagAtom(BETA_DEVELOPER_MODE_KEY)
+
 /**
  * The "Use new beta developer mode" switch in `/m`. It means something only while Developer Mode
- * is on: read {@link betaDeveloperModeActiveAtom} to act on it.
+ * is on: read {@link betaDeveloperModeActiveAtom} to act on it. Reads off while the deployment
+ * does not offer beta developer mode, whatever the user stored.
  */
-export const betaDeveloperModeFlagAtom = userScopedFlagAtom(BETA_DEVELOPER_MODE_KEY)
+export const betaDeveloperModeFlagAtom = atom(
+    (get) => isBetaDeveloperModeEnabled() && get(storedBetaDeveloperModeFlagAtom),
+    (_get, set, next: boolean) => set(storedBetaDeveloperModeFlagAtom, next),
+)
 
 /**
  * What the gate cookie should say, or `undefined` to leave it alone. `null` means "publish
@@ -203,8 +210,11 @@ export const readSettledClassicModeCookie = (user: User | null): "0" | "1" | nul
 
     const override = readStoredBoolean(onboardingScopedKey(userId, "nav-simplified-override"))
     // Beta developer mode keeps Developer Mode in `/m`, chosen or by default. "0" also sends a
-    // desktop browser from a `/w` address to `/m`; no cookie would leave it in `/w`.
-    const beta = readStoredBoolean(userSettingsKey(userId, BETA_DEVELOPER_MODE_KEY)) === true
+    // desktop browser from a `/w` address to `/m`; no cookie would leave it in `/w`. Only where
+    // the deployment offers it: otherwise the stored switch changes nothing (v0.128.7).
+    const beta =
+        isBetaDeveloperModeEnabled() &&
+        readStoredBoolean(userSettingsKey(userId, BETA_DEVELOPER_MODE_KEY)) === true
     if (override !== null) return override || beta ? "0" : "1"
 
     if (readStoredBoolean(onboardingScopedKey(userId, "nav-simplified")) === true) return "0"

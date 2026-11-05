@@ -50,6 +50,8 @@ describe("useClassicModeRedirect", () => {
     beforeEach(() => {
         ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
         replace.mockClear()
+        // The deployment offers beta developer mode (`AGENTA_BETA_DEVELOPER_MODE=true`).
+        vi.stubGlobal("__env", {NEXT_PUBLIC_AGENTA_BETA_DEVELOPER_MODE: "true"})
         location.pathname = "/auth"
         Object.defineProperty(window, "location", {value: location, writable: true})
         Object.defineProperty(window, "localStorage", {value: localStorage, writable: true})
@@ -65,6 +67,7 @@ describe("useClassicModeRedirect", () => {
     afterEach(() => {
         act(() => root.unmount())
         container.remove()
+        vi.unstubAllGlobals()
     })
 
     it("hops to /m once sign-in has pushed off /auth", async () => {

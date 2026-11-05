@@ -82,18 +82,22 @@ let host: HTMLDivElement | undefined
 
 /**
  * Signs `u1` in with Developer Mode on or off as an explicit choice, and the beta switch as
- * stored, then renders the Preferences tab beside the cookie sync.
+ * stored, then renders the Preferences tab beside the cookie sync. `offered` is the deployment's
+ * `AGENTA_BETA_DEVELOPER_MODE`, as `__env.js` carries it.
  */
 const renderPreferences = ({
     developerMode,
     beta,
     cookie,
+    offered = true,
 }: {
     developerMode: boolean
     beta: boolean
     cookie?: "0" | "1"
+    offered?: boolean
 }) => {
     vi.stubGlobal("location", {...window.location, assign})
+    vi.stubGlobal("__env", offered ? {NEXT_PUBLIC_AGENTA_BETA_DEVELOPER_MODE: "true"} : {})
     if (cookie) document.cookie = `${CLASSIC_MODE_COOKIE}=${cookie}; path=/`
     localStorage.setItem("agenta:settings:u1:beta-developer-mode", JSON.stringify(beta))
     const store = createStore()
@@ -203,5 +207,35 @@ describe("with beta developer mode off", () => {
         expect(readGateCookie()).toBe("1")
         expect(localStorage.getItem("agenta:onboarding:u1:nav-simplified-override")).toBe("false")
         expect(store.get(enabledDeveloperViewsAtom)?.map((view) => view.id)).toEqual(["lab-on"])
+    })
+})
+
+describe("when the deployment does not offer beta developer mode", () => {
+    it("hides the switch, even with Developer Mode on", () => {
+        const {switchFor} = renderPreferences({developerMode: true, beta: false, offered: false})
+        expect(switchFor("Developer Mode")).not.toBeNull()
+        expect(switchFor(BETA)).toBeNull()
+    })
+
+    it("ignores a beta switch the user stored on: Developer Mode sends them to /w, as before", () => {
+        const {store, switchFor} = renderPreferences({
+            developerMode: false,
+            beta: true,
+            cookie: "0",
+            offered: false,
+        })
+        act(() => switchFor("Developer Mode")!.click())
+        expect(assign).toHaveBeenCalledWith("/w")
+        expect(readGateCookie()).toBe("1")
+        expect(nextLoadOfM()).toEqual({kind: "redirect", location: "/w"})
+        // The views follow their stage again, not "every view".
+        expect(store.get(enabledDeveloperViewsAtom)?.map((view) => view.id)).toEqual(["lab-on"])
+        expect(switchFor(BETA)).toBeNull()
+    })
+
+    it("publishes 1 for Developer Mode with beta stored on, so /m sends the user to /w", () => {
+        renderPreferences({developerMode: true, beta: true, offered: false})
+        expect(readGateCookie()).toBe("1")
+        expect(nextLoadOfM()).toEqual({kind: "redirect", location: "/w"})
     })
 })
