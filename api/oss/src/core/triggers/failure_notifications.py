@@ -331,7 +331,7 @@ def render_automation_failing(project_id: UUID, data: Dict[str, Any]) -> Rendere
                         " in project ",
                         Strong(project_name),
                         " has been failing since ",
-                        Strong(failed_at),
+                        Strong(failed_at.replace(" ", "\u00a0")),
                         ".",
                     ]
                 ),
