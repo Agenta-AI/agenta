@@ -371,3 +371,9 @@ All seven were checked against the code and are real. All were fixed.
 7. **Screen.** `runDotClass` and `runOutcomeLabel` fall to a "Running" default
    (`web/packages/agenta-automation-ui/src/runModel.ts:157-184`). Task 4.6 now names both switches,
    `RunStatusFilter`, the grouping and the unit test, and a spec scenario covers it.
+
+## Final decision on the outage brake
+
+The owner removed the brake after the last council review. It could hide real failures, and one open
+notification per automation already limits volume. `design.md` is the source of truth, so earlier
+mentions of the brake in this file are history.

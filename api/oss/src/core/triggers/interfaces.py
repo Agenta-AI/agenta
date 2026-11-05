@@ -223,7 +223,7 @@ class TriggersDAOInterface(ABC):
         provider ``ti_*`` and no tenant scope, so this lookup *recovers* the
         project from the project-scoped partial-unique ``trigger_id`` column. Returns
         no match when multiple live projects share the id, rather than selecting a
-        tenant. The only sanctioned unscoped DAO read — every other read/write takes
+        tenant. Besides `query_unsettled_deliveries`, the only sanctioned unscoped DAO read — every other read/write takes
         ``project_id``.
         """
         ...
@@ -322,7 +322,8 @@ class TriggersDAOInterface(ABC):
         limit: int,
     ) -> List[UnsettledTriggerDelivery]:
         """Deliveries of the last 24 hours with no outcome, newest first. `before` is the
-        `(created_at, id)` of the last row of the previous page."""
+        `(created_at, id)` of the last row of the previous page. Unscoped because the settle
+        pass is an admin job across projects; every later write filters by `project_id`."""
         ...
 
     @abstractmethod

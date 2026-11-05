@@ -2,8 +2,8 @@ from typing import Any
 
 from sqlalchemy.sql.elements import ClauseElement
 
-from oss.src.core.sessions.records.streaming import strip_nul
 from oss.src.dbs.postgres.triggers.dbes import TriggerDeliveryDBE
+from oss.src.utils.json_values import strip_nul
 
 
 def _without_nul(values: dict[str, Any]) -> dict[str, Any]:

@@ -178,7 +178,7 @@ memory: agent run spans can be hundreds of KB each.
 
 When an automation starts failing, Agenta emails the automation's creator once. If the creator can no longer view automations in the project, the email goes to the project's owners and admins, else to the organization owner. No other email is sent about that automation until it is fixed.
 
-Set `AGENTA_NOTIFICATIONS_EMAIL_ENABLED=false` to stop these emails. The default is `true`. Agenta still records each notification, and it does not send a notification that opened while the variable was `false`. These emails need [SMTP](#smtp) or [SendGrid](#sendgrid). Without either one, Agenta sends nothing.
+Set `AGENTA_NOTIFICATIONS_EMAIL_ENABLED=false` to stop these emails. The default is `true`. Agenta still records each notification. An email that the send step skips while the variable is `false` is not sent later. These emails need [SMTP](#smtp) or [SendGrid](#sendgrid). Without either one, Agenta sends nothing.
 
 | Env var | env.py path | values.yaml path |
 |---|---|---|

@@ -28,7 +28,7 @@ Preconditions:
 Run a real automation soon:
 
 - A schedule may run at most every 15 minutes. A daily cron for the next minute passes that rule, for example `51 13 * * *`.
-- For a streak, add `AGENTA_TRIGGERS_SCHEDULE_MIN_INTERVAL_MINUTES=1` to the env file, recreate `api`, and create `* * * * *` through the API, because the web form keeps its own floor. Remove the line afterwards. Each run spends real model money.
+- For a streak, add `AGENTA_TRIGGERS_SCHEDULE_MIN_INTERVAL_MINUTES=1` to the env file, recreate `api`, and create `* * * * *` through the API, because the web form keeps its own floor. Remove the line and recreate `api` afterwards. Each run spends real model money.
 
 Force each result on a throwaway automation:
 
@@ -43,7 +43,7 @@ Force each result on a throwaway automation:
 
 In the app tab, call the API with `fetch("http://localhost/api/...?project_id=...", {credentials: "include"})`. Revisions commit through `/workflows/revisions/commit`, schedules through `/triggers/schedules/`.
 
-Read state with `scripts/automation-state.sh <project-id>`. In Gmail, search `from:account@hello.agenta.ai "is failing" newer_than:1d`, and read the body from `div.a3s`.
+Read state with `scripts/automation-state.sh <project-id>`. In Gmail, search `from:<SENDGRID_FROM_EMAIL> "is failing" newer_than:1d`, and read the body from `div.a3s`.
 
 ## Gotchas
 
