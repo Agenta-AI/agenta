@@ -29,6 +29,8 @@ export const BROWSER_PROBE_TIMEOUT_MS = 3_000;
 /** The app polls every 4 to 10 s per open session tab; this absorbs repeat and parallel tabs. */
 export const LIVE_LINK_CACHE_MS = 5_000;
 export const LIVE_LINK_CACHE_MAX_ENTRIES = 512;
+/** A lookup that never settles must not hold its session's entry, and every caller, forever. */
+export const LIVE_LINK_LOOKUP_MS = 30_000;
 
 /** What the browser's `/health` reports: the open page, and the agent's ask while it waits. */
 export interface BrowserPageState {
@@ -151,8 +153,9 @@ export function cacheLiveLinks(
   {
     ttlMs = LIVE_LINK_CACHE_MS,
     maxEntries = LIVE_LINK_CACHE_MAX_ENTRIES,
+    lookupMs = LIVE_LINK_LOOKUP_MS,
     now = Date.now,
-  }: { ttlMs?: number; maxEntries?: number; now?: () => number } = {},
+  }: { ttlMs?: number; maxEntries?: number; lookupMs?: number; now?: () => number } = {},
 ): LiveLinkLookup {
   const entries = new Map<string, { at: number; link: Promise<BrowserLiveLink | undefined> }>();
   return (scope) => {
@@ -160,8 +163,12 @@ export function cacheLiveLinks(
     const hit = entries.get(key);
     if (hit && now() - hit.at < ttlMs) return hit.link;
     entries.delete(key);
-    const link = lookup(scope);
-    // Pending lookups never expire: a slow Daytona is when sharing one call matters most.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const late = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error("browser lookup timed out")), lookupMs);
+    });
+    const link = Promise.race([lookup(scope), late]).finally(() => clearTimeout(timer));
+    // Pending lookups do not expire by the cache time: a slow Daytona is when sharing matters most.
     const entry = { at: Number.POSITIVE_INFINITY, link };
     entries.set(key, entry);
     link.then(

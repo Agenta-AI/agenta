@@ -137,6 +137,19 @@ describe("findBrowserLiveLink", () => {
 });
 
 describe("cacheLiveLinks", () => {
+  it("releases a lookup that never settles, so the next call starts a new one", async () => {
+    let calls = 0;
+    const lookup = () => {
+      calls++;
+      return new Promise<undefined>(() => {});
+    };
+    const cached = cacheLiveLinks(lookup, { lookupMs: 10 });
+    const scope = { projectId: "p", sessionId: "s" };
+    await assert.rejects(cached(scope), /timed out/);
+    cached(scope).catch(() => {});
+    assert.equal(calls, 2);
+  });
+
   it("shares a lookup that outlasts the cache time", async () => {
     let clock = 0;
     let finish: (link: undefined) => void = () => {};
