@@ -150,14 +150,32 @@ export function generatedAutomationName(a: Automation, agentName: string | null)
     return `${runsWhen} — ${agent}`
 }
 
+export type DeliveryOutcome = "ok" | "bad" | "pending" | "skipped" | "cancelled" | "waiting"
+
+const STARTED_RUN_OUTCOMES: Partial<Record<string, DeliveryOutcome>> = {
+    completed: "ok",
+    failed: "bad",
+    cancelled: "cancelled",
+    waiting: "waiting",
+}
+
 /**
  * Whether a delivery worked.
  *
- * Reads `status.message`, which is where the backend writes "success" / "failed" / "dispatched".
- * `status.type` is never set, so the shared `deliveryStatusColor` in `@agenta/entity-ui` returns
- * neutral for every row — do not reach for it here.
+ * A started run (`202`) ends in `data.outcome`, which the settle pass writes. Only `202` reads it:
+ * a repeated event can change the status of a row and keep its old `data`.
+ *
+ * Every other row reads `status.message`, which is where the backend writes "success" / "failed" /
+ * "dispatched". `status.type` is never set, so the shared `deliveryStatusColor` in
+ * `@agenta/entity-ui` returns neutral for every row — do not reach for it here.
  */
-export function deliveryOutcome(delivery: TriggerDelivery): "ok" | "bad" | "pending" | "skipped" {
+export function deliveryOutcome(delivery: TriggerDelivery): DeliveryOutcome {
+    const settled =
+        String(delivery.status?.code ?? "") === "202"
+            ? STARTED_RUN_OUTCOMES[delivery.data?.outcome ?? ""]
+            : undefined
+    if (settled) return settled
+
     switch ((delivery.status?.message ?? "").toLowerCase()) {
         case "success":
             return "ok"

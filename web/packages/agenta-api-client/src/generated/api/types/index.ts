@@ -911,6 +911,7 @@ export * from "./TriggerConnectionsResponse.js";
 export * from "./TriggerDeliveriesResponse.js";
 export * from "./TriggerDelivery.js";
 export * from "./TriggerDeliveryData.js";
+export * from "./TriggerDeliveryOutcome.js";
 export * from "./TriggerDeliveryQuery.js";
 export * from "./TriggerDeliveryResponse.js";
 export * from "./TriggerDiscoveryConnectionState.js";
