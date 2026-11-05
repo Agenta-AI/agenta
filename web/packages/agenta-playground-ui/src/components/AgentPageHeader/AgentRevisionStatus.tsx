@@ -39,7 +39,7 @@ export interface AgentRevisionStatusProps {
     historyWorkflowId?: string | null
     /**
      * Switch this view to the agent's latest version. With it (and `historyWorkflowId`), a newer
-     * version shows as a "vN available · Update" pill.
+     * version shows as an "Update to vN" pill.
      */
     onUpdate?: (revisionId: string) => void
     /** Apply a newer version with no click. Unsaved work holds it back, and the pill then stays. */
@@ -242,9 +242,9 @@ export const AgentRevisionStatus = ({
                 <button
                     type="button"
                     onClick={() => onUpdate?.(newer.id)}
-                    className="flex cursor-pointer items-center gap-1 rounded border-0 bg-[var(--ag-colorPrimaryBg)] px-1.5 py-0.5 text-xs text-[var(--ag-colorPrimary)] hover:bg-[var(--ag-colorPrimaryBgHover)]"
+                    className="shrink-0 cursor-pointer whitespace-nowrap rounded border-0 bg-[var(--ag-colorPrimaryBg)] px-1.5 py-0.5 text-xs font-medium text-[var(--ag-colorPrimary)] hover:bg-[var(--ag-colorPrimaryBgHover)]"
                 >
-                    v{newer.version} available · <span className="font-medium">Update</span>
+                    Update to v{newer.version}
                 </button>
             ) : null}
 

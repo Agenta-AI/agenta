@@ -1,6 +1,6 @@
 # Session version update
 
-A session moves to the agent's newer version on its own when nothing can be lost. When something must wait, the `vN available · Update` pill stays, and the update applies once the wait ends.
+A session moves to the agent's newer version on its own when nothing can be lost. When something must wait, the `Update to vN` pill stays, and the update applies once the wait ends.
 
 ## Sub-features
 

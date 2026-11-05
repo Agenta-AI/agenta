@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// A newer version applies itself when nothing in the session can be lost. The "vN available"
+// A newer version applies itself when nothing in the session can be lost. The "Update to vN"
 // pill stays for the moments it must wait. The status is the real one; the save and version
 // state around it are plain atoms the cases drive.
 import {act} from "react"
@@ -106,7 +106,7 @@ describe("AgentRevisionStatus auto-update", () => {
         })
     const detect = (latest = V5) => act(async () => watch.latest?.(latest))
     const write = (change: () => void) => act(async () => change())
-    const pill = () => container.textContent?.includes("v5 available") ?? false
+    const pill = () => container.textContent?.includes("Update to v5") ?? false
 
     beforeEach(() => {
         onUpdate.mockClear()

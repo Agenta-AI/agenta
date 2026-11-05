@@ -58,7 +58,7 @@
         words: () =>
             document.body.innerText.match(/AGENTS\.md\s*\n?\s*([\d,]+) words/)?.[1] ?? null,
         pill: () =>
-            [...document.querySelectorAll("button")].find((b) => /available/.test(b.textContent))
+            [...document.querySelectorAll("button")].find((b) => /^Update to v\d+/.test(b.textContent))
                 ?.textContent ?? null,
         stopVisible: () =>
             [...document.querySelectorAll("button")].some((b) =>

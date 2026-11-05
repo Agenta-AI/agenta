@@ -33,7 +33,7 @@ Use Claude in Chrome. The app's in-window browser pane counts as hidden when not
 
 Helpers on `window.__v`: `go(sessionId)` for a client-side switch, `commitElsewhere(message)` for a version made outside this session, `restore()`, `words()`, `pill()`, `stopVisible()`, `recheck()` for the check that a tab return runs, and `simulateRunning(true|false)`.
 
-Stable handles: the `Version N, Saved. Open version history` aria-label, the button text `vN available · Update`, the `Stop` button, and the `AGENTS.md N words` row. `words()` is the cheapest proof of which revision a session shows.
+Stable handles: the `Version N, Saved. Open version history` aria-label, the button text `Update to vN`, the `Stop` button, and the `AGENTS.md N words` row. `words()` is the cheapest proof of which revision a session shows.
 
 Read the matching file in `features/` before driving.
 
