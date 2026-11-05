@@ -105,6 +105,10 @@ describe("runDisplayStatus", () => {
         expect(runDisplayStatus(live({is_active: false}, "success"))).toBe("success")
     })
 
+    it("A live run with no activity flag keeps its own status", () => {
+        expect(runDisplayStatus({status: "running", flags: {is_live: true}})).toBe("running")
+    })
+
     it("A run that is not live keeps its own status", () => {
         expect(runDisplayStatus({status: "running", flags: {is_active: false}})).toBe("running")
         expect(runDisplayStatus({status: null, flags: {is_live: true}})).toBeNull()

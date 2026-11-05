@@ -178,10 +178,47 @@ describe("errors of a run with no invocation step", () => {
             },
         ])
 
-        expect(catalog.find((entry) => entry.id === "errors")?.stats).toMatchObject({
+        // Only what adds up: one evaluator's mean must not stand for the total.
+        expect(catalog.find((entry) => entry.id === "errors")?.stats).toEqual({
+            type: "numeric/continuous",
             sum: 4,
             count: 5,
         })
+    })
+
+    it("Two evaluators that fail add up their error points per time", () => {
+        const run = asRun({
+            ...online.run,
+            data: {
+                ...online.run.data,
+                steps: [
+                    ...online.run.data.steps,
+                    {...online.run.data.steps[1], key: "evaluator-second"},
+                ],
+            },
+        })
+        const point = (timestamp: string, first: number, second: number) => ({
+            id: `m-${timestamp}`,
+            run_id: online.run.id,
+            scenario_id: null,
+            timestamp,
+            data: {
+                "evaluator-7c2d": {
+                    "attributes.ag.metrics.errors.cumulative": {count: first, sum: first},
+                },
+                "evaluator-second": {
+                    "attributes.ag.metrics.errors.cumulative": {count: second, sum: second},
+                },
+            },
+        })
+        const catalog = buildRunMetricCatalog(run, [
+            point("2026-11-05T10:00:00Z", 1, 2),
+            point("2026-11-05T10:10:00Z", 3, 1),
+        ])
+        const errors = catalog.find((entry) => entry.id === "errors")
+
+        expect(errors?.temporal.map((entry) => entry.stats.sum)).toEqual([3, 4])
+        expect(errors?.stats).toMatchObject({sum: 4, count: 4})
     })
 
     it("A run with an invocation step keeps counting only the app's errors", () => {

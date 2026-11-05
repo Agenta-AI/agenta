@@ -158,18 +158,36 @@ const stepMetrics = (metric: EvaluationMetric): StepMetrics => {
     return out
 }
 
-/** The errors of several evaluators: their totals added up. A mean across them means nothing. */
+/**
+ * The errors of several evaluators: their totals added up. Only the type, the sum and the count
+ * combine; a mean, a median or a range of one evaluator would not describe the total.
+ */
 function sumCounts(all: (MetricStats | null)[]): MetricStats | null {
     const stats = all.filter((entry): entry is MetricStats => entry !== null)
     if (stats.length === 0) return null
     const total = (pick: (entry: MetricStats) => number | undefined) =>
         stats.reduce((sum, entry) => sum + (pick(entry) ?? 0), 0)
     return {
-        ...stats[0],
+        type: stats[0].type,
         sum: total((entry) => entry.sum ?? (entry.mean ?? 0) * (entry.count ?? 0)),
         count: total((entry) => entry.count),
-        mean: undefined,
     }
+}
+
+/** The error points of several evaluators, added up per timestamp, oldest first. */
+function sumPoints(all: TemporalMetricPoint[][]): TemporalMetricPoint[] {
+    const byTime = new Map<number, (MetricStats | null)[]>()
+    for (const points of all) {
+        for (const {timestamp, stats} of points) {
+            byTime.set(timestamp, [...(byTime.get(timestamp) ?? []), stats])
+        }
+    }
+    return [...byTime.entries()]
+        .sort(([a], [b]) => a - b)
+        .flatMap(([timestamp, stats]) => {
+            const summed = sumCounts(stats)
+            return summed ? [{timestamp, stats: summed}] : []
+        })
 }
 
 /**
@@ -236,15 +254,18 @@ export function buildRunMetricCatalog(
         const candidates = id === "errors" ? errorKeys : invocationKeys
         const stepKeys = candidates.filter((key) => hasMetric(key, metricKey))
         const stepKey = stepKeys[0] ?? null
-        const temporal = stepKey ? pointsFor(stepKey, metricKey) : []
-        const stats =
-            id === "errors" && stepKeys.length > 1
-                ? sumCounts(
-                      stepKeys.map((key) => statsFor(key, metricKey, pointsFor(key, metricKey))),
-                  )
-                : stepKey
-                  ? statsFor(stepKey, metricKey, temporal)
-                  : null
+        // Several failing evaluators: their totals and their time series both add up.
+        const combined = id === "errors" && stepKeys.length > 1
+        const temporal = combined
+            ? sumPoints(stepKeys.map((key) => pointsFor(key, metricKey)))
+            : stepKey
+              ? pointsFor(stepKey, metricKey)
+              : []
+        const stats = combined
+            ? sumCounts(stepKeys.map((key) => statsFor(key, metricKey, pointsFor(key, metricKey))))
+            : stepKey
+              ? statsFor(stepKey, metricKey, temporal)
+              : null
         entries.push({
             id,
             kind: "invocation",

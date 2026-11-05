@@ -110,14 +110,15 @@ export function isRunInProgress(run: RunKindInput | null | undefined): boolean {
 
 /**
  * The status a screen shows for a run. A paused live run keeps `running` on the server and only
- * clears its `is_active` flag, so it reads `paused` here. Every other run shows its own status.
+ * sets its `is_active` flag to false, so it reads `paused` here. A run with no such flag, a
+ * closed run and every other run show their own status.
  */
 export function runDisplayStatus(run: RunKindInput): string | null {
     const status = run.status ?? null
     if (!status || isTerminalRunStatus(status) || !isOnlineRun(run)) return status
-    const active = run.flags?.is_active === true || run.flags?.isActive === true
+    const inactive = run.flags?.is_active === false || run.flags?.isActive === false
     const closed = run.flags?.is_closed === true || run.flags?.isClosed === true
-    return active || closed ? status : "paused"
+    return inactive && !closed ? "paused" : status
 }
 
 export type RunStatusTone = "success" | "processing" | "error" | "warning" | "default"
