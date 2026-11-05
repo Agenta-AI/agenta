@@ -83,7 +83,9 @@ describe("session spans", () => {
         await store.get(sessionsQueryAtom).fetchNextPage()
 
         await waitFor(() => expect(store.get(filteredSessionIdsAtom)).toEqual(["s1", "s3", "s4"]))
-        expect(store.get(sessionTraceCountAtomFamily("s3"))).toBe(1)
+        // A session stays listed while its spans load, so the list can be complete before the
+        // spans of s3 arrive.
+        await waitFor(() => expect(store.get(sessionTraceCountAtomFamily("s3"))).toBe(1))
         expect(
             executeTraceQueryMock.mock.calls.map(([args]) => sessionIdOf(args.params)).sort(),
         ).toEqual(["s1", "s2", "s3", "s4"])
