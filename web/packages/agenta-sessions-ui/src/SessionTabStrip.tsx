@@ -117,6 +117,9 @@ export const TAB_DIVIDER =
 const SCROLLER_CLASS =
     "flex min-w-0 flex-1 items-center overflow-x-auto overscroll-x-contain motion-safe:scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
 
+/** `safe`: a strip that overflows falls back to the start, so the first chip stays reachable. */
+const SCROLLER_CENTERED_CLASS = "[justify-content:safe_center]"
+
 export const SessionTabStrip = ({
     children,
     showTabs = true,
@@ -284,6 +287,8 @@ export const SessionTabStrip = ({
             <div className={clsx("flex shrink-0 items-center", TAB_DIVIDER)}>{addButton}</div>
         ) : null
 
+    const scrollerClass = clsx(SCROLLER_CLASS, bare && SCROLLER_CENTERED_CLASS)
+
     return (
         <div
             role="tablist"
@@ -309,14 +314,14 @@ export const SessionTabStrip = ({
                         values={reorder.ids}
                         onReorder={reorder.onReorder}
                         ref={scrollStripRef}
-                        className={SCROLLER_CLASS}
+                        className={scrollerClass}
                         style={maskStyle}
                     >
                         {children}
                         {inlineAdd}
                     </Reorder.Group>
                 ) : (
-                    <div ref={scrollStripRef} className={SCROLLER_CLASS} style={maskStyle}>
+                    <div ref={scrollStripRef} className={scrollerClass} style={maskStyle}>
                         {children}
                         {inlineAdd}
                     </div>
