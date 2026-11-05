@@ -76,6 +76,22 @@ describe("run header and references", () => {
         stop()
     })
 
+    it("Run header reads Paused for a paused live run", async () => {
+        const paused = {
+            ...online.run,
+            status: "running",
+            flags: {...online.run.flags, is_active: false, is_closed: false},
+        }
+        serveRuns([paused])
+        const stop = await loadRun(paused.id)
+
+        expect(store.get(runHeaderAtomFamily(paused.id))).toMatchObject({
+            status: "paused",
+            flags: {isLive: true, isActive: false, isClosed: false},
+        })
+        stop()
+    })
+
     it("Run references list each test set with its revision and each evaluator with its step key", async () => {
         serveRuns([auto.run])
         const stop = await loadRun(auto.run.id)

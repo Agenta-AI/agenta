@@ -44,6 +44,7 @@ export {
     humanizeRunStatus,
     isRunInProgress,
     isTerminalRunStatus,
+    runDisplayStatus,
     runStatusTone,
     type EvaluationRunKind,
     type RunKindInput,
