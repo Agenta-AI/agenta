@@ -43,6 +43,8 @@ let root: Root
 let host: HTMLDivElement
 
 beforeEach(() => {
+    // The deployment offers beta developer mode (`AGENTA_BETA_DEVELOPER_MODE=true`).
+    vi.stubGlobal("__env", {NEXT_PUBLIC_AGENTA_BETA_DEVELOPER_MODE: "true"})
     host = document.createElement("div")
     document.body.append(host)
     root = createRoot(host)
@@ -52,6 +54,7 @@ afterEach(() => {
     act(() => root.unmount())
     host.remove()
     localStorage.clear()
+    vi.unstubAllGlobals()
 })
 
 const BoundPage = () => <PreferencesPage theme={theme} bindings={usePreferenceBindings()} />
@@ -154,6 +157,14 @@ describe("beta developer mode on the desktop", () => {
         vi.unstubAllGlobals()
         replace.mockReset()
         document.cookie = `${CLASSIC_MODE_COOKIE}=; path=/; max-age=0`
+    })
+
+    it("is hidden when the deployment does not offer beta developer mode", () => {
+        vi.stubGlobal("__env", {})
+        localStorage.setItem("agenta:settings:u1:beta-developer-mode", "true")
+        renderBound({developerMode: true})
+        expect(betaSwitch()).toBeNull()
+        expect(host.querySelector('[role=switch][aria-label="Developer Mode"]')).not.toBeNull()
     })
 
     it("shows only while Developer Mode is on", () => {

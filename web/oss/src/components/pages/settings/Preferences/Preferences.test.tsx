@@ -52,6 +52,8 @@ describe("Settings > Preferences", () => {
     let host: HTMLDivElement
 
     beforeEach(() => {
+        // The deployment offers beta developer mode (`AGENTA_BETA_DEVELOPER_MODE=true`).
+        vi.stubGlobal("__env", {NEXT_PUBLIC_AGENTA_BETA_DEVELOPER_MODE: "true"})
         host = document.createElement("div")
         document.body.append(host)
         root = createRoot(host)
@@ -70,6 +72,7 @@ describe("Settings > Preferences", () => {
         act(() => root.unmount())
         host.remove()
         localStorage.clear()
+        vi.unstubAllGlobals()
     })
 
     it("renders Feature Flags and Debugging with every switch, no tags", () => {
