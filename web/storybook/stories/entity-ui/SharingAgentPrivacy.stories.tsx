@@ -4,6 +4,8 @@ import type {AgentSharingState, ShareDisclosure} from "@agenta/entities/sharing"
 import {
     AgentPrivacyControl,
     AgentPrivacyDialog,
+    AgentPrivacySummary,
+    useAgentSharingWrites,
     type SharingWriteResult,
 } from "@agenta/entity-ui/sharing"
 import type {Meta, StoryObj} from "@storybook/nextjs"
@@ -39,6 +41,8 @@ interface PrivacyStoryProps {
     result?: SharingWriteResult
     channelsOff?: string[]
     showDialog?: boolean
+    /** Show the Share panel's one-line row in place of the top bar control. */
+    row?: boolean
 }
 
 function Privacy({
@@ -48,6 +52,7 @@ function Privacy({
     result = "ok",
     channelsOff,
     showDialog = true,
+    row = false,
 }: PrivacyStoryProps) {
     const [sharing, setSharing] = useState(initial)
     const [open, setOpen] = useState(showDialog)
@@ -78,6 +83,20 @@ function Privacy({
         onTransfer: async () => result,
         onTakeOwnership: async () => result,
         onNotify: setToast,
+    }
+    const writes = useAgentSharingWrites(props)
+    if (row) {
+        return (
+            <div className="flex w-[352px] flex-col gap-2">
+                <AgentPrivacySummary
+                    {...props}
+                    layout="row"
+                    writes={writes}
+                    onChange={() => setOpen(true)}
+                />
+                <AgentPrivacyDialog {...props} open={open} onOpenChange={setOpen} writes={writes} />
+            </div>
+        )
     }
     return (
         <div className="flex flex-col gap-4">
@@ -173,4 +192,22 @@ export const ControlLoadError: Story = {
             },
         },
     },
+}
+const SHARED = {policy: {visibility: "project" as const, owner_user_id: alice.user_id}}
+export const RowOwnerShared: Story = {
+    args: {initial: state(SHARED), row: true, showDialog: false},
+}
+export const RowOwnerPrivate: Story = {args: {initial: state(), row: true, showDialog: false}}
+export const RowNotOwner: Story = {
+    args: {initial: state({...SHARED, my_role: "viewer"}), row: true, showDialog: false},
+}
+export const RowTakeOwnership: Story = {
+    args: {...TakeOwnership.args, row: true, showDialog: false} as PrivacyStoryProps,
+    parameters: {docs: {description: {story: "States that need explaining stay stacked."}}},
+}
+export const RowLoading: Story = {
+    args: {initial: null, loading: true, row: true, showDialog: false},
+}
+export const RowLoadError: Story = {
+    args: {initial: null, loadError: true, row: true, showDialog: false},
 }

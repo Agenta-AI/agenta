@@ -11,7 +11,7 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, describe, expect, it, vi} from "vitest"
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
-const {controlProps, dialogProps, member, ALL, FIRST_PAGE} = vi.hoisted(() => {
+const {privacyProps, dialogProps, member, ALL, FIRST_PAGE} = vi.hoisted(() => {
     const member = (n: number) => ({
         user_id: `u-${n}`,
         email: `member${n}@acme.com`,
@@ -19,7 +19,7 @@ const {controlProps, dialogProps, member, ALL, FIRST_PAGE} = vi.hoisted(() => {
     })
     const ALL = Array.from({length: 120}, (_, i) => member(i + 1))
     return {
-        controlProps: [] as Record<string, unknown>[],
+        privacyProps: [] as Record<string, unknown>[],
         dialogProps: [] as Record<string, unknown>[],
         member,
         ALL,
@@ -35,13 +35,28 @@ vi.mock("@agenta/shared/state", async (importOriginal) => {
     }
 })
 
-vi.mock("@agenta/entity-ui/sharing", () => ({
-    AgentPrivacyControl: (props: Record<string, unknown>) => {
-        controlProps.push(props)
+vi.mock("@agenta/entities/workflow", async (importOriginal) => {
+    const {atom: mockAtom} = await import("jotai")
+    return {
+        ...(await importOriginal<typeof import("@agenta/entities/workflow")>()),
+        agentWorkflowsListQueryStateAtom: mockAtom({
+            data: [
+                {
+                    id: "agent-1",
+                    name: "Support triage",
+                    access: {visibility: "project", owner_user_id: "u-77"},
+                },
+            ],
+        }),
+    }
+})
+
+vi.mock("@agenta/entity-ui/sharing", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@agenta/entity-ui/sharing")>()),
+    AgentPrivacyDialog: (props: Record<string, unknown>) => {
+        privacyProps.push(props)
         return null
     },
-    AgentPrivacyDialog: () => null,
-    sharingWriteResultFromError: () => "failed",
 }))
 
 vi.mock("@agenta/sessions-ui/sharing", async (importOriginal) => ({
@@ -52,7 +67,7 @@ vi.mock("@agenta/sessions-ui/sharing", async (importOriginal) => ({
     },
 }))
 
-vi.mock("@agenta/entities/sharing", async () => {
+vi.mock("@agenta/entities/sharing", async (importOriginal) => {
     const {atom: mockAtom} = await import("jotai")
     const agentQuery = mockAtom({
         data: {
@@ -86,6 +101,7 @@ vi.mock("@agenta/entities/sharing", async () => {
     const roster = mockAtom({data: ALL, isPending: false, isError: false})
     const write = mockAtom(null, () => undefined)
     return {
+        ...(await importOriginal<typeof import("@agenta/entities/sharing")>()),
         agentSharingQueryAtomFamily: () => agentQuery,
         sessionSharingQueryAtomFamily: () => sessionQuery,
         sharingMembersQueryAtomFamily: () => firstPage,
@@ -113,6 +129,14 @@ vi.mock("../../src/features/context/useCurrentProject", () => ({
     useCurrentProject: () => ({project_name: "Acme support"}),
 }))
 
+vi.mock("../../src/features/agents/useAgentPublishPanel", () => ({
+    useAgentPublishPanel: () => ({openHub: vi.fn(), reload: vi.fn(), panel: null}),
+}))
+
+vi.mock("../../src/features/chat/useSessionHeader", () => ({
+    useSessionHeader: () => ({data: null}),
+}))
+
 vi.mock("next/router", () => ({useRouter: () => ({basePath: "/m"})}))
 
 vi.mock("@tanstack/react-query", async (importOriginal) => ({
@@ -120,9 +144,9 @@ vi.mock("@tanstack/react-query", async (importOriginal) => ({
     useQueryClient: () => ({invalidateQueries: vi.fn()}),
 }))
 
-import {AgentPrivacyHost} from "../../src/features/chat/AgentPrivacyHost"
 import {SessionShareHost} from "../../src/features/chat/SessionShareHost"
 import {shareDialogRequestAtom} from "../../src/features/chat/shareDialogState"
+import {ShareMenu} from "../../src/features/chat/ShareMenu"
 
 let root: Root | null = null
 let host: HTMLDivElement | null = null
@@ -141,24 +165,31 @@ afterEach(() => {
     host?.remove()
     root = null
     host = null
-    controlProps.length = 0
+    privacyProps.length = 0
     dialogProps.length = 0
 })
 
 describe("sharing hosts in a project with more than 50 members", () => {
-    it("the agent privacy control names an owner past the first page", () => {
+    it("the Share panel names an owner past the first page", async () => {
         mount(
-            createElement(AgentPrivacyHost, {
+            createElement(ShareMenu, {
                 agentId: "agent-1",
-                agentName: "Support triage",
+                sessionId: "session-1",
+                sessionName: "Refund question",
+                showSession: true,
+                canRequestTemplate: true,
                 workspaceId: "workspace-1",
                 projectId: "project-1",
+                phone: false,
             }),
         )
-        // The names load when the panel opens (opening the agent screen reads none).
-        expect(controlProps.at(-1)!.owner).toBeNull()
-        act(() => (controlProps.at(-1)!.onOpen as () => void)())
-        expect(controlProps.at(-1)!.owner).toEqual(member(77))
+        // The names load when Share opens (opening the agent screen reads none).
+        expect(privacyProps.at(-1)!.owner).toBeNull()
+        await act(async () =>
+            document.querySelector<HTMLButtonElement>('[data-testid="share-menu-share"]')?.click(),
+        )
+        expect(privacyProps.at(-1)!.owner).toEqual(member(77))
+        expect(document.body.textContent).toContain("Member 77 · Owner")
     })
 
     it("the share dialog names a grantee past the first page", () => {

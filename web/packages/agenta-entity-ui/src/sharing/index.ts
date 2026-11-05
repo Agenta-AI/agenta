@@ -4,6 +4,7 @@
  * this package already depends on that one) and re-exported here.
  */
 export {AgentPrivacyControl, type AgentPrivacyControlProps} from "./AgentPrivacyControl"
+export {AgentPrivacySummary, type AgentPrivacySummaryProps} from "./AgentPrivacySummary"
 export {
     AgentPrivacyDialog,
     type AgentPrivacyDialogProps,

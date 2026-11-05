@@ -46,6 +46,8 @@ export interface SplitPaneProps {
     barLabel?: string
     onResizeStart?: () => void
     onResize?: (size: number, total: number) => void
+    /** The width the pane draws at, after the clamp: `paneSize` is only the preference. */
+    onDisplayedSize?: (size: number) => void
     onResizeEnd?: (size: number, total: number) => void
     pane: React.ReactNode
     fill: React.ReactNode
@@ -155,6 +157,7 @@ export function SplitPane({
     barLabel = "Resize panes",
     onResizeStart,
     onResize,
+    onDisplayedSize,
     onResizeEnd,
     pane,
     fill,
@@ -183,6 +186,9 @@ export function SplitPane({
         paneSize > 0 && !paneGrow && measuredTotal !== null
             ? clamp(paneSize, measuredTotal)
             : paneSize
+    React.useEffect(() => {
+        onDisplayedSize?.(displayedSize)
+    }, [displayedSize, onDisplayedSize])
 
     const readTotal = React.useCallback(() => {
         const rect = rootRef.current?.getBoundingClientRect()

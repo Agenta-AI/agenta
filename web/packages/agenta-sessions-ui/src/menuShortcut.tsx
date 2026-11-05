@@ -1,7 +1,7 @@
 /**
  * A session menu row that names its key on the right, the way a desktop menu does.
  *
- * Lives here so every session menu — the desktop playground's tab bar, the shared tab rail — prints
+ * Lives here so every session menu — the desktop playground's tab bar, the session lists — prints
  * the same row shape from the same registry entry. The wrapper has to grow inside the menu item's
  * own flex row, or the keycap sits against the label instead.
  */

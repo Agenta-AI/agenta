@@ -60,8 +60,10 @@ export interface UseSessionCardListArgs {
     limit?: number
     /** Pinned sessions lead the list, and are excluded from the recent rows below them. */
     withPinned?: boolean
-    /** The card sits beside the screen's content (the chat pane, the tab rail), not as it. */
+    /** The card sits beside the screen's content (the chat pane, the switcher), not as it. */
     lowPriority?: boolean
+    /** A server search. While set, the list is one flat result: no waiting or pinned groups. */
+    search?: string
 }
 
 /**
@@ -82,9 +84,12 @@ export const useSessionCardList = ({
     policy,
     agentId,
     limit = 7,
-    withPinned = false,
+    withPinned: withPinnedArg = false,
     lowPriority = false,
+    search = "",
 }: UseSessionCardListArgs) => {
+    const searching = search.trim().length > 0
+    const withPinned = withPinnedArg && !searching
     const [extraRows, setExtraRows] = useState(0)
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const pinnedIds = useAtomValue(pinnedSessionIdsAtom)
@@ -98,7 +103,7 @@ export const useSessionCardList = ({
         () => (pendingBySession ? [...pendingBySession.keys()] : []),
         [pendingBySession],
     )
-    const useWaiting = waitingIds.length > 0
+    const useWaiting = waitingIds.length > 0 && !searching
 
     const waitingQuery = useSessionList({
         originPolicy: policy.origin,
@@ -116,8 +121,13 @@ export const useSessionCardList = ({
         originPolicy: policy.origin,
         expansions: policy.expansions,
         agentId,
-        excludeSessionIds: withPinned ? [...pinnedIds, ...waitingIds] : waitingIds,
+        excludeSessionIds: searching
+            ? undefined
+            : withPinned
+              ? [...pinnedIds, ...waitingIds]
+              : waitingIds,
         lowPriority,
+        search: search.trim(),
     })
 
     const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
@@ -228,6 +238,8 @@ export const useSessionCardList = ({
     }, [shouldTopUp, fetchNextPage])
 
     return {
+        /** The rows on show are the last search's: the new one is still on its way. */
+        isStale: listQuery.isPlaceholderData,
         groups,
         isPending: listQuery.isPending || awaitingTopUp,
         isEmpty: isEmpty && !awaitingTopUp,

@@ -36,7 +36,6 @@ const CommitsRevision = () => {
 
 // The agent pane's panels are heavy and not under test: the build panel becomes the committer.
 vi.mock("@agenta/playground-ui/agent-build", () => ({AgentBuildPanel: () => <CommitsRevision />}))
-vi.mock("@agenta/playground-ui/agent-config-header", () => ({AgentConfigHeader: () => null}))
 vi.mock("@agenta/entity-ui/drive", () => ({
     StorageFilesHeader: () => null,
     StorageSection: () => null,
