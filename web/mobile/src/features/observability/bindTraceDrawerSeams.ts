@@ -23,14 +23,18 @@ export const currentQuery = (router: NextRouter, search: string): NextRouter["qu
  * Points the packaged trace drawer at `/m`'s router.
  *
  * The drawer keeps its open trace in `?trace`/`?span` and links out to evaluators; both are the
- * host's job, which is why they are seams rather than imports.
+ * host's job, which is why they are seams rather than imports. `openTraceId` reads the trace the
+ * drawer shows, which the address carries next to the span.
  *
  * The data slots are filled by `registerTraceDrawerSlots`; the reference/action slots stay on
  * their fallbacks (a plain label, no button), which are enough on `/m`. The span header's
  * Playground button exists only while the `playground` developer view is on: its code
  * loads on the first click.
  */
-export const bindTraceDrawerSeams = (router: NextRouter, {playground}: {playground: boolean}) => {
+export const bindTraceDrawerSeams = (
+    router: NextRouter,
+    {playground, openTraceId}: {playground: boolean; openTraceId: () => string | null},
+) => {
     bindTraceDrawerPlaygroundActions(
         playground
             ? {
@@ -50,6 +54,10 @@ export const bindTraceDrawerSeams = (router: NextRouter, {playground}: {playgrou
         const query = currentQuery(router, window.location.search)
         if (value == null) delete query[name]
         else query[name] = value
+        // The drawer writes only the span. The trace goes with it, so a reload can reopen the
+        // drawer (`useTraceDrawerFromUrl`): a span id alone does not name its trace.
+        const traceId = name === "span" && value != null ? openTraceId() : null
+        if (traceId) query.trace = traceId
         void router.push({pathname: router.pathname, query}, undefined, {shallow: true})
     })
 
