@@ -10,11 +10,9 @@ Record how each automation run ended, so the automations screen shows the real r
 ### Requirement: Outcome on the trigger delivery
 The system SHALL settle a trigger delivery by writing `data.outcome` (`completed`, `failed`,
 `cancelled`, `waiting` or `skipped`) and, for `failed` and `skipped`, `data.reason_code`. It SHALL
-NOT change the trigger delivery's `status`, and SHALL NOT add a column to `trigger_deliveries`.
-
-The outcome of a started run SHALL come from the turn's `session_executions` row
-(`terminal_outcome`). The tracing records SHALL be read only for a turn with no settled execution
-(to find `paused` or `cancelled`) and for the error code of a `failed` turn.
+NOT change the trigger delivery's `status`, and SHALL NOT add a column to `trigger_deliveries`. The
+outcome of a started run SHALL come from the turn's `session_executions` row. The tracing records
+SHALL be read only for a turn with no settled execution and for the error code of a failed one.
 
 #### Scenario: Run completes
 - **WHEN** a `202` trigger delivery's turn has an execution settled `completed`
@@ -24,59 +22,50 @@ The outcome of a started run SHALL come from the turn's `session_executions` row
 - **WHEN** a `202` trigger delivery's turn has an execution settled `failed`, and an `error` record with `attributes.code` `credential_delivery_failed`
 - **THEN** it SHALL get `data.outcome` `failed` and `data.reason_code` `credential_delivery_failed`
 
-#### Scenario: Watchdog ends a lost run
-- **WHEN** the watchdog settles a `202` trigger delivery's turn as `lost`
-- **THEN** it SHALL get `data.outcome` `failed` and `data.reason_code` `execution_lost`
-
-#### Scenario: Runner thaws after the watchdog
-- **WHEN** the watchdog settled a turn as `lost`, and the runner later sends a `done` with no `stopReason`
-- **THEN** the trigger delivery SHALL keep `data.outcome` `failed`
-
-#### Scenario: User stops the run
-- **WHEN** a `202` trigger delivery's turn has an execution settled `stopped`
-- **THEN** it SHALL get `data.outcome` `cancelled`
-
-#### Scenario: Approval answered before the pass
-- **WHEN** a `202` trigger delivery's turn paused, and a person answered the approval before the next pass, so the execution settled `continued`
-- **THEN** it SHALL get `data.outcome` `waiting`
-
-#### Scenario: Stop finds the turn gone
-- **WHEN** a `202` trigger delivery's turn has an execution settled `not_running`
-- **THEN** it SHALL get `data.outcome` `cancelled`
-
-#### Scenario: Access refusal with an error code
+#### Scenario: Error code on the execution
 - **WHEN** a `202` trigger delivery's turn has an execution settled `failed` whose `error.code` is `access_denied`
-- **THEN** it SHALL get `data.reason_code` `access_denied` without waiting for the records
+- **THEN** it SHALL get `data.reason_code` `access_denied`
+
+#### Scenario: Error code stored late
+- **WHEN** a turn's execution settles `failed`, and its `error` record is stored only after the pass settled the row
+- **THEN** the trigger delivery SHALL keep `data.outcome` `failed` and `data.reason_code` `runner_error`
+
+#### Scenario: Run fails before the agent loop
+- **WHEN** the runner cannot create a sandbox for a trigger run, and writes an `error` record and its fallback `done`
+- **THEN** the execution SHALL settle `failed`, and the trigger delivery SHALL get `data.outcome` `failed`
+
+#### Scenario: Watchdog ends a lost run
+- **WHEN** the watchdog settles a `202` trigger delivery's turn as `lost`, and the runner later sends a `done` with no `stopReason`
+- **THEN** it SHALL get `data.outcome` `failed` and `data.reason_code` `execution_lost`, and keep them
 
 #### Scenario: Run waits for a person
-- **WHEN** a `202` trigger delivery's turn has no settled execution, and its newest `done` has `stopReason` `paused`
+- **WHEN** a `202` trigger delivery's turn has no settled execution and its newest `done` has `stopReason` `paused`, or its execution settled `continued`
 - **THEN** it SHALL get `data.outcome` `waiting`
+
+#### Scenario: Run stopped
+- **WHEN** a `202` trigger delivery's turn has an execution settled `stopped` or `not_running`
+- **THEN** it SHALL get `data.outcome` `cancelled`
 
 #### Scenario: Start-time failures
 - **WHEN** a trigger delivery has status `400`, `403`, `422` or `500`
 - **THEN** it SHALL get `data.outcome` `failed`, `failed`, `skipped` or `failed`, with `data.reason_code` `bad_configuration`, `paused_` followed by `data.error_details.code`, `agent_needs_setup` or `start_failed`
 
 #### Scenario: Not settled
-- **WHEN** a trigger delivery has status `102`, `409` or `200`
+- **WHEN** a trigger delivery has status `102`, `409` or `200`, or its run is still going
 - **THEN** the system SHALL NOT write `data.outcome`
 
-### Requirement: Error code of a failed run
-For a turn whose execution settled `failed`, the reason SHALL be the execution's `error.code` if
-set, else the code of the newest `error` record stored when the pass settles the row, else
-`runner_error`. The pass SHALL NOT wait for a late `error` record. A `202` trigger delivery SHALL
-settle once.
+### Requirement: Runner fallback records a failure
+When a run fails before the agent loop, the runner's fallback `done` SHALL carry `stopReason`
+`error`, so the ingest route settles the execution `failed`. A Stop SHALL keep `stopReason`
+`cancelled`.
 
-#### Scenario: Error code already stored
-- **WHEN** a turn's execution settles `failed`, and its `error` record with a code is stored before the next pass
-- **THEN** the trigger delivery SHALL get that record's code as `data.reason_code`
+#### Scenario: Acquire failure
+- **WHEN** a run's sandbox acquire fails and no Stop was asked for
+- **THEN** the runner SHALL write an `error` record and a `done` with `stopReason` `error`
 
-#### Scenario: Error code stored late
-- **WHEN** a turn's execution settles `failed`, and its `error` record is stored only after the pass settled the row
-- **THEN** the trigger delivery SHALL keep `data.outcome` `failed` and `data.reason_code` `runner_error`
-
-#### Scenario: Run still going
-- **WHEN** a `202` trigger delivery's turn has no settled execution and no `paused` or `cancelled` `done`
-- **THEN** it SHALL stay unsettled, and each pass SHALL read it again while it is less than 24 hours old
+#### Scenario: Stop before the turn
+- **WHEN** a Stop aborts a run before its turn starts
+- **THEN** the runner SHALL write a `done` with `stopReason` `cancelled`
 
 ### Requirement: Settled once per status
 The system SHALL write an outcome only if the trigger delivery still has the status it was read
@@ -91,35 +80,29 @@ its new status.
 - **WHEN** a pass reads a `500` trigger delivery, and a repeated event claims it before the pass writes
 - **THEN** the settle write SHALL change no row
 
-### Requirement: One pass at a time, bounded
-The outcome pass SHALL run behind the admin route `POST /admin/triggers/deliveries/settle`, which cron
-calls every minute, whether email is on or off. It SHALL hold a guard lock with a 120-second TTL
-and no renewal, and a request that finds the guard held SHALL return at once. Each pass SHALL read
-start-time trigger deliveries (`400`, `403`, `422`, `500`) oldest first and `202` trigger deliveries
-newest first, with keyset paging, through a partial index that leaves out settled rows, and SHALL
-stop settling after 30 seconds, checking the deadline between pages and between rows; a row not
-reached SHALL stay unsettled for the next pass. The same request then sends notification
-deliveries with the time left.
-
-#### Scenario: Large page set
-- **WHEN** applying the rules to the rows read so far reaches 30 seconds in the middle of a page
-- **THEN** the pass SHALL stop settling, leave the remaining rows unsettled, and send emails with the time left
+### Requirement: One bounded pass at a time
+The pass SHALL run behind the admin route `POST /admin/triggers/deliveries/settle`, which cron calls
+every minute, whether email is on or off. It SHALL hold a guard lock with a 600-second TTL, and a
+request that finds the lock held SHALL return at once. It SHALL read start-time trigger deliveries
+oldest first and `202` trigger deliveries newest first, with keyset paging, through a partial index
+that leaves out settled rows. It SHALL check a 30-second settle deadline between pages and between
+automations, and SHALL leave rows not reached for the next pass.
 
 #### Scenario: Two requests at once
-- **WHEN** cron calls the route while the previous pass still runs
+- **WHEN** cron calls the route while the previous request still holds the lock
 - **THEN** the second request SHALL return at once and settle nothing
 
 #### Scenario: Pages move forward
-- **WHEN** 1,200 `202` trigger deliveries of the last 24 hours have no `done`
+- **WHEN** 1,200 `202` trigger deliveries of the last 24 hours are still running
 - **THEN** one pass SHALL read three different pages of them, not the same page three times
 
-#### Scenario: Many runs still going
-- **WHEN** 20,000 `202` trigger deliveries of the last 24 hours have no `done`, and a schedule writes a new `400`
-- **THEN** the next pass SHALL settle the `400`
-
 #### Scenario: Runs lost in an incident
-- **WHEN** 20,000 older `202` trigger deliveries have no `done`, and a new run ends with an error
+- **WHEN** many older `202` trigger deliveries are still running, and a new run ends with an error
 - **THEN** the pass SHALL read the new run first and settle it `failed`
+
+#### Scenario: Deadline reached
+- **WHEN** the 30-second deadline is reached in the middle of a page
+- **THEN** the pass SHALL stop settling, leave the remaining automations' rows unsettled, and go on to the send step
 
 ### Requirement: Outcome on the automations screen
 For a trigger delivery with status `202` and a `data.outcome`, the automations screen SHALL show

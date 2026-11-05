@@ -244,3 +244,33 @@ Fixed:
 - The outage brake blocks only the open, after `note_failure` (it contradicted the spec).
 - D11 and the diagram: no new send after 45 s, the request ends within about 60 s. Known limit 12: 30 s.
 - D17, D23, the "lease" wording, G45 (the curl timeout is the change's choice, not a fact), the template spec (it also reads `web_url`), task 6.2 (`deliveries.*`), and two task citations.
+
+## Round 7: correctness and over-engineering (Opus), and the clean rewrite
+
+Two Opus reviewers, after round 6. The owner decided to apply every fix and cut except one, and
+asked for a clean plan at the end. All five files were rewritten from scratch.
+
+Blocker and majors fixed:
+
+- **Blocker:** the runner's fallback writes a failed acquire as a `done` with no `stopReason`, which
+  the ingest route settles `completed` (G18). A runner fix is now task 1.1 (D28): the fallback keeps
+  `stopReason: "error"`. This also fixes every other reader of `session_executions`.
+- The outage brake counts after each page, before its rules, across the pass, and only failures
+  from the last hour (5.4).
+- The guard lock TTL is 600 s. The send timeouts apply to each socket operation (G41), so a request
+  is bounded by the lock, not by a 60-second claim.
+
+Smaller fixes: rows are applied per automation within a page, with the deadline between automations
+(a failure and a newer success of one automation in one page send no email); `fetch_project_name`;
+`resolve(..., started_at=None)`; the proposal's index count; a new known limit for a recipient who
+leaves before the send.
+
+Cut: the separate cron files (one more line in `triggers.txt`, G45); `reason_code` in the zod schema;
+the "Failures across a fix" requirement (merged into "What resolves"); duplicate scenarios (email
+off, deleted automation, provider hangs, the 300-automation example, four name scenarios merged);
+facts no rule cited (G24e, half of G12); merged known limits; history notes in the decision table.
+
+Kept: `LEAST` on `failed_at`.
+
+In the rewrite, settle rows are now O1 to O10 and rules A1 to A6, numbered in order. Decision and
+fact ids were kept, so some numbers are missing.

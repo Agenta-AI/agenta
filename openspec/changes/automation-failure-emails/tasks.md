@@ -1,50 +1,53 @@
 # Tasks
 
 Parentheses name the spec requirement. Each issue can merge alone, in this order. Issues 1 to 3
-change nothing that users see.
+change nothing that users see, except that the runner fix makes failed acquires read as failed.
 
-## 1. Email sender (backend)
+## 1. Runner fix
 
-- [ ] 1.1 `send_rendered_email(to_email, subject, html, text)` in `api/oss/src/utils/emailing.py`: SMTP `set_content(text)` plus `add_alternative(html, subtype="html")` with `timeout=env.smtp.timeout or 15` and `_get_sender_email`; SendGrid `Mail(plain_text_content, html_content)` sent with `client.client.mail.send.post(request_body=mail.get(), timeout=15)`; raises with no provider and when the SendGrid client cannot be built; does not reuse the wrappers that call `log.exception`. (Email sender)
-- [ ] 1.2 Unit tests: both parts present, timeouts passed, raises in both no-op cases; `send_email` unchanged. (Email sender)
+- [ ] 1.1 `services/runner/src/server.ts`: `persistTerminal` keeps `stopReason` when it is `cancelled` or `error`; the settled fallback passes `userStopped ? "cancelled" : "error"`, and the catch fallback passes `stoppedBeforeTerminal ? "cancelled" : "error"`. Unit tests through `createAgentServer` with a fake engine: an acquire failure writes `done` with `stopReason: "error"`; a Stop before the turn writes `cancelled`. Run `pnpm test` and `pnpm run typecheck`. (Runner fallback records a failure)
 
-## 2. Notifications base (backend)
+## 2. Email sender
 
-- [ ] 2.1 `core_oss` revision after `oss000000062`: `notifications` and `notification_deliveries` with the keys and indexes of design 4.1 and 4.2. Run `uv run api/scripts/migration_gate.py <revision.py>`. (Notification storage)
-- [ ] 2.2 `api/oss/src/dbs/postgres/notifications/` and `api/oss/src/core/notifications/`: `open` (notification and its notification deliveries in one DAO transaction, with the open index), `resolve`, `note_failure` (returns the rows it changed; `GREATEST` on `last_failed_at`, `LEAST` on `failed_at`), `query_pending` (10 per project, 100 per pass), `mark_sent`, `record_failure`, `mark_skipped`; a constructor argument for the `automation_failing` template and its permission (no kind registry). (Notification storage; Template and permission of a kind)
-- [ ] 2.3 `MembershipsService.fetch_member_emails(user_ids)` and `fetch_organization_owner_id(organization_id)`, in the memberships DAO (literal SQL on `users` and `organizations`, like `query_project_member_profiles`). (Send pass; Recipients)
-- [ ] 2.4 `NotificationsConfig` in `api/oss/src/utils/env.py` as `env.agenta.notifications`, `AGENTA_NOTIFICATIONS_EMAIL_ENABLED` default `true`. (Email switch)
-- [ ] 2.5 `NotificationsService.send_pending(deadline)`: the skip checks (`check_human`, email, switch, resolved), render, `send_rendered_email`, 5 attempts (an exception counts as one), id-only logs, at most 100 per call and 10 per project, no new send after the deadline. (Send pass)
+- [ ] 2.1 `send_rendered_email(to_email, subject, html, text)` in `api/oss/src/utils/emailing.py`: SMTP `set_content(text)` and `add_alternative(html, subtype="html")`, `_get_sender_email`, `timeout=env.smtp.timeout or 15`; SendGrid `Mail(plain_text_content, html_content)` sent with `client.client.mail.send.post(request_body=mail.get(), timeout=15)`; raises with no provider and when the SendGrid client cannot be built; no `log.exception` with the address. Unit tests, including that `send_email` is unchanged. (Email sender)
 
-## 3. Run outcomes (backend and frontend)
+## 3. Notifications base
 
-- [ ] 3.1 `core_oss` revision: `CREATE INDEX CONCURRENTLY ix_trigger_deliveries_unsettled_created_at_id` (partial, `(created_at, id)`) in an autocommit block, after `DROP INDEX CONCURRENTLY IF EXISTS` in the same block; same index in `TriggerDeliveryDBE.__table_args__`. (One pass at a time, bounded)
-- [ ] 3.2 `outcome` and `reason_code` on `TriggerDeliveryData`. (Outcome on the trigger delivery)
-- [ ] 3.3 `TriggersDAOInterface.query_unsettled_deliveries` (start-time rows oldest first, `202` rows newest first, keyset paging on `(created_at, id)`; conditions as literal SQL so the partial index matches) and the guarded `settle_delivery`, which does not change `updated_at`. (Settled once per status; One pass at a time, bounded)
-- [ ] 3.4 Read run outcomes: `SessionExecutionsDAOInterface.query_settled` (exists), and a new `RecordsDAOInterface.turn_signals(project_id, keys)` on the tracing engine (newest `done` stopReason, newest `error` code; skips deleted and quarantined records). (Outcome on the trigger delivery; Error code of a failed run)
-- [ ] 3.5 `api/oss/src/core/triggers/outcomes.py` (O1 to O11, `settle_pass` page by page, with the 30-second deadline checked between pages and rows) and `POST /admin/triggers/deliveries/settle` on the triggers admin router: guard `acquire_lock(namespace="triggers", key="settle-pass", ttl=120)` with no renewal, released with `owner=`; it calls `settle_pass`, then `send_pending` with a deadline 45 seconds after the request started. New `api/oss/src/crons/deliveries.txt` and `deliveries.sh` (not named `triggers*`: `triggers.sh` matches its own name with awk), every minute, `curl --max-time 75`, with the `COPY` lines and crontab entries in `api/oss/docker/Dockerfile.gh`, `Dockerfile.dev`, `api/ee/docker/Dockerfile.gh`, `Dockerfile.dev`, and the script mount in both dev compose files. (One pass at a time, bounded; Send pass)
-- [ ] 3.6 `deliveryOutcome` reads `data.outcome` on `202` trigger deliveries; new `cancelled` and `waiting` states; `outcome` and `reason_code` in the zod schema `triggerDeliveryDataSchema` (`web/packages/agenta-entities/src/gatewayTrigger/core/types.ts`); regenerate the Fern client; `pnpm lint-fix` in `web`. (Outcome on the automations screen)
+- [ ] 3.1 `core_oss` revision after `oss000000062`: `notifications` and `notification_deliveries` with the keys and indexes of design 4.1 and 4.2. Run `uv run api/scripts/migration_gate.py <revision.py>`. (Notification storage)
+- [ ] 3.2 `api/oss/src/dbs/postgres/notifications/` and `api/oss/src/core/notifications/`: `open` (the notification and its deliveries in one DAO transaction, with the open index), `resolve(project_id, dedup_key, started_at=None)`, `note_failure` (returns its row count; `GREATEST` on `last_failed_at`, `LEAST` on `failed_at`), `query_created` (100 per call, 10 per project), `mark_sent`, `record_failure`, `mark_skipped`; the template and permission as a constructor argument. (Notification storage; One open notification per automation; Template and permission of a kind)
+- [ ] 3.3 `MembershipsService.fetch_member_emails(user_ids)`, `fetch_organization_owner_id(organization_id)` and `fetch_project_name(project_id)`, in the memberships DAO. (Recipients; Send step; Email content)
+- [ ] 3.4 `NotificationsConfig` in `api/oss/src/utils/env.py` as `env.agenta.notifications`, `AGENTA_NOTIFICATIONS_EMAIL_ENABLED` default `true`. (Email switch)
+- [ ] 3.5 `NotificationsService.send_pending(deadline)`: the skip checks, render, `send_rendered_email`, 5 attempts (an error before the send counts as one), ids-only logs, no new send after the deadline. (Send step)
 
-## 4. Failure notifications (backend)
+## 4. Run outcomes
 
-- [ ] 4.1 `api/oss/src/core/triggers/failure_notifications.py`: rules A1 to A6 (start-time comparisons, `last_failed_at`, the 1-hour open limit, the outage brake of D25 with its Redis flag), applied per page: failed and skipped rows oldest first, then healthy rows; the automation read only before an open; the resolve, `note_failure` and A3 writes guarded by `state = 'open'`; before the settle write. (What opens a notification; One open notification per automation; What resolves a notification; Failures across a fix)
-- [ ] 4.2 Recipients with `check_human(view_triggers)`, `query_project_members` (all pages), `fetch_organization_owner_id`. (Recipients)
-- [ ] 4.3 Resolve in `TriggersService`: `edit_*`, `refresh_subscription`, `delete_*`, and `set_*_active` with `is_active=true`; failures logged with ids only. Pass `NotificationsService` to `TriggersService` in `api/entrypoints/routers.py`, as an optional argument that defaults to `None`. (What resolves a notification)
-- [ ] 4.4 The `automation_failing` kind in `failure_notifications.py`: name normalization (Cc, Cf, Zl, Zp), subject, link built in the template (`web_url` without its trailing slash, each path part URL-quoted), reason catalog, HTML escaping, plain text, `view_triggers`, the project name from the memberships DAO; passed to `NotificationsService` in `api/entrypoints/routers.py`. (Email content; Outage brake; Template and permission of a kind)
+- [ ] 4.1 `core_oss` revision: in an autocommit block, `DROP INDEX CONCURRENTLY IF EXISTS` then `CREATE INDEX CONCURRENTLY ix_trigger_deliveries_unsettled_created_at_id`; the same index in `TriggerDeliveryDBE.__table_args__`. (One bounded pass at a time)
+- [ ] 4.2 `outcome` and `reason_code` on `TriggerDeliveryData`. (Outcome on the trigger delivery)
+- [ ] 4.3 `TriggersDAOInterface.query_unsettled_deliveries` (start-time rows oldest first, `202` rows newest first, keyset paging on `(created_at, id)`, conditions as literal SQL) and the guarded `settle_delivery`. (Settled once per status; One bounded pass at a time)
+- [ ] 4.4 `RecordsDAOInterface.turn_signals(project_id, keys)` on the tracing engine: the newest `done`'s `stopReason` and the newest `error` code, without deleted and quarantined records. (Outcome on the trigger delivery)
+- [ ] 4.5 `api/oss/src/core/triggers/outcomes.py`: the settle table O1 to O10 with `query_settled` and `turn_signals`, and `settle_pass` page by page with the 30-second deadline between pages and automations. `POST /admin/triggers/deliveries/settle` on the triggers admin router: `acquire_lock(namespace="triggers", key="settle-pass", ttl=600)`, released with the owner token; it runs `settle_pass`, then `send_pending` with a deadline 45 seconds after the start. One more line in `api/oss/src/crons/triggers.txt` that calls the route with `curl --max-time 75`. This task settles and sends nothing until task 5. (One bounded pass at a time; Send step)
+- [ ] 4.6 `deliveryOutcome` reads `data.outcome` on `202` trigger deliveries; new `cancelled` and `waiting` states; `outcome` in `triggerDeliveryDataSchema`; regenerate the Fern client; `pnpm lint-fix` in `web`. (Outcome on the automations screen)
 
-## 5. Tests
+## 5. Failure notifications
 
-- [ ] 5.1 Unit: O1 to O11 with O9a (`continued`, `stopped`, `not_running` and an unknown value in O9, a watchdog `lost` then a thawed runner `done`, a `failed` execution whose error code is not stored yet, an access refusal with `error.code`), A1 to A6 (the timelines in the specs), the recipient steps, the reason catalog (the `paused_` codes and the runner's `access_denied`), name normalization, HTML escaping.
-- [ ] 5.2 DAO on Postgres: two concurrent opens; the guarded settle after a re-claim; a `500` re-claim clears `data.outcome`; `turn_signals` skips quarantined records; `query_settled` returns first-turn executions settled by the ingest route; the partial index is used by the real DAO statement after more than 5 executions (`EXPLAIN`); one large and one small project in the send query.
-- [ ] 5.3 Migration: upgrade and downgrade of both revisions; the index revision runs again after an interrupted build.
-- [ ] 5.4 Integration on the local stack, OSS and EE, with a recording email sender: 10 failed runs send one email; fail, edit, fail sends two; a success resolves with no email; a `403` sends one; a `409` sends none; a `waiting` run sends none; a creator who left sends to owners and admins; the switch off sends none and records the notification; the first pass after the deploy sends nothing for failures older than 1 hour.
+- [ ] 5.1 `api/oss/src/core/triggers/failure_notifications.py`: rules A1 to A6, applied per page and per automation (failed and skipped rows oldest first, then healthy rows), before each settle write; the automation read only before an open. (What opens a notification; One open notification per automation; What resolves a notification)
+- [ ] 5.2 The outage brake: the per-pass count of projects after each page, the Redis flag for 15 minutes, one error log, rule A4. (Outage brake)
+- [ ] 5.3 Recipients with `check_human(view_triggers)`, `query_project_members` (all pages), `fetch_organization_owner_id`. (Recipients)
+- [ ] 5.4 Resolve in `TriggersService`: `edit_*`, `refresh_subscription`, `delete_*`, and `set_*_active` with `is_active=true`; failures logged with ids only. Pass `NotificationsService` to `TriggersService` in `api/entrypoints/routers.py` as an optional argument. (What resolves a notification)
+- [ ] 5.5 The `automation_failing` template: name normalization, subject, link, reason catalog, HTML escaping, plain text; passed with `view_triggers` to `NotificationsService` in `api/entrypoints/routers.py`. (Email content; Template and permission of a kind)
 
-## 6. Docs
+## 6. Tests
 
-- [ ] 6.1 Self-hosting docs and release notes: `AGENTA_NOTIFICATIONS_EMAIL_ENABLED`, default on, and what it sends. Use the `write-docs` skill.
-- [ ] 6.2 Confirm with the owner of the separate cloud deployment repository (`agenta_cloud`, not reachable from this session) that its cron image and crontab pick up `deliveries.txt` and `deliveries.sh`.
+- [ ] 6.1 Unit: O1 to O10 (`continued`, `stopped`, `not_running`, an unknown value, a watchdog `lost` then a thawed runner `done`, an error code stored late, an access refusal with `error.code`); A1 to A6 with the timelines in the specs; the outage brake count; recipients; the reason catalog; name normalization; HTML escaping.
+- [ ] 6.2 DAO on Postgres: two concurrent opens; `note_failure` row count, `GREATEST` and `LEAST`; the guarded settle after a re-claim; a `500` re-claim clears `data.outcome`; `turn_signals` skips quarantined records; `query_settled` returns first-turn executions; the partial index is used by the real DAO statement after more than 5 executions (`EXPLAIN`); one large and one small project in the send query.
+- [ ] 6.3 Migration: upgrade and downgrade of both revisions; the index revision after an interrupted build.
+- [ ] 6.4 Integration on the local stack, OSS and EE, with a recording email sender: 10 failed runs send one email; fail, edit, fail sends two; a success resolves with no email; an acquire failure sends one; a `403` sends one; a `409` sends none; a `waiting` run sends none; a creator who left sends to owners and admins; the switch off sends none and records the notification; the first pass after the deploy sends nothing for failures older than 1 hour; an outage across 11 projects opens nothing.
 
-## 7. Owner decisions
+## 7. Docs
 
-D4 to D10 in [design.md](design.md#2-decisions). Each has a default, so work can start. A changed
-answer changes one row of a table or one rule, not the shape.
+- [ ] 7.1 Self-hosting docs and release notes: `AGENTA_NOTIFICATIONS_EMAIL_ENABLED`, default on, and what it sends. Use the `write-docs` skill.
+- [ ] 7.2 Confirm with the owner of the cloud deployment repository (`agenta_cloud`, not reachable from this session) that its cron image builds its crontab from `triggers.txt`, so the new line runs there.
+
+## 8. Owner decisions
+
+D4 to D10 in [design.md](design.md#2-decisions). Each has a default, so work can start.
