@@ -23,6 +23,9 @@ from oss.src.core.tracing.dtos import (
     TracingQuery,
     LogicalOperator,
 )
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
 
 
 def _extract_root_span(trace: Any) -> Optional[Any]:
@@ -95,6 +98,34 @@ def _trace_source_item(
         inputs=ag_data.get("inputs"),
         outputs=ag_data.get("outputs"),
     )
+
+
+def _linked_trace_source_items(
+    *,
+    traces: List[Any],
+    step_key: str,
+) -> List[ResolvedSourceItem]:
+    """Query source items for the traces that have a root span id.
+
+    The root span id becomes the evaluator's `invocation` link, and that link types
+    the evaluator trace `annotation`. A trace without one would give an evaluator
+    trace typed `invocation`, which the next live tick reads back as a new trace.
+    Such a trace also has no outputs to evaluate, so it is skipped.
+    """
+    items: List[ResolvedSourceItem] = []
+    for trace in traces:
+        if not trace or not trace.trace_id:
+            continue
+        item = _trace_source_item(trace=trace, step_key=step_key)
+        if not item.span_id:
+            log.warning(
+                "[EVAL] Skipping a query trace with no root span id.",
+                trace_id=str(item.trace_id),
+                step_key=step_key,
+            )
+            continue
+        items.append(item)
+    return items
 
 
 class SourceResolutionError(Exception):
@@ -552,10 +583,9 @@ class SourceResolution:
         )
 
         return {
-            query_step_key: [
-                _trace_source_item(trace=trace, step_key=query_step_key)
-                for trace in traces
-                if trace and trace.trace_id
-            ]
+            query_step_key: _linked_trace_source_items(
+                traces=traces,
+                step_key=query_step_key,
+            )
             for query_step_key, traces in query_traces.items()
         }
