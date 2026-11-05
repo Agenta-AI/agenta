@@ -1,5 +1,7 @@
+import {clearClassicModeCookie, mobileEscapeHref} from "@agenta/shared/hooks"
 import {
     agentaChannelSurfaceEnabledAtom,
+    betaDeveloperModeFlagAtom,
     channelDebugEnabledAtom,
     classicModeEnabledAtom,
     playgroundInspectorEnabledAtom,
@@ -13,6 +15,7 @@ import {ThemePicker, type ThemePickerProps} from "./ThemePicker"
 /** One switch on the Preferences page. The key names the row, not its storage. */
 export type PreferenceKey =
     | "classic-mode"
+    | "beta-developer-mode"
     | "playground-inspector"
     | "channel-debug"
     | "agenta-channel-surface"
@@ -43,6 +46,12 @@ export const PREFERENCE_SECTIONS: PreferenceSection[] = [
                 key: "classic-mode",
                 title: "Developer Mode",
                 description: "Show Evaluation, Prompt Management, and Tracing in the navigation.",
+            },
+            {
+                key: "beta-developer-mode",
+                title: "Use new beta developer mode",
+                description:
+                    "Developer Mode stays in the new app and shows the Developer section, instead of opening the classic app.",
             },
         ],
     },
@@ -77,12 +86,24 @@ export interface PreferenceBinding {
 
 export type PreferenceBindings = Partial<Record<PreferenceKey, PreferenceBinding>>
 
+/** Bound only while Developer Mode is on; every other row is always bound. */
+type ConditionalPreferenceKey = "beta-developer-mode"
+
 /**
  * Every row bound to its shared atom. A host replaces a binding only where its behavior differs
  * (`/m`'s Developer Mode switch also navigates to the desktop app).
+ *
+ * The beta developer mode row is bound only while Developer Mode is on. Its default binding is the
+ * desktop's: turning it on sends the user to `/m`, where Developer Mode then stays. Turning it off
+ * keeps Developer Mode on as an explicit choice, so the gate cookie says "1" again.
  */
-export const usePreferenceBindings = (): Record<PreferenceKey, PreferenceBinding> => {
+export const usePreferenceBindings = (): Record<
+    Exclude<PreferenceKey, ConditionalPreferenceKey>,
+    PreferenceBinding
+> &
+    PreferenceBindings => {
     const [classicMode, setClassicMode] = useAtom(classicModeEnabledAtom)
+    const [betaDeveloperMode, setBetaDeveloperMode] = useAtom(betaDeveloperModeFlagAtom)
     const [inspector, setInspector] = useAtom(playgroundInspectorEnabledAtom)
     const [channelDebug, setChannelDebug] = useAtom(channelDebugEnabledAtom)
     const [channelProbe, setChannelProbe] = useAtom(agentaChannelSurfaceEnabledAtom)
@@ -92,6 +113,22 @@ export const usePreferenceBindings = (): Record<PreferenceKey, PreferenceBinding
         "playground-inspector": {enabled: inspector, onChange: setInspector},
         "channel-debug": {enabled: channelDebug, onChange: setChannelDebug},
         "agenta-channel-surface": {enabled: channelProbe, onChange: setChannelProbe},
+        ...(classicMode && {
+            "beta-developer-mode": {
+                enabled: betaDeveloperMode,
+                onChange: (enabled: boolean) => {
+                    setBetaDeveloperMode(enabled)
+                    if (!enabled) {
+                        setClassicMode(true)
+                        return
+                    }
+                    // Withdraw the "1" before leaving: the sync effect would not run before the
+                    // document unloads, and `/m`'s gate would send the user straight back.
+                    clearClassicModeCookie()
+                    window.location.replace(mobileEscapeHref())
+                },
+            },
+        }),
     }
 }
 

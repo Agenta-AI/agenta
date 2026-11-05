@@ -14,7 +14,12 @@ import {atomFamily} from "jotai-family"
 
 import type {User} from "../types/user"
 
-import {ACTIVE_USER_ID_KEY, activeUserIdAtom} from "./featureFlags"
+import {
+    ACTIVE_USER_ID_KEY,
+    activeUserIdAtom,
+    userScopedFlagAtom,
+    userSettingsKey,
+} from "./featureFlags"
 import {userAtom} from "./user"
 
 /**
@@ -160,6 +165,14 @@ export const readSettledAdvancedNavHidden = (user: User | null): boolean | null 
     return user ? isSimplifiedCohort(user) : null
 }
 
+const BETA_DEVELOPER_MODE_KEY = "beta-developer-mode"
+
+/**
+ * The "Use new beta developer mode" switch in `/m`. It means something only while Developer Mode
+ * is on: read {@link betaDeveloperModeActiveAtom} to act on it.
+ */
+export const betaDeveloperModeFlagAtom = userScopedFlagAtom(BETA_DEVELOPER_MODE_KEY)
+
 /**
  * What the gate cookie should say, or `undefined` to leave it alone. `null` means "publish
  * nothing" — clear it.
@@ -189,6 +202,10 @@ export const readSettledClassicModeCookie = (user: User | null): "0" | "1" | nul
     if (user?.uid && user.uid !== userId) return undefined
 
     const override = readStoredBoolean(onboardingScopedKey(userId, "nav-simplified-override"))
+    // Beta developer mode keeps Developer Mode in `/m`: the gates get no "1" to act on.
+    if (override === false && readStoredBoolean(userSettingsKey(userId, BETA_DEVELOPER_MODE_KEY))) {
+        return null
+    }
     if (override !== null) return override ? "0" : "1"
 
     if (readStoredBoolean(onboardingScopedKey(userId, "nav-simplified")) === true) return "0"
@@ -206,4 +223,12 @@ export const classicModeEnabledAtom = atom(
     (_get, set, next: boolean) => {
         set(navSimplifiedOverrideAtom, !next)
     },
+)
+
+/**
+ * Developer Mode on, and the user chose to keep it in `/m`. Developer Mode then publishes no gate
+ * cookie (see {@link readSettledClassicModeCookie}), so neither app sends the user to `/w`.
+ */
+export const betaDeveloperModeActiveAtom = atom(
+    (get) => get(classicModeEnabledAtom) && get(betaDeveloperModeFlagAtom),
 )
