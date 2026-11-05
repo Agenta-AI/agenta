@@ -24,6 +24,22 @@ import {MOBILE_NAV_SCOPE_ID, useMobileBottomNavItems, useMobileNavItems} from ".
  * section hook keep stable identities across renders (a fresh slot type would remount the
  * switcher, and with it the drawer's open popover, on every render).
  */
+/** The Prompts developer row's key, as `developerNavItems` builds it (`developer-view-<id>`). */
+const PROMPTS_ROW_KEY = "developer-view-prompts"
+
+/**
+ * The row an app page belongs to. An app's overview and playground sit under `/apps/<id>`, which
+ * the Home row (`/apps`) prefix-matches, but they are not Home: a prompt app is listed under
+ * Prompts. Null for every other route, where the route match is right.
+ */
+export const selectedKeyOverrideFor = (
+    pathname: string,
+    sessionId: string | null,
+): string | undefined => {
+    if (sessionId) return `${SESSIONS_SIDEBAR_KEY}-${sessionId}`
+    return /\/apps\/\[app_id\]\/(overview|playground)$/.test(pathname) ? PROMPTS_ROW_KEY : undefined
+}
+
 const createMobileNavScope = (workspaceId: string, projectId: string): SidebarScope => {
     const projectURL = `/w/${workspaceId}/p/${projectId}`
 
@@ -36,12 +52,10 @@ const createMobileNavScope = (workspaceId: string, projectId: string): SidebarSc
         const router = useRouter()
         const sessionId =
             typeof router.query.session_id === "string" ? router.query.session_id : null
+        const selectedKeyOverride = selectedKeyOverrideFor(router.pathname, sessionId)
         return useMemo(
-            () =>
-                sessionId
-                    ? {mode: "route", selectedKeyOverride: `${SESSIONS_SIDEBAR_KEY}-${sessionId}`}
-                    : {mode: "route"},
-            [sessionId],
+            () => (selectedKeyOverride ? {mode: "route", selectedKeyOverride} : {mode: "route"}),
+            [selectedKeyOverride],
         )
     }
 
