@@ -72,12 +72,23 @@ export const TestsetGrid = ({
         [searchTerm, tableConfig],
     )
 
+    // The table hides its toolbar while it has no rows, so then the toolbar shows above it: a
+    // new test set whose rows were all deleted can still get columns.
+    const gridRows = useAtomValue(testcaseDataController.selectors.rows(gridConfig))
+    const noRows = gridRows.length === 0
+    // A selected row can leave the search results after an edit; bulk delete takes only the
+    // rows the reader can see.
+    const visibleSelected = useMemo(() => {
+        const visible = new Set(gridRows.map((row) => row.id))
+        return selected.filter((id) => visible.has(id))
+    }, [gridRows, selected])
+
     const deleteSelected = useCallback(() => {
-        if (readOnly || selected.length === 0) return
-        deleteRows(selected)
-        message.success(deletedRowsMessage(selected.length))
+        if (readOnly || visibleSelected.length === 0) return
+        deleteRows(visibleSelected)
+        message.success(deletedRowsMessage(visibleSelected.length))
         setSelected([])
-    }, [deleteRows, readOnly, selected])
+    }, [deleteRows, readOnly, visibleSelected])
 
     const appendColumns = useMemo<ColumnDefs<TestcaseTableRow>>(
         () => [
@@ -142,21 +153,18 @@ export const TestsetGrid = ({
         [editor, step],
     )
 
-    // The table hides its toolbar while it has no rows, so then the toolbar shows above it: a
-    // new test set whose rows were all deleted can still get columns.
-    const gridRows = useAtomValue(testcaseDataController.selectors.rows(gridConfig))
-    const noRows = gridRows.length === 0
-
     const toolbar = canEdit ? (
         <div className="flex items-center gap-2">
             <SimpleTooltip
-                title={selected.length === 0 ? "Select testcases to delete" : "Delete selected"}
+                title={
+                    visibleSelected.length === 0 ? "Select testcases to delete" : "Delete selected"
+                }
             >
                 <span className="inline-flex">
                     <Button
                         variant="outline"
                         size="sm"
-                        disabled={readOnly || selected.length === 0}
+                        disabled={readOnly || visibleSelected.length === 0}
                         onClick={deleteSelected}
                     >
                         <Trash aria-hidden size={14} />

@@ -142,6 +142,10 @@ describe("EntityTable collapsed group column", () => {
         })
         expect(collapsedGroupValue({"meta.lang": {a: 1}}, "meta.lang")).toEqual({a: 1})
         expect(collapsedGroupValue({customer: "text"}, "customer.orders")).toBeUndefined()
+        // A dotted key inside a nested path stays one key.
+        expect(
+            collapsedGroupValue({"meta.lang": {orders: {count: 18}}}, "meta.lang.orders"),
+        ).toEqual({count: 18})
         expect(collapsedGroupValue(null, "customer")).toBeUndefined()
     })
 })

@@ -86,4 +86,28 @@ describe("testcaseDataController search", () => {
             store.get(testcaseDataController.selectors.columns(searched)).map((c) => c.key),
         ).toEqual(["country", "capital", "note"])
     })
+
+    it("shows the columns of a matching row past the first 20", () => {
+        const store = createStore()
+        for (let index = 0; index < 20; index++) {
+            store.set(testcaseMolecule.actions.add, {data: {country: `Country ${index}`}})
+        }
+        store.set(testcaseMolecule.actions.add, {data: {country: "Peru", note: "late"}})
+        const config = {scopeId: "scope-late", revisionId: "rev-1", includeNewRows: true}
+
+        const keys = (searchTerm?: string) =>
+            store
+                .get(testcaseDataController.selectors.columns({...config, searchTerm}))
+                .map((column) => column.key)
+        expect(keys("peru")).toEqual(["country", "note"])
+    })
+
+    it("keeps a user column named id or data", () => {
+        const store = createStore()
+        store.set(testcaseMolecule.actions.add, {data: {id: "user-id", data: null, question: "Q"}})
+        const config = {scopeId: "scope-id-data", revisionId: "rev-1", includeNewRows: true}
+        expect(
+            store.get(testcaseDataController.selectors.columns(config)).map((c) => c.key),
+        ).toEqual(["id", "data", "question"])
+    })
 })

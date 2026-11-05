@@ -24,13 +24,20 @@ vi.mock("@agenta/entities/testcase", () => {
         {key: "meta.lang", label: "lang", parentKey: "meta"},
         {key: "meta.tone", label: "tone", parentKey: "meta"},
     ])
-    const rows = atom([{id: "case-1"}])
+    const rows = atom([{id: "case-1"}, {id: "new-1"}])
+    // A search that shows only case-1.
+    const narrowRows = atom([{id: "case-1"}])
     const noRows = atom([] as {id: string}[])
     return {
         testcaseDataController: {
             selectors: {
                 columns: () => columns,
-                rows: (config: {scopeId: string}) => (config.scopeId === "empty" ? noRows : rows),
+                rows: (config: {scopeId: string}) =>
+                    config.scopeId === "empty"
+                        ? noRows
+                        : config.scopeId === "narrow"
+                          ? narrowRows
+                          : rows,
             },
         },
     }
@@ -281,6 +288,19 @@ describe("Test set grid", () => {
 
         expect(editor.deleteRows).toHaveBeenCalledWith(["case-1", "new-1"])
         expect(toast.success).toHaveBeenCalledWith("Deleted 2 testcase(s). Save to apply changes.")
+    })
+
+    it("Bulk delete takes only the selected rows the grid still shows", async () => {
+        const editor = fakeEditor({
+            tableConfig: {scopeId: "narrow", revisionId: "rev-2", includeNewRows: true},
+        })
+        mount(editor)
+        // Both rows are selected; only case-1 is still shown.
+        await click(button("Select all"))
+        await click(button("Delete"))
+
+        expect(editor.deleteRows).toHaveBeenCalledWith(["case-1"])
+        expect(toast.success).toHaveBeenCalledWith("Deleted testcase. Save to apply changes.")
     })
 
     it("A reader without edit_testsets sees no column or row edit actions", async () => {
