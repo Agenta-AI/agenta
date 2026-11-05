@@ -5,13 +5,15 @@ import {useTestsetMenuModel} from "@agenta/playground-ui/hooks"
 import {TestsetMenu} from "@agenta/playground-ui/panels/runs"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useStore} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
+import {useProjectPermission} from "../context/useProjectPermission"
 import type {CreatedTestset} from "../testsets/create/useUploadTestset"
 
 import {createdTestsetPayload} from "./createdTestsetLoad"
+import {runTraceIds} from "./playgroundRunTraces"
 
 // Each dialog downloads when it first opens: the menu button is all the run pane loads.
 const LoadTestsetDialog = dynamic(
@@ -38,6 +40,8 @@ const CreateTestsetDialog = dynamic(
     () => import("../testsets/create/CreateTestsetDialog").then((m) => m.CreateTestsetDialog),
     {ssr: false},
 )
+// "Add to test set" opens the traces page's sheet with the runs of this page.
+const PlaygroundAddToTestset = dynamic(() => import("./PlaygroundAddToTestset"), {ssr: false})
 const EntityCommitModal = dynamic(
     () => import("@agenta/entity-ui/modals").then((module) => module.EntityCommitModal),
     {ssr: false},
@@ -63,8 +67,12 @@ export const PlaygroundTestsetMenu = () => {
     const {dialog, loadableId} = model
     const [syncMode, setSyncMode] = useState("commit")
     const [creating, setCreating] = useState(false)
+    // The traces of the runs to add, read when the user picks "Add to test set".
+    const [adding, setAdding] = useState<string[] | null>(null)
+    const store = useStore()
     const router = useRouter()
     const projectId = useAtomValue(projectIdAtom) as string | null
+    const canAddToTestset = useProjectPermission(projectId ?? "", "edit_testsets")
     // Leaving the page while the rows load must not connect a playground that is gone.
     const mounted = useRef(true)
     useEffect(() => {
@@ -92,7 +100,17 @@ export const PlaygroundTestsetMenu = () => {
 
     return (
         <>
-            <TestsetMenu model={model} />
+            <TestsetMenu
+                model={model}
+                onAddToTestset={
+                    canAddToTestset
+                        ? () => setAdding(runTraceIds(store.get, loadableId))
+                        : undefined
+                }
+            />
+            {adding ? (
+                <PlaygroundAddToTestset traceIds={adding} onClose={() => setAdding(null)} />
+            ) : null}
             {dialog?.kind === "load" || dialog?.kind === "edit" ? (
                 <LoadTestsetDialog
                     loadableId={loadableId}
