@@ -29,7 +29,7 @@ _EMAIL_TEMPLATE = (
 )
 
 
-def _render_email_template(
+def render_email_template(
     *,
     username: str,
     action: str,
@@ -89,7 +89,7 @@ async def send_email(
     raises on a send failure or missing sender address.
     """
 
-    html_content = _render_email_template(
+    html_content = render_email_template(
         username=username,
         action=action,
         workspace=workspace,

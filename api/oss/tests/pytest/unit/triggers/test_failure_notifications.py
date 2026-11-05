@@ -365,7 +365,10 @@ def test_the_email_has_every_part(monkeypatch):
     assert email.subject == 'Automation "Daily report" in Growth is failing'
     assert email.text == "\n".join(
         [
-            'The automation "Daily report" in the project "Growth" is failing.',
+            "Hello,",
+            "",
+            'The automation "Daily report" has started failing in the project '
+            '"Growth" on Agenta.',
             "",
             "Failing since: 2026-11-05 11:50 UTC",
             "What happened: Agenta could not start the run.",
@@ -374,8 +377,12 @@ def test_the_email_has_every_part(monkeypatch):
             f"Open automation: {link}",
             "",
             "You will not get another email about this until it is fixed.",
+            "",
+            "Thank you for using Agenta!",
         ]
     )
+    assert email.html.startswith("<p>Hello,</p>")
+    assert email.html.rstrip().endswith("<p>Thank you for using Agenta!</p>")
     assert f'<a href="{link}">Open automation</a>' in email.html
     assert "Failing since:</strong> 2026-11-05 11:50 UTC" in email.html
 

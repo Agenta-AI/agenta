@@ -170,7 +170,7 @@ notification layer and the UI. The trigger layer keeps its own names.
 | Interfaces | `SessionExecutionsDAOInterface.query_settled` (exists); `RecordsDAOInterface.turn_signals` (new); `TriggersDAOInterface.query_unsettled_deliveries` and `settle_delivery` (new); `MembershipsService.fetch_member_emails(user_ids)` and `fetch_project_summary(project_id)` (project name, organization id, organization owner id; new, in the memberships DAO on its existing summary columns, G35). |
 | DB | `api/oss/src/dbs/postgres/notifications/` (`dbes.py`, `dao.py`, `mappings.py`). |
 | API | `POST /admin/triggers/deliveries/settle` on the triggers admin router (`api/oss/src/apis/fastapi/triggers/router.py`), with the admin `Access` auth. It runs `OutcomesService.settle_pass()`, then `NotificationsService.send_pending()`. |
-| Cron | one more line in `api/oss/src/crons/triggers.txt`, in the same form as the existing line: five time fields, the `root` user field, an inline `curl -s --max-time 75 -X POST -H "Authorization: Access ${AGENTA_AUTH_KEY}" http://api:8000/admin/triggers/deliveries/settle`, no `%`, and the `>> /proc/1/fd/1 2>&1` suffix, which the Dockerfiles remove. supercronic passes the container environment to the job. No new cron file: the Dockerfiles already turn every line of `triggers.txt` into the crontab (G45). |
+| Cron | one more line in `api/oss/src/crons/triggers.txt`, in the same form as the existing line: five time fields, the `root` user field, an inline `curl -sS --max-time 75 -X POST -H "Authorization: Access ${AGENTA_AUTH_KEY:-replace-me}" http://api:8000/admin/triggers/deliveries/settle`, no `%`, and the `>> /proc/1/fd/1 2>&1` suffix, which the Dockerfiles remove. supercronic passes the container environment to the job. No new cron file: the Dockerfiles already turn every line of `triggers.txt` into the crontab (G45). |
 | Wiring | `api/entrypoints/routers.py`: build `NotificationsDAO` and `NotificationsService(dao, memberships_service, template)`; build `OutcomesService(triggers_dao, session_executions_dao, records_dao, notifications_service, memberships_service, access_service)`; pass `NotificationsService` to `TriggersService` as an optional argument (default `None`, G31); pass `OutcomesService` and `NotificationsService` to the triggers router for the admin route. The records DAO uses the tracing engine; every other DAO uses the core engine. |
 
 Dependency direction: `core/triggers` → `core/notifications` → `core/access`, `core/memberships`.
@@ -411,7 +411,9 @@ After settling, the route calls `NotificationsService.send_pending()`.
 ```text
 Subject: Automation "{automation_name}" in {project_name} is failing
 
-The automation "{automation_name}" in the project "{project_name}" is failing.
+Hello,
+
+The automation "{automation_name}" has started failing in the project "{project_name}" on Agenta.
 
 Failing since: {failed_at, UTC}
 What happened: {reason}
@@ -420,7 +422,11 @@ What to do: {action}
 [Open automation]  {link}
 
 You will not get another email about this until it is fixed.
+
+Thank you for using Agenta!
 ```
+
+The HTML part uses `render_email_template`, the template of the invitation and password reset emails.
 
 - `automation_name` and `project_name` (from `MembershipsService.fetch_project_summary`): every
   character in the Unicode categories Cc, Cf, Zl and Zp becomes a space, runs of spaces become one,
@@ -488,6 +494,9 @@ today's rule, because a merged `data` can keep an old outcome (G8). The zod sche
     one minute per 100 (D18).
 17. **Helm.** The settle route depends on the cron host, which does not match the chart's Service
     name (G45). Until that separate bug is fixed, Helm installs settle no outcomes and send no email.
+18. **A provider outage longer than 5 minutes** spends the 5 attempts of the oldest delivery, about one
+    delivery per 5 minutes. That delivery ends `failed`, its notification stays open, and that person
+    gets no email until the automation is fixed and fails again.
 
 ## 11. Separate bugs, out of this change
 

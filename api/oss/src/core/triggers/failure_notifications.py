@@ -18,6 +18,7 @@ from oss.src.core.triggers.dtos import (
     UnsettledTriggerDelivery,
 )
 from oss.src.core.triggers.interfaces import TriggersDAOInterface
+from oss.src.utils.emailing import render_email_template
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
@@ -260,12 +261,14 @@ def render_automation_failing(project_id: UUID, data: Dict[str, Any]) -> Rendere
             quote(data["automation_id"], safe=""),
         ]
     )
-    intro = 'The automation "{automation}" in the project "{project}" is failing.'
     closing = "You will not get another email about this until it is fixed."
 
     text = "\n".join(
         [
-            intro.format(automation=automation_name, project=project_name),
+            "Hello,",
+            "",
+            f'The automation "{automation_name}" has started failing in the project '
+            f'"{project_name}" on Agenta.',
             "",
             f"Failing since: {failed_at}",
             f"What happened: {reason}",
@@ -274,28 +277,27 @@ def render_automation_failing(project_id: UUID, data: Dict[str, Any]) -> Rendere
             f"Open automation: {link}",
             "",
             closing,
+            "",
+            "Thank you for using Agenta!",
         ]
     )
 
     def escaped(value: str) -> str:
         return html.escape(value, quote=True)
 
-    html_part = "\n".join(
-        [
-            "<p>"
-            + intro.format(
-                automation=escaped(automation_name),
-                project=escaped(project_name),
-            )
-            + "</p>",
-            "<p>",
-            f"  <strong>Failing since:</strong> {escaped(failed_at)}<br />",
-            f"  <strong>What happened:</strong> {escaped(reason)}<br />",
-            f"  <strong>What to do:</strong> {escaped(action)}",
-            "</p>",
-            f'<p><a href="{escaped(link)}">Open automation</a></p>',
-            f"<p>{escaped(closing)}</p>",
-        ]
+    html_part = render_email_template(
+        username=f'The automation "{escaped(automation_name)}"',
+        action="started failing in",
+        workspace=f'the project "{escaped(project_name)}"',
+        call_to_action="\n".join(
+            [
+                f"<strong>Failing since:</strong> {escaped(failed_at)}<br />",
+                f"<strong>What happened:</strong> {escaped(reason)}<br />",
+                f"<strong>What to do:</strong> {escaped(action)}</p>",
+                f'<p><a href="{escaped(link)}">Open automation</a></p>',
+                f"<p>{escaped(closing)}",
+            ]
+        ),
     )
 
     return RenderedEmail(
