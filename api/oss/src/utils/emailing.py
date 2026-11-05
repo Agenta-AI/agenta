@@ -13,6 +13,8 @@ from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
 
+RENDERED_EMAIL_TIMEOUT_SECONDS = 15
+
 
 # Shared invitation/notification email template. Inlined (rather than a file)
 # since it is tiny and avoids per-send file I/O and path resolution.
@@ -224,6 +226,85 @@ def _send_sendgrid_email_sync(
 
     sendgrid.send(message)
     return True
+
+
+def _send_rendered_smtp_sync(message: EmailMessage) -> None:
+    username = env.smtp.username
+    password = env.smtp.password
+    if bool(username) != bool(password):
+        raise RuntimeError(
+            "SMTP_USERNAME and SMTP_PASSWORD must be configured together"
+        )
+
+    context = ssl.create_default_context()
+    timeout = env.smtp.timeout or RENDERED_EMAIL_TIMEOUT_SECONDS
+
+    if env.smtp.use_ssl:
+        with smtplib.SMTP_SSL(
+            env.smtp.host,
+            env.smtp.port,
+            context=context,
+            timeout=timeout,
+        ) as smtp:
+            if username and password:
+                smtp.login(username, password)
+            smtp.send_message(message)
+    else:
+        with smtplib.SMTP(env.smtp.host, env.smtp.port, timeout=timeout) as smtp:
+            if env.smtp.use_tls:
+                smtp.starttls(context=context)
+            if username and password:
+                smtp.login(username, password)
+            smtp.send_message(message)
+
+
+def _send_rendered_sendgrid_sync(mail: Mail) -> None:
+    sendgrid = _load_sendgrid()
+    if sendgrid is None:
+        raise RuntimeError("The SendGrid client could not be built")
+
+    sendgrid.client.mail.send.post(
+        request_body=mail.get(),
+        timeout=RENDERED_EMAIL_TIMEOUT_SECONDS,
+    )
+
+
+async def send_rendered_email(
+    to_email: str,
+    subject: str,
+    html: str,
+    text: str,
+) -> None:
+    """Send a rendered email with a plain-text part and an HTML part.
+
+    Raises when no provider is set up, when the SendGrid client cannot be built, and
+    when the provider fails. It does not log: a provider error can hold the address.
+    """
+
+    sender = _get_sender_email()
+
+    if env.smtp.enabled:
+        message = EmailMessage()
+        message["From"] = sender
+        message["To"] = to_email
+        message["Subject"] = subject
+        message.set_content(text)
+        message.add_alternative(html, subtype="html")
+        await asyncio.to_thread(_send_rendered_smtp_sync, message)
+        return
+
+    if env.sendgrid.enabled:
+        mail = Mail(
+            from_email=sender,
+            to_emails=to_email,
+            subject=subject,
+            plain_text_content=text,
+            html_content=html,
+        )
+        await asyncio.to_thread(_send_rendered_sendgrid_sync, mail)
+        return
+
+    raise RuntimeError("No email provider is set up")
 
 
 async def add_contact(

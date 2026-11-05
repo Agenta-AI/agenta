@@ -9,6 +9,7 @@ from oss.src.core.sessions.records.dtos import (
     SessionRecordsReplay,
     SessionRecordsReadState,
     RunnerEnding,
+    TurnSignals,
 )
 
 
@@ -95,6 +96,17 @@ class RecordsDAOInterface:
         project_id: UUID,
         session_ids: List[str],
     ) -> Dict[str, SessionMessagePreview]:
+        raise NotImplementedError
+
+    async def turn_signals(
+        self,
+        *,
+        project_id: UUID,
+        keys: Sequence[Tuple[str, str]],
+    ) -> Dict[Tuple[str, str], TurnSignals]:
+        """For `(session_id, turn_id)` keys, the newest `done`'s `stopReason` and the code
+        of the newest `error` record that has one. Deleted and quarantined records do not
+        count."""
         raise NotImplementedError
 
     async def settled_turns(

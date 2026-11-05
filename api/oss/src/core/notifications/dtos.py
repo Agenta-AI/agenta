@@ -1,0 +1,42 @@
+from enum import Enum
+from typing import Any, Dict
+from uuid import UUID
+
+from pydantic import BaseModel
+
+
+class NotificationKind(str, Enum):
+    AUTOMATION_FAILING = "automation_failing"
+
+
+class NotificationState(str, Enum):
+    OPEN = "open"
+    RESOLVED = "resolved"
+
+
+class NotificationDeliveryState(str, Enum):
+    CREATED = "created"
+    SENT = "sent"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+
+
+class NotificationChannel(str, Enum):
+    EMAIL = "email"
+
+
+class PendingNotificationDelivery(BaseModel):
+    """A `created` notification delivery, read with its notification."""
+
+    project_id: UUID
+    id: UUID
+    notification_id: UUID
+    user_id: UUID
+    notification_state: NotificationState
+    data: Dict[str, Any]
+
+
+class RenderedEmail(BaseModel):
+    subject: str
+    html: str
+    text: str

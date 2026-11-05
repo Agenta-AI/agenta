@@ -858,6 +858,14 @@ class AuthCodeRateLimitConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
+class NotificationsConfig(BaseModel):
+    """Notification delivery configuration"""
+
+    email_enabled: bool = _parse_bool_env("AGENTA_NOTIFICATIONS_EMAIL_ENABLED", True)
+
+    model_config = ConfigDict(extra="ignore")
+
+
 class AgentaConfig(BaseModel):
     """Agenta core configuration"""
 
@@ -897,6 +905,7 @@ class AgentaConfig(BaseModel):
     auth_code_rate_limit: AuthCodeRateLimitConfig = AuthCodeRateLimitConfig()
     billing: BillingConfig = BillingConfig()
     logging: LoggingConfig = LoggingConfig()
+    notifications: NotificationsConfig = NotificationsConfig()
     otlp: OTLPConfig = OTLPConfig()
     redaction: RedactionConfig = RedactionConfig()
     server_tracing: ServerTracingConfig = ServerTracingConfig()

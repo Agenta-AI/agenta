@@ -41,6 +41,13 @@ def runner_ending(stop_reason: Optional[str]) -> Optional[RunnerEnding]:
     return "failed" if stop_reason == "error" else "completed"
 
 
+class TurnSignals(BaseModel):
+    """What a turn's records say about its ending."""
+
+    stop_reason: Optional[str] = None
+    error_code: Optional[str] = None
+
+
 class SessionRecordEvent(BaseModel):
     project_id: UUID
     session_id: str

@@ -132,4 +132,13 @@ class TriggerDeliveryDBE(Base, TriggerDeliveryDBA):
             unique=True,
             postgresql_where=text("schedule_id IS NOT NULL"),
         ),
+        Index(
+            "ix_trigger_deliveries_unsettled_created_at_id",
+            "created_at",
+            "id",
+            postgresql_where=text(
+                "(data->>'outcome') IS NULL "
+                "AND (status->>'code') IN ('202','400','403','422','500')"
+            ),
+        ),
     )

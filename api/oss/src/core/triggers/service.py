@@ -55,6 +55,7 @@ from oss.src.core.triggers.dtos import (
     TriggerSubscriptionEdit,
     TriggerSubscriptionQuery,
 )
+from oss.src.core.notifications.service import NotificationsService
 from oss.src.core.triggers.exceptions import (
     AdapterError,
     ConnectionNotFoundError,
@@ -63,6 +64,7 @@ from oss.src.core.triggers.exceptions import (
     TriggerReferenceInvalid,
     TriggerScheduleInvalid,
 )
+from oss.src.core.triggers.failure_notifications import automation_dedup_key
 from oss.src.core.triggers.interfaces import TriggersDAOInterface
 from oss.src.core.triggers.registry import TriggersGatewayRegistry
 from oss.src.core.triggers.utils import WebhookSecretResolver
@@ -360,6 +362,7 @@ class TriggersService:
         workflows_service: WorkflowsService,
         # Assigned post-construction in the composition root (worker wiring); guarded at use.
         schedule_dispatch_task: Optional[Any] = None,
+        notifications_service: Optional[NotificationsService] = None,
     ):
         self.adapter_registry = adapter_registry
         self.catalog_service = catalog_service
@@ -367,11 +370,33 @@ class TriggersService:
         self.connections_service = connections_service
         self.workflows_service = workflows_service
         self.schedule_dispatch_task = schedule_dispatch_task
+        self.notifications_service = notifications_service
         # Refuses a turn-on while the agent's model needs setup. Set at wiring.
         self.needs_setup_guard: Optional[Any] = None
         self.webhook_secret_resolver = WebhookSecretResolver(
             adapter_registry=adapter_registry,
         )
+
+    async def _resolve_failure_notification(
+        self,
+        *,
+        project_id: UUID,
+        automation_id: UUID,
+    ) -> None:
+        if self.notifications_service is None:
+            return
+        try:
+            await self.notifications_service.resolve(
+                project_id=project_id,
+                dedup_key=automation_dedup_key(automation_id),
+            )
+        except Exception as error:  # pylint: disable=broad-exception-caught
+            log.warning(
+                "[triggers] failed to resolve the failure notification",
+                project_id=str(project_id),
+                automation_id=str(automation_id),
+                error_type=type(error).__name__,
+            )
 
     # -----------------------------------------------------------------------
     # Catalog browse — providers + integrations come from the SHARED gateway
@@ -1154,6 +1179,28 @@ class TriggersService:
         subscription: TriggerSubscriptionEdit,
         principal: PrincipalRef,
     ) -> Optional[TriggerSubscription]:
+        edited = await self._edit_subscription(
+            project_id=project_id,
+            user_id=user_id,
+            subscription=subscription,
+            principal=principal,
+        )
+        # A rename of a paused automation leaves it paused, so it fixes nothing.
+        if edited is not None and edited.flags.is_active:
+            await self._resolve_failure_notification(
+                project_id=project_id, automation_id=edited.id
+            )
+        return edited
+
+    async def _edit_subscription(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        subscription: TriggerSubscriptionEdit,
+        principal: PrincipalRef,
+    ) -> Optional[TriggerSubscription]:
         """Full-PUT edit. Reflects the connection, event, trigger_config and the
         combined is_active/is_valid onto the provider ``ti_*``. The editor
         (`principal`) becomes the executing principal in the same write."""
@@ -1317,6 +1364,10 @@ class TriggersService:
                 subscription_id=subscription_id,
             )
 
+        if deleted:
+            await self._resolve_failure_notification(
+                project_id=project_id, automation_id=subscription_id
+            )
         return deleted
 
     async def _delete_provider_subscription(
@@ -1522,6 +1573,10 @@ class TriggersService:
                 )
         if updated is None:
             raise SubscriptionNotFoundError(subscription_id=str(subscription_id))
+        if is_active:
+            await self._resolve_failure_notification(
+                project_id=project_id, automation_id=subscription_id
+            )
         return updated
 
     async def test_subscription(
@@ -1848,13 +1903,19 @@ class TriggersService:
         )
 
         # The target agent follows the edited references.
-        return await self.dao.edit_schedule(
+        edited = await self.dao.edit_schedule(
             project_id=project_id,
             user_id=user_id,
             schedule=schedule,
             artifact_id=artifact_id,
             principal=principal,
         )
+        # A rename of a paused automation leaves it paused, so it fixes nothing.
+        if edited is not None and edited.flags.is_active:
+            await self._resolve_failure_notification(
+                project_id=project_id, automation_id=edited.id
+            )
+        return edited
 
     async def delete_schedule(
         self,
@@ -1864,11 +1925,16 @@ class TriggersService:
         #
         schedule_id: UUID,
     ) -> bool:
-        return await self.dao.delete_schedule(
+        deleted = await self.dao.delete_schedule(
             project_id=project_id,
             user_id=user_id,
             schedule_id=schedule_id,
         )
+        if deleted:
+            await self._resolve_failure_notification(
+                project_id=project_id, automation_id=schedule_id
+            )
+        return deleted
 
     async def set_schedule_active(
         self,
@@ -1920,6 +1986,10 @@ class TriggersService:
         )
         if updated is None:
             raise ScheduleNotFoundError(schedule_id=str(schedule_id))
+        if is_active:
+            await self._resolve_failure_notification(
+                project_id=project_id, automation_id=schedule_id
+            )
         return updated
 
     async def refresh_schedules(

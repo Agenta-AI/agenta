@@ -26,7 +26,7 @@ def _service(*, revision_artifact_id=None):
     dao = MagicMock()
     dao.create_schedule = AsyncMock(side_effect=lambda **kw: kw)
     dao.fetch_schedule = AsyncMock(return_value=SimpleNamespace(id=uuid4()))
-    dao.edit_schedule = AsyncMock(side_effect=lambda **kw: kw)
+    dao.edit_schedule = AsyncMock(return_value=MagicMock())
     workflows = MagicMock()
     workflows.retrieve_workflow_revision = AsyncMock(
         return_value=(

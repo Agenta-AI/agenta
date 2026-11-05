@@ -1,9 +1,20 @@
 import asyncio
+import json
 from datetime import datetime, timezone
 from typing import Any, List, Optional, Tuple
 from uuid import UUID
 
-from sqlalchemy import Boolean, cast, delete, func, literal, select, update
+from sqlalchemy import (
+    Boolean,
+    cast,
+    delete,
+    func,
+    literal,
+    select,
+    text,
+    tuple_,
+    update,
+)
 from sqlalchemy.dialects.postgresql import JSON, JSONB, insert
 from sqlalchemy.exc import IntegrityError
 
@@ -14,6 +25,7 @@ from oss.src.core.triggers.dtos import (
     TriggerDelivery,
     TriggerDeliveryCreate,
     TriggerDeliveryData,
+    TriggerDeliveryOutcome,
     TriggerDeliveryQuery,
     TriggerSchedule,
     TriggerScheduleCreate,
@@ -23,6 +35,7 @@ from oss.src.core.triggers.dtos import (
     TriggerSubscriptionCreate,
     TriggerSubscriptionEdit,
     TriggerSubscriptionQuery,
+    UnsettledTriggerDelivery,
 )
 from oss.src.core.access.dtos import PrincipalRef
 from oss.src.core.triggers.interfaces import KEEP_ARTIFACT_ID, TriggersDAOInterface
@@ -47,6 +60,7 @@ from oss.src.dbs.postgres.triggers.mappings import (
     map_subscription_dbe_to_dto,
     map_subscription_dto_to_dbe_create,
     map_subscription_dto_to_dbe_edit,
+    map_unsettled_delivery_dbe_to_dto,
 )
 from oss.src.dbs.postgres.triggers.upsert_utils import (
     build_trigger_delivery_conflict,
@@ -54,6 +68,22 @@ from oss.src.dbs.postgres.triggers.upsert_utils import (
 )
 
 log = get_module_logger(__name__)
+
+# Literal SQL, not bind parameters: a prepared statement must still match the partial
+# index `ix_trigger_deliveries_unsettled_created_at_id`.
+_UNSETTLED_FILTER = text(
+    "(trigger_deliveries.data->>'outcome') IS NULL "
+    "AND (trigger_deliveries.status->>'code') IN ('202','400','403','422','500') "
+    "AND trigger_deliveries.created_at > now() - interval '24 hours'"
+)
+
+_SETTLE_DELIVERY_SQL = """
+UPDATE trigger_deliveries
+SET data = (coalesce(data::jsonb, '{}'::jsonb) || CAST(:settled AS jsonb))::json
+WHERE project_id = :project_id AND id = :id
+  AND (status->>'code') = :status_code
+  AND (data->>'outcome') IS NULL
+"""
 
 
 def _set_principal(dbe, *, principal: PrincipalRef) -> None:
@@ -713,6 +743,58 @@ class TriggersDAO(TriggersDAOInterface):
         return map_delivery_dbe_to_dto(
             delivery_dbe=delivery_dbe,
         )
+
+    async def query_unsettled_deliveries(
+        self,
+        *,
+        before: Optional[Tuple[datetime, UUID]],
+        limit: int,
+    ) -> List[UnsettledTriggerDelivery]:
+        stmt = select(TriggerDeliveryDBE).where(_UNSETTLED_FILTER)
+        if before is not None:
+            stmt = stmt.where(
+                tuple_(TriggerDeliveryDBE.created_at, TriggerDeliveryDBE.id) < before
+            )
+        stmt = stmt.order_by(
+            TriggerDeliveryDBE.created_at.desc(),
+            TriggerDeliveryDBE.id.desc(),
+        ).limit(limit)
+
+        async with self.engine.session() as session:
+            delivery_dbes = (await session.execute(stmt)).scalars().all()
+
+        return [
+            map_unsettled_delivery_dbe_to_dto(delivery_dbe=delivery_dbe)
+            for delivery_dbe in delivery_dbes
+        ]
+
+    async def settle_delivery(
+        self,
+        *,
+        project_id: UUID,
+        delivery_id: UUID,
+        status_code: str,
+        outcome: TriggerDeliveryOutcome,
+        reason_code: Optional[str],
+    ) -> bool:
+        settled = {"outcome": outcome.value}
+        if reason_code is not None:
+            settled["reason_code"] = reason_code
+
+        async with self.engine.session() as session:
+            rowcount = (
+                await session.execute(
+                    text(_SETTLE_DELIVERY_SQL),
+                    {
+                        "project_id": project_id,
+                        "id": delivery_id,
+                        "status_code": status_code,
+                        "settled": json.dumps(settled),
+                    },
+                )
+            ).rowcount
+            await session.commit()
+        return rowcount == 1
 
     async def fetch_delivery(
         self,
