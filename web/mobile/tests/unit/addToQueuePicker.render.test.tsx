@@ -66,6 +66,7 @@ vi.mock("@agenta/ui/app-message", () => ({
 }))
 
 import AddToQueuePicker from "@/features/annotations/AddToQueuePicker"
+import {createQueueFollowUpAtom} from "@/features/annotations/createQueueFollowUpAtom"
 
 const QUEUES = [
     {id: "q-1", name: "Triage", updated_at: "2026-10-01T10:00:00Z", data: {kind: "traces"}},
@@ -76,12 +77,14 @@ const QUEUES = [
 describe("AddToQueuePicker", () => {
     let root: Root
     let host: HTMLElement
+    let store: ReturnType<typeof createStore>
 
     const mount = async (props: Partial<React.ComponentProps<typeof AddToQueuePicker>> = {}) => {
+        // A fresh store per mount: the mocked list atoms cache their first read.
+        store = createStore()
         await act(async () => {
-            // A fresh store per mount: the mocked list atoms cache their first read.
             root.render(
-                <Provider store={createStore()}>
+                <Provider store={store}>
                     <AddToQueuePicker itemType="traces" itemIds={["t-1"]} open {...props}>
                         <button type="button">Trigger</button>
                     </AddToQueuePicker>
@@ -158,6 +161,28 @@ describe("AddToQueuePicker", () => {
         await act(async () => (refunds as HTMLElement).click())
         expect(onQueueSelected).toHaveBeenCalledWith(expect.objectContaining({id: "q-3"}))
         expect(fixture.add).not.toHaveBeenCalled()
+    })
+
+    it("New in picker mode hands the queue it creates to the caller", async () => {
+        const onQueueSelected = vi.fn()
+        await mount({itemIds: undefined, onQueueSelected})
+        const newButton = Array.from(document.querySelectorAll("button")).find(
+            (button) => button.textContent?.trim() === "New",
+        )
+        await act(async () => (newButton as HTMLElement).click())
+
+        // The create sheet runs this with the queue it made.
+        store.get(createQueueFollowUpAtom)?.({id: "q-new", name: "Fresh"} as never)
+        expect(onQueueSelected).toHaveBeenCalledWith(expect.objectContaining({id: "q-new"}))
+    })
+
+    it("New with items to add leaves no follow-up: the sheet adds the items itself", async () => {
+        await mount()
+        const newButton = Array.from(document.querySelectorAll("button")).find(
+            (button) => button.textContent?.trim() === "New",
+        )
+        await act(async () => (newButton as HTMLElement).click())
+        expect(store.get(createQueueFollowUpAtom)).toBeNull()
     })
 
     it("A failed add shows a fixed sentence, not the raw error", async () => {

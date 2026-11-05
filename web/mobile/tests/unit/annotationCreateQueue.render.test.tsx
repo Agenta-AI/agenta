@@ -7,6 +7,7 @@ import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
+import {createQueueFollowUpAtom} from "@/features/annotations/createQueueFollowUpAtom"
 import {CreateQueueSheet} from "@/features/annotations/CreateQueueSheet"
 
 import {routerPush} from "../support/nextRouter"
@@ -253,6 +254,20 @@ describe("CreateQueueSheet", () => {
         )
         expect(fixture.addTestcases).toHaveBeenCalledWith("q-2", ["tc-1", "tc-2"])
         expect(store.get(createQueueDrawerSelectionAtom)).toBeNull()
+        expect(store.get(createQueueDrawerOpenAtom)).toBe(false)
+    })
+
+    it("A queue created from the add all matching picker goes to that picker's caller", async () => {
+        fixture.create.mockResolvedValue({id: "q-9", name: "Refunds"})
+        const followUp = vi.fn()
+        await mount()
+        store.set(createQueueFollowUpAtom, () => followUp)
+
+        await type('input[placeholder="Enter name"]', "Refunds")
+        await click(byText("Add evaluator"))
+        await click(byText("Create"))
+        expect(followUp).toHaveBeenCalledWith({id: "q-9", name: "Refunds"})
+        expect(store.get(createQueueFollowUpAtom)).toBeNull()
         expect(store.get(createQueueDrawerOpenAtom)).toBe(false)
     })
 

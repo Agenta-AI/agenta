@@ -14,6 +14,7 @@ import {useProjectPermission} from "@/features/context/useProjectPermission"
 import {useDeveloperViewEnabled} from "@/features/developer/developerViewAccess"
 
 import {AddToQueuePickerPanel} from "./AddToQueuePickerPanel"
+import {createQueueFollowUpAtom} from "./createQueueFollowUpAtom"
 import {useAddToQueuePicker} from "./useAddToQueuePicker"
 
 const PickerBody = ({
@@ -26,6 +27,7 @@ const PickerBody = ({
     const setKind = useSetAtom(createQueueDrawerDefaultKindAtom)
     const setSelection = useSetAtom(createQueueDrawerSelectionAtom)
     const setSheetOpen = useSetAtom(createQueueDrawerOpenAtom)
+    const setFollowUp = useSetAtom(createQueueFollowUpAtom)
     const projectId = useRouter().query.project_id
     const canEdit = useProjectPermission(
         typeof projectId === "string" ? projectId : "",
@@ -38,6 +40,9 @@ const PickerBody = ({
     const openCreate = () => {
         setKind(args.itemType)
         setSelection(args.itemIds?.length ? {itemType: args.itemType, itemIds: args.itemIds} : null)
+        // Picker mode: the caller adds the items, so it gets the new queue like a picked one.
+        const {onQueueSelected} = args
+        setFollowUp(onQueueSelected ? () => onQueueSelected : null)
         onClose()
         setSheetOpen(true)
     }

@@ -8,8 +8,9 @@ import {
 } from "@agenta/entities/simpleQueue"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
+import {createQueueFollowUpAtom} from "./createQueueFollowUpAtom"
 import type {CreateQueueValues} from "./createQueueTypes"
 import {useQueueLink} from "./useQueueLink"
 
@@ -25,6 +26,7 @@ export const useCreateQueue = () => {
     const selection = useAtomValue(createQueueDrawerSelectionAtom)
     const setSelection = useSetAtom(createQueueDrawerSelectionAtom)
     const setOpen = useSetAtom(createQueueDrawerOpenAtom)
+    const [followUp, setFollowUp] = useAtom(createQueueFollowUpAtom)
     const createQueue = useSetAtom(createSimpleQueueAtom)
     const addTraces = useSetAtom(simpleQueueMolecule.actions.addTraces)
     const addTestcases = useSetAtom(simpleQueueMolecule.actions.addTestcases)
@@ -35,8 +37,9 @@ export const useCreateQueue = () => {
     const close = useCallback(() => {
         if (inFlight.current) return
         setSelection(null)
+        setFollowUp(null)
         setOpen(false)
-    }, [setOpen, setSelection])
+    }, [setFollowUp, setOpen, setSelection])
 
     const submit = useCallback(
         async (values: CreateQueueValues) => {
@@ -56,6 +59,7 @@ export const useCreateQueue = () => {
             setIsSubmitting(true)
             const finish = () => {
                 setSelection(null)
+                setFollowUp(null)
                 setOpen(false)
             }
 
@@ -104,6 +108,7 @@ export const useCreateQueue = () => {
                     ...queueLink(queue.id, `View "${queue.name ?? "queue"}"`),
                     duration: 5,
                 })
+                followUp?.(queue)
             } catch (cause) {
                 console.error("Creating the annotation queue failed", cause)
                 message.error("Couldn't create the queue")
@@ -116,9 +121,11 @@ export const useCreateQueue = () => {
             addTestcases,
             addTraces,
             createQueue,
+            followUp,
             projectId,
             queueLink,
             selection,
+            setFollowUp,
             setOpen,
             setSelection,
         ],
