@@ -159,6 +159,38 @@ const stepMetrics = (metric: EvaluationMetric): StepMetrics => {
 }
 
 /**
+ * The errors of several evaluators: their totals added up. Only the type, the sum and the count
+ * combine; a mean, a median or a range of one evaluator would not describe the total.
+ */
+function sumCounts(all: (MetricStats | null)[]): MetricStats | null {
+    const stats = all.filter((entry): entry is MetricStats => entry !== null)
+    if (stats.length === 0) return null
+    const total = (pick: (entry: MetricStats) => number | undefined) =>
+        stats.reduce((sum, entry) => sum + (pick(entry) ?? 0), 0)
+    return {
+        type: stats[0].type,
+        sum: total((entry) => entry.sum ?? (entry.mean ?? 0) * (entry.count ?? 0)),
+        count: total((entry) => entry.count),
+    }
+}
+
+/** The error points of several evaluators, added up per timestamp, oldest first. */
+function sumPoints(all: TemporalMetricPoint[][]): TemporalMetricPoint[] {
+    const byTime = new Map<number, (MetricStats | null)[]>()
+    for (const points of all) {
+        for (const {timestamp, stats} of points) {
+            byTime.set(timestamp, [...(byTime.get(timestamp) ?? []), stats])
+        }
+    }
+    return [...byTime.entries()]
+        .sort(([a], [b]) => a - b)
+        .flatMap(([timestamp, stats]) => {
+            const summed = sumCounts(stats)
+            return summed ? [{timestamp, stats: summed}] : []
+        })
+}
+
+/**
  * Build the catalog of one run from the run and its run-level metric rows. Pure: the atom below
  * feeds it, and tests call it with captured responses.
  */
@@ -210,17 +242,30 @@ export function buildRunMetricCatalog(
         }
     }
 
-    const invocationKeys = steps
-        .filter((step) => step.type === "invocation")
-        .map((step) => step.key)
+    const keysOf = (type: string) =>
+        steps.filter((step) => step.type === type).map((step) => step.key)
+    const invocationKeys = keysOf("invocation")
+    // A live run calls no app: its evaluators are the steps that fail, so they report the errors.
+    const errorKeys = invocationKeys.length > 0 ? invocationKeys : keysOf("annotation")
+    const hasMetric = (key: string, metricKey: string) =>
+        staticData[key]?.[metricKey] !== undefined ||
+        timed.some(({data}) => data[key]?.[metricKey] !== undefined)
     for (const {id, metricKey, label} of INVOCATION_METRICS) {
-        const stepKey =
-            invocationKeys.find(
-                (key) =>
-                    staticData[key]?.[metricKey] !== undefined ||
-                    timed.some(({data}) => data[key]?.[metricKey] !== undefined),
-            ) ?? null
-        const temporal = stepKey ? pointsFor(stepKey, metricKey) : []
+        const candidates = id === "errors" ? errorKeys : invocationKeys
+        const stepKeys = candidates.filter((key) => hasMetric(key, metricKey))
+        const stepKey = stepKeys[0] ?? null
+        // Several failing evaluators: their totals and their time series both add up.
+        const combined = id === "errors" && stepKeys.length > 1
+        const temporal = combined
+            ? sumPoints(stepKeys.map((key) => pointsFor(key, metricKey)))
+            : stepKey
+              ? pointsFor(stepKey, metricKey)
+              : []
+        const stats = combined
+            ? sumCounts(stepKeys.map((key) => statsFor(key, metricKey, pointsFor(key, metricKey))))
+            : stepKey
+              ? statsFor(stepKey, metricKey, temporal)
+              : null
         entries.push({
             id,
             kind: "invocation",
@@ -229,7 +274,7 @@ export function buildRunMetricCatalog(
             label,
             evaluatorId: null,
             evaluatorSlug: null,
-            stats: stepKey ? statsFor(stepKey, metricKey, temporal) : null,
+            stats,
             temporal,
         })
     }

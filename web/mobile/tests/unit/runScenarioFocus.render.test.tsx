@@ -113,6 +113,23 @@ const withApp =
         return answer
     }
 
+/** The same run, where the evaluator failed on every scenario with an error message. */
+const evaluatorFailed: typeof answerRequest = (runId, serverState, url, body) => {
+    const answer = answerRequest(runId, serverState, url, body)
+    if (url.endsWith("/evaluations/results/query")) {
+        const results = answer.data?.results ?? []
+        for (const result of [...results]) {
+            results.push({
+                ...result,
+                step_key: "ev",
+                status: "failure",
+                error: {message: "Invalid regex pattern"},
+            } as never)
+        }
+    }
+    return answer
+}
+
 const dialog = () => document.body.querySelector('[role="dialog"]')
 const text = () => dialog()?.textContent ?? ""
 const click = (label: string) =>
@@ -168,6 +185,23 @@ describe("scenario focus drawer", () => {
         await mount("sc-1", {}, "human")
         expect(text()).toContain("Scenario #1")
         expect(text()).not.toContain("Test case")
+    })
+
+    it("A live run labels the scenario Trace", async () => {
+        await mount("sc-1", {}, "online")
+        expect(text()).toContain("Trace #1")
+        expect(text()).not.toContain("Test case")
+    })
+
+    it("An evaluator that failed shows its error message", async () => {
+        await mount(
+            "sc-1",
+            {scored: false, statuses: {"sc-1": "errors"}},
+            "online",
+            evaluatorFailed,
+        )
+        const metrics = document.body.querySelector('[aria-label="Exact Match metrics"]')
+        expect(metrics?.querySelector('[role="alert"]')?.textContent).toBe("Invalid regex pattern")
     })
 
     it("Next on the last loaded row loads the next page", async () => {

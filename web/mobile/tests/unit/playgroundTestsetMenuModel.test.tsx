@@ -500,6 +500,29 @@ describe("Syncing changes", () => {
         expect((rows.replace ?? []).map((row) => row.id)).not.toContain(ITALY)
     })
 
+    it("A deselected row's unsaved edit does not come back after a commit", async () => {
+        await pickLoad()
+        await editCell(ITALY, "Rome")
+        act(() => menu().manage())
+        await act(async () => menu().confirmEdit(picked(REVISION, [FRANCE])))
+        await settle()
+        await editCell(FRANCE, "Spain")
+
+        await act(async () => {
+            await menu().syncSubmit({
+                entity: {type: "revision", id: REVISION},
+                message: null,
+                mode: "commit",
+            })
+        })
+        await settle()
+
+        // Loading the first revision again shows its saved rows, not the edit made before the
+        // row was deselected.
+        await pickLoad(REVISION)
+        expect(rowValues()).toEqual(["France", "Italy"])
+    })
+
     it("After a commit the menu names the new version", async () => {
         await pickLoad()
         await editCell(FRANCE, "Spain")

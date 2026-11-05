@@ -228,7 +228,15 @@ export function mobileRouteFor(pathname: string, search: string): string | null 
             : `${base}/observability`
     }
 
-    if (head === "settings" && !first) return `${base}/settings`
+    if (head === "settings" && !first) {
+        // `/m` Settings reads the same `tab` keys and falls back for one it does not have.
+        const tab = params.get("tab")
+        // The pack picker opens from Billing on the desktop and from Credits in `/m`.
+        if (tab === "billing" && params.get("buy_credits") === "1") {
+            return `${base}/settings?tab=credits&buy_credits=1`
+        }
+        return tab ? `${base}/settings?tab=${encodeURIComponent(tab)}` : `${base}/settings`
+    }
 
     return null
 }

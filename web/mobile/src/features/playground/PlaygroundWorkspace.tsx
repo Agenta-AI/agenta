@@ -8,6 +8,7 @@ import {DrillInBridgeProvider} from "../chat/DrillInBridgeProvider"
 
 import {PlaygroundFocusDrawerHost} from "./PlaygroundFocusDrawerHost"
 import {PlaygroundHeader} from "./PlaygroundHeader"
+import {PlaygroundNewEvaluation} from "./PlaygroundNewEvaluation"
 import {PlaygroundRunPane} from "./PlaygroundRunPane"
 import {PlaygroundSplit} from "./PlaygroundSplit"
 import {RevisionConfig} from "./RevisionConfig"
@@ -82,7 +83,17 @@ export const PlaygroundWorkspace = ({
                 workspaceId={workspaceId}
                 projectId={projectId}
                 appName={appName}
-                actions={<CompareButton appId={appId} />}
+                actions={
+                    <>
+                        <PlaygroundNewEvaluation
+                            workspaceId={workspaceId}
+                            projectId={projectId}
+                            appId={appId}
+                            revisionIds={revisionIds}
+                        />
+                        <CompareButton appId={appId} />
+                    </>
+                }
             />
             <DrillInBridgeProvider
                 projectId={projectId}

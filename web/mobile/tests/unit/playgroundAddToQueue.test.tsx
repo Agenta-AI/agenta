@@ -67,4 +67,18 @@ describe("usePlaygroundAddToQueue", () => {
         expect(picker?.getAttribute("data-items")).toBe("tc-1")
         expect(picker?.textContent).toContain("Add to queue")
     })
+
+    it("A new row of a connected test set gets no Add to queue", () => {
+        act(() => {
+            store.set(
+                loadableController.actions.connectToSource,
+                LOADABLE,
+                "ts-rev-1",
+                "Cases v1",
+                [{id: "tc-1", data: {country: "Peru"}}],
+            )
+        })
+        act(() => root.render(<Harness />))
+        expect(render?.([])).toBeNull()
+    })
 })

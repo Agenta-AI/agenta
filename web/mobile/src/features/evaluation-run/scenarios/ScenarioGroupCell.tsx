@@ -1,11 +1,16 @@
 import {ScenarioCellValue} from "./ScenarioCellValue"
 import type {ScenarioCell} from "./scenarioColumns"
+import {ScenarioStepError} from "./states/ScenarioStepError"
 
 /** Each group shows this many values in the table. The rest open with the row. */
 const SHOWN_VALUES = 2
 
-/** The cell of one column group: its first two values, and a "+N" for the others. */
-export const ScenarioGroupCell = ({cells}: {cells: ScenarioCell[]}) => {
+/**
+ * The cell of one column group: its first two values, and a "+N" for the others. A step that
+ * failed shows its error.
+ */
+export const ScenarioGroupCell = ({cells, error}: {cells: ScenarioCell[]; error?: string}) => {
+    if (error) return <ScenarioStepError message={error} />
     const shown = cells.slice(0, SHOWN_VALUES)
     const hidden = cells.length - shown.length
     if (shown.length === 0) return <span className="text-muted-foreground">—</span>

@@ -128,8 +128,8 @@ const ObservabilityContent = ({
         [traces, selectedRowKeys],
     )
     const clearSelection = useCallback(() => setSelectedRowKeys([]), [setSelectedRowKeys])
-    // The atom outlives the screen; a selection must not come back on the next visit.
-    useEffect(() => clearSelection, [clearSelection])
+    // The atom outlives the screen and the app scope; a selection never carries across either.
+    useEffect(() => clearSelection, [clearSelection, appFilterEnabled, routeAppId])
     const addToTestset = useAddToTestsetAction(projectId, selectedRowKeys.map(String))
     const queueAllMatching = useAddAllMatchingAction({
         workspaceId,

@@ -12,9 +12,15 @@ import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 
+import {isBetaDeveloperModeEnabled} from "../api/env"
 import type {User} from "../types/user"
 
-import {ACTIVE_USER_ID_KEY, activeUserIdAtom} from "./featureFlags"
+import {
+    ACTIVE_USER_ID_KEY,
+    activeUserIdAtom,
+    userScopedFlagAtom,
+    userSettingsKey,
+} from "./featureFlags"
 import {userAtom} from "./user"
 
 /**
@@ -160,6 +166,20 @@ export const readSettledAdvancedNavHidden = (user: User | null): boolean | null 
     return user ? isSimplifiedCohort(user) : null
 }
 
+const BETA_DEVELOPER_MODE_KEY = "beta-developer-mode"
+
+const storedBetaDeveloperModeFlagAtom = userScopedFlagAtom(BETA_DEVELOPER_MODE_KEY)
+
+/**
+ * The "Use new beta developer mode" switch in `/m`. It means something only while Developer Mode
+ * is on: read {@link betaDeveloperModeActiveAtom} to act on it. Reads off while the deployment
+ * does not offer beta developer mode, whatever the user stored.
+ */
+export const betaDeveloperModeFlagAtom = atom(
+    (get) => isBetaDeveloperModeEnabled() && get(storedBetaDeveloperModeFlagAtom),
+    (_get, set, next: boolean) => set(storedBetaDeveloperModeFlagAtom, next),
+)
+
 /**
  * What the gate cookie should say, or `undefined` to leave it alone. `null` means "publish
  * nothing" — clear it.
@@ -189,7 +209,13 @@ export const readSettledClassicModeCookie = (user: User | null): "0" | "1" | nul
     if (user?.uid && user.uid !== userId) return undefined
 
     const override = readStoredBoolean(onboardingScopedKey(userId, "nav-simplified-override"))
-    if (override !== null) return override ? "0" : "1"
+    // Beta developer mode keeps Developer Mode in `/m`, chosen or by default. "0" also sends a
+    // desktop browser from a `/w` address to `/m`; no cookie would leave it in `/w`. Only where
+    // the deployment offers it: otherwise the stored switch changes nothing (v0.128.7).
+    const beta =
+        isBetaDeveloperModeEnabled() &&
+        readStoredBoolean(userSettingsKey(userId, BETA_DEVELOPER_MODE_KEY)) === true
+    if (override !== null) return override || beta ? "0" : "1"
 
     if (readStoredBoolean(onboardingScopedKey(userId, "nav-simplified")) === true) return "0"
 
@@ -197,7 +223,7 @@ export const readSettledClassicModeCookie = (user: User | null): "0" | "1" | nul
     // cookie beats no cookie: clearing here would drop a correct answer on every reload.
     if (!user) return undefined
 
-    return isSimplifiedCohort(user) ? "0" : null
+    return isSimplifiedCohort(user) || beta ? "0" : null
 }
 
 /** The one atom both apps' Preferences pages bind their "Developer Mode" switch to. */
@@ -206,4 +232,12 @@ export const classicModeEnabledAtom = atom(
     (_get, set, next: boolean) => {
         set(navSimplifiedOverrideAtom, !next)
     },
+)
+
+/**
+ * Developer Mode on, and the user chose to keep it in `/m`. The gate cookie then says "0" (see
+ * {@link readSettledClassicModeCookie}), so neither app sends the user to `/w`.
+ */
+export const betaDeveloperModeActiveAtom = atom(
+    (get) => get(classicModeEnabledAtom) && get(betaDeveloperModeFlagAtom),
 )

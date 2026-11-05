@@ -23,7 +23,7 @@ export const PlaygroundHeader = ({
         <NavDrawer workspaceId={workspaceId} projectId={projectId} />
         <h1 className="m-0 min-w-0 truncate text-sm font-semibold text-foreground">{appName}</h1>
         <span className="shrink-0 text-sm text-muted-foreground">Playground</span>
-        <div className="ml-auto flex min-w-0 items-center justify-end gap-2">
+        <div className="ml-auto flex items-center justify-end gap-2">
             <EvaluatorPicker />
             {actions}
         </div>

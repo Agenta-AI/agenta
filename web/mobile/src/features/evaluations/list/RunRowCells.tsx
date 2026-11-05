@@ -2,6 +2,7 @@ import {
     deriveEvaluationKind,
     EVALUATION_KIND_LABELS,
     humanizeRunStatus,
+    runDisplayStatus,
     runStatusTone,
     type EvaluationRun,
     type EvaluationRunKind,
@@ -99,7 +100,7 @@ export const RunRowCells = ({
         return (
             <>
                 <span className="flex">
-                    <RunStatusDot status={run.status} />
+                    <RunStatusDot status={runDisplayStatus(run)} />
                 </span>
                 <span className="block min-w-0">
                     <span className="block truncate text-[14px] font-medium text-foreground">
@@ -118,7 +119,7 @@ export const RunRowCells = ({
     return (
         <>
             <span className="flex">
-                <RunStatusDot status={run.status} />
+                <RunStatusDot status={runDisplayStatus(run)} />
             </span>
             <span className="block truncate text-[14px] font-medium text-foreground">
                 {runDisplayName(run)}

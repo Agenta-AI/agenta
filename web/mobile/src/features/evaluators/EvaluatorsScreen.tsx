@@ -10,6 +10,7 @@ import Link from "next/link"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMembers"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useProjectPermission, useProjectPermissionState} from "../context/useProjectPermission"
@@ -44,6 +45,7 @@ export const EvaluatorsScreen = ({
     workspaceId: string
     projectId: string
 }) => {
+    useBindWorkspaceMembers()
     useBindProjectContext(projectId)
     const [category, setCategory] = useEvaluatorCategory()
     const [term, setTerm] = useState("")

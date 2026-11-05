@@ -1,5 +1,5 @@
 import {createStore} from "jotai"
-import {beforeEach, describe, expect, it} from "vitest"
+import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 // This package's suite runs on `node`, and these atoms are localStorage-backed. jotai reads
 // `window.localStorage` lazily per access, so a minimal stand-in is enough — and deliberately
@@ -72,6 +72,10 @@ const signIn = (stored: Record<string, string> = {}, createdAt?: string) => {
 
 beforeEach(() => {
     localStorage.clear()
+})
+
+afterEach(() => {
+    vi.unstubAllGlobals()
 })
 
 describe("classic mode preference", () => {
@@ -336,6 +340,26 @@ describe("the gate cookie", () => {
     it("answers from storage before the profile, when storage is enough", () => {
         browser("u", {"nav-simplified-override": "true"})
         expect(readSettledClassicModeCookie(null)).toBe("0")
+    })
+
+    it("publishes 0 for Developer Mode with beta developer mode on, chosen or by default", () => {
+        // Beta developer mode keeps Developer Mode in /m: a "1" would send the user to /w, and no
+        // cookie would leave a desktop browser in /w when it opens a /w address.
+        vi.stubGlobal("__env", {NEXT_PUBLIC_AGENTA_BETA_DEVELOPER_MODE: "true"})
+        browser("u", {"nav-simplified-override": "false"})
+        localStorage.setItem("agenta:settings:u:beta-developer-mode", "true")
+        expect(readSettledClassicModeCookie(profile(OLD))).toBe("0")
+
+        localStorage.clear()
+        browser("d")
+        localStorage.setItem("agenta:settings:d:beta-developer-mode", "true")
+        expect(readSettledClassicModeCookie(profile(OLD))).toBe("0")
+    })
+
+    it("ignores the stored beta switch while Developer Mode is off", () => {
+        browser("u", {"nav-simplified-override": "true"})
+        localStorage.setItem("agenta:settings:u:beta-developer-mode", "true")
+        expect(readSettledClassicModeCookie(profile(OLD))).toBe("0")
     })
 
     it("clears on sign-out, and only on sign-out", () => {
