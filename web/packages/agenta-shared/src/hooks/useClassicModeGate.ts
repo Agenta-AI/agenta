@@ -9,6 +9,7 @@ import {useAtomValue} from "jotai"
 
 import {
     advancedNavHiddenAtom,
+    betaDeveloperModeActiveAtom,
     betaDeveloperModeFlagAtom,
     readSettledAdvancedNavHidden,
     readSettledClassicModeCookie,
@@ -106,7 +107,8 @@ export const useClassicModeCookieSync = () => {
 }
 
 /**
- * Desktop-only: send a Classic-mode-off user to `/m`, for the pages `/m` has.
+ * Desktop-only: send a Classic-mode-off user, or a beta developer mode user, to `/m`, for the
+ * pages `/m` has.
  *
  * Only covers the FIRST visit — once {@link useClassicModeCookieSync} has published the
  * preference, the middleware does this before anything renders. Pass `enabled: false` while a
@@ -133,12 +135,16 @@ export const useClassicModeRedirect = (
 ) => {
     const userId = useAtomValue(activeUserIdAtom)
     const advancedNavHidden = useSettledAdvancedNavHidden()
+    // Reads false until storage hydrates, never true by mistake: it needs the stored beta switch,
+    // and a user with that switch belongs in `/m` whether Developer Mode is on or off.
+    const betaDeveloperModeActive = useAtomValue(betaDeveloperModeActiveAtom)
 
     useEffect(() => {
         if (!enabled || typeof window === "undefined") return
         // No user means no preference to read, and `null` means it is not known yet. Redirecting
         // on either is a navigation this effect cannot take back.
-        if (!userId || !advancedNavHidden) return
+        if (!userId || advancedNavHidden === null) return
+        if (!advancedNavHidden && !betaDeveloperModeActive) return
 
         const {pathname, search} = window.location
         // Never from `/auth`, even though the gate maps it: post-auth sets the user id and the
@@ -157,7 +163,7 @@ export const useClassicModeRedirect = (
         // to the device check, and bounces a desktop UA straight back here. That is a loop.
         writeClassicModeCookie(false)
         window.location.replace(prepareTarget ? prepareTarget(target) : target)
-    }, [enabled, userId, advancedNavHidden, route, prepareTarget])
+    }, [enabled, userId, advancedNavHidden, betaDeveloperModeActive, route, prepareTarget])
 }
 
 /**
