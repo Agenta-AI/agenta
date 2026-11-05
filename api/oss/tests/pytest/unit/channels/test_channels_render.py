@@ -359,5 +359,16 @@ def test_a_turn_that_stops_on_a_tool_keeps_all_its_text():
     )
 
 
+def test_a_blank_message_after_the_last_tool_is_not_the_answer():
+    messages = [
+        _said("The invite failed on email casing."),
+        _called("Read", "c1"),
+        _returned("c1"),
+        _said("\n\n"),
+    ]
+
+    assert extract_final_answer(messages) == "The invite failed on email casing."
+
+
 def test_a_turn_with_no_text_has_no_answer():
     assert extract_final_answer([_called("Read", "c1"), _returned("c1")]) == ""

@@ -47,10 +47,7 @@ REFUSED_DIRECT_MESSAGE_TEXT = (
     "This agent does not answer direct messages. Mention it in a channel instead."
 )
 
-# Agents often answer first and name the session or themselves afterwards, then
-# close with "Session named." Measured on 4,523 local turns: rename_session is
-# the most common tool before the last message. These tools must not end the
-# answer, or that closing line would replace it.
+# Agents often answer, rename, then close with "Session named.": that line must not replace the answer.
 _HOUSEKEEPING_TOOLS = frozenset({"rename_session", "rename_agent"})
 
 
@@ -285,7 +282,7 @@ def _render_pending_interaction(
 def _message_text(message: Dict[str, Any]) -> List[str]:
     content = message.get("content")
     if isinstance(content, str):
-        return [content] if content else []
+        return [content] if content.strip() else []
     if isinstance(content, list):
         return [
             block["text"]
