@@ -8,7 +8,7 @@ import {
     evaluatorTemplatesQueryAtom,
     isOnlineCapableEvaluator,
 } from "@agenta/entities/workflow"
-import {getFilterColumns} from "@agenta/observability"
+import {findIncompleteIsAnnotationFilter, getFilterColumns} from "@agenta/observability"
 import {message} from "@agenta/ui/app-message"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Button, Collapse, DatePicker, Form, Input, Select, Switch, Tooltip, Typography} from "antd"
@@ -54,6 +54,9 @@ interface OnlineEvaluationDrawerProps {
 
 const {Text, Link: TypographyLink} = Typography
 const {RangePicker} = DatePicker
+const TRACE_FILTERS_NOT_SAVED_MESSAGE =
+    "Couldn't save the trace filters. Check the filters and try again."
+
 const Filters = dynamic(() => import("@/oss/components/Filters/AnnotatedFilterDialog"), {
     ssr: false,
 })
@@ -287,6 +290,12 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                 }
             }
 
+            const filterProblem = findIncompleteIsAnnotationFilter(filters)
+            if (filterProblem) {
+                message.error(filterProblem)
+                return
+            }
+
             const filteringPayload = toFilteringPayload(filters)
             const windowingPayload = toWindowingPayload({
                 samplingRate: samplingRateValue,
@@ -311,7 +320,14 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                 queryPayload.data = queryData
             }
 
-            const queryResponse = await createSimpleQuery({query: queryPayload})
+            // The API names a refused filter by its code name, so the user sees plain text
+            // and the console keeps the detail.
+            const queryResponse = await createSimpleQuery({query: queryPayload}).catch(
+                (error: unknown) => {
+                    console.error("Could not save the online evaluation filters", error)
+                    throw new Error(TRACE_FILTERS_NOT_SAVED_MESSAGE)
+                },
+            )
             const queryId = queryResponse.query?.id
             if (!queryId) {
                 throw new Error("Unable to create query for online evaluation.")
