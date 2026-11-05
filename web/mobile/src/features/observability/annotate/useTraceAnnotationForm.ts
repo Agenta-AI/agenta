@@ -71,6 +71,8 @@ const useStoredAnnotations = ({
     return {...state, refetch: () => setAttempt((count) => count + 1)}
 }
 
+const STORED_READ_TIMEOUT_MS = 5_000
+
 /** The annotations linked to one span, as stored: the drawer's request, without its grouping. */
 const readStoredAnnotations = async ({
     projectId,
@@ -84,7 +86,8 @@ const readStoredAnnotations = async ({
     const response = await axios.post<{traces?: AnnotationDto[] | null}>(
         `${getAgentaApiUrl()}/simple/traces/query`,
         {trace: {links: [{trace_id: traceId, span_id: spanId}]}},
-        {params: {project_id: projectId}},
+        // A read that never answers would keep a save waiting forever: give up and read again.
+        {params: {project_id: projectId}, timeout: STORED_READ_TIMEOUT_MS},
     )
     return response.data?.traces ?? []
 }

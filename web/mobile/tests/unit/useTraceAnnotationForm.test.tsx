@@ -353,6 +353,41 @@ describe("trace annotation form", () => {
         expect(http.success).toHaveBeenCalledWith("Annotations updated successfully")
     })
 
+    it("A stored read that never answers times out, and the save still ends", async () => {
+        await mount({selectedSlugs: ["tone"]})
+        await act(async () => latest.setValue("tone", "friendly", true))
+        // The first read after the write hangs, as a stuck request does. axios gives up after
+        // its `timeout`; with no timeout the read would wait forever and the form keep saving.
+        let hung = false
+        const answer = http.post.getMockImplementation()
+        http.post.mockImplementation(
+            (url: string, body: WriteBody, config?: {timeout?: number}) => {
+                if (!hung && String(url).endsWith("/simple/traces/query")) {
+                    hung = true
+                    return new Promise((_resolve, reject) => {
+                        if (config?.timeout) {
+                            setTimeout(() => reject(new Error("timeout")), config.timeout)
+                        }
+                    })
+                }
+                return answer?.(url, body)
+            },
+        )
+        vi.useFakeTimers({shouldAdvanceTime: true})
+        try {
+            let done = false
+            await act(async () => {
+                void latest.save().then(() => (done = true))
+                await vi.advanceTimersByTimeAsync(6_000)
+            })
+            expect(done).toBe(true)
+            expect(latest.isSaving).toBe(false)
+            expect(http.success).toHaveBeenCalledWith("Annotations updated successfully")
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
     it("A failed save shows Failed to update annotations and keeps the values", async () => {
         const logged = vi.spyOn(console, "error").mockImplementation(() => undefined)
         http.post.mockRejectedValueOnce(new Error("Network down"))
