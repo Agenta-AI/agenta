@@ -174,6 +174,20 @@ memory: agent run spans can be hundreds of KB each.
 | `AGENTA_LOGGING_OTLP_ENABLED` | `agenta.logging.otlp_enabled` | `agenta.logging.otlpEnabled` |
 | `AGENTA_LOGGING_OTLP_LEVEL` | `agenta.logging.otlp_level` | `agenta.logging.otlpLevel` |
 
+## Agenta notifications
+
+When an automation starts failing, Agenta emails the automation's creator once. If the creator can no longer view automations in the project, the email goes to the project's owners and admins, else to the organization owner. No other email is sent about that automation until it is fixed.
+
+Set `AGENTA_NOTIFICATIONS_EMAIL_ENABLED=false` to stop these emails. The default is `true`. Agenta still records each notification, and it does not send a notification that opened while the variable was `false`. These emails need [SMTP](#smtp) or [SendGrid](#sendgrid). Without either one, Agenta sends nothing.
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_NOTIFICATIONS_EMAIL_ENABLED` | `agenta.notifications.email_enabled` | _(not mapped)_ |
+
+:::warning Helm
+The cron container sends these emails through `http://api:8000`. The Helm chart names its API Service `<release>-api`, so that host does not resolve and a Helm install sends no failure emails.
+:::
+
 ## Agenta OTLP
 
 | Env var | env.py path | values.yaml path |
