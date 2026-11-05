@@ -12,9 +12,11 @@ import {useAtomValue} from "jotai"
 export const useAutoRefresh = (refresh: () => Promise<unknown>) => {
     const autoRefresh = useAtomValue(autoRefreshAtom)
     const [refreshTrigger, setRefreshTrigger] = useState(0)
-    // The interval reads the latest refresh, so a tab switch does not restart the countdown.
+    // The interval reads the committed refresh, so a tab switch does not restart the countdown.
     const refreshRef = useRef(refresh)
-    refreshRef.current = refresh
+    useEffect(() => {
+        refreshRef.current = refresh
+    }, [refresh])
 
     const runRefresh = useCallback(async () => {
         await refreshRef.current()
@@ -23,8 +25,16 @@ export const useAutoRefresh = (refresh: () => Promise<unknown>) => {
 
     useEffect(() => {
         if (!autoRefresh) return
+        // A tick while a slow refresh is still running would cancel that refetch and start over.
+        let pending = false
         const id = setInterval(() => {
-            runRefresh().catch((error) => console.error("Auto-refresh failed", error))
+            if (pending) return
+            pending = true
+            runRefresh()
+                .catch((error) => console.error("Auto-refresh failed", error))
+                .finally(() => {
+                    pending = false
+                })
         }, AUTO_REFRESH_INTERVAL)
         return () => clearInterval(id)
     }, [autoRefresh, runRefresh])

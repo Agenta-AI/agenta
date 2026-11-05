@@ -225,4 +225,25 @@ describe("ObservabilityScreen app filter", () => {
             vi.useRealTimers()
         }
     })
+
+    it("Auto-refresh skips a tick while the previous reload is still running", async () => {
+        vi.useFakeTimers()
+        try {
+            fetchTraces.mockClear()
+            let finish = () => undefined as void
+            fetchTraces.mockImplementationOnce(
+                () => new Promise<undefined>((resolve) => (finish = () => resolve(undefined))),
+            )
+            mount()
+            act(() => store.set(autoRefreshAtom, true))
+            await act(async () => vi.advanceTimersByTime(30000))
+            expect(fetchTraces).toHaveBeenCalledTimes(1)
+
+            await act(async () => finish())
+            await act(async () => vi.advanceTimersByTime(15000))
+            expect(fetchTraces).toHaveBeenCalledTimes(2)
+        } finally {
+            vi.useRealTimers()
+        }
+    })
 })

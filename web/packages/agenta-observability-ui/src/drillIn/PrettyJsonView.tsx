@@ -542,7 +542,7 @@ const CopyButton = ({value}: {value: unknown}) => {
         <button
             type="button"
             aria-label={copied ? "Copied" : "Copy to clipboard"}
-            className="opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 transition-opacity inline-flex items-center justify-center h-[22px] min-w-[22px] px-1.5 ml-auto self-center border border-transparent rounded-sm text-colorTextQuaternary cursor-pointer shrink-0 hover:text-colorText hover:bg-colorBgContainer hover:border-colorBorder focus-visible:ring-1 focus-visible:ring-colorPrimary focus-visible:outline-none"
+            className="opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity inline-flex items-center justify-center h-[22px] min-w-[22px] px-1.5 ml-auto self-center border border-transparent rounded-sm text-colorTextQuaternary cursor-pointer shrink-0 hover:text-colorText hover:bg-colorBgContainer hover:border-colorBorder focus-visible:ring-1 focus-visible:ring-colorPrimary focus-visible:outline-none"
             onClick={handleCopy}
             onKeyDown={handleKeyDown}
         >

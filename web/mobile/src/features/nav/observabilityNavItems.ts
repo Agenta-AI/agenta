@@ -3,11 +3,7 @@ import {createElement} from "react"
 import type {SidebarConfig} from "@agenta/navigation"
 import {ChartLineUpIcon} from "@phosphor-icons/react"
 
-/**
- * The Observability rail row: project traces and sessions. Shown in developer mode only, like the
- * old app, which hides it from the simplified navigation. The link does not prefetch, so the
- * traces screen does not load on the pages every user opens.
- */
+/** The Observability rail row, in developer mode only (the old app hides it from the simple nav). */
 export const observabilityNavItems = (
     projectURL: string,
     developerMode: boolean,

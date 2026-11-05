@@ -1,7 +1,3 @@
-/**
- * The Observability rail row: it is there in developer mode, like the old app, and the traces
- * screen does not prefetch from the rail.
- */
 import {describe, expect, it} from "vitest"
 
 import {observabilityNavItems} from "@/features/nav/observabilityNavItems"

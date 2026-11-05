@@ -164,6 +164,13 @@ describe("the focus view", () => {
         expect(button("Open trace")).toBeUndefined()
     })
 
+    it("A query queue renders its item's trace", async () => {
+        patchSession({queueKind: "queries"})
+        await render()
+        expect(host.textContent).toContain("overview of answer_question")
+        expect(button("Open trace")).toBeDefined()
+    })
+
     it("Next is disabled on the last scenario", async () => {
         patchSession({hasNext: false, hasPrev: true})
         await render()
