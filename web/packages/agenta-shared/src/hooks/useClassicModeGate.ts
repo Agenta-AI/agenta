@@ -21,6 +21,7 @@ import {
     MOBILE_OPTOUT_COOKIE,
     desktopRouteFor,
     isDesktopOnlyLink,
+    mapDesktopToMobile,
     mobileRouteFor,
 } from "../utils/mobileGate"
 
@@ -47,6 +48,15 @@ const clearCookie = (name: string) => {
 export const writeClassicModeCookie = (classicModeEnabled: boolean) => {
     if (typeof document === "undefined") return
     writeCookie(CLASSIC_MODE_COOKIE, classicModeEnabled ? "1" : "0")
+}
+
+/**
+ * Withdraw the published preference now, for a switch that leaves for `/m` under beta developer
+ * mode. A stale "1" would make `/m`'s gate send the user straight back.
+ */
+export const clearClassicModeCookie = () => {
+    if (typeof document === "undefined") return
+    clearCookie(CLASSIC_MODE_COOKIE)
 }
 
 /**
@@ -160,4 +170,15 @@ export const desktopEscapeHref = (): string => {
     const {pathname, search} = window.location
     const stripped = pathname === "/m" ? "/" : pathname.replace(/^\/m(?=\/)/, "")
     return desktopRouteFor(stripped, search) ?? "/w"
+}
+
+/**
+ * Desktop-only: the `/m` page matching wherever the user is standing, for the beta developer
+ * mode switch to send them to. The same map the gate uses for a Classic-mode-off user, falling
+ * back to the `/m` root.
+ */
+export const mobileEscapeHref = (): string => {
+    if (typeof window === "undefined") return "/m/"
+    const {pathname, search} = window.location
+    return mapDesktopToMobile(pathname, search)
 }
