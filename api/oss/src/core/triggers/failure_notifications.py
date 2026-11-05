@@ -309,7 +309,7 @@ def render_automation_failing(project_id: UUID, data: Dict[str, Any]) -> Rendere
             quote(data["automation_id"], safe=""),
         ]
     )
-    headline = f'Automation "{automation_name}" is failing'
+    subject = f'Automation "{automation_name}" in {project_name} is failing'
     summary = (
         f"The automation {automation_name} in project {project_name} "
         f"has been failing since {failed_at}."
@@ -317,11 +317,10 @@ def render_automation_failing(project_id: UUID, data: Dict[str, Any]) -> Rendere
     note = f"{action} You will not get another email about this until it is fixed."
 
     return RenderedEmail(
-        subject=f'Automation "{automation_name}" in {project_name} is failing',
+        subject=subject,
         html=render_layout(
-            subject=headline,
+            subject=subject,
             preheader=reason,
-            headline=headline,
             blocks=[
                 paragraph_block(
                     parts=[
@@ -340,7 +339,7 @@ def render_automation_failing(project_id: UUID, data: Dict[str, Any]) -> Rendere
             ],
         ),
         text=(
-            f"{headline}\n\n{summary}\n\nWhy it failed: {reason}\n\n"
+            f"{summary}\n\nWhy it failed: {reason}\n\n"
             f"Open automation: {link}\n\n{note}\n\n{TEXT_FOOTER}"
         ),
         inline_images=LOGOS,

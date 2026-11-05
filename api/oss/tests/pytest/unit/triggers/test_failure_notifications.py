@@ -366,20 +366,21 @@ def test_the_email_has_every_part(monkeypatch):
     )
     assert email.subject == 'Automation "Daily report" in Growth is failing'
     assert email.text == (
-        'Automation "Daily report" is failing\n\n'
         "The automation Daily report in project Growth "
         "has been failing since Nov 5, 2026, 11:50 UTC.\n\n"
         "Why it failed: Agenta could not start the run.\n\n"
         f"Open automation: {link}\n\n"
         "Nothing to change. If it keeps failing, contact support. "
         "You will not get another email about this until it is fixed.\n\n"
-        "Agenta - AI coworkers that learn how you work.\nhttps://agenta.ai\n"
+        "Agenta\nhttps://agenta.ai\n"
     )
     assert f'<a href="{link}"' in email.html
     assert "Open automation</a>" in email.html
     assert ">Nov\u00a05,\u00a02026,\u00a011:50\u00a0UTC</span>" in email.html
     assert ">Why it failed: </span>Agenta could not start the run.</p>" in email.html
     assert "cid:agenta-logo-light" in email.html
+    assert "<h1" not in email.html
+    assert "coworkers" not in email.html
     assert [image.cid for image in email.inline_images] == [
         "agenta-logo-light",
         "agenta-logo-dark",

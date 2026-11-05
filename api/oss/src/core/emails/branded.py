@@ -32,7 +32,7 @@ _SANS = (
 _PREHEADER_PADDING = "&#8199;&#65279;&#847; " * 40
 
 
-TEXT_FOOTER = "Agenta - AI coworkers that learn how you work.\nhttps://agenta.ai\n"
+TEXT_FOOTER = "Agenta\nhttps://agenta.ai\n"
 
 
 class Strong(NamedTuple):
@@ -88,19 +88,14 @@ a{color:#242424}
 <td class="gutter" style="padding:48px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
 <tr>
-<td style="padding:0 0 40px;">
+<td style="padding:0 0 16px;">
 <img class="logo-light" src="cid:$logo_light_cid" width="98" height="22" alt="Agenta" style="display:block;width:98px;height:22px;">
 <!--[if !mso]><!--><img class="logo-dark" src="cid:$logo_dark_cid" width="97" height="22" alt="Agenta" style="display:none;max-height:0;overflow:hidden;width:97px;height:22px;"><!--<![endif]-->
 </td>
 </tr>
-<tr>
-<td>
-<h1 class="sans t-hi" style="margin:0;font-family:$sans;font-weight:500;font-size:24px;line-height:30px;letter-spacing:-0.01em;color:#242424;mso-line-height-rule:exactly;">$headline</h1>
-</td>
-</tr>
 $blocks
 <tr>
-<td class="sans t-mut" style="padding:40px 0 0;font-family:$sans;font-size:12px;line-height:18px;color:#676770;"><a class="t-mut" href="https://agenta.ai" style="color:#676770;">Agenta</a> &middot; AI coworkers that learn how you work.</td>
+<td class="sans t-mut" style="padding:40px 0 0;font-family:$sans;font-size:12px;line-height:18px;color:#676770;"><a class="t-mut" href="https://agenta.ai" style="color:#676770;">Agenta</a></td>
 </tr>
 </table>
 </td>
@@ -120,7 +115,6 @@ def render_layout(
     *,
     subject: str,
     preheader: str,
-    headline: str,
     blocks: Sequence[str],
 ) -> str:
     """Wrap pre-rendered blocks in the Agenta email shell. Text arguments are escaped."""
@@ -132,7 +126,6 @@ def render_layout(
         logo_light_cid=LOGO_LIGHT.cid,
         logo_dark_cid=LOGO_DARK.cid,
         sans=_SANS,
-        headline=escape(headline),
         blocks="\n".join(blocks),
     )
 
