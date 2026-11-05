@@ -179,7 +179,7 @@ export interface MobileRouteOptions {
 /**
  * `/w` project pages that a developer view of `/m` rebuilds, as `/m` paths relative to the
  * project, or `null` for a sub-page `/m` has no view for. The one place that lists them: when
- * `/m` moves a view, change it here and in {@link DEVELOPER_APP_ROUTES}.
+ * `/m` moves a view, change it here and in {@link developerAppRoute}.
  */
 const developerProjectRoute = (segments: string[]): string | null => {
     const [head, first, second] = segments
@@ -210,24 +210,35 @@ const developerProjectRoute = (segments: string[]): string | null => {
  * `/w` app pages (`/apps/<id>/<section>`) as `/m` paths relative to the project. `/m` has no
  * per-app section pages: the registry, evaluations, endpoints and traces are project pages that
  * take the app as `?app=`. Overview and playground tell a prompt app from an agent themselves
- * and send an agent to its own screen.
+ * and send an agent to its own screen. A `switch`, not a lookup by name: `section` is user
+ * input. `undefined` means the section has no view of its own; `null`, no `/m` page.
  */
-const DEVELOPER_APP_ROUTES = new Map<string, (appId: string, rest: string[]) => string | null>(
-    Object.entries({
-        overview: (appId) => `/apps/${appId}/overview`,
-        playground: (appId) => `/apps/${appId}/playground`,
-        variants: (appId) => `/variants?app=${appId}`,
-        deployments: (appId) => `/variants?app=${appId}`,
-        endpoints: (appId) => `/endpoints?app=${appId}`,
-        traces: (appId) => `/observability?app=${appId}`,
-        evaluations: (appId, [kind, evaluationId, extra]) => {
+const developerAppRoute = (
+    section: string,
+    appId: string,
+    [kind, evaluationId, extra]: string[],
+): string | null | undefined => {
+    switch (section) {
+        case "overview":
+            return `/apps/${appId}/overview`
+        case "playground":
+            return `/apps/${appId}/playground`
+        case "variants":
+        case "deployments":
+            return `/variants?app=${appId}`
+        case "endpoints":
+            return `/endpoints?app=${appId}`
+        case "traces":
+            return `/observability?app=${appId}`
+        case "evaluations":
             if (!kind) return `/evaluations?app=${appId}`
             return kind === "results" && evaluationId && evaluationId !== "compare" && !extra
                 ? `/evaluations/results/${evaluationId}`
                 : null
-        },
-    }),
-)
+        default:
+            return undefined
+    }
+}
 
 /**
  * Desktop URL → the `/m` route that shows the same thing, or `null` when `/m` has no such
@@ -283,8 +294,8 @@ export function mobileRouteFor(
             return `${base}/sessions/${encodeURIComponent(sessionId)}?agent=${first}`
         }
         if (developerViews) {
-            // A Map, not an object: `second` is user input and must not reach an inherited key.
-            const appRoute = DEVELOPER_APP_ROUTES.get(second || "overview")?.(
+            const appRoute = developerAppRoute(
+                second || "overview",
                 encodeURIComponent(first),
                 segments.slice(3),
             )
