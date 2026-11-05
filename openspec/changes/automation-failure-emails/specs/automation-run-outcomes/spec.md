@@ -95,6 +95,13 @@ every minute, whether email is on or off. It SHALL hold a guard lock with a 600-
 request that finds the lock held SHALL return at once. It SHALL read unsettled trigger deliveries
 newest first, at most 4 pages of 500, with keyset paging, through a partial index that leaves out
 settled rows, and SHALL apply each page oldest first. Rows not read SHALL stay for the next pass.
+An exception on one row SHALL be logged with ids and the exception type, SHALL leave that row
+unsettled, and SHALL NOT stop the pass. The route SHALL release the lock and run the send step even
+when the pass raises.
+
+#### Scenario: One row raises
+- **WHEN** applying one row raises an exception
+- **THEN** the other rows SHALL settle, the send step SHALL run, and the lock SHALL be released
 
 #### Scenario: Two requests at once
 - **WHEN** cron calls the route while the previous request still holds the lock

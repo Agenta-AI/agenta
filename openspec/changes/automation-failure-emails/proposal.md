@@ -39,8 +39,6 @@ An automation (a schedule or an event subscription) can stop working, and nobody
   `automation_failing`, and one channel, `email`.
 - **Email.** After settling, the same request sends the new deliveries, with HTML and plain text,
   escaped values, timeouts and 5 attempts.
-- **Outage brake.** When platform failures come from more than 10 projects, they open no
-  notification for 15 minutes, so an outage does not email every customer at once.
 - **Switch.** `AGENTA_NOTIFICATIONS_EMAIL_ENABLED` (default `true`) turns email off. Notifications
   are still recorded.
 
@@ -66,7 +64,7 @@ edit, start or delete of the automation.
 
 - `notifications`: the two tables, the template of a kind, the send step, the switch
   and the email sender.
-- `automation-failure-notifications`: what opens and resolves a notification, the outage brake, the
+- `automation-failure-notifications`: what opens and resolves a notification, the
   recipients, and the email content.
 - `automation-run-outcomes`: the runner fix, the outcome of each run on its trigger delivery, and the
   automations screen.
@@ -79,7 +77,7 @@ None. No shipped spec covers automations.
 
 - An email about a connection. Nothing detects an expired provider login (design G9a); a daily
   connection health check is follow-up 1.
-- An email when a run waits for a person (D7), and the agent's name in the email (D10).
+- An email when a run waits for a person (D7), and an agent field in the email (D10).
 - Trigger deliveries stuck at `102 claimed`, and the missing taskiq retry middleware (separate bugs,
   design section 11).
 - Per-user settings, reminders, recovery emails, digests, cooldowns, retention.

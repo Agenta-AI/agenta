@@ -111,43 +111,6 @@ notification, also when its run started before the fix.
 - **WHEN** a person edits an automation, and resolving its notification raises an error
 - **THEN** the edit SHALL succeed and the error SHALL be logged with ids only
 
-### Requirement: Outage brake
-After each page of a pass is settled, the system SHALL count the distinct projects with a row
-settled `failed` with a platform reason (`start_failed`, `execution_lost`, `sandbox_gone`,
-`sandbox_capacity`, `runner_capacity`, `harness_init_timeout`, `upstream_error`, `runner_error`)
-that ended less than 1 hour ago, over a rolling 15 minutes kept in the cache across
-passes. When the count passes 10, it SHALL set an outage flag for 15 minutes and log one error. While the flag is set, a failure with a platform reason
-SHALL update an open notification but SHALL NOT open one. Failures with other reasons SHALL open
-as usual.
-
-#### Scenario: Runner outage
-- **WHEN** the runner is down, and failed starts from 40 projects settle in one pass
-- **THEN** at most the failures applied before the count passed 10 SHALL open notifications, and one error SHALL be logged
-
-#### Scenario: Sandbox provider outage
-- **WHEN** the sandbox provider is down, and runs from 15 projects fail to acquire a sandbox with no error code in one pass
-- **THEN** they SHALL settle with `reason_code` `runner_error`, the flag SHALL be set, and no notification SHALL open for those applied after it
-
-#### Scenario: Outage that spreads over several minutes
-- **WHEN** platform failures come from 8 new projects in each of three passes, one minute apart
-- **THEN** the third pass SHALL see more than 10 projects in the rolling 15 minutes and set the flag
-
-#### Scenario: Failure held by the brake
-- **WHEN** an automation fails with `start_failed` while the flag is set, and does not fire again for a week
-- **THEN** no email SHALL be sent for that failure, and its next failure after the flag expired SHALL open one
-
-#### Scenario: Old failures after the deploy
-- **WHEN** the first pass after the deploy reads `start_failed` rows from 30 projects that ended 5 hours ago
-- **THEN** the flag SHALL NOT be set
-
-#### Scenario: Still failing after the outage
-- **WHEN** the flag expired, and an automation's next start fails with `start_failed`
-- **THEN** the system SHALL open one notification for it
-
-#### Scenario: Other reasons during an outage
-- **WHEN** the flag is set, and an automation fails with `paused_agent_deleted`
-- **THEN** the system SHALL open a notification for it
-
 ### Requirement: Recipients
 When a notification opens, the system SHALL choose recipients in this order, and the first step that
 gives at least one user SHALL win: (1) the automation's creator; (2) the project members with role
@@ -178,7 +141,7 @@ automation name, the project name, the time of the first failure in UTC, a plain
 from the reason catalog, an "Open automation" link to
 `<AGENTA_WEB_URL>/m/w/<organization_id>/p/<project_id>/automations/<automation_id>`, and the line
 "You will not get another email about this until it is fixed." It SHALL have a plain-text part and
-an HTML part with every value escaped. It SHALL NOT contain the raw error text or the agent's name.
+an HTML part with every value escaped. It SHALL NOT contain the raw error text or an agent field. The automation name MAY hold the agent's name.
 In the automation and project names, every character in the Unicode categories Cc, Cf, Zl and Zp
 SHALL become a space, and each name SHALL be cut to 80 characters.
 
