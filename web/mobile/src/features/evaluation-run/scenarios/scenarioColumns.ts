@@ -41,6 +41,8 @@ export interface ScenarioRowData {
     invocation: ScenarioInvocation | null
     /** The error message of each failed step, by the key of the group that shows the step. */
     errors: Record<string, string>
+    /** The error messages of failed steps that no shown group stands for. */
+    otherErrors: string[]
 }
 
 /** What the run produced for one scenario: where its trace is and how the step ended. */
@@ -159,16 +161,23 @@ export function buildScenarioRowData(
         ? {traceId: result.trace_id ?? null, status: result.status ?? null}
         : null
 
+    // Each failed step's message goes under the group that shows the step. Two steps in one
+    // group (two runs of one evaluator) keep both messages. A step with no shown group (an app
+    // step with no listed output) still shows its message, with the scenario.
+    const shown = new Set(scenarioColumnGroups(schema).map(({group}) => group.key))
     const errors: Record<string, string> = {}
+    const otherErrors: string[] = []
     for (const step of schema.steps) {
         const message = stepErrorMessage(resultOf(step.key))
         if (!message) continue
         const traceGroup = queries.some((query) => query.step.key === step.key)
-        errors[
-            traceGroup ? traceGroups(step).outputs.group.key : computeColumnGroup(step, "").key
-        ] = message
+        const key = traceGroup
+            ? traceGroups(step).outputs.group.key
+            : computeColumnGroup(step, "").key
+        if (!shown.has(key)) otherErrors.push(message)
+        else errors[key] = errors[key] ? `${errors[key]}; ${message}` : message
     }
-    return {scenario: hydrated.scenario, cells, valuesFailed, invocation, errors}
+    return {scenario: hydrated.scenario, cells, valuesFailed, invocation, errors, otherErrors}
 }
 
 const FAILED_STATUSES: ReadonlySet<string> = new Set(["failure", "failed", "error", "errors"])

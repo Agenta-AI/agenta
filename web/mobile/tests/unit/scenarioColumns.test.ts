@@ -160,6 +160,62 @@ describe("scenario columns", () => {
         })
     })
 
+    it("Two failed runs of one evaluator keep both messages", () => {
+        const twice: ScenarioSchema = {
+            steps: [
+                ...liveSchema.steps,
+                {
+                    key: "evaluator-again",
+                    type: "annotation",
+                    references: {evaluator: {id: "e1", slug: "starts-uppercase"}},
+                },
+            ],
+            mappings: liveSchema.mappings,
+        }
+        const failure = (step: string, message: string) => ({
+            run_id: "r",
+            scenario_id: "sc-1",
+            step_key: step,
+            status: "failure",
+            error: {message},
+        })
+        const row = buildScenarioRowData(
+            {
+                scenario: {id: "sc-1", run_id: "r", status: "errors"},
+                results: [failure("evaluator-fcda", "First"), failure("evaluator-again", "Second")],
+                metrics: [],
+                testcase: null,
+                traces: {},
+            },
+            twice,
+        )
+        expect(row.errors["evaluator:starts-uppercase"]).toBe("First; Second")
+    })
+
+    it("A failed step with no shown column still carries its message", () => {
+        // The app step maps no listed column: no group stands for it in the table.
+        const row = buildScenarioRowData(
+            {
+                scenario: {id: "sc-1", run_id: "r", status: "failure"},
+                results: [
+                    {
+                        run_id: "r",
+                        scenario_id: "sc-1",
+                        step_key: "app",
+                        status: "failure",
+                        error: {message: "The model timed out"},
+                    },
+                ],
+                metrics: [],
+                testcase: {id: "tc", data: {country: "France"}} as never,
+                traces: {},
+            },
+            {steps: schema.steps, mappings: [schema.mappings[0]]},
+        )
+        expect(row.errors).toEqual({})
+        expect(row.otherErrors).toEqual(["The model timed out"])
+    })
+
     it("A scenario is finished once it succeeded or failed", () => {
         expect(["success", "FAILURE", "cancelled"].every(isTerminalScenarioStatus)).toBe(true)
         expect(["running", "pending", null, undefined].some(isTerminalScenarioStatus)).toBe(false)

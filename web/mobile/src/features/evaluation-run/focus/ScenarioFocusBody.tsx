@@ -51,6 +51,11 @@ export const ScenarioFocusBody = ({
     return (
         <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4 pt-2">
             {row.valuesFailed ? <ScenarioValuesError onRetry={onRetry} /> : null}
+            {row.otherErrors.map((message, index) => (
+                <p key={index} role="alert" className="m-0 break-words text-sm text-destructive">
+                    {message}
+                </p>
+            ))}
             {inputs.length > 0 ? (
                 <section aria-label="Inputs" className="flex flex-col gap-2">
                     {inputs.map((cell) => (

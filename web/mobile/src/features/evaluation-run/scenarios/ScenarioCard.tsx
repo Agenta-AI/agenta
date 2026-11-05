@@ -30,9 +30,20 @@ export const ScenarioCard = ({
     }
     const input = firstOf("testset")
     const output = firstOf("application")
-    const errors = groups.flatMap(({group}) =>
-        row.errors[group.key] ? [{key: group.key, message: row.errors[group.key]}] : [],
-    )
+    // Each message names its step's group, so two failed evaluators can be told apart.
+    const errors = [
+        ...groups.flatMap(({group}) =>
+            row.errors[group.key]
+                ? [
+                      {
+                          key: group.key,
+                          message: `${labels[group.key] ?? group.label}: ${row.errors[group.key]}`,
+                      },
+                  ]
+                : [],
+        ),
+        ...row.otherErrors.map((message, index) => ({key: `other-${index}`, message})),
+    ]
     const scores = groups.flatMap(({group}) => {
         if (group.kind !== "evaluator") return []
         const text = scoreText(row.cells[group.key]?.[0]?.value)

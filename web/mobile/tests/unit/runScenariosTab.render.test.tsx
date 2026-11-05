@@ -201,7 +201,36 @@ describe("scenarios tab", () => {
         act(() => root.unmount())
         root = createRoot(host)
         await mount(patch, false, failed)
-        expect(host.querySelector('[role="alert"]')?.textContent).toBe("Invalid regex pattern")
+        // The card names the evaluator, so two failed evaluators can be told apart.
+        expect(host.querySelector('[role="alert"]')?.textContent).toBe(
+            "Exact Match: Invalid regex pattern",
+        )
+    })
+
+    it("A failed evaluator's error shows even when the scenario's traces did not load", async () => {
+        const failed: typeof answerRequest = (runId, serverState, url, body) => {
+            const answer = answerRequest(runId, serverState, url, body)
+            if (url.endsWith("/evaluations/results/query")) {
+                const results = answer.data?.results ?? []
+                for (const result of [...results]) {
+                    results.push({
+                        ...result,
+                        step_key: "ev",
+                        status: "failure",
+                        error: {message: "Invalid regex pattern"},
+                    } as never)
+                }
+            }
+            return answer
+        }
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async () => new Response("{}", {status: 400})),
+        )
+        await mount({ids: ["sc-1"], scored: false, failTraces: true}, true, failed)
+        // The step's own error is known without its trace, so it takes the retry's place.
+        const row = host.querySelector('[role="button"]')
+        expect(row?.textContent).toContain("Invalid regex pattern")
     })
 
     it("Clicking a row writes focusScenarioId and focusRunId to the URL", async () => {
