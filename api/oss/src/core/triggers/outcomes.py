@@ -60,8 +60,23 @@ _STOP_REASON_ROWS = {
 }
 
 
+def _start_message(delivery: TriggerDelivery) -> Optional[str]:
+    # A `500` has no message written for people, only a technical one.
+    details = delivery.data.error_details if delivery.data else None
+    return details.message if details and delivery.status.code != "500" else None
+
+
 def _execution_error_code(execution: SessionExecutionSettlement) -> Optional[str]:
     return (execution.error or {}).get("code")
+
+
+def _failed_message(
+    execution: SessionExecutionSettlement,
+    signals: Optional[TurnSignals],
+) -> Optional[str]:
+    return (execution.error or {}).get("message") or (
+        signals.error_message if signals else None
+    )
 
 
 def _failed_reason(
@@ -90,6 +105,7 @@ def settle(
         return Settled(
             outcome=outcome,
             reason_code=reason(delivery),
+            error_message=_start_message(delivery),
             ended_at=delivery.updated_at or delivery.created_at,
         )
 
@@ -103,6 +119,7 @@ def settle(
         return Settled(
             outcome=outcome,
             reason_code=_failed_reason(execution, signals),
+            error_message=_failed_message(execution, signals),
             ended_at=execution.settled_at or delivery.created_at,
         )
 
@@ -119,11 +136,7 @@ def _turn_key(delivery: TriggerDelivery) -> Optional[TurnKey]:
 
 
 def _needs_signals(execution: Optional[SessionExecutionSettlement]) -> bool:
-    if execution is None:
-        return True
-    return execution.terminal_outcome == "failed" and not _execution_error_code(
-        execution
-    )
+    return execution is None or execution.terminal_outcome == "failed"
 
 
 class OutcomesService:

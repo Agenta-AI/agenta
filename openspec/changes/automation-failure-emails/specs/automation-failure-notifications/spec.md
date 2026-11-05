@@ -141,12 +141,16 @@ automation name, the project name, the time of the first failure in UTC, a plain
 from the reason catalog, an "Open automation" link to
 `<AGENTA_WEB_URL>/m/w/<organization_id>/p/<project_id>/automations/<automation_id>`, and the line
 "You will not get another email about this until it is fixed." It SHALL have a plain-text part and
-an HTML part with every value escaped. It SHALL NOT contain the raw error text or an agent field. The automation name MAY hold the agent's name.
+an HTML part with every value escaped. It SHALL give the run's own error message as the reason, with technical prefixes removed, on one line, cut to 300 characters; a message with nothing readable SHALL give way to the reason catalog. It SHALL NOT contain an agent field. The automation name MAY hold the agent's name.
 In the automation and project names, every character in the Unicode categories Cc, Cf, Zl and Zp
 SHALL become a space, and each name SHALL be cut to 80 characters.
 
-#### Scenario: Unknown error code
-- **WHEN** a run fails with a code that is not in the reason catalog, or with the runner's `access_denied`
+#### Scenario: Run with an error message
+- **WHEN** a run fails with the record message `Internal agent error: Internal error: There's an issue with the selected model (x).`
+- **THEN** the email SHALL say "There's an issue with the selected model (x)."
+
+#### Scenario: Unknown error code with no message
+- **WHEN** a run fails with no readable message, and its code is not in the reason catalog
 - **THEN** the email SHALL say "The agent's run ended with an error." and "Open the automation to see the run and its error."
 
 #### Scenario: Recipient in several projects

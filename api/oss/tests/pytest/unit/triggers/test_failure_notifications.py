@@ -20,6 +20,7 @@ from oss.src.core.triggers.failure_notifications import (
     FailureNotifications,
     automation_dedup_key,
     normalize_name,
+    plain_error_message,
     render_automation_failing,
 )
 from oss.src.utils.env import env
@@ -132,6 +133,7 @@ async def test_the_first_failure_opens_one_notification_for_the_creator():
         "failed_at": "2026-11-05T11:50:00+00:00",
         "last_failed_at": "2026-11-05T11:50:00+00:00",
         "reason_code": "start_failed",
+        "error_message": "",
     }
     assert [delivery["user_id"] for delivery in harness.dao.deliveries] == [CREATOR]
 
@@ -467,3 +469,45 @@ def test_an_automation_with_no_name(name):
     email = render_automation_failing(PROJECT_ID, _data(automation_name=name))
 
     assert email.subject == 'Automation "Untitled automation" in Growth is failing'
+
+
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        (
+            "Internal agent error: Internal error: There's an issue with the selected "
+            "model (x). It may not exist.",
+            "There's an issue with the selected model (x). It may not exist.",
+        ),
+        (
+            "pi_core: model authentication failed. Add the project's OpenAI key.",
+            "model authentication failed. Add the project's OpenAI key.",
+        ),
+        (
+            '402: {"message":"This request requires more credits."}',
+            "This request requires more credits.",
+        ),
+        ('402: {"message":"cut off', ""),
+        ('500: {"code":1}', ""),
+        ("line one\nline two\x00", "line one line two"),
+        (None, ""),
+    ],
+)
+def test_plain_error_message(message, expected):
+    assert plain_error_message(message) == expected
+
+
+def test_plain_error_message_is_cut():
+    assert plain_error_message("a" * 400) == "a" * 297 + "..."
+
+
+def test_the_email_gives_the_real_reason_and_escapes_it():
+    email = render_automation_failing(
+        PROJECT_ID,
+        _data(reason_code="runner_error", error_message="Bad <b>model</b>."),
+    )
+
+    assert "\n\nBad <b>model</b>.\n\n" in email.text
+    assert "Bad &lt;b&gt;model&lt;/b&gt;." in email.html
+    assert "<b>model" not in email.html
+    assert "The agent's run ended with an error." not in email.text

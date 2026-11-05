@@ -405,7 +405,11 @@ async def test_turn_signals_skip_codeless_quarantined_and_deleted_records(
         "t1",
         2,
         "error",
-        {"type": "error", "code": "credential_delivery_failed"},
+        {
+            "type": "error",
+            "code": "credential_delivery_failed",
+            "message": "The credential was not delivered.",
+        },
     )
     await _record(project_id, "t1", 3, "error", {"type": "error", "message": "no code"})
     await _record(
@@ -438,8 +442,13 @@ async def test_turn_signals_skip_codeless_quarantined_and_deleted_records(
         ("session-1", "t1"): {
             "stop_reason": "error",
             "error_code": "credential_delivery_failed",
+            "error_message": "The credential was not delivered.",
         },
-        ("session-1", "t2"): {"stop_reason": None, "error_code": None},
+        ("session-1", "t2"): {
+            "stop_reason": None,
+            "error_code": None,
+            "error_message": None,
+        },
     }
 
 

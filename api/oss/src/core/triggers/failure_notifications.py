@@ -1,3 +1,4 @@
+import json
 import re
 import unicodedata
 from datetime import datetime, timedelta, timezone
@@ -141,6 +142,7 @@ class FailureNotifications:
                 "failed_at": started_at,
                 "last_failed_at": started_at,
                 "reason_code": settled.reason_code,
+                "error_message": plain_error_message(settled.error_message),
             },
             user_ids=recipients,
         )
@@ -219,11 +221,24 @@ _NO_CREDITS = (
     "The run stopped because there are no credits left.",
     "Add credits or add your own model key.",
 )
+ERROR_MESSAGE_LIMIT = 300
+# Layers of the runner that add nothing for a reader, such as "Internal agent error: ".
+_TECHNICAL_PREFIX = re.compile(
+    r"^(?:(?:internal agent error|internal error|[a-z]+_core):\s*)+",
+    re.IGNORECASE,
+)
+# A provider's HTTP error, such as `402: {"message": "..."}`.
+_PROVIDER_BODY = re.compile(r"^\d{3}:\s*(\{.*)$")
+
 _RUN_ERROR = (
     "The agent's run ended with an error.",
     "Open the automation to see the run and its error.",
 )
 REASON_CATALOG = {
+    "execution_lost": (
+        "The agent stopped responding and the run was closed.",
+        "Open the automation to see the run. The next run starts as usual.",
+    ),
     "bad_configuration": (
         "The automation could not prepare the run. Its agent or its inputs are not "
         "set correctly.",
@@ -246,12 +261,36 @@ REASON_CATALOG = {
 }
 
 
-def normalize_name(name: Optional[str]) -> str:
+def _one_line(value: Optional[str]) -> str:
     cleaned = "".join(
         " " if unicodedata.category(character) in _STRIPPED_CATEGORIES else character
-        for character in name or ""
+        for character in value or ""
     )
-    return re.sub(" +", " ", cleaned).strip()[:NAME_LIMIT]
+    return re.sub(" +", " ", cleaned).strip()
+
+
+def normalize_name(name: Optional[str]) -> str:
+    return _one_line(name)[:NAME_LIMIT]
+
+
+def plain_error_message(message: Optional[str]) -> str:
+    """The run's error as a person should read it, or "" when it has nothing to say."""
+    text = _one_line(message)
+
+    body = _PROVIDER_BODY.match(text)
+    if body:
+        try:
+            text = json.loads(body.group(1)).get("message")
+        except (ValueError, AttributeError):
+            return ""
+        if not isinstance(text, str):
+            return ""
+        text = _one_line(text)
+
+    text = _TECHNICAL_PREFIX.sub("", text)
+    if len(text) > ERROR_MESSAGE_LIMIT:
+        return text[: ERROR_MESSAGE_LIMIT - 3].rstrip() + "..."
+    return text
 
 
 def render_automation_failing(project_id: UUID, data: Dict[str, Any]) -> RenderedEmail:
@@ -259,6 +298,7 @@ def render_automation_failing(project_id: UUID, data: Dict[str, Any]) -> Rendere
     project_name = normalize_name(data.get("project_name"))
     failed_at = datetime.fromisoformat(data["failed_at"]).strftime("%Y-%m-%d %H:%M UTC")
     reason, action = REASON_CATALOG.get(data.get("reason_code"), _RUN_ERROR)
+    reason = data.get("error_message") or reason
     link = "/".join(
         [
             env.agenta.web_url.rstrip("/"),

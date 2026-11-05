@@ -104,8 +104,8 @@ class RecordsDAOInterface:
         project_id: UUID,
         keys: Sequence[Tuple[str, str]],
     ) -> Dict[Tuple[str, str], TurnSignals]:
-        """For `(session_id, turn_id)` keys, the newest `done`'s `stopReason` and the code
-        of the newest `error` record that has one. Deleted and quarantined records do not
+        """For `(session_id, turn_id)` keys, the newest `done`'s `stopReason`, and the code
+        and message of the newest `error` record that has a code. Deleted and quarantined records do not
         count."""
         raise NotImplementedError
 

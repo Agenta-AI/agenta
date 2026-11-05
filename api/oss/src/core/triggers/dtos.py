@@ -430,6 +430,7 @@ class Settled(BaseModel):
 
     outcome: TriggerDeliveryOutcome
     reason_code: Optional[str] = None
+    error_message: Optional[str] = None
     ended_at: Optional[datetime] = None
 
 

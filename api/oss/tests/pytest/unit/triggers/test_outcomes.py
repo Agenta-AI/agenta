@@ -285,6 +285,7 @@ async def test_records_are_read_only_for_turns_that_need_them():
     await service.settle_pass()
 
     assert records_dao.turn_signals.await_args.kwargs["keys"] == [
+        ("session-1", "turn-coded"),
         ("session-1", "turn-codeless"),
         ("session-1", "turn-running"),
     ]
@@ -318,3 +319,13 @@ def test_delivery_values_drop_nul_from_event_data():
     )
 
     assert values["data"] == {"event": {"text": "ab", "nested": ["c"]}}
+
+
+def test_a_failed_run_keeps_the_message_of_its_error_record():
+    settled = settle(
+        _run(),
+        _execution("failed"),
+        TurnSignals(error_code="runner_error", error_message="The model is missing."),
+    )
+
+    assert settled.error_message == "The model is missing."

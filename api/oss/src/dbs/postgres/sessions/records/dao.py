@@ -502,6 +502,7 @@ class RecordsDAO(RecordsDAOInterface):
                 RecordDBE.record_type,
                 RecordDBE.attributes["stopReason"].astext,
                 RecordDBE.attributes["code"].astext,
+                RecordDBE.attributes["message"].astext,
             )
             .where(
                 RecordDBE.project_id == project_id,
@@ -516,12 +517,16 @@ class RecordsDAO(RecordsDAOInterface):
             rows = (await session.execute(stmt)).all()
 
         signals: Dict[Tuple[str, str], TurnSignals] = {}
-        for session_id, turn_id, record_type, stop_reason, code in rows:
+        for session_id, turn_id, record_type, stop_reason, code, message in rows:
             turn = signals.setdefault((session_id, turn_id), TurnSignals())
             if record_type == TERMINAL_RECORD_TYPE:
                 turn.stop_reason = stop_reason
             elif code:
                 turn.error_code = code
+                turn.error_message = message or turn.error_message
+            elif turn.error_code is None:
+                # The runner's fallback adds a codeless error after a coded one.
+                turn.error_message = message or turn.error_message
         return signals
 
     async def settled_turns(

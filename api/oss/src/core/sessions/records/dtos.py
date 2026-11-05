@@ -46,6 +46,7 @@ class TurnSignals(BaseModel):
 
     stop_reason: Optional[str] = None
     error_code: Optional[str] = None
+    error_message: Optional[str] = None
 
 
 class SessionRecordEvent(BaseModel):

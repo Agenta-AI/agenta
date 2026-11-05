@@ -187,7 +187,7 @@ Core code uses DAO interfaces only.
 | `kind` | `VARCHAR` not null | `automation_failing` in v1 |
 | `dedup_key` | `VARCHAR` not null | `automation:<automation_id>` |
 | `state` | `VARCHAR` not null | `open` or `resolved` |
-| `data` | `JSONB` not null | `automation_id`, `organization_id`, `automation_name`, `project_name`, `failed_at`, `last_failed_at`, `reason_code`. Times are UTC ISO 8601 strings, compared as `timestamptz`. |
+| `data` | `JSONB` not null | `automation_id`, `organization_id`, `automation_name`, `project_name`, `failed_at`, `last_failed_at`, `reason_code`, `error_message`. Times are UTC ISO 8601 strings, compared as `timestamptz`. |
 | lifecycle | | `created_at` (default `CURRENT_TIMESTAMP`), `updated_at`, `deleted_at`, `created_by_id`, `updated_by_id`, `deleted_by_id` |
 
 Primary key `(project_id, id)` (G48). Index `uq_notifications_project_id_dedup_key_open`: unique
@@ -430,7 +430,12 @@ sign-in codes only): the Agenta logo embedded with `cid:`, light and dark themes
   and the result is cut to 80 characters. An empty automation name becomes "Untitled automation".
 - `link`: `env.agenta.web_url` without its trailing slash, then
   `/m/w/{organization_id}/p/{project_id}/automations/{automation_id}`, each part URL-quoted (G46).
-- Every value is HTML-escaped in the HTML part. The raw error text is never sent.
+- Every value is HTML-escaped in the HTML part.
+- `{reason}` is the run's own error message when it has one, because the catalog alone did not say why a run failed. The
+  owner asked for this. `plain_error_message` removes prefixes such as `Internal agent error:`, reads the `message` of a
+  provider's JSON body, keeps one line, and cuts it to 300 characters. A `400`, `403` or `422` uses `error_details.message`.
+  A `500` has only a technical message, so it uses the catalog. The message is stored in `notifications.data.error_message`.
+  A recipient therefore sees what the run's transcript says, also a fallback recipient who cannot open a private agent.
 
 ### 7.4 Reason catalog
 
