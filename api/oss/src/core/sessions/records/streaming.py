@@ -41,26 +41,26 @@ _NUL = "\x00"
 _NUL_ESCAPE = b"\\u0000"
 
 
-def _strip_nul(value):
+def strip_nul(value):
     """Drop every U+0000 from a record body, in dict keys as well as string values."""
     if isinstance(value, str):
         return value.replace(_NUL, "")
     if isinstance(value, dict):
         result = {}
         for key, item in value.items():
-            clean_key = _strip_nul(key) if isinstance(key, str) else key
+            clean_key = strip_nul(key) if isinstance(key, str) else key
             if clean_key in result and clean_key != key:
                 # Stripping made this key collide with one already kept. The kept entry wins:
                 # a NUL-bearing key must never displace a clean one (``"ty\x00pe"`` overwriting
                 # ``"type"`` would corrupt the discriminator reconstruction relies on). A clean
                 # key reaching here later still overwrites, since ``clean_key == key`` then.
                 continue
-            result[clean_key] = _strip_nul(item)
+            result[clean_key] = strip_nul(item)
         return result
     if isinstance(value, list):
-        return [_strip_nul(item) for item in value]
+        return [strip_nul(item) for item in value]
     if isinstance(value, tuple):
-        return tuple(_strip_nul(item) for item in value)
+        return tuple(strip_nul(item) for item in value)
     return value
 
 
@@ -292,13 +292,13 @@ async def publish_record(
             attributes = record_event.attributes
             raw_attributes = dumps(attributes, default=_orjson_default)
             # Before the size check: stripping shrinks the body, and a NUL that survives to the
-            # DB costs the whole batch (see `_strip_nul`).
+            # DB costs the whole batch (see `strip_nul`).
             if _NUL_ESCAPE in raw_attributes:
                 log.warning(
                     "[RECORDS] Stripped NUL characters from attributes",
                     session_id=str(record_event.session_id),
                 )
-                attributes = _strip_nul(attributes)
+                attributes = strip_nul(attributes)
                 raw_attributes = dumps(attributes, default=_orjson_default)
             if len(raw_attributes) > MAX_ATTRIBUTES_BYTES:
                 log.warning(

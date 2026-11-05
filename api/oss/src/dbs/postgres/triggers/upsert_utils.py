@@ -2,7 +2,16 @@ from typing import Any
 
 from sqlalchemy.sql.elements import ClauseElement
 
+from oss.src.core.sessions.records.streaming import strip_nul
 from oss.src.dbs.postgres.triggers.dbes import TriggerDeliveryDBE
+
+
+def _without_nul(values: dict[str, Any]) -> dict[str, Any]:
+    # `data` is `json`, which stores U+0000, but `->>` and `::jsonb` raise on it. One such
+    # row would fail the partial index on every write and stop the settle pass.
+    if "data" in values:
+        values["data"] = strip_nul(values["data"])
+    return values
 
 
 def build_trigger_delivery_values(
@@ -25,7 +34,7 @@ def build_trigger_delivery_values(
             if k in forbidden_none_columns and v is None:
                 continue
             result[k] = v
-        return result
+        return _without_nul(result)
 
     for col in TriggerDeliveryDBE.__table__.columns:
         name = col.name
@@ -34,7 +43,7 @@ def build_trigger_delivery_values(
             continue
         result[name] = value
 
-    return result
+    return _without_nul(result)
 
 
 def build_trigger_delivery_conflict(

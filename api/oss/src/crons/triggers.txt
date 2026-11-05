@@ -1,2 +1,2 @@
 * * * * * root sh /triggers.sh >> /proc/1/fd/1 2>&1
-* * * * * root curl -s --max-time 75 -X POST -H "Authorization: Access ${AGENTA_AUTH_KEY}" http://api:8000/admin/triggers/deliveries/settle >> /proc/1/fd/1 2>&1
+* * * * * root curl -sS --max-time 75 -X POST -H "Authorization: Access ${AGENTA_AUTH_KEY:-replace-me}" http://api:8000/admin/triggers/deliveries/settle >> /proc/1/fd/1 2>&1

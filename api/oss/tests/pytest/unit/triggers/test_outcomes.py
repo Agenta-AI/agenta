@@ -306,3 +306,15 @@ async def test_a_coded_error_with_a_codeless_fallback_reaches_the_row():
 
     kwargs = triggers_dao.settle_delivery.await_args.kwargs
     assert kwargs["reason_code"] == "credential_delivery_failed"
+
+
+def test_delivery_values_drop_nul_from_event_data():
+    from oss.src.dbs.postgres.triggers.upsert_utils import (
+        build_trigger_delivery_values,
+    )
+
+    values = build_trigger_delivery_values(
+        {"data": {"event": {"text": "a\x00b", "nested": ["c\x00"]}}}
+    )
+
+    assert values["data"] == {"event": {"text": "ab", "nested": ["c"]}}
