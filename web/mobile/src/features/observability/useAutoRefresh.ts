@@ -5,39 +5,39 @@ import {AUTO_REFRESH_INTERVAL} from "@agenta/observability-ui"
 import {useAtomValue} from "jotai"
 
 /**
- * Runs `refresh` every `AUTO_REFRESH_INTERVAL` while the toolbar's auto-refresh switch is on, the
- * same cadence as the old app's tables. Returns the refresh to give the toolbar's button and a
- * counter that goes up after every refresh, manual or automatic, so the countdown bar restarts.
+ * Refreshes `AUTO_REFRESH_INTERVAL` after the last refresh, manual or automatic, while the
+ * toolbar's auto-refresh switch is on. Returns the refresh for the toolbar's button and a counter
+ * that goes up after every refresh, so the countdown bar restarts with the next tick.
  */
 export const useAutoRefresh = (refresh: () => Promise<unknown>) => {
     const autoRefresh = useAtomValue(autoRefreshAtom)
     const [refreshTrigger, setRefreshTrigger] = useState(0)
-    // The interval reads the committed refresh, so a tab switch does not restart the countdown.
     const refreshRef = useRef(refresh)
     useEffect(() => {
         refreshRef.current = refresh
     }, [refresh])
+    // A second refresh while one runs would cancel that refetch, so it is skipped.
+    const pendingRef = useRef(false)
 
     const runRefresh = useCallback(async () => {
-        await refreshRef.current()
-        setRefreshTrigger((count) => count + 1)
+        if (pendingRef.current) return
+        pendingRef.current = true
+        try {
+            await refreshRef.current()
+        } finally {
+            pendingRef.current = false
+            setRefreshTrigger((count) => count + 1)
+        }
     }, [])
 
+    // Re-armed by every completed refresh, so the next tick lines up with the countdown bar.
     useEffect(() => {
         if (!autoRefresh) return
-        // A tick while a slow refresh is still running would cancel that refetch and start over.
-        let pending = false
-        const id = setInterval(() => {
-            if (pending) return
-            pending = true
-            runRefresh()
-                .catch((error) => console.error("Auto-refresh failed", error))
-                .finally(() => {
-                    pending = false
-                })
+        const id = setTimeout(() => {
+            runRefresh().catch((error) => console.error("Auto-refresh failed", error))
         }, AUTO_REFRESH_INTERVAL)
-        return () => clearInterval(id)
-    }, [autoRefresh, runRefresh])
+        return () => clearTimeout(id)
+    }, [autoRefresh, refreshTrigger, runRefresh])
 
     return {refresh: runRefresh, refreshTrigger}
 }

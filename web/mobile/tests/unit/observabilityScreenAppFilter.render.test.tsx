@@ -43,7 +43,18 @@ vi.mock("@agenta/observability-ui", () => ({
     AddActionsDropdown: () => null,
     DeleteTraceModal: () => null,
     deleteTraceModalAtom: {},
-    ObservabilityToolbar: ({filtersSlot}: {filtersSlot?: ReactNode}) => <div>{filtersSlot}</div>,
+    ObservabilityToolbar: ({
+        filtersSlot,
+        onRefresh,
+    }: {
+        filtersSlot?: ReactNode
+        onRefresh: () => Promise<void>
+    }) => (
+        <div>
+            <button onClick={() => void onRefresh()}>refresh</button>
+            {filtersSlot}
+        </div>
+    ),
 }))
 vi.mock("@agenta/ui", () => ({PageLayout: ({children}: {children: ReactNode}) => <>{children}</>}))
 vi.mock("@agenta/ui/hooks", () => ({useIsNarrowScreen: () => false}))
@@ -226,7 +237,7 @@ describe("ObservabilityScreen app filter", () => {
         }
     })
 
-    it("Auto-refresh skips a tick while the previous reload is still running", async () => {
+    it("A refresh is skipped while the previous one is still running", async () => {
         vi.useFakeTimers()
         try {
             fetchTraces.mockClear()
@@ -236,11 +247,33 @@ describe("ObservabilityScreen app filter", () => {
             )
             mount()
             act(() => store.set(autoRefreshAtom, true))
+            await act(async () => vi.advanceTimersByTime(15000))
+            expect(fetchTraces).toHaveBeenCalledTimes(1)
+            // A manual refresh and later ticks wait for the slow reload.
+            await click("refresh")
             await act(async () => vi.advanceTimersByTime(30000))
             expect(fetchTraces).toHaveBeenCalledTimes(1)
 
             await act(async () => finish())
             await act(async () => vi.advanceTimersByTime(15000))
+            expect(fetchTraces).toHaveBeenCalledTimes(2)
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
+    it("A manual refresh restarts the 15 second countdown", async () => {
+        vi.useFakeTimers()
+        try {
+            fetchTraces.mockClear()
+            mount()
+            act(() => store.set(autoRefreshAtom, true))
+            await act(async () => vi.advanceTimersByTime(10000))
+            await click("refresh")
+            expect(fetchTraces).toHaveBeenCalledTimes(1)
+            await act(async () => vi.advanceTimersByTime(10000))
+            expect(fetchTraces).toHaveBeenCalledTimes(1)
+            await act(async () => vi.advanceTimersByTime(5000))
             expect(fetchTraces).toHaveBeenCalledTimes(2)
         } finally {
             vi.useRealTimers()
