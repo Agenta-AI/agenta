@@ -100,14 +100,7 @@ a{color:#242424}
 </tr>
 $blocks
 <tr>
-<td style="padding:40px 0 0;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-<tr>
-<td class="sans t-mut" align="left" valign="middle" style="font-family:$sans;font-size:12px;line-height:18px;color:#676770;">Agenta &middot; AI coworkers that learn how you work.</td>
-<td class="sans" align="right" valign="middle" style="padding-left:16px;font-family:$sans;font-size:12px;line-height:18px;white-space:nowrap;"><a class="t-hi" href="https://agenta.ai" style="color:#242424;">agenta.ai</a></td>
-</tr>
-</table>
-</td>
+<td class="sans t-mut" style="padding:40px 0 0;font-family:$sans;font-size:12px;line-height:18px;color:#676770;"><a class="t-mut" href="https://agenta.ai" style="color:#676770;">Agenta</a> &middot; AI coworkers that learn how you work.</td>
 </tr>
 </table>
 </td>
