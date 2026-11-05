@@ -68,7 +68,6 @@ a{color:#242424}
 .bg{background-color:#151310!important}
 .t-hi{color:#F7F6F4!important}
 .t-mut{color:#BEBDBC!important}
-.rule{border-color:#312F2D!important}
 .btn{background-color:#F7F6F4!important}
 .btn-text{color:#151310!important}
 .logo-light{display:none!important}
@@ -104,8 +103,8 @@ $blocks
 <td style="padding:40px 0 0;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
 <tr>
-<td class="sans t-mut rule" align="left" valign="middle" style="padding:20px 0 0;border-top:1px solid #E5E0DD;font-family:$sans;font-size:12px;line-height:18px;color:#676770;">Agenta &middot; AI coworkers that learn how you work.</td>
-<td class="sans rule" align="right" valign="middle" style="padding:20px 0 0 16px;border-top:1px solid #E5E0DD;font-family:$sans;font-size:12px;line-height:18px;white-space:nowrap;"><a class="t-hi" href="https://agenta.ai" style="color:#242424;">agenta.ai</a></td>
+<td class="sans t-mut" align="left" valign="middle" style="font-family:$sans;font-size:12px;line-height:18px;color:#676770;">Agenta &middot; AI coworkers that learn how you work.</td>
+<td class="sans" align="right" valign="middle" style="padding-left:16px;font-family:$sans;font-size:12px;line-height:18px;white-space:nowrap;"><a class="t-hi" href="https://agenta.ai" style="color:#242424;">agenta.ai</a></td>
 </tr>
 </table>
 </td>
@@ -145,7 +144,7 @@ def render_layout(
     )
 
 
-def summary_block(*, parts: Sequence[Union[str, Strong]]) -> str:
+def paragraph_block(*, parts: Sequence[Union[str, Strong]]) -> str:
     text = "".join(
         f'<span class="t-hi" style="color:#242424;font-weight:500;">{escape(part.text)}</span>'
         if isinstance(part, Strong)
@@ -154,22 +153,7 @@ def summary_block(*, parts: Sequence[Union[str, Strong]]) -> str:
     )
     return f"""<tr>
 <td style="padding:16px 0 0;">
-<p class="sans t-mut" style="margin:0;font-family:{_SANS};font-size:16px;line-height:24px;color:#676770;">{text}</p>
-</td>
-</tr>"""
-
-
-def labeled_block(*, label: str, text: str) -> str:
-    return f"""<tr>
-<td style="padding:24px 0 0;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-<tr>
-<td class="rule" style="padding:16px 0;border-top:1px solid #E5E0DD;border-bottom:1px solid #E5E0DD;">
-<p class="sans t-mut" style="margin:0 0 4px;font-family:{_SANS};font-size:12px;line-height:18px;font-weight:500;letter-spacing:0.03em;color:#676770;">{escape(label)}</p>
-<p class="sans t-hi" style="margin:0;font-family:{_SANS};font-size:14px;line-height:20px;color:#242424;word-break:break-word;overflow-wrap:break-word;">{escape(text)}</p>
-</td>
-</tr>
-</table>
+<p class="sans t-mut" style="margin:0;font-family:{_SANS};font-size:16px;line-height:24px;color:#676770;word-break:break-word;overflow-wrap:break-word;">{text}</p>
 </td>
 </tr>"""
 

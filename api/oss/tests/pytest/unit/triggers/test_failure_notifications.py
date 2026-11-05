@@ -378,7 +378,7 @@ def test_the_email_has_every_part(monkeypatch):
     assert f'<a href="{link}"' in email.html
     assert "Open automation</a>" in email.html
     assert ">Nov\u00a05,\u00a02026,\u00a011:50\u00a0UTC</span>" in email.html
-    assert ">Why it failed</p>" in email.html
+    assert ">Why it failed: </span>Agenta could not start the run.</p>" in email.html
     assert "cid:agenta-logo-light" in email.html
     assert [image.cid for image in email.inline_images] == [
         "agenta-logo-light",

@@ -14,10 +14,9 @@ from oss.src.core.emails.branded import (
     TEXT_FOOTER,
     Strong,
     button_block,
-    labeled_block,
     note_block,
+    paragraph_block,
     render_layout,
-    summary_block,
 )
 from oss.src.core.memberships.service import MembershipsService
 from oss.src.core.notifications.dtos import NotificationKind, RenderedEmail
@@ -324,7 +323,7 @@ def render_automation_failing(project_id: UUID, data: Dict[str, Any]) -> Rendere
             preheader=reason,
             headline=headline,
             blocks=[
-                summary_block(
+                paragraph_block(
                     parts=[
                         "The automation ",
                         Strong(automation_name),
@@ -335,7 +334,7 @@ def render_automation_failing(project_id: UUID, data: Dict[str, Any]) -> Rendere
                         ".",
                     ]
                 ),
-                labeled_block(label="Why it failed", text=reason),
+                paragraph_block(parts=[Strong("Why it failed: "), reason]),
                 button_block(label="Open automation", url=link),
                 note_block(note=note),
             ],
