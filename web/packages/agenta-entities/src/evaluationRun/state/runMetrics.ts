@@ -158,6 +158,20 @@ const stepMetrics = (metric: EvaluationMetric): StepMetrics => {
     return out
 }
 
+/** The errors of several evaluators: their totals added up. A mean across them means nothing. */
+function sumCounts(all: (MetricStats | null)[]): MetricStats | null {
+    const stats = all.filter((entry): entry is MetricStats => entry !== null)
+    if (stats.length === 0) return null
+    const total = (pick: (entry: MetricStats) => number | undefined) =>
+        stats.reduce((sum, entry) => sum + (pick(entry) ?? 0), 0)
+    return {
+        ...stats[0],
+        sum: total((entry) => entry.sum ?? (entry.mean ?? 0) * (entry.count ?? 0)),
+        count: total((entry) => entry.count),
+        mean: undefined,
+    }
+}
+
 /**
  * Build the catalog of one run from the run and its run-level metric rows. Pure: the atom below
  * feeds it, and tests call it with captured responses.
@@ -210,17 +224,27 @@ export function buildRunMetricCatalog(
         }
     }
 
-    const invocationKeys = steps
-        .filter((step) => step.type === "invocation")
-        .map((step) => step.key)
+    const keysOf = (type: string) =>
+        steps.filter((step) => step.type === type).map((step) => step.key)
+    const invocationKeys = keysOf("invocation")
+    // A live run calls no app: its evaluators are the steps that fail, so they report the errors.
+    const errorKeys = invocationKeys.length > 0 ? invocationKeys : keysOf("annotation")
+    const hasMetric = (key: string, metricKey: string) =>
+        staticData[key]?.[metricKey] !== undefined ||
+        timed.some(({data}) => data[key]?.[metricKey] !== undefined)
     for (const {id, metricKey, label} of INVOCATION_METRICS) {
-        const stepKey =
-            invocationKeys.find(
-                (key) =>
-                    staticData[key]?.[metricKey] !== undefined ||
-                    timed.some(({data}) => data[key]?.[metricKey] !== undefined),
-            ) ?? null
+        const candidates = id === "errors" ? errorKeys : invocationKeys
+        const stepKeys = candidates.filter((key) => hasMetric(key, metricKey))
+        const stepKey = stepKeys[0] ?? null
         const temporal = stepKey ? pointsFor(stepKey, metricKey) : []
+        const stats =
+            id === "errors" && stepKeys.length > 1
+                ? sumCounts(
+                      stepKeys.map((key) => statsFor(key, metricKey, pointsFor(key, metricKey))),
+                  )
+                : stepKey
+                  ? statsFor(stepKey, metricKey, temporal)
+                  : null
         entries.push({
             id,
             kind: "invocation",
@@ -229,7 +253,7 @@ export function buildRunMetricCatalog(
             label,
             evaluatorId: null,
             evaluatorSlug: null,
-            stats: stepKey ? statsFor(stepKey, metricKey, temporal) : null,
+            stats,
             temporal,
         })
     }

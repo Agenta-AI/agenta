@@ -126,6 +126,82 @@ describe("run metric catalog", () => {
     })
 })
 
+describe("errors of a run with no invocation step", () => {
+    // Captured from a live run whose evaluator failed on all three traces (2026-11-05).
+    const errorsStats = {type: "numeric/continuous", count: 3, sum: 3, mean: 1.0}
+    const durationStats = {type: "numeric/continuous", count: 3, sum: 6.095, mean: 2.03}
+
+    it("A live run counts the errors its evaluators report", () => {
+        const catalog = buildRunMetricCatalog(asRun(online.run), [
+            {
+                id: "m-errors",
+                run_id: online.run.id,
+                scenario_id: null,
+                data: {
+                    "evaluator-7c2d": {
+                        "attributes.ag.metrics.duration.cumulative": durationStats,
+                        "attributes.ag.metrics.errors.cumulative": errorsStats,
+                    },
+                },
+            },
+        ])
+        const errors = catalog.find((entry) => entry.id === "errors")
+
+        expect(errors?.stepKey).toBe("evaluator-7c2d")
+        expect(errors?.stats).toMatchObject({sum: 3, count: 3})
+        // Only errors read the evaluator step: duration stays the app's, and a live run has none.
+        expect(catalog.find((entry) => entry.id === "duration")?.stats).toBeNull()
+    })
+
+    it("Two evaluators that fail add up their errors", () => {
+        const run = asRun({
+            ...online.run,
+            data: {
+                ...online.run.data,
+                steps: [
+                    ...online.run.data.steps,
+                    {...online.run.data.steps[1], key: "evaluator-second"},
+                ],
+            },
+        })
+        const catalog = buildRunMetricCatalog(run, [
+            {
+                id: "m-errors",
+                run_id: online.run.id,
+                scenario_id: null,
+                data: {
+                    "evaluator-7c2d": {"attributes.ag.metrics.errors.cumulative": errorsStats},
+                    "evaluator-second": {
+                        "attributes.ag.metrics.errors.cumulative": {count: 2, sum: 1, mean: 0.5},
+                    },
+                },
+            },
+        ])
+
+        expect(catalog.find((entry) => entry.id === "errors")?.stats).toMatchObject({
+            sum: 4,
+            count: 5,
+        })
+    })
+
+    it("A run with an invocation step keeps counting only the app's errors", () => {
+        const catalog = buildRunMetricCatalog(asRun(auto.run), [
+            {
+                id: "m-errors",
+                run_id: auto.run.id,
+                scenario_id: null,
+                data: {
+                    "evaluator-129eebd77337": {
+                        "attributes.ag.metrics.errors.cumulative": errorsStats,
+                    },
+                },
+            },
+        ])
+
+        expect(catalog.find((entry) => entry.id === "errors")?.stats).toBeNull()
+    })
+})
+
 describe("run metrics query", () => {
     it("The metrics query refreshes every five seconds until the run is terminal", async () => {
         const run = {...auto.run, id: "run-live", status: "running"}
