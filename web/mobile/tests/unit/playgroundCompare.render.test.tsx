@@ -405,6 +405,8 @@ describe("Compare", () => {
         expect(shown()).toEqual(["rev-2", "rev-1"])
         expect(document.querySelector('[data-testid="compare-config-rev-1"]')).not.toBeNull()
         expect(writes()).toHaveLength(0)
+        // The address is written a moment after the last change, so wait for that write.
+        await until(() => router.replace.mock.lastCall?.[0]?.query?.revisions === "rev-2,rev-1")
         expect(router.replace).toHaveBeenLastCalledWith(
             expect.objectContaining({query: expect.objectContaining({revisions: "rev-2,rev-1"})}),
             undefined,
