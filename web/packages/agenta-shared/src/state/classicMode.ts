@@ -202,11 +202,10 @@ export const readSettledClassicModeCookie = (user: User | null): "0" | "1" | nul
     if (user?.uid && user.uid !== userId) return undefined
 
     const override = readStoredBoolean(onboardingScopedKey(userId, "nav-simplified-override"))
-    // Beta developer mode keeps Developer Mode in `/m`: the gates get no "1" to act on.
-    if (override === false && readStoredBoolean(userSettingsKey(userId, BETA_DEVELOPER_MODE_KEY))) {
-        return null
-    }
-    if (override !== null) return override ? "0" : "1"
+    // Beta developer mode keeps Developer Mode in `/m`, chosen or by default. "0" also sends a
+    // desktop browser from a `/w` address to `/m`; no cookie would leave it in `/w`.
+    const beta = readStoredBoolean(userSettingsKey(userId, BETA_DEVELOPER_MODE_KEY)) === true
+    if (override !== null) return override || beta ? "0" : "1"
 
     if (readStoredBoolean(onboardingScopedKey(userId, "nav-simplified")) === true) return "0"
 
@@ -214,7 +213,7 @@ export const readSettledClassicModeCookie = (user: User | null): "0" | "1" | nul
     // cookie beats no cookie: clearing here would drop a correct answer on every reload.
     if (!user) return undefined
 
-    return isSimplifiedCohort(user) ? "0" : null
+    return isSimplifiedCohort(user) || beta ? "0" : null
 }
 
 /** The one atom both apps' Preferences pages bind their "Developer Mode" switch to. */
@@ -226,8 +225,8 @@ export const classicModeEnabledAtom = atom(
 )
 
 /**
- * Developer Mode on, and the user chose to keep it in `/m`. Developer Mode then publishes no gate
- * cookie (see {@link readSettledClassicModeCookie}), so neither app sends the user to `/w`.
+ * Developer Mode on, and the user chose to keep it in `/m`. The gate cookie then says "0" (see
+ * {@link readSettledClassicModeCookie}), so neither app sends the user to `/w`.
  */
 export const betaDeveloperModeActiveAtom = atom(
     (get) => get(classicModeEnabledAtom) && get(betaDeveloperModeFlagAtom),
