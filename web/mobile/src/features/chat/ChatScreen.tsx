@@ -84,6 +84,7 @@ export const ChatScreen = ({
     const {
         entityId: latestEntityId,
         agentId: resolvedAgentId,
+        followsAgent,
         resolving,
         refetchLatest,
         unreachable,
@@ -125,8 +126,8 @@ export const ChatScreen = ({
         setHeldCommit(null)
     }, [agentHidden, pinRevision, setHeldCommit])
     // A session starts pinned to the server's latest at the moment it opens. After that it moves
-    // only to a version the agent commits in this session (`LiveConversation` follows it); a
-    // version made elsewhere is offered by the top bar instead.
+    // to a version the agent commits in this session (`LiveConversation` follows it), or to a
+    // version made elsewhere, which the top bar applies when `autoUpdateRevision` allows it.
     const hasAgent = Boolean(latestEntityId)
     useEffect(() => {
         if (pinnedRevisionId || !hasAgent) return
@@ -161,6 +162,10 @@ export const ChatScreen = ({
     const liveStream = liveness.data?.find((s) => s.session_id === sessionId)
     const running = Boolean(liveStream?.flags?.is_running)
     const sharedReader = Boolean(liveStream?.capabilities?.shared_reader)
+    // Across a switch the bar still holds the last session's revision and agent, and a running
+    // turn keeps the revision it started on, so neither may move this session's pin.
+    const autoUpdateRevision =
+        Boolean(entityId) && followsAgent && Boolean(liveness.data) && !running
     // A chat the reader cannot open gets a page of its own: no tab strip, no config pane and no
     // agent from the chat before it, so a private chat looks exactly like an unknown one.
     if (access.blocked) {
@@ -228,6 +233,7 @@ export const ChatScreen = ({
             agentResolving={resolving}
             linkEntityId={entityId}
             linkAgentId={resolvedAgentId}
+            autoUpdateRevision={autoUpdateRevision}
             agentHidden={agentHidden}
             canSend={access.canSend}
             sessionId={sessionId}

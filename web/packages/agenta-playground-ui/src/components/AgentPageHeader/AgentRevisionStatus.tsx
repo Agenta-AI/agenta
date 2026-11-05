@@ -39,9 +39,11 @@ export interface AgentRevisionStatusProps {
     historyWorkflowId?: string | null
     /**
      * Switch this view to the agent's latest version. With it (and `historyWorkflowId`), a newer
-     * version shows as a "vN available · Update" pill; nothing is ever adopted without the click.
+     * version shows as a "vN available · Update" pill.
      */
     onUpdate?: (revisionId: string) => void
+    /** Apply a newer version with no click. Unsaved work holds it back, and the pill then stays. */
+    autoUpdate?: boolean
     /** Re-check for a newer version when this changes: pass the session id, so a switch checks. */
     checkKey?: string | null
     className?: string
@@ -61,6 +63,7 @@ export const AgentRevisionStatus = ({
     revisionId,
     historyWorkflowId,
     onUpdate,
+    autoUpdate = false,
     checkKey,
     className,
 }: AgentRevisionStatusProps) => {
@@ -121,6 +124,11 @@ export const AgentRevisionStatus = ({
     // revision auto-commit skips, which sat on "Saving…" forever; those read Draft.
     const saving = isAgent && !failed && (autoCommitScheduled || autoCommitStatus === "saving")
     const settled = !failed && !saving && !isDirty
+
+    const autoUpdateId = autoUpdate && settled ? (newer?.id ?? null) : null
+    useEffect(() => {
+        if (autoUpdateId) onUpdate?.(autoUpdateId)
+    }, [autoUpdateId, onUpdate])
 
     // "Saved" shows for a moment after a save lands, then only the dot says it.
     const [justSaved, setJustSaved] = useState(false)
@@ -230,7 +238,7 @@ export const AgentRevisionStatus = ({
                 )
             ) : null}
 
-            {newer ? (
+            {newer && !autoUpdateId ? (
                 <button
                     type="button"
                     onClick={() => onUpdate?.(newer.id)}

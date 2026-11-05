@@ -252,7 +252,7 @@ export const LiveConversation = ({
     // it replaced. A durable send learns it from the records reader; a `useChat` stream carries a
     // `data-committed-revision` part. The follower acts once per commit, and holds a commit that
     // lands while the tab is hidden until the tab is visible again. Commits made elsewhere (another
-    // user, another session) never come through here: the version pill offers those.
+    // user, another session) never come through here: the top bar applies those.
     const applyCommitRef = useRef<(revisionId: string) => void>(() => undefined)
     applyCommitRef.current = (revisionId: string) => {
         invalidateAgentCommittedRevisionCache(agentId)
