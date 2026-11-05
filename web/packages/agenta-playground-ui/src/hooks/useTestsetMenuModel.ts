@@ -6,6 +6,7 @@ import {revisionMolecule} from "@agenta/entities/testset"
 import type {CommitSubmitParams, CommitSubmitResult} from "@agenta/entity-ui/modals"
 import {playgroundController, type ConnectToTestsetPayload} from "@agenta/playground"
 import {
+    clearAllRunsMutationAtom,
     executionByMessageIdAtomFamily,
     isChatModeAtom,
     resultsByKeyAtomFamily,
@@ -342,6 +343,9 @@ export const useTestsetMenuModel = (): TestsetMenuModel => {
                 // The edits go first: a disconnect leaves them in the shared test case store.
                 store.set(loadableController.actions.discardChanges, loadableId)
                 store.set(playgroundController.actions.disconnectAndResetToLocal, loadableId)
+                // A chat playground keeps its conversation apart from the test case: it goes
+                // with the discarded test case, as the run results do.
+                if (isChat) store.set(clearAllRunsMutationAtom)
                 close()
                 return
             }
@@ -366,7 +370,7 @@ export const useTestsetMenuModel = (): TestsetMenuModel => {
             })
             close()
         },
-        [close, dialog, loadableId, open, saving, store],
+        [close, dialog, isChat, loadableId, open, saving, store],
     )
 
     const syncSubmit = useCallback(
