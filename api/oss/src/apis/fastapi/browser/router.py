@@ -7,14 +7,17 @@ Both are mounted always, so the API schema keeps them; with the browser off they
 
 import asyncio
 from contextlib import suppress
-from typing import Awaitable, Callable, Optional
+from typing import Awaitable, Callable
 from uuid import UUID
 
 from fastapi import APIRouter, Request, WebSocket
-from pydantic import BaseModel
 from websockets.asyncio.client import ClientConnection, connect
 
 from oss.src.apis.fastapi.shared.utils import is_valid_session_id, web_origin
+from oss.src.apis.fastapi.browser.models import (
+    BrowserLiveStatusRequest,
+    BrowserLiveStatusResponse,
+)
 from oss.src.apis.fastapi.sharing.utils import (
     ResourceCheck,
     check_resource,
@@ -39,18 +42,6 @@ _CLOSE_NO_BROWSER = 4404
 _LIVE_MAX_MESSAGE_BYTES = 8 * 1024 * 1024
 # A live view nobody closes would keep the sandbox, and its bill, running.
 _LIVE_MAX_SECONDS = 60 * 60
-
-
-class BrowserLiveStatusRequest(BaseModel):
-    session_id: str
-
-
-class BrowserLiveStatusResponse(BaseModel):
-    running: bool
-    # The agent's ask while it waits for the person; absent when it is not waiting.
-    waiting: Optional[str] = None
-    url: Optional[str] = None
-    title: Optional[str] = None
 
 
 def _allowed_origins() -> set[str]:

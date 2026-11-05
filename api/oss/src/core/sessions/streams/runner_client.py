@@ -22,6 +22,7 @@ from uuid import UUID
 
 import httpx
 
+from oss.src.core.sessions.streams.dtos import BrowserLiveLink, BrowserPage
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
@@ -234,22 +235,6 @@ async def cancel_runner_execution(
 
 
 _BROWSER_LIVE_TIMEOUT_SECONDS = 15.0
-
-
-class BrowserPage(NamedTuple):
-    """The browser's open page, and the agent's ask while it waits for the person (else empty)."""
-
-    waiting: str = ""
-    url: str = ""
-    title: str = ""
-
-
-class BrowserLiveLink(NamedTuple):
-    """Where the session's browser serves its live view, and the headers the connection needs."""
-
-    url: str
-    headers: dict[str, str]
-    page: BrowserPage = BrowserPage()
 
 
 _BROWSER_PAGE_TEXT_MAX = 2048
