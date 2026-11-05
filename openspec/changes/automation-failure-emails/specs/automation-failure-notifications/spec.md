@@ -70,7 +70,7 @@ While a notification is open, each new failed or skipped trigger delivery of the
 set `data.last_failed_at` to the later of its value and the trigger delivery's `created_at`. The
 system SHALL resolve the open notification when a trigger delivery of the automation that started
 at or after `data.last_failed_at` is settled as `completed` or `waiting`, and after a person's successful edit, start, refresh or
-delete of the automation. `resolved_at` SHALL be the time of the resolve. It
+delete of the automation. Resolving SHALL set `state` `resolved` and `updated_at`. It
 SHALL NOT resolve it on a stop, a revoke, a schedule stopped at its end time, or a pause by the
 dispatcher. No email SHALL be sent about the fix.
 
@@ -138,6 +138,10 @@ open a new notification, also when its run started before the fix (the owner cut
 #### Scenario: Failure and newer success settled in the same pass
 - **WHEN** run D starts at 10:00 and fails, run S starts at 10:05 and completes, and both settle in the same pass
 - **THEN** D SHALL open the notification and S SHALL resolve it in that pass, and the send step SHALL skip its email
+
+#### Scenario: Older failure in a later page
+- **WHEN** a pass opens a notification for a failure that started at 10:10, and a failure of the same automation that started at 10:00 is applied later in the same pass
+- **THEN** the notification's "Failing since" SHALL be 10:00
 
 #### Scenario: Known limit with a run in flight during the fix
 - **WHEN** an automation has an open notification, a person edits it, and a run that started before the edit is settled as `failed` after the edit

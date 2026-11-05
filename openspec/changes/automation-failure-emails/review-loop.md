@@ -219,3 +219,28 @@ decided:
 - **Made against the author's advice:** the check against an earlier resolve when a notification opens is dropped (D19). A run that started before a fix and fails after it sends one more email (known limit 1).
 - **Already made earlier:** the newer-healthy-run check and its index, and the reconcile step.
 - **Kept:** the per-project send cap (D18), keyset paging, `last_failed_at` and the start-time guard (D21), the tracing read for `paused` and the error code, and the reason catalog.
+
+## Round 6: over-engineering (Fable, two reviewers)
+
+A simplify-lens review and a minimum-v1 critic, after the owner cuts. The owner decided to drop the
+cuts below and fix every inconsistency.
+
+Dropped:
+
+- `notifications.resolved_at`: no reader after D19; `updated_at` keeps the time.
+- `link` in `notifications.data`: the template builds it; `organization_id` is stored instead.
+- The 20-page cap: the 30-second settle deadline bounds the pass.
+- The `pg_index.indisvalid` read: revision 2 runs `DROP INDEX CONCURRENTLY IF EXISTS` before the create.
+- `fetch_open`: `note_failure` returns its row count, and 0 means "open a new one".
+- `done.created_at` in `turn_signals` and the "Ended at" of rows that never open.
+- Reading the automation for every row: only before an open.
+
+Kept: the send-time permission check, resolve on delete, the unique index on notification deliveries, and `sent_at`.
+
+Fixed:
+
+- The 30-second deadline is checked between pages and between rows, and rows are applied page by page, so the request cannot outlive gunicorn's timeout with no time left to send.
+- `note_failure` also keeps the earliest start in `failed_at` (`LEAST`), so "Failing since" is right when an older failure comes in a later page.
+- The outage brake blocks only the open, after `note_failure` (it contradicted the spec).
+- D11 and the diagram: no new send after 45 s, the request ends within about 60 s. Known limit 12: 30 s.
+- D17, D23, the "lease" wording, G45 (the curl timeout is the change's choice, not a fact), the template spec (it also reads `web_url`), task 6.2 (`deliveries.*`), and two task citations.

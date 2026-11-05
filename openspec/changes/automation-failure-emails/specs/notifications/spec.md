@@ -9,7 +9,7 @@ kind (`automation_failing`) and one channel (`email`). A new kind or channel add
 
 ### Requirement: Notification storage
 The system SHALL store notifications in `notifications` (`project_id`, `id`, `kind`, `dedup_key`,
-`state` `open` or `resolved`, `data`, `resolved_at`, and the six lifecycle columns) and notification
+`state` `open` or `resolved`, `data`, and the six lifecycle columns) and notification
 deliveries in `notification_deliveries` (`project_id`, `id`, `notification_id`, `user_id`,
 `channel`, `state` `created`, `sent`, `failed` or `skipped`, `attempt_count`, `sent_at`, and the six
 lifecycle columns). Both SHALL have the primary key `(project_id, id)` and one foreign key,
@@ -28,7 +28,7 @@ lifecycle columns). Both SHALL have the primary key `(project_id, id)` and one f
 The domain that opens a kind of notification SHALL pass its template and the permission a recipient
 needs to the notifications service as a constructor argument, in the composition root. There is no
 kind registry in v1. The template SHALL render from
-the notification's `data` and the recipient's email only. The notifications code SHALL NOT import or
+the notification's `data`, the recipient's email and `env.agenta.web_url` only. The notifications code SHALL NOT import or
 read the domain that opened the notification.
 
 #### Scenario: Automation deleted after the open

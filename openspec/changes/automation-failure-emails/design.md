@@ -125,7 +125,7 @@ trigger layer already uses "paused" for an automation that is turned off (`meta.
 | G42 | `asyncio.wait_for` around `asyncio.to_thread` does not stop the thread. | Python `asyncio` semantics; `emailing.py:127`, `:194` |
 | G43 | "Email is set up" is `env.smtp.enabled or env.sendgrid.enabled`. | `env.py:2209-2211`, `:2226-2229` |
 | G44 | `AgentaConfig` groups feature configs. No notifications config exists. `env.agenta.web_url` is `AGENTA_WEB_URL`. `AGENTA_ACCESS_EMAIL_DISABLED` is the sign-in email method, not a general switch. | `env.py:206-210`, `:861-906`, `:2386-2404` |
-| G45 | Periodic trigger work runs from cron through an admin route: cron calls `POST /admin/triggers/schedules/refresh` every minute with `curl --max-time 30`. Every deployment runs one cron container (docker compose, Railway, Helm with `strategy: Recreate`, because supercronic fires every schedule in every pod). The API runs gunicorn with 2 uvicorn workers and `--timeout 60`, a heartbeat check, so a request that awaits between pages survives about 60 seconds of work under `curl --max-time 75`, as long as provider calls run in a thread. `api/oss/src/utils/locking.py` has `acquire_lock`, `renew_lock` and `release_lock`: the key is `lock:<namespace>:...`, the default TTL is `AGENTA_LOCK_TTL` (15 s), and `renew_lock` checks ownership only with the `owner` token that `acquire_lock` returned. `attachment_sweep_loop` uses its own Lua helpers. | `api/oss/src/crons/triggers.txt:1`; `api/oss/src/crons/triggers.sh:20-28`; `api/oss/src/apis/fastapi/triggers/router.py:478-488`; `api/oss/docker/Dockerfile.gh:99-112`; `hosting/railway/oss/template/template.json:363-365`; `hosting/kubernetes/helm/values.yaml:497-500`; `hosting/docker-compose/oss/docker-compose.gh.yml:79-88`; `hosting/kubernetes/helm/templates/api-deployment.yaml:114-115`; `api/oss/src/utils/locking.py:78-223`; `api/oss/src/tasks/asyncio/sessions/attachment_sweep.py:39-83` |
+| G45 | Periodic trigger work runs from cron through an admin route: cron calls `POST /admin/triggers/schedules/refresh` every minute with `curl --max-time 30`. Every deployment runs one cron container (docker compose, Railway, Helm with `strategy: Recreate`, because supercronic fires every schedule in every pod). The API runs gunicorn with 2 uvicorn workers and `--timeout 60`, a heartbeat check, so a request that awaits survives past 60 seconds as long as provider calls run in a thread. `api/oss/src/utils/locking.py` has `acquire_lock`, `renew_lock` and `release_lock`: the key is `lock:<namespace>:...`, the default TTL is `AGENTA_LOCK_TTL` (15 s), and `renew_lock` checks ownership only with the `owner` token that `acquire_lock` returned. `attachment_sweep_loop` uses its own Lua helpers. | `api/oss/src/crons/triggers.txt:1`; `api/oss/src/crons/triggers.sh:20-28`; `api/oss/src/apis/fastapi/triggers/router.py:478-488`; `api/oss/docker/Dockerfile.gh:99-112`; `hosting/railway/oss/template/template.json:363-365`; `hosting/kubernetes/helm/values.yaml:497-500`; `hosting/docker-compose/oss/docker-compose.gh.yml:79-88`; `hosting/kubernetes/helm/templates/api-deployment.yaml:114-115`; `api/oss/src/utils/locking.py:78-223`; `api/oss/src/tasks/asyncio/sessions/attachment_sweep.py:39-83` |
 | G46 | The automation page is `/m/w/{workspace_id}/p/{project_id}/automations/{automation_id}`. The API answers the organization id where a workspace id was. | `web/mobile/src/pages/w/[workspace_id]/p/[project_id]/automations/[automation_id].tsx`; `web/mobile/src/features/automations/AutomationListScreen.tsx:115`; `api/AGENTS.md` |
 | G47 | The screen reads `status.message`: `success`, `failed`, `skipped`, and anything else is pending. | `web/packages/agenta-automation-ui/src/automationModel.ts:160-171` |
 | G48 | The latest `core_oss` revision is `oss000000062`. Sibling delivery tables use the key `(project_id, id)`. A partial unique index on open rows is named like `uq_session_commands_open_target`. | `api/oss/databases/postgres/migrations/core_oss/versions/`; `api/oss/src/dbs/postgres/triggers/dbes.py:107`; `api/oss/src/dbs/postgres/sessions/commands/dbes.py:44` |
@@ -145,8 +145,8 @@ trigger layer already uses "paused" for an automation that is turned off (`meta.
 | D8 | An agent archived by a person (G14) sends no email. | A person did it, and it writes no trigger delivery. | **no** |
 | D9 | The switch defaults to on. The release notes and the self-hosting docs name `AGENTA_NOTIFICATIONS_EMAIL_ENABLED`. | v1: "Self-hosters can turn emails off". This replaces v0 R9 (default off). A self-hoster who set up SMTP for invitations starts to send automation emails after the upgrade. | **no** |
 | D10 | The email does not name the agent. | G37: a private agent's name would reach admins who cannot see the agent. v1 listed the agent. | **no** |
-| D11 | One admin route that cron calls every minute runs one pass: it settles trigger deliveries (at most 30 seconds), then sends notification deliveries with the time left (up to 45 seconds in all). No lifespan loop, no stream consumer, no hook in the dispatcher. | G45: cron is how periodic trigger work already runs (the schedule refresh), one cron container runs per deployment, and it keeps the pass out of the API worker lifecycle. G21: a second consumer group on `streams:sessions` would lose entries. G11, G24: some runs never send an event. Settling first, with its own time cap, keeps a slow mail server from holding it up (cut for size, owner, 2026-11-05: was two routes). | design |
-| D23 | The outcome of a started run comes from `session_executions` (core database), not from the tracing records. The records are read only for a `paused` turn (which settles no execution) and for the error code of a failed one. | G24c: the ingest route settles every runner ending before the record reaches the records stream, so `session_executions` has no records lag. G24d: the channels outbox already reads it. | design (round 5) |
+| D11 | One admin route that cron calls every minute runs one pass: it settles trigger deliveries (at most 30 seconds), then sends notification deliveries with the time left. It starts no new send after 45 seconds and ends within about 60 seconds. No lifespan loop, no stream consumer, no hook in the dispatcher. | G45: cron is how periodic trigger work already runs (the schedule refresh), one cron container runs per deployment, and it keeps the pass out of the API worker lifecycle. G21: a second consumer group on `streams:sessions` would lose entries. G11, G24: some runs never send an event. Settling first, with its own time cap, keeps a slow mail server from holding it up (cut for size, owner, 2026-11-05: was two routes). | design |
+| D23 | The outcome of a started run comes from `session_executions` (core database), not from the tracing records. The records are read only for a `paused` or `cancelled` turn (which settles no execution) and for the error code of a failed one. | G24c: the ingest route settles every runner ending before the record reaches the records stream, so `session_executions` has no records lag. G24d: the channels outbox already reads it. | design (round 5) |
 | D24 | The outcome is written to `data.outcome`, never to `status`. | Writing `500` to a `202` row would make it re-claimable by a repeated event (G7), which would run the automation again. | design (round 5) |
 | D25 | An outage brake. When the failures settled in one outcome pass with a platform reason (`start_failed`, `execution_lost`, `sandbox_gone`) come from more than 10 projects, the pass sets a Redis flag for 15 minutes. While the flag is set, platform-reason failures settle but open no notification, and the pass logs one error for the team. | D4 emails on the first `500`. Without a brake, a runner outage opens one notification per affected automation, and every affected customer gets "contact support" at about the same time. The caps slow the emails but do not stop them. After the outage, runs work again and need no email; an automation that still fails after the flag expires opens one as usual. | design (review of 2026-11-05) |
 | D26 | The email names the project, and its subject does not say "Your": `Automation "<name>" in <project> is failing`. | When the creator left, owners and admins get the email for an automation they did not create, and a member of several projects cannot tell which one it is. Project names are visible to every project member, so this reveals nothing that D10 protects. | design (review of 2026-11-05) |
@@ -155,10 +155,10 @@ trigger layer already uses "paused" for an automation that is turned off (`meta.
 | D13 | No failure count, no `destination`, no `read_at`. | Nothing reads them in v1. A nullable column can be added later without failing the migration gate. | design |
 | D14 | A notification is resolved by a healthy run (D20), and by a person's edit, start (`set_*_active(is_active=true)`), refresh or delete of the automation. A stop, a revoke, an end-time stop and a platform pause resolve nothing. | G26, G27. A stop makes no trigger deliveries, so resolving on it does nothing useful. | design |
 | D15 | No shared transaction across DAOs. Each pass step is idempotent, and the order of writes makes a crash between them safe (5.3). | G49. | design |
-| D16 | The notification keeps a snapshot of what the email needs (automation name, project name, link, reason code). The send step reads no trigger table. The `automation_failing` template and its required permission live in `core/triggers`, and `api/entrypoints/routers.py` passes them to `NotificationsService` as a constructor argument. | `core/notifications` then knows no automation word and imports nothing from `core/triggers`. There is no kind registry: a second kind adds a second constructor argument (cut for size, owner, 2026-11-05). | design |
-| D17 | A failure opens a notification only if it ended less than 1 hour before the pass. A `202` row settles at its first final `done`. | Without it, the first pass after the deploy emails about every failure of the last 24 hours, also failures already fixed by an edit. It also stops old failures from emailing after the passes were down for a long time. Whether a continuation after an approval reuses the `turn_id` is not settled here, so the rules do not depend on it. | design |
+| D16 | The notification keeps a snapshot of what the email needs (automation name, project name, organization id, reason code). The send step reads no trigger table. The `automation_failing` template and its required permission live in `core/triggers`, and `api/entrypoints/routers.py` passes them to `NotificationsService` as a constructor argument. | `core/notifications` then knows no automation word and imports nothing from `core/triggers`. There is no kind registry: a second kind adds a second constructor argument (cut for size, owner, 2026-11-05). | design |
+| D17 | A failure opens a notification only if it ended less than 1 hour before the pass. A `202` row settles once: at its settled execution, or at a `paused` or `cancelled` `done` when no execution is settled. | Without it, the first pass after the deploy emails about every failure of the last 24 hours, also failures already fixed by an edit. It also stops old failures from emailing after the passes were down for a long time. Whether a continuation after an approval reuses the `turn_id` is not settled here, so the rules do not depend on it. | design |
 | D18 | The send pass takes at most 10 notification deliveries per project per pass. | One project with thousands of failing automations would otherwise delay every other project's email. It drops no email. | design |
-| D19 | No check against an earlier resolve when a notification opens. `resolved_at` is the time of the resolve. | Cut for size by the owner (2026-11-05). A run that started before a fix and fails after it opens a new notification and sends one email (known limit 1). | owner |
+| D19 | No check against an earlier resolve when a notification opens, and no `resolved_at` column. | Cut for size by the owner (2026-11-05). A run that started before a fix and fails after it opens a new notification and sends one email (known limit 1). Without that check nothing reads a resolve time; `updated_at` keeps it. | owner |
 | D20 | A run that ends `waiting` counts as healthy, like `completed`. A `cancelled` run counts as neither. | A run that reached an approval request started and worked. Without this, an automation whose runs always ask for approval would keep a notification open for good and hide the next real failure. | design |
 | D21 | While a notification is open, each new failure updates `data.last_failed_at`. A healthy run resolves the notification only if it started at or after `last_failed_at`. | A newer failure while open (for example a `403` that pauses the automation) must not be resolved by an older healthy run. `at or after` lets a re-claimed `500` that keeps its `created_at` (G7) resolve its own notification when the retry works. | design |
 | D22 | No reconcile step for hard-deleted automations. | Cut for size (review of 2026-11-05). A hard-deleted automation writes no more trigger deliveries, so its open notification only stays as a row (known limit 8). | design |
@@ -168,7 +168,7 @@ trigger layer already uses "paused" for an automation that is turned off (`meta.
 
 ```text
  cron (one container per deployment, every minute)
-   │ POST /admin/triggers/deliveries/settle: settle (≤ 30 s), then send (time left, ≤ 45 s in all)
+   │ POST /admin/triggers/deliveries/settle: settle (≤ 30 s), then send (no new send after 45 s; ends within about 60 s)
    ▼                                               ▼
 ┌──────────────────────────────────────┐   ┌──────────────────────────────────┐
 │ trigger outcome pass                 │   │ notification send pass           │
@@ -189,7 +189,7 @@ trigger layer already uses "paused" for an automation that is turned off (`meta.
 |---|---|
 | Core, notifications | `api/oss/src/core/notifications/`: `dtos.py`, `interfaces.py` (`NotificationsDAOInterface`), `service.py` (`open`, `resolve`, `send_pending(deadline)` with the skip checks, render, send and state writes; it takes the `automation_failing` template and permission in its constructor) |
 | Core, triggers | `api/oss/src/core/triggers/outcomes.py` (settle table O1 to O11, `settle_pass`); `api/oss/src/core/triggers/failure_notifications.py` (rules A1 to A6, recipients, and the `automation_failing` kind: reason catalog, template, `view_triggers`) |
-| Other interfaces | `SessionExecutionsDAOInterface.query_settled` (exists, G24c); `RecordsDAOInterface.turn_signals` (new: per key, the newest `done`'s `stopReason` and `created_at`, and the newest `error` code); `TriggersDAOInterface.query_unsettled_deliveries` and `settle_delivery`; `NotificationsDAOInterface.fetch_open` and `note_failure`; `MembershipsService.fetch_member_emails(user_ids)` and `fetch_organization_owner_id(organization_id)` (in the memberships DAO, which already reads `users`, G36) |
+| Other interfaces | `SessionExecutionsDAOInterface.query_settled` (exists, G24c); `RecordsDAOInterface.turn_signals` (new: per key, the newest `done`'s `stopReason` and the newest `error` code); `TriggersDAOInterface.query_unsettled_deliveries` and `settle_delivery`; `NotificationsDAOInterface.note_failure` (returns the rows it changed); `MembershipsService.fetch_member_emails(user_ids)` and `fetch_organization_owner_id(organization_id)` (in the memberships DAO, which already reads `users`, G36) |
 | Link | built in the `automation_failing` template: `env.agenta.web_url` without its trailing slash, then each path part URL-quoted. `AGENTA_WEB_URL` is trusted server config, so no separate check (cut for size, owner, 2026-11-05). |
 | API | `POST /admin/triggers/deliveries/settle` on the triggers admin router, next to `/admin/triggers/schedules/refresh`. It calls `settle_pass` and then `NotificationsService.send_pending` with the time left. It uses the admin `Access` auth of the existing admin routes. |
 | Cron | new `api/oss/src/crons/deliveries.txt` and `deliveries.sh`, like `triggers.sh` with `curl --max-time 75` (the request ends within about 60 seconds). The settle script is not named `triggers*`, because `triggers.sh` finds its own interval with an awk match on `triggers\.sh`. It is copied and added to the crontab in `api/oss/docker/Dockerfile.gh`, `api/oss/docker/Dockerfile.dev`, `api/ee/docker/Dockerfile.gh` and `api/ee/docker/Dockerfile.dev`, and mounted in the dev compose files. The Railway cron image is built `FROM` the API image and needs no change. |
@@ -210,8 +210,7 @@ Dependency direction: `core/triggers` → `core/notifications` → `core/access`
 | `kind` | `VARCHAR` not null | `automation_failing` in v1 |
 | `dedup_key` | `VARCHAR` not null | `automation:<automation_id>` |
 | `state` | `VARCHAR` not null | `open` or `resolved` |
-| `data` | `JSONB` not null | for `automation_failing`: `automation_id`, `automation_name`, `project_name`, `failed_at` (start of the first failure), `last_failed_at` (start of the newest failure while open; times are UTC ISO 8601 strings, always compared as `timestamptz`, never as text), `reason_code`, `link` |
-| `resolved_at` | `TIMESTAMPTZ` null | when the notification was resolved (D19) |
+| `data` | `JSONB` not null | for `automation_failing`: `automation_id`, `organization_id`, `automation_name`, `project_name`, `failed_at` (start of the first failure), `last_failed_at` (start of the newest failure while open; times are UTC ISO 8601 strings, always compared as `timestamptz`, never as text), `reason_code` |
 | lifecycle | | `created_at` (default `CURRENT_TIMESTAMP`), `updated_at`, `deleted_at`, `created_by_id`, `updated_by_id`, `deleted_by_id` |
 
 Primary key `(project_id, id)` (G48). Indexes:
@@ -219,8 +218,8 @@ Primary key `(project_id, id)` (G48). Indexes:
 - `uq_notifications_project_id_dedup_key_open`: unique `(project_id, dedup_key)` `WHERE state = 'open'`.
   One open notification per automation, also when two passes race.
 
-`state` names the lifecycle like `session_commands.state`. `resolved_at` is set if and only if
-`state = 'resolved'`, and one DAO method writes both.
+`state` names the lifecycle like `session_commands.state`. The resolve time is the row's
+`updated_at`: nothing writes the row after it is resolved, and nothing in v1 reads that time.
 
 ### 4.2 `notification_deliveries`
 
@@ -265,10 +264,10 @@ Two revisions in `api/oss/databases/postgres/migrations/core_oss/versions/`, aft
 1. Create both tables and their indexes in one transaction. It touches no existing table.
 2. `CREATE INDEX CONCURRENTLY` for the `trigger_deliveries` index (4.3) inside
    `op.get_context().autocommit_block()`, as
-   `oss000000012_add_gateway_connections_provider_account_index.py` does. If an earlier build
-   failed and left an invalid index, the revision reads `pg_index.indisvalid` from Python and then
-   runs `DROP INDEX CONCURRENTLY` in the same autocommit block, before the create. `DROP INDEX
-   CONCURRENTLY` cannot run in a `DO` block or a transaction. Downgrade:
+   `oss000000012_add_gateway_connections_provider_account_index.py` does. It first runs
+   `DROP INDEX CONCURRENTLY IF EXISTS` in the same autocommit block, so an invalid index left by an
+   interrupted build is replaced. Alembic never runs a finished revision again, so this never drops
+   a valid index. Downgrade:
    `DROP INDEX CONCURRENTLY IF EXISTS`.
 
 Both pass the migration gate: revision 1 creates new tables only, and revision 2 is a concurrent
@@ -286,7 +285,7 @@ held, the route returns at once. Settling runs whether email is on or off.
 
 ### 5.1 Candidates
 
-Two queries per pass, each in pages of 500, each with at most 20 pages:
+Two queries per pass, each in pages of 500, until the 30-second settle deadline:
 
 1. **Start-time rows** (`400`, `403`, `422`, `500`), oldest first. They settle at once, so they never
    pile up.
@@ -315,13 +314,13 @@ For run rows, the pass reads, per project, with keys `(data.session_id, data.res
 - `SessionExecutionsDAOInterface.query_settled(project_id, keys)` (core): `terminal_outcome` and
   `settled_at` of each settled turn (G24c).
 - Only for keys with no settled execution, and for `failed` ones,
-  `RecordsDAOInterface.turn_signals(project_id, keys)` (tracing): the `stopReason` and `created_at`
-  of the newest `done`, and the `attributes.code` of the newest `error` record.
+  `RecordsDAOInterface.turn_signals(project_id, keys)` (tracing): the `stopReason` of the newest
+  `done`, and the `attributes.code` of the newest `error` record.
   It skips deleted and quarantined records (G24a).
 
 ### 5.2 Settle table
 
-The first matching row wins. "Ended at" is the time rule A5 uses.
+The first matching row wins. "Ended at" is the time rule A5 uses, so only rows that can open a notification have one.
 
 | # | Status | Condition | `outcome` | `reason_code` | Ended at |
 |---|---|---|---|---|---|
@@ -333,8 +332,8 @@ The first matching row wins. "Ended at" is the time rule A5 uses.
 | O7 | `202` | execution `failed` (O6 was cut, D27) | `failed` | `session_executions.error.code` if set (for example an access refusal), else the newest `error` record code, else `runner_error` | `settled_at` |
 | O8 | `202` | execution `lost` | `failed` | `execution_lost` | `settled_at` |
 | O9a | `202` | execution `continued` (a person answered the approval) | `waiting` | | `settled_at` |
-| O9 | `202` | execution settled with any other value (`stopped`, `not_running`, or a value added later), or no settled execution and the newest `done` has `stopReason = cancelled` | `cancelled` | | `settled_at`, else `done.created_at` |
-| O10 | `202` | no settled execution, and the newest `done` has `stopReason = paused` | `waiting` | | `done.created_at` |
+| O9 | `202` | execution settled with any other value (`stopped`, `not_running`, or a value added later), or no settled execution and the newest `done` has `stopReason = cancelled` | `cancelled` | | |
+| O10 | `202` | no settled execution, and the newest `done` has `stopReason = paused` | `waiting` | | |
 | O11 | `202` | otherwise (still running) | wait | | |
 
 O1 to O4 use the time of the status write, because a start can take long (G11) and the settle write
@@ -364,31 +363,36 @@ WHERE project_id = :project_id AND id = :id
 
 ### 5.3 Apply
 
-A pass first reads all its pages and settles every row in memory (5.2). Then it applies the rules
-in this order: all failed and skipped rows oldest first (A4 to A6), then all healthy rows (A3), then
-the other rows. So "Failing since" is the oldest failure of the pass, and a healthy run that started
-after a failure in the same pass resolves the notification that failure opened. The send pass then
-skips its email if it was not sent yet. For each settled trigger delivery
-`D`, `A` is `D`'s automation, read by `project_id` and id, with deleted rows. Every read and write
-filters by `D.project_id`. The steps run in this order, and each one is idempotent (D15):
+The pass works page by page. For each page it settles every row in memory (5.2), then applies the
+rules in this order: failed and skipped rows oldest first (A4 to A6), then healthy rows (A3), then
+the other rows. So a healthy run that started after a failure in the same page resolves the
+notification that failure opened, and the send step skips its email if it was not sent yet. The
+30-second deadline is checked between pages and between rows. A row not reached stays unsettled and
+is read again by the next pass, because the settle write comes last.
+
+For a row `D`, every read and write filters by `D.project_id`. `D`'s automation `A` (with deleted
+rows) is read only before an open (A5), where its `name`, `created_by_id` and deletion matter; A3
+and A4 need only the automation id, which `D` carries. The steps for one row run in this order, and
+each one is idempotent (D15):
 
 1. Apply the rules below.
 2. Write the guarded settle (5.2).
 
 If the process dies between 1 and 2, the next pass settles `D` again and the rules find the
-notification already open or already resolved. Two passes that apply the same `D` (a lease that
-expired during a pass) also open at most one notification. Only a `500` row can change status
-between the read and the write (G7, G8). Its notification is still right: that start did fail.
+notification already open or already resolved. Two requests that apply the same `D` (the guard's
+120-second TTL ran out during a request) also open at most one notification. Only a `500` row can
+change status between the read and the write (G7, G8). Its notification is still right: that start
+did fail.
 
 "Healthy" means `completed` or `waiting` (D20).
 
 | # | Rule |
 |---|---|
 | A1 | `D.outcome` is `cancelled`: settle only. |
-| A2 | `A` is missing or deleted: settle only (G15, G28). |
-| A3 | `D` is healthy: resolve the open notification of `automation:<A.id>`, with `resolved_at = now()`, if `D.created_at` is at or after its `data.last_failed_at` (D21). One `UPDATE ... WHERE state = 'open' AND (data->>'last_failed_at')::timestamptz <= :started_at`, so a concurrent `note_failure` or user resolve is not overwritten. |
-| A4 | `D.outcome` is `failed` or `skipped`, and a notification of `automation:<A.id>` is open: set its `data.last_failed_at` to `GREATEST` of its value and `D.created_at` (`NotificationsDAOInterface.note_failure`), guarded by `WHERE state = 'open'`. If a person resolved it in the meantime, the write changes nothing. |
-| A6 | `D.reason_code` is a platform reason and the outage flag is set (D25): settle only. Checked before A4 and A5. |
+| A2 | Before an open: `A` is missing or deleted: settle only (G15, G28). |
+| A3 | `D` is healthy: resolve the open notification of `automation:<A.id>` if `D.created_at` is at or after its `data.last_failed_at` (D21). One `UPDATE ... WHERE state = 'open' AND (data->>'last_failed_at')::timestamptz <= :started_at`, so a concurrent `note_failure` or user resolve is not overwritten. |
+| A4 | `D.outcome` is `failed` or `skipped`, and a notification of `automation:<A.id>` is open: set its `data.last_failed_at` to `GREATEST` of its value and `D.created_at`, and its `data.failed_at` to `LEAST` of its value and `D.created_at` (`NotificationsDAOInterface.note_failure`, one `UPDATE ... WHERE state = 'open'` that returns the number of rows it changed). 0 rows means nothing is open, and the row goes on to A6 and A5. `LEAST` keeps "Failing since" right when an older failure comes in a later page. |
+| A6 | `D.reason_code` is a platform reason and the outage flag is set (D25): settle only. Checked after A4 and before A5, so it blocks only the open. |
 | A5 | `D.outcome` is `failed` or `skipped`, nothing is open, and `D` ended (5.2) less than 1 hour ago (D17): open a notification. |
 
 All comparisons use start times (`created_at`):
@@ -408,19 +412,19 @@ ON CONFLICT (project_id, dedup_key) WHERE state = 'open' DO NOTHING
 RETURNING id;
 ```
 
-`NotificationsDAOInterface.fetch_open(project_id, dedup_key)` decides between A4 and A5. The
-recipients (section 6) are chosen only for A5, before the insert. If a row is returned, the same DAO
+The row count of `note_failure` decides between A4 and A5 (no separate read). The recipients
+(section 6) are chosen only for A5, before the insert. If a row is returned, the same DAO
 method inserts one `created` email notification delivery per recipient, in the same database
 transaction. Both tables belong to the notifications DAO, so no transaction crosses DAOs (D15). If
-two passes race, the insert of one returns no row, and that pass treats it as A4.
+two requests race, the insert of one returns no row, and that request runs `note_failure` again.
 
-Resolve: `state = 'resolved'` and `resolved_at` (D19), always with `WHERE state = 'open'`. Unsent notification deliveries are not
+Resolve: `state = 'resolved'` and `updated_at = now()`, always with `WHERE state = 'open'`. Unsent notification deliveries are not
 touched: the send pass skips them (7.1).
 
 ### 5.4 Resolve on user actions
 
-These `TriggersService` methods resolve the notification of `automation:<id>`, with
-`resolved_at = now()`, after a successful write: `edit_subscription`, `edit_schedule`,
+These `TriggersService` methods resolve the notification of `automation:<id>` after a successful
+write: `edit_subscription`, `edit_schedule`,
 `refresh_subscription`, `delete_subscription`, `delete_schedule`, and `set_subscription_active` and
 `set_schedule_active` when `is_active` is true. `refresh_schedules` only stops schedules (G27), so it
 resolves nothing and needs no flag. A connection delete removes its subscriptions with a cascade
@@ -576,7 +580,7 @@ delivery keeps today's `status.message` rule (G47), because a merged `data` can 
 10. **Retention.** Nothing deletes old notifications.
 11. **Email off, then on.** A notification opened while email was off is not sent later (section 8).
 12. **A large backlog of unfinished runs.** In an incident with more than 10,000 unfinished `202`
-   rows in 24 hours, each pass reads the newest rows it can in 45 seconds, and older runs are not
+   rows in 24 hours, each pass reads the newest rows it can in 30 seconds, and older runs are not
    settled until the backlog clears or leaves the window.
 13. **A runner ending that never reaches the API.** If the runner cannot send its `done` and the
    watchdog does not settle the turn, the run stays unsettled.

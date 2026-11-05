@@ -97,8 +97,13 @@ calls every minute, whether email is on or off. It SHALL hold a guard lock with 
 and no renewal, and a request that finds the guard held SHALL return at once. Each pass SHALL read
 start-time trigger deliveries (`400`, `403`, `422`, `500`) oldest first and `202` trigger deliveries
 newest first, with keyset paging, through a partial index that leaves out settled rows, and SHALL
-stop settling after 30 seconds. The same request then sends notification deliveries with the time
-left.
+stop settling after 30 seconds, checking the deadline between pages and between rows; a row not
+reached SHALL stay unsettled for the next pass. The same request then sends notification
+deliveries with the time left.
+
+#### Scenario: Large page set
+- **WHEN** applying the rules to the rows read so far reaches 30 seconds in the middle of a page
+- **THEN** the pass SHALL stop settling, leave the remaining rows unsettled, and send emails with the time left
 
 #### Scenario: Two requests at once
 - **WHEN** cron calls the route while the previous pass still runs
