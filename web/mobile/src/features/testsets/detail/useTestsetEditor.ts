@@ -223,13 +223,18 @@ export function useTestsetEditor({
         }
     }, [clearChanges, notFound, routeId, setRevisionContext, setServerIds])
 
-    // A new test set opens with the starter row. It runs after the effect above, so a change of
-    // page, which clears the session first, still ends with the row in place.
+    // A new test set opens with the starter columns and row. The columns are in the column list
+    // too, as in the old app, so they stay when every row is deleted. It runs after the effect
+    // above, so a change of page, which clears the session first, still ends with them in place.
     const addRowAtom = useSetAtom(testcaseMolecule.actions.add)
+    const addColumnReducer = useSetAtom(revisionMolecule.tableReducers.addColumn)
     useEffect(() => {
         if (!isNew || store.get(testcaseMolecule.newIds).length > 0) return
+        for (const columnKey of Object.keys(NEW_TESTSET_STARTER_ROW)) {
+            addColumnReducer({revisionId: routeId, columnKey})
+        }
         addRowAtom({data: {...NEW_TESTSET_STARTER_ROW}})
-    }, [addRowAtom, isNew, store])
+    }, [addColumnReducer, addRowAtom, isNew, routeId, store])
 
     // `saveTestsetAtom` and the changes summary look for edited server rows in this list, and
     // the paginated table does not fill it. Without it an edit to a saved row is never sent.
@@ -247,7 +252,6 @@ export function useTestsetEditor({
     const hasUnsavedChanges = useAtomValue(hasUnsavedChangesAtom)
 
     const deleteRowsAtom = useSetAtom(testcaseMolecule.actions.delete)
-    const addColumnReducer = useSetAtom(revisionMolecule.tableReducers.addColumn)
     const renameColumnReducer = useSetAtom(revisionMolecule.tableReducers.renameColumn)
     const removeColumnReducer = useSetAtom(revisionMolecule.tableReducers.removeColumn)
     const discardRevisionDraft = useSetAtom(revisionMolecule.actions.discard)

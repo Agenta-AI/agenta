@@ -121,7 +121,11 @@ describe("useTestsetEditor", () => {
             ok: false,
             reason: "duplicate",
         })
-        expect(store.get(revisionMolecule.atoms.pendingColumnOps("new")).add).toEqual(["country"])
+        expect(store.get(revisionMolecule.atoms.pendingColumnOps("new")).add).toEqual([
+            "input",
+            "correct_answer",
+            "country",
+        ])
         expect(saves.saved).not.toHaveBeenCalled()
     })
 
@@ -199,7 +203,8 @@ describe("useTestsetEditor", () => {
         mount("new", "Greeting checks")
         run(() => editor().addRow())
         await act(() => editor().addColumn("country"))
-        expect(editor().changesSummary.addedColumns).toBe(1)
+        // The two starter columns and "country".
+        expect(editor().changesSummary.addedColumns).toBe(3)
 
         act(() => editor().discard())
 

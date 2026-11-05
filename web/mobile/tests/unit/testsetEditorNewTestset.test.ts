@@ -4,6 +4,7 @@
 import {StrictMode, createElement, act} from "react"
 
 import {testcaseDataController, testcaseMolecule} from "@agenta/entities/testcase"
+import {revisionMolecule} from "@agenta/entities/testset"
 import {createStore, Provider, useAtomValue} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -60,6 +61,25 @@ describe("useTestsetEditor on a new test set", () => {
             correct_answer: "",
         })
         expect(columnKeys).toEqual(["input", "correct_answer"])
+    })
+
+    it("keeps the starter columns when every row is deleted", () => {
+        act(() => latest?.deleteRows(store.get(testcaseMolecule.newIds)))
+        expect(store.get(testcaseMolecule.newIds)).toEqual([])
+        // The table reads its columns from rows; the column list keeps the names.
+        expect(store.get(revisionMolecule.atoms.pendingColumnOps("new")).add).toEqual([
+            "input",
+            "correct_answer",
+        ])
+
+        let rowId: string | null = null
+        act(() => {
+            rowId = latest?.addRow() ?? null
+        })
+        expect(store.get(testcaseMolecule.atoms.data(rowId as unknown as string))?.data).toEqual({
+            input: "",
+            correct_answer: "",
+        })
     })
 
     it("gives a row added next a field for each starter column", () => {

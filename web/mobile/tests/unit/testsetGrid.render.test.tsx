@@ -24,7 +24,16 @@ vi.mock("@agenta/entities/testcase", () => {
         {key: "meta.lang", label: "lang", parentKey: "meta"},
         {key: "meta.tone", label: "tone", parentKey: "meta"},
     ])
-    return {testcaseDataController: {selectors: {columns: () => columns}}}
+    const rows = atom([{id: "case-1"}])
+    const noRows = atom([] as {id: string}[])
+    return {
+        testcaseDataController: {
+            selectors: {
+                columns: () => columns,
+                rows: (config: {scopeId: string}) => (config.scopeId === "empty" ? noRows : rows),
+            },
+        },
+    }
 })
 
 interface Header {
@@ -51,7 +60,7 @@ const ROWS: Row[] = [
 
 vi.mock("@agenta/entity-ui/testcase", () => ({
     TestcaseTable: (props: {
-        config: {searchTerm?: string}
+        config: {scopeId: string; searchTerm?: string}
         selectable?: boolean
         selectionDisabled?: boolean
         onSelectionChange?: (ids: string[]) => void
@@ -61,7 +70,10 @@ vi.mock("@agenta/entity-ui/testcase", () => ({
         headerExtra?: ReactNode
     }) => (
         <div data-search={props.config.searchTerm ?? ""}>
-            <div data-testid="toolbar">{props.headerExtra}</div>
+            {/* Like the real table, no toolbar while there are no rows. */}
+            {props.config.scopeId === "empty" ? null : (
+                <div data-testid="toolbar">{props.headerExtra}</div>
+            )}
             {props.selectable ? (
                 <button
                     type="button"
@@ -186,6 +198,17 @@ describe("Test set grid", () => {
         } finally {
             vi.useRealTimers()
         }
+    })
+
+    it("With no rows, Add column still shows", async () => {
+        const editor = fakeEditor({
+            isNew: true,
+            tableConfig: {scopeId: "empty", revisionId: "new", includeNewRows: true},
+        })
+        mount(editor)
+        expect(button("Add column")).toBeDefined()
+        await click(button("Add column"))
+        expect(document.querySelector('[role="dialog"]')).not.toBeNull()
     })
 
     it("Rename column with an unchanged name changes nothing", async () => {

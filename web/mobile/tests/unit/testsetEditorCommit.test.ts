@@ -763,12 +763,14 @@ describe("useTestsetEditor commit over the real package state", () => {
                 .data.testcases
         }
 
-        // A new test set opens with a starter row (`input`, `correct_answer`). These tests
-        // build their own columns, so they start from an empty set.
+        // A new test set opens with the starter columns `input` and `correct_answer` and a row.
+        // These tests build their own columns, so they start from an empty set.
         const mountEmptyNew = async () => {
             await mount("new")
             run(() => editor().deleteRows(store.get(testcaseMolecule.newIds)))
+            await act(() => editor().deleteColumns(["input", "correct_answer"]))
             expect(store.get(testcaseMolecule.newIds)).toEqual([])
+            expect(editor().changesSummary.addedColumns).toBe(0)
         }
 
         it("A new test set saves its starter row with the values the user typed", async () => {

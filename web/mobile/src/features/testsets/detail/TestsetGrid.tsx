@@ -142,6 +142,11 @@ export const TestsetGrid = ({
         [editor, step],
     )
 
+    // The table hides its toolbar while it has no rows, so then the toolbar shows above it: a
+    // new test set whose rows were all deleted can still get columns.
+    const gridRows = useAtomValue(testcaseDataController.selectors.rows(gridConfig))
+    const noRows = gridRows.length === 0
+
     const toolbar = canEdit ? (
         <div className="flex items-center gap-2">
             <SimpleTooltip
@@ -174,6 +179,7 @@ export const TestsetGrid = ({
                 onSearchChange={search.onChange}
                 searchPlaceholder="Search testcases..."
             />
+            {noRows && toolbar ? <div className="flex justify-end">{toolbar}</div> : null}
             <TestcaseTable
                 config={gridConfig}
                 selectable={canEdit}
@@ -185,7 +191,7 @@ export const TestsetGrid = ({
                 }}
                 appendColumns={appendColumns}
                 renderColumnHeader={canEdit ? renderColumnHeader : undefined}
-                headerExtra={toolbar}
+                headerExtra={noRows ? null : toolbar}
             />
             <ColumnDialog
                 step={step}
