@@ -67,7 +67,9 @@ export function collectColumnPaths(
     results: Map<string, ColumnPathInfo>,
     depth: number,
     maxDepth: number = COLUMN_EXTRACTION_MAX_DEPTH,
-    parentSegments: string[] = [],
+    // The keys above this level. A caller that starts below the row gives only `parentPath`;
+    // its dots then split into the segments.
+    parentSegments: string[] = parentPath ? parentPath.split(".") : [],
 ): void {
     if (depth >= maxDepth) return
 
