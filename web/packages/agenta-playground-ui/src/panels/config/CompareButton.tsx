@@ -27,10 +27,10 @@ export const CompareButton = ({appId}: {appId: string}) => {
     }
 
     return (
-        <span className="inline-flex">
+        <span className="inline-flex shrink-0">
             <Button variant="outline" size="sm" className="rounded-r-none" onClick={copyLast}>
                 <Plus aria-hidden />
-                Compare
+                <span className="max-sm:sr-only">Compare</span>
             </Button>
             <Popover open={open} onOpenChange={setOpen}>
                 <PopoverTrigger asChild>
