@@ -52,12 +52,13 @@ export const bindTraceDrawerSeams = (
 
     bindTraceDrawerSetQueryParam((name, value) => {
         const query = currentQuery(router, window.location.search)
-        if (value == null) delete query[name]
-        else query[name] = value
         // The drawer writes only the span. The trace goes with it, so a reload can reopen the
-        // drawer (`useTraceDrawerFromUrl`): a span id alone does not name its trace.
-        const traceId = name === "span" && value != null ? openTraceId() : null
+        // drawer (`useTraceDrawerFromUrl`): a span id alone does not name its trace. While the
+        // trace loads the drawer writes no span; the address keeps the one it asked for.
+        const traceId = name === "span" ? openTraceId() : null
         if (traceId) query.trace = traceId
+        if (value != null) query[name] = value
+        else if (!traceId) delete query[name]
         void router.push({pathname: router.pathname, query}, undefined, {shallow: true})
     })
 

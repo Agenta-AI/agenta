@@ -77,4 +77,20 @@ describe("the drawer's address", () => {
             {shallow: true},
         )
     })
+
+    it("keeps the asked span and writes the trace while the trace loads", () => {
+        window.history.replaceState(null, "", "/observability?trace=t1&span=s1")
+        const push = vi.fn(() => Promise.resolve(true))
+        bindTraceDrawerSeams(
+            {pathname: "/observability", query: {}, push} as unknown as NextRouter,
+            {playground: false, openTraceId: () => "t1"},
+        )
+        // The drawer writes no span until the trace is loaded.
+        traceDrawerSetQueryParam("span", null)
+        expect(push).toHaveBeenCalledWith(
+            {pathname: "/observability", query: {trace: "t1", span: "s1"}},
+            undefined,
+            {shallow: true},
+        )
+    })
 })

@@ -1,5 +1,5 @@
 import {MediaViewerHost} from "@agenta/entity-ui/drive"
-import {isDrawerOpenAtom, traceDrawerTraceIdAtom} from "@agenta/observability/traceDrawer"
+import {isDrawerOpenAtom, traceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {TraceDrawer} from "@agenta/observability-ui/traceDrawer"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {useAtomValue, useStore} from "jotai"
@@ -52,7 +52,11 @@ export const GlobalDrawers = () => {
     const store = useStore()
     bindTraceDrawerSeams(router, {
         playground,
-        openTraceId: () => store.get(traceDrawerTraceIdAtom) || null,
+        // Only an open drawer names its trace: a closing one must not put it back.
+        openTraceId: () => {
+            const drawer = store.get(traceDrawerAtom)
+            return drawer.open ? drawer.traceId || null : null
+        },
     })
     useTraceDrawerFromUrl(router)
     // The split puts a 320px tree beside a content pane of at least 400px, so it stacks below 720px.

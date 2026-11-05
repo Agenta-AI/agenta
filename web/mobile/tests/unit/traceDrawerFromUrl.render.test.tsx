@@ -75,4 +75,25 @@ describe("trace drawer from the address", () => {
         render({trace: "t1", span: "s1"})
         expect(store.get(traceDrawerAtom).activeSpanId).toBe("s2")
     })
+
+    it("Back past the trace closes the drawer", () => {
+        render({trace: "t1", span: "s1"})
+        expect(store.get(traceDrawerAtom).open).toBe(true)
+        render({})
+        expect(store.get(traceDrawerAtom).open).toBe(false)
+    })
+
+    it("A drawer opened from a row stays open until the address names its trace", () => {
+        act(() => store.set(openTraceDrawerAtom, {traceId: "t1", activeSpanId: "s1"}))
+        render({})
+        expect(store.get(traceDrawerAtom).open).toBe(true)
+    })
+
+    it("Back to another span of the same trace shows that span", () => {
+        render({trace: "t1", span: "s1"})
+        render({trace: "t1", span: "s2"})
+        expect(store.get(traceDrawerAtom).activeSpanId).toBe("s2")
+        render({trace: "t1", span: "s1"})
+        expect(store.get(traceDrawerAtom).activeSpanId).toBe("s1")
+    })
 })
