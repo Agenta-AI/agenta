@@ -62,7 +62,7 @@ edit, start, refresh or delete of the automation.
 
 ### New Capabilities
 
-- `notifications`: the two tables, the template and permission of a kind, the send step, the switch
+- `notifications`: the two tables, the template of a kind, the send step, the switch
   and the email sender.
 - `automation-failure-notifications`: what opens and resolves a notification, the outage brake, the
   recipients, and the email content.

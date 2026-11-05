@@ -39,8 +39,8 @@ trigger delivery that is not settled.
 
 ### Requirement: One open notification per automation
 The database SHALL allow at most one `open` notification per `(project_id, dedup_key)`. While one is
-open, each new failure SHALL update `data.last_failed_at` to the newest start and `data.failed_at`
-to the oldest start, and SHALL send nothing.
+open, each new failure SHALL update `data.last_failed_at` to the newest start, and SHALL send
+nothing.
 
 #### Scenario: Ten failed runs in a row
 - **WHEN** ten runs of one automation fail one after another
@@ -50,10 +50,6 @@ to the oldest start, and SHALL send nothing.
 - **WHEN** two requests try to open a notification for the same automation at the same time
 - **THEN** exactly one SHALL insert a row, and only that one SHALL insert notification deliveries
 
-#### Scenario: Older failure read later
-- **WHEN** a notification opens for a failure that started at 10:10, and a failure of the same automation that started at 10:00 is applied later
-- **THEN** the notification's `failed_at` SHALL be 10:00
-
 #### Scenario: Three automations fail for one cause
 - **WHEN** three automations fail because of the same expired model sign-in
 - **THEN** the system SHALL open three notifications, one per automation
@@ -61,8 +57,8 @@ to the oldest start, and SHALL send nothing.
 ### Requirement: What resolves a notification
 The system SHALL resolve the open notification of an automation when a trigger delivery of the
 automation that started at or after `data.last_failed_at` is settled as `completed` or `waiting`,
-and after a person's successful edit, start, refresh or delete of the automation. It SHALL NOT
-resolve it on a stop, a revoke, a schedule stopped at its end time, or a pause by the dispatcher.
+and after a person's successful edit, start or delete of the automation. It SHALL NOT
+resolve it on a stop, a refresh, a revoke, a schedule stopped at its end time, or a pause by the dispatcher.
 No email SHALL be sent about the fix. After a resolve, the next failure SHALL open a new
 notification, also when its run started before the fix.
 

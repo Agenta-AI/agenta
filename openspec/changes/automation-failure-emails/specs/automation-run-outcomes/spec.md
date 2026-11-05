@@ -81,17 +81,12 @@ its new status.
 - **WHEN** a `500` trigger delivery was settled `failed`, and a repeated event claims it again and the run starts with `202`
 - **THEN** the claim SHALL replace `data`, and the next pass SHALL settle the trigger delivery from its run
 
-#### Scenario: Status changes during a pass
-- **WHEN** a pass reads a `500` trigger delivery, and a repeated event claims it before the pass writes
-- **THEN** the settle write SHALL change no row
-
 ### Requirement: One bounded pass at a time
 The pass SHALL run behind the admin route `POST /admin/triggers/deliveries/settle`, which cron calls
 every minute, whether email is on or off. It SHALL hold a guard lock with a 600-second TTL, and a
-request that finds the lock held SHALL return at once. It SHALL read start-time trigger deliveries
-oldest first and `202` trigger deliveries newest first, with keyset paging, through a partial index
-that leaves out settled rows. It SHALL check a 30-second settle deadline between pages and between
-automations, and SHALL leave rows not reached for the next pass.
+request that finds the lock held SHALL return at once. It SHALL read unsettled trigger deliveries
+newest first, at most 4 pages of 500, with keyset paging, through a partial index that leaves out
+settled rows, and SHALL apply each page oldest first. Rows not read SHALL stay for the next pass.
 
 #### Scenario: Two requests at once
 - **WHEN** cron calls the route while the previous request still holds the lock
@@ -105,9 +100,9 @@ automations, and SHALL leave rows not reached for the next pass.
 - **WHEN** many older `202` trigger deliveries are still running, and a new run ends with an error
 - **THEN** the pass SHALL read the new run first and settle it `failed`
 
-#### Scenario: Deadline reached
-- **WHEN** the 30-second deadline is reached in the middle of a page
-- **THEN** the pass SHALL stop settling, leave the remaining automations' rows unsettled, and go on to the send step
+#### Scenario: More than four pages
+- **WHEN** 3,000 trigger deliveries are unsettled
+- **THEN** the pass SHALL settle the newest 2,000 and leave the rest for the next pass
 
 ### Requirement: Outcome on the automations screen
 For a trigger delivery with status `202` and a `data.outcome`, the automations screen SHALL show

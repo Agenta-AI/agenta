@@ -290,3 +290,37 @@ the cron line and the brake order, and found 0 blockers, 2 majors and 5 minors. 
   (no brake when caching is off); the cron line's form is spelled out.
 
 The reviewer's verdict: with the two majors fixed, the plan is ready to implement.
+
+## Round 8: simplification (Fable), decided without the owner
+
+The owner asked for a Fable review aimed at simplification, and for the author to decide and apply
+without waiting. Fable judged eight candidates and found seven more.
+
+Applied:
+
+- **Count limits instead of timers.** At most 4 pages of 500 settled and 100 emails sent per request,
+  and the send loop stops at the first provider error, so a hung provider cannot keep a request past
+  the 600-second lock. No 30-second or 45-second deadline.
+- **One candidate query**, newest first, with each page sorted oldest first in memory. The
+  per-automation grouping is gone: within a sorted page, a failure and a newer success still open
+  and resolve before the send step.
+- **No second permission check at send time.** The check runs once, at the open, in `core/triggers`;
+  `NotificationsService` takes only the template. Known limit 14.
+- **Six reason rows** instead of eleven; "out of credits" stays. The screen already shows the pause
+  cause.
+- **`fetch_project_summary`** reads the project name, organization id and owner id from the existing
+  summary columns, instead of two separate methods.
+- **No `LEAST` on `failed_at`** (known limit 15), **no per-project send cap** (D18, known limit 16),
+  **no re-run after a lost open race**, **no resolve on refresh**.
+- Tests trimmed: the EXPLAIN test, the two re-claim tests and the "Status changes during a pass"
+  scenario are gone; integration cases go from 11 to 7.
+
+Not taken:
+
+- Control characters only in name normalization. Python's email policy rejects a subject with
+  U+2028 or U+2029, so the full set (Cc, Cf, Zl, Zp) is needed.
+- A plain `created_at` index. `data` is `JSON`, so a plain index would make each pass parse a full
+  day of rows.
+- Dropping resolve on delete. It is one call and stops an email about a deleted automation.
+- Dropping the outage brake. That needs the owner to flip D4 (platform failures open nothing); the
+  option is recorded in D4.

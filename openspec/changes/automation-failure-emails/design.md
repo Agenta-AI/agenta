@@ -99,7 +99,6 @@ notification layer and the UI. The trigger layer keeps its own names.
 | G35 | The memberships DAO already reads `organizations.owner_id`, `projects.project_name` and `users.email`, in private helpers and in the members query. | `api/oss/src/dbs/postgres/memberships/dao.py:53-62`, `:177-181`, `:210`, `:458-466` |
 | G36 | Users are hard-deleted. | `api/oss/src/services/db_manager.py:1438-1444`, `:1510-1516` |
 | G37 | A private agent is visible only to its owner, admins included. Automations have no sharing policy: `view_triggers` lets a member see them. | `api/oss/src/core/sharing/service.py:173` |
-| G38 | A project's organization comes from `AccessService.project_organization_id`. | `dispatcher.py:642-648` |
 
 ### Email, config, cron, UI
 
@@ -123,7 +122,7 @@ notification layer and the UI. The trigger layer keeps its own names.
 | D1 | One email per automation. A connection gets no email of its own. | Ashraf, Slack. G9: nothing detects a broken connection. | yes |
 | D2 | Recipients: the creator, else the project's owners and admins, else the organization owner. Each must have `view_triggers`. | Ashraf, Slack. G33, G37: `view_triggers` is who can see an automation. | yes (chain) |
 | D3 | No reminders and no "fixed" email. After a fix, the next failure sends one new email. | v1. | yes |
-| D4 | A `500` sends an email on the first one. | G6: no retry exists. D25 holds it during an outage. | **no** |
+| D4 | A `500` sends an email on the first one. | G6: no retry exists. D25 holds it during an outage. A simpler option for the owner: failures with a platform reason open nothing, and D25 goes away; platform monitoring then covers them. | **no** |
 | D5 | `409` sends no email. | G9: only a person's revoke causes it, and the revoke turns the provider trigger off. | **no** |
 | D6 | `403` and `422` send an email. | G3: a `403` pauses the automation for good. G4: a `422` skips every fire. | **no** |
 | D7 | A run that waits for a person sends no email. The screen shows it as waiting. | v1 lists failures only. | **no** |
@@ -134,12 +133,12 @@ notification layer and the UI. The trigger layer keeps its own names.
 | D12 | The result goes in `data.outcome` and `data.reason_code`, not in new columns or in `status`. | No `ALTER TABLE` on a busy table. G7: writing `500` to a `202` row would let a repeated event run the automation again. | design |
 | D14 | A notification is resolved by a healthy run (D20), and by a person's edit, start, refresh or delete of the automation. | G26, G27. A stop, a revoke, an end-time stop and a platform pause make no fix. | design |
 | D15 | No transaction crosses DAOs. Each step is idempotent, and the order of writes makes a crash between steps safe. | G49. | design |
-| D16 | The notification keeps a snapshot of what the email needs. The `automation_failing` template and its permission live in `core/triggers` and are passed to `NotificationsService` in its constructor. | `core/notifications` imports nothing from `core/triggers`. A second kind adds a second constructor argument. | design |
+| D16 | The notification keeps a snapshot of what the email needs. The `automation_failing` template lives in `core/triggers` and is passed to `NotificationsService` in its constructor. The permission check runs once, in `core/triggers`, when the notification opens. | `core/notifications` imports nothing from `core/triggers`. A second kind adds a second constructor argument. | design |
 | D17 | A failure opens a notification only if it ended less than 1 hour before the pass. | Without it, the first pass after the deploy emails about every failure of the last 24 hours. | design |
-| D18 | At most 10 emails per project per pass, 100 in all. | One project with many failing automations would otherwise delay every other project's email. | design |
+| D18 | At most 100 emails per request, oldest first, and the send stops at the first provider error. | A hung provider cannot hold a request past the lock (5). No per-project cap: one open notification per automation keeps the queue small (cut for size, 2026-11-05). | design |
 | D19 | No check against an earlier resolve when a notification opens. | Owner cut. Known limit 1. | owner |
 | D20 | A run that ends `waiting` counts as healthy. | Otherwise an automation whose runs always ask for approval keeps its notification open for good. | design |
-| D21 | While a notification is open, each failure updates `data.last_failed_at` (the newest start) and `data.failed_at` (the oldest start). A healthy run resolves it only if it started at or after `last_failed_at`. | A long healthy run that started before a `403` must not resolve the notification of an automation that is now paused for good. | design |
+| D21 | While a notification is open, each failure updates `data.last_failed_at` to the newest start. A healthy run resolves it only if it started at or after `last_failed_at`. | A long healthy run that started before a `422` or `403` must not resolve the notification of an automation that still fails or is paused. | design |
 | D23 | A started run's outcome comes from `session_executions`. The tracing records are read only for a `paused` or `cancelled` turn and for a failed run's error code. | G24c: no records lag for the outcome. G24d: the channels outbox already reads it. | design |
 | D25 | An outage brake on failures with a platform reason, `runner_error` included (5.4). | D4 without a brake would send "contact support" to every affected customer at once. | design |
 | D26 | The email names the project: `Automation "<name>" in <project> is failing`. | Owners and admins may get the email for an automation they did not create, in one of several projects. | design |
@@ -151,7 +150,7 @@ notification layer and the UI. The trigger layer keeps its own names.
  cron (triggers.txt, every minute)
    │ POST /admin/triggers/deliveries/settle   (guard lock, TTL 600 s)
    ▼
- settle_pass (≤ 30 s)                             send_pending (no new send after 45 s)
+ settle_pass (≤ 4 pages of 500)                   send_pending (≤ 100, stops at first provider error)
  core/triggers/outcomes.py                        core/notifications/service.py
  core/triggers/failure_notifications.py
    trigger_deliveries ─┐                            notification_deliveries (state = created)
@@ -164,13 +163,13 @@ notification layer and the UI. The trigger layer keeps its own names.
 | Layer | New code |
 |---|---|
 | Runner | `services/runner/src/server.ts`: `persistTerminal` keeps `error`; both fallback paths pass `"error"` on a real failure (D28). |
-| Core, notifications | `api/oss/src/core/notifications/`: `dtos.py`, `interfaces.py` (`NotificationsDAOInterface`), `service.py` (`open`, `resolve(project_id, dedup_key, started_at=None)`, `note_failure`, `send_pending(deadline)`; the `automation_failing` template and permission come in the constructor). |
+| Core, notifications | `api/oss/src/core/notifications/`: `dtos.py`, `interfaces.py` (`NotificationsDAOInterface`), `service.py` (`open`, `resolve(project_id, dedup_key, started_at=None)`, `note_failure`, `send_pending()`; the `automation_failing` template comes in the constructor). |
 | Core, triggers | `api/oss/src/core/triggers/outcomes.py` (settle table, `settle_pass`); `api/oss/src/core/triggers/failure_notifications.py` (rules A1 to A6, the outage brake, recipients, the template with its reason catalog and link). |
-| Interfaces | `SessionExecutionsDAOInterface.query_settled` (exists); `RecordsDAOInterface.turn_signals` (new); `TriggersDAOInterface.query_unsettled_deliveries` and `settle_delivery` (new); `MembershipsService.fetch_member_emails(user_ids)`, `fetch_organization_owner_id(organization_id)` and `fetch_project_name(project_id)` (new, in the memberships DAO, G35). |
+| Interfaces | `SessionExecutionsDAOInterface.query_settled` (exists); `RecordsDAOInterface.turn_signals` (new); `TriggersDAOInterface.query_unsettled_deliveries` and `settle_delivery` (new); `MembershipsService.fetch_member_emails(user_ids)` and `fetch_project_summary(project_id)` (project name, organization id, organization owner id; new, in the memberships DAO on its existing summary columns, G35). |
 | DB | `api/oss/src/dbs/postgres/notifications/` (`dbes.py`, `dao.py`, `mappings.py`). |
 | API | `POST /admin/triggers/deliveries/settle` on the triggers admin router, with the admin `Access` auth. It runs `settle_pass`, then `send_pending`. |
 | Cron | one more line in `api/oss/src/crons/triggers.txt`, in the same form as the existing line: five time fields, the `root` user field, an inline `curl -s --max-time 75 -X POST -H "Authorization: Access ${AGENTA_AUTH_KEY}" http://api:8000/admin/triggers/deliveries/settle`, no `%`, and the `>> /proc/1/fd/1 2>&1` suffix, which the Dockerfiles remove. supercronic passes the container environment to the job. No new cron file: the Dockerfiles already turn every line of `triggers.txt` into the crontab (G45). |
-| Wiring | `api/entrypoints/routers.py`: build `NotificationsService` with the template and permission; pass it to `TriggersService` as an optional argument (default `None`, G31). |
+| Wiring | `api/entrypoints/routers.py`: build `NotificationsService` with the template; pass it to `TriggersService` as an optional argument (default `None`, G31). |
 
 Dependency direction: `core/triggers` → `core/notifications` → `core/access`, `core/memberships`.
 Core code uses DAO interfaces only.
@@ -238,32 +237,27 @@ Both pass the migration gate. Old code ignores the new tables and `data` keys.
 ## 5. Settle pass
 
 The route takes `acquire_lock(namespace="triggers", key="settle-pass", ttl=600)` and releases it with
-the returned token at the end. If the lock is held, it returns at once. There is no renewal: the
-lock outlasts any request, because each socket operation of a send has a 15-second timeout and no
-new send starts after 45 seconds (G41). If a request crashes, the next one can run after at most 10
+the returned token at the end. If the lock is held, it returns at once. There is no renewal. The
+request settles at most 4 pages and sends at most 100 emails, and it stops sending at the first
+provider error, so one hung provider costs one send (each socket operation has a 15-second
+timeout, G41), well inside the lock. If a request crashes, the next one can run after at most 10
 minutes. Settling runs whether email is on or off.
 
 ### 5.1 Candidates
 
-Two queries, in pages of 500, query 1 first and then query 2 (so a start failure and a newer
-success in one pass are applied in time order), with keyset paging on `(created_at, id)`, inside the last 24 hours
-(longer than the hard deadline, G23):
-
-1. **Start-time rows** (`400`, `403`, `422`, `500`), oldest first, cursor
-   `(created_at, id) > (:last_created_at, :last_id)`.
-2. **Run rows** (`202`, G1), newest first, cursor `(created_at, id) < (:last_created_at, :last_id)`.
-   Runs still going are read again on every pass; newest first keeps them from holding back the
-   runs that just ended.
+One query, newest first, in pages of 500, at most 4 pages per request, with keyset paging on
+`(created_at, id)`, inside the last 24 hours (longer than the hard deadline, G23). Runs still going
+(`202`, G1) are read again on every pass; newest first keeps them from holding back the runs that
+just ended. Each page is sorted oldest first in memory before the rules run (5.3).
 
 ```sql
 SELECT project_id, id, schedule_id, subscription_id, status, data, created_at, updated_at
 FROM trigger_deliveries
 WHERE (data->>'outcome') IS NULL
   AND (status->>'code') IN ('202','400','403','422','500')
-  AND (status->>'code') = '202'                 -- query 1: <> '202'
   AND created_at > now() - interval '24 hours'
   -- next pages: AND (created_at, id) < (:last_created_at, :last_id)
-ORDER BY created_at DESC, id DESC               -- query 1: ASC
+ORDER BY created_at DESC, id DESC
 LIMIT 500;
 ```
 
@@ -317,11 +311,10 @@ The pass works page by page. For each page:
 
 1. Settle every row in memory (5.2).
 2. Update the outage count (5.4).
-3. Group the rows by automation. For each group, apply the rules to its failed and skipped rows
-   oldest first, then to its healthy rows, then write each row's guarded settle. So a failure and a
-   newer success of one automation in one page open and resolve before the send step reads them.
-4. Check the 30-second deadline between groups and between pages. A group not reached stays
-   unsettled for the next pass.
+3. Sort the page oldest first. For each row, apply the rules, then write its guarded settle. So a
+   failure and a newer success of one automation in one page open and resolve before the send step
+   reads them.
+4. Stop after 4 pages. Rows not read stay unsettled for the next pass.
 
 Every read and write filters by the row's `project_id`. A crash between a rule and its settle write
 is safe: the next pass settles the row again and finds the notification already open or resolved.
@@ -332,7 +325,7 @@ is safe: the next pass settles the row again and finds the notification already 
 |---|---|
 | A1 | `D.outcome` is `cancelled`: nothing. |
 | A2 | `D` is healthy: `resolve(project_id, automation:<A.id>, started_at=D.created_at)`, one `UPDATE ... SET state='resolved' WHERE state='open' AND (data->>'last_failed_at')::timestamptz <= :started_at` (D21). |
-| A3 | `D.outcome` is `failed` or `skipped`: `note_failure`, one `UPDATE ... WHERE state='open'` that sets `last_failed_at = GREATEST(...)` and `failed_at = LEAST(...)` and returns its row count. 1 row: done. 0 rows: nothing is open, go on. |
+| A3 | `D.outcome` is `failed` or `skipped`: `note_failure`, one `UPDATE ... WHERE state='open'` that sets `last_failed_at = GREATEST(...)` and returns its row count. 1 row: done. 0 rows: nothing is open, go on. |
 | A4 | The outage flag is set and `D.reason_code` is a platform reason (5.4): nothing. |
 | A5 | `D` ended more than 1 hour ago (D17): nothing. |
 | A6 | Read `A` (its `name` and `created_by_id`, G29) with deleted rows. If it is missing or deleted (G15, G28): nothing. Else choose recipients (section 6) and open. |
@@ -347,7 +340,8 @@ RETURNING id;
 ```
 
 If a row is returned, the same transaction inserts one `created` email delivery per recipient. If
-no row is returned, another request opened it first, and this request runs `note_failure` again.
+no row is returned, another request opened it first, which needs the lock to have expired; this
+row then adds nothing.
 
 ### 5.4 Outage brake
 
@@ -363,8 +357,7 @@ the flag. While it is set, those failures update an open notification (A3) but o
 ### 5.5 Resolve on user actions
 
 After a successful write, `TriggersService` calls `resolve(project_id, automation:<id>)` with no
-`started_at` from `edit_subscription`, `edit_schedule`, `refresh_subscription`,
-`delete_subscription`, `delete_schedule`, and `set_subscription_active` and `set_schedule_active`
+`started_at` from `edit_subscription`, `edit_schedule`, `delete_subscription`, `delete_schedule`, and `set_subscription_active` and `set_schedule_active`
 when `is_active` is true. `refresh_schedules` only stops schedules (G27) and resolves nothing. A
 resolve failure is logged with ids only and never fails the request.
 
@@ -376,8 +369,7 @@ candidate must pass `AccessService.check_human(user_id, project_id, view_trigger
 1. The automation's `created_by_id`.
 2. The members from `MembershipsService.query_project_members(project_id)` with role `owner` or
    `admin`, all pages (G34).
-3. The organization owner, from `MembershipsService.fetch_organization_owner_id`, with the
-   organization from `AccessService.project_organization_id` (G35, G38).
+3. The organization owner, from `MembershipsService.fetch_project_summary` (G35).
 
 No step reads `project_members` directly. With no recipient, the notification opens with no
 delivery, and a warning with ids only is logged.
@@ -386,18 +378,18 @@ delivery, and a warning with ids only is logged.
 
 ### 7.1 Send step
 
-After settling, the route calls `NotificationsService.send_pending(deadline)`, where the deadline is
-45 seconds after the request started.
+After settling, the route calls `NotificationsService.send_pending()`.
 
-1. Read up to 100 `created` deliveries, oldest first, at most 10 per project (D18), joined with
-   their notification on `(project_id, notification_id)`.
+1. Read up to 100 `created` deliveries, oldest first (D18), joined with their notification on
+   `(project_id, notification_id)`.
 2. Mark a delivery `skipped` when the switch is off or no provider is set up (G43), its notification
-   is resolved, `check_human` no longer allows `view_triggers`, or
-   `MembershipsService.fetch_member_emails` returns no email (G36).
-3. Start no new send after the deadline. Render the template and send with `send_rendered_email`.
+   is resolved, or `MembershipsService.fetch_member_emails` returns no email (a deleted user, G36).
+   The permission was checked when the notification opened, in the same request or a recent one.
+3. Render the template and send with `send_rendered_email`.
 4. Success: `state='sent'`, `sent_at=now()`, guarded by `state='created'`.
-5. Failure, or an exception in steps 2 and 3: `attempt_count + 1`; at 5, `state='failed'`. Logs
-   carry ids and the exception type only, never an address, subject or message.
+5. Failure, or an exception in steps 2 and 3: `attempt_count + 1`; at 5, `state='failed'`. A
+   provider error also stops the send loop for this request. Logs carry ids and the exception type
+   only, never an address, subject or message.
 
 ### 7.2 Sender
 
@@ -429,7 +421,7 @@ What to do: {action}
 You will not get another email about this until it is fixed.
 ```
 
-- `automation_name` and `project_name` (from `MembershipsService.fetch_project_name`): every
+- `automation_name` and `project_name` (from `MembershipsService.fetch_project_summary`): every
   character in the Unicode categories Cc, Cf, Zl and Zp becomes a space, runs of spaces become one,
   and the result is cut to 80 characters. An empty automation name becomes "Untitled automation".
 - `link`: `env.agenta.web_url` without its trailing slash, then
@@ -441,16 +433,13 @@ You will not get another email about this until it is fixed.
 | `reason_code` | What happened | What to do |
 |---|---|---|
 | `bad_configuration` | The automation could not prepare the run. Its agent or its inputs are not set correctly. | Open the automation and check its agent and inputs. |
-| `paused_missing_principal` | The automation was paused because it has no owner to run as. | Open the automation, save it, then turn it on. |
-| `paused_agent_deleted` | The automation was paused because its agent was deleted. | Choose another agent, then turn the automation on. |
-| `paused_access_denied` | The automation was paused because its owner can no longer run the agent. | Check who can use the agent, then turn the automation on. |
+| `paused_missing_principal`, `paused_agent_deleted`, `paused_access_denied` | The automation was paused. | Open the automation, check its agent and who can run it, then turn it on. |
 | `agent_needs_setup` | The agent's model needs setup, so runs are skipped. | Set up the agent's model. The next run starts as usual. |
 | `start_failed` | Agenta could not start the run. | Nothing to change. If it keeps failing, contact support. |
-| `execution_lost`, `sandbox_gone` | The agent stopped responding and the run ended. | Nothing to change. If it keeps failing, contact support. |
 | `starter_credits_exhausted`, `starter_credits_program_paused`, `wallet_balance_exhausted` | The run stopped because there are no credits left. | Add credits or add your own model key. |
-| `rate_limited` | The model provider refused the request because of a rate or quota limit. | Check your limits with the model provider. |
-| `run_total_time_limit`, `run_idle_time_limit`, `run_first_response_time_limit`, `turn_time_limit_reached`, `tool_call_time_limit` | The run took longer than its time limit. | Open the automation to see the run. |
 | any other code, the runner's `access_denied` included (G25) | The agent's run ended with an error. | Open the automation to see the run and its error. |
+
+The screen shows the pause cause from `meta.paused_reason` (G3).
 
 ## 8. Config
 
@@ -484,14 +473,18 @@ today's rule, because a merged `data` can keep an old outcome (G8). The zod sche
 8. **Flapping.** An automation that fails and works in turns sends one email per cycle.
 9. **Retention.** Nothing deletes old notifications.
 10. **Email off, then on.** A notification opened while email was off is not sent later.
-11. **A large backlog of unfinished runs** (more than the pass reads in 30 seconds) delays the
+11. **A large backlog of unfinished runs** (more than 4 pages of 500) delays the
     settling of older runs until the backlog clears or leaves the 24-hour window.
 12. **An expired provider login is silent** for event subscriptions (G9a). Follow-up 1.
 13. **The outage brake also holds real failures** with a platform reason (`runner_error` included)
     while it is set. They open after it expires, if they still fail. With caching turned off there is
     no brake.
-14. **A recipient who leaves before the send.** Recipients are chosen at the open. If the only
-    recipient leaves before the send, the email is skipped and nobody else gets it.
+14. **A recipient removed between the open and the send** still gets that one email: the permission
+    is checked only at the open (D16). The gap is normally seconds.
+15. **"Failing since" can be late** when an older failure of the same automation settles in a later
+    page or pass.
+16. **A project with more than 100 failing automations at once** delays other projects' emails by
+    one minute per 100 (D18).
 
 ## 11. Separate bugs, out of this change
 
