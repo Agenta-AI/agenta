@@ -28,12 +28,12 @@ describe("column paths", () => {
         ])
     })
 
-    it("A walk that starts below the row keeps the ancestors in the path", () => {
+    it("A walk that starts below the row takes the ancestors as keys", () => {
         const results = new Map<string, ColumnPathInfo>()
-        collectColumnPaths({question: "Q"}, "inputs", results, 1)
-        expect(results.get("inputs.question")).toEqual({
-            parentKey: "inputs",
-            path: ["inputs", "question"],
+        collectColumnPaths({source: "x"}, ["meta.lang"], results, 1)
+        expect(results.get("meta.lang.source")).toEqual({
+            parentKey: "meta.lang",
+            path: ["meta.lang", "source"],
         })
     })
 })

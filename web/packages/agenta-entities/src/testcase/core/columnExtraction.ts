@@ -13,7 +13,7 @@
  *
  * // Or collect paths manually
  * const pathMap = new Map()
- * collectColumnPaths(data, '', pathMap, 0)
+ * collectColumnPaths(data, [], pathMap, 0)
  * ```
  */
 
@@ -56,41 +56,38 @@ export interface ColumnPathInfo {
  * Stringified JSON remains a string leaf and is not expanded.
  *
  * @param obj - Object to collect paths from
- * @param parentPath - Current path prefix
- * @param results - Map to store results (path -> info)
+ * @param parentSegments - The keys from the row down to `obj` ([] at the row). Given as keys,
+ *   not as a dotted string, so a key that holds a dot (`"meta.lang"`) stays one key.
+ * @param results - Map to store results (dotted path -> info)
  * @param depth - Current recursion depth
  * @param maxDepth - Maximum depth to recurse (default: COLUMN_EXTRACTION_MAX_DEPTH)
  */
 export function collectColumnPaths(
     obj: Record<string, unknown>,
-    parentPath: string,
+    parentSegments: string[],
     results: Map<string, ColumnPathInfo>,
     depth: number,
     maxDepth: number = COLUMN_EXTRACTION_MAX_DEPTH,
-    // The keys above this level. A caller that starts below the row gives only `parentPath`;
-    // its dots then split into the segments.
-    parentSegments: string[] = parentPath ? parentPath.split(".") : [],
 ): void {
     if (depth >= maxDepth) return
+    const parentPath = parentSegments.join(".")
 
     for (const [key, value] of Object.entries(obj)) {
         // Skip system fields and private fields
         if (isSystemField(key) || key.startsWith("_")) continue
 
         const fullPath = parentPath ? `${parentPath}.${key}` : key
+        const path = [...parentSegments, key]
 
         // Check if value is already an object
         if (isPlainObject(value) && Object.keys(value).length > 0) {
             // Nested object - recurse into it
-            collectColumnPaths(value, fullPath, results, depth + 1, maxDepth, [
-                ...parentSegments,
-                key,
-            ])
+            collectColumnPaths(value, path, results, depth + 1, maxDepth)
             continue
         }
 
         // Leaf value (primitive, array, empty object, or non-object JSON)
-        results.set(fullPath, {parentKey: parentPath || undefined, path: [...parentSegments, key]})
+        results.set(fullPath, {parentKey: parentPath || undefined, path})
     }
 }
 
@@ -151,7 +148,7 @@ export function extractColumnsFromData(
                 ? (row.data as Record<string, unknown>)
                 : row
 
-        collectColumnPaths(dataSource, "", columnMap, 0, maxDepth)
+        collectColumnPaths(dataSource, [], columnMap, 0, maxDepth)
     }
 
     // Convert to Column[] (compatible with groupColumns utility)
@@ -196,7 +193,7 @@ export function extractColumnsWithAccessor<T>(
     for (const row of rows.slice(0, sampleSize)) {
         const dataSource = getDataSource(row)
         if (!dataSource) continue
-        collectColumnPaths(dataSource, "", columnMap, 0, maxDepth)
+        collectColumnPaths(dataSource, [], columnMap, 0, maxDepth)
     }
 
     // Convert to Column[] (compatible with groupColumns utility)
