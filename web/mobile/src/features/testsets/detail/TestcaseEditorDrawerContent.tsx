@@ -38,10 +38,14 @@ export const TestcaseEditorDrawerContent = ({
     const data = useMemo(() => testcase?.data ?? {}, [testcase?.data])
     const {value, internal} = useMemo(() => splitInternalFields(data), [data])
 
-    // The editor hands back the whole data it was shown; the internal fields go back unchanged.
+    // The editor hands back the whole data it was shown. The internal fields go back unchanged,
+    // even when the JSON or YAML view typed a field of the same name.
     const handleChange = useCallback(
         (next: Record<string, unknown>) =>
-            update(testcaseId, replaceDataUpdate(data, {...internal, ...next})),
+            update(
+                testcaseId,
+                replaceDataUpdate(data, {...splitInternalFields(next).value, ...internal}),
+            ),
         [testcaseId, update, data, internal],
     )
 

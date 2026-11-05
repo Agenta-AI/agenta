@@ -187,4 +187,25 @@ describe("Testcase drawer", () => {
             testcase_dedup_id: "dedup-1",
         })
     })
+
+    it("A dedup id typed in the JSON view does not replace the saved one", () => {
+        const id =
+            store.set(testcaseMolecule.actions.add, {
+                data: {question: "Q", testcase_dedup_id: "dedup-1"},
+            })?.id ?? ""
+        content({isNewRow: true, testcaseId: id})
+
+        act(() =>
+            (seen.editor?.onChange as (value: unknown) => void)({
+                question: "Q",
+                testcase_dedup_id: "typed",
+                __dedup_id__: "typed too",
+            }),
+        )
+
+        expect(store.get(testcaseMolecule.atoms.data(id))?.data).toEqual({
+            question: "Q",
+            testcase_dedup_id: "dedup-1",
+        })
+    })
 })

@@ -122,20 +122,24 @@ const savedColumns = async (
  * `routeId` is a revision id or `new`. An id that is neither reports `notFound` and touches
  * nothing. The session state lives in global atoms, so it is cleared when the page closes.
  */
+/** Path parts that would write into an object's prototype instead of the row. */
+const UNSAFE_PARTS: ReadonlySet<string> = new Set(["__proto__", "constructor", "prototype"])
+
 /**
- * The data of a new row: "" at each column's path. A nested column (`inputs.question`) gives
- * `{inputs: {question: ""}}`; a column that is the parent of others is filled by its children.
+ * The data of a new row: "" at each column's path. A nested column (`inputs.question`, with
+ * the parent `inputs`) gives `{inputs: {question: ""}}`. A top-level column whose name has a dot
+ * (`meta.lang`, no parent) stays one key. A column with an unsafe path part is left out.
  */
-export function emptyRowData(columnKeys: string[]): Record<string, unknown> {
+export function emptyRowData(
+    columns: readonly {key: string; parentKey?: string}[],
+): Record<string, unknown> {
     const data: Record<string, unknown> = {}
-    const leaves = columnKeys.filter(
-        (key) => !columnKeys.some((other) => other.startsWith(`${key}.`)),
-    )
-    for (const key of leaves) {
-        const path = key.split(".")
+    for (const {key, parentKey} of columns) {
+        const path = parentKey ? [...parentKey.split("."), key.slice(parentKey.length + 1)] : [key]
+        if (path.some((part) => UNSAFE_PARTS.has(part))) continue
         let node = data
         for (const part of path.slice(0, -1)) {
-            const next = node[part]
+            const next = Object.hasOwn(node, part) ? node[part] : undefined
             node = (next && typeof next === "object" ? next : (node[part] = {})) as Record<
                 string,
                 unknown
@@ -246,7 +250,7 @@ export function useTestsetEditor({
     // so a row with no keys would give the user no field to fill in.
     const addRow = useCallback((): string | null => {
         if (savingRef.current) return null
-        return addRowAtom({data: emptyRowData(columns.map((column) => column.key))})?.id ?? null
+        return addRowAtom({data: emptyRowData(columns)})?.id ?? null
     }, [addRowAtom, columns])
 
     const deleteRows = useCallback(
