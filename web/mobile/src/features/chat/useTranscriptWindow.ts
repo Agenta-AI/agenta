@@ -28,23 +28,31 @@ export const useTranscriptWindow = (
             distanceFromBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight
             setHeld(widenWindow)
         }
+        // The auto-scroll also moves up, to anchor an answer; only the reader's scrolling counts.
+        let readerScrolled = false
+        const onReaderInput = () => {
+            readerScrolled = true
+        }
         let lastTop = el.scrollTop
         const onScroll = () => {
-            const movedUp = el.scrollTop < lastTop
+            const movedUp = readerScrolled && el.scrollTop < lastTop
             lastTop = el.scrollTop
             // Synchronous: a streamed commit landing after the measure would skew the restore.
             if (wantsOlderTurns(el, movedUp, NEAR_BOTTOM_PX)) flushSync(widen)
         }
         // Content too short to scroll gives the reader no scroll event to ask with.
         const observer = new ResizeObserver(() => {
-            if (wantsOlderTurns(el, false, NEAR_BOTTOM_PX)) widen()
+            if (wantsOlderTurns(el, false, NEAR_BOTTOM_PX)) flushSync(widen)
         })
         observer.observe(el)
         for (const child of Array.from(el.children)) observer.observe(child)
+        const readerInputs = ["wheel", "touchmove", "pointerdown", "keydown"]
+        for (const type of readerInputs) el.addEventListener(type, onReaderInput, {passive: true})
         el.addEventListener("scroll", onScroll, {passive: true})
         return () => {
             observer.disconnect()
             el.removeEventListener("scroll", onScroll)
+            for (const type of readerInputs) el.removeEventListener(type, onReaderInput)
         }
     }, [hasOlder, scrollerRef])
 

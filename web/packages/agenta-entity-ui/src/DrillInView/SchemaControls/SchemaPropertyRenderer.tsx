@@ -88,6 +88,11 @@ class AgentTemplateBoundary extends Component<{children: ReactNode}, {error: Err
     }
 }
 
+/** Warm the agent-template chunk during idle time (e.g. as soon as the playground knows the
+ * app is an agent), so its download + execution doesn't coincide with the revision/schema
+ * resolving — that combination is a main-thread burst right as the panel paints. */
+export const preloadAgentTemplateControl = () => import("./AgentTemplateControl")
+
 export interface SchemaPropertyRendererProps {
     /** The schema property defining the field */
     schema: SchemaProperty | null | undefined

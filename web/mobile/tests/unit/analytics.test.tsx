@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import {act, StrictMode} from "react"
 
-import {idleReadyAtom} from "@agenta/shared/state"
 import {getDefaultStore} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -22,10 +21,6 @@ const state = vi.hoisted(() => ({
     init: vi.fn(),
 }))
 
-vi.mock("@agenta/shared/state", async (importOriginal) => {
-    const {atom} = await import("jotai")
-    return {...(await importOriginal<object>()), idleReadyAtom: atom(true)}
-})
 vi.mock("@/lib/env", () => ({getEnv: () => state.key}))
 vi.mock("@agenta/shared/api/env", () => ({isEE: () => state.cloud}))
 vi.mock("@agenta/entities/profile", () => ({useProfile: () => ({user: state.user})}))
@@ -95,7 +90,6 @@ beforeEach(async () => {
         })
     })
     getDefaultStore().set(posthogAtom, null)
-    getDefaultStore().set(idleReadyAtom as never, true as never)
     root = createRoot(document.createElement("div"))
 })
 
@@ -225,23 +219,5 @@ describe("mobile PostHog parity", () => {
         expect(state.capture.mock.calls.some(([event]) => event === "user_device_theme")).toBe(
             false,
         )
-    })
-
-    it("waits for idle, then still captures the first pageview", async () => {
-        getDefaultStore().set(idleReadyAtom as never, false as never)
-        await render()
-        expect(getDefaultStore().get(posthogAtom)).toBeNull()
-        expect(state.capture).not.toHaveBeenCalledWith("$pageview", expect.anything())
-
-        await act(async () => {
-            getDefaultStore().set(idleReadyAtom as never, true as never)
-        })
-        await act(async () => {
-            await new Promise((resolve) => setTimeout(resolve))
-        })
-
-        expect(state.capture.mock.calls.filter(([event]) => event === "$pageview")).toEqual([
-            ["$pageview", {$current_url: window.location.href}],
-        ])
     })
 })

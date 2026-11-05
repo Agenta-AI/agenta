@@ -7,7 +7,6 @@ import {
     getPendingApprovals,
 } from "@agenta/chat/model"
 import {fetchSessionRecordsAtom, isSessionFresh} from "@agenta/entities/session"
-import {preloadAgentTemplateControl} from "@agenta/entity-ui/agent-template-preload"
 import {projectIdAtom} from "@agenta/shared/state"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
@@ -68,7 +67,6 @@ export const ChatScreen = ({
     // sends (the server uses the saved config), but config-derived UI (always-allow) never
     // qualifies. Home/Sessions bind it too; chat must not depend on having visited them.
     useBindProjectContext(projectId)
-    useEffect(() => void preloadAgentTemplateControl(), [])
     // Warm the transcript as soon as the route names the session, so it races the agent chain.
     const boundProjectId = useAtomValue(projectIdAtom)
     const prefetchRecords = useSetAtom(fetchSessionRecordsAtom)

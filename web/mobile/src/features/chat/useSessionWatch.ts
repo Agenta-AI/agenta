@@ -141,6 +141,7 @@ export const useSessionWatch = ({
 
         // One session switch opens more than one stream (the replay screen, then the live one),
         // and each `ready` used to re-read the whole rail and cancel the read before it.
+        let connectedBefore = false
         const badgesOnConnect = () => {
             const options = {cancelRefetch: false}
             for (const queryKey of [
@@ -198,7 +199,10 @@ export const useSessionWatch = ({
             // change landing in that window would miss both this refetch and the stream.
             es.addEventListener("ready", () => {
                 notifyOnConnect()
-                badgesOnConnect()
+                // A reconnect may have missed events, so only the first `ready` may skip a read.
+                if (connectedBefore) badges.run()
+                else badgesOnConnect()
+                connectedBefore = true
             })
             es.addEventListener("records-changed", () => {
                 recordsChanged.run()

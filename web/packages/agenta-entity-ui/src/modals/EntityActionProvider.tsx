@@ -35,7 +35,7 @@
  * ```
  */
 
-import {lazy, Suspense, type ReactNode} from "react"
+import {lazy, Suspense, type ComponentType, type ReactNode} from "react"
 
 import {useHasOpened} from "@agenta/ui/hooks"
 import {useAtomValue} from "jotai"
@@ -46,13 +46,25 @@ import {deleteModalOpenAtom} from "./delete/state"
 import {saveModalOpenAtom} from "./save/state"
 
 // A lazy component downloads when it first renders, so each modal renders from its first open.
-const EntityCommitModal = lazy(() =>
-    import("./commit").then((mod) => ({default: mod.EntityCommitModal})),
-)
-const EntityDeleteModal = lazy(() =>
-    import("./delete").then((mod) => ({default: mod.EntityDeleteModal})),
-)
-const EntitySaveModal = lazy(() => import("./save").then((mod) => ({default: mod.EntitySaveModal})))
+/**
+ * A modal loads on its first open, which in a long-lived tab can be after a deploy removed its
+ * chunk. These mount at the app root with no error boundary above them, so a rejected lazy would
+ * take the whole page down. The modal stays closed instead.
+ */
+const loadModal = (load: () => Promise<ComponentType>) =>
+    lazy(() =>
+        load().then(
+            (Modal) => ({default: Modal}),
+            (error: unknown) => {
+                console.error("[EntityModalsProvider] modal failed to load", error)
+                return {default: () => null}
+            },
+        ),
+    )
+
+const EntityCommitModal = loadModal(() => import("./commit").then((mod) => mod.EntityCommitModal))
+const EntityDeleteModal = loadModal(() => import("./delete").then((mod) => mod.EntityDeleteModal))
+const EntitySaveModal = loadModal(() => import("./save").then((mod) => mod.EntitySaveModal))
 
 // ============================================================================
 // TYPES
