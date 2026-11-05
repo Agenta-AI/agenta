@@ -3,7 +3,7 @@ import {useCallback, useLayoutEffect, useRef, useState} from "react"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {useMediaQuery} from "@agenta/ui/hooks"
 
-import {useBindWorkspaceMembers} from "../useBindWorkspaceMembers"
+import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMembers"
 
 import {SessionDrawerBody} from "./SessionDrawerBody"
 import {SessionDrawerHeader} from "./SessionDrawerHeader"

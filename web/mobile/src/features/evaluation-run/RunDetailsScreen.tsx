@@ -4,6 +4,7 @@ import {useAtomValue} from "jotai"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMembers"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
@@ -27,6 +28,7 @@ export const RunDetailsScreen = ({
     projectId: string
     runId: string
 }) => {
+    useBindWorkspaceMembers()
     useBindProjectContext(projectId)
     const header = useAtomValue(runHeaderAtomFamily(runId))
 

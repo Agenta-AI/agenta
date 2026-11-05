@@ -11,6 +11,7 @@ import dynamic from "next/dynamic"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMembers"
 
 import {AppOverviewLink} from "../../app-overview/AppOverviewLink"
 import {useBindProjectContext} from "../../context/useBindProjectContext"
@@ -56,6 +57,7 @@ export const EvaluationsScreen = ({
     /** The kinds the create entry offers. Absent: all of them. */
     createKinds?: readonly CreatableKind[]
 }) => {
+    useBindWorkspaceMembers()
     useBindProjectContext(projectId)
     const filters = useEvaluationRunsFilters()
     const {kind, appId, search, statuses} = filters

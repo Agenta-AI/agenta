@@ -12,6 +12,7 @@ import {useRouter} from "next/router"
 import {PageNotFound} from "@/components/PageNotFound"
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMembers"
 
 import {useBindProjectContext} from "../../context/useBindProjectContext"
 import {useProjectPermission} from "../../context/useProjectPermission"
@@ -63,6 +64,7 @@ export const TestsetDetailScreen = ({
     routeId: string
     nameFromUrl: string | null
 }) => {
+    useBindWorkspaceMembers()
     useBindProjectContext(projectId)
     const router = useRouter()
     const queryClient = useQueryClient()
