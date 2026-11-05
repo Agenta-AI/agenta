@@ -132,7 +132,7 @@ describe("PreferencesPage", () => {
 
 describe("beta developer mode on the desktop", () => {
     const BETA = "Use new beta developer mode"
-    const assign = vi.fn()
+    const replace = vi.fn()
     const betaSwitch = () =>
         host.querySelector<HTMLButtonElement>(`[role=switch][aria-label="${BETA}"]`)
     const readGateCookie = () =>
@@ -146,13 +146,13 @@ describe("beta developer mode on the desktop", () => {
             ...window.location,
             pathname: "/w/ws1/p/p1/settings",
             search: "?tab=preferences",
-            assign,
+            replace,
         })
     })
 
     afterEach(() => {
         vi.unstubAllGlobals()
-        assign.mockReset()
+        replace.mockReset()
         document.cookie = `${CLASSIC_MODE_COOKIE}=; path=/; max-age=0`
     })
 
@@ -165,7 +165,7 @@ describe("beta developer mode on the desktop", () => {
         )!
         act(() => developerMode.click())
         expect(betaSwitch()).not.toBeNull()
-        expect(assign).not.toHaveBeenCalled()
+        expect(replace).not.toHaveBeenCalled()
     })
 
     it("turning it on sends the user to /m and clears the cookie, so /m does not send them back", () => {
@@ -175,7 +175,7 @@ describe("beta developer mode on the desktop", () => {
 
         expect(localStorage.getItem("agenta:settings:u1:beta-developer-mode")).toBe("true")
         expect(readGateCookie()).toBeUndefined()
-        const target: string = assign.mock.calls[0][0]
+        const target: string = replace.mock.calls[0][0]
         expect(target.startsWith("/m/")).toBe(true)
         // What /m's proxy decides on arrival, with the cookie as it stands now.
         const url = new URL(target, "http://localhost")
@@ -194,7 +194,7 @@ describe("beta developer mode on the desktop", () => {
         localStorage.setItem("agenta:settings:u1:beta-developer-mode", "true")
         renderBound({developerMode: true})
         act(() => betaSwitch()!.click())
-        expect(assign).not.toHaveBeenCalled()
+        expect(replace).not.toHaveBeenCalled()
         expect(localStorage.getItem("agenta:onboarding:u1:nav-simplified-override")).toBe("false")
         expect(localStorage.getItem("agenta:settings:u1:beta-developer-mode")).toBe("false")
     })

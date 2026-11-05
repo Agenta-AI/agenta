@@ -173,6 +173,7 @@ describe("mobileRouteFor", () => {
         ["/w/ws1/p/pr1/sessions", "", "/m/w/ws1/p/pr1/sessions"],
         ["/w/ws1/p/pr1/observability", "", "/m/w/ws1/p/pr1/observability"],
         ["/w/ws1/p/pr1/settings", "", "/m/w/ws1/p/pr1/settings"],
+        ["/w/ws1/p/pr1/settings", "?tab=preferences", "/m/w/ws1/p/pr1/settings?tab=preferences"],
         ["/w/ws1/p/pr1/apps/agent-templates", "", "/m/w/ws1/p/pr1/templates"],
         ["/w/ws1/p/pr1/apps/agent-templates/k1", "", "/m/w/ws1/p/pr1/templates/k1"],
         // Every app-scoped page collapses to the agent screen — the only one /m has.

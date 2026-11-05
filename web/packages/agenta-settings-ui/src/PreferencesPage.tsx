@@ -125,7 +125,7 @@ export const usePreferenceBindings = (): Record<
                     // Withdraw the "1" before leaving: the sync effect would not run before the
                     // document unloads, and `/m`'s gate would send the user straight back.
                     clearClassicModeCookie()
-                    window.location.assign(mobileEscapeHref())
+                    window.location.replace(mobileEscapeHref())
                 },
             },
         }),

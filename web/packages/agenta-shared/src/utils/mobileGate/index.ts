@@ -228,7 +228,11 @@ export function mobileRouteFor(pathname: string, search: string): string | null 
             : `${base}/observability`
     }
 
-    if (head === "settings" && !first) return `${base}/settings`
+    if (head === "settings" && !first) {
+        // `/m` Settings reads the same `tab` keys and falls back for one it does not have.
+        const tab = params.get("tab")
+        return tab ? `${base}/settings?tab=${encodeURIComponent(tab)}` : `${base}/settings`
+    }
 
     return null
 }
