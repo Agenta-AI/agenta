@@ -109,7 +109,7 @@ notification, also when its run started before the fix.
 ### Requirement: Outage brake
 After each page of a pass is settled, the system SHALL count the distinct projects whose rows in
 this pass settled `failed` with a platform reason (`start_failed`, `execution_lost`,
-`sandbox_gone`) and ended less than 1 hour ago. When the count passes 10, it SHALL set an outage
+`sandbox_gone`, `runner_error`) and ended less than 1 hour ago. When the count passes 10, it SHALL set an outage
 flag for 15 minutes and log one error. While the flag is set, a failure with a platform reason
 SHALL update an open notification but SHALL NOT open one. Failures with other reasons SHALL open
 as usual.
@@ -117,6 +117,10 @@ as usual.
 #### Scenario: Runner outage
 - **WHEN** the runner is down, and failed starts from 40 projects settle in one pass
 - **THEN** at most the failures applied before the count passed 10 SHALL open notifications, and one error SHALL be logged
+
+#### Scenario: Sandbox provider outage
+- **WHEN** the sandbox provider is down, and runs from 15 projects fail to acquire a sandbox with no error code in one pass
+- **THEN** they SHALL settle with `reason_code` `runner_error`, the flag SHALL be set, and no notification SHALL open for those applied after it
 
 #### Scenario: Old failures after the deploy
 - **WHEN** the first pass after the deploy reads `start_failed` rows from 30 projects that ended 5 hours ago

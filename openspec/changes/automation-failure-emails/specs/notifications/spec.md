@@ -84,8 +84,8 @@ exception type only.
 
 ### Requirement: Email sender
 `emailing.py` SHALL provide `send_rendered_email(to_email, subject, html, text)`. It SHALL send a
-plain-text part and an HTML part through SMTP if it is set up, else SendGrid, with a 15-second
-timeout on each socket operation. It SHALL raise when no provider is set up, when the SendGrid client
+plain-text part and an HTML part through SMTP if it is set up, else SendGrid, with a timeout on each
+socket operation: `SMTP_TIMEOUT`, else 15 seconds, for SMTP; 15 seconds for SendGrid. It SHALL raise when no provider is set up, when the SendGrid client
 cannot be built, and when the provider fails. It SHALL NOT log the recipient's address. The
 invitation emails SHALL keep their content and their behavior.
 

@@ -12,7 +12,8 @@ The system SHALL settle a trigger delivery by writing `data.outcome` (`completed
 `cancelled`, `waiting` or `skipped`) and, for `failed` and `skipped`, `data.reason_code`. It SHALL
 NOT change the trigger delivery's `status`, and SHALL NOT add a column to `trigger_deliveries`. The
 outcome of a started run SHALL come from the turn's `session_executions` row. The tracing records
-SHALL be read only for a turn with no settled execution and for the error code of a failed one.
+SHALL be read only for a turn with no settled execution and for the error code of a failed one,
+which SHALL be the code of the newest `error` record that has a code.
 
 #### Scenario: Run completes
 - **WHEN** a `202` trigger delivery's turn has an execution settled `completed`
@@ -25,6 +26,10 @@ SHALL be read only for a turn with no settled execution and for the error code o
 #### Scenario: Error code on the execution
 - **WHEN** a `202` trigger delivery's turn has an execution settled `failed` whose `error.code` is `access_denied`
 - **THEN** it SHALL get `data.reason_code` `access_denied`
+
+#### Scenario: Coded acquire error and a codeless fallback error
+- **WHEN** a run's acquire fails with an `error` record coded `credential_delivery_failed`, and the runner's fallback adds a second `error` record with no code
+- **THEN** the trigger delivery SHALL get `data.reason_code` `credential_delivery_failed`
 
 #### Scenario: Error code stored late
 - **WHEN** a turn's execution settles `failed`, and its `error` record is stored only after the pass settled the row

@@ -274,3 +274,19 @@ Kept: `LEAST` on `failed_at`.
 
 In the rewrite, settle rows are now O1 to O10 and rules A1 to A6, numbered in order. Decision and
 fact ids were kept, so some numbers are missing.
+
+### Final gate (Opus)
+
+The final check of the clean rewrite confirmed the names, numbers, task citations, the runner fix,
+the cron line and the brake order, and found 0 blockers, 2 majors and 5 minors. All were fixed:
+
+- The error code is the newest `error` record that **has** a code: the runner's fallback adds a
+  codeless record after a coded acquire failure.
+- `runner_error` is in the outage brake's list, because a sandbox-provider outage settles as a
+  codeless acquire failure. No new runner error code was added.
+- Task 4.5 says it settles outcomes and opens nothing until task 5; task 1.1 names the runner test
+  assertion it changes; the spec's SMTP timeout matches the design (`SMTP_TIMEOUT`, else 15 s); the
+  start-time query is applied before the run query; the brake flag uses `set_cache`/`get_cache`
+  (no brake when caching is off); the cron line's form is spelled out.
+
+The reviewer's verdict: with the two majors fixed, the plan is ready to implement.

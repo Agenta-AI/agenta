@@ -141,7 +141,7 @@ notification layer and the UI. The trigger layer keeps its own names.
 | D20 | A run that ends `waiting` counts as healthy. | Otherwise an automation whose runs always ask for approval keeps its notification open for good. | design |
 | D21 | While a notification is open, each failure updates `data.last_failed_at` (the newest start) and `data.failed_at` (the oldest start). A healthy run resolves it only if it started at or after `last_failed_at`. | A long healthy run that started before a `403` must not resolve the notification of an automation that is now paused for good. | design |
 | D23 | A started run's outcome comes from `session_executions`. The tracing records are read only for a `paused` or `cancelled` turn and for a failed run's error code. | G24c: no records lag for the outcome. G24d: the channels outbox already reads it. | design |
-| D25 | An outage brake on failures with a platform reason (5.4). | D4 without a brake would send "contact support" to every affected customer at once. | design |
+| D25 | An outage brake on failures with a platform reason, `runner_error` included (5.4). | D4 without a brake would send "contact support" to every affected customer at once. | design |
 | D26 | The email names the project: `Automation "<name>" in <project> is failing`. | Owners and admins may get the email for an automation they did not create, in one of several projects. | design |
 | D28 | The runner's fallback writes `stopReason: "error"` on a real failure (task 1.1). | G18: without it, a failed acquire settles `completed`, sends no email and resolves an open notification. It also fixes every other reader of `session_executions`. | design |
 
@@ -169,7 +169,7 @@ notification layer and the UI. The trigger layer keeps its own names.
 | Interfaces | `SessionExecutionsDAOInterface.query_settled` (exists); `RecordsDAOInterface.turn_signals` (new); `TriggersDAOInterface.query_unsettled_deliveries` and `settle_delivery` (new); `MembershipsService.fetch_member_emails(user_ids)`, `fetch_organization_owner_id(organization_id)` and `fetch_project_name(project_id)` (new, in the memberships DAO, G35). |
 | DB | `api/oss/src/dbs/postgres/notifications/` (`dbes.py`, `dao.py`, `mappings.py`). |
 | API | `POST /admin/triggers/deliveries/settle` on the triggers admin router, with the admin `Access` auth. It runs `settle_pass`, then `send_pending`. |
-| Cron | one more line in `api/oss/src/crons/triggers.txt` that calls the route with `curl --max-time 75`, like `triggers.sh`. No new cron file: the Dockerfiles already turn every line of `triggers.txt` into the crontab (G45). |
+| Cron | one more line in `api/oss/src/crons/triggers.txt`, in the same form as the existing line: five time fields, the `root` user field, an inline `curl -s --max-time 75 -X POST -H "Authorization: Access ${AGENTA_AUTH_KEY}" http://api:8000/admin/triggers/deliveries/settle`, no `%`, and the `>> /proc/1/fd/1 2>&1` suffix, which the Dockerfiles remove. supercronic passes the container environment to the job. No new cron file: the Dockerfiles already turn every line of `triggers.txt` into the crontab (G45). |
 | Wiring | `api/entrypoints/routers.py`: build `NotificationsService` with the template and permission; pass it to `TriggersService` as an optional argument (default `None`, G31). |
 
 Dependency direction: `core/triggers` → `core/notifications` → `core/access`, `core/memberships`.
@@ -245,7 +245,8 @@ minutes. Settling runs whether email is on or off.
 
 ### 5.1 Candidates
 
-Two queries, in pages of 500, with keyset paging on `(created_at, id)`, inside the last 24 hours
+Two queries, in pages of 500, query 1 first and then query 2 (so a start failure and a newer
+success in one pass are applied in time order), with keyset paging on `(created_at, id)`, inside the last 24 hours
 (longer than the hard deadline, G23):
 
 1. **Start-time rows** (`400`, `403`, `422`, `500`), oldest first, cursor
@@ -270,8 +271,10 @@ For run rows, per project, with keys `(data.session_id, data.result.run_id)` (G1
 
 - `query_settled` (core) gives `terminal_outcome`, `error` and `settled_at` (G24c).
 - Only for keys with no settled execution, or settled `failed` with no `error.code`,
-  `turn_signals` (tracing, G22) gives the newest `done`'s `stopReason` (G17) and the newest `error`
-  record's code. It skips deleted and quarantined records (G24a).
+  `turn_signals` (tracing, G22) gives the newest `done`'s `stopReason` (G17) and the code of the newest
+  `error` record that has `attributes.code`. The runner's fallback adds a second `error` record
+  with no code after a coded acquire failure (`services/runner/src/engines/sandbox_agent/environment.ts:433-440`,
+  `services/runner/src/server.ts:1220-1224`), so codeless records are skipped. It skips deleted and quarantined records (G24a).
 
 ### 5.2 Settle table
 
@@ -284,7 +287,7 @@ The first matching row wins. "Ended at" is used only by A6.
 | O3 | `422` (G4) | | `skipped` | `agent_needs_setup` | `coalesce(updated_at, created_at)` |
 | O4 | `500` (G5) | | `failed` | `start_failed` | `coalesce(updated_at, created_at)` |
 | O5 | `202` | execution `completed` | `completed` | | |
-| O6 | `202` | execution `failed` | `failed` | the execution's `error.code`, else the newest `error` record's code, else `runner_error` | `settled_at` |
+| O6 | `202` | execution `failed` | `failed` | the execution's `error.code`, else the code of the newest `error` record that has one, else `runner_error` | `settled_at` |
 | O7 | `202` | execution `lost` (G19) | `failed` | `execution_lost` | `settled_at` |
 | O8 | `202` | execution `continued` | `waiting` | | |
 | O9 | `202` | no settled execution, newest `done` has `stopReason = paused` | `waiting` | | |
@@ -350,8 +353,11 @@ no row is returned, another request opened it first, and this request runs `note
 
 After each page is settled in memory, the pass adds to a count of distinct projects whose rows in
 this pass settled `failed` with a platform reason (`start_failed`, `execution_lost`,
-`sandbox_gone`) and ended less than 1 hour ago. When the count passes 10, the pass sets the Redis
-flag `notifications:outage-brake` for 15 minutes and logs one error with the count. Rule A4 reads
+`sandbox_gone`, `runner_error`) and ended less than 1 hour ago. `runner_error` is in the list
+because a sandbox-provider outage settles as a codeless acquire failure. When the count passes 10,
+the pass sets the flag with `set_cache(namespace="notifications", key="outage-brake", ttl=900)` and
+logs one error with the count; A4 reads it with `get_cache`. `set_cache` does nothing when caching
+is turned off (`api/oss/src/utils/caching.py:404-420`), so the brake is off on such installs. Rule A4 reads
 the flag. While it is set, those failures update an open notification (A3) but open none.
 
 ### 5.5 Resolve on user actions
@@ -464,7 +470,7 @@ today's rule, because a merged `data` can keep an old outcome (G8). The zod sche
 1. **A run that started before a fix and fails after it** sends one more email (D19). A `500`
    re-claimed after a fix keeps its old start time and behaves the same way (G7).
 2. **Overlapping runs.** An older run that fails after a newer success, when the two land in
-   different pages or passes, opens a notification and sends one email. The next healthy run that
+   different pages of the run query or in different passes, opens a notification and sends one email. The next healthy run that
    starts after it resolves it.
 3. **Runs that never end**: rows stuck at `102` (G11), and turns the runner abandons without a `done`
    (G24) that the watchdog does not settle.
@@ -481,8 +487,9 @@ today's rule, because a merged `data` can keep an old outcome (G8). The zod sche
 11. **A large backlog of unfinished runs** (more than the pass reads in 30 seconds) delays the
     settling of older runs until the backlog clears or leaves the 24-hour window.
 12. **An expired provider login is silent** for event subscriptions (G9a). Follow-up 1.
-13. **The outage brake also holds real failures** with a platform reason while it is set. They open
-    after it expires, if they still fail.
+13. **The outage brake also holds real failures** with a platform reason (`runner_error` included)
+    while it is set. They open after it expires, if they still fail. With caching turned off there is
+    no brake.
 14. **A recipient who leaves before the send.** Recipients are chosen at the open. If the only
     recipient leaves before the send, the email is skipped and nobody else gets it.
 
