@@ -588,11 +588,16 @@ class SubscriptionLoginService:
             provider=SubscriptionProviderKind.CLAUDE,
         )
 
-        token = token.strip()
-        # Whitespace inside is a broken paste: no header can carry it, so no retry would help.
-        if not token.startswith(_CLAUDE_TOKEN_PREFIX) or any(
-            char.isspace() for char in token
-        ):
+        # A setup-token never contains whitespace. A terminal that wraps the long token can
+        # add spaces where the lines break when it is copied, so the pieces are joined.
+        token = "".join(token.split())
+        if not token.startswith(_CLAUDE_TOKEN_PREFIX):
+            log.warning(
+                "subscription.token",
+                connection=str(secret_id),
+                outcome="rejected",
+                reason="wrong_prefix",
+            )
             raise SubscriptionTokenRejected(message="This is not a Claude setup-token.")
 
         await self.claude_token_client.check(token)
