@@ -142,6 +142,28 @@ describe("the focus view", () => {
         expect(host.textContent).not.toContain("testcase_dedup_id")
     })
 
+    it("A test set queue shows the test case, not a missing trace", async () => {
+        patchSession({
+            queueKind: "testsets",
+            traceRefs: {},
+            testcaseRefs: {"s-1": {testcaseId: "tc-1"}},
+            testcases: {
+                "tc-1": {
+                    isPending: false,
+                    isError: false,
+                    data: {data: {country: "France", correct_answer: "Paris"}},
+                },
+            },
+        })
+        await render()
+        expect(host.textContent).not.toContain("Trace reference is not available yet")
+        const fields = Array.from(host.querySelectorAll("[data-group] h3")).map(
+            (h) => h.textContent,
+        )
+        expect(fields).toEqual(["country", "correct_answer"])
+        expect(button("Open trace")).toBeUndefined()
+    })
+
     it("Next is disabled on the last scenario", async () => {
         patchSession({hasNext: false, hasPrev: true})
         await render()

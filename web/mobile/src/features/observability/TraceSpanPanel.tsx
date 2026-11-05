@@ -19,6 +19,7 @@ export const TraceSpanPanel = ({
         label={title ?? "data"}
         value={(spanDataOverride ?? {}) as Record<string, unknown> | string | unknown[]}
         enableFormatSwitcher
+        enableSearch
         viewModePreset={viewModePreset}
         defaultCollapsed={defaultCollapsed}
     />
