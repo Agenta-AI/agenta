@@ -79,18 +79,43 @@ describe("the drawer's address", () => {
     })
 
     it("keeps the asked span and writes the trace while the trace loads", () => {
+        window.history.replaceState(null, "", "/observability?app=a1&span=s1&trace=t1")
+        const push = vi.fn(() => Promise.resolve(true))
+        bindTraceDrawerSeams(
+            {pathname: "/observability", query: {}, push} as unknown as NextRouter,
+            {playground: false, openTraceId: () => "t1"},
+        )
+        // The drawer writes no span until the trace is loaded: the address keeps both.
+        traceDrawerSetQueryParam("span", null)
+        expect(push).not.toHaveBeenCalled()
+        expect(window.location.search).toBe("?app=a1&span=s1&trace=t1")
+    })
+
+    it("drops the asked span when the drawer moved to another trace", () => {
+        window.history.replaceState(null, "", "/observability?trace=t1&span=s1")
+        const push = vi.fn(() => Promise.resolve(true))
+        bindTraceDrawerSeams(
+            {pathname: "/observability", query: {}, push} as unknown as NextRouter,
+            {playground: false, openTraceId: () => "t2"},
+        )
+        // t2 is loading: s1 belongs to t1, so a reload must not ask t2 for it.
+        traceDrawerSetQueryParam("span", null)
+        expect(push).toHaveBeenCalledWith(
+            {pathname: "/observability", query: {trace: "t2"}},
+            undefined,
+            {shallow: true},
+        )
+    })
+
+    it("does not push when the address already names that span", () => {
         window.history.replaceState(null, "", "/observability?trace=t1&span=s1")
         const push = vi.fn(() => Promise.resolve(true))
         bindTraceDrawerSeams(
             {pathname: "/observability", query: {}, push} as unknown as NextRouter,
             {playground: false, openTraceId: () => "t1"},
         )
-        // The drawer writes no span until the trace is loaded.
-        traceDrawerSetQueryParam("span", null)
-        expect(push).toHaveBeenCalledWith(
-            {pathname: "/observability", query: {trace: "t1", span: "s1"}},
-            undefined,
-            {shallow: true},
-        )
+        // Back restored s1, and the drawer writes the span it now shows.
+        traceDrawerSetQueryParam("span", "s1")
+        expect(push).not.toHaveBeenCalled()
     })
 })

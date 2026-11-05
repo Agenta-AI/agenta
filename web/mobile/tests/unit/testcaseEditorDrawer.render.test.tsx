@@ -208,4 +208,17 @@ describe("Testcase drawer", () => {
             testcase_dedup_id: "dedup-1",
         })
     })
+
+    it("A __proto__ field typed in the JSON view is kept as data", () => {
+        const id = store.set(testcaseMolecule.actions.add, {data: {question: "Q"}})?.id ?? ""
+        content({isNewRow: true, testcaseId: id})
+
+        const typed = JSON.parse('{"question": "Q", "__proto__": {"polluted": true}}')
+        act(() => (seen.editor?.onChange as (value: unknown) => void)(typed))
+
+        const data = store.get(testcaseMolecule.atoms.data(id))?.data ?? {}
+        expect(Object.hasOwn(data, "__proto__")).toBe(true)
+        expect(Object.getOwnPropertyDescriptor(data, "__proto__")?.value).toEqual({polluted: true})
+        expect(({} as Record<string, unknown>).polluted).toBeUndefined()
+    })
 })

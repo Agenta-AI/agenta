@@ -126,16 +126,23 @@ const savedColumns = async (
 const UNSAFE_PARTS: ReadonlySet<string> = new Set(["__proto__", "constructor", "prototype"])
 
 /**
- * The data of a new row: "" at each column's path. A nested column (`inputs.question`, with
- * the parent `inputs`) gives `{inputs: {question: ""}}`. A top-level column whose name has a dot
- * (`meta.lang`, no parent) stays one key. A column with an unsafe path part is left out.
+ * The data of a new row: "" at each column's path. A column read from row data carries its path
+ * (`["meta.lang", "source"]` stays `{"meta.lang": {source: ""}}`). A column with no path (added
+ * in the grid) follows its parent: `inputs.question` with the parent `inputs` gives
+ * `{inputs: {question: ""}}`, and a top-level `meta.lang` stays one key. A column with an unsafe
+ * path part is left out.
  */
 export function emptyRowData(
-    columns: readonly {key: string; parentKey?: string}[],
+    columns: readonly {key: string; parentKey?: string; path?: string[]}[],
 ): Record<string, unknown> {
     const data: Record<string, unknown> = {}
-    for (const {key, parentKey} of columns) {
-        const path = parentKey ? [...parentKey.split("."), key.slice(parentKey.length + 1)] : [key]
+    for (const {key, parentKey, path: columnPath} of columns) {
+        const path =
+            columnPath && columnPath.length > 0
+                ? columnPath
+                : parentKey
+                  ? [...parentKey.split("."), key.slice(parentKey.length + 1)]
+                  : [key]
         if (path.some((part) => UNSAFE_PARTS.has(part))) continue
         let node = data
         for (const part of path.slice(0, -1)) {

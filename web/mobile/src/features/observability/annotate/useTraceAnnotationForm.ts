@@ -10,7 +10,8 @@ import type {Workflow} from "@agenta/entities/workflow"
 import {axios, getAgentaApiUrl, getHostQueryClient} from "@agenta/shared/api"
 import {projectIdAtom, userAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
-import {atom, useAtomValue} from "jotai"
+import {atom, useAtomValue, useStore} from "jotai"
+import {atomFamily} from "jotai-family"
 
 import {
     buildTraceAnnotationSections,
@@ -32,6 +33,15 @@ const REQUIRED_TEXT = "Required"
 const REFRESHED_KEYS = [["trace-drawer-annotations"], ["trace-drawer"], ["annotations"]]
 
 const EMPTY_REVISIONS = atom(() => [])
+
+/**
+ * Writes on one span that the API took but no read showed yet, by annotation trace id. They
+ * outlive the sheet: a sheet opened again before the drawer shows them starts from them, so it
+ * updates them rather than creating them a second time. Cleared once a read shows them.
+ */
+const unconfirmedWritesAtomFamily = atomFamily((_spanKey: string) =>
+    atom<Record<string, AnnotationDto>>({}),
+)
 
 /**
  * Reads the annotations linked to one span as stored, with a retry. A plain effect, not a react
@@ -168,7 +178,11 @@ export const useTraceAnnotationForm = ({
     // What this sheet saved, by annotation trace id. It stands in for the drawer's copy for the
     // life of the sheet, so a retry after a partly failed save updates a landed create instead of
     // creating it again, and compares with the values just sent.
-    const [savedHere, setSavedHere] = useState<Record<string, AnnotationDto>>({})
+    const store = useStore()
+    const unconfirmedAtom = unconfirmedWritesAtomFamily(`${traceId}:${spanId}`)
+    const [savedHere, setSavedHere] = useState<Record<string, AnnotationDto>>(() =>
+        store.get(unconfirmedAtom),
+    )
 
     // The drawer drops `null` outputs when it groups them, so an update read from it would erase
     // a saved "none of the above". The user's own annotations are read again as the API stores them.
@@ -386,9 +400,19 @@ export const useTraceAnnotationForm = ({
             if (result.status !== "fulfilled" || !own) return
             landed[update.traceId] = {...own, data: update.annotation.data} as AnnotationDto
         })
+        // The landed writes are kept for this span until a read shows them, from now on: a sheet
+        // that closes while the read waits, or after a partly failed save, still knows them. An
+        // entry is dropped only when the read showed that same value, not a newer one.
+        const forgetShown = () =>
+            store.set(unconfirmedAtom, (previous) =>
+                Object.fromEntries(
+                    Object.entries(previous).filter(([id, item]) => item !== landed[id]),
+                ),
+            )
         let stored = true
         if (Object.keys(landed).length > 0) {
             setSavedHere((previous) => ({...previous, ...landed}))
+            store.set(unconfirmedAtom, (previous) => ({...previous, ...landed}))
             stored = await waitUntilStored({projectId, traceId, spanId, landed})
         }
         const results = [...created, ...updated]
@@ -400,6 +424,17 @@ export const useTraceAnnotationForm = ({
         )
         savingRef.current = false
         setIsSaving(false)
+        if (stored) forgetShown()
+        else {
+            // Keep reading after the sheet closes; refresh the drawer once the writes show.
+            void waitUntilStored({projectId, traceId, spanId, landed}).then(async (shown) => {
+                if (!shown) return
+                forgetShown()
+                await Promise.allSettled(
+                    REFRESHED_KEYS.map((queryKey) => queryClient.invalidateQueries({queryKey})),
+                )
+            })
+        }
 
         const failures = results.flatMap((result) =>
             result.status === "rejected" ? [result.reason] : [],
@@ -413,7 +448,18 @@ export const useTraceAnnotationForm = ({
         if (stored) message.success(SAVE_SUCCESS_TEXT)
         else message.info(SAVE_PENDING_TEXT)
         onSaved()
-    }, [writes, projectId, storedBlocked, userId, picked, onSaved, traceId, spanId])
+    }, [
+        writes,
+        projectId,
+        storedBlocked,
+        userId,
+        picked,
+        onSaved,
+        traceId,
+        spanId,
+        store,
+        unconfirmedAtom,
+    ])
 
     return {
         sections: shownSections,
