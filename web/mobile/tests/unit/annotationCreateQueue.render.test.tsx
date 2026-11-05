@@ -289,4 +289,35 @@ describe("CreateQueueSheet", () => {
         await act(async () => finish({id: "q-1", name: "Triage"}))
         expect(store.get(createQueueDrawerOpenAtom)).toBe(false)
     })
+
+    it("Escape in the evaluator picker leaves the sheet and the form open", async () => {
+        await mount()
+        await type('input[placeholder="Enter name"]', "Triage")
+        // The picker's panel is portaled to the body, outside the sheet, like the real popover.
+        const search = document.createElement("input")
+        search.setAttribute("aria-label", "Search evaluator")
+        document.body.appendChild(search)
+        search.focus()
+        await act(async () => {
+            search.dispatchEvent(
+                new KeyboardEvent("keydown", {key: "Escape", bubbles: true, cancelable: true}),
+            )
+        })
+        expect(store.get(createQueueDrawerOpenAtom)).toBe(true)
+        expect(
+            (document.querySelector('input[placeholder="Enter name"]') as HTMLInputElement).value,
+        ).toBe("Triage")
+    })
+
+    it("Escape inside the sheet still closes it", async () => {
+        await mount()
+        const name = document.querySelector('input[placeholder="Enter name"]') as HTMLInputElement
+        name.focus()
+        await act(async () => {
+            name.dispatchEvent(
+                new KeyboardEvent("keydown", {key: "Escape", bubbles: true, cancelable: true}),
+            )
+        })
+        expect(store.get(createQueueDrawerOpenAtom)).toBe(false)
+    })
 })
