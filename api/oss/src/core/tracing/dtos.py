@@ -97,6 +97,7 @@ class Fields(str, Enum):
     SESSION_ID = "session_id"
     USER_ID = "user_id"
     AGENT_ID = "agent_id"
+    HAS_ANNOTATION = "has_annotation"
 
 
 class LogicalOperator(str, Enum):

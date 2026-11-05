@@ -181,3 +181,44 @@ async def test_live_run_validation_rejects_non_invocation_query_revision():
     )
 
     assert await service._is_live_run_valid(project_id=uuid4(), run=run) is False
+
+
+@pytest.mark.asyncio
+async def test_live_run_validation_rejects_a_filter_that_cannot_be_applied():
+    # Closing the run is the safe outcome: running it would score every trace.
+    data = _query_revision_data()
+    data.filtering.conditions.append(
+        Condition(field="no_such_field", operator="is", value="x")
+    )
+    queries_service = types.SimpleNamespace(
+        fetch_query_revision=AsyncMock(
+            return_value=types.SimpleNamespace(data=data),
+        )
+    )
+    service = EvaluationsService(
+        evaluations_dao=None,  # type: ignore[arg-type]
+        tracing_service=None,  # type: ignore[arg-type]
+        queries_service=queries_service,  # type: ignore[arg-type]
+        testsets_service=None,  # type: ignore[arg-type]
+        evaluators_service=None,  # type: ignore[arg-type]
+    )
+
+    run = EvaluationRun(
+        id=uuid4(),
+        flags=EvaluationRunFlags(is_live=True, is_active=True),
+        status=EvaluationStatus.PENDING,
+        data=EvaluationRunData(
+            steps=[
+                EvaluationRunDataStep(
+                    key="query-step",
+                    type="input",
+                    origin="custom",
+                    references={"query_revision": Reference(id=uuid4())},
+                )
+            ]
+        ),
+    )
+
+    assert await service._is_live_run_valid(project_id=uuid4(), run=run) is False
+    # The stored query keeps the field names the picker reads back.
+    assert data.filtering.conditions[1].field == "no_such_field"
