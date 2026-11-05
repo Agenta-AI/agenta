@@ -213,8 +213,6 @@ describe("the beta flag atoms", () => {
         setRuntimeEnv("true")
         const {store, userId} = signInWithBetaStored()
         store.set(betaDeveloperModeFlagAtom, false)
-        expect(localStorage.getItem(`agenta:settings:${userId}:beta-developer-mode`)).toBe(
-            "false",
-        )
+        expect(localStorage.getItem(`agenta:settings:${userId}:beta-developer-mode`)).toBe("false")
     })
 })

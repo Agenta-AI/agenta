@@ -164,9 +164,7 @@ describe("beta developer mode on the desktop", () => {
         localStorage.setItem("agenta:settings:u1:beta-developer-mode", "true")
         renderBound({developerMode: true})
         expect(betaSwitch()).toBeNull()
-        expect(
-            host.querySelector('[role=switch][aria-label="Developer Mode"]'),
-        ).not.toBeNull()
+        expect(host.querySelector('[role=switch][aria-label="Developer Mode"]')).not.toBeNull()
     })
 
     it("shows only while Developer Mode is on", () => {
