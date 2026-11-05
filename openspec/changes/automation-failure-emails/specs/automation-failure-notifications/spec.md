@@ -104,8 +104,8 @@ dispatcher. No email SHALL be sent about the fix.
 - **THEN** the notification SHALL be resolved
 
 #### Scenario: Connection deleted
-- **WHEN** a subscription has an open notification, and a person deletes its connection from the tools settings
-- **THEN** the next outcome pass SHALL resolve the notification
+- **WHEN** a subscription has an open notification, and a person deletes its connection, which deletes the subscription
+- **THEN** the notification SHALL stay open as a row, and no more email SHALL be sent for it, because the subscription writes no more trigger deliveries
 
 #### Scenario: Run cancelled by a person
 - **WHEN** an automation has an open notification, and its next run is cancelled by a person
@@ -114,10 +114,6 @@ dispatcher. No email SHALL be sent about the fix.
 #### Scenario: Subscription refreshed
 - **WHEN** a subscription has an open notification, and a person refreshes it
 - **THEN** the notification SHALL be resolved
-
-#### Scenario: Failure and newer success in one pass
-- **WHEN** a `500` starts at 10:00 and a run that starts at 10:01 completes, and both settle in the same pass
-- **THEN** the system SHALL NOT open a notification
 
 #### Scenario: Person stops the automation
 - **WHEN** an automation with an open notification is stopped by a person
@@ -129,16 +125,19 @@ dispatcher. No email SHALL be sent about the fix.
 
 ### Requirement: Failures older than the last fix
 The system SHALL NOT open a notification for a failed or skipped trigger delivery whose `created_at`
-is earlier than the `resolved_at` of a resolved notification with the same key, or earlier than the
-`created_at` of a trigger delivery of the same automation settled as `completed` or `waiting`.
+is earlier than the `resolved_at` of a resolved notification with the same key.
 
 #### Scenario: Failure that started after a success
 - **WHEN** run S starts at 10:00 and succeeds, run F starts at 10:05 and fails, S settles at 10:07 and resolves an open notification, and F settles at 10:12
 - **THEN** the system SHALL open a new notification for F
 
-#### Scenario: Older run fails after a newer success
-- **WHEN** run D starts at 10:00, run S starts at 10:05 and is settled `completed`, and then D fails and is settled `failed`
-- **THEN** the system SHALL NOT open a notification
+#### Scenario: Known limit with overlapping runs
+- **WHEN** run D starts at 10:00, run S starts at 10:05 and is settled `completed` with nothing open, and then D fails and is settled `failed`
+- **THEN** the system SHALL open a notification, and the next healthy run that starts after 10:00 SHALL resolve it
+
+#### Scenario: Failure and newer success settled in the same pass
+- **WHEN** run D starts at 10:00 and fails, run S starts at 10:05 and completes, and both settle in the same pass
+- **THEN** D SHALL open the notification and S SHALL resolve it in that pass, and the send pass SHALL skip its email
 
 #### Scenario: Run started before the edit
 - **WHEN** an automation has an open notification, a person edits it, and a run that started before the edit is settled as `failed` after the edit

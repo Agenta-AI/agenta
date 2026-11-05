@@ -199,3 +199,13 @@ Taken:
 - **The cloud deployment repository** (`agenta_cloud`) is not reachable from this session. Task 6.2 asks its owner to confirm that its cron image picks up the two new cron files.
 
 On size: the settle table (O1 to O11 with O9a and O9b) maps each existing status and execution outcome to one value, which the owner decision "write each run's result back" needs. Rules A3 to A5 each fix a timeline a review found: without them, a long healthy run resolves a newer `403` pause (a paused automation with no email), or a run that started before a fix emails after it. The parts that only buy precision in rare cases are O6 (wait for the error code), O9b (unknown values), the healthy-delivery check in A5, and the reconcile step. They are kept, and listed here so the choice is explicit.
+
+### Size cuts (owner: "fix if it makes sense")
+
+Cut, because each only bought precision in a rare case:
+
+- The check for a newer healthy run before an open (rule A5), with its index `(project_id, schedule_id, created_at)` and the DAO method `exists_healthy_delivery_after`. An older overlapping run that fails after a newer success now sends one email; the next healthy run resolves it (known limit 2). Within one pass, failures now apply before healthy runs, so a failure and a newer success in the same pass open and resolve before the send pass reads them.
+- The reconcile step for hard-deleted automations (D22), with `query_missing_automations`. Such an automation writes no more trigger deliveries, so its notification only stays as a row (known limit 8).
+- The 5-minute wait for a late error code (O6). The execution's own `error.code` is read first; a late record gives `runner_error` (known limit 5).
+
+Kept: O9b (one row; without it an unknown outcome value leaves the row unsettled for 24 hours), the 1-hour open limit, the start-time comparisons and `last_failed_at` (each fixes a found timeline), and the outage brake.

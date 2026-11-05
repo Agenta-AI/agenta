@@ -60,18 +60,19 @@ The outcome of a started run SHALL come from the turn's `session_executions` row
 - **WHEN** a trigger delivery has status `102`, `409` or `200`
 - **THEN** the system SHALL NOT write `data.outcome`
 
-### Requirement: Wait for the error code
-For a turn whose execution settled `failed`, the system SHALL wait up to 5 minutes after
-`settled_at` for an `error` record with a code, and then SHALL use `runner_error` as the reason. A
-`202` trigger delivery SHALL settle once.
+### Requirement: Error code of a failed run
+For a turn whose execution settled `failed`, the reason SHALL be the execution's `error.code` if
+set, else the code of the newest `error` record stored when the pass settles the row, else
+`runner_error`. The pass SHALL NOT wait for a late `error` record. A `202` trigger delivery SHALL
+settle once.
 
-#### Scenario: Error code stored one minute later
-- **WHEN** a turn's execution settles `failed`, and its `error` record is stored 1 minute later
+#### Scenario: Error code already stored
+- **WHEN** a turn's execution settles `failed`, and its `error` record with a code is stored before the next pass
 - **THEN** the trigger delivery SHALL get that record's code as `data.reason_code`
 
-#### Scenario: Error code never stored
-- **WHEN** a turn's execution settles `failed`, and no `error` record with a code exists after 5 minutes
-- **THEN** the trigger delivery SHALL get `data.outcome` `failed` and `data.reason_code` `runner_error`
+#### Scenario: Error code stored late
+- **WHEN** a turn's execution settles `failed`, and its `error` record is stored only after the pass settled the row
+- **THEN** the trigger delivery SHALL keep `data.outcome` `failed` and `data.reason_code` `runner_error`
 
 #### Scenario: Run still going
 - **WHEN** a `202` trigger delivery's turn has no settled execution and no `paused` or `cancelled` `done`
