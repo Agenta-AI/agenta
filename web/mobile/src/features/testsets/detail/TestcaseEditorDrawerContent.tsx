@@ -4,7 +4,7 @@ import {testcaseMolecule} from "@agenta/entities/testcase"
 import {TestcaseDataEditor, type RootDrawerViewMode} from "@agenta/entity-ui/testcase"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {replaceDataUpdate} from "./testcaseDataUpdate"
+import {replaceDataUpdate, splitInternalFields} from "./testcaseDataUpdate"
 
 /**
  * The body of the testcase drawer: the testcase data as a form, JSON or YAML. An edit goes to
@@ -13,7 +13,8 @@ import {replaceDataUpdate} from "./testcaseDataUpdate"
  *
  * The editor gets no column list. With one, it shows only those columns (the grid reads them
  * from the first 20 rows), turns null into "" and drops fields added or removed in JSON or YAML.
- * The value here is the row data alone, so there are no system fields to hide.
+ * The value here is the row data, less the internal dedup id the API keeps in it: the grid does
+ * not show that id either, and an edit puts it back unchanged.
  */
 export const TestcaseEditorDrawerContent = ({
     testcaseId,
@@ -34,12 +35,14 @@ export const TestcaseEditorDrawerContent = ({
 }) => {
     const testcase = useAtomValue(testcaseMolecule.atoms.data(testcaseId))
     const update = useSetAtom(testcaseMolecule.actions.update)
-    const value = useMemo(() => testcase?.data ?? {}, [testcase?.data])
+    const data = useMemo(() => testcase?.data ?? {}, [testcase?.data])
+    const {value, internal} = useMemo(() => splitInternalFields(data), [data])
 
-    // The editor hands back the whole testcase data.
+    // The editor hands back the whole data it was shown; the internal fields go back unchanged.
     const handleChange = useCallback(
-        (next: Record<string, unknown>) => update(testcaseId, replaceDataUpdate(value, next)),
-        [testcaseId, update, value],
+        (next: Record<string, unknown>) =>
+            update(testcaseId, replaceDataUpdate(data, {...internal, ...next})),
+        [testcaseId, update, data, internal],
     )
 
     return (

@@ -19,6 +19,7 @@ const state = vi.hoisted(() => ({
     editor: {} as Record<string, unknown>,
     drawer: null as null | Record<string, unknown>,
     openRow: null as null | ((id: string) => void),
+    rowAdded: null as null | ((id: string) => void),
 }))
 
 vi.mock("next/router", () => ({
@@ -52,7 +53,12 @@ vi.mock("@/features/testsets/detail/useTestsetEditor", () => ({
 vi.mock("@/features/testsets/detail/TestsetHeader", () => ({
     TestsetHeader: () => <p data-testid="header" />,
 }))
-vi.mock("@/features/testsets/detail/TestsetToolbar", () => ({TestsetToolbar: () => null}))
+vi.mock("@/features/testsets/detail/TestsetToolbar", () => ({
+    TestsetToolbar: ({onRowAdded}: {onRowAdded: (id: string) => void}) => {
+        state.rowAdded = onRowAdded
+        return null
+    },
+}))
 vi.mock("@/features/testsets/detail/TestsetGrid", () => ({
     TestsetGrid: ({onOpenRow}: {onOpenRow: (id: string) => void}) => {
         state.openRow = onOpenRow
@@ -106,6 +112,7 @@ describe("Test set page", () => {
         state.editor = loadedEditor()
         state.drawer = null
         state.openRow = null
+        state.rowAdded = null
         queryClient = new QueryClient()
         host = document.createElement("div")
         document.body.append(host)
@@ -183,5 +190,19 @@ describe("Test set page", () => {
         render()
         act(() => state.openRow?.("case-2"))
         expect(state.drawer).toMatchObject({testcaseId: "case-2", viewOnly: true})
+    })
+
+    it("Only the row Add row just made is removed on Cancel, until its drawer closes", () => {
+        render()
+        act(() => state.rowAdded?.("case-1"))
+        expect(state.drawer).toMatchObject({testcaseId: "case-1", discardOnCancel: true})
+
+        // Another row of the grid is put back on Cancel, not removed.
+        act(() => (state.drawer?.onNext as () => void)())
+        expect(state.drawer).toMatchObject({testcaseId: "case-2", discardOnCancel: false})
+
+        act(() => (state.drawer?.onClose as () => void)())
+        act(() => state.openRow?.("case-1"))
+        expect(state.drawer).toMatchObject({testcaseId: "case-1", discardOnCancel: false})
     })
 })
