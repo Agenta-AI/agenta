@@ -41,9 +41,9 @@ describe("developer views registry", () => {
         localStorage.clear()
     })
 
-    it("Annotation queues routes show not found while the view is hidden", () => {
+    it("Annotation queues routes show not found until the user turns the view on", () => {
         const row = DEVELOPER_VIEWS.find((view) => view.id === "annotation-queues")
-        expect(row?.stage).toBe("hidden")
+        expect(row?.stage).toBe("preview")
         expect(row?.routes).toEqual(["/annotations", "/annotations/[queue_id]"])
 
         render(
