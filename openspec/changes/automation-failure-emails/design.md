@@ -131,7 +131,7 @@ notification layer and the UI. The trigger layer keeps its own names.
 | D10 | The email does not name the agent. | G37: a private agent's name would reach admins who cannot see it. | **no** |
 | D11 | One admin route, called by cron every minute, settles trigger deliveries and then sends emails. | G45: cron is how periodic trigger work already runs. G21: a stream consumer would lose entries. G11, G24: some runs never send an event. | design |
 | D12 | The result goes in `data.outcome` and `data.reason_code`, not in new columns or in `status`. | No `ALTER TABLE` on a busy table. G7: writing `500` to a `202` row would let a repeated event run the automation again. | design |
-| D14 | A notification is resolved by a healthy run (D20), and by a person's edit, start, refresh or delete of the automation. | G26, G27. A stop, a revoke, an end-time stop and a platform pause make no fix. | design |
+| D14 | A notification is resolved by a healthy run (D20), and by a person's edit, start or delete of the automation. | G26, G27. A refresh, a stop, a revoke, an end-time stop and a platform pause make no fix. | design |
 | D15 | No transaction crosses DAOs. Each step is idempotent, and the order of writes makes a crash between steps safe. | G49. | design |
 | D16 | The notification keeps a snapshot of what the email needs. The `automation_failing` template lives in `core/triggers` and is passed to `NotificationsService` in its constructor. The permission check runs once, in `core/triggers`, when the notification opens. | `core/notifications` imports nothing from `core/triggers`. A second kind adds a second constructor argument. | design |
 | D17 | A failure opens a notification only if it ended less than 1 hour before the pass. | Without it, the first pass after the deploy emails about every failure of the last 24 hours. | design |
@@ -157,7 +157,7 @@ notification layer and the UI. The trigger layer keeps its own names.
    session_executions ─┼─► settle ─► open/resolve ─► notifications ─► email (SMTP or SendGrid)
    records (paused,    │
      cancelled, codes) ┘
-   ▲ resolve on user actions: TriggersService edit, start, refresh, delete
+   ▲ resolve on user actions: TriggersService edit, start, delete
 ```
 
 | Layer | New code |
@@ -345,14 +345,22 @@ row then adds nothing.
 
 ### 5.4 Outage brake
 
-After each page is settled in memory, the pass adds to a count of distinct projects whose rows in
-this pass settled `failed` with a platform reason (`start_failed`, `execution_lost`,
-`sandbox_gone`, `runner_error`) and ended less than 1 hour ago. `runner_error` is in the list
-because a sandbox-provider outage settles as a codeless acquire failure. When the count passes 10,
-the pass sets the flag with `set_cache(namespace="notifications", key="outage-brake", ttl=900)` and
-logs one error with the count; A4 reads it with `get_cache`. `set_cache` does nothing when caching
-is turned off (`api/oss/src/utils/caching.py:404-420`), so the brake is off on such installs. Rule A4 reads
-the flag. While it is set, those failures update an open notification (A3) but open none.
+The brake counts over a rolling 15 minutes, not one pass, so an outage that spreads over several
+minutes still trips it.
+
+- The cache value `notifications:platform-failures` holds a map from project id to the last time a
+  row of that project settled `failed` with a platform reason (`start_failed`, `execution_lost`,
+  `sandbox_gone`, `runner_error`) that ended less than 1 hour ago. `runner_error` is in the list
+  because a sandbox-provider outage settles as a codeless acquire failure.
+- The request reads the map once, with `get_cache`. After each page is settled in memory, it adds
+  that page's projects with the current time, drops entries older than 15 minutes, and writes the
+  map back with `set_cache(..., ttl=900)`. Only one request runs at a time (the lock in section 5),
+  so this read-modify-write cannot race.
+- When the map holds more than 10 projects, the request sets the flag `notifications:outage-brake`
+  with `set_cache(..., ttl=900)` and logs one error with the count. Rule A4 reads the flag. While it
+  is set, those failures update an open notification (A3) but open none.
+- `set_cache` does nothing when caching is turned off (`api/oss/src/utils/caching.py:404-420`), so
+  the brake is off on such installs.
 
 ### 5.5 Resolve on user actions
 
@@ -476,9 +484,11 @@ today's rule, because a merged `data` can keep an old outcome (G8). The zod sche
 11. **A large backlog of unfinished runs** (more than 4 pages of 500) delays the
     settling of older runs until the backlog clears or leaves the 24-hour window.
 12. **An expired provider login is silent** for event subscriptions (G9a). Follow-up 1.
-13. **The outage brake also holds real failures** with a platform reason (`runner_error` included)
-    while it is set. They open after it expires, if they still fail. With caching turned off there is
-    no brake.
+13. **The outage brake holds failures for good, not for 15 minutes.** A failure with a platform
+    reason (`runner_error` included) that settles while the flag is set is recorded and never looked
+    at again. Only a later failure of the same automation, after the flag expires, sends an email. An
+    automation that rarely fires, for example a subscription with few events, can stay silent for a
+    long time. With caching turned off there is no brake.
 14. **A recipient removed between the open and the send** still gets that one email: the permission
     is checked only at the open (D16). The gap is normally seconds.
 15. **"Failing since" can be late** when an older failure of the same automation settles in a later

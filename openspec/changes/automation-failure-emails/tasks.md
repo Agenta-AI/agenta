@@ -31,7 +31,7 @@ change nothing that users see, except that the runner fix makes failed acquires 
 ## 5. Failure notifications
 
 - [ ] 5.1 `api/oss/src/core/triggers/failure_notifications.py`: rules A1 to A6, applied to each page sorted oldest first, before each settle write; the automation read only before an open. (What opens a notification; One open notification per automation; What resolves a notification)
-- [ ] 5.2 The outage brake: the per-pass count of projects after each page (`start_failed`, `execution_lost`, `sandbox_gone`, `runner_error`), the flag through `set_cache`/`get_cache` with `ttl=900`, one error log, rule A4. (Outage brake)
+- [ ] 5.2 The outage brake: the rolling 15-minute map of projects with platform failures (`start_failed`, `execution_lost`, `sandbox_gone`, `runner_error`) in `notifications:platform-failures`, read once and written after each page, and the flag `notifications:outage-brake`, both through `get_cache`/`set_cache` with `ttl=900`, one error log, rule A4. (Outage brake)
 - [ ] 5.3 Recipients with `check_human(view_triggers)`, `query_project_members` (all pages), the organization owner from `fetch_project_summary`. (Recipients)
 - [ ] 5.4 Resolve in `TriggersService`: `edit_*`, `delete_*`, and `set_*_active` with `is_active=true`; failures logged with ids only. Pass `NotificationsService` to `TriggersService` in `api/entrypoints/routers.py` as an optional argument. (What resolves a notification)
 - [ ] 5.5 The `automation_failing` template: name normalization, subject, link, reason catalog, HTML escaping, plain text; passed to `NotificationsService` in `api/entrypoints/routers.py`. (Email content; Template of a kind)

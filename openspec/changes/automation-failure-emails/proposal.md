@@ -56,7 +56,7 @@ What counts as a failure, one email per automation:
 | `200 success` with `is_test` | A test capture | no |
 
 A notification is resolved by the next run that completes or reaches an approval, or by a person's
-edit, start, refresh or delete of the automation.
+edit, start or delete of the automation.
 
 ## Capabilities
 

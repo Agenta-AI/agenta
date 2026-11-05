@@ -324,3 +324,22 @@ Not taken:
 - Dropping resolve on delete. It is one call and stops an email about a deleted automation.
 - Dropping the outage brake. That needs the owner to flip D4 (platform failures open nothing); the
   option is recorded in D4.
+
+## Round 9: outside review of `b285405ee9`
+
+The review confirmed the runner bug, the single cron line and the lock and cache helpers in the
+code, and found three spec issues. All three were checked against the plan and are real:
+
+- **Refresh.** The proposal, D14 and the architecture diagram still said a refresh resolves a
+  notification; the spec, design 5.5 and task 5.4 said it does not (cut in round 8). All now say it
+  does not.
+- **The brake counted one pass only.** An outage that spreads over several minutes (for example 8
+  new projects a minute) never passed 10 in one pass. The count is now a rolling 15-minute map of
+  project ids in the cache, read once per request and written after each page. One request runs at
+  a time, so the read-modify-write cannot race. New scenario "Outage that spreads over several
+  minutes".
+- **The brake holds failures for good.** A failure settled while the flag is set is never looked at
+  again; only a later failure sends an email. Known limit 13 now says so, and a new scenario covers
+  an automation that rarely fires.
+
+Still open: owner decisions D4 to D10.
