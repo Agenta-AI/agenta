@@ -19,6 +19,16 @@ export const currentQuery = (router: NextRouter, search: string): NextRouter["qu
     }
 }
 
+/**
+ * Set when the address cleared the span (Back to an address with no span). The drawer then
+ * shows its first span and writes it: that write replaces the current entry instead of pushing
+ * one, so the Forward entry stays.
+ */
+let replaceNextSpanWrite = false
+export const replaceNextTraceDrawerSpanWrite = () => {
+    replaceNextSpanWrite = true
+}
+
 const sameQuery = (a: NextRouter["query"], b: NextRouter["query"]) => {
     const keys = new Set([...Object.keys(a), ...Object.keys(b)])
     return [...keys].every((key) => String(a[key] ?? "") === String(b[key] ?? ""))
@@ -69,8 +79,11 @@ export const bindTraceDrawerSeams = (
         else if (!sameTrace) delete query[name]
         // Nothing changed, as when Back restored a span and the drawer writes it again: a push
         // would add a history entry and drop the Forward one.
+        const replace = name === "span" && replaceNextSpanWrite
+        if (name === "span") replaceNextSpanWrite = false
         if (sameQuery(before, query)) return
-        void router.push({pathname: router.pathname, query}, undefined, {shallow: true})
+        const navigate = replace ? router.replace : router.push
+        void navigate({pathname: router.pathname, query}, undefined, {shallow: true})
     })
 
     bindTraceDrawerClearParams(() => {

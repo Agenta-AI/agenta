@@ -9,6 +9,8 @@ import {
 import {useSetAtom, useStore} from "jotai"
 import type {NextRouter} from "next/router"
 
+import {replaceNextTraceDrawerSpanWrite} from "./bindTraceDrawerSeams"
+
 const param = (value: string | string[] | undefined) =>
     typeof value === "string" && value !== "" ? value : null
 
@@ -60,6 +62,10 @@ export const useTraceDrawerFromUrl = (router: NextRouter) => {
         if (!drawer.open || drawer.traceId !== traceId) return
         // The drawer's own span clicks write the address after its state: they match already.
         // Back to an address with no span clears the selected one.
-        if (drawer.activeSpanId !== spanId) setSpan(spanId)
+        if (drawer.activeSpanId === spanId) return
+        // With no span the drawer falls back to its first one and writes it to the address:
+        // that write must not push an entry over the one Back went to.
+        if (!spanId) replaceNextTraceDrawerSpanWrite()
+        setSpan(spanId)
     }, [spanId, traceId, setSpan, store])
 }
