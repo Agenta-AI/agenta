@@ -1226,9 +1226,9 @@ describe("createAgentServer", () => {
       assert.equal(errors[0].attributes.message, PREVIOUS_TEARDOWN_STUCK_MESSAGE);
       const endings = ingested.filter((record) => record.record_type === "done");
       assert.equal(endings.length, 1, "the transcript has one terminal record");
-      assert.notEqual(
+      assert.equal(
         endings[0].attributes.stopReason,
-        "cancelled",
+        "error",
         "an unrelated failure is not written down as a cancellation",
       );
       const result = records.at(-1)?.result;
@@ -1330,7 +1330,10 @@ describe("createAgentServer", () => {
         type: "error",
         message: acquireError,
       });
-      assert.deepEqual(endingRecords[1].attributes, { type: "done" });
+      assert.deepEqual(endingRecords[1].attributes, {
+        type: "done",
+        stopReason: "error",
+      });
       assert.equal(
         records.filter((record) => record.kind === "result").length,
         1,
