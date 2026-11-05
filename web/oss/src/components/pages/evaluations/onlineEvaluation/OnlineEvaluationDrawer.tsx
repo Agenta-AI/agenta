@@ -37,6 +37,7 @@ import {
     toFilteringPayload,
     toWindowingPayload,
 } from "./assets/helpers"
+import {CREATE_FAILED_MESSAGE, queryCreateErrorMessage} from "./assets/queryError"
 import {onlineEvalFiltersAtom, resetOnlineEvalFiltersAtom} from "./assets/state"
 import EvaluatorDetailsPreview from "./components/EvaluatorDetailsPreview"
 import EvaluatorTypeTag from "./components/EvaluatorTypeTag"
@@ -54,9 +55,6 @@ interface OnlineEvaluationDrawerProps {
 
 const {Text, Link: TypographyLink} = Typography
 const {RangePicker} = DatePicker
-const TRACE_FILTERS_NOT_SAVED_MESSAGE =
-    "Couldn't save the trace filters. Check the filters and try again."
-
 const Filters = dynamic(() => import("@/oss/components/Filters/AnnotatedFilterDialog"), {
     ssr: false,
 })
@@ -324,8 +322,8 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
             // and the console keeps the detail.
             const queryResponse = await createSimpleQuery({query: queryPayload}).catch(
                 (error: unknown) => {
-                    console.error("Could not save the online evaluation filters", error)
-                    throw new Error(TRACE_FILTERS_NOT_SAVED_MESSAGE)
+                    console.error("Could not create the online evaluation query", error)
+                    throw new Error(queryCreateErrorMessage(error))
                 },
             )
             const queryId = queryResponse.query?.id
@@ -400,7 +398,7 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
             if (err && "errorFields" in err) {
                 return
             }
-            message.error(err?.message || "Failed to create online evaluation")
+            message.error(err?.message || CREATE_FAILED_MESSAGE)
         } finally {
             setIsSubmitting(false)
         }
