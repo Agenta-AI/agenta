@@ -1,7 +1,7 @@
 import {act} from "react"
 
 import {useClassicModeRedirect} from "@agenta/shared/hooks"
-import {ACTIVE_USER_ID_KEY, activeUserIdAtom} from "@agenta/shared/state"
+import {ACTIVE_USER_ID_KEY, activeUserIdAtom, userAtom} from "@agenta/shared/state"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -90,5 +90,77 @@ describe("useClassicModeRedirect", () => {
         await render(store, "/post-signup")
 
         expect(replace).not.toHaveBeenCalled()
+    })
+    describe("Developer Mode on", () => {
+        const OLD_ACCOUNT = {
+            id: userId,
+            uid: userId,
+            username: "u",
+            email: "u@example.com",
+            created_at: "2026-07-01 00:00:00.000000+00:00",
+        }
+        const cookieAtNavigation: (string | undefined)[] = []
+
+        // A browser with no gate cookie yet (a new device, or cleared cookies), on a /w page.
+        const openW = async (
+            pathname: string,
+            stored: {developerMode?: boolean; beta?: boolean},
+        ) => {
+            localStorage.clear()
+            localStorage.setItem(ACTIVE_USER_ID_KEY, userId)
+            if (stored.developerMode !== undefined) {
+                localStorage.setItem(
+                    `agenta:onboarding:${userId}:nav-simplified-override`,
+                    String(!stored.developerMode),
+                )
+            }
+            if (stored.beta !== undefined) {
+                localStorage.setItem(
+                    `agenta:settings:${userId}:beta-developer-mode`,
+                    JSON.stringify(stored.beta),
+                )
+            }
+            document.cookie = "agenta-classic-mode=; path=/; max-age=0"
+            const store = createStore()
+            store.set(activeUserIdAtom, userId)
+            store.set(userAtom, OLD_ACCOUNT)
+            location.pathname = pathname
+            await render(store, pathname)
+        }
+
+        beforeEach(() => {
+            cookieAtNavigation.length = 0
+            replace.mockImplementation(() => {
+                cookieAtNavigation.push(
+                    document.cookie.match(/(?:^|; )agenta-classic-mode=([^;]*)/)?.[1],
+                )
+            })
+        })
+
+        afterEach(() => replace.mockReset())
+
+        for (const [label, developerMode] of [
+            ["by choice", true],
+            ["by default", undefined],
+        ] as const) {
+            it(`${label}, beta on: writes 0, then goes to the same page in /m`, async () => {
+                await openW("/w/ws-1/p/proj-1/apps", {developerMode, beta: true})
+
+                expect(replace).toHaveBeenCalledWith("/m/w/ws-1/p/proj-1/apps")
+                expect(cookieAtNavigation).toEqual(["0"])
+            })
+
+            it(`${label}, beta on: stays on a /w page that /m lacks`, async () => {
+                await openW("/w/ws-1/p/proj-1/evaluations", {developerMode, beta: true})
+
+                expect(replace).not.toHaveBeenCalled()
+            })
+
+            it(`${label}, beta off: stays in /w, as before`, async () => {
+                await openW("/w/ws-1/p/proj-1/apps", {developerMode, beta: false})
+
+                expect(replace).not.toHaveBeenCalled()
+            })
+        }
     })
 })

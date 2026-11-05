@@ -162,9 +162,9 @@ describe("with Developer Mode and beta developer mode on", () => {
         expect(switchFor("Lab preview")).toBeNull()
     })
 
-    it("stays in /m: clears the gate cookie, so the next load of /m is not sent to /w", () => {
+    it("stays in /m: the gate cookie says 0, so the next load of /m is not sent to /w", () => {
         renderPreferences({developerMode: true, beta: true, cookie: "1"})
-        expect(readGateCookie()).toBeUndefined()
+        expect(readGateCookie()).toBe("0")
         expect(nextLoadOfM()).toEqual({kind: "pass"})
         expect(assign).not.toHaveBeenCalled()
     })
@@ -175,7 +175,7 @@ describe("with Developer Mode and beta developer mode on", () => {
 
         act(() => switchFor(BETA)!.click())
         expect(assign).not.toHaveBeenCalled()
-        expect(readGateCookie()).toBeUndefined()
+        expect(readGateCookie()).toBe("0")
         expect(nextLoadOfM()).toEqual({kind: "pass"})
     })
 
