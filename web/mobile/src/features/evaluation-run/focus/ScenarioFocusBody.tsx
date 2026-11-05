@@ -3,20 +3,20 @@ import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {Button, SkeletonBlock} from "@agenta/ui/ui"
 import {useSetAtom} from "jotai"
 
-import {isTerminalScenarioStatus, type ScenarioRow} from "../scenarios/scenarioColumns"
+import {
+    isFailedStatus,
+    isTerminalScenarioStatus,
+    type ScenarioRow,
+} from "../scenarios/scenarioColumns"
 import {ScenarioValuesError} from "../scenarios/states/ScenarioValuesError"
 
 import {ScenarioFieldCard} from "./ScenarioFieldCard"
 import {ScenarioFieldValue} from "./ScenarioFieldValue"
 import {ScenarioMetricsBlock} from "./ScenarioMetricsBlock"
 
-const FAILED_STATUSES = new Set(["failure", "failed", "error", "errors"])
-const isFailed = (status: string | null | undefined) =>
-    typeof status === "string" && FAILED_STATUSES.has(status.toLowerCase())
-
 /**
  * What the scenario holds, read only: its inputs, the output of the app, then the metrics of each
- * evaluator. A step still running shows a placeholder; a failed one says so.
+ * evaluator. A step still running shows a placeholder; a failed one shows its error.
  */
 export const ScenarioFocusBody = ({
     row,
@@ -39,7 +39,13 @@ export const ScenarioFocusBody = ({
     const evaluators = groups.filter(({group}) => group.kind === "evaluator")
     const open = !isTerminalScenarioStatus(row.scenario.status)
     // A scenario can fail in its evaluators while the app answered: only the app's own result counts.
-    const failed = row.invocation ? isFailed(row.invocation.status) : isFailed(row.scenario.status)
+    const failed = row.invocation
+        ? isFailedStatus(row.invocation.status)
+        : isFailedStatus(row.scenario.status)
+    const outputError = groups
+        .filter(({group}) => group.kind === "application")
+        .map(({group}) => row.errors[group.key])
+        .find(Boolean)
     const traceId = row.invocation?.traceId ?? null
 
     return (
@@ -70,7 +76,7 @@ export const ScenarioFocusBody = ({
                     </div>
                     {failed ? (
                         <p role="alert" className="m-0 text-sm text-destructive">
-                            This run did not produce an output
+                            {outputError ?? "This run did not produce an output"}
                         </p>
                     ) : (
                         outputs.map((cell) =>
@@ -92,12 +98,14 @@ export const ScenarioFocusBody = ({
             ) : null}
             {evaluators.map(({group}) => {
                 const cells = row.cells[group.key] ?? []
-                if (cells.length === 0) return null
+                const error = row.errors[group.key]
+                if (cells.length === 0 && !error) return null
                 return (
                     <ScenarioMetricsBlock
                         key={group.key}
                         evaluatorName={labels[group.key] ?? group.label}
                         cells={cells}
+                        error={error}
                     />
                 )
             })}

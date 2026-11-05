@@ -75,12 +75,16 @@ function stubWidth(wide: boolean) {
     })) as unknown as typeof window.matchMedia
 }
 
-async function mount(patch: Partial<ScenarioServerState> = {}, wide = true) {
+async function mount(
+    patch: Partial<ScenarioServerState> = {},
+    wide = true,
+    answer: typeof answerRequest = answerRequest,
+) {
     const runId = `run-${++counter}`
     state = newServerState(patch)
     stubWidth(wide)
     http.post.mockImplementation(async (url: string, body: Record<string, unknown>) =>
-        answerRequest(runId, state, url, body),
+        answer(runId, state, url, body),
     )
     client = new QueryClient({defaultOptions: {queries: {retry: false}}})
     store.set(queryClientAtom, client)
@@ -171,6 +175,33 @@ describe("scenarios tab", () => {
         expect(row?.textContent).toContain("Pending")
         expect(row?.textContent).toContain("France")
         expect(row?.textContent).toContain("—")
+    })
+
+    it("An evaluator that failed shows its error in its column and on the phone card", async () => {
+        const failed: typeof answerRequest = (runId, serverState, url, body) => {
+            const answer = answerRequest(runId, serverState, url, body)
+            if (url.endsWith("/evaluations/results/query")) {
+                const results = answer.data?.results ?? []
+                for (const result of [...results]) {
+                    results.push({
+                        ...result,
+                        step_key: "ev",
+                        status: "failure",
+                        error: {message: "Invalid regex pattern"},
+                    } as never)
+                }
+            }
+            return answer
+        }
+        const patch = {ids: ["sc-1"], statuses: {"sc-1": "errors"}, scored: false}
+        await mount(patch, true, failed)
+        expect(host.querySelector('[role="button"] [role="alert"]')?.textContent).toBe(
+            "Invalid regex pattern",
+        )
+        act(() => root.unmount())
+        root = createRoot(host)
+        await mount(patch, false, failed)
+        expect(host.querySelector('[role="alert"]')?.textContent).toBe("Invalid regex pattern")
     })
 
     it("Clicking a row writes focusScenarioId and focusRunId to the URL", async () => {

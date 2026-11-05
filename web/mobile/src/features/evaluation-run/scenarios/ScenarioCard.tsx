@@ -6,9 +6,13 @@ import {RunStatusTag} from "../overview/RunStatusTag"
 
 import {ScenarioCellValue} from "./ScenarioCellValue"
 import {scoreText, type ScenarioRow} from "./scenarioColumns"
+import {ScenarioStepError} from "./states/ScenarioStepError"
 import {ScenarioValuesError} from "./states/ScenarioValuesError"
 
-/** A scenario on a phone: its number and status, the first input and output, and its scores. */
+/**
+ * A scenario on a phone: its number and status, the first input and output, its scores, and the
+ * error of each step that failed.
+ */
 export const ScenarioCard = ({
     row,
     groups,
@@ -26,6 +30,9 @@ export const ScenarioCard = ({
     }
     const input = firstOf("testset")
     const output = firstOf("application")
+    const errors = groups.flatMap(({group}) =>
+        row.errors[group.key] ? [{key: group.key, message: row.errors[group.key]}] : [],
+    )
     const scores = groups.flatMap(({group}) => {
         if (group.kind !== "evaluator") return []
         const text = scoreText(row.cells[group.key]?.[0]?.value)
@@ -41,6 +48,9 @@ export const ScenarioCard = ({
             {input ? <ScenarioCellValue cell={input} lines={1} /> : null}
             {row.valuesFailed ? <ScenarioValuesError onRetry={onRetry} /> : null}
             {output && !row.valuesFailed ? <ScenarioCellValue cell={output} lines={2} /> : null}
+            {errors.map((error) => (
+                <ScenarioStepError key={error.key} message={error.message} />
+            ))}
             {scores.length > 0 && !row.valuesFailed ? (
                 <div className="flex flex-wrap gap-1.5">
                     {scores.map((score) => (

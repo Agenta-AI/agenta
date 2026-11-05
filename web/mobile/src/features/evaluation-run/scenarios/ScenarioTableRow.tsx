@@ -25,7 +25,11 @@ export const ScenarioTableRow = ({
             row.valuesFailed && group.kind !== "testset" ? (
                 <ScenarioValuesError key={group.key} onRetry={onRetry} />
             ) : (
-                <ScenarioGroupCell key={group.key} cells={row.cells[group.key] ?? []} />
+                <ScenarioGroupCell
+                    key={group.key}
+                    cells={row.cells[group.key] ?? []}
+                    error={row.errors[group.key]}
+                />
             ),
         )}
     </>
