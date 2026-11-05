@@ -8,10 +8,7 @@ import {
     SET_MARKDOWN_VIEW,
 } from "@agenta/ui/editor"
 
-/**
- * Role label colors. The theme status tokens, so the colors resolve in both apps (the
- * `text-blue-6` scale in `ROLE_COLOR_CLASSES` exists only in the old app's Tailwind config).
- */
+// Theme status tokens, which resolve in both apps (the antd color scale exists only in /w).
 const ROLE_COLOR_CLASSES: Record<string, string> = {
     user: "text-colorInfo",
     assistant: "text-colorSuccess",
