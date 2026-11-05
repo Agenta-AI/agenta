@@ -26,6 +26,8 @@ An automation (a schedule or an event subscription) can stop working, and nobody
 ## What Changes
 
 - **Runner fix.** A run that fails before the agent loop is recorded as failed, not completed.
+- **Strict start.** Trigger dispatch treats an error first frame as a failed start (`500`), as
+  channels already do, so such a run cannot stay "dispatched" with no result.
 - **Run outcomes.** One admin route, called by cron every minute, copies how each run ended from
   `session_executions` to the trigger delivery's `data.outcome`. The automations screen shows the
   real result. This runs whether or not email is on.
@@ -87,6 +89,7 @@ None. No shipped spec covers automations.
 ## Impact
 
 - Runner: `services/runner/src/server.ts` (the fallback `done` keeps `stopReason: "error"`).
+- Dispatch: `api/entrypoints/worker_queues.py` passes `strict_start=True`.
 - API: new `api/oss/src/core/notifications/` and `api/oss/src/dbs/postgres/notifications/`;
   `api/oss/src/core/triggers/outcomes.py` and `failure_notifications.py`; one admin route,
   `POST /admin/triggers/deliveries/settle`; `emailing.py`; `env.py`; new methods on

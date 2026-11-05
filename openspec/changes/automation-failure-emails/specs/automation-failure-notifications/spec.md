@@ -57,7 +57,8 @@ nothing.
 ### Requirement: What resolves a notification
 The system SHALL resolve the open notification of an automation when a trigger delivery of the
 automation that started at or after `data.last_failed_at` is settled as `completed` or `waiting`,
-and after a person's successful edit, start or delete of the automation. It SHALL NOT
+and after a person's successful start or delete of the automation, or an edit after which the
+automation is active. It SHALL NOT
 resolve it on a stop, a refresh, a revoke, a schedule stopped at its end time, or a pause by the dispatcher.
 No email SHALL be sent about the fix. After a resolve, the next failure SHALL open a new
 notification, also when its run started before the fix.
@@ -94,6 +95,14 @@ notification, also when its run started before the fix.
 - **WHEN** a notification opens, and a person edits or deletes the automation before the send step
 - **THEN** the send step SHALL skip its notification deliveries
 
+#### Scenario: Rename of a paused automation
+- **WHEN** a `403` paused an automation and opened a notification, and a person renames it without turning it on
+- **THEN** the notification SHALL stay open
+
+#### Scenario: Agent archived
+- **WHEN** a person archives an agent, which pauses an automation bound to it directly, and another automation bound through an environment fires next and writes `403 agent_deleted`
+- **THEN** no email SHALL be sent for the first automation, and one email SHALL be sent for the second
+
 #### Scenario: Person stops the automation
 - **WHEN** an automation with an open notification is stopped by a person, or reaches its end time
 - **THEN** the notification SHALL stay open
@@ -105,7 +114,8 @@ notification, also when its run started before the fix.
 ### Requirement: Outage brake
 After each page of a pass is settled, the system SHALL count the distinct projects with a row
 settled `failed` with a platform reason (`start_failed`, `execution_lost`, `sandbox_gone`,
-`runner_error`) that ended less than 1 hour ago, over a rolling 15 minutes kept in the cache across
+`sandbox_capacity`, `runner_capacity`, `harness_init_timeout`, `upstream_error`, `runner_error`)
+that ended less than 1 hour ago, over a rolling 15 minutes kept in the cache across
 passes. When the count passes 10, it SHALL set an outage flag for 15 minutes and log one error. While the flag is set, a failure with a platform reason
 SHALL update an open notification but SHALL NOT open one. Failures with other reasons SHALL open
 as usual.
