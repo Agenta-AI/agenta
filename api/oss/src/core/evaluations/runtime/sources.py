@@ -15,7 +15,11 @@ from oss.src.core.testsets.service import TestsetsService
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.tracing.dtos import (
+    ComparisonOperator,
+    Condition,
+    Fields,
     Filtering,
+    TraceType,
     Windowing,
     Formatting,
     Format,
@@ -23,6 +27,28 @@ from oss.src.core.tracing.dtos import (
     TracingQuery,
     LogicalOperator,
 )
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
+
+
+def _only_invocations(filtering: Filtering) -> Filtering:
+    """The live query filter under an outer AND on invocation traces.
+
+    A live run must never read evaluator (annotation) traces back, also when the
+    user's filter has an OR that matches them.
+    """
+    return Filtering(
+        operator=LogicalOperator.AND,
+        conditions=[
+            Condition(
+                field=Fields.TRACE_TYPE.value,
+                operator=ComparisonOperator.IS,
+                value=TraceType.INVOCATION.value,
+            ),
+            filtering,
+        ],
+    )
 
 
 def _extract_root_span(trace: Any) -> Optional[Any]:
@@ -32,11 +58,12 @@ def _extract_root_span(trace: Any) -> Optional[Any]:
     if not isinstance(spans, dict) or not spans:
         return None
 
-    for span in spans.values():
-        if isinstance(span, list):
-            continue
-        if _extract_span_id(span):
-            return span
+    # Same-name sibling roots arrive as a list. Any root carries the link that
+    # types the evaluator trace `annotation`, so a list must not leave it unlinked.
+    for entry in spans.values():
+        for span in entry if isinstance(entry, list) else [entry]:
+            if _extract_span_id(span):
+                return span
 
     return None
 
@@ -68,6 +95,61 @@ def _extract_ag_data(trace: Any) -> Dict[str, Any]:
     ag = attributes.get("ag") or {}
     data = ag.get("data") if isinstance(ag, dict) else {}
     return data if isinstance(data, dict) else {}
+
+
+def _trace_source_item(
+    *,
+    trace: Any,
+    step_key: str,
+    trace_id: Optional[str] = None,
+) -> ResolvedSourceItem:
+    """A trace source item with the root span id, inputs and outputs read from the trace.
+
+    The evaluator steps read the outputs from these fields, and the span id becomes the
+    evaluator's `invocation` link. Without the link the evaluator trace is typed
+    `invocation` and a live query on invocation traces reads it back.
+    """
+    ag_data = _extract_ag_data(trace) if trace is not None else {}
+    root_span = _extract_root_span(trace) if trace is not None else None
+    return ResolvedSourceItem(
+        kind="trace",
+        step_key=step_key,
+        #
+        trace_id=trace_id or getattr(trace, "trace_id", None),
+        span_id=_extract_span_id(root_span),
+        trace=trace,
+        #
+        inputs=ag_data.get("inputs"),
+        outputs=ag_data.get("outputs"),
+    )
+
+
+def _linked_trace_source_items(
+    *,
+    traces: List[Any],
+    step_key: str,
+) -> List[ResolvedSourceItem]:
+    """Query source items for the traces that have a root span id.
+
+    The root span id becomes the evaluator's `invocation` link, and that link types
+    the evaluator trace `annotation`. A trace without one would give an evaluator
+    trace typed `invocation`, which the next live tick reads back as a new trace.
+    Such a trace also has no outputs to evaluate, so it is skipped.
+    """
+    items: List[ResolvedSourceItem] = []
+    for trace in traces:
+        if not trace or not trace.trace_id:
+            continue
+        item = _trace_source_item(trace=trace, step_key=step_key)
+        if not item.span_id:
+            log.warning(
+                "[EVAL] Skipping a query trace with no root span id.",
+                trace_id=str(item.trace_id),
+                step_key=step_key,
+            )
+            continue
+        items.append(item)
+    return items
 
 
 class SourceResolutionError(Exception):
@@ -397,23 +479,14 @@ class SourceResolution:
             )
             for testcase_id in testcase_ids
         )
-        for trace_id in trace_ids:
-            trace = traces_by_id.get(trace_id)
-            ag_data = _extract_ag_data(trace) if trace is not None else {}
-            root_span = _extract_root_span(trace) if trace is not None else None
-            source_items.append(
-                ResolvedSourceItem(
-                    kind="trace",
-                    step_key="",
-                    #
-                    trace_id=trace_id,
-                    span_id=_extract_span_id(root_span),
-                    trace=trace,
-                    #
-                    inputs=ag_data.get("inputs"),
-                    outputs=ag_data.get("outputs"),
-                )
+        source_items.extend(
+            _trace_source_item(
+                trace=traces_by_id.get(trace_id),
+                trace_id=trace_id,
+                step_key="",
             )
+            for trace_id in trace_ids
+        )
 
         return source_items
 
@@ -468,6 +541,9 @@ class SourceResolution:
                     )
                 elif query_windowing:
                     windowing.rate = query_windowing.rate
+
+            if not use_windowing:
+                filtering = _only_invocations(filtering)
 
             query_traces[query_step_key] = (
                 await self.tracing_service.query_traces(
@@ -534,16 +610,9 @@ class SourceResolution:
         )
 
         return {
-            query_step_key: [
-                ResolvedSourceItem(
-                    kind="trace",
-                    step_key=query_step_key,
-                    #
-                    trace_id=trace.trace_id,
-                    trace=trace,
-                )
-                for trace in traces
-                if trace and trace.trace_id
-            ]
+            query_step_key: _linked_trace_source_items(
+                traces=traces,
+                step_key=query_step_key,
+            )
             for query_step_key, traces in query_traces.items()
         }

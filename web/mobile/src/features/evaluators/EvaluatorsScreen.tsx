@@ -10,9 +10,11 @@ import Link from "next/link"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMembers"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useProjectPermission, useProjectPermissionState} from "../context/useProjectPermission"
+import {useDeveloperViewEnabled} from "../developer/developerViewAccess"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 import {useRevisionParam} from "../revisions/useRevisionParam"
@@ -43,12 +45,18 @@ export const EvaluatorsScreen = ({
     workspaceId: string
     projectId: string
 }) => {
+    useBindWorkspaceMembers()
     useBindProjectContext(projectId)
     const [category, setCategory] = useEvaluatorCategory()
     const [term, setTerm] = useState("")
     const search = useDebouncedAtomSearch(setTerm, 300)
     const trimmed = term.trim()
     const canEdit = useProjectPermission(projectId, "edit_evaluators")
+    // Human evaluators have no playground.
+    const playgroundBase =
+        useDeveloperViewEnabled("evaluator-playground") === true && category === "automatic"
+            ? `/w/${workspaceId}/p/${projectId}`
+            : null
 
     // The workflow endpoints check `view_workflows`, so this page asks for `view_evaluators` itself.
     const view = useProjectPermissionState(projectId, "view_evaluators")
@@ -114,7 +122,11 @@ export const EvaluatorsScreen = ({
         setInUseRunCount(null)
     }, [])
     const confirmArchive = useCallback(async () => {
-        const outcome = await archive(archiveEntries, {checkInUse: runs.allowed || runs.pending})
+        // Skip the check only on a confirmed refusal. A lookup that failed knows nothing, so the
+        // check runs, and if it fails too the archive is blocked.
+        const outcome = await archive(archiveEntries, {
+            checkInUse: runs.allowed || runs.pending || runs.failed,
+        })
         if (outcome.status === "in-use") {
             setInUseRunCount(outcome.runCount)
             return
@@ -122,7 +134,7 @@ export const EvaluatorsScreen = ({
         if (outcome.status === "failed") return
         setSelected(new Set())
         closeDialog()
-    }, [archive, archiveEntries, runs.allowed, runs.pending, closeDialog])
+    }, [archive, archiveEntries, runs.allowed, runs.pending, runs.failed, closeDialog])
     const changeCategory = useCallback(
         (next: typeof category) => {
             setSelected(new Set())
@@ -239,7 +251,9 @@ export const EvaluatorsScreen = ({
                 onConfirm={() => void confirmArchive()}
                 onClose={closeDialog}
             />
-            {view.allowed ? <EvaluatorsDrawer navigationIds={navigationIds} /> : null}
+            {view.allowed ? (
+                <EvaluatorsDrawer navigationIds={navigationIds} playgroundBase={playgroundBase} />
+            ) : null}
         </>
     )
 }

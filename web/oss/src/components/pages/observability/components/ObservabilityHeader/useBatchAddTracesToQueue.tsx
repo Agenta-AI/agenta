@@ -129,8 +129,8 @@ export interface BatchAddRunInput {
 export const useBatchAddTracesToQueue = () => {
     // Latest in-flight run — a new run or unmount aborts it.
     const abortRef = useRef<AbortController | null>(null)
-    // Self-reference so the error notifications' Retry can re-run.
-    const runRef = useRef<(input: BatchAddRunInput) => void>(() => {})
+    // Self-reference so the error notifications' Retry can run again.
+    const startRef = useRef<(input: BatchAddRunInput, added: Set<string>) => void>(() => {})
 
     // Tier-aware per-run cap — derived from the current billing plan.
     // Hobby/free deployments stay at the historical 1k default; pro,
@@ -141,8 +141,10 @@ export const useBatchAddTracesToQueue = () => {
     // Navigating away from observability aborts the run (partial add).
     useEffect(() => () => abortRef.current?.abort(), [])
 
-    const run = useCallback(
-        (input: BatchAddRunInput) => {
+    // `added` holds the trace ids that this run, and the runs it retries, added to the queue.
+    // The scan skips them, and the counts it shows include them.
+    const start = useCallback(
+        (input: BatchAddRunInput, added: Set<string>) => {
             const {queue, scanConfig, viewQueueUrl} = input
             const queueName = queue.name || "queue"
             const key = `batch-add-queue-${queue.id}`
@@ -167,9 +169,12 @@ export const useBatchAddTracesToQueue = () => {
                 </Button>
             )
 
+            // Traces the retried runs added; this run's counts start from them.
+            const addedBefore = added.size
+
             // Last reported queued count — kept so the rate-limited state can
             // still show progress while the scan is paused.
-            let lastQueued = 0
+            let lastQueued = addedBefore
 
             const showRunning = (queued: number) => {
                 lastQueued = queued
@@ -195,7 +200,7 @@ export const useBatchAddTracesToQueue = () => {
                 })
             }
 
-            showRunning(0)
+            showRunning(addedBefore)
 
             // Shared adaptive fetcher: bucket-aware proactive pacing + 429 retry.
             // Same helper the bulk CSV export uses — pacing is driven by the live
@@ -211,10 +216,17 @@ export const useBatchAddTracesToQueue = () => {
             // so bucket-aware pacing for it would need its own readings. The 429
             // retry remains as the per-call safety net.
             const addTracesWithRetry = (queueId: string, traceIds: string[]) =>
-                withRateLimitRetry(() => simpleQueueMolecule.set.addTraces(queueId, traceIds), {
-                    signal: controller.signal,
-                    onRetry: (delayMs) => showRateLimited(delayMs),
-                })
+                withRateLimitRetry(
+                    async () => {
+                        const addedTo = await simpleQueueMolecule.set.addTraces(queueId, traceIds)
+                        if (addedTo) for (const id of traceIds) added.add(id)
+                        return addedTo
+                    },
+                    {
+                        signal: controller.signal,
+                        onRetry: (delayMs) => showRateLimited(delayMs),
+                    },
+                )
 
             void (async () => {
                 try {
@@ -226,12 +238,16 @@ export const useBatchAddTracesToQueue = () => {
                         // Pacing happens inside `fetchPage` based on live bucket
                         // state — disable the source-level fixed delay.
                         pageDelayMs: 0,
-                        // Tier-aware ceiling (1k hobby → 20k enterprise).
-                        maxItems,
+                        // A retry skips the traces the earlier runs added.
+                        excludeTraceIds: added,
+                        // Tier-aware ceiling (1k hobby → 20k enterprise). It counts the traces
+                        // the earlier runs added.
+                        maxItems: Math.max(maxItems - added.size, 0),
                         onProgress: ({queued}) => {
-                            if (!controller.signal.aborted) showRunning(queued)
+                            if (!controller.signal.aborted) showRunning(addedBefore + queued)
                         },
                     })
+                    const queued = addedBefore + result.queued
 
                     // A superseded run resolves as "cancelled" — bail before it
                     // can overwrite the toast the newer run now owns.
@@ -249,13 +265,13 @@ export const useBatchAddTracesToQueue = () => {
                         notification.warning({
                             key,
                             message: "Cancelled",
-                            description: `${result.queued.toLocaleString()} traces queued to "${queueName}" before you stopped.`,
+                            description: `${queued.toLocaleString()} traces queued to "${queueName}" before you stopped.`,
                             duration: 6,
                         })
                         return
                     }
 
-                    if (result.queued === 0) {
+                    if (queued === 0) {
                         notification.info({
                             key,
                             message: "Nothing queued",
@@ -273,7 +289,7 @@ export const useBatchAddTracesToQueue = () => {
                         : `Queued to "${queueName}". They'll appear as the queue processes.`
                     notification.success({
                         key,
-                        message: `Queued ${result.queued.toLocaleString()} traces`,
+                        message: `Queued ${queued.toLocaleString()} traces`,
                         description: (
                             <AutoDismissDescription
                                 text={descriptionText}
@@ -305,7 +321,7 @@ export const useBatchAddTracesToQueue = () => {
                             size="small"
                             onClick={() => {
                                 notification.destroy(key)
-                                runRef.current(input)
+                                startRef.current(input, added)
                             }}
                         >
                             Retry
@@ -316,16 +332,17 @@ export const useBatchAddTracesToQueue = () => {
                         notification.error({
                             key,
                             message: "Queue add incomplete",
-                            description: `Queued ${err.flushedCount.toLocaleString()} traces; ${err.failedCount.toLocaleString()} failed to queue.`,
+                            description: `Queued ${(addedBefore + err.flushedCount).toLocaleString()} traces; ${err.failedCount.toLocaleString()} failed to queue.`,
                             duration: 0,
                             btn: retryBtn,
                         })
                         return
                     }
+                    console.error("Adding all matching traces to a queue failed", err)
                     notification.error({
                         key,
                         message: "Queue add failed",
-                        description: err instanceof Error ? err.message : "Something went wrong.",
+                        description: "Something went wrong. Try again.",
                         duration: 0,
                         btn: retryBtn,
                     })
@@ -337,7 +354,7 @@ export const useBatchAddTracesToQueue = () => {
         [maxItems],
     )
 
-    runRef.current = run
+    startRef.current = start
 
-    return run
+    return useCallback((input: BatchAddRunInput) => start(input, new Set()), [start])
 }

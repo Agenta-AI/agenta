@@ -180,6 +180,18 @@ describe("useTestsetEditor", () => {
         expect(store.get(revisionMolecule.atoms.draft(REVISION))).toBeNull()
     })
 
+    it("A new row has a field for each column, so the row drawer has fields to fill in", async () => {
+        mount("new", "Greeting checks")
+        await act(() => editor().addColumn("country"))
+        await act(() => editor().addColumn("capital"))
+        const rowId = run(() => editor().addRow())
+
+        expect(store.get(testcaseMolecule.atoms.data(rowId as string))?.data).toEqual({
+            country: "",
+            capital: "",
+        })
+    })
+
     it("Discard on a new test set clears its rows and columns", async () => {
         mount("new", "Greeting checks")
         run(() => editor().addRow())

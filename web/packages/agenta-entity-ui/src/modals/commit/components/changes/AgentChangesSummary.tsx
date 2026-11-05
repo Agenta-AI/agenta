@@ -106,7 +106,7 @@ export default function AgentChangesSummary({
             <div
                 className={cn(
                     "flex shrink-0 items-center justify-between",
-                    compact ? "pb-3" : "px-4 pb-2.5 pt-5",
+                    compact ? "pb-3" : "px-4 pb-2.5 pt-5 max-sm:pr-12",
                 )}
             >
                 {isDetail ? (

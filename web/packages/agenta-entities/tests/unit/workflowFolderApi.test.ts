@@ -112,6 +112,17 @@ describe("workflow folder api", () => {
         )
     })
 
+    it("Move prompt to the top level sends a null folder id", async () => {
+        workflows.editWorkflow.mockResolvedValue({})
+
+        await moveWorkflowToFolder({projectId: "project-1", workflowId: "w1", folderId: null})
+
+        expect(workflows.editWorkflow).toHaveBeenCalledWith(
+            {workflow_id: "w1", workflow: {id: "w1", folder_id: null}},
+            PROJECT,
+        )
+    })
+
     it("A folder response that fails the schema returns an empty list and logs", async () => {
         const log = vi.spyOn(console, "error").mockImplementation(() => undefined)
         folders.queryFolders.mockResolvedValue({count: 1, folders: [{name: "no id"}]})

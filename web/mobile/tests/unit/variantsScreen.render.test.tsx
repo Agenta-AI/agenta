@@ -39,6 +39,7 @@ vi.mock("@agenta/entities/workflow", () => ({
     appWorkflowsListQueryStateAtom: {id: "apps"},
     workflowLatestRevisionIdAtomFamily: () => ({id: "latest"}),
     workflowVariantsListDataAtomFamily: () => ({id: "variants"}),
+    workflowVariantsQueryAtomFamily: () => ({id: "variantsQuery"}),
     workflowMolecule: {selectors: {data: () => ({id: "entity"})}},
     pickModelName: () => "",
 }))
@@ -49,9 +50,11 @@ vi.mock("jotai", async (importOriginal) => ({
             ? fixture.apps
             : atom.id === "variants"
               ? []
-              : atom.id === "latest"
-                ? "rev-3"
-                : null,
+              : atom.id === "variantsQuery"
+                ? {data: {workflow_variants: []}, isPending: false}
+                : atom.id === "latest"
+                  ? "rev-3"
+                  : null,
 }))
 vi.mock("@agenta/ui/hooks", () => ({useMediaQuery: () => true}))
 vi.mock("@agenta/entities/shared", () => ({UserAuthorLabel: () => createElement("span")}))
@@ -230,11 +233,16 @@ describe("VariantsScreen", () => {
 })
 
 describe("VariantRowMenu", () => {
-    const open = (props: {canDeploy: boolean; canDelete: boolean}) => {
+    const open = (props: {
+        canDeploy: boolean
+        canDelete: boolean
+        playgroundHref?: (row: {revisionId: string}) => string
+    }) => {
         act(() => {
             root.render(
                 createElement(VariantRowMenu, {
                     row: revision("r1", 1, "va", "Support"),
+                    playgroundHref: null,
                     ...props,
                     onOpen: vi.fn(),
                     onDeploy: vi.fn(),
@@ -263,5 +271,23 @@ describe("VariantRowMenu", () => {
         const items = open({canDeploy: true, canDelete: true})
         expect(items).toContain("Deploy")
         expect(items).toContain("Delete")
+    })
+
+    it("Open in playground links to the revision in the playground while the view is on", () => {
+        const items = open({
+            canDeploy: false,
+            canDelete: false,
+            playgroundHref: (row) =>
+                `/w/ws/p/p-1/apps/app-1/playground?revisions=${row.revisionId}`,
+        })
+        expect(items).toContain("Open in playground")
+        const link = [...document.querySelectorAll("[role=menuitem]")].find(
+            (el) => el.textContent === "Open in playground",
+        )
+        expect(link?.getAttribute("href")).toBe("/w/ws/p/p-1/apps/app-1/playground?revisions=r1")
+    })
+
+    it("Open in playground is absent while the view is off", () => {
+        expect(open({canDeploy: false, canDelete: false})).not.toContain("Open in playground")
     })
 })

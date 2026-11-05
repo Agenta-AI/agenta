@@ -7,6 +7,7 @@ import {
     GitBranchIcon,
     FolderSimpleIcon,
     ChartDonut,
+    ChartBar,
 } from "@phosphor-icons/react"
 
 /**
@@ -62,10 +63,11 @@ export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
     {
         id: "archived-apps",
         label: "Archived apps",
-        description: "Archived apps, with Restore.",
+        description:
+            "Show the Archived apps page under Developer in the navigation. Restore an app from it.",
         routes: ["/apps/archived"],
         nav: {icon: Archive, section: "developer"},
-        stage: "hidden",
+        stage: "preview",
     },
     {
         id: "endpoints",
@@ -73,7 +75,7 @@ export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
         description: "Code to call an app and fetch its config, per environment.",
         routes: ["/endpoints"],
         nav: {icon: PlugsIcon, section: "developer"},
-        stage: "hidden",
+        stage: "preview",
     },
     {
         id: "playground",
@@ -83,11 +85,26 @@ export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
         stage: "hidden",
     },
     {
+        id: "evaluator-playground",
+        label: "Evaluator playground",
+        description: "Edit an evaluator and run it on test cases or on an app's output.",
+        routes: ["/evaluators/playground"],
+        stage: "hidden",
+    },
+    {
+        id: "evaluations",
+        label: "Evaluations",
+        description: "Evaluation runs and their results.",
+        routes: ["/evaluations", "/evaluations/results/[evaluation_id]"],
+        nav: {icon: ChartBar, section: "developer"},
+        stage: "hidden",
+    },
+    {
         id: "observability-app-filter",
         label: "Filter by app",
         description:
             "Filter traces and sessions by app, and open sessions for one agent from a link.",
-        stage: "hidden",
+        stage: "preview",
     },
     {
         id: "annotation-queues",
@@ -95,7 +112,7 @@ export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
         description: "Show the Annotation queues page under Developer in the navigation.",
         routes: ["/annotations", "/annotations/[queue_id]"],
         nav: {icon: Tray, section: "developer"},
-        stage: "hidden",
+        stage: "preview",
     },
     {
         id: "testsets",
@@ -111,7 +128,7 @@ export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
         description: "Variants of an app, their revisions, and where each is deployed.",
         routes: ["/variants"],
         nav: {icon: GitBranchIcon, section: "developer"},
-        stage: "hidden",
+        stage: "preview",
     },
     {
         id: "prompts",
@@ -119,7 +136,7 @@ export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
         description: "Show the Prompts page under Developer in the navigation.",
         routes: ["/prompts"],
         nav: {icon: FolderSimpleIcon, section: "developer"},
-        stage: "hidden",
+        stage: "preview",
     },
     {
         id: "evaluators",
@@ -127,6 +144,21 @@ export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
         description: "Automatic and human evaluators, with archive and restore.",
         routes: ["/evaluators", "/evaluators/archived"],
         nav: {icon: ChartDonut, section: "developer"},
+        stage: "preview",
+    },
+    {
+        id: "app-overview",
+        label: "App overview",
+        description:
+            "The overview of a prompt or custom app: deployments, recent prompts and evaluations.",
+        routes: ["/apps/[app_id]/overview"],
+        stage: "hidden",
+    },
+    {
+        id: "observability-actions",
+        label: "Trace actions",
+        description:
+            "Add to testset, Annotate, annotation filters and queue all matching traces on the traces page.",
         stage: "hidden",
     },
 ]

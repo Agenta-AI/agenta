@@ -84,8 +84,8 @@ afterEach(() => {
 })
 
 describe("archived apps route", () => {
-    it("Archived apps route shows not found while the view is hidden", async () => {
-        expect(DEVELOPER_VIEWS.find((view) => view.id === "archived-apps")?.stage).toBe("hidden")
+    it("Archived apps route shows not found until the user turns the view on", async () => {
+        expect(DEVELOPER_VIEWS.find((view) => view.id === "archived-apps")?.stage).toBe("preview")
         await mount()
         expect(document.querySelector('[data-testid="not-found"]')).not.toBeNull()
         expect(host.textContent).not.toContain("Archived Apps")

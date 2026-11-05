@@ -18,7 +18,7 @@ import {useQueryClient} from "@tanstack/react-query"
 
 import {useRevisionParam} from "../revisions/useRevisionParam"
 
-import type {AppRevisionRow} from "./useAppRevisions"
+import type {DialogRevision} from "./DeployRevisionDialog"
 import {useIsOnlyRevision} from "./useIsOnlyRevision"
 
 /**
@@ -30,11 +30,17 @@ export const DeleteRevisionDialog = ({
     projectId,
     appId,
     onClose,
+    onArchived,
+    onDeleted,
 }: {
-    row: AppRevisionRow
+    row: DialogRevision
     projectId: string
     appId: string
     onClose: () => void
+    /** Called as soon as the server has deleted the revision, before the dialog closes. */
+    onArchived?: (revisionId: string) => void
+    /** Called once the revision is gone and the lists have loaded again. It must not throw. */
+    onDeleted?: (revisionId: string) => Promise<void> | void
 }) => {
     const queryClient = useQueryClient()
     const [shownRevisionId, setShownRevisionId] = useRevisionParam()
@@ -47,16 +53,25 @@ export const DeleteRevisionDialog = ({
             // Only this revision. The shared delete action also archives other revisions it
             // takes for empty seeds, which can take a real revision with it.
             await archiveWorkflowRevision(projectId, row.revisionId)
-            message.success("Deleted workflow successfully")
-            await queryClient.invalidateQueries({queryKey: ["workflows"]})
-            if (shownRevisionId === row.revisionId) setShownRevisionId(null)
-            onClose()
         } catch (error) {
             console.error("Delete revision failed", error)
             message.error("Couldn't delete this revision")
-        } finally {
             setPending(false)
+            return
         }
+        // The revision is gone: the dialog closes, and the screens that showed it load again.
+        onArchived?.(row.revisionId)
+        message.success("Deleted revision successfully")
+        onClose()
+        // The deleted revision itself is not loaded again: that load would write it back to
+        // the persisted cache a reload paints from.
+        await queryClient.invalidateQueries({
+            queryKey: ["workflows"],
+            predicate: ({queryKey}) =>
+                !(queryKey[1] === "revision" && queryKey[2] === row.revisionId),
+        })
+        if (shownRevisionId === row.revisionId) setShownRevisionId(null)
+        await onDeleted?.(row.revisionId)
     }
 
     return (

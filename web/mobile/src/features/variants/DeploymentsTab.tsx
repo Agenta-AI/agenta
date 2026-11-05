@@ -1,11 +1,7 @@
 import {useMemo, useState} from "react"
 
-import {
-    appEnvironmentsLoadableAtomFamily,
-    environmentsListQueryAtomFamily,
-    type AppDeploymentRow,
-} from "@agenta/entities/environment"
-import {workflowVariantsListDataAtomFamily, type Workflow} from "@agenta/entities/workflow"
+import {environmentsListQueryAtomFamily, type AppDeploymentRow} from "@agenta/entities/environment"
+import type {Workflow} from "@agenta/entities/workflow"
 import {useSettledValue} from "@agenta/shared/hooks"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableToolbar} from "@agenta/ui/list-table"
@@ -18,7 +14,10 @@ import Link from "next/link"
 import {useProjectPermission} from "../context/useProjectPermission"
 import {useDeveloperViewEnabled} from "../developer/developerViewAccess"
 import {useUrlParams} from "../developer/useUrlParams"
+import {playgroundHref} from "../playground/playgroundUrl"
+import {OpenInPlaygroundButton} from "../revisions/OpenInPlaygroundButton"
 import {useRevisionParam} from "../revisions/useRevisionParam"
+import {useSettingsOrg} from "../settings/useSettingsOrg"
 
 import {DeploymentHistoryTable} from "./DeploymentHistoryTable"
 import {DeployToEnvironmentDialog} from "./DeployToEnvironmentDialog"
@@ -27,6 +26,7 @@ import {RevertDeploymentDialog} from "./RevertDeploymentDialog"
 import {DeploymentsEmpty} from "./states/DeploymentsEmpty"
 import {EnvironmentCardsSkeleton} from "./states/EnvironmentCardsSkeleton"
 import {useAppDeploymentHistory} from "./useAppDeploymentHistory"
+import {useAppEnvironments} from "./useAppEnvironments"
 
 const RevisionDrawerHost = dynamic(
     () => import("../revisions/RevisionDrawerHost").then((module) => module.RevisionDrawerHost),
@@ -35,44 +35,36 @@ const RevisionDrawerHost = dynamic(
 
 /** The Deployments tab: one card per environment, and the history of the chosen one. */
 export const DeploymentsTab = ({
+    workspaceId,
     projectId,
     app,
     base,
 }: {
+    workspaceId: string
     projectId: string
     app: Workflow
     /** `/w/<workspace>/p/<project>`, for the link to the endpoints view. */
     base: string
 }) => {
     const {read, write} = useUrlParams()
-    const storedEnvironments = useAtomValue(appEnvironmentsLoadableAtomFamily(app.id))
+    const {environments, variantNames} = useAppEnvironments(app.id)
     const environmentList = useAtomValue(environmentsListQueryAtomFamily(false))
-    const variants = useAtomValue(workflowVariantsListDataAtomFamily(app.id))
-    const variantNames = useMemo(
+    // /m does not bind the shared user atoms, so the author label cannot resolve an id by itself.
+    // The names come from the workspace members, as /w shows them: the username, else the email.
+    const {org} = useSettingsOrg(workspaceId)
+    const authorNames = useMemo(
         () =>
             new Map(
-                variants.flatMap((variant) => {
-                    const name = variant.name || variant.slug
-                    return name ? [[variant.id, name] as const] : []
+                (org.data?.default_workspace?.members ?? []).flatMap(({user}) => {
+                    const name = user.username || user.email
+                    return user.id && name ? [[user.id, name] as const] : []
                 }),
             ),
-        [variants],
-    )
-    // The cards store the variant name from the deployment; show the current name after a rename.
-    const environments = useMemo(
-        () => ({
-            ...storedEnvironments,
-            data: storedEnvironments.data.map((entry) => ({
-                ...entry,
-                deployedVariantName:
-                    (entry.deployedVariantId ? variantNames.get(entry.deployedVariantId) : null) ??
-                    entry.deployedVariantName,
-            })),
-        }),
-        [storedEnvironments, variantNames],
+        [org.data],
     )
     const canDeploy = useProjectPermission(projectId, "deploy_environments")
     const endpointsEnabled = useDeveloperViewEnabled("endpoints")
+    const playgroundEnabled = useDeveloperViewEnabled("playground") === true
     const [revisionId, setRevisionId] = useRevisionParam()
     const [search, setSearch] = useState("")
     const term = useSettledValue(search).trim()
@@ -172,6 +164,7 @@ export const DeploymentsTab = ({
                         rows={rows}
                         isLoading={history.isPending && environmentId !== null}
                         variantNames={variantNames}
+                        authorNames={authorNames}
                         currentRevisionId={currentRevisionId}
                         canRevert={canDeploy}
                         onOpen={open}
@@ -186,11 +179,18 @@ export const DeploymentsTab = ({
                     kind="deployment"
                     navigationIds={navigationIds}
                     actions={
-                        canRevert(shownRow) ? (
-                            <Button size="sm" onClick={() => setRevertRow(shownRow)}>
-                                Revert
-                            </Button>
-                        ) : null
+                        <>
+                            {playgroundEnabled ? (
+                                <OpenInPlaygroundButton
+                                    href={playgroundHref(base, app.id, [revisionId])}
+                                />
+                            ) : null}
+                            {canRevert(shownRow) ? (
+                                <Button size="sm" onClick={() => setRevertRow(shownRow)}>
+                                    Revert
+                                </Button>
+                            ) : null}
+                        </>
                     }
                 />
             ) : null}

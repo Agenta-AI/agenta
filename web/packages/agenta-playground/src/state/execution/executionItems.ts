@@ -320,6 +320,7 @@ function toTransformMessage(message: ChatMessage): TransformMessage {
 function mapLifecyclePhase(status: RunStatus): ExecutionItemLifecyclePhase {
     if (status === "running" || status === "pending") return "running"
     if (status === "error") return "failed"
+    if (status === "skipped") return "idle"
     return status
 }
 
@@ -347,33 +348,58 @@ function resolveRequestedRepetitions(
     return Math.max(1, preferred)
 }
 
+/**
+ * Marks every running or pending result in a loadable cancelled and aborts its run. With `runId`,
+ * only the results of that run: a chain run gives the app and each evaluator after it the same
+ * run id, so cancelling the app's result must stop the evaluators' results too.
+ */
+export function cancelRunningResults(
+    get: Getter,
+    set: Setter,
+    loadableId: string,
+    runId?: string,
+): void {
+    const resultsByKey = get(resultsByKeyAtomFamily(loadableId))
+    const next = {...resultsByKey}
+    const runIds = new Set<string>()
+    let changed = false
+    for (const [key, result] of Object.entries(resultsByKey)) {
+        if (result.status !== "running" && result.status !== "pending") continue
+        if (runId && result.runId !== runId) continue
+        next[key] = {...result, status: "cancelled", completedAt: Date.now()}
+        if (result.runId) runIds.add(result.runId)
+        changed = true
+    }
+    if (!changed) return
+    const adapter = get(executionAdapterAtom)
+    for (const id of runIds) {
+        abortRun(id)
+        adapter.cancel?.(id)
+    }
+    set(resultsByKeyAtomFamily(loadableId), next)
+}
+
 function cancelExecutionItemRun(
     get: Getter,
     set: Setter,
     references: ExecutionItemReference,
 ): string | null {
-    const resultsByKey = {
-        ...get(resultsByKeyAtomFamily(references.loadableId)),
-    }
     const key = buildResultKey(references.rowId, references.sessionId)
-    const existing = resultsByKey[key]
+    const existing = get(resultsByKeyAtomFamily(references.loadableId))[key]
     if (!existing || (existing.status !== "running" && existing.status !== "pending")) {
         return null
     }
 
     if (existing.runId) {
-        abortRun(existing.runId)
-        const adapter = get(executionAdapterAtom)
-        adapter.cancel?.(existing.runId)
+        cancelRunningResults(get, set, references.loadableId, existing.runId)
+        return existing.runId
     }
 
-    resultsByKey[key] = {
-        ...existing,
-        status: "cancelled",
-        completedAt: Date.now(),
-    }
-    set(resultsByKeyAtomFamily(references.loadableId), resultsByKey)
-    return existing.runId ?? null
+    set(resultsByKeyAtomFamily(references.loadableId), {
+        ...get(resultsByKeyAtomFamily(references.loadableId)),
+        [key]: {...existing, status: "cancelled", completedAt: Date.now()},
+    })
+    return null
 }
 
 function resolveVariableRowId(params: ResolveVariableRowIdParams): string | null {

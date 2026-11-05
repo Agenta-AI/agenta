@@ -8,8 +8,9 @@ import {
 } from "@agenta/entities/simpleQueue"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
+import {createQueueFollowUpAtom} from "./createQueueFollowUpAtom"
 import type {CreateQueueValues} from "./createQueueTypes"
 import {useQueueLink} from "./useQueueLink"
 
@@ -25,6 +26,7 @@ export const useCreateQueue = () => {
     const selection = useAtomValue(createQueueDrawerSelectionAtom)
     const setSelection = useSetAtom(createQueueDrawerSelectionAtom)
     const setOpen = useSetAtom(createQueueDrawerOpenAtom)
+    const [followUp, setFollowUp] = useAtom(createQueueFollowUpAtom)
     const createQueue = useSetAtom(createSimpleQueueAtom)
     const addTraces = useSetAtom(simpleQueueMolecule.actions.addTraces)
     const addTestcases = useSetAtom(simpleQueueMolecule.actions.addTestcases)
@@ -35,8 +37,9 @@ export const useCreateQueue = () => {
     const close = useCallback(() => {
         if (inFlight.current) return
         setSelection(null)
+        setFollowUp(null)
         setOpen(false)
-    }, [setOpen, setSelection])
+    }, [setFollowUp, setOpen, setSelection])
 
     const submit = useCallback(
         async (values: CreateQueueValues) => {
@@ -45,9 +48,11 @@ export const useCreateQueue = () => {
                 message.error("Project is not available")
                 return
             }
-            if (selection && values.kind !== selection.itemType) {
+            // The items go into the new queue: the sheet's selection, or the picker's follow-up.
+            const itemType = selection?.itemType ?? followUp?.itemType
+            if (itemType && values.kind !== itemType) {
                 message.error(
-                    `Selected ${ITEM_LABEL[selection.itemType]} can only be added to a ${selection.itemType} queue`,
+                    `Selected ${ITEM_LABEL[itemType]} can only be added to a ${itemType} queue`,
                 )
                 return
             }
@@ -56,6 +61,7 @@ export const useCreateQueue = () => {
             setIsSubmitting(true)
             const finish = () => {
                 setSelection(null)
+                setFollowUp(null)
                 setOpen(false)
             }
 
@@ -104,6 +110,7 @@ export const useCreateQueue = () => {
                     ...queueLink(queue.id, `View "${queue.name ?? "queue"}"`),
                     duration: 5,
                 })
+                followUp?.run(queue)
             } catch (cause) {
                 console.error("Creating the annotation queue failed", cause)
                 message.error("Couldn't create the queue")
@@ -116,13 +123,15 @@ export const useCreateQueue = () => {
             addTestcases,
             addTraces,
             createQueue,
+            followUp,
             projectId,
             queueLink,
             selection,
+            setFollowUp,
             setOpen,
             setSelection,
         ],
     )
 
-    return {submit, close, isSubmitting, selection}
+    return {submit, close, isSubmitting, selection, followUp}
 }

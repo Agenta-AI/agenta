@@ -97,7 +97,7 @@ describe("prompt dialogs", () => {
                     itemName="Welcome email"
                     folders={FOLDERS}
                     initialSelectedId={initialSelectedId}
-                    isDisabled={(id) => id === "f1"}
+                    isDisabled={(id) => id === "f1" || id === initialSelectedId}
                     onConfirm={onConfirm}
                     onClose={vi.fn()}
                 />,
@@ -108,7 +108,8 @@ describe("prompt dialogs", () => {
         const onConfirm = vi.fn()
         moveDialog(onConfirm)
         expect(document.body.textContent).toContain("Moving Welcome email")
-        expect(byText("Move folder")?.disabled).toBe(true)
+        // The prompt sits at the top level, so All prompts is where it is now.
+        expect(byText("Move to All prompts")?.disabled).toBe(true)
         const gamma = [...document.querySelectorAll("[role=treeitem]")].find((n) =>
             n.textContent?.includes("Gamma"),
         ) as HTMLElement
@@ -125,8 +126,18 @@ describe("prompt dialogs", () => {
             n.textContent?.includes("Alpha"),
         ) as HTMLButtonElement
         expect(alpha.disabled).toBe(true)
-        expect(document.querySelectorAll("[role=treeitem]")).toHaveLength(3)
+        expect(document.querySelectorAll("[role=treeitem]")).toHaveLength(4)
         expect(byText("Move to Alpha")?.disabled).toBe(true)
+    })
+
+    it("All prompts comes first and moves the item to the top level", () => {
+        const onConfirm = vi.fn()
+        moveDialog(onConfirm, "f1")
+        const [root] = document.querySelectorAll<HTMLButtonElement>("[role=treeitem]")
+        expect(root.textContent).toBe("All prompts")
+        act(() => root.click())
+        act(() => byText("Move to All prompts")?.click())
+        expect(onConfirm).toHaveBeenCalledWith(null)
     })
 
     it("Delete names the folder or says this folder", () => {

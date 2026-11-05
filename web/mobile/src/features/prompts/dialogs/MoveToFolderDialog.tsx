@@ -10,7 +10,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@agenta/ui/ui"
-import {FolderIcon} from "@phosphor-icons/react"
+import {FolderIcon, HouseIcon} from "@phosphor-icons/react"
 
 import {promptsCopy} from "../promptsCopy"
 
@@ -42,7 +42,7 @@ const TreeRows = ({
                         disabled={isDisabled(node.id)}
                         onClick={() => onSelect(node.id)}
                         style={{paddingLeft: 8 + depth * 16}}
-                        className="flex min-h-9 w-full items-center gap-2 rounded-md border-0 bg-transparent py-1 pr-2 text-left text-sm text-foreground hover:bg-accent disabled:cursor-not-allowed disabled:text-muted-foreground disabled:opacity-60 disabled:hover:bg-transparent aria-selected:bg-accent aria-selected:font-medium"
+                        className={ROW_CLASS}
                     >
                         <FolderIcon className="size-4 shrink-0" />
                         <span className="min-w-0 truncate">{node.folder.name}</span>
@@ -61,9 +61,13 @@ const TreeRows = ({
     </>
 )
 
+const ROW_CLASS =
+    "flex min-h-9 w-full items-center gap-2 rounded-md border-0 bg-transparent py-1 pr-2 text-left text-sm text-foreground hover:bg-accent disabled:cursor-not-allowed disabled:text-muted-foreground disabled:opacity-60 disabled:hover:bg-transparent aria-selected:bg-accent aria-selected:font-medium"
+
 /**
- * Picks the folder an item goes into. Every folder shows, fully open; a folder the item cannot go
- * into is greyed out, so the confirm button only ever offers a move that works.
+ * Picks where an item goes: the top level (a null id) or a folder. Every folder shows, fully
+ * open; a place the item cannot go to is greyed out, so the confirm button only ever offers a
+ * move that works.
  */
 export const MoveToFolderDialog = ({
     open,
@@ -79,12 +83,12 @@ export const MoveToFolderDialog = ({
     open: boolean
     itemName: string
     folders: readonly Folder[]
-    /** The folder the item sits in now (or the folder itself, for a folder). */
+    /** The folder the item sits in now, null at the top level (or the folder itself). */
     initialSelectedId: string | null
-    isDisabled: (folderId: string) => boolean
+    isDisabled: (folderId: string | null) => boolean
     pending?: boolean
     error?: string | null
-    onConfirm: (destinationId: string) => void
+    onConfirm: (destinationId: string | null) => void
     onClose: () => void
 }) => {
     const copy = promptsCopy.moveDialog
@@ -94,8 +98,11 @@ export const MoveToFolderDialog = ({
     }, [open, initialSelectedId])
 
     const tree = useMemo(() => buildFolderTree(folders, []), [folders])
-    const destination = folders.find((folder) => folder.id === selectedId)
-    const canConfirm = Boolean(destination) && !isDisabled(selectedId ?? "") && !pending
+    const destinationName =
+        selectedId === null
+            ? promptsCopy.rootLabel
+            : (folders.find((folder) => folder.id === selectedId)?.name ?? null)
+    const canConfirm = destinationName !== null && !isDisabled(selectedId) && !pending
 
     return (
         <Dialog
@@ -115,6 +122,21 @@ export const MoveToFolderDialog = ({
                     aria-label={copy.selectLabel}
                     className="m-0 max-h-64 list-none overflow-y-auto rounded-md border border-solid border-border p-1"
                 >
+                    <li role="none">
+                        <button
+                            type="button"
+                            role="treeitem"
+                            aria-selected={selectedId === null}
+                            aria-level={1}
+                            disabled={isDisabled(null)}
+                            onClick={() => setSelectedId(null)}
+                            style={{paddingLeft: 8}}
+                            className={ROW_CLASS}
+                        >
+                            <HouseIcon className="size-4 shrink-0" />
+                            <span className="min-w-0 truncate">{promptsCopy.rootLabel}</span>
+                        </button>
+                    </li>
                     <TreeRows
                         nodes={tree}
                         depth={0}
@@ -128,11 +150,8 @@ export const MoveToFolderDialog = ({
                     <Button variant="outline" disabled={pending} onClick={onClose}>
                         {promptsCopy.cancel}
                     </Button>
-                    <Button
-                        disabled={!canConfirm}
-                        onClick={() => selectedId && onConfirm(selectedId)}
-                    >
-                        {pending ? promptsCopy.working : copy.confirm(destination?.name ?? null)}
+                    <Button disabled={!canConfirm} onClick={() => onConfirm(selectedId)}>
+                        {pending ? promptsCopy.working : copy.confirm(destinationName)}
                     </Button>
                 </DialogFooter>
             </DialogContent>

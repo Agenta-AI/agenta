@@ -237,7 +237,12 @@ export function FilterRow({
     const keyTreeData = useMemo(() => {
         if (!showKey || field?.keyInput?.kind !== "select") return []
         const keyValue = item.key == null ? undefined : String(item.key)
-        return buildKeyTreeData(field.keyInput.options, keySearchTerm, keyValue)
+        return buildKeyTreeData(
+            field.keyInput.options,
+            keySearchTerm,
+            keyValue,
+            field.keyInput.treePath,
+        )
     }, [showKey, field, item.key, keySearchTerm])
 
     const annotationContext: AnnotationRowContext = {

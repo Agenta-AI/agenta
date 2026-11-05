@@ -19,8 +19,8 @@ globalThis.ResizeObserver ??= class {
 
 // jsdom has no pointer capture; the slider calls these on a press.
 Element.prototype.hasPointerCapture ??= () => false
-Element.prototype.setPointerCapture ??= () => {}
-Element.prototype.releasePointerCapture ??= () => {}
+Element.prototype.setPointerCapture ??= () => undefined
+Element.prototype.releasePointerCapture ??= () => undefined
 
 // Menus and selects render inline: Radix opens them on a pointer sequence jsdom does not send.
 vi.mock("@agenta/ui/ui", async (importOriginal) => {

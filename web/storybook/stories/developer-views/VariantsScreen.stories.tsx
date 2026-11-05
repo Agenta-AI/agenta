@@ -50,6 +50,8 @@ interface DemoProps {
     rows?: AppRevisionRow[]
     canDeploy?: boolean
     canDelete?: boolean
+    /** The playground view is on: the row menu links to the playground. */
+    playground?: boolean
     empty?: "none" | "noMatch"
 }
 
@@ -59,6 +61,7 @@ const Demo = ({
     rows = ROWS,
     canDeploy = true,
     canDelete = true,
+    playground = false,
     empty = "none",
 }: DemoProps) => {
     const [view, setView] = useState(mode)
@@ -79,6 +82,12 @@ const Demo = ({
                 latestRevisionId="rev-5"
                 canDeploy={canDeploy}
                 canDelete={canDelete}
+                playgroundHref={
+                    playground
+                        ? (item) =>
+                              `/w/ws/p/proj/apps/app-1/playground?revisions=${item.revisionId}`
+                        : null
+                }
                 collapsed={collapsed}
                 onCollapsedChange={setCollapsed}
                 onOpen={() => undefined}
@@ -158,4 +167,17 @@ export const PickApp: Story = {
             <PickAppState />
         </div>
     ),
+}
+
+/** The playground view is on: a revision's menu opens it in the playground. */
+export const OpenInPlayground: Story = {
+    args: {mode: "revisions", playground: true},
+    play: async ({canvasElement}) => {
+        const screen = within(canvasElement)
+        const menus = await screen.findAllByRole("button", {name: "Revision actions"})
+        await userEvent.click(menus[0])
+        await expect(
+            await within(document.body).findByText("Open in playground"),
+        ).toBeInTheDocument()
+    },
 }

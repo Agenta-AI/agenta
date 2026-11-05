@@ -311,6 +311,7 @@ export {
     workflowVariantsCachedListAtomFamily,
     workflowRevisionsQueryAtomFamily,
     workflowRevisionRefsByVariantAtomFamily,
+    workflowVariantNewestVersionAtomFamily,
     workflowRevisionsListDataAtomFamily,
     // Revision by workflow
     workflowRevisionsByWorkflowQueryAtomFamily,
@@ -351,6 +352,7 @@ export {
     workflowLatestRevisionIdAtomFamily,
     workflowAppTypeAtomFamily,
     workflowLatestRevisionQueryAtomFamily,
+    reloadWorkflowLatestRevisionAtom,
     agTypeSchemaAtomFamily,
     // Agent icon (per-agent glyph + colour, stored on the artifact's tags)
     agentIconAtomFamily,

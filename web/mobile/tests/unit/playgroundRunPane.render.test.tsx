@@ -44,6 +44,10 @@ vi.mock("@agenta/playground-ui/panels/runs", () => ({
     ),
     RunsPanelSkeleton: () => <div data-testid="runs-panel-skeleton" />,
 }))
+// The test set menu has its own tests.
+vi.mock("@/features/playground/PlaygroundTestsetMenu", () => ({
+    PlaygroundTestsetMenu: () => null,
+}))
 vi.mock("@agenta/playground-ui/panels/chat", () => ({
     ChatPanel: ({
         revisionId,

@@ -1,6 +1,8 @@
 import {MediaViewerHost} from "@agenta/entity-ui/drive"
+import {isDrawerOpenAtom, traceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {TraceDrawer} from "@agenta/observability-ui/traceDrawer"
 import {useMediaQuery} from "@agenta/ui/hooks"
+import {useAtomValue, useStore} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
@@ -9,6 +11,7 @@ import {FeatureGuideDialog} from "@/features/education/FeatureGuideDialog"
 import {WhatsNewDialog} from "@/features/education/WhatsNewDialog"
 import {bindTraceDrawerSeams} from "@/features/observability/bindTraceDrawerSeams"
 import {registerTraceDrawerSlots} from "@/features/observability/registerTraceDrawerSlots"
+import {useTraceDrawerFromUrl} from "@/features/observability/useTraceDrawerFromUrl"
 
 // The create-queue sheet host mounts once for every entry point (queue list, trace drawer picker,
 // observability toolbar). The sheet inside loads on first open.
@@ -22,6 +25,11 @@ const QueueSheetGate = () => {
     const enabled = useDeveloperViewEnabled("annotation-queues")
     return enabled ? <CreateQueueSheetHost /> : null
 }
+
+// The member query loads with the drawer, not with the shell: no page needs it until a trace opens.
+const TraceDrawerMembers = dynamic(() => import("@/features/observability/TraceDrawerMembers"), {
+    ssr: false,
+})
 
 // Registered when this module loads, not while rendering: `Component` renders before this
 // component in `_app`, and a screen that read the slots first would get the antd defaults.
@@ -40,12 +48,24 @@ registerTraceDrawerSlots()
  */
 export const GlobalDrawers = () => {
     const router = useRouter()
-    bindTraceDrawerSeams(router)
+    const playground = useDeveloperViewEnabled("playground") === true
+    const store = useStore()
+    bindTraceDrawerSeams(router, {
+        playground,
+        // Only an open drawer names its trace: a closing one must not put it back.
+        openTraceId: () => {
+            const drawer = store.get(traceDrawerAtom)
+            return drawer.open ? drawer.traceId || null : null
+        },
+    })
+    useTraceDrawerFromUrl(router)
     // The split puts a 320px tree beside a content pane of at least 400px, so it stacks below 720px.
     const wide = useMediaQuery("(min-width: 720px)")
+    const traceOpen = useAtomValue(isDrawerOpenAtom)
     return (
         <>
             <TraceDrawer layout={wide ? "split" : "stacked"} />
+            {traceOpen ? <TraceDrawerMembers /> : null}
             {/* These dialogs open by atom, so they mount wherever an entry point can set them. */}
             <FeatureGuideDialog />
             <WhatsNewDialog />

@@ -15,6 +15,7 @@ import {useCallback, useEffect, useMemo} from "react"
 import {loadableController} from "@agenta/entities/loadable"
 import {testcaseMolecule} from "@agenta/entities/testcase"
 import {type PlaygroundUIProviders} from "@agenta/playground-ui"
+import {useLocalDraftWarning} from "@agenta/playground-ui/hooks"
 import {preloadEditorPlugins, Tag} from "@agenta/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -63,6 +64,9 @@ function EvaluatorSyncStateTag({rowId, loadableId}: {rowId: string; loadableId: 
 }
 
 const ConfigureEvaluatorPageInner = () => {
+    // Ask before the page unloads with unsaved evaluator or app edits (same as the app playground)
+    useLocalDraftWarning()
+
     // Mount the playground URL sync system (same as app playground)
     useAtomValue(playgroundSyncAtom)
 

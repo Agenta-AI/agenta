@@ -40,6 +40,7 @@ export const DeploymentHistoryTable = ({
     rows,
     isLoading,
     variantNames,
+    authorNames,
     currentRevisionId,
     canRevert,
     onOpen,
@@ -50,6 +51,8 @@ export const DeploymentHistoryTable = ({
     isLoading: boolean
     /** Current variant names by id: a renamed variant shows its new name. */
     variantNames: ReadonlyMap<string, string>
+    /** Member display names by user id, for the Modified by column. */
+    authorNames: ReadonlyMap<string, string>
     currentRevisionId: string | null
     canRevert: boolean
     onOpen: (row: AppDeploymentRow) => void
@@ -95,7 +98,12 @@ export const DeploymentHistoryTable = ({
                     </span>
                     {narrow ? null : (
                         <span className="block truncate text-[13px] text-muted-foreground">
-                            <UserAuthorLabel userId={row.authorId} showYouLabel fallback="—" />
+                            <UserAuthorLabel
+                                userId={row.authorId}
+                                name={row.authorId ? authorNames.get(row.authorId) : null}
+                                showYouLabel
+                                fallback="—"
+                            />
                         </span>
                     )}
                     <span

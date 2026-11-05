@@ -10,6 +10,7 @@ import Link from "next/link"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMembers"
 import {projectHomeUrl} from "@/lib/context"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
@@ -36,6 +37,7 @@ export const ArchivedAppsScreen = ({
     workspaceId: string
     projectId: string
 }) => {
+    useBindWorkspaceMembers()
     useBindProjectContext(projectId)
     const [term, setTerm] = useState("")
     const search = useDebouncedAtomSearch(setTerm, 300)

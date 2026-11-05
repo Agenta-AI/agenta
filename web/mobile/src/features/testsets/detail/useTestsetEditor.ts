@@ -50,14 +50,16 @@ const SAVE_RUNNING = "Wait for the current save to finish"
 type ColumnChange =
     | {kind: "add"; columnKey: string}
     | {kind: "rename"; oldKey: string; newKey: string}
-    | {kind: "remove"; columnKey: string}
+    | {kind: "remove"; columnKeys: string[]}
 
 const columnSavedMessage = (change: ColumnChange) =>
     change.kind === "add"
         ? `Added column "${change.columnKey}" and saved a new version`
         : change.kind === "rename"
           ? `Renamed column "${change.oldKey}" to "${change.newKey}" and saved a new version`
-          : `Deleted column "${change.columnKey}" and saved a new version`
+          : change.columnKeys.length === 1
+            ? `Deleted column "${change.columnKeys[0]}" and saved a new version`
+            : `Deleted ${change.columnKeys.length} columns and saved a new version`
 
 /** The commit delta of one column change, as the server applies it to every row. */
 const columnDelta = (change: ColumnChange): TestsetRevisionDeltaColumns =>
@@ -65,7 +67,7 @@ const columnDelta = (change: ColumnChange): TestsetRevisionDeltaColumns =>
         ? {add: [change.columnKey]}
         : change.kind === "rename"
           ? {replace: [[change.oldKey, change.newKey]]}
-          : {remove: [change.columnKey]}
+          : {remove: change.columnKeys}
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
     typeof value === "object" && value !== null && !Array.isArray(value)
@@ -120,6 +122,41 @@ const savedColumns = async (
  * `routeId` is a revision id or `new`. An id that is neither reports `notFound` and touches
  * nothing. The session state lives in global atoms, so it is cleared when the page closes.
  */
+/** Path parts that would write into an object's prototype instead of the row. */
+const UNSAFE_PARTS: ReadonlySet<string> = new Set(["__proto__", "constructor", "prototype"])
+
+/**
+ * The data of a new row: "" at each column's path. A column read from row data carries its path
+ * (`["meta.lang", "source"]` stays `{"meta.lang": {source: ""}}`). A column with no path (added
+ * in the grid) follows its parent: `inputs.question` with the parent `inputs` gives
+ * `{inputs: {question: ""}}`, and a top-level `meta.lang` stays one key. A column with an unsafe
+ * path part is left out.
+ */
+export function emptyRowData(
+    columns: readonly {key: string; parentKey?: string; path?: string[]}[],
+): Record<string, unknown> {
+    const data: Record<string, unknown> = {}
+    for (const {key, parentKey, path: columnPath} of columns) {
+        const path =
+            columnPath && columnPath.length > 0
+                ? columnPath
+                : parentKey
+                  ? [...parentKey.split("."), key.slice(parentKey.length + 1)]
+                  : [key]
+        if (path.some((part) => UNSAFE_PARTS.has(part))) continue
+        let node = data
+        for (const part of path.slice(0, -1)) {
+            const next = Object.hasOwn(node, part) ? node[part] : undefined
+            node = (next && typeof next === "object" ? next : (node[part] = {})) as Record<
+                string,
+                unknown
+            >
+        }
+        node[path[path.length - 1]] = ""
+    }
+    return data
+}
+
 export function useTestsetEditor({
     projectId,
     routeId,
@@ -216,10 +253,12 @@ export function useTestsetEditor({
         setIsSaving(false)
     }, [])
 
-    const addRow = useCallback(
-        (): string | null => (savingRef.current ? null : (addRowAtom({data: {}})?.id ?? null)),
-        [addRowAtom],
-    )
+    // A new row starts with an empty value for each column. The row drawer shows the row data,
+    // so a row with no keys would give the user no field to fill in.
+    const addRow = useCallback((): string | null => {
+        if (savingRef.current) return null
+        return addRowAtom({data: emptyRowData(columns)})?.id ?? null
+    }, [addRowAtom, columns])
 
     const deleteRows = useCallback(
         (ids: string[]) => {
@@ -270,10 +309,10 @@ export function useTestsetEditor({
                 return
             }
             if (change.kind === "remove") {
-                removeColumnReducer({revisionId: routeId, columnKey: change.columnKey})
-                rewriteNewRows((data) =>
-                    change.columnKey in data ? {[change.columnKey]: undefined} : null,
-                )
+                for (const columnKey of change.columnKeys) {
+                    removeColumnReducer({revisionId: routeId, columnKey})
+                    rewriteNewRows((data) => (columnKey in data ? {[columnKey]: undefined} : null))
+                }
                 return
             }
             const {oldKey, newKey} = change
@@ -408,8 +447,13 @@ export function useTestsetEditor({
         [applyColumnChange, loadedColumnKeys],
     )
 
-    const deleteColumn = useCallback(
-        (columnKey: string): Promise<ColumnEdit> => applyColumnChange({kind: "remove", columnKey}),
+    /**
+     * Deletes columns in one change. The keys are top-level row keys: the server removes those
+     * only, so a group of nested values is deleted by its top-level key.
+     */
+    const deleteColumns = useCallback(
+        (columnKeys: string[]): Promise<ColumnEdit> =>
+            applyColumnChange({kind: "remove", columnKeys}),
         [applyColumnChange],
     )
 
@@ -490,7 +534,7 @@ export function useTestsetEditor({
         deleteRows,
         addColumn,
         renameColumn,
-        deleteColumn,
+        deleteColumns,
         columnEditBlocked,
         discard,
         commit,

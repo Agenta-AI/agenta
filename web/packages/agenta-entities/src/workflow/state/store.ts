@@ -855,6 +855,36 @@ export const workflowRevisionRefsByVariantAtomFamily = atomFamily((variantId: st
     }),
 )
 
+const workflowVariantNewestVersionQueryAtomFamily = atomFamily((variantId: string) =>
+    atomWithQuery((get) => {
+        const projectId = get(workflowProjectIdAtom)
+        return {
+            queryKey: ["workflows", "variantNewestVersion", variantId, projectId],
+            queryFn: async (): Promise<number | null> => {
+                if (!projectId) return null
+                const response = await queryWorkflowRevisions(variantId, projectId, undefined, {
+                    includeArchived: true,
+                    windowing: {limit: 1},
+                })
+                return response.workflow_revisions[0]?.version ?? null
+            },
+            enabled: get(sessionAtom) && !!projectId && !!variantId,
+        }
+    }),
+)
+
+/**
+ * The version of a variant's newest revision, archived revisions included. The revision lists
+ * hide archived revisions, but the server numbers a new commit after all of them, so the commit
+ * dialog reads its next version from this. `undefined` while it loads.
+ */
+export const workflowVariantNewestVersionAtomFamily = atomFamily((variantId: string) =>
+    atom<number | null | undefined>((get) => {
+        const query = get(workflowVariantNewestVersionQueryAtomFamily(variantId))
+        return query.data
+    }),
+)
+
 /**
  * Derived atom family for resolved revision list by variant ID.
  * Resolves thin refs through the molecule entity atom for full data.
@@ -961,6 +991,9 @@ export const agentWorkflowsListQueryStateAtom = atom<ListQueryState<Workflow>>((
 // LATEST REVISION (lightweight dedicated query)
 // ============================================================================
 
+/** Bumped by `reloadWorkflowLatestRevisionAtom` so the query below reads its options again. */
+const workflowLatestRevisionGenerationAtomFamily = atomFamily((_workflowId: string) => atom(0))
+
 /**
  * Query atom family for fetching the latest revision of a workflow.
  * Uses cache-aware batch fetching by workflow ID, avoiding N+1 calls when
@@ -968,6 +1001,7 @@ export const agentWorkflowsListQueryStateAtom = atom<ListQueryState<Workflow>>((
  */
 export const workflowLatestRevisionQueryAtomFamily = atomFamily((workflowId: string) =>
     atomWithQuery((get) => {
+        get(workflowLatestRevisionGenerationAtomFamily(workflowId))
         const projectId = get(workflowProjectIdAtom)
         const queryClient = get(queryClientAtom)
         return {
@@ -996,6 +1030,33 @@ export const workflowLatestRevisionQueryAtomFamily = atomFamily((workflowId: str
             persister: catalogPersister.persisterFn<Workflow | null, (string | null)[]>,
         }
     }),
+)
+
+/**
+ * Loads a workflow's latest revision again, as on first open. It is for a change that no commit
+ * announces, such as a deleted revision. Invalidating the query is not enough: it answers from its
+ * own cached entry before it asks the server, and it stays disabled while an entry was cached
+ * when it was built. So the entry goes from memory and from disk first, and then the query is
+ * built again.
+ *
+ * A revision list that nothing shows goes too: `workflowLatestRevisionIdAtomFamily` reads it
+ * while the query loads, and an invalidated list that nothing shows is not fetched again.
+ */
+export const reloadWorkflowLatestRevisionAtom = atom(
+    null,
+    async (get, set, workflowId: string): Promise<void> => {
+        const projectId = get(workflowProjectIdAtom)
+        const queryClient = get(queryClientAtom)
+        const queryKey = ["workflows", "latestRevision", workflowId, projectId]
+        queryClient.removeQueries({queryKey, exact: true})
+        queryClient.removeQueries({
+            queryKey: ["workflows", "revisionsByWorkflow", workflowId, projectId],
+            exact: true,
+            type: "inactive",
+        })
+        await catalogPersister.removeQueries({queryKey, exact: true}).catch(() => undefined)
+        set(workflowLatestRevisionGenerationAtomFamily(workflowId), (generation) => generation + 1)
+    },
 )
 
 /**
@@ -1247,7 +1308,11 @@ export const workflowQueryAtomFamily = atomFamily((revisionId: string) =>
                 : undefined
 
         return {
-            queryKey: ["workflows", "revision", revisionId, projectId],
+            // The archived lookup is a different answer, so it gets its own entry. The default key
+            // stays as it was, because the detail cache is primed and read under it.
+            queryKey: includeArchived
+                ? ["workflows", "revision", revisionId, projectId, "archived"]
+                : ["workflows", "revision", revisionId, projectId],
             queryFn: async (): Promise<Workflow | null> => {
                 if (!projectId || !revisionId) return null
                 // Persist agent-ness wherever a revision is learned, keyed by its WORKFLOW id

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import {act} from "react"
+import {act, useState} from "react"
 
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -37,7 +37,14 @@ vi.mock("@/features/testsets/detail/changesDiff", async (importOriginal) => ({
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
-type Editor = Parameters<typeof TestsetToolbar>[0]["editor"]
+type ToolbarProps = Parameters<typeof TestsetToolbar>[0]
+type Editor = ToolbarProps["editor"]
+
+/** The toolbar with the commit step state the page holds. */
+const ToolbarHost = (props: Omit<ToolbarProps, "commitOpen" | "onCommitOpenChange">) => {
+    const [commitOpen, setCommitOpen] = useState(false)
+    return <TestsetToolbar {...props} commitOpen={commitOpen} onCommitOpenChange={setCommitOpen} />
+}
 
 const fakeEditor = (over: Partial<Editor> = {}): Editor => ({
     isNew: false,
@@ -64,6 +71,7 @@ const fakeEditor = (over: Partial<Editor> = {}): Editor => ({
         hasChanges: true,
     },
     isSaving: false,
+    columnEditBlocked: "Save or discard your row changes first",
     addRow: vi.fn(() => "new-1"),
     discard: vi.fn(),
     commit: vi.fn(async () => "rev-9"),
@@ -74,17 +82,18 @@ describe("Testset toolbar, commit and leave prompt", () => {
     let root: Root
     let host: HTMLDivElement
 
+    const onImport = vi.fn()
     const mount = (editor: Editor, canEdit = true, revisionStatus: "ready" | "loading" = "ready") =>
         act(() =>
             root.render(
                 <>
-                    <TestsetToolbar
+                    <ToolbarHost
                         editor={editor}
                         routeId="rev-2"
                         base="/w/ws/p/pr"
                         canEdit={canEdit}
                         revisions={{latestVersion: 5, load: vi.fn(), status: revisionStatus}}
-                        onImport={vi.fn()}
+                        onImport={onImport}
                     />
                 </>,
             ),
@@ -231,11 +240,24 @@ describe("Testset toolbar, commit and leave prompt", () => {
         expect(button("Import")?.disabled).toBe(true)
     })
 
+    it("Import is off while rows have unsaved changes, as column changes are", async () => {
+        await mount(fakeEditor())
+        expect(button("Import")?.disabled).toBe(true)
+    })
+
+    it("Import opens the import step when nothing is unsaved", async () => {
+        await mount(fakeEditor({hasUnsavedChanges: false, columnEditBlocked: null}))
+        expect(button("Import")?.disabled).toBe(false)
+        await click("Import")
+        expect(onImport).toHaveBeenCalledTimes(1)
+    })
+
     it("Every toolbar action is off while a save runs", async () => {
         await mount(fakeEditor({isSaving: true}))
         expect(button("Add row")?.disabled).toBe(true)
         expect(button("Discard")?.disabled).toBe(true)
         expect(button("Commit")?.disabled).toBe(true)
+        expect(button("Import")?.disabled).toBe(true)
     })
 
     it("A reader who may not edit sees no toolbar and no leave prompt", async () => {
@@ -251,7 +273,7 @@ describe("Testset toolbar, commit and leave prompt", () => {
         const editor = fakeEditor()
         await act(() =>
             root.render(
-                <TestsetToolbar
+                <ToolbarHost
                     editor={editor}
                     routeId="rev-2"
                     base="/w/ws/p/pr"

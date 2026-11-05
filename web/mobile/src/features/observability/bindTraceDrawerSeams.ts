@@ -1,6 +1,8 @@
+import type {TraceSpanNode} from "@agenta/entities/trace"
 import {
     bindTraceDrawerClearParams,
     bindTraceDrawerNavigate,
+    bindTraceDrawerPlaygroundActions,
     bindTraceDrawerSetQueryParam,
 } from "@agenta/observability/traceDrawer"
 import type {NextRouter} from "next/router"
@@ -18,31 +20,77 @@ export const currentQuery = (router: NextRouter, search: string): NextRouter["qu
 }
 
 /**
+ * Set when the address cleared the span (Back to an address with no span). The drawer then
+ * shows its first span and writes it: that write replaces the current entry instead of pushing
+ * one, so the Forward entry stays.
+ */
+let replaceNextSpanWrite = false
+export const replaceNextTraceDrawerSpanWrite = () => {
+    replaceNextSpanWrite = true
+}
+
+const sameQuery = (a: NextRouter["query"], b: NextRouter["query"]) => {
+    const keys = new Set([...Object.keys(a), ...Object.keys(b)])
+    return [...keys].every((key) => String(a[key] ?? "") === String(b[key] ?? ""))
+}
+
+/**
  * Points the packaged trace drawer at `/m`'s router.
  *
  * The drawer keeps its open trace in `?trace`/`?span` and links out to evaluators; both are the
- * host's job, which is why they are seams rather than imports.
+ * host's job, which is why they are seams rather than imports. `openTraceId` reads the trace the
+ * drawer shows, which the address carries next to the span.
  *
  * The data slots are filled by `registerTraceDrawerSlots`; the reference/action slots stay on
- * their fallbacks (a plain label, no button), which are enough on `/m`. The playground actions
- * stay unbound on purpose, so the span header shows no Playground button: it was built for
- * prompt traces, and an agent trace opens an empty playground because the root span no longer
- * stores the agent config.
+ * their fallbacks (a plain label, no button), which are enough on `/m`. The span header's
+ * Playground button exists only while the `playground` developer view is on: its code
+ * loads on the first click.
  */
-export const bindTraceDrawerSeams = (router: NextRouter) => {
+export const bindTraceDrawerSeams = (
+    router: NextRouter,
+    {playground, openTraceId}: {playground: boolean; openTraceId: () => string | null},
+) => {
+    bindTraceDrawerPlaygroundActions(
+        playground
+            ? {
+                  openTraceInPlayground: (span) =>
+                      import("./tracePlayground").then((module) =>
+                          module.openTraceInPlayground(router, span as TraceSpanNode),
+                      ),
+              }
+            : {},
+    )
+
     bindTraceDrawerNavigate((href) => {
         void router.push(href)
     })
 
     bindTraceDrawerSetQueryParam((name, value) => {
-        const query = currentQuery(router, window.location.search)
-        if (value == null) delete query[name]
-        else query[name] = value
-        void router.push({pathname: router.pathname, query}, undefined, {shallow: true})
+        const before = currentQuery(router, window.location.search)
+        const query = {...before}
+        // The drawer writes only the span. The trace goes with it, so a reload can reopen the
+        // drawer (`useTraceDrawerFromUrl`): a span id alone does not name its trace. While the
+        // trace loads the drawer writes no span; the address keeps the span it asked for, but
+        // only when that span belongs to this trace.
+        const traceId = name === "span" ? openTraceId() : null
+        const sameTrace = Boolean(traceId) && before.trace === traceId
+        if (traceId) query.trace = traceId
+        if (value != null) query[name] = value
+        else if (!sameTrace) delete query[name]
+        // Nothing changed, as when Back restored a span and the drawer writes it again: a push
+        // would add a history entry and drop the Forward one.
+        const replace = name === "span" && replaceNextSpanWrite
+        if (name === "span") replaceNextSpanWrite = false
+        if (sameQuery(before, query)) return
+        const navigate = replace ? router.replace : router.push
+        void navigate({pathname: router.pathname, query}, undefined, {shallow: true})
     })
 
     bindTraceDrawerClearParams(() => {
         const query = currentQuery(router, window.location.search)
+        // The drawer also clears after its close animation. By then the Playground button can
+        // have moved to another page, and a push there would drop that page's hash.
+        if (!("trace" in query) && !("span" in query)) return
         delete query.trace
         delete query.span
         void router.push({pathname: router.pathname, query}, undefined, {shallow: true})

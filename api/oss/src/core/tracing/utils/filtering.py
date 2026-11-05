@@ -1,14 +1,19 @@
 """Filtering/query parsing helpers for tracing."""
 
-from typing import Optional
+from typing import Any, Dict, List, Optional, Union
+
+from pydantic import ValidationError
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.shared.dtos import Link, Reference
 from oss.src.core.tracing.dtos import (
+    ComparisonOperator,
     Condition,
     Fields,
     Filtering,
     FilteringException,
+    LogicalOperator,
+    NumericOperator,
     OTelFlatSpans,
     OTelSpanKind,
     OTelStatusCode,
@@ -461,6 +466,162 @@ def _parse_fts_field_condition(condition: Condition) -> None:
         )
 
 
+# PICKER FIELDS
+#
+# The trace filter picker of the web clients stores its own field names in saved
+# queries (live evaluations), so they are read here as the conditions the traces
+# page sends for them (`buildTraceQueryParams` in `@agenta/observability`).
+
+_ATTRIBUTES_PREFIX = "attributes."
+_ATTRIBUTE_KEY_FIELDS = ("custom", "input_keys", "output_keys")
+_IS_ANNOTATION = "is_annotation"
+
+
+def _parse_attribute_alias_condition(condition: Condition) -> None:
+    if condition.field.startswith(_ATTRIBUTES_PREFIX):
+        key = condition.field[len(_ATTRIBUTES_PREFIX) :]
+    else:
+        key = condition.key or ""
+        if key.startswith(_ATTRIBUTES_PREFIX):
+            key = key[len(_ATTRIBUTES_PREFIX) :]
+
+    if not key:
+        raise FilteringException(
+            f"'{condition.field}' key is required and thus never null.",
+        )
+
+    condition.field = Fields.ATTRIBUTES.value
+    condition.key = key
+
+
+_OUTPUTS_PREFIX = "ag.data.outputs."
+
+
+def annotation_feedback_condition(feedback: dict) -> Condition:
+    """The attribute condition on the annotation's outputs for a feedback filter."""
+    return Condition(
+        field=Fields.ATTRIBUTES.value,
+        key=f"{_OUTPUTS_PREFIX}{feedback['field']}",
+        operator=feedback.get("operator") or ComparisonOperator.IS,
+        value=feedback.get("value"),
+    )
+
+
+def _parse_feedback_fields(field_name: str, feedback: Any) -> List[str]:
+    fields = feedback.get("field") if isinstance(feedback, dict) else None
+    fields = fields if isinstance(fields, list) else [fields]
+
+    if not fields or not all(isinstance(f, str) and f for f in fields):
+        raise FilteringException(
+            f"'{field_name}' feedback must name one or more output fields.",
+        )
+
+    return fields
+
+
+def _parse_annotation_filters(condition: Condition) -> List[Dict[str, Any]]:
+    """The annotation filters of an annotation picker row, one per feedback field.
+
+    Every filter must hold on the same annotation, as on the traces page. The result
+    is also a valid row value, so a reused query that is parsed again keeps it.
+    """
+    if condition.operator not in _L_OPS:
+        raise FilteringException(
+            f"'{condition.field}' only supports list operators.",
+        )
+
+    items: Any = condition.value
+    if items is None:
+        items = []
+    if not isinstance(items, list):
+        items = [items]
+
+    filters: List[Dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            raise FilteringException(
+                f"'{condition.field}' value must be objects with an 'evaluator' and a 'feedback'.",
+            )
+
+        evaluator = item.get("evaluator") or None
+        if evaluator is not None and not isinstance(evaluator, str):
+            raise FilteringException(
+                f"'{condition.field}' evaluator must be an evaluator slug.",
+            )
+        if evaluator is not None:
+            filters.append({"evaluator": evaluator})
+
+        feedback = item.get("feedback") or None
+        if feedback is None:
+            continue
+
+        for field in _parse_feedback_fields(condition.field, feedback):
+            parsed = {
+                "field": field,
+                "operator": feedback.get("operator") or ComparisonOperator.IS.value,
+                "value": feedback.get("value"),
+            }
+            try:
+                annotation_feedback_condition(parsed)
+            except ValidationError as e:
+                raise FilteringException(
+                    f"'{condition.field}' feedback operator or value is not supported.",
+                ) from e
+            filters.append({"feedback": parsed})
+
+    return filters
+
+
+def _parse_has_annotation_condition(condition: Condition) -> None:
+    condition.value = _parse_annotation_filters(condition)
+
+
+def _parse_is_annotation_condition(condition: Condition) -> Filtering:
+    conditions: List[Union[Condition, Filtering]] = []
+    for item in _parse_annotation_filters(condition):
+        if "evaluator" in item:
+            references = Condition(
+                field=Fields.REFERENCES.value,
+                operator=condition.operator,
+                value=[{"slug": item["evaluator"]}],
+            )
+            _parse_references_condition(references)
+            conditions.append(references)
+        else:
+            conditions.append(annotation_feedback_condition(item["feedback"]))
+
+    if not conditions:
+        raise FilteringException(
+            f"'{condition.field}' needs an evaluator or a feedback.",
+        )
+
+    return Filtering(operator=LogicalOperator.AND, conditions=conditions)
+
+
+def _merge_has_annotation_conditions(
+    conditions: List[Union[Condition, Filtering]],
+) -> List[Union[Condition, Filtering]]:
+    """Join the has_annotation rows of one AND into one condition.
+
+    The traces page reads all of them in one annotation query, so their evaluators
+    and feedbacks must hold on the same annotation. The first row's operator wins.
+    """
+    merged: List[Union[Condition, Filtering]] = []
+    first: Optional[Condition] = None
+    for condition in conditions:
+        if (
+            isinstance(condition, Condition)
+            and condition.field == Fields.HAS_ANNOTATION
+        ):
+            if first is not None:
+                first.value = [*first.value, *condition.value]
+                continue
+            first = condition
+        merged.append(condition)
+
+    return merged
+
+
 # FILTERING / CONDITION
 
 
@@ -470,22 +631,44 @@ def parse_filtering(
     if filtering is None:
         return
 
+    conditions: list = []
     for condition in filtering.conditions:
         if isinstance(condition, Filtering):
             parse_filtering(condition)
+            conditions.append(condition)
         elif isinstance(condition, Condition):
-            parse_condition(condition)
+            conditions.append(parse_condition(condition))
         else:
             raise FilteringException(
                 f"Unsupported condition type '{type(condition)}'.",
             )
 
+    if filtering.operator == LogicalOperator.AND:
+        conditions = _merge_has_annotation_conditions(conditions)
+
+    filtering.conditions = conditions
+
 
 def parse_condition(
     condition: Optional[Condition] = None,
-) -> None:
+) -> Optional[Union[Condition, Filtering]]:
+    """Validate and normalize one condition in place.
+
+    Returns the condition, or the filtering that replaces a picker field which
+    stands for several conditions. An unknown field is kept and only logged;
+    `validate_filtering` rejects it.
+    """
     if condition is None:
-        return
+        return None
+
+    if condition.field == _IS_ANNOTATION:
+        return _parse_is_annotation_condition(condition)
+
+    if (
+        condition.field.startswith(_ATTRIBUTES_PREFIX)
+        or condition.field in _ATTRIBUTE_KEY_FIELDS
+    ):
+        _parse_attribute_alias_condition(condition)
 
     if condition.field == Fields.TRACE_ID:
         _parse_trace_id_condition(condition)
@@ -539,11 +722,78 @@ def parse_condition(
         _parse_string_field_condition(condition)
     elif condition.field == Fields.AGENT_ID:
         _parse_string_field_condition(condition)
+    elif condition.field == Fields.HAS_ANNOTATION:
+        _parse_has_annotation_condition(condition)
     else:
-        # raise FilteringException(
-        #     f"Unsupported condition field '{condition.field}'.",
-        # )
         log.warning(f"Unsupported condition field: {condition.field}")
+
+    return condition
+
+
+_KNOWN_FIELDS = {field.value for field in Fields}
+
+
+def _raise_on_unsupported_condition(condition: Condition) -> None:
+    if condition.field not in _KNOWN_FIELDS:
+        raise FilteringException(
+            f"Unsupported condition field '{condition.field}'.",
+        )
+
+    if condition.field == Fields.ATTRIBUTES and condition.operator in _D_OPS:
+        raise FilteringException(
+            "'attributes' does not support dict operators.",
+        )
+
+    if condition.operator == NumericOperator.BETWEEN and not (
+        isinstance(condition.value, list)
+        and len(condition.value) == 2
+        and all(bound is not None for bound in condition.value)
+    ):
+        raise FilteringException(
+            f"'{condition.field}' value must be two bounds for 'btwn'.",
+        )
+
+    if condition.field == Fields.HAS_ANNOTATION:
+        # Each feedback becomes an attribute condition on the annotation.
+        for item in condition.value or []:
+            if "feedback" in item:
+                _raise_on_unsupported_condition(
+                    annotation_feedback_condition(item["feedback"]),
+                )
+
+
+def _raise_on_unsupported_conditions(filtering: Filtering) -> None:
+    if filtering.operator == LogicalOperator.NOT and len(filtering.conditions) != 1:
+        raise FilteringException(
+            "'NOT' operator only supports a single condition.",
+        )
+
+    for condition in filtering.conditions:
+        if isinstance(condition, Filtering):
+            _raise_on_unsupported_conditions(condition)
+        else:
+            _raise_on_unsupported_condition(condition)
+
+
+def validate_filtering(
+    filtering: Optional[Filtering] = None,
+) -> None:
+    """Raise `FilteringException` for a filter that cannot be applied.
+
+    Unlike `parse_filtering`, it also rejects an unknown field. A saved query
+    (which live evaluations read) uses it; a tracing query does not. It parses a
+    copy, so the caller's filtering keeps the client's field names.
+    """
+    if filtering is None:
+        return
+
+    parsed = filtering.model_copy(deep=True)
+    try:
+        parse_filtering(parsed)
+    except (TypeError, ValueError, AttributeError) as e:
+        # The id parsers raise these for a malformed id value.
+        raise FilteringException("A condition value is not valid.") from e
+    _raise_on_unsupported_conditions(parsed)
 
 
 # INGEST / QUERY

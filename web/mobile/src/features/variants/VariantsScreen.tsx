@@ -11,7 +11,9 @@ import {useAtomValue} from "jotai"
 import {PageNotFound} from "@/components/PageNotFound"
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMembers"
 
+import {AppOverviewLink} from "../app-overview/AppOverviewLink"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {DeveloperAppPicker} from "../developer/DeveloperAppPicker"
 import {useUrlParams} from "../developer/useUrlParams"
@@ -37,6 +39,7 @@ export const VariantsScreen = ({
     workspaceId: string
     projectId: string
 }) => {
+    useBindWorkspaceMembers()
     useBindProjectContext(projectId)
     const {read, write} = useUrlParams()
     const queryClient = useQueryClient()
@@ -74,11 +77,17 @@ export const VariantsScreen = ({
                     </TabsTrigger>
                 </TabsList>
                 <TabsContent value="variants" className="pt-3">
-                    <VariantsTab key={app.id} projectId={projectId} app={app} />
+                    <VariantsTab
+                        key={app.id}
+                        base={`/w/${workspaceId}/p/${projectId}`}
+                        projectId={projectId}
+                        app={app}
+                    />
                 </TabsContent>
                 <TabsContent value="deployments" className="pt-3">
                     <DeploymentsTab
                         key={app.id}
+                        workspaceId={workspaceId}
                         projectId={projectId}
                         app={app}
                         base={`/w/${workspaceId}/p/${projectId}`}
@@ -102,6 +111,10 @@ export const VariantsScreen = ({
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px]">
                                     Registry
                                 </h1>
+                                <AppOverviewLink
+                                    base={`/w/${workspaceId}/p/${projectId}`}
+                                    appId={app?.id ?? null}
+                                />
                                 <DeveloperAppPicker
                                     apps={apps.data}
                                     value={appId}

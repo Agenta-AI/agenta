@@ -28,8 +28,10 @@ export const useEndpointSnippets = (
     const url = useAtomValue(
         useMemo(() => workflowMolecule.selectors.deploymentUrl(revisionId), [revisionId]),
     )
-    const inputSchema = useAtomValue(
-        useMemo(() => workflowMolecule.selectors.inputSchema(revisionId), [revisionId]),
+    // The ports, not the input schema: a prompt app often declares no input schema, and its
+    // inputs are the variables in its prompt templates.
+    const inputs = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.inputPorts(revisionId), [revisionId]),
     )
     const isChat = useAtomValue(
         useMemo(() => workflowMolecule.selectors.isChat(revisionId), [revisionId]),
@@ -37,7 +39,7 @@ export const useEndpointSnippets = (
     const environmentSlug = environment?.slug ?? "none"
 
     const snippets = useMemo(() => {
-        const params = buildAppEndpointParams({inputSchema, environmentSlug, isChat, appSlug})
+        const params = buildAppEndpointParams({inputs, environmentSlug, isChat, appSlug})
         return {
             invoke: buildInvokeAppSnippets({url: url?.trim() ?? "", params, isChat}),
             fetchConfig: buildFetchConfigSnippets({
@@ -46,7 +48,7 @@ export const useEndpointSnippets = (
                 environmentSlug,
             }),
         }
-    }, [inputSchema, environmentSlug, isChat, appSlug, url])
+    }, [inputs, environmentSlug, isChat, appSlug, url])
 
     return {
         ...snippets,

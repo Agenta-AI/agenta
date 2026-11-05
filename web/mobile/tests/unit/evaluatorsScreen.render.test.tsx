@@ -11,6 +11,7 @@ const noop = vi.hoisted(() => () => undefined)
 const state = vi.hoisted(() => ({
     query: {} as Record<string, string>,
     perms: {} as Record<string, boolean>,
+    failedLookups: new Set<string>(),
     recheck: vi.fn(),
     replace: vi.fn(),
 }))
@@ -22,6 +23,10 @@ const api = vi.hoisted(() => ({
     findRuns: vi.fn(),
     success: vi.fn(),
     error: vi.fn(),
+}))
+// Member names have their own test; this screen test needs no member query.
+vi.mock("@/features/members/useBindWorkspaceMembers", () => ({
+    useBindWorkspaceMembers: () => undefined,
 }))
 vi.mock("@agenta/entities/workflow", async (original) => {
     const {atom} = await import("jotai")
@@ -79,9 +84,9 @@ vi.mock("@/features/context/useBindProjectContext", () => ({useBindProjectContex
 vi.mock("@/features/context/useProjectPermission", () => ({
     useProjectPermission: (_project: string, action: string) => state.perms[action] ?? true,
     useProjectPermissionState: (_project: string, action: string) => ({
-        allowed: state.perms[action] ?? true,
+        allowed: state.failedLookups.has(action) ? false : (state.perms[action] ?? true),
         pending: false,
-        failed: false,
+        failed: state.failedLookups.has(action),
         recheck: state.recheck,
     }),
 }))
@@ -138,6 +143,7 @@ beforeEach(() => {
     window.localStorage.clear()
     state.query = {}
     state.perms = {}
+    state.failedLookups = new Set()
     state.recheck.mockReset()
     state.replace.mockReset()
     Object.values(api).forEach((mock) => mock.mockReset())
@@ -311,6 +317,37 @@ describe("EvaluatorsScreen", () => {
         await flush()
         expect(api.findRuns).not.toHaveBeenCalled()
         expect(api.archiveWorkflow).toHaveBeenCalledWith("pr", "w1")
+    })
+
+    it("A failed view_evaluation_runs lookup still runs the in-use check", async () => {
+        state.failedLookups.add("view_evaluation_runs")
+        api.findRuns.mockResolvedValue(["run-1"])
+        await mount()
+        await act(async () => checkboxes()[0]?.click())
+        await act(async () => button(/^Archive$/)?.click())
+        const confirm = [
+            ...document.querySelectorAll<HTMLElement>('[role="alertdialog"] button'),
+        ].find((b) => b.textContent === "Archive")
+        await act(async () => confirm?.click())
+        await flush()
+        expect(api.findRuns).toHaveBeenCalled()
+        expect(document.body.textContent).toContain("Evaluator in use")
+        expect(api.archiveWorkflow).not.toHaveBeenCalled()
+    })
+
+    it("A failed lookup and a failed in-use check block the archive and show the error", async () => {
+        state.failedLookups.add("view_evaluation_runs")
+        api.findRuns.mockRejectedValue(new Error("network"))
+        await mount()
+        await act(async () => checkboxes()[0]?.click())
+        await act(async () => button(/^Archive$/)?.click())
+        const confirm = [
+            ...document.querySelectorAll<HTMLElement>('[role="alertdialog"] button'),
+        ].find((b) => b.textContent === "Archive")
+        await act(async () => confirm?.click())
+        await flush()
+        expect(api.archiveWorkflow).not.toHaveBeenCalled()
+        expect(api.error).toHaveBeenCalledWith("Failed to archive evaluators")
     })
 
     it("Without view_evaluators nothing is requested and the load error shows", async () => {

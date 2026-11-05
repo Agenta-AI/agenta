@@ -75,6 +75,17 @@ entrypoint writes it to `__env.js` as `NEXT_PUBLIC_AGENTA_DEVELOPER_VIEWS`, so a
 restart, not a rebuild. A listed view is on for everyone on that deployment, whatever its stage.
 Use it to turn a view on in staging before you change its stage.
 
+## Beta developer mode (deployment switch)
+
+`AGENTA_BETA_DEVELOPER_MODE` on the web container turns on the "Use new beta developer mode"
+switch in Settings > Preferences, in /m and /w. The entrypoint writes it to `__env.js` as
+`NEXT_PUBLIC_AGENTA_BETA_DEVELOPER_MODE`, so a change needs a restart, not a rebuild. Only
+`true` turns it on. With any other value the switch is hidden, and every user's stored beta
+switch (`agenta:settings:<user id>:beta-developer-mode`) reads as off: Developer Mode sends
+the user to /w and the views follow their stage, as before beta developer mode existed.
+`isBetaDeveloperModeEnabled()` in `@agenta/shared/api` reads it. The local dev env files set it
+to `true`.
+
 ## Helpers (`features/developer/developerViewAccess.ts`)
 
 - `isDeveloperViewEnabled(view, {previewOptedIn, forcedIds})`: the pure rule.

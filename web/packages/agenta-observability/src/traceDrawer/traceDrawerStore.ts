@@ -255,9 +255,6 @@ export const traceDrawerAnnotationLinksAtom = atom<{trace_id: string; span_id: s
 // Queries annotations for spans displayed in the drawer.
 export const traceDrawerAnnotationsQueryAtom = atomWithQuery((get) => {
     const links = get(traceDrawerAnnotationLinksAtom)
-    // Was `getOrgValues().selectedOrg.default_workspace.members` in the app; the package's own
-    // annotations query already reads the same list from this atom.
-    const members = get(workspaceMembersAtom)
     const projectId = get(projectIdAtom)
 
     return {
@@ -271,18 +268,20 @@ export const traceDrawerAnnotationsQueryAtom = atomWithQuery((get) => {
                 projectId: projectId ?? undefined,
                 queries: {annotation: {links}},
             })
-            return (
-                res.annotations?.map((a) => transformApiData<AnnotationDto>({data: a, members})) ||
-                []
-            )
+            return res.annotations ?? []
         },
     }
 })
 
-// Resolved annotations list for the drawer traces.
+// Resolved annotations list for the drawer traces. Authors are named here, not in the query, so
+// a member list that arrives after the annotations still names them.
 export const traceDrawerAnnotationsAtom = atom((get) => {
     const query = get(traceDrawerAnnotationsQueryAtom)
-    return (query.data as AnnotationDto[]) ?? []
+    // Was `getOrgValues().selectedOrg.default_workspace.members` in the app; the package's own
+    // annotations query already reads the same list from this atom.
+    const members = get(workspaceMembersAtom)
+    const annotations = (query.data as AnnotationDto[] | undefined) ?? []
+    return annotations.map((a) => transformApiData<AnnotationDto>({data: a, members}))
 })
 
 // Base traces with annotations attached when available.

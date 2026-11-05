@@ -147,7 +147,7 @@ afterEach(() => {
 describe("The completion run pane", () => {
     it("Lists the variables the prompt references as input cards", () => {
         expect(rows()).toHaveLength(1)
-        expect(host.textContent).toContain("testcase 1")
+        expect(host.textContent).toContain("test case 1")
         expect(host.querySelector('[data-testid="input-variable-country"]')).not.toBeNull()
     })
 
@@ -171,7 +171,7 @@ describe("The completion run pane", () => {
         await click("Test case")
 
         expect(rows()).toHaveLength(2)
-        expect(host.textContent).toContain("testcase 2")
+        expect(host.textContent).toContain("test case 2")
     })
 
     it("Remove is disabled on the last row and removes a row otherwise", async () => {
@@ -245,5 +245,17 @@ describe("The completion run pane", () => {
         // The label and the run control stay; only the body folds.
         expect(button("Run")).toBeDefined()
         expect(host.querySelector('[aria-expanded="false"]')).not.toBeNull()
+    })
+
+    it("The header bar wraps in a narrow pane, so Run all stays on screen", () => {
+        // jsdom has no layout: this checks the bar may wrap instead of keeping one fixed row.
+        const runAll = button("Run all")!
+        const bar = runAll.closest<HTMLElement>(".sticky")!
+        const actions = button("Clear")!.closest<HTMLElement>("div")!
+
+        expect(bar.classList).toContain("flex-wrap")
+        expect(bar.classList).not.toContain("h-12")
+        expect(actions.contains(runAll)).toBe(true)
+        expect(actions.classList).toContain("flex-wrap")
     })
 })

@@ -85,6 +85,7 @@ export {
     workflowVariantsCachedListAtomFamily,
     workflowRevisionsQueryAtomFamily,
     workflowRevisionRefsByVariantAtomFamily,
+    workflowVariantNewestVersionAtomFamily,
     workflowRevisionsListDataAtomFamily,
     // Revision by workflow (for 2-level hierarchy)
     workflowRevisionsByWorkflowQueryAtomFamily,
@@ -137,6 +138,7 @@ export {
     workflowLatestRevisionIdAtomFamily,
     workflowAppTypeAtomFamily,
     workflowLatestRevisionQueryAtomFamily,
+    reloadWorkflowLatestRevisionAtom,
     // Static catalog schema (agent-template etc.) — exported for early prefetch
     agTypeSchemaAtomFamily,
     // Artifact (workflow-level container — entity display name)

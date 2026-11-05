@@ -167,5 +167,13 @@ export const isWalletsEnabled = (): boolean =>
 export const isBrowserEnabled = (): boolean =>
     parseBoolEnv("NEXT_PUBLIC_AGENTA_BROWSER_ENABLED", false)
 
+/**
+ * Whether this deployment offers beta developer mode. Read at runtime: `entrypoint.sh` writes
+ * the container's `AGENTA_BETA_DEVELOPER_MODE` into `__env.js`. Anything but `"true"` is off,
+ * and off hides the switch and reads every user's stored beta switch as off.
+ */
+export const isBetaDeveloperModeEnabled = (): boolean =>
+    getEnv("NEXT_PUBLIC_AGENTA_BETA_DEVELOPER_MODE") === "true"
+
 export const isEmailInvitationsEnabled = (): boolean =>
     getEnv("NEXT_PUBLIC_AGENTA_EMAIL_DELIVERY_ENABLED") === "true"
