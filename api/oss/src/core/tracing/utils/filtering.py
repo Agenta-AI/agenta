@@ -13,6 +13,7 @@ from oss.src.core.tracing.dtos import (
     Filtering,
     FilteringException,
     LogicalOperator,
+    NumericOperator,
     OTelFlatSpans,
     OTelSpanKind,
     OTelStatusCode,
@@ -732,13 +733,32 @@ def parse_condition(
 _KNOWN_FIELDS = {field.value for field in Fields}
 
 
-def _raise_on_unknown_fields(filtering: Filtering) -> None:
+def _raise_on_unsupported_conditions(filtering: Filtering) -> None:
+    if filtering.operator == LogicalOperator.NOT and len(filtering.conditions) != 1:
+        raise FilteringException(
+            "'NOT' operator only supports a single condition.",
+        )
+
     for condition in filtering.conditions:
         if isinstance(condition, Filtering):
-            _raise_on_unknown_fields(condition)
-        elif condition.field not in _KNOWN_FIELDS:
+            _raise_on_unsupported_conditions(condition)
+            continue
+
+        if condition.field not in _KNOWN_FIELDS:
             raise FilteringException(
                 f"Unsupported condition field '{condition.field}'.",
+            )
+
+        if condition.field == Fields.ATTRIBUTES and condition.operator in _D_OPS:
+            raise FilteringException(
+                "'attributes' does not support dict operators.",
+            )
+
+        if condition.operator == NumericOperator.BETWEEN and not (
+            isinstance(condition.value, list) and len(condition.value) == 2
+        ):
+            raise FilteringException(
+                f"'{condition.field}' value must be two bounds for 'btwn'.",
             )
 
 
@@ -755,8 +775,12 @@ def validate_filtering(
         return
 
     parsed = filtering.model_copy(deep=True)
-    parse_filtering(parsed)
-    _raise_on_unknown_fields(parsed)
+    try:
+        parse_filtering(parsed)
+    except (TypeError, ValueError, AttributeError) as e:
+        # The id parsers raise these for a malformed id value.
+        raise FilteringException("A condition value is not valid.") from e
+    _raise_on_unsupported_conditions(parsed)
 
 
 # INGEST / QUERY

@@ -67,6 +67,43 @@ def test_saved_query_rejects_a_field_the_tracing_query_cannot_apply():
         )
 
 
+@pytest.mark.parametrize(
+    "condition, error",
+    [
+        (
+            {"field": "trace_id", "operator": "is", "value": "not-an-id"},
+            "A condition value is not valid",
+        ),
+        (
+            {
+                "field": "attributes",
+                "key": "ag.metrics.duration.cumulative",
+                "operator": "btwn",
+                "value": [1],
+            },
+            "two bounds for 'btwn'",
+        ),
+        (
+            {"field": "custom", "key": "ag.tags", "operator": "has", "value": "env"},
+            "'attributes' does not support dict operators",
+        ),
+        (
+            {
+                "operator": "not",
+                "conditions": [
+                    {"field": "span_name", "operator": "is", "value": "a"},
+                    {"field": "span_name", "operator": "is", "value": "b"},
+                ],
+            },
+            "'NOT' operator only supports a single condition",
+        ),
+    ],
+)
+def test_saved_query_rejects_a_condition_the_sql_builder_cannot_apply(condition, error):
+    with pytest.raises(FilteringException, match=error):
+        QueriesService._sanitize_persisted_query_revision_data(_data(condition))
+
+
 @pytest.mark.asyncio
 async def test_simple_query_create_rejects_before_it_writes_anything():
     queries_service = QueriesService(queries_dao=AsyncMock())
