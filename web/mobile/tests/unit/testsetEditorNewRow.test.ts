@@ -96,6 +96,20 @@ describe("useTestsetEditor add row on a saved test set", () => {
         expect(emptyRowData([{key: "meta.lang"}])).toEqual({"meta.lang": ""})
     })
 
+    it("A nested column under a key with a dot keeps that key whole", () => {
+        // Read from {"meta.lang": {source: "x"}}: the key "meta.lang" is one segment.
+        expect(
+            emptyRowData([
+                {key: "meta.lang.source", parentKey: "meta.lang", path: ["meta.lang", "source"]},
+            ]),
+        ).toEqual({"meta.lang": {source: ""}})
+    })
+
+    it("A path read from data cannot write into Object.prototype either", () => {
+        expect(emptyRowData([{key: "a.__proto__.x", path: ["a", "__proto__", "x"]}])).toEqual({})
+        expect(({} as Record<string, unknown>).x).toBeUndefined()
+    })
+
     it("A column path through __proto__ cannot write into Object.prototype", () => {
         const data = emptyRowData([
             {key: "a.__proto__.toString", parentKey: "a.__proto__"},

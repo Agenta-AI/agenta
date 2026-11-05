@@ -47,6 +47,8 @@ export const DEFAULT_SAMPLE_SIZE = 20
 export interface ColumnPathInfo {
     /** Parent key path (undefined for top-level columns) */
     parentKey?: string
+    /** The keys from the row down to the leaf. A key may hold a dot (`{"meta.lang": ...}`). */
+    path: string[]
 }
 
 /**
@@ -65,6 +67,7 @@ export function collectColumnPaths(
     results: Map<string, ColumnPathInfo>,
     depth: number,
     maxDepth: number = COLUMN_EXTRACTION_MAX_DEPTH,
+    parentSegments: string[] = [],
 ): void {
     if (depth >= maxDepth) return
 
@@ -77,12 +80,15 @@ export function collectColumnPaths(
         // Check if value is already an object
         if (isPlainObject(value) && Object.keys(value).length > 0) {
             // Nested object - recurse into it
-            collectColumnPaths(value, fullPath, results, depth + 1, maxDepth)
+            collectColumnPaths(value, fullPath, results, depth + 1, maxDepth, [
+                ...parentSegments,
+                key,
+            ])
             continue
         }
 
         // Leaf value (primitive, array, empty object, or non-object JSON)
-        results.set(fullPath, {parentKey: parentPath || undefined})
+        results.set(fullPath, {parentKey: parentPath || undefined, path: [...parentSegments, key]})
     }
 }
 
@@ -150,7 +156,7 @@ export function extractColumnsFromData(
     return Array.from(columnMap.entries()).map(([key, info]) => {
         const lastDot = key.lastIndexOf(".")
         const label = lastDot === -1 ? key : key.substring(lastDot + 1)
-        return {key, label, parentKey: info.parentKey}
+        return {key, label, parentKey: info.parentKey, path: info.path}
     })
 }
 
@@ -195,6 +201,6 @@ export function extractColumnsWithAccessor<T>(
     return Array.from(columnMap.entries()).map(([key, info]) => {
         const lastDot = key.lastIndexOf(".")
         const label = lastDot === -1 ? key : key.substring(lastDot + 1)
-        return {key, label, parentKey: info.parentKey}
+        return {key, label, parentKey: info.parentKey, path: info.path}
     })
 }
