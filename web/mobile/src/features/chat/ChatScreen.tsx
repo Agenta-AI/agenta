@@ -6,6 +6,7 @@ import {
     createTurnViewModelCache,
     getPendingApprovals,
 } from "@agenta/chat/model"
+import {sessionStatusAtomFamily} from "@agenta/chat/state"
 import {fetchSessionRecordsAtom, isSessionFresh} from "@agenta/entities/session"
 import {projectIdAtom} from "@agenta/shared/state"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
@@ -162,10 +163,13 @@ export const ChatScreen = ({
     const liveStream = liveness.data?.find((s) => s.session_id === sessionId)
     const running = Boolean(liveStream?.flags?.is_running)
     const sharedReader = Boolean(liveStream?.capabilities?.shared_reader)
-    // Across a switch the bar still holds the last session's revision and agent, and a running
+    // This tab's run state knows of a send or an approval wait before liveness does.
+    const runStatus = useAtomValue(sessionStatusAtomFamily(sessionId))
+    const turnActive = running || runStatus === "running" || runStatus === "awaiting"
+    // Across a switch the bar still holds the last session's revision and agent, and an active
     // turn keeps the revision it started on, so neither may move this session's pin.
     const autoUpdateRevision =
-        Boolean(entityId) && followsAgent && Boolean(liveness.data) && !running
+        Boolean(entityId) && followsAgent && Boolean(liveness.data) && !turnActive
     // A chat the reader cannot open gets a page of its own: no tab strip, no config pane and no
     // agent from the chat before it, so a private chat looks exactly like an unknown one.
     if (access.blocked) {

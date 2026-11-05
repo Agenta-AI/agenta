@@ -15,6 +15,7 @@ const world = vi.hoisted(() => ({
         followsAgent: true,
     },
     liveness: {data: [] as unknown[] | undefined, isLoading: false},
+    runStatus: "idle",
     autoUpdate: [] as (boolean | undefined)[],
 }))
 
@@ -28,6 +29,11 @@ vi.mock("@agenta/chat/model", () => ({
 vi.mock("@agenta/entities/session", async () => {
     const {atom} = await import("jotai")
     return {fetchSessionRecordsAtom: atom(null, async () => undefined), isSessionFresh: () => true}
+})
+vi.mock("@agenta/chat/state", async () => {
+    const {atom} = await import("jotai")
+    const statusAtom = atom(() => world.runStatus)
+    return {sessionStatusAtomFamily: () => statusAtom}
 })
 vi.mock("@agenta/shared/state", async () => {
     const {atom} = await import("jotai")
@@ -124,6 +130,7 @@ describe("ChatScreen auto-update gate", () => {
     beforeEach(() => {
         world.entity = {entityId: "rev-1", agentId: "agent-1", followsAgent: true}
         world.liveness = {data: [], isLoading: false}
+        world.runStatus = "idle"
         world.autoUpdate = []
         host = document.createElement("div")
         document.body.append(host)
@@ -151,6 +158,16 @@ describe("ChatScreen auto-update gate", () => {
             data: [{session_id: "session-2", flags: {is_running: true}}],
             isLoading: false,
         }
+        expect(await told()).toBe(true)
+    })
+
+    it.each(["running", "awaiting"])("holds on a %s run this tab knows of", async (status) => {
+        world.runStatus = status
+        expect(await told()).toBe(false)
+    })
+
+    it("does not hold on a run that ended in an error", async () => {
+        world.runStatus = "error"
         expect(await told()).toBe(true)
     })
 
