@@ -112,6 +112,9 @@ describe("mapMobileToDesktop for developer links", () => {
         [`/w/ws/p/pr/testsets/t1`, "", `${P}/testsets/t1`],
         [`/w/ws/p/pr/evaluators`, "", `${P}/evaluators`],
         [`/w/ws/p/pr/apps/archived`, "", `${P}/apps/archived`],
+        [`/w/ws/p/pr/observability`, "?app=a1", `${P}/apps/a1/traces`],
+        [`/w/ws/p/pr/observability`, "", `${P}/observability`],
+        [`/w/ws/p/pr/observability`, "?app=..", `${P}/observability`],
     ])("%s%s", (path, search, expected) => {
         expect(mapMobileToDesktop(path, search)).toBe(expected)
     })

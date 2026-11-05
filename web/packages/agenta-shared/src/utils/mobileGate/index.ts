@@ -424,6 +424,8 @@ export function desktopRouteFor(pathname: string, search = ""): string | null {
             : `${base}/observability?session=${encodeURIComponent(first)}`
     }
 
+    if (head === "observability" && !first && appId) return `${base}/apps/${appId}/traces`
+
     if ((head === "observability" || head === "settings") && !first) return `${base}/${head}`
 
     return null
