@@ -120,6 +120,7 @@ clients/python/tests/results/
 !.agents/skills/review-naming/
 !.agents/skills/review-simplify/
 !.agents/skills/review-slop/
+!.agents/skills/verify-agenta-mobile/
 !.claude/
 .claude/*
 !.claude/skills/
@@ -157,6 +158,7 @@ clients/python/tests/results/
 !.claude/skills/review-naming
 !.claude/skills/review-simplify
 !.claude/skills/review-slop
+!.claude/skills/verify-agenta-mobile
 !.claude/settings.json
 
 # Entire (entire.com) shared config and agent hooks; each hook is a no-op
