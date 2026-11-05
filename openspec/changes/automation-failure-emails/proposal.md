@@ -30,7 +30,7 @@ An automation (a schedule or an event subscription) can stop working, and nobody
 - **Notifications base.** Two new tables: `notifications` (what happened, one open row per key) and
   `notification_deliveries` (who gets it, on which channel). v1 has one kind, `automation_failing`,
   and one channel, `email`.
-- **Email.** A second pass that cron starts every minute sends the new notification deliveries, with HTML and plain
+- **Email.** The same request, after settling, sends the new notification deliveries, with HTML and plain
   text, escaped values, a 15-second client timeout, and 5 attempts.
 - **Outage brake.** When platform failures come from more than 10 projects in one pass, they open
   no notification for 15 minutes, so an outage does not email every customer at once.
@@ -83,11 +83,11 @@ None. No shipped spec covers automations.
 ## Impact
 
 - API: new domain `api/oss/src/core/notifications/` and `api/oss/src/dbs/postgres/notifications/`;
-  `api/oss/src/core/triggers/outcomes.py` and `failure_notifications.py`; two admin routes
-  (`POST /admin/triggers/deliveries/settle`, `POST /admin/notifications/send`); `emailing.py`;
-  `env.py`; a shared link helper in `api/oss/src/utils/links.py`; new methods on
+  `api/oss/src/core/triggers/outcomes.py` and `failure_notifications.py`; one admin route
+  (`POST /admin/triggers/deliveries/settle`, which settles and then sends); `emailing.py`; `env.py`;
+  new methods on
   `RecordsDAOInterface`, `TriggersDAOInterface` and `MembershipsService`.
-- Cron: two new lines that call the admin routes every minute, in every deployment's cron container.
+- Cron: one new line that calls the admin route every minute, in every deployment's cron container.
 - Database: one `core_oss` revision that creates two tables, and one that builds two indexes on
   `trigger_deliveries` concurrently. No column is added to an existing table.
 - Frontend: `web/packages/agenta-automation-ui` reads `data.outcome` on `202` trigger deliveries, and

@@ -69,9 +69,8 @@ open, more failures of the automation SHALL send nothing.
 While a notification is open, each new failed or skipped trigger delivery of the automation SHALL
 set `data.last_failed_at` to the later of its value and the trigger delivery's `created_at`. The
 system SHALL resolve the open notification when a trigger delivery of the automation that started
-at or after `data.last_failed_at` is settled as `completed` or `waiting`, with `resolved_at` set to
-that trigger delivery's `created_at`; and after a person's successful edit,
-start, refresh or delete of the automation, with `resolved_at` set to the time of the action. It
+at or after `data.last_failed_at` is settled as `completed` or `waiting`, and after a person's successful edit, start, refresh or
+delete of the automation. `resolved_at` SHALL be the time of the resolve. It
 SHALL NOT resolve it on a stop, a revoke, a schedule stopped at its end time, or a pause by the
 dispatcher. No email SHALL be sent about the fix.
 
@@ -123,9 +122,10 @@ dispatcher. No email SHALL be sent about the fix.
 - **WHEN** a person edits an automation, and resolving its notification raises an error
 - **THEN** the edit SHALL succeed and the error SHALL be logged with ids only
 
-### Requirement: Failures older than the last fix
-The system SHALL NOT open a notification for a failed or skipped trigger delivery whose `created_at`
-is earlier than the `resolved_at` of a resolved notification with the same key.
+### Requirement: Failures across a fix
+After a notification is resolved, the next failed or skipped trigger delivery of the automation SHALL
+open a new notification, also when its run started before the fix (the owner cut that check on
+2026-11-05).
 
 #### Scenario: Failure that started after a success
 - **WHEN** run S starts at 10:00 and succeeds, run F starts at 10:05 and fails, S settles at 10:07 and resolves an open notification, and F settles at 10:12
@@ -137,15 +137,11 @@ is earlier than the `resolved_at` of a resolved notification with the same key.
 
 #### Scenario: Failure and newer success settled in the same pass
 - **WHEN** run D starts at 10:00 and fails, run S starts at 10:05 and completes, and both settle in the same pass
-- **THEN** D SHALL open the notification and S SHALL resolve it in that pass, and the send pass SHALL skip its email
+- **THEN** D SHALL open the notification and S SHALL resolve it in that pass, and the send step SHALL skip its email
 
-#### Scenario: Run started before the edit
+#### Scenario: Known limit with a run in flight during the fix
 - **WHEN** an automation has an open notification, a person edits it, and a run that started before the edit is settled as `failed` after the edit
-- **THEN** the system SHALL NOT open a new notification
-
-#### Scenario: Known limit with nothing open
-- **WHEN** an automation has no open notification, a person edits it, and a run that started before the edit is settled as `failed` after the edit
-- **THEN** the system SHALL open a notification
+- **THEN** the system SHALL open a new notification and send one email
 
 ### Requirement: Outage brake
 When the failures settled in one outcome pass with a platform reason (`start_failed`,

@@ -93,11 +93,12 @@ its new status.
 
 ### Requirement: One pass at a time, bounded
 The outcome pass SHALL run behind the admin route `POST /admin/triggers/deliveries/settle`, which cron
-calls every minute, whether email is on or off. It SHALL hold a guard lock renewed with its owner
-token, and a request that finds the guard held SHALL return at once. Each pass SHALL read
+calls every minute, whether email is on or off. It SHALL hold a guard lock with a 120-second TTL
+and no renewal, and a request that finds the guard held SHALL return at once. Each pass SHALL read
 start-time trigger deliveries (`400`, `403`, `422`, `500`) oldest first and `202` trigger deliveries
 newest first, with keyset paging, through a partial index that leaves out settled rows, and SHALL
-stop after 45 seconds of work.
+stop settling after 30 seconds. The same request then sends notification deliveries with the time
+left.
 
 #### Scenario: Two requests at once
 - **WHEN** cron calls the route while the previous pass still runs

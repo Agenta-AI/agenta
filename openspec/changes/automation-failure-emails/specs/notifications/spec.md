@@ -24,9 +24,10 @@ lifecycle columns). Both SHALL have the primary key `(project_id, id)` and one f
 - **WHEN** a notification is opened for two recipients
 - **THEN** it SHALL have exactly two `email` notification deliveries, and a second insert for the same recipient and channel SHALL fail
 
-### Requirement: Notification kinds
-Each kind SHALL declare its template and the permission a recipient needs, and SHALL be registered
-with the notifications service at startup by the domain that owns it. The template SHALL render from
+### Requirement: Template and permission of a kind
+The domain that opens a kind of notification SHALL pass its template and the permission a recipient
+needs to the notifications service as a constructor argument, in the composition root. There is no
+kind registry in v1. The template SHALL render from
 the notification's `data` and the recipient's email only. The notifications code SHALL NOT import or
 read the domain that opened the notification.
 
@@ -53,10 +54,9 @@ Notifications SHALL still be recorded.
 - **THEN** email notification deliveries SHALL become `skipped`
 
 ### Requirement: Send pass
-The system SHALL send `created` email notification deliveries in a pass behind the admin route
-`POST /admin/notifications/send`, which cron calls every minute. The pass SHALL hold a guard lock
-that it renews with its owner token after each send, SHALL stop when renewal fails or after 45
-seconds of work, and SHALL send at most 100 per pass and at most 10 per project per pass, oldest
+The system SHALL send `created` email notification deliveries in the same request as the outcome
+pass (`POST /admin/triggers/deliveries/settle`), after settling, under the same guard lock. It SHALL
+start no new send after 45 seconds from the start of the request, and SHALL send at most 100 per pass and at most 10 per project per pass, oldest
 first. Before it sends, it SHALL mark a notification delivery
 `skipped` if its notification is resolved, `AccessService.check_human` no longer allows the kind's
 permission for the recipient, or the recipient has no email (deleted user). A success SHALL set `sent` and `sent_at`. A failure SHALL add 1 to
@@ -76,7 +76,7 @@ A send SHALL NOT run in a user's request.
 - **THEN** the client timeout of 15 seconds SHALL end the call, and the pass SHALL count a failed attempt
 
 #### Scenario: Provider hangs for a long time
-- **WHEN** every send waits for its timeout, and cron calls the route again while a pass is still running
+- **WHEN** every send waits for its 15-second timeout, and cron calls the route again while a request is still running
 - **THEN** the second request SHALL find the guard held and return at once, and no notification delivery SHALL be sent twice
 
 #### Scenario: Rendering fails

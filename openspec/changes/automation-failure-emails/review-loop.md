@@ -209,3 +209,13 @@ Cut, because each only bought precision in a rare case:
 - The 5-minute wait for a late error code (O6). The execution's own `error.code` is read first; a late record gives `runner_error` (known limit 5).
 
 Kept: O9b (one row; without it an unknown outcome value leaves the row unsettled for 24 hours), the 1-hour open limit, the start-time comparisons and `last_failed_at` (each fixes a found timeline), and the outage brake.
+
+### Owner cuts (2026-11-05)
+
+An outside cut list proposed 13 cuts. The author's assessment was shared first; the owner then
+decided:
+
+- **Made:** one cron job, one admin route and one lock that settles first (at most 30 s) and then sends with the time left (D11); no lock renewal, a 120-second TTL with the pass ending within about 60 s; no shared link helper, the link is built and quoted in the template; no kind registry, the template and permission are a constructor argument (D16); `stopped`, `not_running` and any later value merged into one `cancelled` row (O9), with `continued` kept as its own healthy row (O9a).
+- **Made against the author's advice:** the check against an earlier resolve when a notification opens is dropped (D19). A run that started before a fix and fails after it sends one more email (known limit 1).
+- **Already made earlier:** the newer-healthy-run check and its index, and the reconcile step.
+- **Kept:** the per-project send cap (D18), keyset paging, `last_failed_at` and the start-time guard (D21), the tracing read for `paused` and the error code, and the reason catalog.
