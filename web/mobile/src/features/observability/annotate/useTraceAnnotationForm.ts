@@ -400,9 +400,19 @@ export const useTraceAnnotationForm = ({
             if (result.status !== "fulfilled" || !own) return
             landed[update.traceId] = {...own, data: update.annotation.data} as AnnotationDto
         })
+        // The landed writes are kept for this span until a read shows them, from now on: a sheet
+        // that closes while the read waits, or after a partly failed save, still knows them. An
+        // entry is dropped only when the read showed that same value, not a newer one.
+        const forgetShown = () =>
+            store.set(unconfirmedAtom, (previous) =>
+                Object.fromEntries(
+                    Object.entries(previous).filter(([id, item]) => item !== landed[id]),
+                ),
+            )
         let stored = true
         if (Object.keys(landed).length > 0) {
             setSavedHere((previous) => ({...previous, ...landed}))
+            store.set(unconfirmedAtom, (previous) => ({...previous, ...landed}))
             stored = await waitUntilStored({projectId, traceId, spanId, landed})
         }
         const results = [...created, ...updated]
@@ -414,6 +424,17 @@ export const useTraceAnnotationForm = ({
         )
         savingRef.current = false
         setIsSaving(false)
+        if (stored) forgetShown()
+        else {
+            // Keep reading after the sheet closes; refresh the drawer once the writes show.
+            void waitUntilStored({projectId, traceId, spanId, landed}).then(async (shown) => {
+                if (!shown) return
+                forgetShown()
+                await Promise.allSettled(
+                    REFRESHED_KEYS.map((queryKey) => queryClient.invalidateQueries({queryKey})),
+                )
+            })
+        }
 
         const failures = results.flatMap((result) =>
             result.status === "rejected" ? [result.reason] : [],
@@ -423,25 +444,9 @@ export const useTraceAnnotationForm = ({
             message.error(SAVE_FAILURE_TEXT)
             return
         }
-        if (stored) {
-            message.success(SAVE_SUCCESS_TEXT)
-            onSaved()
-            return
-        }
-        // The API took the writes, but no read showed them yet: say so rather than success. The
-        // writes stay known after the sheet closes, and the drawer refreshes once a read shows
-        // them.
-        message.info(SAVE_PENDING_TEXT)
-        store.set(unconfirmedAtom, (previous) => ({...previous, ...landed}))
-        void waitUntilStored({projectId, traceId, spanId, landed}).then(async (shown) => {
-            if (!shown) return
-            store.set(unconfirmedAtom, (previous) =>
-                Object.fromEntries(Object.entries(previous).filter(([id]) => !(id in landed))),
-            )
-            await Promise.allSettled(
-                REFRESHED_KEYS.map((queryKey) => queryClient.invalidateQueries({queryKey})),
-            )
-        })
+        // The API took the writes, but no read showed them yet: say so rather than success.
+        if (stored) message.success(SAVE_SUCCESS_TEXT)
+        else message.info(SAVE_PENDING_TEXT)
         onSaved()
     }, [
         writes,

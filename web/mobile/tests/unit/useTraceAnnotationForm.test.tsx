@@ -480,6 +480,75 @@ describe("trace annotation form", () => {
         }
     })
 
+    it("Kept writes follow the reads: early, newest value, and gone once shown", async () => {
+        // Reads after a write either hang, or answer with the value of the first write.
+        let reads: "hang" | "first" | "latest" = "hang"
+        let firstOutputs: unknown = null
+        const answer = http.post.getMockImplementation()
+        http.post.mockImplementation(
+            (url: string, body: WriteBody, config?: {timeout?: number}) => {
+                if (!String(url).endsWith("/simple/traces/query")) {
+                    firstOutputs ??= body.trace.data
+                    return answer?.(url, body)
+                }
+                if (reads === "hang") {
+                    return new Promise((_resolve, reject) => {
+                        if (config?.timeout) {
+                            setTimeout(() => reject(new Error("timeout")), config.timeout)
+                        }
+                    })
+                }
+                if (reads === "first") {
+                    const stale = {trace_id: saved.trace.trace_id, data: firstOutputs}
+                    return Promise.resolve({data: {traces: [stale]}})
+                }
+                return answer?.(url, body)
+            },
+        )
+        const reopen = async () => {
+            await act(async () => root.unmount())
+            root = createRoot(host)
+            await mount({selectedSlugs: ["tone"], spanId: "span-kept"})
+        }
+        vi.useFakeTimers({shouldAdvanceTime: true})
+        try {
+            await mount({selectedSlugs: ["tone"], spanId: "span-kept"})
+            await act(async () => latest.setValue("tone", "friendly", true))
+            // Closed while the save still waits for a read: the write is already kept.
+            await act(async () => {
+                void latest.save()
+                await vi.advanceTimersByTimeAsync(100)
+            })
+            await reopen()
+            expect(latest.ownSlugs).toEqual(["tone"])
+
+            // A second save of the same annotation, still not shown by any read.
+            await act(async () => latest.setValue("tone", "friendly", false))
+            await act(async () => {
+                void latest.save()
+                await vi.advanceTimersByTimeAsync(60_000)
+            })
+            // The API then answers the first value: the first poll must not drop the newer one.
+            reads = "first"
+            await act(async () => vi.advanceTimersByTimeAsync(60_000))
+            await reopen()
+            expect(latest.sections[0].fields.friendly.value).toBe(false)
+
+            // A read finally shows the newest value: the kept write goes away.
+            reads = "latest"
+            await act(async () => latest.setValue("tone", "friendly", true))
+            await act(async () => {
+                void latest.save()
+                await vi.advanceTimersByTimeAsync(60_000)
+            })
+            await reopen()
+            expect(latest.ownSlugs).toEqual([])
+            expect(creates()).toHaveLength(1)
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
     it("A failed save shows Failed to update annotations and keeps the values", async () => {
         const logged = vi.spyOn(console, "error").mockImplementation(() => undefined)
         http.post.mockRejectedValueOnce(new Error("Network down"))
