@@ -137,6 +137,20 @@ describe("findBrowserLiveLink", () => {
 });
 
 describe("cacheLiveLinks", () => {
+  it("shares a lookup that outlasts the cache time", async () => {
+    let clock = 0;
+    let finish: (link: undefined) => void = () => {};
+    const lookup = vi.fn(() => new Promise<undefined>((resolve) => (finish = resolve)));
+    const cached = cacheLiveLinks(lookup, { ttlMs: 5_000, now: () => clock });
+    const scope = { projectId: "p", sessionId: "s" };
+    const first = cached(scope);
+    clock = 6_000;
+    const second = cached(scope);
+    finish(undefined);
+    await Promise.all([first, second]);
+    expect(lookup).toHaveBeenCalledTimes(1);
+  });
+
   function counted(sandboxes: LiveLinkSandbox[]) {
     const seen: Record<string, string>[] = [];
     const list = client(sandboxes, seen);

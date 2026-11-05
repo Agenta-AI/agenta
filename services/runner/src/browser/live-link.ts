@@ -161,7 +161,8 @@ export function cacheLiveLinks(
     if (hit && now() - hit.at < ttlMs) return hit.link;
     entries.delete(key);
     const link = lookup(scope);
-    const entry = { at: now(), link };
+    // Pending lookups never expire: a slow Daytona is when sharing one call matters most.
+    const entry = { at: Number.POSITIVE_INFINITY, link };
     entries.set(key, entry);
     link.then(
       () => {
