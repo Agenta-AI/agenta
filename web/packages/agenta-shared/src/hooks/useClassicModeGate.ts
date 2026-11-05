@@ -9,6 +9,7 @@ import {useAtomValue} from "jotai"
 
 import {
     advancedNavHiddenAtom,
+    betaDeveloperModeFlagAtom,
     readSettledAdvancedNavHidden,
     readSettledClassicModeCookie,
 } from "../state/classicMode"
@@ -75,6 +76,7 @@ const useSettledAdvancedNavHidden = (): boolean | null => {
 export const useClassicModeCookieSync = () => {
     useAtomValue(activeUserIdAtom)
     useAtomValue(advancedNavHiddenAtom)
+    useAtomValue(betaDeveloperModeFlagAtom)
     const user = useAtomValue(userAtom)
     // A primitive, so the effect still runs only when the answer actually changes.
     const value = readSettledClassicModeCookie(user)

@@ -338,6 +338,19 @@ describe("the gate cookie", () => {
         expect(readSettledClassicModeCookie(null)).toBe("0")
     })
 
+    it("publishes nothing for Developer Mode with beta developer mode on", () => {
+        // Beta developer mode keeps Developer Mode in /m: a "1" would send the user to /w.
+        browser("u", {"nav-simplified-override": "false"})
+        localStorage.setItem("agenta:settings:u:beta-developer-mode", "true")
+        expect(readSettledClassicModeCookie(profile(OLD))).toBeNull()
+    })
+
+    it("ignores the stored beta switch while Developer Mode is off", () => {
+        browser("u", {"nav-simplified-override": "true"})
+        localStorage.setItem("agenta:settings:u:beta-developer-mode", "true")
+        expect(readSettledClassicModeCookie(profile(OLD))).toBe("0")
+    })
+
     it("clears on sign-out, and only on sign-out", () => {
         // The active-user key is what a sign-out empties. `activeUserIdAtom` reading null on a
         // first render is NOT that, which is why this reads storage rather than the atom.
