@@ -51,16 +51,17 @@ import {saveModalOpenAtom} from "./save/state"
  * chunk. These mount at the app root with no error boundary above them, so a rejected lazy would
  * take the whole page down. The modal stays closed instead.
  */
+const NoModal: ComponentType = () => null
+
 const loadModal = (load: () => Promise<ComponentType>) =>
-    lazy(() =>
-        load().then(
-            (Modal) => ({default: Modal}),
-            (error: unknown) => {
-                console.error("[EntityModalsProvider] modal failed to load", error)
-                return {default: () => null}
-            },
-        ),
-    )
+    lazy(async () => {
+        try {
+            return {default: await load()}
+        } catch (error) {
+            console.error("[EntityModalsProvider] modal failed to load", error)
+            return {default: NoModal}
+        }
+    })
 
 const EntityCommitModal = loadModal(() => import("./commit").then((mod) => mod.EntityCommitModal))
 const EntityDeleteModal = loadModal(() => import("./delete").then((mod) => mod.EntityDeleteModal))
