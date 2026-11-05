@@ -57,7 +57,6 @@ export const TestsetGrid = ({
     const {tableConfig, readOnly, deleteRows} = editor
     const [selected, setSelected] = useState<string[]>([])
     const [step, setStep] = useState<ColumnDialogStep | null>(null)
-    const columns = useAtomValue(testcaseDataController.selectors.columns(tableConfig))
     // Search narrows the grid only. The editor keeps reading every row, because the save
     // looks for edited rows in its list.
     const [searchTerm, setSearchTerm] = useState("")
@@ -71,6 +70,8 @@ export const TestsetGrid = ({
         () => (searchTerm.trim() ? {...tableConfig, searchTerm} : tableConfig),
         [searchTerm, tableConfig],
     )
+    // The header actions read the columns the table shows, search matches included.
+    const columns = useAtomValue(testcaseDataController.selectors.columns(gridConfig))
 
     // The table hides its toolbar while it has no rows, so then the toolbar shows above it: a
     // new test set whose rows were all deleted can still get columns.

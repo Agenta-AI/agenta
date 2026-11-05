@@ -15,6 +15,7 @@ import {TestsetGrid} from "@/features/testsets/detail/TestsetGrid"
 import type {ColumnEdit} from "@/features/testsets/detail/useTestsetEditor"
 
 const toast = vi.hoisted(() => ({success: vi.fn(), error: vi.fn()}))
+const columnConfigs = vi.hoisted(() => [] as {searchTerm?: string}[])
 vi.mock("@agenta/ui/app-message", () => ({message: toast}))
 vi.mock("@agenta/ui/utils", () => ({copyToClipboard: async () => true}))
 
@@ -31,7 +32,10 @@ vi.mock("@agenta/entities/testcase", () => {
     return {
         testcaseDataController: {
             selectors: {
-                columns: () => columns,
+                columns: (config: {searchTerm?: string}) => {
+                    columnConfigs.push(config)
+                    return columns
+                },
                 rows: (config: {scopeId: string}) =>
                     config.scopeId === "empty"
                         ? noRows
@@ -200,6 +204,8 @@ describe("Test set grid", () => {
                 "Peru",
             )
             expect(editor.tableConfig).not.toHaveProperty("searchTerm")
+            // The header actions read the same columns as the table.
+            expect(columnConfigs.at(-1)?.searchTerm).toBe("Peru")
             // The rows selected before the search are no longer selected.
             expect(button("Delete")?.hasAttribute("disabled")).toBe(true)
         } finally {
