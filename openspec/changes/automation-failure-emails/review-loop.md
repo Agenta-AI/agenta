@@ -343,3 +343,31 @@ code, and found three spec issues. All three were checked against the plan and a
   an automation that rarely fires.
 
 Still open: owner decisions D4 to D10.
+
+## Round 10: outside review, seven findings
+
+All seven were checked against the code and are real. All were fixed.
+
+1. **A `202` with no outcome for good.** Trigger dispatch does not pass `strict_start`
+   (`api/entrypoints/worker_queues.py:274-284`), so an error first frame counts as a start
+   (`api/oss/src/core/workflows/service.py:1115-1143`); channels pass it for this reason
+   (`api/oss/src/tasks/asyncio/channels/inbox.py:1508-1511`). New task 1.2 and D29: trigger dispatch
+   passes `strict_start=True`, and the dispatcher writes `500`.
+2. **An edit resolved a paused automation.** An edit sends the current `is_active`
+   (`api/oss/src/core/triggers/service.py:1188`), so a rename of a paused automation resolved its
+   notification while it stayed paused. An edit now resolves only when the automation is active
+   after the save.
+3. **Archived agents and D8.** Automations bound through an environment are not paused by the
+   archive (`api/oss/src/dbs/postgres/triggers/dao.py:642-672`); their next fire writes
+   `403 agent_deleted` and sends an email. D8 and G14 now state both cases; the email for the second
+   case is kept, because that automation really is paused.
+4. **Brake list.** `sandbox_capacity`, `runner_capacity`, `harness_init_timeout` and
+   `upstream_error` are real runner codes (`services/runner/src/engines/sandbox_agent/errors.ts:158-189`)
+   and are now in the list.
+5. **Slow provider.** A provider that is slow but succeeds could keep a request past the lock. The
+   send step now starts no new send 5 minutes after the request began.
+6. **Wiring.** Section 3 now lists every DAO and service the route needs and which engine each uses;
+   task 4.5 wires them.
+7. **Screen.** `runDotClass` and `runOutcomeLabel` fall to a "Running" default
+   (`web/packages/agenta-automation-ui/src/runModel.ts:157-184`). Task 4.6 now names both switches,
+   `RunStatusFilter`, the grouping and the unit test, and a spec scenario covers it.

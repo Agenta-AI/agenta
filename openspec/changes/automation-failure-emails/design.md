@@ -43,6 +43,7 @@ notification layer and the UI. The trigger layer keeps its own names.
 | Id | Fact | Source |
 |---|---|---|
 | G1 | A successful detached start writes `202 dispatched` with `data.result.run_id` and `data.session_id`. Nothing updates the trigger delivery later. | `api/oss/src/tasks/asyncio/triggers/dispatcher.py:492-494`, `:533-537`; `api/entrypoints/worker_queues.py:285-291` |
+| G1a | Trigger dispatch calls `invoke_workflow_detached` without `strict_start`, so a first frame that reports an error still counts as a started run: the delivery gets `202`, and no turn event or final record may follow. Channels pass `strict_start=True` for this reason; then an error first frame raises `WorkflowDetachedStartRejected` or `WorkflowDetachedStartFailed`, which the dispatcher writes as `500`. | `api/entrypoints/worker_queues.py:274-284`; `api/oss/src/core/workflows/service.py:1115-1143`, `:3976`, `:4016`; `api/oss/src/tasks/asyncio/channels/inbox.py:1502-1511`; `dispatcher.py:519-531` |
 | G2 | A build or reference failure writes `400 failed`. | `dispatcher.py:479-489` |
 | G3 | `missing_principal`, `agent_deleted` and `access_denied` write `403 failed` with `data.error_details.code`, through `refuse_delivery`, which also pauses the automation (`flags.is_active=false`). A paused automation writes no more trigger deliveries. | `dispatcher.py:316`, `:403`, `:437`, `:651-685`; `api/oss/src/dbs/postgres/triggers/dao.py:69-88`, `:562-620`; `api/oss/src/tasks/taskiq/triggers/worker.py:124-129` |
 | G4 | A model that needs setup writes `422 skipped`. The automation stays on, so each fire writes another `422`. | `dispatcher.py:62-63`, `:620-640` |
@@ -56,7 +57,7 @@ notification layer and the UI. The trigger layer keeps its own names.
 | G11 | Nothing sweeps a trigger delivery stuck at `102 claimed`. The detached start has no read timeout. | `api/oss/src/core/workflows/service.py:1059` |
 | G12 | No index on `trigger_deliveries` starts with `created_at`. | `api/oss/src/dbs/postgres/triggers/dbes.py:107-134` |
 | G13 | `data` is `JSON` and `status` is `JSONB`. `TriggerDeliveryData` has `session_id`, `result`, `error`, `error_details`. | `api/oss/src/dbs/postgres/shared/dbas.py:195-208`; `api/oss/src/core/triggers/dtos.py:382-401` |
-| G14 | When an agent is archived, its automations are paused with no trigger delivery. | `api/oss/src/core/workflows/service.py:1896`; `api/oss/src/dbs/postgres/triggers/dao.py:642` |
+| G14 | When an agent is archived, the automations bound to it directly are paused with no trigger delivery. Automations bound through an environment (`artifact_id` NULL) are not touched; their next fire finds the archived agent and writes `403 agent_deleted`, which pauses them. | `api/oss/src/core/workflows/service.py:1896`; `api/oss/src/dbs/postgres/triggers/dao.py:642-672`; `dispatcher.py:400-410` |
 | G15 | Deleting a connection is a hard `DELETE`, from the triggers router or the tools router. The cascade removes its subscriptions and their trigger deliveries. | `api/oss/src/dbs/postgres/gateway/connections/dao.py:238-257`; `api/oss/src/dbs/postgres/triggers/dbes.py:24-29`; `api/oss/src/apis/fastapi/triggers/router.py:623-636`; `api/oss/src/apis/fastapi/tools/router.py:526` |
 
 ### Run endings
@@ -83,6 +84,7 @@ notification layer and the UI. The trigger layer keeps its own names.
 | Id | Fact | Source |
 |---|---|---|
 | G26 | User actions, each from a route: `edit_subscription` (`:1148`), `delete_subscription` (`:1270`), `refresh_subscription` (`:1377`), `revoke_subscription` (`:1393`), `set_subscription_active` (`:1442`), `edit_schedule` (`:1824`), `delete_schedule` (`:1859`), `set_schedule_active` (`:1873`). | `api/oss/src/core/triggers/service.py`; `api/oss/src/apis/fastapi/triggers/router.py:344-471` |
+| G26a | An edit sends the automation's current `flags.is_active`, so a rename of a paused automation leaves it paused. | `api/oss/src/core/triggers/service.py:1188-1194` |
 | G27 | `refresh_schedules` is the only internal caller of `set_schedule_active`. It stops a schedule after its `end_time`. | `service.py:1925-1973` |
 | G28 | `delete_*` is a soft delete (`deleted_at`). | `api/oss/src/dbs/postgres/triggers/dao.py:256-283`, `:1030-1051` |
 | G29 | An automation has `name` and `created_by_id`. | `api/oss/src/dbs/postgres/triggers/dbas.py:21`, `:50`; `api/oss/src/dbs/postgres/shared/dbas.py:93` |
@@ -126,7 +128,7 @@ notification layer and the UI. The trigger layer keeps its own names.
 | D5 | `409` sends no email. | G9: only a person's revoke causes it, and the revoke turns the provider trigger off. | **no** |
 | D6 | `403` and `422` send an email. | G3: a `403` pauses the automation for good. G4: a `422` skips every fire. | **no** |
 | D7 | A run that waits for a person sends no email. The screen shows it as waiting. | v1 lists failures only. | **no** |
-| D8 | An agent archived by a person (G14) sends no email. | A person did it, and it writes no trigger delivery. | **no** |
+| D8 | Archiving an agent sends no email for the automations bound to it directly (they are paused with no trigger delivery). An automation bound through an environment is paused at its next fire with `403 agent_deleted`, and that sends one email. | G14. The second case is a real break the creator may not know about. | **no** |
 | D9 | The email switch defaults to on. The release notes and the self-hosting docs name it. | v1. | **no** |
 | D10 | The email does not name the agent. | G37: a private agent's name would reach admins who cannot see it. | **no** |
 | D11 | One admin route, called by cron every minute, settles trigger deliveries and then sends emails. | G45: cron is how periodic trigger work already runs. G21: a stream consumer would lose entries. G11, G24: some runs never send an event. | design |
@@ -135,7 +137,7 @@ notification layer and the UI. The trigger layer keeps its own names.
 | D15 | No transaction crosses DAOs. Each step is idempotent, and the order of writes makes a crash between steps safe. | G49. | design |
 | D16 | The notification keeps a snapshot of what the email needs. The `automation_failing` template lives in `core/triggers` and is passed to `NotificationsService` in its constructor. The permission check runs once, in `core/triggers`, when the notification opens. | `core/notifications` imports nothing from `core/triggers`. A second kind adds a second constructor argument. | design |
 | D17 | A failure opens a notification only if it ended less than 1 hour before the pass. | Without it, the first pass after the deploy emails about every failure of the last 24 hours. | design |
-| D18 | At most 100 emails per request, oldest first, and the send stops at the first provider error. | A hung provider cannot hold a request past the lock (5). No per-project cap: one open notification per automation keeps the queue small (cut for size, 2026-11-05). | design |
+| D18 | At most 100 emails per request, oldest first. The send stops at the first provider error, and starts no new send 5 minutes after the request began. | A hung or slow provider cannot keep a request past the 600-second lock, so a second request never sends the same rows (5). No per-project cap: one open notification per automation keeps the queue small. | design |
 | D19 | No check against an earlier resolve when a notification opens. | Owner cut. Known limit 1. | owner |
 | D20 | A run that ends `waiting` counts as healthy. | Otherwise an automation whose runs always ask for approval keeps its notification open for good. | design |
 | D21 | While a notification is open, each failure updates `data.last_failed_at` to the newest start. A healthy run resolves it only if it started at or after `last_failed_at`. | A long healthy run that started before a `422` or `403` must not resolve the notification of an automation that still fails or is paused. | design |
@@ -143,6 +145,7 @@ notification layer and the UI. The trigger layer keeps its own names.
 | D25 | An outage brake on failures with a platform reason, `runner_error` included (5.4). | D4 without a brake would send "contact support" to every affected customer at once. | design |
 | D26 | The email names the project: `Automation "<name>" in <project> is failing`. | Owners and admins may get the email for an automation they did not create, in one of several projects. | design |
 | D28 | The runner's fallback writes `stopReason: "error"` on a real failure (task 1.1). | G18: without it, a failed acquire settles `completed`, sends no email and resolves an open notification. It also fixes every other reader of `session_executions`. | design |
+| D29 | Trigger dispatch passes `strict_start=True`, as channels do (task 1.2). | G1a: without it, a run whose first frame is an error stays `202` with no outcome for good, and no email is sent. With it, the dispatcher writes `500`, which settles `failed` (O4). | design |
 
 ## 3. Architecture
 
@@ -164,12 +167,12 @@ notification layer and the UI. The trigger layer keeps its own names.
 |---|---|
 | Runner | `services/runner/src/server.ts`: `persistTerminal` keeps `error`; both fallback paths pass `"error"` on a real failure (D28). |
 | Core, notifications | `api/oss/src/core/notifications/`: `dtos.py`, `interfaces.py` (`NotificationsDAOInterface`), `service.py` (`open`, `resolve(project_id, dedup_key, started_at=None)`, `note_failure`, `send_pending()`; the `automation_failing` template comes in the constructor). |
-| Core, triggers | `api/oss/src/core/triggers/outcomes.py` (settle table, `settle_pass`); `api/oss/src/core/triggers/failure_notifications.py` (rules A1 to A6, the outage brake, recipients, the template with its reason catalog and link). |
+| Core, triggers | `api/oss/src/core/triggers/outcomes.py` (`OutcomesService`: settle table, `settle_pass`); `api/oss/src/core/triggers/failure_notifications.py` (rules A1 to A6, the outage brake, recipients, the template with its reason catalog and link). |
 | Interfaces | `SessionExecutionsDAOInterface.query_settled` (exists); `RecordsDAOInterface.turn_signals` (new); `TriggersDAOInterface.query_unsettled_deliveries` and `settle_delivery` (new); `MembershipsService.fetch_member_emails(user_ids)` and `fetch_project_summary(project_id)` (project name, organization id, organization owner id; new, in the memberships DAO on its existing summary columns, G35). |
 | DB | `api/oss/src/dbs/postgres/notifications/` (`dbes.py`, `dao.py`, `mappings.py`). |
-| API | `POST /admin/triggers/deliveries/settle` on the triggers admin router, with the admin `Access` auth. It runs `settle_pass`, then `send_pending`. |
+| API | `POST /admin/triggers/deliveries/settle` on the triggers admin router (`api/oss/src/apis/fastapi/triggers/router.py`), with the admin `Access` auth. It runs `OutcomesService.settle_pass()`, then `NotificationsService.send_pending()`. |
 | Cron | one more line in `api/oss/src/crons/triggers.txt`, in the same form as the existing line: five time fields, the `root` user field, an inline `curl -s --max-time 75 -X POST -H "Authorization: Access ${AGENTA_AUTH_KEY}" http://api:8000/admin/triggers/deliveries/settle`, no `%`, and the `>> /proc/1/fd/1 2>&1` suffix, which the Dockerfiles remove. supercronic passes the container environment to the job. No new cron file: the Dockerfiles already turn every line of `triggers.txt` into the crontab (G45). |
-| Wiring | `api/entrypoints/routers.py`: build `NotificationsService` with the template; pass it to `TriggersService` as an optional argument (default `None`, G31). |
+| Wiring | `api/entrypoints/routers.py`: build `NotificationsDAO` and `NotificationsService(dao, memberships_service, template)`; build `OutcomesService(triggers_dao, session_executions_dao, records_dao, notifications_service, memberships_service, access_service)`; pass `NotificationsService` to `TriggersService` as an optional argument (default `None`, G31); pass `OutcomesService` and `NotificationsService` to the triggers router for the admin route. The records DAO uses the tracing engine; every other DAO uses the core engine. |
 
 Dependency direction: `core/triggers` → `core/notifications` → `core/access`, `core/memberships`.
 Core code uses DAO interfaces only.
@@ -238,9 +241,10 @@ Both pass the migration gate. Old code ignores the new tables and `data` keys.
 
 The route takes `acquire_lock(namespace="triggers", key="settle-pass", ttl=600)` and releases it with
 the returned token at the end. If the lock is held, it returns at once. There is no renewal. The
-request settles at most 4 pages and sends at most 100 emails, and it stops sending at the first
-provider error, so one hung provider costs one send (each socket operation has a 15-second
-timeout, G41), well inside the lock. If a request crashes, the next one can run after at most 10
+request settles at most 4 pages and sends at most 100 emails. It stops sending at the first
+provider error, and starts no new send 5 minutes after it began. One send takes at most about 90
+seconds (each socket operation has a 15-second timeout, G41), so the request ends well inside the
+lock. If a request crashes, the next one can run after at most 10
 minutes. Settling runs whether email is on or off.
 
 ### 5.1 Candidates
@@ -350,7 +354,8 @@ minutes still trips it.
 
 - The cache value `notifications:platform-failures` holds a map from project id to the last time a
   row of that project settled `failed` with a platform reason (`start_failed`, `execution_lost`,
-  `sandbox_gone`, `runner_error`) that ended less than 1 hour ago. `runner_error` is in the list
+  `sandbox_gone`, `sandbox_capacity`, `runner_capacity`, `harness_init_timeout`, `upstream_error`,
+  `runner_error`) that ended less than 1 hour ago. `runner_error` is in the list
   because a sandbox-provider outage settles as a codeless acquire failure.
 - The request reads the map once, with `get_cache`. After each page is settled in memory, it adds
   that page's projects with the current time, drops entries older than 15 minutes, and writes the
@@ -365,8 +370,14 @@ minutes still trips it.
 ### 5.5 Resolve on user actions
 
 After a successful write, `TriggersService` calls `resolve(project_id, automation:<id>)` with no
-`started_at` from `edit_subscription`, `edit_schedule`, `delete_subscription`, `delete_schedule`, and `set_subscription_active` and `set_schedule_active`
-when `is_active` is true. `refresh_schedules` only stops schedules (G27) and resolves nothing. A
+`started_at` from:
+
+- `edit_subscription` and `edit_schedule`, only when the automation is active after the save (G26a).
+  A rename of a paused automation keeps it paused, so it resolves nothing;
+- `set_subscription_active` and `set_schedule_active` when `is_active` is true;
+- `delete_subscription` and `delete_schedule`.
+
+ `refresh_schedules` only stops schedules (G27) and resolves nothing. A
 resolve failure is logged with ids only and never fails the request.
 
 ## 6. Recipients
@@ -389,7 +400,7 @@ delivery, and a warning with ids only is logged.
 After settling, the route calls `NotificationsService.send_pending()`.
 
 1. Read up to 100 `created` deliveries, oldest first (D18), joined with their notification on
-   `(project_id, notification_id)`.
+   `(project_id, notification_id)`. Start no new send 5 minutes after the request began.
 2. Mark a delivery `skipped` when the switch is off or no provider is set up (G43), its notification
    is resolved, or `MembershipsService.fetch_member_emails` returns no email (a deleted user, G36).
    The permission was checked when the notification opened, in the same request or a recent one.

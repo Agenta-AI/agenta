@@ -72,6 +72,14 @@ When a run fails before the agent loop, the runner's fallback `done` SHALL carry
 - **WHEN** a Stop aborts a run before its turn starts
 - **THEN** the runner SHALL write a `done` with `stopReason` `cancelled`
 
+### Requirement: Strict start for trigger runs
+Trigger dispatch SHALL start runs with `strict_start=True`. A first frame that reports an error
+SHALL be a failed start, written `500`, not an accepted run.
+
+#### Scenario: Error first frame
+- **WHEN** the workflow service answers a trigger run with a first frame that reports an error
+- **THEN** the dispatcher SHALL write `500 failed`, and the pass SHALL settle it `failed` with `reason_code` `start_failed`
+
 ### Requirement: Settled once per status
 The system SHALL write an outcome only if the trigger delivery still has the status it was read
 with and has no outcome. A trigger delivery claimed again after a `500` SHALL be settled again from
@@ -106,8 +114,13 @@ settled rows, and SHALL apply each page oldest first. Rows not read SHALL stay f
 
 ### Requirement: Outcome on the automations screen
 For a trigger delivery with status `202` and a `data.outcome`, the automations screen SHALL show
-`completed` as worked, `failed` as failed, `cancelled` as cancelled, and `waiting` as waiting for a
-person. Every other trigger delivery SHALL keep today's reading of `status.message`.
+`completed` as worked, `failed` as failed, `cancelled` as "Cancelled", and `waiting` as "Waiting for
+a person", with their own dot colors and run filters. Every other trigger delivery SHALL keep
+today's reading of `status.message`.
+
+#### Scenario: Cancelled and waiting runs are not "Running"
+- **WHEN** a trigger delivery has status `202` and `data.outcome` `cancelled` or `waiting`
+- **THEN** the screen SHALL show "Cancelled" or "Waiting for a person", not "Running"
 
 #### Scenario: Failed run after dispatch
 - **WHEN** a trigger delivery has status `202 dispatched` and `data.outcome` `failed`
