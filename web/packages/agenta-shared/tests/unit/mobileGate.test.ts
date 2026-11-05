@@ -174,6 +174,13 @@ describe("mobileRouteFor", () => {
         ["/w/ws1/p/pr1/observability", "", "/m/w/ws1/p/pr1/observability"],
         ["/w/ws1/p/pr1/settings", "", "/m/w/ws1/p/pr1/settings"],
         ["/w/ws1/p/pr1/settings", "?tab=preferences", "/m/w/ws1/p/pr1/settings?tab=preferences"],
+        ["/w/ws1/p/pr1/settings", "?tab=billing", "/m/w/ws1/p/pr1/settings?tab=billing"],
+        // The run-failure "Buy credits" link: /m opens the pack picker from Credits.
+        [
+            "/w/ws1/p/pr1/settings",
+            "?tab=billing&buy_credits=1",
+            "/m/w/ws1/p/pr1/settings?tab=credits&buy_credits=1",
+        ],
         ["/w/ws1/p/pr1/apps/agent-templates", "", "/m/w/ws1/p/pr1/templates"],
         ["/w/ws1/p/pr1/apps/agent-templates/k1", "", "/m/w/ws1/p/pr1/templates/k1"],
         // Every app-scoped page collapses to the agent screen — the only one /m has.
