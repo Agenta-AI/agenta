@@ -37,10 +37,15 @@
 
 import {lazy, Suspense, type ReactNode} from "react"
 
-import {EntityActionProvider} from "./actions"
+import {useHasOpened} from "@agenta/ui/hooks"
+import {useAtomValue} from "jotai"
 
-// Lazy load modals to reduce initial bundle size
-// The modals are only rendered when their respective atoms open them
+import {EntityActionProvider} from "./actions"
+import {commitModalOpenAtom} from "./commit/state"
+import {deleteModalOpenAtom} from "./delete/state"
+import {saveModalOpenAtom} from "./save/state"
+
+// A lazy component downloads when it first renders, so each modal renders from its first open.
 const EntityCommitModal = lazy(() =>
     import("./commit").then((mod) => ({default: mod.EntityCommitModal})),
 )
@@ -111,13 +116,17 @@ export function EntityModalsProvider({
     includeDeleteModal = true,
     guardConcurrentModals = true,
 }: EntityModalsProviderProps) {
+    const commitOpened = useHasOpened(useAtomValue(commitModalOpenAtom))
+    const saveOpened = useHasOpened(useAtomValue(saveModalOpenAtom))
+    const deleteOpened = useHasOpened(useAtomValue(deleteModalOpenAtom))
+
     return (
         <EntityActionProvider guardConcurrentModals={guardConcurrentModals}>
             {children}
             <Suspense fallback={null}>
-                {includeCommitModal && <EntityCommitModal />}
-                {includeSaveModal && <EntitySaveModal />}
-                {includeDeleteModal && <EntityDeleteModal />}
+                {includeCommitModal && commitOpened && <EntityCommitModal />}
+                {includeSaveModal && saveOpened && <EntitySaveModal />}
+                {includeDeleteModal && deleteOpened && <EntityDeleteModal />}
             </Suspense>
         </EntityActionProvider>
     )

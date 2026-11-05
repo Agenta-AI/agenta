@@ -19,6 +19,7 @@
     "exports": {
         ".": "./src/index.ts",
         "./adapters": "./src/adapters/index.ts",
+        "./agent-template-preload": "./src/DrillInView/SchemaControls/preloadAgentTemplateControl.ts",
         "./agent": "./src/agent/index.ts",
         "./changes": "./src/changes/index.ts",
         "./drawers/shared": "./src/drawers/shared/index.ts",

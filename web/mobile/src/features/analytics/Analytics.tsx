@@ -4,7 +4,8 @@ import {useProfile} from "@agenta/entities/profile"
 import {setAgentCreationFailureReporter} from "@agenta/entities/workflow/agentCreationTelemetry"
 import {analyticsIdentity, generateOrRetrieveDistinctId} from "@agenta/shared/analytics"
 import {isEE} from "@agenta/shared/api/env"
-import {useAtom} from "jotai"
+import {idleReadyAtom} from "@agenta/shared/state"
+import {useAtom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {getEnv} from "@/lib/env"
@@ -15,6 +16,7 @@ export const Analytics = () => {
     const router = useRouter()
     const {user} = useProfile()
     const [client, setClient] = useAtom(posthogAtom)
+    const idleReady = useAtomValue(idleReadyAtom)
     const identityRef = useRef<string | null>(null)
     const aliasedIdRef = useRef<string | null>(null)
     const initialPageviewRef = useRef(false)
@@ -22,7 +24,7 @@ export const Analytics = () => {
     const enabled = Boolean(getEnv("NEXT_PUBLIC_POSTHOG_API_KEY"))
 
     useEffect(() => {
-        if (!enabled || authRoute) return
+        if (!enabled || authRoute || !idleReady) return
         let cancelled = false
         void loadPostHog().then((loaded) => {
             if (!cancelled && loaded) setClient(loaded)
@@ -30,7 +32,7 @@ export const Analytics = () => {
         return () => {
             cancelled = true
         }
-    }, [enabled, authRoute, setClient])
+    }, [enabled, authRoute, idleReady, setClient])
 
     useEffect(() => {
         if (!client || !enabled || authRoute) return

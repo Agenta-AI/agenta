@@ -1,6 +1,6 @@
 import {useCallback} from "react"
 
-import {automationRunHistoryDrawerAtom} from "@agenta/automation-ui"
+import {automationRunHistoryDrawerAtom} from "@agenta/automation-ui/run-history-drawer-atom"
 import {ModelSetupBanner} from "@agenta/chat/components"
 import {configPanelCollapsedAtom} from "@agenta/chat/state"
 import type {TriggerOwnerRef} from "@agenta/entity-ui/drill-in"
