@@ -7,6 +7,7 @@ import {
     getPendingApprovals,
 } from "@agenta/chat/model"
 import {fetchSessionRecordsAtom, isSessionFresh} from "@agenta/entities/session"
+import {preloadAgentTemplateControl} from "@agenta/entity-ui/agent-template-preload"
 import {projectIdAtom} from "@agenta/shared/state"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
@@ -67,6 +68,7 @@ export const ChatScreen = ({
     // sends (the server uses the saved config), but config-derived UI (always-allow) never
     // qualifies. Home/Sessions bind it too; chat must not depend on having visited them.
     useBindProjectContext(projectId)
+    useEffect(() => void preloadAgentTemplateControl(), [])
     // Warm the transcript as soon as the route names the session, so it races the agent chain.
     const boundProjectId = useAtomValue(projectIdAtom)
     const prefetchRecords = useSetAtom(fetchSessionRecordsAtom)
@@ -131,7 +133,8 @@ export const ChatScreen = ({
     useEffect(() => {
         if (pinnedRevisionId || !hasAgent) return
         let live = true
-        void refetchLatest().then(({data, status}) => {
+        // A read already in flight is this open's read: restarting it only repeats the request.
+        void refetchLatest({cancelRefetch: false}).then(({data, status}) => {
             if (live && status === "success" && data?.revisionId) pinRevision(data.revisionId)
         })
         return () => {
@@ -322,7 +325,10 @@ const ReplayScreen = ({
         body = (
             <ContentRail className="flex grow flex-col gap-3 p-4 pt-6 pb-[calc(1rem+env(safe-area-inset-bottom))]">
                 <TranscriptTurns
+                    // This screen stays mounted across sessions; the window must not.
+                    key={sessionId}
                     turns={visibleTurns}
+                    scrollerRef={autoScroll.ref}
                     sessionId={sessionId}
                     remoteRunning={running}
                     waitingOnUser={pendingCount > 0}

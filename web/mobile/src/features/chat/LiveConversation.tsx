@@ -833,11 +833,14 @@ export const LiveConversation = ({
     shortcutRef.current = {streamingHere, pendingApprovals, approvalActions, stopHere, locked}
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
+            const stopKey = e.key === "Escape" && !e.isComposing
+            const approveKey = isAltChord(e) && e.code === "KeyG"
+            if (!stopKey && !approveKey) return
             // Radix lets a cancelled Escape through and never touches Alt+G; the pane can hide us.
             if (e.defaultPrevented || isOverlayOpen()) return
             if (!isOnScreen(scrollerRef.current)) return
             const current = shortcutRef.current
-            if (e.key === "Escape" && !e.isComposing && current.streamingHere) {
+            if (stopKey && current.streamingHere) {
                 e.preventDefault()
                 // `stopHere`, not the local abort: Escape must cancel the run on the server too.
                 current.stopHere()
@@ -845,12 +848,7 @@ export const LiveConversation = ({
             }
             // ONE gate, never "Approve all" — a mis-press must not grant a tool nobody read.
             // Someone who cannot send cannot approve either, by key no more than by tap.
-            if (
-                isAltChord(e) &&
-                e.code === "KeyG" &&
-                !current.locked &&
-                current.pendingApprovals.length > 0
-            ) {
+            if (approveKey && !current.locked && current.pendingApprovals.length > 0) {
                 e.preventDefault()
                 current.approvalActions.respond({
                     approved: true,
@@ -921,6 +919,7 @@ export const LiveConversation = ({
                 ) : null}
                 <TranscriptTurns
                     turns={visibleTurns}
+                    scrollerRef={autoScroll.ref}
                     sessionId={sessionId}
                     remoteRunning={showingTurnActivity && !streamingHere}
                     waitingOnUser={parkedOnUser}
