@@ -1,7 +1,11 @@
 """render module: fold-result -> capability-degraded vocabulary. Pure, no DB."""
 
 from oss.src.core.channels.dtos import ChannelCapabilities
-from oss.src.core.channels.render.render import render_indicator, render_turn_result
+from oss.src.core.channels.render.render import (
+    extract_final_answer,
+    render_indicator,
+    render_turn_result,
+)
 
 
 BUTTONS_OK = ChannelCapabilities(
@@ -260,3 +264,100 @@ def test_split_of_one_unbroken_word_still_respects_the_limit():
     from oss.src.core.channels.render.render import _split_text
 
     assert _split_text("a" * 25, 10) == ["a" * 10, "a" * 10, "a" * 5]
+
+
+def _said(text):
+    return {"role": "assistant", "content": text}
+
+
+def _called(tool_name, call_id):
+    return {
+        "role": "tool",
+        "content": "",
+        "tool_call_id": call_id,
+        "tool_name": tool_name,
+        "input": {},
+    }
+
+
+def _returned(call_id):
+    return {"role": "tool", "content": "ok", "tool_call_id": call_id}
+
+
+def test_the_reply_holds_only_what_the_agent_said_after_its_last_tool():
+    folded = {
+        "messages": [
+            _said("Reading the thread for context."),
+            _called("Read", "c1"),
+            _returned("c1"),
+            _said("Checking PostHog next."),
+            _called("Bash", "c2"),
+            _returned("c2"),
+            _said("The invite failed because the email casing differs."),
+        ],
+        "stop_reason": "ended",
+        "pending_interaction": None,
+    }
+
+    items = render_turn_result(capabilities=BUTTONS_OK, folded=folded)
+
+    assert [part.text for item in items for part in item.parts] == [
+        "The invite failed because the email casing differs."
+    ]
+
+
+def test_every_message_after_the_last_tool_stays_in_the_reply():
+    messages = [
+        _said("Looking."),
+        _called("Read", "c1"),
+        _returned("c1"),
+        _said("First part."),
+        _said("Second part."),
+    ]
+
+    assert extract_final_answer(messages) == "First part.\nSecond part."
+
+
+def test_naming_the_session_does_not_cut_off_the_answer():
+    for tool_name in ("rename_session", "mcp__agenta-tools__rename_session"):
+        messages = [
+            _said("Checking."),
+            _called("Read", "c1"),
+            _returned("c1"),
+            _said("Fresh pasta cooks in about two minutes."),
+            _called(tool_name, "c2"),
+            _returned("c2"),
+            _said("Session named."),
+        ]
+
+        assert extract_final_answer(messages) == (
+            "Fresh pasta cooks in about two minutes.\nSession named."
+        )
+
+
+def test_an_answer_before_a_closing_rename_is_the_answer():
+    messages = [
+        _said("You have two triggers."),
+        _called("rename_agent", "c1"),
+        _returned("c1"),
+    ]
+
+    assert extract_final_answer(messages) == "You have two triggers."
+
+
+def test_a_turn_that_stops_on_a_tool_keeps_all_its_text():
+    messages = [
+        _said("Reading the logs."),
+        _called("Read", "c1"),
+        _returned("c1"),
+        _said("Found two errors, checking the second."),
+        _called("Bash", "c2"),
+    ]
+
+    assert extract_final_answer(messages) == (
+        "Reading the logs.\nFound two errors, checking the second."
+    )
+
+
+def test_a_turn_with_no_text_has_no_answer():
+    assert extract_final_answer([_called("Read", "c1"), _returned("c1")]) == ""
