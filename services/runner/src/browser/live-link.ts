@@ -26,6 +26,7 @@ import { loadRunnerConfig } from "../config/runner-config.ts";
 export const BROWSER_PORT = 8790;
 export const BROWSER_TOKEN_PATH = "/tmp/agenta-browser/token";
 export const BROWSER_PROBE_TIMEOUT_MS = 3_000;
+export const BROWSER_TOKEN_TIMEOUT_S = 10;
 /** The app polls every 4 to 10 s per open session tab; this absorbs repeat and parallel tabs. */
 export const LIVE_LINK_CACHE_MS = 5_000;
 export const LIVE_LINK_CACHE_MAX_ENTRIES = 512;
@@ -56,7 +57,7 @@ export interface LiveLinkSandbox {
   id: string;
   state?: string;
   labels?: Readonly<Record<string, string>>;
-  fs: { downloadFile(path: string): Promise<Buffer> };
+  fs: { downloadFile(path: string, timeoutSeconds?: number): Promise<Buffer> };
   getPreviewLink(port: number): Promise<{ url: string; token: string }>;
 }
 
@@ -108,7 +109,7 @@ export async function findBrowserLiveLink(
     // No token file: this sandbox runs no browser (a session can hold a harness sandbox and a
     // command sandbox), or its browser has not finished starting.
     const token = await sandbox.fs
-      .downloadFile(BROWSER_TOKEN_PATH)
+      .downloadFile(BROWSER_TOKEN_PATH, BROWSER_TOKEN_TIMEOUT_S)
       .then((b) => b.toString("utf8").trim(), () => "");
     if (!token) continue;
     const preview = await sandbox.getPreviewLink(BROWSER_PORT);
