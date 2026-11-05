@@ -32,6 +32,8 @@ An automation (a schedule or an event subscription) can stop working, and nobody
   and one channel, `email`.
 - **Email.** A second pass that cron starts every minute sends the new notification deliveries, with HTML and plain
   text, escaped values, a 15-second client timeout, and 5 attempts.
+- **Outage brake.** When platform failures come from more than 10 projects in one pass, they open
+  no notification for 15 minutes, so an outage does not email every customer at once.
 - **Switch.** `AGENTA_NOTIFICATIONS_EMAIL_ENABLED` (default `true`) turns email off. Notifications
   are still recorded, and their notification deliveries become `skipped`.
 
@@ -68,7 +70,8 @@ None. No shipped spec covers automations.
 ## Non-goals
 
 - An email about a connection. Nothing detects a revoked or expired connection on the provider side
-  (design G9).
+  (design G9, G9a). An expired login makes an event subscription go silent; design section 12
+  names the follow-up (a daily connection health check).
 - An email when a run waits for a person (design D7).
 - The agent's name in the email (design D10).
 - Trigger deliveries stuck at `102 claimed`, and the missing taskiq retry middleware. Both are

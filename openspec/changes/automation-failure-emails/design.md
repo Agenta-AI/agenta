@@ -61,6 +61,7 @@ trigger layer already uses "paused" for an automation that is turned off (`meta.
 | G7 | A repeated event can claim a `500` row again. The claim gives the row a new `id` and replaces `status` and `data`. It keeps `created_at`. | `api/oss/src/dbs/postgres/sessions/streams/dao.py:318-339` |
 | G8 | `update_delivery` and the upsert in `write_subscription_delivery_if_live` merge the new `data` into the old one (`||`). The upsert has no status guard, so a repeated event for a `500` row can turn it into `409` or `200` and keep its old `data` keys. | `api/oss/src/dbs/postgres/triggers/dao.py:533-551`, `:672-695`; `dedup_seen` lets a `500` through at `:881-903` |
 | G9 | An invalid subscription writes `409 failed`. Only `revoke_subscription` sets `is_valid=false`, and it turns the provider trigger off. Revoking a connection changes only the connection row. | `dispatcher.py:219-238`; `api/oss/src/core/triggers/service.py:1393-1413`, `:1607-1640`; `api/oss/src/core/gateway/connections/service.py:267-299` |
+| G9a | The Composio adapter can read a connection's provider status (`get_connection_status`, valid when `status == "ACTIVE"`). Only a person's `refresh_connection` calls it. Nothing checks it on a schedule, so an expired provider login is not noticed, and an event subscription on it stops getting events with no trigger delivery. | `api/oss/src/core/gateway/connections/providers/composio/adapter.py:316-333`; `api/oss/src/core/gateway/connections/service.py:301-384` |
 | G10 | A test subscription writes `200 success` with `data.is_test=true` and runs nothing. | `dispatcher.py:181-215` |
 | G11 | Nothing sweeps a trigger delivery stuck at `102 claimed`. The detached start has no read timeout. | `api/oss/src/core/workflows/service.py:1059` |
 | G12 | No index on `trigger_deliveries` starts with `created_at`. They are `(project_id, created_at)`, `(subscription_id, created_at)`, and the unique `(project_id, subscription_id, event_id)` and `(project_id, schedule_id, event_id)`. No index serves `(project_id, schedule_id, created_at)`. | `api/oss/src/dbs/postgres/triggers/dbes.py:107-134` |
@@ -109,6 +110,7 @@ trigger layer already uses "paused" for an automation that is turned off (`meta.
 | G33 | `view_triggers` is a permission (`Permission.VIEW_TRIGGERS`). Custom roles in EE can remove it. | `api/oss/src/core/access/permissions/types.py:169`; `api/AGENTS.md` (custom roles) |
 | G34 | `query_project_members(project_id, windowing)` returns `user_id`, `email`, `name`, `role` under the edition rule: OSS uses organization members and roles, EE uses project rows. It does not filter deleted users. | `api/oss/src/core/memberships/service.py:333-350`; `api/oss/src/dbs/postgres/memberships/dao.py:130-148`, `:419` |
 | G35 | The memberships DAO reads `organizations.owner_id`, but only in private helpers. | `api/oss/src/dbs/postgres/memberships/dao.py:210`, `:458-466` |
+| G35a | The memberships DAO already reads `projects.project_name` and `organizations.name` in its summary columns. | `api/oss/src/dbs/postgres/memberships/dao.py:53-62` |
 | G36 | Users are hard-deleted. The memberships DAO is the only new-style code that reads `users`, and `query_project_member_profiles` already returns `email`. | `api/oss/src/services/db_manager.py:1438-1444`, `:1510-1516`; `api/oss/src/dbs/postgres/memberships/dao.py:177-181`, `:242`; `api/oss/src/core/memberships/dtos.py:44-48` |
 | G37 | A private agent is visible only to its owner, admins included. Automations have no sharing policy: `view_triggers` lets a member see them. | `api/oss/src/core/sharing/service.py:173` |
 | G38 | A project's organization comes from `AccessService.project_organization_id`. | `dispatcher.py:642-648` |
@@ -146,6 +148,8 @@ trigger layer already uses "paused" for an automation that is turned off (`meta.
 | D11 | Two passes, each behind an admin route that cron calls every minute: one settles trigger deliveries, one sends notification deliveries. No lifespan loop, no stream consumer, no hook in the dispatcher. | G45: cron is how periodic trigger work already runs (the schedule refresh), one cron container runs per deployment, and it keeps the passes out of the API worker lifecycle. The API's two lifespan loops (watchdog, attachment sweep) are session housekeeping, not trigger work. G21: a second consumer group on `streams:sessions` would lose entries. G11, G24: some runs never send an event. A send can wait for its timeout, so sending in the same request as settling would hold it up. | design (round 5) |
 | D23 | The outcome of a started run comes from `session_executions` (core database), not from the tracing records. The records are read only for a `paused` turn (which settles no execution) and for the error code of a failed one. | G24c: the ingest route settles every runner ending before the record reaches the records stream, so `session_executions` has no records lag. G24d: the channels outbox already reads it. | design (round 5) |
 | D24 | The outcome is written to `data.outcome`, never to `status`. | Writing `500` to a `202` row would make it re-claimable by a repeated event (G7), which would run the automation again. | design (round 5) |
+| D25 | An outage brake. When the failures settled in one outcome pass with a platform reason (`start_failed`, `execution_lost`, `sandbox_gone`) come from more than 10 projects, the pass sets a Redis flag for 15 minutes. While the flag is set, platform-reason failures settle but open no notification, and the pass logs one error for the team. | D4 emails on the first `500`. Without a brake, a runner outage opens one notification per affected automation, and every affected customer gets "contact support" at about the same time. The caps slow the emails but do not stop them. After the outage, runs work again and need no email; an automation that still fails after the flag expires opens one as usual. | design (review of 2026-11-05) |
+| D26 | The email names the project, and its subject does not say "Your": `Automation "<name>" in <project> is failing`. | When the creator left, owners and admins get the email for an automation they did not create, and a member of several projects cannot tell which one it is. Project names are visible to every project member, so this reveals nothing that D10 protects. | design (review of 2026-11-05) |
 | D12 | The outcome goes in `data.outcome` and `data.reason_code`, not in new columns. | No `ALTER TABLE` on a table the workers write all the time. G7: a re-claim replaces `data`. G8: the merge keeps it on a status change, so the screen reads `outcome` only on a `202` (section 9). | design |
 | D13 | No failure count, no `destination`, no `read_at`. | Nothing reads them in v1. A nullable column can be added later without failing the migration gate. | design |
 | D14 | A notification is resolved by a healthy run (D20), and by a person's edit, start (`set_*_active(is_active=true)`), refresh or delete of the automation. A stop, a revoke, an end-time stop and a platform pause resolve nothing. | G26, G27. A stop makes no trigger deliveries, so resolving on it does nothing useful. | design |
@@ -205,7 +209,7 @@ Dependency direction: `core/triggers` → `core/notifications` → `core/access`
 | `kind` | `VARCHAR` not null | `automation_failing` in v1 |
 | `dedup_key` | `VARCHAR` not null | `automation:<automation_id>` |
 | `state` | `VARCHAR` not null | `open` or `resolved` |
-| `data` | `JSONB` not null | for `automation_failing`: `automation_id`, `automation_name`, `failed_at` (start of the first failure), `last_failed_at` (start of the newest failure while open; times are UTC ISO 8601 strings, always compared as `timestamptz`, never as text), `reason_code`, `link` |
+| `data` | `JSONB` not null | for `automation_failing`: `automation_id`, `automation_name`, `project_name`, `failed_at` (start of the first failure), `last_failed_at` (start of the newest failure while open; times are UTC ISO 8601 strings, always compared as `timestamptz`, never as text), `reason_code`, `link` |
 | `resolved_at` | `TIMESTAMPTZ` null | the time from which the automation counts as fixed (D19) |
 | lifecycle | | `created_at` (default `CURRENT_TIMESTAMP`), `updated_at`, `deleted_at`, `created_by_id`, `updated_by_id`, `deleted_by_id` |
 
@@ -389,6 +393,7 @@ between the read and the write (G7, G8). Its notification is still right: that s
 | A2 | `A` is missing or deleted: settle only (G15, G28). |
 | A3 | `D` is healthy: resolve the open notification of `automation:<A.id>`, with `resolved_at = D.created_at`, if `D.created_at` is at or after its `data.last_failed_at` (D21). One `UPDATE ... WHERE state = 'open' AND (data->>'last_failed_at')::timestamptz <= :started_at`, so a concurrent `note_failure` or user resolve is not overwritten. |
 | A4 | `D.outcome` is `failed` or `skipped`, and a notification of `automation:<A.id>` is open: set its `data.last_failed_at` to `GREATEST` of its value and `D.created_at` (`NotificationsDAOInterface.note_failure`), guarded by `WHERE state = 'open'`. If a person resolved it in the meantime, the write changes nothing, and `D` started before that resolve, so A5 drops it later. |
+| A6 | `D.reason_code` is a platform reason and the outage flag is set (D25): settle only. Checked before A4 and A5. |
 | A5 | `D.outcome` is `failed` or `skipped`, nothing is open, and `D` ended (5.2) less than 1 hour ago (D17): open a notification, unless one for that key has `resolved_at` later than `D.created_at`, or `TriggersDAOInterface.exists_healthy_delivery_after` finds a healthy trigger delivery of `A` that started after `D`. |
 
 All comparisons use start times (`created_at`):
@@ -504,9 +509,9 @@ thread. The client timeout, not `asyncio.wait_for`, ends a hung call (G42).
 ### 7.3 Content
 
 ```text
-Subject: Your automation "{automation_name}" is failing
+Subject: Automation "{automation_name}" in {project_name} is failing
 
-Your automation "{automation_name}" is failing.
+The automation "{automation_name}" in the project "{project_name}" is failing.
 
 Failing since: {failed_at, UTC}
 What happened: {reason}
@@ -521,6 +526,7 @@ You will not get another email about this until it is fixed.
   runs of spaces become one, and the result is cut to 80 characters. An empty name becomes
   "Untitled automation". The subject is built from this value only, so it has no line break and no
   direction override.
+- `project_name`: from the memberships DAO (G35a), normalized like `automation_name`.
 - `link`: `{AGENTA_WEB_URL}/m/w/{organization_id}/p/{project_id}/automations/{automation_id}` (G46), built with the shared helper in `api/oss/src/utils/links.py` (G24e): an invalid `web_url` gives no link, and the email then says "Open Agenta and go to Automations".
 - Every value is HTML-escaped in the HTML part.
 - The raw error text (`data.error`) is never sent.
@@ -595,6 +601,14 @@ delivery keeps today's `status.message` rule (G47), because a merged `data` can 
 13. **A runner ending that never reaches the API.** If the runner cannot send its `done` and the
    watchdog does not settle the turn, the run stays unsettled.
 
+14. **An expired provider login is silent.** When a Gmail or Slack login expires at the provider,
+   an event subscription stops getting events. Nothing is written and nothing fails (G9a), so v1
+   sends nothing. A schedule whose agent uses that connection fails at run time and is covered.
+   Follow-up 1 covers the subscription case.
+15. **The outage brake also holds real failures.** While the flag is set, a platform-reason failure
+   that is not part of the outage opens nothing. It opens one after the flag expires, if it still
+   fails.
+
 ## 11. Separate bugs, out of this change
 
 | Bug | Fact |
@@ -603,3 +617,17 @@ delivery keeps today's `status.message` rule (G47), because a merged `data` can 
 | Nothing sweeps trigger deliveries stuck at `102`; the detached start has no read timeout. | G11 |
 | Edits do not set `updated_at` on automations. | G30 |
 | `query_project_members` returns deleted users. | G34 |
+
+## 12. Follow-ups, out of v1
+
+Named so nobody reads v1 as covering them.
+
+1. **Connection health for event subscriptions.** A daily check of `get_connection_status` (G9a)
+   for each connection used by an active subscription, which opens `automation_failing` with a
+   reason `connection_expired`. A "no event in N days" check is the fallback for providers without a
+   status call.
+2. **Per-user opt-out.** v1 has only the server switch. Expect admins to ask for a per-user setting.
+3. **An email when a run waits for a person** (D7). An automation that waits for an approval with
+   nobody watching is stuck. Expect this to be the first request after v1.
+4. The separate bugs in section 11.
+

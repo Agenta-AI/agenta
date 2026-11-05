@@ -27,10 +27,10 @@ change nothing that users see.
 
 ## 4. Failure notifications (backend)
 
-- [ ] 4.1 `api/oss/src/core/triggers/failure_notifications.py`: rules A1 to A5 (start-time comparisons, `last_failed_at`, the healthy-delivery check, the 1-hour open limit), applied after all pages are settled in memory: healthy rows first, then failed and skipped rows oldest first; the resolve, `note_failure` and A3 writes guarded by `state = 'open'`; before the settle write; the reconcile step. `TriggersDAOInterface.exists_healthy_delivery_after` and `query_missing_automations`. (What opens a notification; One open notification per automation; What resolves a notification; Failures older than the last fix)
+- [ ] 4.1 `api/oss/src/core/triggers/failure_notifications.py`: rules A1 to A5 (start-time comparisons, `last_failed_at`, the healthy-delivery check, the 1-hour open limit, the outage brake of D25 with its Redis flag), applied after all pages are settled in memory: healthy rows first, then failed and skipped rows oldest first; the resolve, `note_failure` and A3 writes guarded by `state = 'open'`; before the settle write; the reconcile step. `TriggersDAOInterface.exists_healthy_delivery_after` and `query_missing_automations`. (What opens a notification; One open notification per automation; What resolves a notification; Failures older than the last fix)
 - [ ] 4.2 Recipients with `check_human(view_triggers)`, `query_project_members` (all pages), `fetch_organization_owner_id`. (Recipients)
 - [ ] 4.3 Resolve in `TriggersService`: `edit_*`, `refresh_subscription`, `delete_*`, and `set_*_active` with `is_active=true`; failures logged with ids only. Pass `NotificationsService` to `TriggersService` in `api/entrypoints/routers.py`, as an optional argument that defaults to `None`. (What resolves a notification)
-- [ ] 4.4 The `automation_failing` kind in `failure_notifications.py`: name normalization (Cc, Cf, Zl, Zp), subject, link through the new shared helper `api/oss/src/utils/links.py` (moved from `current_session_response`, which then calls it), reason catalog, HTML escaping, plain text, `view_triggers`; registered in `api/entrypoints/routers.py`. (Email content; Notification kinds)
+- [ ] 4.4 The `automation_failing` kind in `failure_notifications.py`: name normalization (Cc, Cf, Zl, Zp), subject, link through the new shared helper `api/oss/src/utils/links.py` (moved from `current_session_response`, which then calls it), reason catalog, HTML escaping, plain text, `view_triggers`, the project name from the memberships DAO; registered in `api/entrypoints/routers.py`. (Email content; Outage brake; Notification kinds)
 
 ## 5. Tests
 
@@ -42,6 +42,7 @@ change nothing that users see.
 ## 6. Docs
 
 - [ ] 6.1 Self-hosting docs and release notes: `AGENTA_NOTIFICATIONS_EMAIL_ENABLED`, default on, and what it sends. Use the `write-docs` skill.
+- [ ] 6.2 Confirm with the owner of the separate cloud deployment repository (`agenta_cloud`, not reachable from this session) that its cron image and crontab pick up `deliveries.txt` and `notifications.txt`.
 
 ## 7. Owner decisions
 

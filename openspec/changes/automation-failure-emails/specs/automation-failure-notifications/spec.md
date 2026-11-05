@@ -148,6 +148,24 @@ is earlier than the `resolved_at` of a resolved notification with the same key, 
 - **WHEN** an automation has no open notification, a person edits it, and a run that started before the edit is settled as `failed` after the edit
 - **THEN** the system SHALL open a notification
 
+### Requirement: Outage brake
+When the failures settled in one outcome pass with a platform reason (`start_failed`,
+`execution_lost`, `sandbox_gone`) come from more than 10 projects, the system SHALL set an outage
+flag for 15 minutes and log one error. While the flag is set, a failure with a platform reason SHALL
+settle but SHALL NOT open a notification. Failures with other reasons SHALL open as usual.
+
+#### Scenario: Runner outage
+- **WHEN** the runner is down, and failed starts from 40 projects settle in one pass
+- **THEN** no notification SHALL open for them, and one error SHALL be logged
+
+#### Scenario: Still failing after the outage
+- **WHEN** the outage flag expired, and an automation's next start fails again with `start_failed`
+- **THEN** the system SHALL open one notification for it
+
+#### Scenario: Other reasons during an outage
+- **WHEN** the outage flag is set, and an automation fails with `paused_agent_deleted`
+- **THEN** the system SHALL open a notification for it
+
 ### Requirement: Recipients
 When a notification opens, the system SHALL choose recipients in this order, and the first step
 that gives at least one user SHALL win: (1) the automation's creator; (2) the project members with
@@ -177,12 +195,16 @@ per recipient.
 - **THEN** the notification SHALL open with no notification delivery, and a warning with ids only SHALL be logged
 
 ### Requirement: Email content
-The email SHALL have the subject `Your automation "<name>" is failing`. It SHALL give the automation
-name, the time of the first failure in UTC, a plain reason and action from the reason catalog, an
+The email SHALL have the subject `Automation "<name>" in <project> is failing`. It SHALL give the
+automation name, the project name, the time of the first failure in UTC, a plain reason and action from the reason catalog, an
 "Open automation" link to
 `<AGENTA_WEB_URL>/m/w/<organization_id>/p/<project_id>/automations/<automation_id>`, and the line
 "You will not get another email about this until it is fixed." It SHALL have a plain-text part and
 an HTML part with every value escaped. It SHALL NOT contain the raw error text or the agent's name.
+
+#### Scenario: Recipient in several projects
+- **WHEN** an admin of two projects gets the email for an automation that someone else created
+- **THEN** the subject and the body SHALL name the project
 
 #### Scenario: Unknown error code
 - **WHEN** a run fails with a code that is not in the reason catalog

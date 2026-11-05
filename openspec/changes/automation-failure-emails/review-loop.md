@@ -185,3 +185,17 @@ Fixed:
 - G45 says why a 45-second request is safe: gunicorn's `--timeout 60` is a heartbeat check for uvicorn workers, and `curl --max-time 60` is above the budget.
 - O7 reads `session_executions.error.code` first, so an access refusal gets its code without the 5-minute wait.
 - The requirement "One open notification per automation" is named in task 4.1.
+
+## Review of 2026-11-05 (owner side)
+
+An outside review of the plan raised six points and a note on size. Each was checked in the code.
+
+Taken:
+
+- **Expired provider logins are silent.** True: the Composio adapter can read a connection's status, but only a person's refresh calls it (G9a). Known limit 14, and follow-up 1 in design section 12 (a daily connection health check, with "no event in N days" as the fallback).
+- **Outage brake.** Added (D25, rule A6, a spec requirement with three scenarios). Platform-reason failures from more than 10 projects in one pass open nothing for 15 minutes. Known limit 15 records the cost.
+- **The email names the project.** Added (D26). The subject no longer says "Your". The memberships DAO already reads `project_name` (G35a).
+- **Per-user opt-out** and **an email for runs that wait for approval** (D7): named as follow-ups 2 and 3.
+- **The cloud deployment repository** (`agenta_cloud`) is not reachable from this session. Task 6.2 asks its owner to confirm that its cron image picks up the two new cron files.
+
+On size: the settle table (O1 to O11 with O9a and O9b) maps each existing status and execution outcome to one value, which the owner decision "write each run's result back" needs. Rules A3 to A5 each fix a timeline a review found: without them, a long healthy run resolves a newer `403` pause (a paused automation with no email), or a run that started before a fix emails after it. The parts that only buy precision in rare cases are O6 (wait for the error code), O9b (unknown values), the healthy-delivery check in A5, and the reconcile step. They are kept, and listed here so the choice is explicit.
