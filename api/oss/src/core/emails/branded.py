@@ -68,8 +68,8 @@ a{color:#242424}
 .bg{background-color:#151310!important}
 .t-hi{color:#F7F6F4!important}
 .t-mut{color:#BEBDBC!important}
-.btn{background-color:#F7F6F4!important}
-.btn-text{color:#151310!important}
+.btn{background-color:#F2F25C!important}
+.btn-text{color:#242424!important}
 .logo-light{display:none!important}
 .logo-dark{display:block!important;max-height:none!important}
 }
@@ -164,7 +164,7 @@ def button_block(*, label: str, url: str) -> str:
 <table role="presentation" cellpadding="0" cellspacing="0" border="0">
 <tr>
 <td class="btn" align="center" style="background-color:#242424;border-radius:8px;mso-padding-alt:12px 20px;">
-<a href="{escape(url, quote=True)}" class="sans btn-text" style="display:inline-block;border-radius:8px;padding:12px 20px;font-family:{_SANS};font-size:14px;line-height:20px;font-weight:500;letter-spacing:0.02em;color:#FFFFFF;text-decoration:none;">{escape(label)}</a>
+<a href="{escape(url, quote=True)}" class="sans btn-text" style="display:inline-block;border-radius:8px;padding:12px 20px;font-family:{_SANS};font-size:14px;line-height:20px;font-weight:400;letter-spacing:0.02em;color:#FFFFFF;text-decoration:none;">{escape(label)}</a>
 </td>
 </tr>
 </table>
