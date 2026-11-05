@@ -363,28 +363,24 @@ def test_the_email_has_every_part(monkeypatch):
         f"/automations/{AUTOMATION_ID}"
     )
     assert email.subject == 'Automation "Daily report" in Growth is failing'
-    assert email.text == "\n".join(
-        [
-            "Hello,",
-            "",
-            'The automation "Daily report" has started failing in the project '
-            '"Growth" on Agenta.',
-            "",
-            "Failing since: 2026-11-05 11:50 UTC",
-            "What happened: Agenta could not start the run.",
-            "What to do: Nothing to change. If it keeps failing, contact support.",
-            "",
-            f"Open automation: {link}",
-            "",
-            "You will not get another email about this until it is fixed.",
-            "",
-            "Thank you for using Agenta!",
-        ]
+    assert email.text == (
+        'Automation "Daily report" is failing\n\n'
+        "Agenta could not start the run.\n\n"
+        f"Open automation: {link}\n\n"
+        "Project: Growth\n"
+        "Failing since: 2026-11-05 11:50 UTC\n\n"
+        "Nothing to change. If it keeps failing, contact support. "
+        "You will not get another email about this until it is fixed.\n\n"
+        "Agenta - AI coworkers that learn how you work.\nhttps://agenta.ai\n"
     )
-    assert email.html.startswith("<p>Hello,</p>")
-    assert email.html.rstrip().endswith("<p>Thank you for using Agenta!</p>")
-    assert f'<a href="{link}">Open automation</a>' in email.html
-    assert "Failing since:</strong> 2026-11-05 11:50 UTC" in email.html
+    assert f'<a href="{link}"' in email.html
+    assert "Open automation</a>" in email.html
+    assert "cid:agenta-logo-light" in email.html
+    assert [image.cid for image in email.inline_images] == [
+        "agenta-logo-light",
+        "agenta-logo-dark",
+    ]
+    assert email.from_name == "Agenta"
 
 
 @pytest.mark.parametrize(
@@ -426,8 +422,8 @@ def test_the_email_has_every_part(monkeypatch):
 def test_the_reason_catalog(reason_code, reason, action):
     email = render_automation_failing(PROJECT_ID, _data(reason_code=reason_code))
 
-    assert f"What happened: {reason}" in email.text
-    assert f"What to do: {action}" in email.text
+    assert f"\n\n{reason}\n\n" in email.text
+    assert f"\n\n{action} You will not get another email" in email.text
     assert html_lib.escape(reason, quote=True) in email.html
 
 

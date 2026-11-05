@@ -108,7 +108,12 @@ class NotificationsService:
 
             try:
                 await send_rendered_email(
-                    email, rendered.subject, rendered.html, rendered.text
+                    email,
+                    rendered.subject,
+                    rendered.html,
+                    rendered.text,
+                    inline_images=rendered.inline_images,
+                    from_name=rendered.from_name,
                 )
             except Exception as error:  # pylint: disable=broad-exception-caught
                 await self._record_failure(delivery, error)

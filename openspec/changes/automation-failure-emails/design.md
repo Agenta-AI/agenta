@@ -411,22 +411,19 @@ After settling, the route calls `NotificationsService.send_pending()`.
 ```text
 Subject: Automation "{automation_name}" in {project_name} is failing
 
-Hello,
-
-The automation "{automation_name}" has started failing in the project "{project_name}" on Agenta.
-
-Failing since: {failed_at, UTC}
-What happened: {reason}
-What to do: {action}
+Automation "{automation_name}" is failing
+{reason}
 
 [Open automation]  {link}
 
-You will not get another email about this until it is fixed.
+PROJECT {project_name}      FAILING SINCE {failed_at, UTC}
 
-Thank you for using Agenta!
+{action} You will not get another email about this until it is fixed.
 ```
 
-The HTML part uses `render_email_template`, the template of the invitation and password reset emails.
+The email uses the branded layout of `api/oss/src/core/emails/branded.py`, which comes from #7668 (reverted by #7720 for
+sign-in codes only): the Agenta logo embedded with `cid:`, light and dark themes, a full-width button, and the sender name
+"Agenta". Sign-in codes, invitations and password resets stay as they are.
 
 - `automation_name` and `project_name` (from `MembershipsService.fetch_project_summary`): every
   character in the Unicode categories Cc, Cf, Zl and Zp becomes a space, runs of spaces become one,

@@ -1,4 +1,3 @@
-import html
 import re
 import unicodedata
 from datetime import datetime, timedelta, timezone
@@ -8,6 +7,17 @@ from uuid import UUID
 
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.service import AccessService
+from oss.src.core.emails.branded import (
+    FROM_NAME,
+    LOGOS,
+    TEXT_FOOTER,
+    Detail,
+    button_block,
+    details_block,
+    details_text,
+    note_block,
+    render_layout,
+)
 from oss.src.core.memberships.service import MembershipsService
 from oss.src.core.notifications.dtos import NotificationKind, RenderedEmail
 from oss.src.core.notifications.service import NotificationsService
@@ -18,7 +28,6 @@ from oss.src.core.triggers.dtos import (
     UnsettledTriggerDelivery,
 )
 from oss.src.core.triggers.interfaces import TriggersDAOInterface
-from oss.src.utils.emailing import render_email_template
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
@@ -261,47 +270,27 @@ def render_automation_failing(project_id: UUID, data: Dict[str, Any]) -> Rendere
             quote(data["automation_id"], safe=""),
         ]
     )
-    closing = "You will not get another email about this until it is fixed."
-
-    text = "\n".join(
-        [
-            "Hello,",
-            "",
-            f'The automation "{automation_name}" has started failing in the project '
-            f'"{project_name}" on Agenta.',
-            "",
-            f"Failing since: {failed_at}",
-            f"What happened: {reason}",
-            f"What to do: {action}",
-            "",
-            f"Open automation: {link}",
-            "",
-            closing,
-            "",
-            "Thank you for using Agenta!",
-        ]
-    )
-
-    def escaped(value: str) -> str:
-        return html.escape(value, quote=True)
-
-    html_part = render_email_template(
-        username=f'The automation "{escaped(automation_name)}"',
-        action="started failing in",
-        workspace=f'the project "{escaped(project_name)}"',
-        call_to_action="\n".join(
-            [
-                f"<strong>Failing since:</strong> {escaped(failed_at)}<br />",
-                f"<strong>What happened:</strong> {escaped(reason)}<br />",
-                f"<strong>What to do:</strong> {escaped(action)}</p>",
-                f'<p><a href="{escaped(link)}">Open automation</a></p>',
-                f"<p>{escaped(closing)}",
-            ]
-        ),
-    )
+    headline = f'Automation "{automation_name}" is failing'
+    details = [Detail("PROJECT", project_name), Detail("FAILING SINCE", failed_at)]
+    note = f"{action} You will not get another email about this until it is fixed."
 
     return RenderedEmail(
         subject=f'Automation "{automation_name}" in {project_name} is failing',
-        html=html_part,
-        text=text,
+        html=render_layout(
+            subject=headline,
+            preheader=reason,
+            headline=headline,
+            description=reason,
+            blocks=[
+                button_block(label="Open automation", url=link),
+                details_block(items=details),
+                note_block(note=note),
+            ],
+        ),
+        text=(
+            f"{headline}\n\n{reason}\n\nOpen automation: {link}\n\n"
+            f"{details_text(items=details)}\n\n{note}\n\n{TEXT_FOOTER}"
+        ),
+        inline_images=LOGOS,
+        from_name=FROM_NAME,
     )

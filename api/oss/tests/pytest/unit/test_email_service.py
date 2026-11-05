@@ -351,3 +351,31 @@ async def test_send_rendered_email_raises_the_provider_error_and_logs_nothing(
         await emailing.send_rendered_email("person@example.com", "S", "<p>B</p>", "B")
 
     exception.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_rendered_email_embeds_inline_images_over_smtp(monkeypatch):
+    sent = []
+    monkeypatch.setattr(emailing.env.smtp, "host", "smtp.example.com")
+    monkeypatch.setattr(emailing.env.smtp, "port", 587)
+    monkeypatch.setattr(emailing.env.smtp, "from_email", "account@example.com")
+    monkeypatch.setattr(emailing, "_send_rendered_smtp_sync", sent.append)
+
+    await emailing.send_rendered_email(
+        "person@example.com",
+        "Subject",
+        '<img src="cid:logo">',
+        "Body",
+        inline_images=(
+            emailing.InlineImage(cid="logo", filename="logo.png", content=b"png"),
+        ),
+        from_name="Agenta",
+    )
+
+    message = sent[0]
+    assert message["From"] == "Agenta <account@example.com>"
+    image = next(
+        part for part in message.walk() if part.get_content_type() == "image/png"
+    )
+    assert image["Content-ID"] == "<logo>"
+    assert image.get_content_disposition() == "inline"

@@ -77,7 +77,14 @@ async def test_a_delivery_is_sent_with_its_rendered_parts(sender):
 
     await _send(service)
 
-    sender.assert_awaited_once_with(EMAIL, "Subject", "<p>Body</p>", "Body")
+    sender.assert_awaited_once_with(
+        EMAIL,
+        "Subject",
+        "<p>Body</p>",
+        "Body",
+        inline_images=(),
+        from_name=None,
+    )
     assert _states(dao) == [State.SENT]
 
 
@@ -197,7 +204,7 @@ async def test_a_slow_provider_stops_at_the_window(sender, monkeypatch):
     clock = {"now": 0.0}
     monkeypatch.setattr(service_module.time, "monotonic", lambda: clock["now"])
 
-    async def slow(*_):
+    async def slow(*_, **__):
         clock["now"] += 60
 
     sender.side_effect = slow

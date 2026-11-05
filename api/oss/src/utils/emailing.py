@@ -1,11 +1,23 @@
 import asyncio
+import base64
 import smtplib
 import ssl
+from dataclasses import dataclass
 from email.message import EmailMessage
+from email.utils import formataddr, parseaddr
+from typing import Sequence
 
 import httpx
 
-from sendgrid.helpers.mail import Mail
+from sendgrid.helpers.mail import (
+    Attachment,
+    ContentId,
+    Disposition,
+    FileContent,
+    FileName,
+    FileType,
+    Mail,
+)
 
 from oss.src.utils.env import env
 from oss.src.utils.lazy import _load_sendgrid
@@ -14,6 +26,15 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 RENDERED_EMAIL_TIMEOUT_SECONDS = 15
+
+
+@dataclass(frozen=True)
+class InlineImage:
+    """A PNG embedded in the message and referenced from the HTML as `cid:<cid>`."""
+
+    cid: str
+    filename: str
+    content: bytes
 
 
 # Shared invitation/notification email template. Inlined (rather than a file)
@@ -29,7 +50,7 @@ _EMAIL_TEMPLATE = (
 )
 
 
-def render_email_template(
+def _render_email_template(
     *,
     username: str,
     action: str,
@@ -89,7 +110,7 @@ async def send_email(
     raises on a send failure or missing sender address.
     """
 
-    html_content = render_email_template(
+    html_content = _render_email_template(
         username=username,
         action=action,
         workspace=workspace,
@@ -269,11 +290,21 @@ def _send_rendered_sendgrid_sync(mail: Mail) -> None:
     )
 
 
+def _with_display_name(sender: str, name: str | None) -> str:
+    current_name, address = parseaddr(sender)
+    if not name or current_name or not address:
+        return sender
+    return formataddr((name, address))
+
+
 async def send_rendered_email(
     to_email: str,
     subject: str,
     html: str,
     text: str,
+    *,
+    inline_images: Sequence[InlineImage] = (),
+    from_name: str | None = None,
 ) -> None:
     """Send a rendered email with a plain-text part and an HTML part.
 
@@ -281,7 +312,7 @@ async def send_rendered_email(
     when the provider fails. It does not log: a provider error can hold the address.
     """
 
-    sender = _get_sender_email()
+    sender = _with_display_name(_get_sender_email(), from_name)
 
     if env.smtp.enabled:
         message = EmailMessage()
@@ -290,6 +321,16 @@ async def send_rendered_email(
         message["Subject"] = subject
         message.set_content(text)
         message.add_alternative(html, subtype="html")
+        html_part = message.get_payload()[-1]
+        for image in inline_images:
+            html_part.add_related(
+                image.content,
+                maintype="image",
+                subtype="png",
+                cid=f"<{image.cid}>",
+                disposition="inline",
+                filename=image.filename,
+            )
         await asyncio.to_thread(_send_rendered_smtp_sync, message)
         return
 
@@ -301,6 +342,16 @@ async def send_rendered_email(
             plain_text_content=text,
             html_content=html,
         )
+        for image in inline_images:
+            mail.add_attachment(
+                Attachment(
+                    FileContent(base64.b64encode(image.content).decode()),
+                    FileName(image.filename),
+                    FileType("image/png"),
+                    Disposition("inline"),
+                    ContentId(image.cid),
+                )
+            )
         await asyncio.to_thread(_send_rendered_sendgrid_sync, mail)
         return
 

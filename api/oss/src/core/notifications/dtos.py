@@ -1,8 +1,10 @@
 from enum import Enum
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Tuple
 from uuid import UUID
 
 from pydantic import BaseModel
+
+from oss.src.utils.emailing import InlineImage
 
 
 class NotificationKind(str, Enum):
@@ -40,3 +42,5 @@ class RenderedEmail(BaseModel):
     subject: str
     html: str
     text: str
+    inline_images: Tuple[InlineImage, ...] = ()
+    from_name: Optional[str] = None
