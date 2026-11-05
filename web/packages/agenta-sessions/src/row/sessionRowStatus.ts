@@ -52,9 +52,8 @@ const META: Record<SessionRowStatus, Omit<SessionRowStatusMeta, "status">> = {
     // The rest are states, not calls to action, so they read as muted as the timestamp beside them.
     alive: {
         label: "Ready to resume",
-        // Ink, as the nav rail paints it (a FILLED dot in the row's own colour): a warm sandbox
-        // is "there", not a colour-coded event. The old info-blue read as a stray tint.
-        dotClassName: "bg-colorText",
+        // Steady mint: ink hid it beside the label, and running is the deep green that pulses.
+        dotClassName: "bg-[var(--ag-run-status-success)]",
         textClassName: "text-muted-foreground",
         pulse: false,
     },
