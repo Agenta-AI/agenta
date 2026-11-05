@@ -23,7 +23,7 @@ from oss.src.core.tracing.dtos import (
     Focus,
     Format,
 )
-from oss.src.core.tracing.utils.filtering import parse_filtering
+from oss.src.core.tracing.utils.filtering import validate_filtering
 from oss.src.core.tracing.utils.parsing import (
     parse_trace_id_from_uuid,
     parse_span_id_from_uuid,
@@ -93,12 +93,10 @@ class QueriesService:
     def validate_query_revision_filtering(
         data: Optional[QueryRevisionData],
     ) -> None:
-        """Raise `FilteringException` for a filter the tracing query cannot apply.
-
-        The stored filtering keeps the client's field names, so a copy is parsed.
-        """
-        if data is not None and data.filtering is not None:
-            parse_filtering(data.filtering.model_copy(deep=True))
+        """Raise `FilteringException` for a filter the tracing query cannot apply,
+        also for an unknown field."""
+        if data is not None:
+            validate_filtering(data.filtering)
 
     @classmethod
     def _sanitize_persisted_query_revision_data(

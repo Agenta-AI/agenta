@@ -1,8 +1,7 @@
-import pytest
 from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
 
-from oss.src.core.tracing.dtos import Condition, Filtering, FilteringException
+from oss.src.core.tracing.dtos import Condition, Filtering
 from oss.src.core.tracing.utils.filtering import parse_filtering
 from oss.src.dbs.postgres.tracing.dbes import SpanDBE
 from oss.src.dbs.postgres.tracing.utils import filter as build_filter
@@ -66,9 +65,9 @@ def test_picker_attribute_field_filters_on_the_attributes_column():
     assert "spans.attributes" in sql
 
 
-def test_filter_raises_for_unknown_field():
-    with pytest.raises(FilteringException, match="Unsupported condition field"):
-        build_filter([Condition(field="unknown", operator="is", value="x")])
+def test_filter_ignores_unknown_field_as_on_tracing_queries():
+    # Only saving a query rejects an unknown field (`validate_filtering`).
+    assert build_filter([Condition(field="unknown", operator="is", value="x")]) == []
 
 
 def test_has_annotation_rows_must_hold_on_the_same_annotation():

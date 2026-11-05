@@ -191,7 +191,8 @@ class TestPickerFilterFields:
             == set()
         )
 
-    def test_unknown_field_is_a_400_not_a_dropped_condition(self, authed_api):
+    def test_unknown_field_on_a_tracing_query_is_not_a_400(self, authed_api):
+        # Only saving a query rejects an unknown field; a tracing query ignores it.
         response = authed_api(
             "POST",
             "/tracing/spans/query",
@@ -204,9 +205,9 @@ class TestPickerFilterFields:
                 },
             },
         )
-        assert response.status_code == 400
+        assert response.status_code == 200
 
-    def test_unknown_field_on_analytics_is_a_400_not_an_empty_result(self, authed_api):
+    def test_unknown_field_on_analytics_is_not_a_400(self, authed_api):
         response = authed_api(
             "POST",
             "/spans/analytics/query",
@@ -218,7 +219,7 @@ class TestPickerFilterFields:
                 },
             },
         )
-        assert response.status_code == 400
+        assert response.status_code == 200
 
 
 class TestSavedQueryFilterValidation:

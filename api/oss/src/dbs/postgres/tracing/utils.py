@@ -862,9 +862,10 @@ def filter(  # pylint:disable=redefined-builtin
             elif field == Fields.HAS_ANNOTATION:
                 clauses.extend(_handle_has_annotation_field(condition))
             else:
-                raise FilteringException(
-                    f"Unsupported condition field '{field}'.",
-                )
+                # raise FilteringException(
+                #     f"Unsupported condition field: {field}",
+                # )
+                log.warning(f"Unsupported condition field: {field}")
 
     return clauses
 

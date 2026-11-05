@@ -15,7 +15,7 @@ from oss.src.core.shared.dtos import (
 )
 from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.queries.dtos import QueryRevision, QueryRevisionCommit
-from oss.src.apis.fastapi.tracing.utils import handle_filtering_exceptions
+from oss.src.apis.fastapi.queries.exceptions import handle_filtering_exceptions
 from oss.src.core.queries.service import (
     QueriesService,
     SimpleQueriesService,
@@ -1005,7 +1005,6 @@ class QueriesRouter:
     @intercept_exceptions()
     @suppress_exceptions(default=QueryRevisionResponse(), exclude=[HTTPException])
     @handle_git_exceptions()
-    @handle_filtering_exceptions()
     async def retrieve_query_revision(
         self,
         request: Request,

@@ -654,7 +654,8 @@ def parse_condition(
     """Validate and normalize one condition in place.
 
     Returns the condition, or the filtering that replaces a picker field which
-    stands for several conditions. Raises for a field it cannot apply.
+    stands for several conditions. An unknown field is kept and only logged;
+    `validate_filtering` rejects it.
     """
     if condition is None:
         return None
@@ -723,11 +724,39 @@ def parse_condition(
     elif condition.field == Fields.HAS_ANNOTATION:
         _parse_has_annotation_condition(condition)
     else:
-        raise FilteringException(
-            f"Unsupported condition field '{condition.field}'.",
-        )
+        log.warning(f"Unsupported condition field: {condition.field}")
 
     return condition
+
+
+_KNOWN_FIELDS = {field.value for field in Fields}
+
+
+def _raise_on_unknown_fields(filtering: Filtering) -> None:
+    for condition in filtering.conditions:
+        if isinstance(condition, Filtering):
+            _raise_on_unknown_fields(condition)
+        elif condition.field not in _KNOWN_FIELDS:
+            raise FilteringException(
+                f"Unsupported condition field '{condition.field}'.",
+            )
+
+
+def validate_filtering(
+    filtering: Optional[Filtering] = None,
+) -> None:
+    """Raise `FilteringException` for a filter that cannot be applied.
+
+    Unlike `parse_filtering`, it also rejects an unknown field. A saved query
+    (which live evaluations read) uses it; a tracing query does not. It parses a
+    copy, so the caller's filtering keeps the client's field names.
+    """
+    if filtering is None:
+        return
+
+    parsed = filtering.model_copy(deep=True)
+    parse_filtering(parsed)
+    _raise_on_unknown_fields(parsed)
 
 
 # INGEST / QUERY

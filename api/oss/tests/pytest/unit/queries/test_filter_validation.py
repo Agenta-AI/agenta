@@ -1,7 +1,9 @@
 """A saved query must hold a filter the tracing query can apply.
 
 Live evaluations run their saved query every minute. A condition the tracing query
-cannot apply used to be dropped, so the live evaluation scored every trace.
+cannot apply used to be dropped, so the live evaluation scored every trace. Only
+saving a query answers 400; tracing queries and analytics keep ignoring an unknown
+field.
 """
 
 from unittest.mock import AsyncMock
@@ -10,10 +12,19 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
-from oss.src.apis.fastapi.tracing.utils import handle_filtering_exceptions
+from oss.src.apis.fastapi.queries.exceptions import handle_filtering_exceptions
 from oss.src.core.queries.dtos import QueryRevisionData, SimpleQueryCreate
 from oss.src.core.queries.service import QueriesService, SimpleQueriesService
-from oss.src.core.tracing.dtos import FilteringException
+from oss.src.apis.fastapi.queries.router import QueriesRouter, SimpleQueriesRouter
+from oss.src.apis.fastapi.tracing.router import SpansRouter, TracingRouter
+from oss.src.core.tracing.dtos import (
+    Condition,
+    Filtering,
+    FilteringException,
+    TracingQuery,
+)
+from oss.src.core.tracing.utils.filtering import parse_query
+from oss.src.dbs.postgres.tracing.utils import filter as build_filter
 
 
 def _data(*conditions: dict) -> dict:
@@ -87,3 +98,50 @@ async def test_query_write_routes_answer_400_for_a_filtering_exception():
 
     assert error.value.status_code == 400
     assert error.value.detail == "Unsupported condition field 'no_such_field'."
+
+
+_SAVE_ROUTES = [
+    (QueriesRouter, "create_query_revision"),
+    (QueriesRouter, "edit_query_revision"),
+    (QueriesRouter, "commit_query_revision"),
+    (SimpleQueriesRouter, "create_simple_query"),
+    (SimpleQueriesRouter, "edit_simple_query"),
+]
+
+_READ_ROUTES = [
+    (QueriesRouter, "retrieve_query_revision"),
+    (TracingRouter, "fetch_analytics"),
+    (TracingRouter, "fetch_legacy_analytics"),
+    (SpansRouter, "query_analytics"),
+]
+
+
+def _wrapped_by_filtering_handler(route) -> bool:
+    handler_code = handle_filtering_exceptions()(AsyncMock()).__code__
+    while route is not None:
+        if getattr(route, "__code__", None) is handler_code:
+            return True
+        route = getattr(route, "__wrapped__", None)
+    return False
+
+
+@pytest.mark.parametrize("router, name", _SAVE_ROUTES)
+def test_saving_a_query_answers_400_for_an_unknown_field(router, name):
+    assert _wrapped_by_filtering_handler(getattr(router, name))
+
+
+@pytest.mark.parametrize("router, name", _READ_ROUTES)
+def test_tracing_and_analytics_routes_do_not_answer_400_for_it(router, name):
+    assert not _wrapped_by_filtering_handler(getattr(router, name))
+
+
+def test_tracing_query_with_an_unknown_field_does_not_fail():
+    query = TracingQuery(
+        filtering=Filtering(
+            conditions=[Condition(field="no_such_field", operator="is", value="x")]
+        )
+    )
+
+    parse_query(query)
+
+    assert build_filter(query.filtering.conditions) == []

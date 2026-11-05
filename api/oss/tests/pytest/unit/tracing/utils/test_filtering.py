@@ -19,6 +19,7 @@ from oss.src.core.tracing.dtos import (
 from oss.src.core.tracing.utils.filtering import (
     parse_condition,
     parse_filtering,
+    validate_filtering,
     parse_ingest,
     parse_query,
 )
@@ -186,14 +187,60 @@ def test_parse_condition_for_enum_timestamp_uuid_and_string_fields():
     assert created_by.value == TRACE_UUID
 
 
-def test_parse_condition_raises_for_unknown_field():
-    # A dropped condition widens the filter: a live evaluation then scores every trace.
+def test_parse_condition_ignores_unknown_field_instead_of_raising():
+    # Tracing queries and analytics keep ignoring an unknown field.
     condition = Condition(field="unknown", operator=ComparisonOperator.IS, value="x")
+
+    parse_condition(condition)
+
+    assert condition.value == "x"
+
+
+def test_validate_filtering_raises_for_unknown_field_also_when_nested():
+    # A saved query must not widen its filter: a live evaluation would score every trace.
+    filtering = Filtering(
+        conditions=[
+            Condition(
+                field="trace_type", operator=ComparisonOperator.IS, value="invocation"
+            ),
+            Filtering(
+                operator="or",
+                conditions=[
+                    Condition(
+                        field="unknown", operator=ComparisonOperator.IS, value="x"
+                    )
+                ],
+            ),
+        ]
+    )
 
     with pytest.raises(
         FilteringException, match=escape("Unsupported condition field 'unknown'.")
     ):
-        parse_condition(condition)
+        validate_filtering(filtering)
+
+
+def test_validate_filtering_accepts_picker_fields_and_leaves_them_unchanged():
+    filtering = Filtering(
+        conditions=[
+            Condition(
+                field="attributes.ag.session.id",
+                operator=ComparisonOperator.IS,
+                value="s-1",
+            ),
+            Condition(
+                field="is_annotation",
+                operator="in",
+                value=[{"evaluator": "exact-match"}],
+            ),
+            Condition(field="has_annotation", operator="not_in", value=[]),
+        ]
+    )
+    before = filtering.model_dump()
+
+    validate_filtering(filtering)
+
+    assert filtering.model_dump() == before
 
 
 # The trace filter picker stores these field names in saved queries. Each case is the
