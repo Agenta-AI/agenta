@@ -16,7 +16,7 @@ const SHEET_WIDTH = {"--ag-sheet-responsive-width": "560px"} as CSSProperties
 export const CreateQueueSheet = () => {
     const open = useAtomValue(createQueueDrawerOpenAtom)
     const defaultKind = useAtomValue(createQueueDrawerDefaultKindAtom)
-    const {submit, close, isSubmitting, selection} = useCreateQueue()
+    const {submit, close, isSubmitting, selection, followUp} = useCreateQueue()
     const contentRef = useRef<HTMLDivElement>(null)
 
     return (
@@ -44,8 +44,8 @@ export const CreateQueueSheet = () => {
                 </SheetHeader>
                 {open ? (
                     <CreateQueueForm
-                        defaultKind={selection?.itemType ?? defaultKind}
-                        kindLocked={Boolean(selection)}
+                        defaultKind={selection?.itemType ?? followUp?.itemType ?? defaultKind}
+                        kindLocked={Boolean(selection || followUp)}
                         isSubmitting={isSubmitting}
                         onSubmit={(values) => void submit(values)}
                         onCancel={close}

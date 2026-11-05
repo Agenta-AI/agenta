@@ -2,7 +2,11 @@
 // The create queue sheet that /m shows for the queue list and the add-to-queue picker.
 import {act} from "react"
 
-import {createQueueDrawerOpenAtom, createQueueDrawerSelectionAtom} from "@agenta/annotation"
+import {
+    createQueueDrawerDefaultKindAtom,
+    createQueueDrawerOpenAtom,
+    createQueueDrawerSelectionAtom,
+} from "@agenta/annotation"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -261,7 +265,7 @@ describe("CreateQueueSheet", () => {
         fixture.create.mockResolvedValue({id: "q-9", name: "Refunds"})
         const followUp = vi.fn()
         await mount()
-        store.set(createQueueFollowUpAtom, () => followUp)
+        store.set(createQueueFollowUpAtom, {itemType: "traces", run: followUp})
 
         await type('input[placeholder="Enter name"]', "Refunds")
         await click(byText("Add evaluator"))
@@ -269,6 +273,23 @@ describe("CreateQueueSheet", () => {
         expect(followUp).toHaveBeenCalledWith({id: "q-9", name: "Refunds"})
         expect(store.get(createQueueFollowUpAtom)).toBeNull()
         expect(store.get(createQueueDrawerOpenAtom)).toBe(false)
+    })
+
+    it("From the add all matching picker the type is locked to the picker's items", async () => {
+        store = createStore()
+        store.set(createQueueDrawerOpenAtom, true)
+        store.set(createQueueDrawerDefaultKindAtom, "testcases")
+        store.set(createQueueFollowUpAtom, {itemType: "traces", run: vi.fn()})
+        await act(async () => {
+            root.render(
+                <Provider store={store}>
+                    <CreateQueueSheet />
+                </Provider>,
+            )
+        })
+        const kind = document.querySelector('[role="combobox"]') as HTMLButtonElement
+        expect(kind.textContent).toContain("Traces")
+        expect(kind.disabled).toBe(true)
     })
 
     it("The sheet cannot close while it submits", async () => {
