@@ -16,7 +16,8 @@
     },
     "exports": {
         ".": "./src/index.ts",
-        "./sharing": "./src/sharing/index.ts"
+        "./sharing": "./src/sharing/index.ts",
+        "./tabs": "./src/tabs.ts"
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",

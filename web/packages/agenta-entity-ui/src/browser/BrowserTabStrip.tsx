@@ -1,6 +1,6 @@
 import {useEffect, useRef, type ReactNode} from "react"
 
-import {SessionTab, SessionTabStrip, TAB_DIVIDER} from "@agenta/sessions-ui"
+import {SessionTab, SessionTabStrip, TAB_DIVIDER} from "@agenta/sessions-ui/tabs"
 
 import type {BrowserLiveTab} from "./live"
 

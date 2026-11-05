@@ -46,7 +46,7 @@ export {SessionListPanel, type SessionListPanelProps} from "./SessionListPanel"
 // The tab strip and its chips: the chat surface composes them itself, so each is exported
 // rather than only the strip.
 export {SessionTab, type SessionTabProps} from "./SessionTab"
-export {SessionTabStrip, TAB_DIVIDER, type SessionTabStripProps} from "./SessionTabStrip"
+export {SessionTabStrip, type SessionTabStripProps} from "./SessionTabStrip"
 export {SessionTabDragItem, type SessionTabDragItemProps} from "./SessionTabDragItem"
 export {
     SessionTabRail,
