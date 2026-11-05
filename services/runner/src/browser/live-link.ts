@@ -32,6 +32,8 @@ export const LIVE_LINK_CACHE_MS = 5_000;
 export const LIVE_LINK_CACHE_MAX_ENTRIES = 512;
 /** A lookup that never settles must not hold its session's entry, and every caller, forever. */
 export const LIVE_LINK_LOOKUP_MS = 30_000;
+/** The deadline frees the caller, not the SDK request, whose own timeout is 24 h. */
+export const LIVE_LINK_MAX_ACTIVE_LOOKUPS = 64;
 
 /** What the browser's `/health` reports: the open page, and the agent's ask while it waits. */
 export interface BrowserPageState {
@@ -155,20 +157,33 @@ export function cacheLiveLinks(
     ttlMs = LIVE_LINK_CACHE_MS,
     maxEntries = LIVE_LINK_CACHE_MAX_ENTRIES,
     lookupMs = LIVE_LINK_LOOKUP_MS,
+    maxActive = LIVE_LINK_MAX_ACTIVE_LOOKUPS,
     now = Date.now,
-  }: { ttlMs?: number; maxEntries?: number; lookupMs?: number; now?: () => number } = {},
+  }: {
+    ttlMs?: number;
+    maxEntries?: number;
+    lookupMs?: number;
+    maxActive?: number;
+    now?: () => number;
+  } = {},
 ): LiveLinkLookup {
   const entries = new Map<string, { at: number; link: Promise<BrowserLiveLink | undefined> }>();
+  let active = 0;
   return (scope) => {
     const key = JSON.stringify([scope.projectId, scope.sessionId]);
     const hit = entries.get(key);
     if (hit && now() - hit.at < ttlMs) return hit.link;
     entries.delete(key);
+    if (active >= maxActive) return Promise.reject(new Error("too many browser lookups"));
+    active++;
+    const started = lookup(scope).finally(() => {
+      active--;
+    });
     let timer: ReturnType<typeof setTimeout> | undefined;
     const late = new Promise<never>((_, reject) => {
       timer = setTimeout(() => reject(new Error("browser lookup timed out")), lookupMs);
     });
-    const link = Promise.race([lookup(scope), late]).finally(() => clearTimeout(timer));
+    const link = Promise.race([started, late]).finally(() => clearTimeout(timer));
     // Pending lookups do not expire by the cache time: a slow Daytona is when sharing matters most.
     const entry = { at: Number.POSITIVE_INFINITY, link };
     entries.set(key, entry);

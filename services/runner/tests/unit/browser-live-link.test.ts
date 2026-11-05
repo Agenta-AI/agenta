@@ -137,6 +137,24 @@ describe("findBrowserLiveLink", () => {
 });
 
 describe("cacheLiveLinks", () => {
+  it("stops starting lookups while too many are still running", async () => {
+    let calls = 0;
+    let finish: (link: undefined) => void = () => {};
+    const lookup = () => {
+      calls++;
+      return new Promise<undefined>((resolve) => (finish = resolve));
+    };
+    const cached = cacheLiveLinks(lookup, { lookupMs: 5, maxActive: 1 });
+    const scope = { projectId: "p", sessionId: "s" };
+    await assert.rejects(cached(scope), /timed out/);
+    await assert.rejects(cached(scope), /too many/);
+    assert.equal(calls, 1);
+    finish(undefined);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    cached(scope).catch(() => {});
+    assert.equal(calls, 2);
+  });
+
   it("releases a lookup that never settles, so the next call starts a new one", async () => {
     let calls = 0;
     const lookup = () => {
