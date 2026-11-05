@@ -4,7 +4,7 @@
 import {act, createElement} from "react"
 
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
-import {activeUserIdAtom} from "@agenta/shared/state"
+import {activeUserIdAtom, userAtom} from "@agenta/shared/state"
 import {getDefaultStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -56,7 +56,14 @@ describe("member names", () => {
     })
 
     it("Created by shows the member's name, with (you) for the signed-in user", async () => {
-        store.set(activeUserIdAtom, "u-1")
+        // The session keeps the login uid; members name the user by the profile id.
+        store.set(userAtom, {
+            id: "u-1",
+            uid: "login-1",
+            username: "Sam Lee",
+            email: "sam@example.com",
+        })
+        store.set(activeUserIdAtom, "login-1")
         await act(async () => root.render(createElement(Provider, {store}, createElement(Screen))))
         expect(host.textContent).toBe("Sam Lee (you)")
     })

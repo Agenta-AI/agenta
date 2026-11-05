@@ -1,6 +1,6 @@
 import type {WorkspaceMember} from "@agenta/entities/organization"
 import {setUserAtoms} from "@agenta/entities/shared/user"
-import {activeUserIdAtom} from "@agenta/shared/state"
+import {userAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 
 /**
@@ -9,8 +9,9 @@ import {atom} from "jotai"
  */
 export const workspaceMembersListAtom = atom<WorkspaceMember[]>([])
 
+// Members name a user by the profile `id`, not by the login `uid` the session keeps.
 const currentUserAtom = atom((get) => {
-    const id = get(activeUserIdAtom)
+    const id = get(userAtom)?.id
     return id ? {id} : null
 })
 
