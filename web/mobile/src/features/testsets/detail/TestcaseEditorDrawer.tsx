@@ -11,7 +11,7 @@ import {TestcaseEditorDrawerContent} from "./TestcaseEditorDrawerContent"
  * The drawer of one testcase, with previous and next over the rows of the grid.
  *
  * "Apply" keeps the edit as an unsaved change; closing with Cancel puts the testcase back as it
- * was when the drawer opened. "Apply and Commit Changes" opens the page's commit step, so the
+ * was when the drawer opened, and removes a row that "Add row" just made. "Apply and Commit Changes" opens the page's commit step, so the
  * row is saved by the same commit as every other change. `viewOnly` (a reader, or a save that
  * runs) shows the data with no edit control.
  */
@@ -25,6 +25,7 @@ export const TestcaseEditorDrawer = ({
     onNext,
     onClose,
     onOpenCommit,
+    discardOnCancel = false,
 }: {
     testcaseId: string | null
     testcaseNumber: number | undefined
@@ -35,6 +36,8 @@ export const TestcaseEditorDrawer = ({
     onNext: () => void
     onClose: () => void
     onOpenCommit: () => void
+    /** The row was just added and never applied: Cancel removes it instead of restoring it. */
+    discardOnCancel?: boolean
 }) => {
     const id = testcaseId ?? ""
     const isNewRow = id.startsWith("new-")
@@ -42,13 +45,17 @@ export const TestcaseEditorDrawer = ({
     const query = useAtomValue(testcaseMolecule.atoms.query(id))
     const isDirty = useAtomValue(testcaseMolecule.atoms.isDirty(id))
     const update = useSetAtom(testcaseMolecule.actions.update)
+    const remove = useSetAtom(testcaseMolecule.actions.delete)
 
     // Cancel puts the row back as it was when the drawer opened, fields added since included.
+    // A row added with "Add row" had no state before the drawer, so Cancel removes it.
     const restore = useCallback(
         (start: Testcase) => {
-            if (id) update(id, replaceDataUpdate(testcase?.data ?? {}, start.data ?? {}))
+            if (!id) return
+            if (discardOnCancel) remove(id)
+            else update(id, replaceDataUpdate(testcase?.data ?? {}, start.data ?? {}))
         },
-        [id, testcase?.data, update],
+        [discardOnCancel, id, remove, testcase?.data, update],
     )
 
     const renderContent = useCallback(

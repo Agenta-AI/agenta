@@ -172,7 +172,8 @@ describe("AddToQueuePicker", () => {
         await act(async () => (newButton as HTMLElement).click())
 
         // The create sheet runs this with the queue it made.
-        store.get(createQueueFollowUpAtom)?.({id: "q-new", name: "Fresh"} as never)
+        expect(store.get(createQueueFollowUpAtom)?.itemType).toBe("traces")
+        store.get(createQueueFollowUpAtom)?.run({id: "q-new", name: "Fresh"} as never)
         expect(onQueueSelected).toHaveBeenCalledWith(expect.objectContaining({id: "q-new"}))
     })
 

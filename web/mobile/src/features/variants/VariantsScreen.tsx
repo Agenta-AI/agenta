@@ -11,6 +11,7 @@ import {useAtomValue} from "jotai"
 import {PageNotFound} from "@/components/PageNotFound"
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMembers"
 
 import {AppOverviewLink} from "../app-overview/AppOverviewLink"
 import {useBindProjectContext} from "../context/useBindProjectContext"
@@ -38,6 +39,7 @@ export const VariantsScreen = ({
     workspaceId: string
     projectId: string
 }) => {
+    useBindWorkspaceMembers()
     useBindProjectContext(projectId)
     const {read, write} = useUrlParams()
     const queryClient = useQueryClient()

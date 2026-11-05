@@ -25,6 +25,7 @@ import {useHumanEvaluators} from "./useHumanEvaluators"
 /** The one failure text a reader sees; the cause goes to the console. */
 export const SAVE_FAILURE_TEXT = "Failed to update annotations"
 const SAVE_SUCCESS_TEXT = "Annotations updated successfully"
+const SAVE_PENDING_TEXT = "Annotations saved. They can take a moment to show."
 const REQUIRED_TEXT = "Required"
 
 // The drawer annotations, the drawer trace and the traces table annotations.
@@ -71,6 +72,8 @@ const useStoredAnnotations = ({
     return {...state, refetch: () => setAttempt((count) => count + 1)}
 }
 
+const STORED_READ_TIMEOUT_MS = 5_000
+
 /** The annotations linked to one span, as stored: the drawer's request, without its grouping. */
 const readStoredAnnotations = async ({
     projectId,
@@ -84,7 +87,8 @@ const readStoredAnnotations = async ({
     const response = await axios.post<{traces?: AnnotationDto[] | null}>(
         `${getAgentaApiUrl()}/simple/traces/query`,
         {trace: {links: [{trace_id: traceId, span_id: spanId}]}},
-        {params: {project_id: projectId}},
+        // A read that never answers would keep a save waiting forever: give up and read again.
+        {params: {project_id: projectId}, timeout: STORED_READ_TIMEOUT_MS},
     )
     return response.data?.traces ?? []
 }
@@ -110,7 +114,8 @@ const STORED_READ_DELAY_MS = 300
 /**
  * Waits until the span's stored annotations show the writes that landed. The API answers a
  * write before it stores it (202), so a refresh right after the save reads the old annotations
- * and the drawer and the table keep them until a reload. Gives up after about three seconds.
+ * and the drawer and the table keep them until a reload. Gives up after about three seconds (or
+ * longer when reads time out), and says whether the writes showed.
  */
 const waitUntilStored = async ({
     projectId,
@@ -122,7 +127,7 @@ const waitUntilStored = async ({
     traceId: string
     spanId: string
     landed: Record<string, AnnotationDto>
-}) => {
+}): Promise<boolean> => {
     for (let attempt = 0; attempt < STORED_READ_ATTEMPTS; attempt++) {
         const stored = await readStoredAnnotations({projectId, traceId, spanId}).catch(() => null)
         const byId = new Map((stored ?? []).map((item) => [item.trace_id, item]))
@@ -130,9 +135,10 @@ const waitUntilStored = async ({
             const read = byId.get(id)
             return read !== undefined && sameOutputs(read.data?.outputs, item.data?.outputs)
         })
-        if (done) return
+        if (done) return true
         await new Promise((resolve) => setTimeout(resolve, STORED_READ_DELAY_MS))
     }
+    return false
 }
 
 /**
@@ -380,9 +386,10 @@ export const useTraceAnnotationForm = ({
             if (result.status !== "fulfilled" || !own) return
             landed[update.traceId] = {...own, data: update.annotation.data} as AnnotationDto
         })
+        let stored = true
         if (Object.keys(landed).length > 0) {
             setSavedHere((previous) => ({...previous, ...landed}))
-            await waitUntilStored({projectId, traceId, spanId, landed})
+            stored = await waitUntilStored({projectId, traceId, spanId, landed})
         }
         const results = [...created, ...updated]
         // Refresh even after a failure: the writes that did land become the user's own
@@ -402,7 +409,9 @@ export const useTraceAnnotationForm = ({
             message.error(SAVE_FAILURE_TEXT)
             return
         }
-        message.success(SAVE_SUCCESS_TEXT)
+        // The API took the writes, but no read showed them yet: say so rather than success.
+        if (stored) message.success(SAVE_SUCCESS_TEXT)
+        else message.info(SAVE_PENDING_TEXT)
         onSaved()
     }, [writes, projectId, storedBlocked, userId, picked, onSaved, traceId, spanId])
 

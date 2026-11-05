@@ -144,4 +144,68 @@ describe("Testcase drawer", () => {
 
         expect(store.get(testcaseMolecule.atoms.data(id))?.data).toEqual({question: "Q"})
     })
+
+    it("Cancel on a row just added removes the row from the grid", () => {
+        const id = store.set(testcaseMolecule.actions.add, {data: {question: ""}})?.id ?? ""
+        const start = store.get(testcaseMolecule.atoms.data(id))
+        act(() =>
+            root.render(
+                <TestcaseEditorDrawer
+                    testcaseId={id}
+                    testcaseNumber={1}
+                    viewOnly={false}
+                    hasPrevious={false}
+                    hasNext={false}
+                    onPrevious={vi.fn()}
+                    onNext={vi.fn()}
+                    onClose={vi.fn()}
+                    onOpenCommit={vi.fn()}
+                    discardOnCancel
+                />,
+            ),
+        )
+        expect(store.get(testcaseMolecule.atoms.newIds)).toContain(id)
+
+        act(() => (seen.drawer?.onRestoreSessionStart as (data: unknown) => void)(start))
+
+        expect(store.get(testcaseMolecule.atoms.newIds)).not.toContain(id)
+        expect(store.get(testcaseMolecule.atoms.data(id))).toBeNull()
+    })
+
+    it("The internal dedup id is not an editable field, and an edit keeps it", () => {
+        const id =
+            store.set(testcaseMolecule.actions.add, {
+                data: {question: "Q", testcase_dedup_id: "dedup-1"},
+            })?.id ?? ""
+        content({isNewRow: true, testcaseId: id})
+        expect(seen.editor?.value).toEqual({question: "Q"})
+
+        act(() => (seen.editor?.onChange as (value: unknown) => void)({question: "Q2"}))
+
+        expect(store.get(testcaseMolecule.atoms.data(id))?.data).toEqual({
+            question: "Q2",
+            testcase_dedup_id: "dedup-1",
+        })
+    })
+
+    it("A dedup id typed in the JSON view does not replace the saved one", () => {
+        const id =
+            store.set(testcaseMolecule.actions.add, {
+                data: {question: "Q", testcase_dedup_id: "dedup-1"},
+            })?.id ?? ""
+        content({isNewRow: true, testcaseId: id})
+
+        act(() =>
+            (seen.editor?.onChange as (value: unknown) => void)({
+                question: "Q",
+                testcase_dedup_id: "typed",
+                __dedup_id__: "typed too",
+            }),
+        )
+
+        expect(store.get(testcaseMolecule.atoms.data(id))?.data).toEqual({
+            question: "Q",
+            testcase_dedup_id: "dedup-1",
+        })
+    })
 })

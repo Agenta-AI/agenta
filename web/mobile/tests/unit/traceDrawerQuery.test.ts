@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import {traceDrawerClearParams} from "@agenta/observability/traceDrawer"
+import {traceDrawerClearParams, traceDrawerSetQueryParam} from "@agenta/observability/traceDrawer"
 import type {NextRouter} from "next/router"
 import {describe, expect, it, vi} from "vitest"
 
@@ -34,6 +34,7 @@ describe("the drawer's clear params", () => {
         const push = vi.fn(() => Promise.resolve(true))
         bindTraceDrawerSeams({pathname, query: {}, push} as unknown as NextRouter, {
             playground: false,
+            openTraceId: () => null,
         })
         return push
     }
@@ -55,5 +56,41 @@ describe("the drawer's clear params", () => {
         traceDrawerClearParams()
         expect(push).not.toHaveBeenCalled()
         expect(window.location.hash).toBe("#pgSnapshot=abc")
+    })
+})
+
+describe("the drawer's address", () => {
+    it("names the open trace next to the span, so a reload can open it again", () => {
+        window.history.replaceState(null, "", "/observability?app=a1")
+        const push = vi.fn(() => Promise.resolve(true))
+        bindTraceDrawerSeams(
+            {pathname: "/observability", query: {}, push} as unknown as NextRouter,
+            {
+                playground: false,
+                openTraceId: () => "t1",
+            },
+        )
+        traceDrawerSetQueryParam("span", "s1")
+        expect(push).toHaveBeenCalledWith(
+            {pathname: "/observability", query: {app: "a1", trace: "t1", span: "s1"}},
+            undefined,
+            {shallow: true},
+        )
+    })
+
+    it("keeps the asked span and writes the trace while the trace loads", () => {
+        window.history.replaceState(null, "", "/observability?trace=t1&span=s1")
+        const push = vi.fn(() => Promise.resolve(true))
+        bindTraceDrawerSeams(
+            {pathname: "/observability", query: {}, push} as unknown as NextRouter,
+            {playground: false, openTraceId: () => "t1"},
+        )
+        // The drawer writes no span until the trace is loaded.
+        traceDrawerSetQueryParam("span", null)
+        expect(push).toHaveBeenCalledWith(
+            {pathname: "/observability", query: {trace: "t1", span: "s1"}},
+            undefined,
+            {shallow: true},
+        )
     })
 })

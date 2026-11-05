@@ -42,7 +42,7 @@ const PickerBody = ({
         setSelection(args.itemIds?.length ? {itemType: args.itemType, itemIds: args.itemIds} : null)
         // Picker mode: the caller adds the items, so it gets the new queue like a picked one.
         const {onQueueSelected} = args
-        setFollowUp(onQueueSelected ? () => onQueueSelected : null)
+        setFollowUp(onQueueSelected ? {itemType: args.itemType, run: onQueueSelected} : null)
         onClose()
         setSheetOpen(true)
     }

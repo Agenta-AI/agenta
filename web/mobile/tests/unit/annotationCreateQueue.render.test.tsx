@@ -2,7 +2,11 @@
 // The create queue sheet that /m shows for the queue list and the add-to-queue picker.
 import {act} from "react"
 
-import {createQueueDrawerOpenAtom, createQueueDrawerSelectionAtom} from "@agenta/annotation"
+import {
+    createQueueDrawerDefaultKindAtom,
+    createQueueDrawerOpenAtom,
+    createQueueDrawerSelectionAtom,
+} from "@agenta/annotation"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -261,7 +265,7 @@ describe("CreateQueueSheet", () => {
         fixture.create.mockResolvedValue({id: "q-9", name: "Refunds"})
         const followUp = vi.fn()
         await mount()
-        store.set(createQueueFollowUpAtom, () => followUp)
+        store.set(createQueueFollowUpAtom, {itemType: "traces", run: followUp})
 
         await type('input[placeholder="Enter name"]', "Refunds")
         await click(byText("Add evaluator"))
@@ -269,6 +273,23 @@ describe("CreateQueueSheet", () => {
         expect(followUp).toHaveBeenCalledWith({id: "q-9", name: "Refunds"})
         expect(store.get(createQueueFollowUpAtom)).toBeNull()
         expect(store.get(createQueueDrawerOpenAtom)).toBe(false)
+    })
+
+    it("From the add all matching picker the type is locked to the picker's items", async () => {
+        store = createStore()
+        store.set(createQueueDrawerOpenAtom, true)
+        store.set(createQueueDrawerDefaultKindAtom, "testcases")
+        store.set(createQueueFollowUpAtom, {itemType: "traces", run: vi.fn()})
+        await act(async () => {
+            root.render(
+                <Provider store={store}>
+                    <CreateQueueSheet />
+                </Provider>,
+            )
+        })
+        const kind = document.querySelector('[role="combobox"]') as HTMLButtonElement
+        expect(kind.textContent).toContain("Traces")
+        expect(kind.disabled).toBe(true)
     })
 
     it("The sheet cannot close while it submits", async () => {
@@ -287,6 +308,37 @@ describe("CreateQueueSheet", () => {
         expect(document.querySelector('[role="dialog"]')).not.toBeNull()
 
         await act(async () => finish({id: "q-1", name: "Triage"}))
+        expect(store.get(createQueueDrawerOpenAtom)).toBe(false)
+    })
+
+    it("Escape in the evaluator picker leaves the sheet and the form open", async () => {
+        await mount()
+        await type('input[placeholder="Enter name"]', "Triage")
+        // The picker's panel is portaled to the body, outside the sheet, like the real popover.
+        const search = document.createElement("input")
+        search.setAttribute("aria-label", "Search evaluator")
+        document.body.appendChild(search)
+        search.focus()
+        await act(async () => {
+            search.dispatchEvent(
+                new KeyboardEvent("keydown", {key: "Escape", bubbles: true, cancelable: true}),
+            )
+        })
+        expect(store.get(createQueueDrawerOpenAtom)).toBe(true)
+        expect(
+            (document.querySelector('input[placeholder="Enter name"]') as HTMLInputElement).value,
+        ).toBe("Triage")
+    })
+
+    it("Escape inside the sheet still closes it", async () => {
+        await mount()
+        const name = document.querySelector('input[placeholder="Enter name"]') as HTMLInputElement
+        name.focus()
+        await act(async () => {
+            name.dispatchEvent(
+                new KeyboardEvent("keydown", {key: "Escape", bubbles: true, cancelable: true}),
+            )
+        })
         expect(store.get(createQueueDrawerOpenAtom)).toBe(false)
     })
 })

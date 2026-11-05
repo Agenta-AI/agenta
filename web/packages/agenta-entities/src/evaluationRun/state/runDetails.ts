@@ -9,7 +9,12 @@
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
 
-import {deriveEvaluationKind, type EvaluationRunDataStep, type EvaluationRunKind} from "../core"
+import {
+    deriveEvaluationKind,
+    runDisplayStatus,
+    type EvaluationRunDataStep,
+    type EvaluationRunKind,
+} from "../core"
 
 import {evaluationRunQueryAtomFamily} from "./molecule"
 
@@ -17,6 +22,7 @@ export interface RunHeader {
     /** The run name, else the run id. */
     name: string
     description: string | null
+    /** The status to show: `paused` for a live run that is paused, else the run's own status. */
     status: string | null
     kind: EvaluationRunKind
     flags: {isLive: boolean; isClosed: boolean; isActive: boolean}
@@ -57,7 +63,7 @@ export const runHeaderAtomFamily = atomFamily((runId: string) =>
         return {
             name: run.name?.trim() || run.id,
             description: run.description ?? null,
-            status: run.status ?? null,
+            status: runDisplayStatus(run),
             kind: deriveEvaluationKind(run),
             flags: {
                 isLive: flag(run.flags, "is_live"),

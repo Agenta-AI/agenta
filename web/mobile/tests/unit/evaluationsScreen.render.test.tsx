@@ -187,6 +187,18 @@ describe("evaluation runs table", () => {
         expect(host.querySelector("[role=img][aria-label=Running]")).not.toBeNull()
     })
 
+    it("A paused live run reads Paused, not Running", async () => {
+        http.post.mockResolvedValue(
+            page([
+                makeRun("l", {live: true, status: "running", flags: {is_active: false}}),
+                makeRun("r", {live: true, status: "running", flags: {is_active: true}}),
+            ]),
+        )
+        await mount()
+        expect(host.querySelectorAll("[role=img][aria-label=Paused]")).toHaveLength(1)
+        expect(host.querySelectorAll("[role=img][aria-label=Running]")).toHaveLength(1)
+    })
+
     it("Phones show status, name and the menu only", async () => {
         env.wide = false
         http.post.mockResolvedValue(page([makeRun("a")]))

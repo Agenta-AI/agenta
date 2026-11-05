@@ -18,6 +18,7 @@ const http = vi.hoisted(() => ({
     patch: vi.fn(),
     success: vi.fn(),
     error: vi.fn(),
+    info: vi.fn(),
     client: null as unknown,
     stored: null as unknown[] | null,
     /** What the writes stored, by annotation trace id; reads show it after `lag` reads. */
@@ -36,7 +37,7 @@ vi.mock("@agenta/shared/api", async (importOriginal) => {
 })
 
 vi.mock("@agenta/ui/app-message", () => ({
-    message: {success: http.success, error: http.error},
+    message: {success: http.success, error: http.error, info: http.info},
 }))
 
 import {useHumanEvaluators} from "@/features/observability/annotate/useHumanEvaluators"
@@ -198,6 +199,7 @@ describe("trace annotation form", () => {
         })
         http.success.mockReset()
         http.error.mockReset()
+        http.info.mockReset()
         onSaved = vi.fn<() => void>()
         client = new QueryClient({
             defaultOptions: {queries: {retry: false, gcTime: Infinity, staleTime: Infinity}},
@@ -351,6 +353,76 @@ describe("trace annotation form", () => {
             expect.arrayContaining([["trace-drawer-annotations"], ["annotations"]]),
         )
         expect(http.success).toHaveBeenCalledWith("Annotations updated successfully")
+    })
+
+    it("A stored read that never answers times out, and the save still ends", async () => {
+        await mount({selectedSlugs: ["tone"]})
+        await act(async () => latest.setValue("tone", "friendly", true))
+        // The first read after the write hangs, as a stuck request does. axios gives up after
+        // its `timeout`; with no timeout the read would wait forever and the form keep saving.
+        let hung = false
+        const answer = http.post.getMockImplementation()
+        http.post.mockImplementation(
+            (url: string, body: WriteBody, config?: {timeout?: number}) => {
+                if (!hung && String(url).endsWith("/simple/traces/query")) {
+                    hung = true
+                    return new Promise((_resolve, reject) => {
+                        if (config?.timeout) {
+                            setTimeout(() => reject(new Error("timeout")), config.timeout)
+                        }
+                    })
+                }
+                return answer?.(url, body)
+            },
+        )
+        vi.useFakeTimers({shouldAdvanceTime: true})
+        try {
+            let done = false
+            await act(async () => {
+                void latest.save().then(() => (done = true))
+                await vi.advanceTimersByTimeAsync(6_000)
+            })
+            expect(done).toBe(true)
+            expect(latest.isSaving).toBe(false)
+            expect(http.success).toHaveBeenCalledWith("Annotations updated successfully")
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
+    it("A save whose writes no read shows says so, not success", async () => {
+        await mount({selectedSlugs: ["tone"]})
+        await act(async () => latest.setValue("tone", "friendly", true))
+        // Every read after the write hangs until axios gives up.
+        const answer = http.post.getMockImplementation()
+        let writes = 0
+        http.post.mockImplementation(
+            (url: string, body: WriteBody, config?: {timeout?: number}) => {
+                if (String(url).endsWith("/simple/traces/query") && writes > 0) {
+                    return new Promise((_resolve, reject) => {
+                        if (config?.timeout) {
+                            setTimeout(() => reject(new Error("timeout")), config.timeout)
+                        }
+                    })
+                }
+                if (!String(url).endsWith("/simple/traces/query")) writes += 1
+                return answer?.(url, body)
+            },
+        )
+        vi.useFakeTimers({shouldAdvanceTime: true})
+        try {
+            await act(async () => {
+                void latest.save()
+                await vi.advanceTimersByTimeAsync(60_000)
+            })
+            expect(latest.isSaving).toBe(false)
+            expect(http.success).not.toHaveBeenCalled()
+            expect(http.info).toHaveBeenCalledWith(
+                "Annotations saved. They can take a moment to show.",
+            )
+        } finally {
+            vi.useRealTimers()
+        }
     })
 
     it("A failed save shows Failed to update annotations and keeps the values", async () => {

@@ -22,6 +22,10 @@ const api = vi.hoisted(() => ({
     success: vi.fn(),
     error: vi.fn(),
 }))
+// Member names have their own test; this screen test needs no member query.
+vi.mock("@/features/members/useBindWorkspaceMembers", () => ({
+    useBindWorkspaceMembers: () => undefined,
+}))
 vi.mock("@agenta/entities/workflow", async (original) => {
     const {atom} = await import("jotai")
     // One atom for every row: a fresh atom per render would re-subscribe forever.

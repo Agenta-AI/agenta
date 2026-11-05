@@ -48,9 +48,11 @@ export const useCreateQueue = () => {
                 message.error("Project is not available")
                 return
             }
-            if (selection && values.kind !== selection.itemType) {
+            // The items go into the new queue: the sheet's selection, or the picker's follow-up.
+            const itemType = selection?.itemType ?? followUp?.itemType
+            if (itemType && values.kind !== itemType) {
                 message.error(
-                    `Selected ${ITEM_LABEL[selection.itemType]} can only be added to a ${selection.itemType} queue`,
+                    `Selected ${ITEM_LABEL[itemType]} can only be added to a ${itemType} queue`,
                 )
                 return
             }
@@ -108,7 +110,7 @@ export const useCreateQueue = () => {
                     ...queueLink(queue.id, `View "${queue.name ?? "queue"}"`),
                     duration: 5,
                 })
-                followUp?.(queue)
+                followUp?.run(queue)
             } catch (cause) {
                 console.error("Creating the annotation queue failed", cause)
                 message.error("Couldn't create the queue")
@@ -131,5 +133,5 @@ export const useCreateQueue = () => {
         ],
     )
 
-    return {submit, close, isSubmitting, selection}
+    return {submit, close, isSubmitting, selection, followUp}
 }

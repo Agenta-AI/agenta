@@ -8,7 +8,7 @@ import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {useTestsetEditor} from "@/features/testsets/detail/useTestsetEditor"
+import {emptyRowData, useTestsetEditor} from "@/features/testsets/detail/useTestsetEditor"
 
 vi.mock("@agenta/ui/app-message", () => ({
     message: {success: vi.fn(), error: vi.fn(), info: vi.fn(), loading: vi.fn(() => vi.fn())},
@@ -78,6 +78,33 @@ describe("useTestsetEditor add row on a saved test set", () => {
         expect(store.get(testcaseMolecule.atoms.data(rowId as unknown as string))?.data).toEqual({
             country: "",
             outputs: "",
+            meta: {source: ""},
         })
+    })
+
+    it("A test set with only nested columns gets a field for each of them", () => {
+        expect(
+            emptyRowData([
+                {key: "inputs.question", parentKey: "inputs"},
+                {key: "inputs.context", parentKey: "inputs"},
+                {key: "meta"},
+            ]),
+        ).toEqual({inputs: {question: "", context: ""}, meta: ""})
+    })
+
+    it("A top-level column with a dot in its name stays one key", () => {
+        expect(emptyRowData([{key: "meta.lang"}])).toEqual({"meta.lang": ""})
+    })
+
+    it("A column path through __proto__ cannot write into Object.prototype", () => {
+        const data = emptyRowData([
+            {key: "a.__proto__.toString", parentKey: "a.__proto__"},
+            {key: "__proto__.polluted", parentKey: "__proto__"},
+            {key: "x.constructor", parentKey: "x"},
+            {key: "safe"},
+        ])
+        expect(data).toEqual({safe: ""})
+        expect(typeof Object.prototype.toString).toBe("function")
+        expect(({} as Record<string, unknown>).polluted).toBeUndefined()
     })
 })
