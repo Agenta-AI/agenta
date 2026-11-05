@@ -20,6 +20,9 @@ const http = vi.hoisted(() => ({
     error: vi.fn(),
     client: null as unknown,
     stored: null as unknown[] | null,
+    /** What the writes stored, by annotation trace id; reads show it after `lag` reads. */
+    written: new Map<string, unknown>(),
+    lag: 0,
 }))
 
 vi.mock("@agenta/shared/api", async (importOriginal) => {
@@ -112,6 +115,30 @@ const storedCopy = (annotation: AnnotationDto) => {
     }
 }
 
+interface WriteBody {
+    trace: {data: unknown}
+}
+
+/** The API stores a write after it answers (202): a read shows it only `lag` reads later. */
+const read = () => {
+    if (http.lag > 0) {
+        http.lag -= 1
+        return http.stored ?? []
+    }
+    const byId = new Map(
+        (http.stored ?? []).map((item) => [(item as {trace_id: string}).trace_id, item]),
+    )
+    http.written.forEach((item, id) => byId.set(id, item))
+    return [...byId.values()]
+}
+const write = (id: string, body: WriteBody) =>
+    http.written.set(id, {trace_id: id, data: body.trace.data})
+/** A create that lands: the API answers with the new annotation and stores it. */
+const created = (_url: string, body: WriteBody) => {
+    write(saved.trace.trace_id, body)
+    return Promise.resolve({data: saved})
+}
+
 const CREATE_URL = "http://api.test/simple/traces/"
 /** The create requests; the form also reads the user's stored annotations with a query. */
 const creates = () => http.post.mock.calls.filter(([url]) => url === CREATE_URL)
@@ -158,14 +185,17 @@ describe("trace annotation form", () => {
         http.post.mockReset()
         http.patch.mockReset()
         http.stored = null
-        http.post.mockImplementation((url: string) =>
-            Promise.resolve(
-                url.endsWith("/simple/traces/query")
-                    ? {data: {traces: http.stored ?? []}}
-                    : {data: saved},
-            ),
+        http.written = new Map()
+        http.lag = 0
+        http.post.mockImplementation((url: string, body: WriteBody) =>
+            url.endsWith("/simple/traces/query")
+                ? Promise.resolve({data: {traces: read()}})
+                : created(url, body),
         )
-        http.patch.mockResolvedValue({data: saved})
+        http.patch.mockImplementation((url: string, body: {trace: {data: unknown}}) => {
+            write(String(url).split("/").pop() as string, body)
+            return Promise.resolve({data: saved})
+        })
         http.success.mockReset()
         http.error.mockReset()
         onSaved = vi.fn<() => void>()
@@ -301,6 +331,28 @@ describe("trace annotation form", () => {
         )
     })
 
+    it("Save refreshes the drawer only once the API shows the saved annotation", async () => {
+        const invalidate = vi.spyOn(client, "invalidateQueries")
+        await mount({selectedSlugs: ["tone"]})
+        await act(async () => latest.setValue("tone", "friendly", true))
+        // The first two reads after the write still answer the old annotations.
+        http.lag = 2
+        const readsBefore = http.post.mock.calls.filter(([url]) =>
+            String(url).endsWith("/simple/traces/query"),
+        ).length
+        await save()
+
+        const reads = http.post.mock.calls.filter(([url]) =>
+            String(url).endsWith("/simple/traces/query"),
+        ).length
+        // Two stale reads, then the one that shows the annotation; the refresh comes after it.
+        expect(reads - readsBefore).toBe(3)
+        expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual(
+            expect.arrayContaining([["trace-drawer-annotations"], ["annotations"]]),
+        )
+        expect(http.success).toHaveBeenCalledWith("Annotations updated successfully")
+    })
+
     it("A failed save shows Failed to update annotations and keeps the values", async () => {
         const logged = vi.spyOn(console, "error").mockImplementation(() => undefined)
         http.post.mockRejectedValueOnce(new Error("Network down"))
@@ -331,6 +383,7 @@ describe("trace annotation form", () => {
             await latest.save()
         })
         await act(async () => {
+            write(saved.trace.trace_id, creates()[0][1] as WriteBody)
             release({data: saved})
             await first
         })
@@ -352,7 +405,7 @@ describe("trace annotation form", () => {
     it("A partly failed save still refreshes the drawer so a retry does not post twice", async () => {
         vi.spyOn(console, "error").mockImplementation(() => undefined)
         const invalidate = vi.spyOn(client, "invalidateQueries")
-        http.post.mockResolvedValueOnce({data: saved}).mockRejectedValueOnce(new Error("Timeout"))
+        http.post.mockImplementationOnce(created).mockRejectedValueOnce(new Error("Timeout"))
         await mount({selectedSlugs: ["tone", "score"]})
         await act(async () => latest.setValue("tone", "friendly", true))
         await act(async () => latest.setValue("score", "rating", 4))
@@ -367,7 +420,7 @@ describe("trace annotation form", () => {
 
     it("A retry after a partly failed save does not post the landed annotation again", async () => {
         vi.spyOn(console, "error").mockImplementation(() => undefined)
-        http.post.mockResolvedValueOnce({data: saved}).mockRejectedValueOnce(new Error("Timeout"))
+        http.post.mockImplementationOnce(created).mockRejectedValueOnce(new Error("Timeout"))
         await mount({selectedSlugs: ["tone", "score"]})
         await act(async () => latest.setValue("tone", "friendly", true))
         await act(async () => latest.setValue("score", "rating", 4))
@@ -446,11 +499,11 @@ describe("trace annotation form", () => {
 
     it("A later edit of a landed annotation updates it with the values just saved", async () => {
         vi.spyOn(console, "error").mockImplementation(() => undefined)
-        http.post.mockImplementation((url: string) =>
+        http.post.mockImplementation((url: string, body: WriteBody) =>
             url.endsWith("/simple/traces/query")
-                ? Promise.resolve({data: {traces: []}})
+                ? Promise.resolve({data: {traces: read()}})
                 : creates().length === 1
-                  ? Promise.resolve({data: saved})
+                  ? created(url, body)
                   : Promise.reject(new Error("Timeout")),
         )
         await mount({selectedSlugs: ["tone", "score"]})
