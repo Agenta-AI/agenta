@@ -11,7 +11,7 @@ The surface is the browser app at `http://localhost:3000/m`. `web/oss` is abando
 
 Most of the time both parts are already up. Run Doctor first and start only what is missing.
 
-- Stack, from the repo root: `load-env hosting/docker-compose/ee/.env.ee.dev`, then `bash ./hosting/docker-compose/run.sh --ee --dev --build`. The API answers `200` on `http://localhost/api/health` when ready.
+- Stack, from the repo root: `load-env hosting/docker-compose/ee/.env.ee.dev`, then `bash ./hosting/docker-compose/run.sh --ee --dev --build`. The API answers `200` on `http://localhost/api/health` when ready. `run.sh` stops every running service first, so use it only when the whole stack is down. If part of the stack is up, other agents may be using it: stop and report what is missing.
 - App, from `web/`: `pnpm dev-mobile`. Ready when `http://localhost:3000/m` answers. New `NEXT_PUBLIC_*` flags go by hand into the gitignored `web/mobile/public/__env.js`.
 
 There is one shared instance. Other agents may hot-reload the same dev server, and `uvicorn --reload` restarts the API when anyone edits `api/`. Two runs cannot be isolated by port without a second stack, so do not change shared stack state.

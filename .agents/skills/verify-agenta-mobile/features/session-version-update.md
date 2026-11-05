@@ -19,7 +19,7 @@ A session moves to the agent's newer version on its own when nothing can be lost
 
 Preconditions: the baseline, with both sessions on the same agent.
 
-- **Auto.** Read `__v.words()` on session A. Run `await __v.go(__v.sessionB)`, `await __v.commitElsewhere("check")`, then `await __v.go(__v.sessionA)`. Poll every 150 ms. The word count rises and `__v.pill()` stays null at every sample.
+- **Auto.** Read `__v.words()` on session A. Run `await __v.go(__v.sessionB)` and wait until `__v.words()` is a number again. Then run `await __v.commitElsewhere("check")` and `await __v.go(__v.sessionA)`. Poll every 150 ms. The word count rises and `__v.pill()` stays null at every sample.
 - **Held by a running turn.** Run `await __v.simulateRunning(true)`, wait 11 seconds, run `__v.recheck()`, and confirm `__v.stopVisible()`. Repeat the Auto steps. The pill shows and the word count holds.
 - **Release.** Run `await __v.simulateRunning(false)`. Within about 15 seconds the pill goes, and the word count rises a moment later.
 - **Cross-agent.** While held, `__v.go` to a session of another agent. That session keeps its own word count and shows no pill. Return to session A after the release, and it holds the newer version.

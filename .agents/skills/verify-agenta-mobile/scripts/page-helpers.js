@@ -40,7 +40,7 @@
         const url = typeof input === "string" ? input : input.url
         const liveness =
             /sessions\/streams\/query/.test(url) && /is_alive/.test(String(init?.body ?? ""))
-        if (!runningRow || !liveness) return response
+        if (!runningRow || !liveness || !response.ok) return response
         const body = await response.clone().json()
         const streams = (body.streams ?? []).filter((row) => row.session_id !== sessionA)
         streams.push(runningRow)
