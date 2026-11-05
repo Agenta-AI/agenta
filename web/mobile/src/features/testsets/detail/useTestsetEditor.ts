@@ -218,10 +218,15 @@ export function useTestsetEditor({
         setIsSaving(false)
     }, [])
 
-    const addRow = useCallback(
-        (): string | null => (savingRef.current ? null : (addRowAtom({data: {}})?.id ?? null)),
-        [addRowAtom],
-    )
+    // A new row starts with an empty value for each top-level column. The row drawer shows the
+    // row data, so a row with no keys would give the user no field to fill in.
+    const addRow = useCallback((): string | null => {
+        if (savingRef.current) return null
+        const data = Object.fromEntries(
+            columns.filter((column) => !column.parentKey).map((column) => [column.key, ""]),
+        )
+        return addRowAtom({data})?.id ?? null
+    }, [addRowAtom, columns])
 
     const deleteRows = useCallback(
         (ids: string[]) => {
