@@ -122,6 +122,30 @@ const savedColumns = async (
  * `routeId` is a revision id or `new`. An id that is neither reports `notFound` and touches
  * nothing. The session state lives in global atoms, so it is cleared when the page closes.
  */
+/**
+ * The data of a new row: "" at each column's path. A nested column (`inputs.question`) gives
+ * `{inputs: {question: ""}}`; a column that is the parent of others is filled by its children.
+ */
+export function emptyRowData(columnKeys: string[]): Record<string, unknown> {
+    const data: Record<string, unknown> = {}
+    const leaves = columnKeys.filter(
+        (key) => !columnKeys.some((other) => other.startsWith(`${key}.`)),
+    )
+    for (const key of leaves) {
+        const path = key.split(".")
+        let node = data
+        for (const part of path.slice(0, -1)) {
+            const next = node[part]
+            node = (next && typeof next === "object" ? next : (node[part] = {})) as Record<
+                string,
+                unknown
+            >
+        }
+        node[path[path.length - 1]] = ""
+    }
+    return data
+}
+
 export function useTestsetEditor({
     projectId,
     routeId,
@@ -218,14 +242,11 @@ export function useTestsetEditor({
         setIsSaving(false)
     }, [])
 
-    // A new row starts with an empty value for each top-level column. The row drawer shows the
-    // row data, so a row with no keys would give the user no field to fill in.
+    // A new row starts with an empty value for each column. The row drawer shows the row data,
+    // so a row with no keys would give the user no field to fill in.
     const addRow = useCallback((): string | null => {
         if (savingRef.current) return null
-        const data = Object.fromEntries(
-            columns.filter((column) => !column.parentKey).map((column) => [column.key, ""]),
-        )
-        return addRowAtom({data})?.id ?? null
+        return addRowAtom({data: emptyRowData(columns.map((column) => column.key))})?.id ?? null
     }, [addRowAtom, columns])
 
     const deleteRows = useCallback(

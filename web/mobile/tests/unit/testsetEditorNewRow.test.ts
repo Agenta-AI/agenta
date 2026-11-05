@@ -8,7 +8,7 @@ import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {useTestsetEditor} from "@/features/testsets/detail/useTestsetEditor"
+import {emptyRowData, useTestsetEditor} from "@/features/testsets/detail/useTestsetEditor"
 
 vi.mock("@agenta/ui/app-message", () => ({
     message: {success: vi.fn(), error: vi.fn(), info: vi.fn(), loading: vi.fn(() => vi.fn())},
@@ -78,6 +78,16 @@ describe("useTestsetEditor add row on a saved test set", () => {
         expect(store.get(testcaseMolecule.atoms.data(rowId as unknown as string))?.data).toEqual({
             country: "",
             outputs: "",
+            meta: {source: ""},
         })
+    })
+
+    it("A test set with only nested columns gets a field for each of them", () => {
+        expect(emptyRowData(["inputs.question", "inputs.context", "meta"])).toEqual({
+            inputs: {question: "", context: ""},
+            meta: "",
+        })
+        // A parent column next to its children is filled by the children.
+        expect(emptyRowData(["inputs", "inputs.question"])).toEqual({inputs: {question: ""}})
     })
 })
