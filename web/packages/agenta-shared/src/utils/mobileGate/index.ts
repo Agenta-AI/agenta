@@ -212,20 +212,22 @@ const developerProjectRoute = (segments: string[]): string | null => {
  * take the app as `?app=`. Overview and playground tell a prompt app from an agent themselves
  * and send an agent to its own screen.
  */
-const DEVELOPER_APP_ROUTES: Record<string, (appId: string, rest: string[]) => string | null> = {
-    overview: (appId) => `/apps/${appId}/overview`,
-    playground: (appId) => `/apps/${appId}/playground`,
-    variants: (appId) => `/variants?app=${appId}`,
-    deployments: (appId) => `/variants?app=${appId}`,
-    endpoints: (appId) => `/endpoints?app=${appId}`,
-    traces: (appId) => `/observability?app=${appId}`,
-    evaluations: (appId, [kind, evaluationId, extra]) => {
-        if (!kind) return `/evaluations?app=${appId}`
-        return kind === "results" && evaluationId && evaluationId !== "compare" && !extra
-            ? `/evaluations/results/${evaluationId}`
-            : null
-    },
-}
+const DEVELOPER_APP_ROUTES = new Map<string, (appId: string, rest: string[]) => string | null>(
+    Object.entries({
+        overview: (appId) => `/apps/${appId}/overview`,
+        playground: (appId) => `/apps/${appId}/playground`,
+        variants: (appId) => `/variants?app=${appId}`,
+        deployments: (appId) => `/variants?app=${appId}`,
+        endpoints: (appId) => `/endpoints?app=${appId}`,
+        traces: (appId) => `/observability?app=${appId}`,
+        evaluations: (appId, [kind, evaluationId, extra]) => {
+            if (!kind) return `/evaluations?app=${appId}`
+            return kind === "results" && evaluationId && evaluationId !== "compare" && !extra
+                ? `/evaluations/results/${evaluationId}`
+                : null
+        },
+    }),
+)
 
 /**
  * Desktop URL → the `/m` route that shows the same thing, or `null` when `/m` has no such
@@ -281,9 +283,11 @@ export function mobileRouteFor(
             return `${base}/sessions/${encodeURIComponent(sessionId)}?agent=${first}`
         }
         if (developerViews) {
-            const appRoute = second
-                ? DEVELOPER_APP_ROUTES[second]?.(encodeURIComponent(first), segments.slice(3))
-                : DEVELOPER_APP_ROUTES.overview(encodeURIComponent(first), [])
+            // A Map, not an object: `second` is user input and must not reach an inherited key.
+            const appRoute = DEVELOPER_APP_ROUTES.get(second || "overview")?.(
+                encodeURIComponent(first),
+                segments.slice(3),
+            )
             // A section with no view of its own (sessions, ...) still lands on the app's screen.
             if (appRoute !== undefined) return appRoute ? `${base}${appRoute}` : null
         }
@@ -372,7 +376,11 @@ export function desktopRouteFor(pathname: string, search = ""): string | null {
 
     // The developer views `/m` rebuilt. Project pages that take the app as `?app=` are app pages
     // on the desktop; without the app there is no desktop page to name.
-    const appId = params.get("app")
+    // `?app=` is decoded user input: encode it into one path segment, and refuse the dot
+    // segments `encodeURIComponent` leaves alone.
+    const rawAppId = params.get("app")
+    const appId =
+        rawAppId && rawAppId !== "." && rawAppId !== ".." ? encodeURIComponent(rawAppId) : null
     if (head === "variants" && !first) return appId ? `${base}/apps/${appId}/variants` : null
     if (head === "endpoints" && !first) return appId ? `${base}/apps/${appId}/endpoints` : null
     if (head === "evaluations" && !first) {

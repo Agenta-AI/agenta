@@ -79,6 +79,12 @@ describe("mobileRouteFor with developer views", () => {
         expect(mobileRouteFor(path, search, BETA)).toBe(expected)
     })
 
+    it("a section named like an inherited object key is no app page", () => {
+        for (const section of ["constructor", "__proto__", "toString", "hasOwnProperty"]) {
+            expect(mobileRouteFor(`${P}/apps/a1/${section}`, "", BETA)).toBe(`${M}/agents/a1`)
+        }
+    })
+
     it("keeps an agent session link on the session page", () => {
         expect(mobileRouteFor(`${P}/apps/a1/playground`, `?${SESSION_QUERY_PARAM}=s1`, BETA)).toBe(
             `${M}/sessions/s1?agent=a1`,
@@ -108,6 +114,21 @@ describe("mapMobileToDesktop for developer links", () => {
         [`/w/ws/p/pr/apps/archived`, "", `${P}/apps/archived`],
     ])("%s%s", (path, search, expected) => {
         expect(mapMobileToDesktop(path, search)).toBe(expected)
+    })
+
+    it("encodes the app id into one path segment and refuses dot segments", () => {
+        expect(mapMobileToDesktop("/w/ws/p/pr/endpoints", "?app=a%2Fb%3Fc%23d")).toBe(
+            `${P}/apps/a%2Fb%3Fc%23d/endpoints`,
+        )
+        for (const app of ["..", ".", "../x"]) {
+            const route = mapMobileToDesktop(
+                "/w/ws/p/pr/variants",
+                `?app=${encodeURIComponent(app)}`,
+            )
+            expect(route).not.toMatch(/\/apps\/\.\.?\//)
+            expect(route.startsWith(`${P}/`) || route === "/w").toBe(true)
+        }
+        expect(mapMobileToDesktop("/w/ws/p/pr/variants", "?app=..")).toBe("/w")
     })
 
     it("falls back to the desktop root when the page has no desktop twin", () => {

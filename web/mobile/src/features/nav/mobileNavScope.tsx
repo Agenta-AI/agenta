@@ -10,6 +10,7 @@ import type {
 import {SidebarLogo, SidebarToggleButton} from "@agenta/navigation-ui"
 import {useRouter} from "next/router"
 
+import {useDeveloperViewEnabled} from "../developer/developerViewAccess"
 import {CreditsRemainingWidget} from "../wallet/CreditsRemainingWidget"
 
 import {DrawerProjectSwitcher} from "./DrawerProjectSwitcher"
@@ -35,8 +36,11 @@ const PROMPTS_ROW_KEY = "developer-view-prompts"
 export const selectedKeyOverrideFor = (
     pathname: string,
     sessionId: string | null,
+    promptsRowShown: boolean,
 ): string | undefined => {
     if (sessionId) return `${SESSIONS_SIDEBAR_KEY}-${sessionId}`
+    // Pinning a row the rail does not render selects nothing, so leave the route match instead.
+    if (!promptsRowShown) return undefined
     return /\/apps\/\[app_id\]\/(overview|playground)$/.test(pathname) ? PROMPTS_ROW_KEY : undefined
 }
 
@@ -52,7 +56,12 @@ const createMobileNavScope = (workspaceId: string, projectId: string): SidebarSc
         const router = useRouter()
         const sessionId =
             typeof router.query.session_id === "string" ? router.query.session_id : null
-        const selectedKeyOverride = selectedKeyOverrideFor(router.pathname, sessionId)
+        const promptsRowShown = useDeveloperViewEnabled("prompts") === true
+        const selectedKeyOverride = selectedKeyOverrideFor(
+            router.pathname,
+            sessionId,
+            promptsRowShown,
+        )
         return useMemo(
             () => (selectedKeyOverride ? {mode: "route", selectedKeyOverride} : {mode: "route"}),
             [selectedKeyOverride],
