@@ -10,7 +10,8 @@ import type {Workflow} from "@agenta/entities/workflow"
 import {axios, getAgentaApiUrl, getHostQueryClient} from "@agenta/shared/api"
 import {projectIdAtom, userAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
-import {atom, useAtomValue} from "jotai"
+import {atom, useAtomValue, useStore} from "jotai"
+import {atomFamily} from "jotai-family"
 
 import {
     buildTraceAnnotationSections,
@@ -32,6 +33,15 @@ const REQUIRED_TEXT = "Required"
 const REFRESHED_KEYS = [["trace-drawer-annotations"], ["trace-drawer"], ["annotations"]]
 
 const EMPTY_REVISIONS = atom(() => [])
+
+/**
+ * Writes on one span that the API took but no read showed yet, by annotation trace id. They
+ * outlive the sheet: a sheet opened again before the drawer shows them starts from them, so it
+ * updates them rather than creating them a second time. Cleared once a read shows them.
+ */
+const unconfirmedWritesAtomFamily = atomFamily((_spanKey: string) =>
+    atom<Record<string, AnnotationDto>>({}),
+)
 
 /**
  * Reads the annotations linked to one span as stored, with a retry. A plain effect, not a react
@@ -168,7 +178,11 @@ export const useTraceAnnotationForm = ({
     // What this sheet saved, by annotation trace id. It stands in for the drawer's copy for the
     // life of the sheet, so a retry after a partly failed save updates a landed create instead of
     // creating it again, and compares with the values just sent.
-    const [savedHere, setSavedHere] = useState<Record<string, AnnotationDto>>({})
+    const store = useStore()
+    const unconfirmedAtom = unconfirmedWritesAtomFamily(`${traceId}:${spanId}`)
+    const [savedHere, setSavedHere] = useState<Record<string, AnnotationDto>>(() =>
+        store.get(unconfirmedAtom),
+    )
 
     // The drawer drops `null` outputs when it groups them, so an update read from it would erase
     // a saved "none of the above". The user's own annotations are read again as the API stores them.
@@ -409,11 +423,38 @@ export const useTraceAnnotationForm = ({
             message.error(SAVE_FAILURE_TEXT)
             return
         }
-        // The API took the writes, but no read showed them yet: say so rather than success.
-        if (stored) message.success(SAVE_SUCCESS_TEXT)
-        else message.info(SAVE_PENDING_TEXT)
+        if (stored) {
+            message.success(SAVE_SUCCESS_TEXT)
+            onSaved()
+            return
+        }
+        // The API took the writes, but no read showed them yet: say so rather than success. The
+        // writes stay known after the sheet closes, and the drawer refreshes once a read shows
+        // them.
+        message.info(SAVE_PENDING_TEXT)
+        store.set(unconfirmedAtom, (previous) => ({...previous, ...landed}))
+        void waitUntilStored({projectId, traceId, spanId, landed}).then(async (shown) => {
+            if (!shown) return
+            store.set(unconfirmedAtom, (previous) =>
+                Object.fromEntries(Object.entries(previous).filter(([id]) => !(id in landed))),
+            )
+            await Promise.allSettled(
+                REFRESHED_KEYS.map((queryKey) => queryClient.invalidateQueries({queryKey})),
+            )
+        })
         onSaved()
-    }, [writes, projectId, storedBlocked, userId, picked, onSaved, traceId, spanId])
+    }, [
+        writes,
+        projectId,
+        storedBlocked,
+        userId,
+        picked,
+        onSaved,
+        traceId,
+        spanId,
+        store,
+        unconfirmedAtom,
+    ])
 
     return {
         sections: shownSections,

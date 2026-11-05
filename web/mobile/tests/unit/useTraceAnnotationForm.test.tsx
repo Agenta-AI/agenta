@@ -151,10 +151,14 @@ describe("trace annotation form", () => {
     let onSaved: Mock<() => void>
     let client: QueryClient
 
-    const Probe = (props: {annotations: AnnotationDto[]; selectedSlugs: string[]}) => {
+    const Probe = (props: {
+        annotations: AnnotationDto[]
+        selectedSlugs: string[]
+        spanId?: string
+    }) => {
         latest = useTraceAnnotationForm({
             traceId: "trace-1",
-            spanId: "span-1",
+            spanId: props.spanId ?? "span-1",
             annotations: props.annotations,
             selectedSlugs: props.selectedSlugs,
             onSaved,
@@ -165,12 +169,17 @@ describe("trace annotation form", () => {
     const mount = async ({
         annotations = [],
         selectedSlugs = [],
-    }: {annotations?: AnnotationDto[]; selectedSlugs?: string[]} = {}) => {
+        spanId,
+    }: {annotations?: AnnotationDto[]; selectedSlugs?: string[]; spanId?: string} = {}) => {
         http.stored ??= annotations.map(storedCopy)
         await act(async () => {
             root.render(
                 <QueryClientProvider client={client}>
-                    <Probe annotations={annotations} selectedSlugs={selectedSlugs} />
+                    <Probe
+                        annotations={annotations}
+                        selectedSlugs={selectedSlugs}
+                        spanId={spanId}
+                    />
                 </QueryClientProvider>,
             )
         })
@@ -391,7 +400,8 @@ describe("trace annotation form", () => {
     })
 
     it("A save whose writes no read shows says so, not success", async () => {
-        await mount({selectedSlugs: ["tone"]})
+        // Its own span: the writes it leaves unconfirmed are kept for that span.
+        await mount({selectedSlugs: ["tone"], spanId: "span-unconfirmed"})
         await act(async () => latest.setValue("tone", "friendly", true))
         // Every read after the write hangs until axios gives up.
         const answer = http.post.getMockImplementation()
@@ -420,6 +430,51 @@ describe("trace annotation form", () => {
             expect(http.info).toHaveBeenCalledWith(
                 "Annotations saved. They can take a moment to show.",
             )
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
+    it("A sheet opened again before the API shows a save updates it, not a new one", async () => {
+        // Its own span, so the writes kept for it do not reach the other cases.
+        await mount({selectedSlugs: ["tone"], spanId: "span-pending"})
+        await act(async () => latest.setValue("tone", "friendly", true))
+        const answer = http.post.getMockImplementation()
+        let writes = 0
+        http.post.mockImplementation(
+            (url: string, body: WriteBody, config?: {timeout?: number}) => {
+                if (String(url).endsWith("/simple/traces/query") && writes > 0) {
+                    return new Promise((_resolve, reject) => {
+                        if (config?.timeout) {
+                            setTimeout(() => reject(new Error("timeout")), config.timeout)
+                        }
+                    })
+                }
+                if (!String(url).endsWith("/simple/traces/query")) writes += 1
+                return answer?.(url, body)
+            },
+        )
+        vi.useFakeTimers({shouldAdvanceTime: true})
+        try {
+            await act(async () => {
+                void latest.save()
+                await vi.advanceTimersByTimeAsync(60_000)
+            })
+            expect(http.info).toHaveBeenCalled()
+            expect(creates()).toHaveLength(1)
+
+            // The sheet closes, and opens again while the drawer still shows no annotation.
+            await act(async () => root.unmount())
+            root = createRoot(host)
+            await mount({selectedSlugs: ["tone"], spanId: "span-pending"})
+            expect(latest.ownSlugs).toEqual(["tone"])
+            await act(async () => latest.setValue("tone", "friendly", false))
+            await act(async () => {
+                void latest.save()
+                await vi.advanceTimersByTimeAsync(60_000)
+            })
+            expect(creates()).toHaveLength(1)
+            expect(http.patch).toHaveBeenCalledTimes(1)
         } finally {
             vi.useRealTimers()
         }
