@@ -3131,6 +3131,47 @@ export function invalidateWorkflowRevisionsByVariantCache(
     store.set(workflowRevisionsQueryAtomFamily(variantId))
 }
 
+const invalidateRevisionReads = (
+    qc: QueryClient,
+    workflowId: string | null | undefined,
+    options?: {cancelRefetch: boolean},
+) => {
+    qc.invalidateQueries(
+        {
+            queryKey: ["workflows", "latestRevision"],
+            exact: false,
+            predicate: workflowId
+                ? (query) => {
+                      // A host-owned key under this prefix names the workflow in its data.
+                      const data = query.state.data as {workflowId?: string | null} | null
+                      return query.queryKey.includes(workflowId) || data?.workflowId === workflowId
+                  }
+                : undefined,
+        },
+        options,
+    )
+    qc.invalidateQueries({queryKey: ["workflows", "inspect"], exact: false}, options)
+    // The version SELECTOR reads the revisions list, not the latest-revision tag, so leaving
+    // it out left the freshly committed version missing from the picker until a reload
+    // (#6380) — the config had already moved on to a version you could not name.
+    qc.invalidateQueries({queryKey: ["workflows", "revisionsByWorkflow"], exact: false}, options)
+    qc.invalidateQueries({queryKey: ["workflows", "revisions"], exact: false}, options)
+}
+
+/**
+ * Re-read an agent's revisions when a surface that names one opens: a commit may have landed
+ * while it was closed (#6380). Not a commit itself, so the project-wide agent/prompt split stays
+ * cached, and a read already in flight is new enough to keep.
+ */
+export function revalidateAgentRevisionReads(workflowId?: string | null, options?: StoreOptions) {
+    const store = getStore(options)
+    try {
+        invalidateRevisionReads(store.get(queryClientAtom), workflowId, {cancelRefetch: false})
+    } catch {
+        // queryClientAtom may not be initialized yet
+    }
+}
+
 /**
  * Refresh the playground's read-only views after the agent commits a new revision of itself
  * (#4920 — Application 1). A commit lands a new revision, so this invalidates both the
@@ -3150,23 +3191,7 @@ export function invalidateAgentCommittedRevisionCache(
     const store = getStore(options)
     try {
         const qc = store.get(queryClientAtom)
-        qc.invalidateQueries({
-            queryKey: ["workflows", "latestRevision"],
-            exact: false,
-            predicate: workflowId
-                ? (query) => {
-                      // A host-owned key under this prefix names the workflow in its data.
-                      const data = query.state.data as {workflowId?: string | null} | null
-                      return query.queryKey.includes(workflowId) || data?.workflowId === workflowId
-                  }
-                : undefined,
-        })
-        qc.invalidateQueries({queryKey: ["workflows", "inspect"], exact: false})
-        // The version SELECTOR reads the revisions list, not the latest-revision tag, so leaving
-        // it out left the freshly committed version missing from the picker until a reload
-        // (#6380) — the config had already moved on to a version you could not name.
-        qc.invalidateQueries({queryKey: ["workflows", "revisionsByWorkflow"], exact: false})
-        qc.invalidateQueries({queryKey: ["workflows", "revisions"], exact: false})
+        invalidateRevisionReads(qc, workflowId)
         // The agent/prompt split is read off the latest revision's flags, and a commit can flip
         // it. Its key no longer carries per-workflow timestamps, so it needs saying explicitly.
         qc.invalidateQueries({queryKey: ["workflows", "apps", "agentFlags"], exact: false})

@@ -2,7 +2,7 @@ import {useEffect, useRef, useState} from "react"
 
 import {shouldRefreshLegacyObserverLiveness} from "@agenta/chat/model"
 import {actionableInteractionsQueryKey} from "@agenta/sessions/state"
-import {useQueryClient} from "@tanstack/react-query"
+import {useQueryClient, type Query} from "@tanstack/react-query"
 
 import {tryRefreshSession} from "@/lib/auth"
 
@@ -14,6 +14,10 @@ import {sessionWatchUrl, watchRetryDelayMs} from "./watchRelay"
 /** Minimum spacing between two reconnect revalidations, so a reconnect loop can't fan out
  * into one full records refetch per attempt. */
 const MIN_INTERVAL_MS = 3_000
+
+/** A read this recent already covers the gap a new stream's `ready` stands for. */
+const readBeforeConnect = (query: Query) =>
+    Date.now() - query.state.dataUpdatedAt >= MIN_INTERVAL_MS
 
 const COALESCE_MS = 500
 
@@ -90,6 +94,10 @@ export const useSessionWatch = ({
     onRecordsChangedRef.current = onRecordsChanged
     const onInteractionChangedRef = useRef(onInteractionChanged)
     onInteractionChangedRef.current = onInteractionChanged
+    // A ref: this prop lands after the session row does, and reopening the stream for it costs a
+    // second `ready`.
+    const sharedReaderAdvertisedRef = useRef(sharedReaderAdvertised)
+    sharedReaderAdvertisedRef.current = sharedReaderAdvertised
 
     useEffect(() => {
         if (!sessionId || !projectId) return
@@ -131,6 +139,30 @@ export const useSessionWatch = ({
             void queryClient.invalidateQueries({queryKey: ["sidebar-sessions-waiting"]})
         })
 
+        // One session switch opens more than one stream (the replay screen, then the live one),
+        // and each `ready` used to re-read the whole rail and cancel the read before it.
+        const badgesOnConnect = () => {
+            const options = {cancelRefetch: false}
+            for (const queryKey of [
+                livenessQueryKey(projectId),
+                actionableInteractionsQueryKey(projectId),
+                ["sidebar-sessions-pinned"],
+                ["sidebar-sessions-waiting"],
+            ]) {
+                void queryClient.invalidateQueries(
+                    {queryKey, predicate: readBeforeConnect},
+                    options,
+                )
+            }
+            void queryClient.invalidateQueries(
+                {
+                    predicate: (query) =>
+                        isSidebarSessionHeadQuery(query.queryKey) && readBeforeConnect(query),
+                },
+                options,
+            )
+        }
+
         const close = () => {
             source?.close()
             source = null
@@ -166,14 +198,14 @@ export const useSessionWatch = ({
             // change landing in that window would miss both this refetch and the stream.
             es.addEventListener("ready", () => {
                 notifyOnConnect()
-                badges.run()
+                badgesOnConnect()
             })
             es.addEventListener("records-changed", () => {
                 recordsChanged.run()
                 const now = Date.now()
                 if (
                     shouldRefreshLegacyObserverLiveness({
-                        sharedReaderAdvertised,
+                        sharedReaderAdvertised: sharedReaderAdvertisedRef.current,
                         lastRefreshAt: lastLivenessRefreshAt,
                         now,
                     })
@@ -218,7 +250,7 @@ export const useSessionWatch = ({
             badges.cancel()
             close()
         }
-    }, [sessionId, projectId, queryClient, sharedReaderAdvertised])
+    }, [sessionId, projectId, queryClient])
 
     return {connected}
 }

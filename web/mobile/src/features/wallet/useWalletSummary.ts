@@ -9,5 +9,6 @@ export const useWalletSummary = (projectId: string, {poll = true}: {poll?: boole
         queryKey: ["wallet", "summary", projectId],
         queryFn: () => fetchWalletSummary(projectId),
         enabled: isWalletsEnabled() && Boolean(projectId),
+        staleTime: 5_000,
         refetchInterval: poll ? 10_000 : false,
     })
