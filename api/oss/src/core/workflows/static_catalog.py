@@ -41,6 +41,7 @@ from agenta.sdk.engines.running.utils import (
 )
 
 from oss.src.core.apps.assembly import AGENTA_APPS_SKILL, AGENTA_APPS_SLUG
+from oss.src.core.browser.skill import BROWSER_SKILL, BROWSER_SLUG
 from oss.src.core.workflows.build_kit import (
     AGENTA_BUILTIN_AGENT_URI,
     BUILD_KIT_WORKFLOW_DESCRIPTION,
@@ -420,6 +421,14 @@ _STATIC_WORKFLOWS: Dict[str, Dict[str, Any]] = {
         "latest": "v1",
         "versions": {
             "v1": _skill_revision(CREATE_TEMPLATE_SKILL),
+        },
+    },
+    BROWSER_SLUG: {
+        "kind": "skill",
+        "embeddable": True,
+        "latest": "v1",
+        "versions": {
+            "v1": _skill_revision(BROWSER_SKILL),
         },
     },
 }

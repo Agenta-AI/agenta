@@ -32,6 +32,7 @@ export const processEnv = {
     NEXT_PUBLIC_AGENTA_TOOLS_ENABLED: process.env.NEXT_PUBLIC_AGENTA_TOOLS_ENABLED,
     NEXT_PUBLIC_AGENTA_MCP_GATEWAY_ENABLED: process.env.NEXT_PUBLIC_AGENTA_MCP_GATEWAY_ENABLED,
     NEXT_PUBLIC_AGENTA_WALLETS_ENABLED: process.env.NEXT_PUBLIC_AGENTA_WALLETS_ENABLED,
+    NEXT_PUBLIC_AGENTA_BROWSER_ENABLED: process.env.NEXT_PUBLIC_AGENTA_BROWSER_ENABLED,
     NEXT_PUBLIC_AGENTA_EMAIL_DELIVERY_ENABLED:
         process.env.NEXT_PUBLIC_AGENTA_EMAIL_DELIVERY_ENABLED,
     NEXT_PUBLIC_AGENTA_WEB_URL: process.env.NEXT_PUBLIC_AGENTA_WEB_URL,
@@ -161,6 +162,10 @@ export const isMcpGatewayEnabled = (): boolean =>
  */
 export const isWalletsEnabled = (): boolean =>
     parseBoolEnv("NEXT_PUBLIC_AGENTA_WALLETS_ENABLED", false)
+
+/** Whether the session browser is on. Mirrors the API's `AGENTA_BROWSER_ENABLED`; off by default. */
+export const isBrowserEnabled = (): boolean =>
+    parseBoolEnv("NEXT_PUBLIC_AGENTA_BROWSER_ENABLED", false)
 
 export const isEmailInvitationsEnabled = (): boolean =>
     getEnv("NEXT_PUBLIC_AGENTA_EMAIL_DELIVERY_ENABLED") === "true"
