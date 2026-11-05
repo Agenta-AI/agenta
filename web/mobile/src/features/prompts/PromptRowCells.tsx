@@ -1,6 +1,8 @@
+import {workflowAppTypeAtomFamily} from "@agenta/entities/workflow"
 import {WorkflowTypeTag} from "@agenta/entity-ui/workflow"
 import {Badge} from "@agenta/ui/ui"
 import {ChatDotsIcon, FolderIcon, NoteIcon} from "@phosphor-icons/react"
+import {useAtomValue} from "jotai"
 
 import type {PromptsRow} from "./promptRow"
 import type {PromptRowActions} from "./promptRowActions"
@@ -42,8 +44,12 @@ export const PromptRowCells = ({
         row.kind === "folder"
             ? row.folder.name || promptsCopy.deleteDialog.fallbackName
             : row.prompt.name || row.prompt.slug || ""
-    const Icon =
-        row.kind === "folder" ? FolderIcon : row.prompt.type === "chat" ? ChatDotsIcon : NoteIcon
+    // The list flags carry no chat flag, so the type comes from the latest revision, as in /w.
+    // A folder row passes no id, and the query stays off.
+    const appType = useAtomValue(
+        workflowAppTypeAtomFamily(row.kind === "prompt" ? row.prompt.id : ""),
+    )
+    const Icon = row.kind === "folder" ? FolderIcon : appType === "chat" ? ChatDotsIcon : NoteIcon
 
     return (
         <>
@@ -65,7 +71,7 @@ export const PromptRowCells = ({
                 {row.kind === "folder" ? (
                     <Badge variant="outlined">{promptsCopy.folderTag}</Badge>
                 ) : (
-                    <WorkflowTypeTag isEvaluator={false} workflowType={row.prompt.type} />
+                    <WorkflowTypeTag isEvaluator={false} workflowType={appType} />
                 )}
             </span>
             <span

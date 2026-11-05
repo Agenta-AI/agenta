@@ -14,7 +14,10 @@ import Link from "next/link"
 import {useProjectPermission} from "../context/useProjectPermission"
 import {useDeveloperViewEnabled} from "../developer/developerViewAccess"
 import {useUrlParams} from "../developer/useUrlParams"
+import {playgroundHref} from "../playground/playgroundUrl"
+import {OpenInPlaygroundButton} from "../revisions/OpenInPlaygroundButton"
 import {useRevisionParam} from "../revisions/useRevisionParam"
+import {useSettingsOrg} from "../settings/useSettingsOrg"
 
 import {DeploymentHistoryTable} from "./DeploymentHistoryTable"
 import {DeployToEnvironmentDialog} from "./DeployToEnvironmentDialog"
@@ -32,10 +35,12 @@ const RevisionDrawerHost = dynamic(
 
 /** The Deployments tab: one card per environment, and the history of the chosen one. */
 export const DeploymentsTab = ({
+    workspaceId,
     projectId,
     app,
     base,
 }: {
+    workspaceId: string
     projectId: string
     app: Workflow
     /** `/w/<workspace>/p/<project>`, for the link to the endpoints view. */
@@ -44,8 +49,22 @@ export const DeploymentsTab = ({
     const {read, write} = useUrlParams()
     const {environments, variantNames} = useAppEnvironments(app.id)
     const environmentList = useAtomValue(environmentsListQueryAtomFamily(false))
+    // /m does not bind the shared user atoms, so the author label cannot resolve an id by itself.
+    // The names come from the workspace members, as /w shows them: the username, else the email.
+    const {org} = useSettingsOrg(workspaceId)
+    const authorNames = useMemo(
+        () =>
+            new Map(
+                (org.data?.default_workspace?.members ?? []).flatMap(({user}) => {
+                    const name = user.username || user.email
+                    return user.id && name ? [[user.id, name] as const] : []
+                }),
+            ),
+        [org.data],
+    )
     const canDeploy = useProjectPermission(projectId, "deploy_environments")
     const endpointsEnabled = useDeveloperViewEnabled("endpoints")
+    const playgroundEnabled = useDeveloperViewEnabled("playground") === true
     const [revisionId, setRevisionId] = useRevisionParam()
     const [search, setSearch] = useState("")
     const term = useSettledValue(search).trim()
@@ -145,6 +164,7 @@ export const DeploymentsTab = ({
                         rows={rows}
                         isLoading={history.isPending && environmentId !== null}
                         variantNames={variantNames}
+                        authorNames={authorNames}
                         currentRevisionId={currentRevisionId}
                         canRevert={canDeploy}
                         onOpen={open}
@@ -159,11 +179,18 @@ export const DeploymentsTab = ({
                     kind="deployment"
                     navigationIds={navigationIds}
                     actions={
-                        canRevert(shownRow) ? (
-                            <Button size="sm" onClick={() => setRevertRow(shownRow)}>
-                                Revert
-                            </Button>
-                        ) : null
+                        <>
+                            {playgroundEnabled ? (
+                                <OpenInPlaygroundButton
+                                    href={playgroundHref(base, app.id, [revisionId])}
+                                />
+                            ) : null}
+                            {canRevert(shownRow) ? (
+                                <Button size="sm" onClick={() => setRevertRow(shownRow)}>
+                                    Revert
+                                </Button>
+                            ) : null}
+                        </>
                     }
                 />
             ) : null}

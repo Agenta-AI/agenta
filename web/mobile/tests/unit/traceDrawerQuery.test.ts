@@ -1,7 +1,9 @@
+// @vitest-environment jsdom
+import {traceDrawerClearParams} from "@agenta/observability/traceDrawer"
 import type {NextRouter} from "next/router"
-import {describe, expect, it} from "vitest"
+import {describe, expect, it, vi} from "vitest"
 
-import {currentQuery} from "@/features/observability/bindTraceDrawerSeams"
+import {bindTraceDrawerSeams, currentQuery} from "@/features/observability/bindTraceDrawerSeams"
 
 const router = (pathname: string, query: NextRouter["query"]) => ({pathname, query}) as NextRouter
 
@@ -23,5 +25,35 @@ describe("currentQuery", () => {
             trace: "t1",
             span: "s1",
         })
+    })
+})
+
+describe("the drawer's clear params", () => {
+    const bind = (pathname: string, search: string) => {
+        window.history.replaceState(null, "", `${pathname}${search}`)
+        const push = vi.fn(() => Promise.resolve(true))
+        bindTraceDrawerSeams({pathname, query: {}, push} as unknown as NextRouter, {
+            playground: false,
+        })
+        return push
+    }
+
+    it("drops trace and span from the address", () => {
+        const push = bind("/observability", "?trace=t1&span=s1&app=a1")
+        traceDrawerClearParams()
+        expect(push).toHaveBeenCalledWith(
+            {pathname: "/observability", query: {app: "a1"}},
+            undefined,
+            {shallow: true},
+        )
+    })
+
+    it("does not push on a page the drawer has no params on", () => {
+        // The Playground button closes the drawer and opens the playground. The drawer clears
+        // its params after the close animation, when the playground address holds the snapshot.
+        const push = bind("/playground", "?revisions=r1#pgSnapshot=abc")
+        traceDrawerClearParams()
+        expect(push).not.toHaveBeenCalled()
+        expect(window.location.hash).toBe("#pgSnapshot=abc")
     })
 })

@@ -1,5 +1,6 @@
 import {useEffect, useState} from "react"
 
+import {playgroundController} from "@agenta/playground"
 import {
     isplaygroundFocusDrawerOpenAtom,
     resetPlaygroundFocusDrawerAtom,
@@ -7,6 +8,7 @@ import {
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
+import {usePlaygroundAddToQueue} from "./usePlaygroundAddToQueue"
 import {usePlaygroundTraceFooter} from "./usePlaygroundTraceFooter"
 
 // The drawer code downloads when a user first opens a test case.
@@ -20,6 +22,8 @@ export const PlaygroundFocusDrawerHost = () => {
     const isOpen = useAtomValue(isplaygroundFocusDrawerOpenAtom)
     const reset = useSetAtom(resetPlaygroundFocusDrawerAtom)
     const renderTraceFooter = usePlaygroundTraceFooter()
+    const loadableId = useAtomValue(playgroundController.selectors.loadableId())
+    const renderAddToQueue = usePlaygroundAddToQueue(loadableId ?? "")
     const [opened, setOpened] = useState(false)
 
     useEffect(() => {
@@ -27,5 +31,7 @@ export const PlaygroundFocusDrawerHost = () => {
     }, [isOpen])
     useEffect(() => reset, [reset])
 
-    return opened ? <FocusDrawer renderTraceFooter={renderTraceFooter} /> : null
+    return opened ? (
+        <FocusDrawer renderTraceFooter={renderTraceFooter} renderAddToQueue={renderAddToQueue} />
+    ) : null
 }

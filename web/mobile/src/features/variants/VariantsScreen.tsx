@@ -75,11 +75,17 @@ export const VariantsScreen = ({
                     </TabsTrigger>
                 </TabsList>
                 <TabsContent value="variants" className="pt-3">
-                    <VariantsTab key={app.id} projectId={projectId} app={app} />
+                    <VariantsTab
+                        key={app.id}
+                        base={`/w/${workspaceId}/p/${projectId}`}
+                        projectId={projectId}
+                        app={app}
+                    />
                 </TabsContent>
                 <TabsContent value="deployments" className="pt-3">
                     <DeploymentsTab
                         key={app.id}
+                        workspaceId={workspaceId}
                         projectId={projectId}
                         app={app}
                         base={`/w/${workspaceId}/p/${projectId}`}

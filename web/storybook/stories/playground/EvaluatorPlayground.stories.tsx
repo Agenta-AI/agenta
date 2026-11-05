@@ -4,15 +4,17 @@ import {SelectAppEmpty} from "@/features/playground/states/SelectAppEmpty"
 import {executionItemController, playgroundController} from "@agenta/playground"
 import {completeRunAtom, failRunAtom, startRunAtom} from "@agenta/playground/state"
 import {RunOnSelector, type RunOnMode} from "@agenta/playground-ui/panels/evaluator"
-import {RunsPanel} from "@agenta/playground-ui/panels/runs"
+import {RunsPanel, TestsetMenu} from "@agenta/playground-ui/panels/runs"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {getDefaultStore} from "jotai"
-import {fn, userEvent, within} from "storybook/test"
+import {expect, fn, userEvent, within} from "storybook/test"
 
 import type {StoryScope} from "../../.storybook/decorators/withAgentaData"
 import {workflowIds} from "../../fixtures/workflow"
 
+import {withAppBoxSizing} from "./borderBox"
 import {promptRevisionQueries, selectRevision} from "./playgroundFixtures"
+import {testsetMenuModel} from "./testsetMenuModel"
 
 /**
  * The /m evaluator playground pieces: the "Run on" control, the run pane before an app is
@@ -29,7 +31,7 @@ const RunOnDemo = ({mode}: {mode: RunOnMode}) => {
 }
 
 /** The app's run, then the two evaluators' results, written the way a chain run writes them. */
-const ScoredDemo = ({revisionId}: {revisionId: string}) => {
+const ScoredDemo = ({revisionId, phone = false}: {revisionId: string; phone?: boolean}) => {
     useState(() => {
         selectRevision(revisionId)
         const store = getDefaultStore()
@@ -70,8 +72,23 @@ const ScoredDemo = ({revisionId}: {revisionId: string}) => {
         })
     })
     return (
-        <div className="h-[640px] w-full max-w-[720px] overflow-y-auto border border-border bg-background text-foreground">
-            <RunsPanel revisionId={revisionId} />
+        <div
+            data-testid="run-pane"
+            className={`h-[640px] overflow-y-auto border border-border bg-background text-foreground ${phone ? "w-[390px]" : "w-full max-w-[720px]"}`}
+        >
+            <RunsPanel
+                revisionId={revisionId}
+                testsetMenu={
+                    phone ? (
+                        <TestsetMenu
+                            model={testsetMenuModel({
+                                isConnected: true,
+                                label: "qa-countries (v1)",
+                            })}
+                        />
+                    ) : undefined
+                }
+            />
         </div>
     )
 }
@@ -115,4 +132,29 @@ export const ScoredTestCase: Story = {
     render: (_args, context) => (
         <ScoredDemo revisionId={(context.args as unknown as {revisionId: string}).revisionId} />
     ),
+}
+
+/**
+ * At 390 px the header wraps under "Generations": the test set, Clear and Run all stay inside
+ * the pane, and the pane never scrolls sideways, so no card is cut off.
+ */
+export const ScoredTestCasePhone: Story = {
+    decorators: [withAppBoxSizing],
+    parameters: ScoredTestCase.parameters,
+    render: (_args, context) => (
+        <ScoredDemo
+            phone
+            revisionId={(context.args as unknown as {revisionId: string}).revisionId}
+        />
+    ),
+    play: async ({canvasElement}) => {
+        const canvas = within(canvasElement)
+        const pane = await canvas.findByTestId("run-pane")
+        const runAll = await canvas.findByRole("button", {name: /Run all/})
+        await canvas.findByText("Exact match")
+        expect(pane.scrollWidth).toBeLessThanOrEqual(pane.clientWidth)
+        expect(runAll.getBoundingClientRect().right).toBeLessThanOrEqual(
+            pane.getBoundingClientRect().right,
+        )
+    },
 }

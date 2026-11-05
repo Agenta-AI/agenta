@@ -12,6 +12,7 @@ export const VariantRowCells = ({
     isLatest,
     canDeploy,
     canDelete,
+    playgroundHref,
     onOpen,
     onDeploy,
     onDelete,
@@ -21,6 +22,7 @@ export const VariantRowCells = ({
     isLatest: boolean
     canDeploy: boolean
     canDelete: boolean
+    playgroundHref: ((row: AppRevisionRow) => string) | null
     onOpen: (row: AppRevisionRow) => void
     onDeploy: (row: AppRevisionRow) => void
     onDelete: (row: AppRevisionRow) => void
@@ -69,6 +71,7 @@ export const VariantRowCells = ({
                 row={row}
                 canDeploy={canDeploy}
                 canDelete={canDelete}
+                playgroundHref={playgroundHref}
                 onOpen={onOpen}
                 onDeploy={onDeploy}
                 onDelete={onDelete}

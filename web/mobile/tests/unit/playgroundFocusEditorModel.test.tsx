@@ -179,4 +179,51 @@ describe("The focus drawer form model", () => {
 
         expect(rowData()).toEqual({age: "0042", country: "Spain"})
     })
+
+    it("A field the JSON view turned into text stays text after a later form edit of it", async () => {
+        await seed({age: 42})
+        // The JSON view stores the number as text, then the form edits the same field.
+        await seed({age: "0042"})
+        await act(async () => model.handleEditorChange({...model.editorValue, age: "00420"}))
+        await settle()
+
+        expect(rowData().age).toBe("00420")
+    })
+
+    it("Text the JSON view writes counts even when the form once wrote the same text", async () => {
+        await seed({age: 42})
+        await act(async () => model.handleEditorChange({...model.editorValue, age: ""}))
+        await settle()
+        // The JSON view sets a number, then the same empty text the form wrote before.
+        await seed({age: 42})
+        await seed({age: ""})
+        await act(async () => model.handleEditorChange({...model.editorValue, age: "0042"}))
+        await settle()
+
+        expect(rowData().age).toBe("0042")
+    })
+
+    it("Text the JSON view writes counts after it removed the field and added it back", async () => {
+        await seed({age: 42})
+        await act(async () => model.handleEditorChange({...model.editorValue, age: ""}))
+        await settle()
+        // The JSON view removes the field (it writes `undefined`), then adds it back as "".
+        await seed({age: undefined})
+        await seed({age: ""})
+        await act(async () => model.handleEditorChange({...model.editorValue, age: "0042"}))
+        await settle()
+
+        expect(rowData().age).toBe("0042")
+    })
+
+    it("A field still turns back into a number after the form clears it on the way", async () => {
+        await seed({age: 42})
+
+        for (const typed of ["", "0", "07"]) {
+            await act(async () => model.handleEditorChange({...model.editorValue, age: typed}))
+            await settle()
+        }
+
+        expect(rowData().age).toBe(7)
+    })
 })

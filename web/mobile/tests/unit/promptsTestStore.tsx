@@ -18,8 +18,8 @@ export interface TestPrompt {
     id: string
     name: string
     folder_id?: string | null
+    /** Set on the latest revision only: the list flags of a real app carry no chat flag. */
     is_chat?: boolean
-    is_custom?: boolean
     is_agent?: boolean
     deleted_at?: string | null
     created_at?: string
@@ -31,7 +31,7 @@ const ref = (prompt: TestPrompt) => ({
     name: prompt.name,
     slug: prompt.id,
     description: null,
-    flags: {is_chat: prompt.is_chat, is_custom: prompt.is_custom, is_evaluator: false},
+    flags: {is_evaluator: false},
     tags: null,
     deleted_at: prompt.deleted_at ?? null,
     created_at: prompt.created_at ?? "2026-01-01T00:00:00Z",
@@ -64,6 +64,15 @@ export const makePromptsStore = ({
             ["workflows", "apps", "agentFlags", PROJECT_ID],
             new Map(prompts.map((prompt) => [prompt.id, prompt.is_agent === true])),
         )
+        for (const prompt of prompts) {
+            queryClient.setQueryData(["workflows", "latestRevision", prompt.id, PROJECT_ID], {
+                id: `${prompt.id}-rev`,
+                slug: `${prompt.id}-rev`,
+                version: 1,
+                flags: {is_chat: prompt.is_chat === true},
+                data: {uri: `agenta:builtin:${prompt.is_chat ? "chat" : "completion"}:v0`},
+            })
+        }
     }
     return {store, queryClient}
 }

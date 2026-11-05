@@ -855,6 +855,36 @@ export const workflowRevisionRefsByVariantAtomFamily = atomFamily((variantId: st
     }),
 )
 
+const workflowVariantNewestVersionQueryAtomFamily = atomFamily((variantId: string) =>
+    atomWithQuery((get) => {
+        const projectId = get(workflowProjectIdAtom)
+        return {
+            queryKey: ["workflows", "variantNewestVersion", variantId, projectId],
+            queryFn: async (): Promise<number | null> => {
+                if (!projectId) return null
+                const response = await queryWorkflowRevisions(variantId, projectId, undefined, {
+                    includeArchived: true,
+                    windowing: {limit: 1},
+                })
+                return response.workflow_revisions[0]?.version ?? null
+            },
+            enabled: get(sessionAtom) && !!projectId && !!variantId,
+        }
+    }),
+)
+
+/**
+ * The version of a variant's newest revision, archived revisions included. The revision lists
+ * hide archived revisions, but the server numbers a new commit after all of them, so the commit
+ * dialog reads its next version from this. `undefined` while it loads.
+ */
+export const workflowVariantNewestVersionAtomFamily = atomFamily((variantId: string) =>
+    atom<number | null | undefined>((get) => {
+        const query = get(workflowVariantNewestVersionQueryAtomFamily(variantId))
+        return query.data
+    }),
+)
+
 /**
  * Derived atom family for resolved revision list by variant ID.
  * Resolves thin refs through the molecule entity atom for full data.

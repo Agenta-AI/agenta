@@ -70,6 +70,33 @@ def _extract_ag_data(trace: Any) -> Dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def _trace_source_item(
+    *,
+    trace: Any,
+    step_key: str,
+    trace_id: Optional[str] = None,
+) -> ResolvedSourceItem:
+    """A trace source item with the root span id, inputs and outputs read from the trace.
+
+    The evaluator steps read the outputs from these fields, and the span id becomes the
+    evaluator's `invocation` link. Without the link the evaluator trace is typed
+    `invocation` and a live query on invocation traces reads it back.
+    """
+    ag_data = _extract_ag_data(trace) if trace is not None else {}
+    root_span = _extract_root_span(trace) if trace is not None else None
+    return ResolvedSourceItem(
+        kind="trace",
+        step_key=step_key,
+        #
+        trace_id=trace_id or getattr(trace, "trace_id", None),
+        span_id=_extract_span_id(root_span),
+        trace=trace,
+        #
+        inputs=ag_data.get("inputs"),
+        outputs=ag_data.get("outputs"),
+    )
+
+
 class SourceResolutionError(Exception):
     """An input step does not carry exactly one recognized source reference."""
 
@@ -397,23 +424,14 @@ class SourceResolution:
             )
             for testcase_id in testcase_ids
         )
-        for trace_id in trace_ids:
-            trace = traces_by_id.get(trace_id)
-            ag_data = _extract_ag_data(trace) if trace is not None else {}
-            root_span = _extract_root_span(trace) if trace is not None else None
-            source_items.append(
-                ResolvedSourceItem(
-                    kind="trace",
-                    step_key="",
-                    #
-                    trace_id=trace_id,
-                    span_id=_extract_span_id(root_span),
-                    trace=trace,
-                    #
-                    inputs=ag_data.get("inputs"),
-                    outputs=ag_data.get("outputs"),
-                )
+        source_items.extend(
+            _trace_source_item(
+                trace=traces_by_id.get(trace_id),
+                trace_id=trace_id,
+                step_key="",
             )
+            for trace_id in trace_ids
+        )
 
         return source_items
 
@@ -535,13 +553,7 @@ class SourceResolution:
 
         return {
             query_step_key: [
-                ResolvedSourceItem(
-                    kind="trace",
-                    step_key=query_step_key,
-                    #
-                    trace_id=trace.trace_id,
-                    trace=trace,
-                )
+                _trace_source_item(trace=trace, step_key=query_step_key)
                 for trace in traces
                 if trace and trace.trace_id
             ]

@@ -20,12 +20,14 @@ import {ScenarioNavigator} from "./ScenarioNavigator"
 import {RunAnnotateEmpty} from "./states/RunAnnotateEmpty"
 import {RunAnnotateSkeleton} from "./states/RunAnnotateSkeleton"
 import {useRunAnnotationSession} from "./useRunAnnotationSession"
+import {useScenarioInvocation} from "./useScenarioInvocation"
 import {useScenarioStepper} from "./useScenarioStepper"
 
 /**
  * The Annotate tab of a human run: one scenario at a time, its inputs and output beside the
- * annotation form. The arrows move between scenarios; Cmd or Ctrl+Enter saves. A page must load
- * this file with `next/dynamic`: it brings the annotation controllers.
+ * annotation form. The arrows move between scenarios; Cmd or Ctrl+Enter saves, or runs the app
+ * while the scenario has no output yet. A page must load this file with `next/dynamic`: it brings
+ * the annotation controllers.
  */
 export const RunAnnotateTab = ({runId, header}: {runId: string; header: RunHeader}) => {
     const {isOpen, onSaved} = useRunAnnotationSession(runId)
@@ -47,14 +49,21 @@ export const RunAnnotateTab = ({runId, header}: {runId: string; header: RunHeade
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const canAnnotate = useProjectPermission(projectId, "edit_annotations")
     const submission = useSubmitAnnotations(scenarioId, {runId}, onSaved)
+    const invocation = useScenarioInvocation(runId, current ?? null)
+    const runsApp = invocation.pending && invocation.canRun
     const position = current ? rows.indexOf(current) : -1
     useAnnotationKeyboardShortcuts({
         onPrev: () => setPicked(rows[position - 1].scenario.id),
         onNext,
-        onSubmit: () => void submission.submit(),
+        onSubmit: () => (runsApp ? invocation.run() : void submission.submit()),
         hasPrev: position > 0,
         hasNext: position >= 0 && (position < rows.length - 1 || hasMore) && !isFetchingMore,
-        canSubmit: submission.canSubmit && canAnnotate && Boolean(current?.invocation?.traceId),
+        canSubmit: runsApp
+            ? !invocation.running
+            : submission.canSubmit &&
+              canAnnotate &&
+              Boolean(current?.invocation?.traceId) &&
+              !invocation.pending,
         enabled: Boolean(current) && isOpen,
     })
 
@@ -91,6 +100,7 @@ export const RunAnnotateTab = ({runId, header}: {runId: string; header: RunHeade
                 labels={labels}
                 onRetry={scenarios.retryValues}
                 onSaved={onSaved}
+                invocation={invocation}
             />
         </div>
     )

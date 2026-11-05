@@ -408,7 +408,7 @@ describe("Compare", () => {
         expect(router.replace).toHaveBeenLastCalledWith(
             expect.objectContaining({query: expect.objectContaining({revisions: "rev-2,rev-1"})}),
             undefined,
-            {shallow: true},
+            expect.objectContaining({shallow: true}),
         )
     })
 

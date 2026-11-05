@@ -115,7 +115,12 @@ export type {ConnectToTestsetPayload, OpenFromTraceResult} from "./state"
 // TRACE REFERENCE RESOLUTION (shared with OSS trace drawer UI gate)
 // ============================================================================
 
-export {hasAppReference} from "./state/controllers/traceRefResolution"
+export {
+    extractReferences,
+    hasAppReference,
+    resolveTraceRefs,
+} from "./state/controllers/traceRefResolution"
+export {looksLikePromptConfig} from "./state/controllers/playgroundController"
 export type {SpanWithReferences} from "./state/controllers/traceRefResolution"
 
 // ============================================================================
@@ -127,3 +132,8 @@ export type {
     ExecuteWorkflowRevisionParams,
     ExecuteWorkflowRevisionResult,
 } from "./executeWorkflowRevision"
+export {runScenarioInvocation} from "./state/evaluationRunInvocation"
+export type {
+    RunScenarioInvocationParams,
+    RunScenarioInvocationResult,
+} from "./state/evaluationRunInvocation"

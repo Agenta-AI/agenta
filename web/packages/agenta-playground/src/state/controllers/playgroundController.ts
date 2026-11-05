@@ -836,7 +836,15 @@ const addOutputMappingColumnAtom = atom(
  */
 const restoreLoadableConnectionAtom = atom(
     null,
-    async (get, set, loadable: SnapshotLoadableConnection) => {
+    async (
+        get,
+        set,
+        loadable: SnapshotLoadableConnection,
+        options?: {
+            /** False once the caller no longer wants the result (its page set up again). */
+            isCurrent?: () => boolean
+        },
+    ) => {
         const loadableId = get(derivedLoadableIdAtom)
         if (!loadableId) return
 
@@ -857,6 +865,11 @@ const restoreLoadableConnectionAtom = atom(
             cursor = page.nextCursor
             if (!page.hasMore) break
         } while (cursor)
+
+        // The playground was left or switched while the test cases loaded: connecting now would
+        // replace the test cases of whatever screen came next.
+        if (get(derivedLoadableIdAtom) !== loadableId) return
+        if (options?.isCurrent && !options.isCurrent()) return
 
         // Delegate to the same compound action used for interactive testset connections
         set(connectToTestsetAtom, {
@@ -971,7 +984,7 @@ function stripOmittedKeys(params: Record<string, unknown>): Record<string, unkno
  * an `llm_config` object. Matching `template_format` is an extra signal
  * to avoid false positives on user dicts that happen to carry messages.
  */
-function looksLikePromptConfig(value: unknown): boolean {
+export function looksLikePromptConfig(value: unknown): boolean {
     if (!isRecord(value)) return false
     const hasMessages = Array.isArray(value.messages) && value.messages.length > 0
     const hasLlmConfig = isRecord(value.llm_config)

@@ -1,6 +1,8 @@
+import type {TraceSpanNode} from "@agenta/entities/trace"
 import {
     bindTraceDrawerClearParams,
     bindTraceDrawerNavigate,
+    bindTraceDrawerPlaygroundActions,
     bindTraceDrawerSetQueryParam,
 } from "@agenta/observability/traceDrawer"
 import type {NextRouter} from "next/router"
@@ -24,12 +26,22 @@ export const currentQuery = (router: NextRouter, search: string): NextRouter["qu
  * host's job, which is why they are seams rather than imports.
  *
  * The data slots are filled by `registerTraceDrawerSlots`; the reference/action slots stay on
- * their fallbacks (a plain label, no button), which are enough on `/m`. The playground actions
- * stay unbound on purpose, so the span header shows no Playground button: it was built for
- * prompt traces, and an agent trace opens an empty playground because the root span no longer
- * stores the agent config.
+ * their fallbacks (a plain label, no button), which are enough on `/m`. The span header's
+ * Playground button exists only while the `playground` developer view is on: its code
+ * loads on the first click.
  */
-export const bindTraceDrawerSeams = (router: NextRouter) => {
+export const bindTraceDrawerSeams = (router: NextRouter, {playground}: {playground: boolean}) => {
+    bindTraceDrawerPlaygroundActions(
+        playground
+            ? {
+                  openTraceInPlayground: (span) =>
+                      import("./tracePlayground").then((module) =>
+                          module.openTraceInPlayground(router, span as TraceSpanNode),
+                      ),
+              }
+            : {},
+    )
+
     bindTraceDrawerNavigate((href) => {
         void router.push(href)
     })
@@ -43,6 +55,9 @@ export const bindTraceDrawerSeams = (router: NextRouter) => {
 
     bindTraceDrawerClearParams(() => {
         const query = currentQuery(router, window.location.search)
+        // The drawer also clears after its close animation. By then the Playground button can
+        // have moved to another page, and a push there would drop that page's hash.
+        if (!("trace" in query) && !("span" in query)) return
         delete query.trace
         delete query.span
         void router.push({pathname: router.pathname, query}, undefined, {shallow: true})

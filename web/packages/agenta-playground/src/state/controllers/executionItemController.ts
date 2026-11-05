@@ -96,6 +96,7 @@ import {
     referencedVariableKeysAtomFamily,
     playgroundInputsAtomFamily,
     type PlaygroundInputsAtomKey,
+    executeStepForSessionWithExecutionItems,
 } from "../execution"
 import {buildAssistantMessage} from "../helpers/messageFactory"
 
@@ -415,5 +416,7 @@ export const executionItemController = {
     helpers: {
         /** Build an assistant message from content */
         buildAssistantMessage,
+        /** Run one step outside the playground UI (`executeWorkflowRevision`). */
+        executeStepForSession: executeStepForSessionWithExecutionItems,
     },
 }

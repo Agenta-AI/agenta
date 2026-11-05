@@ -6,8 +6,9 @@ import {FilterDialog} from "@agenta/observability-ui"
 
 /**
  * The trace filter of a live evaluation: the shared filter dialog with the invocation row
- * locked at the top. It shows and returns only the user's rows. The evaluator and feedback
- * row of annotation filters is not offered here yet.
+ * locked at the top. It shows and returns only the user's rows. It has no Annotation fields:
+ * the traces page applies them in a second query, and the stored live query cannot, so the API
+ * would drop the condition and evaluate every trace.
  */
 export const LiveTraceFilter = ({
     userFilters,
@@ -18,7 +19,13 @@ export const LiveTraceFilter = ({
     disabled?: boolean
     onChange: (userFilters: Filter[]) => void
 }) => {
-    const columns = useMemo(() => getFilterColumns(), [])
+    const columns = useMemo(
+        () =>
+            getFilterColumns().filter(
+                (node) => !(node.kind === "group" && node.label === "Annotation"),
+            ),
+        [],
+    )
     const filterData = useMemo(() => [LIVE_INVOCATION_FILTER, ...userFilters], [userFilters])
     const apply = (rows: Filter[]) => onChange(rows.filter((row) => !row.isPermanent))
 

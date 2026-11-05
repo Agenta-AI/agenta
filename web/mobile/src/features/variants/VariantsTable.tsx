@@ -37,6 +37,7 @@ export const VariantsTable = ({
     latestRevisionId,
     canDeploy,
     canDelete,
+    playgroundHref = null,
     collapsed = NO_COLLAPSED,
     onCollapsedChange,
     onOpen,
@@ -49,6 +50,8 @@ export const VariantsTable = ({
     latestRevisionId: string | null
     canDeploy: boolean
     canDelete: boolean
+    /** Absent or null: the menu has no "Open in playground". */
+    playgroundHref?: ((row: AppRevisionRow) => string) | null
     /** Absent: every group is open and none can fold. */
     collapsed?: ReadonlySet<string>
     onCollapsedChange?: (next: Set<string>) => void
@@ -87,6 +90,7 @@ export const VariantsTable = ({
                     isLatest={row.revisionId === latestRevisionId}
                     canDeploy={canDeploy}
                     canDelete={canDelete}
+                    playgroundHref={playgroundHref}
                     onOpen={onOpen}
                     onDeploy={onDeploy}
                     onDelete={onDelete ?? NO_DELETE}

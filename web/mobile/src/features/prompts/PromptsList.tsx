@@ -33,8 +33,8 @@ const WIDE_QUERY = "(min-width: 640px)"
 
 /**
  * The folders and prompts of the open folder, or the search result. A folder row opens its
- * folder. A prompt row does nothing yet: there is no prompt page in this app, so it is neither
- * a link nor clickable.
+ * folder. A prompt row opens the prompt in the playground while that view is on; otherwise it
+ * is neither a link nor clickable.
  */
 export const PromptsList = ({
     rows,
@@ -63,8 +63,9 @@ export const PromptsList = ({
             rowKey={(row) => row.key}
             onOpenRow={(row) => {
                 if (row.kind === "folder") actions.openFolder(row)
+                else actions.openPrompt?.(row)
             }}
-            canOpenRow={(row) => row.kind === "folder"}
+            canOpenRow={(row) => row.kind === "folder" || !!actions.openPrompt}
             empty={empty}
             renderRow={(row) => (
                 <PromptRowCells

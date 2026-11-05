@@ -110,7 +110,10 @@ export const deleteFolder = async ({
     await getFoldersClient().deleteFolder({folder_id: folderId}, projectScopedRequest(projectId))
 }
 
-/** Puts a prompt in a folder. Sends only the workflow id and the folder id. */
+/**
+ * Puts a prompt in a folder, or at the top level when the folder id is null. Sends only the
+ * workflow id and the folder id.
+ */
 export const moveWorkflowToFolder = async ({
     projectId,
     workflowId,
@@ -118,7 +121,7 @@ export const moveWorkflowToFolder = async ({
 }: {
     projectId: string
     workflowId: string
-    folderId: string
+    folderId: string | null
 }): Promise<void> => {
     await getWorkflowsClient().editWorkflow(
         {workflow_id: workflowId, workflow: {id: workflowId, folder_id: folderId}},

@@ -61,7 +61,7 @@ export const DeleteRevisionDialog = ({
         }
         // The revision is gone: the dialog closes, and the screens that showed it load again.
         onArchived?.(row.revisionId)
-        message.success("Deleted workflow successfully")
+        message.success("Deleted revision successfully")
         onClose()
         // The deleted revision itself is not loaded again: that load would write it back to
         // the persisted cache a reload paints from.

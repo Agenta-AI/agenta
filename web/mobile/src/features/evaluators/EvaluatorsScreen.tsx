@@ -13,6 +13,7 @@ import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useProjectPermission, useProjectPermissionState} from "../context/useProjectPermission"
+import {useDeveloperViewEnabled} from "../developer/developerViewAccess"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 import {useRevisionParam} from "../revisions/useRevisionParam"
@@ -49,6 +50,11 @@ export const EvaluatorsScreen = ({
     const search = useDebouncedAtomSearch(setTerm, 300)
     const trimmed = term.trim()
     const canEdit = useProjectPermission(projectId, "edit_evaluators")
+    // Human evaluators have no playground.
+    const playgroundBase =
+        useDeveloperViewEnabled("evaluator-playground") === true && category === "automatic"
+            ? `/w/${workspaceId}/p/${projectId}`
+            : null
 
     // The workflow endpoints check `view_workflows`, so this page asks for `view_evaluators` itself.
     const view = useProjectPermissionState(projectId, "view_evaluators")
@@ -243,7 +249,9 @@ export const EvaluatorsScreen = ({
                 onConfirm={() => void confirmArchive()}
                 onClose={closeDialog}
             />
-            {view.allowed ? <EvaluatorsDrawer navigationIds={navigationIds} /> : null}
+            {view.allowed ? (
+                <EvaluatorsDrawer navigationIds={navigationIds} playgroundBase={playgroundBase} />
+            ) : null}
         </>
     )
 }

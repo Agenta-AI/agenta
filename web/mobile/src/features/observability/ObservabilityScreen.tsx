@@ -23,7 +23,7 @@ import {NavDrawer} from "../nav/NavDrawer"
 
 import {useAddToTestsetAction} from "./addToTestset/useAddToTestsetAction"
 import {ObservabilityAppFilter} from "./ObservabilityAppFilter"
-import {setObservabilityAppInUrl, useObservabilityAppScope} from "./observabilityAppScope"
+import {useObservabilityAppScope, useSelectObservabilityApp} from "./observabilityAppScope"
 import {useAddAllMatchingAction} from "./queueAll/useAddAllMatchingAction"
 import {selectedTraceIds} from "./selectedTraceIds"
 import {useObservabilitySessionUrl} from "./sessionDrawer/useObservabilitySessionUrl"
@@ -98,10 +98,7 @@ const ObservabilityContent = ({
             void router.replace(projectHomeUrl({workspaceId, projectId}))
     }, [spans.allowed, spans.pending, projectId, router, workspaceId])
 
-    const onAppChange = useCallback(
-        (appId: string | null) => setObservabilityAppInUrl(router, appId),
-        [router],
-    )
+    const onAppChange = useSelectObservabilityApp()
     const tracesFilters = tab === "traces" ? <TracesFilters /> : undefined
 
     const session = useObservabilitySessionUrl()

@@ -10,6 +10,9 @@ import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
 import {useProjectPermission} from "../context/useProjectPermission"
+import {useDeveloperViewEnabled} from "../developer/developerViewAccess"
+import {playgroundHref} from "../playground/playgroundUrl"
+import {OpenInPlaygroundButton} from "../revisions/OpenInPlaygroundButton"
 import {useRevisionParam} from "../revisions/useRevisionParam"
 
 import {DeleteRevisionDialog} from "./DeleteRevisionDialog"
@@ -39,7 +42,16 @@ const MODE_OPTIONS = [
 ]
 
 /** The Variants tab: the revisions of one app, searchable, flat or grouped by variant. */
-export const VariantsTab = ({projectId, app}: {projectId: string; app: Workflow}) => {
+export const VariantsTab = ({
+    base,
+    projectId,
+    app,
+}: {
+    /** The project path, `/w/{workspace_id}/p/{project_id}`. */
+    base: string
+    projectId: string
+    app: Workflow
+}) => {
     const [search, setSearch] = useState("")
     const term = useSettledValue(search).trim()
     const [mode, setMode] = useState<VariantsDisplayMode>(readDisplayMode)
@@ -52,6 +64,14 @@ export const VariantsTab = ({projectId, app}: {projectId: string; app: Workflow}
     const latestRevisionId = useAtomValue(workflowLatestRevisionIdAtomFamily(app.id)) ?? null
     const canDeploy = useProjectPermission(projectId, "deploy_environments")
     const canDelete = useProjectPermission(projectId, "edit_workflows")
+    const playgroundEnabled = useDeveloperViewEnabled("playground") === true
+    const toPlayground = useMemo(
+        () =>
+            playgroundEnabled
+                ? (row: AppRevisionRow) => playgroundHref(base, app.id, [row.revisionId])
+                : null,
+        [app.id, base, playgroundEnabled],
+    )
 
     const groups = useMemo(() => toRevisionGroups(revisions.rows, mode), [revisions.rows, mode])
     const navigationIds = useMemo(() => visibleRevisionIds(groups, collapsed), [groups, collapsed])
@@ -110,6 +130,7 @@ export const VariantsTab = ({projectId, app}: {projectId: string; app: Workflow}
                 latestRevisionId={latestRevisionId}
                 canDeploy={canDeploy}
                 canDelete={canDelete}
+                playgroundHref={toPlayground}
                 collapsed={collapsed}
                 onCollapsedChange={setCollapsed}
                 onOpen={openRow}
@@ -135,12 +156,17 @@ export const VariantsTab = ({projectId, app}: {projectId: string; app: Workflow}
                     kind="variant"
                     navigationIds={navigationIds}
                     actions={
-                        canDeploy && shownRow ? (
-                            <Button size="sm" onClick={() => setDeployRow(shownRow)}>
-                                <CloudArrowUp aria-hidden size={14} />
-                                Deploy
-                            </Button>
-                        ) : null
+                        <>
+                            {toPlayground && shownRow ? (
+                                <OpenInPlaygroundButton href={toPlayground(shownRow)} />
+                            ) : null}
+                            {canDeploy && shownRow ? (
+                                <Button size="sm" onClick={() => setDeployRow(shownRow)}>
+                                    <CloudArrowUp aria-hidden size={14} />
+                                    Deploy
+                                </Button>
+                            ) : null}
+                        </>
                     }
                 />
             ) : null}
