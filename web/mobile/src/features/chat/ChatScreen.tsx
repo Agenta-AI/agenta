@@ -131,8 +131,7 @@ export const ChatScreen = ({
     useEffect(() => {
         if (pinnedRevisionId || !hasAgent) return
         let live = true
-        // A read already in flight is this open's read: restarting it only repeats the request.
-        void refetchLatest({cancelRefetch: false}).then(({data, status}) => {
+        void refetchLatest().then(({data, status}) => {
             if (live && status === "success" && data?.revisionId) pinRevision(data.revisionId)
         })
         return () => {

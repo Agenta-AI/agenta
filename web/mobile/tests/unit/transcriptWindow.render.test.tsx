@@ -36,6 +36,7 @@ describe("transcript window with auto-scroll", () => {
     const render = (count: number) => act(() => root.render(<Transcript count={count} />))
     const scrollTo = (top: number) =>
         act(() => {
+            scroller().dispatchEvent(new Event("wheel"))
             scroller().scrollTop = top
             scroller().dispatchEvent(new Event("scroll"))
         })

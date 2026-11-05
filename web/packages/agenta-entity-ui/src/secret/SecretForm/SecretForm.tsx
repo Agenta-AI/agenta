@@ -275,6 +275,8 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
                             aria-labelledby={SECRET_VALUE_LABEL_ID}
                             aria-invalid={Boolean(jsonError) || undefined}
                             spellCheck={false}
+                            autoCorrect="off"
+                            autoCapitalize="none"
                             value={jsonText}
                             onChange={(e) => setJsonText(e.target.value)}
                         />

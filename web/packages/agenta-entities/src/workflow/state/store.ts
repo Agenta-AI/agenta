@@ -3131,42 +3131,35 @@ export function invalidateWorkflowRevisionsByVariantCache(
     store.set(workflowRevisionsQueryAtomFamily(variantId))
 }
 
-const invalidateRevisionReads = (
-    qc: QueryClient,
-    workflowId: string | null | undefined,
-    options?: {cancelRefetch: boolean},
-) => {
-    qc.invalidateQueries(
-        {
-            queryKey: ["workflows", "latestRevision"],
-            exact: false,
-            predicate: workflowId
-                ? (query) => {
-                      // A host-owned key under this prefix names the workflow in its data.
-                      const data = query.state.data as {workflowId?: string | null} | null
-                      return query.queryKey.includes(workflowId) || data?.workflowId === workflowId
-                  }
-                : undefined,
-        },
-        options,
-    )
-    qc.invalidateQueries({queryKey: ["workflows", "inspect"], exact: false}, options)
+const invalidateRevisionReads = (qc: QueryClient, workflowId: string | null | undefined) => {
+    qc.invalidateQueries({
+        queryKey: ["workflows", "latestRevision"],
+        exact: false,
+        predicate: workflowId
+            ? (query) => {
+                  // A host-owned key under this prefix names the workflow in its data.
+                  const data = query.state.data as {workflowId?: string | null} | null
+                  return query.queryKey.includes(workflowId) || data?.workflowId === workflowId
+              }
+            : undefined,
+    })
+    qc.invalidateQueries({queryKey: ["workflows", "inspect"], exact: false})
     // The version SELECTOR reads the revisions list, not the latest-revision tag, so leaving
     // it out left the freshly committed version missing from the picker until a reload
     // (#6380) — the config had already moved on to a version you could not name.
-    qc.invalidateQueries({queryKey: ["workflows", "revisionsByWorkflow"], exact: false}, options)
-    qc.invalidateQueries({queryKey: ["workflows", "revisions"], exact: false}, options)
+    qc.invalidateQueries({queryKey: ["workflows", "revisionsByWorkflow"], exact: false})
+    qc.invalidateQueries({queryKey: ["workflows", "revisions"], exact: false})
 }
 
 /**
  * Re-read an agent's revisions when a surface that names one opens: a commit may have landed
  * while it was closed (#6380). Not a commit itself, so the project-wide agent/prompt split stays
- * cached, and a read already in flight is new enough to keep.
+ * cached.
  */
 export function revalidateAgentRevisionReads(workflowId?: string | null, options?: StoreOptions) {
     const store = getStore(options)
     try {
-        invalidateRevisionReads(store.get(queryClientAtom), workflowId, {cancelRefetch: false})
+        invalidateRevisionReads(store.get(queryClientAtom), workflowId)
     } catch {
         // queryClientAtom may not be initialized yet
     }
