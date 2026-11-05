@@ -89,6 +89,52 @@ const readStoredAnnotations = async ({
     return response.data?.traces ?? []
 }
 
+/** A key-order independent compare of two annotation outputs. */
+const sameOutputs = (a: unknown, b: unknown): boolean => {
+    const sorted = (value: unknown): unknown =>
+        value && typeof value === "object" && !Array.isArray(value)
+            ? Object.fromEntries(
+                  Object.entries(value as Record<string, unknown>)
+                      .sort(([x], [y]) => x.localeCompare(y))
+                      .map(([key, item]) => [key, sorted(item)]),
+              )
+            : Array.isArray(value)
+              ? value.map(sorted)
+              : value
+    return JSON.stringify(sorted(a)) === JSON.stringify(sorted(b))
+}
+
+const STORED_READ_ATTEMPTS = 10
+const STORED_READ_DELAY_MS = 300
+
+/**
+ * Waits until the span's stored annotations show the writes that landed. The API answers a
+ * write before it stores it (202), so a refresh right after the save reads the old annotations
+ * and the drawer and the table keep them until a reload. Gives up after about three seconds.
+ */
+const waitUntilStored = async ({
+    projectId,
+    traceId,
+    spanId,
+    landed,
+}: {
+    projectId: string
+    traceId: string
+    spanId: string
+    landed: Record<string, AnnotationDto>
+}) => {
+    for (let attempt = 0; attempt < STORED_READ_ATTEMPTS; attempt++) {
+        const stored = await readStoredAnnotations({projectId, traceId, spanId}).catch(() => null)
+        const byId = new Map((stored ?? []).map((item) => [item.trace_id, item]))
+        const done = Object.entries(landed).every(([id, item]) => {
+            const read = byId.get(id)
+            return read !== undefined && sameOutputs(read.data?.outputs, item.data?.outputs)
+        })
+        if (done) return
+        await new Promise((resolve) => setTimeout(resolve, STORED_READ_DELAY_MS))
+    }
+}
+
 /**
  * The trace annotate form: the sections for the user's own annotations, the evaluators others
  * annotated with and the picked evaluators; the edited values; and the save, which sends the
@@ -334,7 +380,10 @@ export const useTraceAnnotationForm = ({
             if (result.status !== "fulfilled" || !own) return
             landed[update.traceId] = {...own, data: update.annotation.data} as AnnotationDto
         })
-        if (Object.keys(landed).length > 0) setSavedHere((previous) => ({...previous, ...landed}))
+        if (Object.keys(landed).length > 0) {
+            setSavedHere((previous) => ({...previous, ...landed}))
+            await waitUntilStored({projectId, traceId, spanId, landed})
+        }
         const results = [...created, ...updated]
         // Refresh even after a failure: the writes that did land become the user's own
         // annotations, so a retry updates them instead of creating them again.
@@ -355,7 +404,7 @@ export const useTraceAnnotationForm = ({
         }
         message.success(SAVE_SUCCESS_TEXT)
         onSaved()
-    }, [writes, projectId, storedBlocked, userId, picked, onSaved])
+    }, [writes, projectId, storedBlocked, userId, picked, onSaved, traceId, spanId])
 
     return {
         sections: shownSections,

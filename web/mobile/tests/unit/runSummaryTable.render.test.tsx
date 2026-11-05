@@ -104,7 +104,8 @@ describe("run summary table", () => {
             input({
                 metrics: [
                     invocationMetric("cost", {count: 4, sum: 0.002}),
-                    invocationMetric("duration", {count: 4, mean: 0.4567}),
+                    // The duration metric is in milliseconds, as on the trace.
+                    invocationMetric("duration", {count: 4, mean: 779.06}),
                     invocationMetric("tokens", {count: 4, mean: 12_340}),
                     invocationMetric("errors", null),
                 ],
@@ -112,7 +113,7 @@ describe("run summary table", () => {
         )
         expect(labelText("cost")).toBe("Cost (Avg)")
         expect(rowText("cost")).toBe("$0.0005")
-        expect(rowText("duration")).toBe("457 ms")
+        expect(rowText("duration")).toBe("779 ms")
         expect(rowText("tokens")).toBe("12.3K")
         expect(rowText("errors")).toBe("—")
 
