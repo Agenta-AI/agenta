@@ -96,4 +96,10 @@ describe("trace drawer from the address", () => {
         render({trace: "t1", span: "s1"})
         expect(store.get(traceDrawerAtom).activeSpanId).toBe("s1")
     })
+
+    it("Back to an address with no span clears the selected span", () => {
+        render({trace: "t1", span: "s1"})
+        render({trace: "t1"})
+        expect(store.get(traceDrawerAtom)).toMatchObject({open: true, activeSpanId: null})
+    })
 })

@@ -19,6 +19,11 @@ export const currentQuery = (router: NextRouter, search: string): NextRouter["qu
     }
 }
 
+const sameQuery = (a: NextRouter["query"], b: NextRouter["query"]) => {
+    const keys = new Set([...Object.keys(a), ...Object.keys(b)])
+    return [...keys].every((key) => String(a[key] ?? "") === String(b[key] ?? ""))
+}
+
 /**
  * Points the packaged trace drawer at `/m`'s router.
  *
@@ -51,14 +56,20 @@ export const bindTraceDrawerSeams = (
     })
 
     bindTraceDrawerSetQueryParam((name, value) => {
-        const query = currentQuery(router, window.location.search)
+        const before = currentQuery(router, window.location.search)
+        const query = {...before}
         // The drawer writes only the span. The trace goes with it, so a reload can reopen the
         // drawer (`useTraceDrawerFromUrl`): a span id alone does not name its trace. While the
-        // trace loads the drawer writes no span; the address keeps the one it asked for.
+        // trace loads the drawer writes no span; the address keeps the span it asked for, but
+        // only when that span belongs to this trace.
         const traceId = name === "span" ? openTraceId() : null
+        const sameTrace = Boolean(traceId) && before.trace === traceId
         if (traceId) query.trace = traceId
         if (value != null) query[name] = value
-        else if (!traceId) delete query[name]
+        else if (!sameTrace) delete query[name]
+        // Nothing changed, as when Back restored a span and the drawer writes it again: a push
+        // would add a history entry and drop the Forward one.
+        if (sameQuery(before, query)) return
         void router.push({pathname: router.pathname, query}, undefined, {shallow: true})
     })
 

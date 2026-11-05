@@ -17,7 +17,8 @@ const param = (value: string | string[] | undefined) =>
  *
  * - `?trace` appears or changes: open the drawer on it (and on `?span`).
  * - `?trace` leaves while the drawer shows that trace (Back past it): close the drawer.
- * - `?span` changes on the same trace (Back to the span before): show that span.
+ * - `?span` changes on the same trace (Back to the span before): show that span, or none when
+ *   the address names no span.
  *
  * It acts on address changes only, so a drawer the user closed stays closed while its params
  * leave the address, and the drawer's own span clicks are not undone.
@@ -54,10 +55,11 @@ export const useTraceDrawerFromUrl = (router: NextRouter) => {
     useEffect(() => {
         const previous = lastSeen.current
         lastSeen.current = {traceId, spanId}
-        if (!spanId || traceId !== previous.traceId || spanId === previous.spanId) return
+        if (!traceId || traceId !== previous.traceId || spanId === previous.spanId) return
         const drawer = store.get(traceDrawerAtom)
         if (!drawer.open || drawer.traceId !== traceId) return
         // The drawer's own span clicks write the address after its state: they match already.
+        // Back to an address with no span clears the selected one.
         if (drawer.activeSpanId !== spanId) setSpan(spanId)
     }, [spanId, traceId, setSpan, store])
 }
