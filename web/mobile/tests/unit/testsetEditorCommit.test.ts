@@ -763,8 +763,28 @@ describe("useTestsetEditor commit over the real package state", () => {
                 .data.testcases
         }
 
-        it("Columns change before the first save, and the rows follow them", async () => {
+        // A new test set opens with a starter row (`input`, `correct_answer`). These tests
+        // build their own columns, so they start from an empty set.
+        const mountEmptyNew = async () => {
             await mount("new")
+            run(() => editor().deleteRows(store.get(testcaseMolecule.newIds)))
+            expect(store.get(testcaseMolecule.newIds)).toEqual([])
+        }
+
+        it("A new test set saves its starter row with the values the user typed", async () => {
+            await mount("new")
+            const [rowId] = store.get(testcaseMolecule.newIds)
+            run(() =>
+                store.set(testcaseMolecule.actions.update, rowId, {
+                    data: {input: "Peru", correct_answer: "Lima"},
+                }),
+            )
+            await commit()
+            expect(createdRows()).toEqual([{data: {input: "Peru", correct_answer: "Lima"}}])
+        })
+
+        it("Columns change before the first save, and the rows follow them", async () => {
+            await mountEmptyNew()
             expect(editor().columnEditBlocked).toBeNull()
             expect(await act(() => editor().addColumn("question"))).toEqual({
                 ok: true,
@@ -794,7 +814,7 @@ describe("useTestsetEditor commit over the real package state", () => {
         })
 
         it("A deleted column takes its values with it, also when added again", async () => {
-            await mount("new")
+            await mountEmptyNew()
             await act(() => editor().addColumn("question"))
             await act(() => editor().addColumn("country"))
             const rowId = run(() => editor().addRow())
@@ -812,7 +832,7 @@ describe("useTestsetEditor commit over the real package state", () => {
         })
 
         it("A column can take the name of a deleted column and keep its own values", async () => {
-            await mount("new")
+            await mountEmptyNew()
             await act(() => editor().addColumn("question"))
             await act(() => editor().addColumn("answer"))
             const rowId = run(() => editor().addRow())
@@ -833,7 +853,7 @@ describe("useTestsetEditor commit over the real package state", () => {
         })
 
         it("A row-only column can be deleted and its name given to another column", async () => {
-            await mount("new")
+            await mountEmptyNew()
             const rowId = run(() => editor().addRow())
             // "a" lives only in the row, never in the column list.
             run(() => store.set(testcaseMolecule.actions.update, rowId ?? "", {data: {a: "old"}}))

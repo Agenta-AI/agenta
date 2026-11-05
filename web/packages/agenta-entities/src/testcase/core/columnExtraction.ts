@@ -19,7 +19,7 @@
 
 import {isPlainObject} from "@agenta/shared/utils"
 
-import {isSystemField} from "./schema"
+import {isInternalDataField} from "./schema"
 import type {Column} from "./types"
 
 // ============================================================================
@@ -73,8 +73,9 @@ export function collectColumnPaths(
     const parentPath = parentSegments.join(".")
 
     for (const [key, value] of Object.entries(obj)) {
-        // Skip system fields and private fields
-        if (isSystemField(key) || key.startsWith("_")) continue
+        // Keys of the testcase itself live outside `data`, so a data key named `meta` or `tags`
+        // is a user column. Only internal keys stay hidden.
+        if (isInternalDataField(key)) continue
 
         const fullPath = parentPath ? `${parentPath}.${key}` : key
         const path = [...parentSegments, key]

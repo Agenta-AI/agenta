@@ -186,7 +186,10 @@ describe("useTestsetEditor", () => {
         await act(() => editor().addColumn("capital"))
         const rowId = run(() => editor().addRow())
 
+        // The starter columns of a new test set come first.
         expect(store.get(testcaseMolecule.atoms.data(rowId as string))?.data).toEqual({
+            input: "",
+            correct_answer: "",
             country: "",
             capital: "",
         })

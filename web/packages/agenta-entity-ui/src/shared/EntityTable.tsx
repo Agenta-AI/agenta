@@ -64,6 +64,8 @@ import type {GroupColumnsOptions} from "@agenta/ui/utils"
 import {useAtomValue, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
+import {collapsedGroupValue} from "./collapsedGroupValue"
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -492,8 +494,7 @@ export function EntityTable<
                 render: (_, record) => {
                     const dataSource = getRowData(record)
                     if (!dataSource) return null
-                    const value = (dataSource as Record<string, unknown>)[groupPath]
-                    return <SmartCellContent value={value} />
+                    return <SmartCellContent value={collapsedGroupValue(dataSource, groupPath)} />
                 },
             }),
         } as GroupColumnsOptions<TRow, TColumn>

@@ -2,7 +2,9 @@ import {useCallback, useMemo, useState} from "react"
 
 import {testcaseDataController, type TestcaseTableRow} from "@agenta/entities/testcase"
 import {TestcaseTable, type EntityColumnHeader} from "@agenta/entity-ui/testcase"
+import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {message} from "@agenta/ui/app-message"
+import {ListTableToolbar} from "@agenta/ui/list-table"
 import type {ColumnDefs} from "@agenta/ui/table"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {copyToClipboard} from "@agenta/ui/utils"
@@ -56,6 +58,14 @@ export const TestsetGrid = ({
     const [selected, setSelected] = useState<string[]>([])
     const [step, setStep] = useState<ColumnDialogStep | null>(null)
     const columns = useAtomValue(testcaseDataController.selectors.columns(tableConfig))
+    // Search narrows the grid only. The editor keeps reading every row, because the save
+    // looks for edited rows in its list.
+    const [searchTerm, setSearchTerm] = useState("")
+    const search = useDebouncedAtomSearch(setSearchTerm, 300)
+    const gridConfig = useMemo(
+        () => (searchTerm.trim() ? {...tableConfig, searchTerm} : tableConfig),
+        [searchTerm, tableConfig],
+    )
 
     const deleteSelected = useCallback(() => {
         if (readOnly || selected.length === 0) return
@@ -153,8 +163,14 @@ export const TestsetGrid = ({
 
     return (
         <>
+            {/* Outside the table, so a search with no match can still be cleared. */}
+            <ListTableToolbar
+                search={search.value}
+                onSearchChange={search.onChange}
+                searchPlaceholder="Search testcases..."
+            />
             <TestcaseTable
-                config={tableConfig}
+                config={gridConfig}
                 selectable={canEdit}
                 selectedIds={selected}
                 onSelectionChange={setSelected}

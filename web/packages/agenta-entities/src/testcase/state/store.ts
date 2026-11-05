@@ -31,7 +31,7 @@ import {
     normalizeValueForComparison,
 } from "../../shared/molecule/createEntityDraftState"
 import {pendingColumnOpsAtomFamily} from "../../testset/state/revisionTableState"
-import {testcaseSchema, SYSTEM_FIELDS, type Testcase} from "../core"
+import {testcaseSchema, SYSTEM_FIELDS, isInternalDataField, type Testcase} from "../core"
 
 // ============================================================================
 // CONTEXT ATOMS
@@ -472,7 +472,7 @@ const testcaseDraftState = createEntityDraftState<Testcase, Testcase>({
             // New entity - check if data has any non-empty values
             const draftData = draft.data ?? {}
             for (const [key, value] of Object.entries(draftData)) {
-                if (SYSTEM_FIELDS.has(key)) continue
+                if (isInternalDataField(key)) continue
                 if (value !== undefined && value !== null && value !== "") return true
             }
             return false
@@ -483,7 +483,7 @@ const testcaseDraftState = createEntityDraftState<Testcase, Testcase>({
         const serverData = originalData.data ?? {}
 
         for (const key of Object.keys(draftData)) {
-            if (SYSTEM_FIELDS.has(key)) continue
+            if (isInternalDataField(key)) continue
             if (!(key in serverData)) return true
             const normalizedDraft = normalizeValueForComparison(draftData[key])
             const normalizedServer = normalizeValueForComparison(serverData[key])
@@ -491,7 +491,7 @@ const testcaseDraftState = createEntityDraftState<Testcase, Testcase>({
         }
 
         for (const key of Object.keys(serverData)) {
-            if (SYSTEM_FIELDS.has(key)) continue
+            if (isInternalDataField(key)) continue
             // A key the server row has but the draft dropped is a removal, even
             // when the server value is null or "".
             if (!(key in draftData)) return true
@@ -669,7 +669,7 @@ const updatedMatchesOriginal = (updated: Testcase, serverState: Testcase | null)
     const serverData = serverState.data ?? {}
 
     for (const key of Object.keys(updatedData)) {
-        if (SYSTEM_FIELDS.has(key)) continue
+        if (isInternalDataField(key)) continue
         if (!(key in serverData)) {
             const value = updatedData[key]
             if (value !== undefined && value !== null && value !== "") return false
@@ -681,7 +681,7 @@ const updatedMatchesOriginal = (updated: Testcase, serverState: Testcase | null)
     }
 
     for (const key of Object.keys(serverData)) {
-        if (SYSTEM_FIELDS.has(key)) continue
+        if (isInternalDataField(key)) continue
         // A key the server row has but the edit dropped is a removal, even when
         // the server value is null or "".
         if (!(key in updatedData)) return false

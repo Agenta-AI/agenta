@@ -51,6 +51,7 @@ const ROWS: Row[] = [
 
 vi.mock("@agenta/entity-ui/testcase", () => ({
     TestcaseTable: (props: {
+        config: {searchTerm?: string}
         selectable?: boolean
         selectionDisabled?: boolean
         onSelectionChange?: (ids: string[]) => void
@@ -59,7 +60,7 @@ vi.mock("@agenta/entity-ui/testcase", () => ({
         renderColumnHeader?: (header: Header) => ReactNode
         headerExtra?: ReactNode
     }) => (
-        <div>
+        <div data-search={props.config.searchTerm ?? ""}>
             <div data-testid="toolbar">{props.headerExtra}</div>
             {props.selectable ? (
                 <button
@@ -156,12 +157,41 @@ describe("Test set grid", () => {
         host.remove()
     })
 
+    it("Search narrows the grid rows and leaves the editor rows alone", async () => {
+        vi.useFakeTimers()
+        try {
+            const editor = fakeEditor()
+            mount(editor)
+            const box = byLabel("Search testcases...") as HTMLInputElement
+            expect(box).not.toBeNull()
+            await act(async () => {
+                const setValue = Object.getOwnPropertyDescriptor(
+                    HTMLInputElement.prototype,
+                    "value",
+                )?.set
+                setValue?.call(box, "Peru")
+                box.dispatchEvent(new Event("input", {bubbles: true}))
+            })
+            await act(async () => {
+                vi.advanceTimersByTime(300)
+            })
+            expect(document.querySelector("[data-search]")?.getAttribute("data-search")).toBe(
+                "Peru",
+            )
+            expect(editor.tableConfig).not.toHaveProperty("searchTerm")
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
     it("Rename column with an unchanged name changes nothing", async () => {
         const editor = fakeEditor()
         const {onColumnSaved} = mount(editor)
         await press(byLabel("Column question actions"))
         await click(item("Rename column"))
-        expect(document.querySelector("input")?.value).toBe("question")
+        expect(document.querySelector<HTMLInputElement>('[role="dialog"] input')?.value).toBe(
+            "question",
+        )
 
         await click(button("Rename and save"))
 

@@ -126,6 +126,15 @@ const savedColumns = async (
 const UNSAFE_PARTS: ReadonlySet<string> = new Set(["__proto__", "constructor", "prototype"])
 
 /**
+ * The first row of a new test set, as in the old app: the columns `input` and `correct_answer`,
+ * empty. Columns come from row data, so without a row a new test set has no column to fill in.
+ */
+export const NEW_TESTSET_STARTER_ROW: Readonly<Record<string, string>> = {
+    input: "",
+    correct_answer: "",
+}
+
+/**
  * The data of a new row: "" at each column's path. A column read from row data carries its path
  * (`["meta.lang", "source"]` stays `{"meta.lang": {source: ""}}`). A column with no path (added
  * in the grid) follows its parent: `inputs.question` with the parent `inputs` gives
@@ -200,6 +209,7 @@ export function useTestsetEditor({
         [routeId],
     )
 
+    const store = useStore()
     const setRevisionContext = useSetAtom(testcaseMolecule.actions.setRevisionContext)
     const clearChanges = useSetAtom(clearChangesAtom)
     const setServerIds = useSetAtom(testcaseMolecule.ids)
@@ -212,6 +222,14 @@ export function useTestsetEditor({
             setRevisionContext(null)
         }
     }, [clearChanges, notFound, routeId, setRevisionContext, setServerIds])
+
+    // A new test set opens with the starter row. It runs after the effect above, so a change of
+    // page, which clears the session first, still ends with the row in place.
+    const addRowAtom = useSetAtom(testcaseMolecule.actions.add)
+    useEffect(() => {
+        if (!isNew || store.get(testcaseMolecule.newIds).length > 0) return
+        addRowAtom({data: {...NEW_TESTSET_STARTER_ROW}})
+    }, [addRowAtom, isNew, store])
 
     // `saveTestsetAtom` and the changes summary look for edited server rows in this list, and
     // the paginated table does not fill it. Without it an edit to a saved row is never sent.
@@ -228,7 +246,6 @@ export function useTestsetEditor({
     const changesSummary = useAtomValue(changesSummaryAtom)
     const hasUnsavedChanges = useAtomValue(hasUnsavedChangesAtom)
 
-    const addRowAtom = useSetAtom(testcaseMolecule.actions.add)
     const deleteRowsAtom = useSetAtom(testcaseMolecule.actions.delete)
     const addColumnReducer = useSetAtom(revisionMolecule.tableReducers.addColumn)
     const renameColumnReducer = useSetAtom(revisionMolecule.tableReducers.renameColumn)
@@ -236,7 +253,6 @@ export function useTestsetEditor({
     const discardRevisionDraft = useSetAtom(revisionMolecule.actions.discard)
     const saveSaved = useSetAtom(saveTestsetAtom)
     const saveNew = useSetAtom(saveNewTestsetAtom)
-    const store = useStore()
     const [isSaving, setIsSaving] = useState(false)
     // One save at a time. The ref, not the state, answers a second click in the same render.
     const savingRef = useRef(false)
