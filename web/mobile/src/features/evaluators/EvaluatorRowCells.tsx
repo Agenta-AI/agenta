@@ -125,7 +125,6 @@ export const EvaluatorRowCells = ({
             <span className="flex justify-end" onClick={(event) => event.stopPropagation()}>
                 <EvaluatorRowMenu
                     copy={{revisionId: row.id, slug: row.slug}}
-                    // Editing a human evaluator comes later: its row menu has no Configure.
                     onOpen={onOpen}
                     openLabel={automatic ? "Configure" : canEdit ? "Edit" : "Open details"}
                     onArchive={onArchive}

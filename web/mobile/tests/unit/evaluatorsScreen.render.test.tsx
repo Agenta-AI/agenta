@@ -76,6 +76,14 @@ vi.mock("@/features/revisions/RevisionDrawerHost", () => ({
             "data-ids": navigationIds.join(","),
         }),
 }))
+// The create surfaces are separate chunks. Stand in for them, and keep what the page hands them.
+vi.mock("@/features/evaluators/human/HumanEvaluatorSheet", () => ({
+    HumanEvaluatorSheet: ({editing}: {editing: {workflow: {id: string}} | null}) =>
+        createElement("div", {
+            "data-testid": "human-sheet",
+            "data-editing": editing?.workflow.id ?? "",
+        }),
+}))
 vi.mock("@/features/nav/AppShell", () => ({
     AppShell: ({children}: {children: React.ReactNode}) => createElement("div", null, children),
 }))
@@ -278,6 +286,81 @@ describe("EvaluatorsScreen", () => {
         })
         const items = [...document.querySelectorAll('[role="menuitem"]')].map((i) => i.textContent)
         expect(items).toEqual(["Configure", "Copy ID", "Copy Slug", "Archive"])
+    })
+
+    it("The automatic tab has no Create new: automatic create comes with the editable drawer", async () => {
+        await mount()
+        expect(button(/^Create new$/)).toBeUndefined()
+    })
+
+    it("Create new opens an empty human evaluator form on the human tab", async () => {
+        state.query = {tab: "human"}
+        await mount()
+        await act(async () => button(/^Create new$/)?.click())
+        await flush()
+        const sheet = document.querySelector('[data-testid="human-sheet"]')
+        expect(sheet?.getAttribute("data-editing")).toBe("")
+    })
+
+    it("Create new is hidden without edit_evaluators", async () => {
+        state.perms.edit_evaluators = false
+        state.query = {tab: "human"}
+        await mount()
+        expect(button(/^Create new$/)).toBeUndefined()
+    })
+
+    it("An empty human tab offers to create the first evaluator", async () => {
+        server.workflows = []
+        state.query = {tab: "human"}
+        await mount()
+        await act(async () => button(/^Create evaluator$/)?.click())
+        await flush()
+        expect(document.querySelector('[data-testid="human-sheet"]')).not.toBeNull()
+    })
+
+    it("A human row without edit_evaluators opens the read-only drawer", async () => {
+        state.perms.edit_evaluators = false
+        state.query = {tab: "human"}
+        await mount()
+        await act(async () => {
+            document
+                .querySelector('[aria-label="Evaluator actions"]')
+                ?.dispatchEvent(
+                    new MouseEvent("pointerdown", {bubbles: true, cancelable: true, button: 0}),
+                )
+        })
+        const items = [...document.querySelectorAll('[role="menuitem"]')].map((i) => i.textContent)
+        expect(items[0]).toBe("Open details")
+        await act(async () => {
+            document.dispatchEvent(new KeyboardEvent("keydown", {key: "Escape", bubbles: true}))
+        })
+        const row = host.querySelector<HTMLElement>('[role="button"]')
+        await act(async () => row?.click())
+        expect(document.querySelector('[data-testid="human-sheet"]')).toBeNull()
+        expect(state.replace).toHaveBeenCalled()
+    })
+
+    it("A human row opens its edit form, and its menu says Edit", async () => {
+        state.query = {tab: "human"}
+        await mount()
+        await act(async () => {
+            document
+                .querySelector('[aria-label="Evaluator actions"]')
+                ?.dispatchEvent(
+                    new MouseEvent("pointerdown", {bubbles: true, cancelable: true, button: 0}),
+                )
+        })
+        const items = [...document.querySelectorAll('[role="menuitem"]')].map((i) => i.textContent)
+        expect(items[0]).toBe("Edit")
+        await act(async () => {
+            document.dispatchEvent(new KeyboardEvent("keydown", {key: "Escape", bubbles: true}))
+        })
+        const row = host.querySelector<HTMLElement>('[role="button"]')
+        await act(async () => row?.click())
+        await flush()
+        const sheet = document.querySelector('[data-testid="human-sheet"]')
+        expect(sheet?.getAttribute("data-editing")).not.toBe("")
+        expect(state.replace).not.toHaveBeenCalled()
     })
 
     it("Clicking a row opens the evaluator drawer", async () => {
