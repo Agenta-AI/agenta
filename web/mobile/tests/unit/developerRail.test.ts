@@ -116,4 +116,18 @@ describe("the developer rows of the main rail", () => {
     it("without beta developer mode and no view on, the rail adds nothing", () => {
         expect(developerNavSlots(P, [], false)).toEqual({afterHome: [], afterSessions: []})
     })
+
+    it("beta developer mode puts the prompt apps under Prompts; the collapsed rail opens the page", () => {
+        const apps = [{key: "app-1", title: "Capital finder", link: `${P}/apps/app-1/playground`}]
+        const [prompts] = developerNavSlots(P, DEVELOPER_VIEWS, true, apps).afterHome
+        expect(prompts.submenu).toEqual(apps)
+        expect(prompts.hideChildrenWhenCollapsed).toBe(true)
+    })
+
+    it("without beta developer mode no prompt apps are added anywhere", () => {
+        const apps = [{key: "app-1", title: "Capital finder", link: `${P}/apps/app-1/playground`}]
+        expect(developerNavSlots(P, DEVELOPER_VIEWS, false, apps)).toEqual(
+            developerNavSlots(P, DEVELOPER_VIEWS, false),
+        )
+    })
 })

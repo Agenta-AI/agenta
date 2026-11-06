@@ -147,7 +147,7 @@ afterEach(() => {
 describe("The completion run pane", () => {
     it("Lists the variables the prompt references as input cards", () => {
         expect(rows()).toHaveLength(1)
-        expect(host.textContent).toContain("test case 1")
+        expect(host.textContent).toContain("testcase 1")
         expect(host.querySelector('[data-testid="input-variable-country"]')).not.toBeNull()
     })
 
@@ -158,6 +158,25 @@ describe("The completion run pane", () => {
         expect(runs).toHaveLength(1)
         expect(JSON.stringify(runs[0].body)).toContain("France")
         expect(host.textContent).toContain("Paris")
+    })
+
+    it("The output sits in a card labelled with the revision and its version", async () => {
+        const card = () => host.querySelector('[data-testid="revision-result-card"]')
+        expect(card()?.textContent).toContain("defaultv3")
+        expect(card()?.textContent).toContain("No output yet")
+
+        await click("Run")
+
+        expect(card()?.textContent).toContain("defaultv3")
+        expect(card()?.textContent).toContain("Paris")
+    })
+
+    it("The row actions come in the old playground's order: details, remove, duplicate", () => {
+        const row = rows()[0]
+        const labels = [...row.querySelectorAll("button")]
+            .map((item) => item.getAttribute("aria-label"))
+            .filter((label) => ["Open details", "Remove", "Duplicate"].includes(label ?? ""))
+        expect(labels).toEqual(["Open details", "Remove", "Duplicate"])
     })
 
     it("A failed run shows the error text", async () => {
@@ -171,7 +190,7 @@ describe("The completion run pane", () => {
         await click("Test case")
 
         expect(rows()).toHaveLength(2)
-        expect(host.textContent).toContain("test case 2")
+        expect(host.textContent).toContain("testcase 2")
     })
 
     it("Remove is disabled on the last row and removes a row otherwise", async () => {
@@ -233,7 +252,7 @@ describe("The completion run pane", () => {
         await click("Clear")
 
         expect(host.textContent).not.toContain("Paris")
-        expect(host.textContent).toContain("Click run")
+        expect(host.textContent).toContain("No output yet")
     })
 
     it("Collapse all hides every row body", async () => {

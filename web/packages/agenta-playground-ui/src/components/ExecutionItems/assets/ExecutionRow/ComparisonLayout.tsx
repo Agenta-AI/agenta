@@ -25,8 +25,9 @@ import {
 } from "@agenta/playground-ui/state"
 
 import {usePlaygroundUIOptional} from "../../../../context/PlaygroundUIContext"
+import {usePlaygroundNodeLabels} from "../../../../hooks/usePlaygroundNodeLabels"
 
-import {ExecutionRowRunControl, usePlaygroundNodeLabels} from "./shared"
+import {ExecutionRowRunControl} from "./shared"
 
 interface Props {
     rowId: string

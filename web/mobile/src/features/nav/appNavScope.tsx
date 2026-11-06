@@ -1,5 +1,9 @@
 import {useMemo} from "react"
 
+import {
+    workflowDetailQueryAtomFamily,
+    workflowLatestRevisionIdAtomFamily,
+} from "@agenta/entities/workflow"
 import type {
     SidebarConfig,
     SidebarScope,
@@ -21,33 +25,50 @@ import {useRouter} from "next/router"
 
 import {useEnabledDeveloperViews} from "../developer/developerViewAccess"
 import type {DeveloperView} from "../developer/developerViews"
+import {evaluatorPlaygroundHref} from "../playground/playgroundUrl"
 import {CreditsRemainingWidget} from "../wallet/CreditsRemainingWidget"
 
+import {lastMainRailPathAtom} from "./appRoute"
 import {DrawerProjectSwitcher} from "./DrawerProjectSwitcher"
 import {useMobileBottomNavItems} from "./useMobileNavItems"
 
 /** The app menu's scope id: its own open-groups bucket, apart from the main rail's. */
 export const MOBILE_APP_NAV_SCOPE_ID = "mobile-app"
 
-const APP_ROUTE = /\/apps\/\[app_id\]\/[^/]+$/
+const NO_REVISION = atom<string | null>(null)
 
-/** The app of a page that belongs in the app menu (`/apps/<id>/<page>`), else null. */
-export const appScopeAppId = (
-    pathname: string,
-    query: Record<string, string | string[] | undefined>,
-): string | null =>
-    APP_ROUTE.test(pathname) && typeof query.app_id === "string" ? query.app_id : null
+/** Is this app an evaluator? Its newest revision too, for the playground row. */
+const useAppNavEvaluator = (appId: string): AppNavEvaluator | null => {
+    const workflow = useAtomValue(workflowDetailQueryAtomFamily(appId)).data
+    const evaluator = Boolean(workflow?.flags?.is_evaluator)
+    const latestRevisionId = useAtomValue(
+        evaluator ? workflowLatestRevisionIdAtomFamily(appId) : NO_REVISION,
+    )
+    return useMemo(() => (evaluator ? {latestRevisionId} : null), [evaluator, latestRevisionId])
+}
 
-/** Where "Back" returns to: the last page the main rail showed. */
-export const lastMainRailPathAtom = atom<string | null>(null)
+/** An evaluator in the app menu: no Registry, and its playground is the evaluator playground. */
+export interface AppNavEvaluator {
+    /** The newest revision, which the evaluator playground opens; null while it loads. */
+    latestRevisionId: string | null
+}
 
 /** The old app's app menu, with its labels and URLs. */
 export const appNavItems = (
     projectURL: string,
     appId: string,
     views: readonly DeveloperView[],
+    evaluator: AppNavEvaluator | null = null,
 ): SidebarConfig[] => {
     const appURL = `${projectURL}/apps/${encodeURIComponent(appId)}`
+    const playground: [viewId: string, link: string] = evaluator
+        ? [
+              "evaluator-playground",
+              evaluator.latestRevisionId
+                  ? evaluatorPlaygroundHref(projectURL, evaluator.latestRevisionId)
+                  : `${projectURL}/evaluators`,
+          ]
+        : ["playground", `${appURL}/playground`]
     // Each row with the developer view that must be on for it; Observability is not a view.
     const rows: [viewId: string | null, row: SidebarConfig][] = [
         [
@@ -60,12 +81,12 @@ export const appNavItems = (
             },
         ],
         [
-            "playground",
+            playground[0],
             {
                 key: "app-playground",
                 title: "Playground",
                 icon: <RocketIcon size={16} />,
-                link: `${appURL}/playground`,
+                link: playground[1],
             },
         ],
         [
@@ -96,9 +117,13 @@ export const appNavItems = (
             },
         ],
     ]
-    return rows
-        .filter(([viewId]) => !viewId || views.some((view) => view.id === viewId))
-        .map(([, row]) => ({...row, prefetch: false}))
+    return (
+        rows
+            // An evaluator has no Registry: it is not deployed.
+            .filter(([, row]) => !(evaluator && row.key === "app-registry"))
+            .filter(([viewId]) => !viewId || views.some((view) => view.id === viewId))
+            .map(([, row]) => ({...row, prefetch: false}))
+    )
 }
 
 /** The switcher reads the app catalog, so its code and data load only inside an app. */
@@ -109,7 +134,8 @@ const AppSwitcher = dynamic(() => import("./AppSwitcher").then((m) => m.AppSwitc
 
 const ROUTE_SELECTION: SidebarSelection = {mode: "route"}
 
-const createMobileAppNavScope = (
+/** The app menu of one app. `railScope` loads this module only inside an app. */
+export const createMobileAppNavScope = (
     workspaceId: string,
     projectId: string,
     appId: string,
@@ -119,12 +145,13 @@ const createMobileAppNavScope = (
     const useSections = (): SidebarSection[] => {
         const views = useEnabledDeveloperViews()
         const bottomItems = useMobileBottomNavItems(projectURL)
+        const evaluator = useAppNavEvaluator(appId)
         return useMemo(
             () => [
-                {key: "app", items: appNavItems(projectURL, appId, views)},
+                {key: "app", items: appNavItems(projectURL, appId, views, evaluator)},
                 {key: "bottom", items: bottomItems, placement: "bottom", mode: "vertical"},
             ],
-            [bottomItems, views],
+            [bottomItems, views, evaluator],
         )
     }
 
@@ -183,13 +210,3 @@ const createMobileAppNavScope = (
         afterBottom: AfterBottom,
     }
 }
-
-export const useMobileAppNavScope = (
-    workspaceId: string,
-    projectId: string,
-    appId: string | null,
-) =>
-    useMemo(
-        () => (appId ? createMobileAppNavScope(workspaceId, projectId, appId) : null),
-        [workspaceId, projectId, appId],
-    )

@@ -2,7 +2,7 @@ import {useCallback, useMemo, useState} from "react"
 
 import {testcaseDataController, type TestcaseTableRow} from "@agenta/entities/testcase"
 import {useTestcaseDrawerNavigation} from "@agenta/entity-ui/testcase"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
+import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
@@ -16,14 +16,17 @@ import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMember
 
 import {useBindProjectContext} from "../../context/useBindProjectContext"
 import {useProjectPermission} from "../../context/useProjectPermission"
+import {useDeveloperPageFrame, useDetailHeaderTop} from "../../developer/developerPageFrame"
 import {AppShell} from "../../nav/AppShell"
 import {NavDrawer} from "../../nav/NavDrawer"
 
+import {ArchivedTestsetNotice} from "./ArchivedTestsetNotice"
 import {TestsetDetailSkeleton} from "./states/TestsetDetailSkeleton"
 import {TestsetGrid} from "./TestsetGrid"
 import {TestsetHeader} from "./TestsetHeader"
 import {testsetRevisionPath} from "./testsetRouteId"
 import {TestsetToolbar} from "./TestsetToolbar"
+import {useArchivedTestset} from "./useArchivedTestset"
 import {useRevisionArchive} from "./useRevisionArchive"
 import {useRevisionsList} from "./useRevisionsList"
 import {useTestsetEditor} from "./useTestsetEditor"
@@ -40,8 +43,6 @@ const ImportRevisionDialog = dynamic(
     () => import("./ImportRevisionDialog").then((module) => module.ImportRevisionDialog),
     {ssr: false},
 )
-
-const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
 
 const rowId = (row: TestcaseTableRow) => row.id
 
@@ -64,16 +65,31 @@ export const TestsetDetailScreen = ({
     routeId: string
     nameFromUrl: string | null
 }) => {
+    const PAGE_FRAME = useDeveloperPageFrame()
+    const headerTop = useDetailHeaderTop()
     useBindWorkspaceMembers()
     useBindProjectContext(projectId)
     const router = useRouter()
     const queryClient = useQueryClient()
     const base = `/w/${workspaceId}/p/${projectId}`
     const editor = useTestsetEditor({projectId, routeId, nameFromUrl})
-    const {header, isNew} = editor
+    const {isNew} = editor
     const revisionId = isNew || editor.notFound ? null : routeId
 
-    const canEdit = useProjectPermission(projectId, "edit_testsets")
+    // Developer mode: an archived test set shows its name, reads only, and offers Restore.
+    const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
+    const archivedTestset = useArchivedTestset({
+        projectId,
+        header: editor.header,
+        enabled: developerMode && !isNew,
+    })
+    const header =
+        editor.header && archivedTestset.name
+            ? {...editor.header, testsetName: archivedTestset.name}
+            : editor.header
+
+    const mayEdit = useProjectPermission(projectId, "edit_testsets")
+    const canEdit = mayEdit && !archivedTestset.isArchived
     // Same rule as the list: the old app gated exports on API key rights.
     const mayViewKeys = useProjectPermission(projectId, "view_api_keys")
     const mayEditKeys = useProjectPermission(projectId, "edit_api_keys")
@@ -151,22 +167,30 @@ export const TestsetDetailScreen = ({
         <TestsetDetailSkeleton />
     ) : (
         <div className="flex min-w-0 flex-col gap-3">
-            <TestsetToolbar
-                editor={editor}
-                routeId={routeId}
-                base={base}
-                canEdit={canEdit}
-                revisions={revisions}
-                onImport={openImport}
-                onRowAdded={openAddedRow}
-                commitOpen={commitOpen}
-                onCommitOpenChange={setCommitOpen}
-            />
+            {archivedTestset.isArchived ? (
+                <ArchivedTestsetNotice
+                    projectId={projectId}
+                    testsetId={header.testsetId}
+                    canRestore={mayEdit}
+                />
+            ) : null}
             <TestsetGrid
                 editor={editor}
                 canEdit={canEdit}
                 onOpenRow={openRow}
-                onColumnSaved={(id) => go(testsetRevisionPath(base, id))}
+                actions={(queueItemIds) => (
+                    <TestsetToolbar
+                        queueItemIds={queueItemIds}
+                        editor={editor}
+                        base={base}
+                        canEdit={canEdit}
+                        revisions={revisions}
+                        onImport={openImport}
+                        onRowAdded={openAddedRow}
+                        commitOpen={commitOpen}
+                        onCommitOpenChange={setCommitOpen}
+                    />
+                )}
             />
         </div>
     )
@@ -177,7 +201,7 @@ export const TestsetDetailScreen = ({
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
-                        <div className={`box-border shrink-0 px-4 pt-3 lg:pt-14 ${PAGE_FRAME}`}>
+                        <div className={`box-border shrink-0 px-4 pt-3 ${headerTop} ${PAGE_FRAME}`}>
                             <div className="flex min-w-0 items-start gap-2">
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
                                 {ready ? (

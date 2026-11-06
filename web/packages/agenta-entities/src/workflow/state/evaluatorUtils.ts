@@ -26,6 +26,7 @@ import type {EvaluatorCatalogPresetsResponse} from "../api/templates"
 import {fetchEvaluatorCatalogPresets} from "../api/templates"
 import type {Workflow} from "../core"
 import {buildWorkflowUri, parseWorkflowKeyFromUri, resolveOutputSchemaProperties} from "../core"
+import type {HumanEvaluatorMetric} from "../core/humanEvaluatorMetrics"
 
 import {evaluatorTemplatesDataAtom} from "./evaluatorTemplateAtoms"
 import {buildServiceUrlFromUri, filterNonDeterministicEvaluatorWorkflows} from "./helpers"
@@ -948,14 +949,7 @@ export async function createEvaluatorFromTemplate(templateKey: string): Promise<
 // HUMAN EVALUATOR CRUD
 // ============================================================================
 
-export interface HumanEvaluatorMetric {
-    name: string
-    type: string
-    optional: boolean
-    minimum?: number
-    maximum?: number
-    enum?: string[]
-}
+export type {HumanEvaluatorMetric} from "../core/humanEvaluatorMetrics"
 
 export interface CreateHumanEvaluatorParams {
     name: string

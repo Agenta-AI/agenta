@@ -66,6 +66,7 @@ export const TestsetNameDialog = ({
             pending={pending}
             initialValue={initialName}
             placeholder="Enter a name"
+            label="Test set name"
             error={error}
             // A save that is running keeps the dialog open, so its result lands where the reader is looking.
             onClose={() => (pending ? undefined : onClose())}

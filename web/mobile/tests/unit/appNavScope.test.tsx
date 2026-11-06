@@ -6,7 +6,8 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {DEVELOPER_VIEWS} from "@/features/developer/developerViews"
-import {appNavItems, appScopeAppId} from "@/features/nav/appNavScope"
+import {appNavItems} from "@/features/nav/appNavScope"
+import {appScopeAppId} from "@/features/nav/appRoute"
 import {appSwitchHref} from "@/features/nav/AppSwitcher"
 import {useRailScope} from "@/features/nav/railScope"
 
@@ -71,7 +72,52 @@ describe("the app menu", () => {
     })
 })
 
+describe("the evaluator menu", () => {
+    it("has no Registry, and its Playground is the evaluator playground on the newest revision", () => {
+        const items = appNavItems(P, "e1", DEVELOPER_VIEWS, {latestRevisionId: "rev-9"})
+        expect(items.map(({title, link}) => ({title, link}))).toEqual([
+            {title: "Overview", link: `${P}/apps/e1/overview`},
+            {title: "Playground", link: `${P}/evaluators/playground?revisions=rev-9`},
+            {title: "Evaluations", link: `${P}/apps/e1/evaluations`},
+            {title: "Observability", link: `${P}/apps/e1/traces`},
+        ])
+    })
+
+    it("sends Playground to the evaluators list until the newest revision loads", () => {
+        const items = appNavItems(P, "e1", DEVELOPER_VIEWS, {latestRevisionId: null})
+        expect(items.find(({title}) => title === "Playground")?.link).toBe(`${P}/evaluators`)
+    })
+
+    it("hides Playground while the evaluator playground view is off", () => {
+        const views = DEVELOPER_VIEWS.filter((view) => view.id !== "evaluator-playground")
+        const items = appNavItems(P, "e1", views, {latestRevisionId: "rev-9"})
+        expect(items.map(({title}) => title)).toEqual(["Overview", "Evaluations", "Observability"])
+    })
+})
+
 describe("switching apps", () => {
+    it("to an evaluator keeps Overview, Evaluations and Observability", () => {
+        for (const page of ["overview", "evaluations", "traces"]) {
+            expect(appSwitchHref(P, `${R}/apps/[app_id]/${page}`, {app_id: "a1"}, "e1", true)).toBe(
+                `${P}/apps/e1/${page}`,
+            )
+        }
+    })
+
+    it("to an evaluator from a page it does not have opens its Overview", () => {
+        for (const page of ["variants", "endpoints", "playground"]) {
+            expect(
+                appSwitchHref(
+                    P,
+                    `${R}/apps/[app_id]/${page}`,
+                    {app_id: "a1", tab: "x"},
+                    "e1",
+                    true,
+                ),
+            ).toBe(`${P}/apps/e1/overview`)
+        }
+    })
+
     it("keeps the page the reader is on", () => {
         expect(appSwitchHref(P, `${R}/apps/[app_id]/overview`, {app_id: "a1"}, "a2")).toBe(
             `${P}/apps/a2/overview`,
@@ -112,16 +158,21 @@ describe("which rail a page shows", () => {
         scopeId = useRailScope("ws-1", "proj-1").id
         return null
     }
-    const render = (beta: boolean, pathname: string, query: Record<string, string>) => {
+    // The app menu's code loads on demand, so the scope can change after the first render.
+    const render = async (beta: boolean, pathname: string, query: Record<string, string>) => {
         store.set(betaAtom.current!, beta)
         Object.assign(route, {pathname, query, asPath: pathname})
-        act(() =>
+        await act(async () =>
             root.render(
                 <Provider store={store}>
                     <Probe />
                 </Provider>,
             ),
         )
+        await act(async () => {
+            await import("@/features/nav/appNavScope")
+            await new Promise((resolve) => setTimeout(resolve, 0))
+        })
         return scopeId
     }
 
@@ -132,15 +183,19 @@ describe("which rail a page shows", () => {
     })
     afterEach(() => act(() => root.unmount()))
 
-    it("beta developer mode shows the app menu inside an app", () => {
-        expect(render(true, `${R}/apps/[app_id]/overview`, {app_id: "a1"})).toBe("mobile-app")
-        expect(render(true, `${R}/apps/[app_id]/variants`, {app_id: "a1"})).toBe("mobile-app")
-        expect(render(true, `${R}/prompts`, {})).toBe("mobile-main")
+    it("beta developer mode shows the app menu inside an app", async () => {
+        expect(await render(true, `${R}/apps/[app_id]/overview`, {app_id: "a1"})).toBe("mobile-app")
+        expect(await render(true, `${R}/apps/[app_id]/variants`, {app_id: "a1"})).toBe("mobile-app")
+        expect(await render(true, `${R}/prompts`, {})).toBe("mobile-main")
     })
 
-    it("without beta developer mode every page keeps the main rail", () => {
-        expect(render(false, `${R}/apps/[app_id]/overview`, {app_id: "a1"})).toBe("mobile-main")
-        expect(render(false, `${R}/apps/[app_id]/playground`, {app_id: "a1"})).toBe("mobile-main")
-        expect(render(false, `${R}/variants`, {app: "a1"})).toBe("mobile-main")
+    it("without beta developer mode every page keeps the main rail", async () => {
+        expect(await render(false, `${R}/apps/[app_id]/overview`, {app_id: "a1"})).toBe(
+            "mobile-main",
+        )
+        expect(await render(false, `${R}/apps/[app_id]/playground`, {app_id: "a1"})).toBe(
+            "mobile-main",
+        )
+        expect(await render(false, `${R}/variants`, {app: "a1"})).toBe("mobile-main")
     })
 })
