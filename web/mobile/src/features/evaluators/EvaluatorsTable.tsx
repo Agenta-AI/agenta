@@ -2,14 +2,14 @@ import type {ReactNode} from "react"
 
 import type {EvaluatorCategory} from "@agenta/entities/workflow"
 import {useMediaQuery} from "@agenta/ui/hooks"
-import {ListTable, type ListTableColumn, type ListTableGroup} from "@agenta/ui/list-table"
+import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
+import {Button} from "@agenta/ui/ui"
 
 import {EvaluatorRowCells} from "./EvaluatorRowCells"
-import type {EvaluatorRevisionRow} from "./evaluatorsView"
+import type {EvaluatorListRow} from "./evaluatorsView"
 
 const col = (key: string, label: string, width: string): ListTableColumn => ({key, label, width})
 
-const SELECT_COLUMN: ListTableColumn = {key: "select", label: "Select", srOnly: true, width: "20px"}
 const ACTIONS_COLUMN: ListTableColumn = {
     key: "actions",
     label: "Actions",
@@ -43,56 +43,86 @@ const NARROW_COLUMNS = [NARROW_NAME, col("updated", "Last modified", "96px")]
 const WIDE_QUERY = "(min-width: 640px)"
 
 /**
- * The live evaluators in the shared list frame: one group per evaluator, its revisions as rows.
- * A row opens the evaluator in the read-only drawer.
+ * The live evaluators in the shared list frame: one row per evaluator on its latest revision,
+ * with its older revisions under an expand. An evaluator row can be selected for Archive.
  */
 export const EvaluatorsTable = ({
-    groups,
+    rows,
     category,
     selectable,
     selectedWorkflowIds,
     isLoading,
     empty,
-    onToggle,
+    expanded,
+    loadingOlder,
+    onSelectionChange,
+    onToggleExpand,
     onOpen,
     onArchive,
 }: {
-    groups: ListTableGroup<EvaluatorRevisionRow>[]
+    rows: EvaluatorListRow[]
     category: EvaluatorCategory
     /** Selecting and archiving need `edit_evaluators`. */
     selectable: boolean
     selectedWorkflowIds: ReadonlySet<string>
     isLoading: boolean
     empty: ReactNode
-    onToggle: (workflowId: string) => void
-    onOpen: (row: EvaluatorRevisionRow) => void
-    onArchive: (workflowId: string) => void
+    expanded: ReadonlySet<string>
+    /** Expanded evaluators whose older revisions are still loading. */
+    loadingOlder: ReadonlySet<string>
+    onSelectionChange: (next: Set<string>) => void
+    onToggleExpand: (workflowId: string) => void
+    onOpen: (row: EvaluatorListRow) => void
+    onArchive: (workflowIds: readonly string[]) => void
 }) => {
     // Asked as "wide?" because the shared hook starts false before it reads the viewport.
     const narrow = !useMediaQuery(WIDE_QUERY)
     const body = narrow ? NARROW_COLUMNS : category === "human" ? HUMAN_COLUMNS : AUTOMATIC_COLUMNS
-    const columns = [...(selectable ? [SELECT_COLUMN] : []), ...body, ACTIONS_COLUMN]
+    const columns = [...body, ACTIONS_COLUMN]
 
     return (
-        <ListTable
+        <ListTable<EvaluatorListRow>
             columns={columns}
             minWidth={narrow ? 300 : category === "human" ? 760 : 1080}
             stickyHeader
             loading={isLoading}
-            groups={groups}
-            rowKey={(row) => row.id}
+            groups={[{key: "all", label: null, rows}]}
+            rowKey={(row) => row.key}
             empty={empty}
             onOpenRow={onOpen}
+            selection={
+                selectable
+                    ? {
+                          selectedKeys: selectedWorkflowIds,
+                          onChange: onSelectionChange,
+                          canSelect: (row) => row.depth === 0,
+                          rowLabel: (row) => `Select ${row.name ?? "evaluator"}`,
+                          bulkActions: (keys) => (
+                              <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => onArchive([...keys])}
+                              >
+                                  Archive
+                              </Button>
+                          ),
+                      }
+                    : undefined
+            }
             renderRow={(row) => (
                 <EvaluatorRowCells
                     row={row}
                     category={category}
                     narrow={narrow}
-                    selectable={selectable}
-                    selected={selectedWorkflowIds.has(row.workflowId)}
-                    onToggle={() => onToggle(row.workflowId)}
+                    expanded={expanded.has(row.workflowId)}
+                    loadingOlder={loadingOlder.has(row.workflowId)}
+                    onToggleExpand={() => onToggleExpand(row.workflowId)}
                     onOpen={() => onOpen(row)}
-                    onArchive={selectable ? () => onArchive(row.workflowId) : undefined}
+                    onArchive={
+                        selectable && row.depth === 0
+                            ? () => onArchive([row.workflowId])
+                            : undefined
+                    }
                 />
             )}
         />
