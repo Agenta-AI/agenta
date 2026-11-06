@@ -197,6 +197,11 @@ export const TestsetGrid = ({
                 appendColumns={appendColumns}
                 renderColumnHeader={canEdit ? renderColumnHeader : undefined}
                 headerExtra={noRows ? null : toolbar}
+                // Export is in the page header, as in the old app.
+                canExportData={false}
+                columnSettings
+                cellPopover
+                markEditedRows={canEdit}
             />
             <ColumnDialog
                 step={step}

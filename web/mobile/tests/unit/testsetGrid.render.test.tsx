@@ -69,6 +69,8 @@ const ROWS: Row[] = [
     {id: "new-1", key: "new-1", __isNew: true},
 ]
 
+const tableFeatures = vi.hoisted(() => ({last: null as null | Record<string, unknown>}))
+
 vi.mock("@agenta/entity-ui/testcase", () => ({
     TestcaseTable: (props: {
         config: {scopeId: string; searchTerm?: string}
@@ -79,35 +81,47 @@ vi.mock("@agenta/entity-ui/testcase", () => ({
         appendColumns?: {render?: (value: unknown, row: Row) => ReactNode}[]
         renderColumnHeader?: (header: Header) => ReactNode
         headerExtra?: ReactNode
-    }) => (
-        <div data-search={props.config.searchTerm ?? ""}>
-            {/* Like the real table, no toolbar while there are no rows. */}
-            {props.config.scopeId === "empty" ? null : (
-                <div data-testid="toolbar">{props.headerExtra}</div>
-            )}
-            {props.selectable ? (
-                <button
-                    type="button"
-                    disabled={props.selectionDisabled}
-                    onClick={() => props.onSelectionChange?.(["case-1", "new-1"])}
-                >
-                    Select all
-                </button>
-            ) : null}
-            {HEADERS.map((header) => (
-                <div key={header.key} data-header={header.key}>
-                    {props.renderColumnHeader ? props.renderColumnHeader(header) : header.title}
-                </div>
-            ))}
-            {ROWS.map((row) => (
-                <div key={row.id} data-row={row.id}>
-                    {props.appendColumns?.map((column, index) => (
-                        <span key={index}>{column.render?.(null, row)}</span>
-                    ))}
-                </div>
-            ))}
-        </div>
-    ),
+        canExportData?: boolean
+        columnSettings?: boolean
+        cellPopover?: boolean
+        markEditedRows?: boolean
+    }) => {
+        tableFeatures.last = {
+            canExportData: props.canExportData,
+            columnSettings: props.columnSettings,
+            cellPopover: props.cellPopover,
+            markEditedRows: props.markEditedRows,
+        }
+        return (
+            <div data-search={props.config.searchTerm ?? ""}>
+                {/* Like the real table, no toolbar while there are no rows. */}
+                {props.config.scopeId === "empty" ? null : (
+                    <div data-testid="toolbar">{props.headerExtra}</div>
+                )}
+                {props.selectable ? (
+                    <button
+                        type="button"
+                        disabled={props.selectionDisabled}
+                        onClick={() => props.onSelectionChange?.(["case-1", "new-1"])}
+                    >
+                        Select all
+                    </button>
+                ) : null}
+                {HEADERS.map((header) => (
+                    <div key={header.key} data-header={header.key}>
+                        {props.renderColumnHeader ? props.renderColumnHeader(header) : header.title}
+                    </div>
+                ))}
+                {ROWS.map((row) => (
+                    <div key={row.id} data-row={row.id}>
+                        {props.appendColumns?.map((column, index) => (
+                            <span key={index}>{column.render?.(null, row)}</span>
+                        ))}
+                    </div>
+                ))}
+            </div>
+        )
+    },
 }))
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
@@ -329,5 +343,19 @@ describe("Test set grid", () => {
         await press(document.querySelector('[data-row="new-1"] [aria-label="Actions"]'))
         expect(item("Edit")).toBeDefined()
         expect(item("Copy ID")).toBeUndefined()
+    })
+    it("An editor gets the table settings, the cell popover and the edited-row marker", () => {
+        mount(fakeEditor())
+        expect(tableFeatures.last).toEqual({
+            canExportData: false,
+            columnSettings: true,
+            cellPopover: true,
+            markEditedRows: true,
+        })
+    })
+
+    it("A reader who may not edit gets no edited-row marker", () => {
+        mount(fakeEditor(), false)
+        expect(tableFeatures.last).toMatchObject({markEditedRows: false, columnSettings: true})
     })
 })
