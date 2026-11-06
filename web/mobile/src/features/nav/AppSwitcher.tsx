@@ -21,7 +21,7 @@ export const appSwitchHref = (
     nextAppId: string,
 ): string => {
     const page = pathname.match(/\/apps\/\[app_id\]\/([^/]+)$/)?.[1]
-    if (page) return `${projectURL}/apps/${nextAppId}/${page}`
+    if (page) return `${projectURL}/apps/${encodeURIComponent(nextAppId)}/${page}`
     const projectPage = pathname.match(/\/(variants|endpoints)$/)?.[1] ?? "variants"
     // The revision and environment belong to the old app; only the tab carries over.
     const tab = typeof query.tab === "string" ? `&tab=${encodeURIComponent(query.tab)}` : ""

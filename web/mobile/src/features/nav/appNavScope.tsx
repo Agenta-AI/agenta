@@ -52,7 +52,7 @@ export const appNavItems = (
     appId: string,
     views: readonly DeveloperView[],
 ): SidebarConfig[] => {
-    const appURL = `${projectURL}/apps/${appId}`
+    const appURL = `${projectURL}/apps/${encodeURIComponent(appId)}`
     const app = encodeURIComponent(appId)
     // Each row with the developer view that must be on for it; Observability is not a view.
     const rows: [viewId: string | null, row: SidebarConfig][] = [

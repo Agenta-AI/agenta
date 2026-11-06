@@ -89,6 +89,15 @@ describe("switching apps", () => {
     })
 })
 
+describe("an app id with reserved characters", () => {
+    it("stays one path segment in the switch link and the menu links", () => {
+        expect(appSwitchHref(P, `${R}/apps/[app_id]/overview`, {app_id: "a1"}, "a/b?c#d")).toBe(
+            `${P}/apps/a%2Fb%3Fc%23d/overview`,
+        )
+        expect(appNavItems(P, "a/b", DEVELOPER_VIEWS)[0].link).toBe(`${P}/apps/a%2Fb/overview`)
+    })
+})
+
 describe("which rail a page shows", () => {
     let root: Root
     let host: HTMLDivElement
