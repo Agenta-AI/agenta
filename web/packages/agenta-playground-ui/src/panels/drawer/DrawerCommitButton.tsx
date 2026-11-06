@@ -1,6 +1,9 @@
 import {lazy, Suspense, useMemo, useState} from "react"
 
-import {appEnvironmentsLoadableAtomFamily} from "@agenta/entities/environment"
+import {
+    appEnvironmentsLoadableAtomFamily,
+    environmentsListQueryAtomFamily,
+} from "@agenta/entities/environment"
 import {workflowDetailQueryAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {Button} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
@@ -44,6 +47,8 @@ export const DrawerCommitButton = ({
                 : [],
         [canDeploy, environments.data],
     )
+    // "Commit and deploy" finds the environment in this list: keep it loaded while Commit shows.
+    useAtomValue(environmentsListQueryAtomFamily(false))
     const loading = query.isPending && !ephemeral
 
     return (
