@@ -13,7 +13,7 @@ import {message} from "@agenta/ui/app-message"
 import {cn} from "@agenta/ui/styles"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {copyToClipboard} from "@agenta/ui/utils"
-import {Rocket, Trash} from "@phosphor-icons/react"
+import {CloudArrowUp, FloppyDisk, Trash} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue, useStore} from "jotai"
 import dynamic from "next/dynamic"
@@ -188,6 +188,7 @@ export const RevisionActions = ({
                 disabled={unavailable || !canEdit || !(dirty || ephemeral)}
                 onClick={() => setOpen({kind: "commit"})}
             >
+                <FloppyDisk aria-hidden />
                 {ephemeral ? "Create" : "Commit"}
             </Button>
         </WithTooltip>
@@ -222,7 +223,7 @@ export const RevisionActions = ({
                                 disabled={unavailable || !canDeploy}
                                 onClick={() => setOpen({kind: "deploy", revision: shownRevision()})}
                             >
-                                <Rocket aria-hidden />
+                                <CloudArrowUp aria-hidden />
                             </Button>
                         </WithTooltip>
                     )}
