@@ -7,12 +7,14 @@ import {
     type FoldersById,
     type MoveItem,
 } from "@agenta/entities/workflow"
+import {useQueryClient} from "@tanstack/react-query"
+
+import {RenameAppDialog} from "../app-overview/RenameAppDialog"
 
 import {ArchivePromptDialog} from "./dialogs/ArchivePromptDialog"
 import {DeleteFolderDialog} from "./dialogs/DeleteFolderDialog"
 import {FolderNameDialog} from "./dialogs/FolderNameDialog"
 import {MoveToFolderDialog} from "./dialogs/MoveToFolderDialog"
-import {RenamePromptDialog} from "./dialogs/RenamePromptDialog"
 import type {PromptsDialog} from "./promptDialogState"
 import type {ActionResult, usePromptFolderActions} from "./usePromptFolderActions"
 
@@ -46,17 +48,20 @@ const moveTarget = (
  */
 export const PromptsDialogs = ({
     dialog,
+    projectId,
     folderId,
     foldersById,
     actions,
     onClose,
 }: {
     dialog: PromptsDialog | null
+    projectId: string
     folderId: string | null
     foldersById: FoldersById
     actions: Actions
     onClose: () => void
 }) => {
+    const queryClient = useQueryClient()
     const [error, setError] = useState<string | null>(null)
     // A new dialog starts without the last one's failure.
     useEffect(() => setError(null), [dialog])
@@ -132,19 +137,19 @@ export const PromptsDialogs = ({
                     }
                 }}
             />
-            <RenamePromptDialog
-                {...common}
-                open={dialog?.kind === "renamePrompt"}
-                initialName={dialog?.kind === "renamePrompt" ? (dialog.prompt.name ?? "") : ""}
-                initialDescription={
-                    dialog?.kind === "renamePrompt" ? (dialog.prompt.description ?? "") : ""
-                }
-                onSubmit={(fields) => {
-                    if (dialog?.kind === "renamePrompt") {
-                        void finish(actions.renamePrompt(dialog.prompt, fields))
-                    }
-                }}
-            />
+            {dialog?.kind === "renamePrompt" ? (
+                // The one rename dialog: the app overview uses it too. It blocks a name another
+                // app already has, and it closes itself when the save is done.
+                <RenameAppDialog
+                    key={dialog.prompt.id}
+                    projectId={projectId}
+                    app={dialog.prompt}
+                    onClose={() => {
+                        void queryClient.invalidateQueries({queryKey: ["workflows"]})
+                        onClose()
+                    }}
+                />
+            ) : null}
         </>
     )
 }

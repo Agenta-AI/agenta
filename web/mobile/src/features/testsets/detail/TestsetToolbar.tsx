@@ -1,17 +1,21 @@
 import {useCallback, useEffect, useState} from "react"
 
+import {commitPreviewAtom} from "@agenta/entities/testset"
 import {message} from "@agenta/ui/app-message"
 import {Button, SimpleTooltip, Spinner} from "@agenta/ui/ui"
 import {ArrowCounterClockwise, Plus, UploadSimple} from "@phosphor-icons/react"
+import {atom, useAtomValue} from "jotai"
 
 import {ConfirmModal} from "../../settings/ConfirmModal"
 
-import {useChangesDiff} from "./changesDiff"
 import {CommitTestsetDialog} from "./CommitTestsetDialog"
 import {testsetRevisionPath} from "./testsetRouteId"
 import type {RevisionsList} from "./useRevisionsList"
 import type {TestsetEditor} from "./useTestsetEditor"
 import {useTestsetLeaveGuard} from "./useTestsetLeaveGuard"
+
+// The preview reads every row edit, so it is read only while the commit step is open.
+const NO_PREVIEW = atom(null)
 
 type ToolbarEditor = Pick<
     TestsetEditor,
@@ -20,7 +24,6 @@ type ToolbarEditor = Pick<
     | "hasUnsavedChanges"
     | "changesSummary"
     | "isSaving"
-    | "columnEditBlocked"
     | "addRow"
     | "discard"
     | "commit"
@@ -32,14 +35,12 @@ type ToolbarEditor = Pick<
  * of it: no buttons, and no prompt because nothing can be unsaved.
  *
  * `onImport` is optional: the Import button shows only when the page can open the import step.
- * Import saves a new revision that replaces every row, so like a column change it waits until
- * unsaved row edits are saved or discarded, and its tooltip says why.
+ * Import saves a new revision and opens it; unsaved changes then meet the leave prompt.
  * `onRowAdded` lets the page open the new row in the drawer. The page holds `commitOpen`, so
  * the testcase drawer can open the same commit step.
  */
 export const TestsetToolbar = ({
     editor,
-    routeId,
     base,
     canEdit,
     revisions,
@@ -49,7 +50,6 @@ export const TestsetToolbar = ({
     onCommitOpenChange: setCommitOpen,
 }: {
     editor: ToolbarEditor
-    routeId: string
     /** `/w/{workspace}/p/{project}`, the start of every test set path. */
     base: string
     canEdit: boolean
@@ -74,7 +74,7 @@ export const TestsetToolbar = ({
     useEffect(() => {
         if (commitOpen) loadRevisions()
     }, [commitOpen, loadRevisions])
-    const diff = useChangesDiff(routeId, commitOpen)
+    const preview = useAtomValue(commitOpen ? commitPreviewAtom : NO_PREVIEW)
 
     const handleCommit = useCallback(
         async (commitMessage: string) => {
@@ -113,16 +113,12 @@ export const TestsetToolbar = ({
                         </Button>
                     ) : null}
                     {onImport ? (
-                        <SimpleTooltip
-                            title={
-                                editor.columnEditBlocked ?? "Import CSV/JSON file as new revision"
-                            }
-                        >
+                        <SimpleTooltip title="Import CSV/JSON file as new revision">
                             <span className="inline-flex">
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    disabled={isNew || editor.columnEditBlocked !== null}
+                                    disabled={isNew || isSaving}
                                     onClick={onImport}
                                 >
                                     <UploadSimple aria-hidden size={14} />
@@ -151,7 +147,7 @@ export const TestsetToolbar = ({
                 currentVersion={editor.header?.revisionVersion}
                 latestVersion={revisions.status === "ready" ? revisions.latestVersion : null}
                 summary={editor.changesSummary}
-                diff={diff}
+                preview={preview}
                 pending={isSaving}
                 onClose={() => setCommitOpen(false)}
                 onCommit={(commitMessage) => void handleCommit(commitMessage)}

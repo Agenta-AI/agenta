@@ -85,15 +85,3 @@ export const developerViewPreviewSwitchesAtom = atom(
     (_get, set, {viewId, optedIn}: {viewId: string; optedIn: boolean}) =>
         set(developerViewPreviewAtomFamily(viewId), optedIn),
 )
-
-/**
- * Whether the view could be on once the user is known. False for a `hidden` view the deployment
- * does not force on, so a screen need not wait for the user to show it off. Beta developer mode
- * is not counted: it is per user and unknown at this point, so under it a screen may render once
- * with the view off before the user settles.
- */
-export const canDeveloperViewBeEnabled = (viewId: string): boolean => {
-    const view = DEVELOPER_VIEWS.find((candidate) => candidate.id === viewId)
-    if (!view) return false
-    return view.stage !== "hidden" || readForcedDeveloperViewIds().has(viewId)
-}

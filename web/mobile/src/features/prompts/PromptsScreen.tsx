@@ -1,12 +1,17 @@
 import {useCallback, useMemo, useState} from "react"
 
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
+import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {Button} from "@agenta/ui/ui"
+import {TrayIcon} from "@phosphor-icons/react"
+import {useAtomValue} from "jotai"
+import Link from "next/link"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
+import {useDeveloperPageFrame} from "../developer/developerPageFrame"
 import {useDeveloperViewEnabled} from "../developer/developerViewAccess"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
@@ -22,8 +27,6 @@ import {usePromptFolderActions} from "./usePromptFolderActions"
 import {usePromptsBrowser} from "./usePromptsBrowser"
 
 /** The page column, shared with the other lists, so the nav entries line up. */
-const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
-
 /**
  * The Prompts page: folders and prompts in one list, with a breadcrumb for the open folder, a
  * search box and the folder writes. A prompt row opens the prompt in the playground while that
@@ -36,6 +39,7 @@ export const PromptsScreen = ({
     workspaceId: string
     projectId: string
 }) => {
+    const PAGE_FRAME = useDeveloperPageFrame()
     useBindProjectContext(projectId)
     const browser = usePromptsBrowser()
     const actions = usePromptFolderActions({
@@ -48,6 +52,8 @@ export const PromptsScreen = ({
     const {openFolder} = browser
     const router = useRouter()
     const playgroundEnabled = useDeveloperViewEnabled("playground") === true
+    // Beta developer mode reaches Archived apps from here; its rail has no row for it.
+    const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
     const overviewEnabled = useDeveloperViewEnabled("app-overview") === true
 
     const overviewHref = useCallback(
@@ -139,12 +145,26 @@ export const PromptsScreen = ({
                             onOpenFolder={browser.openFolder}
                             openDialog={setDialog}
                             onRetry={browser.refetch}
+                            toolbarActions={
+                                developerMode ? (
+                                    <Button asChild size="sm" variant="ghost">
+                                        <Link
+                                            href={`/w/${workspaceId}/p/${projectId}/apps/archived`}
+                                            prefetch={false}
+                                        >
+                                            <TrayIcon aria-hidden />
+                                            {promptsCopy.archived}
+                                        </Link>
+                                    </Button>
+                                ) : undefined
+                            }
                         />
                     </div>
                 </ScreenScaffold>
             </AppShell>
             <PromptsDialogs
                 dialog={dialog}
+                projectId={projectId}
                 folderId={browser.folderId}
                 foldersById={browser.foldersById}
                 actions={actions}

@@ -10,7 +10,6 @@ const api = vi.hoisted(() => ({
     moveFolder: vi.fn(),
     deleteFolder: vi.fn(),
     moveWorkflowToFolder: vi.fn(),
-    renameWorkflow: vi.fn(),
     archiveWorkflow: vi.fn(),
 }))
 const toast = vi.hoisted(() => ({success: vi.fn(), error: vi.fn()}))
@@ -173,19 +172,6 @@ describe("usePromptFolderActions", () => {
         })
         expect(api.archiveWorkflow).toHaveBeenCalledWith(PROJECT_ID, "p1")
         expect(toast.success).toHaveBeenCalledWith("Prompt archived")
-    })
-
-    it("Renaming a prompt sends the name and the description", async () => {
-        mount()
-        await act(async () => {
-            await latest.renamePrompt({id: "p1"}, {name: "Welcome 2", description: "Hi"})
-        })
-        expect(api.renameWorkflow).toHaveBeenCalledWith({
-            projectId: PROJECT_ID,
-            workflowId: "p1",
-            name: "Welcome 2",
-            description: "Hi",
-        })
     })
 
     it("A second confirm while the request runs sends no second request", async () => {
