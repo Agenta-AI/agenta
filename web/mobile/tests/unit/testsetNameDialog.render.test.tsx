@@ -5,9 +5,9 @@ import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {stubAxiosHttp, until, type RecordedRequest} from "./testsetHttp"
-
 import {TestsetNameDialog} from "@/features/testsets/create/TestsetNameDialog"
+
+import {stubAxiosHttp, until, type RecordedRequest} from "./testsetHttp"
 
 const push = vi.hoisted(() => vi.fn())
 vi.mock("next/router", () => ({useRouter: () => ({push})}))
