@@ -109,7 +109,7 @@ vi.mock("@/features/observability/SessionsTable", () => ({SessionsTable: () => n
 vi.mock("@/features/observability/TracesFilters", () => ({TracesFilters: () => null}))
 vi.mock("@/features/observability/TracesList", () => ({TracesList: () => null}))
 vi.mock("@/features/observability/useTracesExportBinding", () => ({
-    useTracesExportBinding: () => ({onExport: vi.fn(), isExporting: false}),
+    useTracesExportBinding: () => ({onExport: vi.fn(), isExporting: false, canExportData: true}),
 }))
 // The table keys its rows by span id (`ObservabilityTracesTable` rowKey).
 vi.mock("@/features/observability/TracesTable", () => ({

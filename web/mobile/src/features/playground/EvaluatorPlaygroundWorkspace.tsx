@@ -56,7 +56,7 @@ export const EvaluatorPlaygroundWorkspace = ({
     const evaluatorId = evaluator?.workflow_id ?? ""
 
     return (
-        <div className="flex h-full min-h-0 flex-col bg-background">
+        <div data-playground className="flex h-full min-h-0 flex-col bg-background">
             <EvaluatorPlaygroundHeader
                 workspaceId={workspaceId}
                 projectId={projectId}

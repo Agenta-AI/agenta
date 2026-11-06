@@ -1,6 +1,5 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableToolbar} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
@@ -13,6 +12,7 @@ import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMember
 
 import {useBindProjectContext} from "../../context/useBindProjectContext"
 import {useProjectPermission} from "../../context/useProjectPermission"
+import {useDeveloperPageFrame} from "../../developer/developerPageFrame"
 import {AppShell} from "../../nav/AppShell"
 import {NavDrawer} from "../../nav/NavDrawer"
 import type {TestsetNameTarget} from "../create/TestsetNameDialog"
@@ -41,8 +41,6 @@ type OpenDialog = {projectId: string} & (
 )
 
 /** The page column, shared with the other lists, so the nav entries line up. */
-const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
-
 /**
  * The Testsets list. Search sits in the URL, rows come a page at a time, and each verb a row
  * offers is shown only to a reader who may use it.
@@ -57,6 +55,7 @@ export const TestsetsListScreen = ({
     workspaceId: string
     projectId: string
 }) => {
+    const PAGE_FRAME = useDeveloperPageFrame()
     useBindWorkspaceMembers()
     useBindProjectContext(projectId)
     const base = `/w/${workspaceId}/p/${projectId}`

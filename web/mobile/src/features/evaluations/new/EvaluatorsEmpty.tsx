@@ -1,9 +1,10 @@
 import {Button} from "@agenta/ui/ui"
-import Link from "next/link"
+import {PlusIcon} from "@phosphor-icons/react"
 
 /**
- * No evaluator exists in the project. The link shows only while the evaluators view is on; with
- * `onCreate` the user can create the first one here.
+ * No evaluator of this kind exists in the project. With `onCreate` the first one is created here
+ * and picked; else the link opens the Evaluators page in a new tab, so the draft stays (it shows
+ * only while the evaluators view is on).
  */
 export const EvaluatorsEmpty = ({
     evaluatorsHref,
@@ -19,17 +20,16 @@ export const EvaluatorsEmpty = ({
         </p>
         {onCreate ? (
             <Button size="sm" className="mt-2" onClick={onCreate}>
-                Create evaluator
+                <PlusIcon size={14} />
+                Create your first evaluator
             </Button>
-        ) : null}
-        {evaluatorsHref ? (
-            <Link
-                href={evaluatorsHref}
-                prefetch={false}
-                className="mt-2 text-sm font-medium text-foreground underline"
-            >
-                Open evaluators
-            </Link>
+        ) : evaluatorsHref ? (
+            <Button asChild size="sm" className="mt-2">
+                <a href={evaluatorsHref} target="_blank" rel="noopener noreferrer">
+                    <PlusIcon size={14} />
+                    Create your first evaluator
+                </a>
+            </Button>
         ) : null}
     </div>
 )

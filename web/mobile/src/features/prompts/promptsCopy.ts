@@ -8,6 +8,9 @@ export const promptsCopy = {
     cancel: "Cancel",
     clearSearch: "Clear search",
     newFolder: "New folder",
+    newPrompt: "New prompt",
+    promptTypes: {chat: "Chat", completion: "Completion", agent: "Agent"},
+    createPromptDialog: {nameLabel: "App name", create: "Create"},
     rootLabel: "All prompts",
     folderTag: "Folder",
     columns: {name: "Name", modified: "Date modified", type: "Type", actions: "Actions"},
@@ -48,14 +51,6 @@ export const promptsCopy = {
         text: (name: string) => `${name} will move to archived apps.`,
         confirm: "Archive app",
     },
-    renamePromptDialog: {
-        title: "Rename prompt",
-        nameLabel: "Name",
-        descriptionLabel: "Description",
-        descriptionPlaceholder: "Add a short description…",
-        save: "Save changes",
-        emptyName: "Name can't be empty",
-    },
     toast: {
         folderCreated: "Folder created",
         folderRenamed: "Folder renamed",
@@ -63,6 +58,7 @@ export const promptsCopy = {
         folderDeleted: "Folder deleted",
         appMoved: "Prompt moved",
         appArchived: "Prompt archived",
+        promptCreated: "Prompt created",
     },
     guard: {
         noDestination: "Select a destination folder",
@@ -76,8 +72,9 @@ export const promptsCopy = {
         moveFolder: "Couldn't move the folder",
         deleteFolder: "Couldn't delete the folder",
         movePrompt: "Couldn't move this prompt",
-        renamePrompt: "Couldn't rename this prompt",
         archivePrompt: "Couldn't archive this prompt",
+        startPrompt: "Couldn't start a new prompt. Try again.",
+        createPrompt: "Couldn't create the prompt",
     },
     states: {
         loadErrorTitle: "Could not load prompts",

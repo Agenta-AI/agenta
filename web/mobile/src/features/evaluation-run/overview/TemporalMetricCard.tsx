@@ -84,7 +84,9 @@ export const TemporalMetricCard = ({
 }) => {
     const narrow = useIsNarrowScreen()
     const chart = useMemo(() => timeChart(metric, runId, runName), [metric, runId, runName])
-    const latest = metricSummary(metric.temporal.at(-1)?.stats ?? null)
+    // The whole run's value, the same number the summary table shows. The newest point covers one
+    // minute only, so a minute with two failures read "0.00%" next to a 95.45% run.
+    const runValue = metricSummary(metric.stats)
     const evaluator = metric.evaluatorName ?? "Evaluator"
 
     return (
@@ -98,9 +100,9 @@ export const TemporalMetricCard = ({
                     {metric.label}
                 </h3>
                 <span className="truncate text-xs text-muted-foreground">{metric.metricKey}</span>
-                {latest ? (
+                {runValue ? (
                     <span className="mt-1 text-sm tabular-nums text-foreground">
-                        {runName}: {latest.formatted}
+                        {runName}: {runValue.formatted}
                     </span>
                 ) : null}
             </header>

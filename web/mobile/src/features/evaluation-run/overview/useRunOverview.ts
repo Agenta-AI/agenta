@@ -3,6 +3,7 @@ import {useMemo} from "react"
 import {
     runLevelMetricsQueryAtomFamily,
     runMetricCatalogAtomFamily,
+    runQueryConfigQueryAtomFamily,
     runReferencesAtomFamily,
     type RunMetricEntry,
 } from "@agenta/entities/evaluationRun"
@@ -60,6 +61,8 @@ export function useRunOverview(runId: string) {
     const references = useAtomValue(runReferencesAtomFamily(runId))
     const metricsQuery = useAtomValue(runLevelMetricsQueryAtomFamily(runId))
     const catalog = useAtomValue(runMetricCatalogAtomFamily(runId))
+    // A live run's trace query; a run without one reads nothing.
+    const queryConfig = useAtomValue(runQueryConfigQueryAtomFamily(references?.queryIds[0] ?? ""))
 
     const names = useOverviewNames({
         evaluatorIds: catalog.flatMap((entry) => entry.evaluatorId ?? []),
@@ -85,6 +88,7 @@ export function useRunOverview(runId: string) {
         metricsPending: metricsQuery.isPending,
         metricsError: metricsQuery.isError ? metricsQuery.error : null,
         names,
+        query: queryConfig.isPending ? undefined : (queryConfig.data ?? null),
         onRetryMetrics: () => void metricsQuery.refetch(),
     }
 }

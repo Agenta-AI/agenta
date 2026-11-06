@@ -2,7 +2,6 @@ import {useCallback} from "react"
 
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {message} from "@agenta/ui/app-message"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableToolbar} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
@@ -15,6 +14,7 @@ import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMember
 
 import {AppOverviewLink} from "../../app-overview/AppOverviewLink"
 import {useBindProjectContext} from "../../context/useBindProjectContext"
+import {useDeveloperPageFrame} from "../../developer/developerPageFrame"
 import {AppShell} from "../../nav/AppShell"
 import {NavDrawer} from "../../nav/NavDrawer"
 import {ObservabilityAppFilter} from "../../observability/ObservabilityAppFilter"
@@ -37,8 +37,6 @@ const RevisionDrawerHost = dynamic(
     {ssr: false},
 )
 
-const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
-
 /**
  * The evaluation runs of a project, or of one app (from the path or `?app=`). Filters live in the URL.
  *
@@ -57,6 +55,7 @@ export const EvaluationsScreen = ({
     /** The kinds the create entry offers. Absent: all of them. */
     createKinds?: readonly CreatableKind[]
 }) => {
+    const PAGE_FRAME = useDeveloperPageFrame()
     useBindWorkspaceMembers()
     useBindProjectContext(projectId)
     const filters = useEvaluationRunsFilters()
@@ -75,17 +74,12 @@ export const EvaluationsScreen = ({
 
     const createMenu =
         canCreate && onCreate ? (
-            <CreateEvaluationMenu
-                tab={kind}
-                onCreate={onCreate}
-                kinds={createKinds}
-                label={kind === "all" ? "Start evaluation" : "New evaluation"}
-            />
+            <CreateEvaluationMenu tab={kind} onCreate={onCreate} kinds={createKinds} />
         ) : null
 
     return (
         <>
-            <PageTitle title="Evaluation runs" />
+            <PageTitle title="Evaluations" />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
@@ -132,7 +126,9 @@ export const EvaluationsScreen = ({
                                         value={statuses}
                                         onChange={filters.setStatuses}
                                     />
-                                    {createMenu}
+                                    {createMenu ? (
+                                        <div className="ml-auto">{createMenu}</div>
+                                    ) : null}
                                 </>
                             }
                         />
