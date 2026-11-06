@@ -28,6 +28,7 @@ import {useEvaluatorEditor} from "./create/useEvaluatorEditor"
 import {EvaluatorCategoryTabs} from "./EvaluatorCategoryTabs"
 import {archivedEvaluatorsUrl} from "./evaluatorPaths"
 import {EvaluatorsDrawer} from "./EvaluatorsDrawer"
+import {EvaluatorSheets} from "./EvaluatorSheets"
 import {EvaluatorsTable} from "./EvaluatorsTable"
 import {buildEvaluatorGroups, evaluatorLabel} from "./evaluatorsView"
 import {EvaluatorsEmpty} from "./states/EvaluatorsEmpty"
@@ -35,6 +36,7 @@ import {useArchiveEvaluators} from "./useArchiveEvaluators"
 import {useEvaluatorCategory} from "./useEvaluatorCategory"
 import {useEvaluatorRevisions} from "./useEvaluatorRevisions"
 import {useEvaluators} from "./useEvaluators"
+import {useEvaluatorSheets} from "./useEvaluatorSheets"
 
 // The picker and the editable drawer are their own chunks: the list downloads neither until used.
 const EvaluatorTemplatePicker = dynamic(
@@ -50,8 +52,9 @@ const EvaluatorEditorDrawer = dynamic(
 const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
 
 /**
- * Automatic and human evaluators, with archive. A row opens the evaluator in a read-only drawer:
- * changing an evaluator's configuration comes with the evaluator playground.
+ * Automatic and human evaluators, with archive. On the Human tab, "Create new" opens the human
+ * evaluator form, and a row opens its edit form for a reader who may edit evaluators. Other rows
+ * open the read-only drawer.
  */
 export const EvaluatorsScreen = ({
     workspaceId,
@@ -115,11 +118,28 @@ export const EvaluatorsScreen = ({
             [editor],
         ),
     )
-    const openCreate = editable && canEdit ? () => setPickerOpen(true) : undefined
     const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
     const [archiveIds, setArchiveIds] = useState<readonly string[]>([])
     const [inUseRunCount, setInUseRunCount] = useState<number | null>(null)
     const {archive, archiving} = useArchiveEvaluators(projectId)
+    const sheets = useEvaluatorSheets()
+    // Automatic evaluators are created in the editable drawer (beta developer mode), human ones in
+    // their form.
+    const openCreate = !canEdit
+        ? undefined
+        : category === "human"
+          ? () => sheets.openHuman()
+          : editable
+            ? () => setPickerOpen(true)
+            : undefined
+    const openRow = (row: {id: string; workflowId: string}) => {
+        const entry =
+            category === "human" && canEdit
+                ? evaluators.entries.find((item) => item.workflow.id === row.workflowId)
+                : undefined
+        if (entry) sheets.openHuman(entry)
+        else setRevisionId(row.id)
+    }
 
     // A selection of evaluators the list no longer holds (archived, or filtered out) is not one.
     const selectedIds = useMemo(
@@ -268,7 +288,7 @@ export const EvaluatorsScreen = ({
                                         />
                                     }
                                     onToggle={toggle}
-                                    onOpen={(row) => setRevisionId(row.id)}
+                                    onOpen={openRow}
                                     onArchive={(workflowId) => setArchiveIds([workflowId])}
                                 />
                                 {revisions.hasMore ? (
@@ -317,6 +337,7 @@ export const EvaluatorsScreen = ({
                     onSaved={editor.show}
                 />
             ) : null}
+            <EvaluatorSheets sheet={sheets.sheet} onClose={sheets.close} />
         </>
     )
 }

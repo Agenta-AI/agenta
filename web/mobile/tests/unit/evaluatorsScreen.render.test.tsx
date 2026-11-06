@@ -113,6 +113,14 @@ vi.mock("@/features/evaluators/create/EvaluatorEditorDrawer", () => ({
             createElement("button", {onClick: onClose}, "Close drawer"),
         ),
 }))
+// The create surfaces are separate chunks. Stand in for them, and keep what the page hands them.
+vi.mock("@/features/evaluators/human/HumanEvaluatorSheet", () => ({
+    HumanEvaluatorSheet: ({editing}: {editing: {workflow: {id: string}} | null}) =>
+        createElement("div", {
+            "data-testid": "human-sheet",
+            "data-editing": editing?.workflow.id ?? "",
+        }),
+}))
 vi.mock("@/features/nav/AppShell", () => ({
     AppShell: ({children}: {children: React.ReactNode}) => createElement("div", null, children),
 }))
@@ -342,13 +350,91 @@ describe("EvaluatorsScreen", () => {
         expect(api.error).toHaveBeenCalled()
     })
 
-    it("The human tab has no automatic create and keeps the read-only drawer in beta mode", async () => {
+    it("In beta mode the human tab creates with the human form, not the template picker", async () => {
         state.beta = true
         state.query = {tab: "human", revisionId: "w3-r2"}
         await mount()
         await flush()
-        expect(button(/^Create new$/)).toBeUndefined()
         expect(document.querySelector('[data-testid="drawer"]')).not.toBeNull()
+        await act(async () => button(/^Create new$/)?.click())
+        await flush()
+        expect(document.querySelector('[data-testid="human-sheet"]')).not.toBeNull()
+        expect(document.querySelector('[data-testid="template-picker"]')).toBeNull()
+    })
+
+    it("Without beta mode the automatic tab has no Create new", async () => {
+        await mount()
+        expect(button(/^Create new$/)).toBeUndefined()
+    })
+
+    it("Create new opens an empty human evaluator form on the human tab", async () => {
+        state.query = {tab: "human"}
+        await mount()
+        await act(async () => button(/^Create new$/)?.click())
+        await flush()
+        const sheet = document.querySelector('[data-testid="human-sheet"]')
+        expect(sheet?.getAttribute("data-editing")).toBe("")
+    })
+
+    it("Create new is hidden without edit_evaluators", async () => {
+        state.perms.edit_evaluators = false
+        state.query = {tab: "human"}
+        await mount()
+        expect(button(/^Create new$/)).toBeUndefined()
+    })
+
+    it("An empty human tab offers to create the first evaluator", async () => {
+        server.workflows = []
+        state.query = {tab: "human"}
+        await mount()
+        await act(async () => button(/^Create evaluator$/)?.click())
+        await flush()
+        expect(document.querySelector('[data-testid="human-sheet"]')).not.toBeNull()
+    })
+
+    it("A human row without edit_evaluators opens the read-only drawer", async () => {
+        state.perms.edit_evaluators = false
+        state.query = {tab: "human"}
+        await mount()
+        await act(async () => {
+            document
+                .querySelector('[aria-label="Evaluator actions"]')
+                ?.dispatchEvent(
+                    new MouseEvent("pointerdown", {bubbles: true, cancelable: true, button: 0}),
+                )
+        })
+        const items = [...document.querySelectorAll('[role="menuitem"]')].map((i) => i.textContent)
+        expect(items[0]).toBe("Open details")
+        await act(async () => {
+            document.dispatchEvent(new KeyboardEvent("keydown", {key: "Escape", bubbles: true}))
+        })
+        const row = host.querySelector<HTMLElement>('[role="button"]')
+        await act(async () => row?.click())
+        expect(document.querySelector('[data-testid="human-sheet"]')).toBeNull()
+        expect(state.replace).toHaveBeenCalled()
+    })
+
+    it("A human row opens its edit form, and its menu says Edit", async () => {
+        state.query = {tab: "human"}
+        await mount()
+        await act(async () => {
+            document
+                .querySelector('[aria-label="Evaluator actions"]')
+                ?.dispatchEvent(
+                    new MouseEvent("pointerdown", {bubbles: true, cancelable: true, button: 0}),
+                )
+        })
+        const items = [...document.querySelectorAll('[role="menuitem"]')].map((i) => i.textContent)
+        expect(items[0]).toBe("Edit")
+        await act(async () => {
+            document.dispatchEvent(new KeyboardEvent("keydown", {key: "Escape", bubbles: true}))
+        })
+        const row = host.querySelector<HTMLElement>('[role="button"]')
+        await act(async () => row?.click())
+        await flush()
+        const sheet = document.querySelector('[data-testid="human-sheet"]')
+        expect(sheet?.getAttribute("data-editing")).not.toBe("")
+        expect(state.replace).not.toHaveBeenCalled()
     })
 
     it("Clicking a row opens the evaluator drawer", async () => {
