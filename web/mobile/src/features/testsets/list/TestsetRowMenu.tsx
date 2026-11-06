@@ -13,6 +13,7 @@ import {
     Eye,
     FileCsv,
     FileJs,
+    Hash,
     PencilSimple,
 } from "@phosphor-icons/react"
 
@@ -20,7 +21,8 @@ import type {TestsetRowActions} from "./testsetRowTypes"
 
 /**
  * The kebab on a testset row. Clone, Rename and Archive show only to a reader who may edit;
- * the two exports show only to one who may export, and wait while another export runs.
+ * the two exports show only to one who may export, and wait while another export runs. Archive
+ * stays last, after the separator, so the destructive item is never next to a common one.
  */
 export const TestsetRowMenu = ({
     actions,
@@ -33,10 +35,10 @@ export const TestsetRowMenu = ({
     canExport: boolean
     exportDisabled: boolean
 }) => {
-    const {onOpen, onExport, onClone, onRename, onArchive} = actions
+    const {onOpen, onExport, onClone, onRename, onArchive, onCopyId} = actions
     const showClone = canEdit && Boolean(onClone)
     const showRename = canEdit && Boolean(onRename)
-    const showSeparator = showClone || showRename || canExport
+    const showSeparator = showClone || showRename || canExport || Boolean(onCopyId)
 
     return (
         <DropdownMenu>
@@ -86,6 +88,12 @@ export const TestsetRowMenu = ({
                             Export as JSON
                         </DropdownMenuItem>
                     </>
+                ) : null}
+                {onCopyId ? (
+                    <DropdownMenuItem onSelect={onCopyId}>
+                        <Hash aria-hidden size={14} />
+                        Copy ID
+                    </DropdownMenuItem>
                 ) : null}
                 {canEdit ? (
                     <>

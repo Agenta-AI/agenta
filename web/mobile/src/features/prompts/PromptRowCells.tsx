@@ -1,8 +1,10 @@
 import {workflowAppTypeAtomFamily} from "@agenta/entities/workflow"
 import {WorkflowTypeTag} from "@agenta/entity-ui/workflow"
 import {Badge} from "@agenta/ui/ui"
-import {ChatDotsIcon, FolderIcon, NoteIcon} from "@phosphor-icons/react"
+import {FolderIcon} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
+
+import {AppTypeIcon} from "@/components/AppTypeIcon"
 
 import type {PromptsRow} from "./promptRow"
 import type {PromptRowActions} from "./promptRowActions"
@@ -49,12 +51,15 @@ export const PromptRowCells = ({
     const appType = useAtomValue(
         workflowAppTypeAtomFamily(row.kind === "prompt" ? row.prompt.id : ""),
     )
-    const Icon = row.kind === "folder" ? FolderIcon : appType === "chat" ? ChatDotsIcon : NoteIcon
 
     return (
         <>
             <span className="flex min-w-0 items-center gap-2" style={{paddingLeft: row.depth * 16}}>
-                <Icon size={18} className="shrink-0 text-muted-foreground" />
+                {row.kind === "folder" ? (
+                    <FolderIcon size={18} className="shrink-0 text-muted-foreground" />
+                ) : (
+                    <AppTypeIcon appType={appType} />
+                )}
                 <span
                     className="truncate text-[14px] font-medium leading-[18px] text-foreground"
                     title={name}

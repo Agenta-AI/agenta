@@ -72,7 +72,6 @@ vi.mock("next/dynamic", () => ({
 vi.mock("@agenta/observability-ui/traceDrawer", () => ({
     configureTraceDrawerReferences: fixture.configure,
 }))
-vi.mock("@/features/observability/TracePrettyJson", () => ({TracePrettyJson: () => null}))
 vi.mock("@/features/observability/TraceSpanPanel", () => ({TraceSpanPanel: () => null}))
 // The default slot of the trace drawer package loads this antd module. It must never load.
 vi.mock("@agenta/annotation-ui/add-to-queue", () => {

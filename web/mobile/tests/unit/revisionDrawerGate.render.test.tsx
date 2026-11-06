@@ -12,6 +12,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 const fixture = vi.hoisted(() => ({
     query: {} as Record<string, string>,
     beta: false,
+    revision: {version: 2} as object | undefined,
 }))
 
 vi.mock("next/router", () => ({
@@ -26,8 +27,8 @@ vi.mock("next/dynamic", () => ({
             : source.includes("RevisionDrawerHost")
               ? "read-only-drawer"
               : "other"
-        return ({kind}: {kind?: string}) =>
-            createElement("div", {"data-testid": testId, "data-kind": kind})
+        return ({kind, actions}: {kind?: string; actions?: ReactNode}) =>
+            createElement("div", {"data-testid": testId, "data-kind": kind}, actions)
     },
 }))
 vi.mock("next/link", () => ({
@@ -42,11 +43,16 @@ vi.mock("@agenta/entities/environment", () => ({
 }))
 vi.mock("@agenta/entities/workflow", () => ({
     workflowLatestRevisionIdAtomFamily: () => ({id: "latest"}),
+    workflowMolecule: {
+        atoms: {query: () => ({id: "revision"})},
+        selectors: {variantLabel: () => ({id: "variantLabel"})},
+    },
 }))
 vi.mock("jotai", async (importOriginal) => ({
     ...(await importOriginal<typeof import("jotai")>()),
     useAtomValue: (atom: {id: string}) => {
         if (atom.id === "beta") return fixture.beta
+        if (atom.id === "revision") return {data: fixture.revision}
         if (atom.id === "list")
             return {data: {environments: [{id: "env-dev", slug: "development"}]}, isError: false}
         return null
@@ -129,6 +135,7 @@ const drawer = () => document.querySelector("[data-kind]")
 beforeEach(() => {
     fixture.query = {revisionId: "rev-2"}
     fixture.beta = false
+    fixture.revision = {version: 2}
     host = document.createElement("div")
     document.body.append(host)
     root = createRoot(host)
@@ -162,5 +169,31 @@ describe.each([
         fixture.beta = true
         mount(tab())
         expect(drawer()).toBeNull()
+    })
+})
+
+describe("Deployment drawer header", () => {
+    const buttons = () =>
+        [...(drawer()?.querySelectorAll("button, a") ?? [])].map((el) => el.textContent?.trim())
+
+    it("offers Open in playground and Deploy in beta developer mode, as /w does", () => {
+        fixture.beta = true
+        mount(deploymentsTab())
+        expect(buttons()).toEqual(["Open in playground", "Deploy"])
+    })
+
+    it("keeps Deploy off until the revision loads, so it never sends an empty version", () => {
+        fixture.beta = true
+        fixture.revision = undefined
+        mount(deploymentsTab())
+        const deploy = [...(drawer()?.querySelectorAll("button") ?? [])].find(
+            (el) => el.textContent?.trim() === "Deploy",
+        )
+        expect(deploy?.hasAttribute("disabled")).toBe(true)
+    })
+
+    it("keeps the read-only drawer's header without beta developer mode", () => {
+        mount(deploymentsTab())
+        expect(buttons()).toEqual(["Open in playground"])
     })
 })
