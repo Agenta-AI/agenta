@@ -1,14 +1,14 @@
-import {useMemo, useState} from "react"
+import {useMemo} from "react"
 
-import {workflowMolecule} from "@agenta/entities/workflow"
+import {activateEvaluatorEnrichmentAtom, workflowMolecule} from "@agenta/entities/workflow"
 import {
-    createWorkflowRevisionAdapter,
-    TreeSelectPopupContent,
+    EntityPicker,
+    useEnrichedEvaluatorOnlyAdapter,
     type WorkflowRevisionSelectionResult,
 } from "@agenta/entity-ui/selection"
 import {playgroundController} from "@agenta/playground"
 import type {PlaygroundNode} from "@agenta/playground/state"
-import {Badge, Button, cn, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
+import {Badge, cn} from "@agenta/ui/ui"
 import {Gavel, X} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -36,11 +36,14 @@ const EvaluatorChip = ({node, onRemove}: {node: PlaygroundNode; onRemove: () => 
 
 /**
  * Evaluators that score each output of the app in the playground: a chip per connected
- * evaluator, and a list of evaluators and their revisions to add one. An added evaluator runs
- * after the app on every run.
+ * evaluator, and the automatic evaluators (human ones cannot score a run) by type, with their
+ * revisions, to add one. An added evaluator runs after the app on every run. With
+ * `onCreateNew` the list ends with "Create new evaluator".
+ *
+ * The evaluator data loads on the first open, not with the playground.
  */
-export const EvaluatorPicker = () => {
-    const [open, setOpen] = useState(false)
+export const EvaluatorPicker = ({onCreateNew}: {onCreateNew?: () => void}) => {
+    const activate = useSetAtom(activateEvaluatorEnrichmentAtom)
     const nodes = useAtomValue(playgroundController.selectors.nodes())
     const connect = useSetAtom(playgroundController.actions.connectDownstreamNode)
     const disconnect = useSetAtom(playgroundController.actions.disconnectSingleDownstreamNode)
@@ -50,19 +53,9 @@ export const EvaluatorPicker = () => {
         () => new Set(evaluators.map((node) => node.entityId)),
         [evaluators],
     )
-    const adapter = useMemo(
-        () =>
-            createWorkflowRevisionAdapter({
-                skipVariantLevel: true,
-                excludeRevisionZero: true,
-                flags: {is_evaluator: true, is_feedback: false},
-                parentLabel: "Evaluator",
-            }),
-        [],
-    )
+    const adapter = useEnrichedEvaluatorOnlyAdapter(undefined, {showWorkflowMeta: true, lazy: true})
 
     const add = (selection: WorkflowRevisionSelectionResult) => {
-        setOpen(false)
         if (!root) return
         connect({
             sourceNodeId: root.id,
@@ -89,26 +82,28 @@ export const EvaluatorPicker = () => {
                     ))}
                 </div>
             ) : null}
-            <Popover open={open} onOpenChange={setOpen}>
-                <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="gap-1" disabled={!root}>
-                        <Gavel aria-hidden size={14} />
-                        <span className="max-sm:sr-only">Evaluator</span>
-                    </Button>
-                </PopoverTrigger>
-                <PopoverContent align="end" className="w-[296px] p-0">
-                    {open ? (
-                        <TreeSelectPopupContent<WorkflowRevisionSelectionResult>
-                            adapter={adapter}
-                            defaultExpandAll={false}
-                            disabledChildIds={connectedIds}
-                            onSelect={add}
-                            width={280}
-                            maxHeight={400}
-                        />
-                    ) : null}
-                </PopoverContent>
-            </Popover>
+            {/* The first press opens the data gate, before the picker opens on the same press. */}
+            <div onPointerDownCapture={activate} onFocusCapture={activate}>
+                <EntityPicker<WorkflowRevisionSelectionResult>
+                    variant="popover-cascader"
+                    adapter={adapter}
+                    instanceId="playground-evaluator-picker"
+                    onSelect={add}
+                    placeholder="Evaluator"
+                    icon={<Gavel aria-hidden size={14} />}
+                    showDropdownIcon={false}
+                    placement="bottomRight"
+                    panelMinWidth={280}
+                    disabled={!root}
+                    disabledChildIds={connectedIds}
+                    disabledChildTooltip="Already connected"
+                    openChildOnHover
+                    showParentDescription
+                    onCreateNew={onCreateNew}
+                    createNewLabel="Create new evaluator"
+                    size="small"
+                />
+            </div>
         </div>
     )
 }
