@@ -5,7 +5,7 @@ import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableToolbar} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
-import {TrayIcon} from "@phosphor-icons/react"
+import {PlusIcon, TrayIcon} from "@phosphor-icons/react"
 import Link from "next/link"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -23,6 +23,7 @@ import {ArchiveEvaluatorsDialog, type ArchiveTarget} from "./ArchiveEvaluatorsDi
 import {EvaluatorCategoryTabs} from "./EvaluatorCategoryTabs"
 import {archivedEvaluatorsUrl} from "./evaluatorPaths"
 import {EvaluatorsDrawer} from "./EvaluatorsDrawer"
+import {EvaluatorSheets} from "./EvaluatorSheets"
 import {EvaluatorsTable} from "./EvaluatorsTable"
 import {buildEvaluatorGroups, evaluatorLabel} from "./evaluatorsView"
 import {EvaluatorsEmpty} from "./states/EvaluatorsEmpty"
@@ -30,13 +31,15 @@ import {useArchiveEvaluators} from "./useArchiveEvaluators"
 import {useEvaluatorCategory} from "./useEvaluatorCategory"
 import {useEvaluatorRevisions} from "./useEvaluatorRevisions"
 import {useEvaluators} from "./useEvaluators"
+import {useEvaluatorSheets} from "./useEvaluatorSheets"
 
 /** The page column, shared with the other list pages, so the pages line up. */
 const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
 
 /**
- * Automatic and human evaluators, with archive. A row opens the evaluator in a read-only drawer:
- * changing an evaluator's configuration comes with the evaluator playground.
+ * Automatic and human evaluators, with archive. On the Human tab, "Create new" opens the human
+ * evaluator form, and a row opens its edit form for a reader who may edit evaluators. Other rows
+ * open the read-only drawer.
  */
 export const EvaluatorsScreen = ({
     workspaceId,
@@ -89,6 +92,17 @@ export const EvaluatorsScreen = ({
     const [archiveIds, setArchiveIds] = useState<readonly string[]>([])
     const [inUseRunCount, setInUseRunCount] = useState<number | null>(null)
     const {archive, archiving} = useArchiveEvaluators(projectId)
+    const sheets = useEvaluatorSheets()
+    // Automatic evaluators are created in the editable revision drawer, which comes separately.
+    const openCreate = canEdit && category === "human" ? () => sheets.openHuman() : undefined
+    const openRow = (row: {id: string; workflowId: string}) => {
+        const entry =
+            category === "human" && canEdit
+                ? evaluators.entries.find((item) => item.workflow.id === row.workflowId)
+                : undefined
+        if (entry) sheets.openHuman(entry)
+        else setRevisionId(row.id)
+    }
 
     // A selection of evaluators the list no longer holds (archived, or filtered out) is not one.
     const selectedIds = useMemo(
@@ -189,19 +203,31 @@ export const EvaluatorsScreen = ({
                                         Archive
                                     </Button>
                                 ) : (
-                                    <Button asChild size="sm" variant="ghost">
-                                        <Link
-                                            href={archivedEvaluatorsUrl(
-                                                workspaceId,
-                                                projectId,
-                                                category,
-                                            )}
-                                            prefetch={false}
-                                        >
-                                            <TrayIcon aria-hidden />
-                                            Archived
-                                        </Link>
-                                    </Button>
+                                    <>
+                                        <Button asChild size="sm" variant="ghost">
+                                            <Link
+                                                href={archivedEvaluatorsUrl(
+                                                    workspaceId,
+                                                    projectId,
+                                                    category,
+                                                )}
+                                                prefetch={false}
+                                            >
+                                                <TrayIcon aria-hidden />
+                                                Archived
+                                            </Link>
+                                        </Button>
+                                        {openCreate ? (
+                                            <Button
+                                                size="sm"
+                                                className="ml-auto"
+                                                onClick={openCreate}
+                                            >
+                                                <PlusIcon aria-hidden />
+                                                Create new
+                                            </Button>
+                                        ) : null}
+                                    </>
                                 )
                             }
                         />
@@ -221,10 +247,11 @@ export const EvaluatorsScreen = ({
                                             category={category}
                                             term={trimmed || undefined}
                                             onClear={search.reset}
+                                            onCreate={openCreate}
                                         />
                                     }
                                     onToggle={toggle}
-                                    onOpen={(row) => setRevisionId(row.id)}
+                                    onOpen={openRow}
                                     onArchive={(workflowId) => setArchiveIds([workflowId])}
                                 />
                                 {revisions.hasMore ? (
@@ -254,6 +281,7 @@ export const EvaluatorsScreen = ({
             {view.allowed ? (
                 <EvaluatorsDrawer navigationIds={navigationIds} playgroundBase={playgroundBase} />
             ) : null}
+            <EvaluatorSheets sheet={sheets.sheet} onClose={sheets.close} />
         </>
     )
 }
