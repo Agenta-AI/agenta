@@ -1,6 +1,8 @@
 import {useState} from "react"
 
+import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
 import {useSettledValue} from "@agenta/shared/hooks"
+import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {CommitMessageInput, FormattedDate} from "@agenta/ui/components/presentational"
 import {
     Button,
@@ -15,6 +17,7 @@ import {
     RadioGroupItem,
     Skeleton,
 } from "@agenta/ui/ui"
+import {useAtomValue} from "jotai"
 
 import {useAppRevisions, type AppRevisionRow} from "./useAppRevisions"
 import {useDeployRevision} from "./useDeploymentWrites"
@@ -43,6 +46,11 @@ export const DeployToEnvironmentDialog = ({
     }
     onClose: () => void
 }) => {
+    // Beta developer mode shows the revisions as /w's table does: version tag, deployments, model.
+    const beta = useAtomValue(betaDeveloperModeActiveAtom)
+    const title = beta
+        ? environment.name.charAt(0).toUpperCase() + environment.name.slice(1)
+        : environment.name
     const [search, setSearch] = useState("")
     const term = useSettledValue(search).trim()
     const revisions = useAppRevisions({projectId, appId, search: term})
@@ -83,7 +91,7 @@ export const DeployToEnvironmentDialog = ({
         >
             <DialogContent className="sm:max-w-3xl">
                 <DialogHeader>
-                    <DialogTitle>Deploy {environment.name}</DialogTitle>
+                    <DialogTitle>Deploy {title}</DialogTitle>
                     <DialogDescription>
                         {pickedRow
                             ? `This will deploy the following revision to ${environment.name}.`
@@ -157,9 +165,28 @@ export const DeployToEnvironmentDialog = ({
                                                 value={row.revisionId}
                                                 aria-label={`${row.variantName} v${row.version}`}
                                             />
-                                            <span className="min-w-0 flex-1 truncate">
-                                                {row.variantName} v{row.version}
-                                            </span>
+                                            {beta ? (
+                                                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                                                    <VariantDetailsWithStatus
+                                                        className="min-w-0 justify-start gap-2"
+                                                        variant={{id: row.revisionId}}
+                                                        variantName={row.variantName}
+                                                        revision={row.version}
+                                                        showRevisionAsTag
+                                                        showBadges
+                                                        hideDiscard
+                                                        showStable
+                                                        showLatestTag={false}
+                                                    />
+                                                    <span className="truncate text-xs text-muted-foreground">
+                                                        {row.model || "—"}
+                                                    </span>
+                                                </span>
+                                            ) : (
+                                                <span className="min-w-0 flex-1 truncate">
+                                                    {row.variantName} v{row.version}
+                                                </span>
+                                            )}
                                             <span className="text-xs text-muted-foreground">
                                                 <FormattedDate
                                                     date={row.createdAt}

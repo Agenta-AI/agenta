@@ -1,6 +1,8 @@
 import {useState} from "react"
 
 import {appEnvironmentsLoadableAtomFamily} from "@agenta/entities/environment"
+import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
+import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {CommitMessageInput, Tag} from "@agenta/ui/components/presentational"
 import {
     Button,
@@ -42,6 +44,8 @@ export const DeployRevisionDialog = ({
     onClose: () => void
 }) => {
     const environments = useAtomValue(appEnvironmentsLoadableAtomFamily(appId))
+    // Beta developer mode shows the current variant as /w does: its name and a version tag.
+    const beta = useAtomValue(betaDeveloperModeActiveAtom)
     const deploy = useDeployRevision()
     const [picked, setPicked] = useState<string | null>(null)
     const [note, setNote] = useState("")
@@ -50,6 +54,8 @@ export const DeployRevisionDialog = ({
     const choices = environments.data.map((environment) => ({
         key: environment.slug || environment.name,
         name: environment.name,
+        variantName: environment.deployedVariantName,
+        revision: environment.revision,
         current: environment.deployedVariantName
             ? `${environment.deployedVariantName}${environment.revision ? ` v${environment.revision}` : ""}`
             : "",
@@ -120,9 +126,20 @@ export const DeployRevisionDialog = ({
                                     <RadioGroupItem value={entry.key} aria-label={entry.name} />
                                     <Tag env={entry.name} />
                                 </span>
-                                <span className="truncate text-sm text-muted-foreground">
-                                    {entry.current}
-                                </span>
+                                {beta && entry.variantName ? (
+                                    <VariantDetailsWithStatus
+                                        className="min-w-0 justify-start text-sm"
+                                        variantName={entry.variantName}
+                                        revision={entry.revision}
+                                        showRevisionAsTag
+                                        hideDiscard
+                                        showLatestTag={false}
+                                    />
+                                ) : (
+                                    <span className="truncate text-sm text-muted-foreground">
+                                        {entry.current}
+                                    </span>
+                                )}
                             </label>
                         ))}
                     </RadioGroup>
