@@ -91,7 +91,7 @@ let root: Root
 
 const setBeta = (on: boolean) =>
     getDefaultStore().set(betaDeveloperModeActiveAtom as never, on as never)
-const mount = () =>
+const mount = (archived = false) =>
     act(() => {
         root.render(
             createElement(
@@ -101,6 +101,7 @@ const mount = () =>
                     projectId: "pr",
                     app: APP as never,
                     base: BASE,
+                    archived,
                 }),
             ),
         )
@@ -169,6 +170,20 @@ describe("Recent Prompts in beta developer mode", () => {
             "Open in playground",
             "Deploy",
         ])
+    })
+})
+
+describe("Recent Prompts of an archived app in beta developer mode", () => {
+    it("opens the read-only drawer with no Deploy, so no revision can be committed", () => {
+        setBeta(true)
+        fixture.revisionId = "rev-2"
+        mount(true)
+        expect(host.querySelector('[data-testid="editable-drawer"]')).toBeNull()
+        const drawer = host.querySelector('[data-testid="read-only-drawer"]')
+        expect(drawer).not.toBeNull()
+        expect(drawer!.querySelectorAll("a, button")).toHaveLength(0)
+        expect(fixture.tableProps?.canDeploy).toBe(false)
+        expect(fixture.tableProps?.canDelete).toBe(false)
     })
 })
 

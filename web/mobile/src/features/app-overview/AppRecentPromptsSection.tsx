@@ -61,7 +61,7 @@ export const AppRecentPromptsSection = ({
     app: Workflow
     base: string
     evaluator?: boolean
-    /** An archived app is read-only here: no Deploy and no Delete. */
+    /** An archived app is read-only here: no Deploy, no Delete, and the read-only drawer. */
     archived?: boolean
 }) => {
     const revisions = useAppRevisions({projectId, appId: app.id, search: ""})
@@ -73,6 +73,8 @@ export const AppRecentPromptsSection = ({
     const [deployRow, setDeployRow] = useState<AppRevisionRow | null>(null)
     const [deleteRow, setDeleteRow] = useState<AppRevisionRow | null>(null)
     const beta = useAtomValue(betaDeveloperModeActiveAtom)
+    // The editable drawer can commit a revision, so an archived app keeps the read-only one.
+    const editable = beta && !archived
     const canDelete = useProjectPermission(projectId, "edit_workflows") && !archived
     const playgroundEnabled = useDeveloperViewEnabled("playground") === true
     const toPlayground =
@@ -131,7 +133,7 @@ export const AppRecentPromptsSection = ({
                     empty={<VariantsEmpty />}
                 />
             )}
-            {revisionId && beta ? (
+            {revisionId && editable ? (
                 <EditableRevisionDrawerHost
                     projectId={projectId}
                     kind="variant"
@@ -154,7 +156,7 @@ export const AppRecentPromptsSection = ({
                     }
                 />
             ) : null}
-            {revisionId && !beta ? (
+            {revisionId && !editable ? (
                 <RevisionDrawerHost
                     kind="variant"
                     navigationIds={newest.map((row) => row.revisionId)}
