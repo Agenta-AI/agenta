@@ -7,13 +7,15 @@ import {useCanonicalProjectRoute} from "../context/useCanonicalProjectRoute"
 import {useTrackLastNonSettingsPath} from "./lastNonSettingsPath"
 import {MobileCommandPalette} from "./MobileCommandPalette"
 import {NavRail} from "./NavRail"
+import {useTrackLastMainRailPath} from "./railScope"
 
 /**
  * The viewport-aware app frame: a persistent sidebar at lg+ beside the screen, nothing below
  * lg (where screens carry the NavDrawer hamburger in their own headers). Screens wrap their
  * ScreenScaffold in this — the scaffold's `h-dvh` column becomes the flex-1 main pane.
  *
- * `scope` replaces the main nav for screens that take the rail over (settings).
+ * `scope` replaces the main nav for screens that take the rail over (settings). Inside an app, in
+ * beta developer mode, the rail is the app menu (`useRailScope`).
  */
 export const AppShell = ({
     workspaceId,
@@ -27,6 +29,7 @@ export const AppShell = ({
     children: ReactNode
 }) => {
     useTrackLastNonSettingsPath()
+    useTrackLastMainRailPath()
     useCanonicalProjectRoute()
 
     return (
