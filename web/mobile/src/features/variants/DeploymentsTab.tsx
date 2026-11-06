@@ -16,6 +16,7 @@ import {useProjectPermission} from "../context/useProjectPermission"
 import {useDeveloperViewEnabled} from "../developer/developerViewAccess"
 import {useUrlParams} from "../developer/useUrlParams"
 import {playgroundHref} from "../playground/playgroundUrl"
+import {DeployRevisionButton} from "../revisions/DeployRevisionButton"
 import {OpenInPlaygroundButton} from "../revisions/OpenInPlaygroundButton"
 import {useRevisionParam} from "../revisions/useRevisionParam"
 import {useSettingsOrg} from "../settings/useSettingsOrg"
@@ -31,6 +32,11 @@ import {useAppEnvironments} from "./useAppEnvironments"
 
 const RevisionDrawerHost = dynamic(
     () => import("../revisions/RevisionDrawerHost").then((module) => module.RevisionDrawerHost),
+    {ssr: false},
+)
+// Beta developer mode: "Use API" opens the code in a drawer for the selected environment.
+const UseApiDrawer = dynamic(
+    () => import("../endpoints/UseApiDrawer").then((module) => module.UseApiDrawer),
     {ssr: false},
 )
 // Beta developer mode only; everyone else keeps the read-only drawer.
@@ -77,6 +83,7 @@ export const DeploymentsTab = ({
     const [revisionId, setRevisionId] = useRevisionParam()
     const betaDeveloperMode = useAtomValue(betaDeveloperModeActiveAtom)
     const [search, setSearch] = useState("")
+    const [useApiOpen, setUseApiOpen] = useState(false)
     const term = useSettledValue(search).trim()
     const [revertRow, setRevertRow] = useState<AppDeploymentRow | null>(null)
     const [deployOpen, setDeployOpen] = useState(false)
@@ -159,7 +166,16 @@ export const DeploymentsTab = ({
                     searchPlaceholder="Search"
                     actions={
                         <div className="ml-auto flex items-center gap-2">
-                            {endpointsEnabled ? (
+                            {betaDeveloperMode && selected ? (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setUseApiOpen(true)}
+                                >
+                                    <Lightning aria-hidden size={14} />
+                                    Use API
+                                </Button>
+                            ) : endpointsEnabled ? (
                                 <Button asChild variant="outline" size="sm">
                                     <Link href={`${base}/endpoints?app=${app.id}`} prefetch={false}>
                                         <Lightning aria-hidden size={14} />
@@ -203,7 +219,31 @@ export const DeploymentsTab = ({
                         projectId={projectId}
                         kind="deployment"
                         navigationIds={navigationIds}
-                        actions={drawerActions}
+                        actions={
+                            <>
+                                {playgroundEnabled && revisionId ? (
+                                    <OpenInPlaygroundButton
+                                        href={playgroundHref(base, app.id, [revisionId])}
+                                    />
+                                ) : null}
+                                {canDeploy ? (
+                                    <DeployRevisionButton
+                                        revisionId={revisionId}
+                                        appId={app.id}
+                                        appSlug={app.slug ?? null}
+                                    />
+                                ) : null}
+                                {canRevert(shownRow) ? (
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setRevertRow(shownRow)}
+                                    >
+                                        Revert
+                                    </Button>
+                                ) : null}
+                            </>
+                        }
                     />
                 ) : (
                     <RevisionDrawerHost
@@ -212,6 +252,15 @@ export const DeploymentsTab = ({
                         actions={drawerActions}
                     />
                 )
+            ) : null}
+            {useApiOpen && selected ? (
+                <UseApiDrawer
+                    workspaceId={workspaceId}
+                    projectId={projectId}
+                    appSlug={app.slug ?? null}
+                    environment={{slug: selected.slug, revisionId: selected.deployedRevisionId}}
+                    onClose={() => setUseApiOpen(false)}
+                />
             ) : null}
             {revertRow && selected ? (
                 <RevertDeploymentDialog

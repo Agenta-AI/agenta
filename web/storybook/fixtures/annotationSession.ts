@@ -1,4 +1,5 @@
 import {projectPermissionQueryKey} from "@agenta/entities/access"
+import {PrettyJsonView} from "@agenta/observability-ui/drillIn"
 import {
     configureTraceDrawerReferences,
     type TraceDrawerReferenceSlots,
@@ -6,7 +7,6 @@ import {
 import type {QueryKey} from "@tanstack/react-query"
 import type {Getter, Setter} from "jotai"
 
-import {TracePrettyJson} from "../../mobile/src/features/observability/TracePrettyJson"
 import {TraceSpanPanel} from "../../mobile/src/features/observability/TraceSpanPanel"
 import {
     handlers,
@@ -259,5 +259,5 @@ type TraceSlot = TraceDrawerReferenceSlots["TraceSpanDrillInView"]
 export const registerStoryTraceSlots = () =>
     configureTraceDrawerReferences({
         TraceSpanDrillInView: TraceSpanPanel as unknown as TraceSlot,
-        PrettyJsonView: TracePrettyJson as unknown as TraceSlot,
+        PrettyJsonView: PrettyJsonView as unknown as TraceSlot,
     })
