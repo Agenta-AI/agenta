@@ -218,13 +218,17 @@ describe("TestcaseTable editor features", () => {
         expect(marked()).toEqual(["tc-1", "new-1"])
     })
 
-    it("Resting on a cell shows its full value with a Copy button", async () => {
+    it("Resting on a cell shows its full value, and Copy copies all of it", async () => {
+        // Longer than the cell preview, so a cut-off copy would fail.
+        const fullValue = `Refunds: ${"within 30 days of delivery. ".repeat(40)}`.trim()
+        const writeText = vi.fn(async () => undefined)
+        Object.defineProperty(navigator, "clipboard", {value: {writeText}, configurable: true})
         vi.useFakeTimers()
         try {
-            setDraft("tc-1", {question: "What is the refund window?"})
+            setDraft("tc-1", {question: fullValue})
             await mount(<TestcaseTable config={config} cellPopover />)
             const cell = container.querySelector('[data-row="tc-1"] .cursor-pointer')
-            expect(cell?.textContent).toContain("What is the refund window?")
+            expect(cell?.textContent).toContain("Refunds:")
 
             await act(async () => {
                 cell?.parentElement?.dispatchEvent(new MouseEvent("mouseover", {bubbles: true}))
@@ -236,6 +240,8 @@ describe("TestcaseTable editor features", () => {
                 (button) => button.textContent?.trim() === "Copy",
             )
             expect(copy).toBeDefined()
+            await act(async () => copy?.click())
+            expect(writeText).toHaveBeenCalledWith(fullValue)
         } finally {
             vi.useRealTimers()
         }
