@@ -33,9 +33,9 @@ Write one test for each risk and case that matters. Skip a case only if you can 
 - Name the test as a user behavior, in a plain sentence.
 - Test through the screen, the hook, or the package atom. Do not test private helpers or the order of internal calls.
 - Use the real `@agenta/*` atoms, molecules, and controllers in a `createStore()` store.
-- Mock only what lives outside the code: HTTP, time, randomness, and the router.
+- Mock only what lives outside the code: HTTP, time, randomness, the router, and browser APIs that jsdom lacks, such as the clipboard.
 - If a test needs more than about 5 `vi.mock` calls, the level is wrong. Move down to the package state, or up to a screen with real children.
-- Never assert on a mock. If the assertion still passes after you remove the mock, or fails because of it, delete the assertion.
+- Never assert on a mock. An assertion that only checks what a mock returns or records tests the mock, so delete it. Keep an assertion on what the screen shows, even in a test that also mocks HTTP.
 - Find elements as a user does: by role, label, or visible text. Do not use CSS classes or test ids. In `web/mobile`, use `@testing-library/react` (`screen`, `render`).
 - Write expected values as literals. Do not compute them with the code under test.
 - For code that saves data, assert the exact request body that reaches the server.

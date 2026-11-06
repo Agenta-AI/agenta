@@ -8,8 +8,13 @@ import {queryClientAtom} from "jotai-tanstack-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-// Only the HTTP layer is fake: the run query, the edit request and its body builder, and the
-// candidate rule are the real package code.
+// Only the HTTP layer and the Fern edit call are fake: the run query, the edit request and its
+// body builder, and the candidate rule are the real package code.
+const fern = vi.hoisted(() => ({editSimpleEvaluation: vi.fn()}))
+vi.mock("@agenta/sdk/resources", async (original) => ({
+    ...(await original<typeof import("@agenta/sdk/resources")>()),
+    getEvaluationsClient: () => fern,
+}))
 const http = vi.hoisted(() => ({
     post: vi.fn(),
     patch: vi.fn(),
@@ -124,7 +129,7 @@ const makeRun = (id: string, name: string, spec: RunSpec = {}) => ({
 })
 
 /**
- * Serve one run by id, and the project's runs for the Compare list. A PATCH renames the run, so
+ * Serve one run by id, and the project's runs for the Compare list. An edit renames the run, so
  * the reload after a save returns the new name.
  */
 function serveRun(spec: RunSpec = {}, others: ReturnType<typeof makeRun>[] = []) {
@@ -151,11 +156,14 @@ function serveRun(spec: RunSpec = {}, others: ReturnType<typeof makeRun>[] = [])
         if (url.endsWith(`/simple/evaluations/${id}/process`)) return {data: {}}
         throw new Error(`unexpected request ${url}`)
     })
-    http.patch.mockImplementation(
-        async (url: string, payload: {evaluation: {name: string; description: string}}) => {
-            if (!url.endsWith(`/simple/evaluations/${id}`)) throw new Error(`unexpected ${url}`)
-            run = {...run, ...payload.evaluation}
-            return {data: {evaluation: {id}}}
+    fern.editSimpleEvaluation.mockImplementation(
+        async (request: {
+            evaluation_id: string
+            evaluation: {name: string; description: string}
+        }) => {
+            if (request.evaluation_id !== id) throw new Error(`unexpected ${request.evaluation_id}`)
+            run = {...run, ...request.evaluation}
+            return {evaluation: {id}}
         },
     )
     router.query = {workspace_id: "ws", project_id: "pr", evaluation_id: id}
@@ -235,6 +243,7 @@ beforeEach(() => {
     store.set(activeUserIdAtom, "user-1")
     store.set(projectIdAtom, "pr")
     Object.values(http).forEach((fn) => fn.mockReset())
+    fern.editSimpleEvaluation.mockReset()
     toast.success.mockReset()
     toast.error.mockReset()
     permission.allowed = true
@@ -269,9 +278,9 @@ describe("adding an evaluator to a run", () => {
         await act(async () => button("Update")?.click())
         await flush()
 
-        expect(http.patch).toHaveBeenCalledWith(
-            `https://agenta.test/api/simple/evaluations/${id}`,
+        expect(fern.editSimpleEvaluation).toHaveBeenCalledWith(
             {
+                evaluation_id: id,
                 evaluation: {
                     id,
                     name: "Capitals check",
@@ -283,7 +292,7 @@ describe("adding an evaluator to a run", () => {
                     },
                 },
             },
-            {params: {project_id: "pr"}},
+            {queryParams: {project_id: "pr"}},
         )
         expect(processCalls()).toEqual([
             [
@@ -305,7 +314,7 @@ describe("adding an evaluator to a run", () => {
         await act(async () => remove?.click())
         expect(document.body.textContent).not.toContain("Tone")
         expect(button("Update")?.disabled).toBe(true)
-        expect(http.patch).not.toHaveBeenCalled()
+        expect(fern.editSimpleEvaluation).not.toHaveBeenCalled()
     })
 
     it("A failed run of the new evaluator keeps the dialog open and says so", async () => {
@@ -374,10 +383,10 @@ describe("run header: edit evaluation", () => {
         await act(async () => button("Update")?.click())
         await flush()
 
-        expect(http.patch).toHaveBeenCalledTimes(1)
-        expect(http.patch).toHaveBeenCalledWith(
-            `https://agenta.test/api/simple/evaluations/${id}`,
+        expect(fern.editSimpleEvaluation).toHaveBeenCalledTimes(1)
+        expect(fern.editSimpleEvaluation).toHaveBeenCalledWith(
             {
+                evaluation_id: id,
                 evaluation: {
                     id,
                     name: "Capitals, second pass",
@@ -389,8 +398,9 @@ describe("run header: edit evaluation", () => {
                     },
                 },
             },
-            {params: {project_id: "pr"}},
+            {queryParams: {project_id: "pr"}},
         )
+        expect(http.patch).not.toHaveBeenCalled()
         expect(toast.success).toHaveBeenCalledWith("Evaluation updated")
         expect(document.querySelector("#edit-evaluation-name")).toBeNull()
         expect(host.querySelector("h1")?.textContent).toBe("Capitals, second pass")
@@ -401,7 +411,7 @@ describe("run header: edit evaluation", () => {
     it("A failed save keeps the dialog open with the draft and says so", async () => {
         serveRun()
         await mount()
-        http.patch.mockRejectedValue(new Error("Request failed"))
+        fern.editSimpleEvaluation.mockRejectedValue(new Error("Request failed"))
 
         const fields = await openEditDialog()
         await typeInto(fields.name, "Renamed")
@@ -449,6 +459,11 @@ describe("run header: chips and Compare", () => {
         serveRun({status: "running"})
         await mount()
         expect(button("Compare")?.disabled).toBe(true)
+        // The focusable wrapper names the action and why it is off, for keyboard and screen readers.
+        const wrapper = host.querySelector('[role="button"][aria-disabled="true"]')
+        expect(wrapper?.getAttribute("aria-label")).toBe(
+            "Compare. Comparison is only available for completed evaluation runs.",
+        )
     })
 
     it("A finished run lists the runs that share its test set and evaluator", async () => {

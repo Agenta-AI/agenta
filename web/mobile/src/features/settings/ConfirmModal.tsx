@@ -76,8 +76,9 @@ export const ConfirmModal = ({
                     <Button
                         variant={destructive ? "destructive" : "default"}
                         className={
+                            // White text in both themes, as the /w danger buttons have.
                             destructive && solid
-                                ? "bg-error text-white hover:bg-error/90"
+                                ? "bg-destructive text-white hover:bg-destructive/90"
                                 : undefined
                         }
                         disabled={pending}

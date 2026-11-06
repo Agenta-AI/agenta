@@ -1,11 +1,20 @@
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
-const {patchMock, postMock} = vi.hoisted(() => ({patchMock: vi.fn(), postMock: vi.fn()}))
+const {postMock, editSimpleEvaluation} = vi.hoisted(() => ({
+    postMock: vi.fn(),
+    editSimpleEvaluation: vi.fn(),
+}))
 
 vi.mock("@agenta/shared/api", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/shared/api")>()),
-    axios: {patch: patchMock, post: postMock},
+    axios: {post: postMock},
     getAgentaApiUrl: () => "https://agenta.test/api",
+}))
+
+// Only the Fern client is fake: the body builder and the response check are the real code.
+vi.mock("@agenta/sdk/resources", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@agenta/sdk/resources")>()),
+    getEvaluationsClient: () => ({editSimpleEvaluation}),
 }))
 
 import {
@@ -21,8 +30,8 @@ import online from "../fixtures/evaluationRun/online-metrics.json"
 const autoRun = evaluationRunSchema.parse(auto.run)
 
 beforeEach(() => {
-    patchMock.mockReset()
     postMock.mockReset()
+    editSimpleEvaluation.mockReset()
 })
 
 const humanRun = {
@@ -180,23 +189,26 @@ describe("processNewEvaluatorSteps", () => {
 })
 
 describe("editEvaluationRun", () => {
-    it("Sends the PATCH to the simple evaluations endpoint of the project", async () => {
-        patchMock.mockResolvedValue({data: {evaluation: {id: auto.run.id}}})
+    it("Sends the edit through the Fern client, scoped to the project", async () => {
+        editSimpleEvaluation.mockResolvedValue({evaluation: {id: auto.run.id}})
         await editEvaluationRun({
             projectId: "pr-1",
             run: autoRun,
             name: "Capitals",
             description: "",
         })
-        expect(patchMock).toHaveBeenCalledWith(
-            `https://agenta.test/api/simple/evaluations/${auto.run.id}`,
-            buildRunEditBody(autoRun, {name: "Capitals", description: ""}),
-            {params: {project_id: "pr-1"}},
+        expect(editSimpleEvaluation).toHaveBeenCalledWith(
+            {
+                evaluation_id: auto.run.id,
+                evaluation: buildRunEditBody(autoRun, {name: "Capitals", description: ""})
+                    .evaluation,
+            },
+            {queryParams: {project_id: "pr-1"}},
         )
     })
 
     it("A response without the run throws", async () => {
-        patchMock.mockResolvedValue({data: {evaluation: null}})
+        editSimpleEvaluation.mockResolvedValue({evaluation: null})
         await expect(
             editEvaluationRun({projectId: "pr-1", run: autoRun, name: "x", description: ""}),
         ).rejects.toThrow("The evaluation was not updated.")

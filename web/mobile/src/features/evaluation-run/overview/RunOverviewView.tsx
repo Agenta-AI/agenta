@@ -17,9 +17,9 @@ export interface RunOverviewViewProps {
     metricsPending: boolean
     metricsError: Error | null
     names: OverviewNames
+    links?: RunReferenceLinks
     /** A live run's query; undefined while it loads. */
     query?: RunQueryConfig | null
-    links?: RunReferenceLinks
     onRetryMetrics?: () => void
 }
 
@@ -38,8 +38,8 @@ export const RunOverviewView = ({
 }: RunOverviewViewProps) => {
     const rows = useMemo(
         () =>
-            buildRunSummaryRows({header, references, metrics, metricsPending, names, query, links}),
-        [header, references, metrics, metricsPending, names, query, links],
+            buildRunSummaryRows({header, references, metrics, metricsPending, names, links, query}),
+        [header, references, metrics, metricsPending, names, links, query],
     )
 
     return (

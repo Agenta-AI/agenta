@@ -29,7 +29,7 @@ const references = (patch: Partial<RunReferences> = {}): RunReferences => ({
     revisionVersion: 3,
     testsets: [{testsetId: "ts-1", revisionId: "tsr-1", version: 3}],
     evaluators: [],
-    queryIds: [],
+    queries: [],
     ...patch,
 })
 
@@ -95,7 +95,7 @@ describe("run summary table", () => {
     })
 
     it("Filters and queries row appears only for query runs", () => {
-        render(input({references: references({queryIds: ["q-1"]})}))
+        render(input({references: references({queries: [{queryId: "q-1", revisionId: "qr-1"}]})}))
         expect(rowKeys().slice(2, 4)).toEqual(["status", "queries"])
         expect(labelText("queries")).toBe("Filters / Queries")
     })
@@ -103,7 +103,7 @@ describe("run summary table", () => {
     it("A live run's query row shows the filter and the sampling rate, like the old app", () => {
         render(
             input({
-                references: references({queryIds: ["q-1"]}),
+                references: references({queries: [{queryId: "q-1", revisionId: "qr-1"}]}),
                 query: {
                     filtering: {
                         operator: "and",
@@ -125,21 +125,25 @@ describe("run summary table", () => {
         )
     })
 
-    it("A stopped live run says Stopped; an active one keeps its status", () => {
-        const live = (isActive: boolean) =>
-            header({
-                kind: "online",
-                status: "running",
-                flags: {isLive: true, isClosed: false, isActive},
-            })
-        render(input({header: live(false)}))
+    it("The status row shows the header status, the same one the runs list shows", () => {
+        const live = (status: string, isActive: boolean) =>
+            header({kind: "online", status, flags: {isLive: true, isClosed: false, isActive}})
+        render(input({header: live("stopped", false)}))
         expect(rowText("status")).toBe("Stopped")
-        render(input({header: live(true)}))
+        render(input({header: live("running", true)}))
         expect(rowText("status")).toBe("Running")
+        // A stopped run that has a final status shows that status, not Stopped.
+        render(input({header: live("success", false)}))
+        expect(rowText("status")).toBe("Success")
     })
 
     it("The query row waits while the query loads", () => {
-        render(input({references: references({queryIds: ["q-1"]}), query: undefined}))
+        render(
+            input({
+                references: references({queries: [{queryId: "q-1", revisionId: "qr-1"}]}),
+                query: undefined,
+            }),
+        )
         expect(rowText("queries")).toBe("…")
     })
 

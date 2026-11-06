@@ -7,9 +7,11 @@
  * @packageDocumentation
  */
 
+import {getEvaluationsClient} from "@agenta/sdk/resources"
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 import {z} from "zod"
 
+import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 import {buildRunEditBody, type RunEditInput} from "../core/runEdit"
 
 import {queryEvaluationScenariosPage} from "./runDetails"
@@ -63,12 +65,12 @@ export async function editEvaluationRun({
     description: string
     addedEvaluatorRevisionIds?: readonly string[]
 }): Promise<void> {
-    const response = await axios.patch(
-        `${getAgentaApiUrl()}/simple/evaluations/${run.id}`,
-        buildRunEditBody(run, {name, description, addedEvaluatorRevisionIds}),
-        {params: {project_id: projectId}},
+    const {evaluation} = buildRunEditBody(run, {name, description, addedEvaluatorRevisionIds})
+    const response = await getEvaluationsClient().editSimpleEvaluation(
+        {evaluation_id: run.id, evaluation},
+        {queryParams: {project_id: projectId}},
     )
-    if (!simpleEvaluationResponseSchema.safeParse(response?.data).success) {
+    if (!safeParseWithLogging(simpleEvaluationResponseSchema, response, "[editEvaluationRun]")) {
         throw new Error("The evaluation was not updated.")
     }
 }

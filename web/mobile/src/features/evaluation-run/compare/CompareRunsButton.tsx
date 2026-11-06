@@ -36,7 +36,13 @@ export const CompareRunsButton = ({
     if (reason) {
         return (
             <SimpleTooltip title={BLOCK_REASONS[reason]} side="bottom">
-                <span className="inline-flex" tabIndex={0}>
+                <span
+                    className="inline-flex"
+                    tabIndex={0}
+                    role="button"
+                    aria-disabled="true"
+                    aria-label={`Compare. ${BLOCK_REASONS[reason]}`}
+                >
                     <Button size="sm" disabled>
                         Compare
                     </Button>
