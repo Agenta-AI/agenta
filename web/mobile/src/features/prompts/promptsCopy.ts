@@ -3,6 +3,7 @@ export const promptsCopy = {
     pageTitle: "Prompts",
     searchPlaceholder: "Search",
     createNew: "Create new",
+    archived: "Archived",
     working: "Working…",
     cancel: "Cancel",
     clearSearch: "Clear search",

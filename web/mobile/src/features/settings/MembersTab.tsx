@@ -1,4 +1,4 @@
-import {useState} from "react"
+import {useEffect, useState} from "react"
 
 import {getEmailSignInMode, isValidEmailAddress} from "@agenta/auth"
 import {projectPermissionQueryPrefix} from "@agenta/entities/access"
@@ -11,6 +11,7 @@ import {
 } from "@agenta/entities/organization"
 import {requestPasswordReset, updateUsername, useProfile} from "@agenta/entities/profile"
 import {MembersPage} from "@agenta/settings-ui"
+import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {
     AlertDialog,
@@ -36,6 +37,8 @@ import {
     SelectValue,
 } from "@agenta/ui/ui"
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query"
+import {useAtomValue} from "jotai"
+import {useRouter} from "next/router"
 
 import {useProjectPermission} from "../context/useProjectPermission"
 
@@ -74,6 +77,20 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
     const passwordSignIn = getEmailSignInMode() === "password"
     const canResetPassword = useProjectPermission(projectId, "reset_password") && passwordSignIn
     const canChangeRoles = useProjectPermission(projectId, "modify_user_roles")
+
+    // The rail's "Invite Teammate" row (beta developer mode only) lands here with
+    // `inviteModal=open`, the same link the old app uses: open the invite dialog once, then drop
+    // the parameter so a reload does not open it again.
+    const router = useRouter()
+    const inviteRequested =
+        useAtomValue(betaDeveloperModeActiveAtom) && router.query.inviteModal === "open"
+    useEffect(() => {
+        if (!inviteRequested || !scopeKnown || !canInvite) return
+        setInviteOpen(true)
+        const query = {...router.query}
+        delete query.inviteModal
+        void router.replace({pathname: router.pathname, query}, undefined, {shallow: true})
+    }, [canInvite, inviteRequested, router, scopeKnown])
     // The remove route requires the admin role itself (or the organization owner), whatever
     // permissions a custom role holds, so this reads the reader's own role.
     const signedInMember = members.find((member) => member.user.id === signedInUser?.id)
