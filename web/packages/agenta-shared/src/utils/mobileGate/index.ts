@@ -28,6 +28,14 @@ export const MOBILE_AUTH_CALLBACK_MAX_AGE = 60 * 10
  */
 export const CLASSIC_MODE_COOKIE = "agenta-classic-mode"
 
+/**
+ * Published by the desktop app while the user has beta developer mode on (`"1"`), absent
+ * otherwise. The middleware reads only cookies, and `agenta-classic-mode` says "0" for a
+ * simplified user too, whose `/m` hides the developer views. This cookie is how the gate knows
+ * the developer views are there, so a `/w` developer link can go to the `/m` page that shows it.
+ */
+export const BETA_DEVELOPER_MODE_COOKIE = "agenta-beta-developer-mode"
+
 /** Reserved query param: `view=desktop` | `view=mobile` set the escape cookies. */
 export const VIEW_PARAM = "view"
 /** 180 days, in seconds. */
@@ -160,6 +168,78 @@ const templateQueryFrom = (search: string): string => {
     return templateKey ? `?${TEMPLATE_QUERY_PARAM}=${encodeURIComponent(templateKey)}` : ""
 }
 
+export interface MobileRouteOptions {
+    /**
+     * Beta developer mode is on: `/m` shows the developer views, so the `/w` pages they rebuild
+     * map to them. Off, `/m` has none of them and every app page collapses to the agent screen.
+     */
+    developerViews?: boolean
+}
+
+/**
+ * `/w` project pages that a developer view of `/m` rebuilds, as `/m` paths relative to the
+ * project, or `null` for a sub-page `/m` has no view for. The one place that lists them: when
+ * `/m` moves a view, change it here and in {@link developerAppRoute}.
+ */
+const developerProjectRoute = (segments: string[]): string | null => {
+    const [head, first, second] = segments
+    switch (head) {
+        case "prompts":
+            return first ? null : "/prompts"
+        case "evaluations":
+            if (!first) return "/evaluations"
+            return first === "results" && second && second !== "compare" && !segments[3]
+                ? `/evaluations/results/${second}`
+                : null
+        case "testsets":
+            return segments.length > 2 ? null : `/testsets${first ? `/${first}` : ""}`
+        case "evaluators":
+            return first === "archived" && !second
+                ? "/evaluators/archived"
+                : first
+                  ? null
+                  : "/evaluators"
+        case "annotations":
+            return segments.length > 2 ? null : `/annotations${first ? `/${first}` : ""}`
+        default:
+            return null
+    }
+}
+
+/**
+ * `/w` app pages (`/apps/<id>/<section>`) as `/m` paths relative to the project. `/m` has no
+ * per-app section pages: the registry, evaluations, endpoints and traces are project pages that
+ * take the app as `?app=`. Overview and playground tell a prompt app from an agent themselves
+ * and send an agent to its own screen. A `switch`, not a lookup by name: `section` is user
+ * input. `undefined` means the section has no view of its own; `null`, no `/m` page.
+ */
+const developerAppRoute = (
+    section: string,
+    appId: string,
+    [kind, evaluationId, extra]: string[],
+): string | null | undefined => {
+    switch (section) {
+        case "overview":
+            return `/apps/${appId}/overview`
+        case "playground":
+            return `/apps/${appId}/playground`
+        case "variants":
+        case "deployments":
+            return `/variants?app=${appId}`
+        case "endpoints":
+            return `/endpoints?app=${appId}`
+        case "traces":
+            return `/observability?app=${appId}`
+        case "evaluations":
+            if (!kind) return `/evaluations?app=${appId}`
+            return kind === "results" && evaluationId && evaluationId !== "compare" && !extra
+                ? `/evaluations/results/${evaluationId}`
+                : null
+        default:
+            return undefined
+    }
+}
+
 /**
  * Desktop URL → the `/m` route that shows the same thing, or `null` when `/m` has no such
  * screen (evaluations, test sets, prompts, evaluators, annotations, the registry).
@@ -167,8 +247,15 @@ const templateQueryFrom = (search: string): string => {
  * Null is a real answer, not a failure: the classic-mode gate leaves those on the desktop app
  * rather than dumping the user somewhere unrelated. The device gate treats it as "/m root",
  * because a phone cannot use those pages either way — see {@link mapDesktopToMobile}.
+ *
+ * With `developerViews`, the pages the developer views rebuild are not null: see
+ * {@link MobileRouteOptions}.
  */
-export function mobileRouteFor(pathname: string, search: string): string | null {
+export function mobileRouteFor(
+    pathname: string,
+    search: string,
+    {developerViews = false}: MobileRouteOptions = {},
+): string | null {
     // Mobile sign-in: /auth/callback never reaches here (handled as an exception).
     if (/^\/auth(\/|$)/.test(pathname)) return "/m/auth"
 
@@ -185,7 +272,8 @@ export function mobileRouteFor(pathname: string, search: string): string | null 
     const [, ws, proj, tail] = match
     const base = `/m/w/${ws}/p/${proj}`
     const rest = trimSlashes(tail ?? "")
-    const [head, first, second] = rest.split("/")
+    const segments = rest.split("/")
+    const [head, first, second] = segments
     const params = new URLSearchParams(search)
 
     // The project root and /apps are both the home screen.
@@ -199,11 +287,23 @@ export function mobileRouteFor(pathname: string, search: string): string | null 
         }
         if (APPS_RESERVED.has(first)) return null
 
-        // `/m` has no playground route: a session's page IS the playground, and `?agent=`
-        // names the agent for a session whose turns cannot yet.
+        // `/m` has no playground route for an agent: a session's page IS the playground, and
+        // `?agent=` names the agent for a session whose turns cannot yet.
         const sessionId = params.get(SESSION_QUERY_PARAM)
         if (second === "playground" && sessionId) {
             return `${base}/sessions/${encodeURIComponent(sessionId)}?agent=${first}`
+        }
+        if (developerViews) {
+            const appRoute = developerAppRoute(
+                second || "overview",
+                encodeURIComponent(first),
+                segments.slice(3),
+            )
+            // A section with no view of its own (sessions, ...) still lands on the app's screen.
+            // The playground's own selection rides along: both apps read `?revisions=`.
+            const revisions = second === "playground" ? params.get("revisions") : null
+            const selection = revisions ? `?revisions=${encodeURIComponent(revisions)}` : ""
+            if (appRoute !== undefined) return appRoute ? `${base}${appRoute}${selection}` : null
         }
         // Every other app-scoped desktop page (playground, overview, sessions, deployments…)
         // collapses to the agent's own screen — the only agent surface `/m` has.
@@ -238,6 +338,11 @@ export function mobileRouteFor(pathname: string, search: string): string | null 
         return tab ? `${base}/settings?tab=${encodeURIComponent(tab)}` : `${base}/settings`
     }
 
+    if (developerViews) {
+        const route = developerProjectRoute(segments)
+        if (route) return `${base}${route}`
+    }
+
     return null
 }
 
@@ -245,9 +350,13 @@ export function mobileRouteFor(pathname: string, search: string): string | null 
  * Desktop URL → mobile equivalent for the DEVICE gate, which is total: a phone gets `/m` even
  * for a page `/m` does not mirror, because the desktop page is unusable there regardless.
  */
-export function mapDesktopToMobile(pathname: string, search: string): string {
+export function mapDesktopToMobile(
+    pathname: string,
+    search: string,
+    options?: MobileRouteOptions,
+): string {
     // The `/m` root still opens a website template link (`/?template=`) on its setup step.
-    return mobileRouteFor(pathname, search) ?? `/m/${templateQueryFrom(search)}`
+    return mobileRouteFor(pathname, search, options) ?? `/m/${templateQueryFrom(search)}`
 }
 
 /**
@@ -267,9 +376,39 @@ export function desktopRouteFor(pathname: string, search = ""): string | null {
     const [, ws, proj, tail] = match
     const base = `/w/${ws}/p/${proj}`
     const rest = trimSlashes(tail ?? "")
-    const [head, first] = rest.split("/")
+    const [head, first, second] = rest.split("/")
+    const params = new URLSearchParams(search)
 
-    if (!head || head === "apps") return first ? null : `${base}/apps`
+    if (!head || head === "apps") {
+        if (!first) return `${base}/apps`
+        if (first === "archived") return second ? null : `${base}/apps/archived`
+        // `/apps/<id>/overview` and `/apps/<id>/playground` are the same path on both sides.
+        return (second === "overview" || second === "playground") && !rest.split("/")[3]
+            ? `${base}/apps/${first}/${second}`
+            : null
+    }
+
+    // The developer views `/m` rebuilt. Project pages that take the app as `?app=` are app pages
+    // on the desktop; without the app there is no desktop page to name.
+    // `?app=` is decoded user input: encode it into one path segment, and refuse the dot
+    // segments `encodeURIComponent` leaves alone.
+    const rawAppId = params.get("app")
+    const appId =
+        rawAppId && rawAppId !== "." && rawAppId !== ".." ? encodeURIComponent(rawAppId) : null
+    if (head === "variants" && !first) return appId ? `${base}/apps/${appId}/variants` : null
+    if (head === "endpoints" && !first) return appId ? `${base}/apps/${appId}/endpoints` : null
+    if (head === "evaluations" && !first) {
+        return appId ? `${base}/apps/${appId}/evaluations` : `${base}/evaluations`
+    }
+    if (head === "evaluations" && first === "results" && second && !rest.split("/")[3]) {
+        return `${base}/evaluations/results/${second}`
+    }
+    if (head === "prompts" && !first) return `${base}/prompts`
+    if (head === "testsets" && !second) return `${base}/testsets${first ? `/${first}` : ""}`
+    if (head === "evaluators" && !second && (!first || first === "archived")) {
+        return `${base}/evaluators${first ? `/${first}` : ""}`
+    }
+    if (head === "annotations" && !second) return `${base}/annotations${first ? `/${first}` : ""}`
 
     if (head === "agents") return first ? `${base}/apps/${first}/playground` : `${base}/agents`
 
@@ -287,6 +426,8 @@ export function desktopRouteFor(pathname: string, search = ""): string | null {
             ? `${base}/apps/${encodeURIComponent(agentId)}/playground?${SESSION_QUERY_PARAM}=${encodeURIComponent(first)}`
             : `${base}/observability?session=${encodeURIComponent(first)}`
     }
+
+    if (head === "observability" && !first && appId) return `${base}/apps/${appId}/traces`
 
     if ((head === "observability" || head === "settings") && !first) return `${base}/${head}`
 
@@ -329,6 +470,10 @@ const signedOutEntryRoute = (pathname: string, search: string): string | null =>
     }
     return null
 }
+
+const gateOptions = (input: GateInput): MobileRouteOptions => ({
+    developerViews: input.cookie(BETA_DEVELOPER_MODE_COOKIE) === "1",
+})
 
 /** Forward gate: runs in the DESKTOP apps. Sees no /m traffic behind Traefik. */
 export function decideDesktopGate(input: GateInput): GateDecision {
@@ -386,7 +531,10 @@ export function decideDesktopGate(input: GateInput): GateDecision {
 
         // Device: a phone gets /m for anything, mapped or not.
         if (!wantsClassic && isMobileDevice(input.header)) {
-            return {kind: "redirect", location: mapDesktopToMobile(input.pathname, input.search)}
+            return {
+                kind: "redirect",
+                location: mapDesktopToMobile(input.pathname, input.search, gateOptions(input)),
+            }
         }
 
         // Signed out, no preference: the cookie is only written after a sign-in, so without
@@ -401,7 +549,7 @@ export function decideDesktopGate(input: GateInput): GateDecision {
 
         // Preference: Classic mode off means live in /m — but only for pages /m actually has.
         if (input.cookie(CLASSIC_MODE_COOKIE) === "0") {
-            const location = mobileRouteFor(input.pathname, input.search)
+            const location = mobileRouteFor(input.pathname, input.search, gateOptions(input))
             if (location) return {kind: "redirect", location}
         }
 

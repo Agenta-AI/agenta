@@ -32,6 +32,7 @@ import {SessionsTable} from "./SessionsTable"
 import {TracesFilters} from "./TracesFilters"
 import {TracesList} from "./TracesList"
 import {TracesTable} from "./TracesTable"
+import {useAutoRefresh} from "./useAutoRefresh"
 import {useTracesExportBinding} from "./useTracesExportBinding"
 
 // Loaded on the first session opened, so the page everyone opens does not carry the drawer.
@@ -154,6 +155,7 @@ const ObservabilityContent = ({
                 queryClient.invalidateQueries({queryKey: ["session_spans"]}),
             ])
     }, [tab, fetchTraces, queryClient])
+    const autoRefresh = useAutoRefresh(onRefresh)
 
     return (
         <>
@@ -180,7 +182,8 @@ const ObservabilityContent = ({
                     >
                         <ObservabilityToolbar
                             componentType={tab}
-                            onRefresh={onRefresh}
+                            onRefresh={autoRefresh.refresh}
+                            refreshTrigger={autoRefresh.refreshTrigger}
                             sortSlot={<ObservabilityRangePicker />}
                             filtersSlot={
                                 appFilterEnabled ? (
