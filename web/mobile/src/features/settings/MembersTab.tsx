@@ -38,7 +38,7 @@ import {
 } from "@agenta/ui/ui"
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
-import {useRouter} from "next/router"
+import {useRouter} from "next/compat/router"
 
 import {useProjectPermission} from "../context/useProjectPermission"
 
@@ -79,11 +79,12 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
     const canChangeRoles = useProjectPermission(projectId, "modify_user_roles")
 
     // Invite Teammate lands here with inviteModal=open: open once, then drop the parameter.
+    // The compat hook is null where no router is mounted (a host that renders the tab alone).
     const router = useRouter()
     const inviteRequested =
-        useAtomValue(betaDeveloperModeActiveAtom) && router.query.inviteModal === "open"
+        useAtomValue(betaDeveloperModeActiveAtom) && router?.query.inviteModal === "open"
     useEffect(() => {
-        if (!inviteRequested || !scopeKnown || !canInvite) return
+        if (!router || !inviteRequested || !scopeKnown || !canInvite) return
         setInviteOpen(true)
         const query = {...router.query}
         delete query.inviteModal
