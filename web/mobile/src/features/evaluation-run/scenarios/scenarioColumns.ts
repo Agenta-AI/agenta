@@ -2,6 +2,7 @@ import {
     format3Sig,
     INVOCATION_METRICS,
     scenarioMetricStats,
+    stepMetricStats,
     type EvaluationRunScenario,
     type MetricStats,
 } from "@agenta/entities/evaluationRun"
@@ -56,7 +57,21 @@ export interface ScenarioRowData {
     columns: ResolvedColumn[]
     /** The stats of each invocation metric (cost, duration, tokens, errors), by metric key. */
     metrics: Record<string, MetricStats | null>
+    /** What each step left behind, by the key of the group that shows the step. */
+    steps: Record<string, ScenarioStep>
 }
+
+/** One step of a scenario (the app call, an evaluator, a trace the run read): its trace and cost. */
+export interface ScenarioStep {
+    traceId: string | null
+    /** The stats of the step's own call, by metric key ({@link STEP_METRICS}); null when absent. */
+    metrics: Record<string, MetricStats | null>
+}
+
+/** The metrics of one step's own call, in the order the old app shows them: time, tokens, cost. */
+export const STEP_METRICS = ["duration", "tokens", "cost"].flatMap((id) =>
+    INVOCATION_METRICS.filter((metric) => metric.id === id),
+)
 
 /** What the run produced for one scenario: where its trace is and how the step ended. */
 export interface ScenarioInvocation {
@@ -179,15 +194,30 @@ export function buildScenarioRowData(
     // group (two runs of one evaluator) keep both messages. A step with no shown group (an app
     // step with no listed output) still shows its message, with the scenario.
     const shown = new Set(scenarioColumnGroups(schema).map(({group}) => group.key))
-    const errors: Record<string, string> = {}
-    const otherErrors: string[] = []
-    for (const step of schema.steps) {
-        const message = stepErrorMessage(resultOf(step.key))
-        if (!message) continue
-        const traceGroup = queries.some((query) => query.step.key === step.key)
-        const key = traceGroup
+    const groupKeyOf = (step: RunStep) =>
+        queries.some((query) => query.step.key === step.key)
             ? traceGroups(step).outputs.group.key
             : computeColumnGroup(step, "").key
+    const errors: Record<string, string> = {}
+    const otherErrors: string[] = []
+    const steps: Record<string, ScenarioStep> = {}
+    for (const step of schema.steps) {
+        const key = groupKeyOf(step)
+        // Two steps in one group (two runs of one evaluator): the first with a trace stands for it.
+        const traceId = resultOf(step.key)?.trace_id ?? null
+        if (!steps[key]?.traceId) {
+            steps[key] = {
+                traceId,
+                metrics: Object.fromEntries(
+                    STEP_METRICS.map(({metricKey}) => [
+                        metricKey,
+                        stepMetricStats(hydrated.metrics, step.key, metricKey),
+                    ]),
+                ),
+            }
+        }
+        const message = stepErrorMessage(resultOf(step.key))
+        if (!message) continue
         if (!shown.has(key)) otherErrors.push(message)
         else errors[key] = errors[key] ? `${errors[key]}; ${message}` : message
     }
@@ -207,6 +237,7 @@ export function buildScenarioRowData(
         otherErrors,
         columns,
         metrics,
+        steps,
     }
 }
 
