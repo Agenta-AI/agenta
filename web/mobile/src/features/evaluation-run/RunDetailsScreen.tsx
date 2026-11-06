@@ -16,8 +16,8 @@ import {RunDetailsHeader} from "./RunDetailsHeader"
 const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
 
 /**
- * One evaluation run: its title, a Pause or Resume action for a live run, and its tabs. Opening
- * the page only reads the run; nothing is written.
+ * One evaluation run: its title with the run menu, a Pause or Resume action for a live run, the
+ * run chips with Compare, and its tabs. Opening the page only reads the run; nothing is written.
  */
 export const RunDetailsScreen = ({
     workspaceId,
@@ -42,6 +42,7 @@ export const RunDetailsScreen = ({
                             className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${PAGE_FRAME}`}
                         >
                             <RunDetailsHeader
+                                workspaceId={workspaceId}
                                 projectId={projectId}
                                 runId={runId}
                                 nav={<NavDrawer workspaceId={workspaceId} projectId={projectId} />}

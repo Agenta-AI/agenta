@@ -27,7 +27,7 @@ const references = (patch: Partial<RunReferences> = {}): RunReferences => ({
     variantId: "var-1",
     revisionId: "rev-1",
     revisionVersion: 3,
-    testsets: [{testsetId: "ts-1", revisionId: "tsr-1"}],
+    testsets: [{testsetId: "ts-1", revisionId: "tsr-1", version: 3}],
     evaluators: [],
     queryIds: [],
     ...patch,
@@ -84,8 +84,9 @@ describe("run summary table", () => {
             "tokens",
             "errors",
         ])
-        expect(rowText("testset")).toBe("Capitals")
-        expect(rowText("variant")).toBe("default v3")
+        expect(rowText("testset")).toBe("Capitalsv3")
+        expect(rowText("application")).toBe("Geography bot")
+        expect(rowText("variant")).toBe("defaultv3")
 
         render(input({references: references({testsets: [], applicationId: null})}))
         expect(rowKeys()).not.toContain("testset")
@@ -147,7 +148,7 @@ describe("run summary table", () => {
             "ev-step:attributes.ag.data.outputs.success",
         ])
         expect(labelText("ev-step:attributes.ag.data.outputs.score")).toBe(
-            "Exact matchscore (mean)",
+            "Exact matchScore (mean)",
         )
         expect(rowText("ev-step:attributes.ag.data.outputs.score")).toBe("0.75")
         expect(rowText("ev-step:attributes.ag.data.outputs.success")).toBe("75.00%")
@@ -156,15 +157,46 @@ describe("run summary table", () => {
         )
     })
 
-    it("Status shows a humanized label and the matching tone", () => {
+    it("Status shows a dot of the matching tone and a humanized label", () => {
+        const dot = () => host.querySelector('[data-testid="summary-status"] dd span[aria-hidden]')
         render(input({header: header({status: "evaluation_failed"})}))
-        const tag = host.querySelector('[data-testid="summary-status"] dd > *')
-        expect(tag?.textContent).toBe("Evaluation Failed")
-        expect(tag?.className).toContain("text-destructive")
+        expect(rowText("status")).toBe("Evaluation Failed")
+        expect(dot()?.className).toContain("bg-destructive")
 
-        render(input({header: header({status: "running"})}))
-        expect(host.querySelector('[data-testid="summary-status"] dd > *')?.className).toContain(
-            "text-primary",
+        render(input({header: header({status: "success"})}))
+        expect(rowText("status")).toBe("Success")
+        expect(dot()?.className).toContain("bg-success")
+    })
+
+    it("Metric names are in title case, as in /w", () => {
+        render(
+            input({
+                metrics: [
+                    evaluatorMetric("attributes.ag.data.outputs.success", BOOLEAN, {
+                        evaluatorName: "Exact Match",
+                    }),
+                ],
+            }),
         )
+        expect(labelText("ev-step:attributes.ag.data.outputs.success")).toBe("Exact MatchSuccess")
+    })
+
+    it("Test set and variant chips link to their pages; without links they are plain", () => {
+        const links = {
+            testset: (revisionId: string) => `/w/ws/p/pr/testsets/${revisionId}`,
+            variant: (appId: string, revisionId: string) =>
+                `/w/ws/p/pr/variants?app=${appId}&revisionId=${revisionId}`,
+        }
+        render(input({links}))
+        const href = (key: string) =>
+            host.querySelector(`[data-testid="summary-${key}"] dd a`)?.getAttribute("href")
+        // The test set page takes the revision id, not the test set id.
+        expect(href("testset")).toBe("/w/ws/p/pr/testsets/tsr-1")
+        expect(href("variant")).toBe("/w/ws/p/pr/variants?app=app-1&revisionId=rev-1")
+        expect(href("application")).toBeUndefined()
+
+        render(input({links: {testset: () => null, variant: () => null}}))
+        expect(host.querySelector('[data-testid="summary-testset"] dd a')).toBeNull()
+        expect(rowText("testset")).toBe("Capitalsv3")
     })
 })

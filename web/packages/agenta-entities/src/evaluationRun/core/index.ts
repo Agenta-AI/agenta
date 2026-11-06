@@ -103,7 +103,13 @@ export {
     selectRunMetricStats,
     type RunStatsMap,
 } from "./runStatsMap"
-export {formatMetricNumber, formatMetricValue, METRIC_PLACEHOLDER} from "./metricFormat"
+export {
+    formatMetricNumber,
+    formatMetricValue,
+    humanizeMetricLabel,
+    METRIC_PLACEHOLDER,
+} from "./metricFormat"
+export {buildRunEditBody, type RunEditBody, type RunEditInput, type RunStepOrigin} from "./runEdit"
 export {
     buildRunReferencePayload,
     buildRunsQueryBody,

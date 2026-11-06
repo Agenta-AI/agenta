@@ -5,14 +5,18 @@ import {
     formatDuration,
     formatTokens,
     frequencyBars,
+    humanizeMetricLabel,
     metricSummary,
     type MetricStats,
     type RunHeader,
     type RunReferences,
 } from "@agenta/entities/evaluationRun"
+import {Database, GitCommit, SquaresFour} from "@phosphor-icons/react"
 
-import {RunStatusTag} from "./RunStatusTag"
+import {RunReferenceChip} from "./RunReferenceChip"
+import {RunStatusDot} from "./RunStatusDot"
 import type {OverviewMetric, OverviewNames} from "./useRunOverview"
+import type {RunReferenceLinks} from "./useRunReferenceLinks"
 
 export interface RunSummaryRow {
     key: string
@@ -26,6 +30,8 @@ export interface RunSummaryInput {
     metrics: readonly OverviewMetric[]
     metricsPending: boolean
     names: Pick<OverviewNames, "testsets" | "application" | "variant">
+    /** Links to the test set and variant pages; without them the chips are plain. */
+    links?: RunReferenceLinks
 }
 
 const MISSING = "—"
@@ -34,7 +40,11 @@ const PENDING = "…"
 const mean = (stats: MetricStats) =>
     stats.mean ?? (stats.sum !== undefined && stats.count ? stats.sum / stats.count : undefined)
 
-/** Cost, duration and tokens show the average per scenario; errors show the total. */
+/**
+ * Cost, duration and tokens show the average per scenario; errors show the total. The old app
+ * labels these rows "(Total)" but prints a mean that also counts the evaluator steps (its
+ * duration reads half the app's real mean), so /m keeps "(Avg)" and the app step's mean.
+ */
 const INVOCATION_ROWS = [
     {id: "cost", label: "Cost (Avg)", format: (s: MetricStats) => fmt(mean(s), formatCost)},
     {
@@ -84,7 +94,7 @@ const metricRowLabel = (metric: OverviewMetric) => (
     <span className="flex flex-col">
         <span className="text-xs text-muted-foreground">{metric.evaluatorName ?? "--"}</span>
         <span>
-            {metric.label}
+            {humanizeMetricLabel(metric.label)}
             {metric.stats?.mean !== undefined ? " (mean)" : ""}
         </span>
     </span>
@@ -97,6 +107,7 @@ export function buildRunSummaryRows({
     metrics,
     metricsPending,
     names,
+    links,
 }: RunSummaryInput): RunSummaryRow[] {
     const rows: RunSummaryRow[] = []
     const testsets = references?.testsets ?? []
@@ -104,13 +115,23 @@ export function buildRunSummaryRows({
         rows.push({
             key: "testset",
             label: "Test set",
-            value: testsets
-                .map((testset, index) => names.testsets[index] ?? testset.testsetId)
-                .join(", "),
+            value: (
+                <span className="flex flex-wrap gap-1">
+                    {testsets.map((testset, index) => (
+                        <RunReferenceChip
+                            key={`${testset.testsetId}-${index}`}
+                            icon={<Database size={14} />}
+                            label={names.testsets[index] ?? testset.testsetId}
+                            version={testset.version}
+                            href={testset.revisionId ? links?.testset(testset.revisionId) : null}
+                        />
+                    ))}
+                </span>
+            ),
         })
     }
     rows.push({key: "evaluation", label: "Evaluation", value: header.name})
-    rows.push({key: "status", label: "Status", value: <RunStatusTag status={header.status} />})
+    rows.push({key: "status", label: "Status", value: <RunStatusDot status={header.status} />})
     if ((references?.queryIds.length ?? 0) > 0) {
         rows.push({
             key: "queries",
@@ -120,20 +141,32 @@ export function buildRunSummaryRows({
     }
     rows.push({key: "created", label: "Created at", value: dateText(header.createdAt)})
     rows.push({key: "updated", label: "Updated at", value: dateText(header.updatedAt)})
-    if (references?.applicationId) {
+    const applicationId = references?.applicationId
+    if (applicationId) {
         rows.push({
             key: "application",
             label: "Application",
-            value: names.application ?? references.applicationId,
+            value: (
+                <RunReferenceChip
+                    icon={<SquaresFour size={14} />}
+                    label={names.application ?? applicationId}
+                />
+            ),
         })
-        const version = references.revisionVersion
+        const revisionId = references.revisionId
         rows.push({
             key: "variant",
             label: "Variant",
-            value:
-                [names.variant, version !== null ? `v${version}` : null]
-                    .filter(Boolean)
-                    .join(" ") || MISSING,
+            value: names.variant ? (
+                <RunReferenceChip
+                    icon={<GitCommit size={14} />}
+                    label={names.variant}
+                    version={references.revisionVersion}
+                    href={revisionId ? links?.variant(applicationId, revisionId) : null}
+                />
+            ) : (
+                MISSING
+            ),
         })
     }
 
