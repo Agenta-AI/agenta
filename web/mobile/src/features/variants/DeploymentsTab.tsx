@@ -16,6 +16,7 @@ import {useProjectPermission} from "../context/useProjectPermission"
 import {useDeveloperViewEnabled} from "../developer/developerViewAccess"
 import {useUrlParams} from "../developer/useUrlParams"
 import {playgroundHref} from "../playground/playgroundUrl"
+import {DeployRevisionButton} from "../revisions/DeployRevisionButton"
 import {OpenInPlaygroundButton} from "../revisions/OpenInPlaygroundButton"
 import {useRevisionParam} from "../revisions/useRevisionParam"
 import {useSettingsOrg} from "../settings/useSettingsOrg"
@@ -218,7 +219,31 @@ export const DeploymentsTab = ({
                         projectId={projectId}
                         kind="deployment"
                         navigationIds={navigationIds}
-                        actions={drawerActions}
+                        actions={
+                            <>
+                                {playgroundEnabled && revisionId ? (
+                                    <OpenInPlaygroundButton
+                                        href={playgroundHref(base, app.id, [revisionId])}
+                                    />
+                                ) : null}
+                                {canDeploy ? (
+                                    <DeployRevisionButton
+                                        revisionId={revisionId}
+                                        appId={app.id}
+                                        appSlug={app.slug ?? null}
+                                    />
+                                ) : null}
+                                {canRevert(shownRow) ? (
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setRevertRow(shownRow)}
+                                    >
+                                        Revert
+                                    </Button>
+                                ) : null}
+                            </>
+                        }
                     />
                 ) : (
                     <RevisionDrawerHost
