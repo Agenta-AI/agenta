@@ -15,10 +15,7 @@ export type SaveHumanEvaluatorResult = {ok: true} | {ok: false; field?: "slug"; 
 const statusOf = (error: unknown): number | undefined =>
     (error as {response?: {status?: number}} | null)?.response?.status
 
-/**
- * Creates a human evaluator, or saves an edit of one as a new revision. The evaluator lists load
- * again after a save. A failure comes back as a short message; the detail goes to the console.
- */
+/** Creates a human evaluator or saves an edit as a new revision; errors come back short. */
 export const useSaveHumanEvaluator = () => {
     const create = useSetAtom(createHumanEvaluatorAtom)
     const update = useSetAtom(updateHumanEvaluatorAtom)

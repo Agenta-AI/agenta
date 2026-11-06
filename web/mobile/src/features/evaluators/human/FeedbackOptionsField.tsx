@@ -3,10 +3,7 @@ import {useRef} from "react"
 import {Button, Field, Input} from "@agenta/ui/ui"
 import {Plus, Trash} from "@phosphor-icons/react"
 
-/**
- * The options of a choice feedback. Enter in an option adds the next one and moves to it; the
- * arrow keys move between options. The last option cannot be removed.
- */
+/** The options of a choice feedback; Enter adds the next option. */
 export const FeedbackOptionsField = ({
     options,
     error,

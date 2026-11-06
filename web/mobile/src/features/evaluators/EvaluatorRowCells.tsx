@@ -102,7 +102,7 @@ export const EvaluatorRowCells = ({
                 <EvaluatorRowMenu
                     copy={{revisionId: row.id, slug: row.slug}}
                     onOpen={onOpen}
-                    openLabel={automatic ? "Configure" : "Edit"}
+                    openLabel={automatic ? "Configure" : selectable ? "Edit" : "Open details"}
                     onArchive={onArchive}
                 />
             </span>

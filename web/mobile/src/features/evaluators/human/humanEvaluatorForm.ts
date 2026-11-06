@@ -102,11 +102,17 @@ const numberError = (value: string, type: string): string | null => {
 }
 
 /** Every problem the save would hit, by field. An empty result means the draft can be saved. */
-export const validateHumanEvaluator = (draft: HumanEvaluatorDraft): HumanEvaluatorErrors => {
+export const validateHumanEvaluator = (
+    draft: HumanEvaluatorDraft,
+    mode: "create" | "edit" = "create",
+): HumanEvaluatorErrors => {
     const errors: HumanEvaluatorErrors = {}
-    if (!draft.name.trim()) errors.name = "Enter a name."
-    if (!draft.slug.trim()) errors.slug = "Enter a slug."
-    else if (!isSlugInputValid(draft.slug.trim())) errors.slug = SLUG_RULE
+    // An edit keeps the stored name and slug: the inputs are locked, so they are not checked.
+    if (mode === "create") {
+        if (!draft.name.trim()) errors.name = "Enter a name."
+        if (!draft.slug.trim()) errors.slug = "Enter a slug."
+        else if (!isSlugInputValid(draft.slug.trim())) errors.slug = SLUG_RULE
+    }
 
     const names = draft.fields.map((field) => field.name.trim())
     draft.fields.forEach((field, index) => {

@@ -293,6 +293,18 @@ describe("EvaluatorsScreen", () => {
         state.perms.edit_evaluators = false
         state.query = {tab: "human"}
         await mount()
+        await act(async () => {
+            document
+                .querySelector('[aria-label="Evaluator actions"]')
+                ?.dispatchEvent(
+                    new MouseEvent("pointerdown", {bubbles: true, cancelable: true, button: 0}),
+                )
+        })
+        const items = [...document.querySelectorAll('[role="menuitem"]')].map((i) => i.textContent)
+        expect(items[0]).toBe("Open details")
+        await act(async () => {
+            document.dispatchEvent(new KeyboardEvent("keydown", {key: "Escape", bubbles: true}))
+        })
         const row = host.querySelector<HTMLElement>('[role="button"]')
         await act(async () => row?.click())
         expect(document.querySelector('[data-testid="human-sheet"]')).toBeNull()

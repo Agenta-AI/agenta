@@ -208,6 +208,9 @@ describe("HumanEvaluatorSheet", () => {
         await submit()
         expect(document.body.textContent).toContain("An evaluator with this slug exists.")
         expect(onClose).not.toHaveBeenCalled()
+        // A new slug makes the error stale: it goes as soon as the reader types.
+        await type(byLabel("Evaluator slug"), "answer-quality-2")
+        expect(document.body.textContent).not.toContain("An evaluator with this slug exists.")
     })
 
     it("edits an evaluator: the form is filled, Update waits for a change, the save commits a revision", async () => {

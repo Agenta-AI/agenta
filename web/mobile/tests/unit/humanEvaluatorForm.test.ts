@@ -68,6 +68,16 @@ describe("validateHumanEvaluator", () => {
     })
 })
 
+describe("validateHumanEvaluator in edit mode", () => {
+    it("does not check the locked name and slug of an evaluator saved without them", () => {
+        const errors = validateHumanEvaluator(
+            {...draft([{name: "score", type: "boolean"}]), name: "", slug: "made by sdk"},
+            "edit",
+        )
+        expect(errors).toEqual({})
+    })
+})
+
 describe("draftToMetrics", () => {
     it("sends parsed numbers and the filled options only", () => {
         expect(

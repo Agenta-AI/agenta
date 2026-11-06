@@ -1,8 +1,4 @@
-/**
- * The feedback fields of a human evaluator, and their round trip through the evaluator's outputs
- * schema. `buildHumanEvaluatorOutputsSchema` writes the schema; `humanEvaluatorMetricsFromSchema`
- * reads it back for the edit form.
- */
+/** The feedback fields of a human evaluator, read back from its outputs schema. */
 
 /** One feedback field of a human evaluator, as the create and edit forms hold it. */
 export interface HumanEvaluatorMetric {
@@ -41,11 +37,7 @@ const enumValues = (value: unknown): string[] =>
               .filter(Boolean)
         : []
 
-/**
- * The feedback fields stored in a human evaluator's outputs schema, in schema order. A field is
- * optional when the schema does not list it as required. Returns an empty list for a schema it
- * cannot read.
- */
+/** The feedback fields in an outputs schema; empty for a schema it cannot read. */
 export function humanEvaluatorMetricsFromSchema(outputs: unknown): HumanEvaluatorMetric[] {
     if (!isRecord(outputs) || !isRecord(outputs.properties)) return []
     const required = Array.isArray(outputs.required) ? outputs.required.map(String) : []

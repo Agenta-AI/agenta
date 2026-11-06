@@ -12,12 +12,7 @@ import {
     type HumanEvaluatorDraft,
 } from "./humanEvaluatorForm"
 
-/**
- * The human evaluator form: name, slug and description, then the feedback fields. The slug
- * follows the name until the reader edits it. Errors show after the first submit and then follow
- * each change. In edit mode the name and the slug stay fixed, as in /w, and Update waits for a
- * change.
- */
+/** The human evaluator create and edit form; in edit mode the name and slug stay fixed. */
 export const HumanEvaluatorForm = ({
     initial,
     mode,
@@ -25,6 +20,7 @@ export const HumanEvaluatorForm = ({
     serverError,
     onSubmit,
     onCancel,
+    onEdit,
 }: {
     initial: HumanEvaluatorDraft
     mode: "create" | "edit"
@@ -33,8 +29,14 @@ export const HumanEvaluatorForm = ({
     serverError: {field?: "slug"; message: string} | null
     onSubmit: (draft: HumanEvaluatorDraft) => void
     onCancel: () => void
+    /** The reader changed the form: a shown save error is stale now. */
+    onEdit: () => void
 }) => {
-    const [draft, setDraft] = useState(initial)
+    const [draft, setDraftState] = useState(initial)
+    const setDraft = (update: (current: HumanEvaluatorDraft) => HumanEvaluatorDraft) => {
+        if (serverError) onEdit()
+        setDraftState(update)
+    }
     const [slugTouched, setSlugTouched] = useState(mode === "edit")
     const [submitted, setSubmitted] = useState(false)
     const bodyRef = useRef<HTMLDivElement>(null)
@@ -42,14 +44,14 @@ export const HumanEvaluatorForm = ({
     const initialSignature = useMemo(() => draftSignature(initial), [initial])
     const changed = draftSignature(draft) !== initialSignature
 
-    const errors = submitted ? validateHumanEvaluator(draft) : {}
+    const errors = submitted ? validateHumanEvaluator(draft, mode) : {}
     if (serverError?.field === "slug" && !errors.slug) errors.slug = serverError.message
 
     const submit = (event: FormEvent) => {
         event.preventDefault()
         if (saving) return
         setSubmitted(true)
-        if (Object.keys(validateHumanEvaluator(draft)).length > 0) {
+        if (Object.keys(validateHumanEvaluator(draft, mode)).length > 0) {
             // The first error may sit below the fold.
             requestAnimationFrame(() =>
                 bodyRef.current

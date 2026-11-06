@@ -14,10 +14,7 @@ import {useSaveHumanEvaluator, type SaveHumanEvaluatorResult} from "./useSaveHum
 
 const SHEET_WIDTH = {"--ag-sheet-responsive-width": "560px"} as CSSProperties
 
-/**
- * Create a human evaluator, or edit one (`editing`). A bottom sheet on a phone, a right drawer
- * from `lg` up. Close, Escape and the overlay do nothing while a save runs.
- */
+/** Create or edit a human evaluator; it cannot be closed while a save runs. */
 export const HumanEvaluatorSheet = ({
     open,
     editing,
@@ -91,6 +88,7 @@ export const HumanEvaluatorSheet = ({
                         serverError={serverError}
                         onSubmit={(draft) => void submit(draft)}
                         onCancel={close}
+                        onEdit={() => setServerError(null)}
                     />
                 ) : null}
             </SheetContent>
