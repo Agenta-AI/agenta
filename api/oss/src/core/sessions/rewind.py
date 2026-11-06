@@ -18,7 +18,7 @@ from oss.src.core.sessions.turns.service import SessionTurnsService
 class SessionRewindBusy(Exception):
     def __init__(self, session_id: str):
         self.session_id = session_id
-        super().__init__(f"Session '{session_id}' is running a turn.")
+        super().__init__(f"Session '{session_id}' has a turn in progress.")
 
 
 class SessionRewindService:
@@ -43,12 +43,20 @@ class SessionRewindService:
         turn_id: str,
         user_id: Optional[UUID],
     ) -> int:
-        """Returns the records removed. A second call for the same turn removes none.
+        """Returns the records removed. A turn the log no longer holds changes nothing.
 
         The records go last: a failure before that leaves the rewind safe to retry, and a
         session with no native state only replays cold from the log."""
-        if await self._streams.is_running(project_id=project_id, session_id=session_id):
+        if await self._streams.is_running(
+            project_id=project_id, session_id=session_id
+        ) or await self._records.has_active_continuation(
+            project_id=project_id, session_id=session_id
+        ):
             raise SessionRewindBusy(session_id)
+        if not await self._records.has_turn(
+            project_id=project_id, session_id=session_id, turn_id=turn_id
+        ):
+            return 0
 
         await self._interactions.cancel_session_pending(
             project_id=project_id,

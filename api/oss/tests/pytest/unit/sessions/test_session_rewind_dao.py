@@ -136,3 +136,25 @@ async def test_the_sequence_keeps_rising_after_a_rewind():
     after = await dao.get_read_state(project_id=project_id, session_id=session_id)
     assert after.latest_sequence == before.latest_sequence + 1
     assert await _visible_turns(dao, project_id, session_id) == ["t1", "t1", "t4"]
+
+
+@pytest.mark.asyncio
+async def test_only_removed_turns_read_as_rewound():
+    dao = RecordsDAO()
+    project_id, session_id = await _log_with_three_turns(dao)
+    await dao.rewind_from_turn(
+        project_id=project_id, session_id=session_id, turn_id="t2", user_id=None
+    )
+
+    rewound = await dao.rewound_turns(
+        project_id=project_id,
+        keys=[(session_id, "t1"), (session_id, "t2"), (session_id, "t3")],
+    )
+
+    assert rewound == {(session_id, "t2"), (session_id, "t3")}
+    assert await dao.has_turn(
+        project_id=project_id, session_id=session_id, turn_id="t1"
+    )
+    assert not await dao.has_turn(
+        project_id=project_id, session_id=session_id, turn_id="t2"
+    )
