@@ -23,8 +23,8 @@ import {PromptTemplatesPrefetch, useCreatePrompt} from "./useCreatePrompt"
 import {usePromptFolderActions} from "./usePromptFolderActions"
 import {usePromptsBrowser} from "./usePromptsBrowser"
 
-const CreatePromptDialog = dynamic(
-    () => import("./CreatePromptDialog").then((module) => module.CreatePromptDialog),
+const CreatePromptDrawer = dynamic(
+    () => import("./CreatePromptDrawer").then((module) => module.CreatePromptDrawer),
     {ssr: false},
 )
 
@@ -141,7 +141,8 @@ export const PromptsScreen = ({
             />
             {newPrompt ? <PromptTemplatesPrefetch /> : null}
             {createPrompt.draftId ? (
-                <CreatePromptDialog
+                <CreatePromptDrawer
+                    projectId={projectId}
                     draftId={createPrompt.draftId}
                     onClose={createPrompt.close}
                     onCreated={createPrompt.land}
