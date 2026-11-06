@@ -12,8 +12,10 @@ import {
     Copy,
     DotsThreeVertical,
     Eye,
+    DesktopIcon,
     GearSix,
 } from "@phosphor-icons/react"
+import Link from "next/link"
 
 const copyText = async (text: string, what: string) => {
     try {
@@ -37,6 +39,7 @@ export const EvaluatorRowMenu = ({
     copy,
     onOpen,
     openLabel,
+    overviewHref,
     onArchive,
     onRestore,
     restoring = false,
@@ -47,6 +50,8 @@ export const EvaluatorRowMenu = ({
     onOpen?: () => void
     /** "Configure" in the active list of automatic evaluators, "Open details" otherwise. */
     openLabel?: "Configure" | "Open details"
+    /** The evaluator's Overview page, in beta developer mode only. */
+    overviewHref?: string | null
     onArchive?: () => void
     onRestore?: () => void
     restoring?: boolean
@@ -66,6 +71,18 @@ export const EvaluatorRowMenu = ({
                 <DropdownMenuItem onSelect={onOpen}>
                     {openLabel === "Configure" ? <GearSix size={16} /> : <Eye size={16} />}
                     {openLabel}
+                </DropdownMenuItem>
+            ) : null}
+            {overviewHref ? (
+                <DropdownMenuItem asChild>
+                    <Link
+                        href={overviewHref}
+                        prefetch={false}
+                        className="text-foreground no-underline"
+                    >
+                        <DesktopIcon size={16} />
+                        Overview
+                    </Link>
                 </DropdownMenuItem>
             ) : null}
             {copy ? (

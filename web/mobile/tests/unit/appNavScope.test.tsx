@@ -71,7 +71,52 @@ describe("the app menu", () => {
     })
 })
 
+describe("the evaluator menu", () => {
+    it("has no Registry, and its Playground is the evaluator playground on the newest revision", () => {
+        const items = appNavItems(P, "e1", DEVELOPER_VIEWS, {latestRevisionId: "rev-9"})
+        expect(items.map(({title, link}) => ({title, link}))).toEqual([
+            {title: "Overview", link: `${P}/apps/e1/overview`},
+            {title: "Playground", link: `${P}/evaluators/playground?revisions=rev-9`},
+            {title: "Evaluations", link: `${P}/apps/e1/evaluations`},
+            {title: "Observability", link: `${P}/apps/e1/traces`},
+        ])
+    })
+
+    it("sends Playground to the evaluators list until the newest revision loads", () => {
+        const items = appNavItems(P, "e1", DEVELOPER_VIEWS, {latestRevisionId: null})
+        expect(items.find(({title}) => title === "Playground")?.link).toBe(`${P}/evaluators`)
+    })
+
+    it("hides Playground while the evaluator playground view is off", () => {
+        const views = DEVELOPER_VIEWS.filter((view) => view.id !== "evaluator-playground")
+        const items = appNavItems(P, "e1", views, {latestRevisionId: "rev-9"})
+        expect(items.map(({title}) => title)).toEqual(["Overview", "Evaluations", "Observability"])
+    })
+})
+
 describe("switching apps", () => {
+    it("to an evaluator keeps Overview, Evaluations and Observability", () => {
+        for (const page of ["overview", "evaluations", "traces"]) {
+            expect(appSwitchHref(P, `${R}/apps/[app_id]/${page}`, {app_id: "a1"}, "e1", true)).toBe(
+                `${P}/apps/e1/${page}`,
+            )
+        }
+    })
+
+    it("to an evaluator from a page it does not have opens its Overview", () => {
+        for (const page of ["variants", "endpoints", "playground"]) {
+            expect(
+                appSwitchHref(
+                    P,
+                    `${R}/apps/[app_id]/${page}`,
+                    {app_id: "a1", tab: "x"},
+                    "e1",
+                    true,
+                ),
+            ).toBe(`${P}/apps/e1/overview`)
+        }
+    })
+
     it("keeps the page the reader is on", () => {
         expect(appSwitchHref(P, `${R}/apps/[app_id]/overview`, {app_id: "a1"}, "a2")).toBe(
             `${P}/apps/a2/overview`,

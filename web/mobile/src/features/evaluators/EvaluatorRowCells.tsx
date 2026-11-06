@@ -10,6 +10,7 @@ import {formatDay} from "../archived-apps/archivedAppsView"
 import {EvaluatorKeyTags} from "./EvaluatorKeyTags"
 import {EvaluatorRowMenu} from "./EvaluatorRowMenu"
 import type {EvaluatorRevisionRow} from "./evaluatorsView"
+import {useEvaluatorOverviewHref} from "./useEvaluatorOverviewHref"
 
 /** The template categories of an automatic evaluator. Reads the catalog, so only this tab pays. */
 const TemplateTags = ({evaluatorKey}: {evaluatorKey: string | null}) => {
@@ -47,6 +48,7 @@ export const EvaluatorRowCells = ({
 }) => {
     const automatic = category === "automatic"
     const name = row.name ?? "—"
+    const overviewHref = useEvaluatorOverviewHref(row.workflowId)
 
     return (
         <>
@@ -104,6 +106,7 @@ export const EvaluatorRowCells = ({
                     // Editing a human evaluator comes later: its row menu has no Configure.
                     onOpen={automatic ? onOpen : undefined}
                     openLabel="Configure"
+                    overviewHref={automatic ? overviewHref : null}
                     onArchive={onArchive}
                 />
             </span>
