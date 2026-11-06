@@ -26,6 +26,7 @@ export {
     runReferencesAtomFamily,
     type RunEvaluatorReference,
     type RunHeader,
+    type RunQueryReference,
     type RunReferences,
     type RunTestsetReference,
 } from "./runDetails"
@@ -41,3 +42,4 @@ export {
     type RunMetricEntry,
     type TemporalMetricPoint,
 } from "./runMetrics"
+export {liveQueryRevisionQueryAtomFamily, liveQueryRevisionQueryKey} from "./liveQueryRevision"

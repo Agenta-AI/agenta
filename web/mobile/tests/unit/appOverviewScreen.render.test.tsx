@@ -62,7 +62,8 @@ vi.mock("@/features/context/useBindProjectContext", () => ({
 }))
 vi.mock("@/components/PageTitle", () => ({PageTitle: () => null}))
 vi.mock("@/features/app-overview/AppActionsMenu", () => ({
-    AppActionsMenu: () => createElement("span", null, "actions-menu"),
+    AppActionsMenu: ({evaluator}: {evaluator?: boolean}) =>
+        createElement("span", null, evaluator ? "evaluator-actions-menu" : "actions-menu"),
 }))
 vi.mock("@/features/app-overview/AppUsageSection", () => ({
     AppUsageSection: ({appId}: {appId: string}) =>
@@ -72,7 +73,8 @@ vi.mock("@/features/app-overview/AppDeploymentSection", () => ({
     AppDeploymentSection: () => createElement("section", null, "deployment-section"),
 }))
 vi.mock("@/features/app-overview/AppRecentPromptsSection", () => ({
-    AppRecentPromptsSection: () => createElement("section", null, "prompts-section"),
+    AppRecentPromptsSection: ({evaluator}: {evaluator?: boolean}) =>
+        createElement("section", null, evaluator ? "evaluator-prompts-section" : "prompts-section"),
 }))
 vi.mock("@/features/app-overview/AppEvaluationsSection", () => ({
     AppEvaluationsSection: ({kind}: {kind: string}) =>
@@ -88,6 +90,21 @@ const PROMPT = {
     flags: {is_application: true},
 }
 const AGENT = {id: "agent-1", name: "Helper", slug: "helper", flags: {is_application: true}}
+const EVALUATOR = {
+    id: "eval-1",
+    name: "Answer check",
+    slug: "answer-check",
+    flags: {is_evaluator: true},
+}
+const ARCHIVED_EVALUATOR = {
+    id: "eval-gone",
+    name: "Old check",
+    slug: "old-check",
+    flags: {is_evaluator: true},
+    deleted_at: "2026-11-01T00:00:00Z",
+}
+/** One workflow by id, as the detail query reads it: any kind, archived ones too. */
+const BY_ID = [PROMPT, AGENT, EVALUATOR, ARCHIVED_EVALUATOR]
 
 let host: HTMLDivElement
 let root: Root
@@ -98,9 +115,45 @@ let releaseFlags: (() => void) | null
 let flagsDelayed: boolean
 let listFails: boolean
 let listDelayed: boolean
+let archivedFails: boolean
 const listWaiters: (() => void)[] = []
 
-const answer = async (url: string, body: {grouping?: unknown}) => {
+const ARCHIVED = {
+    id: "app-old",
+    name: "Old bot",
+    slug: "old-bot",
+    flags: {is_application: true},
+    deleted_at: "2026-10-01T00:00:00Z",
+}
+const ARCHIVED_AGENT = {
+    id: "agent-old",
+    name: "Old helper",
+    flags: {is_application: true},
+    deleted_at: "2026-10-01T00:00:00Z",
+}
+
+// In no active list, but not archived either: the lookup must not turn it into an overview.
+const NOT_ARCHIVED = {id: "app-new", name: "New bot", flags: {is_application: true}}
+
+const answer = async (
+    url: string,
+    body: {
+        grouping?: unknown
+        include_archived?: boolean
+        workflow?: {flags?: Record<string, boolean>}
+        workflow_refs?: {id: string}[]
+    },
+) => {
+    // The evaluator detail; the archived lookup asks for non-evaluators only.
+    if (
+        url.endsWith("/workflows/query") &&
+        body.workflow_refs &&
+        body.workflow?.flags?.is_evaluator !== false
+    ) {
+        const ids = body.workflow_refs.map((ref) => ref.id)
+        const found = BY_ID.filter((workflow) => ids.includes(workflow.id))
+        return {data: {count: found.length, workflows: found}}
+    }
     if (url.endsWith("/workflows/revisions/query")) {
         if (flagsDelayed) await new Promise<void>((resolve) => (releaseFlags = resolve))
         return {
@@ -109,7 +162,19 @@ const answer = async (url: string, body: {grouping?: unknown}) => {
                 workflow_revisions: [
                     {id: "rev-a", workflow_id: "app-1", flags: {is_agent: false}},
                     {id: "rev-b", workflow_id: "agent-1", flags: {is_agent: true}},
+                    {id: "rev-c", workflow_id: "agent-old", flags: {is_agent: true}},
                 ],
+            },
+        }
+    }
+    if (body.include_archived && body.workflow_refs) {
+        // The archived lookup: the one request that names the id.
+        if (archivedFails) throw new Error("boom")
+        const id = body.workflow_refs?.[0]?.id
+        return {
+            data: {
+                count: 1,
+                workflows: [ARCHIVED, ARCHIVED_AGENT, NOT_ARCHIVED].filter((w) => w.id === id),
             },
         }
     }
@@ -140,6 +205,13 @@ const mount = async (appId: string) => {
     await settle()
 }
 
+/** The bodies of the requests that asked for archived workflows. */
+const archivedLookups = () =>
+    http.post.mock.calls
+        .filter((call) => String(call[0]).endsWith("/workflows/query"))
+        .map((call) => call[1] as {include_archived?: boolean; workflow_refs?: unknown})
+        .filter((body) => body.include_archived && body.workflow_refs)
+
 const text = () => host.textContent ?? ""
 
 beforeEach(() => {
@@ -159,6 +231,7 @@ beforeEach(() => {
     flagsDelayed = false
     listFails = false
     listDelayed = false
+    archivedFails = false
     vi.stubEnv("NEXT_PUBLIC_AGENTA_DEVELOPER_VIEWS", "app-overview")
 })
 
@@ -208,6 +281,31 @@ describe("app overview screen", () => {
         expect(body.indexOf("usage-section")).toBeLessThan(body.indexOf("deployment-section"))
     })
 
+    it("In beta developer mode an evaluator gets its overview without Deployment", async () => {
+        if (beta.atom) store.set(beta.atom, true)
+        await mount("eval-1")
+        expect(host.querySelector("h1")?.textContent).toBe("Answer check")
+        const body = text()
+        expect(body).toContain("evaluator-actions-menu")
+        expect(body).toContain("usage-section:eval-1")
+        expect(body).toContain("evaluator-prompts-section")
+        expect(body).toContain("auto-evaluations-section")
+        expect(body).toContain("human-evaluations-section")
+        expect(body).not.toContain("deployment-section")
+    })
+
+    it("Without beta developer mode an evaluator id shows not found", async () => {
+        await mount("eval-1")
+        expect(host.querySelector("[data-testid=not-found]")).not.toBeNull()
+        expect(text()).not.toContain("prompts-section")
+    })
+
+    it("An archived evaluator shows not found in beta developer mode", async () => {
+        if (beta.atom) store.set(beta.atom, true)
+        await mount("eval-gone")
+        expect(host.querySelector("[data-testid=not-found]")).not.toBeNull()
+    })
+
     it("An agent id redirects to the agent overview", async () => {
         await mount("agent-1")
         expect(router.replace).toHaveBeenCalledTimes(1)
@@ -227,10 +325,53 @@ describe("app overview screen", () => {
         expect(text()).not.toContain("deployment-section")
     })
 
-    it("An unknown or archived app id shows not found", async () => {
+    it("An unknown app id shows not found", async () => {
         await mount("app-gone")
         expect(host.querySelector("[data-testid=not-found]")).not.toBeNull()
         expect(text()).not.toContain("deployment-section")
+    })
+
+    it("An archived app opens its overview, without the actions menu", async () => {
+        await mount("app-old")
+        expect(host.querySelector("[data-testid=not-found]")).toBeNull()
+        expect(host.querySelector("h1")?.textContent).toBe("Old bot")
+        expect(text()).toContain("deployment-section")
+        expect(text()).not.toContain("actions-menu")
+        const lookups = archivedLookups()
+        expect(lookups).toHaveLength(1)
+        expect(lookups[0]).toMatchObject({
+            include_archived: true,
+            workflow_refs: [{id: "app-old"}],
+            workflow: {flags: {is_evaluator: false}},
+        })
+    })
+
+    it("An id that is found but not archived still shows not found", async () => {
+        await mount("app-new")
+        expect(host.querySelector("[data-testid=not-found]")).not.toBeNull()
+    })
+
+    it("An archived agent is not an app here and shows not found", async () => {
+        await mount("agent-old")
+        expect(host.querySelector("[data-testid=not-found]")).not.toBeNull()
+        expect(router.replace).not.toHaveBeenCalled()
+    })
+
+    it("An active app and an agent send no archived lookup", async () => {
+        await mount("app-1")
+        expect(host.querySelector("h1")?.textContent).toBe("Support bot")
+        expect(text()).toContain("actions-menu")
+        await act(async () => root.unmount())
+        root = createRoot(host)
+        await mount("agent-1")
+        expect(archivedLookups()).toHaveLength(0)
+    })
+
+    it("A failed archived lookup shows Could not load apps, not not found", async () => {
+        archivedFails = true
+        await mount("app-old")
+        expect(text()).toContain("Could not load apps")
+        expect(host.querySelector("[data-testid=not-found]")).toBeNull()
     })
 
     it("The app name heading shows a skeleton until the name loads", async () => {

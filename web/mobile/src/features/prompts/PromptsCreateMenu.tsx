@@ -3,27 +3,31 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
-import {FolderPlusIcon, PlusIcon} from "@phosphor-icons/react"
+import {FlowArrowIcon, FolderPlusIcon, PlusIcon} from "@phosphor-icons/react"
 
 import {NewPromptSubmenu} from "./NewPromptSubmenu"
 import {promptsCopy} from "./promptsCopy"
 import type {NewPromptAction} from "./useCreatePrompt"
 
 /**
- * The "Create new" button: New prompt (Chat, Completion, Agent) and New folder. New prompt is
- * there only while `newPrompt` is set, which needs developer mode. A reader who can do neither
- * gets no button.
+ * The "Create new" button: New prompt (Chat, Completion, Agent), New folder and Set up workflow.
+ * New prompt and Set up workflow need developer mode. A reader who can do none of them gets no
+ * button.
  */
 export const PromptsCreateMenu = ({
     canEditFolders,
     onNewFolder,
     newPrompt,
+    onSetupWorkflow,
 }: {
     canEditFolders: boolean
     onNewFolder: () => void
     newPrompt: NewPromptAction | null
+    /** Set up workflow; null without developer mode, like `newPrompt`. */
+    onSetupWorkflow: (() => void) | null
 }) =>
     canEditFolders || newPrompt ? (
         <DropdownMenu>
@@ -46,6 +50,15 @@ export const PromptsCreateMenu = ({
                         <FolderPlusIcon size={16} />
                         {promptsCopy.newFolder}
                     </DropdownMenuItem>
+                ) : null}
+                {onSetupWorkflow ? (
+                    <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onSelect={onSetupWorkflow}>
+                            <FlowArrowIcon size={16} />
+                            {promptsCopy.setupWorkflow}
+                        </DropdownMenuItem>
+                    </>
                 ) : null}
             </DropdownMenuContent>
         </DropdownMenu>

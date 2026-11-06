@@ -96,6 +96,7 @@ export const ImportRevisionDialog = ({
                     <TestsetFileDrop
                         file={file}
                         preview={picked.rows}
+                        totalRows={picked.totalRows}
                         error={picked.error}
                         disabled={pending}
                         onFile={onFile}

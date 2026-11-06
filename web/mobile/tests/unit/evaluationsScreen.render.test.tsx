@@ -187,7 +187,7 @@ describe("evaluation runs table", () => {
         expect(host.querySelector("[role=img][aria-label=Running]")).not.toBeNull()
     })
 
-    it("A paused live run reads Paused, not Running", async () => {
+    it("A stopped live run reads Stopped, not Running", async () => {
         http.post.mockResolvedValue(
             page([
                 makeRun("l", {live: true, status: "running", flags: {is_active: false}}),
@@ -195,7 +195,7 @@ describe("evaluation runs table", () => {
             ]),
         )
         await mount()
-        expect(host.querySelectorAll("[role=img][aria-label=Paused]")).toHaveLength(1)
+        expect(host.querySelectorAll("[role=img][aria-label=Stopped]")).toHaveLength(1)
         expect(host.querySelectorAll("[role=img][aria-label=Running]")).toHaveLength(1)
     })
 
@@ -402,6 +402,67 @@ describe("evaluations screen", () => {
             {pathname: "/evaluations", query: {}},
             undefined,
             {shallow: true},
+        )
+    })
+
+    it("Applied filters show as chips, and a chip's remove drops only that filter", async () => {
+        env.query = {status: "running,failure", range: "7 days", types: "human"}
+        await mount()
+        const chips = [...host.querySelectorAll("[aria-label='Applied filters'] li")].map(
+            (chip) => chip.textContent,
+        )
+        expect(chips).toEqual([
+            "Status: Running, Failure",
+            "Type: Human",
+            "Date range: Last 7 days",
+        ])
+        expect(host.querySelector("[aria-label='Filters']")?.textContent).toBe("3")
+        await act(async () =>
+            host.querySelector<HTMLButtonElement>("[aria-label='Remove Status filter']")?.click(),
+        )
+        expect(env.replace).toHaveBeenLastCalledWith(
+            {pathname: "/evaluations", query: {range: "7 days", types: "human"}},
+            undefined,
+            {shallow: true},
+        )
+    })
+
+    it("Without filters the toolbar says so", async () => {
+        await mount()
+        expect(text()).toContain("No filters applied")
+        expect(host.querySelector("[aria-label='Filters']")?.textContent).toBe("0")
+    })
+
+    it("A status picked in the panel is applied only on Apply", async () => {
+        await mount()
+        await act(async () =>
+            host.querySelector<HTMLButtonElement>("[aria-label='Filters']")?.click(),
+        )
+        expect(button(/^Apply$/)?.disabled).toBe(true)
+        await openMenuOf(document.querySelector("[aria-label='Status']"))
+        const failure = [...document.querySelectorAll<HTMLElement>("[role=menuitemcheckbox]")].find(
+            (item) => item.textContent === "Failure",
+        )
+        await act(async () => failure?.click())
+        expect(env.replace).not.toHaveBeenCalled()
+        await act(async () => button(/^Apply$/)?.click())
+        expect(env.replace).toHaveBeenLastCalledWith(
+            {pathname: "/evaluations", query: {status: "failure"}},
+            undefined,
+            {shallow: true},
+        )
+    })
+
+    it("The Type filter is offered on the All tab only", async () => {
+        env.query = {kind: "auto"}
+        await mount()
+        await act(async () =>
+            host.querySelector<HTMLButtonElement>("[aria-label='Filters']")?.click(),
+        )
+        expect(document.querySelector("[aria-label='Type']")).toBeNull()
+        expect(document.querySelector("[aria-label='Evaluators']")).not.toBeNull()
+        expect(document.querySelector<HTMLButtonElement>("[aria-label='Variants']")?.disabled).toBe(
+            true,
         )
     })
 

@@ -83,17 +83,15 @@ export const PlaygroundWorkspace = ({
                 workspaceId={workspaceId}
                 projectId={projectId}
                 appName={appName}
-                actions={
-                    <>
-                        <PlaygroundNewEvaluation
-                            workspaceId={workspaceId}
-                            projectId={projectId}
-                            appId={appId}
-                            revisionIds={revisionIds}
-                        />
-                        <CompareButton appId={appId} />
-                    </>
+                newEvaluation={
+                    <PlaygroundNewEvaluation
+                        workspaceId={workspaceId}
+                        projectId={projectId}
+                        appId={appId}
+                        revisionIds={revisionIds}
+                    />
                 }
+                actions={<CompareButton appId={appId} />}
             />
             <DrillInBridgeProvider
                 projectId={projectId}

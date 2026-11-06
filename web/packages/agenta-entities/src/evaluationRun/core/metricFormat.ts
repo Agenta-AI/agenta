@@ -122,3 +122,26 @@ export function formatMetricValue(
     if (stats.sum !== undefined && stats.count) return formatMetricNumber(stats.sum / stats.count)
     return METRIC_PLACEHOLDER
 }
+
+const UPPERCASE_WORDS = new Set(["json", "csv", "xml", "html", "id", "llm", "api", "url"])
+
+const humanizeWord = (raw: string) => {
+    const lower = raw.toLowerCase()
+    if (UPPERCASE_WORDS.has(lower)) return lower.toUpperCase()
+    if (lower === "outputs") return "Output"
+    if (lower === "inputs") return "Input"
+    return lower.charAt(0).toUpperCase() + lower.slice(1)
+}
+
+/**
+ * The old app's metric name (`humanizeMetricPath`): the last two parts of the path, in title case.
+ * "success" -> "Success", "outputs.is_json" -> "Output Is JSON".
+ */
+export function humanizeMetricLabel(label: string): string {
+    const parts = label
+        .split(".")
+        .map((part) => part.replace(/[-_]/g, " ").trim())
+        .filter(Boolean)
+    const words = parts.slice(-2).join(" ").split(/\s+/).filter(Boolean).map(humanizeWord)
+    return words.join(" ") || label
+}

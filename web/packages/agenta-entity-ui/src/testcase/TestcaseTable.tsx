@@ -91,6 +91,8 @@ export interface TestcaseTableProps {
      * appended column, or of a small column of its own. Cells then follow the row height.
      */
     columnSettings?: boolean
+    /** A "Delete selected" entry in the settings menu. Used with `columnSettings`. */
+    settingsDelete?: {onDelete: () => void; disabled?: boolean; label?: string}
     /** Shows the full value of a cell, with a Copy button, when the pointer rests on it */
     cellPopover?: boolean
     /**
@@ -204,6 +206,7 @@ export function TestcaseTable({
     renderColumnHeader,
     headerExtra,
     columnSettings = false,
+    settingsDelete,
     cellPopover = false,
     markEditedRows = false,
 }: TestcaseTableProps) {
@@ -311,6 +314,7 @@ export function TestcaseTable({
             grouping
             rowHeightConfig={rowHeightConfig}
             showSettings={showSettings}
+            settingsDelete={settingsDelete}
             enableExport={canExportData}
             appendColumns={trailingColumns}
             renderSelectionMarker={markEditedRows ? renderSelectionMarker : undefined}

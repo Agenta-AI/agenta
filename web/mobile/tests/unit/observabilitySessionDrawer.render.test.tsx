@@ -21,7 +21,9 @@ globalThis.ResizeObserver ??= class {
     disconnect = vi.fn()
 } as unknown as typeof ResizeObserver
 
-const {queryTraces, sessions, wide, router, members} = vi.hoisted(() => ({
+const {queryTraces, sessions, wide, router, members, developerMode, panels} = vi.hoisted(() => ({
+    developerMode: {current: false},
+    panels: [] as {title: unknown; messages: unknown; preset: unknown}[],
     router: {
         pathname: "/w/[workspace_id]/p/[project_id]/observability",
         query: {} as Record<string, string>,
@@ -34,6 +36,24 @@ const {queryTraces, sessions, wide, router, members} = vi.hoisted(() => ({
 }))
 
 vi.mock("next/router", () => ({useRouter: () => router}))
+vi.mock("@agenta/shared/state", async (importOriginal) => {
+    const {atom} = await import("jotai")
+    return {
+        ...(await importOriginal<typeof import("@agenta/shared/state")>()),
+        betaDeveloperModeActiveAtom: atom(() => developerMode.current),
+    }
+})
+// The turn actions are the trace drawer's; their own gates are covered by their tests.
+vi.mock("@/features/observability/addToTestset/AddToTestsetDrawerButton", () => ({
+    AddToTestsetDrawerButton: ({spanIds}: {spanIds: string[]}) => (
+        <button type="button">{`Add to testset ${spanIds.join(",")}`}</button>
+    ),
+}))
+vi.mock("@/features/observability/annotate/TraceAnnotateButton", () => ({
+    TraceAnnotateButton: ({traceSpanIds}: {traceSpanIds: {spanId: string}}) => (
+        <button type="button">{`Annotate ${traceSpanIds.spanId}`}</button>
+    ),
+}))
 // The members come the way Settings gets them: the workspace's projects, then its organization.
 vi.mock("@agenta/entities/project", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/entities/project")>()),
@@ -57,6 +77,17 @@ vi.mock("@agenta/ui/hooks", async (importOriginal) => ({
 }))
 vi.mock("@agenta/observability-ui/traceDrawer", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/observability-ui/traceDrawer")>()),
+    // The message panel is the drawer's drill-in slot; this records what each turn hands it.
+    getTraceDrawerReferences: () => ({
+        TraceSpanDrillInView: (props: Record<string, unknown>) => {
+            panels.push({
+                title: props.title,
+                messages: props.spanDataOverride,
+                preset: props.viewModePreset,
+            })
+            return <div data-testid="message-panel" />
+        },
+    }),
     TraceAnnotations: ({annotations}: {annotations: unknown[]}) => (
         <div data-testid="annotations">{annotations.length} annotations</div>
     ),
@@ -181,6 +212,8 @@ describe("ObservabilitySessionDrawer", () => {
     beforeEach(() => {
         localStorage.clear()
         wide.current = true
+        developerMode.current = false
+        panels.length = 0
         sessions.ids = ["session-a", "session-b", "session-c"]
         queryTraces.mockReset().mockResolvedValue({count: 2, traces: SESSION_TRACES})
         onSelectSession.mockReset()
@@ -388,6 +421,29 @@ describe("ObservabilitySessionDrawer", () => {
                 .find((trace) => trace.span_id === "span-one-root")
             expect(annotated?.annotations?.[0]).toMatchObject({createdBy: "Alex"})
         })
+    })
+
+    it("In developer mode each turn has its own actions, its status and the message panel", async () => {
+        developerMode.current = true
+        await shown()
+        await loaded()
+        expect(button("Add to testset span-one-root")).toBeDefined()
+        expect(button("Annotate span-one-root")).toBeDefined()
+        expect(button("Annotate span-two-root")).toBeDefined()
+        expect(text()).toContain("success")
+        expect(text()).toContain("failure")
+        expect(document.querySelectorAll("[data-testid='message-panel']")).toHaveLength(2)
+        const last = panels.at(-1)
+        expect(last?.title).toBe("messages")
+        expect(last?.preset).toBe("message")
+        expect(Array.isArray(last?.messages)).toBe(true)
+    })
+
+    it("Outside developer mode a turn keeps its plain messages and no actions", async () => {
+        await shown()
+        await loaded()
+        expect(button("Annotate span-one-root")).toBeUndefined()
+        expect(document.querySelectorAll("[data-testid='message-panel']")).toHaveLength(0)
     })
 
     it("Hides the models pill when no trace names a model", async () => {
