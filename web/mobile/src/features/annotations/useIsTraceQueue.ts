@@ -1,6 +1,8 @@
 import {annotationSessionController} from "@agenta/annotation"
 import {useAtomValue} from "jotai"
 
-/** True when the open queue holds traces. Only a test case queue is not a trace queue. */
-export const useIsTraceQueue = (): boolean =>
-    useAtomValue(annotationSessionController.selectors.queueKind()) !== "testcases"
+/** True when the queue's items are traces: a trace queue, or a query queue that collects them. */
+export const useIsTraceQueue = (): boolean => {
+    const kind = useAtomValue(annotationSessionController.selectors.queueKind())
+    return kind === "traces" || kind === "queries"
+}

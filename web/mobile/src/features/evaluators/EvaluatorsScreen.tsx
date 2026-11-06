@@ -25,21 +25,22 @@ import {archivedEvaluatorsUrl} from "./evaluatorPaths"
 import {EvaluatorsDrawer} from "./EvaluatorsDrawer"
 import {EvaluatorSheets} from "./EvaluatorSheets"
 import {EvaluatorsTable} from "./EvaluatorsTable"
-import {buildEvaluatorGroups, evaluatorLabel} from "./evaluatorsView"
+import {buildEvaluatorRows, evaluatorLabel} from "./evaluatorsView"
 import {EvaluatorsEmpty} from "./states/EvaluatorsEmpty"
 import {useArchiveEvaluators} from "./useArchiveEvaluators"
 import {useEvaluatorCategory} from "./useEvaluatorCategory"
-import {useEvaluatorRevisions} from "./useEvaluatorRevisions"
 import {useEvaluators} from "./useEvaluators"
 import {useEvaluatorSheets} from "./useEvaluatorSheets"
+import {useOlderRevisions} from "./useOlderRevisions"
 
 /** The page column, shared with the other list pages, so the pages line up. */
 const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
 
 /**
- * Automatic and human evaluators, with archive. On the Human tab, "Create new" opens the human
- * evaluator form, and a row opens its edit form for a reader who may edit evaluators. Other rows
- * open the read-only drawer.
+ * Automatic and human evaluators, one row per evaluator with its older revisions under an
+ * expand, with archive. On the Human tab, "Create new" opens the human evaluator form, and a
+ * row opens its edit form for a reader who may edit evaluators. Other rows open the read-only
+ * drawer.
  */
 export const EvaluatorsScreen = ({
     workspaceId,
@@ -77,15 +78,14 @@ export const EvaluatorsScreen = ({
         () => evaluators.entries.map((entry) => entry.workflow.id),
         [evaluators.entries],
     )
-    const revisions = useEvaluatorRevisions({projectId, workflowIds})
-    const groups = useMemo(
-        () => buildEvaluatorGroups(evaluators.entries, revisions.revisions),
-        [evaluators.entries, revisions.revisions],
+    const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
+    const expandedIds = useMemo(
+        () => workflowIds.filter((id) => expanded.has(id)),
+        [workflowIds, expanded],
     )
-    const navigationIds = useMemo(
-        () => groups.flatMap((group) => group.rows.map((row) => row.id)),
-        [groups],
-    )
+    const older = useOlderRevisions({projectId, workflowIds: expandedIds})
+    const rows = buildEvaluatorRows(evaluators.entries, expanded, older.byWorkflow)
+    const navigationIds = rows.map((row) => row.id)
 
     const [, setRevisionId] = useRevisionParam()
     const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
@@ -106,7 +106,7 @@ export const EvaluatorsScreen = ({
 
     // A selection of evaluators the list no longer holds (archived, or filtered out) is not one.
     const selectedIds = useMemo(
-        () => workflowIds.filter((id) => selected.has(id)),
+        () => new Set(workflowIds.filter((id) => selected.has(id))),
         [workflowIds, selected],
     )
     const archiveEntries = useMemo(
@@ -122,9 +122,9 @@ export const EvaluatorsScreen = ({
         [archiveEntries],
     )
 
-    const toggle = useCallback(
+    const toggleExpand = useCallback(
         (workflowId: string) =>
-            setSelected((current) => {
+            setExpanded((current) => {
                 const next = new Set(current)
                 if (!next.delete(workflowId)) next.add(workflowId)
                 return next
@@ -152,20 +152,19 @@ export const EvaluatorsScreen = ({
     const changeCategory = useCallback(
         (next: typeof category) => {
             setSelected(new Set())
+            setExpanded(new Set())
             setCategory(next)
         },
         [setCategory],
     )
 
     const denied = !view.pending && !view.allowed
-    const isError = denied || evaluators.isError || revisions.isError
-    const isLoading =
-        view.pending || evaluators.isPending || (workflowIds.length > 0 && revisions.isPending)
+    const isError = denied || evaluators.isError
+    const isLoading = view.pending || evaluators.isPending
     const retry = () => {
         // A failed or refused lookup is asked again too, or the page stays on "Could not load".
         if (!view.allowed) view.recheck()
         void evaluators.refetch()
-        void revisions.refetch()
     }
 
     return (
@@ -194,79 +193,54 @@ export const EvaluatorsScreen = ({
                             search={search.value}
                             onSearchChange={search.onChange}
                             actions={
-                                canEdit && selectedIds.length > 0 ? (
-                                    <Button
-                                        size="sm"
-                                        variant="destructive"
-                                        onClick={() => setArchiveIds(selectedIds)}
-                                    >
-                                        Archive
+                                <>
+                                    <Button asChild size="sm" variant="ghost">
+                                        <Link
+                                            href={archivedEvaluatorsUrl(
+                                                workspaceId,
+                                                projectId,
+                                                category,
+                                            )}
+                                            prefetch={false}
+                                        >
+                                            <TrayIcon aria-hidden />
+                                            Archived
+                                        </Link>
                                     </Button>
-                                ) : (
-                                    <>
-                                        <Button asChild size="sm" variant="ghost">
-                                            <Link
-                                                href={archivedEvaluatorsUrl(
-                                                    workspaceId,
-                                                    projectId,
-                                                    category,
-                                                )}
-                                                prefetch={false}
-                                            >
-                                                <TrayIcon aria-hidden />
-                                                Archived
-                                            </Link>
+                                    {openCreate ? (
+                                        <Button size="sm" className="ml-auto" onClick={openCreate}>
+                                            <PlusIcon aria-hidden />
+                                            Create new
                                         </Button>
-                                        {openCreate ? (
-                                            <Button
-                                                size="sm"
-                                                className="ml-auto"
-                                                onClick={openCreate}
-                                            >
-                                                <PlusIcon aria-hidden />
-                                                Create new
-                                            </Button>
-                                        ) : null}
-                                    </>
-                                )
+                                    ) : null}
+                                </>
                             }
                         />
                         {isError ? (
                             // A failed fetch must not read as "No evaluators".
                             <LoadError framed title="Could not load evaluators" onRetry={retry} />
                         ) : (
-                            <>
-                                <EvaluatorsTable
-                                    groups={groups}
-                                    category={category}
-                                    selectable={canEdit}
-                                    selectedWorkflowIds={selected}
-                                    isLoading={isLoading}
-                                    empty={
-                                        <EvaluatorsEmpty
-                                            category={category}
-                                            term={trimmed || undefined}
-                                            onClear={search.reset}
-                                            onCreate={openCreate}
-                                        />
-                                    }
-                                    onToggle={toggle}
-                                    onOpen={openRow}
-                                    onArchive={(workflowId) => setArchiveIds([workflowId])}
-                                />
-                                {revisions.hasMore ? (
-                                    <div className="flex justify-center pt-3">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            disabled={revisions.isLoadingMore}
-                                            onClick={revisions.loadMore}
-                                        >
-                                            Load more
-                                        </Button>
-                                    </div>
-                                ) : null}
-                            </>
+                            <EvaluatorsTable
+                                rows={rows}
+                                category={category}
+                                selectable={canEdit}
+                                selectedWorkflowIds={selectedIds}
+                                isLoading={isLoading}
+                                empty={
+                                    <EvaluatorsEmpty
+                                        category={category}
+                                        term={trimmed || undefined}
+                                        onClear={search.reset}
+                                        onCreate={openCreate}
+                                    />
+                                }
+                                expanded={expanded}
+                                loadingOlder={older.loading}
+                                onSelectionChange={setSelected}
+                                onToggleExpand={toggleExpand}
+                                onOpen={openRow}
+                                onArchive={setArchiveIds}
+                            />
                         )}
                     </div>
                 </ScreenScaffold>

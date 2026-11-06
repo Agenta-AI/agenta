@@ -4,12 +4,14 @@ import {Check, Plus} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 import Link from "next/link"
 
+import {useIsTraceQueue} from "../useIsTraceQueue"
+
 /**
  * Every item of the queue is completed. Add to Testset exports them all; trace queues also point
  * back to observability for more traces.
  */
 export const AllCaughtUp = ({observabilityHref}: {observabilityHref: string}) => {
-    const isTraces = useAtomValue(annotationSessionController.selectors.queueKind()) === "traces"
+    const isTraces = useIsTraceQueue()
     const isExporting = useAtomValue(
         annotationSessionController.selectors.isAddToTestsetExporting(),
     )

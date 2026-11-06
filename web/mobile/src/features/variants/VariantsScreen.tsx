@@ -16,6 +16,7 @@ import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMember
 import {AppOverviewLink} from "../app-overview/AppOverviewLink"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {DeveloperAppPicker} from "../developer/DeveloperAppPicker"
+import {useRouteAppId} from "../developer/useRouteAppId"
 import {useUrlParams} from "../developer/useUrlParams"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
@@ -29,8 +30,8 @@ const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
 type TabId = "variants" | "deployments"
 
 /**
- * The variants of one app and where each is deployed. The app is a query parameter, so the
- * nav link needs no id; the tab and the open revision live in the URL too.
+ * The variants of one app and where each is deployed. The app comes from the path, or from
+ * `?app=` on the project page; the tab and the open revision live in the URL too.
  */
 export const VariantsScreen = ({
     workspaceId,
@@ -44,7 +45,7 @@ export const VariantsScreen = ({
     const {read, write} = useUrlParams()
     const queryClient = useQueryClient()
     const apps = useAtomValue(appWorkflowsListQueryStateAtom)
-    const appId = read("app")
+    const {appId, fromPath} = useRouteAppId()
     const tab: TabId = read("tab") === "deployments" ? "deployments" : "variants"
     const app = useMemo(
         () => apps.data.find((entry) => entry.id === appId) ?? null,
@@ -111,18 +112,22 @@ export const VariantsScreen = ({
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px]">
                                     Registry
                                 </h1>
-                                <AppOverviewLink
-                                    base={`/w/${workspaceId}/p/${projectId}`}
-                                    appId={app?.id ?? null}
-                                />
-                                <DeveloperAppPicker
-                                    apps={apps.data}
-                                    value={appId}
-                                    loading={apps.isPending}
-                                    onChange={(next) =>
-                                        write({app: next, revisionId: null, env: null})
-                                    }
-                                />
+                                {fromPath ? null : (
+                                    <>
+                                        <AppOverviewLink
+                                            base={`/w/${workspaceId}/p/${projectId}`}
+                                            appId={app?.id ?? null}
+                                        />
+                                        <DeveloperAppPicker
+                                            apps={apps.data}
+                                            value={appId}
+                                            loading={apps.isPending}
+                                            onChange={(next) =>
+                                                write({app: next, revisionId: null, env: null})
+                                            }
+                                        />
+                                    </>
+                                )}
                             </div>
                         </div>
                     }

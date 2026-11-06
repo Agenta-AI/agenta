@@ -39,7 +39,7 @@ export const EvaluatorRowMenu = ({
     onRestore,
     restoring = false,
 }: {
-    /** What the copy items put on the clipboard. The archived list has no copy items. */
+    /** What the copy items put on the clipboard. */
     copy?: {revisionId: string; slug: string | null}
     onOpen?: () => void
     /** "Configure" or "Edit" in the active list, "Open details" in the archived list. */

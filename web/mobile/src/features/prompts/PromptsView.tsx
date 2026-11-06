@@ -32,6 +32,7 @@ export const PromptsView = ({
     onOpenFolder,
     openDialog,
     onRetry,
+    toolbarActions,
 }: {
     chain: Folder[]
     siblingsOf: (parentId: string | null) => Folder[]
@@ -47,6 +48,8 @@ export const PromptsView = ({
     onOpenFolder: (id: string | null) => void
     openDialog: (dialog: PromptsDialog) => void
     onRetry: () => void
+    /** Controls at the toolbar's right edge, beside the search box. */
+    toolbarActions?: ReactNode
 }): ReactNode => (
     <>
         <PromptsBreadcrumb
@@ -60,6 +63,7 @@ export const PromptsView = ({
             search={search}
             onSearchChange={onSearchChange}
             searchPlaceholder={promptsCopy.searchPlaceholder}
+            actions={toolbarActions}
         />
         {isError ? (
             <LoadError framed title={promptsCopy.states.loadErrorTitle} onRetry={onRetry} />

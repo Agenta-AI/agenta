@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import {act, type ReactNode} from "react"
 
-import {observabilityScopeAtom} from "@agenta/observability"
+import {autoRefreshAtom, observabilityScopeAtom} from "@agenta/observability"
 import {QueryClientProvider} from "@tanstack/react-query"
 import {createStore, Provider} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
@@ -9,25 +9,24 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
-const {router, viewEnabled, canEnable} = vi.hoisted(() => ({
+const {router, viewEnabled, fetchTraces} = vi.hoisted(() => ({
+    fetchTraces: vi.fn(async () => undefined),
     router: {
         pathname: "/w/[workspace_id]/p/[project_id]/observability",
         query: {} as Record<string, string>,
         replace: vi.fn(),
     },
     viewEnabled: {current: false as boolean | null},
-    canEnable: {current: true},
 }))
 
 vi.mock("next/router", () => ({useRouter: () => router}))
 vi.mock("@/features/developer/developerViewAccess", () => ({
     useDeveloperViewEnabled: () => viewEnabled.current,
-    canDeveloperViewBeEnabled: () => canEnable.current,
 }))
 vi.mock("@agenta/observability", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/observability")>()),
     useObservability: () => ({
-        fetchTraces: vi.fn(),
+        fetchTraces,
         traces: [],
         selectedRowKeys: [],
         setSelectedRowKeys: vi.fn(),
@@ -37,11 +36,23 @@ vi.mock("@agenta/observability", async (importOriginal) => ({
     useSessions: () => ({refetchSessions: vi.fn()}),
 }))
 vi.mock("@agenta/observability-ui", () => ({
+    AUTO_REFRESH_INTERVAL: 15000,
     ObservabilityRangePicker: () => null,
     AddActionsDropdown: () => null,
     DeleteTraceModal: () => null,
     deleteTraceModalAtom: {},
-    ObservabilityToolbar: ({filtersSlot}: {filtersSlot?: ReactNode}) => <div>{filtersSlot}</div>,
+    ObservabilityToolbar: ({
+        filtersSlot,
+        onRefresh,
+    }: {
+        filtersSlot?: ReactNode
+        onRefresh: () => Promise<void>
+    }) => (
+        <div>
+            <button onClick={() => void onRefresh()}>refresh</button>
+            {filtersSlot}
+        </div>
+    ),
 }))
 vi.mock("@agenta/ui", () => ({PageLayout: ({children}: {children: ReactNode}) => <>{children}</>}))
 vi.mock("@agenta/ui/hooks", () => ({useIsNarrowScreen: () => false}))
@@ -115,7 +126,6 @@ describe("ObservabilityScreen app filter", () => {
         router.query = {workspace_id: "ws", project_id: "pr"}
         router.replace.mockClear()
         viewEnabled.current = true
-        canEnable.current = true
         window.history.replaceState(null, "", "/")
         store = createStore()
         store.set(queryClientAtom, queryClient)
@@ -151,16 +161,6 @@ describe("ObservabilityScreen app filter", () => {
         mount()
 
         expect(host.innerHTML).toBe("")
-        expect(store.get(observabilityScopeAtom)).toEqual({appId: null, routeAppId: null})
-    })
-
-    it("A view that cannot be on renders the content at once, without waiting for the user", () => {
-        viewEnabled.current = null
-        canEnable.current = false
-        router.query = {...router.query, app: "app-1"}
-        mount()
-
-        expect(host.innerHTML).not.toBe("")
         expect(store.get(observabilityScopeAtom)).toEqual({appId: null, routeAppId: null})
     })
 
@@ -200,5 +200,70 @@ describe("ObservabilityScreen app filter", () => {
         mount()
 
         expect(store.get(observabilityScopeAtom)).toEqual({appId: "app-1", routeAppId: "app-1"})
+    })
+
+    it("Auto-refresh reloads the traces every 15 seconds while it is on", async () => {
+        vi.useFakeTimers()
+        try {
+            fetchTraces.mockClear()
+            mount()
+            await act(async () => vi.advanceTimersByTime(15000))
+            expect(fetchTraces).not.toHaveBeenCalled()
+
+            act(() => store.set(autoRefreshAtom, true))
+            await act(async () => vi.advanceTimersByTime(15000))
+            expect(fetchTraces).toHaveBeenCalledTimes(1)
+            await act(async () => vi.advanceTimersByTime(15000))
+            expect(fetchTraces).toHaveBeenCalledTimes(2)
+
+            act(() => store.set(autoRefreshAtom, false))
+            await act(async () => vi.advanceTimersByTime(30000))
+            expect(fetchTraces).toHaveBeenCalledTimes(2)
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
+    it("A refresh is skipped while the previous one is still running", async () => {
+        vi.useFakeTimers()
+        try {
+            fetchTraces.mockClear()
+            let finish = () => undefined as void
+            fetchTraces.mockImplementationOnce(
+                () => new Promise<undefined>((resolve) => (finish = () => resolve(undefined))),
+            )
+            mount()
+            act(() => store.set(autoRefreshAtom, true))
+            await act(async () => vi.advanceTimersByTime(15000))
+            expect(fetchTraces).toHaveBeenCalledTimes(1)
+            // A manual refresh and later ticks wait for the slow reload.
+            await click("refresh")
+            await act(async () => vi.advanceTimersByTime(30000))
+            expect(fetchTraces).toHaveBeenCalledTimes(1)
+
+            await act(async () => finish())
+            await act(async () => vi.advanceTimersByTime(15000))
+            expect(fetchTraces).toHaveBeenCalledTimes(2)
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
+    it("A manual refresh restarts the 15 second countdown", async () => {
+        vi.useFakeTimers()
+        try {
+            fetchTraces.mockClear()
+            mount()
+            act(() => store.set(autoRefreshAtom, true))
+            await act(async () => vi.advanceTimersByTime(10000))
+            await click("refresh")
+            expect(fetchTraces).toHaveBeenCalledTimes(1)
+            await act(async () => vi.advanceTimersByTime(10000))
+            expect(fetchTraces).toHaveBeenCalledTimes(1)
+            await act(async () => vi.advanceTimersByTime(5000))
+            expect(fetchTraces).toHaveBeenCalledTimes(2)
+        } finally {
+            vi.useRealTimers()
+        }
     })
 })
