@@ -19,7 +19,6 @@ import type {TestsetEditor} from "./useTestsetEditor"
 
 type GridEditor = Pick<
     TestsetEditor,
-    | "isNew"
     | "tableConfig"
     | "readOnly"
     | "columnEditBlocked"
@@ -36,8 +35,8 @@ const deletedRowsMessage = (count: number) =>
 
 /**
  * The testcase grid of a test set page: rows, the row menu, the column menus and the column
- * steps, and the bulk delete. Every change goes through the editor: rows stay unsaved until
- * the commit, and a column change on a saved test set saves a new version at once.
+ * steps, and the bulk delete. Every change goes through the editor and stays unsaved until the
+ * commit.
  *
  * A reader who may not edit gets the rows and "Copy ID" only. While a save runs
  * (`editor.readOnly`) every change is off.
@@ -46,13 +45,10 @@ export const TestsetGrid = ({
     editor,
     canEdit,
     onOpenRow,
-    onColumnSaved,
 }: {
     editor: GridEditor
     canEdit: boolean
     onOpenRow: (rowId: string) => void
-    /** Opens the version a column change saved. */
-    onColumnSaved: (revisionId: string) => void
 }) => {
     const {tableConfig, readOnly, deleteRows} = editor
     const [selected, setSelected] = useState<string[]>([])
@@ -204,13 +200,9 @@ export const TestsetGrid = ({
             />
             <ColumnDialog
                 step={step}
-                savesVersion={!editor.isNew}
                 onClose={() => setStep(null)}
                 onSubmit={submitStep}
-                onDone={(revisionId) => {
-                    setStep(null)
-                    if (revisionId) onColumnSaved(revisionId)
-                }}
+                onDone={() => setStep(null)}
             />
         </>
     )

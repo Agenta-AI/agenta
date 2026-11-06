@@ -9,11 +9,6 @@ import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
-import {PageNotFound} from "@/components/PageNotFound"
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMembers"
-
 import {useBindProjectContext} from "../../context/useBindProjectContext"
 import {useProjectPermission} from "../../context/useProjectPermission"
 import {AppShell} from "../../nav/AppShell"
@@ -29,6 +24,11 @@ import {useRevisionsList} from "./useRevisionsList"
 import {useTestsetEditor} from "./useTestsetEditor"
 import {useTestsetExport} from "./useTestsetExport"
 import {useUpdateTestsetDetails} from "./useUpdateTestsetDetails"
+
+import {PageNotFound} from "@/components/PageNotFound"
+import {PageTitle} from "@/components/PageTitle"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMembers"
 
 // The drawer pulls the rich editor, so it loads on the first row the reader opens.
 const TestcaseEditorDrawer = dynamic(
@@ -153,7 +153,6 @@ export const TestsetDetailScreen = ({
         <div className="flex min-w-0 flex-col gap-3">
             <TestsetToolbar
                 editor={editor}
-                routeId={routeId}
                 base={base}
                 canEdit={canEdit}
                 revisions={revisions}
@@ -162,12 +161,7 @@ export const TestsetDetailScreen = ({
                 commitOpen={commitOpen}
                 onCommitOpenChange={setCommitOpen}
             />
-            <TestsetGrid
-                editor={editor}
-                canEdit={canEdit}
-                onOpenRow={openRow}
-                onColumnSaved={(id) => go(testsetRevisionPath(base, id))}
-            />
+            <TestsetGrid editor={editor} canEdit={canEdit} onOpenRow={openRow} />
         </div>
     )
 

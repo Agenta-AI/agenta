@@ -113,10 +113,7 @@ describe("useTestsetEditor", () => {
         mount("new", "Greeting checks")
 
         expect(await act(() => editor().addColumn("   "))).toEqual({ok: false, reason: "empty"})
-        expect(await act(() => editor().addColumn(" country "))).toEqual({
-            ok: true,
-            revisionId: null,
-        })
+        expect(await act(() => editor().addColumn(" country "))).toEqual({ok: true})
         expect(await act(() => editor().addColumn("country"))).toEqual({
             ok: false,
             reason: "duplicate",
