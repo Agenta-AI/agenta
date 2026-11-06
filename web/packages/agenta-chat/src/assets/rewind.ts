@@ -1,6 +1,8 @@
 // Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
 import type {UIMessage} from "ai"
 
+import {getMessageTurnId} from "./agentTurn"
+
 /**
  * Tools with no external side effect — safe to rewind/retry past silently. v1 hardcodes
  * this; the principled source is a `readOnly` flag on the tool spec (see
@@ -8,6 +10,27 @@ import type {UIMessage} from "ai"
  * as potentially side-effecting, so the user is warned before rewinding past it.
  */
 export const READ_ONLY_TOOLS = new Set(["search_docs"])
+
+/** The durable turn a rewind at `index` removes: that of the user message at or before it. */
+export const rewindTurnId = (messages: UIMessage[], index: number): string | null => {
+    for (let i = index; i >= 0; i--) {
+        if (messages[i].role === "user") return getMessageTurnId(messages[i])
+    }
+    return null
+}
+
+/** The same lookup against the server's transcript, for a message not adopted from it yet. */
+export const rewindTurnIdInTranscript = (
+    messages: UIMessage[],
+    index: number,
+    server: UIMessage[],
+): string | null => {
+    const users = messages.slice(0, index + 1).filter((m) => m.role === "user")
+    const match = server.filter((m) => m.role === "user")[users.length - 1]
+    // Another client's message can hold the same position, so the words must agree too.
+    if (!match || messageText(match) !== messageText(users[users.length - 1])) return null
+    return getMessageTurnId(match)
+}
 
 /** Concatenated text of a message's text parts. */
 export const messageText = (message: UIMessage): string =>

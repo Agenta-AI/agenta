@@ -173,6 +173,17 @@ class SessionTurnsService:
             session_ids=session_ids,
         )
 
+    async def forget_native_sessions(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> None:
+        await self._dao.forget_native_sessions(
+            project_id=project_id,
+            session_id=session_id,
+        )
+
     async def delete_by_session_id(
         self,
         *,

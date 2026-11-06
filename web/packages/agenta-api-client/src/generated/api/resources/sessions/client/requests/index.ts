@@ -30,6 +30,7 @@ export type { SessionMountQueryRequest } from "./SessionMountQueryRequest.js";
 export type { SessionQueryRequest } from "./SessionQueryRequest.js";
 export type { SessionRecordQueryRequest } from "./SessionRecordQueryRequest.js";
 export type { SessionRecordsIncompleteRequest } from "./SessionRecordsIncompleteRequest.js";
+export type { SessionRewindRequest } from "./SessionRewindRequest.js";
 export type { SessionStreamCommandRequest } from "./SessionStreamCommandRequest.js";
 export type { SessionStreamQueryRequest } from "./SessionStreamQueryRequest.js";
 export type { SessionTurnAppendRequest } from "./SessionTurnAppendRequest.js";

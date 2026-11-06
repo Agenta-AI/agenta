@@ -800,16 +800,19 @@ export const LiveConversation = ({
         (turn: TurnViewModel) => {
             const plan = rewind(turn.message)
             if (!plan) return
-            const run = () => {
+            const run = async () => {
                 // Access can go while the confirmation is open: the OK then writes nothing.
                 if (lockedRef.current) return
-                plan.confirm()
+                if (!(await plan.confirm())) {
+                    message.error("Could not rewind this turn. Try again.")
+                    return
+                }
                 if (plan.restoreText === undefined) return
                 composerRef.current?.setMarkdown(plan.restoreText)
                 requestAnimationFrame(() => composerRef.current?.focus())
             }
             if (plan.sideEffects.length === 0) {
-                run()
+                void run()
                 return
             }
             modal.confirm({

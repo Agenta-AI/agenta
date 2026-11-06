@@ -29,7 +29,12 @@ log = get_module_logger(__name__)
 _KILL_TIMEOUT_SECONDS = 10.0
 
 
-async def kill_runner_sandbox(*, project_id: str, session_id: str) -> bool:
+async def kill_runner_sandbox(
+    *,
+    project_id: str,
+    session_id: str,
+    timeout_seconds: float = _KILL_TIMEOUT_SECONDS,
+) -> bool:
     """POST the runner's `/kill`, scoped to (project_id, session_id). Returns True iff the
     call was made and returned 2xx; False otherwise (not configured, network error, non-2xx).
     Never raises — kill's Redis/row edit is the source of truth and must not be blocked by
@@ -45,7 +50,7 @@ async def kill_runner_sandbox(*, project_id: str, session_id: str) -> bool:
 
     url = base_url.rstrip("/") + "/kill"
     try:
-        async with httpx.AsyncClient(timeout=_KILL_TIMEOUT_SECONDS) as client:
+        async with httpx.AsyncClient(timeout=timeout_seconds) as client:
             response = await client.post(
                 url,
                 json={"sessionId": session_id, "projectId": project_id},

@@ -32,6 +32,7 @@ export const shouldAdoptTranscript = (transcript: unknown, rendered: RenderedTra
                 ? rendered.recordCount
                 : rendered.sequenceCursor,
         busy: false,
+        rewoundSequence: transcript.rewoundSequence,
     })
 
 /** Resolve one watch-triggered read without letting transport failure reach React. */

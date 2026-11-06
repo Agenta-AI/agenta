@@ -17,6 +17,9 @@ MAX_LIVE_FRAME_BYTES = 64 * 1024
 # the ingest worker, which read the same marker off their own layers.
 TERMINAL_RECORD_TYPE = "done"
 
+# Marks where a rewind removed the turns after it. It carries no conversation content.
+REWIND_RECORD_TYPE = "rewind"
+
 # Who wrote a terminal record, stamped into `attributes` by the writer.
 #
 # Only the platform ever sets it: the ingest route builds `SessionRecordEvent` field by field

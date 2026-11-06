@@ -229,6 +229,13 @@ export async function hydrateHarnessSessionFromDurable(
     store.restoreLatestTurn(sessionId, latestOverall.turn_index);
   }
 
+  // A finished turn with no native session id means a rewind cleared it. Any id this pod still
+  // holds names a native conversation that contains the removed turns.
+  if (latestOverall?.end_time && !latestOverall.agent_session_id) {
+    store.invalidate(sessionId, harness);
+    return;
+  }
+
   // Only seed the store when it has NOTHING for this (session, harness) yet — a live
   // in-process record (this restart never happened) is always fresher than the durable
   // mirror and must not be clobbered by a stale read.

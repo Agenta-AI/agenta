@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 from uuid import UUID
 
-from sqlalchemy import case, func, or_, select, tuple_, update
+from sqlalchemy import and_, case, func, or_, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -239,6 +239,7 @@ class RecordsDAO(RecordsDAOInterface):
                 .where(
                     RecordDBE.project_id == project_id,
                     RecordDBE.session_id == session_id,
+                    RecordDBE.deleted_at.is_(None),
                     # A quarantined record is history the platform refused: it reached ingest
                     # for a turn the watchdog had already ended. Excluding it HERE is what
                     # makes one execution render one ending, because this is the read every
@@ -250,6 +251,98 @@ class RecordsDAO(RecordsDAOInterface):
 
             dbes = (await session.execute(stmt)).scalars().all()
             return [map_record_dbe_to_dto(dbe=dbe) for dbe in dbes]
+
+    async def has_turn(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: str,
+    ) -> bool:
+        async with self.engine.session() as session:
+            found = await session.scalar(
+                select(RecordDBE.record_id)
+                .where(
+                    RecordDBE.project_id == project_id,
+                    RecordDBE.session_id == session_id,
+                    RecordDBE.turn_id == turn_id,
+                    RecordDBE.deleted_at.is_(None),
+                )
+                .limit(1)
+            )
+            return found is not None
+
+    async def rewound_turns(
+        self,
+        *,
+        project_id: UUID,
+        keys: Sequence[Tuple[str, str]],
+    ) -> Set[Tuple[str, str]]:
+        async with self.engine.session() as session:
+            rows = await session.execute(
+                select(RecordDBE.session_id, RecordDBE.turn_id)
+                .where(
+                    RecordDBE.project_id == project_id,
+                    tuple_(RecordDBE.session_id, RecordDBE.turn_id).in_(keys),
+                    RecordDBE.deleted_at.is_not(None),
+                )
+                .distinct()
+            )
+            return {(session_id, turn_id) for session_id, turn_id in rows}
+
+    async def rewind_from_turn(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: str,
+        user_id: Optional[UUID],
+        marker: SessionRecordEvent,
+    ) -> int:
+        async with self.engine.session() as session:
+            live = (
+                RecordDBE.project_id == project_id,
+                RecordDBE.session_id == session_id,
+                RecordDBE.deleted_at.is_(None),
+            )
+            first_sequence, first_created_at = (
+                await session.execute(
+                    select(
+                        func.min(RecordDBE.sequence),
+                        func.min(RecordDBE.created_at),
+                    ).where(*live, RecordDBE.turn_id == turn_id)
+                )
+            ).one()
+            if first_created_at is None:
+                return 0
+            order, start = (
+                (RecordDBE.sequence, first_sequence)
+                if first_sequence is not None
+                else (RecordDBE.created_at, first_created_at)
+            )
+            # By turn, not by row: `sequence` is commit order, so an earlier turn's late row can
+            # sit past this turn's first row and must stay.
+            later_turns = (
+                select(RecordDBE.turn_id)
+                .where(*live, RecordDBE.turn_id.is_not(None))
+                .group_by(RecordDBE.turn_id)
+                .having(func.min(order) >= start)
+            )
+            result = await session.execute(
+                update(RecordDBE)
+                .where(
+                    *live,
+                    or_(
+                        RecordDBE.turn_id.in_(later_turns),
+                        and_(RecordDBE.turn_id.is_(None), order >= start),
+                    ),
+                )
+                .values(deleted_at=func.now(), deleted_by_id=user_id)
+                .execution_options(synchronize_session=False)
+            )
+            await self._append(event=marker, session=session)
+            await session.commit()
+            return result.rowcount or 0
 
     @staticmethod
     def _send_order():
@@ -629,6 +722,7 @@ class RecordsDAO(RecordsDAOInterface):
             stmt = select(RecordDBE).where(
                 RecordDBE.project_id == project_id,
                 RecordDBE.record_id == record_id,
+                RecordDBE.deleted_at.is_(None),
             )
 
             dbe = (await session.execute(stmt)).scalars().first()

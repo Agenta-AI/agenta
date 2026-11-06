@@ -29,6 +29,7 @@ import {
     revalidateSessionMountsAtom,
     revalidateSessionInteractionsAtom,
     revalidateSessionRecordsAtom,
+    rewindSessionAtom,
     revalidateSessionTurnsAtom,
     shouldAdoptServerTranscript,
 } from "@agenta/entities/session"
@@ -64,7 +65,7 @@ import {
     type SessionTranscript,
 } from "../assets/loadSession"
 import {mergePendingSendEchoRows} from "../assets/pendingSendEchoes"
-import {sideEffectingToolsInRange} from "../assets/rewind"
+import {rewindTurnId, rewindTurnIdInTranscript, sideEffectingToolsInRange} from "../assets/rewind"
 import {submitServerOwnedApproval} from "../assets/serverOwnedApproval"
 import {startupPhaseFromDataPart} from "../assets/startupPhases"
 import {getMessageTraceId} from "../assets/trace"
@@ -150,8 +151,8 @@ export interface RewindPlan {
     sideEffects: string[]
     /** For a user-message rewind: the message text to put back into the composer. */
     restoreText?: string
-    /** Execute the rewind: truncate before a user message, regenerate an assistant one. */
-    confirm: () => void
+    /** Remove the turn on the server, then here. Resolves false when nothing changed. */
+    confirm: () => Promise<boolean>
 }
 
 /** Settle a parked client tool (#4920) through the server response endpoint (success or
@@ -214,8 +215,6 @@ export interface AgentConversation {
     voidPendingResume: () => void
     /** Abort the in-flight stream and tag the last assistant turn as user-stopped. */
     stop: () => void
-    /** Re-run an assistant turn by message id (also the "Resend" action after a stop). */
-    regenerate: (id: string) => void
     /** Adopt a newly committed workflow revision for subsequent sends in this session. */
     adoptRevision: (revisionId: string) => void
     /** Scan a rewind target; null while busy or for an unknown message. */
@@ -312,6 +311,13 @@ export const useAgentConversation = ({
     const holdSessionStatus = useSetAtom(holdSessionStatusAtom)
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
+    const rewindSession = useSetAtom(rewindSessionAtom)
+    // A send that overtakes a rewind would land in the turns the rewind is about to remove.
+    const rewindInFlightRef = useRef<Promise<boolean> | null>(null)
+    // A live turn clears the watermark, so an old rewind must not bypass the length floor again.
+    const adoptedRewindRef = useRef(-1)
+    // Once the server has rewound, only a read that carries that rewind may replace the screen.
+    const awaitingRewindRef = useRef(false)
     // The footer's figures: a turn's end and its runner usage land on the session turn.
     const revalidateSessionTurns = useSetAtom(revalidateSessionTurnsAtom)
     const refreshSessionTurnsOnTurnEnd = useSetAtom(refreshSessionTurnsOnTurnEndAtom)
@@ -647,8 +653,16 @@ export const useAgentConversation = ({
             generation: number,
         ): boolean => {
             if (!mount.isCurrent(generation)) return false
+            // A re-run still needs the user message the server just removed.
+            if (rewindInFlightRef.current) return false
             if (!isSessionTranscript(transcript)) return false
-            const {messages: serverMsgs, recordCount, sequenceCursor} = transcript
+            if (
+                awaitingRewindRef.current &&
+                (transcript.rewoundSequence ?? -1) <= adoptedRewindRef.current
+            ) {
+                return false
+            }
+            const {messages: serverMsgs, recordCount, sequenceCursor, rewoundSequence} = transcript
             const adopt = shouldAdoptServerTranscript({
                 serverRecordCount: sequenceCursor ?? recordCount,
                 serverMessageCount: serverMsgs.length,
@@ -663,8 +677,14 @@ export const useAgentConversation = ({
                 // reconnects instead of opening the events stream — so a shared turn that drops
                 // mid-run can never come back until it settles.
                 busy: localRenderBusyRef.current,
+                rewoundSequence:
+                    (rewoundSequence ?? -1) > adoptedRewindRef.current
+                        ? rewoundSequence
+                        : undefined,
             })
             if (!adopt) return false
+            adoptedRewindRef.current = Math.max(adoptedRewindRef.current, rewoundSequence ?? -1)
+            awaitingRewindRef.current = false
             serverMsgs.forEach((m) => restoredIdsRef.current.add(m.id))
             // Adopting a non-empty server transcript settles the question the notice asks, so it
             // clears here for every path (the revalidate copy did this, the hydration one didn't).
@@ -720,7 +740,8 @@ export const useAgentConversation = ({
         )
             .then((transcript) => {
                 if (cancelled) return
-                if (!transcript || transcript.messages.length === 0) {
+                const emptied = transcript?.rewoundSequence !== undefined
+                if (!transcript || (transcript.messages.length === 0 && !emptied)) {
                     // A refetch already landed real history, which this stale first result must
                     // not blank out.
                     if (adopted) return
@@ -1252,6 +1273,7 @@ export const useAgentConversation = ({
             const fileObjs = files ?? []
             const refParts = parts ?? []
             if (!trimmed && fileObjs.length === 0 && refParts.length === 0) return
+            await rewindInFlightRef.current
             // Send what encoded. A file that cannot be read no longer takes the text and the
             // other attachments down with it (`filesToParts` settles each file separately).
             const encoded = fileObjs.length ? await filesToParts(fileObjs) : undefined
@@ -1279,6 +1301,16 @@ export const useAgentConversation = ({
         [submit, sessionId],
     )
 
+    const sendQueuedNowAfterRewind = useMemo(
+        () =>
+            sendQueuedNow &&
+            (async (...args: Parameters<typeof sendQueuedNow>) => {
+                await rewindInFlightRef.current
+                return sendQueuedNow(...args)
+            }),
+        [sendQueuedNow],
+    )
+
     const steerInput = useCallback(
         async (
             {text, files, parts, stagedFiles}: SendInput,
@@ -1299,44 +1331,58 @@ export const useAgentConversation = ({
         [sessionId, steer],
     )
 
-    const regenerateTurn = useCallback(
-        (id: string) => {
-            clearSessionTurnId(sessionId)
-            if (busyRef.current) return
-            setStopped(false)
-            regenerate({messageId: id}).catch(ignoreStreamRejection)
-        },
-        [regenerate, sessionId],
-    )
-
     // Rewind scan: pure side-effect detection + a deferred `confirm()`. The skin owns the
     // warning dialog (when `sideEffects` is non-empty) and the composer refill (`restoreText`).
     const rewind = useCallback(
         (message: UIMessage): RewindPlan | null => {
             const msgs = messagesRef.current
-            if (busyRef.current) return null
+            if (busyRef.current || rewindInFlightRef.current) return null
             const idx = msgs.findIndex((m) => m.id === message.id)
             if (idx < 0) return null
             const isUser = message.role === "user"
             const sideEffects = sideEffectingToolsInRange(msgs.slice(idx))
-            const confirm = () => {
+            const execute = async (): Promise<boolean> => {
+                // The skin calls this after its warning dialog, so `msgs`/`idx` are a snapshot
+                // from scan time. Re-resolve against the live transcript.
+                const current = messagesRef.current
+                const at = current.findIndex((m) => m.id === message.id)
+                if (at < 0) return false
+                let turnId = rewindTurnId(current, at)
+                if (!turnId) {
+                    const server = {messages: [] as UIMessage[]}
+                    await reloadSessionMessages(sessionId, (transcript) => {
+                        server.messages = transcript.messages
+                    })
+                    turnId = rewindTurnIdInTranscript(current, at, server.messages)
+                }
+                // No turn in the log means the send never reached it, so only this screen holds it.
+                if (turnId) {
+                    const removed = await rewindSession({sessionId, turnId})
+                    if (removed === null) return false
+                    awaitingRewindRef.current = removed > 0
+                    revalidateSessionRecords(sessionId)
+                }
                 if (isUser) {
-                    // The skin calls this after its warning dialog, so `msgs`/`idx` are a
-                    // snapshot from scan time. A revalidation adopted in that window would be
-                    // thrown away by writing the stale array, so re-resolve against the live
-                    // transcript and bail if the message is no longer in it.
-                    const current = messagesRef.current
-                    const at = current.findIndex((m) => m.id === message.id)
-                    if (at < 0) return
-                    editedSourceRef.current = current[at]
-                    saveDisplayEdit(sessionId, current[at])
+                    const latest = messagesRef.current
+                    const cut = latest.findIndex((m) => m.id === message.id)
+                    if (cut < 0) return true
+                    editedSourceRef.current = latest[cut]
+                    saveDisplayEdit(sessionId, latest[cut])
                     // Sends after the rewind point belong to a history that no longer exists.
                     clearPendingSendEchoes(sessionId)
-                    setMessages(current.slice(0, at))
+                    setMessages(latest.slice(0, cut))
                 } else {
                     clearSessionTurnId(sessionId)
                     regenerate({messageId: message.id}).catch(ignoreStreamRejection)
                 }
+                return true
+            }
+            const confirm = () => {
+                const run = execute().finally(() => {
+                    rewindInFlightRef.current = null
+                })
+                rewindInFlightRef.current = run
+                return run
             }
             return {
                 sideEffects,
@@ -1344,7 +1390,7 @@ export const useAgentConversation = ({
                 confirm,
             }
         },
-        [regenerate, sessionId, setMessages],
+        [regenerate, revalidateSessionRecords, rewindSession, sessionId, setMessages],
     )
 
     // Per-mount executed-identity cache, so the identity JSON.stringify doesn't re-run per streamed token.
@@ -1388,7 +1434,6 @@ export const useAgentConversation = ({
         sendInFlight,
         voidPendingResume,
         stop: handleStop,
-        regenerate: regenerateTurn,
         rewind,
         isHydrating,
         isEmpty: displayMessages.length === 0,
@@ -1401,7 +1446,7 @@ export const useAgentConversation = ({
         steer: steerInput,
         hitlPending,
         removeQueued,
-        sendQueuedNow,
+        sendQueuedNow: sendQueuedNowAfterRewind,
         sendNowPending,
         editingId,
         beginEdit,

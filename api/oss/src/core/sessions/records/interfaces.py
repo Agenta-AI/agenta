@@ -36,6 +36,39 @@ class RecordsDAOInterface:
     ) -> List[SessionRecord]:
         raise NotImplementedError
 
+    async def has_turn(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: str,
+    ) -> bool:
+        """Does the log still hold a record of this turn?"""
+        raise NotImplementedError
+
+    async def rewound_turns(
+        self,
+        *,
+        project_id: UUID,
+        keys: Sequence[Tuple[str, str]],
+    ) -> Set[Tuple[str, str]]:
+        """The (session_id, turn_id) keys a rewind removed."""
+        raise NotImplementedError
+
+    async def rewind_from_turn(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: str,
+        user_id: Optional[UUID],
+        marker: SessionRecordEvent,
+    ) -> int:
+        """Soft-delete `turn_id` and every later turn, and write `marker` in the same commit.
+
+        Returns the rows removed. Removing none writes nothing."""
+        raise NotImplementedError
+
     async def get_records_page(
         self,
         *,

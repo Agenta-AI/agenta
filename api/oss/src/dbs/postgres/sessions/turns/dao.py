@@ -461,6 +461,23 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
             dbes = result.scalars().all()
         return {dbe.session_id: map_turn_dbe_to_dto(turn_dbe=dbe) for dbe in dbes}
 
+    async def forget_native_sessions(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> None:
+        async with self.engine.session() as session:
+            await session.execute(
+                sa_update(SessionTurnDBE)
+                .where(
+                    SessionTurnDBE.project_id == project_id,
+                    SessionTurnDBE.session_id == session_id,
+                )
+                .values(agent_session_id=None, sandbox_id=None)
+            )
+            await session.commit()
+
     async def delete_by_session_id(
         self,
         *,

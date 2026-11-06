@@ -136,6 +136,48 @@ describe("fetchLatestSessionTurn", () => {
 });
 
 describe("hydrateHarnessSessionFromDurable", () => {
+  it("drops a live record when a rewind cleared the native session", async () => {
+    const store = new SessionContinuityStore();
+    store.record("sess-1", "claude", "native-with-removed-turns", 2);
+
+    await hydrateHarnessSessionFromDurable("sess-1", "claude", store, {
+      authorization: "Secret x",
+      apiBase: "http://api",
+      log: SILENT,
+      fetchImpl: (async () =>
+        okResponse({
+          count: 1,
+          turns: [
+            {
+              harness_kind: "claude",
+              turn_index: 2,
+              end_time: "2026-11-07T00:00:00Z",
+            },
+          ],
+        })) as unknown as typeof fetch,
+    });
+
+    assert.equal(store.get("sess-1", "claude"), undefined);
+  });
+
+  it("keeps a live record while the latest turn is still running", async () => {
+    const store = new SessionContinuityStore();
+    store.record("sess-1", "claude", "native-1", 2);
+
+    await hydrateHarnessSessionFromDurable("sess-1", "claude", store, {
+      authorization: "Secret x",
+      apiBase: "http://api",
+      log: SILENT,
+      fetchImpl: (async () =>
+        okResponse({
+          count: 1,
+          turns: [{ harness_kind: "claude", turn_index: 3 }],
+        })) as unknown as typeof fetch,
+    });
+
+    assert.equal(store.get("sess-1", "claude")?.agentSessionId, "native-1");
+  });
+
   it("seeds an empty store from the latest turn for this harness", async () => {
     const store = new SessionContinuityStore();
     await hydrateHarnessSessionFromDurable("sess-1", "claude", store, {

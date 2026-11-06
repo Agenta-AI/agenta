@@ -43,6 +43,15 @@ class SessionExecutionsDAOInterface(ABC):
         """Lock the unsettled continuation that still owns this session."""
         raise NotImplementedError
 
+    async def has_active_continuation(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> bool:
+        """Does an unsettled continuation still own this session?"""
+        raise NotImplementedError
+
     async def create_continuation(
         self,
         *,

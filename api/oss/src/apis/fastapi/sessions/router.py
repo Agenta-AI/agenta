@@ -181,6 +181,7 @@ from oss.src.core.sessions.turns.types import (
     SessionTurnStreamMismatch,
 )
 from oss.src.core.sessions.dtos import SessionExpansion
+from oss.src.core.sessions.rewind import SessionRewindBusy, SessionRewindService
 from oss.src.core.sessions.service import SessionsService
 from oss.src.core.mounts.types import MountNotFound
 from oss.src.core.mounts.service import MountsService
@@ -211,6 +212,8 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionExecutionRef,
     # streams
     SessionDetachRequest,
+    SessionRewindRequest,
+    SessionRewindResponse,
     SessionStreamQueryRequest,
     SessionStreamResponse,
     SessionStreamsResponse,
@@ -595,12 +598,24 @@ class SessionStreamsRouter:
         interactions_service: SessionInteractionsService,
         run_admission: RunAdmission,
         records_service: Optional[RecordsService] = None,
+        rewind_service: Optional[SessionRewindService] = None,
     ) -> None:
         self._service = service
         self._interactions_service = interactions_service
         self._run_admission = run_admission
         self._records_service = records_service
+        self._rewind_service = rewind_service
         self.router = APIRouter()
+
+        if rewind_service is not None:
+            self.router.add_api_route(
+                "/sessions/{session_id}/rewind",
+                self.rewind_session,
+                methods=["POST"],
+                operation_id="rewind_session",
+                response_model=SessionRewindResponse,
+                tags=["Sessions"],
+            )
 
         self.router.add_api_route(
             "/sessions/tools/current",
@@ -902,6 +917,44 @@ class SessionStreamsRouter:
             session_id=session_id,
         )
         return {"ok": True}
+
+    @intercept_exceptions()
+    @_handle_session_exceptions()
+    async def rewind_session(
+        self,
+        request: Request,
+        session_id: str,
+        payload: SessionRewindRequest,
+    ) -> SessionRewindResponse:
+        _validate_session_id_http(session_id)
+        project_id = UUID(str(request.state.project_id))
+        user_id = request.state.user_id
+
+        prefetch_session(request, session_id)
+        if not await allow_resource(
+            request,
+            action=Permission.RUN_SESSIONS,
+            resource=session_resource(session_id),
+        ):
+            # Hidden answers like a session with nothing to remove.
+            return SessionRewindResponse(removed=0)
+        try:
+            removed = await self._rewind_service.rewind(
+                project_id=project_id,
+                session_id=session_id,
+                turn_id=payload.turn_id,
+                user_id=UUID(str(user_id)) if user_id else None,
+            )
+        except SessionRewindBusy as error:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "session_running",
+                    "message": str(error),
+                    "retryable": True,
+                },
+            ) from error
+        return SessionRewindResponse(removed=removed)
 
     @intercept_exceptions()
     @_handle_session_exceptions()
@@ -3778,6 +3831,12 @@ class SessionsRouter:
             interactions_service=interactions_service,
             run_admission=run_admission,
             records_service=records_service,
+            rewind_service=SessionRewindService(
+                streams_service=streams_service,
+                records_service=records_service,
+                turns_service=turns_service,
+                interactions_service=interactions_service,
+            ),
         )
         self.records = RecordsRouter(
             records_service=records_service,
