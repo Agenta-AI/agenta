@@ -12,6 +12,7 @@ import {EvaluatorScoreCards} from "../evaluator/EvaluatorScoreCards"
 import {InputsList} from "../inputs"
 
 import {RowActions} from "./RowActions"
+import {RowRunSteps} from "./RowRunSteps"
 import {RowSyncTag} from "./RowSyncTag"
 import {RunResult} from "./RunResult"
 
@@ -96,7 +97,15 @@ export const CompletionRow = memo(
                         {row.isBusy ? (
                             <RunButton mode="cancel" onClick={row.cancelRow} />
                         ) : (
-                            <RunButton onClick={row.runRow} disabled={row.isRunning} />
+                            <div className="flex items-center">
+                                <RunButton onClick={row.runRow} disabled={row.isRunning} />
+                                <RowRunSteps
+                                    rowId={rowId}
+                                    entityId={entityId}
+                                    appHasOutput={Boolean(result && !result.error)}
+                                    disabled={row.isRunning}
+                                />
+                            </div>
                         )}
                     </div>
                 </div>
@@ -112,7 +121,11 @@ export const CompletionRow = memo(
                                 renderTraceFooter={renderTraceFooter}
                             />
                         </div>
-                        <EvaluatorScoreCards rowId={rowId} entityId={entityId} />
+                        <EvaluatorScoreCards
+                            rowId={rowId}
+                            entityId={entityId}
+                            renderTraceFooter={renderTraceFooter}
+                        />
                     </div>
                 </HeightCollapse>
             </section>

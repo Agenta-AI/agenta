@@ -6,9 +6,12 @@
  */
 import {act} from "react"
 
+import {loadableController} from "@agenta/entities/loadable"
 import {playgroundController} from "@agenta/playground"
+import {PromptTokenPathProvider} from "@agenta/playground-ui/panels/config"
 import {RunsPanel} from "@agenta/playground-ui/panels/runs"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
+import {useTokenPathSuggestions} from "@agenta/ui/editor"
 import {QueryClient} from "@tanstack/react-query"
 import {getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
@@ -78,10 +81,27 @@ const store = getDefaultStore()
 let root: Root
 let host: HTMLDivElement
 
+/** What the prompt editor's `{{$.inputs.` typeahead would offer. */
+const Suggestions = () => {
+    const getSuggestions = useTokenPathSuggestions()
+    if (!getSuggestions) return null
+    const labels = (path: string[]) => getSuggestions(path, "").map((item) => item.label)
+    return (
+        <output data-testid="token-paths">
+            {JSON.stringify({roots: labels(["inputs"]), meta: labels(["inputs", "meta"])})}
+        </output>
+    )
+}
+
 const Harness = () => {
     const {status, primaryRevisionId} = usePlaygroundSelection({appId: "app-1"})
     return status === "ready" && primaryRevisionId ? (
-        <RunsPanel revisionId={primaryRevisionId} />
+        <>
+            <PromptTokenPathProvider revisionId={primaryRevisionId}>
+                <Suggestions />
+            </PromptTokenPathProvider>
+            <RunsPanel revisionId={primaryRevisionId} />
+        </>
     ) : null
 }
 
@@ -149,6 +169,28 @@ describe("The completion run pane", () => {
         expect(rows()).toHaveLength(1)
         expect(host.textContent).toContain("test case 1")
         expect(host.querySelector('[data-testid="input-variable-country"]')).not.toBeNull()
+    })
+
+    it("The prompt typeahead offers the prompt's variables and the test case columns", async () => {
+        const paths = () =>
+            JSON.parse(host.querySelector('[data-testid="token-paths"]')!.textContent!) as {
+                roots: string[]
+                meta: string[]
+            }
+        expect(paths().roots).toEqual(["country"])
+
+        // A column the prompt does not use yet, with an object value.
+        const loadableId = store.get(playgroundController.selectors.loadableId())!
+        await act(async () =>
+            store.set(loadableController.actions.addRow, loadableId, {
+                country: "Peru",
+                meta: {region: "Andes"},
+            }),
+        )
+        await settle()
+
+        expect(paths().roots).toEqual(["country", "meta"])
+        expect(paths().meta).toEqual(["region"])
     })
 
     it("Run sends the row inputs and shows the output", async () => {
