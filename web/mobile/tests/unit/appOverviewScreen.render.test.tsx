@@ -1,14 +1,16 @@
 // @vitest-environment jsdom
-import {act, createElement, type ReactNode} from "react"
+import {act, createElement, lazy, Suspense, type ComponentType, type ReactNode} from "react"
 
 import {activeUserIdAtom} from "@agenta/shared/state"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
-import {createStore, Provider} from "jotai"
+import {createStore, Provider, type PrimitiveAtom} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
+// The page loads the screen through next/dynamic; a static import makes the lazy load settle fast.
+import "@/features/app-overview/AppOverviewScreen"
 import {DEVELOPER_VIEWS} from "@/features/developer/developerViews"
 import AppOverviewPage from "@/pages/w/[workspace_id]/p/[project_id]/apps/[app_id]/overview"
 
@@ -36,10 +38,21 @@ vi.mock("next/router", () => ({
         back: vi.fn(),
     }),
 }))
-vi.mock("next/dynamic", async () => {
-    const {AppOverviewScreen} = await import("@/features/app-overview/AppOverviewScreen")
-    return {default: () => AppOverviewScreen}
+const beta = vi.hoisted(() => ({atom: null as PrimitiveAtom<boolean> | null}))
+
+vi.mock("@agenta/shared/state", async (importOriginal) => {
+    const original = await importOriginal<Record<string, unknown>>()
+    const {atom} = await import("jotai")
+    beta.atom = atom(false)
+    return {...original, betaDeveloperModeActiveAtom: beta.atom}
 })
+vi.mock("next/dynamic", () => ({
+    default: (loader: () => Promise<ComponentType<Record<string, unknown>>>) => {
+        const Lazy = lazy(() => loader().then((component) => ({default: component})))
+        return (props: Record<string, unknown>) =>
+            createElement(Suspense, {fallback: null}, createElement(Lazy, props))
+    },
+}))
 vi.mock("@/features/nav/AppShell", () => ({
     AppShell: ({children}: {children: ReactNode}) => createElement("div", null, children),
 }))
@@ -50,6 +63,10 @@ vi.mock("@/features/context/useBindProjectContext", () => ({
 vi.mock("@/components/PageTitle", () => ({PageTitle: () => null}))
 vi.mock("@/features/app-overview/AppActionsMenu", () => ({
     AppActionsMenu: () => createElement("span", null, "actions-menu"),
+}))
+vi.mock("@/features/app-overview/AppUsageSection", () => ({
+    AppUsageSection: ({appId}: {appId: string}) =>
+        createElement("section", null, `usage-section:${appId}`),
 }))
 vi.mock("@/features/app-overview/AppDeploymentSection", () => ({
     AppDeploymentSection: () => createElement("section", null, "deployment-section"),
@@ -175,6 +192,20 @@ describe("app overview screen", () => {
         ].map((marker) => body.indexOf(marker))
         expect(order.every((index) => index >= 0)).toBe(true)
         expect([...order].sort((a, b) => a - b)).toEqual(order)
+    })
+
+    it("Without beta developer mode the overview has no usage charts", async () => {
+        await mount("app-1")
+        expect(text()).toContain("deployment-section")
+        expect(text()).not.toContain("usage-section")
+    })
+
+    it("In beta developer mode the usage charts of this app lead the overview", async () => {
+        if (beta.atom) store.set(beta.atom, true)
+        await mount("app-1")
+        const body = text()
+        expect(body).toContain("usage-section:app-1")
+        expect(body.indexOf("usage-section")).toBeLessThan(body.indexOf("deployment-section"))
     })
 
     it("An agent id redirects to the agent overview", async () => {

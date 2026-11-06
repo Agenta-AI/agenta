@@ -6,7 +6,6 @@ import {
 import dynamic from "next/dynamic"
 
 import {TraceSpanPanelSkeleton} from "./states/TraceSpanPanelSkeleton"
-import {TracePrettyJson} from "./TracePrettyJson"
 
 type Slot = TraceDrawerReferenceSlots["TraceSpanDrillInView"]
 
@@ -16,6 +15,13 @@ const TraceSpanPanel = dynamic(() => import("./TraceSpanPanel"), {
     ssr: false,
     loading: TraceSpanPanelSkeleton,
 })
+
+// The readable JSON view (message blocks, collapsible keys, copy per row) loads with the first
+// section shown in Pretty JSON mode. The slots are registered from the app shell.
+const PrettyJsonView = dynamic(
+    () => import("@agenta/observability-ui/drillIn").then((mod) => mod.PrettyJsonView),
+    {ssr: false},
+)
 
 // Every header action (the add-to-queue picker, add to test set, annotate) is in one chunk
 // behind one loader, registered under each slot name. The global drawers sit in the app shell, so
@@ -30,7 +36,7 @@ const HeaderAction = dynamic<AddToQueuePopoverSlotProps>(
 export const registerTraceDrawerSlots = () => {
     configureTraceDrawerReferences({
         TraceSpanDrillInView: TraceSpanPanel as unknown as Slot,
-        PrettyJsonView: TracePrettyJson as unknown as Slot,
+        PrettyJsonView: PrettyJsonView as unknown as Slot,
         AddToQueuePopover: HeaderAction,
         AddToTestsetButton: HeaderAction as unknown as Slot,
         AnnotateDrawerButton: HeaderAction as unknown as Slot,

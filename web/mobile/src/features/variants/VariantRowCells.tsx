@@ -16,9 +16,12 @@ export const VariantRowCells = ({
     onOpen,
     onDeploy,
     onDelete,
+    detailed = false,
 }: {
     row: AppRevisionRow
     narrow: boolean
+    /** The Registry table's cells: the full model name and the time. Beta developer mode only. */
+    detailed?: boolean
     isLatest: boolean
     canDeploy: boolean
     canDelete: boolean
@@ -41,12 +44,22 @@ export const VariantRowCells = ({
             />
         </span>
         {narrow ? null : (
-            <span className="block truncate text-[13px] text-muted-foreground">
+            <span
+                className={
+                    detailed
+                        ? "block break-all text-[13px] text-foreground"
+                        : "block truncate text-[13px] text-muted-foreground"
+                }
+            >
                 {row.model || "—"}
             </span>
         )}
         <span className="block truncate text-[13px] text-muted-foreground">
-            <FormattedDate date={row.createdAt} format="MMM D, YYYY" fallback="—" />
+            <FormattedDate
+                date={row.createdAt}
+                format={detailed && !narrow ? "MMM D, YYYY, h:mm A" : "MMM D, YYYY"}
+                fallback="—"
+            />
         </span>
         {narrow ? null : (
             <span className="block truncate text-[13px] text-muted-foreground">

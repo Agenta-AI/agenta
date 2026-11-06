@@ -79,6 +79,14 @@ vi.mock("@/features/revisions/RevisionDrawerHost", () => ({
             "data-ids": navigationIds.join(","),
         }),
 }))
+// The create surfaces are separate chunks. Stand in for them, and keep what the page hands them.
+vi.mock("@/features/evaluators/human/HumanEvaluatorSheet", () => ({
+    HumanEvaluatorSheet: ({editing}: {editing: {workflow: {id: string}} | null}) =>
+        createElement("div", {
+            "data-testid": "human-sheet",
+            "data-editing": editing?.workflow.id ?? "",
+        }),
+}))
 vi.mock("@agenta/shared/state", async (original) => {
     const {atom} = await import("jotai")
     return {
@@ -86,8 +94,7 @@ vi.mock("@agenta/shared/state", async (original) => {
         betaDeveloperModeActiveAtom: atom(() => state.beta),
     }
 })
-// The picker and the editable drawer are separate chunks. Stand in for them, and keep what the
-// page hands them visible.
+// The picker and the editable drawer are separate chunks too.
 vi.mock("@/features/evaluators/create/EvaluatorTemplatePicker", () => ({
     EvaluatorTemplatePicker: ({onPick}: {onPick: (template: {key: string}) => void}) =>
         createElement(
@@ -172,6 +179,7 @@ const button = (label: RegExp) =>
         label.test(b.textContent ?? ""),
     )
 const checkboxes = () => [...host.querySelectorAll<HTMLElement>('[role="checkbox"]')]
+const rowBox = (name: string) => host.querySelector<HTMLElement>(`[aria-label="Select ${name}"]`)
 
 beforeEach(() => {
     host = document.createElement("div")
@@ -218,6 +226,13 @@ describe("EvaluatorsScreen", () => {
         expect(text()).not.toContain("Quality rating")
     })
 
+    it("Without a tab in the address the Automatic tab opens, whatever tab was last used", async () => {
+        window.localStorage.setItem("agenta:evaluators:category", "human")
+        await mount()
+        expect(text()).toContain("Exact match check")
+        expect(text()).not.toContain("Quality rating")
+    })
+
     it("The human tab shows the Feedback column and no Type column", async () => {
         state.query = {tab: "human"}
         await mount()
@@ -235,28 +250,49 @@ describe("EvaluatorsScreen", () => {
         expect(row?.children).toHaveLength(headers().length)
     })
 
-    it("Revisions are grouped under their evaluator", async () => {
+    it("One row per evaluator on its latest version, newest first", async () => {
         await mount()
-        expect(text()).toContain("Exact match check v3")
-        expect(text()).toContain("Length check v1")
-        // Revision 0 is the empty first commit: not a row.
-        const exact = [...host.querySelectorAll('[aria-label^="Select Exact"]')]
-        expect(exact).toHaveLength(3)
-        expect(api.queryRevisions).toHaveBeenCalledWith(
-            ["w1", "w2"],
-            "pr",
-            {is_evaluator: true, is_managed: true},
-            expect.objectContaining({limit: 50, order: "descending"}),
+        const names = [...host.querySelectorAll('[role="button"] span[title]')].map(
+            (cell) => cell.textContent,
         )
+        expect(names).toEqual(["Exact match check", "Length check"])
+        expect(text()).toContain("v3")
+        // Older revisions load only when the reader expands an evaluator.
+        expect(api.queryRevisions).not.toHaveBeenCalled()
     })
 
-    it("Selecting rows replaces Archived with Archive", async () => {
+    it("Expanding an evaluator lists its older revisions under it, without revision 0", async () => {
         await mount()
-        expect(button(/^Archived$/)).toBeDefined()
+        expect(host.querySelector('[aria-label="Show older versions of Length check"]')).toBeNull()
+        const expand = host.querySelector<HTMLElement>(
+            '[aria-label="Show older versions of Exact match check"]',
+        )
+        await act(async () => expand?.click())
+        await flush()
+        expect(api.queryRevisions).toHaveBeenCalledWith(
+            ["w1"],
+            "pr",
+            {is_evaluator: true, is_managed: true},
+            expect.objectContaining({order: "descending"}),
+        )
+        const rows = [...host.querySelectorAll('[role="button"]')].map((row) => row.textContent)
+        expect(rows).toHaveLength(4)
+        expect(rows[1]).toContain("v2")
+        expect(rows[2]).toContain("v1")
+        expect(rows[3]).toContain("Length check")
+        // An older revision cannot be selected: only evaluators are archived.
+        expect(host.querySelectorAll('[aria-label="Select Exact match check"]')).toHaveLength(1)
+        expect(state.replace).not.toHaveBeenCalled()
+    })
+
+    it("Selecting a row shows the selection bar with Archive, and select all takes every evaluator", async () => {
+        await mount()
         expect(button(/^Archive$/)).toBeUndefined()
-        await act(async () => checkboxes()[0]?.click())
+        await act(async () => rowBox("Exact match check")?.click())
+        expect(text()).toContain("1 selected")
         expect(button(/^Archive$/)).toBeDefined()
-        expect(button(/^Archived$/)).toBeUndefined()
+        await act(async () => rowBox("all")?.click())
+        expect(text()).toContain("2 selected")
     })
 
     it("Archive is hidden without edit_evaluators", async () => {
@@ -290,7 +326,82 @@ describe("EvaluatorsScreen", () => {
         expect(items).toEqual(["Configure", "Copy ID", "Copy Slug", "Archive"])
     })
 
-    it("Without beta developer mode there is no Create new and a row opens the read-only drawer", async () => {
+    it("The automatic tab has no Create new: automatic create comes with the editable drawer", async () => {
+        await mount()
+        expect(button(/^Create new$/)).toBeUndefined()
+    })
+
+    it("Create new opens an empty human evaluator form on the human tab", async () => {
+        state.query = {tab: "human"}
+        await mount()
+        await act(async () => button(/^Create new$/)?.click())
+        await flush()
+        const sheet = document.querySelector('[data-testid="human-sheet"]')
+        expect(sheet?.getAttribute("data-editing")).toBe("")
+    })
+
+    it("Create new is hidden without edit_evaluators", async () => {
+        state.perms.edit_evaluators = false
+        state.query = {tab: "human"}
+        await mount()
+        expect(button(/^Create new$/)).toBeUndefined()
+    })
+
+    it("An empty human tab offers to create the first evaluator", async () => {
+        server.workflows = []
+        state.query = {tab: "human"}
+        await mount()
+        await act(async () => button(/^Create evaluator$/)?.click())
+        await flush()
+        expect(document.querySelector('[data-testid="human-sheet"]')).not.toBeNull()
+    })
+
+    it("A human row without edit_evaluators opens the read-only drawer", async () => {
+        state.perms.edit_evaluators = false
+        state.query = {tab: "human"}
+        await mount()
+        await act(async () => {
+            document
+                .querySelector('[aria-label="Evaluator actions"]')
+                ?.dispatchEvent(
+                    new MouseEvent("pointerdown", {bubbles: true, cancelable: true, button: 0}),
+                )
+        })
+        const items = [...document.querySelectorAll('[role="menuitem"]')].map((i) => i.textContent)
+        expect(items[0]).toBe("Open details")
+        await act(async () => {
+            document.dispatchEvent(new KeyboardEvent("keydown", {key: "Escape", bubbles: true}))
+        })
+        const row = host.querySelector<HTMLElement>('[role="button"]')
+        await act(async () => row?.click())
+        expect(document.querySelector('[data-testid="human-sheet"]')).toBeNull()
+        expect(state.replace).toHaveBeenCalled()
+    })
+
+    it("A human row opens its edit form, and its menu says Edit", async () => {
+        state.query = {tab: "human"}
+        await mount()
+        await act(async () => {
+            document
+                .querySelector('[aria-label="Evaluator actions"]')
+                ?.dispatchEvent(
+                    new MouseEvent("pointerdown", {bubbles: true, cancelable: true, button: 0}),
+                )
+        })
+        const items = [...document.querySelectorAll('[role="menuitem"]')].map((i) => i.textContent)
+        expect(items[0]).toBe("Edit")
+        await act(async () => {
+            document.dispatchEvent(new KeyboardEvent("keydown", {key: "Escape", bubbles: true}))
+        })
+        const row = host.querySelector<HTMLElement>('[role="button"]')
+        await act(async () => row?.click())
+        await flush()
+        const sheet = document.querySelector('[data-testid="human-sheet"]')
+        expect(sheet?.getAttribute("data-editing")).not.toBe("")
+        expect(state.replace).not.toHaveBeenCalled()
+    })
+
+    it("Without beta developer mode there is no automatic create and a row opens the read-only drawer", async () => {
         state.query = {revisionId: "w1-r3"}
         await mount()
         await flush()
@@ -342,13 +453,14 @@ describe("EvaluatorsScreen", () => {
         expect(api.error).toHaveBeenCalled()
     })
 
-    it("The human tab has no automatic create and keeps the read-only drawer in beta mode", async () => {
+    it("In beta mode the human tab creates with the human form, not the template picker", async () => {
         state.beta = true
-        state.query = {tab: "human", revisionId: "w3-r2"}
+        state.query = {tab: "human"}
         await mount()
+        await act(async () => button(/^Create new$/)?.click())
         await flush()
-        expect(button(/^Create new$/)).toBeUndefined()
-        expect(document.querySelector('[data-testid="drawer"]')).not.toBeNull()
+        expect(document.querySelector('[data-testid="human-sheet"]')).not.toBeNull()
+        expect(document.querySelector('[data-testid="template-picker"]')).toBeNull()
     })
 
     it("Clicking a row opens the evaluator drawer", async () => {
@@ -369,12 +481,12 @@ describe("EvaluatorsScreen", () => {
         await flush()
         const drawer = document.querySelector('[data-testid="drawer"]')
         expect(drawer?.getAttribute("data-kind")).toBe("evaluator")
-        expect(drawer?.getAttribute("data-ids")).toBe("w1-r3,w1-r2,w1-r1,w2-r1")
+        expect(drawer?.getAttribute("data-ids")).toBe("w1-r3,w2-r1")
     })
 
     it("Archiving a selected evaluator asks first, then archives it", async () => {
         await mount()
-        await act(async () => checkboxes()[0]?.click())
+        await act(async () => rowBox("Exact match check")?.click())
         await act(async () => button(/^Archive$/)?.click())
         expect(document.body.textContent).toContain("Archive evaluator")
         expect(document.body.textContent).toContain(
@@ -393,7 +505,7 @@ describe("EvaluatorsScreen", () => {
     it("An evaluator in use is not archived and the dialog says so", async () => {
         api.findRuns.mockResolvedValue(["run-1"])
         await mount()
-        await act(async () => checkboxes()[0]?.click())
+        await act(async () => rowBox("Exact match check")?.click())
         await act(async () => button(/^Archive$/)?.click())
         const confirm = [
             ...document.querySelectorAll<HTMLElement>('[role="alertdialog"] button'),
@@ -408,7 +520,7 @@ describe("EvaluatorsScreen", () => {
     it("A viewer without view_evaluation_runs archives without the in-use check", async () => {
         state.perms.view_evaluation_runs = false
         await mount()
-        await act(async () => checkboxes()[0]?.click())
+        await act(async () => rowBox("Exact match check")?.click())
         await act(async () => button(/^Archive$/)?.click())
         const confirm = [
             ...document.querySelectorAll<HTMLElement>('[role="alertdialog"] button'),
@@ -423,7 +535,7 @@ describe("EvaluatorsScreen", () => {
         state.failedLookups.add("view_evaluation_runs")
         api.findRuns.mockResolvedValue(["run-1"])
         await mount()
-        await act(async () => checkboxes()[0]?.click())
+        await act(async () => rowBox("Exact match check")?.click())
         await act(async () => button(/^Archive$/)?.click())
         const confirm = [
             ...document.querySelectorAll<HTMLElement>('[role="alertdialog"] button'),
@@ -439,7 +551,7 @@ describe("EvaluatorsScreen", () => {
         state.failedLookups.add("view_evaluation_runs")
         api.findRuns.mockRejectedValue(new Error("network"))
         await mount()
-        await act(async () => checkboxes()[0]?.click())
+        await act(async () => rowBox("Exact match check")?.click())
         await act(async () => button(/^Archive$/)?.click())
         const confirm = [
             ...document.querySelectorAll<HTMLElement>('[role="alertdialog"] button'),
