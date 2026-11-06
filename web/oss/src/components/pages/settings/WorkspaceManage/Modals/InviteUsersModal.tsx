@@ -1,4 +1,4 @@
-import {useCallback, useState, useMemo, type FC} from "react"
+import {useCallback, useEffect, useState, useMemo, type FC} from "react"
 
 import {inviteToWorkspace} from "@agenta/entities/organization"
 import {isEE, isEmailInvitationsEnabled} from "@agenta/shared/api"
@@ -15,6 +15,7 @@ import {useOrgData} from "@/oss/state/org"
 import {useWorkspaceRoles} from "@/oss/state/workspace"
 
 import {InviteFormProps, InviteUsersModalProps} from "./assets/types"
+import {getDefaultInviteRole} from "./getDefaultInviteRole"
 
 const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoading}) => {
     const {selectedOrg, refetch} = useOrgData()
@@ -27,6 +28,19 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
         // Always filter out "owner" role from invite dropdown
         return roles.filter((role) => role.role_name !== "owner")
     }, [roles])
+
+    // The plan decides which roles are offered, and they load after the form mounts, so the
+    // default is set once they arrive. A role the user already picked stays.
+    const defaultRole = useMemo(
+        () => getDefaultInviteRole(filteredRoles.map((role) => role.role_name || "")),
+        [filteredRoles],
+    )
+    useEffect(() => {
+        const names = filteredRoles.map((role) => role.role_name || "")
+        const current = form.getFieldValue("role")
+        if (current && names.includes(current)) return
+        form.setFieldValue("role", defaultRole)
+    }, [filteredRoles, defaultRole, form])
 
     const onSubmit = useCallback(
         ({emails, role}: {emails: string[]; role: string | null}) => {
@@ -134,7 +148,7 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
                 <Form.Item
                     name="role"
                     rules={[{required: true, message: "Please select a role"}]}
-                    initialValue="viewer"
+                    initialValue={defaultRole}
                     className="mb-1"
                 >
                     <Select
