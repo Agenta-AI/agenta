@@ -66,6 +66,34 @@
 }
 
 @theme inline {
+    /* The kit's preset tag colours (`Badge` variants `blue`, `green`, ...), from @agenta/ui's
+       theme variables. Without them a type tag renders as plain text. */
+    --color-tag-blue: var(--ag-preset-blue-text);
+    --color-tag-blue-bg: var(--ag-preset-blue-bg);
+    --color-tag-green: var(--ag-preset-green-text);
+    --color-tag-green-bg: var(--ag-preset-green-bg);
+    --color-tag-orange: var(--ag-preset-orange-text);
+    --color-tag-orange-bg: var(--ag-preset-orange-bg);
+    --color-tag-red: var(--ag-preset-red-text);
+    --color-tag-red-bg: var(--ag-preset-red-bg);
+    --color-tag-purple: var(--ag-preset-purple-text);
+    --color-tag-purple-bg: var(--ag-preset-purple-bg);
+    --color-tag-pink: var(--ag-preset-pink-text);
+    --color-tag-pink-bg: var(--ag-preset-pink-bg);
+    --color-tag-yellow: var(--ag-preset-yellow-text);
+    --color-tag-yellow-bg: var(--ag-preset-yellow-bg);
+    --color-tag-volcano: var(--ag-preset-volcano-text);
+    --color-tag-volcano-bg: var(--ag-preset-volcano-bg);
+    --color-tag-geekblue: var(--ag-preset-geekblue-text);
+    --color-tag-geekblue-bg: var(--ag-preset-geekblue-bg);
+    --color-tag-lime: var(--ag-preset-lime-text);
+    --color-tag-lime-bg: var(--ag-preset-lime-bg);
+    --color-tag-cyan: var(--ag-preset-cyan-text);
+    --color-tag-cyan-bg: var(--ag-preset-cyan-bg);
+    --color-tag-magenta: var(--ag-preset-magenta-text);
+    --color-tag-magenta-bg: var(--ag-preset-magenta-bg);
+    --color-tag-gold: var(--ag-preset-gold-text);
+    --color-tag-gold-bg: var(--ag-preset-gold-bg);
     --color-background: var(--background);
     --color-foreground: var(--foreground);
     --color-card: var(--card);
