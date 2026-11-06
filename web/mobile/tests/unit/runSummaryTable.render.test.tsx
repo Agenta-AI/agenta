@@ -29,7 +29,7 @@ const references = (patch: Partial<RunReferences> = {}): RunReferences => ({
     revisionVersion: 3,
     testsets: [{testsetId: "ts-1", revisionId: "tsr-1"}],
     evaluators: [],
-    queryIds: [],
+    queries: [],
     ...patch,
 })
 
@@ -94,9 +94,56 @@ describe("run summary table", () => {
     })
 
     it("Filters and queries row appears only for query runs", () => {
-        render(input({references: references({queryIds: ["q-1"]})}))
+        render(input({references: references({queries: [{queryId: "q-1", revisionId: "qr-1"}]})}))
         expect(rowKeys().slice(2, 4)).toEqual(["status", "queries"])
         expect(labelText("queries")).toBe("Filters / Queries")
+    })
+
+    it("A live run's query row shows the filter and the sampling rate, like the old app", () => {
+        render(
+            input({
+                references: references({queries: [{queryId: "q-1", revisionId: "qr-1"}]}),
+                query: {
+                    filtering: {
+                        operator: "and",
+                        conditions: [
+                            {field: "trace_type", operator: "is", value: "invocation"},
+                            {
+                                field: "references",
+                                operator: "in",
+                                value: [{id: "app-1"}],
+                            },
+                        ],
+                    },
+                    rate: 0.25,
+                },
+            }),
+        )
+        expect(rowText("queries")).toBe(
+            'trace_type is invocation AND references in [{"id":"app-1"}]Sample rate: 25%',
+        )
+    })
+
+    it("The status row shows the header status, the same one the runs list shows", () => {
+        const live = (status: string, isActive: boolean) =>
+            header({kind: "online", status, flags: {isLive: true, isClosed: false, isActive}})
+        render(input({header: live("stopped", false)}))
+        expect(rowText("status")).toBe("Stopped")
+        render(input({header: live("running", true)}))
+        expect(rowText("status")).toBe("Running")
+        // A stopped run that has a final status shows that status, not Stopped.
+        render(input({header: live("success", false)}))
+        expect(rowText("status")).toBe("Success")
+    })
+
+    it("The query row waits while the query loads", () => {
+        render(
+            input({
+                references: references({queries: [{queryId: "q-1", revisionId: "qr-1"}]}),
+                query: undefined,
+            }),
+        )
+        expect(rowText("queries")).toBe("…")
     })
 
     it("Invocation rows show the average cost, duration and tokens", () => {
@@ -104,7 +151,8 @@ describe("run summary table", () => {
             input({
                 metrics: [
                     invocationMetric("cost", {count: 4, sum: 0.002}),
-                    invocationMetric("duration", {count: 4, mean: 0.4567}),
+                    // The duration metric is in milliseconds, as on the trace.
+                    invocationMetric("duration", {count: 4, mean: 779.06}),
                     invocationMetric("tokens", {count: 4, mean: 12_340}),
                     invocationMetric("errors", null),
                 ],
@@ -112,7 +160,7 @@ describe("run summary table", () => {
         )
         expect(labelText("cost")).toBe("Cost (Avg)")
         expect(rowText("cost")).toBe("$0.0005")
-        expect(rowText("duration")).toBe("457 ms")
+        expect(rowText("duration")).toBe("779 ms")
         expect(rowText("tokens")).toBe("12.3K")
         expect(rowText("errors")).toBe("—")
 

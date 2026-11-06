@@ -17,6 +17,10 @@ const fixture = vi.hoisted(() => ({
     setKind: vi.fn(),
 }))
 
+// Member names have their own test; this screen test needs no member query.
+vi.mock("@/features/members/useBindWorkspaceMembers", () => ({
+    useBindWorkspaceMembers: () => undefined,
+}))
 vi.mock("@agenta/annotation", async () => {
     const {atom} = await import("jotai")
     return {

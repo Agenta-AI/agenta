@@ -181,8 +181,9 @@ describe("metric stats", () => {
     it("Cost, duration and token formats match the overview table", () => {
         expect(formatCost(12.5)).toBe("$12.50")
         expect(formatCost(0.000123456)).toBe("$0.000123")
-        expect(formatDuration(0.4567)).toBe("457 ms")
-        expect(formatDuration(8.48)).toBe("8.48 s")
+        // Milliseconds, the unit of `attributes.ag.metrics.duration.cumulative`.
+        expect(formatDuration(456.7)).toBe("457 ms")
+        expect(formatDuration(8_480)).toBe("8.48 s")
         expect(formatTokens(950)).toBe("950")
         expect(formatTokens(12_340)).toBe("12.3K")
         expect(formatTokens(4_500_000)).toBe("4.5M")

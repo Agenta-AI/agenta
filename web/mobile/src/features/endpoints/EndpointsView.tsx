@@ -16,7 +16,8 @@ export interface EndpointsViewProps {
     state: EndpointsViewState
     apps: readonly EndpointApp[]
     appId: string | null
-    onPickApp: (appId: string) => void
+    /** Absent inside the app menu, where the app comes from the path. */
+    onPickApp?: (appId: string) => void
     onRetry: () => void
     environments: readonly AppEnvironmentDeployment[]
     selected: AppEnvironmentDeployment | null
@@ -66,7 +67,7 @@ export const EndpointsView = (props: EndpointsViewProps) => (
         <p className="m-0 text-[13px] text-muted-foreground">
             Select an environment then use this endpoint to send requests to the LLM app.
         </p>
-        {props.state === "loading" ? null : (
+        {props.state === "loading" || !props.onPickApp ? null : (
             <EndpointAppPicker apps={props.apps} value={props.appId} onChange={props.onPickApp} />
         )}
         <Body {...props} />

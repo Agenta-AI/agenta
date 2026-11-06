@@ -70,9 +70,28 @@ describe("run header and references", () => {
             kind: "online",
             flags: {isLive: true, isActive: true, isClosed: false},
         })
-        expect(store.get(runReferencesAtomFamily(online.run.id))?.queryIds).toEqual([
-            "01a20000-0000-7000-8000-00000000q001",
+        expect(store.get(runReferencesAtomFamily(online.run.id))?.queries).toEqual([
+            {
+                queryId: "01a20000-0000-7000-8000-00000000q001",
+                revisionId: "01a20000-0000-7000-8000-00000000q002",
+            },
         ])
+        stop()
+    })
+
+    it("Run header reads Stopped for a stopped live run", async () => {
+        const stopped = {
+            ...online.run,
+            status: "running",
+            flags: {...online.run.flags, is_active: false, is_closed: false},
+        }
+        serveRuns([stopped])
+        const stop = await loadRun(stopped.id)
+
+        expect(store.get(runHeaderAtomFamily(stopped.id))).toMatchObject({
+            status: "stopped",
+            flags: {isLive: true, isActive: false, isClosed: false},
+        })
         stop()
     })
 
@@ -110,7 +129,7 @@ describe("run header and references", () => {
                     stepKey: step.key,
                 }
             }),
-            queryIds: [],
+            queries: [],
         })
         stop()
     })

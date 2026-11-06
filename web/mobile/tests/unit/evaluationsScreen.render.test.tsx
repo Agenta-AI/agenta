@@ -187,6 +187,18 @@ describe("evaluation runs table", () => {
         expect(host.querySelector("[role=img][aria-label=Running]")).not.toBeNull()
     })
 
+    it("A stopped live run reads Stopped, not Running", async () => {
+        http.post.mockResolvedValue(
+            page([
+                makeRun("l", {live: true, status: "running", flags: {is_active: false}}),
+                makeRun("r", {live: true, status: "running", flags: {is_active: true}}),
+            ]),
+        )
+        await mount()
+        expect(host.querySelectorAll("[role=img][aria-label=Stopped]")).toHaveLength(1)
+        expect(host.querySelectorAll("[role=img][aria-label=Running]")).toHaveLength(1)
+    })
+
     it("Phones show status, name and the menu only", async () => {
         env.wide = false
         http.post.mockResolvedValue(page([makeRun("a")]))
@@ -271,6 +283,47 @@ describe("evaluations screen", () => {
         ])
         await act(async () => items[2].click())
         expect(onCreate).toHaveBeenCalledWith("online")
+    })
+
+    it("The toolbar button reads New evaluation on every tab and sits on the right", async () => {
+        for (const kind of [undefined, "auto", "human", "online", "custom"]) {
+            env.query = kind ? {kind} : {}
+            await mount({onCreate: vi.fn()})
+            const toolbarButtons = [...host.querySelectorAll<HTMLButtonElement>("button")].filter(
+                (b) => /^(New|Start) evaluation$/.test(b.textContent?.trim() ?? ""),
+            )
+            expect(toolbarButtons[0]?.textContent?.trim()).toBe("New evaluation")
+            expect(toolbarButtons[0]?.parentElement?.className).toContain("ml-auto")
+            act(() => root.unmount())
+            root = createRoot(host)
+        }
+    })
+
+    it("The runs request leaves out runs that come from traces or test cases", async () => {
+        await mount()
+        const body = http.post.mock.calls[0][1] as {run?: {flags?: Record<string, boolean>}}
+        expect(body.run?.flags).toEqual({has_testcases: false, has_traces: false})
+    })
+
+    it("An empty list hides its column header row and a list with runs shows it", async () => {
+        const headerRow = () => host.querySelector("[role=row]")
+        await mount()
+        expect(headerRow()?.className).toContain("sr-only")
+        act(() => root.unmount())
+        root = createRoot(host)
+        http.post.mockResolvedValue(page([makeRun("run-abc", {name: "Alpha"})]))
+        await mount()
+        expect(headerRow()?.className).not.toContain("sr-only")
+    })
+
+    it("The SDK tab empty state offers Get Started and Learn More", async () => {
+        env.query = {kind: "custom"}
+        const onCreate = vi.fn()
+        await mount({onCreate})
+        expect(text()).toContain("Get Started with SDK Evaluations")
+        await act(async () => button(/^Get Started$/)?.click())
+        expect(onCreate).toHaveBeenCalledWith("custom")
+        expect(text()).toContain("Learn More")
     })
 
     it("A kind tab create button opens that kind directly", async () => {

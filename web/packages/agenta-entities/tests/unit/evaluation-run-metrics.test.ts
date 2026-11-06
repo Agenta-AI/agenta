@@ -24,6 +24,7 @@ import {
 } from "../../src/evaluationRun"
 import auto from "../fixtures/evaluationRun/auto-metrics.json"
 import human from "../fixtures/evaluationRun/human-metrics.json"
+import live from "../fixtures/evaluationRun/live.json"
 import online from "../fixtures/evaluationRun/online-metrics.json"
 
 const store = getDefaultStore()
@@ -123,6 +124,121 @@ describe("run metric catalog", () => {
             {value: true, count: 3},
             {value: false, count: 1},
         ])
+    })
+})
+
+describe("errors of a run with no invocation step", () => {
+    // Captured from a live run whose evaluator failed on all three traces (2026-11-05).
+    const errorsStats = {type: "numeric/continuous", count: 3, sum: 3, mean: 1.0}
+    const durationStats = {type: "numeric/continuous", count: 3, sum: 6.095, mean: 2.03}
+
+    it("A live run counts the errors its evaluators report", () => {
+        const catalog = buildRunMetricCatalog(asRun(online.run), [
+            {
+                id: "m-errors",
+                run_id: online.run.id,
+                scenario_id: null,
+                data: {
+                    "evaluator-7c2d": {
+                        "attributes.ag.metrics.duration.cumulative": durationStats,
+                        "attributes.ag.metrics.errors.cumulative": errorsStats,
+                    },
+                },
+            },
+        ])
+        const errors = catalog.find((entry) => entry.id === "errors")
+
+        expect(errors?.stepKey).toBe("evaluator-7c2d")
+        expect(errors?.stats).toMatchObject({sum: 3, count: 3})
+        // A live run calls no app: its duration is what its evaluator spends per trace.
+        expect(catalog.find((entry) => entry.id === "duration")?.stats).toMatchObject({
+            mean: 2.03,
+        })
+    })
+
+    it("Two evaluators that fail add up their errors", () => {
+        const run = asRun({
+            ...online.run,
+            data: {
+                ...online.run.data,
+                steps: [
+                    ...online.run.data.steps,
+                    {...online.run.data.steps[1], key: "evaluator-second"},
+                ],
+            },
+        })
+        const catalog = buildRunMetricCatalog(run, [
+            {
+                id: "m-errors",
+                run_id: online.run.id,
+                scenario_id: null,
+                data: {
+                    "evaluator-7c2d": {"attributes.ag.metrics.errors.cumulative": errorsStats},
+                    "evaluator-second": {
+                        "attributes.ag.metrics.errors.cumulative": {count: 2, sum: 1, mean: 0.5},
+                    },
+                },
+            },
+        ])
+
+        // Only what adds up: one evaluator's mean must not stand for the total.
+        expect(catalog.find((entry) => entry.id === "errors")?.stats).toEqual({
+            type: "numeric/continuous",
+            sum: 4,
+            count: 5,
+        })
+    })
+
+    it("Two evaluators that fail add up their error points per time", () => {
+        const run = asRun({
+            ...online.run,
+            data: {
+                ...online.run.data,
+                steps: [
+                    ...online.run.data.steps,
+                    {...online.run.data.steps[1], key: "evaluator-second"},
+                ],
+            },
+        })
+        const point = (timestamp: string, first: number, second: number) => ({
+            id: `m-${timestamp}`,
+            run_id: online.run.id,
+            scenario_id: null,
+            timestamp,
+            data: {
+                "evaluator-7c2d": {
+                    "attributes.ag.metrics.errors.cumulative": {count: first, sum: first},
+                },
+                "evaluator-second": {
+                    "attributes.ag.metrics.errors.cumulative": {count: second, sum: second},
+                },
+            },
+        })
+        const catalog = buildRunMetricCatalog(run, [
+            point("2026-11-05T10:00:00Z", 1, 2),
+            point("2026-11-05T10:10:00Z", 3, 1),
+        ])
+        const errors = catalog.find((entry) => entry.id === "errors")
+
+        expect(errors?.temporal.map((entry) => entry.stats.sum)).toEqual([3, 4])
+        expect(errors?.stats).toMatchObject({sum: 4, count: 4})
+    })
+
+    it("A run with an invocation step keeps counting only the app's errors", () => {
+        const catalog = buildRunMetricCatalog(asRun(auto.run), [
+            {
+                id: "m-errors",
+                run_id: auto.run.id,
+                scenario_id: null,
+                data: {
+                    "evaluator-129eebd77337": {
+                        "attributes.ag.metrics.errors.cumulative": errorsStats,
+                    },
+                },
+            },
+        ])
+
+        expect(catalog.find((entry) => entry.id === "errors")?.stats).toBeNull()
     })
 })
 
@@ -325,5 +441,94 @@ describe("run metrics query", () => {
             ).toContain("evaluator-4d0a:attributes.ag.data.outputs.tone"),
         )
         stops.forEach((stop) => stop())
+    })
+})
+
+describe("cost, duration and tokens of a live run", () => {
+    // The parity stack's live run: an LLM judge and a regex evaluator on 112 traces.
+    const catalog = buildRunMetricCatalog(asRun(live.run), asMetrics(live.metrics))
+    const stats = (id: string) => catalog.find((entry) => entry.id === id)?.stats
+
+    it("add up what every evaluator spends on one trace", () => {
+        // Judge 483.65 ms + regex 0.21 ms per trace; the old app printed their average, 242 ms.
+        expect(stats("duration")?.mean).toBeCloseTo(483.86, 2)
+        expect(stats("duration")?.count).toBe(112)
+        // Only the judge reports tokens and cost.
+        expect(stats("tokens")?.mean).toBeCloseTo(114.33, 2)
+        expect(stats("cost")?.mean).toBeCloseTo(0.0000147, 7)
+    })
+
+    it("an auto run still reads only its app step", () => {
+        const autoCatalog = buildRunMetricCatalog(asRun(auto.run), asMetrics(auto.response.metrics))
+        const duration = autoCatalog.find((entry) => entry.id === "duration")
+        expect(duration?.stepKey).not.toMatch(/^evaluator/)
+    })
+    const twoEvaluators = asRun({
+        ...online.run,
+        data: {
+            ...online.run.data,
+            steps: [
+                ...online.run.data.steps,
+                {...online.run.data.steps[1], key: "evaluator-second"},
+            ],
+        },
+    })
+    const costOf = (first: unknown, second: unknown) =>
+        buildRunMetricCatalog(twoEvaluators, [
+            {
+                id: "m-cost",
+                run_id: online.run.id,
+                scenario_id: null,
+                data: {
+                    "evaluator-7c2d": {"attributes.ag.metrics.costs.cumulative.total": first},
+                    "evaluator-second": {"attributes.ag.metrics.costs.cumulative.total": second},
+                },
+            },
+        ]).find((entry) => entry.id === "cost")?.stats
+
+    it("an evaluator that ran on fewer traces adds only what it spent", () => {
+        // 10 traces at 2 and 5 traces at 4: 40 in total, 4 per trace (not 2 + 4).
+        expect(costOf({count: 10, mean: 2}, {count: 5, sum: 20})).toEqual({
+            type: undefined,
+            mean: 4,
+            sum: 40,
+            count: 10,
+        })
+    })
+
+    it("without counts the means add up and there is no total", () => {
+        expect(costOf({mean: 2}, {mean: 3})).toEqual({type: undefined, mean: 5})
+        // A total with no count says nothing per trace, so there is no average.
+        expect(costOf({count: 10, mean: 2}, {sum: 20})?.mean).toBeUndefined()
+    })
+
+    it("an evaluator with no traces adds nothing", () => {
+        expect(costOf({count: 10, mean: 2}, {count: 0, sum: 0})).toMatchObject({
+            mean: 2,
+            sum: 20,
+            count: 10,
+        })
+    })
+
+    it("a run with two app steps reads the first one, not their sum", () => {
+        const steps = auto.run.data.steps
+        const run = asRun({
+            ...auto.run,
+            data: {...auto.run.data, steps: [...steps, {...steps[1], key: "application-second"}]},
+        })
+        const cost = (mean: number) => ({
+            "attributes.ag.metrics.costs.cumulative.total": {count: 3, mean},
+        })
+        const catalog = buildRunMetricCatalog(run, [
+            {
+                id: "m-cost",
+                run_id: auto.run.id,
+                scenario_id: null,
+                data: {[steps[1].key]: cost(1), "application-second": cost(5)},
+            },
+        ])
+        const entry = catalog.find((candidate) => candidate.id === "cost")
+        expect(entry?.stepKey).toBe(steps[1].key)
+        expect(entry?.stats?.mean).toBe(1)
     })
 })

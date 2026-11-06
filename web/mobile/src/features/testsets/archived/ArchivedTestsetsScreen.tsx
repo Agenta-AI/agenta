@@ -1,7 +1,6 @@
 import {useState} from "react"
 
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableToolbar} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
@@ -10,9 +9,11 @@ import Link from "next/link"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMembers"
 
 import {useBindProjectContext} from "../../context/useBindProjectContext"
 import {useProjectPermission} from "../../context/useProjectPermission"
+import {useDeveloperPageFrame} from "../../developer/developerPageFrame"
 import {AppShell} from "../../nav/AppShell"
 import {NavDrawer} from "../../nav/NavDrawer"
 import {TestsetsNoMatch} from "../list/states/TestsetsNoMatch"
@@ -23,8 +24,6 @@ import {ArchivedTestsetsEmpty} from "./states/ArchivedTestsetsEmpty"
 import {useArchivedTestsets} from "./useArchivedTestsets"
 
 /** The page column, shared with the other lists, so the nav entries line up. */
-const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
-
 /**
  * The archived test sets with Restore. Archiving happens on the Test sets list; this page is
  * where a reader brings one back.
@@ -36,6 +35,8 @@ export const ArchivedTestsetsScreen = ({
     workspaceId: string
     projectId: string
 }) => {
+    const PAGE_FRAME = useDeveloperPageFrame()
+    useBindWorkspaceMembers()
     useBindProjectContext(projectId)
     const base = `/w/${workspaceId}/p/${projectId}`
     const [term, setTerm] = useState("")

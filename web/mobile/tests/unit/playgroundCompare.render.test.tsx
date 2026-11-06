@@ -383,6 +383,26 @@ describe("Compare", () => {
         expect(compareLoaded).toHaveBeenCalledTimes(1)
     })
 
+    it("On a phone the bar shows Evaluator and Compare as icons, and neither can cover the other", async () => {
+        await mount()
+        const evaluator = find("Evaluator")
+        const compare = find("Compare")
+        expect(evaluator).toBeDefined()
+        expect(compare).toBeDefined()
+
+        // Below `sm` the names are for screen readers only, so both buttons fit beside the title.
+        expect(evaluator!.querySelector(".max-sm\\:sr-only")?.textContent).toBe("Evaluator")
+        expect(compare!.querySelector(".max-sm\\:sr-only")?.textContent).toBe("Compare")
+        // jsdom has no layout: check that nothing between a button and the bar lets the bar
+        // squeeze it below its own width (it then slid under the next button at 390 px).
+        for (const button of [evaluator!, compare!]) {
+            for (let box = button.parentElement; box && box.tagName !== "HEADER"; ) {
+                expect(box.className).not.toMatch(/(^|\s)min-w-0(\s|$)/)
+                box = box.parentElement
+            }
+        }
+    })
+
     it("Compare copies the last revision into a local draft and shows both side by side", async () => {
         await mount()
         await edit("Changed")
@@ -405,6 +425,8 @@ describe("Compare", () => {
         expect(shown()).toEqual(["rev-2", "rev-1"])
         expect(document.querySelector('[data-testid="compare-config-rev-1"]')).not.toBeNull()
         expect(writes()).toHaveLength(0)
+        // The address is written a moment after the last change, so wait for that write.
+        await until(() => router.replace.mock.lastCall?.[0]?.query?.revisions === "rev-2,rev-1")
         expect(router.replace).toHaveBeenLastCalledWith(
             expect.objectContaining({query: expect.objectContaining({revisions: "rev-2,rev-1"})}),
             undefined,

@@ -159,6 +159,66 @@ const stepMetrics = (metric: EvaluationMetric): StepMetrics => {
 }
 
 /**
+ * The errors of several evaluators: their totals added up. Only the type, the sum and the count
+ * combine; a mean, a median or a range of one evaluator would not describe the total.
+ */
+function sumCounts(all: (MetricStats | null)[]): MetricStats | null {
+    const stats = all.filter((entry): entry is MetricStats => entry !== null)
+    if (stats.length === 0) return null
+    const total = (pick: (entry: MetricStats) => number | undefined) =>
+        stats.reduce((sum, entry) => sum + (pick(entry) ?? 0), 0)
+    return {
+        type: stats[0].type,
+        sum: total((entry) => entry.sum ?? (entry.mean ?? 0) * (entry.count ?? 0)),
+        count: total((entry) => entry.count),
+    }
+}
+
+/**
+ * What several evaluators spend on one trace: their totals add up (a trace runs every evaluator)
+ * and divide by the number of traces, the largest count. An evaluator that skipped some traces
+ * adds only what it spent. When an evaluator has no count, the means add up and there is no
+ * total; when one also has no mean, there is no average.
+ */
+function sumPerTrace(all: (MetricStats | null)[]): MetricStats | null {
+    const stats = all.filter((entry): entry is MetricStats => entry !== null)
+    if (stats.length === 0) return null
+    const type = stats[0].type
+    if (stats.every((entry) => entry.count !== undefined)) {
+        const count = Math.max(...stats.map((entry) => entry.count ?? 0))
+        const totals = stats.map((entry) => entry.sum ?? (entry.mean ?? 0) * (entry.count ?? 0))
+        const sum = totals.reduce((acc, total) => acc + total, 0)
+        return count > 0 ? {type, mean: sum / count, sum, count} : {type, sum, count}
+    }
+    const means = stats.map(
+        (entry) =>
+            entry.mean ??
+            (entry.sum !== undefined && entry.count ? entry.sum / entry.count : undefined),
+    )
+    if (means.some((mean) => mean === undefined)) return {type}
+    return {type, mean: means.reduce<number>((acc, mean) => acc + (mean ?? 0), 0)}
+}
+
+/** The points of several evaluators, combined per timestamp, oldest first. */
+function sumPoints(
+    all: TemporalMetricPoint[][],
+    combine: (stats: (MetricStats | null)[]) => MetricStats | null = sumCounts,
+): TemporalMetricPoint[] {
+    const byTime = new Map<number, (MetricStats | null)[]>()
+    for (const points of all) {
+        for (const {timestamp, stats} of points) {
+            byTime.set(timestamp, [...(byTime.get(timestamp) ?? []), stats])
+        }
+    }
+    return [...byTime.entries()]
+        .sort(([a], [b]) => a - b)
+        .flatMap(([timestamp, stats]) => {
+            const summed = combine(stats)
+            return summed ? [{timestamp, stats: summed}] : []
+        })
+}
+
+/**
  * Build the catalog of one run from the run and its run-level metric rows. Pure: the atom below
  * feeds it, and tests call it with captured responses.
  */
@@ -210,17 +270,37 @@ export function buildRunMetricCatalog(
         }
     }
 
-    const invocationKeys = steps
-        .filter((step) => step.type === "invocation")
-        .map((step) => step.key)
+    const keysOf = (type: string) =>
+        steps.filter((step) => step.type === type).map((step) => step.key)
+    const invocationKeys = keysOf("invocation")
+    // A live run calls no app: its evaluators are the steps that fail, so they report the errors.
+    const errorKeys = invocationKeys.length > 0 ? invocationKeys : keysOf("annotation")
+    const hasMetric = (key: string, metricKey: string) =>
+        staticData[key]?.[metricKey] !== undefined ||
+        timed.some(({data}) => data[key]?.[metricKey] !== undefined)
     for (const {id, metricKey, label} of INVOCATION_METRICS) {
-        const stepKey =
-            invocationKeys.find(
-                (key) =>
-                    staticData[key]?.[metricKey] !== undefined ||
-                    timed.some(({data}) => data[key]?.[metricKey] !== undefined),
-            ) ?? null
-        const temporal = stepKey ? pointsFor(stepKey, metricKey) : []
+        // A live run calls no app: what it spends per trace (cost, time, tokens) is its evaluators'.
+        const fromEvaluators = invocationKeys.length === 0
+        const candidates = id === "errors" || fromEvaluators ? errorKeys : invocationKeys
+        const stepKeys = candidates.filter((key) => hasMetric(key, metricKey))
+        const stepKey = stepKeys[0] ?? null
+        // Several evaluators: errors add up as totals, and cost, time and tokens per trace. Several
+        // app steps report cost, time and tokens from the first one, as the old app does.
+        const combined = stepKeys.length > 1 && (id === "errors" || fromEvaluators)
+        const combine = id === "errors" ? sumCounts : sumPerTrace
+        const temporal = combined
+            ? sumPoints(
+                  stepKeys.map((key) => pointsFor(key, metricKey)),
+                  combine,
+              )
+            : stepKey
+              ? pointsFor(stepKey, metricKey)
+              : []
+        const stats = combined
+            ? combine(stepKeys.map((key) => statsFor(key, metricKey, pointsFor(key, metricKey))))
+            : stepKey
+              ? statsFor(stepKey, metricKey, temporal)
+              : null
         entries.push({
             id,
             kind: "invocation",
@@ -229,7 +309,7 @@ export function buildRunMetricCatalog(
             label,
             evaluatorId: null,
             evaluatorSlug: null,
-            stats: stepKey ? statsFor(stepKey, metricKey, temporal) : null,
+            stats,
             temporal,
         })
     }

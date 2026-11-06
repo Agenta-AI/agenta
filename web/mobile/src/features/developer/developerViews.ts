@@ -17,7 +17,9 @@ import {
  * - `preview`: shown only to a user who turned it on in Settings › Preferences › Feature Flags.
  * - `on`: shown to everyone.
  *
- * A deployment can force any view on, whatever its stage: see `readForcedDeveloperViewIds`.
+ * Stages matter only to a user without beta developer mode. With it, every view is on and no
+ * code checks a stage: see `enabledDeveloperViewsAtom`. A deployment can force any view on for
+ * everyone, whatever its stage: see `readForcedDeveloperViewIds`.
  */
 export type DeveloperViewStage = "hidden" | "preview" | "on"
 
@@ -63,10 +65,11 @@ export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
     {
         id: "archived-apps",
         label: "Archived apps",
-        description: "Archived apps, with Restore.",
+        description:
+            "Show the Archived apps page under Developer in the navigation. Restore an app from it.",
         routes: ["/apps/archived"],
         nav: {icon: Archive, section: "developer"},
-        stage: "hidden",
+        stage: "preview",
     },
     {
         id: "endpoints",
@@ -74,7 +77,7 @@ export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
         description: "Code to call an app and fetch its config, per environment.",
         routes: ["/endpoints"],
         nav: {icon: PlugsIcon, section: "developer"},
-        stage: "hidden",
+        stage: "preview",
     },
     {
         id: "playground",
@@ -103,7 +106,7 @@ export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
         label: "Filter by app",
         description:
             "Filter traces and sessions by app, and open sessions for one agent from a link.",
-        stage: "hidden",
+        stage: "preview",
     },
     {
         id: "annotation-queues",
@@ -111,7 +114,7 @@ export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
         description: "Show the Annotation queues page under Developer in the navigation.",
         routes: ["/annotations", "/annotations/[queue_id]"],
         nav: {icon: Tray, section: "developer"},
-        stage: "hidden",
+        stage: "preview",
     },
     {
         id: "testsets",
@@ -127,7 +130,7 @@ export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
         description: "Variants of an app, their revisions, and where each is deployed.",
         routes: ["/variants"],
         nav: {icon: GitBranchIcon, section: "developer"},
-        stage: "hidden",
+        stage: "preview",
     },
     {
         id: "prompts",
@@ -135,7 +138,7 @@ export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
         description: "Show the Prompts page under Developer in the navigation.",
         routes: ["/prompts"],
         nav: {icon: FolderSimpleIcon, section: "developer"},
-        stage: "hidden",
+        stage: "preview",
     },
     {
         id: "evaluators",
@@ -143,7 +146,7 @@ export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
         description: "Automatic and human evaluators, with archive and restore.",
         routes: ["/evaluators", "/evaluators/archived"],
         nav: {icon: ChartDonut, section: "developer"},
-        stage: "hidden",
+        stage: "preview",
     },
     {
         id: "app-overview",

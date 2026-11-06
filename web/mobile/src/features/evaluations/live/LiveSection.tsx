@@ -10,7 +10,10 @@ export const LiveSection = ({
     summary?: ReactNode
     children: ReactNode
 }) => (
-    <section aria-label={title} className="flex flex-col gap-3 border-t border-border pt-4">
+    <section
+        aria-label={title}
+        className="flex flex-col gap-3 border-t border-border pt-4 first:border-t-0 first:pt-0"
+    >
         <header className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
             <h3 className="m-0 text-sm font-medium text-foreground">{title}</h3>
             {summary ? (

@@ -51,10 +51,10 @@ describe("variants route", () => {
         expect(document.querySelector("[data-testid=view]")).toBeNull()
     })
 
-    it("The Variants entry is hidden and has the registry fields", () => {
+    it("The Variants entry is in preview and has the registry fields", () => {
         const entry = DEVELOPER_VIEWS.find((view) => view.id === "variants")
         expect(entry).toBeDefined()
-        expect(entry?.stage).toBe("hidden")
+        expect(entry?.stage).toBe("preview")
         expect(entry?.routes).toEqual(["/variants"])
     })
 })

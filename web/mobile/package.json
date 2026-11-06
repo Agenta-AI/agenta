@@ -1,6 +1,6 @@
 {
     "name": "@agenta/mobile",
-    "version": "0.128.7",
+    "version": "0.128.9",
     "private": true,
     "engines": {
         "node": "24.x"
@@ -71,6 +71,8 @@
     "devDependencies": {
         "@eslint/js": "^9.39.4",
         "@tailwindcss/postcss": "^4.1.0",
+        "@testing-library/dom": "^10.4.0",
+        "@testing-library/react": "^16.3.2",
         "@types/node": "^20.19.20",
         "@types/react": "^19.0.10",
         "@types/react-dom": "^19.0.4",
