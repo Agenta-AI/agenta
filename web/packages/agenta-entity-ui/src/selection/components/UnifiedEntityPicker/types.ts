@@ -619,6 +619,9 @@ export interface PopoverCascaderVariantProps<
      * Maximum height of item lists (px)
      * @default 340
      */
+    /** Classes on the popup panel, which renders in a portal outside the page's own scope. */
+    popupClassName?: string
+
     maxHeight?: number
 
     /**
