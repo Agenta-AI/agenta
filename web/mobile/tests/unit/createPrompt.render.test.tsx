@@ -333,9 +333,12 @@ describe("New prompt", () => {
         await waitFor(() => !findDialog("Test app"))
         await settle()
 
+        // Reads (the template, list queries) may run; nothing is written.
         expect(
-            sent.filter((request) => request.url.includes("/workflows/")).map((r) => r.method),
-        ).toEqual(["GET"])
+            sent
+                .filter((request) => request.method !== "GET" && !request.url.endsWith("/query"))
+                .map((request) => request.url.replace(/^https?:\/\/[^/]+/, "")),
+        ).toEqual(["/services/completion/v0/inspect"])
         expect(router.push).not.toHaveBeenCalled()
     }, 60_000)
 })
