@@ -124,6 +124,7 @@ export const PromptsScreen = ({
             </AppShell>
             <PromptsDialogs
                 dialog={dialog}
+                projectId={projectId}
                 folderId={browser.folderId}
                 foldersById={browser.foldersById}
                 actions={actions}
