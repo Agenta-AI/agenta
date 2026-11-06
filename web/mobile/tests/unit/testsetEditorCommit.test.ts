@@ -11,7 +11,7 @@ import {
     testcaseDataController,
     testcaseMolecule,
 } from "@agenta/entities/testcase"
-import {revisionMolecule} from "@agenta/entities/testset"
+import {commitPreviewAtom, revisionMolecule} from "@agenta/entities/testset"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {getDefaultStore} from "jotai"
@@ -192,6 +192,7 @@ interface CommitBody {
     testset_revision: {
         testset_id: string
         revision_id?: string
+        message?: string | null
         delta: {
             rows?: {
                 replace?: {id: string; data: Record<string, unknown>}[]
@@ -418,21 +419,31 @@ describe("useTestsetEditor commit over the real package state", () => {
         })
     })
 
-    it("Rename saves at once as its own version with only the rename", async () => {
+    it("A rename waits for Commit and is sent with the commit message", async () => {
         await mount()
 
-        expect(await act(() => editor().renameColumn("answer", " reply "))).toEqual({
-            ok: true,
-            revisionId: NEW_REVISION,
+        expect(await act(() => editor().renameColumn("answer", " reply "))).toEqual({ok: true})
+        expect(commitBodies()).toHaveLength(0)
+        expect(editor().hasUnsavedChanges).toBe(true)
+        expect(editor().changesSummary.renamedColumns).toBe(1)
+
+        let id: string | null = null
+        await act(async () => {
+            id = await editor().commit("Rename answer")
         })
+        expect(id).toBe(NEW_REVISION)
 
         expect(commitBodies()).toHaveLength(1)
-        expect(commitBody()?.testset_revision).toMatchObject({
-            testset_id: TESTSET,
-            revision_id: REVISION,
-            delta: {columns: {replace: [["answer", "reply"]]}},
+        expect(commitBody()).toEqual({
+            testset_revision: {
+                testset_id: TESTSET,
+                revision_id: REVISION,
+                message: "Rename answer",
+                name: undefined,
+                description: undefined,
+                delta: {rows: undefined, columns: {replace: [["answer", "reply"]]}},
+            },
         })
-        expect(commitBody()?.testset_revision.delta.rows).toBeUndefined()
         expect(store.get(revisionMolecule.atoms.pendingColumnOps(REVISION))).toMatchObject({
             add: [],
             remove: [],
@@ -440,90 +451,182 @@ describe("useTestsetEditor commit over the real package state", () => {
         })
     })
 
-    it("Delete saves at once as its own version with only the removal", async () => {
+    it("Add, rename and delete of columns and row edits go out in one commit", async () => {
         await mount()
+        run(() => store.set(testcaseMolecule.actions.update, "case-1", {data: {answer: "14 days"}}))
+        expect(editor().columnEditBlocked).toBeNull()
 
-        expect(await act(() => editor().deleteColumns(["answer"]))).toEqual({
-            ok: true,
-            revisionId: NEW_REVISION,
-        })
+        expect(await act(() => editor().addColumn(" country "))).toEqual({ok: true})
+        expect(await act(() => editor().renameColumn("answer", "reply"))).toEqual({ok: true})
+        expect(await act(() => editor().deleteColumns(["question"]))).toEqual({ok: true})
+        // The added column takes a value in a saved row.
+        run(() => store.set(testcaseMolecule.actions.update, "case-2", {data: {country: "Peru"}}))
+        const rowId = run(() => editor().addRow())
+        run(() =>
+            store.set(testcaseMolecule.actions.update, rowId ?? "", {
+                data: {reply: "Yes", country: "Chile"},
+            }),
+        )
+        expect(commitBodies()).toHaveLength(0)
+
+        expect(await commit()).toBe(NEW_REVISION)
 
         expect(commitBodies()).toHaveLength(1)
-        expect(commitBody()?.testset_revision.revision_id).toBe(REVISION)
+        expect(commitBody()?.testset_revision.message).toBe("Edited rows")
+        expect(commitBody()?.testset_revision.delta).toEqual({
+            columns: {replace: [["answer", "reply"]], add: ["country"], remove: ["question"]},
+            rows: {
+                replace: [
+                    {id: "case-1", data: {reply: "14 days", country: ""}, set_id: TESTSET},
+                    {id: "case-2", data: {reply: "Yes", country: "Peru"}, set_id: TESTSET},
+                ],
+                add: [{data: {reply: "Yes", country: "Chile"}, set_id: TESTSET}],
+            },
+        })
+    })
+
+    it("Deleting a renamed column removes it under its saved name", async () => {
+        await mount()
+        await act(() => editor().renameColumn("answer", "reply"))
+        await act(() => editor().deleteColumns(["reply"]))
+
+        expect(await commit()).toBe(NEW_REVISION)
+
+        // The server reads removals on the saved names; "reply" would keep the values.
         expect(commitBody()?.testset_revision.delta).toEqual({
             rows: undefined,
             columns: {remove: ["answer"]},
         })
     })
 
-    it("Deleting columns saves one version that removes them all", async () => {
-        rowsOnServer = [{id: "case-1", data: {question: "Q", answer: "A", meta: {lang: "en"}}}]
+    it("A column deleted and added again is sent empty, not with its old values", async () => {
         await mount()
+        await act(() => editor().deleteColumns(["answer"]))
+        expect(await act(() => editor().addColumn("answer"))).toEqual({ok: true})
+        const cell = store.get(testcaseMolecule.atoms.cell({id: "case-1", column: "answer"}))
+        expect(cell).toBe("")
 
-        expect(await act(() => editor().deleteColumns(["answer", "meta"]))).toEqual({
-            ok: true,
-            revisionId: NEW_REVISION,
-        })
+        expect(await commit()).toBe(NEW_REVISION)
 
-        expect(commitBodies()).toHaveLength(1)
         expect(commitBody()?.testset_revision.delta).toEqual({
             rows: undefined,
-            columns: {remove: ["answer", "meta"]},
+            columns: {add: ["answer"], remove: ["answer"]},
         })
     })
 
-    it("Add saves at once as its own version with only the new column", async () => {
-        await mount()
-
-        expect(await act(() => editor().addColumn(" country "))).toEqual({
-            ok: true,
-            revisionId: NEW_REVISION,
-        })
-
-        expect(commitBodies()).toHaveLength(1)
-        expect(commitBody()?.testset_revision.revision_id).toBe(REVISION)
-        expect(commitBody()?.testset_revision.delta).toEqual({
-            rows: undefined,
-            columns: {add: ["country"]},
-        })
-    })
-
-    it("Column actions are refused while rows have unsaved edits", async () => {
+    it("A column can take the name of a deleted saved column and keep its own values", async () => {
         await mount()
         run(() => store.set(testcaseMolecule.actions.update, "case-1", {data: {answer: "14 days"}}))
+        await act(() => editor().deleteColumns(["question"]))
+        expect(await act(() => editor().renameColumn("answer", "question"))).toEqual({ok: true})
 
-        const refusal = {
+        expect(await commit()).toBe(NEW_REVISION)
+
+        expect(commitBody()?.testset_revision.delta).toEqual({
+            columns: {replace: [["answer", "question"]], remove: ["question"]},
+            rows: {replace: [{id: "case-1", data: {question: "14 days"}, set_id: TESTSET}]},
+        })
+    })
+
+    it("The commit preview shows the changed columns and rows with no id or internal field", async () => {
+        rowsOnServer = [
+            {id: "case-1", data: {question: "Q1", answer: "A1", testcase_dedup_id: "d1"}},
+            {id: "case-2", data: {question: "Q2", answer: "A2", testcase_dedup_id: "d2"}},
+        ]
+        await mount()
+        await act(() => editor().renameColumn("answer", "reply"))
+        await act(() => editor().addColumn("country"))
+        run(() =>
+            store.set(testcaseMolecule.actions.update, "case-1", {data: {reply: "A1 (edited)"}}),
+        )
+        run(() => editor().deleteRows(["case-2"]))
+
+        expect(store.get(commitPreviewAtom)).toEqual({
+            original: [
+                {_type: "column renamed", name: "answer"},
+                {_type: "column added"},
+                {_type: "modified", question: "Q1", answer: "A1"},
+                {_type: "deleted", question: "Q2", answer: "A2"},
+            ],
+            modified: [
+                {_type: "column renamed", name: "reply"},
+                {_type: "column added", name: "country"},
+                {_type: "modified", question: "Q1", reply: "A1 (edited)", country: ""},
+            ],
+            count: 4,
+        })
+    })
+
+    it("A column change that a commit overtakes is refused and not staged", async () => {
+        await mount()
+        run(() => store.set(testcaseMolecule.actions.update, "case-1", {data: {answer: "14 days"}}))
+        // Hold the revision reads: the column name check and the commit both wait.
+        let release = () => undefined as void
+        hold = new Promise<void>((resolve) => {
+            release = () => {
+                hold = null
+                resolve()
+            }
+        })
+        let staging: Promise<unknown> = Promise.resolve()
+        let committing: Promise<string | null> = Promise.resolve(null)
+        act(() => {
+            staging = editor().renameColumn("answer", "reply")
+            committing = editor().commit("Row only")
+        })
+
+        await act(async () => {
+            release()
+            await Promise.all([staging, committing])
+        })
+
+        expect(await staging).toEqual({
             ok: false,
-            reason: "rowChanges",
-            message: "Save or discard your row changes first",
-        }
-        expect(editor().columnEditBlocked).toBe("Save or discard your row changes first")
-        expect(await act(() => editor().renameColumn("answer", "reply"))).toEqual(refusal)
-        expect(await act(() => editor().addColumn("country"))).toEqual(refusal)
-        expect(await act(() => editor().deleteColumns(["answer"]))).toEqual(refusal)
-
-        expect(commitBodies()).toHaveLength(0)
+            reason: "saving",
+            message: "Wait for the current save to finish",
+        })
+        expect(await committing).toBe(NEW_REVISION)
+        expect(commitBodies()).toHaveLength(1)
+        expect(commitBody()?.testset_revision.delta.columns).toBeUndefined()
         expect(store.get(revisionMolecule.atoms.pendingColumnOps(REVISION))).toMatchObject({
             add: [],
             remove: [],
             rename: [],
         })
-        expect(editor().changesSummary.updatedTestcases).toBe(1)
     })
 
-    it("A new row also blocks column actions until it is saved or discarded", async () => {
+    it("Discard drops staged column changes and sends nothing", async () => {
         await mount()
-        run(() => editor().addRow())
-
-        expect(editor().columnEditBlocked).toBe("Save or discard your row changes first")
-        expect(await act(() => editor().addColumn("country"))).toMatchObject({
-            ok: false,
-            reason: "rowChanges",
-        })
-        expect(commitBodies()).toHaveLength(0)
+        await act(() => editor().renameColumn("answer", "reply"))
+        await act(() => editor().addColumn("country"))
 
         act(() => editor().discard())
-        expect(editor().columnEditBlocked).toBeNull()
+
+        expect(editor().hasUnsavedChanges).toBe(false)
+        expect(store.get(revisionMolecule.atoms.pendingColumnOps(REVISION))).toMatchObject({
+            add: [],
+            remove: [],
+            rename: [],
+        })
+        expect(store.get(testcaseMolecule.atoms.cell({id: "case-1", column: "answer"}))).toBe(
+            "30 days",
+        )
+        expect(commitBodies()).toHaveLength(0)
+    })
+
+    it("A failed commit keeps the staged column changes", async () => {
+        failCommit = true
+        const errors = vi.spyOn(console, "error").mockImplementation(() => undefined)
+        await mount()
+        await act(() => editor().renameColumn("answer", "reply"))
+
+        expect(await commit()).toBeNull()
+
+        expect(store.get(revisionMolecule.atoms.pendingColumnOps(REVISION)).rename).toEqual([
+            {oldKey: "answer", newKey: "reply"},
+        ])
+        expect(editor().hasUnsavedChanges).toBe(true)
+        errors.mockRestore()
     })
 
     it("A rename to a name used only by a row past the first 20 is refused", async () => {
@@ -557,27 +660,6 @@ describe("useTestsetEditor commit over the real package state", () => {
             message: "Could not check the column names. Try again.",
         })
         expect(commitBodies()).toHaveLength(0)
-        errors.mockRestore()
-    })
-
-    it("A failed column save leaves no pending column change behind", async () => {
-        failCommit = true
-        const errors = vi.spyOn(console, "error").mockImplementation(() => undefined)
-        await mount()
-
-        expect(await act(() => editor().renameColumn("answer", "reply"))).toEqual({
-            ok: false,
-            reason: "failed",
-            message: "Failed to save changes",
-        })
-
-        expect(store.get(revisionMolecule.atoms.pendingColumnOps(REVISION))).toMatchObject({
-            add: [],
-            remove: [],
-            rename: [],
-        })
-        expect(editor().hasUnsavedChanges).toBe(false)
-        expect(editor().isSaving).toBe(false)
         errors.mockRestore()
     })
 
@@ -622,100 +704,6 @@ describe("useTestsetEditor commit over the real package state", () => {
                 remove: ["case-1"],
             },
         })
-    })
-
-    /** Holds the next revision read and commit until the returned function is called. */
-    const holdRequests = () => {
-        let release = () => undefined as void
-        hold = new Promise<void>((resolve) => {
-            release = () => {
-                hold = null
-                resolve()
-            }
-        })
-        return release
-    }
-
-    it("While a column saves, the editor is read only and a row edit stays out of it", async () => {
-        await mount()
-        const release = holdRequests()
-        let saving: Promise<unknown> = Promise.resolve()
-        act(() => {
-            saving = editor().renameColumn("answer", "reply")
-        })
-        await flush()
-
-        expect(editor().isSaving).toBe(true)
-        expect(editor().readOnly).toBe(true)
-        expect(editor().columnEditBlocked).not.toBeNull()
-        expect(run(() => editor().addRow())).toBeNull()
-        run(() => editor().deleteRows(["case-1"]))
-        expect(store.get(testcaseMolecule.newIds)).toEqual([])
-        // A cell editor that writes to the store directly: its edit must not join the save.
-        run(() => store.set(testcaseMolecule.actions.update, "case-1", {data: {answer: "14 days"}}))
-
-        await act(async () => {
-            release()
-            await saving
-        })
-
-        expect(commitBodies()).toHaveLength(1)
-        expect(commitBody()?.testset_revision.delta).toEqual({
-            rows: undefined,
-            columns: {replace: [["answer", "reply"]]},
-        })
-        expect(editor().readOnly).toBe(false)
-    })
-
-    it("A failed column save keeps a row edit made while it ran", async () => {
-        failCommit = true
-        const errors = vi.spyOn(console, "error").mockImplementation(() => undefined)
-        await mount()
-        const release = holdRequests()
-        let saving: Promise<unknown> = Promise.resolve()
-        act(() => {
-            saving = editor().deleteColumns(["answer"])
-        })
-        await flush()
-        run(() => store.set(testcaseMolecule.actions.update, "case-1", {data: {answer: "14 days"}}))
-
-        await act(async () => {
-            release()
-            await saving
-        })
-
-        expect(editor().changesSummary.updatedTestcases).toBe(1)
-        expect(store.get(revisionMolecule.atoms.pendingColumnOps(REVISION))).toMatchObject({
-            add: [],
-            remove: [],
-            rename: [],
-        })
-        errors.mockRestore()
-    })
-
-    it("A second click while a column saves sends nothing more", async () => {
-        await mount()
-        const release = holdRequests()
-        let first: Promise<unknown> = Promise.resolve()
-        let second: Promise<unknown> = Promise.resolve()
-        act(() => {
-            first = editor().addColumn("country")
-            second = editor().addColumn("country")
-        })
-        let commitResult: string | null = "unset"
-        await act(async () => {
-            commitResult = await editor().commit("x")
-        })
-
-        await act(async () => {
-            release()
-            await first
-        })
-
-        expect(await second).toMatchObject({ok: false, reason: "saving"})
-        expect(commitResult).toBeNull()
-        expect(commitBodies()).toHaveLength(1)
-        expect(commitBody()?.testset_revision.delta.columns).toEqual({add: ["country"]})
     })
 
     it("A nested name used only by a row past the first 20 is refused", async () => {
@@ -788,10 +776,7 @@ describe("useTestsetEditor commit over the real package state", () => {
         it("Columns change before the first save, and the rows follow them", async () => {
             await mountEmptyNew()
             expect(editor().columnEditBlocked).toBeNull()
-            expect(await act(() => editor().addColumn("question"))).toEqual({
-                ok: true,
-                revisionId: null,
-            })
+            expect(await act(() => editor().addColumn("question"))).toEqual({ok: true})
             await act(() => editor().addColumn("answer"))
             const rowId = run(() => editor().addRow())
             run(() =>
@@ -801,10 +786,7 @@ describe("useTestsetEditor commit over the real package state", () => {
             )
             expect(editor().columnEditBlocked).toBeNull()
 
-            expect(await act(() => editor().renameColumn("answer", "reply"))).toEqual({
-                ok: true,
-                revisionId: null,
-            })
+            expect(await act(() => editor().renameColumn("answer", "reply"))).toEqual({ok: true})
             expect(await act(() => editor().addColumn("reply"))).toEqual({
                 ok: false,
                 reason: "duplicate",
@@ -845,10 +827,7 @@ describe("useTestsetEditor commit over the real package state", () => {
             )
 
             await act(() => editor().deleteColumns(["question"]))
-            expect(await act(() => editor().renameColumn("answer", "question"))).toEqual({
-                ok: true,
-                revisionId: null,
-            })
+            expect(await act(() => editor().renameColumn("answer", "question"))).toEqual({ok: true})
 
             await commit()
             expect(createdRows()).toEqual([{data: {question: "No"}}])
@@ -863,10 +842,7 @@ describe("useTestsetEditor commit over the real package state", () => {
             run(() => store.set(testcaseMolecule.actions.update, rowId ?? "", {data: {b: "keep"}}))
 
             await act(() => editor().deleteColumns(["a"]))
-            expect(await act(() => editor().renameColumn("b", "a"))).toEqual({
-                ok: true,
-                revisionId: null,
-            })
+            expect(await act(() => editor().renameColumn("b", "a"))).toEqual({ok: true})
 
             await commit()
             expect(createdRows()).toEqual([{data: {a: "keep"}}])
@@ -918,7 +894,7 @@ describe("useTestsetEditor commit over the real package state", () => {
         expect(store.get(testcaseMolecule.atoms.draft("case-1"))).toBeNull()
     })
 
-    it("A column save refreshes the loaded revisions list", async () => {
+    it("A commit with a column change refreshes the loaded revisions list", async () => {
         revisionsInList = [{id: REVISION, version: "2"}]
         const seen: {revisions: ReturnType<typeof useRevisionsList> | null} = {revisions: null}
         function RevisionsProbe() {
@@ -944,6 +920,7 @@ describe("useTestsetEditor commit over the real package state", () => {
             {id: REVISION, version: "2"},
         ]
         await act(() => editor().addColumn("country"))
+        expect(await commit()).toBe(NEW_REVISION)
         await flush()
 
         expect(seen.revisions?.latestVersion).toBe(3)

@@ -112,10 +112,9 @@ vi.mock("@agenta/entity-ui/testcase", () => ({
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
-const saved = (): Promise<ColumnEdit> => Promise.resolve({ok: true, revisionId: "rev-3"})
+const saved = (): Promise<ColumnEdit> => Promise.resolve({ok: true})
 
 const fakeEditor = (over: Partial<Parameters<typeof TestsetGrid>[0]["editor"]> = {}) => ({
-    isNew: false,
     tableConfig: {scopeId: "scope", revisionId: "rev-2", includeNewRows: true},
     readOnly: false,
     columnEditBlocked: null,
@@ -154,19 +153,11 @@ describe("Test set grid", () => {
             .at(-1)
 
     const mount = (editor: ReturnType<typeof fakeEditor>, canEdit = true) => {
-        const onColumnSaved = vi.fn()
         const onOpenRow = vi.fn()
         act(() =>
-            root.render(
-                <TestsetGrid
-                    editor={editor}
-                    canEdit={canEdit}
-                    onOpenRow={onOpenRow}
-                    onColumnSaved={onColumnSaved}
-                />,
-            ),
+            root.render(<TestsetGrid editor={editor} canEdit={canEdit} onOpenRow={onOpenRow} />),
         )
-        return {onColumnSaved, onOpenRow}
+        return {onOpenRow}
     }
 
     beforeEach(() => {
@@ -215,7 +206,6 @@ describe("Test set grid", () => {
 
     it("With no rows, Add column still shows", async () => {
         const editor = fakeEditor({
-            isNew: true,
             tableConfig: {scopeId: "empty", revisionId: "new", includeNewRows: true},
         })
         mount(editor)
@@ -226,23 +216,22 @@ describe("Test set grid", () => {
 
     it("Rename column with an unchanged name changes nothing", async () => {
         const editor = fakeEditor()
-        const {onColumnSaved} = mount(editor)
+        mount(editor)
         await press(byLabel("Column question actions"))
         await click(item("Rename column"))
         expect(document.querySelector<HTMLInputElement>('[role="dialog"] input')?.value).toBe(
             "question",
         )
 
-        await click(button("Rename and save"))
+        await click(button("Rename"))
 
         expect(editor.renameColumn).toHaveBeenCalledWith("question", "question")
-        expect(onColumnSaved).not.toHaveBeenCalled()
         expect(document.querySelector('[role="dialog"]')).toBeNull()
     })
 
-    it("Delete column asks first and removes the column", async () => {
+    it("Delete column asks first, stages the removal and closes the step", async () => {
         const editor = fakeEditor()
-        const {onColumnSaved} = mount(editor)
+        mount(editor)
         await press(byLabel("Column question actions"))
         await click(item("Delete column"))
         expect(document.body.textContent).toContain(
@@ -250,10 +239,10 @@ describe("Test set grid", () => {
         )
         expect(editor.deleteColumns).not.toHaveBeenCalled()
 
-        await click(button("Delete and save"))
+        await click(button("Delete"))
 
         expect(editor.deleteColumns).toHaveBeenCalledWith(["question"])
-        expect(onColumnSaved).toHaveBeenCalledWith("rev-3")
+        expect(document.querySelector('[role="dialog"]')).toBeNull()
     })
 
     it("Deleting a group removes every nested column", async () => {
@@ -263,7 +252,7 @@ describe("Test set grid", () => {
         expect(item("Rename column")).toBeUndefined()
         await click(item("Delete group"))
 
-        await click(button("Delete and save"))
+        await click(button("Delete"))
 
         // The nested values sit under one top-level key, the only key the server can remove.
         expect(editor.deleteColumns).toHaveBeenCalledWith(["meta"])
