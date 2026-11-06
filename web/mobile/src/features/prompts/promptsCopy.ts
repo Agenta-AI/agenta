@@ -10,7 +10,6 @@ export const promptsCopy = {
     newFolder: "New folder",
     newPrompt: "New prompt",
     promptTypes: {chat: "Chat", completion: "Completion", agent: "Agent"},
-    createPromptDialog: {nameLabel: "App name", create: "Create"},
     rootLabel: "All prompts",
     folderTag: "Folder",
     columns: {name: "Name", modified: "Date modified", type: "Type", actions: "Actions"},
@@ -74,7 +73,6 @@ export const promptsCopy = {
         movePrompt: "Couldn't move this prompt",
         archivePrompt: "Couldn't archive this prompt",
         startPrompt: "Couldn't start a new prompt. Try again.",
-        createPrompt: "Couldn't create the prompt",
     },
     states: {
         loadErrorTitle: "Could not load prompts",
