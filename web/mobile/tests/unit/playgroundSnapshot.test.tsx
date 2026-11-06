@@ -162,6 +162,8 @@ beforeEach(() => {
 
 afterEach(() => {
     act(() => root.unmount())
+    // Leaving keeps the edits of a saved revision; the next test starts without them.
+    store.set(workflowMolecule.actions.discard, "rev-1")
     host.remove()
 })
 
@@ -204,8 +206,9 @@ describe("playground snapshot", () => {
         expect(written.startsWith("#pgSnapshot=")).toBe(true)
         expect(router.query.revisions).toBe("rev-1")
 
-        // Leaving drops the drafts; the address keeps them.
+        // A reload starts from an empty store: only the address keeps the drafts.
         act(() => root.render(null))
+        act(() => store.set(workflowMolecule.actions.discard, "rev-1"))
         expect(store.get(workflowMolecule.selectors.isDirty("rev-1"))).toBe(false)
 
         setHash(written.slice(1))

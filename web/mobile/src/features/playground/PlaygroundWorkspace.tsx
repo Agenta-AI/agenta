@@ -53,7 +53,7 @@ export const PlaygroundWorkspace = ({
 }) => {
     // Form, JSON or YAML: kept while the page is open, as in the old playground.
     const [viewMode, setViewMode] = useState<ConfigViewMode>("form")
-    const {switchTo, modal: switchDialog} = useSwitchRevision()
+    const switchTo = useSwitchRevision()
     // A revision the server has deleted is read only from that moment. It stays on screen until
     // the lists load again and the page takes it out, and an edit made then would be lost.
     const [deletedId, setDeletedId] = useState<string | null>(null)
@@ -125,7 +125,6 @@ export const PlaygroundWorkspace = ({
                     onClose={() => setRefine(null)}
                 />
             ) : null}
-            {switchDialog}
             <PlaygroundFocusDrawerHost />
         </div>
     )
