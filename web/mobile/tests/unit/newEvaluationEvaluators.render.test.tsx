@@ -37,6 +37,41 @@ vi.mock(
     "@agenta/entity-ui/workflow",
     async () => (await import("../support/newEvaluationMocks")).workflowUiMock,
 )
+const gate = vi.hoisted(() => ({beta: false, flowKind: ""}))
+vi.mock("@agenta/shared/state", async (original) => {
+    const {atom} = await import("jotai")
+    return {...(await original<object>()), betaDeveloperModeActiveAtom: atom(() => gate.beta)}
+})
+// The create flow is a separate chunk: a stand-in that "creates" Tone at once.
+vi.mock("next/dynamic", () => ({
+    default:
+        () =>
+        ({
+            kind,
+            onCreated,
+        }: {
+            kind: string
+            onCreated: (created: Record<string, unknown>) => void
+        }) => {
+            gate.flowKind = kind
+            return (
+                <button
+                    type="button"
+                    onClick={() =>
+                        onCreated({
+                            workflowId: "wf-9",
+                            revisionId: "rev-9",
+                            name: "Tone",
+                            slug: "tone",
+                            version: 1,
+                        })
+                    }
+                >
+                    Save new evaluator
+                </button>
+            )
+        },
+}))
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 let host: HTMLDivElement
@@ -58,6 +93,8 @@ const rowByText = (text: string) =>
 const byLabel = (label: string) => host.querySelector<HTMLElement>(`[aria-label="${label}"]`)
 
 beforeEach(() => {
+    gate.beta = false
+    gate.flowKind = ""
     resetWizardData()
     window.matchMedia = ((query: string) => ({
         matches: true,
@@ -80,10 +117,12 @@ const mountEvaluators = (
         evaluatorsHref = "/w/ws/p/pr/evaluators",
         onPick = () => undefined,
         selected = [],
+        allowAutomaticCreate = false,
     }: {
         evaluatorsHref?: string | null
         onPick?: (evaluator: DraftEvaluator) => void
         selected?: DraftEvaluator[]
+        allowAutomaticCreate?: boolean
     } = {},
 ) =>
     mount(
@@ -93,6 +132,7 @@ const mountEvaluators = (
             selected={selected}
             evaluatorsHref={evaluatorsHref}
             onPick={onPick}
+            allowAutomaticCreate={allowAutomaticCreate}
         />,
     )
 
@@ -191,6 +231,44 @@ describe("evaluators step", () => {
         )
         expect(link?.getAttribute("href")).toBe("/w/ws/p/pr/evaluators?tab=automatic")
         expect(link?.getAttribute("target")).toBe("_blank")
+    })
+
+    it("In beta developer mode a human evaluator is created here and picked", async () => {
+        gate.beta = true
+        const onPick = vi.fn()
+        await mountEvaluators("human", {onPick})
+        expect(
+            [...host.querySelectorAll("a")].some((a) => a.textContent === "Create new evaluator"),
+        ).toBe(false)
+        const create = [...host.querySelectorAll("button")].find(
+            (button) => button.textContent === "Create new evaluator",
+        )
+        await act(async () => create?.click())
+        expect(gate.flowKind).toBe("human")
+        const save = [...host.querySelectorAll("button")].find(
+            (button) => button.textContent === "Save new evaluator",
+        )
+        await act(async () => save?.click())
+        expect(onPick).toHaveBeenCalledWith({
+            revisionId: "rev-9",
+            evaluatorId: "wf-9",
+            name: "Tone",
+            version: 1,
+        })
+    })
+
+    it("Automatic create stays a link unless the host allows the drawer", async () => {
+        gate.beta = true
+        await mountEvaluators("auto")
+        expect(
+            [...host.querySelectorAll("a")].some((a) => a.textContent === "Create new evaluator"),
+        ).toBe(true)
+        await mountEvaluators("auto", {allowAutomaticCreate: true})
+        const create = [...host.querySelectorAll("button")].find(
+            (button) => button.textContent === "Create new evaluator",
+        )
+        await act(async () => create?.click())
+        expect(gate.flowKind).toBe("automatic")
     })
 
     it("A failed evaluator list shows Could not load evaluators with a retry", async () => {
