@@ -212,6 +212,15 @@ describe("Test set name dialog", () => {
         expect(onClose).toHaveBeenCalled()
     })
 
+    it("The rename field has a visible label", () => {
+        mount("rename")
+        const label = Array.from(document.body.querySelectorAll("label")).find(
+            (element) => element.textContent === "Test set name",
+        )
+        expect(label).toBeDefined()
+        expect(document.getElementById(label?.htmlFor ?? "")).toBe(input())
+    })
+
     it("Rename failure shows Failed to rename the test set", async () => {
         stubAxiosHttp(() => ({status: 500}))
         mount("rename")

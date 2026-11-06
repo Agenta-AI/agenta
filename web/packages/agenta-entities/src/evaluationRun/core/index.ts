@@ -124,7 +124,13 @@ export {
     type RunListReferenceColumn,
     type RunMetricCellView,
 } from "./runListColumns"
-export {formatMetricNumber, formatMetricValue, METRIC_PLACEHOLDER} from "./metricFormat"
+export {
+    formatMetricNumber,
+    formatMetricValue,
+    humanizeMetricLabel,
+    METRIC_PLACEHOLDER,
+} from "./metricFormat"
+export {buildRunEditBody, type RunEditBody, type RunEditInput, type RunStepOrigin} from "./runEdit"
 export {
     buildRunReferencePayload,
     buildRunsQueryBody,

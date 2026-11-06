@@ -17,6 +17,8 @@ export {
 } from "./runsList"
 export {
     deleteEvaluationRuns,
+    editEvaluationRun,
+    processNewEvaluatorSteps,
     startOnlineEvaluation,
     stopOnlineEvaluation,
     type EvaluationRunActionParams,

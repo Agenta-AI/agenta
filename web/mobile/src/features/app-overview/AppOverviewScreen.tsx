@@ -35,8 +35,10 @@ const AppUsageSection = dynamic(() => import("./AppUsageSection").then((m) => m.
 
 /**
  * The overview of one prompt or custom app: where it is deployed, its newest prompts, and its
- * newest evaluations. An agent id goes to the agent overview, and an id that is no app here
- * (unknown, archived, or an evaluator) is "not found".
+ * newest evaluations. An agent id goes to the agent overview. An archived app opens too,
+ * without its actions menu. In beta developer mode an evaluator id shows the same overview
+ * without Deployment, as in the old app; outside it an evaluator is "not found". Any other
+ * id (unknown, or an archived evaluator) is "not found".
  *
  * Each section loads and fails on its own. The usage charts show only in beta developer mode.
  */
@@ -54,7 +56,7 @@ export const AppOverviewScreen = ({
     const router = useRouter()
     const queryClient = useQueryClient()
     const base = `/w/${workspaceId}/p/${projectId}`
-    const overview = useOverviewApp(appId)
+    const overview = useOverviewApp(projectId, appId)
     // Beta developer mode matches /w: the menu sits right after the title, and authors show names.
     const beta = useAtomValue(betaDeveloperModeActiveAtom)
     const showUsage = beta
@@ -66,7 +68,9 @@ export const AppOverviewScreen = ({
 
     if (status === "missing") return <PageNotFound />
 
-    const app = overview.status === "app" ? overview.app : null
+    const evaluator = overview.status === "evaluator"
+    const app = overview.status === "app" || overview.status === "evaluator" ? overview.app : null
+    const archivedApp = overview.status === "app" && overview.archived
     const title = app ? app.name || app.slug || "Untitled" : null
 
     return (
@@ -92,8 +96,13 @@ export const AppOverviewScreen = ({
                                         {title}
                                     </h1>
                                 )}
-                                {app ? (
-                                    <AppActionsMenu projectId={projectId} app={app} base={base} />
+                                {app && !archivedApp ? (
+                                    <AppActionsMenu
+                                        projectId={projectId}
+                                        app={app}
+                                        base={base}
+                                        evaluator={evaluator}
+                                    />
                                 ) : null}
                             </div>
                         </div>
@@ -111,11 +120,12 @@ export const AppOverviewScreen = ({
                         ) : app ? (
                             <div className="flex flex-col gap-8">
                                 {showUsage ? <AppUsageSection appId={app.id} /> : null}
-                                <AppDeploymentSection app={app} base={base} />
+                                {evaluator ? null : <AppDeploymentSection app={app} base={base} />}
                                 <AppRecentPromptsSection
                                     projectId={projectId}
                                     app={app}
                                     base={base}
+                                    evaluator={evaluator}
                                 />
                                 <AppEvaluationsSection
                                     projectId={projectId}

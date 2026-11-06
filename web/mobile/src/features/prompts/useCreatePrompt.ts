@@ -22,8 +22,9 @@ export interface NewPromptAction {
 }
 
 /**
- * The New prompt flow, as in /w: a local draft app from the type's template, then a naming step
- * that creates the app (`CreatePromptDialog`), then the playground of the new app.
+ * The New prompt flow, as in /w: a local draft app from the type's template, then the editable
+ * revision drawer, whose Create names it and makes the app (`CreatePromptDrawer`), then the
+ * playground of the new app.
  *
  * The draft lives only in this browser until the create. Closing the naming step drops it.
  */
@@ -58,10 +59,15 @@ export const useCreatePrompt = ({projectBase}: {projectBase: string}) => {
         setDraftId(null)
     }, [discard, draftId])
 
+    // Close the drawer first: it clears the playground state as it goes, and the playground it
+    // lands on fills that state again.
     const land = useCallback(
-        (appId: string, revisionId: string) =>
-            void router.push(playgroundHref(projectBase, appId, [revisionId])),
-        [projectBase, router],
+        (appId: string, revisionId?: string, toast: string = promptsCopy.toast.promptCreated) => {
+            close()
+            message.success(toast)
+            void router.push(playgroundHref(projectBase, appId, revisionId ? [revisionId] : []))
+        },
+        [close, projectBase, router],
     )
 
     // Leaving the page stops a draft that is still being set up.

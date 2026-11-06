@@ -47,21 +47,24 @@ export const RECENT_PROMPTS_COUNT = 5
 /**
  * The five newest revisions of the app. A row opens the revision drawer. Beta developer mode adds
  * what /w has: the Playground button, Open in Playground and Delete in the row menu, and the
- * editable drawer.
+ * editable drawer. An evaluator is not deployed and has no Registry, so it gets neither Deploy
+ * nor the Registry link.
  */
 export const AppRecentPromptsSection = ({
     projectId,
     app,
     base,
+    evaluator = false,
 }: {
     projectId: string
     app: Workflow
     base: string
+    evaluator?: boolean
 }) => {
     const revisions = useAppRevisions({projectId, appId: app.id, search: ""})
     const latestRevisionId = useAtomValue(workflowLatestRevisionIdAtomFamily(app.id)) ?? null
-    const canDeploy = useProjectPermission(projectId, "deploy_environments")
-    const variantsEnabled = useDeveloperViewEnabled("variants") === true
+    const canDeploy = useProjectPermission(projectId, "deploy_environments") && !evaluator
+    const variantsEnabled = useDeveloperViewEnabled("variants") === true && !evaluator
     const [revisionId, setRevisionId] = useRevisionParam()
     const [deployRow, setDeployRow] = useState<AppRevisionRow | null>(null)
     const [deleteRow, setDeleteRow] = useState<AppRevisionRow | null>(null)

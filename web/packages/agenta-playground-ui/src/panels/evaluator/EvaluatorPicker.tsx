@@ -9,7 +9,7 @@ import {
 import {playgroundController} from "@agenta/playground"
 import type {PlaygroundNode} from "@agenta/playground/state"
 import {Badge, Button, cn, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
-import {Gavel, X} from "@phosphor-icons/react"
+import {CaretDown, Gavel, X} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 /** One evaluator after the app: its name and version, and a button that takes it off. */
@@ -20,7 +20,7 @@ const EvaluatorChip = ({node, onRemove}: {node: PlaygroundNode; onRemove: () => 
         data?.version != null ? ` v${data.version}` : ""
     }`
     return (
-        <Badge variant="purple" className="max-w-40 shrink-0 gap-1 pr-0.5">
+        <Badge variant="success" className="max-w-40 shrink-0 gap-1 pr-0.5">
             <span className="truncate">{label}</span>
             <button
                 type="button"
@@ -94,6 +94,7 @@ export const EvaluatorPicker = () => {
                     <Button variant="outline" size="sm" className="gap-1" disabled={!root}>
                         <Gavel aria-hidden size={14} />
                         <span className="max-sm:sr-only">Evaluator</span>
+                        <CaretDown aria-hidden size={12} className="max-sm:hidden" />
                     </Button>
                 </PopoverTrigger>
                 <PopoverContent align="end" className="w-[296px] p-0">
