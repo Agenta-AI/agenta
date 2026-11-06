@@ -52,7 +52,12 @@ export const RenameAppDialog = ({
     const description = descriptionDraft ?? rename.storedDescription
     const nameError = nameDraft === null ? null : rename.validate(name)
     const loadingDescription = rename.descriptionState === "loading"
-    const canSave = !pending && !loadingDescription && name.trim() !== "" && nameError === null
+    const canSave =
+        !pending &&
+        !loadingDescription &&
+        !rename.namesLoading &&
+        name.trim() !== "" &&
+        nameError === null
     const version = latest.data?.version
 
     const submit = async (event?: FormEvent) => {
