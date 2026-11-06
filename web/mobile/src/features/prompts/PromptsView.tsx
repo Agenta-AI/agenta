@@ -33,6 +33,7 @@ export const PromptsView = ({
     onOpenFolder,
     openDialog,
     newPrompt,
+    onSetupWorkflow,
     onRetry,
 }: {
     chain: Folder[]
@@ -50,6 +51,7 @@ export const PromptsView = ({
     openDialog: (dialog: PromptsDialog) => void
     /** New prompt in the folder menu; null without developer mode. */
     newPrompt: NewPromptAction | null
+    onSetupWorkflow: (() => void) | null
     onRetry: () => void
 }): ReactNode => (
     <>
@@ -60,6 +62,7 @@ export const PromptsView = ({
             onOpenFolder={onOpenFolder}
             openDialog={openDialog}
             newPrompt={newPrompt}
+            onSetupWorkflow={onSetupWorkflow}
         />
         <ListTableToolbar
             search={search}
