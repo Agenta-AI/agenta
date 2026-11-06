@@ -5,11 +5,11 @@
  * `@agenta/shared/api` answers from the fixtures below, and the commit test asserts the exact
  * request it sent.
  */
-import {act, StrictMode} from "react"
+import {act, StrictMode, useEffect} from "react"
 
 import {projectPermissionQueryKey} from "@agenta/entities/access"
 import {createLocalDraftFromWorkflowRevision, workflowMolecule} from "@agenta/entities/workflow"
-import {playgroundController} from "@agenta/playground"
+import {playgroundController, playgroundInitializedAtom} from "@agenta/playground"
 import {queryClient as hostQueryClient} from "@agenta/shared/api"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {QueryClientProvider, type QueryClient} from "@tanstack/react-query"
@@ -349,5 +349,27 @@ describe("The editable revision drawer", () => {
         expect(shown()).toEqual([localId])
         expect(find("Commit") ?? find("Create")).toBeDefined()
         expect(sent("/workflows/revisions/commit")).toHaveLength(0)
+    })
+
+    it("Open in playground keeps the revision the playground page sets up", async () => {
+        await mount()
+        // The playground page sets itself up in its mount effect, in the commit that removes the
+        // drawer, as usePlaygroundSelection does.
+        const PlaygroundPage = () => {
+            useEffect(() => {
+                store.set(playgroundController.actions.addPrimaryNode, {
+                    type: "workflow",
+                    id: "rev-2",
+                    label: "rev-2",
+                })
+                store.set(playgroundInitializedAtom, true)
+            }, [])
+            return null
+        }
+        act(() => root.render(<PlaygroundPage />))
+        await settle()
+
+        expect(shown()).toEqual(["rev-2"])
+        expect(store.get(playgroundInitializedAtom)).toBe(true)
     })
 })
