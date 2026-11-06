@@ -16,6 +16,7 @@ import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {AppOverviewLink} from "../app-overview/AppOverviewLink"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useDeveloperPageFrame} from "../developer/developerPageFrame"
+import {useRouteAppId} from "../developer/useRouteAppId"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
@@ -39,8 +40,8 @@ export const EndpointsScreen = ({
     useBindProjectContext(projectId)
     const router = useRouter()
     const queryClient = useQueryClient()
-    const appParam = router.query.app
-    const appId = typeof appParam === "string" && appParam ? appParam : ""
+    const route = useRouteAppId()
+    const appId = route.appId ?? ""
 
     const apps = useAtomValue(appWorkflowsListQueryStateAtom)
     const variants = useAtomValue(
@@ -106,10 +107,12 @@ export const EndpointsScreen = ({
                                     <PlugsIcon aria-hidden className="shrink-0" />
                                     API endpoint
                                 </h1>
-                                <AppOverviewLink
-                                    base={`/w/${workspaceId}/p/${projectId}`}
-                                    appId={app?.id ?? null}
-                                />
+                                {route.fromPath ? null : (
+                                    <AppOverviewLink
+                                        base={`/w/${workspaceId}/p/${projectId}`}
+                                        appId={app?.id ?? null}
+                                    />
+                                )}
                             </div>
                         </div>
                     }
@@ -122,7 +125,7 @@ export const EndpointsScreen = ({
                                 state={state}
                                 apps={appList}
                                 appId={app?.id ?? null}
-                                onPickApp={pickApp}
+                                onPickApp={route.fromPath ? undefined : pickApp}
                                 onRetry={retry}
                                 environments={environments.environments}
                                 selected={environments.selected}

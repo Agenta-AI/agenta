@@ -1,5 +1,10 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {Button} from "@agenta/ui/ui"
+import {TrayIcon} from "@phosphor-icons/react"
+import {useAtomValue} from "jotai"
+import Link from "next/link"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -47,6 +52,8 @@ export const PromptsScreen = ({
     const {openFolder} = browser
     const router = useRouter()
     const playgroundEnabled = useDeveloperViewEnabled("playground") === true
+    // Beta developer mode reaches Archived apps from here; its rail has no row for it.
+    const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
 
     const rowActions = useMemo<PromptRowActions>(
         () => ({
@@ -117,6 +124,19 @@ export const PromptsScreen = ({
                             onOpenFolder={browser.openFolder}
                             openDialog={setDialog}
                             onRetry={browser.refetch}
+                            toolbarActions={
+                                developerMode ? (
+                                    <Button asChild size="sm" variant="ghost">
+                                        <Link
+                                            href={`/w/${workspaceId}/p/${projectId}/apps/archived`}
+                                            prefetch={false}
+                                        >
+                                            <TrayIcon aria-hidden />
+                                            {promptsCopy.archived}
+                                        </Link>
+                                    </Button>
+                                ) : undefined
+                            }
                         />
                     </div>
                 </ScreenScaffold>

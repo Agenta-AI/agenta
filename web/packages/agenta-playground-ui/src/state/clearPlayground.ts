@@ -10,7 +10,7 @@ import {
 import type {useStore} from "jotai"
 
 /**
- * Clears what a playground page set up: its runs, test set connection, nodes and drafts. The agent
+ * Clears what a playground page or the revision drawer set up: its runs, test set connection, nodes and drafts. The agent
  * session screen uses the same store, so nothing from the page may outlive it.
  */
 export const clearPlayground = (store: ReturnType<typeof useStore>) => {

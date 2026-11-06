@@ -49,7 +49,6 @@ vi.mock("@agenta/sdk/resources", async (importOriginal) => ({
 vi.mock("next/router", () => ({default: {push: vi.fn()}, useRouter: () => router}))
 vi.mock("@/features/developer/developerViewAccess", () => ({
     useDeveloperViewEnabled: () => false,
-    canDeveloperViewBeEnabled: () => false,
 }))
 vi.mock("@agenta/observability", async (importOriginal) => {
     const actual = await importOriginal<typeof import("@agenta/observability")>()

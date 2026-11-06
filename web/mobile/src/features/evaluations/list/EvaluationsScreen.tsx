@@ -38,7 +38,7 @@ const RevisionDrawerHost = dynamic(
 )
 
 /**
- * The evaluation runs of a project, or of one app with `?app=`. Filters live in the URL.
+ * The evaluation runs of a project, or of one app (from the path or `?app=`). Filters live in the URL.
  *
  * `onCreate` starts a new evaluation of a kind. Without it the page offers no create button.
  * `createKinds` limits the kinds the create entry offers.
@@ -74,12 +74,7 @@ export const EvaluationsScreen = ({
 
     const createMenu =
         canCreate && onCreate ? (
-            <CreateEvaluationMenu
-                tab={kind}
-                onCreate={onCreate}
-                kinds={createKinds}
-                label={kind === "all" ? "Start evaluation" : "New evaluation"}
-            />
+            <CreateEvaluationMenu tab={kind} onCreate={onCreate} kinds={createKinds} />
         ) : null
 
     return (
@@ -96,15 +91,19 @@ export const EvaluationsScreen = ({
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px]">
                                     Evaluations
                                 </h1>
-                                <AppOverviewLink
-                                    base={`/w/${workspaceId}/p/${projectId}`}
-                                    appId={appId}
-                                />
-                                <ObservabilityAppFilter
-                                    projectId={projectId}
-                                    value={appId}
-                                    onChange={filters.setAppId}
-                                />
+                                {filters.appFromPath ? null : (
+                                    <>
+                                        <AppOverviewLink
+                                            base={`/w/${workspaceId}/p/${projectId}`}
+                                            appId={appId}
+                                        />
+                                        <ObservabilityAppFilter
+                                            projectId={projectId}
+                                            value={appId}
+                                            onChange={filters.setAppId}
+                                        />
+                                    </>
+                                )}
                             </div>
                         </div>
                     }
@@ -127,7 +126,9 @@ export const EvaluationsScreen = ({
                                         value={statuses}
                                         onChange={filters.setStatuses}
                                     />
-                                    {createMenu}
+                                    {createMenu ? (
+                                        <div className="ml-auto">{createMenu}</div>
+                                    ) : null}
                                 </>
                             }
                         />

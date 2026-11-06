@@ -1,10 +1,12 @@
 import {useMemo, useState} from "react"
 
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
+import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableToolbar} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
 import {ArrowLeft} from "@phosphor-icons/react"
+import {useAtomValue} from "jotai"
 import Link from "next/link"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -45,6 +47,8 @@ export const ArchivedAppsScreen = ({
     const archived = useArchivedApps({projectId, search: trimmed})
     const canRestore = useProjectPermission(projectId, "edit_workflows")
     const rows = useMemo(() => archived.apps.map(toArchivedAppRow), [archived.apps])
+    // Beta developer mode opens this page from the Prompts page, so Back returns there.
+    const fromPrompts = useAtomValue(betaDeveloperModeActiveAtom)
 
     return (
         <>
@@ -59,8 +63,14 @@ export const ArchivedAppsScreen = ({
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
                                 <Button asChild variant="ghost" size="icon" className="shrink-0">
                                     <Link
-                                        href={projectHomeUrl({workspaceId, projectId})}
-                                        aria-label="Back to home"
+                                        href={
+                                            fromPrompts
+                                                ? `/w/${workspaceId}/p/${projectId}/prompts`
+                                                : projectHomeUrl({workspaceId, projectId})
+                                        }
+                                        aria-label={
+                                            fromPrompts ? "Back to prompts" : "Back to home"
+                                        }
                                         prefetch={false}
                                     >
                                         <ArrowLeft aria-hidden />
