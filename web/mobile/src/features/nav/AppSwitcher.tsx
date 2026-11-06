@@ -25,7 +25,7 @@ export const appSwitchHref = (
         page === "variants" && typeof query.tab === "string"
             ? `?tab=${encodeURIComponent(query.tab)}`
             : ""
-    return `${projectURL}/apps/${nextAppId}/${page}${tab}`
+    return `${projectURL}/apps/${encodeURIComponent(nextAppId)}/${page}${tab}`
 }
 
 /** The app menu's switcher over the prompt apps; the list loads on first open. */
