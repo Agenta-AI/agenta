@@ -87,7 +87,12 @@ export const RunsPanelHeader = ({
                         title="Run the prompt on all test cases. (Ctrl+Enter / ⌘+Enter)"
                         side="bottom"
                     >
-                        <RunButton mode="runAll" onClick={run} disabled={!canRun} />
+                        <RunButton
+                            mode="runAll"
+                            variant="default"
+                            onClick={run}
+                            disabled={!canRun}
+                        />
                     </SimpleTooltip>
                 )}
             </div>
