@@ -11,6 +11,7 @@ import {useAtomValue} from "jotai"
 import {DrillInBridgeProvider} from "../chat/DrillInBridgeProvider"
 
 import {EvaluatorPlaygroundHeader} from "./EvaluatorPlaygroundHeader"
+import {EvaluatorTypeTag} from "./EvaluatorTypeTag"
 import {LoadPresetAction} from "./LoadPresetAction"
 import {PlaygroundFocusDrawerHost} from "./PlaygroundFocusDrawerHost"
 import {PlaygroundRunPane} from "./PlaygroundRunPane"
@@ -56,11 +57,12 @@ export const EvaluatorPlaygroundWorkspace = ({
     const evaluatorId = evaluator?.workflow_id ?? ""
 
     return (
-        <div className="flex h-full min-h-0 flex-col bg-background">
+        <div data-playground className="flex h-full min-h-0 flex-col bg-background">
             <EvaluatorPlaygroundHeader
                 workspaceId={workspaceId}
                 projectId={projectId}
                 evaluatorName={evaluatorName}
+                typeTag={<EvaluatorTypeTag revisionId={evaluatorRevisionId} />}
                 runOn={runOn}
                 appLabel={appLabel}
                 onRunOnChange={onRunOnChange}

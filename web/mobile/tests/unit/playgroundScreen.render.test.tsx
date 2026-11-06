@@ -142,6 +142,13 @@ describe("PlaygroundScreen", () => {
         expect(byTestId("page-title")?.textContent).toBe("Playground | Greeter")
     })
 
+    it("Marks its panes as the playground, the scope of the playground editor style", async () => {
+        await render()
+
+        expect(byTestId("config-panel")?.closest("[data-playground]")).not.toBeNull()
+        expect(byTestId("run-pane")?.closest("[data-playground]")).not.toBeNull()
+    })
+
     it("On a phone the Configuration and Generations switch shows one pane", async () => {
         fixture.wide = false
         await render()
