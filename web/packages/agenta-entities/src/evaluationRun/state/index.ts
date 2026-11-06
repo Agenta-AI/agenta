@@ -42,3 +42,4 @@ export {
     type RunMetricEntry,
     type TemporalMetricPoint,
 } from "./runMetrics"
+export {liveQueryRevisionQueryAtomFamily, liveQueryRevisionQueryKey} from "./liveQueryRevision"

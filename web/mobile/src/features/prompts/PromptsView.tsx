@@ -33,6 +33,7 @@ export const PromptsView = ({
     onOpenFolder,
     openDialog,
     newPrompt,
+    onSetupWorkflow,
     onRetry,
     toolbarActions,
 }: {
@@ -51,6 +52,7 @@ export const PromptsView = ({
     openDialog: (dialog: PromptsDialog) => void
     /** New prompt in the folder menu; null without developer mode. */
     newPrompt: NewPromptAction | null
+    onSetupWorkflow: (() => void) | null
     onRetry: () => void
     /** Controls at the toolbar's right edge, beside the search box. */
     toolbarActions?: ReactNode
@@ -63,6 +65,7 @@ export const PromptsView = ({
             onOpenFolder={onOpenFolder}
             openDialog={openDialog}
             newPrompt={newPrompt}
+            onSetupWorkflow={onSetupWorkflow}
         />
         <ListTableToolbar
             search={search}

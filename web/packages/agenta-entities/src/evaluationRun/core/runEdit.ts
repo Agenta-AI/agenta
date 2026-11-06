@@ -1,5 +1,6 @@
 /**
- * The request body that changes a run's name and description, copied from the old app's
+ * The request body that changes a run's name and description and adds evaluators to it, copied
+ * from the old app's
  * `saveEvaluationEditAtom` (`EvalRunDetails/atoms/mutations/editEvaluation.ts`).
  *
  * `PATCH /simple/evaluations/{id}` replaces the run's data, so the body sends every step the run
@@ -48,14 +49,26 @@ function stepOrigins(
     return origins
 }
 
-/** The body that renames a run and sets its description, keeping its steps as they are. */
+/**
+ * The body that renames a run and sets its description, keeping its steps as they are. Added
+ * evaluator revisions join the run with the origin of its first evaluator step, as in the old app,
+ * so a human run stays human; a revision the run already has keeps its own step.
+ */
 export function buildRunEditBody(
     run: RunEditInput,
-    {name, description}: {name: string; description: string},
+    {
+        name,
+        description,
+        addedEvaluatorRevisionIds = [],
+    }: {name: string; description: string; addedEvaluatorRevisionIds?: readonly string[]},
 ): RunEditBody {
     const steps = run.data?.steps ?? []
     const evaluatorOrigin = steps.find((step) => step.type === "annotation")?.origin ?? "auto"
     const querySteps = stepOrigins(steps, "input", "query_revision", "auto")
+    const evaluatorSteps = stepOrigins(steps, "annotation", "evaluator_revision", evaluatorOrigin)
+    for (const id of addedEvaluatorRevisionIds) {
+        if (!(id in evaluatorSteps)) evaluatorSteps[id] = evaluatorOrigin
+    }
     return {
         evaluation: {
             id: run.id,
@@ -65,12 +78,7 @@ export function buildRunEditBody(
                 ...(Object.keys(querySteps).length ? {query_steps: querySteps} : {}),
                 testset_steps: stepOrigins(steps, "input", "testset_revision", "auto"),
                 application_steps: stepOrigins(steps, "invocation", "application_revision", "auto"),
-                evaluator_steps: stepOrigins(
-                    steps,
-                    "annotation",
-                    "evaluator_revision",
-                    evaluatorOrigin,
-                ),
+                evaluator_steps: evaluatorSteps,
             },
         },
     }

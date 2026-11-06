@@ -132,6 +132,7 @@ export interface DrillInFieldHeaderProps {
         icon?: ReactNode
         onClick?: () => void
         children?: ReactNode
+        "aria-label"?: string
     }>
     /** Custom tooltip component */
     Tooltip?: React.ComponentType<{
@@ -169,6 +170,7 @@ const DefaultButton = ({
     icon,
     onClick,
     children,
+    "aria-label": ariaLabel,
 }: {
     type?: "text" | "primary"
     size?: "small"
@@ -177,6 +179,7 @@ const DefaultButton = ({
     icon?: ReactNode
     onClick?: () => void
     children?: ReactNode
+    "aria-label"?: string
 }) => (
     <button
         type="button"
@@ -186,6 +189,7 @@ const DefaultButton = ({
                 : "bg-blue-500 text-white hover:bg-blue-600"
         } ${danger ? "text-red-500 hover:text-red-600" : ""} ${className ?? ""}`}
         onClick={onClick}
+        aria-label={ariaLabel}
     >
         {icon}
         {children}
@@ -586,7 +590,13 @@ const DrillInFieldHeader = memo(
                             </div>
                         ))}
                     {showDelete && onDelete && (
-                        <Button type="text" size="small" danger onClick={onDelete}>
+                        <Button
+                            type="text"
+                            size="small"
+                            danger
+                            onClick={onDelete}
+                            aria-label="Delete field"
+                        >
                             {deleteIcon}
                         </Button>
                     )}

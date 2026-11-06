@@ -1,5 +1,3 @@
-import {useState} from "react"
-
 import type {RunHeader} from "@agenta/entities/evaluationRun"
 import {
     Button,
@@ -10,10 +8,7 @@ import {
 } from "@agenta/ui/ui"
 import {DotsThreeVertical, PencilSimple} from "@phosphor-icons/react"
 
-import {useProjectPermission} from "../context/useProjectPermission"
-
-import {EditEvaluationDialog} from "./EditEvaluationDialog"
-import {useEditEvaluationRun} from "./useEditEvaluationRun"
+import {useRunEditDialog} from "./useRunEditDialog"
 
 /**
  * The run's "⋮" menu next to its name, with "Edit evaluation". As in the old app, a live run and
@@ -28,11 +23,9 @@ export const RunActionsMenu = ({
     runId: string
     header: RunHeader
 }) => {
-    const canEdit = useProjectPermission(projectId, "edit_evaluation_runs")
-    const saved = useEditEvaluationRun(projectId, runId)
-    const [editing, setEditing] = useState(false)
+    const edit = useRunEditDialog(projectId, runId, header)
 
-    if (!canEdit || header.kind === "online" || header.flags.isClosed) return null
+    if (!edit.canEdit) return null
 
     return (
         <>
@@ -43,19 +36,13 @@ export const RunActionsMenu = ({
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
-                    <DropdownMenuItem onSelect={() => setEditing(true)}>
+                    <DropdownMenuItem onSelect={edit.open}>
                         <PencilSimple aria-hidden size={16} />
                         Edit evaluation
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
-            <EditEvaluationDialog
-                open={editing}
-                name={saved.name}
-                description={saved.description}
-                onClose={() => setEditing(false)}
-                onSave={saved.save}
-            />
+            {edit.dialog}
         </>
     )
 }

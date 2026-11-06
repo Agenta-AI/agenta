@@ -15,6 +15,7 @@ import {
     type Workflow,
 } from "@agenta/entities/workflow"
 import {playgroundController, playgroundInitializedAtom} from "@agenta/playground"
+import {EditableRevisionDrawer} from "@agenta/playground-ui/panels/drawer"
 import {queryClient as hostQueryClient} from "@agenta/shared/api"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {QueryClientProvider, type QueryClient} from "@tanstack/react-query"
@@ -358,6 +359,48 @@ describe("The editable revision drawer", {timeout: 60_000}, () => {
         expect(shown()).toEqual([localId])
         expect(find("Commit") ?? find("Create")).toBeDefined()
         expect(sent("/workflows/revisions/commit")).toHaveLength(0)
+    })
+
+    it("Off the playground it leaves the page's playground alone, has no Test, and drops its draft on close", async () => {
+        // Load rev-2 through the host once, then leave: a local draft copies loaded data.
+        await mount()
+        act(() => root.unmount())
+        root = createRoot(host)
+        await settle()
+        act(() => store.set(playgroundController.actions.resetAll))
+        // The app playground shows rev-1; the drawer opens over it on a local draft.
+        act(() =>
+            store.set(playgroundController.actions.addPrimaryNode, {
+                type: "workflow",
+                id: "rev-1",
+                label: "rev-1",
+            }),
+        )
+        const localId = createLocalDraftFromWorkflowRevision("rev-2")!
+        const onClose = vi.fn()
+        act(() =>
+            root.render(
+                <QueryClientProvider client={client}>
+                    <EditableRevisionDrawer
+                        revisionId={localId}
+                        kind="evaluator"
+                        playground={false}
+                        onClose={onClose}
+                        renderRuns={() => null}
+                    />
+                </QueryClientProvider>,
+            ),
+        )
+        await until(() => drawer())
+        await settle()
+        expect(shown()).toEqual(["rev-1"])
+        expect(find("Test evaluator")).toBeUndefined()
+
+        await click("Close")
+        await click("Discard")
+        expect(onClose).toHaveBeenCalled()
+        expect(store.get(workflowMolecule.selectors.data(localId))).toBeNull()
+        expect(shown()).toEqual(["rev-1"])
     })
 
     it("Open in playground keeps the revision the playground page sets up", async () => {

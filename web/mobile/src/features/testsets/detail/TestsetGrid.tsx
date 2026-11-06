@@ -1,4 +1,4 @@
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useMemo, useState, type ReactNode} from "react"
 
 import {testcaseDataController, type TestcaseTableRow} from "@agenta/entities/testcase"
 import {TestcaseTable, type EntityColumnHeader} from "@agenta/entity-ui/testcase"
@@ -6,9 +6,7 @@ import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {message} from "@agenta/ui/app-message"
 import {ListTableToolbar} from "@agenta/ui/list-table"
 import type {ColumnDefs} from "@agenta/ui/table"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {copyToClipboard} from "@agenta/ui/utils"
-import {Trash} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {AddColumnButton, ColumnDialog, type ColumnDialogStep} from "./ColumnDialogs"
@@ -34,9 +32,10 @@ const deletedRowsMessage = (count: number) =>
         : `Deleted ${count} testcase(s). Save to apply changes.`
 
 /**
- * The testcase grid of a test set page: rows, the row menu, the column menus and the column
- * steps, and the bulk delete. Every change goes through the editor and stays unsaved until the
- * commit.
+ * The testcase grid of a test set page, laid out as in the old app: one row with the search on
+ * the left and the page `actions` on the right, then the table. The last column header holds
+ * "Add column" and the table settings, whose menu also has "Delete selected". Every change goes
+ * through the editor and stays unsaved until the commit.
  *
  * A reader who may not edit gets the rows and "Copy ID" only. While a save runs
  * (`editor.readOnly`) every change is off.
@@ -45,10 +44,16 @@ export const TestsetGrid = ({
     editor,
     canEdit,
     onOpenRow,
+    actions,
 }: {
     editor: GridEditor
     canEdit: boolean
     onOpenRow: (rowId: string) => void
+    /**
+     * The page actions (Import, Add row, Commit), on the search row. It gets the saved test
+     * cases a queue action sends: the selected ones the grid shows, or else every one it shows.
+     */
+    actions?: (queueItemIds: string[]) => ReactNode
 }) => {
     const {tableConfig, readOnly, deleteRows} = editor
     const [selected, setSelected] = useState<string[]>([])
@@ -80,6 +85,13 @@ export const TestsetGrid = ({
         return selected.filter((id) => visible.has(id))
     }, [gridRows, selected])
 
+    // A row that is not saved yet has no id the server knows, so it never goes to a queue.
+    const queueItemIds = useMemo(() => {
+        const saved = gridRows.filter((row) => !row.__isNew).map((row) => row.id)
+        const pick = visibleSelected.filter((id) => saved.includes(id))
+        return pick.length > 0 ? pick : saved
+    }, [gridRows, visibleSelected])
+
     const deleteSelected = useCallback(() => {
         if (readOnly || visibleSelected.length === 0) return
         deleteRows(visibleSelected)
@@ -91,11 +103,21 @@ export const TestsetGrid = ({
         () => [
             {
                 key: "__row_actions",
-                title: "",
-                width: 48,
+                title: canEdit ? (
+                    <AddColumnButton
+                        compact
+                        blockedReason={editor.columnEditBlocked}
+                        onClick={() => setStep({kind: "add"})}
+                    />
+                ) : (
+                    ""
+                ),
+                // Room for Add column and the settings button in the header.
+                width: canEdit ? 72 : 48,
                 fixed: "right",
                 render: (_value, row) => (
                     <TestcaseRowMenu
+                        rowId={row.id}
                         isNewRow={Boolean(row.__isNew)}
                         canEdit={canEdit}
                         deleteDisabled={readOnly}
@@ -115,7 +137,7 @@ export const TestsetGrid = ({
                 ),
             },
         ],
-        [canEdit, deleteRows, onOpenRow, readOnly],
+        [canEdit, deleteRows, editor.columnEditBlocked, onOpenRow, readOnly],
     )
 
     const renderColumnHeader = useCallback(
@@ -150,31 +172,17 @@ export const TestsetGrid = ({
         [editor, step],
     )
 
-    const toolbar = canEdit ? (
-        <div className="flex items-center gap-2">
-            <SimpleTooltip
-                title={
-                    visibleSelected.length === 0 ? "Select testcases to delete" : "Delete selected"
-                }
-            >
-                <span className="inline-flex">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={readOnly || visibleSelected.length === 0}
-                        onClick={deleteSelected}
-                    >
-                        <Trash aria-hidden size={14} />
-                        Delete
-                    </Button>
-                </span>
-            </SimpleTooltip>
-            <AddColumnButton
-                blockedReason={editor.columnEditBlocked}
-                onClick={() => setStep({kind: "add"})}
-            />
-        </div>
-    ) : null
+    const settingsDelete = useMemo(
+        () =>
+            canEdit
+                ? {
+                      onDelete: deleteSelected,
+                      disabled: readOnly || visibleSelected.length === 0,
+                      label: "Delete selected",
+                  }
+                : undefined,
+        [canEdit, deleteSelected, readOnly, visibleSelected.length],
+    )
 
     return (
         <>
@@ -183,8 +191,19 @@ export const TestsetGrid = ({
                 search={search.value}
                 onSearchChange={search.onChange}
                 searchPlaceholder="Search testcases..."
+                actions={
+                    <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                        {actions?.(queueItemIds)}
+                        {/* With no rows the table has no header, so Add column shows here. */}
+                        {noRows && canEdit ? (
+                            <AddColumnButton
+                                blockedReason={editor.columnEditBlocked}
+                                onClick={() => setStep({kind: "add"})}
+                            />
+                        ) : null}
+                    </div>
+                }
             />
-            {noRows && toolbar ? <div className="flex justify-end">{toolbar}</div> : null}
             <TestcaseTable
                 config={gridConfig}
                 selectable={canEdit}
@@ -196,7 +215,7 @@ export const TestsetGrid = ({
                 }}
                 appendColumns={appendColumns}
                 renderColumnHeader={canEdit ? renderColumnHeader : undefined}
-                headerExtra={noRows ? null : toolbar}
+                settingsDelete={settingsDelete}
                 // Export is in the page header, as in the old app.
                 canExportData={false}
                 columnSettings

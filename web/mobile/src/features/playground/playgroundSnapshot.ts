@@ -161,6 +161,17 @@ export const restoreSnapshot = (
 }
 
 /**
+ * Whether the primary revision is a chat app, once its data has loaded; undefined until then.
+ * The chat flag reads false while the revision still loads, so it alone cannot tell "not chat"
+ * from "not known yet".
+ */
+const primaryChatModeAtom = atom((get) => {
+    const primaryId = get(playgroundController.selectors.entityIds())[0]
+    if (!primaryId || !get(workflowMolecule.selectors.query(primaryId)).data) return undefined
+    return get(executionController.selectors.isChatMode)
+})
+
+/**
  * Settles once the primary revision says whether it is a chat app (true), or once the restore is
  * no longer wanted (false). Leaving clears the selection, which wakes the wait up to give up.
  */
@@ -169,12 +180,12 @@ const whenModeKnown = (store: Store, isWanted: () => boolean) =>
         const unsubscribes: (() => void)[] = []
         const check = () => {
             const wanted = isWanted()
-            if (wanted && store.get(executionController.selectors.isChatMode) === undefined) return
+            if (wanted && store.get(primaryChatModeAtom) === undefined) return
             for (const unsubscribe of unsubscribes) unsubscribe()
             resolve(wanted)
         }
         unsubscribes.push(
-            store.sub(executionController.selectors.isChatMode, check),
+            store.sub(primaryChatModeAtom, check),
             store.sub(playgroundController.selectors.loadableId(), check),
         )
         check()

@@ -589,10 +589,12 @@
 
 /* The playground's message and input editors, drawn as /w draws them. Scoped to the playground
    (`data-playground` on its workspace), a developer view: the agent config and the trace drawer
-   use the same editor and stay as they are.
+   use the same editor and stay as they are. The focus drawer renders outside the page and sets
+   `data-playground` itself.
    - Height: `.editor-input` has `min-height: 150px` in the editor theme. On /w the editor's
      `min-h-[inherit]` utility wins; here the theme is unlayered and outranks every utility, so each
-     message was about 210 px tall for one line. The editor now fits its text.
+     message was about 210 px tall for one line, and an output left a gap under its text. Every
+     editor in the playground now fits its text, as on /w.
    - Font: Tailwind's preflight gives `code` the monospace face, and the text view renders the
      message in a `<code>`. /w resets it to the app font at 13 px.
    - Alignment: the text starts at the role label's first letter, the same inset on both. */
@@ -600,7 +602,7 @@
     --ag-message-inline-pad: 8px;
     font-size: 14px;
 }
-[data-playground] .agenta-chat-message-editor .editor-input {
+[data-playground] .editor-input {
     min-height: 0;
 }
 [data-playground] .agenta-chat-message-editor .message-user-select {
@@ -619,4 +621,159 @@
     line-height: 1.53;
     padding: 0;
     margin: 0;
+}
+
+/* Type and status tag colours inside the playground only (a product decision: the rest of /m keeps
+   its neutral palette). The shared tags read the old app's preset variables, which /m does not
+   define globally; a playground surface opts in with this class. Values are the old app's light
+   and dark presets, so the tags match it. */
+.ag-playground-colors {
+    --ant-blue-1: #e6f4ff;
+    --ant-blue-3: #91caff;
+    --ant-blue-6: #1677ff;
+    --ant-purple-1: #f9f0ff;
+    --ant-purple-3: #d3adf7;
+    --ant-purple-6: #722ed1;
+    --ant-cyan-1: #e6fffb;
+    --ant-cyan-3: #87e8de;
+    --ant-cyan-6: #13c2c2;
+    --ant-green-1: #f6ffed;
+    --ant-green-3: #b7eb8f;
+    --ant-green-6: #52c41a;
+    --ant-magenta-1: #fff0f6;
+    --ant-magenta-3: #ffadd2;
+    --ant-magenta-6: #eb2f96;
+    --ant-pink-1: #fff0f6;
+    --ant-pink-3: #ffadd2;
+    --ant-pink-6: #eb2f96;
+    --ant-red-1: #fff1f0;
+    --ant-red-3: #ffa39e;
+    --ant-red-6: #f5222d;
+    --ant-orange-1: #fff7e6;
+    --ant-orange-3: #ffd591;
+    --ant-orange-6: #fa8c16;
+    --ant-yellow-1: #feffe6;
+    --ant-yellow-3: #fffb8f;
+    --ant-yellow-6: #fadb14;
+    --ant-volcano-1: #fff2e8;
+    --ant-volcano-3: #ffbb96;
+    --ant-volcano-6: #fa541c;
+    --ant-geekblue-1: #f0f5ff;
+    --ant-geekblue-3: #adc6ff;
+    --ant-geekblue-6: #2f54eb;
+    --ant-gold-1: #fffbe6;
+    --ant-gold-3: #ffe58f;
+    --ant-gold-6: #faad14;
+    --ant-lime-1: #fcffe6;
+    --ant-lime-3: #eaff8f;
+    --ant-lime-6: #a0d911;
+}
+
+.dark .ag-playground-colors {
+    --ant-blue-1: #111a2c;
+    --ant-blue-3: #15325b;
+    --ant-blue-6: #1668dc;
+    --ant-purple-1: #1a1325;
+    --ant-purple-3: #301c4d;
+    --ant-purple-6: #642ab5;
+    --ant-cyan-1: #112123;
+    --ant-cyan-3: #144848;
+    --ant-cyan-6: #13a8a8;
+    --ant-green-1: #162312;
+    --ant-green-3: #274916;
+    --ant-green-6: #49aa19;
+    --ant-magenta-1: #291321;
+    --ant-magenta-3: #551c3b;
+    --ant-magenta-6: #cb2b83;
+    --ant-pink-1: #291321;
+    --ant-pink-3: #551c3b;
+    --ant-pink-6: #cb2b83;
+    --ant-red-1: #2a1215;
+    --ant-red-3: #58181c;
+    --ant-red-6: #d32029;
+    --ant-orange-1: #2b1d11;
+    --ant-orange-3: #593815;
+    --ant-orange-6: #d87a16;
+    --ant-yellow-1: #2b2611;
+    --ant-yellow-3: #595014;
+    --ant-yellow-6: #d8bd14;
+    --ant-volcano-1: #2b1611;
+    --ant-volcano-3: #592716;
+    --ant-volcano-6: #d84a1b;
+    --ant-geekblue-1: #131629;
+    --ant-geekblue-3: #1c2755;
+    --ant-geekblue-6: #2b4acb;
+    --ant-gold-1: #2b2111;
+    --ant-gold-3: #594214;
+    --ant-gold-6: #d89614;
+    --ant-lime-1: #1f2611;
+    --ant-lime-3: #3e4f13;
+    --ant-lime-6: #8bbb11;
+}
+
+/* Status and draft colours in the playground. Shared components paint the `success`, `warning`,
+   `error`, `info` and `draft` states and the tag colours with utilities (`bg-success-bg`, `text-draft`, ...) that /w
+   defines from `shadcnTokens.ts` and /m does not, so here "Success" and "Draft" rendered as plain
+   text. Defined for the playground only, with /w's values: the same components elsewhere in /m
+   keep their current look. A popover renders outside the page, so the playground's own popovers
+   set `data-playground` themselves. */
+[data-playground] .bg-success-bg {
+    background-color: var(--ag-colorSuccessBg);
+}
+[data-playground] .bg-warning-bg {
+    background-color: var(--ag-colorWarningBg);
+}
+[data-playground] .text-warning {
+    color: var(--ag-colorWarningText);
+}
+[data-playground] .bg-error-bg {
+    background-color: var(--ag-colorErrorBg);
+}
+[data-playground] .text-error {
+    color: var(--ag-colorError);
+}
+[data-playground] .bg-info-bg {
+    background-color: var(--ag-colorInfoBg);
+}
+[data-playground] .text-info {
+    color: var(--ag-colorInfo);
+}
+[data-playground] .bg-draft-bg {
+    background-color: var(--ag-draft-bg);
+}
+[data-playground] .border-draft-border {
+    border-color: var(--ag-draft-border);
+}
+[data-playground] .text-draft {
+    color: var(--ag-draft-text);
+}
+[data-playground] .bg-tag-blue-bg {
+    background-color: var(--ag-preset-blue-bg);
+}
+[data-playground] .text-tag-blue {
+    color: var(--ag-preset-blue-text);
+}
+[data-playground] .bg-tag-purple-bg {
+    background-color: var(--ag-preset-purple-bg);
+}
+[data-playground] .text-tag-purple {
+    color: var(--ag-preset-purple-text);
+}
+[data-playground] .bg-tag-green-bg {
+    background-color: var(--ag-preset-green-bg);
+}
+[data-playground] .text-tag-green {
+    color: var(--ag-preset-green-text);
+}
+[data-playground] .bg-tag-cyan-bg {
+    background-color: var(--ag-preset-cyan-bg);
+}
+[data-playground] .text-tag-cyan {
+    color: var(--ag-preset-cyan-text);
+}
+[data-playground] .bg-tag-gold-bg {
+    background-color: var(--ag-preset-gold-bg);
+}
+[data-playground] .text-tag-gold {
+    color: var(--ag-preset-gold-text);
 }

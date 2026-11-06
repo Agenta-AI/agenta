@@ -24,6 +24,7 @@ export const NewEvaluationSheet = ({
     initialRevisions,
     onClose,
     onStarted,
+    allowAutomaticCreate = false,
 }: {
     /** Null keeps the sheet closed. */
     kind: NewEvaluationKind | null
@@ -34,6 +35,8 @@ export const NewEvaluationSheet = ({
     initialRevisions?: DraftRevision[]
     onClose: () => void
     onStarted: (kind: NewEvaluationKind) => void
+    /** Create an automatic evaluator in the editable drawer; off inside a playground. */
+    allowAutomaticCreate?: boolean
 }) => {
     const {start, isStarting} = useStartEvaluation({projectId, base})
     const evaluatorsViewOn = useDeveloperViewEnabled("evaluators") === true
@@ -86,6 +89,7 @@ export const NewEvaluationSheet = ({
                             onClose={close}
                             onStarted={onStarted}
                             onInputChange={handleInputChange}
+                            allowAutomaticCreate={allowAutomaticCreate}
                         />
                     ) : null}
                 </SheetContent>
