@@ -9,6 +9,7 @@ import {Archive, Plus} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import Link from "next/link"
+import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
@@ -19,6 +20,7 @@ import {useProjectPermission} from "../../context/useProjectPermission"
 import {AppShell} from "../../nav/AppShell"
 import {NavDrawer} from "../../nav/NavDrawer"
 import type {TestsetNameTarget} from "../create/TestsetNameDialog"
+import {testsetRevisionPath} from "../detail/testsetRouteId"
 
 import {ArchiveTestsetsDialog} from "./ArchiveTestsetsDialog"
 import {copyTestsetId} from "./copyTestsetId"
@@ -74,6 +76,14 @@ export const TestsetsListScreen = ({
     useBindProjectContext(projectId)
     const base = `/w/${workspaceId}/p/${projectId}`
     const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
+    const router = useRouter()
+    const openRevision = useMemo(
+        () => ({
+            projectId,
+            onOpen: (revisionId: string) => void router.push(testsetRevisionPath(base, revisionId)),
+        }),
+        [base, projectId, router],
+    )
     const {draft, setDraft, term} = useTestsetsSearch()
     const [createdFilter, setCreatedFilter] = useState<TestsetCreatedFilter | null>(null)
     const dateFilter = developerMode ? createdFilter : null
@@ -193,6 +203,7 @@ export const TestsetsListScreen = ({
                 selection={selection}
                 onCopyId={developerMode ? (row) => void copyTestsetId(row.id) : undefined}
                 onRequestArchive={developerMode ? setArchiveTargets : undefined}
+                revisions={developerMode ? openRevision : undefined}
             />
         )
 

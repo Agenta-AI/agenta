@@ -16,7 +16,10 @@ import {stubAxiosHttp, until, type RecordedRequest} from "./testsetHttp"
  * layer, the router, the clock and the app frame (nav, members, permissions) are stand-ins.
  */
 
-const state = vi.hoisted(() => ({allowed: new Set<string>(["edit_testsets"])}))
+const state = vi.hoisted(() => ({
+    allowed: new Set<string>(["edit_testsets"]),
+    push: (() => undefined) as (url: string) => void,
+}))
 
 vi.mock("next/router", () => ({
     useRouter: () => ({
@@ -24,7 +27,7 @@ vi.mock("next/router", () => ({
         pathname: "/w/[workspace_id]/p/[project_id]/testsets",
         isReady: true,
         replace: vi.fn(),
-        push: vi.fn(),
+        push: (url: string) => state.push(url),
         asPath: "/w/ws/p/pr/testsets",
     }),
 }))
@@ -97,6 +100,15 @@ describe("Testsets list in beta developer mode", () => {
     let axiosSent: RecordedRequest[]
     let downloads: string[]
     let copied: string[]
+    let pushed: string[]
+    let revisionsByTestset: Record<string, unknown[]>
+    let revisionsFail: boolean
+    const revisionRequests = () =>
+        axiosSent.filter(
+            (request) =>
+                request.url.endsWith("/testsets/revisions/query") &&
+                (request.body as {windowing?: {limit?: number}}).windowing?.limit === 100,
+        )
 
     const listRequests = () => fetchSent.filter((request) => request.url.includes("testsets/query"))
     const archiveRequests = () =>
@@ -162,6 +174,10 @@ describe("Testsets list in beta developer mode", () => {
         runsUsingTestsets = []
         downloads = []
         copied = []
+        pushed = []
+        state.push = (url) => void pushed.push(url)
+        revisionsByTestset = {}
+        revisionsFail = false
         fetchSent = stubFetchJson((request) => {
             if (request.url.includes("evaluations/runs/query")) {
                 const body = request.body as {run: {references: {testset: {id: string}}[]}}
@@ -175,7 +191,19 @@ describe("Testsets list in beta developer mode", () => {
         })
         axiosSent = stubAxiosHttp((request) => {
             if (request.url.endsWith("/download")) return {data: "country\nFrance\n"}
-            if (request.url.includes("revisions/query")) return {data: {testset_revisions: []}}
+            if (request.url.includes("revisions/query")) {
+                const body = request.body as {
+                    testset_refs?: {id: string}[]
+                    windowing?: {limit?: number}
+                }
+                // The expand asks for one test set's revisions; the commit message column for a page.
+                if (body.windowing?.limit === 100) {
+                    const id = body.testset_refs?.[0]?.id ?? ""
+                    if (revisionsFail) return {status: 500, data: {}}
+                    return {data: {count: 0, testset_revisions: revisionsByTestset[id] ?? []}}
+                }
+                return {data: {testset_revisions: []}}
+            }
             return {data: {}}
         })
         // A wide window: every column shows.
@@ -222,6 +250,7 @@ describe("Testsets list in beta developer mode", () => {
 
         await openRowMenu(0)
         expect(menuItem("Copy ID")).toBeUndefined()
+        expect(button("Show revisions of Capitals")).toBeUndefined()
         expect(menuItem("Archive")).toBeDefined()
     })
 
@@ -390,5 +419,87 @@ describe("Testsets list in beta developer mode", () => {
         expect(host.textContent).toContain("1 selected")
         expect(button("Archive")).toBeUndefined()
         expect(button("Export CSV")).toBeDefined()
+    })
+
+    describe("revisions under a row", () => {
+        const revision = (id: string, version: number, message: string | null, at: string) => ({
+            id,
+            testset_id: CAPITALS.id,
+            version,
+            message,
+            created_at: at,
+        })
+        const group = () =>
+            document.querySelector('[role="group"][aria-label="Revisions of Capitals"]')
+
+        it("Expanding a row lists its saved revisions, newest first, and asks only then", async () => {
+            revisionsByTestset[CAPITALS.id] = [
+                revision("rev-0", 0, null, "2026-11-05T19:31:00Z"),
+                revision("rev-1", 1, "Initial rows", "2026-11-05T19:32:00Z"),
+                revision("rev-2", 2, "Added Peru", "2026-11-06T08:05:00Z"),
+            ]
+            await mount(true)
+            expect(revisionRequests()).toEqual([])
+
+            await press(button("Show revisions of Capitals"))
+
+            await until(() => expect(group()?.textContent).toContain("Added Peru"))
+            expect(
+                Array.from(group()!.querySelectorAll("button")).map((item) =>
+                    item.getAttribute("aria-label"),
+                ),
+            ).toEqual(["Open v2 of Capitals", "Open v1 of Capitals"])
+            expect(group()!.textContent).toMatch(/v2Added PeruNov 6, 2026, \d{1,2}:05/)
+            expect(revisionRequests().map((request) => [request.params, request.body])).toEqual([
+                [
+                    {project_id: "pr"},
+                    {
+                        testset_refs: [{id: CAPITALS.id}],
+                        windowing: {limit: 100, order: "descending"},
+                        include_testcases: false,
+                    },
+                ],
+            ])
+
+            await press(button("Hide revisions of Capitals"))
+            expect(group()).toBeNull()
+        })
+
+        it("A click on a revision opens that revision", async () => {
+            revisionsByTestset[CAPITALS.id] = [
+                revision("rev-1", 1, "Initial rows", "2026-11-05T19:32:00Z"),
+            ]
+            await mount(true)
+            await press(button("Show revisions of Capitals"))
+            await until(() => expect(button("Open v1 of Capitals")).toBeDefined())
+
+            await press(button("Open v1 of Capitals"))
+
+            expect(pushed).toEqual(["/w/ws/p/pr/testsets/rev-1"])
+        })
+
+        it("A test set with no saved revision says so", async () => {
+            revisionsByTestset[CAPITALS.id] = [revision("rev-0", 0, null, "2026-11-05T19:31:00Z")]
+            await mount(true)
+            await press(button("Show revisions of Capitals"))
+
+            await until(() => expect(group()?.textContent).toBe("No saved revisions yet"))
+        })
+
+        it("A failed request says so, and Try again loads the revisions", async () => {
+            revisionsFail = true
+            await mount(true)
+            await press(button("Show revisions of Capitals"))
+            await until(() => expect(group()?.textContent).toContain("Couldn't load the revisions"))
+
+            revisionsFail = false
+            revisionsByTestset[CAPITALS.id] = [
+                revision("rev-1", 1, "Initial rows", "2026-11-05T19:32:00Z"),
+            ]
+            await press(button("Try again"))
+
+            await until(() => expect(button("Open v1 of Capitals")).toBeDefined())
+            expect(revisionRequests()).toHaveLength(2)
+        })
     })
 })

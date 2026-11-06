@@ -1,4 +1,4 @@
-import {useMemo} from "react"
+import {useMemo, useState} from "react"
 import type {ReactNode} from "react"
 
 import {useMediaQuery} from "@agenta/ui/hooks"
@@ -12,6 +12,7 @@ import {Button, Spinner} from "@agenta/ui/ui"
 
 import {useConfirmModal} from "../../settings/useConfirmModal"
 
+import {TestsetRevisionRows} from "./TestsetRevisionRows"
 import {TestsetRowCells} from "./TestsetRowCells"
 import type {TestsetExportFormat, TestsetRow, TestsetRowActions} from "./testsetRowTypes"
 
@@ -95,6 +96,11 @@ export interface TestsetsTableProps {
     onCopyId?: (row: TestsetRow) => void
     /** Developer mode: opens the screen's archive dialog instead of the generic confirm. */
     onRequestArchive?: (rows: TestsetRow[]) => void
+    /**
+     * Developer mode: each row expands to list its revisions, and a click on one opens it.
+     * Absent = no expand toggle.
+     */
+    revisions?: {projectId: string; onOpen: (revisionId: string) => void}
 }
 
 /** The testsets list in the shared list frame, with Load more under it. */
@@ -119,12 +125,20 @@ export const TestsetsTable = ({
     selection,
     onCopyId,
     onRequestArchive,
+    revisions,
 }: TestsetsTableProps) => {
     // Asked as "wide?" because the shared hook starts false before it reads the viewport.
     const narrow = !useMediaQuery(WIDE_QUERY)
     const {confirm, modal} = useConfirmModal()
 
     const groups = useMemo(() => [{key: "all", label: null, rows: [...rows]}], [rows])
+    const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
+    const toggleExpanded = (id: string) =>
+        setExpandedIds((current) => {
+            const next = new Set(current)
+            if (!next.delete(id)) next.add(id)
+            return next
+        })
 
     const actionsFor = (row: TestsetRow): TestsetRowActions => ({
         onOpen: () => onOpen(row),
@@ -156,6 +170,23 @@ export const TestsetsTable = ({
                 rowKey={(row) => row.id}
                 onOpenRow={onOpen}
                 empty={empty}
+                wrapRow={
+                    revisions
+                        ? (row, rowNode) => (
+                              <>
+                                  {rowNode}
+                                  {expandedIds.has(row.id) ? (
+                                      <TestsetRevisionRows
+                                          projectId={revisions.projectId}
+                                          testsetId={row.id}
+                                          testsetName={row.name}
+                                          onOpenRevision={revisions.onOpen}
+                                      />
+                                  ) : null}
+                              </>
+                          )
+                        : undefined
+                }
                 renderRow={(row) => (
                     <TestsetRowCells
                         row={row}
@@ -167,6 +198,8 @@ export const TestsetsTable = ({
                         canExport={canExport}
                         exportDisabled={isAnyBusy}
                         actions={actionsFor(row)}
+                        expanded={expandedIds.has(row.id)}
+                        onToggleExpand={revisions ? () => toggleExpanded(row.id) : undefined}
                     />
                 )}
             />
