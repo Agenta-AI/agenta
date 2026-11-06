@@ -11,22 +11,25 @@ import {ScenarioStepError} from "./states/ScenarioStepError"
 import {ScenarioValuesError} from "./states/ScenarioValuesError"
 
 /**
- * The cells of one scenario in the table: its number, its status, the row action (on a human run),
- * then one cell per shown column.
+ * The cells of one scenario in the table: its number, its run (while runs are compared), its
+ * status, the row action (on a human run), then one cell per shown column.
  */
 export const ScenarioTableRow = ({
     row,
     cells,
+    run,
     action,
     onRetry,
 }: {
     row: ScenarioRow
     cells: ScenarioTableCell[]
+    run?: ReactNode
     action?: ReactNode
     onRetry: () => void
 }) => (
     <>
         <span className="text-sm tabular-nums text-muted-foreground">{row.index}</span>
+        {run}
         <span className="flex min-w-0 flex-col items-start gap-1">
             <RunStatusTag status={row.scenario.status ?? null} />
             {row.otherErrors.map((message, index) => (

@@ -42,6 +42,11 @@ export const RunOverviewView = ({
         [header, references, metrics, metricsPending, names, links, query],
     )
 
+    const radarRuns = useMemo(
+        () => [{id: runId, name: header.name, metrics}],
+        [runId, header.name, metrics],
+    )
+
     return (
         <div className="flex flex-col gap-6">
             <section
@@ -61,12 +66,7 @@ export const RunOverviewView = ({
                 </header>
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                     <RunSummaryTable rows={rows} />
-                    <RunRadarCard
-                        runId={runId}
-                        runName={header.name}
-                        metrics={metrics}
-                        pending={metricsPending}
-                    />
+                    <RunRadarCard runs={radarRuns} pending={metricsPending} />
                 </div>
             </section>
             <MetricCardsSection

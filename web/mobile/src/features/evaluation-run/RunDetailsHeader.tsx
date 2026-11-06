@@ -13,12 +13,10 @@ import {RunOnlineToggle} from "./RunOnlineToggle"
  * and under them the run chips with the Compare entry.
  */
 export const RunDetailsHeader = ({
-    workspaceId,
     projectId,
     runId,
     nav,
 }: {
-    workspaceId: string
     projectId: string
     runId: string
     nav?: ReactNode
@@ -42,12 +40,7 @@ export const RunDetailsHeader = ({
                 ) : null}
             </div>
             {header ? (
-                <RunCompareBar
-                    workspaceId={workspaceId}
-                    projectId={projectId}
-                    runId={runId}
-                    runName={header.name}
-                />
+                <RunCompareBar projectId={projectId} runId={runId} runName={header.name} />
             ) : null}
         </div>
     )

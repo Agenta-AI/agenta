@@ -318,7 +318,7 @@ describe("run header: chips and Compare", () => {
     })
 
     it("A finished run lists the runs that share its test set and evaluator", async () => {
-        const id = serveRun({}, [
+        serveRun({}, [
             makeRun("run-same", "Capitals: verbose", {description: "Longer prompt"}),
             makeRun("run-other-set", "Support tickets", {
                 steps: [{key: "ts", type: "input", references: {testset: {id: "ts-9"}}}, STEPS[2]],
@@ -339,13 +339,13 @@ describe("run header: chips and Compare", () => {
         await flush()
 
         expect(listReads()).toBe(1)
-        const rows = [...document.querySelectorAll<HTMLAnchorElement>("li a")]
-        expect(rows.map((row) => row.getAttribute("href"))).toEqual([
-            "/w/ws/p/pr/evaluations/results/run-same",
-        ])
-        expect(rows[0].textContent).toContain("Capitals: verbose")
+        const rows = [...document.querySelectorAll<HTMLElement>("li")]
+        expect(
+            rows.map((row) => row.querySelector('[role="checkbox"]')?.getAttribute("aria-label")),
+        ).toEqual(["Capitals: verbose"])
         expect(rows[0].textContent).toContain("Longer prompt")
-        expect(document.body.textContent).not.toContain(`results/${id}`)
+        expect(document.body.textContent).not.toContain("Support tickets")
+        expect(document.body.textContent).not.toContain("Capitals: in progress")
     })
 
     it("A finished run with nothing to compare shows the old app's empty message", async () => {
