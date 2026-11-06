@@ -55,6 +55,8 @@ export interface EvaluationRunsPageParams {
     kinds?: readonly EvaluationRunKind[]
     /** Server filter: keep runs that have every one of these references. */
     references?: readonly EvaluationRunReferenceFilter[]
+    /** Run flags the server matches, for example `{has_traces: false}`. */
+    flags?: Record<string, boolean>
     /** ISO timestamps. */
     createdAfter?: string
     createdBefore?: string
@@ -71,13 +73,15 @@ async function fetchServerPage(
     serverLimit: number,
     next: string | null,
 ) {
-    const {projectId, name, statuses, appId, references, createdAfter, createdBefore} = params
+    const {projectId, name, statuses, appId, references, flags, createdAfter, createdBefore} =
+        params
 
     const run: Record<string, unknown> = {}
     if (name) run.name = name
     if (statuses && statuses.length > 0) run.statuses = statuses
     const allReferences = [...(appId ? [{application: {id: appId}}] : []), ...(references ?? [])]
     if (allReferences.length > 0) run.references = allReferences
+    if (flags && Object.keys(flags).length > 0) run.flags = flags
 
     const body = {
         ...(Object.keys(run).length > 0 ? {run} : {}),
@@ -156,6 +160,7 @@ export interface EvaluationRunsListKeyParams {
     appId?: string
     kinds?: readonly EvaluationRunKind[]
     references?: readonly EvaluationRunReferenceFilter[]
+    flags?: Record<string, boolean>
     createdAfter?: string
     createdBefore?: string
 }
@@ -165,7 +170,7 @@ export function evaluationRunsListQueryKey(
     projectId: string,
     params: EvaluationRunsListKeyParams = {},
 ): readonly unknown[] {
-    const {name, statuses, appId, kinds, references, createdAfter, createdBefore} = params
+    const {name, statuses, appId, kinds, references, flags, createdAfter, createdBefore} = params
     return [
         "evaluation-runs",
         "list",
@@ -176,6 +181,7 @@ export function evaluationRunsListQueryKey(
             appId,
             kinds: kinds ? [...kinds].sort() : undefined,
             references,
+            flags,
             createdAfter,
             createdBefore,
         },

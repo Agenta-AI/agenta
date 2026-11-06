@@ -89,12 +89,15 @@ export {
 export {findScenarioTraceResult} from "./scenarioTrace"
 export {
     buildQuerySlug,
+    formatQueryFiltering,
+    formatQuerySampleRate,
     flattenQueryConditions,
     LIVE_INVOCATION_FILTER,
     type StoredQueryCondition,
     parseSamplingRate,
     selectLiveEvaluators,
     type LiveFilterRow,
+    type QueryFilteringText,
 } from "./liveQuery"
 
 export {

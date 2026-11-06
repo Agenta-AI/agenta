@@ -3,6 +3,7 @@ import {useCallback} from "react"
 import type {EvaluationRunKind} from "@agenta/entities/evaluationRun"
 import {ANALYTICS_RANGE_PRESETS, type AnalyticsRangeLabel} from "@agenta/observability"
 
+import {useRouteAppId} from "../../developer/useRouteAppId"
 import {useUrlParams} from "../../developer/useUrlParams"
 
 export type EvaluationKindTab = "all" | EvaluationRunKind
@@ -88,7 +89,7 @@ export const parseStatuses = (raw: string | null): string[] => {
 /** The runs list's filters, kept in the URL so a link or a reload shows the same list. */
 export const useEvaluationRunsFilters = () => {
     const {read, write} = useUrlParams()
-    const appId = read("app")
+    const {appId, fromPath: appFromPath} = useRouteAppId()
     const search = read("q") ?? ""
     const statuses = parseStatuses(read("status"))
     const kind = parseKindTab(read("kind"), appId !== null)
@@ -148,6 +149,7 @@ export const useEvaluationRunsFilters = () => {
     return {
         kind,
         appId,
+        appFromPath,
         search,
         statuses,
         panel,

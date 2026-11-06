@@ -29,6 +29,7 @@ export {
     type RunReferences,
     type RunTestsetReference,
 } from "./runDetails"
+export {runQueryConfigQueryAtomFamily, type RunQueryConfig} from "./runQuery"
 export {
     buildRunMetricCatalog,
     INVOCATION_METRICS,

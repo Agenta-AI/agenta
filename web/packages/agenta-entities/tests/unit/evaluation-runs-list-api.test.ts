@@ -98,6 +98,21 @@ describe("queryEvaluationRunsPage", () => {
         expect(postMock.mock.calls[0][2]).toEqual({params: {project_id: "p1"}})
     })
 
+    it("Runs page query sends run flags as run.flags and keys the list by them", async () => {
+        postMock.mockResolvedValue(page([autoRun("r1")]))
+
+        await queryEvaluationRunsPage({
+            projectId: "p1",
+            limit: 15,
+            flags: {has_traces: false, has_testcases: false},
+        })
+
+        expect(bodyOf(0).run).toEqual({flags: {has_traces: false, has_testcases: false}})
+        expect(evaluationRunsListQueryKey("p1", {flags: {has_traces: false}})).not.toEqual(
+            evaluationRunsListQueryKey("p1"),
+        )
+    })
+
     it("Runs page query omits run when no filter is set", async () => {
         postMock.mockResolvedValue(page([], "next-1"))
 

@@ -29,7 +29,13 @@ const runReferences = (
 ]
 
 /**
- * The runs list, 30 at a time. Search, status, app, the references (evaluators, test sets, queries,
+ * Runs that come from traces or test cases belong to Annotation queues, not to the evaluations
+ * list. The server drops them, so a page stays full. Live runs read from a query, so they stay.
+ */
+const NOT_DIRECT_QUEUE = {has_testcases: false, has_traces: false}
+
+/**
+ * The runs list, 30 at a time. Search, status, app, the queue exclusion, the references (evaluators, test sets, queries,
  * variants) and the date range go to the server; the kind tab, or the Type filter on the All tab,
  * is applied by the package, which fills a page that it would leave short. The list refreshes every five seconds
  * while a run is in progress.
@@ -63,6 +69,7 @@ export const useEvaluationRunsList = ({
         kinds: kinds.length > 0 ? kinds : undefined,
         references: references.length > 0 ? references : undefined,
         createdAfter,
+        flags: NOT_DIRECT_QUEUE,
     }
 
     const query = useInfiniteQuery({

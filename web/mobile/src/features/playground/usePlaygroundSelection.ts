@@ -7,13 +7,13 @@ import {
     playgroundController,
     playgroundInitializedAtom,
 } from "@agenta/playground"
+import {clearPlayground} from "@agenta/playground-ui/state"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom, useAtomValue, useStore} from "jotai"
 import {atomFamily} from "jotai-family"
 import {queryClientAtom} from "jotai-tanstack-query"
 import {useRouter} from "next/router"
 
-import {clearPlayground} from "./clearPlayground"
 import {readLastSelection, writeLastSelection} from "./playgroundLastSelection"
 import {
     playgroundLatestRevisionIdAtomFamily,
