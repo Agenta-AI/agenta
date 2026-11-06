@@ -28,12 +28,11 @@ import {
     useSessionRowChrome,
     type SessionActionTarget,
 } from "@agenta/sessions-ui"
-import {userAtom} from "@agenta/shared/state"
+import {betaDeveloperModeActiveAtom, userAtom} from "@agenta/shared/state"
 import {getShortcut, shortcutAria, shortcutFaces} from "@agenta/shared/utils"
 import {useIsMacPlatform} from "@agenta/ui/shortcuts"
 import {Spinner} from "@agenta/ui/ui"
 import {
-    ChartLineUpIcon,
     ChatsCircleIcon,
     CircleIcon,
     GearIcon,
@@ -63,6 +62,7 @@ import {whatsNewAtom} from "@/features/education/whatsNewAtom"
 import {AgentsNavAction} from "./AgentsNavAction"
 import {AgentsQuickPanel} from "./AgentsQuickPanel"
 import {useSyncLocalSessionRefs} from "./localSessionRefs"
+import {observabilityNavItems} from "./observabilityNavItems"
 
 /** The drawer's scope id — its open-groups persistence bucket. */
 export const MOBILE_NAV_SCOPE_ID = "mobile-main"
@@ -71,9 +71,6 @@ export const MOBILE_NAV_SCOPE_ID = "mobile-main"
 setSidebarSessionFilterDefaults(MOBILE_NAV_SCOPE_ID, {groupBy: "agent"})
 /** The registry entry for ⌘K / Ctrl+K, which `MobileCommandPalette` binds. */
 const PALETTE_SHORTCUT_ID = "palette.open"
-
-/** Flip to show the Observability rail entry again — the screen and its route are untouched. */
-const SHOW_OBSERVABILITY = false
 
 /**
  * Mobile's registration over the SHARED machinery: same gated sessions source, same
@@ -204,6 +201,7 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
             : undefined
     }, [mac])
     const developerViews = useEnabledDeveloperViews()
+    const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
     const wrapSessionRow = useCallback(
         (ref: SidebarEntityRef, node: ReactNode) =>
             createElement(SessionRowActions, {
@@ -284,20 +282,18 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                     wrapSessionRow,
                 ),
             },
-            // Observability is hidden from the rail for now; the screen and its route still work.
-            ...(SHOW_OBSERVABILITY
-                ? [
-                      {
-                          key: "mobile-observability",
-                          title: "Observability",
-                          icon: createElement(ChartLineUpIcon, {size: 16}),
-                          link: `${projectURL}/observability`,
-                      },
-                  ]
-                : []),
+            ...observabilityNavItems(projectURL, developerMode),
             ...developerNavItems(projectURL, developerViews),
         ],
-        [loadMoreSessions, source, projectURL, wrapSessionRow, paletteShortcut, developerViews],
+        [
+            loadMoreSessions,
+            source,
+            projectURL,
+            wrapSessionRow,
+            paletteShortcut,
+            developerMode,
+            developerViews,
+        ],
     )
 }
 
