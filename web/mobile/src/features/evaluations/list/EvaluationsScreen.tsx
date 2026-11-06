@@ -1,4 +1,4 @@
-import {useCallback} from "react"
+import {useCallback, useState} from "react"
 
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {message} from "@agenta/ui/app-message"
@@ -23,12 +23,18 @@ import {useRevisionParam} from "../../revisions/useRevisionParam"
 import {CreateEvaluationMenu, type CreatableKind} from "./CreateEvaluationMenu"
 import {EvaluationKindTabs} from "./EvaluationKindTabs"
 import {EvaluationRunsTable} from "./EvaluationRunsTable"
-import {RunStatusFilter} from "./RunStatusFilter"
+import {RunFilterChips} from "./RunFilterChips"
+import {RunFiltersPanel} from "./RunFiltersPanel"
 import {EvaluationsEmpty} from "./states/EvaluationsEmpty"
 import {EvaluationsKeepLooking} from "./states/EvaluationsKeepLooking"
 import {EvaluationsNoMatch} from "./states/EvaluationsNoMatch"
-import {useEvaluationRunsFilters} from "./useEvaluationRunsFilters"
+import {
+    countRunFilters,
+    REFERENCE_FILTERS,
+    useEvaluationRunsFilters,
+} from "./useEvaluationRunsFilters"
 import {useEvaluationRunsList} from "./useEvaluationRunsList"
+import {useRunFilterOptions} from "./useRunFilterOptions"
 import {useRunRowActions} from "./useRunRowActions"
 
 // The drawer and its config pane cost nothing until a reader opens a variant.
@@ -60,12 +66,19 @@ export const EvaluationsScreen = ({
     useBindWorkspaceMembers()
     useBindProjectContext(projectId)
     const filters = useEvaluationRunsFilters()
-    const {kind, appId, search, statuses} = filters
-    const list = useEvaluationRunsList({projectId, kind, appId, search, statuses})
+    const {kind, appId, search, panel} = filters
+    const list = useEvaluationRunsList({projectId, kind, appId, search, panel})
+    const [panelOpen, setPanelOpen] = useState(false)
+    // The choices load when the panel opens, or when a chip needs the names of its ids.
+    const filterOptions = useRunFilterOptions({
+        projectId,
+        appId,
+        enabled: panelOpen || REFERENCE_FILTERS.some((key) => panel.references[key].length > 0),
+    })
     const actions = useRunRowActions({projectId, base: `/w/${workspaceId}/p/${projectId}`})
     const [revisionId] = useRevisionParam()
     const searchField = useDebouncedAtomSearch(filters.setSearch, 300, search)
-    const filtered = search.trim() !== "" || statuses.length > 0
+    const filtered = search.trim() !== "" || countRunFilters(panel) > 0
     const canCreate = Boolean(onCreate) && actions.canEdit
 
     const loadMore = useCallback(async () => {
@@ -124,10 +137,22 @@ export const EvaluationsScreen = ({
                             searchPlaceholder="Search evaluations"
                             actions={
                                 <>
-                                    <RunStatusFilter
-                                        value={statuses}
-                                        onChange={filters.setStatuses}
+                                    <RunFiltersPanel
+                                        value={panel}
+                                        onApply={filters.setPanel}
+                                        options={filterOptions}
+                                        onOpenChange={setPanelOpen}
+                                        showType={kind === "all"}
+                                        appPicked={appId !== null}
                                     />
+                                    {/* A phone keeps the count on the button; the chips need room. */}
+                                    <div className="hidden min-w-0 flex-1 sm:block">
+                                        <RunFilterChips
+                                            value={panel}
+                                            options={filterOptions}
+                                            onChange={filters.setPanel}
+                                        />
+                                    </div>
                                     {createMenu}
                                 </>
                             }
