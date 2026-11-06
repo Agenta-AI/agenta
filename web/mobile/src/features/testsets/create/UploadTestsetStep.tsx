@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react"
+import {useEffect, useRef, useState} from "react"
 
 import {Button, DialogFooter, Input} from "@agenta/ui/ui"
 import {Code, PencilSimple} from "@phosphor-icons/react"
@@ -44,6 +44,7 @@ export const UploadTestsetStep = ({
     onPendingChange,
     onScratch,
     onApi,
+    initialFile,
 }: {
     projectId: string
     base: string
@@ -55,6 +56,8 @@ export const UploadTestsetStep = ({
     /** Leave both out to hide the manual ways. */
     onScratch?: () => void
     onApi?: () => void
+    /** A file the user already dropped elsewhere (the playground's load dialog): the step starts with it. */
+    initialFile?: File
 }) => {
     const picked = useTestsetFilePick()
     const [name, setName] = useState("")
@@ -73,6 +76,14 @@ export const UploadTestsetStep = ({
         // Prefill only from an accepted file, and only an empty name, so a typed name stays.
         if (await picked.pick(file)) setName((current) => current || fileBaseName(file.name))
     }
+    // The start file is read once: from then on the step owns the file, as after a drop here.
+    const started = useRef(false)
+    useEffect(() => {
+        if (!initialFile || started.current) return
+        started.current = true
+        void onFile(initialFile)
+    })
+
     const onRemove = () => {
         picked.remove()
         clearError()

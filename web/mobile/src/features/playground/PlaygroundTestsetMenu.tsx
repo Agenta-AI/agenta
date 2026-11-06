@@ -14,6 +14,7 @@ import type {CreatedTestset} from "../testsets/create/useUploadTestset"
 
 import {createdTestsetPayload} from "./createdTestsetLoad"
 import {runTraceIds} from "./playgroundRunTraces"
+import {PlaygroundTestsetDrop} from "./PlaygroundTestsetDrop"
 
 // Each dialog downloads when it first opens: the menu button is all the run pane loads.
 const LoadTestsetDialog = dynamic(
@@ -66,7 +67,8 @@ export const PlaygroundTestsetMenu = () => {
     const model = useTestsetMenuModel()
     const {dialog, loadableId} = model
     const [syncMode, setSyncMode] = useState("commit")
-    const [creating, setCreating] = useState(false)
+    // The create dialog is open; with the file dropped in the load dialog, if there was one.
+    const [creating, setCreating] = useState<{file?: File} | null>(null)
     // The traces of the runs to add, read when the user picks "Add to test set".
     const [adding, setAdding] = useState<string[] | null>(null)
     const store = useStore()
@@ -120,15 +122,16 @@ export const PlaygroundTestsetMenu = () => {
                     singleSelect={model.isChat}
                     onConfirm={dialog.kind === "edit" ? model.confirmEdit : model.confirmLoad}
                     onCancel={model.close}
-                    onCreate={() => setCreating(true)}
+                    create={<PlaygroundTestsetDrop onFile={(file) => setCreating({file})} />}
                 />
             ) : null}
             {creating && projectId ? (
                 <CreateTestsetDialog
                     projectId={projectId}
                     base={`/w/${router.query.workspace_id}/p/${projectId}`}
-                    onClose={() => setCreating(false)}
+                    onClose={() => setCreating(null)}
                     onCreated={loadCreated}
+                    initialFile={creating.file}
                 />
             ) : null}
             {dialog?.kind === "keep-drafts" ? (
