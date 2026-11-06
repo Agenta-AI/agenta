@@ -48,14 +48,6 @@ export const promptsCopy = {
         text: (name: string) => `${name} will move to archived apps.`,
         confirm: "Archive app",
     },
-    renamePromptDialog: {
-        title: "Rename prompt",
-        nameLabel: "Name",
-        descriptionLabel: "Description",
-        descriptionPlaceholder: "Add a short description…",
-        save: "Save changes",
-        emptyName: "Name can't be empty",
-    },
     toast: {
         folderCreated: "Folder created",
         folderRenamed: "Folder renamed",
@@ -76,7 +68,6 @@ export const promptsCopy = {
         moveFolder: "Couldn't move the folder",
         deleteFolder: "Couldn't delete the folder",
         movePrompt: "Couldn't move this prompt",
-        renamePrompt: "Couldn't rename this prompt",
         archivePrompt: "Couldn't archive this prompt",
     },
     states: {
