@@ -5,9 +5,9 @@ import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {TestsetNameDialog} from "@/features/testsets/create/TestsetNameDialog"
-
 import {stubAxiosHttp, until, type RecordedRequest} from "./testsetHttp"
+
+import {TestsetNameDialog} from "@/features/testsets/create/TestsetNameDialog"
 
 const push = vi.hoisted(() => vi.fn())
 vi.mock("next/router", () => ({useRouter: () => ({push})}))
@@ -210,6 +210,15 @@ describe("Test set name dialog", () => {
         expect(sent[0].params).toEqual({project_id: "pr"})
         expect(sent[0].body).toEqual({testset: {id: "t-src", name: "Renamed"}})
         expect(onClose).toHaveBeenCalled()
+    })
+
+    it("The rename field has a visible label", () => {
+        mount("rename")
+        const label = Array.from(document.body.querySelectorAll("label")).find(
+            (element) => element.textContent === "Test set name",
+        )
+        expect(label).toBeDefined()
+        expect(document.getElementById(label?.htmlFor ?? "")).toBe(input())
     })
 
     it("Rename failure shows Failed to rename the test set", async () => {

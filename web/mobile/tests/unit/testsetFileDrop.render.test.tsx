@@ -4,10 +4,11 @@ import {act} from "react"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it} from "vitest"
 
+import {polyfillBlobText, until} from "./testsetHttp"
+
 import {TestsetFileDrop} from "@/features/testsets/create/TestsetFileDrop"
 import {useTestsetFilePick} from "@/features/testsets/create/useTestsetFilePick"
 
-import {polyfillBlobText, until} from "./testsetHttp"
 polyfillBlobText()
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
@@ -19,6 +20,7 @@ function Harness() {
         <TestsetFileDrop
             file={picked.file}
             preview={picked.rows}
+            totalRows={picked.totalRows}
             error={picked.error}
             onFile={(file) => void picked.pick(file)}
             onRemove={picked.remove}
@@ -111,5 +113,10 @@ describe("Test set file drop", () => {
         })
         await until(() => expect(host.textContent).toContain("dropped.csv"))
         expect(host.textContent).toContain("dropped.csv")
+    })
+    it("A picked file shows how many of its rows the preview holds", async () => {
+        const lines = ["question,answer", ...Array.from({length: 12}, (_, i) => `Q${i},A${i}`)]
+        await choose(new File([lines.join("\n")], "cases.csv"))
+        expect(host.textContent).toContain("Preview (5 of 12 rows)")
     })
 })

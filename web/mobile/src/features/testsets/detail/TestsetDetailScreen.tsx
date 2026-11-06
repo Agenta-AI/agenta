@@ -151,17 +151,23 @@ export const TestsetDetailScreen = ({
         <TestsetDetailSkeleton />
     ) : (
         <div className="flex min-w-0 flex-col gap-3">
-            <TestsetToolbar
+            <TestsetGrid
                 editor={editor}
-                base={base}
                 canEdit={canEdit}
-                revisions={revisions}
-                onImport={openImport}
-                onRowAdded={openAddedRow}
-                commitOpen={commitOpen}
-                onCommitOpenChange={setCommitOpen}
+                onOpenRow={openRow}
+                actions={
+                    <TestsetToolbar
+                        editor={editor}
+                        base={base}
+                        canEdit={canEdit}
+                        revisions={revisions}
+                        onImport={openImport}
+                        onRowAdded={openAddedRow}
+                        commitOpen={commitOpen}
+                        onCommitOpenChange={setCommitOpen}
+                    />
+                }
             />
-            <TestsetGrid editor={editor} canEdit={canEdit} onOpenRow={openRow} />
         </div>
     )
 
