@@ -62,10 +62,10 @@ export const useCreatePrompt = ({projectBase}: {projectBase: string}) => {
     // Close the drawer first: it clears the playground state as it goes, and the playground it
     // lands on fills that state again.
     const land = useCallback(
-        (appId: string, revisionId: string) => {
+        (appId: string, revisionId?: string, toast: string = promptsCopy.toast.promptCreated) => {
             close()
-            message.success(promptsCopy.toast.promptCreated)
-            void router.push(playgroundHref(projectBase, appId, [revisionId]))
+            message.success(toast)
+            void router.push(playgroundHref(projectBase, appId, revisionId ? [revisionId] : []))
         },
         [close, projectBase, router],
     )

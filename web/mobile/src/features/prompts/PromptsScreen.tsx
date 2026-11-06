@@ -28,6 +28,11 @@ import {PromptTemplatesPrefetch, useCreatePrompt} from "./useCreatePrompt"
 import {usePromptFolderActions} from "./usePromptFolderActions"
 import {usePromptsBrowser} from "./usePromptsBrowser"
 
+const SetupWorkflowDialog = dynamic(
+    () => import("./dialogs/SetupWorkflowDialog").then((module) => module.SetupWorkflowDialog),
+    {ssr: false},
+)
+
 const CreatePromptDrawer = dynamic(
     () => import("./CreatePromptDrawer").then((module) => module.CreatePromptDrawer),
     {ssr: false},
@@ -72,6 +77,9 @@ export const PromptsScreen = ({
     const createPrompt = useCreatePrompt({projectBase})
     // A new prompt opens in the playground, so New prompt needs it: developer mode only.
     const newPrompt = playgroundEnabled && actions.canEditPrompts ? createPrompt.action : null
+    const [settingUpWorkflow, setSettingUpWorkflow] = useState(false)
+    const openSetupWorkflow = useCallback(() => setSettingUpWorkflow(true), [])
+    const onSetupWorkflow = newPrompt ? openSetupWorkflow : null
 
     const rowActions = useMemo<PromptRowActions>(
         () => ({
@@ -136,6 +144,7 @@ export const PromptsScreen = ({
                                     canEditFolders={actions.canEditFolders}
                                     onNewFolder={() => setDialog({kind: "newFolder"})}
                                     newPrompt={newPrompt}
+                                    onSetupWorkflow={onSetupWorkflow}
                                 />
                             </div>
                         </div>
@@ -157,6 +166,7 @@ export const PromptsScreen = ({
                             onOpenFolder={browser.openFolder}
                             openDialog={setDialog}
                             newPrompt={newPrompt}
+                            onSetupWorkflow={onSetupWorkflow}
                             onRetry={browser.refetch}
                             toolbarActions={
                                 developerMode ? (
@@ -184,6 +194,15 @@ export const PromptsScreen = ({
                 onClose={closeDialog}
             />
             {newPrompt ? <PromptTemplatesPrefetch /> : null}
+            {settingUpWorkflow ? (
+                <SetupWorkflowDialog
+                    folderId={browser.folderId}
+                    onClose={() => setSettingUpWorkflow(false)}
+                    onCreated={(appId, revisionId) =>
+                        createPrompt.land(appId, revisionId, promptsCopy.toast.appCreated)
+                    }
+                />
+            ) : null}
             {createPrompt.draftId ? (
                 <CreatePromptDrawer
                     projectId={projectId}
