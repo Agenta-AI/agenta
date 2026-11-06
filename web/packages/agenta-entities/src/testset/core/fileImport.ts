@@ -8,7 +8,8 @@
 export type TestsetFileType = "csv" | "json"
 
 export type TestsetFilePreviewResult =
-    | {ok: true; rows: Record<string, unknown>[]}
+    /** `rows` holds at most `maxRows` rows; `totalRows` counts every data row in the file. */
+    | {ok: true; rows: Record<string, unknown>[]; totalRows: number}
     | {ok: false; reason: "invalid-csv" | "invalid-json"}
 
 /**
@@ -106,6 +107,7 @@ export async function readTestsetFilePreview(
         if (parsed.length === 0) return {ok: false, reason: "invalid-csv"}
 
         const [header, ...dataRows] = parsed
+        const totalRows = dataRows.length
         const rows = dataRows.slice(0, maxRows).map((values) => {
             const record: Record<string, unknown> = {}
             header.forEach((key, column) => {
@@ -113,7 +115,7 @@ export async function readTestsetFilePreview(
             })
             return record
         })
-        return {ok: true, rows}
+        return {ok: true, rows, totalRows}
     }
 
     let parsedJson: unknown
@@ -123,13 +125,11 @@ export async function readTestsetFilePreview(
         return {ok: false, reason: "invalid-json"}
     }
 
-    if (!Array.isArray(parsedJson)) return {ok: true, rows: []}
+    if (!Array.isArray(parsedJson)) return {ok: true, rows: [], totalRows: 0}
 
-    const rows = parsedJson
-        .filter(
-            (item): item is Record<string, unknown> =>
-                typeof item === "object" && item !== null && !Array.isArray(item),
-        )
-        .slice(0, maxRows)
-    return {ok: true, rows}
+    const objects = parsedJson.filter(
+        (item): item is Record<string, unknown> =>
+            typeof item === "object" && item !== null && !Array.isArray(item),
+    )
+    return {ok: true, rows: objects.slice(0, maxRows), totalRows: objects.length}
 }

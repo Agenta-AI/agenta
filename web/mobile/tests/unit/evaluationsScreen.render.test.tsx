@@ -187,7 +187,7 @@ describe("evaluation runs table", () => {
         expect(host.querySelector("[role=img][aria-label=Running]")).not.toBeNull()
     })
 
-    it("A paused live run reads Paused, not Running", async () => {
+    it("A stopped live run reads Stopped, not Running", async () => {
         http.post.mockResolvedValue(
             page([
                 makeRun("l", {live: true, status: "running", flags: {is_active: false}}),
@@ -195,7 +195,7 @@ describe("evaluation runs table", () => {
             ]),
         )
         await mount()
-        expect(host.querySelectorAll("[role=img][aria-label=Paused]")).toHaveLength(1)
+        expect(host.querySelectorAll("[role=img][aria-label=Stopped]")).toHaveLength(1)
         expect(host.querySelectorAll("[role=img][aria-label=Running]")).toHaveLength(1)
     })
 

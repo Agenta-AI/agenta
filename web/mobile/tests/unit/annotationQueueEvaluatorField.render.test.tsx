@@ -13,6 +13,34 @@ const picker = vi.hoisted(() => ({
     onSelect: null as null | ((result: unknown) => void),
     onDeselectChild: null as null | ((id: string) => void),
     renderLabel: null as null | ((entity: unknown) => ReactNode),
+    onCreateNew: undefined as undefined | (() => void),
+    beta: false,
+}))
+
+vi.mock("@agenta/shared/state", async (original) => {
+    const {atom} = await import("jotai")
+    return {...(await original<object>()), betaDeveloperModeActiveAtom: atom(() => picker.beta)}
+})
+// The create flow is a separate chunk: a stand-in that "creates" Tone at once.
+vi.mock("next/dynamic", () => ({
+    default:
+        () =>
+        ({onCreated}: {onCreated: (created: Record<string, unknown>) => void}) => (
+            <button
+                type="button"
+                onClick={() =>
+                    onCreated({
+                        workflowId: "wf-9",
+                        revisionId: "rev-9",
+                        name: "Tone",
+                        slug: "tone",
+                        version: 1,
+                    })
+                }
+            >
+                Save new evaluator
+            </button>
+        ),
 }))
 
 vi.mock("@agenta/entities/workflow", async () => {
@@ -42,12 +70,15 @@ vi.mock("@agenta/entity-ui/selection", () => ({
     EntityPicker: ({
         onSelect,
         onDeselectChild,
+        onCreateNew,
     }: {
         onSelect: (result: unknown) => void
         onDeselectChild: (id: string) => void
+        onCreateNew?: () => void
     }) => {
         picker.onSelect = onSelect
         picker.onDeselectChild = onDeselectChild
+        picker.onCreateNew = onCreateNew
         return null
     },
 }))
@@ -89,6 +120,7 @@ describe("QueueEvaluatorField", () => {
     }
 
     beforeEach(() => {
+        picker.beta = false
         host = document.createElement("div")
         document.body.appendChild(host)
         root = createRoot(host)
@@ -96,6 +128,31 @@ describe("QueueEvaluatorField", () => {
     afterEach(async () => {
         await act(async () => root.unmount())
         host.remove()
+    })
+
+    it("Without beta developer mode the picker offers no create", async () => {
+        await mount()
+        expect(picker.onCreateNew).toBeUndefined()
+    })
+
+    it("In beta developer mode a created human evaluator is added to the queue", async () => {
+        picker.beta = true
+        await mount([existing("rev-1")])
+        await act(async () => picker.onCreateNew?.())
+        const save = [...host.querySelectorAll("button")].find(
+            (button) => button.textContent === "Save new evaluator",
+        )
+        await act(async () => save?.click())
+        expect(latest).toEqual([
+            existing("rev-1"),
+            {
+                evaluatorId: "wf-9",
+                revisionId: "rev-9",
+                evaluatorName: "Tone",
+                version: 1,
+                isHuman: true,
+            },
+        ])
     })
 
     it("Select all with several revisions selects all of them", async () => {

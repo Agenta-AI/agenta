@@ -33,6 +33,8 @@ export interface EditableRevisionDrawerBodyProps {
     renderRuns: (revisionId: string) => ReactNode
     onCommitted: (newRevisionId: string) => void
     onRefinePrompt?: (revisionId: string, promptKey: string) => void
+    /** False: leave the playground state alone (the drawer then has no test pane). */
+    playground: boolean
 }
 
 /**
@@ -49,8 +51,9 @@ export const EditableRevisionDrawerBody = ({
     renderRuns,
     onCommitted,
     onRefinePrompt,
+    playground,
 }: EditableRevisionDrawerBodyProps) => {
-    useDrawerPlaygroundSession(revisionId)
+    useDrawerPlaygroundSession(revisionId, playground)
     const twoPane = useMediaQuery("(min-width: 768px)")
     const [pane, setPane] = useState<Pane>("config")
     // Form, JSON or YAML: kept while the drawer is open, across previous and next.
@@ -108,7 +111,8 @@ export const EditableRevisionDrawerBody = ({
                     <div className="min-w-0 md:flex-1 md:overflow-y-auto">
                         <ConfigPanel
                             revisionId={revisionId}
-                            readOnly={!canCommit}
+                            // While the next revision loads, the form still shows the previous one.
+                            readOnly={!canCommit || (!local && query.isPending)}
                             viewMode={viewMode}
                             onViewModeChange={setViewMode}
                             onRefinePrompt={

@@ -463,4 +463,72 @@ describe("cost, duration and tokens of a live run", () => {
         const duration = autoCatalog.find((entry) => entry.id === "duration")
         expect(duration?.stepKey).not.toMatch(/^evaluator/)
     })
+    const twoEvaluators = asRun({
+        ...online.run,
+        data: {
+            ...online.run.data,
+            steps: [
+                ...online.run.data.steps,
+                {...online.run.data.steps[1], key: "evaluator-second"},
+            ],
+        },
+    })
+    const costOf = (first: unknown, second: unknown) =>
+        buildRunMetricCatalog(twoEvaluators, [
+            {
+                id: "m-cost",
+                run_id: online.run.id,
+                scenario_id: null,
+                data: {
+                    "evaluator-7c2d": {"attributes.ag.metrics.costs.cumulative.total": first},
+                    "evaluator-second": {"attributes.ag.metrics.costs.cumulative.total": second},
+                },
+            },
+        ]).find((entry) => entry.id === "cost")?.stats
+
+    it("an evaluator that ran on fewer traces adds only what it spent", () => {
+        // 10 traces at 2 and 5 traces at 4: 40 in total, 4 per trace (not 2 + 4).
+        expect(costOf({count: 10, mean: 2}, {count: 5, sum: 20})).toEqual({
+            type: undefined,
+            mean: 4,
+            sum: 40,
+            count: 10,
+        })
+    })
+
+    it("without counts the means add up and there is no total", () => {
+        expect(costOf({mean: 2}, {mean: 3})).toEqual({type: undefined, mean: 5})
+        // A total with no count says nothing per trace, so there is no average.
+        expect(costOf({count: 10, mean: 2}, {sum: 20})?.mean).toBeUndefined()
+    })
+
+    it("an evaluator with no traces adds nothing", () => {
+        expect(costOf({count: 10, mean: 2}, {count: 0, sum: 0})).toMatchObject({
+            mean: 2,
+            sum: 20,
+            count: 10,
+        })
+    })
+
+    it("a run with two app steps reads the first one, not their sum", () => {
+        const steps = auto.run.data.steps
+        const run = asRun({
+            ...auto.run,
+            data: {...auto.run.data, steps: [...steps, {...steps[1], key: "application-second"}]},
+        })
+        const cost = (mean: number) => ({
+            "attributes.ag.metrics.costs.cumulative.total": {count: 3, mean},
+        })
+        const catalog = buildRunMetricCatalog(run, [
+            {
+                id: "m-cost",
+                run_id: auto.run.id,
+                scenario_id: null,
+                data: {[steps[1].key]: cost(1), "application-second": cost(5)},
+            },
+        ])
+        const entry = catalog.find((candidate) => candidate.id === "cost")
+        expect(entry?.stepKey).toBe(steps[1].key)
+        expect(entry?.stats?.mean).toBe(1)
+    })
 })

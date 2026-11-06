@@ -125,7 +125,15 @@ export {
     type RunListReferenceColumn,
     type RunMetricCellView,
 } from "./runListColumns"
-export {formatMetricNumber, formatMetricValue, METRIC_PLACEHOLDER} from "./metricFormat"
+export {
+    formatMetricNumber,
+    formatMetricValue,
+    humanizeMetricLabel,
+    METRIC_PLACEHOLDER,
+} from "./metricFormat"
+export {metricCellText, scenarioMetricStats} from "./scenarioMetrics"
+export {columnGroupCheck, setColumnsVisible, type ColumnGroupCheck} from "./columnVisibility"
+export {buildRunEditBody, type RunEditBody, type RunEditInput, type RunStepOrigin} from "./runEdit"
 export {
     buildRunReferencePayload,
     buildRunsQueryBody,

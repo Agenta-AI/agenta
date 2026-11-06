@@ -92,11 +92,27 @@ describe("Testcase drawer", () => {
         expect(host.textContent).toBe("")
     })
 
+    it("The drawer shows the fields in row order, with no per-field add or delete", () => {
+        content()
+        expect(seen.editor).toMatchObject({fieldOrder: "data", fieldControls: false})
+    })
+
     it("A reader opens the drawer in view only mode", () => {
         drawer(true)
         expect(seen.drawer).toMatchObject({viewOnly: true, onOpenCommitModal: undefined})
         content({viewOnly: true})
         expect(seen.editor).toMatchObject({mode: "view", onChange: undefined})
+    })
+
+    it("An editor gets Add to queue for a saved row; a reader and a new row get none", () => {
+        drawer(false)
+        const render = seen.drawer?.renderAddToQueue as (ids: string[]) => unknown
+        expect(render(["case-1"])).not.toBeNull()
+        // The drawer hands no ids for a row that is not saved yet.
+        expect(render([])).toBeNull()
+
+        drawer(true)
+        expect(seen.drawer?.renderAddToQueue).toBeUndefined()
     })
 
     it("An editor opens the commit step from the drawer menu", () => {

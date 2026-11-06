@@ -164,7 +164,7 @@ export const usePlaygroundSelection = ({appId}: {appId: string}): PlaygroundSele
             setUpForAppRef.current = null
             restoringRef.current = false
             stopDrafts()
-            clearPlayground(store)
+            clearPlayground(store, {keepEdits: true})
         }
     }, [appId, appUsable, router.isReady, select, store, visit])
 
