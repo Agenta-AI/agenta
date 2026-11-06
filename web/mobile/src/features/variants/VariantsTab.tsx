@@ -6,7 +6,7 @@ import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableToolbar} from "@agenta/ui/list-table"
 import {Button, Segmented} from "@agenta/ui/ui"
-import {CloudArrowUp, Trash} from "@phosphor-icons/react"
+import {ArrowsLeftRight, CloudArrowUp, Trash} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -20,6 +20,7 @@ import {DeleteRevisionDialog} from "./DeleteRevisionDialog"
 import {DeleteSelectionDialog} from "./DeleteSelectionDialog"
 import {DeployRevisionDialog} from "./DeployRevisionDialog"
 import {
+    selectedPair,
     singleSelectedRevision,
     toDeletion,
     toRegistryRows,
@@ -54,6 +55,12 @@ const EditableRevisionDrawerHost = dynamic(
     {ssr: false},
 )
 
+// The comparison and its diff editor load when a reader compares two revisions.
+const CompareRevisionsDialog = dynamic(
+    () => import("./CompareRevisionsDialog").then((module) => module.CompareRevisionsDialog),
+    {ssr: false},
+)
+
 const MODE_OPTIONS = [
     {label: "Variants", value: "variants"},
     {label: "Revisions", value: "revisions"},
@@ -82,6 +89,7 @@ export const VariantsTab = ({
     const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
     const [selected, setSelected] = useState<Set<string>>(() => new Set())
     const [deletion, setDeletion] = useState<RegistryDeletion | null>(null)
+    const [comparing, setComparing] = useState<[AppRevisionRow, AppRevisionRow] | null>(null)
 
     const revisions = useAppRevisions({projectId, appId: app.id, search: term})
     const latestRevisionId = useAtomValue(workflowLatestRevisionIdAtomFamily(app.id)) ?? null
@@ -129,6 +137,7 @@ export const VariantsTab = ({
     const deleteRegistryRow = (row: RegistryRow) =>
         setDeletion(toDeletion([row], new Set([row.key])))
     const toDeploy = singleSelectedRevision(registryRows, selected)
+    const toCompare = selectedPair(registryRows, selected)
 
     const shownRow = useShownRevisionRow({
         revisionId,
@@ -200,6 +209,18 @@ export const VariantsTab = ({
                             `Select ${row.revision.variantName} v${row.revision.version}`,
                         bulkActions: () => (
                             <>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={!toCompare}
+                                    title={
+                                        toCompare ? undefined : "Select two revisions to compare"
+                                    }
+                                    onClick={() => toCompare && setComparing(toCompare)}
+                                >
+                                    <ArrowsLeftRight aria-hidden size={14} />
+                                    Compare
+                                </Button>
                                 {canDeploy ? (
                                     <Button
                                         size="sm"
@@ -290,6 +311,9 @@ export const VariantsTab = ({
                     appSlug={app.slug ?? null}
                     onClose={() => setDeployRow(null)}
                 />
+            ) : null}
+            {comparing ? (
+                <CompareRevisionsDialog revisions={comparing} onClose={() => setComparing(null)} />
             ) : null}
             {deletion ? (
                 <DeleteSelectionDialog
