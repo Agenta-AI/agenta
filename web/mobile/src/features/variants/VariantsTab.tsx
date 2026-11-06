@@ -6,7 +6,7 @@ import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableToolbar} from "@agenta/ui/list-table"
 import {Button, Segmented} from "@agenta/ui/ui"
-import {ArrowsLeftRight, CloudArrowUp, Trash} from "@phosphor-icons/react"
+import {ArrowsLeftRight, CloudArrowUp, Code, Trash} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -56,6 +56,11 @@ const EditableRevisionDrawerHost = dynamic(
     {ssr: false},
 )
 
+// "Use API" and its code load when a reader opens it.
+const UseApiDrawer = dynamic(
+    () => import("../endpoints/UseApiDrawer").then((module) => module.UseApiDrawer),
+    {ssr: false},
+)
 // The comparison and its diff editor load when a reader compares two revisions.
 const CompareRevisionsDialog = dynamic(
     () => import("./CompareRevisionsDialog").then((module) => module.CompareRevisionsDialog),
@@ -91,6 +96,7 @@ export const VariantsTab = ({
     const [selected, setSelected] = useState<Set<string>>(() => new Set())
     const [deletion, setDeletion] = useState<RegistryDeletion | null>(null)
     const [comparing, setComparing] = useState<[AppRevisionRow, AppRevisionRow] | null>(null)
+    const [useApiOpen, setUseApiOpen] = useState(false)
 
     const revisions = useAppRevisions({projectId, appId: app.id, search: term})
     const latestRevisionId = useAtomValue(workflowLatestRevisionIdAtomFamily(app.id)) ?? null
@@ -139,6 +145,13 @@ export const VariantsTab = ({
         setDeletion(toDeletion([row], new Set([row.key])))
     const toDeploy = singleSelectedRevision(registryRows, selected)
     const toCompare = selectedPair(registryRows, selected)
+    // The Variant picker: each variant's latest revision, plus the one the reader selected.
+    const useApiChoices = useMemo(() => {
+        const latest = toRegistryRows(revisions.rows, "variants", new Set()).map(
+            (row) => row.revision,
+        )
+        return toDeploy && !latest.includes(toDeploy) ? [toDeploy, ...latest] : latest
+    }, [revisions.rows, toDeploy])
 
     const shownRow = useShownRevisionRow({
         revisionId,
@@ -187,13 +200,25 @@ export const VariantsTab = ({
                 }}
                 searchPlaceholder="Search"
                 actions={
-                    <Segmented
-                        className="ml-auto"
-                        aria-label="Display mode"
-                        options={MODE_OPTIONS}
-                        value={mode}
-                        onChange={(value) => changeMode(String(value))}
-                    />
+                    <>
+                        <Segmented
+                            className="ml-auto"
+                            aria-label="Display mode"
+                            options={MODE_OPTIONS}
+                            value={mode}
+                            onChange={(value) => changeMode(String(value))}
+                        />
+                        {betaDeveloperMode ? (
+                            <Button
+                                size="sm"
+                                disabled={useApiChoices.length === 0}
+                                onClick={() => setUseApiOpen(true)}
+                            >
+                                <Code aria-hidden size={14} />
+                                Use API
+                            </Button>
+                        ) : null}
+                    </>
                 }
             />
             {betaDeveloperMode ? (
@@ -311,6 +336,18 @@ export const VariantsTab = ({
                     appId={app.id}
                     appSlug={app.slug ?? null}
                     onClose={() => setDeployRow(null)}
+                />
+            ) : null}
+            {useApiOpen ? (
+                <UseApiDrawer
+                    workspaceId={base.split("/")[2] ?? ""}
+                    projectId={projectId}
+                    appSlug={app.slug ?? null}
+                    variants={{
+                        rows: useApiChoices,
+                        initialRevisionId: toDeploy?.revisionId ?? null,
+                    }}
+                    onClose={() => setUseApiOpen(false)}
                 />
             ) : null}
             {comparing ? (
