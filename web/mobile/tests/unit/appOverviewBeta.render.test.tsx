@@ -67,6 +67,7 @@ vi.mock("@/features/developer/developerViewAccess", () => ({
     true
 
 import {AppRecentPromptsSection} from "@/features/app-overview/AppRecentPromptsSection"
+import {VariantRowCells} from "@/features/variants/VariantRowCells"
 
 const APP = {id: "app-1", slug: "support-bot", name: "Support bot"}
 const BASE = "/w/ws/p/pr"
@@ -114,6 +115,7 @@ describe("Recent Prompts without beta developer mode", () => {
         mount()
         expect(labels("a")).toEqual(["View all prompts →"])
         expect(fixture.tableProps?.canDelete).toBe(false)
+        expect(fixture.tableProps?.detailed).toBe(false)
         expect(playgroundOf()).toBeNull()
         expect(host.querySelector('[data-testid="read-only-drawer"]')).not.toBeNull()
         expect(host.querySelector('[data-testid="editable-drawer"]')).toBeNull()
@@ -134,6 +136,8 @@ describe("Recent Prompts in beta developer mode", () => {
         setBeta(true)
         mount()
         expect(fixture.tableProps?.canDelete).toBe(true)
+        // apps-overview-06: the full model name and the time, as the Registry table shows them.
+        expect(fixture.tableProps?.detailed).toBe(true)
         expect(typeof fixture.tableProps?.onDelete).toBe("function")
         expect(playgroundOf()?.({revisionId: "rev-2"})).toBe(
             `${BASE}/apps/app-1/playground?revisions=rev-2`,
@@ -151,5 +155,49 @@ describe("Recent Prompts in beta developer mode", () => {
             "Open in playground",
             "Deploy",
         ])
+    })
+})
+
+describe("Recent Prompts row cells", () => {
+    const cells = (detailed: boolean) => {
+        act(() => {
+            root.render(
+                createElement(VariantRowCells, {
+                    row: {
+                        revisionId: "rev-2",
+                        version: 2,
+                        variantName: "Main",
+                        model: "mistral/mistral-small-latest",
+                        createdAt: "2026-03-04T10:15:00Z",
+                    } as never,
+                    narrow: false,
+                    isLatest: false,
+                    canDeploy: false,
+                    canDelete: false,
+                    playgroundHref: null,
+                    onOpen: vi.fn(),
+                    onDeploy: vi.fn(),
+                    onDelete: vi.fn(),
+                    detailed,
+                }),
+            )
+        })
+        const model = [...host.querySelectorAll("span")].find(
+            (span) => span.textContent === "mistral/mistral-small-latest",
+        )
+        return {model, text: host.textContent ?? ""}
+    }
+
+    it("shows the full model name and the time when detailed", () => {
+        const {model, text} = cells(true)
+        expect(model?.className).toContain("break-all")
+        expect(model?.className).not.toContain("truncate")
+        expect(text).toMatch(/\d{1,2}:\d{2} (AM|PM)/)
+    })
+
+    it("keeps the truncated model and the date alone otherwise", () => {
+        const {model, text} = cells(false)
+        expect(model?.className).toContain("truncate")
+        expect(text).not.toMatch(/\d{1,2}:\d{2} (AM|PM)/)
     })
 })

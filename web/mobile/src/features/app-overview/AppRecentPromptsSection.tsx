@@ -120,6 +120,7 @@ export const AppRecentPromptsSection = ({
                     onOpen={(row) => setRevisionId(row.revisionId)}
                     onDeploy={setDeployRow}
                     onDelete={beta ? setDeleteRow : undefined}
+                    detailed={beta}
                     empty={<VariantsEmpty />}
                 />
             )}

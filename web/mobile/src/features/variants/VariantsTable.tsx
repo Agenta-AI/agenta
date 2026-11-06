@@ -44,6 +44,7 @@ export const VariantsTable = ({
     onDeploy,
     onDelete,
     empty,
+    detailed = false,
 }: {
     groups: ListTableGroup<AppRevisionRow>[]
     isLoading: boolean
@@ -60,6 +61,8 @@ export const VariantsTable = ({
     /** Absent with `canDelete` false: the menu has no Delete. */
     onDelete?: (row: AppRevisionRow) => void
     empty: ReactNode
+    /** The full model name and the time, as the Registry table shows them. */
+    detailed?: boolean
 }) => {
     const narrow = !useMediaQuery(WIDE_QUERY)
     const toggleGroup = useCallback(
@@ -94,6 +97,7 @@ export const VariantsTable = ({
                     onOpen={onOpen}
                     onDeploy={onDeploy}
                     onDelete={onDelete ?? NO_DELETE}
+                    detailed={detailed}
                 />
             )}
         />
