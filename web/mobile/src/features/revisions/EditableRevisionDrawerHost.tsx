@@ -66,8 +66,10 @@ export const EditableRevisionDrawerHost = ({
                 renderRuns={(id) => <PlaygroundRunPane revisionId={id} />}
                 onRefinePrompt={(id, promptKey) => setRefine({revisionId: id, promptKey})}
                 onCommitted={(_from, newRevisionId) => {
-                    // The registry and the deployment history list the new revision.
+                    // The registry lists the new revision; "Commit and deploy" also moves the
+                    // environment cards and the deployment history.
                     void queryClient.invalidateQueries({queryKey: ["workflows", "app-revisions"]})
+                    void queryClient.invalidateQueries({queryKey: ["environments"]})
                     setRevisionId(newRevisionId)
                 }}
             />

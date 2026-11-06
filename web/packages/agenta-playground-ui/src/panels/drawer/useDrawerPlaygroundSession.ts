@@ -41,14 +41,16 @@ export const useDrawerPlaygroundSession = (revisionId: string) => {
         store.set(playgroundInitializedAtom, true)
     }, [revisionId, store])
 
-    // The clear waits one task: strict mode unmounts and mounts again at once, and clearing then
-    // would discard an unsaved local revision the drawer is still showing.
+    // The clear waits one task: strict mode unmounts and mounts again at once. It is skipped when
+    // something set the playground up meanwhile (Open in playground mounts the playground page).
     useEffect(() => {
         if (pendingClear) clearTimeout(pendingClear)
         pendingClear = null
         return () => {
+            const nodesAtClose = store.get(playgroundController.selectors.nodes())
             pendingClear = setTimeout(() => {
                 pendingClear = null
+                if (store.get(playgroundController.selectors.nodes()) !== nodesAtClose) return
                 clearPlayground(store)
             }, 0)
         }
