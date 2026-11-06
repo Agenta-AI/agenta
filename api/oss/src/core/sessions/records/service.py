@@ -2,8 +2,11 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 from uuid import UUID
 
+import uuid_utils.compat as uuid
+
 from oss.src.core.sessions.records.dtos import (
     RECORD_SETTLED_BY_ATTRIBUTE,
+    REWIND_RECORD_TYPE,
     SETTLED_BY_WATCHDOG,
     TERMINAL_RECORD_TYPE,
     SessionDurableEventsReplay,
@@ -356,6 +359,37 @@ class RecordsService:
             project_id=project_id,
             session_id=session_id,
         )
+
+    async def rewind_from_turn(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: str,
+        user_id: Optional[UUID],
+    ) -> int:
+        """Remove `turn_id` and everything after it, then log that the history shrank.
+
+        The `rewind` record moves the sequence cursor forward, so a reader holding a longer
+        transcript can tell a shorter log from one that lags behind."""
+        removed = await self.records_dao.rewind_from_turn(
+            project_id=project_id,
+            session_id=session_id,
+            turn_id=turn_id,
+            user_id=user_id,
+        )
+        if removed:
+            await self.append(
+                event=SessionRecordEvent(
+                    project_id=project_id,
+                    session_id=session_id,
+                    record_id=uuid.uuid7(),
+                    record_type=REWIND_RECORD_TYPE,
+                    record_source="agent",
+                    attributes={"type": REWIND_RECORD_TYPE, "turnId": turn_id},
+                )
+            )
+        return removed
 
     async def get_event(
         self,

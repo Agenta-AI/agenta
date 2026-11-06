@@ -582,6 +582,12 @@ class SessionStreamsService:
             session_id=session_id,
         )
 
+    async def is_running(self, *, project_id: UUID, session_id: str) -> bool:
+        owner = await get_running_owner(
+            self._lock, project_id=str(project_id), session_id=session_id
+        )
+        return owner is not None
+
     async def heartbeat(
         self,
         *,

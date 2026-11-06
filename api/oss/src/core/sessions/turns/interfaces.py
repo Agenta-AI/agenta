@@ -111,6 +111,16 @@ class SessionTurnsDAOInterface(ABC):
     ) -> Dict[str, SessionTurn]: ...
 
     @abstractmethod
+    async def forget_native_sessions(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> None:
+        """Clear every turn's harness session and sandbox id, so nothing can resume them."""
+        ...
+
+    @abstractmethod
     async def delete_by_session_id(
         self,
         *,

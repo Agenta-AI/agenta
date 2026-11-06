@@ -36,6 +36,17 @@ class RecordsDAOInterface:
     ) -> List[SessionRecord]:
         raise NotImplementedError
 
+    async def rewind_from_turn(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: str,
+        user_id: Optional[UUID],
+    ) -> int:
+        """Soft-delete `turn_id` and every later record. Returns the rows removed."""
+        raise NotImplementedError
+
     async def get_records_page(
         self,
         *,

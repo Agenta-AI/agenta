@@ -239,6 +239,7 @@ class RecordsDAO(RecordsDAOInterface):
                 .where(
                     RecordDBE.project_id == project_id,
                     RecordDBE.session_id == session_id,
+                    RecordDBE.deleted_at.is_(None),
                     # A quarantined record is history the platform refused: it reached ingest
                     # for a turn the watchdog had already ended. Excluding it HERE is what
                     # makes one execution render one ending, because this is the read every
@@ -250,6 +251,43 @@ class RecordsDAO(RecordsDAOInterface):
 
             dbes = (await session.execute(stmt)).scalars().all()
             return [map_record_dbe_to_dto(dbe=dbe) for dbe in dbes]
+
+    async def rewind_from_turn(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: str,
+        user_id: Optional[UUID],
+    ) -> int:
+        async with self.engine.session() as session:
+            live = (
+                RecordDBE.project_id == project_id,
+                RecordDBE.session_id == session_id,
+                RecordDBE.deleted_at.is_(None),
+            )
+            first_sequence, first_created_at = (
+                await session.execute(
+                    select(
+                        func.min(RecordDBE.sequence),
+                        func.min(RecordDBE.created_at),
+                    ).where(*live, RecordDBE.turn_id == turn_id)
+                )
+            ).one()
+            if first_created_at is None:
+                return 0
+            result = await session.execute(
+                update(RecordDBE)
+                .where(
+                    *live,
+                    RecordDBE.sequence >= first_sequence
+                    if first_sequence is not None
+                    else RecordDBE.created_at >= first_created_at,
+                )
+                .values(deleted_at=func.now(), deleted_by_id=user_id)
+            )
+            await session.commit()
+            return result.rowcount or 0
 
     @staticmethod
     def _send_order():
