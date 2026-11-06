@@ -2,7 +2,12 @@ import {useMemo} from "react"
 import type {ReactNode} from "react"
 
 import {useMediaQuery} from "@agenta/ui/hooks"
-import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
+import {
+    ListTable,
+    ListTableLoadMore,
+    type ListTableColumn,
+    type ListTableSelection,
+} from "@agenta/ui/list-table"
 import {Button, Spinner} from "@agenta/ui/ui"
 
 import {useConfirmModal} from "../../settings/useConfirmModal"
@@ -42,6 +47,21 @@ const WIDE_COLUMNS = [
 ]
 const NARROW_COLUMNS = [NAME_COLUMN, dateColumn("100px"), ACTIONS_COLUMN]
 
+// Developer mode follows the classic app: Date Created, with the time, before Created by.
+const DEVELOPER_WIDE_COLUMNS = [
+    NAME_COLUMN,
+    COMMIT_COLUMN,
+    dateColumn("minmax(150px,1fr)"),
+    AUTHOR_COLUMN,
+    ACTIONS_COLUMN,
+]
+const DEVELOPER_NARROW_COLUMNS = [NAME_COLUMN, dateColumn("132px"), ACTIONS_COLUMN]
+
+const columnsFor = (developerMode: boolean, narrow: boolean) => {
+    if (developerMode) return narrow ? DEVELOPER_NARROW_COLUMNS : DEVELOPER_WIDE_COLUMNS
+    return narrow ? NARROW_COLUMNS : WIDE_COLUMNS
+}
+
 /** Tailwind's `sm`. Below it a phone keeps Name and Date Created only. */
 const WIDE_QUERY = "(min-width: 640px)"
 
@@ -65,6 +85,16 @@ export interface TestsetsTableProps {
     onArchive: (row: TestsetRow) => Promise<void>
     onClone?: (row: TestsetRow) => void
     onRename?: (row: TestsetRow) => void
+    /**
+     * Beta developer mode: the classic column order and date, Copy ID, the archive dialog that
+     * names every test set, and the next page loading on scroll. Off keeps the list as it was.
+     */
+    developerMode?: boolean
+    /** Row checkboxes and the bulk bar. Absent = no checkboxes. */
+    selection?: ListTableSelection<TestsetRow>
+    onCopyId?: (row: TestsetRow) => void
+    /** Developer mode: opens the screen's archive dialog instead of the generic confirm. */
+    onRequestArchive?: (rows: TestsetRow[]) => void
 }
 
 /** The testsets list in the shared list frame, with Load more under it. */
@@ -85,6 +115,10 @@ export const TestsetsTable = ({
     onArchive,
     onClone,
     onRename,
+    developerMode = false,
+    selection,
+    onCopyId,
+    onRequestArchive,
 }: TestsetsTableProps) => {
     // Asked as "wide?" because the shared hook starts false before it reads the viewport.
     const narrow = !useMediaQuery(WIDE_QUERY)
@@ -95,23 +129,27 @@ export const TestsetsTable = ({
     const actionsFor = (row: TestsetRow): TestsetRowActions => ({
         onOpen: () => onOpen(row),
         onExport: (format) => onExport(row, format),
-        onArchive: () =>
-            confirm({
-                title: "Archive this test set?",
-                message: `“${row.name}” and all its revisions will be archived.`,
-                okText: "Archive",
-                danger: true,
-                onOk: () => onArchive(row),
-            }),
+        onArchive: onRequestArchive
+            ? () => onRequestArchive([row])
+            : () =>
+                  confirm({
+                      title: "Archive this test set?",
+                      message: `“${row.name}” and all its revisions will be archived.`,
+                      okText: "Archive",
+                      danger: true,
+                      onOk: () => onArchive(row),
+                  }),
         onClone: onClone ? () => onClone(row) : undefined,
         onRename: onRename ? () => onRename(row) : undefined,
+        onCopyId: onCopyId ? () => onCopyId(row) : undefined,
     })
 
     return (
         <>
             <ListTable
-                columns={narrow ? NARROW_COLUMNS : WIDE_COLUMNS}
+                columns={columnsFor(developerMode, narrow)}
                 minWidth={narrow ? 300 : 560}
+                selection={selection}
                 stickyHeader
                 loading={isLoading}
                 groups={groups}
@@ -123,6 +161,7 @@ export const TestsetsTable = ({
                         row={row}
                         commitMessage={commitMessages.get(row.id) ?? null}
                         narrow={narrow}
+                        developerMode={developerMode}
                         busy={isBusy(row.id)}
                         canEdit={canEdit}
                         canExport={canExport}
@@ -131,7 +170,10 @@ export const TestsetsTable = ({
                     />
                 )}
             />
-            {hasMore ? (
+            {hasMore && developerMode ? (
+                <ListTableLoadMore autoLoad onLoadMore={onLoadMore} loading={isLoadingMore} />
+            ) : null}
+            {hasMore && !developerMode ? (
                 <div className="flex justify-center py-4">
                     <Button
                         variant="outline"
