@@ -30,19 +30,12 @@ describe("ColumnDialog", () => {
 
     const render = (
         step: ColumnDialogStep,
-        savesVersion: boolean,
         onSubmit: (name: string) => Promise<ColumnEdit>,
         onDone = vi.fn(),
     ) => {
         act(() =>
             root.render(
-                <ColumnDialog
-                    step={step}
-                    savesVersion={savesVersion}
-                    onClose={vi.fn()}
-                    onSubmit={onSubmit}
-                    onDone={onDone}
-                />,
+                <ColumnDialog step={step} onClose={vi.fn()} onSubmit={onSubmit} onDone={onDone} />,
             ),
         )
         return onDone
@@ -66,26 +59,24 @@ describe("ColumnDialog", () => {
         })
     }
 
-    it("A rename on a saved test set says it saves a new version and opens it", async () => {
-        const onSubmit = vi.fn(async () => ({ok: true, revisionId: "rev-4"}) as const)
-        const onDone = render({kind: "rename", columnKey: "answer"}, true, onSubmit)
+    it("A rename is staged for the commit: no save is promised and the step closes", async () => {
+        const onSubmit = vi.fn(async () => ({ok: true}) as const)
+        const onDone = render({kind: "rename", columnKey: "answer"}, onSubmit)
 
-        expect(document.body.textContent).toContain(
-            "This saves a new version of the test set right away.",
-        )
+        expect(document.body.textContent).not.toContain("saves a new version")
         typeName("reply")
-        await act(async () => button("Rename and save").click())
+        await act(async () => button("Rename").click())
 
         expect(onSubmit).toHaveBeenCalledWith("reply")
-        expect(onDone).toHaveBeenCalledWith("rev-4")
+        expect(onDone).toHaveBeenCalledTimes(1)
     })
 
     it("A refused name shows why and keeps the step open", async () => {
         const onSubmit = vi.fn(async (): Promise<ColumnEdit> => ({ok: false, reason: "duplicate"}))
-        const onDone = render({kind: "add"}, true, onSubmit)
+        const onDone = render({kind: "add"}, onSubmit)
 
         typeName("reply")
-        await act(async () => button("Add and save").click())
+        await act(async () => button("Add").click())
 
         expect(document.body.querySelector('[role="alert"]')?.textContent).toBe(
             'Column "reply" already exists',
@@ -93,24 +84,26 @@ describe("ColumnDialog", () => {
         expect(onDone).not.toHaveBeenCalled()
     })
 
-    it("A delete on a new test set does not mention a save", async () => {
-        const onSubmit = vi.fn(async () => ({ok: true, revisionId: null}) as const)
+    it("A delete asks first and promises no save", async () => {
+        const onSubmit = vi.fn(async () => ({ok: true}) as const)
         render(
             {kind: "delete", columnKey: "answer", columnKeys: ["answer"], isGroup: false},
-            false,
             onSubmit,
         )
 
+        expect(document.body.textContent).toContain(
+            'Are you sure you want to delete the column "answer"?',
+        )
         expect(document.body.textContent).not.toContain("saves a new version")
         await act(async () => button("Delete").click())
         expect(onSubmit).toHaveBeenCalledWith("answer")
     })
 
-    it("Add column is off with the reason while rows have unsaved edits", () => {
+    it("Add column is off with the reason while a save runs", () => {
         act(() =>
             root.render(
                 <AddColumnButton
-                    blockedReason="Save or discard your row changes first"
+                    blockedReason="Wait for the current save to finish"
                     onClick={vi.fn()}
                 />,
             ),

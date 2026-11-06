@@ -78,7 +78,7 @@ export const PlaygroundWorkspace = ({
     }
 
     return (
-        <div className="flex h-full min-h-0 flex-col bg-background">
+        <div data-playground className="flex h-full min-h-0 flex-col bg-background">
             <PlaygroundHeader
                 workspaceId={workspaceId}
                 projectId={projectId}

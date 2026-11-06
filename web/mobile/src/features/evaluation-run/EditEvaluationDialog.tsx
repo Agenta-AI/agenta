@@ -40,6 +40,7 @@ export interface RunEvaluatorEntry {
  * changes, and while the name is blank. A failed save keeps the dialog open with the draft.
  */
 export const EditEvaluationDialog = ({
+    projectId,
     open,
     name,
     description,
@@ -48,6 +49,7 @@ export const EditEvaluationDialog = ({
     onClose,
     onSave,
 }: {
+    projectId: string
     open: boolean
     name: string
     description: string
@@ -197,10 +199,10 @@ export const EditEvaluationDialog = ({
                         {open ? (
                             <RunEvaluatorPicker
                                 human={humanRun}
+                                projectId={projectId}
                                 selected={picked}
                                 onPick={pick}
                                 onRemove={unstage}
-                                onClear={() => setAdded([])}
                             />
                         ) : null}
                     </section>

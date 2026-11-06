@@ -100,6 +100,49 @@ describe("run summary table", () => {
         expect(labelText("queries")).toBe("Filters / Queries")
     })
 
+    it("A live run's query row shows the filter and the sampling rate, like the old app", () => {
+        render(
+            input({
+                references: references({queryIds: ["q-1"]}),
+                query: {
+                    filtering: {
+                        operator: "and",
+                        conditions: [
+                            {field: "trace_type", operator: "is", value: "invocation"},
+                            {
+                                field: "references",
+                                operator: "in",
+                                value: [{id: "app-1"}],
+                            },
+                        ],
+                    },
+                    rate: 0.25,
+                },
+            }),
+        )
+        expect(rowText("queries")).toBe(
+            'trace_type is invocation AND references in [{"id":"app-1"}]Sample rate: 25%',
+        )
+    })
+
+    it("A stopped live run says Stopped; an active one keeps its status", () => {
+        const live = (isActive: boolean) =>
+            header({
+                kind: "online",
+                status: "running",
+                flags: {isLive: true, isClosed: false, isActive},
+            })
+        render(input({header: live(false)}))
+        expect(rowText("status")).toBe("Stopped")
+        render(input({header: live(true)}))
+        expect(rowText("status")).toBe("Running")
+    })
+
+    it("The query row waits while the query loads", () => {
+        render(input({references: references({queryIds: ["q-1"]}), query: undefined}))
+        expect(rowText("queries")).toBe("…")
+    })
+
     it("Invocation rows show the average cost, duration and tokens", () => {
         render(
             input({

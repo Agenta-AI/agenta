@@ -4,5 +4,5 @@ export {default as EnvironmentStatus, statusMap} from "./components/EnvironmentS
 export {default as VariantDetails} from "./components/VariantDetails"
 export type {VariantStatusInfo} from "./types"
 export {RevisionDrawer} from "./RevisionDrawer/RevisionDrawer"
+export {RevisionDetails} from "./RevisionDrawer/RevisionDetails"
 export type {RevisionDrawerKind, RevisionDrawerProps} from "./RevisionDrawer/types"
-export {RevisionConfigView} from "./RevisionDrawer/RevisionConfigView"

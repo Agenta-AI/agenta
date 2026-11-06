@@ -11,7 +11,11 @@ import {formatMetricValue} from "./metricFormat"
 import type {MetricStats} from "./metricStats"
 import {deriveEvaluationKind, EVALUATION_KIND_LABELS, type RunKindInput} from "./runKind"
 
-/** One CSV cell: quoted when it holds a comma, a quote or a line break; quotes doubled. */
+/**
+ * One CSV cell: quoted when it holds a comma, a quote or a line break; quotes doubled. Text that
+ * starts with =, +, -, @, a tab or a carriage return gets a leading quote so a spreadsheet does not
+ * run it as a formula.
+ */
 export function csvCell(value: unknown): string {
     const text =
         value === null || value === undefined
@@ -21,7 +25,9 @@ export function csvCell(value: unknown): string {
               : typeof value === "number" || typeof value === "boolean"
                 ? String(value)
                 : JSON.stringify(value)
-    return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+    // A text cell that starts like a formula would run in a spreadsheet: prefix it with a quote.
+    const safe = typeof value === "string" && /^[=+\-@\t\r]/.test(text) ? `'${text}` : text
+    return /[",\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe
 }
 
 /** A header row and the data rows as one CSV text, one line per row. */

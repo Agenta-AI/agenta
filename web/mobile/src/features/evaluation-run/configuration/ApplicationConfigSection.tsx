@@ -12,7 +12,7 @@ import type {ApplicationConfig} from "./useApplicationConfig"
 
 // The prompt view carries the editors: it loads only with this section.
 const RevisionConfigView = dynamic(
-    () => import("@agenta/entity-ui/variant").then((m) => m.RevisionConfigView),
+    () => import("@agenta/entity-ui/variant/config").then((m) => m.RevisionConfigView),
     {ssr: false, loading: () => <SkeletonBlock className="h-40 w-full rounded-md" />},
 )
 

@@ -9,7 +9,7 @@ import {RunDetailsTitle} from "./RunDetailsTitle"
 import {RunOnlineToggle} from "./RunOnlineToggle"
 
 /**
- * The page header: the nav button, the run name with its "⋮" menu, Pause or Resume on a live run,
+ * The page header: the nav button, the run name with its "⋮" menu, Stop or Resume on a live run,
  * and under them the run chips with the Compare entry.
  */
 export const RunDetailsHeader = ({

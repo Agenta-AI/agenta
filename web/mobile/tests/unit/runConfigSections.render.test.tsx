@@ -59,7 +59,7 @@ vi.mock("@agenta/entities/testset", async () => {
     }
 })
 // The prompt view carries the editors; the test reads which revision it shows.
-vi.mock("@agenta/entity-ui/variant", () => ({
+vi.mock("@agenta/entity-ui/variant/config", () => ({
     RevisionConfigView: ({revisionId}: {revisionId: string}) =>
         createElement("div", {"data-testid": "prompt-template"}, revisionId),
 }))

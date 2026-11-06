@@ -2,6 +2,8 @@ import type {ReactNode} from "react"
 
 import {
     formatCost,
+    formatQueryFiltering,
+    formatQuerySampleRate,
     formatDuration,
     formatTokens,
     frequencyBars,
@@ -9,6 +11,7 @@ import {
     metricSummary,
     type MetricStats,
     type RunHeader,
+    type RunQueryConfig,
     type RunReferences,
 } from "@agenta/entities/evaluationRun"
 import {Database, GitCommit, SquaresFour} from "@phosphor-icons/react"
@@ -30,6 +33,8 @@ export interface RunSummaryInput {
     metrics: readonly OverviewMetric[]
     metricsPending: boolean
     names: Pick<OverviewNames, "testsets" | "application" | "variant">
+    /** A live run's query: its filtering and sampling rate. Undefined while it loads. */
+    query?: RunQueryConfig | null
     /** Links to the test set and variant pages; without them the chips are plain. */
     links?: RunReferenceLinks
 }
@@ -107,6 +112,7 @@ export function buildRunSummaryRows({
     metrics,
     metricsPending,
     names,
+    query,
     links,
 }: RunSummaryInput): RunSummaryRow[] {
     const rows: RunSummaryRow[] = []
@@ -131,12 +137,29 @@ export function buildRunSummaryRows({
         })
     }
     rows.push({key: "evaluation", label: "Evaluation", value: header.name})
-    rows.push({key: "status", label: "Status", value: <RunStatusDot status={header.status} />})
+    // A stopped live run keeps the "running" status on the server: say it is stopped.
+    const stopped = header.kind === "online" && !header.flags.isClosed && !header.flags.isActive
+    rows.push({
+        key: "status",
+        label: "Status",
+        value: <RunStatusDot status={stopped ? "stopped" : header.status} />,
+    })
     if ((references?.queryIds.length ?? 0) > 0) {
         rows.push({
             key: "queries",
             label: "Filters / Queries",
-            value: `${references?.queryIds.length} ${references?.queryIds.length === 1 ? "query" : "queries"}`,
+            // The filter itself and the sampling rate, as the old app prints them.
+            value:
+                query === undefined ? (
+                    PENDING
+                ) : (
+                    <span className="flex flex-col">
+                        <span className="break-words">
+                            {formatQueryFiltering(query?.filtering)}
+                        </span>
+                        <span>{`Sample rate: ${formatQuerySampleRate(query?.rate)}`}</span>
+                    </span>
+                ),
         })
     }
     rows.push({key: "created", label: "Created at", value: dateText(header.createdAt)})

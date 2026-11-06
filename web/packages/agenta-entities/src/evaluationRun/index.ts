@@ -125,6 +125,8 @@ export {
     type RadarMetricInput,
     findScenarioTraceResult,
     buildQuerySlug,
+    formatQueryFiltering,
+    formatQuerySampleRate,
     LIVE_INVOCATION_FILTER,
     parseSamplingRate,
     selectLiveEvaluators,
@@ -231,6 +233,8 @@ export {
     // Run details page
     runHeaderAtomFamily,
     runReferencesAtomFamily,
+    runQueryConfigQueryAtomFamily,
+    type RunQueryConfig,
     runLevelMetricsQueryAtomFamily,
     runLevelMetricsQueryKey,
     runMetricCatalogAtomFamily,

@@ -23,6 +23,7 @@ export const useRunEditDialog = (projectId: string, runId: string, header: RunHe
 
     const dialog = canEdit ? (
         <EditEvaluationDialog
+            projectId={projectId}
             open={open}
             name={saved.name}
             description={saved.description}
