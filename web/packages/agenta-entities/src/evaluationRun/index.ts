@@ -126,9 +126,9 @@ export {
     type RadarMetricInput,
     findScenarioTraceResult,
     buildQuerySlug,
-    flattenQueryConditions,
     formatQueryFiltering,
     formatQuerySampleRate,
+    flattenQueryConditions,
     LIVE_INVOCATION_FILTER,
     type StoredQueryCondition,
     parseSamplingRate,
@@ -222,6 +222,7 @@ export {
     fetchAllTestcaseIds,
     DEFAULT_EVALUATION_CONCURRENCY,
     type EvaluationRunsPageParams,
+    type EvaluationRunReferenceFilter,
     type EvaluationRunsPage,
     type EvaluationRunsListKeyParams,
     type EvaluationRunActionParams,
@@ -238,6 +239,8 @@ export {
     type EvaluationScenariosPageParams,
     // Live evaluation queries
     queryLiveQueryRevisions,
+    queryLiveQueries,
+    type LiveQuery,
     type LiveQueryRevision,
 } from "./api"
 

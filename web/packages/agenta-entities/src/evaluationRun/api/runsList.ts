@@ -31,6 +31,16 @@ const evaluationRunsPageResponseSchema = z.object({
     windowing: z.object({next: z.string().nullable().optional()}).nullable().optional(),
 })
 
+/**
+ * One reference a run must have, for example `{evaluator: {id}}` or `{testset: {id}}`. The API
+ * keeps runs that have every reference sent.
+ */
+export type EvaluationRunReferenceFilter = Readonly<
+    Partial<
+        Record<"evaluator" | "testset" | "query" | "application_variant", {readonly id: string}>
+    >
+>
+
 export interface EvaluationRunsPageParams {
     projectId: string
     limit: number
@@ -41,7 +51,10 @@ export interface EvaluationRunsPageParams {
     statuses?: string[]
     /** Keep runs that evaluated this app. Runs where the app only grades are dropped. */
     appId?: string
-    kind?: EvaluationRunKind
+    /** Keep runs of any of these kinds. */
+    kinds?: readonly EvaluationRunKind[]
+    /** Server filter: keep runs that have every one of these references. */
+    references?: readonly EvaluationRunReferenceFilter[]
     /** Run flags the server matches, for example `{has_traces: false}`. */
     flags?: Record<string, boolean>
     /** ISO timestamps. */
@@ -60,12 +73,14 @@ async function fetchServerPage(
     serverLimit: number,
     next: string | null,
 ) {
-    const {projectId, name, statuses, appId, flags, createdAfter, createdBefore} = params
+    const {projectId, name, statuses, appId, references, flags, createdAfter, createdBefore} =
+        params
 
     const run: Record<string, unknown> = {}
     if (name) run.name = name
     if (statuses && statuses.length > 0) run.statuses = statuses
-    if (appId) run.references = [{application: {id: appId}}]
+    const allReferences = [...(appId ? [{application: {id: appId}}] : []), ...(references ?? [])]
+    if (allReferences.length > 0) run.references = allReferences
     if (flags && Object.keys(flags).length > 0) run.flags = flags
 
     const body = {
@@ -89,7 +104,7 @@ async function fetchServerPage(
 /**
  * Fetch one page of evaluation runs, newest first.
  *
- * Without `kind` and `appId` this is one server request of `limit` rows. With
+ * Without `kinds` and `appId` this is one server request of `limit` rows. With
  * either, it reads server pages until `limit` runs match, the runs end, or
  * eight pages were read. The cursor then points after the last returned run,
  * so the next call does not skip matching runs.
@@ -99,8 +114,9 @@ async function fetchServerPage(
 export async function queryEvaluationRunsPage(
     params: EvaluationRunsPageParams,
 ): Promise<EvaluationRunsPage> {
-    const {limit, appId, kind} = params
-    const clientFiltered = Boolean(kind || appId)
+    const {limit, appId, kinds} = params
+    const kindSet = kinds && kinds.length > 0 ? new Set(kinds) : null
+    const clientFiltered = Boolean(kindSet || appId)
 
     if (!clientFiltered) {
         const page = await fetchServerPage(params, limit, params.cursor ?? null)
@@ -108,7 +124,7 @@ export async function queryEvaluationRunsPage(
     }
 
     const keep = (run: EvaluationRun): boolean => {
-        if (kind && deriveEvaluationKind(run) !== kind) return false
+        if (kindSet && !kindSet.has(deriveEvaluationKind(run))) return false
         if (appId) {
             const steps = run.data?.steps
             if (hasResolvableSubject(steps) && !isSubjectRun(steps, appId)) return false
@@ -142,18 +158,19 @@ export interface EvaluationRunsListKeyParams {
     name?: string
     statuses?: string[]
     appId?: string
-    kind?: EvaluationRunKind
+    kinds?: readonly EvaluationRunKind[]
+    references?: readonly EvaluationRunReferenceFilter[]
     flags?: Record<string, boolean>
     createdAfter?: string
     createdBefore?: string
 }
 
-/** Query key for a runs list. Status order does not change the key. */
+/** Query key for a runs list. Status and kind order do not change the key. */
 export function evaluationRunsListQueryKey(
     projectId: string,
     params: EvaluationRunsListKeyParams = {},
 ): readonly unknown[] {
-    const {name, statuses, appId, kind, flags, createdAfter, createdBefore} = params
+    const {name, statuses, appId, kinds, references, flags, createdAfter, createdBefore} = params
     return [
         "evaluation-runs",
         "list",
@@ -162,7 +179,8 @@ export function evaluationRunsListQueryKey(
             name,
             statuses: statuses ? [...statuses].sort() : undefined,
             appId,
-            kind,
+            kinds: kinds ? [...kinds].sort() : undefined,
+            references,
             flags,
             createdAfter,
             createdBefore,

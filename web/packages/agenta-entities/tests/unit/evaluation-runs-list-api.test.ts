@@ -130,7 +130,7 @@ describe("queryEvaluationRunsPage", () => {
         const result = await queryEvaluationRunsPage({
             projectId: "p1",
             limit: 2,
-            kind: "human",
+            kinds: ["human"],
         })
 
         expect(postMock).toHaveBeenCalledTimes(2)
@@ -144,7 +144,7 @@ describe("queryEvaluationRunsPage", () => {
     it("Kind filter keeps the server cursor when the page ends on the last match", async () => {
         postMock.mockResolvedValueOnce(page([autoRun("a1"), humanRun("h1")], "c1"))
 
-        const result = await queryEvaluationRunsPage({projectId: "p1", limit: 1, kind: "human"})
+        const result = await queryEvaluationRunsPage({projectId: "p1", limit: 1, kinds: ["human"]})
 
         expect(result).toMatchObject({nextCursor: "c1"})
     })
@@ -155,7 +155,7 @@ describe("queryEvaluationRunsPage", () => {
             return page([autoRun(`a${call}`)], `c${call}`)
         })
 
-        const result = await queryEvaluationRunsPage({projectId: "p1", limit: 5, kind: "human"})
+        const result = await queryEvaluationRunsPage({projectId: "p1", limit: 5, kinds: ["human"]})
 
         expect(postMock).toHaveBeenCalledTimes(8)
         expect(result).toEqual({runs: [], nextCursor: "c8"})
@@ -164,7 +164,7 @@ describe("queryEvaluationRunsPage", () => {
     it("Kind filter returns no cursor when the runs end", async () => {
         postMock.mockResolvedValueOnce(page([humanRun("h1")], null))
 
-        const result = await queryEvaluationRunsPage({projectId: "p1", limit: 5, kind: "human"})
+        const result = await queryEvaluationRunsPage({projectId: "p1", limit: 5, kinds: ["human"]})
 
         expect(postMock).toHaveBeenCalledTimes(1)
         expect(result.nextCursor).toBeNull()
@@ -197,7 +197,7 @@ describe("queryEvaluationRunsPage", () => {
             const result = await queryEvaluationRunsPage({
                 projectId: "p1",
                 limit: 2,
-                kind: "human",
+                kinds: ["human"],
                 cursor,
             })
             seen.push(...result.runs.map((run) => run.id))

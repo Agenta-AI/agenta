@@ -54,3 +54,23 @@ export async function queryLiveQueryRevisions({
     }
     return parsed.query_revisions
 }
+
+export const liveQuerySchema = z.object({
+    id: z.string(),
+    slug: z.string().nullable().optional(),
+    name: z.string().nullable().optional(),
+})
+export type LiveQuery = z.infer<typeof liveQuerySchema>
+
+const queriesResponseSchema = z.object({queries: z.array(liveQuerySchema).default([])})
+
+/** `POST /queries/query`: the project's stored queries (the trace filters of live evaluations). */
+export async function queryLiveQueries({projectId}: {projectId: string}): Promise<LiveQuery[]> {
+    const response = await getQueriesClient().queryQueries(
+        {},
+        {queryParams: {project_id: projectId}},
+    )
+    const parsed = queriesResponseSchema.safeParse(response)
+    if (!parsed.success) throw new Error("The queries response did not match the expected shape.")
+    return parsed.data.queries
+}
