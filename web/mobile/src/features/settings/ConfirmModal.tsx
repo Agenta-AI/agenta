@@ -77,7 +77,7 @@ export const ConfirmModal = ({
                         variant={destructive ? "destructive" : "default"}
                         className={
                             destructive && solid
-                                ? "bg-error text-white hover:bg-error/90"
+                                ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                 : undefined
                         }
                         disabled={pending}
