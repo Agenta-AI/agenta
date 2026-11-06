@@ -28,6 +28,7 @@ export const EvaluatorEditorDrawer = ({
     onNavigate,
     onClose,
     onSaved,
+    onPlayground = false,
 }: {
     projectId: string
     revisionId: string
@@ -38,6 +39,8 @@ export const EvaluatorEditorDrawer = ({
     onClose: () => void
     /** A Create or a Commit saved a revision: the host shows it. */
     onSaved: (revisionId: string) => void
+    /** Opened over a page with its own playground: no test pane, and its state is left alone. */
+    onPlayground?: boolean
 }) => {
     const queryClient = useQueryClient()
     const canCommit = useProjectPermission(projectId, "edit_workflows")
@@ -55,7 +58,8 @@ export const EvaluatorEditorDrawer = ({
                     onNavigate={onNavigate}
                     onClose={onClose}
                     // A new evaluator opens with the test pane, as in /w.
-                    defaultTesting={local}
+                    defaultTesting={local && !onPlayground}
+                    playground={!onPlayground}
                     canCommit={canCommit}
                     actions={
                         playgroundBase && !local ? (

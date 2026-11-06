@@ -89,7 +89,8 @@ export const EvaluatorPicker = ({onCreateNew}: {onCreateNew?: () => void}) => {
                     adapter={adapter}
                     instanceId="playground-evaluator-picker"
                     onSelect={add}
-                    placeholder="Evaluator"
+                    // On a phone only the icon shows, so the bar keeps room for its other buttons.
+                    placeholder={<span className="max-sm:sr-only">Evaluator</span>}
                     icon={<Gavel aria-hidden size={14} />}
                     showDropdownIcon={false}
                     placement="bottomRight"

@@ -563,10 +563,10 @@ export interface PopoverCascaderVariantProps<
     size?: "small" | "middle" | "large"
 
     /**
-     * Button text
+     * Button text, or an element (for example a label hidden on a phone)
      * @default "Select..."
      */
-    placeholder?: string
+    placeholder?: ReactNode
 
     /**
      * Icon rendered inside the trigger button (before the text)
