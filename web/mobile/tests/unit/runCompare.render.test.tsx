@@ -54,6 +54,9 @@ vi.mock("@/features/evaluation-run/compare/overview/CompareOverviewTab", async (
     return original()
 })
 
+// The first test that opens a lazy view compiles it, which can take several seconds.
+vi.setConfig({testTimeout: 30_000})
+
 import EvaluationRunPage from "@/pages/w/[workspace_id]/p/[project_id]/evaluations/results/[evaluation_id]"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
@@ -61,9 +64,29 @@ import EvaluationRunPage from "@/pages/w/[workspace_id]/p/[project_id]/evaluatio
 const SUCCESS = "attributes.ag.data.outputs.success"
 const DURATION = "attributes.ag.metrics.duration.cumulative"
 
-const STEPS = [
+/** The app a run called: each run can use its own. */
+interface ServedApp {
+    id: string
+    name: string
+    revisionId: string
+}
+const WORKFLOW_NAMES: Record<string, string> = {
+    "app-1": "Capital finder",
+    "app-2": "Verbose finder",
+    "ev-1": "Exact Match",
+}
+const DEFAULT_APP: ServedApp = {id: "app-1", name: "Capital finder", revisionId: "rev-1"}
+
+const stepsOf = (app: ServedApp) => [
     {key: "ts", type: "input", references: {testset: {id: "ts-1", slug: "capitals"}}},
-    {key: "app", type: "invocation", references: {application: {id: "app-1", slug: "geo-bot"}}},
+    {
+        key: "app",
+        type: "invocation",
+        references: {
+            application: {id: app.id, slug: "geo-bot"},
+            application_revision: {id: app.revisionId, version: 2},
+        },
+    },
     {
         key: "ev",
         type: "annotation",
@@ -85,12 +108,15 @@ interface Scenario {
 interface ServedRun {
     id: string
     name: string
+    app: ServedApp
     status: string
     durationMs: number
     scenarios: Scenario[]
 }
 
 let counter = 0
+/** Requests this server has no answer for, to spot a missing fixture. */
+const unanswered: string[] = []
 let runs: ServedRun[] = []
 
 /** A run on the same test set, app and evaluator; ids are new in each test (the caches keep runs). */
@@ -100,7 +126,7 @@ function addRun(name: string, spec: Partial<Omit<ServedRun, "id" | "name">> = {}
         ...scenario,
         id: `${id}-${scenario.id}`,
     }))
-    runs.push({id, name, status: "success", durationMs: 500, ...spec, scenarios})
+    runs.push({id, name, app: DEFAULT_APP, status: "success", durationMs: 500, ...spec, scenarios})
     return id
 }
 
@@ -111,7 +137,7 @@ const runBody = (run: ServedRun) => ({
     status: run.status,
     created_at: "2026-11-05T19:33:17Z",
     flags: {is_live: false, is_active: false, is_closed: false},
-    data: {steps: STEPS, mappings: MAPPINGS},
+    data: {steps: stepsOf(run.app), mappings: MAPPINGS},
 })
 
 const binary = (values: boolean[]) => ({
@@ -128,6 +154,8 @@ const scenarioOf = (id: string) =>
 
 /** The fields of the request bodies this server reads. */
 interface RequestBody {
+    workflow_refs?: {id: string}[]
+    workflow_revision_refs?: {id: string}[]
     run?: {ids?: string[]}
     metrics?: {run_ids?: string[]; scenario_ids?: string[] | false}
     scenario?: {run_ids?: string[]}
@@ -218,6 +246,30 @@ function answer(url: string, body: RequestBody | undefined) {
             },
         }
     }
+    if (url.endsWith("/workflows/query")) {
+        const workflows = (body?.workflow_refs ?? []).flatMap(({id}) => {
+            const name = WORKFLOW_NAMES[id]
+            return name ? [{id, name, slug: id, flags: {}}] : []
+        })
+        return {data: {count: workflows.length, workflows}}
+    }
+    if (url.endsWith("/workflows/revisions/query")) {
+        // The run's app revisions, or the latest revision of the evaluator.
+        const revisions = body?.workflow_revision_refs
+            ? body.workflow_revision_refs.flatMap(({id}) => {
+                  const app = runs.find((run) => run.app.revisionId === id)?.app
+                  return app ? [{id, workflow_id: app.id, version: 2, flags: {}, data: {}}] : []
+              })
+            : (body?.workflow_refs ?? []).map(({id}) => ({
+                  id: `${id}-latest`,
+                  workflow_id: id,
+                  version: 1,
+                  flags: {},
+                  data: {},
+              }))
+        return {data: {count: revisions.length, workflow_revisions: revisions}}
+    }
+    unanswered.push(url)
     return {data: {count: 0}}
 }
 
@@ -263,6 +315,12 @@ const buttonNamed = (name: string) =>
     )
 const chips = () =>
     [...host.querySelectorAll('[data-testid="compare-chip"]')].map((chip) => chip.textContent)
+/** The table row of `run` whose test case shows `country`. */
+const rowOf = (run: string, country: string) =>
+    [...host.querySelectorAll<HTMLElement>("span")]
+        .filter((span) => span.children.length === 0 && span.textContent === run)
+        .map((span) => span.parentElement?.parentElement ?? null)
+        .find((row) => row?.textContent?.includes(country)) ?? null
 const lastReplace = () => router.replace.mock.calls.at(-1)?.[0]
 const runLevelMetricReads = () =>
     http.post.mock.calls.filter(
@@ -280,6 +338,7 @@ beforeEach(() => {
     store.set(projectIdAtom, "pr")
     store.set(sessionAtom, true)
     runs = []
+    unanswered.length = 0
     Object.values(http).forEach((fn) => fn.mockReset())
     http.post.mockImplementation(async (url: string, body: RequestBody) => answer(url, body))
     http.get.mockResolvedValue({data: {}})
@@ -460,7 +519,7 @@ describe("compared overview", () => {
         })
         await open(base, {compare: verbose})
         await until(
-            () => Boolean(host.querySelector('section[aria-label="exact-match: success"]')),
+            () => Boolean(host.querySelector('section[aria-label="Exact Match: success"]')),
             "compared overview shown",
         )
 
@@ -492,7 +551,7 @@ describe("compared overview", () => {
         expect(cellsOf("duration")).toEqual(["261 ms", "565 ms"])
         expect(cellsOf(`ev-1:${SUCCESS}`)).toEqual(["100.00%", "0.00%"])
 
-        const card = host.querySelector<HTMLElement>('section[aria-label="exact-match: success"]')
+        const card = host.querySelector<HTMLElement>('section[aria-label="Exact Match: success"]')
         expect(card?.textContent).toContain("100.00%")
         expect(card?.textContent).toContain("0.00%")
         expect(card?.textContent).toContain("-100%")
@@ -562,5 +621,95 @@ describe("compared scenarios", () => {
             ["3", "default", "Peru", "true"],
             ["3", "verbose", null, "none"],
         ])
+    })
+})
+
+describe("compared scenario drawer", () => {
+    it("A compared run's row opens the drawer on that run's scenario, and Next stays in that run", async () => {
+        const base = addRun("Capitals: default", {
+            scenarios: [
+                {id: "s1", testcase: "tc-1", success: true},
+                {id: "s2", testcase: "tc-2", success: true},
+            ],
+        })
+        const verbose = addRun("Capitals: verbose", {
+            scenarios: [
+                {id: "s1", testcase: "tc-1", success: false},
+                {id: "s2", testcase: "tc-2", success: false},
+            ],
+        })
+        await open(base, {compare: verbose, view: "scenarios"})
+        await until(() => rowOf("Capitals: verbose", "France") !== null, "compared row shown")
+
+        await act(async () => rowOf("Capitals: verbose", "France")?.click())
+        expect(lastReplace()?.query).toEqual({
+            workspace_id: "ws",
+            project_id: "pr",
+            evaluation_id: base,
+            compare: verbose,
+            view: "scenarios",
+            focusScenarioId: `${verbose}-s1`,
+            focusRunId: verbose,
+        })
+
+        await open(base, {
+            compare: verbose,
+            view: "scenarios",
+            focusScenarioId: `${verbose}-s1`,
+            focusRunId: verbose,
+        })
+        const drawer = () => document.querySelector<HTMLElement>('[role="dialog"]')
+        await until(() => Boolean(drawer()?.textContent?.includes("false")), "drawer shown")
+        expect(drawer()?.textContent).toContain("France")
+        expect(drawer()?.textContent).toContain("Test case of Capitals: verbose")
+
+        router.replace.mockReset()
+        const next = [...(drawer()?.querySelectorAll("button") ?? [])].find(
+            (button) =>
+                button.getAttribute("aria-label") === "Next" || button.textContent === "Next",
+        )
+        await act(async () => next?.click())
+        expect(lastReplace()?.query).toMatchObject({
+            focusScenarioId: `${verbose}-s2`,
+            focusRunId: verbose,
+        })
+    })
+})
+
+describe("compared configuration", () => {
+    it("Shows one column per run with its test set, application and evaluators", async () => {
+        const base = addRun("Capitals: default")
+        const verbose = addRun("Capitals: verbose", {
+            app: {id: "app-2", name: "Verbose finder", revisionId: "rev-2"},
+        })
+        await open(base, {compare: verbose, view: "configuration"})
+        const column = (name: string) =>
+            host.querySelector<HTMLElement>(`section[aria-label="${name}"]`)
+        await until(
+            () => Boolean(column("Capitals: verbose")?.textContent?.includes("Verbose finder")),
+            "compared configuration shown",
+        )
+
+        const sections = (name: string) =>
+            [...(column(name)?.querySelectorAll("section h2") ?? [])].map((h) => h.textContent)
+        expect(sections("Capitals: default")).toEqual([
+            "Capitals: default",
+            "Test set",
+            "Application",
+            "Evaluators",
+        ])
+        expect(sections("Capitals: verbose")).toEqual([
+            "Capitals: verbose",
+            "Test set",
+            "Application",
+            "Evaluators",
+        ])
+        expect(column("Capitals: default")?.textContent).toContain("Capital finder")
+        expect(column("Capitals: default")?.textContent).not.toContain("Verbose finder")
+        expect(column("Capitals: verbose")?.textContent).toContain("Verbose finder")
+        expect(column("Capitals: verbose")?.textContent).toContain("Exact Match")
+        // Each section keeps its own id, so the section headings name the right section.
+        expect(host.querySelectorAll(`#config-application-${verbose}`)).toHaveLength(1)
+        expect(unanswered).toEqual([])
     })
 })

@@ -64,6 +64,8 @@ const NO_COMPARE: readonly string[] = []
 interface ScenarioEntry {
     key: string
     slot: number
+    /** The run the row belongs to: the drawer opens on it. */
+    runId: string
     runName: string
     row: ScenarioRow | null
     base: ScenarioRow
@@ -127,6 +129,7 @@ export const ScenariosTab = ({
             return filter.rows.map((row) => ({
                 key: row.scenario.id,
                 slot: 0,
+                runId,
                 runName: header.name,
                 row,
                 base: row,
@@ -143,6 +146,7 @@ export const ScenariosTab = ({
             return {
                 key: run ? `${run.runId}:${entry.base.scenario.id}` : entry.base.scenario.id,
                 slot: entry.slot,
+                runId: run?.runId ?? runId,
                 runName: run?.name ?? header.name,
                 row:
                     run && own
@@ -156,7 +160,7 @@ export const ScenariosTab = ({
                 failed: run?.isError ?? false,
             }
         })
-    }, [comparing, filter.rows, compared, columnGroups, header.name])
+    }, [comparing, filter.rows, compared, columnGroups, header.name, runId])
 
     const cells = useMemo(() => scenarioTableCells(columnGroups, hidden), [columnGroups, hidden])
     const columnOptions = useMemo(
@@ -193,20 +197,20 @@ export const ScenariosTab = ({
         filter.active && filter.rows.length === 0 && filter.scanning && !scenarios.loadMoreError
 
     const openRow = useCallback(
-        (row: ScenarioRow) =>
+        (row: ScenarioRow, rowRunId: string) =>
             void router.replace(
                 {
                     pathname: router.pathname,
                     query: {
                         ...router.query,
                         focusScenarioId: row.scenario.id,
-                        focusRunId: runId,
+                        focusRunId: rowRunId,
                     },
                 },
                 undefined,
                 {shallow: true},
             ),
-        [router, runId],
+        [router],
     )
 
     const annotating = rows.find((row) => row.scenario.id === annotatingId) ?? null
@@ -242,9 +246,9 @@ export const ScenariosTab = ({
                 loading={scenarios.isPending || lookingForMatches}
                 groups={groups}
                 rowKey={(entry) => entry.key}
-                // A compared run's row does not open: the scenario drawer shows the base run.
-                canOpenRow={(entry) => entry.slot === 0}
-                onOpenRow={(entry) => openRow(entry.base)}
+                // A compared run's row opens the drawer on that run's scenario; a missing one cannot.
+                canOpenRow={(entry) => entry.row !== null}
+                onOpenRow={(entry) => entry.row && openRow(entry.row, entry.runId)}
                 empty={
                     filter.active ? (
                         <ScenariosNoMatch onClear={() => setFilter(EMPTY_SCENARIO_FILTER)} />

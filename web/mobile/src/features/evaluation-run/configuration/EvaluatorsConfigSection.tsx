@@ -12,12 +12,15 @@ import type {EvaluatorConfig} from "./useEvaluatorConfigs"
 export const EvaluatorsConfigSection = ({
     evaluators,
     onAdd,
+    idSuffix = "",
 }: {
     evaluators: readonly EvaluatorConfig[]
     onAdd?: () => void
+    /** Keeps the section id unique when several runs show side by side. */
+    idSuffix?: string
 }) => (
     <ConfigSection
-        id="config-evaluators"
+        id={`config-evaluators${idSuffix}`}
         title="Evaluators"
         subtitle={
             evaluators.length > 0
