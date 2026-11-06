@@ -88,7 +88,10 @@ export const WorkflowPickerView = ({
                         key={entry.key}
                         className="px-2"
                         asChild={Boolean(entry.href)}
-                        onSelect={() => onSelect(entry.key)}
+                        // A link entry picks in its own click handler; a modified click opens a tab.
+                        onSelect={
+                            entry.href ? (event) => event.preventDefault() : () => onSelect(entry.key)
+                        }
                     >
                         {entry.href ? (
                             <Link

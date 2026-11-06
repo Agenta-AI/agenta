@@ -50,4 +50,15 @@ describe("the app switcher menu", () => {
         expect(onSelect).toHaveBeenCalledWith("a2")
         expect(onOpenChange).toHaveBeenCalledWith(false)
     })
+
+    it("a ctrl or cmd click leaves the pick to the new tab", () => {
+        const onSelect = vi.fn()
+        renderOpen(onSelect)
+        act(() => {
+            item("Support bot").dispatchEvent(
+                new MouseEvent("click", {bubbles: true, cancelable: true, ctrlKey: true}),
+            )
+        })
+        expect(onSelect).not.toHaveBeenCalled()
+    })
 })

@@ -6,10 +6,10 @@ import {
     type Workflow,
 } from "@agenta/entities/workflow"
 import {WorkflowPickerView, type WorkflowPickerEntry} from "@agenta/navigation-ui"
-import {CheckIcon, SquaresFourIcon} from "@phosphor-icons/react"
-import clsx from "clsx"
 import {atom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
+
+import {AppIdentity} from "./AppIdentity"
 
 const NO_APPS = atom({data: [] as Workflow[], isPending: false, isError: false, error: null})
 
@@ -27,37 +27,6 @@ export const appSwitchHref = (
     const tab = typeof query.tab === "string" ? `&tab=${encodeURIComponent(query.tab)}` : ""
     return `${projectURL}/${projectPage}?app=${encodeURIComponent(nextAppId)}${tab}`
 }
-
-/** An app's square, name and type, as the old app's app menu shows it. */
-const AppIdentity = ({
-    name,
-    showDetails = true,
-    selected,
-}: {
-    name: string
-    showDetails?: boolean
-    selected?: boolean
-}) => (
-    <div className={clsx("flex w-full min-w-0 items-center", showDetails ? "gap-2" : "gap-0")}>
-        <span
-            className={clsx(
-                "flex shrink-0 items-center justify-center bg-colorInfoBg text-colorInfo",
-                showDetails ? "h-8 w-8 rounded-lg" : "h-6 w-6 rounded-md",
-            )}
-        >
-            <SquaresFourIcon size={showDetails ? 17 : 14} />
-        </span>
-        {showDetails ? (
-            <span className="flex min-w-0 flex-1 flex-col text-left">
-                <span className="truncate text-sm leading-5" title={name}>
-                    {name}
-                </span>
-                <span className="text-[12px] leading-3 text-colorTextTertiary">Prompt</span>
-            </span>
-        ) : null}
-        {selected ? <CheckIcon size={16} className="shrink-0" /> : null}
-    </div>
-)
 
 /** The app menu's switcher over the prompt apps; the list loads on first open. */
 export const AppSwitcher = ({
