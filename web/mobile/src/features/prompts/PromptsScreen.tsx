@@ -48,15 +48,28 @@ export const PromptsScreen = ({
     const {openFolder} = browser
     const router = useRouter()
     const playgroundEnabled = useDeveloperViewEnabled("playground") === true
+    const overviewEnabled = useDeveloperViewEnabled("app-overview") === true
+
+    const overviewHref = useCallback(
+        (appId: string) =>
+            `/w/${workspaceId}/p/${projectId}/apps/${encodeURIComponent(appId)}/overview`,
+        [projectId, workspaceId],
+    )
 
     const rowActions = useMemo<PromptRowActions>(
         () => ({
             openFolder: (row) => openFolder(row.folder.id),
+            // A row click goes to the playground, or to the overview while the playground is off.
             openPrompt: playgroundEnabled
                 ? (row) =>
                       void router.push(
                           playgroundHref(`/w/${workspaceId}/p/${projectId}`, row.prompt.id),
                       )
+                : overviewEnabled
+                  ? (row) => void router.push(overviewHref(row.prompt.id))
+                  : null,
+            openOverview: overviewEnabled
+                ? (row) => void router.push(overviewHref(row.prompt.id))
                 : null,
             rename: (row) =>
                 setDialog(
@@ -77,7 +90,15 @@ export const PromptsScreen = ({
                         : {kind: "archivePrompt", prompt: row.prompt},
                 ),
         }),
-        [openFolder, playgroundEnabled, projectId, router, workspaceId],
+        [
+            openFolder,
+            overviewEnabled,
+            overviewHref,
+            playgroundEnabled,
+            projectId,
+            router,
+            workspaceId,
+        ],
     )
 
     return (
