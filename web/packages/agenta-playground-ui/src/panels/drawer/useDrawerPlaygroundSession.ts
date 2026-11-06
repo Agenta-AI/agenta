@@ -5,6 +5,9 @@ import {useStore} from "jotai"
 
 import {clearPlayground} from "../../state/clearPlayground"
 
+/** The clear a closing drawer scheduled. A remount right after (React strict mode) cancels it. */
+let pendingClear: ReturnType<typeof setTimeout> | null = null
+
 /**
  * Puts the drawer's revision in the playground state, so the test pane can run it, and clears that
  * state when the drawer closes. A new id (previous, next, or the revision a commit made) takes the
@@ -18,7 +21,8 @@ export const useDrawerPlaygroundSession = (revisionId: string) => {
     const shownRef = useRef<string | null>(null)
 
     useEffect(() => {
-        const ids = store.get(playgroundController.selectors.entityIds())
+        // Every node, not only the first ones: a connected app puts an evaluator after it.
+        const ids = store.get(playgroundController.selectors.nodes()).map((node) => node.entityId)
         const previous = shownRef.current
         shownRef.current = revisionId
         // A commit as a new variant already swapped the id in.
@@ -38,11 +42,18 @@ export const useDrawerPlaygroundSession = (revisionId: string) => {
         store.set(playgroundInitializedAtom, true)
     }, [revisionId, store])
 
-    useEffect(
-        () => () => {
-            shownRef.current = null
-            clearPlayground(store)
-        },
-        [store],
-    )
+    // The clear waits one task: strict mode unmounts and mounts again at once. It is skipped when
+    // something set the playground up meanwhile (Open in playground mounts the playground page).
+    useEffect(() => {
+        if (pendingClear) clearTimeout(pendingClear)
+        pendingClear = null
+        return () => {
+            const nodesAtClose = store.get(playgroundController.selectors.nodes())
+            pendingClear = setTimeout(() => {
+                pendingClear = null
+                if (store.get(playgroundController.selectors.nodes()) !== nodesAtClose) return
+                clearPlayground(store)
+            }, 0)
+        }
+    }, [store])
 }
