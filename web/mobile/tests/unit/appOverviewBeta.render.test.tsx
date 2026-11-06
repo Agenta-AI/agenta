@@ -13,6 +13,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 const fixture = vi.hoisted(() => ({
     revisionId: null as string | null,
     tableProps: null as null | Record<string, unknown>,
+    runsTableProps: null as null | Record<string, unknown>,
 }))
 
 vi.mock("@agenta/shared/state", async (original) => {
@@ -54,6 +55,18 @@ vi.mock("@/features/variants/VariantsTable", () => ({
         return null
     },
 }))
+vi.mock("@/features/evaluations/list/EvaluationRunsTable", () => ({
+    EvaluationRunsTable: (props: Record<string, unknown>) => {
+        fixture.runsTableProps = props
+        return null
+    },
+}))
+vi.mock("@/features/evaluations/list/useRunRowActions", () => ({
+    useRunRowActions: () => ({canEdit: true, modal: null, open: vi.fn()}),
+}))
+vi.mock("@/features/app-overview/useLatestAppRuns", () => ({
+    useLatestAppRuns: () => ({data: [], isPending: false, isError: false, refetch: vi.fn()}),
+}))
 vi.mock("@/features/revisions/useRevisionParam", () => ({
     useRevisionParam: () => [fixture.revisionId, vi.fn()],
 }))
@@ -66,6 +79,7 @@ vi.mock("@/features/developer/developerViewAccess", () => ({
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
+import {AppEvaluationsSection} from "@/features/app-overview/AppEvaluationsSection"
 import {AppRecentPromptsSection} from "@/features/app-overview/AppRecentPromptsSection"
 import {VariantRowCells} from "@/features/variants/VariantRowCells"
 
@@ -199,5 +213,40 @@ describe("Recent Prompts row cells", () => {
         const {model, text} = cells(false)
         expect(model?.className).toContain("truncate")
         expect(text).not.toMatch(/\d{1,2}:\d{2} (AM|PM)/)
+    })
+})
+
+describe("Overview evaluations tables", () => {
+    const section = () =>
+        act(() => {
+            root.render(
+                createElement(AppEvaluationsSection, {
+                    projectId: "pr",
+                    appId: "app-1",
+                    base: BASE,
+                    kind: "auto",
+                }),
+            )
+        })
+    const newEvaluation = () =>
+        [...host.querySelectorAll("button")].find(
+            (button) => button.textContent?.trim() === "New evaluation",
+        )
+
+    it("keeps the basic columns and no create button without beta developer mode", () => {
+        section()
+        expect(fixture.runsTableProps?.kind).toBeUndefined()
+        expect(fixture.runsTableProps?.scope).toBe("app")
+        expect(newEvaluation()).toBeUndefined()
+    })
+
+    it("shows the kind's metric columns, the Application column and New evaluation in beta developer mode", () => {
+        setBeta(true)
+        section()
+        expect(fixture.runsTableProps?.kind).toBe("auto")
+        expect(fixture.runsTableProps?.scope).toBe("project")
+        expect(newEvaluation()).toBeDefined()
+        act(() => newEvaluation()!.click())
+        expect(host.querySelector('[data-testid="other"]')).not.toBeNull()
     })
 })
