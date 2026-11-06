@@ -59,7 +59,11 @@ export const EditableRevisionDrawer = ({
     // The last revision drawn, kept while the sheet slides out after a close.
     const [lastId, setLastId] = useState(revisionId)
     // State adjusted during render (React's pattern for props that change): no ref writes here.
-    if (revisionId && revisionId !== lastId) setLastId(revisionId)
+    // A new requested revision replaces the one a commit showed, whichever revision it is.
+    if (revisionId && revisionId !== lastId) {
+        setLastId(revisionId)
+        if (committedId) setCommittedId(null)
+    }
     if (committedId && revisionId === committedId) setCommittedId(null)
     const shownId = committedId ?? revisionId ?? lastId
     const currentIdRef = useRef(shownId)

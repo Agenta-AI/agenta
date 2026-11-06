@@ -251,7 +251,9 @@ const fillMessage = async (value: string) => {
     })
 }
 
-describe("The editable revision drawer", () => {
+// `mount` may poll for up to 30 s on a cold run. The test timeout is longer, so every poll ends
+// inside its own test and none runs on into the next one.
+describe("The editable revision drawer", {timeout: 60_000}, () => {
     it("Names the variant and version, and puts the revision in the playground to test", async () => {
         await mount()
 

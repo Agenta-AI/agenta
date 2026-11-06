@@ -16,6 +16,8 @@ vi.mock("@agenta/shared/api", async (original) => ({
     getAgentaApiUrl: () => "https://agenta.test/api",
 }))
 
+vi.mock("next/router", () => ({useRouter: () => ({query: {workspace_id: "ws", project_id: "pr"}})}))
+
 import {TestsetRows} from "@/features/evaluation-run/configuration/TestsetRows"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
@@ -40,7 +42,7 @@ async function mount() {
                     {client},
                     createElement(TestsetRows, {
                         projectId: "pr",
-                        testset: {testsetId: "ts-1", revisionId: REVISION_ID},
+                        testset: {testsetId: "ts-1", revisionId: REVISION_ID, version: null},
                     }),
                 ),
             ),

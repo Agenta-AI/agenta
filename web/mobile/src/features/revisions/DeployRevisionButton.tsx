@@ -3,7 +3,7 @@ import {useState} from "react"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {Button} from "@agenta/ui/ui"
 import {CloudArrowUp} from "@phosphor-icons/react"
-import {useStore} from "jotai"
+import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
 import type {DialogRevision} from "../variants/DeployRevisionDialog"
@@ -24,24 +24,26 @@ export const DeployRevisionButton = ({
     appId: string
     appSlug: string | null
 }) => {
-    const store = useStore()
-    const [row, setRow] = useState<DialogRevision | null>(null)
-
-    // Read at click time, so the button does not render again while the config is edited.
-    const open = () => {
-        const data = store.get(workflowMolecule.selectors.data(revisionId))
-        setRow({
-            revisionId,
-            version: data?.version ?? 0,
-            variantId: data?.workflow_variant_id ?? "",
-            variantSlug: data?.workflow_variant_slug ?? null,
-            variantName: store.get(workflowMolecule.selectors.variantLabel(revisionId)) ?? "",
-        })
-    }
+    const [open, setOpen] = useState(false)
+    // The server copy, not the draft, so the button does not render again while the config is
+    // edited. Deploy waits for it: before it loads there is no version or variant to send.
+    const data = useAtomValue(workflowMolecule.atoms.query(revisionId)).data
+    // Read live, because the variants list can land after the revision.
+    const variantName = useAtomValue(workflowMolecule.selectors.variantLabel(revisionId)) ?? ""
+    const row: DialogRevision | null =
+        open && data
+            ? {
+                  revisionId,
+                  version: data.version ?? 0,
+                  variantId: data.workflow_variant_id ?? "",
+                  variantSlug: data.workflow_variant_slug ?? null,
+                  variantName,
+              }
+            : null
 
     return (
         <>
-            <Button size="sm" onClick={open}>
+            <Button size="sm" disabled={!data} onClick={() => setOpen(true)}>
                 <CloudArrowUp aria-hidden size={14} />
                 Deploy
             </Button>
@@ -51,7 +53,7 @@ export const DeployRevisionButton = ({
                     row={row}
                     appId={appId}
                     appSlug={appSlug}
-                    onClose={() => setRow(null)}
+                    onClose={() => setOpen(false)}
                 />
             ) : null}
         </>

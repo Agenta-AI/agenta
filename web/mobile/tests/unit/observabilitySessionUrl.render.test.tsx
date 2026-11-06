@@ -43,6 +43,7 @@ vi.mock("@agenta/observability-ui", () => ({
     DeleteTraceModal: () => null,
     deleteTraceModalAtom: {},
     ObservabilityToolbar: () => null,
+    useAutoRefresh: (refresh: () => Promise<void>) => ({refresh, refreshTrigger: 0}),
 }))
 // Renders the tabs the screen declares, so a test can switch between them.
 vi.mock("@agenta/ui", () => ({
@@ -88,7 +89,7 @@ vi.mock("@/features/observability/TracesFilters", () => ({TracesFilters: () => n
 vi.mock("@/features/observability/TracesList", () => ({TracesList: () => null}))
 vi.mock("@/features/observability/TracesTable", () => ({TracesTable: () => null}))
 vi.mock("@/features/observability/useTracesExportBinding", () => ({
-    useTracesExportBinding: () => ({onExport: vi.fn(), isExporting: false}),
+    useTracesExportBinding: () => ({onExport: vi.fn(), isExporting: false, canExportData: true}),
 }))
 vi.mock("@/features/observability/sessionDrawer/ObservabilitySessionDrawer", () => ({
     default: (props: {sessionId: string | null}) => {
@@ -149,10 +150,20 @@ describe("observability session URL", () => {
     })
 
     it("Clicking a session row writes session to the URL and keeps app", async () => {
-        router.query = {workspace_id: "ws", project_id: "pr", app: "app-1", span: "old-span"}
-        window.history.replaceState(null, "", "/observability?app=app-1&trace=t1&span=old-span")
+        // The Sessions tab is in the URL, and opening a session keeps it there.
+        router.query = {
+            workspace_id: "ws",
+            project_id: "pr",
+            app: "app-1",
+            span: "old-span",
+            tab: "sessions",
+        }
+        window.history.replaceState(
+            null,
+            "",
+            "/observability?app=app-1&trace=t1&span=old-span&tab=sessions",
+        )
         render()
-        await click("tab-sessions")
         await click("open session-b")
 
         expect(router.push).toHaveBeenCalledTimes(1)
@@ -164,6 +175,7 @@ describe("observability session URL", () => {
                     project_id: "pr",
                     app: "app-1",
                     trace: "t1",
+                    tab: "sessions",
                     session: "session-b",
                 },
             },
