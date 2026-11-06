@@ -65,7 +65,7 @@ import {
     type SessionTranscript,
 } from "../assets/loadSession"
 import {mergePendingSendEchoRows} from "../assets/pendingSendEchoes"
-import {rewindTurnId, sideEffectingToolsInRange} from "../assets/rewind"
+import {rewindTurnId, rewindTurnIdInTranscript, sideEffectingToolsInRange} from "../assets/rewind"
 import {submitServerOwnedApproval} from "../assets/serverOwnedApproval"
 import {startupPhaseFromDataPart} from "../assets/startupPhases"
 import {getMessageTraceId} from "../assets/trace"
@@ -151,10 +151,7 @@ export interface RewindPlan {
     sideEffects: string[]
     /** For a user-message rewind: the message text to put back into the composer. */
     restoreText?: string
-    /**
-     * Execute the rewind: the server drops the turns, then a user message truncates here and an
-     * assistant one regenerates. Resolves false when the server refused and nothing changed.
-     */
+    /** Remove the turn on the server, then here. Resolves false when nothing changed. */
     confirm: () => Promise<boolean>
 }
 
@@ -1322,10 +1319,20 @@ export const useAgentConversation = ({
                 // from scan time. Re-resolve against the live transcript.
                 const current = messagesRef.current
                 const at = current.findIndex((m) => m.id === message.id)
-                const turnId = at < 0 ? null : rewindTurnId(current, at)
-                if (!turnId) return false
-                if (!(await rewindSession({sessionId, turnId}))) return false
-                revalidateSessionRecords(sessionId)
+                if (at < 0) return false
+                let turnId = rewindTurnId(current, at)
+                if (!turnId) {
+                    const server = {messages: [] as UIMessage[]}
+                    await reloadSessionMessages(sessionId, (transcript) => {
+                        server.messages = transcript.messages
+                    })
+                    turnId = rewindTurnIdInTranscript(current, at, server.messages)
+                }
+                // No turn in the log means the send never reached it, so only this screen holds it.
+                if (turnId) {
+                    if (!(await rewindSession({sessionId, turnId}))) return false
+                    revalidateSessionRecords(sessionId)
+                }
                 if (isUser) {
                     const latest = messagesRef.current
                     const cut = latest.findIndex((m) => m.id === message.id)

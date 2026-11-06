@@ -9,15 +9,18 @@ import type {UIMessage} from "ai"
 import {createStore, Provider} from "jotai"
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
-const {loadSessionMessagesMock, rewindRequests, rewindAnswer} = vi.hoisted(() => ({
-    loadSessionMessagesMock: vi.fn(),
-    rewindRequests: vi.fn(),
-    rewindAnswer: {current: Promise.resolve(true) as Promise<boolean>},
-}))
+const {loadSessionMessagesMock, reloadSessionMessagesMock, rewindRequests, rewindAnswer} =
+    vi.hoisted(() => ({
+        loadSessionMessagesMock: vi.fn(),
+        reloadSessionMessagesMock: vi.fn(),
+        rewindRequests: vi.fn(),
+        rewindAnswer: {current: Promise.resolve(true) as Promise<boolean>},
+    }))
 
 vi.mock("../../../src/assets/loadSession", async (importOriginal) => ({
     ...(await importOriginal<typeof import("../../../src/assets/loadSession")>()),
     loadSessionMessages: loadSessionMessagesMock,
+    reloadSessionMessages: reloadSessionMessagesMock,
 }))
 
 vi.mock("@agenta/playground/agent-chat", async (importOriginal) => {
@@ -100,12 +103,13 @@ const openSession = async (opened: UIMessage[] = THREE_TURNS) => {
     return {sessionId, view, push: (next: SessionTranscript) => act(async () => deliver(next))}
 }
 
-const texts = (messages: UIMessage[]) =>
-    messages.map((m) => (m.parts[0] as {text: string}).text)
+const texts = (messages: UIMessage[]) => messages.map((m) => (m.parts[0] as {text: string}).text)
 
 describe("rewinding a turn", () => {
     beforeEach(() => {
         loadSessionMessagesMock.mockReset()
+        reloadSessionMessagesMock.mockReset()
+        reloadSessionMessagesMock.mockResolvedValue(false)
         rewindRequests.mockReset()
         rewindAnswer.current = Promise.resolve(true)
         acceptedRunBySession.clear()
@@ -147,16 +151,35 @@ describe("rewinding a turn", () => {
         expect(view.result.current.messages).toHaveLength(6)
     })
 
-    it("refuses without a request when the message has no durable turn", async () => {
-        const unsynced = {...THREE_TURNS[2], metadata: undefined} as UIMessage
-        const {view} = await openSession([THREE_TURNS[0], THREE_TURNS[1], unsynced])
+    it("removes a send that never reached the log from this screen alone", async () => {
+        const unsent = {...THREE_TURNS[2], metadata: undefined} as UIMessage
+        const {view} = await openSession([THREE_TURNS[0], THREE_TURNS[1], unsent])
 
-        const plan = view.result.current.rewind(unsynced)
+        const plan = view.result.current.rewind(unsent)
         await act(async () => {
-            await expect(plan?.confirm()).resolves.toBe(false)
+            await expect(plan?.confirm()).resolves.toBe(true)
         })
 
         expect(rewindRequests).not.toHaveBeenCalled()
+        expect(texts(view.result.current.messages)).toEqual(["one", "ALPHA"])
+    })
+
+    it("finds the durable turn of a message not adopted yet", async () => {
+        const unsynced = {...THREE_TURNS[2], metadata: undefined} as UIMessage
+        const {sessionId, view} = await openSession([THREE_TURNS[0], THREE_TURNS[1], unsynced])
+        reloadSessionMessagesMock.mockImplementation(
+            async (_id: string, deliver: (next: SessionTranscript) => void) => {
+                deliver(transcript(THREE_TURNS, 13))
+                return true
+            },
+        )
+
+        const plan = view.result.current.rewind(unsynced)
+        await act(async () => {
+            await plan?.confirm()
+        })
+
+        expect(rewindRequests).toHaveBeenCalledWith({sessionId, turnId: "t2"})
     })
 
     it("starts no second rewind while one is in flight", async () => {
@@ -199,12 +222,7 @@ describe("rewinding a turn", () => {
 
         await push(
             transcript(
-                [
-                    THREE_TURNS[0],
-                    THREE_TURNS[1],
-                    user("u4", "t4", "edited"),
-                    agent("a4", "NONE"),
-                ],
+                [THREE_TURNS[0], THREE_TURNS[1], user("u4", "t4", "edited"), agent("a4", "NONE")],
                 17,
                 13,
             ),

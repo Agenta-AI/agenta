@@ -11,16 +11,22 @@ import {getMessageTurnId} from "./agentTurn"
  */
 export const READ_ONLY_TOOLS = new Set(["search_docs"])
 
-/**
- * The durable turn a rewind at `index` removes: the turn of the user message at or before it.
- * Re-running an assistant message removes its whole turn, because the re-run writes the user
- * message again.
- */
+/** The durable turn a rewind at `index` removes: that of the user message at or before it. */
 export const rewindTurnId = (messages: UIMessage[], index: number): string | null => {
     for (let i = index; i >= 0; i--) {
         if (messages[i].role === "user") return getMessageTurnId(messages[i])
     }
     return null
+}
+
+/** The same lookup against the server's transcript, for a message not adopted from it yet. */
+export const rewindTurnIdInTranscript = (
+    messages: UIMessage[],
+    index: number,
+    server: UIMessage[],
+): string | null => {
+    const ordinal = messages.slice(0, index + 1).filter((m) => m.role === "user").length - 1
+    return getMessageTurnId(server.filter((m) => m.role === "user")[ordinal])
 }
 
 /** Concatenated text of a message's text parts. */

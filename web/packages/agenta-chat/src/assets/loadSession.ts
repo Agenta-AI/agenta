@@ -71,7 +71,7 @@ export const isSessionTranscript = (value: unknown): value is SessionTranscript 
     )
 }
 
-const rewoundSequenceForRecords = (
+export const rewoundSequenceForRecords = (
     records: {session_update?: string | null; sequence?: number | null}[],
 ): number | undefined => {
     const rewinds = records.filter((record) => record.session_update === "rewind")
