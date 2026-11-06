@@ -1,6 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
+import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -18,8 +19,14 @@ import {promptsCopy} from "./promptsCopy"
 import {PromptsCreateMenu} from "./PromptsCreateMenu"
 import {PromptsDialogs} from "./PromptsDialogs"
 import {PromptsView} from "./PromptsView"
+import {PromptTemplatesPrefetch, useCreatePrompt} from "./useCreatePrompt"
 import {usePromptFolderActions} from "./usePromptFolderActions"
 import {usePromptsBrowser} from "./usePromptsBrowser"
+
+const CreatePromptDialog = dynamic(
+    () => import("./CreatePromptDialog").then((module) => module.CreatePromptDialog),
+    {ssr: false},
+)
 
 /** The page column, shared with the other lists, so the nav entries line up. */
 const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
@@ -48,15 +55,16 @@ export const PromptsScreen = ({
     const {openFolder} = browser
     const router = useRouter()
     const playgroundEnabled = useDeveloperViewEnabled("playground") === true
+    const projectBase = `/w/${workspaceId}/p/${projectId}`
+    const createPrompt = useCreatePrompt({projectBase})
+    // A new prompt opens in the playground, so New prompt needs it: developer mode only.
+    const newPrompt = playgroundEnabled && actions.canEditPrompts ? createPrompt.action : null
 
     const rowActions = useMemo<PromptRowActions>(
         () => ({
             openFolder: (row) => openFolder(row.folder.id),
             openPrompt: playgroundEnabled
-                ? (row) =>
-                      void router.push(
-                          playgroundHref(`/w/${workspaceId}/p/${projectId}`, row.prompt.id),
-                      )
+                ? (row) => void router.push(playgroundHref(projectBase, row.prompt.id))
                 : null,
             rename: (row) =>
                 setDialog(
@@ -77,7 +85,7 @@ export const PromptsScreen = ({
                         : {kind: "archivePrompt", prompt: row.prompt},
                 ),
         }),
-        [openFolder, playgroundEnabled, projectId, router, workspaceId],
+        [openFolder, playgroundEnabled, projectBase, router],
     )
 
     return (
@@ -97,6 +105,7 @@ export const PromptsScreen = ({
                                 <PromptsCreateMenu
                                     canEditFolders={actions.canEditFolders}
                                     onNewFolder={() => setDialog({kind: "newFolder"})}
+                                    newPrompt={newPrompt}
                                 />
                             </div>
                         </div>
@@ -117,6 +126,7 @@ export const PromptsScreen = ({
                             rowActions={rowActions}
                             onOpenFolder={browser.openFolder}
                             openDialog={setDialog}
+                            newPrompt={newPrompt}
                             onRetry={browser.refetch}
                         />
                     </div>
@@ -129,6 +139,14 @@ export const PromptsScreen = ({
                 actions={actions}
                 onClose={closeDialog}
             />
+            {newPrompt ? <PromptTemplatesPrefetch /> : null}
+            {createPrompt.draftId ? (
+                <CreatePromptDialog
+                    draftId={createPrompt.draftId}
+                    onClose={createPrompt.close}
+                    onCreated={createPrompt.land}
+                />
+            ) : null}
         </>
     )
 }

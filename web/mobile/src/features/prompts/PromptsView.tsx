@@ -11,6 +11,7 @@ import {PromptsBreadcrumb} from "./PromptsBreadcrumb"
 import {promptsCopy} from "./promptsCopy"
 import {PromptsList} from "./PromptsList"
 import {PromptsEmpty} from "./states/PromptsEmpty"
+import type {NewPromptAction} from "./useCreatePrompt"
 import type {PromptsEmptyKind} from "./usePromptsBrowser"
 
 /**
@@ -31,6 +32,7 @@ export const PromptsView = ({
     rowActions,
     onOpenFolder,
     openDialog,
+    newPrompt,
     onRetry,
 }: {
     chain: Folder[]
@@ -46,6 +48,8 @@ export const PromptsView = ({
     rowActions: PromptRowActions
     onOpenFolder: (id: string | null) => void
     openDialog: (dialog: PromptsDialog) => void
+    /** New prompt in the folder menu; null without developer mode. */
+    newPrompt: NewPromptAction | null
     onRetry: () => void
 }): ReactNode => (
     <>
@@ -55,6 +59,7 @@ export const PromptsView = ({
             canEditFolders={canEditFolders}
             onOpenFolder={onOpenFolder}
             openDialog={openDialog}
+            newPrompt={newPrompt}
         />
         <ListTableToolbar
             search={search}
