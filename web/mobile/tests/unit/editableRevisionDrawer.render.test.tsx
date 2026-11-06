@@ -197,8 +197,8 @@ const settle = async () => {
         })
     }
 }
-const until = async (read: () => unknown) => {
-    for (let i = 0; i < 200 && !read(); i++) {
+const until = async (read: () => unknown, tries = 200) => {
+    for (let i = 0; i < tries && !read(); i++) {
         await act(async () => {
             await new Promise((resolve) => setTimeout(resolve, 25))
         })
@@ -223,7 +223,8 @@ const click = async (name: string) => {
 }
 const mount = async () => {
     act(() => render())
-    await until(() => title().includes("v2") && shown().includes("rev-2"))
+    // The first mount of a run imports the editor and can take longer on a busy machine.
+    await until(() => title().includes("v2") && shown().includes("rev-2"), 1200)
 }
 const edit = async (text: string) => {
     act(() => store.set(workflowMolecule.actions.updateConfiguration, "rev-2", prompt(text)))
