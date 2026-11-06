@@ -56,11 +56,12 @@ export const EditableRevisionDrawer = ({
     const store = useStore()
     // Shown from inside the commit: switching after it clears the draft leaves the form on old text.
     const [committedId, setCommittedId] = useState<string | null>(null)
-    // Keep the last revision drawn while the sheet slides out after a close.
-    const shownIdRef = useRef(revisionId)
-    if (revisionId) shownIdRef.current = revisionId
-    const shownId = committedId ?? shownIdRef.current
+    // The last revision drawn, kept while the sheet slides out after a close.
+    const [lastId, setLastId] = useState(revisionId)
+    // State adjusted during render (React's pattern for props that change): no ref writes here.
+    if (revisionId && revisionId !== lastId) setLastId(revisionId)
     if (committedId && revisionId === committedId) setCommittedId(null)
+    const shownId = committedId ?? revisionId ?? lastId
     const currentIdRef = useRef(shownId)
     useEffect(() => {
         currentIdRef.current = shownId
