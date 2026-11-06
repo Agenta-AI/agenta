@@ -41,3 +41,8 @@ export {
     type EvaluationScenariosPage,
     type EvaluationScenariosPageParams,
 } from "./runDetails"
+export {
+    liveQueryRevisionSchema,
+    queryLiveQueryRevisions,
+    type LiveQueryRevision,
+} from "./queryRevisions"

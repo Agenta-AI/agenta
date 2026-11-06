@@ -6,6 +6,7 @@ export {
     // Sub-schemas
     evaluationRunDataStepSchema,
     type EvaluationRunDataStep,
+    type EvaluationRunStepReference,
     evaluationRunDataMappingSchema,
     type EvaluationRunDataMapping,
     evaluationRunDataSchema,
@@ -88,9 +89,11 @@ export {
 export {findScenarioTraceResult} from "./scenarioTrace"
 export {
     buildQuerySlug,
+    flattenQueryConditions,
     formatQueryFiltering,
     formatQuerySampleRate,
     LIVE_INVOCATION_FILTER,
+    type StoredQueryCondition,
     parseSamplingRate,
     selectLiveEvaluators,
     type LiveFilterRow,
@@ -104,8 +107,23 @@ export {
     mergeMetricStats,
     runLevelMetricRow,
     selectRunMetricStats,
+    type RunLevelRowPreference,
     type RunStatsMap,
 } from "./runStatsMap"
+export {
+    humanizeMetricPath,
+    isTextOutputMetric,
+    RUN_LIST_INVOCATION_COLUMNS,
+    runListColumns,
+    runMetricCellView,
+    type ColumnsRun,
+    type RunListColumns,
+    type RunListEvaluatorGroup,
+    type RunListInvocationColumn,
+    type RunListMetricColumn,
+    type RunListReferenceColumn,
+    type RunMetricCellView,
+} from "./runListColumns"
 export {
     formatMetricNumber,
     formatMetricValue,
