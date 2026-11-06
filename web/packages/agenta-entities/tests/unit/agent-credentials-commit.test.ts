@@ -121,7 +121,7 @@ describe("secret attachment transaction", () => {
         expect(payload.workflow_revision.data.parameters.agent.tools).toEqual([
             {
                 type: "agenta_tools",
-                tools: {get_current_session: "allow", rename_session: "allow"},
+                tools: {get_current_session: "allow"},
             },
         ])
     })
@@ -255,7 +255,7 @@ describe("secret attachment transaction", () => {
                         tools: [
                             {
                                 type: "agenta_tools",
-                                tools: {get_current_session: "allow", rename_session: "allow"},
+                                tools: {get_current_session: "allow"},
                             },
                         ],
                     },

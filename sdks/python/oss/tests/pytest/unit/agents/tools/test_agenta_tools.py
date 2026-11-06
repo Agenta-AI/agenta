@@ -76,11 +76,8 @@ def _permissions(resolved) -> dict:
 # --------------------------------------------------------------------------- #
 # The entry
 # --------------------------------------------------------------------------- #
-def test_the_default_entry_turns_on_the_two_session_tools():
-    assert DEFAULT_AGENTA_TOOLS == {
-        "get_current_session": "allow",
-        "rename_session": "allow",
-    }
+def test_the_default_entry_turns_on_the_session_link_tool():
+    assert DEFAULT_AGENTA_TOOLS == {"get_current_session": "allow"}
     assert set(DEFAULT_AGENTA_TOOLS) < set(AGENTA_TOOLS)
     assert "search_skills" not in AGENTA_TOOLS
 
@@ -144,9 +141,27 @@ async def test_no_entry_means_no_agenta_tools():
 
 async def test_an_unknown_name_is_ignored_with_a_warning(caplog):
     with caplog.at_level(logging.WARNING):
-        resolved = await _resolve([_entry(search_skills="allow", rename_session="ask")])
-    assert _permissions(resolved) == {"rename_session": "ask"}
+        resolved = await _resolve([_entry(search_skills="allow", list_schedules="ask")])
+    assert _permissions(resolved) == {"list_schedules": "ask"}
     assert "search_skills" in caplog.text
+
+
+async def test_a_retired_rename_tool_is_dropped_without_a_warning(caplog):
+    # Saved agents still list the rename tools; the agent service names sessions itself now.
+    with caplog.at_level(logging.WARNING):
+        resolved = await _resolve(
+            [
+                {"type": "platform", "op": "rename_session", "permission": "allow"},
+                {"type": "platform", "op": "rename_agent"},
+                _entry(
+                    get_current_session="allow",
+                    rename_session="allow",
+                    rename_agent="ask",
+                ),
+            ]
+        )
+    assert _permissions(resolved) == {"get_current_session": "allow"}
+    assert "rename" not in caplog.text
 
 
 async def test_the_session_tools_are_skipped_without_a_session_id():
@@ -154,7 +169,6 @@ async def test_the_session_tools_are_skipped_without_a_session_id():
         [
             _entry(
                 get_current_session="allow",
-                rename_session="allow",
                 list_schedules="allow",
             )
         ],
@@ -219,11 +233,11 @@ async def test_a_tool_the_build_kit_deactivates_falls_back_to_the_entry():
 async def test_an_unlisted_tool_differs_from_an_authors_deny():
     resolved = await _resolve(
         [
-            {"type": "platform", "op": "rename_agent", "permission": "deny"},
+            {"type": "platform", "op": "create_schedule", "permission": "deny"},
             _entry(),
         ]
     )
-    assert _permissions(resolved) == {"rename_agent": "deny"}
+    assert _permissions(resolved) == {"create_schedule": "deny"}
     assert (await _resolve([_entry()])).tool_specs == []
 
 
@@ -253,12 +267,12 @@ async def test_only_a_platform_entry_wins_and_other_name_clashes_still_fail():
     with pytest.raises(DuplicateToolNameError):
         await _resolve(
             [
-                {"type": "client", "name": "rename_session"},
-                _entry(rename_session="allow"),
+                {"type": "client", "name": "get_current_session"},
+                _entry(get_current_session="allow"),
             ]
         )
 
 
 def test_a_second_entry_is_refused():
     with pytest.raises(ToolConfigurationError, match="at most one"):
-        coerce_tool_configs([_entry(), _entry(rename_agent="allow")])
+        coerce_tool_configs([_entry(), _entry(list_schedules="allow")])

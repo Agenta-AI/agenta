@@ -4,6 +4,12 @@ Two new platform tools that let an agent name and describe the session it is run
 (`rename_session`) and name and describe itself (`rename_agent`), plus the live-refresh
 mechanism that makes those renames show up in an open browser tab.
 
+> **Status (2026-10-29): the two tools are retired.** A rename tool call ended the first model
+> call, so the reply waited for a second one. The agent service now names a new session, and a
+> placeholder agent, with one small model call beside the first turn
+> (`sdks/python/agenta/sdk/agents/naming.py`). Runs drop `rename_session` and `rename_agent`
+> from saved agent configs. The live-refresh mechanism below still applies.
+
 ## Reading order
 
 | File | The question it answers |

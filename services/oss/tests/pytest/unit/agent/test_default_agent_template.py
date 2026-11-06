@@ -42,9 +42,8 @@ def test_service_default_is_the_bare_builder():
 
 def test_config_fallback_agents_md_matches_the_platform_default():
     # `agent/config.py` keeps a fallback copy of the default persona for runs where the
-    # editable files are missing; it must not drift from the SDK's single source (the
-    # persona now carries the self-naming guidance, so a stale copy would silently
-    # reintroduce the never-renames behavior live QA caught).
+    # editable files are missing; it must not drift from the SDK's single source (a stale
+    # copy that still asks for a rename tool would delay the first reply by a model call).
     from oss.src.agent.config import DEFAULT_AGENTS_MD  # noqa: PLC0415
 
     assert DEFAULT_AGENTS_MD == build_agent_v0_default()["instructions"]["agents_md"]
@@ -105,13 +104,13 @@ def test_published_default_carries_only_the_agenta_tools_entry():
     assert _inspect_agent_default()["tools"] == [
         {
             "type": "agenta_tools",
-            "tools": {"get_current_session": "allow", "rename_session": "allow"},
+            "tools": {"get_current_session": "allow"},
         }
     ]
     assert _builtin_agent_default()["tools"] == [
         {
             "type": "agenta_tools",
-            "tools": {"get_current_session": "allow", "rename_session": "allow"},
+            "tools": {"get_current_session": "allow"},
         }
     ]
 

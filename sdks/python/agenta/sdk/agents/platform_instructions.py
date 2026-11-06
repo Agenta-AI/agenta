@@ -406,41 +406,27 @@ def is_placeholder_agent_name(name: Optional[str]) -> bool:
     return bool(_PLACEHOLDER_AGENT_NAME.fullmatch(normalized))
 
 
-def session_context_guidance(
-    context: Optional[SessionContext], tool_names: Sequence[str] = ()
-) -> Optional[str]:
-    """Render current facts, adding naming actions only for tools this run offers.
+def session_context_guidance(context: Optional[SessionContext]) -> Optional[str]:
+    """Render the current facts of this turn.
 
     Every field is optional and ``None`` means UNKNOWN. A fact the server could not read gets
-    no line at all, because a wrong fact is worse than a missing one: telling a named session
-    it has no name makes the agent rename it. ``first_turn`` is the tell for the session read,
-    since the name and the turn position come from the same read. When nothing is known the
-    whole block is dropped."""
+    no line at all, because a wrong fact is worse than a missing one. When nothing is known the
+    whole block is dropped. The agent does not name the session or itself: the agent service
+    does that beside the first turn (``agenta.sdk.agents.naming``)."""
     if context is None:
         return None
 
     lines = []
 
     name = (context.agent_name or "").strip()
-    if name and is_placeholder_agent_name(name):
-        agent_line = f'Your name is "{name}". That is a placeholder.'
-        if "rename_agent" in tool_names:
-            agent_line += " Rename yourself with `rename_agent` in this turn."
-        lines.append(agent_line)
-    elif name:
-        lines.append(f'Your name is "{name}". Keep it.')
+    if name:
+        lines.append(f'Your name is "{name}".')
 
     session_name = (context.session_name or "").strip()
     if session_name:
-        lines.append(f'This session is named "{session_name}". Do not rename it.')
+        lines.append(f'This session is named "{session_name}".')
     elif context.first_turn is not None:
-        session_line = "This session has no name yet."
-        if "rename_session" in tool_names:
-            session_line += (
-                " Name it with `rename_session` once the first exchange makes clear "
-                "what it is about."
-            )
-        lines.append(session_line)
+        lines.append("This session has no name yet.")
 
     if context.first_turn is True:
         lines.append("This is the first turn of the session.")
