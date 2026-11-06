@@ -1,5 +1,6 @@
 import {createElement, useCallback, useMemo, type ReactNode} from "react"
 
+import {promptWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {
     AGENTS_SIDEBAR_KEY,
     buildHelpDocsNavItem,
@@ -64,7 +65,7 @@ import {useProjectPermission} from "../context/useProjectPermission"
 
 import {AgentsNavAction} from "./AgentsNavAction"
 import {AgentsQuickPanel} from "./AgentsQuickPanel"
-import {developerNavSlots} from "./developerNavSlots"
+import {developerNavSlots, PROMPTS_ROW_KEY} from "./developerNavSlots"
 import {useSyncLocalSessionRefs} from "./localSessionRefs"
 
 /** The drawer's scope id — its open-groups persistence bucket. */
@@ -147,6 +148,24 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
 )
 
 /**
+ * The prompt apps under the beta developer mode Prompts row, as in the old app. The list loads
+ * only while the row is open.
+ */
+export const mobilePromptsEntity = defineSidebarEntity<Workflow>(
+    MOBILE_NAV_SCOPE_ID,
+    PROMPTS_ROW_KEY,
+    {
+        kind: "app",
+        icon: createElement(SquaresFourIcon, {size: 14}),
+        listAtom: promptWorkflowsListQueryStateAtom,
+        getLabel: (workflow) => workflow.name || workflow.slug || "Untitled prompt",
+        childPath: (workflow) => `/apps/${workflow.id}/playground`,
+        emptyLabel: "No prompts",
+        showAllPath: "/prompts",
+    },
+)
+
+/**
  * The rail's nav model — the same keys, order and icon sizes the desktop rail uses, narrowed
  * to the screens mobile has. Entries appear here as their screens land; nothing is hidden by
  * forking a component.
@@ -215,9 +234,18 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
         [chrome],
     )
 
+    const promptsSource = useAtomValue(mobilePromptsEntity.activeSourceAtom)
     const developerSlots = useMemo(
-        () => developerNavSlots(projectURL, developerViews, developerMode),
-        [developerMode, developerViews, projectURL],
+        () =>
+            developerNavSlots(
+                projectURL,
+                developerViews,
+                developerMode,
+                developerMode
+                    ? resolveChildren(mobilePromptsEntity, promptsSource, projectURL)
+                    : [],
+            ),
+        [developerMode, developerViews, projectURL, promptsSource],
     )
 
     return useMemo(
