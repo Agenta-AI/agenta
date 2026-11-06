@@ -3,6 +3,7 @@ import {useCallback, useState} from "react"
 import {
     createHumanEvaluatorAtom,
     updateHumanEvaluatorAtom,
+    type CreatedHumanEvaluator,
     type EvaluatorEntry,
 } from "@agenta/entities/workflow"
 import {useQueryClient} from "@tanstack/react-query"
@@ -10,7 +11,9 @@ import {useSetAtom} from "jotai"
 
 import {draftToMetrics, type HumanEvaluatorDraft} from "./humanEvaluatorForm"
 
-export type SaveHumanEvaluatorResult = {ok: true} | {ok: false; field?: "slug"; message: string}
+export type SaveHumanEvaluatorResult =
+    | {ok: true; created: CreatedHumanEvaluator | null}
+    | {ok: false; field?: "slug"; message: string}
 
 const statusOf = (error: unknown): number | undefined =>
     (error as {response?: {status?: number}} | null)?.response?.status
@@ -30,6 +33,7 @@ export const useSaveHumanEvaluator = () => {
             setSaving(true)
             try {
                 const metrics = draftToMetrics(draft)
+                let created: CreatedHumanEvaluator | null = null
                 const description = draft.description.trim()
                 if (editing) {
                     await update({
@@ -43,7 +47,7 @@ export const useSaveHumanEvaluator = () => {
                         tags: editing.workflow.tags,
                     })
                 } else {
-                    await create({
+                    created = await create({
                         name: draft.name.trim(),
                         slug: draft.slug.trim(),
                         description: description || undefined,
@@ -51,7 +55,7 @@ export const useSaveHumanEvaluator = () => {
                     })
                 }
                 await queryClient.invalidateQueries({queryKey: ["workflows"]})
-                return {ok: true}
+                return {ok: true, created}
             } catch (error) {
                 console.error("Save human evaluator failed", error)
                 if (!editing && statusOf(error) === 409) {

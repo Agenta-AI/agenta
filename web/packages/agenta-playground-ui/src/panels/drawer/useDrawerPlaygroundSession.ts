@@ -16,11 +16,12 @@ let pendingClear: ReturnType<typeof setTimeout> | null = null
  * The drawer owns the playground state while it is open: mount it only on a page that has no
  * playground of its own.
  */
-export const useDrawerPlaygroundSession = (revisionId: string) => {
+export const useDrawerPlaygroundSession = (revisionId: string, enabled = true) => {
     const store = useStore()
     const shownRef = useRef<string | null>(null)
 
     useEffect(() => {
+        if (!enabled) return
         // Every node, not only the first ones: a connected app puts an evaluator after it.
         const ids = store.get(playgroundController.selectors.nodes()).map((node) => node.entityId)
         const previous = shownRef.current
@@ -40,11 +41,12 @@ export const useDrawerPlaygroundSession = (revisionId: string) => {
             label: revisionId,
         })
         store.set(playgroundInitializedAtom, true)
-    }, [revisionId, store])
+    }, [enabled, revisionId, store])
 
     // The clear waits one task: strict mode unmounts and mounts again at once. It is skipped when
     // something set the playground up meanwhile (Open in playground mounts the playground page).
     useEffect(() => {
+        if (!enabled) return
         if (pendingClear) clearTimeout(pendingClear)
         pendingClear = null
         return () => {
@@ -55,5 +57,5 @@ export const useDrawerPlaygroundSession = (revisionId: string) => {
                 clearPlayground(store)
             }, 0)
         }
-    }, [store])
+    }, [enabled, store])
 }

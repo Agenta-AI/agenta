@@ -86,6 +86,8 @@ export const EvaluationsRoute = ({
                     appId={filters.appId}
                     onClose={() => setKind(null)}
                     onStarted={handleStarted}
+                    // No playground on this page: the automatic create drawer may use its state.
+                    allowAutomaticCreate
                 />
             ) : null}
             {liveLoaded ? (

@@ -48,7 +48,7 @@ export const useEvaluatorPlaygroundSelection = (): EvaluatorPlaygroundSelection 
         if (!router.isReady || !id) return
         store.set(playgroundController.actions.addPrimaryNode, {type: "workflow", id, label: id})
         store.set(playgroundInitializedAtom, true)
-        return () => clearPlayground(store)
+        return () => clearPlayground(store, {keepEdits: true})
     }, [router.isReady, store])
 
     // A commit of the evaluator swaps it for the new revision: the address follows.

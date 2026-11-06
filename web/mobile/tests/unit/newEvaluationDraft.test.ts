@@ -40,6 +40,37 @@ const run = (draft: NewEvaluationDraft, ...actions: NewEvaluationAction[]) =>
 const start = (kind: NewEvaluationKind = "auto") => createInitialDraft(kind, {suffix: "abc12"})
 
 describe("new evaluation draft", () => {
+    it("A typed name stays when an app is picked, changed or cleared, and later picks keep it", () => {
+        const typed = run(start(), {type: "setName", name: "my run"})
+        const picked = run(typed, {type: "pickApp", app})
+        expect(picked.name).toBe("my run")
+        expect(run(picked, {type: "pickApp", app: otherApp}).name).toBe("my run")
+        expect(run(picked, {type: "clearApp"}).name).toBe("my run")
+        const later = run(
+            picked,
+            {type: "pickRevision", revision: revisionA},
+            {type: "pickTestset", testset},
+        )
+        expect(later.name).toBe("my run")
+    })
+
+    it("An auto name gives way to the next app, and a cleared name auto-fills again", () => {
+        const named = run(
+            start(),
+            {type: "pickApp", app},
+            {type: "pickRevision", revision: revisionA},
+            {type: "pickTestset", testset},
+        )
+        expect(named.name).toBe("default-v3-greetings-abc12")
+        expect(run(named, {type: "pickApp", app: otherApp}).name).toBe("")
+        const cleared = run(
+            {...named, name: "mine"},
+            {type: "setName", name: ""},
+            {type: "blurName"},
+        )
+        expect(cleared.name).toBe("default-v3-greetings-abc12")
+    })
+
     it("Picking another app clears revisions, test set, evaluators, name and settings", () => {
         const filled = run(
             start(),

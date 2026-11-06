@@ -11,6 +11,7 @@ import {useAtomValue} from "jotai"
 import {DrillInBridgeProvider} from "../chat/DrillInBridgeProvider"
 
 import {EvaluatorPlaygroundHeader} from "./EvaluatorPlaygroundHeader"
+import {EvaluatorTypeTag} from "./EvaluatorTypeTag"
 import {LoadPresetAction} from "./LoadPresetAction"
 import {PlaygroundFocusDrawerHost} from "./PlaygroundFocusDrawerHost"
 import {PlaygroundRunPane} from "./PlaygroundRunPane"
@@ -49,7 +50,7 @@ export const EvaluatorPlaygroundWorkspace = ({
     onWorkflowRevisionCommitted: (revisionId: string) => void
 }) => {
     const [viewMode, setViewMode] = useState<ConfigViewMode>("form")
-    const {switchTo, modal: switchDialog} = useSwitchRevision()
+    const switchTo = useSwitchRevision()
     const evaluator = useAtomValue(workflowMolecule.selectors.data(evaluatorRevisionId))
     const nodes = useAtomValue(playgroundController.selectors.nodes())
     const appLabel = appRevisionId ? (nodes[0]?.label ?? null) : null
@@ -61,6 +62,7 @@ export const EvaluatorPlaygroundWorkspace = ({
                 workspaceId={workspaceId}
                 projectId={projectId}
                 evaluatorName={evaluatorName}
+                typeTag={<EvaluatorTypeTag revisionId={evaluatorRevisionId} />}
                 runOn={runOn}
                 appLabel={appLabel}
                 onRunOnChange={onRunOnChange}
@@ -111,7 +113,6 @@ export const EvaluatorPlaygroundWorkspace = ({
                     )
                 }
             />
-            {switchDialog}
             <PlaygroundFocusDrawerHost />
         </div>
     )

@@ -8,6 +8,7 @@ import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai-family"
 
 export interface ApplicationConfig {
+    applicationId: string
     /** The app's name; null while it loads or when it cannot be read. */
     appName: string | null
     appFailed: boolean
@@ -34,6 +35,7 @@ const applicationConfigAtomFamily = atomFamily((runId: string) =>
         const revision = get(workflowQueryAtomFamily(revisionId))
         const stored = revision.data
         return {
+            applicationId,
             appName: artifact.data?.name ?? null,
             appFailed: artifact.isError || (!artifact.isPending && !artifact.data),
             variantName: get(workflowMolecule.selectors.variantLabel(revisionId)),

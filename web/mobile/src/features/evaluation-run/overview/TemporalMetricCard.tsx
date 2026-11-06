@@ -85,8 +85,9 @@ export const TemporalMetricCard = ({
     const narrow = useIsNarrowScreen()
     const chart = useMemo(() => timeChart(metric, runId, runName), [metric, runId, runName])
     // The whole run's value, the same number the summary table shows. The newest point covers one
-    // minute only, so a minute with two failures read "0.00%" next to a 95.45% run.
-    const runValue = metricSummary(metric.stats)
+    // minute only, so a minute with two failures read "0.00%" next to a 95.45% run. A run with no
+    // run-wide row shows no value, as the old app does.
+    const runValue = metric.statsAreRunWide ? metricSummary(metric.stats) : null
     const evaluator = metric.evaluatorName ?? "Evaluator"
 
     return (

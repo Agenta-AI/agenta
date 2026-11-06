@@ -163,26 +163,32 @@ export const ColumnDialog = ({
 }
 
 /**
- * The "Add column" button. It is off while a save runs, and its tooltip says why.
+ * The "Add column" button. It is off while a save runs, and its tooltip says why. `compact` is
+ * the icon-only form for the table header, as in the old app.
  */
 export const AddColumnButton = ({
     blockedReason,
+    compact = false,
     onClick,
 }: {
     blockedReason: string | null
+    compact?: boolean
     onClick: () => void
 }) => (
     <SimpleTooltip title={blockedReason ?? "Add column"}>
         <span className="inline-flex">
             <Button
-                variant="outline"
-                size="sm"
+                variant={compact ? "ghost" : "outline"}
+                size={compact ? "icon-xs" : "sm"}
                 disabled={blockedReason !== null}
                 aria-label="Add column"
-                onClick={onClick}
+                onClick={(event) => {
+                    event.stopPropagation()
+                    onClick()
+                }}
             >
                 <Plus aria-hidden size={14} />
-                Add column
+                {compact ? null : "Add column"}
             </Button>
         </span>
     </SimpleTooltip>
