@@ -30,14 +30,13 @@ import {useMobileBottomNavItems} from "./useMobileNavItems"
 /** The app menu's scope id: its own open-groups bucket, apart from the main rail's. */
 export const MOBILE_APP_NAV_SCOPE_ID = "mobile-app"
 
-/** The old app's app menu; the last three rows open project pages with `?app=` until PR 1.5. */
+/** The old app's app menu, with its labels and URLs. */
 export const appNavItems = (
     projectURL: string,
     appId: string,
     views: readonly DeveloperView[],
 ): SidebarConfig[] => {
     const appURL = `${projectURL}/apps/${encodeURIComponent(appId)}`
-    const app = encodeURIComponent(appId)
     // Each row with the developer view that must be on for it; Observability is not a view.
     const rows: [viewId: string | null, row: SidebarConfig][] = [
         [
@@ -64,9 +63,7 @@ export const appNavItems = (
                 key: "app-registry",
                 title: "Registry",
                 icon: <LightningIcon size={16} />,
-                link: `${projectURL}/variants?app=${app}`,
-                // The URL also carries the revision, so the bare page path claims it.
-                matchLinks: [`${projectURL}/variants`],
+                link: `${appURL}/variants`,
             },
         ],
         [
@@ -75,7 +72,7 @@ export const appNavItems = (
                 key: "app-evaluations",
                 title: "Evaluations",
                 icon: <FlaskIcon size={16} />,
-                link: `${projectURL}/evaluations?app=${app}`,
+                link: `${appURL}/evaluations`,
             },
         ],
         [
@@ -84,7 +81,7 @@ export const appNavItems = (
                 key: "app-observability",
                 title: "Observability",
                 icon: <TreeViewIcon size={16} />,
-                link: `${projectURL}/observability?app=${app}`,
+                link: `${appURL}/traces`,
             },
         ],
     ]

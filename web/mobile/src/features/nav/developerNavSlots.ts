@@ -25,10 +25,6 @@ export const developerNavSlots = (
     const rail = developerRailItems(projectURL, views)
     return {
         afterHome: rail.lead,
-        afterSessions: [
-            ...rail.evaluation,
-            ...observabilityNavItems(projectURL, true),
-            ...rail.trail,
-        ],
+        afterSessions: [...rail.evaluation, ...observabilityNavItems(projectURL, true)],
     }
 }

@@ -207,10 +207,9 @@ const developerProjectRoute = (segments: string[]): string | null => {
 }
 
 /**
- * `/w` app pages (`/apps/<id>/<section>`) as `/m` paths relative to the project. `/m` has no
- * per-app section pages: the registry, evaluations, endpoints and traces are project pages that
- * take the app as `?app=`. Overview and playground tell a prompt app from an agent themselves
- * and send an agent to its own screen. A `switch`, not a lookup by name: `section` is user
+ * `/w` app pages (`/apps/<id>/<section>`) as `/m` paths relative to the project: the same
+ * `/apps/<id>/<section>` pages, which beta developer mode has. Overview and playground tell a
+ * prompt app from an agent themselves and send an agent to its own screen. A `switch`, not a lookup by name: `section` is user
  * input. `undefined` means the section has no view of its own; `null`, no `/m` page.
  */
 const developerAppRoute = (
@@ -224,14 +223,15 @@ const developerAppRoute = (
         case "playground":
             return `/apps/${appId}/playground`
         case "variants":
+            return `/apps/${appId}/variants`
         case "deployments":
-            return `/variants?app=${appId}`
+            return `/apps/${appId}/variants?tab=deployments`
         case "endpoints":
-            return `/endpoints?app=${appId}`
+            return `/apps/${appId}/endpoints`
         case "traces":
-            return `/observability?app=${appId}`
+            return `/apps/${appId}/traces`
         case "evaluations":
-            if (!kind) return `/evaluations?app=${appId}`
+            if (!kind) return `/apps/${appId}/evaluations`
             return kind === "results" && evaluationId && evaluationId !== "compare" && !extra
                 ? `/evaluations/results/${evaluationId}`
                 : null
@@ -302,7 +302,12 @@ export function mobileRouteFor(
             // A section with no view of its own (sessions, ...) still lands on the app's screen.
             // The playground's own selection rides along: both apps read `?revisions=`.
             const revisions = second === "playground" ? params.get("revisions") : null
-            const selection = revisions ? `?revisions=${encodeURIComponent(revisions)}` : ""
+            const deployments = second === "variants" && params.get("tab") === "deployments"
+            const selection = revisions
+                ? `?revisions=${encodeURIComponent(revisions)}`
+                : deployments
+                  ? "?tab=deployments"
+                  : ""
             if (appRoute !== undefined) return appRoute ? `${base}${appRoute}${selection}` : null
         }
         // Every other app-scoped desktop page (playground, overview, sessions, deployments…)
@@ -359,6 +364,16 @@ export function mapDesktopToMobile(
     return mobileRouteFor(pathname, search, options) ?? `/m/${templateQueryFrom(search)}`
 }
 
+/** `/m` app pages with the same path in `/w`. */
+const APP_PAGES = new Set([
+    "overview",
+    "playground",
+    "variants",
+    "endpoints",
+    "evaluations",
+    "traces",
+])
+
 /**
  * Mobile URL (basePath already stripped) → the desktop route showing the same thing, or `null`
  * when nothing better than the desktop root applies.
@@ -382,10 +397,10 @@ export function desktopRouteFor(pathname: string, search = ""): string | null {
     if (!head || head === "apps") {
         if (!first) return `${base}/apps`
         if (first === "archived") return second ? null : `${base}/apps/archived`
-        // `/apps/<id>/overview` and `/apps/<id>/playground` are the same path on both sides.
-        return (second === "overview" || second === "playground") && !rest.split("/")[3]
-            ? `${base}/apps/${first}/${second}`
-            : null
+        // The app pages are the same path on both sides; Registry keeps its Deployments tab.
+        if (!APP_PAGES.has(second ?? "") || rest.split("/")[3]) return null
+        const deployments = second === "variants" && params.get("tab") === "deployments"
+        return `${base}/apps/${first}/${second}${deployments ? "?tab=deployments" : ""}`
     }
 
     // The developer views `/m` rebuilt. Project pages that take the app as `?app=` are app pages

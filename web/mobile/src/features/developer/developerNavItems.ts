@@ -6,7 +6,6 @@ import {
     DatabaseIcon,
     FlaskIcon,
     GavelIcon,
-    LightningIcon,
     ListChecksIcon,
     SquaresFourIcon,
     type Icon,
@@ -53,7 +52,7 @@ export const developerNavItems = (
     })
 
 /** Where a developer view sits in the beta developer mode rail. */
-type DeveloperRailPlacement = "lead" | "evaluation" | "trail"
+type DeveloperRailPlacement = "lead" | "evaluation"
 
 interface DeveloperRailRow {
     viewId: string
@@ -74,7 +73,6 @@ const DEVELOPER_RAIL_ROWS: readonly DeveloperRailRow[] = [
         icon: ListChecksIcon,
         placement: "evaluation",
     },
-    {viewId: "variants", title: "Registry", icon: LightningIcon, placement: "trail"},
 ]
 
 export interface DeveloperRail {
@@ -82,8 +80,6 @@ export interface DeveloperRail {
     lead: SidebarConfig[]
     /** The Evaluation group, after Sessions. */
     evaluation: SidebarConfig[]
-    /** Rows after Observability: Registry. */
-    trail: SidebarConfig[]
 }
 
 /** The beta developer mode rows, from enabled views only; an empty group is left out. */
@@ -119,6 +115,5 @@ export const developerRailItems = (
                   },
               ]
             : [],
-        trail: rowsAt("trail"),
     }
 }
