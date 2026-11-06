@@ -712,4 +712,37 @@ describe("compared configuration", () => {
         expect(host.querySelectorAll(`#config-application-${verbose}`)).toHaveLength(1)
         expect(unanswered).toEqual([])
     })
+
+    it("Marks the fields of a compared run that differ from the base run, and only those", async () => {
+        const base = addRun("Capitals: default")
+        const verbose = addRun("Capitals: verbose", {
+            app: {id: "app-2", name: "Verbose finder", revisionId: "rev-2"},
+        })
+        await open(base, {compare: verbose, view: "configuration"})
+        const column = (name: string) =>
+            host.querySelector<HTMLElement>(`section[aria-label="${name}"]`)
+        await until(
+            () => Boolean(column("Capitals: verbose")?.textContent?.includes("Verbose finder")),
+            "compared configuration shown",
+        )
+        await until(
+            () => (column("Capitals: verbose")?.querySelectorAll("dt").length ?? 0) > 0,
+            "rows shown",
+        )
+
+        // The row of a field, by its label, in one run's column.
+        const row = (name: string, label: string) =>
+            [...(column(name)?.querySelectorAll("dt") ?? [])].find((dt) => dt.textContent === label)
+                ?.parentElement
+        // Another app and another app revision: both differ.
+        expect(row("Capitals: verbose", "Application")?.textContent).toContain("Differs")
+        expect(row("Capitals: verbose", "Variant")?.textContent).toContain("Differs")
+        // The same test set and the same evaluator: not marked.
+        expect(row("Capitals: verbose", "Test set")?.textContent).not.toContain("Differs")
+        const card = column("Capitals: verbose")?.querySelector('[data-testid="evaluator-card"]')
+        expect(card?.textContent).toContain("Exact Match")
+        expect(card?.textContent).not.toContain("Differs")
+        // The base run is what the others are compared with: nothing in it is marked.
+        expect(column("Capitals: default")?.textContent).not.toContain("Differs")
+    })
 })

@@ -27,8 +27,11 @@ const NO_SCHEMA_NOTE = "No playground schema — snapshot available as JSON"
 export const ApplicationConfigSection = ({
     application,
     idSuffix = "",
+    diff,
 }: {
     application: ApplicationConfig
+    /** Compare mode: which fields differ from the base run's. */
+    diff?: {app: boolean; variant: boolean}
     /** Keeps the section id unique when several runs show side by side. */
     idSuffix?: string
 }) => {
@@ -53,6 +56,7 @@ export const ApplicationConfigSection = ({
         {
             key: "application",
             label: "Application",
+            differs: diff?.app,
             value: appName ? (
                 <RunReferenceChip icon={<SquaresFour size={14} />} label={appName} />
             ) : (
@@ -62,6 +66,7 @@ export const ApplicationConfigSection = ({
         {
             key: "variant",
             label: "Variant",
+            differs: diff?.variant,
             value: variantName ? (
                 <RunReferenceChip
                     icon={<GitCommit size={14} />}

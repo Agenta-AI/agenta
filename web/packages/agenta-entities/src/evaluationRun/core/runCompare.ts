@@ -324,3 +324,60 @@ export function matchCompareGroupKey(
     const sameKind = groups.filter((group) => group.kind === base.kind)
     return sameKind.length === 1 ? sameKind[0].key : null
 }
+
+/** What identifies a run's configuration, as the old app compares it. */
+export interface RunConfigIdentity {
+    testsets: readonly {testsetId: string; revisionId: string | null}[]
+    applicationId: string | null
+    /** The app revision the run called; it carries the prompt. */
+    revisionId: string | null
+    revisionVersion: number | null
+    /** Each evaluator with the version the run used (null: none named). */
+    evaluators: readonly {id: string; version: number | null}[]
+}
+
+/** Which parts of a compared run's configuration differ from the base run's. */
+export interface RunConfigDiff {
+    testset: boolean
+    app: boolean
+    /** The app revision (and so the prompt) differs. */
+    variant: boolean
+    /** By evaluator id: true when the base run lacks it or used another version. */
+    evaluators: Record<string, boolean>
+    /** The base run has an evaluator this run lacks; there is no row of it to mark. */
+    evaluatorsMissing: boolean
+}
+
+/**
+ * The old app's compare rule for the Configuration tab: only what identifies the configuration
+ * counts, never names or descriptions. Test sets compare as a set of ids, and a test set revision
+ * only when both runs name one. The app compares by id, the variant by revision id and version (a
+ * changed prompt is a new revision). Evaluators compare by id and version, in any order.
+ */
+export function runConfigDiff(current: RunConfigIdentity, base: RunConfigIdentity): RunConfigDiff {
+    const idsKey = (identity: RunConfigIdentity) =>
+        [...new Set(identity.testsets.map((testset) => testset.testsetId))].sort().join("|")
+    const baseRevisions = new Map(
+        base.testsets.map((testset) => [testset.testsetId, testset.revisionId]),
+    )
+    const revisionDiffers = current.testsets.some(({testsetId, revisionId}) => {
+        const baseRevisionId = baseRevisions.get(testsetId)
+        return Boolean(revisionId && baseRevisionId && revisionId !== baseRevisionId)
+    })
+    const baseEvaluators = new Map(base.evaluators.map(({id, version}) => [id, version]))
+    const currentIds = new Set(current.evaluators.map(({id}) => id))
+    return {
+        testset: idsKey(current) !== idsKey(base) || revisionDiffers,
+        app: current.applicationId !== base.applicationId,
+        variant:
+            current.revisionId !== base.revisionId ||
+            current.revisionVersion !== base.revisionVersion,
+        evaluators: Object.fromEntries(
+            current.evaluators.map(({id, version}) => [
+                id,
+                !baseEvaluators.has(id) || baseEvaluators.get(id) !== version,
+            ]),
+        ),
+        evaluatorsMissing: base.evaluators.some(({id}) => !currentIds.has(id)),
+    }
+}

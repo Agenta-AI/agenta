@@ -14,6 +14,9 @@ import {
     matchCompareGroupKey,
     matchCompareRows,
     mergeCompareBars,
+    runConfigDiff,
+    type RunConfigDiff,
+    type RunConfigIdentity,
 } from "../../src/evaluationRun/core/runCompare"
 
 describe("compared runs from the URL", () => {
@@ -192,5 +195,69 @@ describe("column groups of compared runs", () => {
         expect(
             matchCompareGroupKey({kind: "evaluator", key: "evaluator:answer-correctness"}, groups),
         ).toBeNull()
+    })
+})
+
+describe("configuration differences against the base run", () => {
+    const base: RunConfigIdentity = {
+        testsets: [{testsetId: "ts-1", revisionId: "tsr-1"}],
+        applicationId: "app-1",
+        revisionId: "rev-1",
+        revisionVersion: 3,
+        evaluators: [
+            {id: "ev-1", version: 1},
+            {id: "ev-2", version: 4},
+        ],
+    }
+    const NONE = {testset: false, app: false, variant: false, evaluatorsMissing: false}
+
+    it.each<[string, Partial<RunConfigIdentity>, Partial<RunConfigDiff>]>([
+        ["the same configuration", {}, {...NONE, evaluators: {"ev-1": false, "ev-2": false}}],
+        [
+            "evaluators listed in another order",
+            {
+                evaluators: [
+                    {id: "ev-2", version: 4},
+                    {id: "ev-1", version: 1},
+                ],
+            },
+            {...NONE, evaluators: {"ev-1": false, "ev-2": false}},
+        ],
+        ["another app", {applicationId: "app-2"}, {app: true, variant: false}],
+        // A changed prompt is a new app revision.
+        ["another prompt revision", {revisionId: "rev-2", revisionVersion: 4}, {variant: true}],
+        ["another test set", {testsets: [{testsetId: "ts-2", revisionId: null}]}, {testset: true}],
+        [
+            "another revision of the same test set",
+            {testsets: [{testsetId: "ts-1", revisionId: "tsr-2"}]},
+            {testset: true},
+        ],
+        [
+            "a test set revision missing on one side",
+            {testsets: [{testsetId: "ts-1", revisionId: null}]},
+            {testset: false},
+        ],
+        [
+            "another evaluator version",
+            {
+                evaluators: [
+                    {id: "ev-1", version: 2},
+                    {id: "ev-2", version: 4},
+                ],
+            },
+            {evaluators: {"ev-1": true, "ev-2": false}, evaluatorsMissing: false},
+        ],
+        [
+            "an evaluator the base run lacks, and one this run lacks",
+            {
+                evaluators: [
+                    {id: "ev-1", version: 1},
+                    {id: "ev-3", version: 1},
+                ],
+            },
+            {evaluators: {"ev-1": false, "ev-3": true}, evaluatorsMissing: true},
+        ],
+    ])("%s", (_label, patch, expected) => {
+        expect(runConfigDiff({...base, ...patch}, base)).toMatchObject(expected)
     })
 })

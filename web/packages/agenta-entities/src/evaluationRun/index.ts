@@ -209,6 +209,7 @@ export {
     mergeCompareBars,
     parseCompareParam,
     runComparisonStructure,
+    runConfigDiff,
     toggleCompareRun,
     type CompareBarDatum,
     type CompareBlockReason,
@@ -216,6 +217,8 @@ export {
     type CompareRunInput,
     type CompareStatusFilter,
     type RunComparisonStructure,
+    type RunConfigDiff,
+    type RunConfigIdentity,
 } from "./core"
 
 // ============================================================================
