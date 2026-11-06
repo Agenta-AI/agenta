@@ -21,7 +21,8 @@ export const useDrawerPlaygroundSession = (revisionId: string) => {
     const shownRef = useRef<string | null>(null)
 
     useEffect(() => {
-        const ids = store.get(playgroundController.selectors.entityIds())
+        // Every node, not only the first ones: a connected app puts an evaluator after it.
+        const ids = store.get(playgroundController.selectors.nodes()).map((node) => node.entityId)
         const previous = shownRef.current
         shownRef.current = revisionId
         // A commit as a new variant already swapped the id in.
