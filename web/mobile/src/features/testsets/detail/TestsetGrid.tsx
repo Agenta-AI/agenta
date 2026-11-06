@@ -2,7 +2,9 @@ import {useCallback, useMemo, useState} from "react"
 
 import {testcaseDataController, type TestcaseTableRow} from "@agenta/entities/testcase"
 import {TestcaseTable, type EntityColumnHeader} from "@agenta/entity-ui/testcase"
+import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {message} from "@agenta/ui/app-message"
+import {ListTableToolbar} from "@agenta/ui/list-table"
 import type {ColumnDefs} from "@agenta/ui/table"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {copyToClipboard} from "@agenta/ui/utils"
@@ -55,14 +57,39 @@ export const TestsetGrid = ({
     const {tableConfig, readOnly, deleteRows} = editor
     const [selected, setSelected] = useState<string[]>([])
     const [step, setStep] = useState<ColumnDialogStep | null>(null)
-    const columns = useAtomValue(testcaseDataController.selectors.columns(tableConfig))
+    // Search narrows the grid only. The editor keeps reading every row, because the save
+    // looks for edited rows in its list.
+    const [searchTerm, setSearchTerm] = useState("")
+    // A new search clears the selection, so a bulk delete never hits rows the reader cannot see.
+    const applySearch = useCallback((term: string) => {
+        setSearchTerm(term)
+        setSelected([])
+    }, [])
+    const search = useDebouncedAtomSearch(applySearch, 300)
+    const gridConfig = useMemo(
+        () => (searchTerm.trim() ? {...tableConfig, searchTerm} : tableConfig),
+        [searchTerm, tableConfig],
+    )
+    // The header actions read the columns the table shows, search matches included.
+    const columns = useAtomValue(testcaseDataController.selectors.columns(gridConfig))
+
+    // The table hides its toolbar while it has no rows, so then the toolbar shows above it: a
+    // new test set whose rows were all deleted can still get columns.
+    const gridRows = useAtomValue(testcaseDataController.selectors.rows(gridConfig))
+    const noRows = gridRows.length === 0
+    // A selected row can leave the search results after an edit; bulk delete takes only the
+    // rows the reader can see.
+    const visibleSelected = useMemo(() => {
+        const visible = new Set(gridRows.map((row) => row.id))
+        return selected.filter((id) => visible.has(id))
+    }, [gridRows, selected])
 
     const deleteSelected = useCallback(() => {
-        if (readOnly || selected.length === 0) return
-        deleteRows(selected)
-        message.success(deletedRowsMessage(selected.length))
+        if (readOnly || visibleSelected.length === 0) return
+        deleteRows(visibleSelected)
+        message.success(deletedRowsMessage(visibleSelected.length))
         setSelected([])
-    }, [deleteRows, readOnly, selected])
+    }, [deleteRows, readOnly, visibleSelected])
 
     const appendColumns = useMemo<ColumnDefs<TestcaseTableRow>>(
         () => [
@@ -130,13 +157,15 @@ export const TestsetGrid = ({
     const toolbar = canEdit ? (
         <div className="flex items-center gap-2">
             <SimpleTooltip
-                title={selected.length === 0 ? "Select testcases to delete" : "Delete selected"}
+                title={
+                    visibleSelected.length === 0 ? "Select testcases to delete" : "Delete selected"
+                }
             >
                 <span className="inline-flex">
                     <Button
                         variant="outline"
                         size="sm"
-                        disabled={readOnly || selected.length === 0}
+                        disabled={readOnly || visibleSelected.length === 0}
                         onClick={deleteSelected}
                     >
                         <Trash aria-hidden size={14} />
@@ -153,8 +182,15 @@ export const TestsetGrid = ({
 
     return (
         <>
+            {/* Outside the table, so a search with no match can still be cleared. */}
+            <ListTableToolbar
+                search={search.value}
+                onSearchChange={search.onChange}
+                searchPlaceholder="Search testcases..."
+            />
+            {noRows && toolbar ? <div className="flex justify-end">{toolbar}</div> : null}
             <TestcaseTable
-                config={tableConfig}
+                config={gridConfig}
                 selectable={canEdit}
                 selectedIds={selected}
                 onSelectionChange={setSelected}
@@ -164,7 +200,7 @@ export const TestsetGrid = ({
                 }}
                 appendColumns={appendColumns}
                 renderColumnHeader={canEdit ? renderColumnHeader : undefined}
-                headerExtra={toolbar}
+                headerExtra={noRows ? null : toolbar}
             />
             <ColumnDialog
                 step={step}

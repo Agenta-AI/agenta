@@ -15,6 +15,7 @@ import {TestsetGrid} from "@/features/testsets/detail/TestsetGrid"
 import type {ColumnEdit} from "@/features/testsets/detail/useTestsetEditor"
 
 const toast = vi.hoisted(() => ({success: vi.fn(), error: vi.fn()}))
+const columnConfigs = vi.hoisted(() => [] as {searchTerm?: string}[])
 vi.mock("@agenta/ui/app-message", () => ({message: toast}))
 vi.mock("@agenta/ui/utils", () => ({copyToClipboard: async () => true}))
 
@@ -24,7 +25,26 @@ vi.mock("@agenta/entities/testcase", () => {
         {key: "meta.lang", label: "lang", parentKey: "meta"},
         {key: "meta.tone", label: "tone", parentKey: "meta"},
     ])
-    return {testcaseDataController: {selectors: {columns: () => columns}}}
+    const rows = atom([{id: "case-1"}, {id: "new-1"}])
+    // A search that shows only case-1.
+    const narrowRows = atom([{id: "case-1"}])
+    const noRows = atom([] as {id: string}[])
+    return {
+        testcaseDataController: {
+            selectors: {
+                columns: (config: {searchTerm?: string}) => {
+                    columnConfigs.push(config)
+                    return columns
+                },
+                rows: (config: {scopeId: string}) =>
+                    config.scopeId === "empty"
+                        ? noRows
+                        : config.scopeId === "narrow"
+                          ? narrowRows
+                          : rows,
+            },
+        },
+    }
 })
 
 interface Header {
@@ -51,6 +71,7 @@ const ROWS: Row[] = [
 
 vi.mock("@agenta/entity-ui/testcase", () => ({
     TestcaseTable: (props: {
+        config: {scopeId: string; searchTerm?: string}
         selectable?: boolean
         selectionDisabled?: boolean
         onSelectionChange?: (ids: string[]) => void
@@ -59,8 +80,11 @@ vi.mock("@agenta/entity-ui/testcase", () => ({
         renderColumnHeader?: (header: Header) => ReactNode
         headerExtra?: ReactNode
     }) => (
-        <div>
-            <div data-testid="toolbar">{props.headerExtra}</div>
+        <div data-search={props.config.searchTerm ?? ""}>
+            {/* Like the real table, no toolbar while there are no rows. */}
+            {props.config.scopeId === "empty" ? null : (
+                <div data-testid="toolbar">{props.headerExtra}</div>
+            )}
             {props.selectable ? (
                 <button
                     type="button"
@@ -156,12 +180,58 @@ describe("Test set grid", () => {
         host.remove()
     })
 
+    it("Search narrows the grid rows, leaves the editor rows alone and clears the selection", async () => {
+        vi.useFakeTimers()
+        try {
+            const editor = fakeEditor()
+            mount(editor)
+            await click(button("Select all"))
+            expect(button("Delete")?.hasAttribute("disabled")).toBe(false)
+            const box = byLabel("Search testcases...") as HTMLInputElement
+            expect(box).not.toBeNull()
+            await act(async () => {
+                const setValue = Object.getOwnPropertyDescriptor(
+                    HTMLInputElement.prototype,
+                    "value",
+                )?.set
+                setValue?.call(box, "Peru")
+                box.dispatchEvent(new Event("input", {bubbles: true}))
+            })
+            await act(async () => {
+                vi.advanceTimersByTime(300)
+            })
+            expect(document.querySelector("[data-search]")?.getAttribute("data-search")).toBe(
+                "Peru",
+            )
+            expect(editor.tableConfig).not.toHaveProperty("searchTerm")
+            // The header actions read the same columns as the table.
+            expect(columnConfigs.at(-1)?.searchTerm).toBe("Peru")
+            // The rows selected before the search are no longer selected.
+            expect(button("Delete")?.hasAttribute("disabled")).toBe(true)
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
+    it("With no rows, Add column still shows", async () => {
+        const editor = fakeEditor({
+            isNew: true,
+            tableConfig: {scopeId: "empty", revisionId: "new", includeNewRows: true},
+        })
+        mount(editor)
+        expect(button("Add column")).toBeDefined()
+        await click(button("Add column"))
+        expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+    })
+
     it("Rename column with an unchanged name changes nothing", async () => {
         const editor = fakeEditor()
         const {onColumnSaved} = mount(editor)
         await press(byLabel("Column question actions"))
         await click(item("Rename column"))
-        expect(document.querySelector("input")?.value).toBe("question")
+        expect(document.querySelector<HTMLInputElement>('[role="dialog"] input')?.value).toBe(
+            "question",
+        )
 
         await click(button("Rename and save"))
 
@@ -224,6 +294,19 @@ describe("Test set grid", () => {
 
         expect(editor.deleteRows).toHaveBeenCalledWith(["case-1", "new-1"])
         expect(toast.success).toHaveBeenCalledWith("Deleted 2 testcase(s). Save to apply changes.")
+    })
+
+    it("Bulk delete takes only the selected rows the grid still shows", async () => {
+        const editor = fakeEditor({
+            tableConfig: {scopeId: "narrow", revisionId: "rev-2", includeNewRows: true},
+        })
+        mount(editor)
+        // Both rows are selected; only case-1 is still shown.
+        await click(button("Select all"))
+        await click(button("Delete"))
+
+        expect(editor.deleteRows).toHaveBeenCalledWith(["case-1"])
+        expect(toast.success).toHaveBeenCalledWith("Deleted testcase. Save to apply changes.")
     })
 
     it("A reader without edit_testsets sees no column or row edit actions", async () => {
