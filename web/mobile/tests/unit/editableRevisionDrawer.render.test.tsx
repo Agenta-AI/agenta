@@ -5,11 +5,11 @@
  * `@agenta/shared/api` answers from the fixtures below, and the commit test asserts the exact
  * request it sent.
  */
-import {act} from "react"
+import {act, StrictMode, useEffect} from "react"
 
 import {projectPermissionQueryKey} from "@agenta/entities/access"
-import {workflowMolecule} from "@agenta/entities/workflow"
-import {playgroundController} from "@agenta/playground"
+import {createLocalDraftFromWorkflowRevision, workflowMolecule} from "@agenta/entities/workflow"
+import {playgroundController, playgroundInitializedAtom} from "@agenta/playground"
 import {queryClient as hostQueryClient} from "@agenta/shared/api"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {QueryClientProvider, type QueryClient} from "@tanstack/react-query"
@@ -140,22 +140,26 @@ let client: QueryClient
 const calls: {url: string; body: Body; params: unknown}[] = []
 const sent = (suffix: string) => calls.filter((call) => call.url.endsWith(suffix))
 
-const render = () =>
-    root.render(
+let strict = false
+const render = () => {
+    const drawer = (
         <QueryClientProvider client={client}>
             <EditableRevisionDrawerHost
                 projectId={projectId}
                 kind="variant"
                 navigationIds={["rev-2", "rev-1"]}
             />
-        </QueryClientProvider>,
+        </QueryClientProvider>
     )
+    root.render(strict ? <StrictMode>{drawer}</StrictMode> : drawer)
+}
 
 beforeEach(() => {
     Object.assign(globalThis, {IS_REACT_ACT_ENVIRONMENT: true})
     Element.prototype.scrollIntoView = vi.fn()
     Element.prototype.hasPointerCapture = () => false
     Element.prototype.releasePointerCapture = () => undefined
+    strict = false
     world.revisions = [makeRevision("rev-1", 1, "First"), makeRevision("rev-2", 2, "Second")]
     client = hostQueryClient
     client.clear()
@@ -197,8 +201,8 @@ const settle = async () => {
         })
     }
 }
-const until = async (read: () => unknown) => {
-    for (let i = 0; i < 200 && !read(); i++) {
+const until = async (read: () => unknown, tries = 200) => {
+    for (let i = 0; i < tries && !read(); i++) {
         await act(async () => {
             await new Promise((resolve) => setTimeout(resolve, 25))
         })
@@ -223,7 +227,8 @@ const click = async (name: string) => {
 }
 const mount = async () => {
     act(() => render())
-    await until(() => title().includes("v2") && shown().includes("rev-2"))
+    // The first mount of a run imports the editor and can take longer on a busy machine.
+    await until(() => title().includes("v2") && shown().includes("rev-2"), 1200)
 }
 const edit = async (text: string) => {
     act(() => store.set(workflowMolecule.actions.updateConfiguration, "rev-2", prompt(text)))
@@ -244,7 +249,7 @@ describe("The editable revision drawer", () => {
         await mount()
 
         expect(title()).toContain("Revision")
-        expect(title()).toContain("default")
+        await until(() => title().includes("default"))
         expect(title()).toContain("v2")
         expect(document.querySelector('[data-testid="config-section"]')).not.toBeNull()
         expect(find("Commit")!.hasAttribute("disabled")).toBe(true)
@@ -309,6 +314,7 @@ describe("The editable revision drawer", () => {
         expect(router.query.revisionId).toBeUndefined()
         act(() => root.unmount())
         root = createRoot(host)
+        await settle()
 
         expect(shown()).toEqual([])
         expect(store.get(workflowMolecule.selectors.isDirty("rev-2"))).toBe(false)
@@ -324,5 +330,46 @@ describe("The editable revision drawer", () => {
         expect(router.query.revisionId).toBe("rev-1")
         expect(shown()).toEqual(["rev-1"])
         expect(drawer()).not.toBeNull()
+    })
+
+    it("Keeps an unsaved local revision through a strict mode remount, and offers Create", async () => {
+        await mount()
+        act(() => root.unmount())
+        root = createRoot(host)
+        await settle()
+        const localId = createLocalDraftFromWorkflowRevision("rev-2")
+        expect(localId).toBeTruthy()
+
+        strict = true
+        router.query = {...router.query, revisionId: localId!}
+        act(() => render())
+        await settle()
+
+        expect(store.get(workflowMolecule.selectors.data(localId!))).not.toBeNull()
+        expect(shown()).toEqual([localId])
+        expect(find("Commit") ?? find("Create")).toBeDefined()
+        expect(sent("/workflows/revisions/commit")).toHaveLength(0)
+    })
+
+    it("Open in playground keeps the revision the playground page sets up", async () => {
+        await mount()
+        // The playground page sets itself up in its mount effect, in the commit that removes the
+        // drawer, as usePlaygroundSelection does.
+        const PlaygroundPage = () => {
+            useEffect(() => {
+                store.set(playgroundController.actions.addPrimaryNode, {
+                    type: "workflow",
+                    id: "rev-2",
+                    label: "rev-2",
+                })
+                store.set(playgroundInitializedAtom, true)
+            }, [])
+            return null
+        }
+        act(() => root.render(<PlaygroundPage />))
+        await settle()
+
+        expect(shown()).toEqual(["rev-2"])
+        expect(store.get(playgroundInitializedAtom)).toBe(true)
     })
 })

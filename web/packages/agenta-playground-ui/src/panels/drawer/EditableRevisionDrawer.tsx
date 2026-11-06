@@ -54,9 +54,7 @@ export const EditableRevisionDrawer = ({
     defaultTesting = false,
 }: EditableRevisionDrawerProps) => {
     const store = useStore()
-    // The revision a commit just made. The drawer shows it from inside the commit, before the
-    // commit clears the draft it came from: shown any later (when the host passes it back), the
-    // form first draws the old revision without the edits and keeps that text after the switch.
+    // Shown from inside the commit: switching after it clears the draft leaves the form on old text.
     const [committedId, setCommittedId] = useState<string | null>(null)
     // Keep the last revision drawn while the sheet slides out after a close.
     const shownIdRef = useRef(revisionId)
@@ -64,9 +62,11 @@ export const EditableRevisionDrawer = ({
     const shownId = committedId ?? shownIdRef.current
     if (committedId && revisionId === committedId) setCommittedId(null)
     const currentIdRef = useRef(shownId)
-    currentIdRef.current = shownId
+    useEffect(() => {
+        currentIdRef.current = shownId
+    }, [shownId])
 
-    // The commit callback is one slot for the app: keep the one before and put it back on close.
+    // One callback slot for the app: chain the one before and restore it on close.
     useEffect(() => {
         const previous = getWorkflowCommitCallbacks().onNewRevision
         registerWorkflowCommitCallbacks({

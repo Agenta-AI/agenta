@@ -16,6 +16,7 @@ import {useProjectPermission} from "../context/useProjectPermission"
 import {useDeveloperViewEnabled} from "../developer/developerViewAccess"
 import {useUrlParams} from "../developer/useUrlParams"
 import {playgroundHref} from "../playground/playgroundUrl"
+import {DeployRevisionButton} from "../revisions/DeployRevisionButton"
 import {OpenInPlaygroundButton} from "../revisions/OpenInPlaygroundButton"
 import {useRevisionParam} from "../revisions/useRevisionParam"
 import {useSettingsOrg} from "../settings/useSettingsOrg"
@@ -33,13 +34,12 @@ const RevisionDrawerHost = dynamic(
     () => import("../revisions/RevisionDrawerHost").then((module) => module.RevisionDrawerHost),
     {ssr: false},
 )
-// Beta developer mode edits the revision in the drawer, as /w does. The read-only drawer stays for
-// everyone else.
 // Beta developer mode: "Use API" opens the code in a drawer for the selected environment.
 const UseApiDrawer = dynamic(
     () => import("../endpoints/UseApiDrawer").then((module) => module.UseApiDrawer),
     {ssr: false},
 )
+// Beta developer mode only; everyone else keeps the read-only drawer.
 const EditableRevisionDrawerHost = dynamic(
     () =>
         import("../revisions/EditableRevisionDrawerHost").then(
@@ -219,7 +219,31 @@ export const DeploymentsTab = ({
                         projectId={projectId}
                         kind="deployment"
                         navigationIds={navigationIds}
-                        actions={drawerActions}
+                        actions={
+                            <>
+                                {playgroundEnabled && revisionId ? (
+                                    <OpenInPlaygroundButton
+                                        href={playgroundHref(base, app.id, [revisionId])}
+                                    />
+                                ) : null}
+                                {canDeploy ? (
+                                    <DeployRevisionButton
+                                        revisionId={revisionId}
+                                        appId={app.id}
+                                        appSlug={app.slug ?? null}
+                                    />
+                                ) : null}
+                                {canRevert(shownRow) ? (
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setRevertRow(shownRow)}
+                                    >
+                                        Revert
+                                    </Button>
+                                ) : null}
+                            </>
+                        }
                     />
                 ) : (
                     <RevisionDrawerHost
