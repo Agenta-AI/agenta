@@ -372,6 +372,30 @@ describe("DeployToEnvironmentDialog", () => {
 })
 
 describe("DeploymentsTab in beta developer mode", () => {
+    const productionCard = () =>
+        [...document.querySelectorAll("button[aria-pressed]")].find((el) =>
+            el.textContent?.toLowerCase().includes("production"),
+        )
+
+    it("An environment with nothing deployed shows a dash for Last modified, as /w does", () => {
+        fixture.beta = true
+        fixture.environments.data = [
+            environment("development", "rev-2", "First"),
+            {...environment("production", null, null), updatedAt: "2026-03-04T10:15:00Z"},
+        ]
+        mountTab()
+        expect(productionCard()?.textContent).toContain("Last modified-")
+        expect(productionCard()?.textContent).not.toContain("2026")
+    })
+
+    it("Without beta developer mode that card keeps its date", () => {
+        fixture.environments.data = [
+            {...environment("production", null, null), updatedAt: "2026-03-04T10:15:00Z"},
+        ]
+        mountTab()
+        expect(productionCard()?.textContent).toContain("2026")
+    })
+
     const menuItems = (menu: Element) => {
         act(() => {
             menu.dispatchEvent(
