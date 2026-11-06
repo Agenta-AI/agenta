@@ -2,11 +2,11 @@ import {useCallback, useEffect, useRef} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {playgroundController, playgroundInitializedAtom} from "@agenta/playground"
+import {clearPlayground} from "@agenta/playground-ui/state"
 import {useAtomValue, useStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 import {useRouter} from "next/router"
 
-import {clearPlayground} from "./clearPlayground"
 import {parseRevisionIds} from "./playgroundUrl"
 import type {PlaygroundLoadStatus} from "./usePlaygroundSelection"
 

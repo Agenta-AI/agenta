@@ -35,6 +35,7 @@ export const DeleteFolderDialog = ({
             </div>
         }
         confirmLabel={promptsCopy.deleteDialog.confirm}
+        solid
         pending={pending}
         error={error}
         onConfirm={onConfirm}

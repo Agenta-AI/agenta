@@ -1,16 +1,26 @@
 import {createElement, useMemo} from "react"
 
-import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
+import {
+    agentWorkflowsListQueryStateAtom,
+    isHumanEvaluator,
+    nonArchivedEvaluatorsAtom,
+    promptWorkflowsListQueryStateAtom,
+    type Workflow,
+} from "@agenta/entities/workflow"
 import {AgentChip} from "@agenta/entity-ui/agent"
 import {
     sidebarSessionSearchLoadingAtom,
+    sidebarSessionSearchOpenAtom,
     sidebarSessionSearchResultsAtom,
     type SessionSidebarRef,
+    type SidebarConfig,
 } from "@agenta/navigation"
 import type {CommandPaletteEntry, CommandPaletteGroup} from "@agenta/navigation-ui"
 import {getSettingsSidebarTabs} from "@agenta/settings"
+import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {
     ChatsCircleIcon,
+    GavelIcon,
     GearIcon,
     GraduationCapIcon,
     HouseIcon,
@@ -19,12 +29,17 @@ import {
     RobotIcon,
     SquaresFourIcon,
 } from "@phosphor-icons/react"
-import {useAtomValue} from "jotai"
+import {atom, useAtomValue} from "jotai"
 
 import {agentEntryHref} from "@/features/agents/agentEntry"
+import {useEnabledDeveloperViews} from "@/features/developer/developerViewAccess"
+import type {DeveloperView} from "@/features/developer/developerViews"
 import {AVAILABLE_SETTINGS_TABS, useMobileSettingsAccess} from "@/features/settings/settingsTabs"
 import {withMobileSettingsLabels} from "@/lib/integrationsCopy"
 
+import {playgroundHref} from "../playground/playgroundUrl"
+
+import {developerNavSlots} from "./developerNavSlots"
 import {mobileSessionsEntity} from "./useMobileNavItems"
 
 /** Case-insensitive substring over the label and any extra words. */
@@ -38,6 +53,25 @@ const RECENT_AGENTS = 5
 const MATCH_CAP = 8
 
 const icon = (Icon: typeof HouseIcon) => createElement(Icon, {size: 14})
+
+const evaluatorsHref = (projectURL: string, human: boolean) =>
+    `${projectURL}/evaluators?tab=${human ? "human" : "automatic"}`
+
+const NO_WORKFLOWS = atom<readonly Workflow[]>([])
+const NO_PROMPTS = atom({data: [] as Workflow[], isPending: false, isError: false, error: null})
+
+/** The developer rail's pages, flattened: Prompts, the Evaluation pages and Observability. */
+const developerPages = (
+    projectURL: string,
+    views: readonly DeveloperView[],
+): CommandPaletteEntry[] => {
+    const {afterHome, afterSessions} = developerNavSlots(projectURL, views, true)
+    return [...afterHome, ...afterSessions]
+        .flatMap((row: SidebarConfig) => row.submenu ?? [row])
+        .flatMap((row) =>
+            row.link ? [{key: row.key, label: row.title, icon: row.icon, href: row.link}] : [],
+        )
+}
 
 /**
  * What the palette can reach, by group, most-wanted first: sessions, agents, then the pages
@@ -58,6 +92,14 @@ export const useCommandPaletteGroups = (
     const searching = useAtomValue(sidebarSessionSearchLoadingAtom)
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
     const access = useMobileSettingsAccess()
+    // Beta developer mode only, and only while the palette is open with a query: the prompt apps
+    // and the evaluators load then, not with the rail.
+    const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
+    const open = useAtomValue(sidebarSessionSearchOpenAtom)
+    const views = useEnabledDeveloperViews()
+    const findWorkflows = developerMode && open && typed
+    const prompts = useAtomValue(findWorkflows ? promptWorkflowsListQueryStateAtom : NO_PROMPTS)
+    const evaluators = useAtomValue(findWorkflows ? nonArchivedEvaluatorsAtom : NO_WORKFLOWS)
 
     const groups = useMemo<CommandPaletteGroup[]>(() => {
         const sessionRow = (ref: SessionSidebarRef): CommandPaletteEntry => ({
@@ -126,7 +168,36 @@ export const useCommandPaletteGroups = (
                 icon: icon(GearIcon),
                 href: `${projectURL}/settings`,
             },
+            ...(developerMode ? developerPages(projectURL, views) : []),
         ].filter((page) => !typed || matches(q, page.label))
+
+        const workflowRows = (
+            list: readonly Workflow[],
+            hint: string,
+            glyph: typeof HouseIcon,
+            href: (workflow: Workflow) => string,
+        ): CommandPaletteEntry[] =>
+            list
+                .filter((workflow) => matches(q, workflow.name || workflow.slug || ""))
+                .slice(0, MATCH_CAP)
+                .map((workflow) => ({
+                    key: workflow.id,
+                    label: workflow.name || workflow.slug || hint,
+                    icon: icon(glyph),
+                    hint,
+                    href: href(workflow),
+                }))
+        const promptRows = findWorkflows
+            ? workflowRows(prompts.data, "Prompt", SquaresFourIcon, (app) =>
+                  playgroundHref(projectURL, app.id),
+              )
+            : []
+        // /m has no page per evaluator yet: an evaluator opens its tab of the Evaluators list.
+        const evaluatorRows = findWorkflows
+            ? workflowRows(evaluators, "Evaluator", GavelIcon, (evaluator) =>
+                  evaluatorsHref(projectURL, isHumanEvaluator(evaluator)),
+              )
+            : []
 
         // Settings tabs only once something is typed: the empty state is for sessions and agents.
         const settings: CommandPaletteEntry[] = typed
@@ -163,11 +234,30 @@ export const useCommandPaletteGroups = (
         return [
             {key: "sessions", heading: "Sessions", entries: sessions},
             {key: "agents", heading: "Agents", entries: agentRows},
+            ...(developerMode
+                ? [
+                      {key: "prompts", heading: "Prompts", entries: promptRows},
+                      {key: "evaluators", heading: "Evaluators", entries: evaluatorRows},
+                  ]
+                : []),
             {key: "pages", heading: "Pages", entries: pages},
             {key: "settings", heading: "Settings", entries: settings},
             {key: "actions", heading: "Actions", entries: actions},
         ]
-    }, [access, agentsQuery.data, hits, projectURL, q, source.refs, typed])
+    }, [
+        access,
+        agentsQuery.data,
+        developerMode,
+        evaluators,
+        findWorkflows,
+        hits,
+        projectURL,
+        prompts.data,
+        q,
+        source.refs,
+        typed,
+        views,
+    ])
 
     return {groups, loading: typed && searching}
 }

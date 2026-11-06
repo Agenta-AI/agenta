@@ -20,9 +20,15 @@ const LiveEvaluationSheet = dynamic(
     {ssr: false},
 )
 
-const CREATE_KINDS: readonly CreatableKind[] = ["auto", "human", "online"]
+// The SDK setup sheet is only code to copy, so it loads at the first open as well.
+const SdkEvaluationSheet = dynamic(
+    () => import("./SdkEvaluationSheet").then((module) => module.SdkEvaluationSheet),
+    {ssr: false},
+)
+
+const CREATE_KINDS: readonly CreatableKind[] = ["auto", "human", "online", "custom"]
 // Live evaluations are project wide, so an app scoped list does not offer them.
-const APP_CREATE_KINDS: readonly CreatableKind[] = ["auto", "human"]
+const APP_CREATE_KINDS: readonly CreatableKind[] = ["auto", "human", "custom"]
 
 /** The runs list with the wizard and the live evaluation sheet behind its create entry. */
 export const EvaluationsRoute = ({
@@ -38,9 +44,15 @@ export const EvaluationsRoute = ({
     const [loaded, setLoaded] = useState(false)
     const [liveOpen, setLiveOpen] = useState(false)
     const [liveLoaded, setLiveLoaded] = useState(false)
+    const [sdkOpen, setSdkOpen] = useState(false)
+    const [sdkLoaded, setSdkLoaded] = useState(false)
 
     const handleCreate = useCallback((next: CreatableKind) => {
-        if (next === "custom") return
+        if (next === "custom") {
+            setSdkLoaded(true)
+            setSdkOpen(true)
+            return
+        }
         if (next === "online") {
             setLiveLoaded(true)
             setLiveOpen(true)
@@ -84,6 +96,14 @@ export const EvaluationsRoute = ({
                     onClose={() => setLiveOpen(false)}
                     // A new live run shows on its own tab.
                     onCreated={() => filters.setKind("online")}
+                />
+            ) : null}
+            {sdkLoaded ? (
+                <SdkEvaluationSheet
+                    open={sdkOpen}
+                    workspaceId={workspaceId}
+                    projectId={projectId}
+                    onClose={() => setSdkOpen(false)}
                 />
             ) : null}
         </>

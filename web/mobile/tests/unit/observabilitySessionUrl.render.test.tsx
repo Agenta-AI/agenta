@@ -26,7 +26,6 @@ const {router, drawerProps} = vi.hoisted(() => ({
 vi.mock("next/router", () => ({default: router, useRouter: () => router}))
 vi.mock("@/features/developer/developerViewAccess", () => ({
     useDeveloperViewEnabled: () => false,
-    canDeveloperViewBeEnabled: () => false,
 }))
 vi.mock("@agenta/observability", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/observability")>()),
