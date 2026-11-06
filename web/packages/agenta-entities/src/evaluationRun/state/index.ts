@@ -26,6 +26,7 @@ export {
     runReferencesAtomFamily,
     type RunEvaluatorReference,
     type RunHeader,
+    type RunQueryReference,
     type RunReferences,
     type RunTestsetReference,
 } from "./runDetails"

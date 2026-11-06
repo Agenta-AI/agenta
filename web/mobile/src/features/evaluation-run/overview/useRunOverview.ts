@@ -56,13 +56,17 @@ export function useOverviewNames(ids: OverviewNameIds): OverviewNames {
     return useAtomValue(namesAtom)
 }
 
+const NO_QUERY = {queryId: "", revisionId: null}
+
 /** Everything the Overview tab of one run reads. Compare runs are a later step. */
 export function useRunOverview(runId: string) {
     const references = useAtomValue(runReferencesAtomFamily(runId))
     const metricsQuery = useAtomValue(runLevelMetricsQueryAtomFamily(runId))
     const catalog = useAtomValue(runMetricCatalogAtomFamily(runId))
-    // A live run's trace query; a run without one reads nothing.
-    const queryConfig = useAtomValue(runQueryConfigQueryAtomFamily(references?.queryIds[0] ?? ""))
+    // A live run's trace query, at the revision the run stored; a run without one reads nothing.
+    const queryConfig = useAtomValue(
+        runQueryConfigQueryAtomFamily(references?.queries[0] ?? NO_QUERY),
+    )
 
     const names = useOverviewNames({
         evaluatorIds: catalog.flatMap((entry) => entry.evaluatorId ?? []),

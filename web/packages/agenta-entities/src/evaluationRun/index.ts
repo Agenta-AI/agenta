@@ -238,6 +238,7 @@ export {
     type RunEvaluatorReference,
     type RunHeader,
     type RunMetricEntry,
+    type RunQueryReference,
     type RunReferences,
     type RunTestsetReference,
     type TemporalMetricPoint,
