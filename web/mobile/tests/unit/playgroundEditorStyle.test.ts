@@ -27,8 +27,8 @@ const MESSAGE = `
   </div>
 </div>`
 
-/** The run status tag as the shared Badge renders it. */
-const SUCCESS = `<span data-slot="badge" class="bg-success-bg text-success">Success</span>`
+/** The run status tag as the shared Badge renders it. A menu trigger replaces its `data-slot`. */
+const SUCCESS = `<span data-slot="dropdown-menu-trigger" class="bg-success-bg text-success">Success</span>`
 
 beforeAll(() => {
     const theme = readFileSync(require.resolve("@agenta/ui/editor-theme.css"), "utf8")
@@ -68,14 +68,28 @@ describe("Playground message editor style", () => {
     })
 
     it("paints the Success tag with its green background", () => {
-        expect(styleOf("playground", '[data-slot="badge"]').backgroundColor).toBe(
+        expect(styleOf("playground", ".bg-success-bg").backgroundColor).toBe(
             "var(--ag-colorSuccessBg)",
         )
+    })
+
+    it("paints the draft tag and the flow chips in their colours", () => {
+        const host = document.createElement("div")
+        host.setAttribute("data-playground", "")
+        host.innerHTML = `<span id="draft" class="bg-draft-bg text-draft">Draft</span><span id="chip" class="bg-tag-green-bg text-tag-green">Score</span>`
+        document.body.append(host)
+        expect(getComputedStyle(host.querySelector("#draft")!).backgroundColor).toBe(
+            "var(--ag-draft-bg)",
+        )
+        expect(getComputedStyle(host.querySelector("#chip")!).color).toBe(
+            "var(--ag-preset-green-text)",
+        )
+        host.remove()
     })
 
     it("leaves the same editor outside the playground as it was", () => {
         expect(styleOf("elsewhere", ".editor-input").minHeight).toBe("150px")
         expect(styleOf("elsewhere", ".editor-code").fontFamily).toMatch(/monospace/)
-        expect(styleOf("elsewhere", '[data-slot="badge"]').backgroundColor).toBe("rgba(0, 0, 0, 0)")
+        expect(styleOf("elsewhere", ".bg-success-bg").backgroundColor).toBe("rgba(0, 0, 0, 0)")
     })
 })

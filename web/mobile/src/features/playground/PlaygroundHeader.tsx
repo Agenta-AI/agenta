@@ -12,18 +12,24 @@ export const PlaygroundHeader = ({
     workspaceId,
     projectId,
     appName,
+    newEvaluation,
     actions,
 }: {
     workspaceId: string
     projectId: string
     appName: string | null
+    /** "New Evaluation", first and set apart from the rest, as in the old playground. */
+    newEvaluation?: ReactNode
     actions?: ReactNode
 }) => (
     <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4">
         <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-        <h1 className="m-0 min-w-0 truncate text-sm font-semibold text-foreground">{appName}</h1>
-        <span className="shrink-0 text-sm text-muted-foreground">Playground</span>
+        <h1 className="m-0 min-w-16 truncate text-sm font-semibold text-foreground">{appName}</h1>
+        {/* On a phone the app name gets the room: the pane switch below says where you are. */}
+        <span className="shrink-0 text-sm text-muted-foreground max-sm:hidden">Playground</span>
         <div className="ml-auto flex items-center justify-end gap-2">
+            {newEvaluation}
+            {newEvaluation ? <span aria-hidden className="h-4 w-px shrink-0 bg-border" /> : null}
             <EvaluatorPicker />
             {actions}
         </div>

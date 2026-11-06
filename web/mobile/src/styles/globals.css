@@ -595,38 +595,69 @@
     margin: 0;
 }
 
-/* Status and draft tags in the playground. The shared Badge paints its `success`, `warning`,
-   `error`, `info` and `draft` variants with utilities (`bg-success-bg`, `text-draft`, ...) that
-   /w defines from `shadcnTokens.ts` and /m does not, so here "Success" and "draft" rendered as
-   plain text. Defined for the playground only, with /w's values: the same badges elsewhere in /m
-   keep their current look. */
-[data-playground] [data-slot="badge"].bg-success-bg {
+/* Status and draft colours in the playground. Shared components paint the `success`, `warning`,
+   `error`, `info` and `draft` states and the tag colours with utilities (`bg-success-bg`, `text-draft`, ...) that /w
+   defines from `shadcnTokens.ts` and /m does not, so here "Success" and "Draft" rendered as plain
+   text. Defined for the playground only, with /w's values: the same components elsewhere in /m
+   keep their current look. A popover renders outside the page, so the playground's own popovers
+   set `data-playground` themselves. */
+[data-playground] .bg-success-bg {
     background-color: var(--ag-colorSuccessBg);
 }
-[data-playground] [data-slot="badge"].bg-warning-bg {
+[data-playground] .bg-warning-bg {
     background-color: var(--ag-colorWarningBg);
 }
-[data-playground] [data-slot="badge"].text-warning {
+[data-playground] .text-warning {
     color: var(--ag-colorWarningText);
 }
-[data-playground] [data-slot="badge"].bg-error-bg {
+[data-playground] .bg-error-bg {
     background-color: var(--ag-colorErrorBg);
 }
-[data-playground] [data-slot="badge"].text-error {
+[data-playground] .text-error {
     color: var(--ag-colorError);
 }
-[data-playground] [data-slot="badge"].bg-info-bg {
+[data-playground] .bg-info-bg {
     background-color: var(--ag-colorInfoBg);
 }
-[data-playground] [data-slot="badge"].text-info {
+[data-playground] .text-info {
     color: var(--ag-colorInfo);
 }
-[data-playground] [data-slot="badge"].bg-draft-bg {
+[data-playground] .bg-draft-bg {
     background-color: var(--ag-draft-bg);
 }
-[data-playground] [data-slot="badge"].border-draft-border {
+[data-playground] .border-draft-border {
     border-color: var(--ag-draft-border);
 }
-[data-playground] [data-slot="badge"].text-draft {
+[data-playground] .text-draft {
     color: var(--ag-draft-text);
+}
+[data-playground] .bg-tag-blue-bg {
+    background-color: var(--ag-preset-blue-bg);
+}
+[data-playground] .text-tag-blue {
+    color: var(--ag-preset-blue-text);
+}
+[data-playground] .bg-tag-purple-bg {
+    background-color: var(--ag-preset-purple-bg);
+}
+[data-playground] .text-tag-purple {
+    color: var(--ag-preset-purple-text);
+}
+[data-playground] .bg-tag-green-bg {
+    background-color: var(--ag-preset-green-bg);
+}
+[data-playground] .text-tag-green {
+    color: var(--ag-preset-green-text);
+}
+[data-playground] .bg-tag-cyan-bg {
+    background-color: var(--ag-preset-cyan-bg);
+}
+[data-playground] .text-tag-cyan {
+    color: var(--ag-preset-cyan-text);
+}
+[data-playground] .bg-tag-gold-bg {
+    background-color: var(--ag-preset-gold-bg);
+}
+[data-playground] .text-tag-gold {
+    color: var(--ag-preset-gold-text);
 }
