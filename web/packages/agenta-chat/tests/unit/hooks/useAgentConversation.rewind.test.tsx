@@ -201,6 +201,25 @@ describe("rewinding a turn", () => {
         expect(view.result.current.rewind(THREE_TURNS[0])).not.toBeNull()
     })
 
+    it("a read during the rewind keeps the turn until the rewind finishes", async () => {
+        let answer: (value: boolean) => void = () => undefined
+        rewindAnswer.current = new Promise((resolve) => (answer = resolve))
+        const {view, push} = await openSession()
+
+        const plan = view.result.current.rewind(THREE_TURNS[3])
+        let done: Promise<boolean> | undefined
+        act(() => {
+            done = plan?.confirm()
+        })
+        await push(transcript(THREE_TURNS.slice(0, 2), 13, 13))
+
+        expect(view.result.current.messages).toHaveLength(6)
+        await act(async () => {
+            answer(true)
+            await done
+        })
+    })
+
     it("a cached read from before the rewind does not bring the turns back", async () => {
         const {view, push} = await openSession()
         const plan = view.result.current.rewind(THREE_TURNS[2])

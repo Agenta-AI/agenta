@@ -649,6 +649,8 @@ export const useAgentConversation = ({
             generation: number,
         ): boolean => {
             if (!mount.isCurrent(generation)) return false
+            // A re-run still needs the user message the server just removed.
+            if (rewindInFlightRef.current) return false
             if (!isSessionTranscript(transcript)) return false
             const {messages: serverMsgs, recordCount, sequenceCursor, rewoundSequence} = transcript
             const adopt = shouldAdoptServerTranscript({

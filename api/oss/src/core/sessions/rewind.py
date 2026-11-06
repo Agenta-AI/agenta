@@ -15,6 +15,11 @@ from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.core.sessions.turns.service import SessionTurnsService
 
 
+# The runner drains its warm session first and keeps sweeping after the caller stops waiting,
+# so a person at the screen waits for the drain, not for the sandbox provider.
+_KILL_WAIT_SECONDS = 2.0
+
+
 class SessionRewindBusy(Exception):
     def __init__(self, session_id: str):
         self.session_id = session_id
@@ -66,7 +71,11 @@ class SessionRewindService:
             project_id=project_id,
             session_id=session_id,
         )
-        await kill_runner_sandbox(project_id=str(project_id), session_id=session_id)
+        await kill_runner_sandbox(
+            project_id=str(project_id),
+            session_id=session_id,
+            timeout_seconds=_KILL_WAIT_SECONDS,
+        )
         return await self._records.rewind_from_turn(
             project_id=project_id,
             session_id=session_id,
