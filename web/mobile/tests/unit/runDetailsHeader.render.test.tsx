@@ -48,6 +48,30 @@ vi.mock("@/features/context/useBindProjectContext", () => ({
     useBindProjectContext: () => undefined,
 }))
 vi.mock("@/components/PageTitle", () => ({PageTitle: () => null}))
+// The evaluator catalog picker is the new evaluation's; here it picks one fixed revision.
+vi.mock("@/features/evaluation-run/RunEvaluatorPicker", () => ({
+    RunEvaluatorPicker: ({
+        human,
+        onPick,
+    }: {
+        human: boolean
+        onPick: (evaluator: {
+            revisionId: string
+            evaluatorId: string
+            name: string
+            version: number
+        }) => void
+    }) =>
+        createElement(
+            "button",
+            {
+                type: "button",
+                onClick: () =>
+                    onPick({revisionId: "evr-2", evaluatorId: "ev-2", name: "Tone", version: 2}),
+            },
+            human ? "Pick human evaluator" : "Pick evaluator",
+        ),
+}))
 vi.mock("@agenta/auth-ui", () => ({
     NotFoundScreen: () => createElement("p", {"data-testid": "not-found"}),
 }))
@@ -113,6 +137,18 @@ function serveRun(spec: RunSpec = {}, others: ReturnType<typeof makeRun>[] = [])
             return {data: {count: runs.length, runs, windowing: {next: null}}}
         }
         if (url.endsWith("/evaluations/metrics/query")) return {data: {count: 0, metrics: []}}
+        if (url.endsWith("/evaluations/scenarios/query")) {
+            return {
+                data: {
+                    scenarios: [
+                        {id: "sc-1", run_id: id},
+                        {id: "sc-2", run_id: id},
+                    ],
+                    windowing: {next: null},
+                },
+            }
+        }
+        if (url.endsWith(`/simple/evaluations/${id}/process`)) return {data: {}}
         throw new Error(`unexpected request ${url}`)
     })
     http.patch.mockImplementation(
@@ -211,6 +247,117 @@ afterEach(() => {
     vi.unstubAllEnvs()
 })
 
+/** The Configuration tab loads its own chunk: wait until its summary card is on screen. */
+const waitForConfiguration = async () => {
+    for (let i = 0; i < 50 && !host.querySelector("[aria-label='Run summary']"); i++) {
+        await act(async () => new Promise((resolve) => setTimeout(resolve, 100)))
+    }
+    expect(host.querySelector("[aria-label='Run summary']")).not.toBeNull()
+}
+
+const processCalls = () => http.post.mock.calls.filter(([url]) => String(url).endsWith("/process"))
+
+describe("adding an evaluator to a run", () => {
+    it("Update adds the picked evaluator to the run's evaluators, then runs it on every scenario", async () => {
+        const id = serveRun()
+        await mount()
+        await openEditDialog()
+        await act(async () => button("Pick evaluator")?.click())
+        await flush()
+        expect(document.body.textContent).toContain("Tone")
+
+        await act(async () => button("Update")?.click())
+        await flush()
+
+        expect(http.patch).toHaveBeenCalledWith(
+            `https://agenta.test/api/simple/evaluations/${id}`,
+            {
+                evaluation: {
+                    id,
+                    name: "Capitals check",
+                    description: "",
+                    data: {
+                        testset_steps: {"tsr-1": "custom"},
+                        application_steps: {"rev-1": "auto"},
+                        evaluator_steps: {"evr-1": "auto", "evr-2": "auto"},
+                    },
+                },
+            },
+            {params: {project_id: "pr"}},
+        )
+        expect(processCalls()).toEqual([
+            [
+                `https://agenta.test/api/simple/evaluations/${id}/process`,
+                {scenario_ids: ["sc-1", "sc-2"], overwrite: false},
+                {params: {project_id: "pr"}},
+            ],
+        ])
+        expect(toast.success).toHaveBeenCalledWith("Evaluation updated")
+    })
+
+    it("A removed pick is not saved, and with nothing else changed Update stays off", async () => {
+        serveRun()
+        await mount()
+        await openEditDialog()
+        await act(async () => button("Pick evaluator")?.click())
+        expect(button("Update")?.disabled).toBe(false)
+        const remove = document.querySelector<HTMLButtonElement>("[aria-label='Remove Tone']")
+        await act(async () => remove?.click())
+        expect(document.body.textContent).not.toContain("Tone")
+        expect(button("Update")?.disabled).toBe(true)
+        expect(http.patch).not.toHaveBeenCalled()
+    })
+
+    it("A failed run of the new evaluator keeps the dialog open and says so", async () => {
+        serveRun()
+        await mount()
+        const post = http.post.getMockImplementation()
+        http.post.mockImplementation(async (url: string, body: unknown) => {
+            if (String(url).endsWith("/process")) throw new Error("worker down")
+            return post?.(url, body)
+        })
+        await openEditDialog()
+        await act(async () => button("Pick evaluator")?.click())
+        await act(async () => button("Update")?.click())
+        await flush()
+        expect(toast.error).toHaveBeenCalledWith("Failed to update evaluation. Please try again.")
+        expect(document.querySelector("#edit-evaluation-name")).not.toBeNull()
+    })
+
+    it("A human run offers human evaluators", async () => {
+        serveRun({
+            steps: STEPS.map((step) =>
+                step.type === "annotation" ? {...step, origin: "human"} : step,
+            ),
+        })
+        await mount()
+        await openEditDialog()
+        expect(button("Pick human evaluator")).toBeDefined()
+    })
+
+    it("The Configuration tab has Edit and Add evaluator, which open the same dialog", async () => {
+        serveRun()
+        router.query = {...router.query, view: "configuration"}
+        await mount()
+        await waitForConfiguration()
+        expect(button("Edit")).toBeDefined()
+        await act(async () => button("Add evaluator")?.click())
+        await flush()
+        expect(document.querySelector("#edit-evaluation-name")).not.toBeNull()
+        expect(button("Pick evaluator")).toBeDefined()
+    })
+
+    it("A reader who may not edit runs gets no Edit and no Add evaluator on the Configuration tab", async () => {
+        permission.allowed = false
+        serveRun()
+        router.query = {...router.query, view: "configuration"}
+        await mount()
+        await waitForConfiguration()
+        expect(button("Edit")).toBeUndefined()
+        expect(button("Add evaluator")).toBeUndefined()
+    })
+})
+
 describe("run header: edit evaluation", () => {
     it("Update sends the new name and description with the run's steps, then shows the new name", async () => {
         const id = serveRun({description: "First pass"})
@@ -247,6 +394,8 @@ describe("run header: edit evaluation", () => {
         expect(toast.success).toHaveBeenCalledWith("Evaluation updated")
         expect(document.querySelector("#edit-evaluation-name")).toBeNull()
         expect(host.querySelector("h1")?.textContent).toBe("Capitals, second pass")
+        // A rename adds no evaluator, so nothing runs again.
+        expect(processCalls()).toEqual([])
     })
 
     it("A failed save keeps the dialog open with the draft and says so", async () => {

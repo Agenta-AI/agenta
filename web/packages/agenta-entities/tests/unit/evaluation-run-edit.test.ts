@@ -1,10 +1,10 @@
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
-const {patchMock} = vi.hoisted(() => ({patchMock: vi.fn()}))
+const {patchMock, postMock} = vi.hoisted(() => ({patchMock: vi.fn(), postMock: vi.fn()}))
 
 vi.mock("@agenta/shared/api", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/shared/api")>()),
-    axios: {patch: patchMock},
+    axios: {patch: patchMock, post: postMock},
     getAgentaApiUrl: () => "https://agenta.test/api",
 }))
 
@@ -13,13 +13,31 @@ import {
     editEvaluationRun,
     evaluationRunSchema,
     humanizeMetricLabel,
+    processNewEvaluatorSteps,
 } from "../../src/evaluationRun"
 import auto from "../fixtures/evaluationRun/auto-metrics.json"
 import online from "../fixtures/evaluationRun/online-metrics.json"
 
 const autoRun = evaluationRunSchema.parse(auto.run)
 
-beforeEach(() => patchMock.mockReset())
+beforeEach(() => {
+    patchMock.mockReset()
+    postMock.mockReset()
+})
+
+const humanRun = {
+    id: "run-h",
+    data: {
+        steps: [
+            {
+                key: "ev",
+                type: "annotation" as const,
+                origin: "human" as const,
+                references: {evaluator_revision: {id: "evr-1"}},
+            },
+        ],
+    },
+}
 
 describe("run edit body", () => {
     it("Editing an auto run keeps every step with its own origin", () => {
@@ -75,6 +93,89 @@ describe("run edit body", () => {
         )
         expect(human.evaluation.data.evaluator_steps).toEqual({"evr-1": "human", "evr-2": "human"})
         expect(human.evaluation.data).not.toHaveProperty("query_steps")
+    })
+})
+
+describe("adding evaluators to a run", () => {
+    it("An added evaluator joins an auto run as auto, next to the evaluators it has", () => {
+        const before = buildRunEditBody(autoRun, {name: "Capitals", description: ""})
+        const after = buildRunEditBody(autoRun, {
+            name: "Capitals",
+            description: "",
+            addedEvaluatorRevisionIds: ["evr-new"],
+        })
+        expect(after.evaluation.data.evaluator_steps).toEqual({
+            ...before.evaluation.data.evaluator_steps,
+            "evr-new": "auto",
+        })
+        expect(after.evaluation.data.testset_steps).toEqual(before.evaluation.data.testset_steps)
+        expect(after.evaluation.data.application_steps).toEqual(
+            before.evaluation.data.application_steps,
+        )
+    })
+
+    it("An added evaluator joins a human run as human", () => {
+        const body = buildRunEditBody(humanRun, {
+            name: "Review",
+            description: "",
+            addedEvaluatorRevisionIds: ["evr-2"],
+        })
+        expect(body.evaluation.data.evaluator_steps).toEqual({"evr-1": "human", "evr-2": "human"})
+    })
+
+    it("Adding an evaluator the run already has changes nothing", () => {
+        const body = buildRunEditBody(humanRun, {
+            name: "Review",
+            description: "",
+            addedEvaluatorRevisionIds: ["evr-1"],
+        })
+        expect(body.evaluation.data.evaluator_steps).toEqual({"evr-1": "human"})
+    })
+})
+
+describe("processNewEvaluatorSteps", () => {
+    it("Sends every scenario of the run, across pages, without overwriting results", async () => {
+        postMock.mockImplementation(async (url: string, body: {windowing?: {next?: string}}) => {
+            if (url.endsWith("/evaluations/scenarios/query")) {
+                return body.windowing?.next
+                    ? {data: {scenarios: [{id: "sc-3", run_id: "run-1"}], windowing: {next: null}}}
+                    : {
+                          data: {
+                              scenarios: [
+                                  {id: "sc-1", run_id: "run-1"},
+                                  {id: "sc-2", run_id: "run-1"},
+                              ],
+                              windowing: {next: "p2"},
+                          },
+                      }
+            }
+            return {data: {}}
+        })
+        await expect(processNewEvaluatorSteps({projectId: "pr-1", runId: "run-1"})).resolves.toBe(3)
+        const process = postMock.mock.calls.filter(([url]) => String(url).endsWith("/process"))
+        expect(process).toEqual([
+            [
+                "https://agenta.test/api/simple/evaluations/run-1/process",
+                {scenario_ids: ["sc-1", "sc-2", "sc-3"], overwrite: false},
+                {params: {project_id: "pr-1"}},
+            ],
+        ])
+    })
+
+    it("A run without scenarios sends nothing to process", async () => {
+        postMock.mockResolvedValue({data: {scenarios: [], windowing: {next: null}}})
+        await expect(processNewEvaluatorSteps({projectId: "pr-1", runId: "run-1"})).resolves.toBe(0)
+        expect(postMock.mock.calls.some(([url]) => String(url).endsWith("/process"))).toBe(false)
+    })
+
+    it("A failed process request throws", async () => {
+        postMock.mockImplementation(async (url: string) => {
+            if (url.endsWith("/process")) throw new Error("boom")
+            return {data: {scenarios: [{id: "sc-1", run_id: "run-1"}], windowing: {next: null}}}
+        })
+        await expect(
+            processNewEvaluatorSteps({projectId: "pr-1", runId: "run-1"}),
+        ).rejects.toThrow()
     })
 })
 

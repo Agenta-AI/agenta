@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import {act, createElement} from "react"
 
+import {activeUserIdAtom} from "@agenta/shared/state"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
@@ -57,6 +58,11 @@ vi.mock("@agenta/entities/testset", async () => {
         },
     }
 })
+// The prompt view carries the editors; the test reads which revision it shows.
+vi.mock("@agenta/entity-ui/variant", () => ({
+    RevisionConfigView: ({revisionId}: {revisionId: string}) =>
+        createElement("div", {"data-testid": "prompt-template"}, revisionId),
+}))
 // The editor is a separate chunk; the test reads the value it would show.
 vi.mock("@/features/evaluation-run/configuration/ConfigJsonViewer", () => ({
     ConfigJsonViewer: ({value}: {value: unknown}) =>
@@ -85,6 +91,7 @@ async function render(node: ReturnType<typeof createElement>) {
 }
 
 const APPLICATION: ApplicationConfig = {
+    applicationId: "app-1",
     appName: "Capital finder",
     appFailed: false,
     variantName: "default",
@@ -102,9 +109,12 @@ beforeEach(() => {
     router.query = {workspace_id: "ws", project_id: "pr", evaluation_id: "run-1"}
     router.replace.mockReset()
     client = new QueryClient()
+    vi.stubEnv("NEXT_PUBLIC_AGENTA_DEVELOPER_VIEWS", "testsets,variants")
+    store.set(activeUserIdAtom, "user-1")
 })
 
 afterEach(() => {
+    vi.unstubAllEnvs()
     act(() => root.unmount())
     host.remove()
 })
@@ -114,9 +124,14 @@ describe("test set section", () => {
         await render(
             createElement(TestsetConfigSection, {
                 projectId: "pr",
-                testsets: [{testsetId: "ts-1", revisionId: "rev-1", version: null}],
+                testsets: [{testsetId: "ts-1", revisionId: "rev-1", version: 3}],
             }),
         )
+        const chip = [...host.querySelectorAll("a")].find((link) =>
+            link.textContent?.includes("Set ts-1"),
+        )
+        expect(chip?.getAttribute("href")).toBe("/w/ws/p/pr/testsets/rev-1")
+        expect(chip?.textContent).toContain("3")
         const text = host.textContent ?? ""
         expect(text).toContain("Test set")
         expect(text).toContain("Set ts-1")
@@ -199,33 +214,20 @@ describe("application section", () => {
         expect(text).toContain("Workflow")
     })
 
-    it("Open variant writes the revision id to the URL", async () => {
+    it("The variant links to the variants page with the run's revision open", async () => {
         await render(createElement(ApplicationConfigSection, {application: APPLICATION}))
-        const open = [...host.querySelectorAll("button")].find(
-            (button) => button.textContent === "Open variant",
+        const variant = [...host.querySelectorAll("a")].find((link) =>
+            link.textContent?.includes("default"),
         )
-        await act(async () => open?.click())
-        expect(router.replace).toHaveBeenCalledWith(
-            {
-                pathname: "/w/[workspace_id]/p/[project_id]/evaluations/results/[evaluation_id]",
-                query: {...router.query, revisionId: "rev-app"},
-            },
-            undefined,
-            {shallow: true},
+        expect(variant?.getAttribute("href")).toBe(
+            "/w/ws/p/pr/variants?app=app-1&revisionId=rev-app",
         )
     })
 
-    it("The JSON shows the stored revision only after it is opened", async () => {
+    it("Shows the prompt template of the revision the run used", async () => {
         await render(createElement(ApplicationConfigSection, {application: APPLICATION}))
-        expect(host.querySelector('[data-testid="json"]')).toBeNull()
-        const toggle = [...host.querySelectorAll("button")].find(
-            (button) => button.textContent === "JSON",
-        )
-        await act(async () => toggle?.click())
-        await act(async () => new Promise((resolve) => setTimeout(resolve, 50)))
-        expect(host.querySelector('[data-testid="json"]')?.textContent).toBe(
-            JSON.stringify(APPLICATION.snapshot),
-        )
+        expect(host.textContent).toContain("Prompt Template")
+        expect(host.querySelector('[data-testid="prompt-template"]')?.textContent).toBe("rev-app")
     })
 
     it("A custom workflow shows the JSON snapshot and the no schema note", async () => {
@@ -238,9 +240,7 @@ describe("application section", () => {
         expect(host.textContent).toContain("Custom workflow")
         expect(host.textContent).toContain("No playground schema")
         expect(host.querySelector('[data-testid="json"]')).not.toBeNull()
-        expect(
-            [...host.querySelectorAll("button")].map((button) => button.textContent),
-        ).not.toContain("Open variant")
+        expect(host.querySelector('[data-testid="prompt-template"]')).toBeNull()
     })
 
     it("A custom workflow opens its JSON when the data arrives after a cold load", async () => {
