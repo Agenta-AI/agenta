@@ -18,6 +18,7 @@ import {projectHomeUrl} from "@/lib/context"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useProjectPermissionState} from "../context/useProjectPermission"
 import {canDeveloperViewBeEnabled, useDeveloperViewEnabled} from "../developer/developerViewAccess"
+import {useRouteAppId} from "../developer/useRouteAppId"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
@@ -82,11 +83,14 @@ const ObservabilityContent = ({
     projectId,
     appFilterEnabled,
     routeAppId,
+    showAppFilter,
 }: {
     workspaceId: string
     projectId: string
     appFilterEnabled: boolean
     routeAppId: string | null
+    /** False inside the app menu: the app comes from the path. */
+    showAppFilter: boolean
 }) => {
     useBindProjectContext(projectId)
     const [tab, setTab] = useState<ObservabilityTab>("traces")
@@ -186,7 +190,7 @@ const ObservabilityContent = ({
                             refreshTrigger={autoRefresh.refreshTrigger}
                             sortSlot={<ObservabilityRangePicker />}
                             filtersSlot={
-                                appFilterEnabled ? (
+                                showAppFilter ? (
                                     <>
                                         {tracesFilters}
                                         <ObservabilityAppFilter
@@ -277,10 +281,9 @@ export const ObservabilityScreen = ({
     workspaceId: string
     projectId: string
 }) => {
-    const router = useRouter()
     const appFilterView = useDeveloperViewEnabled("observability-app-filter")
     const appFilterEnabled = appFilterView === true
-    const routeAppId = typeof router.query.app === "string" ? router.query.app : null
+    const {appId: routeAppId, fromPath} = useRouteAppId()
     useObservabilityAppScope(appFilterEnabled ? routeAppId : null)
 
     if (
@@ -295,6 +298,7 @@ export const ObservabilityScreen = ({
             projectId={projectId}
             appFilterEnabled={appFilterEnabled}
             routeAppId={routeAppId}
+            showAppFilter={appFilterEnabled && !fromPath}
         />
     )
 }

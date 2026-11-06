@@ -51,15 +51,15 @@ describe("the developer rows of the main rail", () => {
                 ],
             },
             {key: "mobile-observability", title: "Observability", link: `${P}/observability`},
-            {key: "developer-view-variants", title: "Registry", link: `${P}/variants`},
         ])
     })
 
-    it("beta developer mode lists no Endpoints and no Archived apps row, as the old app", () => {
+    it("beta developer mode lists no Endpoints, Archived apps or Registry row, as the old app", () => {
         const {afterHome, afterSessions} = developerNavSlots(P, DEVELOPER_VIEWS, true)
         const links = JSON.stringify(shape([...afterHome, ...afterSessions]))
         expect(links).not.toContain("/endpoints")
         expect(links).not.toContain("/apps/archived")
+        expect(links).not.toContain("/variants")
     })
 
     it("beta developer mode turns off prefetch on every developer link", () => {

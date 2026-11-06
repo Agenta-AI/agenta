@@ -33,17 +33,24 @@ const P = "/w/ws-1/p/proj-1"
 const R = "/w/[workspace_id]/p/[project_id]"
 
 describe("the pages that show the app menu", () => {
-    it("are the app's own pages, and Registry and Endpoints with an app picked", () => {
-        expect(appScopeAppId(`${R}/apps/[app_id]/overview`, {app_id: "a1"})).toBe("a1")
-        expect(appScopeAppId(`${R}/apps/[app_id]/playground`, {app_id: "a1"})).toBe("a1")
-        expect(appScopeAppId(`${R}/variants`, {app: "a1"})).toBe("a1")
-        expect(appScopeAppId(`${R}/endpoints`, {app: "a1"})).toBe("a1")
+    it("are the app's own pages", () => {
+        for (const page of [
+            "overview",
+            "playground",
+            "variants",
+            "endpoints",
+            "evaluations",
+            "traces",
+        ]) {
+            expect(appScopeAppId(`${R}/apps/[app_id]/${page}`, {app_id: "a1"})).toBe("a1")
+        }
     })
 
     it("are not the project pages", () => {
         expect(appScopeAppId(`${R}/apps`, {})).toBeNull()
         expect(appScopeAppId(`${R}/apps/archived`, {})).toBeNull()
-        expect(appScopeAppId(`${R}/variants`, {})).toBeNull()
+        expect(appScopeAppId(`${R}/variants`, {app: "a1"})).toBeNull()
+        expect(appScopeAppId(`${R}/endpoints`, {app: "a1"})).toBeNull()
         expect(appScopeAppId(`${R}/evaluations`, {app: "a1"})).toBeNull()
         expect(appScopeAppId(`${R}/observability`, {app: "a1"})).toBeNull()
     })
@@ -55,17 +62,12 @@ describe("the app menu", () => {
         expect(items.map(({title, link, prefetch}) => ({title, link, prefetch}))).toEqual([
             {title: "Overview", link: `${P}/apps/a1/overview`, prefetch: false},
             {title: "Playground", link: `${P}/apps/a1/playground`, prefetch: false},
-            {title: "Registry", link: `${P}/variants?app=a1`, prefetch: false},
-            {title: "Evaluations", link: `${P}/evaluations?app=a1`, prefetch: false},
-            {title: "Observability", link: `${P}/observability?app=a1`, prefetch: false},
+            {title: "Registry", link: `${P}/apps/a1/variants`, prefetch: false},
+            {title: "Evaluations", link: `${P}/apps/a1/evaluations`, prefetch: false},
+            {title: "Observability", link: `${P}/apps/a1/traces`, prefetch: false},
         ])
         // No Home row: inside an app, nothing on the project rail lights up.
         expect(items.some(({title}) => title === "Home")).toBe(false)
-    })
-
-    it("keeps Registry selected while its URL carries a revision", () => {
-        const registry = appNavItems(P, "a1", DEVELOPER_VIEWS).find((i) => i.title === "Registry")
-        expect(registry?.matchLinks).toEqual([`${P}/variants`])
     })
 })
 
@@ -80,12 +82,14 @@ describe("switching apps", () => {
         expect(
             appSwitchHref(
                 P,
-                `${R}/variants`,
-                {app: "a1", tab: "deployments", revision: "r1"},
+                `${R}/apps/[app_id]/variants`,
+                {app_id: "a1", tab: "deployments", revisionId: "r1"},
                 "a2",
             ),
-        ).toBe(`${P}/variants?app=a2&tab=deployments`)
-        expect(appSwitchHref(P, `${R}/endpoints`, {app: "a1"}, "a2")).toBe(`${P}/endpoints?app=a2`)
+        ).toBe(`${P}/apps/a2/variants?tab=deployments`)
+        expect(appSwitchHref(P, `${R}/apps/[app_id]/traces`, {app_id: "a1"}, "a2")).toBe(
+            `${P}/apps/a2/traces`,
+        )
     })
 })
 
@@ -121,7 +125,7 @@ describe("which rail a page shows", () => {
 
     it("beta developer mode shows the app menu inside an app", () => {
         expect(render(true, `${R}/apps/[app_id]/overview`, {app_id: "a1"})).toBe("mobile-app")
-        expect(render(true, `${R}/variants`, {app: "a1"})).toBe("mobile-app")
+        expect(render(true, `${R}/apps/[app_id]/variants`, {app_id: "a1"})).toBe("mobile-app")
         expect(render(true, `${R}/prompts`, {})).toBe("mobile-main")
     })
 

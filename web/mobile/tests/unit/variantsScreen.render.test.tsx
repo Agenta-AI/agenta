@@ -147,6 +147,21 @@ describe("VariantsScreen", () => {
         expect(text()).toContain("Registry")
     })
 
+    it("The app page takes the app from the path and drops the picker and Overview link", () => {
+        fixture.query = {app_id: "app-1"}
+        mount()
+        expect(document.querySelector("[data-testid=not-found]")).toBeNull()
+        expect(text()).not.toContain("Pick an app")
+        expect(document.querySelector("[aria-label=App]")).toBeNull()
+        expect(text()).not.toContain("Overview")
+    })
+
+    it("The project page keeps its picker", () => {
+        fixture.query = {app: "app-1"}
+        mount()
+        expect(document.querySelector("[aria-label=App]")).not.toBeNull()
+    })
+
     it("An unknown app id shows not found", () => {
         fixture.query = {app: "missing"}
         mount()

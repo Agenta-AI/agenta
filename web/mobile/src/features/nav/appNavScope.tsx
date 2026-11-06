@@ -30,30 +30,24 @@ import {useMobileBottomNavItems} from "./useMobileNavItems"
 export const MOBILE_APP_NAV_SCOPE_ID = "mobile-app"
 
 const APP_ROUTE = /\/apps\/\[app_id\]\/[^/]+$/
-/** Pages that show one app, with the app in `?app=`. They become `/apps/<id>/...` routes later. */
-const APP_QUERY_ROUTE = /\/(variants|endpoints)$/
 
-/** The app of a page that belongs in the app menu, else null. */
+/** The app of a page that belongs in the app menu (`/apps/<id>/<page>`), else null. */
 export const appScopeAppId = (
     pathname: string,
     query: Record<string, string | string[] | undefined>,
-): string | null => {
-    if (APP_ROUTE.test(pathname)) return typeof query.app_id === "string" ? query.app_id : null
-    if (APP_QUERY_ROUTE.test(pathname)) return typeof query.app === "string" ? query.app : null
-    return null
-}
+): string | null =>
+    APP_ROUTE.test(pathname) && typeof query.app_id === "string" ? query.app_id : null
 
 /** Where "Back" returns to: the last page the main rail showed. */
 export const lastMainRailPathAtom = atom<string | null>(null)
 
-/** The old app's app menu; the last three rows open project pages with `?app=` until PR 1.5. */
+/** The old app's app menu, with its labels and URLs. */
 export const appNavItems = (
     projectURL: string,
     appId: string,
     views: readonly DeveloperView[],
 ): SidebarConfig[] => {
     const appURL = `${projectURL}/apps/${appId}`
-    const app = encodeURIComponent(appId)
     // Each row with the developer view that must be on for it; Observability is not a view.
     const rows: [viewId: string | null, row: SidebarConfig][] = [
         [
@@ -80,9 +74,7 @@ export const appNavItems = (
                 key: "app-registry",
                 title: "Registry",
                 icon: <LightningIcon size={16} />,
-                link: `${projectURL}/variants?app=${app}`,
-                // The URL also carries the revision, so the bare page path claims it.
-                matchLinks: [`${projectURL}/variants`],
+                link: `${appURL}/variants`,
             },
         ],
         [
@@ -91,7 +83,7 @@ export const appNavItems = (
                 key: "app-evaluations",
                 title: "Evaluations",
                 icon: <FlaskIcon size={16} />,
-                link: `${projectURL}/evaluations?app=${app}`,
+                link: `${appURL}/evaluations`,
             },
         ],
         [
@@ -100,7 +92,7 @@ export const appNavItems = (
                 key: "app-observability",
                 title: "Observability",
                 icon: <TreeViewIcon size={16} />,
-                link: `${projectURL}/observability?app=${app}`,
+                link: `${appURL}/traces`,
             },
         ],
     ]

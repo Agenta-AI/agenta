@@ -13,19 +13,19 @@ import {AppIdentity} from "./AppIdentity"
 
 const NO_APPS = atom({data: [] as Workflow[], isPending: false, isError: false, error: null})
 
-/** The page to open for another app: the same page, so switching keeps the reader in place. */
+/** The same page of another app, so switching keeps the reader in place; Registry keeps its tab. */
 export const appSwitchHref = (
     projectURL: string,
     pathname: string,
     query: Record<string, string | string[] | undefined>,
     nextAppId: string,
 ): string => {
-    const page = pathname.match(/\/apps\/\[app_id\]\/([^/]+)$/)?.[1]
-    if (page) return `${projectURL}/apps/${nextAppId}/${page}`
-    const projectPage = pathname.match(/\/(variants|endpoints)$/)?.[1] ?? "variants"
-    // The revision and environment belong to the old app; only the tab carries over.
-    const tab = typeof query.tab === "string" ? `&tab=${encodeURIComponent(query.tab)}` : ""
-    return `${projectURL}/${projectPage}?app=${encodeURIComponent(nextAppId)}${tab}`
+    const page = pathname.match(/\/apps\/\[app_id\]\/([^/]+)$/)?.[1] ?? "overview"
+    const tab =
+        page === "variants" && typeof query.tab === "string"
+            ? `?tab=${encodeURIComponent(query.tab)}`
+            : ""
+    return `${projectURL}/apps/${nextAppId}/${page}${tab}`
 }
 
 /** The app menu's switcher over the prompt apps; the list loads on first open. */
