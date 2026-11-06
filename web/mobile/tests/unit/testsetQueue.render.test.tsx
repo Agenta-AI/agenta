@@ -31,9 +31,15 @@ vi.mock("@agenta/ui/app-message", () => ({
 }))
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 globalThis.ResizeObserver ??= class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
+    observe() {
+        return undefined
+    }
+    unobserve() {
+        return undefined
+    }
+    disconnect() {
+        return undefined
+    }
 }
 
 import {TestcaseQueueButton} from "@/features/testsets/detail/TestcaseQueuePicker"
