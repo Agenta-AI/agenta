@@ -197,6 +197,7 @@ export {
     seedEvaluationRunCache,
     deleteEvaluationRuns,
     editEvaluationRun,
+    processNewEvaluatorSteps,
     startOnlineEvaluation,
     stopOnlineEvaluation,
     createAutoEvaluationRuns,
