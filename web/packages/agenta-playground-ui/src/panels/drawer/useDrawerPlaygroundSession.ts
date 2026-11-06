@@ -5,6 +5,9 @@ import {useStore} from "jotai"
 
 import {clearPlayground} from "../../state/clearPlayground"
 
+/** The clear a closing drawer scheduled. A remount right after (React strict mode) cancels it. */
+let pendingClear: ReturnType<typeof setTimeout> | null = null
+
 /**
  * Puts the drawer's revision in the playground state, so the test pane can run it, and clears that
  * state when the drawer closes. A new id (previous, next, or the revision a commit made) takes the
@@ -38,11 +41,16 @@ export const useDrawerPlaygroundSession = (revisionId: string) => {
         store.set(playgroundInitializedAtom, true)
     }, [revisionId, store])
 
-    useEffect(
-        () => () => {
-            shownRef.current = null
-            clearPlayground(store)
-        },
-        [store],
-    )
+    // The clear waits one task: strict mode unmounts and mounts again at once, and clearing then
+    // would discard an unsaved local revision the drawer is still showing.
+    useEffect(() => {
+        if (pendingClear) clearTimeout(pendingClear)
+        pendingClear = null
+        return () => {
+            pendingClear = setTimeout(() => {
+                pendingClear = null
+                clearPlayground(store)
+            }, 0)
+        }
+    }, [store])
 }

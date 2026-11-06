@@ -5,10 +5,10 @@
  * `@agenta/shared/api` answers from the fixtures below, and the commit test asserts the exact
  * request it sent.
  */
-import {act} from "react"
+import {act, StrictMode} from "react"
 
 import {projectPermissionQueryKey} from "@agenta/entities/access"
-import {workflowMolecule} from "@agenta/entities/workflow"
+import {createLocalDraftFromWorkflowRevision, workflowMolecule} from "@agenta/entities/workflow"
 import {playgroundController} from "@agenta/playground"
 import {queryClient as hostQueryClient} from "@agenta/shared/api"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
@@ -140,22 +140,26 @@ let client: QueryClient
 const calls: {url: string; body: Body; params: unknown}[] = []
 const sent = (suffix: string) => calls.filter((call) => call.url.endsWith(suffix))
 
-const render = () =>
-    root.render(
+let strict = false
+const render = () => {
+    const drawer = (
         <QueryClientProvider client={client}>
             <EditableRevisionDrawerHost
                 projectId={projectId}
                 kind="variant"
                 navigationIds={["rev-2", "rev-1"]}
             />
-        </QueryClientProvider>,
+        </QueryClientProvider>
     )
+    root.render(strict ? <StrictMode>{drawer}</StrictMode> : drawer)
+}
 
 beforeEach(() => {
     Object.assign(globalThis, {IS_REACT_ACT_ENVIRONMENT: true})
     Element.prototype.scrollIntoView = vi.fn()
     Element.prototype.hasPointerCapture = () => false
     Element.prototype.releasePointerCapture = () => undefined
+    strict = false
     world.revisions = [makeRevision("rev-1", 1, "First"), makeRevision("rev-2", 2, "Second")]
     client = hostQueryClient
     client.clear()
@@ -245,7 +249,7 @@ describe("The editable revision drawer", () => {
         await mount()
 
         expect(title()).toContain("Revision")
-        expect(title()).toContain("default")
+        await until(() => title().includes("default"))
         expect(title()).toContain("v2")
         expect(document.querySelector('[data-testid="config-section"]')).not.toBeNull()
         expect(find("Commit")!.hasAttribute("disabled")).toBe(true)
@@ -310,6 +314,7 @@ describe("The editable revision drawer", () => {
         expect(router.query.revisionId).toBeUndefined()
         act(() => root.unmount())
         root = createRoot(host)
+        await settle()
 
         expect(shown()).toEqual([])
         expect(store.get(workflowMolecule.selectors.isDirty("rev-2"))).toBe(false)
@@ -325,5 +330,24 @@ describe("The editable revision drawer", () => {
         expect(router.query.revisionId).toBe("rev-1")
         expect(shown()).toEqual(["rev-1"])
         expect(drawer()).not.toBeNull()
+    })
+
+    it("Keeps an unsaved local revision through a strict mode remount, and offers Create", async () => {
+        await mount()
+        act(() => root.unmount())
+        root = createRoot(host)
+        await settle()
+        const localId = createLocalDraftFromWorkflowRevision("rev-2")
+        expect(localId).toBeTruthy()
+
+        strict = true
+        router.query = {...router.query, revisionId: localId!}
+        act(() => render())
+        await settle()
+
+        expect(store.get(workflowMolecule.selectors.data(localId!))).not.toBeNull()
+        expect(shown()).toEqual([localId])
+        expect(find("Commit") ?? find("Create")).toBeDefined()
+        expect(sent("/workflows/revisions/commit")).toHaveLength(0)
     })
 })
