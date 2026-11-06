@@ -12,7 +12,7 @@ const KIND_LABELS: Record<EditableRevisionDrawerKind, string> = {
 
 /**
  * What the drawer shows: the kind, then the variant name (an evaluator's own name) and the
- * version. An unsaved evaluator has no version yet.
+ * version. An unsaved app or evaluator has no version yet.
  */
 export const DrawerTitle = ({
     revisionId,
@@ -30,7 +30,12 @@ export const DrawerTitle = ({
             : workflowMolecule.selectors.variantLabel(revisionId),
     )
     const version = ephemeral ? null : (revision?.version ?? null)
-    const kindLabel = ephemeral && kind === "evaluator" ? "New evaluator" : KIND_LABELS[kind]
+    // An unsaved one made from a template is new, as /w titles it: "New App" or "New Evaluator".
+    const kindLabel = ephemeral
+        ? kind === "evaluator"
+            ? "New Evaluator"
+            : "New App"
+        : KIND_LABELS[kind]
 
     return (
         <SheetTitle className="flex min-w-0 items-baseline gap-2 text-sm">

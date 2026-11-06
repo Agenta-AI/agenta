@@ -33,13 +33,12 @@ const RevisionDrawerHost = dynamic(
     () => import("../revisions/RevisionDrawerHost").then((module) => module.RevisionDrawerHost),
     {ssr: false},
 )
-// Beta developer mode edits the revision in the drawer, as /w does. The read-only drawer stays for
-// everyone else.
 // Beta developer mode: "Use API" opens the code in a drawer for the selected environment.
 const UseApiDrawer = dynamic(
     () => import("../endpoints/UseApiDrawer").then((module) => module.UseApiDrawer),
     {ssr: false},
 )
+// Beta developer mode only; everyone else keeps the read-only drawer.
 const EditableRevisionDrawerHost = dynamic(
     () =>
         import("../revisions/EditableRevisionDrawerHost").then(

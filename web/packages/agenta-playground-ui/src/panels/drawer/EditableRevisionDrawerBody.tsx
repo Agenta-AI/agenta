@@ -1,4 +1,4 @@
-import {useRef, useState, type ReactNode} from "react"
+import {useEffect, useState, type ReactNode} from "react"
 
 import {isLocalDraftId} from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
@@ -57,10 +57,11 @@ export const EditableRevisionDrawerBody = ({
     const [viewMode, setViewMode] = useState<ConfigViewMode>("form")
     const query = useAtomValue(workflowMolecule.atoms.query(revisionId))
     const local = isLocalDraftId(revisionId)
-    // Once the config is on screen it stays mounted for the next revision (previous, next, or the
-    // one a commit made): the editor swaps it in place when it loads, as the playground does. A
-    // remount here would draw the old revision again first, and the form keeps that text.
-    const shownOnceRef = useRef(false)
+    // After the first load the config stays mounted and swaps revisions in place, as the playground does.
+    const [loadedOnce, setLoadedOnce] = useState(false)
+    useEffect(() => {
+        if (query.data) setLoadedOnce(true)
+    }, [query.data])
 
     if (!local && query.isError) {
         return (
@@ -71,7 +72,7 @@ export const EditableRevisionDrawerBody = ({
             />
         )
     }
-    if (!local && query.isPending && !shownOnceRef.current) {
+    if (!local && query.isPending && !loadedOnce) {
         return (
             <div className="min-h-0 flex-1" aria-busy="true">
                 <ConfigPanelSkeleton />
@@ -86,7 +87,6 @@ export const EditableRevisionDrawerBody = ({
         )
     }
 
-    shownOnceRef.current = true
     const showConfig = !testing || twoPane || pane === "config"
     const showRuns = testing && (twoPane || pane === "runs")
 
