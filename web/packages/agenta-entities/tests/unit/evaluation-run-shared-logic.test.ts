@@ -5,7 +5,7 @@
  */
 import {describe, expect, it} from "vitest"
 
-import {formatMetricValue} from "../../src/evaluationRun/core/metricFormat"
+import {formatMetricNumber, formatMetricValue} from "../../src/evaluationRun/core/metricFormat"
 import {booleanTruePercent} from "../../src/evaluationRun/core/metricStats"
 import {
     compareBlockReason,
@@ -18,6 +18,7 @@ import {
 } from "../../src/evaluationRun/core/runCompare"
 import {
     buildCsv,
+    csvCell,
     metricExportHeader,
     runExportCreatedAt,
     runExportFilename,
@@ -144,6 +145,18 @@ describe("live run summary", () => {
     })
 })
 
+describe("metric numbers", () => {
+    it("keeps the zeros of whole numbers and drops trailing decimal zeros", () => {
+        expect(formatMetricNumber(100)).toBe("100")
+        expect(formatMetricNumber(120)).toBe("120")
+        expect(formatMetricNumber(1000)).toBe("1000")
+        expect(formatMetricNumber(1.5)).toBe("1.5")
+        expect(formatMetricNumber(0)).toBe("0")
+        expect(formatMetricNumber(0.012345)).toBe("0.0123")
+        expect(formatMetricValue("score", {mean: 100})).toBe("100")
+    })
+})
+
 describe("runs list filters", () => {
     it("sends the old app's flags per tab, leaving out annotation queue runs", () => {
         expect(runListTabFlags("all")).toEqual({has_testcases: false, has_traces: false})
@@ -216,6 +229,12 @@ describe("CSV export", () => {
                 ],
             ),
         ).toBe('Name,Score\n"a, b",1\n"say ""hi""",')
+        expect(csvCell("=HYPERLINK(1)")).toBe("'=HYPERLINK(1)")
+        expect(csvCell("+1")).toBe("'+1")
+        expect(csvCell("-2, x")).toBe('"\'-2, x"')
+        expect(csvCell("@SUM(A1)")).toBe("'@SUM(A1)")
+        expect(csvCell("\tcmd")).toBe("'\tcmd")
+        expect(csvCell(-2)).toBe("-2")
         expect(runExportFilename("preview::01a1/x y")).toBe("evaluation-run-preview-01a1-x-y.csv")
         expect(metricExportHeader("success", "Exact Match")).toBe("Exact Match • success")
     })

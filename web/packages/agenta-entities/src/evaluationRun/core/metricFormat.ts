@@ -14,14 +14,19 @@ import type {MetricFrequency, MetricStats} from "./metricStats"
 
 export const METRIC_PLACEHOLDER = "—"
 
-/** The old app's 3 significant digits: 1234.5 -> "1235", 0.012345 -> "0.0123". */
+/**
+ * The old app's 3 significant digits: 1234.5 -> "1235", 0.012345 -> "0.0123", 100 -> "100". The old
+ * helper also stripped zeros from whole numbers (100 -> "1"); that bug is not copied.
+ */
 export function formatMetricNumber(value: number): string {
     if (!Number.isFinite(value)) return String(value)
     const abs = Math.abs(value)
     if (abs === 0) return "0"
     const exponent = Math.floor(Math.log10(abs))
     if (exponent >= 10 || exponent <= -10) return value.toExponential(2)
-    return value.toFixed(Math.max(0, 2 - exponent)).replace(/\.?0+$/, "")
+    const fixed = value.toFixed(Math.max(0, 2 - exponent))
+    // Trailing zeros are dropped only after a decimal point: 1.50 -> "1.5", but 100 stays "100".
+    return fixed.includes(".") ? fixed.replace(/\.?0+$/, "") : fixed
 }
 
 const meanOf = (stats: MetricStats | null | undefined) => {
