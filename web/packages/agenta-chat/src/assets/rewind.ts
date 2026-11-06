@@ -25,8 +25,11 @@ export const rewindTurnIdInTranscript = (
     index: number,
     server: UIMessage[],
 ): string | null => {
-    const ordinal = messages.slice(0, index + 1).filter((m) => m.role === "user").length - 1
-    return getMessageTurnId(server.filter((m) => m.role === "user")[ordinal])
+    const users = messages.slice(0, index + 1).filter((m) => m.role === "user")
+    const match = server.filter((m) => m.role === "user")[users.length - 1]
+    // Another client's message can hold the same position, so the words must agree too.
+    if (!match || messageText(match) !== messageText(users[users.length - 1])) return null
+    return getMessageTurnId(match)
 }
 
 /** Concatenated text of a message's text parts. */

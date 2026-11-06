@@ -314,6 +314,8 @@ export const useAgentConversation = ({
     const rewindSession = useSetAtom(rewindSessionAtom)
     // A send that overtakes a rewind would land in the turns the rewind is about to remove.
     const rewindInFlightRef = useRef<Promise<boolean> | null>(null)
+    // A live turn clears the watermark, so an old rewind must not bypass the length floor again.
+    const adoptedRewindRef = useRef(0)
     // The footer's figures: a turn's end and its runner usage land on the session turn.
     const revalidateSessionTurns = useSetAtom(revalidateSessionTurnsAtom)
     const refreshSessionTurnsOnTurnEnd = useSetAtom(refreshSessionTurnsOnTurnEndAtom)
@@ -667,9 +669,11 @@ export const useAgentConversation = ({
                 // reconnects instead of opening the events stream — so a shared turn that drops
                 // mid-run can never come back until it settles.
                 busy: localRenderBusyRef.current,
-                rewoundSequence,
+                rewoundSequence:
+                    (rewoundSequence ?? 0) > adoptedRewindRef.current ? rewoundSequence : undefined,
             })
             if (!adopt) return false
+            adoptedRewindRef.current = Math.max(adoptedRewindRef.current, rewoundSequence ?? 0)
             serverMsgs.forEach((m) => restoredIdsRef.current.add(m.id))
             // Adopting a non-empty server transcript settles the question the notice asks, so it
             // clears here for every path (the revalidate copy did this, the hydration one didn't).
@@ -1286,6 +1290,16 @@ export const useAgentConversation = ({
         [submit, sessionId],
     )
 
+    const sendQueuedNowAfterRewind = useMemo(
+        () =>
+            sendQueuedNow &&
+            (async (...args: Parameters<typeof sendQueuedNow>) => {
+                await rewindInFlightRef.current
+                return sendQueuedNow(...args)
+            }),
+        [sendQueuedNow],
+    )
+
     const steerInput = useCallback(
         async (
             {text, files, parts, stagedFiles}: SendInput,
@@ -1419,7 +1433,7 @@ export const useAgentConversation = ({
         steer: steerInput,
         hitlPending,
         removeQueued,
-        sendQueuedNow,
+        sendQueuedNow: sendQueuedNowAfterRewind,
         sendNowPending,
         editingId,
         beginEdit,
