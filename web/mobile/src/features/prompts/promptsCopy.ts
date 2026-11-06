@@ -8,6 +8,9 @@ export const promptsCopy = {
     cancel: "Cancel",
     clearSearch: "Clear search",
     newFolder: "New folder",
+    newPrompt: "New prompt",
+    promptTypes: {chat: "Chat", completion: "Completion", agent: "Agent"},
+    createPromptDialog: {nameLabel: "App name", create: "Create"},
     rootLabel: "All prompts",
     folderTag: "Folder",
     columns: {name: "Name", modified: "Date modified", type: "Type", actions: "Actions"},
@@ -55,6 +58,7 @@ export const promptsCopy = {
         folderDeleted: "Folder deleted",
         appMoved: "Prompt moved",
         appArchived: "Prompt archived",
+        promptCreated: "Prompt created",
     },
     guard: {
         noDestination: "Select a destination folder",
@@ -69,6 +73,8 @@ export const promptsCopy = {
         deleteFolder: "Couldn't delete the folder",
         movePrompt: "Couldn't move this prompt",
         archivePrompt: "Couldn't archive this prompt",
+        startPrompt: "Couldn't start a new prompt. Try again.",
+        createPrompt: "Couldn't create the prompt",
     },
     states: {
         loadErrorTitle: "Could not load prompts",
