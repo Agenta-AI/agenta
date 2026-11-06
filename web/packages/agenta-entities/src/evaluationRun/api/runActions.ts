@@ -107,7 +107,7 @@ export async function processNewEvaluatorSteps({
     const scenarioIds = await runScenarioIds(projectId, runId)
     if (scenarioIds.length === 0) return 0
     await axios.post(
-        `${getAgentaApiUrl()}/simple/evaluations/${runId}/process`,
+        `${getAgentaApiUrl()}/simple/evaluations/${encodeURIComponent(runId)}/process`,
         {scenario_ids: scenarioIds, overwrite: false},
         {params: {project_id: projectId}},
     )
@@ -120,7 +120,7 @@ export async function startOnlineEvaluation({
     runId,
 }: EvaluationRunActionParams): Promise<void> {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/simple/evaluations/${runId}/start`,
+        `${getAgentaApiUrl()}/simple/evaluations/${encodeURIComponent(runId)}/start`,
         undefined,
         {params: {project_id: projectId}},
     )
@@ -135,7 +135,7 @@ export async function stopOnlineEvaluation({
     runId,
 }: EvaluationRunActionParams): Promise<void> {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/simple/evaluations/${runId}/stop`,
+        `${getAgentaApiUrl()}/simple/evaluations/${encodeURIComponent(runId)}/stop`,
         undefined,
         {params: {project_id: projectId}},
     )
