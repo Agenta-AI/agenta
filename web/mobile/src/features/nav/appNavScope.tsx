@@ -15,7 +15,7 @@ import {
     LightningIcon,
     RocketIcon,
 } from "@phosphor-icons/react"
-import {atom, useAtomValue} from "jotai"
+import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
@@ -23,23 +23,12 @@ import {useEnabledDeveloperViews} from "../developer/developerViewAccess"
 import type {DeveloperView} from "../developer/developerViews"
 import {CreditsRemainingWidget} from "../wallet/CreditsRemainingWidget"
 
+import {lastMainRailPathAtom} from "./appRoute"
 import {DrawerProjectSwitcher} from "./DrawerProjectSwitcher"
 import {useMobileBottomNavItems} from "./useMobileNavItems"
 
 /** The app menu's scope id: its own open-groups bucket, apart from the main rail's. */
 export const MOBILE_APP_NAV_SCOPE_ID = "mobile-app"
-
-const APP_ROUTE = /\/apps\/\[app_id\]\/[^/]+$/
-
-/** The app of a page that belongs in the app menu (`/apps/<id>/<page>`), else null. */
-export const appScopeAppId = (
-    pathname: string,
-    query: Record<string, string | string[] | undefined>,
-): string | null =>
-    APP_ROUTE.test(pathname) && typeof query.app_id === "string" ? query.app_id : null
-
-/** Where "Back" returns to: the last page the main rail showed. */
-export const lastMainRailPathAtom = atom<string | null>(null)
 
 /** The old app's app menu, with its labels and URLs. */
 export const appNavItems = (
@@ -109,7 +98,8 @@ const AppSwitcher = dynamic(() => import("./AppSwitcher").then((m) => m.AppSwitc
 
 const ROUTE_SELECTION: SidebarSelection = {mode: "route"}
 
-const createMobileAppNavScope = (
+/** The app menu of one app. `railScope` loads this module only inside an app. */
+export const createMobileAppNavScope = (
     workspaceId: string,
     projectId: string,
     appId: string,
@@ -183,13 +173,3 @@ const createMobileAppNavScope = (
         afterBottom: AfterBottom,
     }
 }
-
-export const useMobileAppNavScope = (
-    workspaceId: string,
-    projectId: string,
-    appId: string | null,
-) =>
-    useMemo(
-        () => (appId ? createMobileAppNavScope(workspaceId, projectId, appId) : null),
-        [workspaceId, projectId, appId],
-    )
