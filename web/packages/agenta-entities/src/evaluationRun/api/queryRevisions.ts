@@ -4,8 +4,10 @@
  * @packageDocumentation
  */
 
-import {axios, getAgentaApiUrl} from "@agenta/shared/api"
+import {getQueriesClient} from "@agenta/sdk/resources"
 import {z} from "zod"
+
+import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 
 export const liveQueryRevisionSchema = z.object({
     id: z.string(),
@@ -38,17 +40,17 @@ export async function queryLiveQueryRevisions({
     revisionIds: string[]
 }): Promise<LiveQueryRevision[]> {
     if (revisionIds.length === 0) return []
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/queries/revisions/query`,
-        {
-            query_revision_refs: revisionIds.map((id) => ({id})),
-            include_archived: true,
-        },
-        {params: {project_id: projectId}},
+    const response = await getQueriesClient().queryQueryRevisions(
+        {query_revision_refs: revisionIds.map((id) => ({id})), include_archived: true},
+        {queryParams: {project_id: projectId}},
     )
-    const parsed = queryRevisionsResponseSchema.safeParse(response?.data)
-    if (!parsed.success) {
+    const parsed = safeParseWithLogging(
+        queryRevisionsResponseSchema,
+        response,
+        "[queryLiveQueryRevisions]",
+    )
+    if (!parsed) {
         throw new Error("The query revisions response did not match the expected shape.")
     }
-    return parsed.data.query_revisions
+    return parsed.query_revisions
 }
