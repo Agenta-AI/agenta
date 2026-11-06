@@ -31,6 +31,7 @@ vi.mock("@agenta/ui/app-message", () => ({message: {success: http.success, error
 let host: HTMLDivElement
 let root: Root
 const onClose = vi.fn()
+const onSaved = vi.fn()
 
 const flush = async () => {
     await act(async () => {
@@ -49,7 +50,7 @@ const mount = async (editing: EvaluatorEntry | null) => {
                 createElement(
                     WithQueryClient,
                     null,
-                    createElement(HumanEvaluatorSheet, {open: true, editing, onClose}),
+                    createElement(HumanEvaluatorSheet, {open: true, editing, onClose, onSaved}),
                 ),
             ),
         )
@@ -185,6 +186,14 @@ describe("HumanEvaluatorSheet", () => {
             },
         })
         expect(http.success).toHaveBeenCalledWith("Evaluator created")
+        // The new evaluator comes back, so a picker on another screen can select it.
+        expect(onSaved).toHaveBeenCalledWith({
+            slug: "answer-quality",
+            name: "Answer quality",
+            workflowId: "w-new",
+            revisionId: "r-new",
+            version: 1,
+        })
         expect(onClose).toHaveBeenCalled()
     })
 

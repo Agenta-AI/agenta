@@ -27,6 +27,9 @@ const MESSAGE = `
   </div>
 </div>`
 
+/** The run status tag as the shared Badge renders it. A menu trigger replaces its `data-slot`. */
+const SUCCESS = `<span data-slot="dropdown-menu-trigger" class="bg-success-bg text-success">Success</span>`
+
 beforeAll(() => {
     const theme = readFileSync(require.resolve("@agenta/ui/editor-theme.css"), "utf8")
     const globals = readFileSync(resolve(__dirname, "../../src/styles/globals.css"), "utf8")
@@ -38,8 +41,8 @@ beforeAll(() => {
         document.head.append(style)
     }
     document.body.innerHTML = `
-        <div id="playground" data-playground>${MESSAGE}</div>
-        <div id="elsewhere">${MESSAGE}</div>`
+        <div id="playground" data-playground>${MESSAGE}${SUCCESS}</div>
+        <div id="elsewhere">${MESSAGE}${SUCCESS}</div>`
 })
 
 const styleOf = (scope: string, selector: string) =>
@@ -64,8 +67,29 @@ describe("Playground message editor style", () => {
         expect(inset(".message-user-select")).toBe("var(--ag-message-inline-pad)")
     })
 
+    it("paints the Success tag with its green background", () => {
+        expect(styleOf("playground", ".bg-success-bg").backgroundColor).toBe(
+            "var(--ag-colorSuccessBg)",
+        )
+    })
+
+    it("paints the draft tag and the flow chips in their colours", () => {
+        const host = document.createElement("div")
+        host.setAttribute("data-playground", "")
+        host.innerHTML = `<span id="draft" class="bg-draft-bg text-draft">Draft</span><span id="chip" class="bg-tag-green-bg text-tag-green">Score</span>`
+        document.body.append(host)
+        expect(getComputedStyle(host.querySelector("#draft")!).backgroundColor).toBe(
+            "var(--ag-draft-bg)",
+        )
+        expect(getComputedStyle(host.querySelector("#chip")!).color).toBe(
+            "var(--ag-preset-green-text)",
+        )
+        host.remove()
+    })
+
     it("leaves the same editor outside the playground as it was", () => {
         expect(styleOf("elsewhere", ".editor-input").minHeight).toBe("150px")
         expect(styleOf("elsewhere", ".editor-code").fontFamily).toMatch(/monospace/)
+        expect(styleOf("elsewhere", ".bg-success-bg").backgroundColor).toBe("rgba(0, 0, 0, 0)")
     })
 })

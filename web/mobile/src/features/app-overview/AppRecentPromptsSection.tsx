@@ -47,26 +47,35 @@ export const RECENT_PROMPTS_COUNT = 5
 /**
  * The five newest revisions of the app. A row opens the revision drawer. Beta developer mode adds
  * what /w has: the Playground button, Open in Playground and Delete in the row menu, and the
- * editable drawer.
+ * editable drawer. An evaluator is not deployed and has no Registry, so it gets neither Deploy
+ * nor the Registry link.
  */
 export const AppRecentPromptsSection = ({
     projectId,
     app,
     base,
+    evaluator = false,
+    archived = false,
 }: {
     projectId: string
     app: Workflow
     base: string
+    evaluator?: boolean
+    /** An archived app is read-only here: no Deploy, no Delete, and the read-only drawer. */
+    archived?: boolean
 }) => {
     const revisions = useAppRevisions({projectId, appId: app.id, search: ""})
     const latestRevisionId = useAtomValue(workflowLatestRevisionIdAtomFamily(app.id)) ?? null
-    const canDeploy = useProjectPermission(projectId, "deploy_environments")
-    const variantsEnabled = useDeveloperViewEnabled("variants") === true
+    const canDeploy =
+        useProjectPermission(projectId, "deploy_environments") && !evaluator && !archived
+    const variantsEnabled = useDeveloperViewEnabled("variants") === true && !evaluator
     const [revisionId, setRevisionId] = useRevisionParam()
     const [deployRow, setDeployRow] = useState<AppRevisionRow | null>(null)
     const [deleteRow, setDeleteRow] = useState<AppRevisionRow | null>(null)
     const beta = useAtomValue(betaDeveloperModeActiveAtom)
-    const canDelete = useProjectPermission(projectId, "edit_workflows")
+    // The editable drawer can commit a revision, so an archived app keeps the read-only one.
+    const editable = beta && !archived
+    const canDelete = useProjectPermission(projectId, "edit_workflows") && !archived
     const playgroundEnabled = useDeveloperViewEnabled("playground") === true
     const toPlayground =
         beta && playgroundEnabled
@@ -124,7 +133,7 @@ export const AppRecentPromptsSection = ({
                     empty={<VariantsEmpty />}
                 />
             )}
-            {revisionId && beta ? (
+            {revisionId && editable ? (
                 <EditableRevisionDrawerHost
                     projectId={projectId}
                     kind="variant"
@@ -147,7 +156,7 @@ export const AppRecentPromptsSection = ({
                     }
                 />
             ) : null}
-            {revisionId && !beta ? (
+            {revisionId && !editable ? (
                 <RevisionDrawerHost
                     kind="variant"
                     navigationIds={newest.map((row) => row.revisionId)}

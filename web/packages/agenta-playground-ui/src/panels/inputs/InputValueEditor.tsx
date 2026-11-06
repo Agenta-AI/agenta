@@ -139,14 +139,16 @@ const TextEditor = ({
 }) => {
     const [buffer, setBuffer] = useBuffer(useMemo(() => valueToDisplay(value, mode), [value, mode]))
     return (
+        // One row that grows with the text (`field-sizing: content`), as the old playground's
+        // input: no fixed two-row box and no resize handle.
         <Textarea
             variant="ghost"
             value={buffer}
-            rows={2}
+            rows={1}
             disabled={!editable}
             placeholder="Enter a value"
             aria-label="Value"
-            className="px-0"
+            className="field-sizing-content min-h-0 resize-none px-0"
             onChange={(event) => {
                 setBuffer(event.target.value)
                 onChange(coerceTextEdit(event.target.value, storedType))

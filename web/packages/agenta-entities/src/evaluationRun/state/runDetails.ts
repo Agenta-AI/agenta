@@ -34,6 +34,8 @@ export interface RunHeader {
 export interface RunTestsetReference {
     testsetId: string
     revisionId: string | null
+    /** The test set revision's version number, from the run's step reference. */
+    version: number | null
 }
 
 export interface RunEvaluatorReference {
@@ -101,7 +103,15 @@ export const runReferencesAtomFamily = atomFamily((runId: string) =>
             revisionVersion: invocation?.references?.application_revision?.version ?? null,
             testsets: inputs.flatMap((step) => {
                 const testsetId = refId(step, "testset")
-                return testsetId ? [{testsetId, revisionId: refId(step, "testset_revision")}] : []
+                return testsetId
+                    ? [
+                          {
+                              testsetId,
+                              revisionId: refId(step, "testset_revision"),
+                              version: step.references?.testset_revision?.version ?? null,
+                          },
+                      ]
+                    : []
             }),
             evaluators: steps.flatMap((step) => {
                 const evaluatorId = step.type === "annotation" ? refId(step, "evaluator") : null

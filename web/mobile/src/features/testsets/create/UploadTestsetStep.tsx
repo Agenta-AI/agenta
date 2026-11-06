@@ -97,6 +97,7 @@ export const UploadTestsetStep = ({
                 <TestsetFileDrop
                     file={file}
                     preview={picked.rows}
+                    totalRows={picked.totalRows}
                     error={picked.error}
                     disabled={pending}
                     onFile={(chosen) => void onFile(chosen)}
