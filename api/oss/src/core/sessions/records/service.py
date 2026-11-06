@@ -434,24 +434,20 @@ class RecordsService:
 
         The `rewind` record moves the sequence cursor forward, so a reader holding a longer
         transcript can tell a shorter log from one that lags behind."""
-        removed = await self.records_dao.rewind_from_turn(
+        return await self.records_dao.rewind_from_turn(
             project_id=project_id,
             session_id=session_id,
             turn_id=turn_id,
             user_id=user_id,
+            marker=SessionRecordEvent(
+                project_id=project_id,
+                session_id=session_id,
+                record_id=uuid.uuid7(),
+                record_type=REWIND_RECORD_TYPE,
+                record_source="agent",
+                attributes={"type": REWIND_RECORD_TYPE, "turnId": turn_id},
+            ),
         )
-        if removed:
-            await self.append(
-                event=SessionRecordEvent(
-                    project_id=project_id,
-                    session_id=session_id,
-                    record_id=uuid.uuid7(),
-                    record_type=REWIND_RECORD_TYPE,
-                    record_source="agent",
-                    attributes={"type": REWIND_RECORD_TYPE, "turnId": turn_id},
-                )
-            )
-        return removed
 
     async def get_event(
         self,

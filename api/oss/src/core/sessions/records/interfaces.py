@@ -62,8 +62,11 @@ class RecordsDAOInterface:
         session_id: str,
         turn_id: str,
         user_id: Optional[UUID],
+        marker: SessionRecordEvent,
     ) -> int:
-        """Soft-delete `turn_id` and every later record. Returns the rows removed."""
+        """Soft-delete `turn_id` and every later turn, and write `marker` in the same commit.
+
+        Returns the rows removed. Removing none writes nothing."""
         raise NotImplementedError
 
     async def get_records_page(

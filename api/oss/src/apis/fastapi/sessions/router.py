@@ -936,7 +936,8 @@ class SessionStreamsRouter:
             action=Permission.RUN_SESSIONS,
             resource=session_resource(session_id),
         ):
-            raise FORBIDDEN_EXCEPTION
+            # Hidden answers like a session with nothing to remove.
+            return SessionRewindResponse(removed=0)
         try:
             removed = await self._rewind_service.rewind(
                 project_id=project_id,

@@ -76,9 +76,13 @@ class SessionRewindService:
             session_id=session_id,
             timeout_seconds=_KILL_WAIT_SECONDS,
         )
-        return await self._records.rewind_from_turn(
+        removed = await self._records.rewind_from_turn(
             project_id=project_id,
             session_id=session_id,
             turn_id=turn_id,
             user_id=user_id,
         )
+        await self._streams.publish_records_changed(
+            project_id=project_id, session_id=session_id
+        )
+        return removed

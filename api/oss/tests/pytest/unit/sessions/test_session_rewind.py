@@ -26,6 +26,7 @@ def _service(*, running=False, continuation=False, turn_exists=True, calls=None)
 
     streams = MagicMock()
     streams.is_running = AsyncMock(return_value=running)
+    streams.publish_records_changed = AsyncMock(side_effect=step("watchers"))
     records = MagicMock()
     records.has_active_continuation = AsyncMock(return_value=continuation)
     records.has_turn = AsyncMock(return_value=turn_exists)
@@ -62,7 +63,7 @@ async def test_the_records_go_last_so_a_failure_can_be_retried():
         removed = await _rewind(service)
 
     assert removed == 7
-    assert calls == ["interactions", "turns", "sandbox", "records"]
+    assert calls == ["interactions", "turns", "sandbox", "records", "watchers"]
 
 
 @pytest.mark.asyncio
@@ -121,34 +122,19 @@ async def test_an_unreachable_runner_does_not_stop_the_rewind():
 
 
 @pytest.mark.asyncio
-async def test_removing_records_logs_one_rewind_record():
+async def test_the_rewind_record_rides_with_the_delete():
     dao = MagicMock()
     dao.rewind_from_turn = AsyncMock(return_value=5)
-    dao.append = AsyncMock()
 
     removed = await RecordsService(records_dao=dao).rewind_from_turn(
         project_id=_PROJECT, session_id=_SESSION, turn_id="turn-2", user_id=_USER
     )
 
     assert removed == 5
-    event = dao.append.await_args.kwargs["event"]
-    assert event.record_type == REWIND_RECORD_TYPE
-    assert event.attributes == {"type": REWIND_RECORD_TYPE, "turnId": "turn-2"}
-    assert event.turn_id is None
-
-
-@pytest.mark.asyncio
-async def test_a_second_rewind_of_the_same_turn_logs_nothing():
-    dao = MagicMock()
-    dao.rewind_from_turn = AsyncMock(return_value=0)
-    dao.append = AsyncMock()
-
-    removed = await RecordsService(records_dao=dao).rewind_from_turn(
-        project_id=_PROJECT, session_id=_SESSION, turn_id="turn-2", user_id=_USER
-    )
-
-    assert removed == 0
-    dao.append.assert_not_awaited()
+    marker = dao.rewind_from_turn.await_args.kwargs["marker"]
+    assert marker.record_type == REWIND_RECORD_TYPE
+    assert marker.attributes == {"type": REWIND_RECORD_TYPE, "turnId": "turn-2"}
+    assert marker.turn_id is None
 
 
 def _late_event(turn_id):

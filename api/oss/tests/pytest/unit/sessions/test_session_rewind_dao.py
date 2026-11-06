@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from oss.src.core.sessions.records.dtos import SessionRecordEvent
+from oss.src.core.sessions.records.dtos import REWIND_RECORD_TYPE, SessionRecordEvent
 from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
 import oss.src.dbs.postgres.shared.engine as engine_module
 
@@ -51,9 +51,26 @@ async def _log_with_three_turns(dao):
     return project_id, session_id
 
 
+async def _rewind(dao, project_id, session_id, turn_id):
+    return await dao.rewind_from_turn(
+        project_id=project_id,
+        session_id=session_id,
+        turn_id=turn_id,
+        user_id=None,
+        marker=SessionRecordEvent(
+            project_id=project_id,
+            session_id=session_id,
+            record_id=uuid.uuid4(),
+            record_type=REWIND_RECORD_TYPE,
+            record_source="agent",
+            attributes={"type": REWIND_RECORD_TYPE, "turnId": turn_id},
+        ),
+    )
+
+
 async def _visible_turns(dao, project_id, session_id):
     records = await dao.get_records(project_id=project_id, session_id=session_id)
-    return [record.turn_id for record in records]
+    return [record.turn_id for record in records if record.turn_id]
 
 
 @pytest.mark.asyncio
@@ -61,9 +78,7 @@ async def test_the_turn_and_every_later_turn_leave_the_log():
     dao = RecordsDAO()
     project_id, session_id = await _log_with_three_turns(dao)
 
-    removed = await dao.rewind_from_turn(
-        project_id=project_id, session_id=session_id, turn_id="t2", user_id=None
-    )
+    removed = await _rewind(dao, project_id, session_id, "t2")
 
     assert removed == 4
     assert await _visible_turns(dao, project_id, session_id) == ["t1", "t1"]
@@ -74,9 +89,7 @@ async def test_rewinding_the_first_turn_empties_the_log():
     dao = RecordsDAO()
     project_id, session_id = await _log_with_three_turns(dao)
 
-    removed = await dao.rewind_from_turn(
-        project_id=project_id, session_id=session_id, turn_id="t1", user_id=None
-    )
+    removed = await _rewind(dao, project_id, session_id, "t1")
 
     assert removed == 6
     assert await _visible_turns(dao, project_id, session_id) == []
@@ -86,13 +99,9 @@ async def test_rewinding_the_first_turn_empties_the_log():
 async def test_a_second_rewind_of_the_same_turn_removes_nothing():
     dao = RecordsDAO()
     project_id, session_id = await _log_with_three_turns(dao)
-    await dao.rewind_from_turn(
-        project_id=project_id, session_id=session_id, turn_id="t2", user_id=None
-    )
+    await _rewind(dao, project_id, session_id, "t2")
 
-    removed = await dao.rewind_from_turn(
-        project_id=project_id, session_id=session_id, turn_id="t2", user_id=None
-    )
+    removed = await _rewind(dao, project_id, session_id, "t2")
 
     assert removed == 0
 
@@ -102,9 +111,7 @@ async def test_an_unknown_turn_removes_nothing():
     dao = RecordsDAO()
     project_id, session_id = await _log_with_three_turns(dao)
 
-    removed = await dao.rewind_from_turn(
-        project_id=project_id, session_id=session_id, turn_id="nope", user_id=None
-    )
+    removed = await _rewind(dao, project_id, session_id, "nope")
 
     assert removed == 0
     assert len(await _visible_turns(dao, project_id, session_id)) == 6
@@ -115,9 +122,7 @@ async def test_the_sequence_keeps_rising_after_a_rewind():
     dao = RecordsDAO()
     project_id, session_id = await _log_with_three_turns(dao)
     before = await dao.get_read_state(project_id=project_id, session_id=session_id)
-    await dao.rewind_from_turn(
-        project_id=project_id, session_id=session_id, turn_id="t2", user_id=None
-    )
+    await _rewind(dao, project_id, session_id, "t2")
 
     await dao.append(
         event=SessionRecordEvent(
@@ -134,7 +139,7 @@ async def test_the_sequence_keeps_rising_after_a_rewind():
     )
 
     after = await dao.get_read_state(project_id=project_id, session_id=session_id)
-    assert after.latest_sequence == before.latest_sequence + 1
+    assert after.latest_sequence == before.latest_sequence + 2
     assert await _visible_turns(dao, project_id, session_id) == ["t1", "t1", "t4"]
 
 
@@ -142,9 +147,7 @@ async def test_the_sequence_keeps_rising_after_a_rewind():
 async def test_only_removed_turns_read_as_rewound():
     dao = RecordsDAO()
     project_id, session_id = await _log_with_three_turns(dao)
-    await dao.rewind_from_turn(
-        project_id=project_id, session_id=session_id, turn_id="t2", user_id=None
-    )
+    await _rewind(dao, project_id, session_id, "t2")
 
     rewound = await dao.rewound_turns(
         project_id=project_id,
@@ -158,3 +161,41 @@ async def test_only_removed_turns_read_as_rewound():
     assert not await dao.has_turn(
         project_id=project_id, session_id=session_id, turn_id="t2"
     )
+
+
+@pytest.mark.asyncio
+async def test_a_late_row_of_an_earlier_turn_stays():
+    dao = RecordsDAO()
+    project_id = uuid.uuid4()
+    session_id = f"rewind-test-{uuid.uuid4().hex[:8]}"
+    for index, turn_id in enumerate(("t1", "t2", "t1", "t2")):
+        await dao.append(
+            event=SessionRecordEvent(
+                project_id=project_id,
+                session_id=session_id,
+                record_id=uuid.uuid4(),
+                record_index=index,
+                timestamp=datetime.now(timezone.utc),
+                record_type="message",
+                record_source="agent",
+                attributes={"type": "message", "text": turn_id},
+                turn_id=turn_id,
+            )
+        )
+
+    removed = await _rewind(dao, project_id, session_id, "t2")
+
+    assert removed == 2
+    assert await _visible_turns(dao, project_id, session_id) == ["t1", "t1"]
+
+
+@pytest.mark.asyncio
+async def test_removing_nothing_writes_no_rewind_record():
+    dao = RecordsDAO()
+    project_id, session_id = await _log_with_three_turns(dao)
+    before = await dao.get_read_state(project_id=project_id, session_id=session_id)
+
+    await _rewind(dao, project_id, session_id, "nope")
+
+    after = await dao.get_read_state(project_id=project_id, session_id=session_id)
+    assert after.latest_sequence == before.latest_sequence
