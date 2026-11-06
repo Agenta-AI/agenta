@@ -10,7 +10,7 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
-const fixture = vi.hoisted(() => ({developerMode: true}))
+const fixture = vi.hoisted(() => ({developerMode: true, lookupFails: false}))
 
 vi.mock("@agenta/shared/state", async (importOriginal) => {
     const actual = await importOriginal<typeof import("@agenta/shared/state")>()
@@ -31,7 +31,11 @@ vi.mock("@agenta/entities/workflow", async () => {
     }
     return {
         workflowDetailQueryAtomFamily: (id: string | null) =>
-            atom({isPending: false, isError: false, data: id ? (workflows[id] ?? null) : null}),
+            atom(() =>
+                fixture.lookupFails
+                    ? {isPending: false, isError: true, data: null}
+                    : {isPending: false, isError: false, data: id ? (workflows[id] ?? null) : null},
+            ),
         workflowMolecule: {
             selectors: {
                 data: (id: string) => atom(revisions[id] ?? null),
@@ -63,6 +67,7 @@ const link = () => host.querySelector("a")
 
 beforeEach(() => {
     fixture.developerMode = true
+    fixture.lookupFails = false
     window.history.replaceState(null, "", "/m/w/ws-1/p/proj-1/observability")
     store = createStore()
     store.set(bindTraceDrawerProjectURLAtom, traceDrawerProjectURLSourceAtom)
@@ -101,6 +106,26 @@ describe("trace drawer references on /m", () => {
         await render(<TraceReferenceLabel kind="TestsetTag" testsetId="ts-1" />)
         expect(host.textContent).toContain("Capitals")
         expect(link()?.getAttribute("href")).toBe("/w/ws-1/p/proj-1/testsets/ts-rev-9")
+    })
+
+    it("A failed lookup keeps the slug and the link, not Deleted", async () => {
+        fixture.lookupFails = true
+        await render(
+            <TraceReferenceLabel
+                kind="ApplicationReferenceLabel"
+                applicationId="app-1"
+                label="capital-finder"
+            />,
+        )
+        expect(host.textContent).toContain("capital-finder")
+        expect(host.textContent).not.toContain("Deleted")
+        expect(link()?.getAttribute("href")).toBe("/w/ws-1/p/proj-1/apps/app-1/overview")
+    })
+
+    it("An app the lookup does not find reads Deleted, with no link", async () => {
+        await render(<TraceReferenceLabel kind="ApplicationReferenceLabel" applicationId="app-9" />)
+        expect(host.textContent).toContain("Deleted")
+        expect(link()).toBeNull()
     })
 
     it("Outside developer mode the plain label stays, with no link", async () => {

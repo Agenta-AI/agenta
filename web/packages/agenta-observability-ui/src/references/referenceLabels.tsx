@@ -56,11 +56,12 @@ export const createReferenceLabels = (routes: ReferenceHrefs) => {
             return fallback ? <ReferenceChip kind="app" label={fallback} /> : <Placeholder />
         if (query.isPending) return <ReferenceChipSkeleton />
         const app = query.data
-        const deleted = query.isError || !app
+        // Only a lookup that worked and found nothing means deleted; a failed lookup keeps the slug.
+        const deleted = !query.isError && !app
         return (
             <ReferenceChip
                 kind="app"
-                label={deleted ? "Deleted" : (app.name ?? app.slug ?? fallback ?? appId)}
+                label={deleted ? "Deleted" : (app?.name ?? app?.slug ?? fallback ?? appId)}
                 href={href}
                 openExternally={props.openExternally === true}
                 identifiers={{slug: app?.slug ?? fallback, id: appId}}
@@ -128,7 +129,7 @@ export const createReferenceLabels = (routes: ReferenceHrefs) => {
         }
         if (query.isPending) return <ReferenceChipSkeleton />
         const evaluator = query.data
-        const deleted = (query.isError || !evaluator) && !fallback
+        const deleted = !query.isError && !evaluator && !fallback
         return (
             <ReferenceChip
                 kind="evaluator"
@@ -158,7 +159,7 @@ export const createReferenceLabels = (routes: ReferenceHrefs) => {
         if (!testsetId) return <Placeholder />
         if (query.isPending) return <ReferenceChipSkeleton />
         const testset = query.data
-        const deleted = query.isError || !testset?.name
+        const deleted = !query.isError && !testset?.name
         return (
             <ReferenceChip
                 kind="testset"
