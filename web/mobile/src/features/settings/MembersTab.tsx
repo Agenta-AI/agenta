@@ -78,9 +78,7 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
     const canResetPassword = useProjectPermission(projectId, "reset_password") && passwordSignIn
     const canChangeRoles = useProjectPermission(projectId, "modify_user_roles")
 
-    // The rail's "Invite Teammate" row (beta developer mode only) lands here with
-    // `inviteModal=open`, the same link the old app uses: open the invite dialog once, then drop
-    // the parameter so a reload does not open it again.
+    // Invite Teammate lands here with inviteModal=open: open once, then drop the parameter.
     const router = useRouter()
     const inviteRequested =
         useAtomValue(betaDeveloperModeActiveAtom) && router.query.inviteModal === "open"

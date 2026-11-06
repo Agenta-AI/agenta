@@ -53,8 +53,7 @@ export const PromptsScreen = ({
     const {openFolder} = browser
     const router = useRouter()
     const playgroundEnabled = useDeveloperViewEnabled("playground") === true
-    // Beta developer mode reaches Archived apps from here, as the old app does; its rail has no
-    // Archived apps row. Without beta the rail keeps that row and this page stays as it was.
+    // Beta developer mode reaches Archived apps from here; its rail has no row for it.
     const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
 
     const rowActions = useMemo<PromptRowActions>(

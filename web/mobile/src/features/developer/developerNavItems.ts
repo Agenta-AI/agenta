@@ -23,8 +23,7 @@ export const developerRowKey = (viewId: string) => `developer-view-${viewId}`
  * One rail section per nav section that has an enabled view, or nothing at all. Links do not
  * prefetch when they scroll into view: a developer view's code must not load on the pages every
  * user opens.
- *
- * The rail without beta developer mode. Beta developer mode uses `developerRailItems` instead.
+ * Without beta developer mode only; beta uses `developerRailItems`.
  */
 export const developerNavItems = (
     projectURL: string,
@@ -63,13 +62,7 @@ interface DeveloperRailRow {
     placement: DeveloperRailPlacement
 }
 
-/**
- * The developer rows of the old app's rail, in its order, with its labels and icons. Prompts
- * leads; the Evaluation group holds Test sets, Evaluators, Evaluation runs and Annotation Queues.
- * Endpoints and Archived apps get no row, as in the old app: Archived apps is a link on the
- * Prompts page, and Endpoints opens from an app. Registry trails the rail until the app menu
- * gives it a place inside an app.
- */
+/** The old app's developer rows, labels and icons; no Endpoints or Archived apps row (D7). */
 const DEVELOPER_RAIL_ROWS: readonly DeveloperRailRow[] = [
     {viewId: "prompts", title: "Prompts", icon: SquaresFourIcon, placement: "lead"},
     {viewId: "testsets", title: "Test sets", icon: DatabaseIcon, placement: "evaluation"},
@@ -93,10 +86,7 @@ export interface DeveloperRail {
     trail: SidebarConfig[]
 }
 
-/**
- * The developer rows in beta developer mode, laid out like the old app's rail. Only enabled
- * views with a route get a row; an empty group is left out.
- */
+/** The beta developer mode rows, from enabled views only; an empty group is left out. */
 export const developerRailItems = (
     projectURL: string,
     views: readonly DeveloperView[],

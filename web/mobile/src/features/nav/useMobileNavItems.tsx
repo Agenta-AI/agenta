@@ -303,11 +303,7 @@ const versionAtom = unwrap(atom(async () => (await import("../../../package.json
 
 export const useMobileVersion = () => useAtomValue(versionAtom)
 
-/**
- * The pinned bottom entries: Templates and Settings, both dropped inside the settings scope. Beta
- * developer mode adds Invite Teammate for a reader who may invite, as the old app does in every
- * rail.
- */
+/** Templates and Settings (not in the settings scope), plus Invite Teammate in beta developer mode. */
 export const useMobileBottomNavItems = (
     projectURL: string,
     {includeSettingsLink = true}: {includeSettingsLink?: boolean} = {},

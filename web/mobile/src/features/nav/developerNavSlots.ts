@@ -13,11 +13,7 @@ export interface DeveloperNavSlots {
     afterSessions: SidebarConfig[]
 }
 
-/**
- * Beta developer mode lays the developer rows out like the old app's rail: Prompts after Home,
- * then the Evaluation group, Observability and Registry after Sessions. Without beta the rail
- * keeps its flat Developer section after Sessions, exactly as before.
- */
+/** Beta developer mode gets the old app's layout; without beta the rail stays as it was. */
 export const developerNavSlots = (
     projectURL: string,
     views: readonly DeveloperView[],
