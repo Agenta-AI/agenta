@@ -2,7 +2,6 @@ import {useMemo, useState} from "react"
 
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableToolbar} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
@@ -17,6 +16,7 @@ import {projectHomeUrl} from "@/lib/context"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useProjectPermission} from "../context/useProjectPermission"
+import {useDeveloperPageFrame} from "../developer/developerPageFrame"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
@@ -26,8 +26,6 @@ import {ArchivedAppsEmpty} from "./states/ArchivedAppsEmpty"
 import {useArchivedApps} from "./useArchivedApps"
 
 /** The page column, shared with the agents roster, so the pages line up. */
-const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
-
 /**
  * The archived apps (prompt apps and custom workflows) with Restore. Archived agents live on the
  * Agents page, under "Only archived".
@@ -39,6 +37,7 @@ export const ArchivedAppsScreen = ({
     workspaceId: string
     projectId: string
 }) => {
+    const PAGE_FRAME = useDeveloperPageFrame()
     useBindWorkspaceMembers()
     useBindProjectContext(projectId)
     const [term, setTerm] = useState("")

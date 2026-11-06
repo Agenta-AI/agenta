@@ -1,7 +1,6 @@
 import {useEffect} from "react"
 
 import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
@@ -14,6 +13,7 @@ import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {agentEntryHref} from "../agents/agentEntry"
 import {useBindProjectContext} from "../context/useBindProjectContext"
+import {useDeveloperPageFrame} from "../developer/developerPageFrame"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
@@ -33,8 +33,6 @@ const AppUsageSection = dynamic(() => import("./AppUsageSection").then((m) => m.
     loading: () => <AppUsageSkeleton />,
 })
 
-const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
-
 /**
  * The overview of one prompt or custom app: where it is deployed, its newest prompts, and its
  * newest evaluations. An agent id goes to the agent overview, and an id that is no app here
@@ -51,6 +49,7 @@ export const AppOverviewScreen = ({
     projectId: string
     appId: string
 }) => {
+    const PAGE_FRAME = useDeveloperPageFrame()
     useBindProjectContext(projectId)
     const router = useRouter()
     const queryClient = useQueryClient()
@@ -72,7 +71,7 @@ export const AppOverviewScreen = ({
 
     return (
         <>
-            <PageTitle title="Overview" />
+            <PageTitle title="Overview" context={title ?? undefined} />
             {beta ? <BindWorkspaceMembers /> : null}
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
