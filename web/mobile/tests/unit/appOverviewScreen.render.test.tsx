@@ -98,9 +98,30 @@ let releaseFlags: (() => void) | null
 let flagsDelayed: boolean
 let listFails: boolean
 let listDelayed: boolean
+let archivedFails: boolean
 const listWaiters: (() => void)[] = []
 
-const answer = async (url: string, body: {grouping?: unknown}) => {
+const ARCHIVED = {
+    id: "app-old",
+    name: "Old bot",
+    slug: "old-bot",
+    flags: {is_application: true},
+    deleted_at: "2026-10-01T00:00:00Z",
+}
+const ARCHIVED_AGENT = {
+    id: "agent-old",
+    name: "Old helper",
+    flags: {is_application: true},
+    deleted_at: "2026-10-01T00:00:00Z",
+}
+
+// In no active list, but not archived either: the lookup must not turn it into an overview.
+const NOT_ARCHIVED = {id: "app-new", name: "New bot", flags: {is_application: true}}
+
+const answer = async (
+    url: string,
+    body: {include_archived?: boolean; workflow_refs?: {id: string}[]},
+) => {
     if (url.endsWith("/workflows/revisions/query")) {
         if (flagsDelayed) await new Promise<void>((resolve) => (releaseFlags = resolve))
         return {
@@ -109,7 +130,19 @@ const answer = async (url: string, body: {grouping?: unknown}) => {
                 workflow_revisions: [
                     {id: "rev-a", workflow_id: "app-1", flags: {is_agent: false}},
                     {id: "rev-b", workflow_id: "agent-1", flags: {is_agent: true}},
+                    {id: "rev-c", workflow_id: "agent-old", flags: {is_agent: true}},
                 ],
+            },
+        }
+    }
+    if (body.include_archived && body.workflow_refs) {
+        // The archived lookup: the one request that names the id.
+        if (archivedFails) throw new Error("boom")
+        const id = body.workflow_refs?.[0]?.id
+        return {
+            data: {
+                count: 1,
+                workflows: [ARCHIVED, ARCHIVED_AGENT, NOT_ARCHIVED].filter((w) => w.id === id),
             },
         }
     }
@@ -140,6 +173,13 @@ const mount = async (appId: string) => {
     await settle()
 }
 
+/** The bodies of the requests that asked for archived workflows. */
+const archivedLookups = () =>
+    http.post.mock.calls
+        .filter((call) => String(call[0]).endsWith("/workflows/query"))
+        .map((call) => call[1] as {include_archived?: boolean; workflow_refs?: unknown})
+        .filter((body) => body.include_archived && body.workflow_refs)
+
 const text = () => host.textContent ?? ""
 
 beforeEach(() => {
@@ -159,6 +199,7 @@ beforeEach(() => {
     flagsDelayed = false
     listFails = false
     listDelayed = false
+    archivedFails = false
     vi.stubEnv("NEXT_PUBLIC_AGENTA_DEVELOPER_VIEWS", "app-overview")
 })
 
@@ -227,10 +268,53 @@ describe("app overview screen", () => {
         expect(text()).not.toContain("deployment-section")
     })
 
-    it("An unknown or archived app id shows not found", async () => {
+    it("An unknown app id shows not found", async () => {
         await mount("app-gone")
         expect(host.querySelector("[data-testid=not-found]")).not.toBeNull()
         expect(text()).not.toContain("deployment-section")
+    })
+
+    it("An archived app opens its overview, without the actions menu", async () => {
+        await mount("app-old")
+        expect(host.querySelector("[data-testid=not-found]")).toBeNull()
+        expect(host.querySelector("h1")?.textContent).toBe("Old bot")
+        expect(text()).toContain("deployment-section")
+        expect(text()).not.toContain("actions-menu")
+        const lookups = archivedLookups()
+        expect(lookups).toHaveLength(1)
+        expect(lookups[0]).toMatchObject({
+            include_archived: true,
+            workflow_refs: [{id: "app-old"}],
+            workflow: {flags: {is_evaluator: false}},
+        })
+    })
+
+    it("An id that is found but not archived still shows not found", async () => {
+        await mount("app-new")
+        expect(host.querySelector("[data-testid=not-found]")).not.toBeNull()
+    })
+
+    it("An archived agent is not an app here and shows not found", async () => {
+        await mount("agent-old")
+        expect(host.querySelector("[data-testid=not-found]")).not.toBeNull()
+        expect(router.replace).not.toHaveBeenCalled()
+    })
+
+    it("An active app and an agent send no archived lookup", async () => {
+        await mount("app-1")
+        expect(host.querySelector("h1")?.textContent).toBe("Support bot")
+        expect(text()).toContain("actions-menu")
+        await act(async () => root.unmount())
+        root = createRoot(host)
+        await mount("agent-1")
+        expect(archivedLookups()).toHaveLength(0)
+    })
+
+    it("A failed archived lookup shows Could not load apps, not not found", async () => {
+        archivedFails = true
+        await mount("app-old")
+        expect(text()).toContain("Could not load apps")
+        expect(host.querySelector("[data-testid=not-found]")).toBeNull()
     })
 
     it("The app name heading shows a skeleton until the name loads", async () => {
