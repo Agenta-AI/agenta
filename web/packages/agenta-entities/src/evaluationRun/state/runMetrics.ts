@@ -124,6 +124,8 @@ export interface RunMetricEntry {
     evaluatorSlug: string | null
     /** The run-level stats; for an online run with no static row, the latest point's stats. */
     stats: MetricStats | null
+    /** True when `stats` come from the run-wide row, false when they are the latest point's. */
+    statsAreRunWide: boolean
     /** Online runs: one point per timestamped row, oldest first. Empty otherwise. */
     temporal: TemporalMetricPoint[]
 }
@@ -242,8 +244,10 @@ export function buildRunMetricCatalog(
             return stats ? [{timestamp, stats}] : []
         })
 
+    const runWideStats = (stepKey: string, metricKey: string) =>
+        normalizeMetricStats(staticData[stepKey]?.[metricKey])
     const statsFor = (stepKey: string, metricKey: string, temporal: TemporalMetricPoint[]) =>
-        normalizeMetricStats(staticData[stepKey]?.[metricKey]) ?? temporal.at(-1)?.stats ?? null
+        runWideStats(stepKey, metricKey) ?? temporal.at(-1)?.stats ?? null
 
     const steps = run?.data?.steps ?? []
     const entries: RunMetricEntry[] = []
@@ -265,6 +269,7 @@ export function buildRunMetricCatalog(
                 evaluatorId: step.references?.evaluator?.id ?? null,
                 evaluatorSlug: step.references?.evaluator?.slug ?? null,
                 stats,
+                statsAreRunWide: runWideStats(step.key, metricKey) !== null,
                 temporal,
             })
         }
@@ -301,6 +306,7 @@ export function buildRunMetricCatalog(
             : stepKey
               ? statsFor(stepKey, metricKey, temporal)
               : null
+        const statsKeys = combined ? stepKeys : stepKey ? [stepKey] : []
         entries.push({
             id,
             kind: "invocation",
@@ -310,6 +316,9 @@ export function buildRunMetricCatalog(
             evaluatorId: null,
             evaluatorSlug: null,
             stats,
+            statsAreRunWide:
+                statsKeys.length > 0 &&
+                statsKeys.every((key) => runWideStats(key, metricKey) !== null),
             temporal,
         })
     }
