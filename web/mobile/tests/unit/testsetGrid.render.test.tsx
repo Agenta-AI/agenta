@@ -335,7 +335,8 @@ describe("Test set grid", () => {
     it("A reader without edit_testsets sees no column or row edit actions", async () => {
         mount(fakeEditor(), false)
         expect(byLabel("Column question actions")).toBeNull()
-        expect(button("Add column")).toBeUndefined()
+        expect(byLabel("Add column")).toBeNull()
+        expect(button("Delete selected")).toBeUndefined()
         expect(button("Select all")).toBeUndefined()
         await press(document.querySelector('[data-row="case-1"] [aria-label="Actions"]'))
         expect(item("Delete")).toBeUndefined()

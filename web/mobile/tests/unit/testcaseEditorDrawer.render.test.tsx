@@ -92,6 +92,11 @@ describe("Testcase drawer", () => {
         expect(host.textContent).toBe("")
     })
 
+    it("The drawer shows the fields in row order, with no per-field add or delete", () => {
+        content()
+        expect(seen.editor).toMatchObject({fieldOrder: "data", fieldControls: false})
+    })
+
     it("A reader opens the drawer in view only mode", () => {
         drawer(true)
         expect(seen.drawer).toMatchObject({viewOnly: true, onOpenCommitModal: undefined})
