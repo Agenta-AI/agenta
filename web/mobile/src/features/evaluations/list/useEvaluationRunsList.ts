@@ -15,7 +15,13 @@ export const EVALUATION_RUNS_POLL_MS = 5_000
 const NONE: EvaluationRun[] = []
 
 /**
- * The runs list, 30 at a time. Search, status, kind and app go to the server (the package fills
+ * Runs that come from traces or test cases belong to Annotation queues, not to the evaluations
+ * list. The server drops them, so a page stays full. Live runs read from a query, so they stay.
+ */
+const NOT_DIRECT_QUEUE = {has_testcases: false, has_traces: false}
+
+/**
+ * The runs list, 30 at a time. Search, status, kind, app and the queue exclusion go to the server (the package fills
  * a page that the kind or app filter would leave short). The list refreshes every five seconds
  * while a run is in progress.
  */
@@ -39,6 +45,7 @@ export const useEvaluationRunsList = ({
         statuses: statuses.length > 0 ? [...statuses] : undefined,
         appId: appId ?? undefined,
         kind: kind === "all" ? undefined : kind,
+        flags: NOT_DIRECT_QUEUE,
     }
 
     const query = useInfiniteQuery({
