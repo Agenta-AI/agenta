@@ -91,17 +91,24 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === "object" && value !== null && !Array.isArray(value)
 
 /**
- * The run-level row the summary reads: the static row (no scenario, no timestamp), else the newest
- * timestamped row of an online run.
+ * Which run-level row to read. `static`: the static row (no scenario, no timestamp), else the
+ * newest timestamped row; the run page's summary reads this. `latest`: the newest timestamped row,
+ * else the static row; the old app's runs list shows a live run's latest window this way.
  */
-export function runLevelMetricRow<T extends StatsMapMetric>(metrics: readonly T[]): T | null {
+export type RunLevelRowPreference = "static" | "latest"
+
+/** The run-level row of a run's metrics, by `prefer` (`static` by default). */
+export function runLevelMetricRow<T extends StatsMapMetric>(
+    metrics: readonly T[],
+    prefer: RunLevelRowPreference = "static",
+): T | null {
     const runLevel = metrics.filter((metric) => !metric.scenario_id)
     const staticRow = runLevel.find((metric) => !metric.timestamp)
-    if (staticRow) return staticRow
+    if (staticRow && prefer === "static") return staticRow
     const timed = runLevel
         .filter((metric) => metric.timestamp && Number.isFinite(Date.parse(metric.timestamp)))
         .sort((a, b) => Date.parse(b.timestamp ?? "") - Date.parse(a.timestamp ?? ""))
-    return timed[0] ?? null
+    return timed[0] ?? staticRow ?? null
 }
 
 /**
@@ -112,8 +119,9 @@ export function runLevelMetricRow<T extends StatsMapMetric>(metrics: readonly T[
 export function buildRunStatsMap(
     run: StatsMapRun | null | undefined,
     metrics: readonly StatsMapMetric[],
+    prefer: RunLevelRowPreference = "static",
 ): RunStatsMap {
-    const row = runLevelMetricRow(metrics)
+    const row = runLevelMetricRow(metrics, prefer)
     const data = isRecord(row?.data) ? row.data : {}
     const invocationStepKey =
         run?.data?.steps?.find((step) => step.type === "invocation")?.key ?? null
