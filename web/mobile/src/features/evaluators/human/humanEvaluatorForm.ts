@@ -18,6 +18,8 @@ export interface FeedbackFieldDraft {
     minimum: string
     maximum: string
     options: string[]
+    /** The name the evaluator stored; a stored name stays valid even if it breaks today's rule. */
+    storedName?: string
 }
 
 export interface HumanEvaluatorDraft {
@@ -65,6 +67,7 @@ export const draftFromEvaluator = ({
                 ? metrics.map((metric) => ({
                       key: newKey(),
                       name: metric.name,
+                      storedName: metric.name,
                       type: metric.type,
                       optional: metric.optional,
                       minimum: metric.minimum === undefined ? "" : String(metric.minimum),
@@ -119,7 +122,8 @@ export const validateHumanEvaluator = (
         const at = `fields.${index}`
         const name = names[index]
         if (!name) errors[`${at}.name`] = "Enter a feedback name."
-        else if (!isSlugInputValid(name)) errors[`${at}.name`] = SLUG_RULE
+        else if (name !== field.storedName && !isSlugInputValid(name))
+            errors[`${at}.name`] = SLUG_RULE
         else if (names.indexOf(name) !== index) errors[`${at}.name`] = "This name is already used."
         if (!field.type) errors[`${at}.type`] = "Pick a feedback type."
 

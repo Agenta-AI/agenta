@@ -28,6 +28,7 @@ export const EvaluatorRowCells = ({
     category,
     narrow,
     selectable,
+    canEdit,
     selected,
     onToggle,
     onOpen,
@@ -39,6 +40,8 @@ export const EvaluatorRowCells = ({
     narrow: boolean
     /** Selecting needs `edit_evaluators`; without it the row has no checkbox. */
     selectable: boolean
+    /** The reader may edit evaluators: a human row offers Edit, else Open details. */
+    canEdit: boolean
     selected: boolean
     onToggle: () => void
     onOpen: () => void
@@ -102,7 +105,7 @@ export const EvaluatorRowCells = ({
                 <EvaluatorRowMenu
                     copy={{revisionId: row.id, slug: row.slug}}
                     onOpen={onOpen}
-                    openLabel={automatic ? "Configure" : selectable ? "Edit" : "Open details"}
+                    openLabel={automatic ? "Configure" : canEdit ? "Edit" : "Open details"}
                     onArchive={onArchive}
                 />
             </span>

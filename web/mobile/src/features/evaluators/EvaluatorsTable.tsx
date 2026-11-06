@@ -89,6 +89,7 @@ export const EvaluatorsTable = ({
                     category={category}
                     narrow={narrow}
                     selectable={selectable}
+                    canEdit={selectable}
                     selected={selectedWorkflowIds.has(row.workflowId)}
                     onToggle={() => onToggle(row.workflowId)}
                     onOpen={() => onOpen(row)}

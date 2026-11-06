@@ -78,6 +78,20 @@ describe("validateHumanEvaluator in edit mode", () => {
     })
 })
 
+describe("stored feedback names", () => {
+    it("keeps a stored name that breaks the slug rule valid, and checks a new or changed one", () => {
+        const errors = validateHumanEvaluator(
+            draft([
+                {name: "my score", storedName: "my score", type: "integer"},
+                {name: "new note", type: "string"},
+                {name: "renamed one", storedName: "old", type: "boolean"},
+            ]),
+            "edit",
+        )
+        expect(Object.keys(errors).sort()).toEqual(["fields.1.name", "fields.2.name"])
+    })
+})
+
 describe("draftToMetrics", () => {
     it("sends parsed numbers and the filled options only", () => {
         expect(
@@ -126,7 +140,10 @@ describe("draftFromEvaluator", () => {
             },
         } as unknown as EvaluatorEntry & {latestRevision: Workflow}
         const result = draftFromEvaluator(entry)
-        expect({...result, fields: result.fields.map(({key: _key, ...rest}) => rest)}).toEqual({
+        expect({
+            ...result,
+            fields: result.fields.map(({key: _key, storedName: _stored, ...rest}) => rest),
+        }).toEqual({
             name: "Helpfulness",
             slug: "helpfulness",
             description: "Rate it",
