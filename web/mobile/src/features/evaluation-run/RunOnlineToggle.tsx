@@ -14,15 +14,15 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@agenta/ui/ui"
-import {PauseIcon, PlayIcon} from "@phosphor-icons/react"
+import {PlayIcon, StopIcon} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
 
 import {useProjectPermission} from "../context/useProjectPermission"
 
 const COPY = {
     pause: {
-        label: "Pause",
-        tooltip: "Pause evaluation",
+        label: "Stop",
+        tooltip: "Stop evaluation",
         done: "Evaluation stopped",
         failed: "Failed to stop evaluation",
     },
@@ -35,7 +35,7 @@ const COPY = {
 } as const
 
 /**
- * Pause or resume a live run. Shown only on a live run that is not closed, and only to a reader
+ * Stop or resume a live run, with the words the runs list menu and the old app use. Shown only on a live run that is not closed, and only to a reader
  * who may edit evaluation runs.
  */
 export const RunOnlineToggle = ({
@@ -78,7 +78,7 @@ export const RunOnlineToggle = ({
             <Tooltip>
                 <TooltipTrigger asChild>
                     <LoadingButton variant="outline" size="sm" loading={busy} onClick={run}>
-                        {action === "pause" ? <PauseIcon aria-hidden /> : <PlayIcon aria-hidden />}
+                        {action === "pause" ? <StopIcon aria-hidden /> : <PlayIcon aria-hidden />}
                         {copy.label}
                     </LoadingButton>
                 </TooltipTrigger>

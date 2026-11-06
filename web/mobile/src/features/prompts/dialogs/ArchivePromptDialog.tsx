@@ -21,6 +21,7 @@ export const ArchivePromptDialog = ({
         title={promptsCopy.archiveDialog.title}
         description={promptsCopy.archiveDialog.text(promptName)}
         confirmLabel={promptsCopy.archiveDialog.confirm}
+        solid
         pending={pending}
         error={error}
         onConfirm={onConfirm}
