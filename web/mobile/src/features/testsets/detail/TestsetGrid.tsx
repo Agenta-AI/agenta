@@ -49,8 +49,11 @@ export const TestsetGrid = ({
     editor: GridEditor
     canEdit: boolean
     onOpenRow: (rowId: string) => void
-    /** The page actions (Import, Add row, Commit), on the search row */
-    actions?: ReactNode
+    /**
+     * The page actions (Import, Add row, Commit), on the search row. It gets the saved test
+     * cases a queue action sends: the selected ones the grid shows, or else every one it shows.
+     */
+    actions?: (queueItemIds: string[]) => ReactNode
 }) => {
     const {tableConfig, readOnly, deleteRows} = editor
     const [selected, setSelected] = useState<string[]>([])
@@ -82,6 +85,13 @@ export const TestsetGrid = ({
         return selected.filter((id) => visible.has(id))
     }, [gridRows, selected])
 
+    // A row that is not saved yet has no id the server knows, so it never goes to a queue.
+    const queueItemIds = useMemo(() => {
+        const saved = gridRows.filter((row) => !row.__isNew).map((row) => row.id)
+        const pick = visibleSelected.filter((id) => saved.includes(id))
+        return pick.length > 0 ? pick : saved
+    }, [gridRows, visibleSelected])
+
     const deleteSelected = useCallback(() => {
         if (readOnly || visibleSelected.length === 0) return
         deleteRows(visibleSelected)
@@ -107,6 +117,7 @@ export const TestsetGrid = ({
                 fixed: "right",
                 render: (_value, row) => (
                     <TestcaseRowMenu
+                        rowId={row.id}
                         isNewRow={Boolean(row.__isNew)}
                         canEdit={canEdit}
                         deleteDisabled={readOnly}
@@ -182,7 +193,7 @@ export const TestsetGrid = ({
                 searchPlaceholder="Search testcases..."
                 actions={
                     <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-                        {actions}
+                        {actions?.(queueItemIds)}
                         {/* With no rows the table has no header, so Add column shows here. */}
                         {noRows && canEdit ? (
                             <AddColumnButton

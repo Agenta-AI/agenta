@@ -60,11 +60,17 @@ vi.mock("@/features/testsets/detail/TestsetToolbar", () => ({
     },
 }))
 vi.mock("@/features/testsets/detail/TestsetGrid", () => ({
-    TestsetGrid: ({onOpenRow, actions}: {onOpenRow: (id: string) => void; actions: ReactNode}) => {
+    TestsetGrid: ({
+        onOpenRow,
+        actions,
+    }: {
+        onOpenRow: (id: string) => void
+        actions: (queueItemIds: string[]) => ReactNode
+    }) => {
         state.openRow = onOpenRow
         return (
             <div>
-                {actions}
+                {actions([])}
                 <p data-testid="grid" />
             </div>
         )

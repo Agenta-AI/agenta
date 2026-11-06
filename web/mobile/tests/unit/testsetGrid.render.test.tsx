@@ -25,7 +25,7 @@ vi.mock("@agenta/entities/testcase", () => {
         {key: "meta.lang", label: "lang", parentKey: "meta"},
         {key: "meta.tone", label: "tone", parentKey: "meta"},
     ])
-    const rows = atom([{id: "case-1"}, {id: "new-1"}])
+    const rows = atom([{id: "case-1"}, {id: "new-1", __isNew: true}, {id: "case-2"}])
     // A search that shows only case-1.
     const narrowRows = atom([{id: "case-1"}])
     const noRows = atom([] as {id: string}[])
@@ -67,6 +67,7 @@ const HEADERS: Header[] = [
 const ROWS: Row[] = [
     {id: "case-1", key: "case-1"},
     {id: "new-1", key: "new-1", __isNew: true},
+    {id: "case-2", key: "case-2"},
 ]
 
 const tableFeatures = vi.hoisted(() => ({last: null as null | Record<string, unknown>}))
@@ -372,7 +373,7 @@ describe("Test set grid", () => {
                     editor={fakeEditor()}
                     canEdit
                     onOpenRow={vi.fn()}
-                    actions={<button type="button">Commit</button>}
+                    actions={() => <button type="button">Commit</button>}
                 />,
             ),
         )
@@ -393,6 +394,41 @@ describe("Test set grid", () => {
         await click(add)
 
         expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Add Column")
+    })
+
+    it("A queue action takes the selected saved rows, or else every saved row shown", async () => {
+        const seen: string[][] = []
+        act(() =>
+            root.render(
+                <TestsetGrid
+                    editor={fakeEditor()}
+                    canEdit
+                    onOpenRow={vi.fn()}
+                    actions={(ids) => {
+                        seen.push(ids)
+                        return null
+                    }}
+                />,
+            ),
+        )
+        // Nothing selected: every saved row; a row not saved yet has no id to send.
+        expect(seen.at(-1)).toEqual(["case-1", "case-2"])
+
+        // The mock table's "Select all" selects case-1 and new-1.
+        await click(button("Select all"))
+        expect(seen.at(-1)).toEqual(["case-1"])
+    })
+
+    it("A saved row's menu offers Add annotation queue; a new row's does not", async () => {
+        mount(fakeEditor())
+        await press(document.querySelector('[data-row="case-1"] [aria-label="Actions"]'))
+        expect(item("Add annotation queue")).toBeDefined()
+        await act(async () => (document.activeElement as HTMLElement | null)?.blur())
+        act(() => root.unmount())
+        root = createRoot(host)
+        mount(fakeEditor())
+        await press(document.querySelector('[data-row="new-1"] [aria-label="Actions"]'))
+        expect(item("Add annotation queue")).toBeUndefined()
     })
 
     it("An editor gets the table settings, the cell popover and the edited-row marker", () => {
