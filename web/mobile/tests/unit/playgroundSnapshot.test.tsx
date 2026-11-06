@@ -9,7 +9,7 @@ import {act} from "react"
 import {loadableController} from "@agenta/entities/loadable"
 import {testcaseMolecule} from "@agenta/entities/testcase"
 import {workflowMolecule} from "@agenta/entities/workflow"
-import {playgroundController} from "@agenta/playground"
+import {executionItemController, playgroundController} from "@agenta/playground"
 import {encodeSnapshot, type PlaygroundSnapshot} from "@agenta/playground/snapshot"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {QueryClient} from "@tanstack/react-query"
@@ -69,6 +69,7 @@ const apps: Record<string, object> = {
     "app-1": {id: "app-1", name: "Greeter", flags: {}},
     "app-2": {id: "app-2", name: "Translator", flags: {}},
     "agent-app": {id: "agent-app", name: "Helper", flags: {}},
+    "chat-app": {id: "chat-app", name: "Support", flags: {}},
 }
 const revisions = [
     revision("rev-1", "app-1", 1),
@@ -344,6 +345,61 @@ describe("last selection per app", () => {
         await mount("app-1")
 
         expect(selection.revisionIds).toEqual(["rev-2"])
+    })
+})
+
+describe("a trace opened in the playground", () => {
+    it("A chat trace's messages become the conversation", async () => {
+        added = [
+            {
+                ...revision("rev-chat", "chat-app", 1, {is_application: true, is_chat: true}),
+                data: {
+                    uri: "agenta:builtin:chat:v0",
+                    parameters: {
+                        prompt: {
+                            messages: [{role: "system", content: "You are a support agent."}],
+                            llm_config: {model: "gpt-4o-mini"},
+                        },
+                    },
+                },
+            },
+        ]
+        // The link the trace drawer's Playground action builds for a chat span.
+        setHash(
+            snapshotHash({
+                selection: [{kind: "commit", id: "rev-chat", runnableType: "workflow"}],
+                drafts: [],
+                localTestset: {
+                    rows: [
+                        {
+                            data: {
+                                messages: [
+                                    {role: "user", content: "Do you ship to Iceland?"},
+                                    {role: "assistant", content: "Yes, we do."},
+                                ],
+                            },
+                        },
+                    ],
+                    name: null,
+                },
+            }),
+        )
+
+        await mount("chat-app", "rev-chat")
+        const byId = store.get(executionItemController.selectors.messagesById) as Record<
+            string,
+            {role: string; content: unknown}
+        >
+        const conversation = (store.get(executionItemController.selectors.messageIds) as string[])
+            .map((id) => byId[id])
+            .filter(Boolean)
+            .map((message) => [message.role, message.content])
+        expect(conversation).toEqual([
+            ["user", "Do you ship to Iceland?"],
+            ["assistant", "Yes, we do."],
+            // The empty message for the next turn.
+            ["user", ""],
+        ])
     })
 })
 
