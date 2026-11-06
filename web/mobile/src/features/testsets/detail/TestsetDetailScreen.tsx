@@ -174,17 +174,23 @@ export const TestsetDetailScreen = ({
                     canRestore={mayEdit}
                 />
             ) : null}
-            <TestsetToolbar
+            <TestsetGrid
                 editor={editor}
-                base={base}
                 canEdit={canEdit}
-                revisions={revisions}
-                onImport={openImport}
-                onRowAdded={openAddedRow}
-                commitOpen={commitOpen}
-                onCommitOpenChange={setCommitOpen}
+                onOpenRow={openRow}
+                actions={
+                    <TestsetToolbar
+                        editor={editor}
+                        base={base}
+                        canEdit={canEdit}
+                        revisions={revisions}
+                        onImport={openImport}
+                        onRowAdded={openAddedRow}
+                        commitOpen={commitOpen}
+                        onCommitOpenChange={setCommitOpen}
+                    />
+                }
             />
-            <TestsetGrid editor={editor} canEdit={canEdit} onOpenRow={openRow} />
         </div>
     )
 

@@ -180,6 +180,8 @@ export interface EntityTableProps<
     rowHeightConfig?: RowHeightFeatureConfig
     /** Show settings dropdown (default: true) */
     showSettings?: boolean
+    /** A "Delete selected" entry in the settings menu */
+    settingsDelete?: {onDelete: () => void; disabled?: boolean; label?: string}
     /** Enable table export action (default: true) */
     enableExport?: boolean
     /** Extra controls in the table toolbar, next to the settings button */
@@ -320,6 +322,7 @@ export function EntityTable<
     renderCell,
     rowHeightConfig = DEFAULT_ROW_HEIGHT_CONFIG,
     showSettings = true,
+    settingsDelete,
     enableExport = true,
     headerExtra,
     loadNextPage,
@@ -669,6 +672,7 @@ export function EntityTable<
                 rowKey="id"
                 autoHeight={autoHeight}
                 useSettingsDropdown={showSettings}
+                settingsDropdownDelete={settingsDelete}
                 enableExport={enableExport}
                 primaryActions={headerExtra}
                 typeChips={effectiveTypeChips}
