@@ -2,6 +2,7 @@ import {useCallback, useMemo, useState} from "react"
 
 import {workflowLatestRevisionIdAtomFamily, type Workflow} from "@agenta/entities/workflow"
 import {useSettledValue} from "@agenta/shared/hooks"
+import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableToolbar} from "@agenta/ui/list-table"
 import {Button, Segmented} from "@agenta/ui/ui"
@@ -35,6 +36,14 @@ const RevisionDrawerHost = dynamic(
     () => import("../revisions/RevisionDrawerHost").then((module) => module.RevisionDrawerHost),
     {ssr: false},
 )
+// Beta developer mode only; everyone else keeps the read-only drawer.
+const EditableRevisionDrawerHost = dynamic(
+    () =>
+        import("../revisions/EditableRevisionDrawerHost").then(
+            (module) => module.EditableRevisionDrawerHost,
+        ),
+    {ssr: false},
+)
 
 const MODE_OPTIONS = [
     {label: "Variants", value: "variants"},
@@ -59,6 +68,7 @@ export const VariantsTab = ({
     const [deployRow, setDeployRow] = useState<AppRevisionRow | null>(null)
     const [deleteRow, setDeleteRow] = useState<AppRevisionRow | null>(null)
     const [revisionId, setRevisionId] = useRevisionParam()
+    const betaDeveloperMode = useAtomValue(betaDeveloperModeActiveAtom)
 
     const revisions = useAppRevisions({projectId, appId: app.id, search: term})
     const latestRevisionId = useAtomValue(workflowLatestRevisionIdAtomFamily(app.id)) ?? null
@@ -108,6 +118,20 @@ export const VariantsTab = ({
         <VariantsEmpty />
     )
 
+    const drawerActions = (
+        <>
+            {toPlayground && shownRow ? (
+                <OpenInPlaygroundButton href={toPlayground(shownRow)} />
+            ) : null}
+            {canDeploy && shownRow ? (
+                <Button size="sm" onClick={() => setDeployRow(shownRow)}>
+                    <CloudArrowUp aria-hidden size={14} />
+                    Deploy
+                </Button>
+            ) : null}
+        </>
+    )
+
     return (
         <>
             <ListTableToolbar
@@ -152,23 +176,20 @@ export const VariantsTab = ({
             ) : null}
 
             {revisionId ? (
-                <RevisionDrawerHost
-                    kind="variant"
-                    navigationIds={navigationIds}
-                    actions={
-                        <>
-                            {toPlayground && shownRow ? (
-                                <OpenInPlaygroundButton href={toPlayground(shownRow)} />
-                            ) : null}
-                            {canDeploy && shownRow ? (
-                                <Button size="sm" onClick={() => setDeployRow(shownRow)}>
-                                    <CloudArrowUp aria-hidden size={14} />
-                                    Deploy
-                                </Button>
-                            ) : null}
-                        </>
-                    }
-                />
+                betaDeveloperMode ? (
+                    <EditableRevisionDrawerHost
+                        projectId={projectId}
+                        kind="variant"
+                        navigationIds={navigationIds}
+                        actions={drawerActions}
+                    />
+                ) : (
+                    <RevisionDrawerHost
+                        kind="variant"
+                        navigationIds={navigationIds}
+                        actions={drawerActions}
+                    />
+                )
             ) : null}
             {deployRow ? (
                 <DeployRevisionDialog
