@@ -1,7 +1,6 @@
 import type {ReactNode} from "react"
 
-import {EvaluatorPicker} from "@agenta/playground-ui/panels/evaluator"
-
+import {PlaygroundEvaluatorPicker} from "../evaluators/create/PlaygroundEvaluatorPicker"
 import {NavDrawer} from "../nav/NavDrawer"
 
 /**
@@ -30,7 +29,7 @@ export const PlaygroundHeader = ({
         <div className="ml-auto flex items-center justify-end gap-2">
             {newEvaluation}
             {newEvaluation ? <span aria-hidden className="h-4 w-px shrink-0 bg-border" /> : null}
-            <EvaluatorPicker />
+            <PlaygroundEvaluatorPicker />
             {actions}
         </div>
     </header>

@@ -38,4 +38,10 @@ export interface EditableRevisionDrawerProps {
     onRefinePrompt?: (revisionId: string, promptKey: string) => void
     /** Open with the test pane on. Default false. */
     defaultTesting?: boolean
+    /**
+     * False: no test pane, and the drawer leaves the playground state alone, so it can open over a
+     * page that shows a playground (create an evaluator from the app playground). A local draft
+     * it shows is discarded on close. Default true.
+     */
+    playground?: boolean
 }

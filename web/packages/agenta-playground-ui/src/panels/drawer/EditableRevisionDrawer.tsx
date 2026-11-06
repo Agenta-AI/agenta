@@ -11,22 +11,24 @@ import {playgroundController} from "@agenta/playground"
 import {cn} from "@agenta/ui/styles"
 import {Button, Sheet, SheetContent, SheetHeader} from "@agenta/ui/ui"
 import {ArrowsIn, ArrowsOut, CaretDownIcon, CaretUpIcon} from "@phosphor-icons/react"
-import {atom, useStore} from "jotai"
+import {atom, useStore, type Getter} from "jotai"
 
 import {DiscardChangesDialog} from "./DiscardChangesDialog"
 import {DrawerTitle} from "./DrawerTitle"
 import {EditableRevisionDrawerBody} from "./EditableRevisionDrawerBody"
 import type {EditableRevisionDrawerProps} from "./types"
 
-/**
- * Edits that a close or a switch would lose: a changed revision, or a local copy of a saved one.
- * A new entity made from a template counts only once it is changed.
- */
+/** A changed revision, or a local copy of a saved one; a new template entity once it changes. */
+const hasUnsavedEdits = (get: Getter, entityId: string) => {
+    if (get(workflowMolecule.selectors.isDirty(entityId))) return true
+    return isLocalDraftId(entityId) && !get(workflowMolecule.selectors.isEphemeral(entityId))
+}
+
+/** Edits that a close or a switch would lose, across the drawer's playground state. */
 export const drawerHasUnsavedEditsAtom = atom((get) =>
-    get(playgroundController.selectors.nodes()).some(({entityId}) => {
-        if (get(workflowMolecule.selectors.isDirty(entityId))) return true
-        return isLocalDraftId(entityId) && !get(workflowMolecule.selectors.isEphemeral(entityId))
-    }),
+    get(playgroundController.selectors.nodes()).some(({entityId}) =>
+        hasUnsavedEdits(get, entityId),
+    ),
 )
 
 type Pending = {kind: "close"} | {kind: "navigate"; revisionId: string}
@@ -52,6 +54,7 @@ export const EditableRevisionDrawer = ({
     onCommitted,
     onRefinePrompt,
     defaultTesting = false,
+    playground = true,
 }: EditableRevisionDrawerProps) => {
     const store = useStore()
     // Shown from inside the commit: switching after it clears the draft leaves the form on old text.
@@ -84,7 +87,9 @@ export const EditableRevisionDrawer = ({
         })
         return () => registerWorkflowCommitCallbacks({onNewRevision: previous})
     }, [])
-    const [testing, setTesting] = useState(defaultTesting)
+    const [testingOn, setTesting] = useState(defaultTesting)
+    // Without the playground state there is nothing to test with.
+    const testing = playground && testingOn
     const [pending, setPending] = useState<Pending | null>(null)
 
     const index = shownId ? navigationIds.indexOf(shownId) : -1
@@ -94,6 +99,10 @@ export const EditableRevisionDrawer = ({
     const act = useCallback(
         (next: Pending) => {
             if (next.kind === "close") {
+                // Off the playground nothing else clears a local draft when the drawer closes.
+                if (!playground && shownId && isLocalDraftId(shownId)) {
+                    store.set(discardLocalServerDataAtom, shownId)
+                }
                 onClose()
                 return
             }
@@ -104,15 +113,19 @@ export const EditableRevisionDrawer = ({
             }
             onNavigate?.(next.revisionId)
         },
-        [onClose, onNavigate, shownId, store],
+        [onClose, onNavigate, playground, shownId, store],
     )
 
     const request = useCallback(
         (next: Pending) => {
-            if (store.get(drawerHasUnsavedEditsAtom)) setPending(next)
+            // Off the playground its nodes are the page's: only the shown revision counts.
+            const unsaved = playground
+                ? store.get(drawerHasUnsavedEditsAtom)
+                : shownId !== null && hasUnsavedEdits((target) => store.get(target), shownId)
+            if (unsaved) setPending(next)
             else act(next)
         },
-        [act, store],
+        [act, playground, shownId, store],
     )
 
     const testLabel = kind === "evaluator" ? "Test evaluator" : "Test app"
@@ -172,19 +185,21 @@ export const EditableRevisionDrawer = ({
                                         </>
                                     ) : null}
                                     {actions}
-                                    <Button
-                                        variant={testing ? "secondary" : "outline"}
-                                        size="sm"
-                                        aria-pressed={testing}
-                                        onClick={() => setTesting((on) => !on)}
-                                    >
-                                        {testing ? (
-                                            <ArrowsIn aria-hidden size={14} />
-                                        ) : (
-                                            <ArrowsOut aria-hidden size={14} />
-                                        )}
-                                        {testLabel}
-                                    </Button>
+                                    {playground ? (
+                                        <Button
+                                            variant={testing ? "secondary" : "outline"}
+                                            size="sm"
+                                            aria-pressed={testing}
+                                            onClick={() => setTesting((on) => !on)}
+                                        >
+                                            {testing ? (
+                                                <ArrowsIn aria-hidden size={14} />
+                                            ) : (
+                                                <ArrowsOut aria-hidden size={14} />
+                                            )}
+                                            {testLabel}
+                                        </Button>
+                                    ) : null}
                                 </div>
                             </SheetHeader>
                             <EditableRevisionDrawerBody
@@ -196,6 +211,7 @@ export const EditableRevisionDrawer = ({
                                 configActions={configActions}
                                 renderRuns={renderRuns}
                                 onRefinePrompt={onRefinePrompt}
+                                playground={playground}
                                 onCommitted={(newRevisionId) =>
                                     onCommitted?.(shownId, newRevisionId)
                                 }

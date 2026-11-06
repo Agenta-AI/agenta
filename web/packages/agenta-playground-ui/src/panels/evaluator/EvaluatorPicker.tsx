@@ -1,6 +1,10 @@
 import {useMemo} from "react"
 
-import {activateEvaluatorEnrichmentAtom, workflowMolecule} from "@agenta/entities/workflow"
+import {
+    activateEvaluatorEnrichmentAtom,
+    evaluatorWorkflowMetaMapAtom,
+    workflowMolecule,
+} from "@agenta/entities/workflow"
 import {
     EntityPicker,
     useEnrichedEvaluatorOnlyAdapter,
@@ -10,7 +14,7 @@ import {playgroundController} from "@agenta/playground"
 import type {PlaygroundNode} from "@agenta/playground/state"
 import {Badge, cn} from "@agenta/ui/ui"
 import {Gavel, X} from "@phosphor-icons/react"
-import {useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 
 /** One evaluator after the app: its name and version, and a button that takes it off. */
 const EvaluatorChip = ({node, onRemove}: {node: PlaygroundNode; onRemove: () => void}) => {
@@ -35,6 +39,25 @@ const EvaluatorChip = ({node, onRemove}: {node: PlaygroundNode; onRemove: () => 
 }
 
 /**
+ * The connected evaluator revisions, grouped by evaluator for the picker's ticks and chips. A
+ * fresh atom per node list: it reads each node's revision for its evaluator and version.
+ */
+const connectedByEvaluatorAtom = (nodes: PlaygroundNode[]) =>
+    atom((get) => {
+        const map = new Map<string, {id: string; label: string}[]>()
+        for (const node of nodes) {
+            if (node.depth === 0) continue
+            const data = get(workflowMolecule.selectors.data(node.entityId))
+            const evaluatorId = data?.workflow_id
+            if (!evaluatorId) continue
+            const list = map.get(evaluatorId) ?? []
+            list.push({id: node.entityId, label: `v${data?.version ?? 0}`})
+            map.set(evaluatorId, list)
+        }
+        return map
+    })
+
+/**
  * Evaluators that score each output of the app in the playground: a chip per connected
  * evaluator, and the automatic evaluators (human ones cannot score a run) by type, with their
  * revisions, to add one. An added evaluator runs after the app on every run. With
@@ -54,8 +77,28 @@ export const EvaluatorPicker = ({onCreateNew}: {onCreateNew?: () => void}) => {
         [evaluators],
     )
     const adapter = useEnrichedEvaluatorOnlyAdapter(undefined, {showWorkflowMeta: true, lazy: true})
+    const connectedByEvaluator = useAtomValue(
+        useMemo(() => connectedByEvaluatorAtom(nodes), [nodes]),
+    )
+    const metaMap = useAtomValue(evaluatorWorkflowMetaMapAtom)
+    const versionsByEvaluator = useMemo(() => {
+        const map = new Map<string, number>()
+        for (const [evaluatorId, meta] of metaMap) {
+            if (meta.versionCount != null) map.set(evaluatorId, meta.versionCount)
+        }
+        return map
+    }, [metaMap])
 
-    const add = (selection: WorkflowRevisionSelectionResult) => {
+    const disconnectRevision = (revisionId: string) => {
+        const node = evaluators.find((item) => item.entityId === revisionId)
+        if (node) disconnect(node.id)
+    }
+    // A tick connects the revision after the app; a second tick takes it off, as in /w.
+    const toggle = (selection: WorkflowRevisionSelectionResult) => {
+        if (connectedIds.has(selection.id)) {
+            disconnectRevision(selection.id)
+            return
+        }
         if (!root) return
         connect({
             sourceNodeId: root.id,
@@ -88,15 +131,23 @@ export const EvaluatorPicker = ({onCreateNew}: {onCreateNew?: () => void}) => {
                     variant="popover-cascader"
                     adapter={adapter}
                     instanceId="playground-evaluator-picker"
-                    onSelect={add}
-                    placeholder="Evaluator"
+                    onSelect={toggle}
+                    // On a phone only the icon shows, so the bar keeps room for its other buttons.
+                    placeholder={<span className="max-sm:sr-only">Evaluator</span>}
                     icon={<Gavel aria-hidden size={14} />}
-                    showDropdownIcon={false}
+                    showDropdownIcon
                     placement="bottomRight"
                     panelMinWidth={280}
                     disabled={!root}
-                    disabledChildIds={connectedIds}
-                    disabledChildTooltip="Already connected"
+                    multiSelect
+                    selectedChildIds={connectedIds}
+                    selectionSummary
+                    showParentCheckboxes
+                    selectedChildrenByParent={connectedByEvaluator}
+                    totalChildrenByParent={versionsByEvaluator}
+                    onDeselectChild={disconnectRevision}
+                    // The type tags take their colours from the playground's colour scope.
+                    popupClassName="ag-playground-colors"
                     openChildOnHover
                     showParentDescription
                     onCreateNew={onCreateNew}

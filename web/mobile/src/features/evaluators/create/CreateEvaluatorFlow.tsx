@@ -46,17 +46,20 @@ export interface CreatedEvaluator {
  * pane and the naming step. Human: the feedback form. Mount it while the user creates; it calls
  * `onClose` when they finish or leave.
  *
- * The automatic flow puts its evaluator in the playground state: a host that shows a playground
- * of its own must offer human create only.
+ * The automatic flow puts its evaluator in the playground state, unless `onPlayground` says the
+ * host shows a playground of its own: the drawer then has no test pane and leaves that state alone.
  */
 export const CreateEvaluatorFlow = ({
     kind,
     onCreated,
     onClose,
+    onPlayground = false,
 }: {
     kind: "automatic" | "human"
     onCreated: (evaluator: CreatedEvaluator) => void
     onClose: () => void
+    /** Created from a page with its own playground: the drawer has no test pane there. */
+    onPlayground?: boolean
 }) => {
     const store = useStore()
     const projectId = useAtomValue(projectIdAtom) ?? ""
@@ -96,6 +99,7 @@ export const CreateEvaluatorFlow = ({
             <EvaluatorEditorDrawer
                 projectId={projectId}
                 revisionId={draftId}
+                onPlayground={onPlayground}
                 playgroundBase={null}
                 onNavigate={() => undefined}
                 onClose={onClose}
