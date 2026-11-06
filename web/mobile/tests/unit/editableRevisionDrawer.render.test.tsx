@@ -8,7 +8,12 @@
 import {act, StrictMode, useEffect} from "react"
 
 import {projectPermissionQueryKey} from "@agenta/entities/access"
-import {createLocalDraftFromWorkflowRevision, workflowMolecule} from "@agenta/entities/workflow"
+import {
+    createLocalDraftFromWorkflowRevision,
+    workflowLocalServerDataAtomFamily,
+    workflowMolecule,
+    type Workflow,
+} from "@agenta/entities/workflow"
 import {playgroundController, playgroundInitializedAtom} from "@agenta/playground"
 import {queryClient as hostQueryClient} from "@agenta/shared/api"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
@@ -141,12 +146,13 @@ const calls: {url: string; body: Body; params: unknown}[] = []
 const sent = (suffix: string) => calls.filter((call) => call.url.endsWith(suffix))
 
 let strict = false
+let kind: "variant" | "evaluator" = "variant"
 const render = () => {
     const drawer = (
         <QueryClientProvider client={client}>
             <EditableRevisionDrawerHost
                 projectId={projectId}
-                kind="variant"
+                kind={kind}
                 navigationIds={["rev-2", "rev-1"]}
             />
         </QueryClientProvider>
@@ -160,6 +166,7 @@ beforeEach(() => {
     Element.prototype.hasPointerCapture = () => false
     Element.prototype.releasePointerCapture = () => undefined
     strict = false
+    kind = "variant"
     world.revisions = [makeRevision("rev-1", 1, "First"), makeRevision("rev-2", 2, "Second")]
     client = hostQueryClient
     client.clear()
@@ -371,5 +378,32 @@ describe("The editable revision drawer", () => {
 
         expect(shown()).toEqual(["rev-2"])
         expect(store.get(playgroundInitializedAtom)).toBe(true)
+    })
+    it("Titles an unsaved app from a template New App, and an unsaved evaluator New Evaluator", async () => {
+        const seed = (id: string, isEvaluator: boolean) =>
+            store.set(workflowLocalServerDataAtomFamily(id), {
+                id,
+                name: isEvaluator ? "Exact match" : "Chat",
+                slug: null,
+                version: null,
+                flags: {is_application: !isEvaluator, is_evaluator: isEvaluator, is_chat: true},
+                data: {uri: "agenta:builtin:chat:v0", parameters: prompt("Hi")},
+                meta: {__ephemeral: true},
+            } as unknown as Workflow)
+
+        seed("local-app-1", false)
+        router.query = {...router.query, revisionId: "local-app-1"}
+        act(() => render())
+        await until(() => title().includes("New App"))
+        expect(title()).not.toContain("Revision")
+        act(() => root.unmount())
+        root = createRoot(host)
+
+        seed("local-eval-1", true)
+        kind = "evaluator"
+        router.query = {...router.query, revisionId: "local-eval-1"}
+        act(() => render())
+        await until(() => title().includes("New Evaluator"))
+        expect(title()).toContain("Exact match")
     })
 })
