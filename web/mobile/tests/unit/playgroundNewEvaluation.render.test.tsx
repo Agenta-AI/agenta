@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
 /**
  * "New Evaluation" in the playground header, over the real playground selection, the real
- * workflow stores and the real wizard. Only HTTP is mocked, and the wizard's pickers render as
- * stubs (their popovers need pointer events jsdom does not send).
+ * workflow stores and the real wizard with its step tables. Only HTTP is mocked.
  */
 import {act} from "react"
 
@@ -18,7 +17,6 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 import {PlaygroundNewEvaluation} from "@/features/playground/PlaygroundNewEvaluation"
 import {usePlaygroundSelection} from "@/features/playground/usePlaygroundSelection"
 
-import {pickers} from "../support/newEvaluationMocks"
 import {button, settle, stubResizeObserver} from "../support/playgroundHarness"
 
 const {http, router} = vi.hoisted(() => ({
@@ -44,10 +42,6 @@ vi.mock("@agenta/shared/api", async (original) => {
 vi.mock("@agenta/ui/app-message", () => ({
     message: {success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn()},
 }))
-vi.mock(
-    "@agenta/entity-ui/selection",
-    async () => (await import("../support/newEvaluationMocks")).selectionMock,
-)
 
 const revision = (id: string, version: number, variantId: string) => ({
     id,
@@ -144,34 +138,29 @@ const mount = async (revisions: string) => {
 }
 
 const dialog = () => document.querySelector<HTMLElement>("[role=dialog]")
-/** The picks of one wizard section, shown as chips under its header. */
-const chips = (title: string) => {
-    const section = [
-        ...(dialog()?.querySelectorAll<HTMLElement>("[data-slot=accordion-item]") ?? []),
-    ].find((item) =>
-        item.querySelector("[data-slot=accordion-trigger]")?.textContent?.startsWith(title),
-    )
-    expect(section, `the ${title} section`).toBeDefined()
-    return [...section!.querySelectorAll(":scope > ul > li")].map((chip) =>
+/** The picks of one wizard step, shown as chips under its title in the step list. */
+const chips = (title: string) =>
+    [...(dialog()?.querySelectorAll(`[aria-label="${title} picks"] > li`) ?? [])].map((chip) =>
         chip.textContent?.trim(),
     )
-}
 
 const openWizard = async () => {
     const trigger = button(host, "New Evaluation")
     expect(trigger, "the New Evaluation button").toBeDefined()
     expect(trigger!.disabled).toBe(false)
     await act(async () => trigger!.click())
-    await until(() => document.querySelector("[role=dialog] [data-slot=accordion-trigger]"))
+    await until(() => document.querySelector("[role=dialog] nav[aria-label=Steps]"))
     await settle()
 }
 
-const openSection = async (title: string) => {
-    const trigger = [
-        ...document.querySelectorAll<HTMLElement>("[data-slot=accordion-trigger]"),
-    ].find((element) => element.textContent?.startsWith(title))
-    expect(trigger, `the ${title} section`).toBeDefined()
-    await act(async () => trigger!.click())
+const openStep = async (title: string) => {
+    const step = [
+        ...document.querySelectorAll<HTMLButtonElement>(
+            "[role=dialog] nav[aria-label=Steps] button",
+        ),
+    ].find((element) => element.textContent === title)
+    expect(step, `the ${title} step`).toBeDefined()
+    await act(async () => step!.click())
     await settle()
 }
 
@@ -180,7 +169,6 @@ beforeEach(() => {
     stubResizeObserver()
     vi.clearAllMocks()
     vi.stubEnv("NEXT_PUBLIC_AGENTA_DEVELOPER_VIEWS", "playground,evaluations")
-    pickers.latest = {}
     routeHttp()
     store.set(queryClientAtom, new QueryClient({defaultOptions: {queries: {retry: false}}}))
     projectId = `proj-${Number(projectId.slice(5)) + 1}`
@@ -210,10 +198,17 @@ describe("New Evaluation from the playground", {timeout: 90_000}, () => {
         expect(chips("Application")).toEqual(["Capitals"])
         // One chip per shown revision, in the order of the page.
         expect(chips("Revision")).toEqual(["beta - v5", "alpha - v3"])
-        await openSection("Revision")
-        const picker = pickers.latest["new-evaluation-revision-app-1"]
-        expect(picker, "the revision picker").toBeDefined()
-        expect([...(picker.selectedChildIds as Set<string>)]).toEqual(["rev-2", "rev-1"])
+        // The sheet opens on the test set table, the next step to fill.
+        expect(document.querySelector("[role=dialog] [aria-current=step]")?.textContent).toBe(
+            "Test set",
+        )
+        await openStep("Revision")
+        await until(() => document.querySelector("[aria-label='Select beta v5']"))
+        // Both revisions show checked in the revision table.
+        const state = (label: string) =>
+            document.querySelector(`[aria-label='${label}']`)?.getAttribute("data-state")
+        expect(state("Select beta v5")).toBe("checked")
+        expect(state("Select alpha v3")).toBe("checked")
     })
 
     it("Leaves out a local draft: only saved revisions can be evaluated", async () => {

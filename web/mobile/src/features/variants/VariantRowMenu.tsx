@@ -21,6 +21,7 @@ export const VariantRowMenu = ({
     row,
     canDeploy,
     canDelete,
+    deleteLabel = "Delete",
     playgroundHref,
     onOpen,
     onDeploy,
@@ -29,6 +30,8 @@ export const VariantRowMenu = ({
     row: AppRevisionRow
     canDeploy: boolean
     canDelete: boolean
+    /** The Delete item's text; the Registry says "Delete variant" on a variant row. */
+    deleteLabel?: string
     playgroundHref: ((row: AppRevisionRow) => string) | null
     onOpen: (row: AppRevisionRow) => void
     onDeploy: (row: AppRevisionRow) => void
@@ -74,7 +77,7 @@ export const VariantRowMenu = ({
                     <DropdownMenuSeparator />
                     <DropdownMenuItem variant="destructive" onSelect={() => onDelete(row)}>
                         <Trash aria-hidden size={14} />
-                        Delete
+                        {deleteLabel}
                     </DropdownMenuItem>
                 </>
             ) : null}

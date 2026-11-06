@@ -1,12 +1,13 @@
 import {useMemo} from "react"
 
-import type {RunHeader, RunReferences} from "@agenta/entities/evaluationRun"
+import type {RunHeader, RunQueryConfig, RunReferences} from "@agenta/entities/evaluationRun"
 
 import {MetricCardsSection} from "./MetricCardsSection"
 import {RunRadarCard} from "./RunRadarCard"
 import {buildRunSummaryRows} from "./runSummaryRows"
 import {RunSummaryTable} from "./RunSummaryTable"
 import type {OverviewMetric, OverviewNames} from "./useRunOverview"
+import type {RunReferenceLinks} from "./useRunReferenceLinks"
 
 export interface RunOverviewViewProps {
     runId: string
@@ -16,6 +17,9 @@ export interface RunOverviewViewProps {
     metricsPending: boolean
     metricsError: Error | null
     names: OverviewNames
+    links?: RunReferenceLinks
+    /** A live run's query; undefined while it loads. */
+    query?: RunQueryConfig | null
     onRetryMetrics?: () => void
 }
 
@@ -28,11 +32,14 @@ export const RunOverviewView = ({
     metricsPending,
     metricsError,
     names,
+    links,
+    query,
     onRetryMetrics,
 }: RunOverviewViewProps) => {
     const rows = useMemo(
-        () => buildRunSummaryRows({header, references, metrics, metricsPending, names}),
-        [header, references, metrics, metricsPending, names],
+        () =>
+            buildRunSummaryRows({header, references, metrics, metricsPending, names, links, query}),
+        [header, references, metrics, metricsPending, names, links, query],
     )
 
     return (

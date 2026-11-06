@@ -40,7 +40,7 @@ async function mount() {
                     {client},
                     createElement(TestsetRows, {
                         projectId: "pr",
-                        testset: {testsetId: "ts-1", revisionId: REVISION_ID},
+                        testset: {testsetId: "ts-1", revisionId: REVISION_ID, version: null},
                     }),
                 ),
             ),
