@@ -101,7 +101,16 @@ const answer = (url: string, body: Record<string, unknown>): Promise<unknown> =>
     }
     if (url.endsWith("/testsets/revisions/query") && body.testset_refs) {
         return Promise.resolve({
-            data: {testset_revisions: [{id: "rev-3", testset_id: "ts-1", version: 3}]},
+            data: {
+                testset_revisions: [
+                    {
+                        id: "rev-3",
+                        testset_id: "ts-1",
+                        version: 3,
+                        created_at: "2026-11-05T10:00:00Z",
+                    },
+                ],
+            },
         })
     }
     if (url.endsWith("/testsets/revisions/query")) {
@@ -219,7 +228,9 @@ describe("add to test set sheet", () => {
     it("Opening with two spans shows the auto mappings for inputs and outputs", async () => {
         await render()
         expect(text()).toContain("2 spans selected")
-        expect(text()).toContain("Select a test set above to start mapping fields")
+        // As in the old app, mapping and preview follow the test set choice.
+        expect(text()).not.toContain("2. Map fields")
+        expect(text()).not.toContain("3. Preview")
 
         await choose("Test set", "__create_new__")
 
@@ -251,6 +262,29 @@ describe("add to test set sheet", () => {
         expect(select("Column 2").value).toBe("__create_new__")
         const options = Array.from(select("Column 2").options).map((option) => option.value)
         expect(options).toEqual(["", "__create_new__", "expected"])
+    })
+
+    it("An existing test set offers its revisions with the latest preselected", async () => {
+        await render()
+        await choose("Test set", "ts-1")
+
+        expect(select("Revision").value).toBe("rev-3")
+        const labels = Array.from(select("Revision").options)
+            .map((option) => option.textContent)
+            .filter(Boolean)
+        expect(labels).toHaveLength(1)
+        expect(labels[0]).toMatch(/^v3 · .* · latest$/)
+    })
+
+    it("The preview of an existing test set shows its columns next to the new ones", async () => {
+        await render()
+        await choose("Test set", "ts-1")
+
+        const headers = Array.from(document.querySelectorAll("thead th")).map(
+            (cell) => cell.textContent,
+        )
+        expect(headers).toEqual(["inputs", "expected", "outputs"])
+        expect(previewCells()[0]).toEqual(['{"country":"France"}', "", "Paris"])
     })
 
     it("New columns on an existing test set ask for confirmation first", async () => {

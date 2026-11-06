@@ -2,11 +2,11 @@ import {useCallback, useEffect, useRef} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {playgroundController, playgroundInitializedAtom} from "@agenta/playground"
+import {clearPlayground} from "@agenta/playground-ui/state"
 import {useAtomValue, useStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 import {useRouter} from "next/router"
 
-import {clearPlayground} from "./clearPlayground"
 import {parseRevisionIds} from "./playgroundUrl"
 import type {PlaygroundLoadStatus} from "./usePlaygroundSelection"
 
@@ -48,7 +48,7 @@ export const useEvaluatorPlaygroundSelection = (): EvaluatorPlaygroundSelection 
         if (!router.isReady || !id) return
         store.set(playgroundController.actions.addPrimaryNode, {type: "workflow", id, label: id})
         store.set(playgroundInitializedAtom, true)
-        return () => clearPlayground(store)
+        return () => clearPlayground(store, {keepEdits: true})
     }, [router.isReady, store])
 
     // A commit of the evaluator swaps it for the new revision: the address follows.

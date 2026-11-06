@@ -126,7 +126,11 @@ describe("evaluation runs list", () => {
         await mount({search: " alpha ", statuses: ["running", "queued"]})
         const [body] = bodies()
         expect(http.post.mock.calls[0][0]).toBe("https://api.test/evaluations/runs/query")
-        expect(body.run).toEqual({name: "alpha", statuses: ["running", "queued"]})
+        expect(body.run).toEqual({
+            name: "alpha",
+            statuses: ["running", "queued"],
+            flags: {has_testcases: false, has_traces: false},
+        })
         expect((body.windowing as {limit: number}).limit).toBe(30)
         expect(latest.runs.map((run) => run.id)).toEqual(["a"])
     })
@@ -143,7 +147,10 @@ describe("evaluation runs list", () => {
     it("The app filter is sent as the application reference", async () => {
         http.post.mockResolvedValue(page([]))
         await mount({appId: "app-1"})
-        expect(bodies()[0].run).toEqual({references: [{application: {id: "app-1"}}]})
+        expect(bodies()[0].run).toEqual({
+            references: [{application: {id: "app-1"}}],
+            flags: {has_testcases: false, has_traces: false},
+        })
     })
 
     it("Load more sends the cursor of the last page", async () => {

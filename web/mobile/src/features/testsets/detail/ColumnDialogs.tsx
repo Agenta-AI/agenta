@@ -24,7 +24,6 @@ export type ColumnDialogStep =
     /** `columnKeys` are the row keys the delete removes; `isGroup` for a group header. */
     | {kind: "delete"; columnKey: string; columnKeys: string[]; isGroup: boolean}
 
-const SAVES_VERSION = "This saves a new version of the test set right away."
 const NAME_TIP =
     "Tip: Use dot notation to create nested columns. For example, parent.child creates a child column under the parent group."
 
@@ -36,25 +35,20 @@ const refusalText = (result: Exclude<ColumnEdit, {ok: true}>, name: string): str
 }
 
 /**
- * The add, rename and delete column steps. On a saved test set each one saves a new version as
- * soon as it is confirmed, so the step says so and its button names the save. On a new test set
- * nothing is saved until the first commit.
- *
- * `onDone` gets the saved version to open, or null on a new test set.
+ * The add, rename and delete column steps. A change waits with the row edits for the next
+ * commit, and Discard drops it.
  */
 export const ColumnDialog = ({
     step,
-    savesVersion,
     onClose,
     onSubmit,
     onDone,
 }: {
     step: ColumnDialogStep | null
-    savesVersion: boolean
     onClose: () => void
     /** Runs the change. Gets the typed name; a delete gets the column name. */
     onSubmit: (name: string) => Promise<ColumnEdit>
-    onDone: (revisionId: string | null) => void
+    onDone: () => void
 }) => {
     const [name, setName] = useState("")
     const [error, setError] = useState<string | null>(null)
@@ -77,15 +71,12 @@ export const ColumnDialog = ({
               : step.isGroup
                 ? "Delete Group"
                 : "Delete Column"
-    const verb = step.kind === "add" ? "Add" : step.kind === "rename" ? "Rename" : "Delete"
-    const confirmLabel = savesVersion ? `${verb} and save` : verb
+    const confirmLabel = step.kind === "add" ? "Add" : step.kind === "rename" ? "Rename" : "Delete"
     const description = isDelete
         ? step.isGroup
             ? `Are you sure you want to delete the group "${step.columnKey}" and every column in it? This will remove them from all testcases.`
             : `Are you sure you want to delete the column "${step.columnKey}"? This will remove the column from all testcases.`
-        : savesVersion
-          ? SAVES_VERSION
-          : null
+        : null
 
     const submit = async () => {
         const typed = isDelete ? step.columnKey : name.trim()
@@ -94,7 +85,7 @@ export const ColumnDialog = ({
         try {
             const result = await onSubmit(typed)
             if (result.ok) {
-                onDone(result.revisionId)
+                onDone()
                 return
             }
             if (result.reason === "unchanged") {
@@ -123,11 +114,7 @@ export const ColumnDialog = ({
                     <DialogTitle>{title}</DialogTitle>
                     {description ? <DialogDescription>{description}</DialogDescription> : null}
                 </DialogHeader>
-                {isDelete ? (
-                    savesVersion ? (
-                        <p className="text-sm text-muted-foreground">{SAVES_VERSION}</p>
-                    ) : null
-                ) : (
+                {isDelete ? null : (
                     <form
                         className="flex flex-col gap-2"
                         onSubmit={(event) => {
@@ -176,7 +163,7 @@ export const ColumnDialog = ({
 }
 
 /**
- * The "Add column" button. It is off while rows have unsaved edits, and its tooltip says why.
+ * The "Add column" button. It is off while a save runs, and its tooltip says why.
  */
 export const AddColumnButton = ({
     blockedReason,

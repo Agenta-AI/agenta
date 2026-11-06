@@ -49,7 +49,6 @@ vi.mock("@agenta/sdk/resources", async (importOriginal) => ({
 vi.mock("next/router", () => ({default: {push: vi.fn()}, useRouter: () => router}))
 vi.mock("@/features/developer/developerViewAccess", () => ({
     useDeveloperViewEnabled: () => false,
-    canDeveloperViewBeEnabled: () => false,
 }))
 vi.mock("@agenta/observability", async (importOriginal) => {
     const actual = await importOriginal<typeof import("@agenta/observability")>()
@@ -110,7 +109,7 @@ vi.mock("@/features/observability/SessionsTable", () => ({SessionsTable: () => n
 vi.mock("@/features/observability/TracesFilters", () => ({TracesFilters: () => null}))
 vi.mock("@/features/observability/TracesList", () => ({TracesList: () => null}))
 vi.mock("@/features/observability/useTracesExportBinding", () => ({
-    useTracesExportBinding: () => ({onExport: vi.fn(), isExporting: false}),
+    useTracesExportBinding: () => ({onExport: vi.fn(), isExporting: false, canExportData: true}),
 }))
 // The table keys its rows by span id (`ObservabilityTracesTable` rowKey).
 vi.mock("@/features/observability/TracesTable", () => ({
