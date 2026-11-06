@@ -1,5 +1,5 @@
 /**
- * Evaluation run actions: delete, and stop or resume a live run.
+ * Evaluation run actions: delete, edit the name and description, and stop or resume a live run.
  *
  * Each function throws when the request fails or when the response does not
  * confirm the action.
@@ -7,8 +7,12 @@
  * @packageDocumentation
  */
 
+import {getEvaluationsClient} from "@agenta/sdk/resources"
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 import {z} from "zod"
+
+import {safeParseWithLogging} from "../../shared/utils/zodSchema"
+import {buildRunEditBody, type RunEditInput} from "../core/runEdit"
 
 /** `EvaluationRunIdsResponse`: the run ids the API deleted. */
 const deletedRunsResponseSchema = z.object({run_ids: z.array(z.string())})
@@ -38,6 +42,31 @@ export async function deleteEvaluationRuns({
     // returns an empty list, which is still a confirmed response.
     if (!deletedRunsResponseSchema.safeParse(response?.data).success) {
         throw new Error("The runs were not deleted.")
+    }
+}
+
+/**
+ * `PATCH /simple/evaluations/{runId}`: set the run's name and description. The body repeats the
+ * run's steps with their origins (see `buildRunEditBody`), so the run keeps its shape.
+ */
+export async function editEvaluationRun({
+    projectId,
+    run,
+    name,
+    description,
+}: {
+    projectId: string
+    run: RunEditInput
+    name: string
+    description: string
+}): Promise<void> {
+    const {evaluation} = buildRunEditBody(run, {name, description})
+    const response = await getEvaluationsClient().editSimpleEvaluation(
+        {evaluation_id: run.id, evaluation},
+        {queryParams: {project_id: projectId}},
+    )
+    if (!safeParseWithLogging(simpleEvaluationResponseSchema, response, "[editEvaluationRun]")) {
+        throw new Error("The evaluation was not updated.")
     }
 }
 

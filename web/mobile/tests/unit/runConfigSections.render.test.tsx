@@ -114,7 +114,7 @@ describe("test set section", () => {
         await render(
             createElement(TestsetConfigSection, {
                 projectId: "pr",
-                testsets: [{testsetId: "ts-1", revisionId: "rev-1"}],
+                testsets: [{testsetId: "ts-1", revisionId: "rev-1", version: null}],
             }),
         )
         const text = host.textContent ?? ""
@@ -131,7 +131,7 @@ describe("test set section", () => {
         await render(
             createElement(TestsetConfigSection, {
                 projectId: "pr",
-                testsets: [{testsetId: "ts-2", revisionId: "rev-empty"}],
+                testsets: [{testsetId: "ts-2", revisionId: "rev-empty", version: null}],
             }),
         )
         expect(host.textContent).toContain("No column metadata.")
@@ -142,7 +142,7 @@ describe("test set section", () => {
         await render(
             createElement(TestsetConfigSection, {
                 projectId: "pr",
-                testsets: [{testsetId: "ts-2", revisionId: "rev-slow"}],
+                testsets: [{testsetId: "ts-2", revisionId: "rev-slow", version: null}],
             }),
         )
         expect(host.textContent).not.toContain("No column metadata.")
@@ -156,7 +156,7 @@ describe("test set section", () => {
         await render(
             createElement(TestsetConfigSection, {
                 projectId: "pr",
-                testsets: [{testsetId: "ts-2", revisionId: "rev-error"}],
+                testsets: [{testsetId: "ts-2", revisionId: "rev-error", version: null}],
             }),
         )
         expect(host.textContent).not.toContain("No column metadata.")
@@ -180,8 +180,8 @@ describe("test set section", () => {
             createElement(TestsetConfigSection, {
                 projectId: "pr",
                 testsets: [
-                    {testsetId: "ts-1", revisionId: "rev-1"},
-                    {testsetId: "ts-2", revisionId: "rev-2"},
+                    {testsetId: "ts-1", revisionId: "rev-1", version: null},
+                    {testsetId: "ts-2", revisionId: "rev-2", version: null},
                 ],
             }),
         )
