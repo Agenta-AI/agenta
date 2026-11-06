@@ -52,7 +52,11 @@ export const SetupWorkflowDialog = ({
     const queryClient = useQueryClient()
     const [name, setName] = useState("")
     const [url, setUrl] = useState("")
-    const [status, setStatus] = useState<ConnectionStatus>("idle")
+    // A test result belongs to the URL it tested: a changed URL is not tested yet.
+    const [test, setTest] = useState<{url: string; status: ConnectionStatus}>({
+        url: "",
+        status: "idle",
+    })
     const [testRun, setTestRun] = useState(0)
     const [creating, setCreating] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -60,6 +64,11 @@ export const SetupWorkflowDialog = ({
     const trimmedName = name.trim()
     const trimmedUrl = url.trim()
     const urlValid = isHttpUrl(trimmedUrl)
+    const status: ConnectionStatus = !urlValid
+        ? "idle"
+        : test.url === trimmedUrl
+          ? test.status
+          : "testing"
     const nameTaken = useMemo(() => {
         const wanted = trimmedName.toLowerCase()
         if (!wanted) return false
@@ -71,20 +80,17 @@ export const SetupWorkflowDialog = ({
 
     // A new URL, or a click on Test connection, runs the test again. The last one wins.
     useEffect(() => {
-        if (!urlValid) {
-            setStatus("idle")
-            return
-        }
+        if (!urlValid) return
         const controller = new AbortController()
-        setStatus("testing")
+        setTest({url: trimmedUrl, status: "testing"})
         const timer = setTimeout(() => {
             probeEndpointPath(trimmedUrl, {endpoint: "/health", signal: controller.signal})
                 .then((result) => {
                     if (!controller.signal.aborted)
-                        setStatus(result?.status ? "success" : "failure")
+                        setTest({url: trimmedUrl, status: result?.status ? "success" : "failure"})
                 })
                 .catch(() => {
-                    if (!controller.signal.aborted) setStatus("failure")
+                    if (!controller.signal.aborted) setTest({url: trimmedUrl, status: "failure"})
                 })
         }, 100)
         return () => {
@@ -107,8 +113,9 @@ export const SetupWorkflowDialog = ({
         if (!canCreate || !projectId) return
         setCreating(true)
         setError(null)
+        let result: Awaited<ReturnType<typeof createAppFromTemplate>>
         try {
-            const result = await createAppFromTemplate({
+            result = await createAppFromTemplate({
                 projectId,
                 appName: trimmedName,
                 templateKey: "custom",
@@ -116,13 +123,15 @@ export const SetupWorkflowDialog = ({
                 folderId,
                 isCustomWorkflow: true,
             })
-            void queryClient.invalidateQueries({queryKey: ["workflows"]})
-            onClose()
-            onCreated(result.appId, result.revisionId)
         } catch {
+            // Only a failed create lands here: the app does not exist, so a retry is safe.
             setError(promptsCopy.failure.createWorkflow)
             setCreating(false)
+            return
         }
+        void queryClient.invalidateQueries({queryKey: ["workflows"]})
+        onClose()
+        onCreated(result.appId, result.revisionId)
     }
 
     return (

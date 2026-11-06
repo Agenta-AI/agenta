@@ -154,7 +154,9 @@ export const PromptsScreen = ({
                 <SetupWorkflowDialog
                     folderId={browser.folderId}
                     onClose={() => setSettingUpWorkflow(false)}
-                    onCreated={createPrompt.land}
+                    onCreated={(appId, revisionId) =>
+                        createPrompt.land(appId, revisionId, promptsCopy.toast.appCreated)
+                    }
                 />
             ) : null}
             {createPrompt.draftId ? (

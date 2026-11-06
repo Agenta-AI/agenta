@@ -88,6 +88,7 @@ export const promptsCopy = {
         appMoved: "Prompt moved",
         appArchived: "Prompt archived",
         promptCreated: "Prompt created",
+        appCreated: "App created",
     },
     guard: {
         noDestination: "Select a destination folder",
