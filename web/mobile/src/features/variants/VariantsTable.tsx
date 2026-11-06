@@ -22,6 +22,15 @@ const WIDE_COLUMNS: ListTableColumn[] = [
     {key: "notes", label: "Commit notes", width: "minmax(120px,2fr)"},
     ACTIONS,
 ]
+// Room for the full model name and the time, as the Registry table gives them.
+const DETAILED_COLUMNS: ListTableColumn[] = [
+    NAME,
+    {key: "model", label: "Model", width: "minmax(180px,1.5fr)"},
+    CREATED_ON("170px"),
+    {key: "createdBy", label: "Created by", width: "minmax(100px,1fr)"},
+    {key: "notes", label: "Commit notes", width: "minmax(120px,2fr)"},
+    ACTIONS,
+]
 const NARROW_COLUMNS: ListTableColumn[] = [NAME, CREATED_ON("104px"), ACTIONS]
 
 const NO_COLLAPSED: ReadonlySet<string> = new Set()
@@ -76,7 +85,7 @@ export const VariantsTable = ({
 
     return (
         <ListTable
-            columns={narrow ? NARROW_COLUMNS : WIDE_COLUMNS}
+            columns={narrow ? NARROW_COLUMNS : detailed ? DETAILED_COLUMNS : WIDE_COLUMNS}
             minWidth={narrow ? 300 : 760}
             stickyHeader
             loading={isLoading}
