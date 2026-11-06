@@ -1,8 +1,9 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
 import {autoRefreshAtom} from "@agenta/observability"
-import {AUTO_REFRESH_INTERVAL} from "@agenta/observability-ui"
 import {useAtomValue} from "jotai"
+
+import {AUTO_REFRESH_INTERVAL} from "./constants"
 
 /**
  * Refreshes `AUTO_REFRESH_INTERVAL` after the last refresh, manual or automatic, while the

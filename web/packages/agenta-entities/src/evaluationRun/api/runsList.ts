@@ -42,6 +42,8 @@ export interface EvaluationRunsPageParams {
     /** Keep runs that evaluated this app. Runs where the app only grades are dropped. */
     appId?: string
     kind?: EvaluationRunKind
+    /** Run flags the server matches, for example `{has_traces: false}`. */
+    flags?: Record<string, boolean>
     /** ISO timestamps. */
     createdAfter?: string
     createdBefore?: string
@@ -58,12 +60,13 @@ async function fetchServerPage(
     serverLimit: number,
     next: string | null,
 ) {
-    const {projectId, name, statuses, appId, createdAfter, createdBefore} = params
+    const {projectId, name, statuses, appId, flags, createdAfter, createdBefore} = params
 
     const run: Record<string, unknown> = {}
     if (name) run.name = name
     if (statuses && statuses.length > 0) run.statuses = statuses
     if (appId) run.references = [{application: {id: appId}}]
+    if (flags && Object.keys(flags).length > 0) run.flags = flags
 
     const body = {
         ...(Object.keys(run).length > 0 ? {run} : {}),
@@ -140,6 +143,7 @@ export interface EvaluationRunsListKeyParams {
     statuses?: string[]
     appId?: string
     kind?: EvaluationRunKind
+    flags?: Record<string, boolean>
     createdAfter?: string
     createdBefore?: string
 }
@@ -149,7 +153,7 @@ export function evaluationRunsListQueryKey(
     projectId: string,
     params: EvaluationRunsListKeyParams = {},
 ): readonly unknown[] {
-    const {name, statuses, appId, kind, createdAfter, createdBefore} = params
+    const {name, statuses, appId, kind, flags, createdAfter, createdBefore} = params
     return [
         "evaluation-runs",
         "list",
@@ -159,6 +163,7 @@ export function evaluationRunsListQueryKey(
             statuses: statuses ? [...statuses].sort() : undefined,
             appId,
             kind,
+            flags,
             createdAfter,
             createdBefore,
         },

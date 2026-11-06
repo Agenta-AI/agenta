@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import {act, useReducer} from "react"
+import {act, useReducer, type ReactNode} from "react"
 
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
@@ -10,17 +10,39 @@ import {EvaluatorsSection} from "@/features/evaluations/new/EvaluatorsSection"
 import {
     createInitialDraft,
     newEvaluationReducer,
+    type DraftEvaluator,
+    type NewEvaluationKind,
 } from "@/features/evaluations/new/newEvaluationDraft"
 
-import {pickers, resetWizardData, wizardData} from "../support/newEvaluationMocks"
+import {
+    autoEvaluator,
+    humanEvaluator,
+    resetWizardData,
+    wizardData,
+} from "../support/newEvaluationMocks"
 
-const env = vi.hoisted(() => ({evaluatorsViewOn: false, beta: false, flowKind: "" as string}))
-
+vi.mock("@agenta/entities/workflow", async (original) => ({
+    ...(await original<object>()),
+    ...(await import("../support/newEvaluationMocks")).workflowOverrides,
+}))
+vi.mock(
+    "@/features/evaluators/useEvaluators",
+    async () => (await import("../support/newEvaluationMocks")).evaluatorsMock,
+)
+vi.mock(
+    "@/features/evaluators/useEvaluatorRevisions",
+    async () => (await import("../support/newEvaluationMocks")).evaluatorRevisionsMock,
+)
+vi.mock(
+    "@agenta/entity-ui/workflow",
+    async () => (await import("../support/newEvaluationMocks")).workflowUiMock,
+)
+const gate = vi.hoisted(() => ({beta: false, flowKind: ""}))
 vi.mock("@agenta/shared/state", async (original) => {
     const {atom} = await import("jotai")
-    return {...(await original<object>()), betaDeveloperModeActiveAtom: atom(() => env.beta)}
+    return {...(await original<object>()), betaDeveloperModeActiveAtom: atom(() => gate.beta)}
 })
-// The create flow is a separate chunk: a stand-in that "creates" one at once.
+// The create flow is a separate chunk: a stand-in that "creates" Tone at once.
 vi.mock("next/dynamic", () => ({
     default:
         () =>
@@ -31,7 +53,7 @@ vi.mock("next/dynamic", () => ({
             kind: string
             onCreated: (created: Record<string, unknown>) => void
         }) => {
-            env.flowKind = kind
+            gate.flowKind = kind
             return (
                 <button
                     type="button"
@@ -50,34 +72,36 @@ vi.mock("next/dynamic", () => ({
             )
         },
 }))
-
-vi.mock("@agenta/entities/workflow", async (original) => ({
-    ...(await original<object>()),
-    ...(await import("../support/newEvaluationMocks")).workflowOverrides,
-}))
-vi.mock(
-    "@agenta/entity-ui/selection",
-    async () => (await import("../support/newEvaluationMocks")).selectionMock,
-)
-vi.mock("next/link", () => ({
-    default: ({href, children}: {href: string; children: React.ReactNode}) => (
-        <a href={href}>{children}</a>
-    ),
-}))
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 let host: HTMLDivElement
 let root: Root
 
-const mount = async (node: React.ReactNode) => {
+const mount = async (node: ReactNode) => {
     await act(async () => root.render(<Provider store={createStore()}>{node}</Provider>))
 }
 
+const headers = () =>
+    [...host.querySelectorAll("[role=columnheader]")]
+        .map((cell) => cell.textContent?.trim())
+        .filter((text) => text && text !== "Select")
+/** A body row of the table: a grid row that is not the header. */
+const rowByText = (text: string) =>
+    [...host.querySelectorAll<HTMLElement>("div.grid")]
+        .filter((row) => row.getAttribute("role") !== "row")
+        .find((row) => row.textContent?.includes(text))
+const byLabel = (label: string) => host.querySelector<HTMLElement>(`[aria-label="${label}"]`)
+
 beforeEach(() => {
+    gate.beta = false
+    gate.flowKind = ""
     resetWizardData()
-    env.evaluatorsViewOn = false
-    env.beta = false
-    env.flowKind = ""
+    window.matchMedia = ((query: string) => ({
+        matches: true,
+        media: query,
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+    })) as unknown as typeof window.matchMedia
     host = document.createElement("div")
     document.body.appendChild(host)
     root = createRoot(host)
@@ -87,47 +111,140 @@ afterEach(async () => {
     host.remove()
 })
 
-const noop = () => undefined
-const onPick = vi.fn()
-const section = (kind: "auto" | "human", allowAutomaticCreate = false) => (
-    <EvaluatorsSection
-        kind={kind}
-        hasApp
-        selected={[]}
-        evaluatorsHref={env.evaluatorsViewOn ? "/w/ws/p/pr/evaluators" : null}
-        onPick={onPick}
-        onRemove={noop}
-        onClear={noop}
-        allowAutomaticCreate={allowAutomaticCreate}
-    />
-)
-const pickerCreate = (instance: string) =>
-    pickers.latest[instance]?.onCreateNew as (() => void) | undefined
+const mountEvaluators = (
+    kind: NewEvaluationKind,
+    {
+        evaluatorsHref = "/w/ws/p/pr/evaluators",
+        onPick = () => undefined,
+        selected = [],
+        allowAutomaticCreate = false,
+    }: {
+        evaluatorsHref?: string | null
+        onPick?: (evaluator: DraftEvaluator) => void
+        selected?: DraftEvaluator[]
+        allowAutomaticCreate?: boolean
+    } = {},
+) =>
+    mount(
+        <EvaluatorsSection
+            kind={kind}
+            projectId="pr"
+            selected={selected}
+            evaluatorsHref={evaluatorsHref}
+            onPick={onPick}
+            allowAutomaticCreate={allowAutomaticCreate}
+        />,
+    )
 
-describe("evaluators section create", () => {
-    it("Without beta developer mode neither picker offers create", async () => {
-        wizardData.evaluatorCount = 2
-        await mount(section("auto", true))
-        expect(pickerCreate("new-evaluation-auto-evaluator")).toBeUndefined()
-        await mount(section("human"))
-        expect(pickerCreate("new-evaluation-human-evaluator")).toBeUndefined()
+describe("evaluators step", () => {
+    beforeEach(() => {
+        wizardData.evaluators = {
+            automatic: [autoEvaluator("ev-exact", "Exact Match", 2)],
+            human: [
+                humanEvaluator("ev-help", "Helpfulness", ["score", "comment"]),
+                humanEvaluator("ev-rate", "Quality Rating", ["approved"]),
+            ],
+        }
     })
 
-    it("Automatic create shows only where the host allows the drawer", async () => {
-        env.beta = true
-        wizardData.evaluatorCount = 2
-        await mount(section("auto"))
-        expect(pickerCreate("new-evaluation-auto-evaluator")).toBeUndefined()
-        await mount(section("auto", true))
-        expect(pickerCreate("new-evaluation-auto-evaluator")).toBeTypeOf("function")
+    it("An auto run lists automatic evaluators in a table with the /w columns", async () => {
+        await mountEvaluators("auto")
+        expect(headers()).toEqual([
+            "Name",
+            "Type",
+            "Tags",
+            "Date Created",
+            "Last modified",
+            "Modified by",
+            "Commit message",
+        ])
+        const row = rowByText("Exact Match")?.textContent ?? ""
+        expect(row).toContain("v2")
+        expect(row).toContain("auto_exact_match")
+        expect(row).toContain("classifiers")
+        expect(row).toContain("Tighten the match")
+        expect(rowByText("Helpfulness")).toBeUndefined()
     })
 
-    it("A human evaluator created from the picker is picked for the run", async () => {
-        env.beta = true
-        wizardData.evaluatorCount = 1
-        await mount(section("human"))
-        await act(async () => pickerCreate("new-evaluation-human-evaluator")?.())
-        expect(env.flowKind).toBe("human")
+    it("A human run shows the Feedback column with the fields each evaluator asks for", async () => {
+        await mountEvaluators("human")
+        expect(headers()).toEqual([
+            "Name",
+            "Feedback",
+            "Date Created",
+            "Last modified",
+            "Modified by",
+        ])
+        expect(rowByText("Helpfulness")?.textContent).toContain("scorecomment")
+        expect(rowByText("Quality Rating")?.textContent).toContain("approved")
+        expect(rowByText("Exact Match")).toBeUndefined()
+    })
+
+    it("Older versions of an evaluator open under its newest one", async () => {
+        wizardData.evaluatorRevisions = [
+            {...wizardData.evaluators.automatic[0].latestRevision},
+            {
+                id: "ev-exact-rev-1",
+                workflow_id: "ev-exact",
+                version: 1,
+                data: {uri: "agenta:builtin:auto_exact_match:v0"},
+            },
+        ]
+        await mountEvaluators("auto")
+        expect(byLabel("Select Exact Match v1")).toBeNull()
+        await act(async () => byLabel("Show older versions of Exact Match")?.click())
+        expect(byLabel("Select Exact Match v1")).not.toBeNull()
+    })
+
+    it("A click on a row picks that evaluator revision", async () => {
+        const onPick = vi.fn()
+        await mountEvaluators("human", {onPick})
+        await act(async () => rowByText("Quality Rating")?.click())
+        expect(onPick).toHaveBeenCalledWith({
+            revisionId: "ev-rate-rev-1",
+            evaluatorId: "ev-rate",
+            name: "Quality Rating",
+            version: 1,
+        })
+    })
+
+    it("Create new evaluator opens the evaluators page on the right tab in a new tab", async () => {
+        await mountEvaluators("human")
+        const link = [...host.querySelectorAll("a")].find(
+            (a) => a.textContent === "Create new evaluator",
+        )
+        expect(link?.getAttribute("href")).toBe("/w/ws/p/pr/evaluators?tab=human")
+        expect(link?.getAttribute("target")).toBe("_blank")
+    })
+
+    it("Create new evaluator is absent while the evaluators view is off", async () => {
+        await mountEvaluators("auto", {evaluatorsHref: null})
+        expect(host.textContent).not.toContain("Create new evaluator")
+    })
+
+    it("No evaluators shows No evaluators yet with a link in a new tab", async () => {
+        wizardData.evaluators = {automatic: [], human: []}
+        await mountEvaluators("auto")
+        expect(host.textContent).toContain("No evaluators yet")
+        const link = [...host.querySelectorAll("a")].find(
+            (a) => a.textContent === "Create your first evaluator",
+        )
+        expect(link?.getAttribute("href")).toBe("/w/ws/p/pr/evaluators?tab=automatic")
+        expect(link?.getAttribute("target")).toBe("_blank")
+    })
+
+    it("In beta developer mode a human evaluator is created here and picked", async () => {
+        gate.beta = true
+        const onPick = vi.fn()
+        await mountEvaluators("human", {onPick})
+        expect(
+            [...host.querySelectorAll("a")].some((a) => a.textContent === "Create new evaluator"),
+        ).toBe(false)
+        const create = [...host.querySelectorAll("button")].find(
+            (button) => button.textContent === "Create new evaluator",
+        )
+        await act(async () => create?.click())
+        expect(gate.flowKind).toBe("human")
         const save = [...host.querySelectorAll("button")].find(
             (button) => button.textContent === "Save new evaluator",
         )
@@ -139,101 +256,30 @@ describe("evaluators section create", () => {
             version: 1,
         })
     })
-})
 
-describe("evaluators section", () => {
-    it("Auto mode lists automatic evaluators only", async () => {
-        wizardData.evaluatorCount = 2
-        await mount(section("auto"))
-        expect(Object.keys(pickers.latest)).toEqual(["new-evaluation-auto-evaluator"])
-        expect(pickers.latest["new-evaluation-auto-evaluator"].showChildSelectAll).toBe(true)
-    })
-
-    it("Human mode lists human evaluators with their metric summary", async () => {
-        wizardData.evaluatorCount = 1
-        await mount(section("human"))
-        const picker = pickers.latest["new-evaluation-human-evaluator"]
-        expect(Object.keys(pickers.latest)).toEqual(["new-evaluation-human-evaluator"])
-
-        const adapter = picker.adapter as {kind: string}
-        expect(adapter.kind).toBe("human")
-        // A human run takes one revision of each evaluator, so there is no select all.
-        expect(picker.showChildSelectAll).toBe(false)
-        expect(picker.showParentCheckboxes).toBe(false)
-    })
-
-    it("The evaluator label shows the name, the version and the metrics of a human evaluator", async () => {
-        const {renderEvaluatorRevisionLabel} =
-            await import("@/features/evaluations/new/EvaluatorRevisionLabel")
-        await mount(
-            renderEvaluatorRevisionLabel({
-                id: "ev-rev-1",
-                version: 2,
-                flags: {is_feedback: true},
-                data: {
-                    schemas: {
-                        outputs: {
-                            properties: {
-                                score: {type: "number", minimum: 1, maximum: 5},
-                            },
-                        },
-                    },
-                },
-            }),
+    it("Automatic create stays a link unless the host allows the drawer", async () => {
+        gate.beta = true
+        await mountEvaluators("auto")
+        expect(
+            [...host.querySelectorAll("a")].some((a) => a.textContent === "Create new evaluator"),
+        ).toBe(true)
+        await mountEvaluators("auto", {allowAutomaticCreate: true})
+        const create = [...host.querySelectorAll("button")].find(
+            (button) => button.textContent === "Create new evaluator",
         )
-        expect(host.textContent).toContain("Helpfulness")
-        expect(host.textContent).toContain("v2")
-        expect(host.textContent?.toLowerCase()).toContain("score")
-    })
-
-    it("No evaluators shows No evaluators yet", async () => {
-        await mount(section("auto"))
-        expect(host.textContent).toContain("No evaluators yet")
-        expect(host.textContent).toContain(
-            "Evaluators help you measure and analyze your model's responses.",
-        )
-        expect(Object.keys(pickers.latest)).toEqual([])
+        await act(async () => create?.click())
+        expect(gate.flowKind).toBe("automatic")
     })
 
     it("A failed evaluator list shows Could not load evaluators with a retry", async () => {
-        wizardData.evaluatorsError = true
         const refetch = vi.fn()
+        wizardData.evaluatorsError = true
         wizardData.refetchEvaluators = refetch
-        await mount(section("auto"))
-
+        await mountEvaluators("auto")
         expect(host.textContent).toContain("Could not load evaluators")
-        expect(host.textContent).not.toContain("No evaluators yet")
-        const retry = [...host.querySelectorAll("button")].find((b) =>
-            /try again/i.test(b.textContent ?? ""),
-        )
-        await act(async () => retry?.click())
+        // The error state's one button is its retry.
+        await act(async () => host.querySelector("button")?.click())
         expect(refetch).toHaveBeenCalled()
-    })
-
-    it("Open evaluators is absent while the evaluators view is off", async () => {
-        await mount(section("auto"))
-        expect(host.textContent).not.toContain("Open evaluators")
-
-        env.evaluatorsViewOn = true
-        await mount(section("auto"))
-        const link = host.querySelector("a")
-        expect(link?.textContent).toBe("Open evaluators")
-        expect(link?.getAttribute("href")).toBe("/w/ws/p/pr/evaluators")
-    })
-
-    it("Before an app is picked the evaluators section says Select an application first", async () => {
-        await mount(
-            <EvaluatorsSection
-                kind="auto"
-                hasApp={false}
-                selected={[]}
-                evaluatorsHref={null}
-                onPick={noop}
-                onRemove={noop}
-                onClear={noop}
-            />,
-        )
-        expect(host.textContent).toContain("Select an application first to load this section.")
     })
 })
 

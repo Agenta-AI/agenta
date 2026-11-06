@@ -586,3 +586,37 @@
         max-height: calc(100dvh - var(--ag-live-chat-bottom, 24px) - 1rem) !important;
     }
 }
+
+/* The playground's message and input editors, drawn as /w draws them. Scoped to the playground
+   (`data-playground` on its workspace), a developer view: the agent config and the trace drawer
+   use the same editor and stay as they are.
+   - Height: `.editor-input` has `min-height: 150px` in the editor theme. On /w the editor's
+     `min-h-[inherit]` utility wins; here the theme is unlayered and outranks every utility, so each
+     message was about 210 px tall for one line. The editor now fits its text.
+   - Font: Tailwind's preflight gives `code` the monospace face, and the text view renders the
+     message in a `<code>`. /w resets it to the app font at 13 px.
+   - Alignment: the text starts at the role label's first letter, the same inset on both. */
+[data-playground] .agenta-chat-message-editor {
+    --ag-message-inline-pad: 8px;
+    font-size: 14px;
+}
+[data-playground] .agenta-chat-message-editor .editor-input {
+    min-height: 0;
+}
+[data-playground] .agenta-chat-message-editor .message-user-select {
+    padding-inline: var(--ag-message-inline-pad);
+}
+[data-playground] .agenta-chat-message-editor .editor-input:not(.code-only) {
+    padding-inline: var(--ag-message-inline-pad);
+}
+[data-playground] .agenta-chat-message-editor .editor-placeholder {
+    left: var(--ag-message-inline-pad);
+}
+[data-playground] .editor-inner:not(.code-editor) > .editor-input.markdown-view > .editor-code {
+    background-color: transparent;
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1.53;
+    padding: 0;
+    margin: 0;
+}

@@ -108,7 +108,8 @@ export const EditableRevisionDrawerBody = ({
                     <div className="min-w-0 md:flex-1 md:overflow-y-auto">
                         <ConfigPanel
                             revisionId={revisionId}
-                            readOnly={!canCommit}
+                            // While the next revision loads, the form still shows the previous one.
+                            readOnly={!canCommit || (!local && query.isPending)}
                             viewMode={viewMode}
                             onViewModeChange={setViewMode}
                             onRefinePrompt={

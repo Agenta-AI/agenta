@@ -80,7 +80,15 @@ const answer = (url: string, body: Record<string, unknown>): Promise<unknown> =>
     if (url.endsWith("/simple/testsets/")) return routes.create()
     if (url.endsWith("/testsets/revisions/commit")) return routes.commit()
     if (url.endsWith("/testsets/revisions/query") && body.testset_refs) {
-        return Promise.resolve({data: {testset_revisions: [revision(routes.latest)]}})
+        // The revision list asks for up to 100; the latest-revision read asks for one.
+        const list = (body.windowing as {limit?: number} | undefined)?.limit === 100
+        return Promise.resolve({
+            data: {
+                testset_revisions: list
+                    ? [revision(routes.latest), {...revision("rev-2"), version: 2}]
+                    : [revision(routes.latest)],
+            },
+        })
     }
     if (url.endsWith("/testsets/revisions/query") && body.testset_revision_refs) {
         return Promise.resolve({
@@ -131,7 +139,12 @@ describe("add to test set form", () => {
 
     const pickExisting = async () => {
         await act(async () =>
-            latest.setTarget({kind: "existing", testsetId: "ts-1", name: "Capitals"}),
+            latest.setTarget({
+                kind: "existing",
+                testsetId: "ts-1",
+                name: "Capitals",
+                revisionId: null,
+            }),
         )
         await settle()
     }
@@ -266,6 +279,37 @@ describe("add to test set form", () => {
 
         const [, body] = calls("/testsets/revisions/commit")[0]
         expect(body.testset_revision.revision_id).toBe("rev-5")
+    })
+
+    it("Picking an older revision reads its columns and commits on it as the base", async () => {
+        await mount()
+        await pickExisting()
+        expect(latest.revisions.options.map(({id, version}) => [id, version])).toEqual([
+            ["rev-3", 3],
+            ["rev-2", 2],
+        ])
+        await act(async () =>
+            latest.setTarget({
+                kind: "existing",
+                testsetId: "ts-1",
+                name: "Capitals",
+                revisionId: "rev-2",
+            }),
+        )
+        await settle()
+        const columnReads = calls("/testsets/revisions/query").filter(
+            ([, body]) => body.testset_revision_refs,
+        )
+        expect(columnReads.at(-1)?.[1].testset_revision_refs).toEqual([{id: "rev-2"}])
+        // Someone commits meanwhile; the picked revision stays the base.
+        routes.latest = "rev-5"
+
+        await act(async () => {
+            await latest.submit()
+        })
+
+        const [, body] = calls("/testsets/revisions/commit")[0]
+        expect(body.testset_revision.revision_id).toBe("rev-2")
     })
 
     it("A failed refresh of the columns keeps the columns and the mappings", async () => {

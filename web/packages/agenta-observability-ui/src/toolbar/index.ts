@@ -19,3 +19,4 @@ export {
     useToolbarFilterSync,
     type FilterUpdate,
 } from "./filterControls"
+export {useAutoRefresh} from "./useAutoRefresh"
