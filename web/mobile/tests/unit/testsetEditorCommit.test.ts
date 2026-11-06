@@ -557,6 +557,44 @@ describe("useTestsetEditor commit over the real package state", () => {
         })
     })
 
+    it("A column change that a commit overtakes is refused and not staged", async () => {
+        await mount()
+        run(() => store.set(testcaseMolecule.actions.update, "case-1", {data: {answer: "14 days"}}))
+        // Hold the revision reads: the column name check and the commit both wait.
+        let release = () => undefined as void
+        hold = new Promise<void>((resolve) => {
+            release = () => {
+                hold = null
+                resolve()
+            }
+        })
+        let staging: Promise<unknown> = Promise.resolve()
+        let committing: Promise<string | null> = Promise.resolve(null)
+        act(() => {
+            staging = editor().renameColumn("answer", "reply")
+            committing = editor().commit("Row only")
+        })
+
+        await act(async () => {
+            release()
+            await Promise.all([staging, committing])
+        })
+
+        expect(await staging).toEqual({
+            ok: false,
+            reason: "saving",
+            message: "Wait for the current save to finish",
+        })
+        expect(await committing).toBe(NEW_REVISION)
+        expect(commitBodies()).toHaveLength(1)
+        expect(commitBody()?.testset_revision.delta.columns).toBeUndefined()
+        expect(store.get(revisionMolecule.atoms.pendingColumnOps(REVISION))).toMatchObject({
+            add: [],
+            remove: [],
+            rename: [],
+        })
+    })
+
     it("Discard drops staged column changes and sends nothing", async () => {
         await mount()
         await act(() => editor().renameColumn("answer", "reply"))
