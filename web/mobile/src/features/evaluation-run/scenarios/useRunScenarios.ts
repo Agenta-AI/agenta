@@ -302,6 +302,7 @@ export function useRunScenarios(runId: string, {poll = true}: {poll?: boolean} =
     return {
         rows,
         columnGroups,
+        schema,
         order,
         hasMore: Boolean(query.hasNextPage),
         loadMore,
