@@ -4,7 +4,6 @@ import {
     appWorkflowsListQueryStateAtom,
     workflowVariantsListQueryStateAtomFamily,
 } from "@agenta/entities/workflow"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {PlugsIcon} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
@@ -16,6 +15,7 @@ import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {AppOverviewLink} from "../app-overview/AppOverviewLink"
 import {useBindProjectContext} from "../context/useBindProjectContext"
+import {useDeveloperPageFrame} from "../developer/developerPageFrame"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
@@ -24,8 +24,6 @@ import {useEndpointEnvironments} from "./useEndpointEnvironments"
 import {useEndpointSnippets} from "./useEndpointSnippets"
 
 /** The page column, shared with the other list pages, so the nav entries line up. */
-const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
-
 /**
  * How to call an app and fetch its config, per environment. The app comes from `?app=`: the
  * rail link has no params, so the page offers a picker and writes the choice back to the address.
@@ -37,6 +35,7 @@ export const EndpointsScreen = ({
     workspaceId: string
     projectId: string
 }) => {
+    const PAGE_FRAME = useDeveloperPageFrame()
     useBindProjectContext(projectId)
     const router = useRouter()
     const queryClient = useQueryClient()

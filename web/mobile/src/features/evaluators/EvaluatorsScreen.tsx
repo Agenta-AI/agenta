@@ -1,7 +1,6 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableToolbar} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
@@ -14,6 +13,7 @@ import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMember
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useProjectPermission, useProjectPermissionState} from "../context/useProjectPermission"
+import {useDeveloperPageFrame} from "../developer/developerPageFrame"
 import {useDeveloperViewEnabled} from "../developer/developerViewAccess"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
@@ -32,8 +32,6 @@ import {useEvaluatorRevisions} from "./useEvaluatorRevisions"
 import {useEvaluators} from "./useEvaluators"
 
 /** The page column, shared with the other list pages, so the pages line up. */
-const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
-
 /**
  * Automatic and human evaluators, with archive. A row opens the evaluator in a read-only drawer:
  * changing an evaluator's configuration comes with the evaluator playground.
@@ -45,6 +43,7 @@ export const EvaluatorsScreen = ({
     workspaceId: string
     projectId: string
 }) => {
+    const PAGE_FRAME = useDeveloperPageFrame()
     useBindWorkspaceMembers()
     useBindProjectContext(projectId)
     const [category, setCategory] = useEvaluatorCategory()

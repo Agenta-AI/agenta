@@ -1,7 +1,6 @@
 import {useMemo} from "react"
 
 import {appWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {Skeleton, Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/ui/ui"
 import {CloudArrowUp, Lightning} from "@phosphor-icons/react"
@@ -16,6 +15,7 @@ import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMember
 import {AppOverviewLink} from "../app-overview/AppOverviewLink"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {DeveloperAppPicker} from "../developer/DeveloperAppPicker"
+import {useDeveloperPageFrame} from "../developer/developerPageFrame"
 import {useUrlParams} from "../developer/useUrlParams"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
@@ -23,8 +23,6 @@ import {NavDrawer} from "../nav/NavDrawer"
 import {DeploymentsTab} from "./DeploymentsTab"
 import {PickAppState} from "./states/PickAppState"
 import {VariantsTab} from "./VariantsTab"
-
-const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
 
 type TabId = "variants" | "deployments"
 
@@ -39,6 +37,7 @@ export const VariantsScreen = ({
     workspaceId: string
     projectId: string
 }) => {
+    const PAGE_FRAME = useDeveloperPageFrame()
     useBindWorkspaceMembers()
     useBindProjectContext(projectId)
     const {read, write} = useUrlParams()
