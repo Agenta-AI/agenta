@@ -80,7 +80,9 @@ export const ConfigPanelHeader = ({
 
     return (
         <div className="@container/config-header flex shrink-0 flex-wrap items-center justify-between gap-1 border-b border-border bg-background px-3 max-sm:min-h-12 max-sm:py-1.5 sm:sticky sm:top-0 sm:z-10 sm:h-12 sm:flex-nowrap sm:gap-2 sm:px-4">
-            <div className="flex min-w-0 items-center gap-1 overflow-hidden text-sm">
+            {/* The details shrink first (the switcher name truncates). Only in a very narrow pane,
+                once they reach their minimum, do the buttons on the right shrink and scroll. */}
+            <div className="flex min-w-[5.5rem] items-center gap-1 overflow-hidden text-sm">
                 {!isLocalDraft ? switcher : null}
                 {isLocalDraft ? (
                     <>
@@ -107,7 +109,7 @@ export const ConfigPanelHeader = ({
                     />
                 )}
             </div>
-            <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
+            <div className="ml-auto flex min-w-0 shrink-[0.001] items-center gap-1 overflow-x-auto sm:gap-2 [&>*]:shrink-0">
                 <Select
                     value={viewMode}
                     onValueChange={(value) => onViewModeChange(value as ConfigViewMode)}

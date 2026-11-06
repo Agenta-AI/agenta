@@ -72,14 +72,14 @@ export const CompletionRow = memo(
                             setClicked(true)
                             setOwn(!collapsed)
                         }}
-                        className="flex shrink-0 items-center rounded-md border-0 bg-transparent p-1 text-muted-foreground hover:bg-muted"
+                        className="flex shrink-0 items-center rounded-md border-0 bg-transparent p-1 text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                     >
                         {collapsed ? <CaretRight size={12} /> : <CaretDown size={12} />}
                     </button>
                     <button
                         type="button"
                         onClick={() => openDetails({rowId, entityId})}
-                        className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border-0 bg-muted px-2 py-0.5 text-xs text-foreground hover:bg-accent"
+                        className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border-0 bg-muted px-2 py-0.5 text-xs text-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
                     >
                         <Rows size={12} aria-hidden />
                         {`testcase ${index + 1}`}
