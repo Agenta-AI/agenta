@@ -1,7 +1,7 @@
 import {loadableController} from "@agenta/entities/loadable"
 import {isLocalDraftId} from "@agenta/entities/shared"
 import {clearChangesAtom} from "@agenta/entities/testset"
-import {discardLocalServerDataAtom, workflowMolecule} from "@agenta/entities/workflow"
+import {discardLocalServerDataAtom} from "@agenta/entities/workflow"
 import {
     executionItemController,
     playgroundController,
@@ -10,8 +10,9 @@ import {
 import type {useStore} from "jotai"
 
 /**
- * Clears what a playground page set up: its runs, test set connection, nodes and drafts. The agent
- * session screen uses the same store, so nothing from the page may outlive it.
+ * Clears what a playground page set up: its runs, test set connection, nodes and local copies. The
+ * agent session screen uses the same store, so none of these may outlive the page. The edits of
+ * saved revisions are kept.
  */
 export const clearPlayground = (store: ReturnType<typeof useStore>) => {
     const nodes = store.get(playgroundController.selectors.nodes())
@@ -26,10 +27,10 @@ export const clearPlayground = (store: ReturnType<typeof useStore>) => {
     }
     store.set(playgroundController.actions.resetAll)
     store.set(playgroundInitializedAtom, false)
-    // Leaving asked to discard unsaved changes: the drafts go with the page, an evaluator after
-    // an app included.
+    // Unsaved edits of a saved revision stay, as in the old playground: they show again as a
+    // draft when the revision is opened again. A local copy has no saved revision to come back
+    // to, so it goes with the page (the leave guard asks first).
     for (const {entityId} of nodes) {
         if (isLocalDraftId(entityId)) store.set(discardLocalServerDataAtom, entityId)
-        else store.set(workflowMolecule.actions.discard, entityId)
     }
 }
