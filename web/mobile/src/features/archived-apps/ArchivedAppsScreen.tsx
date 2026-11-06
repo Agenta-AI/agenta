@@ -1,6 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
+import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {
@@ -11,6 +12,7 @@ import {
 } from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
 import {ArrowCounterClockwise, ArrowLeft} from "@phosphor-icons/react"
+import {useAtomValue} from "jotai"
 import Link from "next/link"
 import {useRouter} from "next/router"
 
@@ -61,10 +63,10 @@ export const ArchivedAppsScreen = ({
     const archived = useArchivedApps({projectId, search: trimmed})
     const canRestore = useProjectPermission(projectId, "edit_workflows")
     const rows = useMemo(() => archived.apps.map(toArchivedAppRow), [archived.apps])
-    // Apps live on the Prompts page. A reader who has that view off keeps the old way back.
-    const promptsEnabled = useDeveloperViewEnabled("prompts") === true
+    // Beta developer mode opens this page from the Prompts page, so Back returns there.
+    const fromPrompts = useAtomValue(betaDeveloperModeActiveAtom)
     const projectBase = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}`
-    const backHref = promptsEnabled
+    const backHref = fromPrompts
         ? `${projectBase}/prompts`
         : projectHomeUrl({workspaceId, projectId})
 
@@ -135,7 +137,7 @@ export const ArchivedAppsScreen = ({
                                     <Link
                                         href={backHref}
                                         aria-label={
-                                            promptsEnabled ? "Back to prompts" : "Back to home"
+                                            fromPrompts ? "Back to prompts" : "Back to home"
                                         }
                                         prefetch={false}
                                     >
