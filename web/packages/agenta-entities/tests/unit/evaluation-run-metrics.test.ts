@@ -24,6 +24,7 @@ import {
 } from "../../src/evaluationRun"
 import auto from "../fixtures/evaluationRun/auto-metrics.json"
 import human from "../fixtures/evaluationRun/human-metrics.json"
+import live from "../fixtures/evaluationRun/live.json"
 import online from "../fixtures/evaluationRun/online-metrics.json"
 
 const store = getDefaultStore()
@@ -149,8 +150,10 @@ describe("errors of a run with no invocation step", () => {
 
         expect(errors?.stepKey).toBe("evaluator-7c2d")
         expect(errors?.stats).toMatchObject({sum: 3, count: 3})
-        // Only errors read the evaluator step: duration stays the app's, and a live run has none.
-        expect(catalog.find((entry) => entry.id === "duration")?.stats).toBeNull()
+        // A live run calls no app: its duration is what its evaluator spends per trace.
+        expect(catalog.find((entry) => entry.id === "duration")?.stats).toMatchObject({
+            mean: 2.03,
+        })
     })
 
     it("Two evaluators that fail add up their errors", () => {
@@ -438,5 +441,26 @@ describe("run metrics query", () => {
             ).toContain("evaluator-4d0a:attributes.ag.data.outputs.tone"),
         )
         stops.forEach((stop) => stop())
+    })
+})
+
+describe("cost, duration and tokens of a live run", () => {
+    // The parity stack's live run: an LLM judge and a regex evaluator on 112 traces.
+    const catalog = buildRunMetricCatalog(asRun(live.run), asMetrics(live.metrics))
+    const stats = (id: string) => catalog.find((entry) => entry.id === id)?.stats
+
+    it("add up what every evaluator spends on one trace", () => {
+        // Judge 483.65 ms + regex 0.21 ms per trace; the old app printed their average, 242 ms.
+        expect(stats("duration")?.mean).toBeCloseTo(483.86, 2)
+        expect(stats("duration")?.count).toBe(112)
+        // Only the judge reports tokens and cost.
+        expect(stats("tokens")?.mean).toBeCloseTo(114.33, 2)
+        expect(stats("cost")?.mean).toBeCloseTo(0.0000147, 7)
+    })
+
+    it("an auto run still reads only its app step", () => {
+        const autoCatalog = buildRunMetricCatalog(asRun(auto.run), asMetrics(auto.response.metrics))
+        const duration = autoCatalog.find((entry) => entry.id === "duration")
+        expect(duration?.stepKey).not.toMatch(/^evaluator/)
     })
 })

@@ -174,8 +174,25 @@ function sumCounts(all: (MetricStats | null)[]): MetricStats | null {
     }
 }
 
-/** The error points of several evaluators, added up per timestamp, oldest first. */
-function sumPoints(all: TemporalMetricPoint[][]): TemporalMetricPoint[] {
+/**
+ * What several evaluators spend on one trace: their means add up (a trace runs every evaluator),
+ * and the count stays the number of traces.
+ */
+function sumPerTrace(all: (MetricStats | null)[]): MetricStats | null {
+    const stats = all.filter((entry): entry is MetricStats => entry !== null)
+    if (stats.length === 0) return null
+    const mean = (entry: MetricStats) =>
+        entry.mean ?? (entry.sum !== undefined && entry.count ? entry.sum / entry.count : 0)
+    const count = Math.max(...stats.map((entry) => entry.count ?? 0))
+    const perTrace = stats.reduce((sum, entry) => sum + mean(entry), 0)
+    return {type: stats[0].type, mean: perTrace, sum: perTrace * count, count}
+}
+
+/** The points of several evaluators, combined per timestamp, oldest first. */
+function sumPoints(
+    all: TemporalMetricPoint[][],
+    combine: (stats: (MetricStats | null)[]) => MetricStats | null = sumCounts,
+): TemporalMetricPoint[] {
     const byTime = new Map<number, (MetricStats | null)[]>()
     for (const points of all) {
         for (const {timestamp, stats} of points) {
@@ -185,7 +202,7 @@ function sumPoints(all: TemporalMetricPoint[][]): TemporalMetricPoint[] {
     return [...byTime.entries()]
         .sort(([a], [b]) => a - b)
         .flatMap(([timestamp, stats]) => {
-            const summed = sumCounts(stats)
+            const summed = combine(stats)
             return summed ? [{timestamp, stats: summed}] : []
         })
 }
@@ -251,18 +268,24 @@ export function buildRunMetricCatalog(
         staticData[key]?.[metricKey] !== undefined ||
         timed.some(({data}) => data[key]?.[metricKey] !== undefined)
     for (const {id, metricKey, label} of INVOCATION_METRICS) {
-        const candidates = id === "errors" ? errorKeys : invocationKeys
+        // A live run calls no app: what it spends per trace (cost, time, tokens) is its evaluators'.
+        const candidates =
+            id === "errors" || invocationKeys.length === 0 ? errorKeys : invocationKeys
         const stepKeys = candidates.filter((key) => hasMetric(key, metricKey))
         const stepKey = stepKeys[0] ?? null
-        // Several failing evaluators: their totals and their time series both add up.
-        const combined = id === "errors" && stepKeys.length > 1
+        // Several evaluators: errors add up as totals, and cost, time and tokens per trace.
+        const combined = stepKeys.length > 1 && candidates === errorKeys
+        const combine = id === "errors" ? sumCounts : sumPerTrace
         const temporal = combined
-            ? sumPoints(stepKeys.map((key) => pointsFor(key, metricKey)))
+            ? sumPoints(
+                  stepKeys.map((key) => pointsFor(key, metricKey)),
+                  combine,
+              )
             : stepKey
               ? pointsFor(stepKey, metricKey)
               : []
         const stats = combined
-            ? sumCounts(stepKeys.map((key) => statsFor(key, metricKey, pointsFor(key, metricKey))))
+            ? combine(stepKeys.map((key) => statsFor(key, metricKey, pointsFor(key, metricKey))))
             : stepKey
               ? statsFor(stepKey, metricKey, temporal)
               : null
