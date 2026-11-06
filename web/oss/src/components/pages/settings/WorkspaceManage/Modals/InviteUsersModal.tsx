@@ -5,7 +5,7 @@ import {isEE, isEmailInvitationsEnabled} from "@agenta/shared/api"
 import {message} from "@agenta/ui/app-message"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {MinusCircleOutlined} from "@ant-design/icons"
-import {Alert, Form, Input, Select, Space, Typography, theme} from "antd"
+import {Alert, Button, Form, Input, Select, Space, Typography, theme} from "antd"
 import Link from "next/link"
 
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
@@ -19,7 +19,7 @@ import {getDefaultInviteRole} from "./getDefaultInviteRole"
 
 const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoading}) => {
     const {selectedOrg, refetch} = useOrgData()
-    const {roles} = useWorkspaceRoles()
+    const {roles, isError: rolesFailed, refetch: refetchRoles} = useWorkspaceRoles()
     const {hasRBAC} = useEntitlements()
     const {token} = theme.useToken()
     const organizationId = selectedOrg?.id
@@ -144,6 +144,19 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
                     </>
                 )}
             </Form.List>
+            {rolesFailed && (!isEE() || hasRBAC) && (
+                <Alert
+                    className="mb-3"
+                    type="error"
+                    showIcon
+                    message="The roles could not be loaded."
+                    action={
+                        <Button size="small" onClick={() => refetchRoles()}>
+                            Try again
+                        </Button>
+                    }
+                />
+            )}
             {!isEE() || hasRBAC ? (
                 <Form.Item
                     name="role"

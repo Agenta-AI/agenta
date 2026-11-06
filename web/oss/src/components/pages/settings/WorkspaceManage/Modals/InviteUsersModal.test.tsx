@@ -6,6 +6,8 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 const mocks = vi.hoisted(() => ({
     inviteToWorkspace: vi.fn(() => Promise.resolve({})),
     roles: [] as {role_name: string; role_description: string}[],
+    isError: false,
+    refetch: vi.fn(),
 }))
 
 vi.mock("@agenta/entities/organization", () => ({inviteToWorkspace: mocks.inviteToWorkspace}))
@@ -21,7 +23,13 @@ vi.mock("@/oss/lib/helpers/utils", () => ({snakeToTitle: (value: string) => valu
 vi.mock("@/oss/state/org", () => ({
     useOrgData: () => ({selectedOrg: {id: "org-1"}, refetch: vi.fn()}),
 }))
-vi.mock("@/oss/state/workspace", () => ({useWorkspaceRoles: () => ({roles: mocks.roles})}))
+vi.mock("@/oss/state/workspace", () => ({
+    useWorkspaceRoles: () => ({
+        roles: mocks.roles,
+        isError: mocks.isError,
+        refetch: mocks.refetch,
+    }),
+}))
 
 import {getDefaultInviteRole} from "./getDefaultInviteRole"
 import InviteUsersModal from "./InviteUsersModal"
@@ -54,6 +62,8 @@ describe("InviteUsersModal on a plan that offers admin and member", () => {
                 removeEventListener: () => undefined,
             })) as unknown as typeof window.matchMedia)
         mocks.inviteToWorkspace.mockClear()
+        mocks.refetch.mockClear()
+        mocks.isError = false
         mocks.roles = [role("owner"), role("admin"), role("member")]
         container = document.createElement("div")
         document.body.appendChild(container)
@@ -91,5 +101,27 @@ describe("InviteUsersModal on a plan that offers admin and member", () => {
             {data: {email: string; roles?: string[]}[]},
         ]
         expect(args.data).toEqual([{email: "alex@example.com", roles: ["member"]}])
+    })
+    it("shows an error with a retry when the roles fail to load", async () => {
+        mocks.roles = []
+        mocks.isError = true
+        await act(async () => {
+            root.render(
+                <InviteUsersModal
+                    open
+                    workspaceId="ws-1"
+                    setQueryInviteModalOpen={() => undefined}
+                />,
+            )
+        })
+        expect(container.textContent).toContain("The roles could not be loaded.")
+        const retry = Array.from(container.querySelectorAll("button")).find((b) =>
+            b.textContent?.includes("Try again"),
+        )
+        expect(retry).toBeTruthy()
+        await act(async () => {
+            retry?.click()
+        })
+        expect(mocks.refetch).toHaveBeenCalledTimes(1)
     })
 })
