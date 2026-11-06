@@ -114,6 +114,7 @@ export const EvaluatorsTable = ({
                     row={row}
                     category={category}
                     narrow={narrow}
+                    canEdit={selectable}
                     expanded={expanded.has(row.workflowId)}
                     loadingOlder={loadingOlder.has(row.workflowId)}
                     onToggleExpand={() => onToggleExpand(row.workflowId)}

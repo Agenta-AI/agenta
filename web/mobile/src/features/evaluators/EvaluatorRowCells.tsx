@@ -29,6 +29,7 @@ export const EvaluatorRowCells = ({
     row,
     category,
     narrow,
+    canEdit,
     expanded,
     loadingOlder,
     onToggleExpand,
@@ -39,6 +40,8 @@ export const EvaluatorRowCells = ({
     category: EvaluatorCategory
     /** A phone shows the name and the last change only. */
     narrow: boolean
+    /** The reader may edit evaluators: a human row offers Edit, else Open details. */
+    canEdit: boolean
     expanded: boolean
     loadingOlder: boolean
     onToggleExpand: () => void
@@ -123,8 +126,8 @@ export const EvaluatorRowCells = ({
                 <EvaluatorRowMenu
                     copy={{revisionId: row.id, slug: row.slug}}
                     // Editing a human evaluator comes later: its row menu has no Configure.
-                    onOpen={automatic ? onOpen : undefined}
-                    openLabel="Configure"
+                    onOpen={onOpen}
+                    openLabel={automatic ? "Configure" : canEdit ? "Edit" : "Open details"}
                     onArchive={onArchive}
                 />
             </span>
