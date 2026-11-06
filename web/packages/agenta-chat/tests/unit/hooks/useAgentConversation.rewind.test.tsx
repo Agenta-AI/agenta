@@ -14,7 +14,7 @@ const {loadSessionMessagesMock, reloadSessionMessagesMock, rewindRequests, rewin
         loadSessionMessagesMock: vi.fn(),
         reloadSessionMessagesMock: vi.fn(),
         rewindRequests: vi.fn(),
-        rewindAnswer: {current: Promise.resolve(true) as Promise<boolean>},
+        rewindAnswer: {current: Promise.resolve(4) as Promise<number | null>},
     }))
 
 vi.mock("../../../src/assets/loadSession", async (importOriginal) => ({
@@ -111,7 +111,7 @@ describe("rewinding a turn", () => {
         reloadSessionMessagesMock.mockReset()
         reloadSessionMessagesMock.mockResolvedValue(false)
         rewindRequests.mockReset()
-        rewindAnswer.current = Promise.resolve(true)
+        rewindAnswer.current = Promise.resolve(4)
         acceptedRunBySession.clear()
         vi.stubGlobal("fetch", vi.fn())
     })
@@ -140,7 +140,7 @@ describe("rewinding a turn", () => {
     })
 
     it("keeps every turn when the server refuses", async () => {
-        rewindAnswer.current = Promise.resolve(false)
+        rewindAnswer.current = Promise.resolve(null)
         const {view} = await openSession()
 
         const plan = view.result.current.rewind(THREE_TURNS[2])
@@ -183,7 +183,7 @@ describe("rewinding a turn", () => {
     })
 
     it("starts no second rewind while one is in flight", async () => {
-        let answer: (value: boolean) => void = () => undefined
+        let answer: (value: number) => void = () => undefined
         rewindAnswer.current = new Promise((resolve) => (answer = resolve))
         const {view} = await openSession()
 
@@ -195,14 +195,14 @@ describe("rewinding a turn", () => {
 
         expect(view.result.current.rewind(THREE_TURNS[0])).toBeNull()
         await act(async () => {
-            answer(true)
+            answer(4)
             await done
         })
         expect(view.result.current.rewind(THREE_TURNS[0])).not.toBeNull()
     })
 
     it("a read during the rewind keeps the turn until the rewind finishes", async () => {
-        let answer: (value: boolean) => void = () => undefined
+        let answer: (value: number) => void = () => undefined
         rewindAnswer.current = new Promise((resolve) => (answer = resolve))
         const {view, push} = await openSession()
 
@@ -215,7 +215,7 @@ describe("rewinding a turn", () => {
 
         expect(view.result.current.messages).toHaveLength(6)
         await act(async () => {
-            answer(true)
+            answer(4)
             await done
         })
     })
@@ -230,6 +230,31 @@ describe("rewinding a turn", () => {
         await push(transcript(THREE_TURNS, 12))
 
         expect(texts(view.result.current.messages)).toEqual(["one", "ALPHA"])
+    })
+
+    it("a read from before the rewind cannot land ahead of the watermark", async () => {
+        const {view, push} = await openSession()
+        const plan = view.result.current.rewind(THREE_TURNS[2])
+        await act(async () => {
+            await plan?.confirm()
+        })
+
+        await push(transcript([...THREE_TURNS, user("u4", "t4", "late")], 14))
+
+        expect(texts(view.result.current.messages)).toEqual(["one", "ALPHA"])
+    })
+
+    it("a repeat rewind that removed nothing does not block later reads", async () => {
+        rewindAnswer.current = Promise.resolve(0)
+        const {view, push} = await openSession()
+        const plan = view.result.current.rewind(THREE_TURNS[2])
+        await act(async () => {
+            await plan?.confirm()
+        })
+
+        await push(transcript(THREE_TURNS, 14))
+
+        expect(view.result.current.messages).toHaveLength(6)
     })
 
     it("the turn sent after a rewind shows without the removed turns", async () => {

@@ -315,7 +315,9 @@ export const useAgentConversation = ({
     // A send that overtakes a rewind would land in the turns the rewind is about to remove.
     const rewindInFlightRef = useRef<Promise<boolean> | null>(null)
     // A live turn clears the watermark, so an old rewind must not bypass the length floor again.
-    const adoptedRewindRef = useRef(0)
+    const adoptedRewindRef = useRef(-1)
+    // Once the server has rewound, only a read that carries that rewind may replace the screen.
+    const awaitingRewindRef = useRef(false)
     // The footer's figures: a turn's end and its runner usage land on the session turn.
     const revalidateSessionTurns = useSetAtom(revalidateSessionTurnsAtom)
     const refreshSessionTurnsOnTurnEnd = useSetAtom(refreshSessionTurnsOnTurnEndAtom)
@@ -654,6 +656,12 @@ export const useAgentConversation = ({
             // A re-run still needs the user message the server just removed.
             if (rewindInFlightRef.current) return false
             if (!isSessionTranscript(transcript)) return false
+            if (
+                awaitingRewindRef.current &&
+                (transcript.rewoundSequence ?? -1) <= adoptedRewindRef.current
+            ) {
+                return false
+            }
             const {messages: serverMsgs, recordCount, sequenceCursor, rewoundSequence} = transcript
             const adopt = shouldAdoptServerTranscript({
                 serverRecordCount: sequenceCursor ?? recordCount,
@@ -670,10 +678,13 @@ export const useAgentConversation = ({
                 // mid-run can never come back until it settles.
                 busy: localRenderBusyRef.current,
                 rewoundSequence:
-                    (rewoundSequence ?? 0) > adoptedRewindRef.current ? rewoundSequence : undefined,
+                    (rewoundSequence ?? -1) > adoptedRewindRef.current
+                        ? rewoundSequence
+                        : undefined,
             })
             if (!adopt) return false
-            adoptedRewindRef.current = Math.max(adoptedRewindRef.current, rewoundSequence ?? 0)
+            adoptedRewindRef.current = Math.max(adoptedRewindRef.current, rewoundSequence ?? -1)
+            awaitingRewindRef.current = false
             serverMsgs.forEach((m) => restoredIdsRef.current.add(m.id))
             // Adopting a non-empty server transcript settles the question the notice asks, so it
             // clears here for every path (the revalidate copy did this, the hydration one didn't).
@@ -1346,7 +1357,9 @@ export const useAgentConversation = ({
                 }
                 // No turn in the log means the send never reached it, so only this screen holds it.
                 if (turnId) {
-                    if (!(await rewindSession({sessionId, turnId}))) return false
+                    const removed = await rewindSession({sessionId, turnId})
+                    if (removed === null) return false
+                    awaitingRewindRef.current = removed > 0
                     revalidateSessionRecords(sessionId)
                 }
                 if (isUser) {

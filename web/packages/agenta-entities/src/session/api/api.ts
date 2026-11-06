@@ -1308,7 +1308,7 @@ export async function resumeSessionContinuation({
     }
 }
 
-/** Remove a turn and every later turn. False when the server refused and nothing changed. */
+/** Remove a turn and every later turn. Returns the records removed, null on a refusal. */
 export async function rewindSession({
     sessionId,
     projectId,
@@ -1317,15 +1317,15 @@ export async function rewindSession({
     sessionId: string
     projectId: string
     turnId: string
-}): Promise<boolean> {
-    if (!projectId || !sessionId) return false
+}): Promise<number | null> {
+    if (!projectId || !sessionId) return null
     const data = await callFern("[rewindSession]", () =>
         getSessionsClient().rewindSession(
             {session_id: sessionId, turn_id: turnId},
             projectScopedRequest(projectId),
         ),
     )
-    return data !== null
+    return data?.removed ?? null
 }
 
 /** Cancel current work through Fern while keeping the session warm. */
