@@ -1,8 +1,10 @@
 import {useEffect} from "react"
 
+import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useQueryClient} from "@tanstack/react-query"
+import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {PageNotFound} from "@/components/PageNotFound"
@@ -18,6 +20,7 @@ import {AppActionsMenu} from "./AppActionsMenu"
 import {AppDeploymentSection} from "./AppDeploymentSection"
 import {AppEvaluationsSection} from "./AppEvaluationsSection"
 import {AppRecentPromptsSection} from "./AppRecentPromptsSection"
+import {BindWorkspaceMembers} from "./BindWorkspaceMembers"
 import {AppOverviewSkeleton} from "./states/AppOverviewSkeleton"
 import {AppTitleSkeleton} from "./states/AppTitleSkeleton"
 import {useOverviewApp} from "./useOverviewApp"
@@ -45,6 +48,8 @@ export const AppOverviewScreen = ({
     const queryClient = useQueryClient()
     const base = `/w/${workspaceId}/p/${projectId}`
     const overview = useOverviewApp(appId)
+    // Beta developer mode matches /w: the menu sits right after the title, and authors show names.
+    const beta = useAtomValue(betaDeveloperModeActiveAtom)
     const status = overview.status
 
     useEffect(() => {
@@ -59,6 +64,7 @@ export const AppOverviewScreen = ({
     return (
         <>
             <PageTitle title="Overview" />
+            {beta ? <BindWorkspaceMembers /> : null}
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
@@ -72,7 +78,9 @@ export const AppOverviewScreen = ({
                                         <AppTitleSkeleton />
                                     </div>
                                 ) : (
-                                    <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px]">
+                                    <h1
+                                        className={`m-0 min-w-0 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] ${beta ? "" : "flex-1"}`}
+                                    >
                                         {title}
                                     </h1>
                                 )}
