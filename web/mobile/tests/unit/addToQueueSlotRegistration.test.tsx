@@ -14,7 +14,6 @@ vi.mock("@agenta/observability/traceDrawer", async () => {
     return {isDrawerOpenAtom: atom(false)}
 })
 vi.mock("next/dynamic", () => ({default: () => () => null}))
-vi.mock("@/features/observability/TracePrettyJson", () => ({TracePrettyJson: () => null}))
 vi.mock("@/features/observability/states/TraceSpanPanelSkeleton", () => ({
     TraceSpanPanelSkeleton: () => null,
 }))

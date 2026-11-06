@@ -26,8 +26,8 @@ vi.mock("next/dynamic", () => ({
             : source.includes("RevisionDrawerHost")
               ? "read-only-drawer"
               : "other"
-        return ({kind}: {kind?: string}) =>
-            createElement("div", {"data-testid": testId, "data-kind": kind})
+        return ({kind, actions}: {kind?: string; actions?: ReactNode}) =>
+            createElement("div", {"data-testid": testId, "data-kind": kind}, actions)
     },
 }))
 vi.mock("next/link", () => ({
@@ -162,5 +162,21 @@ describe.each([
         fixture.beta = true
         mount(tab())
         expect(drawer()).toBeNull()
+    })
+})
+
+describe("Deployment drawer header", () => {
+    const buttons = () =>
+        [...(drawer()?.querySelectorAll("button, a") ?? [])].map((el) => el.textContent?.trim())
+
+    it("offers Open in playground and Deploy in beta developer mode, as /w does", () => {
+        fixture.beta = true
+        mount(deploymentsTab())
+        expect(buttons()).toEqual(["Open in playground", "Deploy"])
+    })
+
+    it("keeps the read-only drawer's header without beta developer mode", () => {
+        mount(deploymentsTab())
+        expect(buttons()).toEqual(["Open in playground"])
     })
 })
