@@ -24,6 +24,7 @@
             "/w/[workspace_id]/p/[project_id]/annotations": 1054935,
             "/w/[workspace_id]/p/[project_id]/annotations/[queue_id]": 1374244,
             "/w/[workspace_id]/p/[project_id]/apps": 1091869,
+            "/w/[workspace_id]/p/[project_id]/apps/[app_id]/evaluations": 1110522,
             "/w/[workspace_id]/p/[project_id]/apps/[app_id]/overview": 905480,
             "/w/[workspace_id]/p/[project_id]/apps/[app_id]/playground": 1037729,
             "/w/[workspace_id]/p/[project_id]/apps/archived": 1048649,
