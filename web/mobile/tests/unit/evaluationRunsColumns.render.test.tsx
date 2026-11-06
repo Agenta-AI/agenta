@@ -13,6 +13,7 @@ import {EvaluationsScreen} from "@/features/evaluations/list/EvaluationsScreen"
 import {page} from "./evaluationRunsFixtures"
 
 const http = vi.hoisted(() => ({post: vi.fn(), delete: vi.fn()}))
+const queries = vi.hoisted(() => ({queryQueryRevisions: vi.fn()}))
 const env = vi.hoisted(() => ({
     wide: true,
     query: {} as Record<string, string | undefined>,
@@ -22,6 +23,10 @@ vi.mock("@agenta/shared/api", async (original) => ({
     ...(await original<object>()),
     axios: http,
     getAgentaApiUrl: () => "https://api.test",
+}))
+vi.mock("@agenta/sdk/resources", async (original) => ({
+    ...(await original<object>()),
+    getQueriesClient: () => queries,
 }))
 vi.mock("@agenta/shared/state", async (original) => {
     const {atom} = await import("jotai")
@@ -228,26 +233,6 @@ const route = (runs: EvaluationRun[]) =>
             const ids = (body.metrics as {run_ids: string[]}).run_ids
             return {data: {count: ids.length, metrics: ids.map(metricsOf)}}
         }
-        if (url.endsWith("/queries/revisions/query")) {
-            return {
-                data: {
-                    query_revisions: [
-                        {
-                            id: "q-rev-1",
-                            version: "1",
-                            data: {
-                                filtering: {
-                                    operator: "and",
-                                    conditions: [
-                                        {field: "trace_type", operator: "is", value: "invocation"},
-                                    ],
-                                },
-                            },
-                        },
-                    ],
-                },
-            }
-        }
         return {data: {}}
     })
 
@@ -289,6 +274,21 @@ beforeEach(() => {
     document.body.appendChild(host)
     root = createRoot(host)
     http.post.mockReset()
+    queries.queryQueryRevisions.mockReset()
+    queries.queryQueryRevisions.mockResolvedValue({
+        query_revisions: [
+            {
+                id: "q-rev-1",
+                version: "1",
+                data: {
+                    filtering: {
+                        operator: "and",
+                        conditions: [{field: "trace_type", operator: "is", value: "invocation"}],
+                    },
+                },
+            },
+        ],
+    })
     env.wide = true
     env.query = {}
 })
@@ -368,7 +368,11 @@ describe("evaluation runs list columns", () => {
         expect(headers()).not.toContain("Application")
         expect(headers()).not.toContain("Kind")
         expect(text()).toContain("Trace Type is invocation")
-        expect(callsTo("/queries/revisions/query")).toHaveLength(1)
+        expect(queries.queryQueryRevisions).toHaveBeenCalledTimes(1)
+        expect(queries.queryQueryRevisions).toHaveBeenCalledWith(
+            {query_revision_refs: [{id: "q-rev-1"}], include_archived: true},
+            {queryParams: {project_id: "pr"}},
+        )
     })
 
     it("The All tab adds the Kind column and the references of every run", async () => {

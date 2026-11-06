@@ -1,3 +1,5 @@
+import {lazy, Suspense} from "react"
+
 import {
     deriveEvaluationKind,
     EVALUATION_KIND_LABELS,
@@ -16,12 +18,19 @@ import {Badge, type BadgeProps} from "@agenta/ui/ui"
 import {useInView} from "../../annotations/useInView"
 
 import {RunApplicationCell} from "./RunApplicationCell"
-import {RunMetricCells} from "./RunMetricCells"
-import {RunQueryCell} from "./RunQueryCell"
 import {readRunReferences, runDisplayName} from "./runReferences"
 import {RunRowMenu} from "./RunRowMenu"
 import {RunTestsetCell} from "./RunTestsetCell"
 import type {RunRowActions} from "./useRunRowActions"
+
+// The metric and query cells (the metric bar, the stats and the trace filter labels) load in their
+// own chunk the first time a wide row draws them. Phones never draw them, so they never load it.
+const RunMetricCells = lazy(() =>
+    import("./RunMetricCells").then((module) => ({default: module.RunMetricCells})),
+)
+const RunQueryCell = lazy(() =>
+    import("./RunQueryCell").then((module) => ({default: module.RunQueryCell})),
+)
 
 const KIND_BADGE: Record<EvaluationRunKind, NonNullable<BadgeProps["variant"]>> = {
     auto: "geekblue",
@@ -58,6 +67,17 @@ export const RunKindBadge = ({run}: {run: EvaluationRun}) => {
     const kind = deriveEvaluationKind(run)
     return <Badge variant={KIND_BADGE[kind]}>{EVALUATION_KIND_LABELS[kind]}</Badge>
 }
+
+const MetricCellsPlaceholder = ({columns}: {columns: RunListColumns}) => (
+    <>
+        {[
+            ...columns.evaluators.flatMap((group) => group.columns.map((column) => column.id)),
+            ...columns.invocation.map((column) => column.id),
+        ].map((id) => (
+            <span key={id} />
+        ))}
+    </>
+)
 
 const muted = "block truncate text-[13px] text-muted-foreground"
 
@@ -131,16 +151,18 @@ export const RunRowCells = ({
                 reference === "testset" ? (
                     <RunTestsetCell key={reference} refs={refs} />
                 ) : reference === "query" ? (
-                    <RunQueryCell
-                        key={reference}
-                        queryRevisionId={refs.queryRevisionId}
-                        inView={inView}
-                    />
+                    <Suspense key={reference} fallback={<span />}>
+                        <RunQueryCell queryRevisionId={refs.queryRevisionId} inView={inView} />
+                    </Suspense>
                 ) : showApplication ? (
                     <RunApplicationCell key={reference} refs={refs} />
                 ) : null,
             )}
-            <RunMetricCells run={run} columns={columns} inView={inView} />
+            {/* One empty cell per metric column while the chunk loads, so the later cells stay
+                in their columns. */}
+            <Suspense fallback={<MetricCellsPlaceholder columns={columns} />}>
+                <RunMetricCells run={run} columns={columns} inView={inView} />
+            </Suspense>
             <span className={muted}>
                 <FormattedDate date={run.created_at} format={DATE_FORMAT} fallback="—" />
             </span>
