@@ -8,7 +8,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
-import {ArrowCounterClockwise, DotsThreeVertical} from "@phosphor-icons/react"
+import {ArrowCounterClockwise, ArrowSquareOut, DotsThreeVertical} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {AppTypeIcon} from "@/components/AppTypeIcon"
@@ -25,6 +25,7 @@ export const ArchivedAppRowCells = ({
     projectId,
     narrow,
     canRestore,
+    onOpenOverview,
 }: {
     row: ArchivedAppRow
     projectId: string
@@ -32,6 +33,8 @@ export const ArchivedAppRowCells = ({
     narrow: boolean
     /** Restoring needs `edit_workflows`; without it the row has no menu. */
     canRestore: boolean
+    /** Absent while the app overview view is off: the menu then has Restore only. */
+    onOpenOverview?: (row: ArchivedAppRow) => void
 }) => {
     const appType = useAtomValue(workflowAppTypeAtomFamily(row.id))
     const {restore, restoring} = useRestoreArchivedApp(projectId)
@@ -74,8 +77,12 @@ export const ArchivedAppRowCells = ({
                 </span>
             )}
 
-            <span className="flex justify-end">
-                {canRestore ? (
+            <span
+                className="flex justify-end"
+                onClick={(event) => event.stopPropagation()}
+                onKeyDown={(event) => event.stopPropagation()}
+            >
+                {canRestore || onOpenOverview ? (
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <button
@@ -87,13 +94,21 @@ export const ArchivedAppRowCells = ({
                             </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-max min-w-[160px]">
-                            <DropdownMenuItem
-                                disabled={restoring}
-                                onSelect={() => void restore(row.id)}
-                            >
-                                <ArrowCounterClockwise size={16} />
-                                Restore
-                            </DropdownMenuItem>
+                            {onOpenOverview ? (
+                                <DropdownMenuItem onSelect={() => onOpenOverview(row)}>
+                                    <ArrowSquareOut size={16} />
+                                    Open overview
+                                </DropdownMenuItem>
+                            ) : null}
+                            {canRestore ? (
+                                <DropdownMenuItem
+                                    disabled={restoring}
+                                    onSelect={() => void restore(row.id)}
+                                >
+                                    <ArrowCounterClockwise size={16} />
+                                    Restore
+                                </DropdownMenuItem>
+                            ) : null}
                         </DropdownMenuContent>
                     </DropdownMenu>
                 ) : null}

@@ -15,6 +15,7 @@ const api = vi.hoisted(() => ({
     success: vi.fn(),
     error: vi.fn(),
     permission: {value: true},
+    push: vi.fn(),
 }))
 vi.mock("@agenta/entities/workflow", async (original) => {
     const {atom} = await import("jotai")
@@ -41,7 +42,7 @@ vi.mock("next/router", () => ({
     useRouter: () => ({
         query: {workspace_id: "ws", project_id: "pr"},
         asPath: "/w/ws/p/pr/apps/archived",
-        push: vi.fn(),
+        push: api.push,
     }),
 }))
 vi.mock("@/features/nav/AppShell", () => ({
@@ -242,6 +243,49 @@ describe("Archived apps list, matching the classic app", () => {
             "Name,Created At,Archived At\r\n" +
                 "Summarizer,2026-09-01T09:05:00,2026-10-01T18:30:00",
         )
+    })
+
+    it("A row opens the app overview while the overview view is on", async () => {
+        await mountWithViews("archived-apps,app-overview")
+        const row = [
+            ...document.querySelectorAll<HTMLElement>('[role="row"], [role="button"]'),
+        ].find((item) => item.textContent?.includes("Summarizer"))
+        await act(async () => row?.click())
+        expect(api.push).toHaveBeenCalledWith("/w/ws/p/pr/apps/a2/overview")
+    })
+
+    it("Open overview in the row menu goes to the overview, and the menu click does not also open the row", async () => {
+        await mountWithViews("archived-apps,app-overview")
+        await act(async () => {
+            document
+                .querySelector('[aria-label="App actions"]')
+                ?.dispatchEvent(
+                    new MouseEvent("pointerdown", {bubbles: true, cancelable: true, button: 0}),
+                )
+        })
+        const items = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+        expect(items.map((item) => item.textContent?.trim())).toEqual(["Open overview", "Restore"])
+        await act(async () => items[0].click())
+        expect(api.push).toHaveBeenCalledTimes(1)
+        expect(api.push).toHaveBeenCalledWith("/w/ws/p/pr/apps/a1/overview")
+    })
+
+    it("With the overview view off, rows do not open and the menu has Restore only", async () => {
+        await mountWithViews("archived-apps")
+        const row = [
+            ...document.querySelectorAll<HTMLElement>('[role="row"], [role="button"]'),
+        ].find((item) => item.textContent?.includes("Summarizer"))
+        await act(async () => row?.click())
+        expect(api.push).not.toHaveBeenCalled()
+        await act(async () => {
+            document
+                .querySelector('[aria-label="App actions"]')
+                ?.dispatchEvent(
+                    new MouseEvent("pointerdown", {bubbles: true, cancelable: true, button: 0}),
+                )
+        })
+        const items = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+        expect(items.map((item) => item.textContent?.trim())).toEqual(["Restore"])
     })
 
     it("The column menu stays off on this narrow list", async () => {

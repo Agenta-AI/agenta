@@ -12,6 +12,7 @@ import {
 import {Button} from "@agenta/ui/ui"
 import {ArrowCounterClockwise, ArrowLeft} from "@phosphor-icons/react"
 import Link from "next/link"
+import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
@@ -66,6 +67,15 @@ export const ArchivedAppsScreen = ({
     const backHref = promptsEnabled
         ? `${projectBase}/prompts`
         : projectHomeUrl({workspaceId, projectId})
+
+    // The overview is its own developer view: without it there is no page to open.
+    const overviewEnabled = useDeveloperViewEnabled("app-overview") === true
+    const router = useRouter()
+    const openOverview = useCallback(
+        (row: ArchivedAppRow) =>
+            void router.push(`${projectBase}/apps/${encodeURIComponent(row.id)}/overview`),
+        [router, projectBase],
+    )
 
     const [ticked, setTicked] = useState<ReadonlySet<string>>(new Set())
     // A search or a restore removes rows: a key with no row is not selected any more.
@@ -166,6 +176,7 @@ export const ArchivedAppsScreen = ({
                                 canRestore={canRestore}
                                 isLoading={archived.isPending}
                                 selection={selection}
+                                onOpenOverview={overviewEnabled ? openOverview : undefined}
                                 empty={
                                     <ArchivedAppsEmpty
                                         term={trimmed || undefined}

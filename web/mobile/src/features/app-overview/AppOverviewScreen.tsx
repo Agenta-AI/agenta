@@ -26,8 +26,9 @@ const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
 
 /**
  * The overview of one prompt or custom app: where it is deployed, its newest prompts, and its
- * newest evaluations. An agent id goes to the agent overview, and an id that is no app here
- * (unknown, archived, or an evaluator) is "not found".
+ * newest evaluations. An agent id goes to the agent overview.
+ * An archived app opens too, without its actions menu.
+ * An id that is no app here (unknown, or an evaluator) is "not found".
  *
  * Each section loads and fails on its own. The usage charts are not part of this screen yet.
  */
@@ -44,7 +45,7 @@ export const AppOverviewScreen = ({
     const router = useRouter()
     const queryClient = useQueryClient()
     const base = `/w/${workspaceId}/p/${projectId}`
-    const overview = useOverviewApp(appId)
+    const overview = useOverviewApp(projectId, appId)
     const status = overview.status
 
     useEffect(() => {
@@ -54,6 +55,7 @@ export const AppOverviewScreen = ({
     if (status === "missing") return <PageNotFound />
 
     const app = overview.status === "app" ? overview.app : null
+    const archivedApp = overview.status === "app" && overview.archived
     const title = app ? app.name || app.slug || "Untitled" : null
 
     return (
@@ -76,7 +78,7 @@ export const AppOverviewScreen = ({
                                         {title}
                                     </h1>
                                 )}
-                                {app ? (
+                                {app && !archivedApp ? (
                                     <AppActionsMenu projectId={projectId} app={app} base={base} />
                                 ) : null}
                             </div>

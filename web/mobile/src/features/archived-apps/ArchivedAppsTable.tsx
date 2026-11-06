@@ -45,8 +45,8 @@ const NARROW_COLUMNS: ListTableColumn[] = [NAME_COLUMN, ARCHIVED_AT_COLUMN("96px
 const WIDE_QUERY = "(min-width: 640px)"
 
 /**
- * The archived apps in the shared list frame. Rows are not clickable: the app overview shows an
- * app from the active lists, so it has no page for an archived app.
+ * The archived apps in the shared list frame. A row opens the app overview while that view is on
+ * (`onOpenOverview`); otherwise rows are not clickable.
  */
 export const ArchivedAppsTable = ({
     rows,
@@ -55,6 +55,7 @@ export const ArchivedAppsTable = ({
     isLoading,
     empty,
     selection,
+    onOpenOverview,
 }: {
     rows: ArchivedAppRow[]
     projectId: string
@@ -62,6 +63,7 @@ export const ArchivedAppsTable = ({
     isLoading: boolean
     empty: ReactNode
     selection?: ListTableSelection<ArchivedAppRow>
+    onOpenOverview?: (row: ArchivedAppRow) => void
 }) => {
     // Asked as "wide?" because the shared hook starts false before it reads the viewport.
     const narrow = !useMediaQuery(WIDE_QUERY)
@@ -76,12 +78,14 @@ export const ArchivedAppsTable = ({
             rowKey={(row) => row.id}
             empty={empty}
             selection={selection}
+            onOpenRow={onOpenOverview}
             renderRow={(row) => (
                 <ArchivedAppRowCells
                     row={row}
                     projectId={projectId}
                     narrow={narrow}
                     canRestore={canRestore}
+                    onOpenOverview={onOpenOverview}
                 />
             )}
         />
