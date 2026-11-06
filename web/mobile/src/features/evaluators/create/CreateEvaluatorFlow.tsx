@@ -122,9 +122,17 @@ export const CreateEvaluatorFlow = ({
                         finish(null)
                         return
                     }
+                    // Only a failed lookup falls back to no name: an error thrown by the host
+                    // callbacks must not run them a second time.
                     queryWorkflows({projectId, workflowRefs: [{id: workflowId}]})
-                        .then((response) => finish(response.workflows?.[0]?.name))
-                        .catch(() => finish(null))
+                        .then(
+                            (response) => response.workflows?.[0]?.name,
+                            () => null,
+                        )
+                        .then(finish)
+                        .catch((error) =>
+                            console.error("Handing back the new evaluator failed", error),
+                        )
                 }}
             />
         </Contained>

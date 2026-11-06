@@ -39,7 +39,9 @@ export const TestcaseRowMenu = ({
     // picker, that focus would count as outside the picker and close it at once.
     const openingQueue = useRef(false)
     return (
-        <span className="relative inline-flex">
+        // The row opens the drawer on click. React sends clicks from the portaled menu and queue
+        // picker up this tree, so none of them may reach the row.
+        <span className="relative inline-flex" onClick={(event) => event.stopPropagation()}>
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <Button

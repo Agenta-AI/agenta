@@ -139,9 +139,17 @@ export const EvaluatorsSection = ({
         />
     ) : null
 
+    // Every branch keeps the flow second in a fragment: when the first evaluator is saved, the
+    // empty state turns into the table, and the flow must not mount again at the template picker.
     if (entries.isError) {
         return (
-            <LoadError title="Could not load evaluators" onRetry={() => void entries.refetch()} />
+            <>
+                <LoadError
+                    title="Could not load evaluators"
+                    onRetry={() => void entries.refetch()}
+                />
+                {createFlow}
+            </>
         )
     }
     if (!entries.isPending && entries.entries.length === 0 && !search) {
@@ -222,41 +230,43 @@ export const EvaluatorsSection = ({
     }
 
     return (
-        <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-                <StepSearch
-                    value={search}
-                    label="Search evaluators"
-                    disabled={disabled}
-                    onChange={setSearch}
-                />
-                {onCreate ? (
-                    <Button variant="outline" size="sm" onClick={onCreate}>
-                        <PlusIcon size={14} />
-                        Create new evaluator
-                    </Button>
-                ) : createHref ? (
-                    <Button asChild variant="outline" size="sm">
-                        <a href={createHref} target="_blank" rel="noopener noreferrer">
+        <>
+            <div className="flex flex-col gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <StepSearch
+                        value={search}
+                        label="Search evaluators"
+                        disabled={disabled}
+                        onChange={setSearch}
+                    />
+                    {onCreate ? (
+                        <Button variant="outline" size="sm" onClick={onCreate}>
                             <PlusIcon size={14} />
                             Create new evaluator
-                        </a>
-                    </Button>
-                ) : null}
-            </div>
-            <div role="group" aria-label="Evaluators">
-                <ListTable
-                    columns={columns}
-                    minWidth={narrow ? 300 : human ? 760 : 1060}
-                    loading={entries.isPending}
-                    groups={groups}
-                    rowKey={({row}) => row.id}
-                    onOpenRow={disabled ? undefined : ({row}) => pick(row)}
-                    empty={<SectionHint>No evaluators match your search</SectionHint>}
-                    renderRow={renderRow}
-                />
+                        </Button>
+                    ) : createHref ? (
+                        <Button asChild variant="outline" size="sm">
+                            <a href={createHref} target="_blank" rel="noopener noreferrer">
+                                <PlusIcon size={14} />
+                                Create new evaluator
+                            </a>
+                        </Button>
+                    ) : null}
+                </div>
+                <div role="group" aria-label="Evaluators">
+                    <ListTable
+                        columns={columns}
+                        minWidth={narrow ? 300 : human ? 760 : 1060}
+                        loading={entries.isPending}
+                        groups={groups}
+                        rowKey={({row}) => row.id}
+                        onOpenRow={disabled ? undefined : ({row}) => pick(row)}
+                        empty={<SectionHint>No evaluators match your search</SectionHint>}
+                        renderRow={renderRow}
+                    />
+                </div>
             </div>
             {createFlow}
-        </div>
+        </>
     )
 }

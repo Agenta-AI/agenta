@@ -58,5 +58,7 @@ export function useTestsetsList({projectId, search, createdAfter}: UseTestsetsLi
         hasMore: hasNextPage,
         loadMore,
         isLoadingMore: isFetchingNextPage,
+        // True from a failed next page until a later one loads.
+        loadMoreFailed: query.isFetchNextPageError,
     }
 }

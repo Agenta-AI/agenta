@@ -75,6 +75,8 @@ export interface TestsetsTableProps {
     empty: ReactNode
     hasMore: boolean
     isLoadingMore: boolean
+    /** The last next-page request failed: the row stops loading by itself until a click works. */
+    loadMoreFailed?: boolean
     onLoadMore: () => void
     canEdit: boolean
     canExport: boolean
@@ -111,6 +113,7 @@ export const TestsetsTable = ({
     empty,
     hasMore,
     isLoadingMore,
+    loadMoreFailed = false,
     onLoadMore,
     canEdit,
     canExport,
@@ -204,7 +207,11 @@ export const TestsetsTable = ({
                 )}
             />
             {hasMore && developerMode ? (
-                <ListTableLoadMore autoLoad onLoadMore={onLoadMore} loading={isLoadingMore} />
+                <ListTableLoadMore
+                    autoLoad={!loadMoreFailed}
+                    onLoadMore={onLoadMore}
+                    loading={isLoadingMore}
+                />
             ) : null}
             {hasMore && !developerMode ? (
                 <div className="flex justify-center py-4">

@@ -1,4 +1,4 @@
-import {useState} from "react"
+import {useEffect, useState} from "react"
 
 import {archiveWorkflowRevision, archiveWorkflowVariant} from "@agenta/entities/workflow"
 import {message} from "@agenta/ui/app-message"
@@ -52,11 +52,18 @@ export const DeleteSelectionDialog = ({
     const [pending, setPending] = useState(false)
     const variantIds = new Set(deletion.variants.map((variant) => variant.id))
     const revisionIds = new Set(deletion.revisions.map((revision) => revision.revisionId))
+    // The guard reads every page: a selection can cover page one and leave nothing on the next.
+    const checking = all.isPending || (Boolean(all.hasMore) && !all.isError)
+    const {hasMore, isError, isLoadingMore, loadMore} = all
+    useEffect(() => {
+        if (hasMore && !isError && !isLoadingMore) void loadMore()
+    }, [hasMore, isError, isLoadingMore, loadMore])
+    // A failed or empty check knows nothing, so it never says the app would lose every revision.
     const everything =
-        !all.isPending &&
-        !all.hasMore &&
+        !checking &&
+        !all.isError &&
+        all.rows.length > 0 &&
         all.rows.every((row) => variantIds.has(row.variantId) || revisionIds.has(row.revisionId))
-    const checking = all.isPending
 
     const submit = async () => {
         setPending(true)

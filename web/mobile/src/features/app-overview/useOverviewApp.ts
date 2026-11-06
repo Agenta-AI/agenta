@@ -1,6 +1,6 @@
 import {
     agentWorkflowsListQueryStateAtom,
-    ensureAgentFlags,
+    fetchWorkflowAgentFlags,
     promptWorkflowsListQueryStateAtom,
     queryWorkflows,
     selectNonAgentWorkflows,
@@ -40,7 +40,11 @@ const fetchArchivedApp = async (projectId: string, appId: string): Promise<Workf
         (workflow) => workflow.id === appId && workflow.deleted_at,
     )
     if (archived.length === 0) return null
-    const agentFlags = await ensureAgentFlags(projectId)
+    // Asked for these ids: the shared map is cached and can predate this agent.
+    const agentFlags = await fetchWorkflowAgentFlags(
+        projectId,
+        archived.map((workflow) => workflow.id),
+    )
     return selectNonAgentWorkflows(archived, agentFlags)[0] ?? null
 }
 

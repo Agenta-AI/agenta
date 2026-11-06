@@ -128,7 +128,13 @@ export const EvaluatorRowCells = ({
                 <EvaluatorRowMenu
                     copy={{revisionId: row.id, slug: row.slug}}
                     onOpen={onOpen}
-                    openLabel={automatic ? "Configure" : canEdit ? "Edit" : "Open details"}
+                    openLabel={
+                        automatic
+                            ? "Configure"
+                            : canEdit && row.depth === 0
+                              ? "Edit"
+                              : "Open details"
+                    }
                     overviewHref={automatic ? overviewHref : null}
                     onArchive={onArchive}
                 />

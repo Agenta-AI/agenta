@@ -188,6 +188,7 @@ export const TestsetsListScreen = ({
                 }
                 hasMore={list.hasMore}
                 isLoadingMore={list.isLoadingMore}
+                loadMoreFailed={list.loadMoreFailed}
                 onLoadMore={list.loadMore}
                 canEdit={canEdit}
                 canExport={canExport}
