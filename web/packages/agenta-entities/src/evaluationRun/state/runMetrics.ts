@@ -175,17 +175,26 @@ function sumCounts(all: (MetricStats | null)[]): MetricStats | null {
 }
 
 /**
- * What several evaluators spend on one trace: their means add up (a trace runs every evaluator),
- * and the count stays the number of traces.
+ * What several evaluators spend on one trace: their totals add up (a trace runs every evaluator)
+ * and divide by the number of traces, the largest count. An evaluator that skipped some traces
+ * adds only what it spent. Without counts, the means add up and there is no total.
  */
 function sumPerTrace(all: (MetricStats | null)[]): MetricStats | null {
     const stats = all.filter((entry): entry is MetricStats => entry !== null)
     if (stats.length === 0) return null
+    const count = Math.max(...stats.map((entry) => entry.count ?? 0))
+    const totals = stats.map(
+        (entry) =>
+            entry.sum ??
+            (entry.mean !== undefined && entry.count ? entry.mean * entry.count : undefined),
+    )
+    if (count > 0 && totals.every((total) => total !== undefined)) {
+        const sum = totals.reduce<number>((acc, total) => acc + (total ?? 0), 0)
+        return {type: stats[0].type, mean: sum / count, sum, count}
+    }
     const mean = (entry: MetricStats) =>
         entry.mean ?? (entry.sum !== undefined && entry.count ? entry.sum / entry.count : 0)
-    const count = Math.max(...stats.map((entry) => entry.count ?? 0))
-    const perTrace = stats.reduce((sum, entry) => sum + mean(entry), 0)
-    return {type: stats[0].type, mean: perTrace, sum: perTrace * count, count}
+    return {type: stats[0].type, mean: stats.reduce((acc, entry) => acc + mean(entry), 0)}
 }
 
 /** The points of several evaluators, combined per timestamp, oldest first. */
@@ -269,12 +278,13 @@ export function buildRunMetricCatalog(
         timed.some(({data}) => data[key]?.[metricKey] !== undefined)
     for (const {id, metricKey, label} of INVOCATION_METRICS) {
         // A live run calls no app: what it spends per trace (cost, time, tokens) is its evaluators'.
-        const candidates =
-            id === "errors" || invocationKeys.length === 0 ? errorKeys : invocationKeys
+        const fromEvaluators = invocationKeys.length === 0
+        const candidates = id === "errors" || fromEvaluators ? errorKeys : invocationKeys
         const stepKeys = candidates.filter((key) => hasMetric(key, metricKey))
         const stepKey = stepKeys[0] ?? null
-        // Several evaluators: errors add up as totals, and cost, time and tokens per trace.
-        const combined = stepKeys.length > 1 && candidates === errorKeys
+        // Several evaluators: errors add up as totals, and cost, time and tokens per trace. Several
+        // app steps report cost, time and tokens from the first one, as the old app does.
+        const combined = stepKeys.length > 1 && (id === "errors" || fromEvaluators)
         const combine = id === "errors" ? sumCounts : sumPerTrace
         const temporal = combined
             ? sumPoints(

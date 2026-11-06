@@ -116,14 +116,8 @@ export function buildRunSummaryRows({
         })
     }
     rows.push({key: "evaluation", label: "Evaluation", value: header.name})
-    // A stopped live run keeps the "running" status on the server: say it is stopped.
-    const stopped = header.kind === "online" && !header.flags.isClosed && !header.flags.isActive
-    rows.push({
-        key: "status",
-        label: "Status",
-        value: <RunStatusTag status={stopped ? "stopped" : header.status} />,
-    })
-    if ((references?.queryIds.length ?? 0) > 0) {
+    rows.push({key: "status", label: "Status", value: <RunStatusTag status={header.status} />})
+    if ((references?.queries.length ?? 0) > 0) {
         rows.push({
             key: "queries",
             label: "Filters / Queries",
