@@ -64,3 +64,35 @@ describe("shouldAdoptServerTranscript", () => {
         expect(shouldAdoptServerTranscript(input({serverMessageCount: 0}))).toBe(false)
     })
 })
+
+describe("a rewind shrinks the log", () => {
+    const shorter = {serverRecordCount: 40, serverMessageCount: 2, localMessageCount: 6}
+
+    it("adopts a shorter transcript when the rewind is newer than the watermark", () => {
+        expect(shouldAdoptServerTranscript(input({...shorter, rewoundSequence: 39}))).toBe(true)
+    })
+
+    it("keeps the floor for a shorter transcript with no rewind", () => {
+        expect(shouldAdoptServerTranscript(input(shorter))).toBe(false)
+    })
+
+    it("keeps the floor once the watermark has passed the rewind", () => {
+        expect(
+            shouldAdoptServerTranscript(input({...shorter, rewoundSequence: 10, watermark: 12})),
+        ).toBe(false)
+    })
+
+    it("adopts an empty transcript when the rewind removed every turn", () => {
+        expect(
+            shouldAdoptServerTranscript(
+                input({...shorter, serverMessageCount: 0, rewoundSequence: 39}),
+            ),
+        ).toBe(true)
+    })
+
+    it("does not adopt over a live stream", () => {
+        expect(
+            shouldAdoptServerTranscript(input({...shorter, rewoundSequence: 39, busy: true})),
+        ).toBe(false)
+    })
+})

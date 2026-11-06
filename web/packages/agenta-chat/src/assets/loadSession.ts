@@ -46,6 +46,8 @@ export interface SessionTranscript {
      * records make the visible sequence values sparse.
      */
     sequenceCursor?: number
+    /** Sequence of the log's newest rewind, when it has one. */
+    rewoundSequence?: number
     /**
      * The interaction lifecycle rows this transcript was replayed against (#5942). Records never
      * carry a row's later lifecycle, so this is the only place the adoption guard can see whether
@@ -67,6 +69,13 @@ export const isSessionTranscript = (value: unknown): value is SessionTranscript 
             (typeof candidate.sequenceCursor === "number" &&
                 Number.isFinite(candidate.sequenceCursor)))
     )
+}
+
+const rewoundSequenceForRecords = (
+    records: {session_update?: string | null; sequence?: number | null}[],
+): number | undefined => {
+    const rewinds = records.filter((record) => record.session_update === "rewind")
+    return rewinds.length ? sequenceCursorForRecords(rewinds) : undefined
 }
 
 const sequenceCursorForRecords = (records: {sequence?: number | null}[]): number | undefined => {
@@ -100,12 +109,16 @@ const readSessionTranscript = async (
         rowStates: SessionInteractionRowStates,
     ): SessionTranscript | null => {
         if (!rows || rows.length === 0) return null
-        const messages = transcriptToMessages(rows, {interactionRowStates: rowStates})
+        const rewoundSequence = rewoundSequenceForRecords(rows)
+        const messages =
+            transcriptToMessages(rows, {interactionRowStates: rowStates}) ??
+            (rewoundSequence === undefined ? null : [])
         return messages
             ? {
                   messages,
                   recordCount: rows.length,
                   sequenceCursor: sequenceCursorForRecords(rows),
+                  rewoundSequence,
                   interactionRows: rowStates,
               }
             : null

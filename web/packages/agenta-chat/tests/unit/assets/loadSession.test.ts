@@ -217,6 +217,47 @@ describe("loadSessionMessages", () => {
 
 // The settlement read (#6698): a send is settled only on evidence from the FRESH log. The cached
 // transcript is delivered for the screen but predates the turn, so it never counts as success.
+describe("a rewound log", () => {
+    const rewind = (sequence: number): SessionRecord => ({
+        ...record(`r-rewind-${sequence}`, {type: "rewind", turnId: "t2"}),
+        sequence,
+    })
+    const reply = (sequence: number, text: string): SessionRecord => ({
+        ...record(`r-${sequence}`, {type: "message", text}),
+        sequence,
+    })
+
+    it("names the newest rewind and renders no message for it", async () => {
+        fetchResult = {records: [reply(1, "kept"), rewind(5), rewind(9), reply(10, "after")]}
+
+        const transcript = await loadSessionMessages("session-1")
+
+        expect(transcript?.rewoundSequence).toBe(9)
+        expect(transcript?.sequenceCursor).toBe(10)
+        expect(transcript?.messages.flatMap((m) => m.parts.map((p) => p.type))).toEqual([
+            "text",
+            "text",
+        ])
+    })
+
+    it("keeps a transcript with no messages when the rewind removed every turn", async () => {
+        fetchResult = {records: [rewind(9)]}
+
+        const transcript = await loadSessionMessages("session-1")
+
+        expect(transcript?.messages).toEqual([])
+        expect(transcript?.rewoundSequence).toBe(9)
+    })
+
+    it("names no rewind in a log that never had one", async () => {
+        fetchResult = {records: [reply(1, "kept")]}
+
+        const transcript = await loadSessionMessages("session-1")
+
+        expect(transcript?.rewoundSequence).toBeUndefined()
+    })
+})
+
 describe("reloadSessionMessages", () => {
     const cached = [record("r1", {type: "message", text: "before"}), record("r2", {type: "done"})]
     const fresh = [...cached, record("r3", {type: "message", text: "after"})]

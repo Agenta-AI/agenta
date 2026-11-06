@@ -1,6 +1,8 @@
 // Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
 import type {UIMessage} from "ai"
 
+import {getMessageTurnId} from "./agentTurn"
+
 /**
  * Tools with no external side effect — safe to rewind/retry past silently. v1 hardcodes
  * this; the principled source is a `readOnly` flag on the tool spec (see
@@ -8,6 +10,18 @@ import type {UIMessage} from "ai"
  * as potentially side-effecting, so the user is warned before rewinding past it.
  */
 export const READ_ONLY_TOOLS = new Set(["search_docs"])
+
+/**
+ * The durable turn a rewind at `index` removes: the turn of the user message at or before it.
+ * Re-running an assistant message removes its whole turn, because the re-run writes the user
+ * message again.
+ */
+export const rewindTurnId = (messages: UIMessage[], index: number): string | null => {
+    for (let i = index; i >= 0; i--) {
+        if (messages[i].role === "user") return getMessageTurnId(messages[i])
+    }
+    return null
+}
 
 /** Concatenated text of a message's text parts. */
 export const messageText = (message: UIMessage): string =>

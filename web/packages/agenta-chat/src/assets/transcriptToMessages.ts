@@ -737,6 +737,7 @@ export function transcriptToMessages(
         const payload = row.payload
         if (!payload || typeof payload !== "object") continue
         const p = payload as Record<string, unknown>
+        if (p.type === "rewind") continue
         const executionId = row.turn_id ?? undefined
         // Speculative trace link (no-op until the backend stamps one) — the id can ride the `done`
         // row too, so read it before the turn closes.

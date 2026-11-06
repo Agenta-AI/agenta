@@ -4,6 +4,7 @@ import {atom} from "jotai"
 import {
     fetchSessionSnapshot,
     removePendingSessionInput,
+    rewindSession,
     sendPendingSessionInputNow,
     updatePendingSessionInput,
 } from "../api/api"
@@ -12,6 +13,12 @@ export const fetchSessionSnapshotAtom = atom(null, async (get, _set, sessionId: 
     const projectId = get(projectIdAtom) ?? ""
     return fetchSessionSnapshot({projectId, sessionId})
 })
+
+export const rewindSessionAtom = atom(
+    null,
+    async (get, _set, {sessionId, turnId}: {sessionId: string; turnId: string}) =>
+        rewindSession({projectId: get(projectIdAtom) ?? "", sessionId, turnId}),
+)
 
 export const removePendingSessionInputAtom = atom(
     null,
