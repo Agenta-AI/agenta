@@ -3,6 +3,7 @@ import {createElement, useCallback, useMemo, type ReactNode} from "react"
 import {
     AGENTS_SIDEBAR_KEY,
     buildHelpDocsNavItem,
+    buildInviteTeammateNavItem,
     defineSidebarEntity,
     resolveChildren,
     SESSIONS_SIDEBAR_KEY,
@@ -41,6 +42,7 @@ import {
     HouseIcon,
     KeyboardIcon,
     LightningIcon,
+    PaperPlaneIcon,
     QuestionIcon,
     RobotIcon,
     ScrollIcon,
@@ -55,14 +57,15 @@ import {agentEntryHref} from "@/features/agents/agentEntry"
 import {shareDialogRequestAtom} from "@/features/chat/shareDialogState"
 import {useLeaveSession} from "@/features/chat/useLeaveSession"
 import {startBlankSession} from "@/features/chat/useStartBlankSession"
-import {developerNavItems} from "@/features/developer/developerNavItems"
 import {useEnabledDeveloperViews} from "@/features/developer/developerViewAccess"
 import {whatsNewAtom} from "@/features/education/whatsNewAtom"
 
+import {useProjectPermission} from "../context/useProjectPermission"
+
 import {AgentsNavAction} from "./AgentsNavAction"
 import {AgentsQuickPanel} from "./AgentsQuickPanel"
+import {developerNavSlots} from "./developerNavSlots"
 import {useSyncLocalSessionRefs} from "./localSessionRefs"
-import {observabilityNavItems} from "./observabilityNavItems"
 
 /** The drawer's scope id — its open-groups persistence bucket. */
 export const MOBILE_NAV_SCOPE_ID = "mobile-main"
@@ -212,6 +215,11 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
         [chrome],
     )
 
+    const developerSlots = useMemo(
+        () => developerNavSlots(projectURL, developerViews, developerMode),
+        [developerMode, developerViews, projectURL],
+    )
+
     return useMemo(
         () => [
             {
@@ -220,6 +228,7 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 icon: createElement(HouseIcon, {size: 16}),
                 link: `${projectURL}/apps`,
             },
+            ...developerSlots.afterHome,
             {
                 key: AGENTS_SIDEBAR_KEY,
                 title: "Agents",
@@ -282,18 +291,9 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                     wrapSessionRow,
                 ),
             },
-            ...observabilityNavItems(projectURL, developerMode),
-            ...developerNavItems(projectURL, developerViews),
+            ...developerSlots.afterSessions,
         ],
-        [
-            loadMoreSessions,
-            source,
-            projectURL,
-            wrapSessionRow,
-            paletteShortcut,
-            developerMode,
-            developerViews,
-        ],
+        [loadMoreSessions, source, projectURL, wrapSessionRow, paletteShortcut, developerSlots],
     )
 }
 
@@ -303,13 +303,32 @@ const versionAtom = unwrap(atom(async () => (await import("../../../package.json
 
 export const useMobileVersion = () => useAtomValue(versionAtom)
 
-/** The pinned bottom entries: Templates and Settings, both dropped inside the settings scope. */
+/** Templates and Settings (not in the settings scope), plus Invite Teammate in beta developer mode. */
 export const useMobileBottomNavItems = (
     projectURL: string,
     {includeSettingsLink = true}: {includeSettingsLink?: boolean} = {},
 ): SidebarConfig[] => {
     const version = useMobileVersion()
-    return useMemo(
+    const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
+    // No project id, no permission request: outside beta developer mode nothing is asked.
+    const [, , , , projectId = ""] = projectURL.split("/")
+    const canInvite = useProjectPermission(
+        developerMode ? projectId : "",
+        "add_new_user_to_workspace",
+    )
+    const inviteItems = useMemo(
+        () =>
+            developerMode && canInvite
+                ? [
+                      buildInviteTeammateNavItem({
+                          projectURL,
+                          icon: createElement(PaperPlaneIcon, {size: 16}),
+                      }),
+                  ]
+                : [],
+        [canInvite, developerMode, projectURL],
+    )
+    const items = useMemo(
         () =>
             // The settings scope drops them: the rail IS settings there.
             includeSettingsLink
@@ -336,6 +355,10 @@ export const useMobileBottomNavItems = (
                   ]
                 : [],
         [includeSettingsLink, projectURL, version],
+    )
+    return useMemo(
+        () => (inviteItems.length ? [...items, ...inviteItems] : items),
+        [inviteItems, items],
     )
 }
 
