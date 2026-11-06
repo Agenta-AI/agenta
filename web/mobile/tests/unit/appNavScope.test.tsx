@@ -6,7 +6,8 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {DEVELOPER_VIEWS} from "@/features/developer/developerViews"
-import {appNavItems, appScopeAppId} from "@/features/nav/appNavScope"
+import {appNavItems} from "@/features/nav/appNavScope"
+import {appScopeAppId} from "@/features/nav/appRoute"
 import {appSwitchHref} from "@/features/nav/AppSwitcher"
 import {useRailScope} from "@/features/nav/railScope"
 
@@ -138,6 +139,15 @@ describe("switching apps", () => {
     })
 })
 
+describe("an app id with reserved characters", () => {
+    it("stays one path segment in the switch link and the menu links", () => {
+        expect(appSwitchHref(P, `${R}/apps/[app_id]/overview`, {app_id: "a1"}, "a/b?c#d")).toBe(
+            `${P}/apps/a%2Fb%3Fc%23d/overview`,
+        )
+        expect(appNavItems(P, "a/b", DEVELOPER_VIEWS)[0].link).toBe(`${P}/apps/a%2Fb/overview`)
+    })
+})
+
 describe("which rail a page shows", () => {
     let root: Root
     let host: HTMLDivElement
@@ -148,16 +158,21 @@ describe("which rail a page shows", () => {
         scopeId = useRailScope("ws-1", "proj-1").id
         return null
     }
-    const render = (beta: boolean, pathname: string, query: Record<string, string>) => {
+    // The app menu's code loads on demand, so the scope can change after the first render.
+    const render = async (beta: boolean, pathname: string, query: Record<string, string>) => {
         store.set(betaAtom.current!, beta)
         Object.assign(route, {pathname, query, asPath: pathname})
-        act(() =>
+        await act(async () =>
             root.render(
                 <Provider store={store}>
                     <Probe />
                 </Provider>,
             ),
         )
+        await act(async () => {
+            await import("@/features/nav/appNavScope")
+            await new Promise((resolve) => setTimeout(resolve, 0))
+        })
         return scopeId
     }
 
@@ -168,15 +183,19 @@ describe("which rail a page shows", () => {
     })
     afterEach(() => act(() => root.unmount()))
 
-    it("beta developer mode shows the app menu inside an app", () => {
-        expect(render(true, `${R}/apps/[app_id]/overview`, {app_id: "a1"})).toBe("mobile-app")
-        expect(render(true, `${R}/apps/[app_id]/variants`, {app_id: "a1"})).toBe("mobile-app")
-        expect(render(true, `${R}/prompts`, {})).toBe("mobile-main")
+    it("beta developer mode shows the app menu inside an app", async () => {
+        expect(await render(true, `${R}/apps/[app_id]/overview`, {app_id: "a1"})).toBe("mobile-app")
+        expect(await render(true, `${R}/apps/[app_id]/variants`, {app_id: "a1"})).toBe("mobile-app")
+        expect(await render(true, `${R}/prompts`, {})).toBe("mobile-main")
     })
 
-    it("without beta developer mode every page keeps the main rail", () => {
-        expect(render(false, `${R}/apps/[app_id]/overview`, {app_id: "a1"})).toBe("mobile-main")
-        expect(render(false, `${R}/apps/[app_id]/playground`, {app_id: "a1"})).toBe("mobile-main")
-        expect(render(false, `${R}/variants`, {app: "a1"})).toBe("mobile-main")
+    it("without beta developer mode every page keeps the main rail", async () => {
+        expect(await render(false, `${R}/apps/[app_id]/overview`, {app_id: "a1"})).toBe(
+            "mobile-main",
+        )
+        expect(await render(false, `${R}/apps/[app_id]/playground`, {app_id: "a1"})).toBe(
+            "mobile-main",
+        )
+        expect(await render(false, `${R}/variants`, {app: "a1"})).toBe("mobile-main")
     })
 })

@@ -28,20 +28,12 @@ import type {DeveloperView} from "../developer/developerViews"
 import {evaluatorPlaygroundHref} from "../playground/playgroundUrl"
 import {CreditsRemainingWidget} from "../wallet/CreditsRemainingWidget"
 
+import {lastMainRailPathAtom} from "./appRoute"
 import {DrawerProjectSwitcher} from "./DrawerProjectSwitcher"
 import {useMobileBottomNavItems} from "./useMobileNavItems"
 
 /** The app menu's scope id: its own open-groups bucket, apart from the main rail's. */
 export const MOBILE_APP_NAV_SCOPE_ID = "mobile-app"
-
-const APP_ROUTE = /\/apps\/\[app_id\]\/[^/]+$/
-
-/** The app of a page that belongs in the app menu (`/apps/<id>/<page>`), else null. */
-export const appScopeAppId = (
-    pathname: string,
-    query: Record<string, string | string[] | undefined>,
-): string | null =>
-    APP_ROUTE.test(pathname) && typeof query.app_id === "string" ? query.app_id : null
 
 const NO_REVISION = atom<string | null>(null)
 
@@ -54,9 +46,6 @@ const useAppNavEvaluator = (appId: string): AppNavEvaluator | null => {
     )
     return useMemo(() => (evaluator ? {latestRevisionId} : null), [evaluator, latestRevisionId])
 }
-
-/** Where "Back" returns to: the last page the main rail showed. */
-export const lastMainRailPathAtom = atom<string | null>(null)
 
 /** An evaluator in the app menu: no Registry, and its playground is the evaluator playground. */
 export interface AppNavEvaluator {
@@ -71,7 +60,7 @@ export const appNavItems = (
     views: readonly DeveloperView[],
     evaluator: AppNavEvaluator | null = null,
 ): SidebarConfig[] => {
-    const appURL = `${projectURL}/apps/${appId}`
+    const appURL = `${projectURL}/apps/${encodeURIComponent(appId)}`
     const playground: [viewId: string, link: string] = evaluator
         ? [
               "evaluator-playground",
@@ -145,7 +134,8 @@ const AppSwitcher = dynamic(() => import("./AppSwitcher").then((m) => m.AppSwitc
 
 const ROUTE_SELECTION: SidebarSelection = {mode: "route"}
 
-const createMobileAppNavScope = (
+/** The app menu of one app. `railScope` loads this module only inside an app. */
+export const createMobileAppNavScope = (
     workspaceId: string,
     projectId: string,
     appId: string,
@@ -220,13 +210,3 @@ const createMobileAppNavScope = (
         afterBottom: AfterBottom,
     }
 }
-
-export const useMobileAppNavScope = (
-    workspaceId: string,
-    projectId: string,
-    appId: string | null,
-) =>
-    useMemo(
-        () => (appId ? createMobileAppNavScope(workspaceId, projectId, appId) : null),
-        [workspaceId, projectId, appId],
-    )

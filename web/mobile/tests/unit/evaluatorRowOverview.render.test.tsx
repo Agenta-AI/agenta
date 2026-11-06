@@ -6,7 +6,7 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {EvaluatorRowCells} from "@/features/evaluators/EvaluatorRowCells"
-import type {EvaluatorRevisionRow} from "@/features/evaluators/evaluatorsView"
+import type {EvaluatorListRow} from "@/features/evaluators/evaluatorsView"
 
 const {betaAtom} = vi.hoisted(() => ({betaAtom: {current: null as PrimitiveAtom<boolean> | null}}))
 
@@ -22,8 +22,11 @@ vi.mock("next/router", () => ({
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
-const ROW: EvaluatorRevisionRow = {
+const ROW: EvaluatorListRow = {
     id: "rev-3",
+    key: "eval-1",
+    depth: 0,
+    hasOlder: true,
     workflowId: "eval-1",
     name: "Answer check",
     slug: "answer-check",
@@ -49,9 +52,10 @@ const renderRow = async (beta: boolean, category: "automatic" | "human") => {
                     row={ROW}
                     category={category}
                     narrow
-                    selectable={false}
-                    selected={false}
-                    onToggle={() => undefined}
+                    canEdit={false}
+                    expanded={false}
+                    loadingOlder={false}
+                    onToggleExpand={() => undefined}
                     onOpen={() => undefined}
                 />
             </Provider>,

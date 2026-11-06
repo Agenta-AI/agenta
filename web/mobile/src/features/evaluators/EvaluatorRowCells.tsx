@@ -2,14 +2,16 @@ import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {evaluatorTemplatesDataAtom} from "@agenta/entities/workflow"
 import type {EvaluatorCategory} from "@agenta/entities/workflow"
 import {WorkflowTypeTag} from "@agenta/entity-ui/workflow"
-import {Checkbox} from "@agenta/ui/ui"
+import {cn} from "@agenta/ui/styles"
+import {Spinner} from "@agenta/ui/ui"
+import {CaretRight} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {formatDay} from "../archived-apps/archivedAppsView"
 
 import {EvaluatorKeyTags} from "./EvaluatorKeyTags"
 import {EvaluatorRowMenu} from "./EvaluatorRowMenu"
-import type {EvaluatorRevisionRow} from "./evaluatorsView"
+import type {EvaluatorListRow} from "./evaluatorsView"
 import {useEvaluatorOverviewHref} from "./useEvaluatorOverviewHref"
 
 /** The template categories of an automatic evaluator. Reads the catalog, so only this tab pays. */
@@ -23,48 +25,70 @@ const Muted = ({children}: {children: React.ReactNode}) => (
     <span className="block min-w-0 truncate text-[13px] text-muted-foreground">{children}</span>
 )
 
-/** One revision's cells, in column order. */
+/** One row's cells, in column order: an evaluator, or an older revision under it. */
 export const EvaluatorRowCells = ({
     row,
     category,
     narrow,
-    selectable,
-    selected,
-    onToggle,
+    canEdit,
+    expanded,
+    loadingOlder,
+    onToggleExpand,
     onOpen,
     onArchive,
 }: {
-    row: EvaluatorRevisionRow
+    row: EvaluatorListRow
     category: EvaluatorCategory
     /** A phone shows the name and the last change only. */
     narrow: boolean
-    /** Selecting needs `edit_evaluators`; without it the row has no checkbox. */
-    selectable: boolean
-    selected: boolean
-    onToggle: () => void
+    /** The reader may edit evaluators: a human row offers Edit, else Open details. */
+    canEdit: boolean
+    expanded: boolean
+    loadingOlder: boolean
+    onToggleExpand: () => void
     onOpen: () => void
-    /** Absent without `edit_evaluators`. */
+    /** Absent without `edit_evaluators`, and on an older revision. */
     onArchive?: () => void
 }) => {
     const automatic = category === "automatic"
     const name = row.name ?? "—"
     const overviewHref = useEvaluatorOverviewHref(row.workflowId)
+    const older = row.depth === 1
 
     return (
         <>
-            {selectable ? (
-                // The row opens on a click; the checkbox must not.
-                <span className="flex" onClick={(event) => event.stopPropagation()}>
-                    <Checkbox
-                        checked={selected}
-                        onCheckedChange={onToggle}
-                        aria-label={`Select ${name}`}
-                    />
-                </span>
-            ) : null}
-            <span className="flex min-w-0 items-center gap-2">
+            <span className={cn("flex min-w-0 items-center gap-1.5", older && "pl-7")}>
+                {older ? null : row.hasOlder ? (
+                    // The row opens on a click; the expand must not.
+                    <button
+                        type="button"
+                        aria-expanded={expanded}
+                        aria-label={`${expanded ? "Hide" : "Show"} older versions of ${name}`}
+                        onClick={(event) => {
+                            event.stopPropagation()
+                            onToggleExpand()
+                        }}
+                        onKeyDown={(event) => event.stopPropagation()}
+                        className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-muted-foreground hover:bg-colorFillTertiary hover:text-foreground"
+                    >
+                        {loadingOlder ? (
+                            <Spinner size="small" />
+                        ) : (
+                            <CaretRight
+                                size={12}
+                                aria-hidden
+                                className={cn("transition-transform", expanded && "rotate-90")}
+                            />
+                        )}
+                    </button>
+                ) : (
+                    <span className="size-6 shrink-0" aria-hidden />
+                )}
                 <span
-                    className="truncate text-[14px] font-medium leading-[18px] text-foreground"
+                    className={cn(
+                        "truncate text-[14px] leading-[18px]",
+                        older ? "text-muted-foreground" : "font-medium text-foreground",
+                    )}
                     title={name}
                 >
                     {name}
@@ -103,9 +127,8 @@ export const EvaluatorRowCells = ({
             <span className="flex justify-end" onClick={(event) => event.stopPropagation()}>
                 <EvaluatorRowMenu
                     copy={{revisionId: row.id, slug: row.slug}}
-                    // Editing a human evaluator comes later: its row menu has no Configure.
-                    onOpen={automatic ? onOpen : undefined}
-                    openLabel="Configure"
+                    onOpen={onOpen}
+                    openLabel={automatic ? "Configure" : canEdit ? "Edit" : "Open details"}
                     overviewHref={automatic ? overviewHref : null}
                     onArchive={onArchive}
                 />

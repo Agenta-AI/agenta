@@ -17,7 +17,7 @@ import {projectHomeUrl} from "@/lib/context"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useProjectPermissionState} from "../context/useProjectPermission"
-import {canDeveloperViewBeEnabled, useDeveloperViewEnabled} from "../developer/developerViewAccess"
+import {useDeveloperViewEnabled} from "../developer/developerViewAccess"
 import {useRouteAppId} from "../developer/useRouteAppId"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
@@ -286,12 +286,7 @@ export const ObservabilityScreen = ({
     const {appId: routeAppId, fromPath} = useRouteAppId()
     useObservabilityAppScope(appFilterEnabled ? routeAppId : null)
 
-    if (
-        appFilterView === null &&
-        routeAppId !== null &&
-        canDeveloperViewBeEnabled("observability-app-filter")
-    )
-        return null
+    if (appFilterView === null && routeAppId !== null) return null
     return (
         <ObservabilityContent
             workspaceId={workspaceId}

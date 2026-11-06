@@ -21,6 +21,7 @@ import {AppActionsMenu} from "./AppActionsMenu"
 import {AppDeploymentSection} from "./AppDeploymentSection"
 import {AppEvaluationsSection} from "./AppEvaluationsSection"
 import {AppRecentPromptsSection} from "./AppRecentPromptsSection"
+import {BindWorkspaceMembers} from "./BindWorkspaceMembers"
 import {AppOverviewSkeleton} from "./states/AppOverviewSkeleton"
 import {AppTitleSkeleton} from "./states/AppTitleSkeleton"
 import {AppUsageSkeleton} from "./states/AppUsageSkeleton"
@@ -56,7 +57,9 @@ export const AppOverviewScreen = ({
     const queryClient = useQueryClient()
     const base = `/w/${workspaceId}/p/${projectId}`
     const overview = useOverviewApp(appId)
-    const showUsage = useAtomValue(betaDeveloperModeActiveAtom)
+    // Beta developer mode matches /w: the menu sits right after the title, and authors show names.
+    const beta = useAtomValue(betaDeveloperModeActiveAtom)
+    const showUsage = beta
     const status = overview.status
 
     useEffect(() => {
@@ -72,6 +75,7 @@ export const AppOverviewScreen = ({
     return (
         <>
             <PageTitle title="Overview" />
+            {beta ? <BindWorkspaceMembers /> : null}
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
@@ -85,7 +89,9 @@ export const AppOverviewScreen = ({
                                         <AppTitleSkeleton />
                                     </div>
                                 ) : (
-                                    <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px]">
+                                    <h1
+                                        className={`m-0 min-w-0 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] ${beta ? "" : "flex-1"}`}
+                                    >
                                         {title}
                                     </h1>
                                 )}
