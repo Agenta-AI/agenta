@@ -18,6 +18,7 @@ import {toEvaluatorRows} from "./evaluatorRows"
 import {EvaluatorsEmpty} from "./EvaluatorsEmpty"
 import {EvaluatorTemplateTags} from "./EvaluatorTemplateTags"
 import {ExpandToggle} from "./ExpandToggle"
+import {MutedCell} from "./MutedCell"
 import type {DraftEvaluator, NewEvaluationKind} from "./newEvaluationDraft"
 import {PickCell} from "./PickCell"
 import {SectionHint} from "./SectionHint"
@@ -58,10 +59,6 @@ const toDraftEvaluator = (row: EvaluatorRevisionRow): DraftEvaluator => ({
     name: row.name ?? row.slug ?? "Evaluator",
     version: row.version ?? 0,
 })
-
-const Muted = ({children}: {children: React.ReactNode}) => (
-    <span className="block min-w-0 truncate text-[13px] text-muted-foreground">{children}</span>
-)
 
 /**
  * Pick the evaluators that score the run: a table of the project's automatic evaluators (auto
@@ -168,19 +165,19 @@ export const EvaluatorsSection = ({
                     </span>
                 )}
                 {narrow || human ? null : <EvaluatorTemplateTags evaluatorKey={row.evaluatorKey} />}
-                {narrow ? null : <Muted>{formatDay(row.createdAt)}</Muted>}
-                {narrow ? null : <Muted>{formatDay(row.updatedAt)}</Muted>}
+                {narrow ? null : <MutedCell>{formatDay(row.createdAt)}</MutedCell>}
+                {narrow ? null : <MutedCell>{formatDay(row.updatedAt)}</MutedCell>}
                 {narrow ? null : (
-                    <Muted>
+                    <MutedCell>
                         <UserAuthorLabel
                             userId={row.updatedById}
                             showYouLabel
                             showAvatar
                             fallback="—"
                         />
-                    </Muted>
+                    </MutedCell>
                 )}
-                {narrow || human ? null : <Muted>{row.message ?? "—"}</Muted>}
+                {narrow || human ? null : <MutedCell>{row.message ?? "—"}</MutedCell>}
             </>
         )
     }

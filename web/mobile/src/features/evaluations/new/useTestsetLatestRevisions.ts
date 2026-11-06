@@ -1,5 +1,5 @@
 import {fetchLatestRevisionsBatch, type Revision} from "@agenta/entities/testset"
-import {useQuery} from "@tanstack/react-query"
+import {keepPreviousData, useQuery} from "@tanstack/react-query"
 
 const NONE: ReadonlyMap<string, Revision> = new Map()
 
@@ -23,6 +23,9 @@ export const useTestsetLatestRevisions = ({
         queryKey: testsetLatestRevisionsKey(projectId, testsetIds),
         queryFn: () => fetchLatestRevisionsBatch(projectId, [...testsetIds]),
         enabled: Boolean(projectId) && testsetIds.length > 0,
+        // Keep the known revisions while a search or "Load more" asks for a new id list, so the
+        // listed rows stay pickable and keep their commit messages meanwhile.
+        placeholderData: keepPreviousData,
         staleTime: 30_000,
     })
     return query.data ?? NONE
