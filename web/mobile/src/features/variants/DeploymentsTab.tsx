@@ -4,10 +4,13 @@ import {environmentsListQueryAtomFamily, type AppDeploymentRow} from "@agenta/en
 import type {Workflow} from "@agenta/entities/workflow"
 import {useSettledValue} from "@agenta/shared/hooks"
 import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {downloadCsv} from "@agenta/shared/utils"
+import {message} from "@agenta/ui/app-message"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableToolbar} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
-import {CloudArrowUp, Lightning} from "@phosphor-icons/react"
+import {copyToClipboard} from "@agenta/ui/utils"
+import {CloudArrowUp, Code, DownloadSimple, Lightning} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import Link from "next/link"
@@ -21,7 +24,8 @@ import {OpenInPlaygroundButton} from "../revisions/OpenInPlaygroundButton"
 import {useRevisionParam} from "../revisions/useRevisionParam"
 import {useSettingsOrg} from "../settings/useSettingsOrg"
 
-import {DeploymentHistoryTable} from "./DeploymentHistoryTable"
+import {deploymentHistoryCsv} from "./deploymentHistoryCsv"
+import {DeploymentHistoryTable, type DeploymentHistoryDeveloper} from "./DeploymentHistoryTable"
 import {DeployToEnvironmentDialog} from "./DeployToEnvironmentDialog"
 import {EnvironmentCards} from "./EnvironmentCards"
 import {RevertDeploymentDialog} from "./RevertDeploymentDialog"
@@ -32,6 +36,11 @@ import {useAppEnvironments} from "./useAppEnvironments"
 
 const RevisionDrawerHost = dynamic(
     () => import("../revisions/RevisionDrawerHost").then((module) => module.RevisionDrawerHost),
+    {ssr: false},
+)
+// Beta developer mode: "Use API" opens the code in a drawer for the selected environment.
+const UseApiDrawer = dynamic(
+    () => import("../endpoints/UseApiDrawer").then((module) => module.UseApiDrawer),
     {ssr: false},
 )
 // Beta developer mode only; everyone else keeps the read-only drawer.
@@ -78,9 +87,12 @@ export const DeploymentsTab = ({
     const [revisionId, setRevisionId] = useRevisionParam()
     const betaDeveloperMode = useAtomValue(betaDeveloperModeActiveAtom)
     const [search, setSearch] = useState("")
+    const [useApiOpen, setUseApiOpen] = useState(false)
     const term = useSettledValue(search).trim()
     const [revertRow, setRevertRow] = useState<AppDeploymentRow | null>(null)
     const [deployOpen, setDeployOpen] = useState(false)
+    // Beta developer mode: selected history rows, by environment revision id.
+    const [selectedRows, setSelectedRows] = useState<Set<string>>(() => new Set())
 
     const slugParam = read("env")
     const selected = useMemo(
@@ -133,6 +145,43 @@ export const DeploymentsTab = ({
     }
     if (environments.isPending) return <EnvironmentCardsSkeleton />
 
+    const exportCsv = (picked: readonly AppDeploymentRow[]) =>
+        downloadCsv(
+            deploymentHistoryCsv(picked, variantNames, authorNames),
+            `${app.slug || app.name || "app"}-${selected?.slug ?? "deployments"}-deployments.csv`,
+        )
+    const pickedRows = () => rows.filter((row) => selectedRows.has(row.envRevisionId))
+    const developer: DeploymentHistoryDeveloper | undefined = betaDeveloperMode
+        ? {
+              selection: {
+                  selectedKeys: selectedRows,
+                  onChange: setSelectedRows,
+                  rowLabel: (row) => `Select deployment v${row.index}`,
+                  bulkActions: () => (
+                      <Button size="sm" variant="outline" onClick={() => exportCsv(pickedRows())}>
+                          <DownloadSimple aria-hidden size={14} />
+                          Export CSV
+                      </Button>
+                  ),
+              },
+              rowExtras: (row) => ({
+                  onUseApi: selected ? () => setUseApiOpen(true) : undefined,
+                  playgroundHref:
+                      playgroundEnabled && row.deployedRevisionId
+                          ? playgroundHref(base, app.id, [row.deployedRevisionId])
+                          : null,
+                  onCopyId: row.deployedRevisionId
+                      ? () =>
+                            void copyToClipboard(row.deployedRevisionId ?? "").then((ok) =>
+                                ok
+                                    ? message.success("ID copied")
+                                    : message.error("Couldn't copy the ID"),
+                            )
+                      : undefined,
+              }),
+          }
+        : undefined
+
     const drawerActions = (
         <>
             {playgroundEnabled && revisionId ? (
@@ -151,16 +200,35 @@ export const DeploymentsTab = ({
             <EnvironmentCards
                 environments={environments.data}
                 selectedSlug={selected?.slug ?? null}
-                onSelect={(slug) => write({env: slug, revisionId: null})}
+                onSelect={(slug) => {
+                    setSelectedRows(new Set())
+                    write({env: slug, revisionId: null})
+                }}
             />
             <div>
                 <ListTableToolbar
                     search={search}
-                    onSearchChange={setSearch}
+                    onSearchChange={(next) => {
+                        setSearch(next)
+                        setSelectedRows(new Set())
+                    }}
                     searchPlaceholder="Search"
                     actions={
                         <div className="ml-auto flex items-center gap-2">
-                            {endpointsEnabled ? (
+                            {betaDeveloperMode ? (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={rows.length === 0}
+                                    onClick={() =>
+                                        exportCsv(selectedRows.size > 0 ? pickedRows() : rows)
+                                    }
+                                >
+                                    <DownloadSimple aria-hidden size={14} />
+                                    Export CSV
+                                </Button>
+                            ) : null}
+                            {betaDeveloperMode ? null : endpointsEnabled ? (
                                 <Button asChild variant="outline" size="sm">
                                     <Link href={`${base}/endpoints?app=${app.id}`} prefetch={false}>
                                         <Lightning aria-hidden size={14} />
@@ -169,9 +237,20 @@ export const DeploymentsTab = ({
                                 </Button>
                             ) : null}
                             {canDeploy && selected ? (
-                                <Button size="sm" onClick={() => setDeployOpen(true)}>
+                                <Button
+                                    size="sm"
+                                    variant={betaDeveloperMode ? "outline" : "default"}
+                                    onClick={() => setDeployOpen(true)}
+                                >
                                     <CloudArrowUp aria-hidden size={14} />
                                     Deploy
+                                </Button>
+                            ) : null}
+                            {/* Beta developer mode: Use API is the main action, as in /w. */}
+                            {betaDeveloperMode && selected ? (
+                                <Button size="sm" onClick={() => setUseApiOpen(true)}>
+                                    <Code aria-hidden size={14} />
+                                    Use API
                                 </Button>
                             ) : null}
                         </div>
@@ -194,6 +273,7 @@ export const DeploymentsTab = ({
                         onOpen={open}
                         onRevert={setRevertRow}
                         empty={<DeploymentsEmpty />}
+                        developer={developer}
                     />
                 )}
             </div>
@@ -237,6 +317,15 @@ export const DeploymentsTab = ({
                         actions={drawerActions}
                     />
                 )
+            ) : null}
+            {useApiOpen && selected ? (
+                <UseApiDrawer
+                    workspaceId={workspaceId}
+                    projectId={projectId}
+                    appSlug={app.slug ?? null}
+                    environment={{slug: selected.slug, revisionId: selected.deployedRevisionId}}
+                    onClose={() => setUseApiOpen(false)}
+                />
             ) : null}
             {revertRow && selected ? (
                 <RevertDeploymentDialog

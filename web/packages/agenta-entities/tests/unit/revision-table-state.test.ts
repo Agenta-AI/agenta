@@ -96,7 +96,7 @@ describe("addColumnReducer", () => {
         expect(store.get(pendingColumnOpsAtomFamily(REV)).add).toHaveLength(1)
     })
 
-    it("un-removes a previously removed column instead of adding", () => {
+    it("adds a removed saved column again as a new empty column", () => {
         const store = freshStore()
         // Simulate a server column "notes" that was pending removal
         store.set(pendingColumnOpsAtomFamily(REV), {
@@ -106,8 +106,9 @@ describe("addColumnReducer", () => {
         })
         store.set(addColumnReducer, {revisionId: REV, columnKey: "notes"})
         const ops = store.get(pendingColumnOpsAtomFamily(REV))
-        expect(ops.remove).not.toContain("notes")
-        expect(ops.add).not.toContain("notes")
+        // The server removes the old values, then adds the column empty.
+        expect(ops.remove).toEqual(["notes"])
+        expect(ops.add).toEqual(["notes"])
     })
 
     it("accumulates multiple column adds", () => {
@@ -168,7 +169,8 @@ describe("renameColumnReducer", () => {
     it("updates an existing rename entry instead of duplicating", () => {
         const store = freshStore()
         store.set(renameColumnReducer, {revisionId: REV, oldKey: "score", newKey: "rating"})
-        store.set(renameColumnReducer, {revisionId: REV, oldKey: "score", newKey: "final_score"})
+        // The second rename names the column by its current name.
+        store.set(renameColumnReducer, {revisionId: REV, oldKey: "rating", newKey: "final_score"})
         const ops = store.get(pendingColumnOpsAtomFamily(REV))
         expect(ops.rename).toHaveLength(1)
         expect(ops.rename[0]).toEqual({oldKey: "score", newKey: "final_score"})

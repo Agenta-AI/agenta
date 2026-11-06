@@ -4,31 +4,34 @@ import {useInfiniteQuery} from "@tanstack/react-query"
 
 export const TESTSETS_PAGE_SIZE = 50
 
-export const testsetsListQueryKey = (projectId: string, search: string) =>
-    ["testsets", "list", projectId, search.trim()] as const
+export const testsetsListQueryKey = (projectId: string, search: string, createdAfter?: string) =>
+    ["testsets", "list", projectId, search.trim(), createdAfter ?? null] as const
 
 interface UseTestsetsListParams {
     projectId: string
     search: string
+    /** Only test sets created at or after this ISO time. */
+    createdAfter?: string
 }
 
 /**
- * Paged testset list for one project, filtered by name.
+ * Paged testset list for one project, filtered by name and, optionally, by creation date.
  * Errors reach the caller as `isError`. They never turn into an empty list.
  * The caller debounces `search`; this hook does not.
  */
-export function useTestsetsList({projectId, search}: UseTestsetsListParams) {
+export function useTestsetsList({projectId, search, createdAfter}: UseTestsetsListParams) {
     const enabled = Boolean(projectId)
     const name = search.trim() || undefined
 
     const query = useInfiniteQuery({
-        queryKey: testsetsListQueryKey(projectId, search),
+        queryKey: testsetsListQueryKey(projectId, search, createdAfter),
         queryFn: ({pageParam}) =>
             queryTestsetsPage({
                 projectId,
                 limit: TESTSETS_PAGE_SIZE,
                 cursor: pageParam,
                 name,
+                createdAfter,
             }),
         initialPageParam: null as string | null,
         getNextPageParam: (page) => page.nextCursor ?? undefined,

@@ -25,6 +25,7 @@ export const ConfirmModal = ({
     pending = false,
     error,
     destructive = true,
+    solid = false,
     onConfirm,
     onClose,
 }: {
@@ -39,6 +40,8 @@ export const ConfirmModal = ({
     /** Shown above the buttons when the action failed; this app has no toasts. */
     error?: string | null
     destructive?: boolean
+    /** A solid red confirm button instead of the pale one; for a destructive developer page. */
+    solid?: boolean
     onConfirm: () => void
     onClose: () => void
 }) => (
@@ -72,6 +75,12 @@ export const ConfirmModal = ({
                 <AlertDialogAction asChild>
                     <Button
                         variant={destructive ? "destructive" : "default"}
+                        className={
+                            // White text in both themes, as the /w danger buttons have.
+                            destructive && solid
+                                ? "bg-destructive text-white hover:bg-destructive/90"
+                                : undefined
+                        }
                         disabled={pending}
                         onClick={(event) => {
                             event.preventDefault()

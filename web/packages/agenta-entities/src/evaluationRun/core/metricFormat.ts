@@ -14,14 +14,19 @@ import type {MetricFrequency, MetricStats} from "./metricStats"
 
 export const METRIC_PLACEHOLDER = "—"
 
-/** The old app's 3 significant digits: 1234.5 -> "1235", 0.012345 -> "0.0123". */
+/**
+ * The old app's 3 significant digits: 1234.5 -> "1235", 0.012345 -> "0.0123", 100 -> "100". The old
+ * helper also stripped zeros from whole numbers (100 -> "1"); that bug is not copied.
+ */
 export function formatMetricNumber(value: number): string {
     if (!Number.isFinite(value)) return String(value)
     const abs = Math.abs(value)
     if (abs === 0) return "0"
     const exponent = Math.floor(Math.log10(abs))
     if (exponent >= 10 || exponent <= -10) return value.toExponential(2)
-    return value.toFixed(Math.max(0, 2 - exponent)).replace(/\.?0+$/, "")
+    const fixed = value.toFixed(Math.max(0, 2 - exponent))
+    // Trailing zeros are dropped only after a decimal point: 1.50 -> "1.5", but 100 stays "100".
+    return fixed.includes(".") ? fixed.replace(/\.?0+$/, "") : fixed
 }
 
 const meanOf = (stats: MetricStats | null | undefined) => {
@@ -116,4 +121,27 @@ export function formatMetricValue(
     }
     if (stats.sum !== undefined && stats.count) return formatMetricNumber(stats.sum / stats.count)
     return METRIC_PLACEHOLDER
+}
+
+const UPPERCASE_WORDS = new Set(["json", "csv", "xml", "html", "id", "llm", "api", "url"])
+
+const humanizeWord = (raw: string) => {
+    const lower = raw.toLowerCase()
+    if (UPPERCASE_WORDS.has(lower)) return lower.toUpperCase()
+    if (lower === "outputs") return "Output"
+    if (lower === "inputs") return "Input"
+    return lower.charAt(0).toUpperCase() + lower.slice(1)
+}
+
+/**
+ * The old app's metric name (`humanizeMetricPath`): the last two parts of the path, in title case.
+ * "success" -> "Success", "outputs.is_json" -> "Output Is JSON".
+ */
+export function humanizeMetricLabel(label: string): string {
+    const parts = label
+        .split(".")
+        .map((part) => part.replace(/[-_]/g, " ").trim())
+        .filter(Boolean)
+    const words = parts.slice(-2).join(" ").split(/\s+/).filter(Boolean).map(humanizeWord)
+    return words.join(" ") || label
 }

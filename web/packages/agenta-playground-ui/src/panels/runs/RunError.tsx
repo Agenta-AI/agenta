@@ -31,7 +31,7 @@ export const RunError = ({result}: {result: RunErrorResult}) => (
         readOnly
         disabled
         error
-        className="w-full !border-none !p-0 [&_.agenta-rich-text-editor]:!min-h-0"
+        className="w-full !border-none !p-0 [&_.agenta-rich-text-editor]:!min-h-0 [&_.editor-input]:!min-h-0"
         editorClassName="min-h-4 [&_p:first-child]:!mt-0"
         handleChange={() => undefined}
     />

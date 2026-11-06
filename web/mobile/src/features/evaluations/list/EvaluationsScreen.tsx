@@ -1,8 +1,7 @@
-import {useCallback} from "react"
+import {useCallback, useState} from "react"
 
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {message} from "@agenta/ui/app-message"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableToolbar} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
@@ -15,6 +14,7 @@ import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMember
 
 import {AppOverviewLink} from "../../app-overview/AppOverviewLink"
 import {useBindProjectContext} from "../../context/useBindProjectContext"
+import {useDeveloperPageFrame} from "../../developer/developerPageFrame"
 import {AppShell} from "../../nav/AppShell"
 import {NavDrawer} from "../../nav/NavDrawer"
 import {ObservabilityAppFilter} from "../../observability/ObservabilityAppFilter"
@@ -23,12 +23,18 @@ import {useRevisionParam} from "../../revisions/useRevisionParam"
 import {CreateEvaluationMenu, type CreatableKind} from "./CreateEvaluationMenu"
 import {EvaluationKindTabs} from "./EvaluationKindTabs"
 import {EvaluationRunsTable} from "./EvaluationRunsTable"
-import {RunStatusFilter} from "./RunStatusFilter"
+import {RunFilterChips} from "./RunFilterChips"
+import {RunFiltersPanel} from "./RunFiltersPanel"
 import {EvaluationsEmpty} from "./states/EvaluationsEmpty"
 import {EvaluationsKeepLooking} from "./states/EvaluationsKeepLooking"
 import {EvaluationsNoMatch} from "./states/EvaluationsNoMatch"
-import {useEvaluationRunsFilters} from "./useEvaluationRunsFilters"
+import {
+    countRunFilters,
+    REFERENCE_FILTERS,
+    useEvaluationRunsFilters,
+} from "./useEvaluationRunsFilters"
 import {useEvaluationRunsList} from "./useEvaluationRunsList"
+import {useRunFilterOptions} from "./useRunFilterOptions"
 import {useRunRowActions} from "./useRunRowActions"
 
 // The drawer and its config pane cost nothing until a reader opens a variant.
@@ -37,10 +43,8 @@ const RevisionDrawerHost = dynamic(
     {ssr: false},
 )
 
-const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
-
 /**
- * The evaluation runs of a project, or of one app with `?app=`. Filters live in the URL.
+ * The evaluation runs of a project, or of one app (from the path or `?app=`). Filters live in the URL.
  *
  * `onCreate` starts a new evaluation of a kind. Without it the page offers no create button.
  * `createKinds` limits the kinds the create entry offers.
@@ -57,15 +61,23 @@ export const EvaluationsScreen = ({
     /** The kinds the create entry offers. Absent: all of them. */
     createKinds?: readonly CreatableKind[]
 }) => {
+    const PAGE_FRAME = useDeveloperPageFrame()
     useBindWorkspaceMembers()
     useBindProjectContext(projectId)
     const filters = useEvaluationRunsFilters()
-    const {kind, appId, search, statuses} = filters
-    const list = useEvaluationRunsList({projectId, kind, appId, search, statuses})
+    const {kind, appId, search, panel} = filters
+    const list = useEvaluationRunsList({projectId, kind, appId, search, panel})
+    const [panelOpen, setPanelOpen] = useState(false)
+    // The choices load when the panel opens, or when a chip needs the names of its ids.
+    const filterOptions = useRunFilterOptions({
+        projectId,
+        appId,
+        enabled: panelOpen || REFERENCE_FILTERS.some((key) => panel.references[key].length > 0),
+    })
     const actions = useRunRowActions({projectId, base: `/w/${workspaceId}/p/${projectId}`})
     const [revisionId] = useRevisionParam()
     const searchField = useDebouncedAtomSearch(filters.setSearch, 300, search)
-    const filtered = search.trim() !== "" || statuses.length > 0
+    const filtered = search.trim() !== "" || countRunFilters(panel) > 0
     const canCreate = Boolean(onCreate) && actions.canEdit
 
     const loadMore = useCallback(async () => {
@@ -75,17 +87,12 @@ export const EvaluationsScreen = ({
 
     const createMenu =
         canCreate && onCreate ? (
-            <CreateEvaluationMenu
-                tab={kind}
-                onCreate={onCreate}
-                kinds={createKinds}
-                label={kind === "all" ? "Start evaluation" : "New evaluation"}
-            />
+            <CreateEvaluationMenu tab={kind} onCreate={onCreate} kinds={createKinds} />
         ) : null
 
     return (
         <>
-            <PageTitle title="Evaluation runs" />
+            <PageTitle title="Evaluations" />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
@@ -97,15 +104,19 @@ export const EvaluationsScreen = ({
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px]">
                                     Evaluations
                                 </h1>
-                                <AppOverviewLink
-                                    base={`/w/${workspaceId}/p/${projectId}`}
-                                    appId={appId}
-                                />
-                                <ObservabilityAppFilter
-                                    projectId={projectId}
-                                    value={appId}
-                                    onChange={filters.setAppId}
-                                />
+                                {filters.appFromPath ? null : (
+                                    <>
+                                        <AppOverviewLink
+                                            base={`/w/${workspaceId}/p/${projectId}`}
+                                            appId={appId}
+                                        />
+                                        <ObservabilityAppFilter
+                                            projectId={projectId}
+                                            value={appId}
+                                            onChange={filters.setAppId}
+                                        />
+                                    </>
+                                )}
                             </div>
                         </div>
                     }
@@ -124,11 +135,25 @@ export const EvaluationsScreen = ({
                             searchPlaceholder="Search evaluations"
                             actions={
                                 <>
-                                    <RunStatusFilter
-                                        value={statuses}
-                                        onChange={filters.setStatuses}
+                                    <RunFiltersPanel
+                                        value={panel}
+                                        onApply={filters.setPanel}
+                                        options={filterOptions}
+                                        onOpenChange={setPanelOpen}
+                                        showType={kind === "all"}
+                                        appPicked={appId !== null}
                                     />
-                                    {createMenu}
+                                    {/* A phone keeps the count on the button; the chips need room. */}
+                                    <div className="hidden min-w-0 flex-1 sm:block">
+                                        <RunFilterChips
+                                            value={panel}
+                                            options={filterOptions}
+                                            onChange={filters.setPanel}
+                                        />
+                                    </div>
+                                    {createMenu ? (
+                                        <div className="ml-auto">{createMenu}</div>
+                                    ) : null}
                                 </>
                             }
                         />

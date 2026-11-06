@@ -119,6 +119,8 @@ export const EvaluationRunsTable = ({
             columns={narrow ? NARROW_COLUMNS : wide}
             minWidth={narrow ? 300 : wideMinWidth}
             stickyHeader
+            // An empty list has no column to read, so its header row would only be noise.
+            hideHeader={!isLoading && runs.length === 0}
             loading={isLoading}
             groups={[{key: "runs", label: null, rows: [...runs]}]}
             rowKey={(run) => run.id}
