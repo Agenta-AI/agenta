@@ -1,27 +1,20 @@
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {workflowAppTypeAtomFamily} from "@agenta/entities/workflow"
 import {WorkflowTypeTag} from "@agenta/entity-ui/workflow"
+import {formatListDateTime} from "@agenta/ui/list-table"
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
-import {
-    ArrowCounterClockwise,
-    ChatDots,
-    Code,
-    DotsThreeVertical,
-    Note,
-    TextAa,
-} from "@phosphor-icons/react"
-import type {Icon} from "@phosphor-icons/react"
+import {ArrowCounterClockwise, DotsThreeVertical} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
+
+import {AppTypeIcon} from "@/components/AppTypeIcon"
 
 import {formatDay, type ArchivedAppRow} from "./archivedAppsView"
 import {useRestoreArchivedApp} from "./useRestoreArchivedApp"
-
-const TYPE_ICON: Record<string, Icon> = {chat: ChatDots, completion: TextAa, custom: Code}
 
 /**
  * One archived app's cells, in column order. A component rather than a closure in `renderRow`
@@ -42,12 +35,11 @@ export const ArchivedAppRowCells = ({
 }) => {
     const appType = useAtomValue(workflowAppTypeAtomFamily(row.id))
     const {restore, restoring} = useRestoreArchivedApp(projectId)
-    const TypeIcon = (appType && TYPE_ICON[appType]) || Note
 
     return (
         <>
             <span className="flex min-w-0 items-center gap-2">
-                <TypeIcon size={16} className="shrink-0 text-muted-foreground" />
+                <AppTypeIcon appType={appType} />
                 <span
                     className="truncate text-[14px] font-medium leading-[18px] text-foreground"
                     title={row.name}
@@ -58,7 +50,7 @@ export const ArchivedAppRowCells = ({
 
             {narrow ? null : (
                 <span className="block truncate text-[13px] text-muted-foreground">
-                    {formatDay(row.createdAt)}
+                    {formatListDateTime(row.createdAt)}
                 </span>
             )}
             {narrow ? null : (
@@ -68,7 +60,8 @@ export const ArchivedAppRowCells = ({
             )}
 
             <span className="block truncate text-[13px] text-muted-foreground">
-                {formatDay(row.archivedAt)}
+                {/* A phone has 96px for the date, so it keeps the day without the time. */}
+                {narrow ? formatDay(row.archivedAt) : formatListDateTime(row.archivedAt)}
             </span>
             {narrow ? null : (
                 <span className="block min-w-0 truncate text-[13px] text-muted-foreground">
