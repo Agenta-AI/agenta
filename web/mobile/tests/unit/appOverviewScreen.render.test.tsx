@@ -62,7 +62,8 @@ vi.mock("@/features/context/useBindProjectContext", () => ({
 }))
 vi.mock("@/components/PageTitle", () => ({PageTitle: () => null}))
 vi.mock("@/features/app-overview/AppActionsMenu", () => ({
-    AppActionsMenu: () => createElement("span", null, "actions-menu"),
+    AppActionsMenu: ({evaluator}: {evaluator?: boolean}) =>
+        createElement("span", null, evaluator ? "evaluator-actions-menu" : "actions-menu"),
 }))
 vi.mock("@/features/app-overview/AppUsageSection", () => ({
     AppUsageSection: ({appId}: {appId: string}) =>
@@ -72,7 +73,8 @@ vi.mock("@/features/app-overview/AppDeploymentSection", () => ({
     AppDeploymentSection: () => createElement("section", null, "deployment-section"),
 }))
 vi.mock("@/features/app-overview/AppRecentPromptsSection", () => ({
-    AppRecentPromptsSection: () => createElement("section", null, "prompts-section"),
+    AppRecentPromptsSection: ({evaluator}: {evaluator?: boolean}) =>
+        createElement("section", null, evaluator ? "evaluator-prompts-section" : "prompts-section"),
 }))
 vi.mock("@/features/app-overview/AppEvaluationsSection", () => ({
     AppEvaluationsSection: ({kind}: {kind: string}) =>
@@ -88,6 +90,21 @@ const PROMPT = {
     flags: {is_application: true},
 }
 const AGENT = {id: "agent-1", name: "Helper", slug: "helper", flags: {is_application: true}}
+const EVALUATOR = {
+    id: "eval-1",
+    name: "Answer check",
+    slug: "answer-check",
+    flags: {is_evaluator: true},
+}
+const ARCHIVED_EVALUATOR = {
+    id: "eval-gone",
+    name: "Old check",
+    slug: "old-check",
+    flags: {is_evaluator: true},
+    deleted_at: "2026-11-01T00:00:00Z",
+}
+/** One workflow by id, as the detail query reads it: any kind, archived ones too. */
+const BY_ID = [PROMPT, AGENT, EVALUATOR, ARCHIVED_EVALUATOR]
 
 let host: HTMLDivElement
 let root: Root
@@ -120,8 +137,23 @@ const NOT_ARCHIVED = {id: "app-new", name: "New bot", flags: {is_application: tr
 
 const answer = async (
     url: string,
-    body: {include_archived?: boolean; workflow_refs?: {id: string}[]},
+    body: {
+        grouping?: unknown
+        include_archived?: boolean
+        workflow?: {flags?: Record<string, boolean>}
+        workflow_refs?: {id: string}[]
+    },
 ) => {
+    // The evaluator detail; the archived lookup asks for non-evaluators only.
+    if (
+        url.endsWith("/workflows/query") &&
+        body.workflow_refs &&
+        body.workflow?.flags?.is_evaluator !== false
+    ) {
+        const ids = body.workflow_refs.map((ref) => ref.id)
+        const found = BY_ID.filter((workflow) => ids.includes(workflow.id))
+        return {data: {count: found.length, workflows: found}}
+    }
     if (url.endsWith("/workflows/revisions/query")) {
         if (flagsDelayed) await new Promise<void>((resolve) => (releaseFlags = resolve))
         return {
@@ -247,6 +279,31 @@ describe("app overview screen", () => {
         const body = text()
         expect(body).toContain("usage-section:app-1")
         expect(body.indexOf("usage-section")).toBeLessThan(body.indexOf("deployment-section"))
+    })
+
+    it("In beta developer mode an evaluator gets its overview without Deployment", async () => {
+        if (beta.atom) store.set(beta.atom, true)
+        await mount("eval-1")
+        expect(host.querySelector("h1")?.textContent).toBe("Answer check")
+        const body = text()
+        expect(body).toContain("evaluator-actions-menu")
+        expect(body).toContain("usage-section:eval-1")
+        expect(body).toContain("evaluator-prompts-section")
+        expect(body).toContain("auto-evaluations-section")
+        expect(body).toContain("human-evaluations-section")
+        expect(body).not.toContain("deployment-section")
+    })
+
+    it("Without beta developer mode an evaluator id shows not found", async () => {
+        await mount("eval-1")
+        expect(host.querySelector("[data-testid=not-found]")).not.toBeNull()
+        expect(text()).not.toContain("prompts-section")
+    })
+
+    it("An archived evaluator shows not found in beta developer mode", async () => {
+        if (beta.atom) store.set(beta.atom, true)
+        await mount("eval-gone")
+        expect(host.querySelector("[data-testid=not-found]")).not.toBeNull()
     })
 
     it("An agent id redirects to the agent overview", async () => {
