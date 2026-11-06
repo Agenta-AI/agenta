@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 from uuid import UUID
 
-from sqlalchemy import case, func, or_, select, tuple_, update
+from sqlalchemy import and_, case, func, or_, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
