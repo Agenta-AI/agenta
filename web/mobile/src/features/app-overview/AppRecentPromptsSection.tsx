@@ -55,21 +55,25 @@ export const AppRecentPromptsSection = ({
     app,
     base,
     evaluator = false,
+    archived = false,
 }: {
     projectId: string
     app: Workflow
     base: string
     evaluator?: boolean
+    /** An archived app is read-only here: no Deploy and no Delete. */
+    archived?: boolean
 }) => {
     const revisions = useAppRevisions({projectId, appId: app.id, search: ""})
     const latestRevisionId = useAtomValue(workflowLatestRevisionIdAtomFamily(app.id)) ?? null
-    const canDeploy = useProjectPermission(projectId, "deploy_environments") && !evaluator
+    const canDeploy =
+        useProjectPermission(projectId, "deploy_environments") && !evaluator && !archived
     const variantsEnabled = useDeveloperViewEnabled("variants") === true && !evaluator
     const [revisionId, setRevisionId] = useRevisionParam()
     const [deployRow, setDeployRow] = useState<AppRevisionRow | null>(null)
     const [deleteRow, setDeleteRow] = useState<AppRevisionRow | null>(null)
     const beta = useAtomValue(betaDeveloperModeActiveAtom)
-    const canDelete = useProjectPermission(projectId, "edit_workflows")
+    const canDelete = useProjectPermission(projectId, "edit_workflows") && !archived
     const playgroundEnabled = useDeveloperViewEnabled("playground") === true
     const toPlayground =
         beta && playgroundEnabled

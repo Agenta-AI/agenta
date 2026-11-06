@@ -131,9 +131,10 @@ export const EvaluatorsScreen = ({
           : editable
             ? () => setPickerOpen(true)
             : undefined
-    const openRow = (row: {id: string; workflowId: string}) => {
+    const openRow = (row: {id: string; workflowId: string; depth: number}) => {
+        // The form edits the latest revision: an older row opens the read-only drawer on itself.
         const entry =
-            category === "human" && canEdit
+            category === "human" && canEdit && row.depth === 0
                 ? evaluators.entries.find((item) => item.workflow.id === row.workflowId)
                 : undefined
         if (entry) sheets.openHuman(entry)

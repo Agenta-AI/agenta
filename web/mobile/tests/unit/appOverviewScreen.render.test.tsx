@@ -73,8 +73,16 @@ vi.mock("@/features/app-overview/AppDeploymentSection", () => ({
     AppDeploymentSection: () => createElement("section", null, "deployment-section"),
 }))
 vi.mock("@/features/app-overview/AppRecentPromptsSection", () => ({
-    AppRecentPromptsSection: ({evaluator}: {evaluator?: boolean}) =>
-        createElement("section", null, evaluator ? "evaluator-prompts-section" : "prompts-section"),
+    AppRecentPromptsSection: ({evaluator, archived}: {evaluator?: boolean; archived?: boolean}) =>
+        createElement(
+            "section",
+            null,
+            evaluator
+                ? "evaluator-prompts-section"
+                : archived
+                  ? "prompts-section (read-only)"
+                  : "prompts-section",
+        ),
 }))
 vi.mock("@/features/app-overview/AppEvaluationsSection", () => ({
     AppEvaluationsSection: ({kind}: {kind: string}) =>
@@ -156,16 +164,13 @@ const answer = async (
     }
     if (url.endsWith("/workflows/revisions/query")) {
         if (flagsDelayed) await new Promise<void>((resolve) => (releaseFlags = resolve))
-        return {
-            data: {
-                count: 2,
-                workflow_revisions: [
-                    {id: "rev-a", workflow_id: "app-1", flags: {is_agent: false}},
-                    {id: "rev-b", workflow_id: "agent-1", flags: {is_agent: true}},
-                    {id: "rev-c", workflow_id: "agent-old", flags: {is_agent: true}},
-                ],
-            },
-        }
+        const ids = body.workflow_refs?.map((ref) => ref.id) ?? []
+        const revisions = [
+            {id: "rev-a", workflow_id: "app-1", flags: {is_agent: false}},
+            {id: "rev-b", workflow_id: "agent-1", flags: {is_agent: true}},
+            {id: "rev-c", workflow_id: "agent-old", flags: {is_agent: true}},
+        ].filter((revision) => ids.includes(revision.workflow_id))
+        return {data: {count: revisions.length, workflow_revisions: revisions}}
     }
     if (body.include_archived && body.workflow_refs) {
         // The archived lookup: the one request that names the id.
@@ -337,6 +342,7 @@ describe("app overview screen", () => {
         expect(host.querySelector("h1")?.textContent).toBe("Old bot")
         expect(text()).toContain("deployment-section")
         expect(text()).not.toContain("actions-menu")
+        expect(text()).toContain("prompts-section (read-only)")
         const lookups = archivedLookups()
         expect(lookups).toHaveLength(1)
         expect(lookups[0]).toMatchObject({
@@ -355,6 +361,13 @@ describe("app overview screen", () => {
         await mount("agent-old")
         expect(host.querySelector("[data-testid=not-found]")).not.toBeNull()
         expect(router.replace).not.toHaveBeenCalled()
+        // The archived id is classified by its own request, not by the cached project-wide map.
+        const classified = http.post.mock.calls.filter(
+            ([url, body]) =>
+                String(url).endsWith("/workflows/revisions/query") &&
+                JSON.stringify(body.workflow_refs) === JSON.stringify([{id: "agent-old"}]),
+        )
+        expect(classified).toHaveLength(1)
     })
 
     it("An active app and an agent send no archived lookup", async () => {

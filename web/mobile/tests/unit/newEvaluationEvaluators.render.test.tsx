@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import {act, useReducer, type ReactNode} from "react"
+import {act, useEffect, useReducer, type ReactNode} from "react"
 
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
@@ -37,7 +37,7 @@ vi.mock(
     "@agenta/entity-ui/workflow",
     async () => (await import("../support/newEvaluationMocks")).workflowUiMock,
 )
-const gate = vi.hoisted(() => ({beta: false, flowKind: ""}))
+const gate = vi.hoisted(() => ({beta: false, flowKind: "", flowMounts: 0}))
 vi.mock("@agenta/shared/state", async (original) => {
     const {atom} = await import("jotai")
     return {...(await original<object>()), betaDeveloperModeActiveAtom: atom(() => gate.beta)}
@@ -54,6 +54,10 @@ vi.mock("next/dynamic", () => ({
             onCreated: (created: Record<string, unknown>) => void
         }) => {
             gate.flowKind = kind
+            // Counts mounts: a flow that mounts again starts over at its first step.
+            useEffect(() => {
+                gate.flowMounts += 1
+            }, [])
             return (
                 <button
                     type="button"
@@ -95,6 +99,7 @@ const byLabel = (label: string) => host.querySelector<HTMLElement>(`[aria-label=
 beforeEach(() => {
     gate.beta = false
     gate.flowKind = ""
+    gate.flowMounts = 0
     resetWizardData()
     window.matchMedia = ((query: string) => ({
         matches: true,
@@ -255,6 +260,37 @@ describe("evaluators step", () => {
             name: "Tone",
             version: 1,
         })
+    })
+
+    it("The create flow stays mounted when the first evaluator turns the empty state into the table", async () => {
+        gate.beta = true
+        wizardData.evaluators = {automatic: [], human: []}
+        const store = createStore()
+        const tree = () => (
+            <Provider store={store}>
+                <EvaluatorsSection
+                    kind="human"
+                    projectId="pr"
+                    selected={[]}
+                    evaluatorsHref="/w/ws/p/pr/evaluators"
+                    onPick={() => undefined}
+                />
+            </Provider>
+        )
+        await act(async () => root.render(tree()))
+        const create = [...host.querySelectorAll("button")].find(
+            (button) => button.textContent === "Create your first evaluator",
+        )
+        await act(async () => create?.click())
+        expect(gate.flowMounts).toBe(1)
+        // The save lands in the list before the flow finishes.
+        wizardData.evaluators = {
+            automatic: [],
+            human: [humanEvaluator("ev-tone", "Tone", ["score"])],
+        }
+        await act(async () => root.render(tree()))
+        expect(host.textContent).toContain("Tone")
+        expect(gate.flowMounts).toBe(1)
     })
 
     it("Automatic create stays a link unless the host allows the drawer", async () => {

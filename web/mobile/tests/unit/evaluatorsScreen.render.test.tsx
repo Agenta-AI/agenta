@@ -401,6 +401,22 @@ describe("EvaluatorsScreen", () => {
         expect(state.replace).not.toHaveBeenCalled()
     })
 
+    it("An older human revision opens the read-only drawer on itself, not the edit form", async () => {
+        state.query = {tab: "human"}
+        await mount()
+        const expand = host.querySelector<HTMLElement>('[aria-label^="Show older versions of"]')
+        await act(async () => expand?.click())
+        await flush()
+        const rows = [...host.querySelectorAll<HTMLElement>('[role="button"]')]
+        // The latest revision is v2; the row under it is v1.
+        const older = rows.find((row) => row.textContent?.includes("Quality ratingv1"))
+        expect(older).toBeDefined()
+        await act(async () => older?.click())
+        await flush()
+        expect(document.querySelector('[data-testid="human-sheet"]')).toBeNull()
+        expect(state.replace).toHaveBeenCalled()
+    })
+
     it("Without beta developer mode there is no automatic create and a row opens the read-only drawer", async () => {
         state.query = {revisionId: "w1-r3"}
         await mount()

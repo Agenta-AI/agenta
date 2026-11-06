@@ -43,6 +43,7 @@ globalThis.ResizeObserver ??= class {
 }
 
 import {TestcaseQueueButton} from "@/features/testsets/detail/TestcaseQueuePicker"
+import {TestcaseRowMenu} from "@/features/testsets/detail/TestcaseRowMenu"
 
 const queue = (id: string, name: string, kind: string) => ({
     id,
@@ -136,6 +137,53 @@ describe("Send test cases to an annotation queue", () => {
         expect(adds).toHaveLength(1)
         expect(adds[0][1]).toEqual({testcase_ids: ["case-1", "case-2"]})
         expect(adds[0][2]).toEqual({params: {project_id: "p-1"}})
+    })
+
+    it("Picking a queue from a row menu does not open the row", async () => {
+        const onRow = vi.fn()
+        act(() =>
+            root.render(
+                <QueryClientProvider client={queryClient}>
+                    {/* The grid row: a click on it opens the test case drawer. */}
+                    <div onClick={onRow}>
+                        <TestcaseRowMenu
+                            rowId="case-1"
+                            isNewRow={false}
+                            canEdit
+                            deleteDisabled={false}
+                            onEdit={vi.fn()}
+                            onDelete={vi.fn()}
+                            onCopyId={vi.fn()}
+                        />
+                    </div>
+                </QueryClientProvider>,
+            ),
+        )
+        await act(async () => {
+            document
+                .querySelector('[aria-label="Actions"]')
+                ?.dispatchEvent(
+                    new MouseEvent("pointerdown", {bubbles: true, cancelable: true, button: 0}),
+                )
+        })
+        const item = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
+            (element) => element.textContent?.includes("Add annotation queue"),
+        )
+        await act(async () => item?.click())
+        await flush()
+        const pick = Array.from(document.body.querySelectorAll("li button")).find((row) =>
+            row.textContent?.includes("Label capitals"),
+        )
+        expect(pick).toBeDefined()
+        await act(async () => (pick as HTMLButtonElement | undefined)?.click())
+        await flush()
+
+        expect(
+            http.post.mock.calls.filter(([url]) =>
+                String(url).endsWith("/simple/queues/q-2/testcases/"),
+            ),
+        ).toHaveLength(1)
+        expect(onRow).not.toHaveBeenCalled()
     })
 
     it("With no saved test case the button is off and sends nothing", async () => {

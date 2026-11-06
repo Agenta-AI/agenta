@@ -150,4 +150,17 @@ describe("CreateEvaluatorFlow", () => {
         })
         expect(onClose).toHaveBeenCalled()
     })
+
+    it("automatic: a host callback that throws does not hand the evaluator back twice", async () => {
+        const logged = vi.spyOn(console, "error").mockImplementation(() => undefined)
+        onClose.mockImplementationOnce(() => {
+            throw new Error("host failed")
+        })
+        await mount("automatic")
+        await click("Pick")
+        await click("Create in drawer")
+        expect(onCreated).toHaveBeenCalledTimes(1)
+        expect(onCreated).toHaveBeenCalledWith(expect.objectContaining({name: "Starts with A"}))
+        logged.mockRestore()
+    })
 })

@@ -126,6 +126,7 @@ export const AppOverviewScreen = ({
                                     app={app}
                                     base={base}
                                     evaluator={evaluator}
+                                    archived={archivedApp}
                                 />
                                 <AppEvaluationsSection
                                     projectId={projectId}
