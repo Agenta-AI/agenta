@@ -20,6 +20,39 @@ function rec(
 }
 
 describe("reconstructMessages", () => {
+  it("adds nothing to the conversation for a rewind record", () => {
+    const messages = reconstructMessages([
+      {
+        record_source: "user",
+        record_type: "message",
+        attributes: { type: "message", text: "kept" },
+        turn_id: "t1",
+      },
+      {
+        record_source: "agent",
+        record_type: "message",
+        attributes: { type: "message", text: "ALPHA" },
+        turn_id: "t1",
+      },
+      {
+        record_source: "agent",
+        record_type: "rewind",
+        attributes: { type: "rewind", turnId: "t2" },
+      },
+      {
+        record_source: "user",
+        record_type: "message",
+        attributes: { type: "message", text: "edited" },
+        turn_id: "t4",
+      },
+    ]);
+
+    assert.deepEqual(
+      messages.map((message) => message.role),
+      ["user", "assistant", "user"],
+    );
+  });
+
   it("keeps completed actions and text after execution_lost instead of forgetting them", () => {
     const turn = { turn_id: "crashed-turn" };
     const records = [
