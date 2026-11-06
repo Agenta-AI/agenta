@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import {act, type ReactNode} from "react"
 
-import {autoRefreshAtom, observabilityScopeAtom} from "@agenta/observability"
+import {observabilityScopeAtom} from "@agenta/observability"
 import {QueryClientProvider} from "@tanstack/react-query"
 import {createStore, Provider} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
@@ -9,16 +9,20 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
-const {router, viewEnabled, canEnable, fetchTraces} = vi.hoisted(() => ({
-    fetchTraces: vi.fn(async () => undefined),
-    router: {
-        pathname: "/w/[workspace_id]/p/[project_id]/observability",
-        query: {} as Record<string, string>,
-        replace: vi.fn(),
-    },
-    viewEnabled: {current: false as boolean | null},
-    canEnable: {current: true},
-}))
+const {router, viewEnabled, canEnable, fetchTraces, fetchAnnotations, permissions} = vi.hoisted(
+    () => ({
+        fetchTraces: vi.fn(async () => undefined),
+        fetchAnnotations: vi.fn(async () => undefined),
+        permissions: {current: {} as Record<string, boolean>},
+        router: {
+            pathname: "/w/[workspace_id]/p/[project_id]/observability",
+            query: {} as Record<string, string>,
+            replace: vi.fn(),
+        },
+        viewEnabled: {current: false as boolean | null},
+        canEnable: {current: true},
+    }),
+)
 
 vi.mock("next/router", () => ({useRouter: () => router}))
 vi.mock("@/features/developer/developerViewAccess", () => ({
@@ -29,6 +33,7 @@ vi.mock("@agenta/observability", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/observability")>()),
     useObservability: () => ({
         fetchTraces,
+        fetchAnnotations,
         traces: [],
         selectedRowKeys: [],
         setSelectedRowKeys: vi.fn(),
@@ -38,7 +43,7 @@ vi.mock("@agenta/observability", async (importOriginal) => ({
     useSessions: () => ({refetchSessions: vi.fn()}),
 }))
 vi.mock("@agenta/observability-ui", () => ({
-    AUTO_REFRESH_INTERVAL: 15000,
+    useAutoRefresh: (refresh: () => Promise<void>) => ({refresh, refreshTrigger: 0}),
     ObservabilityRangePicker: () => null,
     AddActionsDropdown: () => null,
     DeleteTraceModal: () => null,
@@ -46,17 +51,37 @@ vi.mock("@agenta/observability-ui", () => ({
     ObservabilityToolbar: ({
         filtersSlot,
         onRefresh,
+        onExport,
     }: {
         filtersSlot?: ReactNode
         onRefresh: () => Promise<void>
+        onExport?: () => void
     }) => (
         <div>
             <button onClick={() => void onRefresh()}>refresh</button>
+            {onExport ? <button onClick={onExport}>export</button> : null}
             {filtersSlot}
         </div>
     ),
 }))
-vi.mock("@agenta/ui", () => ({PageLayout: ({children}: {children: ReactNode}) => <>{children}</>}))
+vi.mock("@agenta/ui", () => ({
+    PageLayout: ({
+        children,
+        headerTabsProps,
+    }: {
+        children: ReactNode
+        headerTabsProps: {items: {key: string}[]; onChange: (key: string) => void}
+    }) => (
+        <>
+            {headerTabsProps.items.map((item) => (
+                <button key={item.key} onClick={() => headerTabsProps.onChange(item.key)}>
+                    {`tab ${item.key}`}
+                </button>
+            ))}
+            {children}
+        </>
+    ),
+}))
 vi.mock("@agenta/ui/hooks", () => ({useIsNarrowScreen: () => false}))
 vi.mock("jotai", async (importOriginal) => {
     const actual = await importOriginal<typeof import("jotai")>()
@@ -77,12 +102,18 @@ vi.mock("@/features/nav/AppShell", () => ({
 }))
 vi.mock("@/features/nav/NavDrawer", () => ({NavDrawer: () => null}))
 vi.mock("@/features/observability/SessionsList", () => ({SessionsList: () => null}))
-vi.mock("@/features/observability/SessionsTable", () => ({SessionsTable: () => null}))
+vi.mock("@/features/observability/SessionsTable", () => ({
+    SessionsTable: () => <div>sessions table</div>,
+}))
 vi.mock("@/features/observability/TracesFilters", () => ({TracesFilters: () => null}))
 vi.mock("@/features/observability/TracesList", () => ({TracesList: () => null}))
 vi.mock("@/features/observability/TracesTable", () => ({TracesTable: () => null}))
 vi.mock("@/features/observability/useTracesExportBinding", () => ({
-    useTracesExportBinding: () => ({onExport: vi.fn(), isExporting: false}),
+    useTracesExportBinding: () => ({
+        onExport: vi.fn(),
+        isExporting: false,
+        canExportData: permissions.current.export !== false,
+    }),
 }))
 vi.mock("@/features/observability/ObservabilityAppFilter", () => ({
     ObservabilityAppFilter: ({
@@ -215,68 +246,44 @@ describe("ObservabilityScreen app filter", () => {
         expect(store.get(observabilityScopeAtom)).toEqual({appId: "app-1", routeAppId: "app-1"})
     })
 
-    it("Auto-refresh reloads the traces every 15 seconds while it is on", async () => {
-        vi.useFakeTimers()
-        try {
-            fetchTraces.mockClear()
-            mount()
-            await act(async () => vi.advanceTimersByTime(15000))
-            expect(fetchTraces).not.toHaveBeenCalled()
-
-            act(() => store.set(autoRefreshAtom, true))
-            await act(async () => vi.advanceTimersByTime(15000))
-            expect(fetchTraces).toHaveBeenCalledTimes(1)
-            await act(async () => vi.advanceTimersByTime(15000))
-            expect(fetchTraces).toHaveBeenCalledTimes(2)
-
-            act(() => store.set(autoRefreshAtom, false))
-            await act(async () => vi.advanceTimersByTime(30000))
-            expect(fetchTraces).toHaveBeenCalledTimes(2)
-        } finally {
-            vi.useRealTimers()
-        }
+    it("Refresh reloads the annotations with the traces", async () => {
+        fetchTraces.mockClear()
+        fetchAnnotations.mockClear()
+        mount()
+        await click("refresh")
+        expect(fetchTraces).toHaveBeenCalledTimes(1)
+        expect(fetchAnnotations).toHaveBeenCalledTimes(1)
     })
 
-    it("A refresh is skipped while the previous one is still running", async () => {
-        vi.useFakeTimers()
-        try {
-            fetchTraces.mockClear()
-            let finish = () => undefined as void
-            fetchTraces.mockImplementationOnce(
-                () => new Promise<undefined>((resolve) => (finish = () => resolve(undefined))),
-            )
-            mount()
-            act(() => store.set(autoRefreshAtom, true))
-            await act(async () => vi.advanceTimersByTime(15000))
-            expect(fetchTraces).toHaveBeenCalledTimes(1)
-            // A manual refresh and later ticks wait for the slow reload.
-            await click("refresh")
-            await act(async () => vi.advanceTimersByTime(30000))
-            expect(fetchTraces).toHaveBeenCalledTimes(1)
-
-            await act(async () => finish())
-            await act(async () => vi.advanceTimersByTime(15000))
-            expect(fetchTraces).toHaveBeenCalledTimes(2)
-        } finally {
-            vi.useRealTimers()
-        }
+    it("Export shows only to a role that may export data", () => {
+        permissions.current = {export: false}
+        mount()
+        expect(host.textContent).not.toContain("export")
+        act(() => root.unmount())
+        root = createRoot(host)
+        permissions.current = {}
+        mount()
+        expect(host.textContent).toContain("export")
     })
 
-    it("A manual refresh restarts the 15 second countdown", async () => {
-        vi.useFakeTimers()
-        try {
-            fetchTraces.mockClear()
-            mount()
-            act(() => store.set(autoRefreshAtom, true))
-            await act(async () => vi.advanceTimersByTime(10000))
-            await click("refresh")
-            expect(fetchTraces).toHaveBeenCalledTimes(1)
-            await act(async () => vi.advanceTimersByTime(10000))
-            expect(fetchTraces).toHaveBeenCalledTimes(1)
-            await act(async () => vi.advanceTimersByTime(5000))
-            expect(fetchTraces).toHaveBeenCalledTimes(2)
-        } finally {
-            vi.useRealTimers()
-        }
+    it("The Sessions tab is kept in the URL", async () => {
+        mount()
+        expect(host.textContent).not.toContain("sessions table")
+        await click("tab sessions")
+        expect(router.replace).toHaveBeenCalledWith(
+            {
+                pathname: router.pathname,
+                query: {workspace_id: "ws", project_id: "pr", tab: "sessions"},
+            },
+            undefined,
+            {shallow: true},
+        )
+
+        // A reload or a link with the param opens Sessions.
+        act(() => root.unmount())
+        root = createRoot(host)
+        router.query = {...router.query, tab: "sessions"}
+        mount()
+        expect(host.textContent).toContain("sessions table")
     })
 })
