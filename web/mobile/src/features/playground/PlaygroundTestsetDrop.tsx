@@ -10,6 +10,7 @@ export const PlaygroundTestsetDrop = ({onFile}: {onFile: (file: File) => void}) 
         <TestsetFileDrop
             file={null}
             preview={[]}
+            totalRows={0}
             error={null}
             onFile={onFile}
             onRemove={() => undefined}
