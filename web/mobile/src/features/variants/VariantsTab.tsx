@@ -6,7 +6,7 @@ import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableToolbar} from "@agenta/ui/list-table"
 import {Button, Segmented} from "@agenta/ui/ui"
-import {CloudArrowUp} from "@phosphor-icons/react"
+import {CloudArrowUp, Trash} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -17,7 +17,16 @@ import {OpenInPlaygroundButton} from "../revisions/OpenInPlaygroundButton"
 import {useRevisionParam} from "../revisions/useRevisionParam"
 
 import {DeleteRevisionDialog} from "./DeleteRevisionDialog"
+import {DeleteSelectionDialog} from "./DeleteSelectionDialog"
 import {DeployRevisionDialog} from "./DeployRevisionDialog"
+import {
+    singleSelectedRevision,
+    toDeletion,
+    toRegistryRows,
+    type RegistryDeletion,
+    type RegistryRow,
+} from "./registryRows"
+import {RegistryTable} from "./RegistryTable"
 import {VariantsEmpty} from "./states/VariantsEmpty"
 import {VariantsNoMatch} from "./states/VariantsNoMatch"
 import {useAppRevisions, type AppRevisionRow} from "./useAppRevisions"
@@ -69,6 +78,10 @@ export const VariantsTab = ({
     const [deleteRow, setDeleteRow] = useState<AppRevisionRow | null>(null)
     const [revisionId, setRevisionId] = useRevisionParam()
     const betaDeveloperMode = useAtomValue(betaDeveloperModeActiveAtom)
+    // Beta developer mode: the old app's Registry, with selection and expandable variants.
+    const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
+    const [selected, setSelected] = useState<Set<string>>(() => new Set())
+    const [deletion, setDeletion] = useState<RegistryDeletion | null>(null)
 
     const revisions = useAppRevisions({projectId, appId: app.id, search: term})
     const latestRevisionId = useAtomValue(workflowLatestRevisionIdAtomFamily(app.id)) ?? null
@@ -84,7 +97,17 @@ export const VariantsTab = ({
     )
 
     const groups = useMemo(() => toRevisionGroups(revisions.rows, mode), [revisions.rows, mode])
-    const navigationIds = useMemo(() => visibleRevisionIds(groups, collapsed), [groups, collapsed])
+    const registryRows = useMemo(
+        () => toRegistryRows(revisions.rows, mode, expanded),
+        [revisions.rows, mode, expanded],
+    )
+    const navigationIds = useMemo(
+        () =>
+            betaDeveloperMode
+                ? registryRows.map((row) => row.revision.revisionId)
+                : visibleRevisionIds(groups, collapsed),
+        [betaDeveloperMode, collapsed, groups, registryRows],
+    )
     const openRow = useCallback(
         (row: AppRevisionRow) => setRevisionId(row.revisionId),
         [setRevisionId],
@@ -94,7 +117,18 @@ export const VariantsTab = ({
         const value = next === "variants" ? "variants" : "revisions"
         setMode(value)
         writeDisplayMode(value)
+        // A variant row and a revision row are different things to select.
+        setSelected(new Set())
     }
+    const toggleVariant = (variantId: string) =>
+        setExpanded((current) => {
+            const next = new Set(current)
+            if (!next.delete(variantId)) next.add(variantId)
+            return next
+        })
+    const deleteRegistryRow = (row: RegistryRow) =>
+        setDeletion(toDeletion([row], new Set([row.key])))
+    const toDeploy = singleSelectedRevision(registryRows, selected)
 
     const shownRow = useShownRevisionRow({
         revisionId,
@@ -136,7 +170,11 @@ export const VariantsTab = ({
         <>
             <ListTableToolbar
                 search={search}
-                onSearchChange={setSearch}
+                onSearchChange={(next) => {
+                    setSearch(next)
+                    // Selected rows a new search hides would still be deleted: start over.
+                    setSelected(new Set())
+                }}
                 searchPlaceholder="Search"
                 actions={
                     <Segmented
@@ -148,20 +186,73 @@ export const VariantsTab = ({
                     />
                 }
             />
-            <VariantsTable
-                groups={groups}
-                isLoading={revisions.isPending}
-                latestRevisionId={latestRevisionId}
-                canDeploy={canDeploy}
-                canDelete={canDelete}
-                playgroundHref={toPlayground}
-                collapsed={collapsed}
-                onCollapsedChange={setCollapsed}
-                onOpen={openRow}
-                onDeploy={setDeployRow}
-                onDelete={setDeleteRow}
-                empty={empty}
-            />
+            {betaDeveloperMode ? (
+                <RegistryTable
+                    rows={registryRows}
+                    isLoading={revisions.isPending}
+                    latestRevisionId={latestRevisionId}
+                    expanded={expanded}
+                    onToggle={toggleVariant}
+                    selection={{
+                        selectedKeys: selected,
+                        onChange: setSelected,
+                        rowLabel: (row) =>
+                            `Select ${row.revision.variantName} v${row.revision.version}`,
+                        bulkActions: () => (
+                            <>
+                                {canDeploy ? (
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={!toDeploy}
+                                        title={
+                                            toDeploy ? undefined : "Select one revision to deploy"
+                                        }
+                                        onClick={() => toDeploy && setDeployRow(toDeploy)}
+                                    >
+                                        <CloudArrowUp aria-hidden size={14} />
+                                        Deploy
+                                    </Button>
+                                ) : null}
+                                {canDelete ? (
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() =>
+                                            setDeletion(toDeletion(registryRows, selected))
+                                        }
+                                    >
+                                        <Trash aria-hidden size={14} />
+                                        Delete
+                                    </Button>
+                                ) : null}
+                            </>
+                        ),
+                    }}
+                    canDeploy={canDeploy}
+                    canDelete={canDelete}
+                    playgroundHref={toPlayground}
+                    onOpen={openRow}
+                    onDeploy={setDeployRow}
+                    onDelete={deleteRegistryRow}
+                    empty={empty}
+                />
+            ) : (
+                <VariantsTable
+                    groups={groups}
+                    isLoading={revisions.isPending}
+                    latestRevisionId={latestRevisionId}
+                    canDeploy={canDeploy}
+                    canDelete={canDelete}
+                    playgroundHref={toPlayground}
+                    collapsed={collapsed}
+                    onCollapsedChange={setCollapsed}
+                    onOpen={openRow}
+                    onDeploy={setDeployRow}
+                    onDelete={setDeleteRow}
+                    empty={empty}
+                />
+            )}
             {revisions.hasMore ? (
                 <div className="flex justify-center pt-4">
                     <Button
@@ -198,6 +289,15 @@ export const VariantsTab = ({
                     appId={app.id}
                     appSlug={app.slug ?? null}
                     onClose={() => setDeployRow(null)}
+                />
+            ) : null}
+            {deletion ? (
+                <DeleteSelectionDialog
+                    deletion={deletion}
+                    projectId={projectId}
+                    appId={app.id}
+                    onClose={() => setDeletion(null)}
+                    onDeleted={() => setSelected(new Set())}
                 />
             ) : null}
             {deleteRow ? (
