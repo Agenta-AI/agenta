@@ -104,6 +104,8 @@ export {
     type RunStatsMap,
 } from "./runStatsMap"
 export {formatMetricNumber, formatMetricValue, METRIC_PLACEHOLDER} from "./metricFormat"
+export {metricCellText, scenarioMetricStats} from "./scenarioMetrics"
+export {columnGroupCheck, setColumnsVisible, type ColumnGroupCheck} from "./columnVisibility"
 export {
     buildRunReferencePayload,
     buildRunsQueryBody,

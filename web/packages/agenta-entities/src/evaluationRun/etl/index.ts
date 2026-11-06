@@ -144,6 +144,21 @@ export {
     type BuildFilterSchemaOptions,
 } from "./filterSchema"
 
+// Scenario table filter — which conditions count, typed values, and when to read more pages.
+export {
+    EMPTY_SCENARIO_FILTER,
+    FILTERABLE_COLUMN_KINDS,
+    SCENARIO_FILTER_FILL_TARGET,
+    filterValueFromText,
+    filterValueToText,
+    inferFilterValueType,
+    isConditionComplete,
+    isListOperator,
+    isScenarioFilterActive,
+    shouldReadMoreForFilter,
+    toEffectiveFilter,
+} from "./scenarioFilter"
+
 // Hit-ratio meter — v1→v2 escalation signal (reports the regime; doesn't
 // swap engines today). Per eval-filtering.md §D2 + §C3: tracks rolling
 // (matched/scanned) and recommends escalating to v2 when the ratio falls
