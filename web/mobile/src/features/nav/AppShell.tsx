@@ -14,8 +14,7 @@ import {useTrackLastMainRailPath} from "./railScope"
  * lg (where screens carry the NavDrawer hamburger in their own headers). Screens wrap their
  * ScreenScaffold in this — the scaffold's `h-dvh` column becomes the flex-1 main pane.
  *
- * `scope` replaces the main nav for screens that take the rail over (settings). Inside an app, in
- * beta developer mode, the rail is the app menu (`useRailScope`).
+ * `scope` replaces the main nav (settings); inside an app `useRailScope` picks the app menu.
  */
 export const AppShell = ({
     workspaceId,

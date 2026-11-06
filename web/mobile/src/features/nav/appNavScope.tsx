@@ -33,10 +33,7 @@ const APP_ROUTE = /\/apps\/\[app_id\]\/[^/]+$/
 /** Pages that show one app, with the app in `?app=`. They become `/apps/<id>/...` routes later. */
 const APP_QUERY_ROUTE = /\/(variants|endpoints)$/
 
-/**
- * The app a page shows, when the page belongs inside the app menu: `/apps/<id>/<page>`, and the
- * Registry and Endpoints pages with an app picked. Null on every other page.
- */
+/** The app of a page that belongs in the app menu, else null. */
 export const appScopeAppId = (
     pathname: string,
     query: Record<string, string | string[] | undefined>,
@@ -49,11 +46,7 @@ export const appScopeAppId = (
 /** Where "Back" returns to: the last page the main rail showed. */
 export const lastMainRailPathAtom = atom<string | null>(null)
 
-/**
- * The app menu, in the old app's order and with its labels: Overview, Playground, Registry,
- * Evaluations, Observability. Registry, Evaluations and Observability open the project pages
- * filtered to the app until those pages move under `/apps/<id>/`.
- */
+/** The old app's app menu; the last three rows open project pages with `?app=` until PR 1.5. */
 export const appNavItems = (
     projectURL: string,
     appId: string,
@@ -88,8 +81,7 @@ export const appNavItems = (
                 title: "Registry",
                 icon: <LightningIcon size={16} />,
                 link: `${projectURL}/variants?app=${app}`,
-                // Every Registry page in this menu is this app's; its URL also carries the
-                // revision, so the bare page path claims it.
+                // The URL also carries the revision, so the bare page path claims it.
                 matchLinks: [`${projectURL}/variants`],
             },
         ],

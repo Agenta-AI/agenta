@@ -59,10 +59,7 @@ const AppIdentity = ({
     </div>
 )
 
-/**
- * The app menu's switcher: the shared picker over the project's prompt apps. The list loads the
- * first time the menu opens; until then only the current app is read.
- */
+/** The app menu's switcher over the prompt apps; the list loads on first open. */
 export const AppSwitcher = ({
     projectURL,
     appId,

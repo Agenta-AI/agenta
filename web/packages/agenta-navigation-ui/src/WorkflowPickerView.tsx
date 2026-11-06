@@ -38,10 +38,7 @@ export const WorkflowPickerView = ({
     onSelect,
     ariaLabel = "Switch workflow",
 }: WorkflowPickerViewProps) => {
-    // Plain left clicks stay on the SPA path (`onSelect`); modified clicks fall through to the
-    // anchor so the browser opens a tab. The pick is made here, not by the item: preventing the
-    // anchor's default also stops Radix from calling the item's `onSelect`, which checks
-    // `defaultPrevented`, so a mouse pick used to do nothing.
+    // Pick here: the prevented default also stops Radix from calling the item's onSelect.
     const handleLinkClick = (event: MouseEvent, key: string) => {
         if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
             event.stopPropagation()

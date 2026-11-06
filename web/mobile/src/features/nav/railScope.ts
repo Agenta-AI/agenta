@@ -15,10 +15,7 @@ const useAppMenuAppId = (): string | null => {
     return developerMode ? appScopeAppId(router.pathname, router.query) : null
 }
 
-/**
- * The rail a page shows, for the docked rail and the drawer alike: the screen's own scope
- * (settings), else the app menu inside an app in beta developer mode, else the main rail.
- */
+/** The rail for the docked rail and the drawer: the screen's scope, else the app menu, else main. */
 export const useRailScope = (
     workspaceId: string,
     projectId: string,
@@ -29,10 +26,7 @@ export const useRailScope = (
     return scopeOverride ?? appScope ?? mainScope
 }
 
-/**
- * Records the last page the main rail showed, where the app menu's "Back" returns. Called once,
- * by the AppShell every screen wraps.
- */
+/** Records the last page the main rail showed, where the app menu's "Back" returns. */
 export const useTrackLastMainRailPath = () => {
     const router = useRouter()
     const setLastPath = useSetAtom(lastMainRailPathAtom)
