@@ -280,3 +280,26 @@ export function runMetricCellView(
     }
     return {kind: "text", text}
 }
+
+/**
+ * The columns left after the reader hid some in the column menu, by column key: a reference
+ * ("testset"), an evaluator metric (its `id`) or an invocation metric ("cost"). An evaluator with
+ * every metric hidden drops out. The Kind column is not hideable, as in the old list.
+ */
+export function visibleRunListColumns(
+    plan: RunListColumns,
+    hiddenKeys: ReadonlySet<string>,
+): RunListColumns {
+    if (hiddenKeys.size === 0) return plan
+    return {
+        ...plan,
+        references: plan.references.filter((reference) => !hiddenKeys.has(reference)),
+        evaluators: plan.evaluators
+            .map((group) => ({
+                ...group,
+                columns: group.columns.filter((column) => !hiddenKeys.has(column.id)),
+            }))
+            .filter((group) => group.columns.length > 0),
+        invocation: plan.invocation.filter((column) => !hiddenKeys.has(column.id)),
+    }
+}
