@@ -9,6 +9,7 @@ import {atom, useAtomValue} from "jotai"
 import {ConfirmModal} from "../../settings/ConfirmModal"
 
 import {CommitTestsetDialog} from "./CommitTestsetDialog"
+import {TestcaseQueueButton} from "./TestcaseQueuePicker"
 import {testsetRevisionPath} from "./testsetRouteId"
 import type {RevisionsList} from "./useRevisionsList"
 import type {TestsetEditor} from "./useTestsetEditor"
@@ -46,6 +47,7 @@ export const TestsetToolbar = ({
     revisions,
     onImport,
     onRowAdded,
+    queueItemIds = [],
     commitOpen,
     onCommitOpenChange: setCommitOpen,
 }: {
@@ -56,6 +58,11 @@ export const TestsetToolbar = ({
     revisions: Pick<RevisionsList, "latestVersion" | "load" | "status">
     onImport?: () => void
     onRowAdded?: (rowId: string) => void
+    /**
+     * The saved test cases "Add annotation queue" sends: the selected ones, or every one the
+     * grid shows. Empty turns the button off.
+     */
+    queueItemIds?: string[]
     commitOpen: boolean
     onCommitOpenChange: (open: boolean) => void
 }) => {
@@ -131,6 +138,11 @@ export const TestsetToolbar = ({
                         <Plus aria-hidden size={14} />
                         Add row
                     </Button>
+                    <TestcaseQueueButton
+                        label="Add annotation queue"
+                        itemIds={queueItemIds}
+                        disabled={isNew || isSaving}
+                    />
                     <Button
                         size="sm"
                         // Outlined while there is nothing to commit, as in the old app: a filled

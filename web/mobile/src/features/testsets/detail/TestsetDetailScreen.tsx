@@ -178,8 +178,9 @@ export const TestsetDetailScreen = ({
                 editor={editor}
                 canEdit={canEdit}
                 onOpenRow={openRow}
-                actions={
+                actions={(queueItemIds) => (
                     <TestsetToolbar
+                        queueItemIds={queueItemIds}
                         editor={editor}
                         base={base}
                         canEdit={canEdit}
@@ -189,7 +190,7 @@ export const TestsetDetailScreen = ({
                         commitOpen={commitOpen}
                         onCommitOpenChange={setCommitOpen}
                     />
-                }
+                )}
             />
         </div>
     )
