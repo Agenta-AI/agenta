@@ -91,3 +91,14 @@ export const singleSelectedRevision = (
     if (selected.size !== 1) return null
     return rows.find((row) => selected.has(row.key))?.revision ?? null
 }
+
+/** The two revisions two selected rows stand for, for Compare; null for any other count. */
+export const selectedPair = (
+    rows: readonly RegistryRow[],
+    selected: ReadonlySet<string>,
+): [AppRevisionRow, AppRevisionRow] | null => {
+    const picked = rows.filter((row) => selected.has(row.key)).map((row) => row.revision)
+    return picked.length === 2 && picked[0].revisionId !== picked[1].revisionId
+        ? [picked[0], picked[1]]
+        : null
+}
