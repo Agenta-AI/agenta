@@ -2,7 +2,8 @@ import type {ReactNode} from "react"
 
 import type {AppDeploymentRow} from "@agenta/entities/environment"
 import {UserAuthorLabel} from "@agenta/entities/shared"
-import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
+// The narrow path: the `variant` barrel also carries the revision drawer.
+import VariantDetailsWithStatus from "@agenta/entity-ui/variant-details"
 import {FormattedDate} from "@agenta/ui/components/presentational"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {ListTable, type ListTableColumn, type ListTableSelection} from "@agenta/ui/list-table"

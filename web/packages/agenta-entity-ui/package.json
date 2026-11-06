@@ -36,6 +36,7 @@
         "./testcase": "./src/testcase/index.ts",
         "./tool-utils": "./src/DrillInView/SchemaControls/toolUtils.ts",
         "./variant": "./src/variant/index.ts",
+        "./variant-details": "./src/variant/VariantDetailsWithStatus.tsx",
         "./view-types": "./src/view-types/index.ts",
         "./workflow": "./src/workflow/index.ts",
         "./drive": "./src/drive/index.ts",

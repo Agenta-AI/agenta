@@ -1,7 +1,8 @@
 import {useState} from "react"
 
 import {appEnvironmentsLoadableAtomFamily} from "@agenta/entities/environment"
-import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
+// The narrow path: the `variant` barrel also carries the revision drawer.
+import VariantDetailsWithStatus from "@agenta/entity-ui/variant-details"
 import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {CommitMessageInput, Tag} from "@agenta/ui/components/presentational"
 import {
