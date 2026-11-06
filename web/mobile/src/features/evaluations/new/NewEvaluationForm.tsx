@@ -48,6 +48,7 @@ export const NewEvaluationForm = ({
     onClose,
     onStarted,
     initial,
+    allowAutomaticCreate = false,
 }: {
     kind: NewEvaluationKind
     /** The app the list is scoped to. The app section is then fixed. */
@@ -62,6 +63,8 @@ export const NewEvaluationForm = ({
     onStarted: (kind: NewEvaluationKind) => void
     /** Starting values over the empty draft, for a story or a test. The sheet passes none. */
     initial?: Partial<NewEvaluationDraft>
+    /** Create an automatic evaluator in the editable drawer; off inside a playground. */
+    allowAutomaticCreate?: boolean
 }) => {
     const {draft, dispatch} = useNewEvaluationDraft(
         kind,
@@ -212,6 +215,7 @@ export const NewEvaluationForm = ({
                                 dispatch({type: "removeEvaluator", revisionId})
                             }
                             onClear={() => dispatch({type: "clearEvaluators"})}
+                            allowAutomaticCreate={allowAutomaticCreate}
                         />
                     </SectionItem>
                     {kind === "auto" ? (

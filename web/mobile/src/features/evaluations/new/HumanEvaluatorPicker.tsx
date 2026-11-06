@@ -11,6 +11,7 @@ export const HumanEvaluatorPicker = (props: {
     onPick: (evaluator: DraftEvaluator) => void
     onRemove: (revisionId: string) => void
     onClear: () => void
+    onCreateNew?: () => void
 }) => {
     const adapter = useEnrichedHumanEvaluatorAdapter(renderEvaluatorRevisionLabel, {
         showWorkflowMeta: true,

@@ -33,6 +33,7 @@ export const EvaluatorPicker = ({
     onPick,
     onRemove,
     onClear,
+    onCreateNew,
 }: {
     adapter: EvaluatorAdapter
     instanceId: string
@@ -43,6 +44,8 @@ export const EvaluatorPicker = ({
     onPick: (evaluator: DraftEvaluator) => void
     onRemove: (revisionId: string) => void
     onClear: () => void
+    /** Adds "Create new evaluator" to the list. */
+    onCreateNew?: () => void
 }) => {
     const metaMap = useAtomValue(evaluatorWorkflowMetaMapAtom)
     const selectedIds = useMemo(() => new Set(selected.map((item) => item.revisionId)), [selected])
@@ -87,6 +90,8 @@ export const EvaluatorPicker = ({
                 showParentDescription
                 showChildSelectAll={allowSelectAll}
                 onClearAll={onClear}
+                onCreateNew={onCreateNew}
+                createNewLabel="Create new evaluator"
                 size="middle"
             />
         </div>

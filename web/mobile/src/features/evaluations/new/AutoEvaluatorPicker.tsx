@@ -11,6 +11,7 @@ export const AutoEvaluatorPicker = (props: {
     onPick: (evaluator: DraftEvaluator) => void
     onRemove: (revisionId: string) => void
     onClear: () => void
+    onCreateNew?: () => void
 }) => {
     const adapter = useEnrichedEvaluatorOnlyAdapter(renderEvaluatorRevisionLabel, {
         showWorkflowMeta: true,

@@ -1,6 +1,6 @@
 import {useMemo, useRef, useState, type CSSProperties} from "react"
 
-import type {EvaluatorEntry} from "@agenta/entities/workflow"
+import type {CreatedHumanEvaluator, EvaluatorEntry} from "@agenta/entities/workflow"
 import {message} from "@agenta/ui/app-message"
 import {Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle} from "@agenta/ui/ui"
 
@@ -25,8 +25,8 @@ export const HumanEvaluatorSheet = ({
     /** The evaluator to edit; null creates one. */
     editing: EvaluatorEntry | null
     onClose: () => void
-    /** After a save; the lists are already loading again. */
-    onSaved?: () => void
+    /** After a save; the lists are already loading again. A create passes the new evaluator. */
+    onSaved?: (created: CreatedHumanEvaluator | null) => void
 }) => {
     const {save, saving} = useSaveHumanEvaluator()
     const [serverError, setServerError] = useState<Exclude<
@@ -53,7 +53,7 @@ export const HumanEvaluatorSheet = ({
             return
         }
         message.success(editing ? "Evaluator updated" : "Evaluator created")
-        onSaved?.()
+        onSaved?.(result.created)
         onClose()
     }
 

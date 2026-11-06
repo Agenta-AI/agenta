@@ -14,7 +14,42 @@ import {
 
 import {pickers, resetWizardData, wizardData} from "../support/newEvaluationMocks"
 
-const env = vi.hoisted(() => ({evaluatorsViewOn: false}))
+const env = vi.hoisted(() => ({evaluatorsViewOn: false, beta: false, flowKind: "" as string}))
+
+vi.mock("@agenta/shared/state", async (original) => {
+    const {atom} = await import("jotai")
+    return {...(await original<object>()), betaDeveloperModeActiveAtom: atom(() => env.beta)}
+})
+// The create flow is a separate chunk: a stand-in that "creates" one at once.
+vi.mock("next/dynamic", () => ({
+    default:
+        () =>
+        ({
+            kind,
+            onCreated,
+        }: {
+            kind: string
+            onCreated: (created: Record<string, unknown>) => void
+        }) => {
+            env.flowKind = kind
+            return (
+                <button
+                    type="button"
+                    onClick={() =>
+                        onCreated({
+                            workflowId: "wf-9",
+                            revisionId: "rev-9",
+                            name: "Tone",
+                            slug: "tone",
+                            version: 1,
+                        })
+                    }
+                >
+                    Save new evaluator
+                </button>
+            )
+        },
+}))
 
 vi.mock("@agenta/entities/workflow", async (original) => ({
     ...(await original<object>()),
@@ -41,6 +76,8 @@ const mount = async (node: React.ReactNode) => {
 beforeEach(() => {
     resetWizardData()
     env.evaluatorsViewOn = false
+    env.beta = false
+    env.flowKind = ""
     host = document.createElement("div")
     document.body.appendChild(host)
     root = createRoot(host)
@@ -51,17 +88,58 @@ afterEach(async () => {
 })
 
 const noop = () => undefined
-const section = (kind: "auto" | "human") => (
+const onPick = vi.fn()
+const section = (kind: "auto" | "human", allowAutomaticCreate = false) => (
     <EvaluatorsSection
         kind={kind}
         hasApp
         selected={[]}
         evaluatorsHref={env.evaluatorsViewOn ? "/w/ws/p/pr/evaluators" : null}
-        onPick={noop}
+        onPick={onPick}
         onRemove={noop}
         onClear={noop}
+        allowAutomaticCreate={allowAutomaticCreate}
     />
 )
+const pickerCreate = (instance: string) =>
+    pickers.latest[instance]?.onCreateNew as (() => void) | undefined
+
+describe("evaluators section create", () => {
+    it("Without beta developer mode neither picker offers create", async () => {
+        wizardData.evaluatorCount = 2
+        await mount(section("auto", true))
+        expect(pickerCreate("new-evaluation-auto-evaluator")).toBeUndefined()
+        await mount(section("human"))
+        expect(pickerCreate("new-evaluation-human-evaluator")).toBeUndefined()
+    })
+
+    it("Automatic create shows only where the host allows the drawer", async () => {
+        env.beta = true
+        wizardData.evaluatorCount = 2
+        await mount(section("auto"))
+        expect(pickerCreate("new-evaluation-auto-evaluator")).toBeUndefined()
+        await mount(section("auto", true))
+        expect(pickerCreate("new-evaluation-auto-evaluator")).toBeTypeOf("function")
+    })
+
+    it("A human evaluator created from the picker is picked for the run", async () => {
+        env.beta = true
+        wizardData.evaluatorCount = 1
+        await mount(section("human"))
+        await act(async () => pickerCreate("new-evaluation-human-evaluator")?.())
+        expect(env.flowKind).toBe("human")
+        const save = [...host.querySelectorAll("button")].find(
+            (button) => button.textContent === "Save new evaluator",
+        )
+        await act(async () => save?.click())
+        expect(onPick).toHaveBeenCalledWith({
+            revisionId: "rev-9",
+            evaluatorId: "wf-9",
+            name: "Tone",
+            version: 1,
+        })
+    })
+})
 
 describe("evaluators section", () => {
     it("Auto mode lists automatic evaluators only", async () => {
