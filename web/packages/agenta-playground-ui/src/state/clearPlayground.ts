@@ -10,10 +10,18 @@ import {
 import type {useStore} from "jotai"
 
 /**
- * Clears what a playground page or the revision drawer set up: its runs, test set connection, nodes and drafts. The agent
- * session screen uses the same store, so nothing from the page may outlive it.
+ * Clears what a playground page or the revision drawer set up: its runs, test set connection,
+ * nodes and local copies. The agent session screen uses the same store, so none of these may
+ * outlive the page.
+ *
+ * `keepEdits` keeps the unsaved edits of saved revisions, as the old playground does when its page
+ * is left: they show again as a draft when the revision is opened again. Without it (the revision
+ * drawer's Discard and close) those edits go too.
  */
-export const clearPlayground = (store: ReturnType<typeof useStore>) => {
+export const clearPlayground = (
+    store: ReturnType<typeof useStore>,
+    {keepEdits = false}: {keepEdits?: boolean} = {},
+) => {
     const nodes = store.get(playgroundController.selectors.nodes())
     const loadableId = store.get(playgroundController.selectors.loadableId())
     // Runs first: they are found through the selection that `resetAll` removes.
@@ -26,10 +34,10 @@ export const clearPlayground = (store: ReturnType<typeof useStore>) => {
     }
     store.set(playgroundController.actions.resetAll)
     store.set(playgroundInitializedAtom, false)
-    // Leaving asked to discard unsaved changes: the drafts go with the page, an evaluator after
-    // an app included.
+    // A local copy has no saved revision to come back to, so it always goes (the leave guard asks
+    // first).
     for (const {entityId} of nodes) {
         if (isLocalDraftId(entityId)) store.set(discardLocalServerDataAtom, entityId)
-        else store.set(workflowMolecule.actions.discard, entityId)
+        else if (!keepEdits) store.set(workflowMolecule.actions.discard, entityId)
     }
 }

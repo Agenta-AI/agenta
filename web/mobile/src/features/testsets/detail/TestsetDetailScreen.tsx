@@ -2,6 +2,7 @@ import {useCallback, useMemo, useState} from "react"
 
 import {testcaseDataController, type TestcaseTableRow} from "@agenta/entities/testcase"
 import {useTestcaseDrawerNavigation} from "@agenta/entity-ui/testcase"
+import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
@@ -19,11 +20,13 @@ import {useDeveloperPageFrame, useDetailHeaderTop} from "../../developer/develop
 import {AppShell} from "../../nav/AppShell"
 import {NavDrawer} from "../../nav/NavDrawer"
 
+import {ArchivedTestsetNotice} from "./ArchivedTestsetNotice"
 import {TestsetDetailSkeleton} from "./states/TestsetDetailSkeleton"
 import {TestsetGrid} from "./TestsetGrid"
 import {TestsetHeader} from "./TestsetHeader"
 import {testsetRevisionPath} from "./testsetRouteId"
 import {TestsetToolbar} from "./TestsetToolbar"
+import {useArchivedTestset} from "./useArchivedTestset"
 import {useRevisionArchive} from "./useRevisionArchive"
 import {useRevisionsList} from "./useRevisionsList"
 import {useTestsetEditor} from "./useTestsetEditor"
@@ -70,10 +73,23 @@ export const TestsetDetailScreen = ({
     const queryClient = useQueryClient()
     const base = `/w/${workspaceId}/p/${projectId}`
     const editor = useTestsetEditor({projectId, routeId, nameFromUrl})
-    const {header, isNew} = editor
+    const {isNew} = editor
     const revisionId = isNew || editor.notFound ? null : routeId
 
-    const canEdit = useProjectPermission(projectId, "edit_testsets")
+    // Developer mode: an archived test set shows its name, reads only, and offers Restore.
+    const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
+    const archivedTestset = useArchivedTestset({
+        projectId,
+        header: editor.header,
+        enabled: developerMode && !isNew,
+    })
+    const header =
+        editor.header && archivedTestset.name
+            ? {...editor.header, testsetName: archivedTestset.name}
+            : editor.header
+
+    const mayEdit = useProjectPermission(projectId, "edit_testsets")
+    const canEdit = mayEdit && !archivedTestset.isArchived
     // Same rule as the list: the old app gated exports on API key rights.
     const mayViewKeys = useProjectPermission(projectId, "view_api_keys")
     const mayEditKeys = useProjectPermission(projectId, "edit_api_keys")
@@ -151,17 +167,31 @@ export const TestsetDetailScreen = ({
         <TestsetDetailSkeleton />
     ) : (
         <div className="flex min-w-0 flex-col gap-3">
-            <TestsetToolbar
+            {archivedTestset.isArchived ? (
+                <ArchivedTestsetNotice
+                    projectId={projectId}
+                    testsetId={header.testsetId}
+                    canRestore={mayEdit}
+                />
+            ) : null}
+            <TestsetGrid
                 editor={editor}
-                base={base}
                 canEdit={canEdit}
-                revisions={revisions}
-                onImport={openImport}
-                onRowAdded={openAddedRow}
-                commitOpen={commitOpen}
-                onCommitOpenChange={setCommitOpen}
+                onOpenRow={openRow}
+                actions={(queueItemIds) => (
+                    <TestsetToolbar
+                        queueItemIds={queueItemIds}
+                        editor={editor}
+                        base={base}
+                        canEdit={canEdit}
+                        revisions={revisions}
+                        onImport={openImport}
+                        onRowAdded={openAddedRow}
+                        commitOpen={commitOpen}
+                        onCommitOpenChange={setCommitOpen}
+                    />
+                )}
             />
-            <TestsetGrid editor={editor} canEdit={canEdit} onOpenRow={openRow} />
         </div>
     )
 

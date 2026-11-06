@@ -55,13 +55,32 @@ vi.mock("@/components/ScreenScaffold", () => ({
         </div>
     ),
 }))
+// The editor and the run pane are not under test.
+vi.mock("@agenta/entity-ui/drill-in", async (original) => ({
+    ...(await original<object>()),
+    PlaygroundConfigSection: () => <div data-testid="config-section" />,
+}))
+vi.mock("@agenta/entity-ui/gatewayTool", () => ({CatalogDrawer: () => null}))
+vi.mock("@/features/chat/DrillInBridgeProvider", () => ({
+    DrillInBridgeProvider: ({children}: {children: ReactNode}) => children,
+}))
+vi.mock("@/features/playground/PlaygroundRunPane", () => ({PlaygroundRunPane: () => null}))
+vi.mock("@/features/playground/PlaygroundFocusDrawerHost", () => ({
+    PlaygroundFocusDrawerHost: () => null,
+}))
 vi.mock("next/dynamic", async () => {
     const {useEffect, useState} = await import("react")
     type Loaded = React.ComponentType<Record<string, unknown>>
     return {
         default: (load: () => Promise<Loaded>) => (props: Record<string, unknown>) => {
             const [Component, setComponent] = useState<Loaded | null>(null)
-            useEffect(() => void load().then((loaded) => setComponent(() => loaded)), [])
+            useEffect(
+                () =>
+                    void load()
+                        .then((loaded) => setComponent(() => loaded))
+                        .catch((error) => console.error("DYNAMIC-LOAD-FAILED", error)),
+                [],
+            )
             return Component ? <Component {...props} /> : null
         },
     }
@@ -81,15 +100,28 @@ const CHAT_TEMPLATE = {
     },
 }
 
+const COMPLETION_TEMPLATE = {
+    key: "completion",
+    data: {
+        uri: "agenta:builtin:completion:v0",
+        parameters: {prompt: {messages: [{role: "user", content: "Say {{topic}}."}]}},
+        schemas: {inputs: null, outputs: null, parameters: null},
+    },
+}
+
 const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, 30)))
 const waitFor = async <T,>(find: () => T | null | undefined): Promise<T> => {
-    for (let attempt = 0; attempt < 200; attempt++) {
+    for (let attempt = 0; attempt < 600; attempt++) {
         const found = find()
         if (found) return found
         await settle()
     }
-    throw new Error("timed out")
+    throw new Error(`timed out: ${document.body.innerHTML.slice(0, 1500)}`)
 }
+const findDialog = (text: string) =>
+    [...document.querySelectorAll("[role=dialog]")].find((node) =>
+        node.textContent?.includes(text),
+    ) as HTMLElement | undefined
 const items = () => [...document.querySelectorAll("[role=menuitem]")] as HTMLElement[]
 const itemTexts = () => items().map((item) => item.textContent)
 const itemByText = (text: string) => items().find((item) => item.textContent === text)
@@ -101,8 +133,11 @@ const press = (element: Element, key: string) =>
     })
 
 const reply = (request: RecordedRequest) => {
+    if (request.url === "http://my-service.test/app/health") return {data: {status: "ok"}}
+    // Any other outside service is down.
+    if (!request.url.startsWith("http://localhost")) return {status: 503, data: {}}
     if (request.url.endsWith("/workflows/catalog/templates/"))
-        return {data: {count: 1, templates: [CHAT_TEMPLATE]}}
+        return {data: {count: 2, templates: [CHAT_TEMPLATE, COMPLETION_TEMPLATE]}}
     if (request.url.endsWith("/workflows/"))
         return {data: {count: 1, workflow: {id: "app-1", slug: "support-bot"}}}
     if (request.url.endsWith("/workflows/variants/"))
@@ -130,14 +165,17 @@ describe("New prompt", () => {
     let sent: RecordedRequest[]
     const store = getDefaultStore()
 
-    const mount = () => {
+    const mount = (apps: {id: string; name: string}[] = []) => {
         const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}})
         store.set(queryClientAtom, queryClient)
         store.set(projectIdAtom, PROJECT_ID)
         store.set(sessionAtom, true)
         store.set(activeUserIdAtom, "u1")
         queryClient.setQueryData(["folders", PROJECT_ID], [FOLDER])
-        queryClient.setQueryData(["workflows", "apps", "list", PROJECT_ID], {count: 0, refs: []})
+        queryClient.setQueryData(["workflows", "apps", "list", PROJECT_ID], {
+            count: apps.length,
+            refs: apps.map((app) => ({...app, slug: app.id, flags: {is_evaluator: false}})),
+        })
         queryClient.setQueryData(["workflows", "apps", "agentFlags", PROJECT_ID], new Map())
         act(() =>
             root.render(
@@ -195,28 +233,49 @@ describe("New prompt", () => {
         await settle()
 
         press(document.querySelector("nav [aria-label='Alpha Actions']") as Element, "Enter")
-        expect(itemTexts()).toEqual(["Rename", "Move", "New prompt", "New folder", "Delete"])
+        expect(itemTexts()).toEqual([
+            "Rename",
+            "Move",
+            "New prompt",
+            "New folder",
+            "Set up workflow",
+            "Delete",
+        ])
     })
 
-    it("Chat creates the app with the typed name and opens it in the playground", async () => {
+    it("Chat opens the draft in the drawer; Create makes the app and opens it in the playground", async () => {
         store.set(betaDeveloperModeActiveAtom as never, true as never)
         mount()
         await settle()
 
         openCreateNew()
-        expect(itemTexts()).toEqual(["New prompt", "New folder"])
+        expect(itemTexts()).toEqual(["New prompt", "New folder", "Set up workflow"])
         press(itemByText("New prompt") as Element, "ArrowRight")
-        expect(itemTexts()).toEqual(["New prompt", "New folder", "Chat", "Completion", "Agent"])
+        expect(itemTexts()).toEqual([
+            "New prompt",
+            "New folder",
+            "Set up workflow",
+            "Chat",
+            "Completion",
+            "Agent",
+        ])
         act(() => itemByText("Chat")?.click())
-        const dialog = await waitFor(() => document.querySelector("[role=dialog]") as HTMLElement)
+        const drawer = await waitFor(() => findDialog("Test app"))
 
-        // The draft is local: before the naming step /m only reads the template and its schema.
+        // The draft is local: before Create /m only reads the template and its schema.
         expect(sent.map((request) => `${request.method} ${request.url}`)).toEqual([
             expect.stringMatching(/^GET .*\/workflows\/catalog\/templates\/$/),
             expect.stringMatching(/^POST .*\/services\/chat\/v0\/inspect$/),
         ])
+        expect(sent.filter((request) => request.method === "POST")).toHaveLength(1)
         sent.length = 0
-        expect(dialog.textContent).toContain("App name")
+        const drawerCreate = await waitFor(() =>
+            [...drawer.querySelectorAll("button")].find(
+                (button) => button.textContent?.trim() === "Create" && !button.disabled,
+            ),
+        )
+        act(() => drawerCreate.click())
+        const dialog = await waitFor(() => findDialog("App name"))
         const nameInput = dialog.querySelector("input") as HTMLInputElement
         expect(nameInput.value).toBe("Chat")
         const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set
@@ -224,7 +283,10 @@ describe("New prompt", () => {
             setValue?.call(nameInput, "Support bot")
             nameInput.dispatchEvent(new Event("input", {bubbles: true}))
         })
-        await act(async () => buttonByText("Create")?.click())
+        const modalCreate = [...dialog.querySelectorAll("button")].find(
+            (button) => button.textContent?.trim() === "Create",
+        ) as HTMLButtonElement
+        await act(async () => modalCreate.click())
         await waitFor(() => router.push.mock.calls.length > 0)
 
         const writes = sent.filter((request) => request.method === "POST")
@@ -273,6 +335,128 @@ describe("New prompt", () => {
         expect(router.push).toHaveBeenCalledWith(
             "/w/ws/p/project-1/apps/app-1/playground?revisions=rev-1",
         )
-        expect(document.querySelector("[role=dialog]")).toBeNull()
+        expect(findDialog("Test app")).toBeUndefined()
+    }, 60_000)
+    it("Closing the drawer before Create saves nothing and leaves the list as it was", async () => {
+        store.set(betaDeveloperModeActiveAtom as never, true as never)
+        mount()
+        await settle()
+
+        openCreateNew()
+        press(itemByText("New prompt") as Element, "ArrowRight")
+        act(() => itemByText("Completion")?.click())
+        const drawer = await waitFor(() => findDialog("Test app"))
+        act(() => (drawer.querySelector("[aria-label=Close]") as HTMLElement).click())
+        // The new draft counts as unsaved, so the drawer asks first, as for any edit.
+        const discard = await waitFor(() => buttonByText("Discard"))
+        act(() => discard.click())
+        await waitFor(() => !findDialog("Test app"))
+        await settle()
+
+        // Reads (the template, list queries) may run; nothing is written.
+        expect(
+            sent
+                .filter((request) => request.method !== "GET" && !request.url.endsWith("/query"))
+                .map((request) => request.url.replace(/^https?:\/\/[^/]+/, "")),
+        ).toEqual(["/services/completion/v0/inspect"])
+        expect(router.push).not.toHaveBeenCalled()
+    }, 60_000)
+    it("Set up workflow tests the URL, creates the app in the open folder and opens it", async () => {
+        store.set(betaDeveloperModeActiveAtom as never, true as never)
+        router.query = {folderId: "f1"}
+        mount()
+        await settle()
+
+        // The page loads the prompt templates for New prompt; this flow reads none of them.
+        sent.length = 0
+        press(document.querySelector("nav [aria-label='Alpha Actions']") as Element, "Enter")
+        act(() => itemByText("Set up workflow")?.click())
+        const dialog = await waitFor(() => document.querySelector("[role=dialog]") as HTMLElement)
+        const [nameInput, urlInput] = [...dialog.querySelectorAll("input")]
+        const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set
+        const type = (input: HTMLInputElement, value: string) =>
+            act(() => {
+                setValue?.call(input, value)
+                input.dispatchEvent(new Event("input", {bubbles: true}))
+            })
+        type(nameInput, "Billing bot")
+        const create = () => buttonByText("Create new app") as HTMLButtonElement
+        expect(create().disabled).toBe(true)
+
+        type(urlInput, "http://my-service.test/app/")
+        await waitFor(() => dialog.textContent?.includes("Success"))
+        expect(sent.map((request) => `${request.method} ${request.url}`)).toEqual([
+            "GET http://my-service.test/app/health",
+        ])
+        expect(create().disabled).toBe(false)
+        sent.length = 0
+
+        await act(async () => create().click())
+        await waitFor(() => router.push.mock.calls.length > 0)
+
+        const writes = sent.filter((request) => request.method === "POST")
+        expect(
+            writes.map((request) => request.url.replace(/^.*\/workflows/, "/workflows")),
+        ).toEqual([
+            "/workflows/",
+            "/workflows/variants/",
+            "/workflows/revisions/commit",
+            "/workflows/revisions/commit",
+        ])
+        expect(writes[0].body).toEqual({
+            workflow: {
+                slug: "billing-bot",
+                name: "Billing bot",
+                flags: {is_application: true},
+                meta: {folder_id: "f1"},
+            },
+        })
+        expect(writes[3].body).toEqual({
+            workflow_revision: {
+                workflow_id: "app-1",
+                workflow_variant_id: "variant-1",
+                slug: expect.any(String),
+                name: "default",
+                data: {url: "http://my-service.test/app"},
+            },
+        })
+        expect(router.push).toHaveBeenCalledWith(
+            "/w/ws/p/project-1/apps/app-1/playground?revisions=rev-1",
+        )
+    }, 60_000)
+    it("Set up workflow keeps Create off for a taken name or a URL that fails the test", async () => {
+        store.set(betaDeveloperModeActiveAtom as never, true as never)
+        mount([{id: "app-9", name: "Support bot"}])
+        await settle()
+
+        openCreateNew()
+        act(() => itemByText("Set up workflow")?.click())
+        const dialog = await waitFor(() => findDialog("Custom workflow"))
+        const [nameInput, urlInput] = [...dialog.querySelectorAll("input")]
+        const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set
+        const type = (input: HTMLInputElement, value: string) =>
+            act(() => {
+                setValue?.call(input, value)
+                input.dispatchEvent(new Event("input", {bubbles: true}))
+            })
+        const create = () => buttonByText("Create new app") as HTMLButtonElement
+
+        type(nameInput, "support bot")
+        type(urlInput, "http://my-service.test/app")
+        await waitFor(() => dialog.textContent?.includes("Success"))
+        expect(dialog.textContent).toContain("App name already exists")
+        expect(create().disabled).toBe(true)
+
+        type(nameInput, "Billing bot")
+        expect(create().disabled).toBe(false)
+        type(urlInput, "http://down.test/app")
+        await waitFor(() => dialog.textContent?.includes("Failure"))
+        expect(create().disabled).toBe(true)
+        // Reads (list queries) may run; nothing is created.
+        expect(
+            sent
+                .filter((request) => request.method === "POST" && !request.url.endsWith("/query"))
+                .map((request) => request.url),
+        ).toEqual([])
     }, 60_000)
 })

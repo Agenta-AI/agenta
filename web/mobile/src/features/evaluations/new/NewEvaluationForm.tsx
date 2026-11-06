@@ -58,6 +58,7 @@ export const NewEvaluationForm = ({
     onStarted,
     onInputChange,
     initial,
+    allowAutomaticCreate = false,
 }: {
     kind: NewEvaluationKind
     projectId: string
@@ -78,6 +79,8 @@ export const NewEvaluationForm = ({
     onInputChange?: (hasInput: boolean) => void
     /** Starting values over the empty draft, for a story or a test. The sheet passes none. */
     initial?: Partial<NewEvaluationDraft>
+    /** Create an automatic evaluator in the editable drawer; off inside a playground. */
+    allowAutomaticCreate?: boolean
 }) => {
     // Authors in the tables show by name; the playground does not bind the members itself.
     useBindWorkspaceMembers()
@@ -225,6 +228,7 @@ export const NewEvaluationForm = ({
                         disabled={isStarting}
                         evaluatorsHref={evaluatorsHref}
                         onPick={(evaluator) => dispatch({type: "pickEvaluator", evaluator})}
+                        allowAutomaticCreate={allowAutomaticCreate}
                     />
                 ) : (
                     <SectionHint>{NEEDS_APP}</SectionHint>

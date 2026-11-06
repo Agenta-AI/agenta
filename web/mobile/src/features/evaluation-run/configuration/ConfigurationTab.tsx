@@ -1,6 +1,8 @@
 import {runReferencesAtomFamily, type RunHeader} from "@agenta/entities/evaluationRun"
 import {useAtomValue} from "jotai"
 
+import {useRunEditDialog} from "../useRunEditDialog"
+
 import {ApplicationConfigSection} from "./ApplicationConfigSection"
 import {ConfigSectionNav, type ConfigNavItem} from "./ConfigSectionNav"
 import {EvaluatorsConfigSection} from "./EvaluatorsConfigSection"
@@ -12,7 +14,7 @@ import {useEvaluatorConfigs} from "./useEvaluatorConfigs"
 /**
  * The Configuration tab: what the run was set up with. On a wide screen the summary card and the
  * section links sit in a rail that stays in view; on a phone the card comes first, then the
- * sections. Opening the tab only reads.
+ * sections. "Edit" and "Add evaluator" open the run's edit dialog, as in the old app.
  */
 export const ConfigurationTab = ({
     projectId,
@@ -27,6 +29,8 @@ export const ConfigurationTab = ({
     const application = useApplicationConfig(runId)
     const evaluators = useEvaluatorConfigs(runId)
     const testsets = references?.testsets ?? []
+    const edit = useRunEditDialog(projectId, runId, header)
+    const onEdit = edit.canEdit ? edit.open : undefined
 
     const nav: ConfigNavItem[] = [
         ...(testsets.length > 0
@@ -39,14 +43,15 @@ export const ConfigurationTab = ({
     return (
         <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-[264px_minmax(0,1fr)]">
             <div className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-4 lg:self-start">
-                <RunSummaryCard runId={runId} header={header} />
+                <RunSummaryCard runId={runId} header={header} onEdit={onEdit} />
                 <ConfigSectionNav items={nav} />
             </div>
             <div className="flex min-w-0 flex-col gap-4">
                 <TestsetConfigSection projectId={projectId} testsets={testsets} />
                 {application ? <ApplicationConfigSection application={application} /> : null}
-                <EvaluatorsConfigSection evaluators={evaluators} />
+                <EvaluatorsConfigSection evaluators={evaluators} onAdd={onEdit} />
             </div>
+            {edit.dialog}
         </div>
     )
 }

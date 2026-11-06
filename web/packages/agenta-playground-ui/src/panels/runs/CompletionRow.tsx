@@ -3,7 +3,7 @@ import {memo, useEffect, useState, type ReactNode} from "react"
 import {executionItemController} from "@agenta/playground"
 import {HeightCollapse} from "@agenta/ui/components"
 import {RunButton} from "@agenta/ui/components/presentational"
-import {CaretDown, CaretRight} from "@phosphor-icons/react"
+import {CaretDown, CaretRight, Rows} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useExecutionRow} from "../../hooks/useExecutionRow"
@@ -11,6 +11,7 @@ import {openPlaygroundFocusDrawerAtom} from "../../state/focusDrawer"
 import {EvaluatorScoreCards} from "../evaluator/EvaluatorScoreCards"
 import {InputsList} from "../inputs"
 
+import {RevisionResultCard} from "./RevisionResultCard"
 import {RowActions} from "./RowActions"
 import {RowSyncTag} from "./RowSyncTag"
 import {RunResult} from "./RunResult"
@@ -18,7 +19,7 @@ import {RunResult} from "./RunResult"
 export interface CompletionRowProps {
     entityId: string
     rowId: string
-    /** 0-based position, shown as "test case {n}". */
+    /** 0-based position, shown as "testcase {n}". */
     index: number
     canRemove: boolean
     templateFormat?: "mustache" | "curly" | "fstring" | "jinja2"
@@ -62,28 +63,27 @@ export const CompletionRow = memo(
                 data-testid={`completion-row-${rowId}`}
                 className="flex flex-col gap-3 border-0 border-b border-solid border-border px-4 py-3"
             >
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
-                    <div className="flex shrink-0 items-center rounded-md bg-muted text-xs text-foreground">
-                        <button
-                            type="button"
-                            aria-expanded={!collapsed}
-                            aria-label={`${collapsed ? "Expand" : "Collapse"} test case ${index + 1}`}
-                            onClick={() => {
-                                setClicked(true)
-                                setOwn(!collapsed)
-                            }}
-                            className="flex items-center rounded-md border-0 bg-transparent py-0.5 pl-2 pr-1 text-foreground"
-                        >
-                            {collapsed ? <CaretRight size={12} /> : <CaretDown size={12} />}
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => openDetails({rowId, entityId})}
-                            className="whitespace-nowrap rounded-md border-0 bg-transparent py-0.5 pl-0 pr-2 text-xs text-foreground"
-                        >
-                            {`test case ${index + 1}`}
-                        </button>
-                    </div>
+                <div className="group/row-header flex flex-wrap items-center gap-x-2 gap-y-2">
+                    <button
+                        type="button"
+                        aria-expanded={!collapsed}
+                        aria-label={`${collapsed ? "Expand" : "Collapse"} test case ${index + 1}`}
+                        onClick={() => {
+                            setClicked(true)
+                            setOwn(!collapsed)
+                        }}
+                        className="flex shrink-0 items-center rounded-md border-0 bg-transparent p-1 text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                        {collapsed ? <CaretRight size={12} /> : <CaretDown size={12} />}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => openDetails({rowId, entityId})}
+                        className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border-0 bg-muted px-2 py-0.5 text-xs text-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                        <Rows size={12} aria-hidden />
+                        {`testcase ${index + 1}`}
+                    </button>
                     <RowSyncTag rowId={rowId} />
                     <div className="ml-auto flex items-center gap-2">
                         <RowActions
@@ -104,13 +104,15 @@ export const CompletionRow = memo(
                     <div className="flex flex-col gap-3">
                         <InputsList rowId={rowId} templateFormat={templateFormat} />
                         <div className="border-0 border-t border-solid border-border pt-3">
-                            <RunResult
-                                isRunning={row.isBusy}
-                                result={result}
-                                traceId={row.traceId}
-                                repeats={row.repetitionProps}
-                                renderTraceFooter={renderTraceFooter}
-                            />
+                            <RevisionResultCard entityId={entityId}>
+                                <RunResult
+                                    isRunning={row.isBusy}
+                                    result={result}
+                                    traceId={row.traceId}
+                                    repeats={row.repetitionProps}
+                                    renderTraceFooter={renderTraceFooter}
+                                />
+                            </RevisionResultCard>
                         </div>
                         <EvaluatorScoreCards rowId={rowId} entityId={entityId} />
                     </div>
