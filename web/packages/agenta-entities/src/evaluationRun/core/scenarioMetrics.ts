@@ -45,12 +45,26 @@ export function scenarioMetricStats(
         ...steps.filter((step) => step.type !== "invocation"),
     ]
     for (const step of ordered) {
-        for (const row of metrics) {
-            const bucket = isRecord(row.data) ? row.data[step.key] : undefined
-            if (!isRecord(bucket)) continue
-            const stats = toStats(bucket[metricKey])
-            if (stats) return stats
-        }
+        const stats = stepMetricStats(metrics, step.key, metricKey)
+        if (stats) return stats
+    }
+    return null
+}
+
+/**
+ * The stats of one metric that one step of a scenario reports, such as the duration, tokens or
+ * cost of an evaluator's own call. Null when the step does not report it.
+ */
+export function stepMetricStats(
+    metrics: readonly ScenarioMetricRow[],
+    stepKey: string,
+    metricKey: string,
+): MetricStats | null {
+    for (const row of metrics) {
+        const bucket = isRecord(row.data) ? row.data[stepKey] : undefined
+        if (!isRecord(bucket)) continue
+        const stats = toStats(bucket[metricKey])
+        if (stats) return stats
     }
     return null
 }

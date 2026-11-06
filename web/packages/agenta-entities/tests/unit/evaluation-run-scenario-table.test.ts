@@ -5,7 +5,12 @@
 import {describe, expect, it} from "vitest"
 
 import {columnGroupCheck, setColumnsVisible} from "../../src/evaluationRun/core/columnVisibility"
-import {metricCellText, scenarioMetricStats} from "../../src/evaluationRun/core/scenarioMetrics"
+import {formatMetricValue} from "../../src/evaluationRun/core/metricFormat"
+import {
+    metricCellText,
+    scenarioMetricStats,
+    stepMetricStats,
+} from "../../src/evaluationRun/core/scenarioMetrics"
 import {
     filterValueFromText,
     filterValueToText,
@@ -119,6 +124,21 @@ describe("scenario metrics", () => {
             {key: "ev", type: "annotation"},
         ]
         expect(metricCellText(TOKENS, scenarioMetricStats(metrics, steps, TOKENS))).toBe("1.5K")
+    })
+
+    it("A step's own metrics come from that step only, not from the app call", () => {
+        const metrics = [
+            {data: {app: {[COST]: one(0.000012), [DURATION]: one(522)}}},
+            {data: {ev: {[DURATION]: one(887), [TOKENS]: 126}}},
+        ]
+        const text = (step: string, key: string) =>
+            formatMetricValue(key, stepMetricStats(metrics, step, key))
+        expect(text("ev", DURATION)).toBe("887ms")
+        expect(text("ev", TOKENS)).toBe("126")
+        expect(stepMetricStats(metrics, "ev", COST)).toBeNull()
+        expect(text("app", COST)).toBe("$0.000012")
+        expect(stepMetricStats(metrics, "ts", DURATION)).toBeNull()
+        expect(stepMetricStats([{data: null}], "ev", DURATION)).toBeNull()
     })
 
     it("A metric no step reports has no value and prints a dash", () => {

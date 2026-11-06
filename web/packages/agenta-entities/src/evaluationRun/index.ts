@@ -145,6 +145,7 @@ export {
     METRIC_PLACEHOLDER,
     metricCellText,
     scenarioMetricStats,
+    stepMetricStats,
     columnGroupCheck,
     setColumnsVisible,
     type ColumnGroupCheck,
