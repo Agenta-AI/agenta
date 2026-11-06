@@ -75,12 +75,7 @@ export const EvaluationsScreen = ({
 
     const createMenu =
         canCreate && onCreate ? (
-            <CreateEvaluationMenu
-                tab={kind}
-                onCreate={onCreate}
-                kinds={createKinds}
-                label={kind === "all" ? "Start evaluation" : "New evaluation"}
-            />
+            <CreateEvaluationMenu tab={kind} onCreate={onCreate} kinds={createKinds} />
         ) : null
 
     return (
@@ -132,7 +127,9 @@ export const EvaluationsScreen = ({
                                         value={statuses}
                                         onChange={filters.setStatuses}
                                     />
-                                    {createMenu}
+                                    {createMenu ? (
+                                        <div className="ml-auto">{createMenu}</div>
+                                    ) : null}
                                 </>
                             }
                         />
