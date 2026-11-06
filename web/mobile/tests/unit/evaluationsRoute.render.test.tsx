@@ -44,11 +44,23 @@ vi.mock("@/features/evaluations/list/EvaluationsScreen", () => ({
     }) => {
         screen(createKinds)
         return createElement(
-            "button",
-            {"data-testid": "create-live", onClick: () => onCreate("online")},
-            "Evaluations screen",
+            "div",
+            null,
+            createElement(
+                "button",
+                {"data-testid": "create-live", onClick: () => onCreate("online")},
+                "Evaluations screen",
+            ),
+            createElement("button", {
+                "data-testid": "create-sdk",
+                onClick: () => onCreate("custom"),
+            }),
         )
     },
+}))
+vi.mock("@/features/evaluations/new/SdkEvaluationSheet", () => ({
+    SdkEvaluationSheet: ({open}: {open: boolean}) =>
+        open ? createElement("p", {"data-testid": "sdk-sheet"}, "SDK sheet") : null,
 }))
 vi.mock("@/features/evaluations/live/LiveEvaluationSheet", () => ({
     LiveEvaluationSheet: ({open, onCreated}: {open: boolean; onCreated: () => void}) =>
@@ -117,12 +129,23 @@ describe("evaluations route", () => {
         )
     })
 
+    it("Picking SDK evaluation opens the SDK setup sheet", async () => {
+        vi.stubEnv("NEXT_PUBLIC_AGENTA_DEVELOPER_VIEWS", "evaluations")
+        await mount()
+        expect(host.querySelector("[data-testid=sdk-sheet]")).toBeNull()
+        await act(async () => host.querySelector<HTMLElement>("[data-testid=create-sdk]")?.click())
+        await act(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 0))
+        })
+        expect(host.querySelector("[data-testid=sdk-sheet]")).not.toBeNull()
+    })
+
     it("An app scoped list offers no live evaluation", async () => {
         vi.stubEnv("NEXT_PUBLIC_AGENTA_DEVELOPER_VIEWS", "evaluations")
         await mount()
-        expect(screen).toHaveBeenLastCalledWith(["auto", "human", "online"])
+        expect(screen).toHaveBeenLastCalledWith(["auto", "human", "online", "custom"])
         nav.query = {workspace_id: "ws", project_id: "pr", app: "app-1"}
         await mount()
-        expect(screen).toHaveBeenLastCalledWith(["auto", "human"])
+        expect(screen).toHaveBeenLastCalledWith(["auto", "human", "custom"])
     })
 })

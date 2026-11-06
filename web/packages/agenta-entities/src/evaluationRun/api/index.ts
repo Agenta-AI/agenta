@@ -11,11 +11,14 @@ export {
     evaluationRunQueryKey,
     seedEvaluationRunCache,
     type EvaluationRunsPageParams,
+    type EvaluationRunReferenceFilter,
     type EvaluationRunsPage,
     type EvaluationRunsListKeyParams,
 } from "./runsList"
 export {
     deleteEvaluationRuns,
+    editEvaluationRun,
+    processNewEvaluatorSteps,
     startOnlineEvaluation,
     stopOnlineEvaluation,
     type EvaluationRunActionParams,
@@ -39,3 +42,10 @@ export {
     type EvaluationScenariosPage,
     type EvaluationScenariosPageParams,
 } from "./runDetails"
+export {
+    liveQueryRevisionSchema,
+    queryLiveQueryRevisions,
+    queryLiveQueries,
+    type LiveQuery,
+    type LiveQueryRevision,
+} from "./queryRevisions"

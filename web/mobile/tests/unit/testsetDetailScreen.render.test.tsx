@@ -5,12 +5,15 @@
  */
 import {act, type ReactNode} from "react"
 
+import {activeUserIdAtom, navSimplifiedOverrideAtom} from "@agenta/shared/state"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
-import {atom} from "jotai"
+import {atom, createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import TestsetDetailPage from "@/pages/w/[workspace_id]/p/[project_id]/testsets/[testset_id]"
+
+import {stubAxiosHttp, type RecordedRequest} from "./testsetHttp"
 
 const REVISION = "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f"
 
@@ -51,7 +54,9 @@ vi.mock("@/features/testsets/detail/useTestsetEditor", () => ({
     useTestsetEditor: () => state.editor,
 }))
 vi.mock("@/features/testsets/detail/TestsetHeader", () => ({
-    TestsetHeader: () => <p data-testid="header" />,
+    TestsetHeader: ({header}: {header: {testsetName: string}}) => (
+        <p data-testid="header">{header.testsetName}</p>
+    ),
 }))
 vi.mock("@/features/testsets/detail/TestsetToolbar", () => ({
     TestsetToolbar: ({onRowAdded}: {onRowAdded: (id: string) => void}) => {
@@ -60,9 +65,20 @@ vi.mock("@/features/testsets/detail/TestsetToolbar", () => ({
     },
 }))
 vi.mock("@/features/testsets/detail/TestsetGrid", () => ({
-    TestsetGrid: ({onOpenRow}: {onOpenRow: (id: string) => void}) => {
+    TestsetGrid: ({
+        onOpenRow,
+        actions,
+    }: {
+        onOpenRow: (id: string) => void
+        actions: (queueItemIds: string[]) => ReactNode
+    }) => {
         state.openRow = onOpenRow
-        return <p data-testid="grid" />
+        return (
+            <div>
+                {actions([])}
+                <p data-testid="grid" />
+            </div>
+        )
     },
 }))
 vi.mock("@agenta/entities/testcase", () => {
@@ -96,12 +112,15 @@ describe("Test set page", () => {
     let root: Root
     let host: HTMLDivElement
     let queryClient: QueryClient
+    let store: ReturnType<typeof createStore>
     const render = () =>
         act(() =>
             root.render(
-                <QueryClientProvider client={queryClient}>
-                    <TestsetDetailPage />
-                </QueryClientProvider>,
+                <Provider store={store}>
+                    <QueryClientProvider client={queryClient}>
+                        <TestsetDetailPage />
+                    </QueryClientProvider>
+                </Provider>,
             ),
         )
     const testId = (id: string) => host.querySelector(`[data-testid="${id}"]`)
@@ -114,6 +133,7 @@ describe("Test set page", () => {
         state.openRow = null
         state.rowAdded = null
         queryClient = new QueryClient()
+        store = createStore()
         host = document.createElement("div")
         document.body.append(host)
         root = createRoot(host)
@@ -204,5 +224,99 @@ describe("Test set page", () => {
         act(() => (state.drawer?.onClose as () => void)())
         act(() => state.openRow?.("case-1"))
         expect(state.drawer).toMatchObject({testcaseId: "case-1", discardOnCancel: false})
+    })
+
+    describe("an archived test set", () => {
+        let sent: RecordedRequest[]
+        let archived: boolean
+        const lookups = () => sent.filter((request) => request.url.endsWith("/testsets/set-1"))
+        const notice = "This test set is archived. It is read only until you restore it."
+        // React Query answers on a timer: let real time pass inside act until the page shows it.
+        const settle = (check: () => void) =>
+            vi.waitFor(
+                async () => {
+                    await act(() => new Promise((resolve) => setTimeout(resolve, 20)))
+                    check()
+                },
+                {timeout: 3000},
+            )
+
+        const setDeveloperMode = (on: boolean) => {
+            vi.stubGlobal("__env", {NEXT_PUBLIC_AGENTA_BETA_DEVELOPER_MODE: "true"})
+            localStorage.setItem("agenta:settings:u1:beta-developer-mode", JSON.stringify(on))
+            store.set(activeUserIdAtom, "u1")
+            store.set(navSimplifiedOverrideAtom, false)
+        }
+
+        beforeEach(() => {
+            archived = true
+            // The shared header found no test set: the lookup it uses leaves archived ones out.
+            state.editor = loadedEditor({
+                header: {testsetId: "set-1", testsetName: "", revisionVersion: 1},
+            })
+            sent = stubAxiosHttp((request) => {
+                if (request.url.endsWith("/unarchive")) {
+                    archived = false
+                    return {data: {}}
+                }
+                return {
+                    data: {
+                        testset: {
+                            id: "set-1",
+                            name: "Old smoke set",
+                            deleted_at: archived ? "2026-11-05T19:15:03Z" : null,
+                        },
+                    },
+                }
+            })
+        })
+        afterEach(() => {
+            vi.unstubAllGlobals()
+            localStorage.clear()
+        })
+
+        it("In developer mode it shows its name, says it is archived and opens rows view only", async () => {
+            setDeveloperMode(true)
+            render()
+
+            await settle(() => expect(host.textContent).toContain(notice))
+            expect(testId("header")?.textContent).toBe("Old smoke set")
+            expect(lookups()[0]).toMatchObject({method: "GET", params: {project_id: "pr"}})
+            act(() => state.openRow?.("case-1"))
+            expect(state.drawer).toMatchObject({testcaseId: "case-1", viewOnly: true})
+        })
+
+        it("Restore brings it back and the page becomes editable", async () => {
+            setDeveloperMode(true)
+            render()
+            await settle(() => expect(host.textContent).toContain(notice))
+
+            const restore = Array.from(host.querySelectorAll("button")).find(
+                (button) => button.textContent === "Restore",
+            )
+            await act(async () => restore?.click())
+
+            await settle(() => expect(host.textContent).not.toContain(notice))
+            expect(sent.filter((r) => r.method === "POST").map((r) => [r.url, r.params])).toEqual([
+                [
+                    expect.stringMatching(/\/simple\/testsets\/set-1\/unarchive$/),
+                    {project_id: "pr"},
+                ],
+            ])
+            expect(testId("header")?.textContent).toBe("Old smoke set")
+            act(() => state.openRow?.("case-1"))
+            expect(state.drawer).toMatchObject({viewOnly: false})
+        })
+
+        it("Without developer mode the page stays as it was and asks for nothing more", async () => {
+            setDeveloperMode(false)
+            render()
+            await act(async () => undefined)
+
+            expect(host.textContent).not.toContain(notice)
+            expect(lookups()).toEqual([])
+            act(() => state.openRow?.("case-1"))
+            expect(state.drawer).toMatchObject({viewOnly: false})
+        })
     })
 })

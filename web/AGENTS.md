@@ -425,6 +425,7 @@ the source of truth for this area. Load it when you:
   antd-style call sites; never raw antd `Modal`).
 - Use entity state (molecules), the loadable/runnable bridges, or the `EntityPicker`.
 - Write package unit tests (they live in `tests/unit/`, not `src/`).
+- Decide what to test or review tests: load the **`test-design`** skill (risk list, how to write each test, mutation check).
 
 Quick placement heuristic:
 

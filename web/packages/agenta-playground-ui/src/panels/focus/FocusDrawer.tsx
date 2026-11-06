@@ -111,21 +111,25 @@ export const FocusDrawer = ({renderTraceFooter, renderAddToQueue}: FocusDrawerPr
             collapseSignal,
         }: TestcaseDrawerContentRenderProps): ReactNode => {
             if (!rowId) return null
+            // The drawer renders outside the page: `data-playground` gives it the playground's
+            // editor style (see the app's globals.css).
             if (rootViewMode !== "form") {
                 return (
-                    <TestcaseDataEditor
-                        key={rowId}
-                        value={payload}
-                        onChange={handlePayloadChange}
-                        mode="edit"
-                        surface="drawer"
-                        features={{typeChips: true, rootViewMode: false, columnMapping: false}}
-                        rootViewMode={rootViewMode}
-                    />
+                    <div data-playground>
+                        <TestcaseDataEditor
+                            key={rowId}
+                            value={payload}
+                            onChange={handlePayloadChange}
+                            mode="edit"
+                            surface="drawer"
+                            features={{typeChips: true, rootViewMode: false, columnMapping: false}}
+                            rootViewMode={rootViewMode}
+                        />
+                    </div>
                 )
             }
             return (
-                <div className="flex flex-col gap-4">
+                <div data-playground className="flex flex-col gap-4">
                     <TestcaseDataEditor
                         key={rowId}
                         value={editorValue}

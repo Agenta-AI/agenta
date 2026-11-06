@@ -1,11 +1,17 @@
+import {createElement, type ComponentType} from "react"
+
+import {bindTraceDrawerProjectURLAtom} from "@agenta/observability/traceDrawer"
 import {
     type AddToQueuePopoverSlotProps,
     configureTraceDrawerReferences,
     type TraceDrawerReferenceSlots,
 } from "@agenta/observability-ui/traceDrawer"
+import {getDefaultStore} from "jotai"
 import dynamic from "next/dynamic"
 
 import {TraceSpanPanelSkeleton} from "./states/TraceSpanPanelSkeleton"
+import {traceDrawerProjectURLSourceAtom} from "./traceDrawerProjectURL"
+import type {TraceReferenceKind} from "./TraceReferenceLabel"
 
 type Slot = TraceDrawerReferenceSlots["TraceSpanDrillInView"]
 
@@ -32,6 +38,18 @@ const HeaderAction = dynamic<AddToQueuePopoverSlotProps>(
     {ssr: false},
 )
 
+// The reference chips (names, links, hovercard) share one chunk, loaded when a trace with
+// references first shows. Each slot only names its kind.
+const ReferenceLabel = dynamic<{kind: TraceReferenceKind} & Record<string, unknown>>(
+    () => import("./TraceReferenceLabel"),
+    {ssr: false},
+)
+const referenceSlot = (kind: TraceReferenceKind) =>
+    ((props: Record<string, unknown>) =>
+        createElement(ReferenceLabel, {...props, kind})) as unknown as ComponentType<
+        Record<string, unknown>
+    >
+
 /** Fills the drawer's data slots; their fallback renders nothing, which left every tab empty. */
 export const registerTraceDrawerSlots = () => {
     configureTraceDrawerReferences({
@@ -40,5 +58,12 @@ export const registerTraceDrawerSlots = () => {
         AddToQueuePopover: HeaderAction,
         AddToTestsetButton: HeaderAction as unknown as Slot,
         AnnotateDrawerButton: HeaderAction as unknown as Slot,
+        ApplicationReferenceLabel: referenceSlot("ApplicationReferenceLabel"),
+        VariantReferenceLabel: referenceSlot("VariantReferenceLabel"),
+        EnvironmentReferenceLabel: referenceSlot("EnvironmentReferenceLabel"),
+        EvaluatorReferenceLabel: referenceSlot("EvaluatorReferenceLabel"),
+        TestsetTag: referenceSlot("TestsetTag"),
     })
+    // Links in the drawer (references, evaluators) build on this; empty outside developer mode.
+    getDefaultStore().set(bindTraceDrawerProjectURLAtom, traceDrawerProjectURLSourceAtom)
 }

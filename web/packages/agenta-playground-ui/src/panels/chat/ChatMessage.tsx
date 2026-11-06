@@ -136,7 +136,8 @@ export const ChatMessage = memo(
             language,
             markdownView: chatViewMode === "text",
             enableTokens: !isCodeMode,
-            editorType: "borderless" as const,
+            // Each message is a bordered card, as in the old playground.
+            editorType: "border" as const,
             // On a narrow message the buttons wrap below the role.
             headerClassName: "flex-wrap",
         }

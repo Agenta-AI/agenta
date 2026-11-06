@@ -268,6 +268,45 @@ describe("overview charts", () => {
         expect(host.textContent).toContain("Exact match metrics are on the way")
     })
 
+    it("An online run's card shows the whole run's value, not the newest minute", () => {
+        const point = (minute: number, trueCount: number, count: number) => ({
+            timestamp: Date.UTC(2026, 9, 30, 9, minute),
+            stats: {
+                type: "binary",
+                frequency: [
+                    {value: true, count: trueCount},
+                    {value: false, count: count - trueCount},
+                ],
+            },
+        })
+        render(
+            createElement(MetricCardsSection, {
+                runId: RUN_ID,
+                runName: "Capitals check",
+                online: true,
+                metrics: [
+                    evaluatorMetric(
+                        "attributes.ag.data.outputs.score",
+                        {
+                            type: "binary",
+                            count: 88,
+                            frequency: [
+                                {value: true, count: 84},
+                                {value: false, count: 4},
+                            ],
+                        },
+                        {temporal: [point(0, 30, 30), point(10, 0, 2)]},
+                    ),
+                ],
+                hasEvaluators: true,
+                pending: false,
+                error: null,
+            }),
+        )
+        expect(host.textContent).toContain("Capitals check: 95.45%")
+        expect(host.textContent).not.toContain("0.00%")
+    })
+
     it("An online categorical metric draws one line per value", () => {
         const point = (minute: number, friendly: number, curt: number) => ({
             timestamp: Date.UTC(2026, 9, 30, 9, minute),

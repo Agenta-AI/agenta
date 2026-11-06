@@ -20,7 +20,7 @@ const EvaluatorChip = ({node, onRemove}: {node: PlaygroundNode; onRemove: () => 
         data?.version != null ? ` v${data.version}` : ""
     }`
     return (
-        <Badge variant="purple" className="max-w-40 shrink-0 gap-1 pr-0.5">
+        <Badge variant="success" className="max-w-40 shrink-0 gap-1 pr-0.5">
             <span className="truncate">{label}</span>
             <button
                 type="button"

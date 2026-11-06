@@ -1,5 +1,6 @@
-import {useState} from "react"
+import {useState, type ReactNode} from "react"
 
+import {WorkflowTypeTag} from "@agenta/entity-ui/workflow"
 import {Badge} from "@agenta/ui/ui"
 import {CaretDownIcon, CaretRightIcon} from "@phosphor-icons/react"
 
@@ -15,9 +16,18 @@ const MISSING = "—"
 const settingText = (value: unknown): string =>
     typeof value === "string" ? value : (JSON.stringify(value) ?? MISSING)
 
+/** A small labelled block of the open card, as the old app lays them out. */
+const Field = ({label, children}: {label: string; children: ReactNode}) => (
+    <div className="flex min-w-0 flex-col gap-1.5">
+        <span className="text-sm font-medium text-foreground">{label}</span>
+        {children}
+    </div>
+)
+
 /**
- * One evaluator of the run: its name (opens the revision drawer), version, description and
- * settings. The card collapses; a run that names no revision shows "Latest" instead of a version.
+ * One evaluator of the run: its name (opens the revision drawer), version, description, type,
+ * settings and the output metrics it returns. The card collapses; a run that names no revision
+ * shows "Latest" instead of a version.
  */
 export const EvaluatorConfigCard = ({
     evaluator,
@@ -28,7 +38,8 @@ export const EvaluatorConfigCard = ({
 }) => {
     const [open, setOpen] = useState(defaultOpen)
     const [, setRevisionId] = useRevisionParam()
-    const {name, description, version, latest, revisionId, settings} = evaluator
+    const {name, description, version, latest, revisionId, settings, evaluatorKey, outputs} =
+        evaluator
 
     const settingRows = Object.entries(settings ?? {}).map(([key, value]) => ({
         key,
@@ -83,7 +94,36 @@ export const EvaluatorConfigCard = ({
                             {description}
                         </p>
                     ) : null}
+                    {evaluatorKey ? (
+                        <Field label="Evaluator type">
+                            <span className="flex">
+                                <WorkflowTypeTag isEvaluator workflowKey={evaluatorKey} />
+                            </span>
+                        </Field>
+                    ) : null}
                     {settingRows.length > 0 ? <ConfigRows rows={settingRows} /> : null}
+                    {outputs.length > 0 ? (
+                        <Field label="Output metrics">
+                            <ul className="m-0 flex list-none flex-col gap-1 rounded-md border border-solid border-border p-2">
+                                {outputs.map((metric) => (
+                                    <li
+                                        key={metric.name}
+                                        className="flex min-w-0 flex-wrap items-center gap-2 text-sm"
+                                    >
+                                        <span className="font-semibold text-foreground">
+                                            {metric.name}
+                                        </span>
+                                        {metric.type ? (
+                                            <Badge variant="outlined">{metric.type}</Badge>
+                                        ) : null}
+                                        {metric.required ? (
+                                            <Badge variant="outlined">Required</Badge>
+                                        ) : null}
+                                    </li>
+                                ))}
+                            </ul>
+                        </Field>
+                    ) : null}
                     <ConfigJsonDisclosure value={evaluator.snapshot} />
                 </div>
             ) : null}

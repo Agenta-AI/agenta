@@ -3,14 +3,21 @@ import {useEffect} from "react"
 import type {RunTestsetReference} from "@agenta/entities/evaluationRun"
 import {revisionMolecule, testsetQueryAtomFamily} from "@agenta/entities/testset"
 import {Badge, Button, SkeletonBlock} from "@agenta/ui/ui"
+import {Database} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue, useSetAtom} from "jotai"
+
+import {RunReferenceChip} from "../overview/RunReferenceChip"
+import {useRunReferenceLinks} from "../overview/useRunReferenceLinks"
 
 import {ConfigRows, type ConfigRowData} from "./ConfigRows"
 
 const MISSING = "—"
 
-/** The rows of one test set: its name, how many test cases it has, its columns and description. */
+/**
+ * The rows of one test set: its name as a chip with the version the run used (a link to the test
+ * set when that page is on), how many test cases it has, its columns and description.
+ */
 export const TestsetRows = ({
     projectId,
     testset,
@@ -26,6 +33,7 @@ export const TestsetRows = ({
     // The columns come from the test case read, which has its own loading and error state.
     const casesRead = useAtomValue(revisionMolecule.atoms.withTestcasesQueryResult(revisionId))
     const queryClient = useQueryClient()
+    const links = useRunReferenceLinks()
 
     // The columns come from the test cases, which a revision loads only when asked.
     useEffect(() => {
@@ -42,7 +50,12 @@ export const TestsetRows = ({
             key: "name",
             label: "Test set",
             value: testsetQuery.data?.name ? (
-                <Badge variant="outlined">{testsetQuery.data.name}</Badge>
+                <RunReferenceChip
+                    icon={<Database size={14} />}
+                    label={testsetQuery.data.name}
+                    version={testset.version}
+                    href={revisionId ? links.testset(revisionId) : null}
+                />
             ) : testsetQuery.isPending ? (
                 <SkeletonBlock className="h-5 w-32" />
             ) : (

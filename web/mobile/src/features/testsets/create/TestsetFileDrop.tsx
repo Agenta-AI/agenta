@@ -14,6 +14,7 @@ import {FilePreviewTable} from "./FilePreviewTable"
 export const TestsetFileDrop = ({
     file,
     preview,
+    totalRows,
     error,
     disabled = false,
     onFile,
@@ -21,6 +22,8 @@ export const TestsetFileDrop = ({
 }: {
     file: File | null
     preview: Record<string, unknown>[]
+    /** Every data row in the file, for the "Preview (N of M rows)" label. */
+    totalRows: number
     error: string | null
     disabled?: boolean
     onFile: (file: File) => void
@@ -55,7 +58,7 @@ export const TestsetFileDrop = ({
                         <X aria-hidden size={14} />
                     </Button>
                 </div>
-                <FilePreviewTable rows={preview} />
+                <FilePreviewTable rows={preview} totalRows={totalRows} />
             </div>
         )
     }

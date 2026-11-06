@@ -21,6 +21,21 @@ export interface ListTableColumn {
      * columns.
      */
     headerClassName?: string
+    /**
+     * False keeps the column out of the column visibility menu. Control columns (`srOnly`) are
+     * never offered there either.
+     */
+    hideable?: boolean
+}
+
+/**
+ * One column of a CSV export. Separate from {@link ListTableColumn} because a cell draws a
+ * React node and a CSV field needs the plain value under it.
+ */
+export interface ListTableCsvColumn<Row> {
+    /** The header in the first line of the file. */
+    label: string
+    value: (row: Row) => string | number | boolean | null | undefined
 }
 
 /**

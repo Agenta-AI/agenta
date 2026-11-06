@@ -25,13 +25,33 @@ vi.mock("@agenta/entities/trace", async () => {
     const {atom} = await import("jotai")
     type Atom<T> = import("jotai").Atom<T>
     const loaded = atom({isPending: false, isError: false, data: {}})
-    const spans = new Map<string, Atom<{span_id: string; span_name: string}>>()
+    interface Span {
+        span_id: string
+        span_name: string
+        attributes: {ag: {data: object}}
+    }
+    const spans = new Map<string, Atom<Span>>()
     return {
         traceEntityAtomFamily: () => loaded,
+        extractAgData: (span: Span | null) => span?.attributes.ag.data ?? {},
         traceRootSpanAtomFamily: (traceId: string | null) => {
             const key = traceId ?? ""
             if (!spans.has(key)) {
-                spans.set(key, atom({span_id: `span-${key}`, span_name: `run ${key}`}))
+                spans.set(
+                    key,
+                    atom({
+                        span_id: `span-${key}`,
+                        span_name: `run ${key}`,
+                        attributes: {
+                            ag: {
+                                data: {
+                                    inputs: {messages: [{role: "user", content: `ask ${key}`}]},
+                                    outputs: {role: "assistant", content: `reply ${key}`},
+                                },
+                            },
+                        },
+                    }),
+                )
             }
             return spans.get(key)!
         },
@@ -166,6 +186,25 @@ describe("the All Annotations tab", () => {
         expect(rows()[1].textContent).toContain("Success")
         expect(rows()[1].textContent).toContain("friendly:")
         expect(rows()[1].textContent).toContain("very polite")
+    })
+
+    it("A trace queue shows each trace's last input and its reply", async () => {
+        await render()
+        const headers = Array.from(host.querySelectorAll("[role=columnheader]")).map(
+            (h) => h.textContent,
+        )
+        expect(headers.slice(2, 5)).toEqual(["Item", "Inputs", "Outputs"])
+        expect(rows()[0].textContent).toContain("ask trace-1")
+        expect(rows()[0].textContent).toContain("reply trace-1")
+    })
+
+    it("A test case queue has no inputs and outputs columns", async () => {
+        patchSession({queueKind: "testcases"})
+        await render()
+        const headers = Array.from(host.querySelectorAll("[role=columnheader]")).map(
+            (h) => h.textContent,
+        )
+        expect(headers).not.toContain("Inputs")
     })
 
     it("On a phone the metrics sit under the item, not in a column", async () => {
