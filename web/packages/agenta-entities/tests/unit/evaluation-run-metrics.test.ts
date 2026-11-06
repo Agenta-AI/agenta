@@ -498,6 +498,16 @@ describe("cost, duration and tokens of a live run", () => {
 
     it("without counts the means add up and there is no total", () => {
         expect(costOf({mean: 2}, {mean: 3})).toEqual({type: undefined, mean: 5})
+        // A total with no count says nothing per trace, so there is no average.
+        expect(costOf({count: 10, mean: 2}, {sum: 20})?.mean).toBeUndefined()
+    })
+
+    it("an evaluator with no traces adds nothing", () => {
+        expect(costOf({count: 10, mean: 2}, {count: 0, sum: 0})).toMatchObject({
+            mean: 2,
+            sum: 20,
+            count: 10,
+        })
     })
 
     it("a run with two app steps reads the first one, not their sum", () => {

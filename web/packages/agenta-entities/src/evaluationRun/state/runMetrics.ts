@@ -177,24 +177,26 @@ function sumCounts(all: (MetricStats | null)[]): MetricStats | null {
 /**
  * What several evaluators spend on one trace: their totals add up (a trace runs every evaluator)
  * and divide by the number of traces, the largest count. An evaluator that skipped some traces
- * adds only what it spent. Without counts, the means add up and there is no total.
+ * adds only what it spent. When an evaluator has no count, the means add up and there is no
+ * total; when one also has no mean, there is no average.
  */
 function sumPerTrace(all: (MetricStats | null)[]): MetricStats | null {
     const stats = all.filter((entry): entry is MetricStats => entry !== null)
     if (stats.length === 0) return null
-    const count = Math.max(...stats.map((entry) => entry.count ?? 0))
-    const totals = stats.map(
-        (entry) =>
-            entry.sum ??
-            (entry.mean !== undefined && entry.count ? entry.mean * entry.count : undefined),
-    )
-    if (count > 0 && totals.every((total) => total !== undefined)) {
-        const sum = totals.reduce<number>((acc, total) => acc + (total ?? 0), 0)
-        return {type: stats[0].type, mean: sum / count, sum, count}
+    const type = stats[0].type
+    if (stats.every((entry) => entry.count !== undefined)) {
+        const count = Math.max(...stats.map((entry) => entry.count ?? 0))
+        const totals = stats.map((entry) => entry.sum ?? (entry.mean ?? 0) * (entry.count ?? 0))
+        const sum = totals.reduce((acc, total) => acc + total, 0)
+        return count > 0 ? {type, mean: sum / count, sum, count} : {type, sum, count}
     }
-    const mean = (entry: MetricStats) =>
-        entry.mean ?? (entry.sum !== undefined && entry.count ? entry.sum / entry.count : 0)
-    return {type: stats[0].type, mean: stats.reduce((acc, entry) => acc + mean(entry), 0)}
+    const means = stats.map(
+        (entry) =>
+            entry.mean ??
+            (entry.sum !== undefined && entry.count ? entry.sum / entry.count : undefined),
+    )
+    if (means.some((mean) => mean === undefined)) return {type}
+    return {type, mean: means.reduce<number>((acc, mean) => acc + (mean ?? 0), 0)}
 }
 
 /** The points of several evaluators, combined per timestamp, oldest first. */
