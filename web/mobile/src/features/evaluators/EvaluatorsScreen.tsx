@@ -1,11 +1,14 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
+import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableToolbar} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
-import {TrayIcon} from "@phosphor-icons/react"
+import {PlusIcon, TrayIcon} from "@phosphor-icons/react"
+import {useAtomValue} from "jotai"
+import dynamic from "next/dynamic"
 import Link from "next/link"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -20,6 +23,8 @@ import {NavDrawer} from "../nav/NavDrawer"
 import {useRevisionParam} from "../revisions/useRevisionParam"
 
 import {ArchiveEvaluatorsDialog, type ArchiveTarget} from "./ArchiveEvaluatorsDialog"
+import {useCreateEvaluatorFromTemplate} from "./create/useCreateEvaluatorFromTemplate"
+import {useEvaluatorEditor} from "./create/useEvaluatorEditor"
 import {EvaluatorCategoryTabs} from "./EvaluatorCategoryTabs"
 import {archivedEvaluatorsUrl} from "./evaluatorPaths"
 import {EvaluatorsDrawer} from "./EvaluatorsDrawer"
@@ -30,6 +35,16 @@ import {useArchiveEvaluators} from "./useArchiveEvaluators"
 import {useEvaluatorCategory} from "./useEvaluatorCategory"
 import {useEvaluatorRevisions} from "./useEvaluatorRevisions"
 import {useEvaluators} from "./useEvaluators"
+
+// The picker and the editable drawer are their own chunks: the list downloads neither until used.
+const EvaluatorTemplatePicker = dynamic(
+    () => import("./create/EvaluatorTemplatePicker").then((m) => m.EvaluatorTemplatePicker),
+    {ssr: false},
+)
+const EvaluatorEditorDrawer = dynamic(
+    () => import("./create/EvaluatorEditorDrawer").then((m) => m.EvaluatorEditorDrawer),
+    {ssr: false},
+)
 
 /** The page column, shared with the other list pages, so the pages line up. */
 const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
@@ -85,6 +100,22 @@ export const EvaluatorsScreen = ({
     )
 
     const [, setRevisionId] = useRevisionParam()
+    // Beta developer mode creates and edits automatic evaluators in the editable drawer, as /w
+    // does. Without it the list keeps the read-only drawer and has no create.
+    const betaDeveloperMode = useAtomValue(betaDeveloperModeActiveAtom)
+    const editable = betaDeveloperMode && category === "automatic"
+    const editor = useEvaluatorEditor(editable)
+    const [pickerOpen, setPickerOpen] = useState(false)
+    const template = useCreateEvaluatorFromTemplate(
+        useCallback(
+            (localId: string) => {
+                setPickerOpen(false)
+                editor.openDraft(localId)
+            },
+            [editor],
+        ),
+    )
+    const openCreate = editable && canEdit ? () => setPickerOpen(true) : undefined
     const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
     const [archiveIds, setArchiveIds] = useState<readonly string[]>([])
     const [inUseRunCount, setInUseRunCount] = useState<number | null>(null)
@@ -189,19 +220,31 @@ export const EvaluatorsScreen = ({
                                         Archive
                                     </Button>
                                 ) : (
-                                    <Button asChild size="sm" variant="ghost">
-                                        <Link
-                                            href={archivedEvaluatorsUrl(
-                                                workspaceId,
-                                                projectId,
-                                                category,
-                                            )}
-                                            prefetch={false}
-                                        >
-                                            <TrayIcon aria-hidden />
-                                            Archived
-                                        </Link>
-                                    </Button>
+                                    <>
+                                        <Button asChild size="sm" variant="ghost">
+                                            <Link
+                                                href={archivedEvaluatorsUrl(
+                                                    workspaceId,
+                                                    projectId,
+                                                    category,
+                                                )}
+                                                prefetch={false}
+                                            >
+                                                <TrayIcon aria-hidden />
+                                                Archived
+                                            </Link>
+                                        </Button>
+                                        {openCreate ? (
+                                            <Button
+                                                size="sm"
+                                                className="ml-auto"
+                                                onClick={openCreate}
+                                            >
+                                                <PlusIcon aria-hidden />
+                                                Create new
+                                            </Button>
+                                        ) : null}
+                                    </>
                                 )
                             }
                         />
@@ -221,6 +264,7 @@ export const EvaluatorsScreen = ({
                                             category={category}
                                             term={trimmed || undefined}
                                             onClear={search.reset}
+                                            onCreate={openCreate}
                                         />
                                     }
                                     onToggle={toggle}
@@ -251,8 +295,27 @@ export const EvaluatorsScreen = ({
                 onConfirm={() => void confirmArchive()}
                 onClose={closeDialog}
             />
-            {view.allowed ? (
+            {view.allowed && !editable ? (
                 <EvaluatorsDrawer navigationIds={navigationIds} playgroundBase={playgroundBase} />
+            ) : null}
+            {pickerOpen ? (
+                <EvaluatorTemplatePicker
+                    open
+                    pendingKey={template.pendingKey}
+                    onOpenChange={setPickerOpen}
+                    onPick={(picked) => void template.start(picked)}
+                />
+            ) : null}
+            {view.allowed && editor.editorId ? (
+                <EvaluatorEditorDrawer
+                    projectId={projectId}
+                    revisionId={editor.editorId}
+                    navigationIds={navigationIds}
+                    playgroundBase={playgroundBase}
+                    onNavigate={editor.show}
+                    onClose={editor.close}
+                    onSaved={editor.show}
+                />
             ) : null}
         </>
     )

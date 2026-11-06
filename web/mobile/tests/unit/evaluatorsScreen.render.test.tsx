@@ -14,6 +14,8 @@ const state = vi.hoisted(() => ({
     failedLookups: new Set<string>(),
     recheck: vi.fn(),
     replace: vi.fn(),
+    beta: false,
+    createdLocal: "local-new" as string | null,
 }))
 const api = vi.hoisted(() => ({
     queryWorkflows: vi.fn(),
@@ -39,6 +41,7 @@ vi.mock("@agenta/entities/workflow", async (original) => {
         queryWorkflowRevisionsByWorkflows: (...args: unknown[]) => api.queryRevisions(...args),
         archiveWorkflow: (...args: unknown[]) => api.archiveWorkflow(...args),
         invalidateEvaluatorsListCache: noop,
+        createEvaluatorFromTemplate: async () => state.createdLocal,
         evaluatorTemplatesDataAtom: templates,
     }
 })
@@ -75,6 +78,40 @@ vi.mock("@/features/revisions/RevisionDrawerHost", () => ({
             "data-kind": kind,
             "data-ids": navigationIds.join(","),
         }),
+}))
+vi.mock("@agenta/shared/state", async (original) => {
+    const {atom} = await import("jotai")
+    return {
+        ...(await original<object>()),
+        betaDeveloperModeActiveAtom: atom(() => state.beta),
+    }
+})
+// The picker and the editable drawer are separate chunks. Stand in for them, and keep what the
+// page hands them visible.
+vi.mock("@/features/evaluators/create/EvaluatorTemplatePicker", () => ({
+    EvaluatorTemplatePicker: ({onPick}: {onPick: (template: {key: string}) => void}) =>
+        createElement(
+            "button",
+            {"data-testid": "template-picker", onClick: () => onPick({key: "auto_regex_test"})},
+            "Pick Regex Test",
+        ),
+}))
+vi.mock("@/features/evaluators/create/EvaluatorEditorDrawer", () => ({
+    EvaluatorEditorDrawer: ({
+        revisionId,
+        onSaved,
+        onClose,
+    }: {
+        revisionId: string
+        onSaved: (id: string) => void
+        onClose: () => void
+    }) =>
+        createElement(
+            "div",
+            {"data-testid": "editor-drawer", "data-revision": revisionId},
+            createElement("button", {onClick: () => onSaved("w9-r1")}, "Create in drawer"),
+            createElement("button", {onClick: onClose}, "Close drawer"),
+        ),
 }))
 vi.mock("@/features/nav/AppShell", () => ({
     AppShell: ({children}: {children: React.ReactNode}) => createElement("div", null, children),
@@ -146,6 +183,8 @@ beforeEach(() => {
     state.failedLookups = new Set()
     state.recheck.mockReset()
     state.replace.mockReset()
+    state.beta = false
+    state.createdLocal = "local-new"
     Object.values(api).forEach((mock) => mock.mockReset())
     server = makeEvaluatorServer()
     api.queryWorkflows.mockImplementation(async () => ({workflows: server.workflows}))
@@ -249,6 +288,67 @@ describe("EvaluatorsScreen", () => {
         })
         const items = [...document.querySelectorAll('[role="menuitem"]')].map((i) => i.textContent)
         expect(items).toEqual(["Configure", "Copy ID", "Copy Slug", "Archive"])
+    })
+
+    it("Without beta developer mode there is no Create new and a row opens the read-only drawer", async () => {
+        state.query = {revisionId: "w1-r3"}
+        await mount()
+        await flush()
+        expect(button(/^Create new$/)).toBeUndefined()
+        expect(document.querySelector('[data-testid="drawer"]')).not.toBeNull()
+        expect(document.querySelector('[data-testid="editor-drawer"]')).toBeNull()
+    })
+
+    it("In beta developer mode a row opens the editable drawer on that revision", async () => {
+        state.beta = true
+        state.query = {revisionId: "w1-r2"}
+        await mount()
+        await flush()
+        const editor = document.querySelector('[data-testid="editor-drawer"]')
+        expect(editor?.getAttribute("data-revision")).toBe("w1-r2")
+        expect(document.querySelector('[data-testid="drawer"]')).toBeNull()
+    })
+
+    it("A picked template opens the editable drawer on the new local evaluator, which stays open after Create", async () => {
+        state.beta = true
+        await mount()
+        await act(async () => button(/^Create new$/)?.click())
+        await flush()
+        await act(async () => button(/^Pick Regex Test$/)?.click())
+        await flush()
+        expect(document.querySelector('[data-testid="template-picker"]')).toBeNull()
+        const editor = () => document.querySelector('[data-testid="editor-drawer"]')
+        expect(editor()?.getAttribute("data-revision")).toBe("local-new")
+        await act(async () => button(/^Create in drawer$/)?.click())
+        // The address names the new evaluator; until it does, the drawer stays on the draft.
+        expect(state.replace).toHaveBeenCalledWith(
+            expect.objectContaining({query: expect.objectContaining({revisionId: "w9-r1"})}),
+            undefined,
+            {shallow: true},
+        )
+        expect(editor()).not.toBeNull()
+    })
+
+    it("A template that cannot be opened leaves the picker open", async () => {
+        state.beta = true
+        state.createdLocal = null
+        await mount()
+        await act(async () => button(/^Create new$/)?.click())
+        await flush()
+        await act(async () => button(/^Pick Regex Test$/)?.click())
+        await flush()
+        expect(document.querySelector('[data-testid="template-picker"]')).not.toBeNull()
+        expect(document.querySelector('[data-testid="editor-drawer"]')).toBeNull()
+        expect(api.error).toHaveBeenCalled()
+    })
+
+    it("The human tab has no automatic create and keeps the read-only drawer in beta mode", async () => {
+        state.beta = true
+        state.query = {tab: "human", revisionId: "w3-r2"}
+        await mount()
+        await flush()
+        expect(button(/^Create new$/)).toBeUndefined()
+        expect(document.querySelector('[data-testid="drawer"]')).not.toBeNull()
     })
 
     it("Clicking a row opens the evaluator drawer", async () => {
