@@ -1,5 +1,4 @@
 import {runHeaderAtomFamily} from "@agenta/entities/evaluationRun"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useAtomValue} from "jotai"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -7,16 +6,15 @@ import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMembers"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
+import {useDeveloperPageFrame, useDetailHeaderTop} from "../developer/developerPageFrame"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
 import {RunDetailsBody} from "./RunDetailsBody"
 import {RunDetailsHeader} from "./RunDetailsHeader"
 
-const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
-
 /**
- * One evaluation run: its title with the run menu, a Pause or Resume action for a live run, the
+ * One evaluation run: its title with the run menu, a Stop or Resume action for a live run, the
  * run chips with Compare, and its tabs. Opening the page only reads the run; nothing is written.
  */
 export const RunDetailsScreen = ({
@@ -28,6 +26,8 @@ export const RunDetailsScreen = ({
     projectId: string
     runId: string
 }) => {
+    const PAGE_FRAME = useDeveloperPageFrame()
+    const headerTop = useDetailHeaderTop()
     useBindWorkspaceMembers()
     useBindProjectContext(projectId)
     const header = useAtomValue(runHeaderAtomFamily(runId))
@@ -39,7 +39,7 @@ export const RunDetailsScreen = ({
                 <ScreenScaffold
                     header={
                         <div
-                            className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${PAGE_FRAME}`}
+                            className={`box-border shrink-0 px-4 pb-3 pt-3 ${headerTop} ${PAGE_FRAME}`}
                         >
                             <RunDetailsHeader
                                 workspaceId={workspaceId}

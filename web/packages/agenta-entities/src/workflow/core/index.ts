@@ -71,6 +71,14 @@ export {
     type EvaluatorListMode,
 } from "./selectEvaluators"
 
+// The feedback fields of a human evaluator
+export {
+    CHOICE_FEEDBACK_TYPES,
+    HUMAN_FEEDBACK_TYPES,
+    NUMERIC_FEEDBACK_TYPES,
+    humanEvaluatorMetricsFromSchema,
+} from "./humanEvaluatorMetrics"
+
 // API parameter types
 export type {
     WorkflowListParams,
