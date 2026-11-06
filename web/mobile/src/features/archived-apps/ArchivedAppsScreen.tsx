@@ -2,7 +2,6 @@ import {useCallback, useMemo, useState} from "react"
 
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {
     ListTableExportButton,
@@ -24,6 +23,7 @@ import {projectHomeUrl} from "@/lib/context"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useProjectPermission} from "../context/useProjectPermission"
+import {useDeveloperPageFrame} from "../developer/developerPageFrame"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
@@ -33,9 +33,6 @@ import {ArchivedAppsEmpty} from "./states/ArchivedAppsEmpty"
 import {useArchivedApps} from "./useArchivedApps"
 import {useRestoreArchivedApp} from "./useRestoreArchivedApp"
 
-/** The page column, shared with the agents roster, so the pages line up. */
-const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
-
 const CSV_COLUMNS: ListTableCsvColumn<ArchivedAppRow>[] = [
     {label: "Name", value: (row) => row.name},
     {label: "Created At", value: (row) => row.createdAt},
@@ -43,6 +40,7 @@ const CSV_COLUMNS: ListTableCsvColumn<ArchivedAppRow>[] = [
 ]
 const CSV_FILE_NAME = "archived-apps.csv"
 
+/** The page column, shared with the agents roster, so the pages line up. */
 /**
  * The archived apps (prompt apps and custom workflows) with Restore. Archived agents live on the
  * Agents page, under "Only archived".
@@ -54,6 +52,7 @@ export const ArchivedAppsScreen = ({
     workspaceId: string
     projectId: string
 }) => {
+    const PAGE_FRAME = useDeveloperPageFrame()
     useBindWorkspaceMembers()
     useBindProjectContext(projectId)
     const [term, setTerm] = useState("")

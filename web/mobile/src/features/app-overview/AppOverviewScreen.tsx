@@ -1,8 +1,10 @@
 import {useEffect} from "react"
 
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
+import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useQueryClient} from "@tanstack/react-query"
+import {useAtomValue} from "jotai"
+import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
 import {PageNotFound} from "@/components/PageNotFound"
@@ -11,6 +13,7 @@ import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {agentEntryHref} from "../agents/agentEntry"
 import {useBindProjectContext} from "../context/useBindProjectContext"
+import {useDeveloperPageFrame} from "../developer/developerPageFrame"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
@@ -18,11 +21,17 @@ import {AppActionsMenu} from "./AppActionsMenu"
 import {AppDeploymentSection} from "./AppDeploymentSection"
 import {AppEvaluationsSection} from "./AppEvaluationsSection"
 import {AppRecentPromptsSection} from "./AppRecentPromptsSection"
+import {BindWorkspaceMembers} from "./BindWorkspaceMembers"
 import {AppOverviewSkeleton} from "./states/AppOverviewSkeleton"
 import {AppTitleSkeleton} from "./states/AppTitleSkeleton"
+import {AppUsageSkeleton} from "./states/AppUsageSkeleton"
 import {useOverviewApp} from "./useOverviewApp"
 
-const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
+// The charts download only in beta developer mode, after the overview itself.
+const AppUsageSection = dynamic(() => import("./AppUsageSection").then((m) => m.AppUsageSection), {
+    ssr: false,
+    loading: () => <AppUsageSkeleton />,
+})
 
 /**
  * The overview of one prompt or custom app: where it is deployed, its newest prompts, and its
@@ -30,7 +39,7 @@ const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
  * An archived app opens too, without its actions menu.
  * An id that is no app here (unknown, or an evaluator) is "not found".
  *
- * Each section loads and fails on its own. The usage charts are not part of this screen yet.
+ * Each section loads and fails on its own. The usage charts show only in beta developer mode.
  */
 export const AppOverviewScreen = ({
     workspaceId,
@@ -41,11 +50,15 @@ export const AppOverviewScreen = ({
     projectId: string
     appId: string
 }) => {
+    const PAGE_FRAME = useDeveloperPageFrame()
     useBindProjectContext(projectId)
     const router = useRouter()
     const queryClient = useQueryClient()
     const base = `/w/${workspaceId}/p/${projectId}`
     const overview = useOverviewApp(projectId, appId)
+    // Beta developer mode matches /w: the menu sits right after the title, and authors show names.
+    const beta = useAtomValue(betaDeveloperModeActiveAtom)
+    const showUsage = beta
     const status = overview.status
 
     useEffect(() => {
@@ -60,7 +73,8 @@ export const AppOverviewScreen = ({
 
     return (
         <>
-            <PageTitle title="Overview" />
+            <PageTitle title="Overview" context={title ?? undefined} />
+            {beta ? <BindWorkspaceMembers /> : null}
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
@@ -74,7 +88,9 @@ export const AppOverviewScreen = ({
                                         <AppTitleSkeleton />
                                     </div>
                                 ) : (
-                                    <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px]">
+                                    <h1
+                                        className={`m-0 min-w-0 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] ${beta ? "" : "flex-1"}`}
+                                    >
                                         {title}
                                     </h1>
                                 )}
@@ -96,6 +112,7 @@ export const AppOverviewScreen = ({
                             />
                         ) : app ? (
                             <div className="flex flex-col gap-8">
+                                {showUsage ? <AppUsageSection appId={app.id} /> : null}
                                 <AppDeploymentSection app={app} base={base} />
                                 <AppRecentPromptsSection
                                     projectId={projectId}
