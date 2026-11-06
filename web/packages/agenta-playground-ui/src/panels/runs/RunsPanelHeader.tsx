@@ -63,7 +63,9 @@ export const RunsPanelHeader = ({
                             <ArrowsInLineVertical size={size} />
                         )
                     }
-                    className="items-center text-base font-semibold text-nowrap"
+                    // On a phone the pane switch above already says "Generations": the label hides
+                    // there and the fold icon stays.
+                    className="items-center text-base font-semibold text-nowrap max-sm:[&>span:last-child]:sr-only"
                 />
             ) : (
                 <span className="text-base font-semibold text-nowrap">{label}</span>
