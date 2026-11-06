@@ -95,3 +95,31 @@ export function selectLiveEvaluators<
         (revision) => revision.flags?.is_feedback !== true && isOnlineCapableEvaluator(revision),
     )
 }
+
+/** One stored query condition, as the API returns it. */
+export interface StoredQueryCondition {
+    field: string
+    key?: string
+    operator: string
+    value: unknown
+}
+
+const isConditionNode = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null && !Array.isArray(value)
+
+/**
+ * The conditions of a stored query, depth first: nested condition groups flatten into one list,
+ * the way the old app's query preview reads them. A condition with neither field nor key is
+ * skipped; an empty operator reads as "is".
+ */
+export function flattenQueryConditions(filtering: unknown): StoredQueryCondition[] {
+    if (!isConditionNode(filtering)) return []
+    if (Array.isArray(filtering.conditions)) {
+        return filtering.conditions.flatMap((child) => flattenQueryConditions(child))
+    }
+    const field = typeof filtering.field === "string" ? filtering.field : ""
+    const key = typeof filtering.key === "string" && filtering.key ? filtering.key : undefined
+    if (!field && !key) return []
+    const operator = typeof filtering.operator === "string" ? filtering.operator.trim() : ""
+    return [{field: field || key || "", key, operator: operator || "is", value: filtering.value}]
+}

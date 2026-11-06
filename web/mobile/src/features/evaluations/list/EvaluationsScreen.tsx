@@ -143,6 +143,7 @@ export const EvaluationsScreen = ({
                             <>
                                 <EvaluationRunsTable
                                     runs={list.runs}
+                                    kind={kind}
                                     isLoading={list.isPending}
                                     scope={appId ? "app" : "project"}
                                     actions={actions}
