@@ -6,7 +6,7 @@ import {useAtomValue} from "jotai"
 import {RunDetailsTitle} from "./RunDetailsTitle"
 import {RunOnlineToggle} from "./RunOnlineToggle"
 
-/** The title row: the nav button, the run name, and Pause or Resume on a live run. */
+/** The title row: the nav button, the run name, and Stop or Resume on a live run. */
 export const RunDetailsHeader = ({
     projectId,
     runId,

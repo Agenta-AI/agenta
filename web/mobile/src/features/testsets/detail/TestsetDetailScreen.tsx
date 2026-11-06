@@ -3,7 +3,6 @@ import {useCallback, useMemo, useState} from "react"
 import {testcaseDataController, type TestcaseTableRow} from "@agenta/entities/testcase"
 import {useTestcaseDrawerNavigation} from "@agenta/entity-ui/testcase"
 import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
@@ -17,6 +16,7 @@ import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMember
 
 import {useBindProjectContext} from "../../context/useBindProjectContext"
 import {useProjectPermission} from "../../context/useProjectPermission"
+import {useDeveloperPageFrame, useDetailHeaderTop} from "../../developer/developerPageFrame"
 import {AppShell} from "../../nav/AppShell"
 import {NavDrawer} from "../../nav/NavDrawer"
 
@@ -44,8 +44,6 @@ const ImportRevisionDialog = dynamic(
     {ssr: false},
 )
 
-const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
-
 const rowId = (row: TestcaseTableRow) => row.id
 
 /**
@@ -67,6 +65,8 @@ export const TestsetDetailScreen = ({
     routeId: string
     nameFromUrl: string | null
 }) => {
+    const PAGE_FRAME = useDeveloperPageFrame()
+    const headerTop = useDetailHeaderTop()
     useBindWorkspaceMembers()
     useBindProjectContext(projectId)
     const router = useRouter()
@@ -176,7 +176,6 @@ export const TestsetDetailScreen = ({
             ) : null}
             <TestsetToolbar
                 editor={editor}
-                routeId={routeId}
                 base={base}
                 canEdit={canEdit}
                 revisions={revisions}
@@ -185,12 +184,7 @@ export const TestsetDetailScreen = ({
                 commitOpen={commitOpen}
                 onCommitOpenChange={setCommitOpen}
             />
-            <TestsetGrid
-                editor={editor}
-                canEdit={canEdit}
-                onOpenRow={openRow}
-                onColumnSaved={(id) => go(testsetRevisionPath(base, id))}
-            />
+            <TestsetGrid editor={editor} canEdit={canEdit} onOpenRow={openRow} />
         </div>
     )
 
@@ -200,7 +194,7 @@ export const TestsetDetailScreen = ({
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
-                        <div className={`box-border shrink-0 px-4 pt-3 lg:pt-14 ${PAGE_FRAME}`}>
+                        <div className={`box-border shrink-0 px-4 pt-3 ${headerTop} ${PAGE_FRAME}`}>
                             <div className="flex min-w-0 items-start gap-2">
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
                                 {ready ? (
