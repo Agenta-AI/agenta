@@ -13,14 +13,23 @@ export const MAX_CELL_CHARS = 500
 // Keep default/inherited text color to avoid visual bias in mixed-content tables.
 export const JSON_HIGHLIGHT_CLASS = "text-inherit"
 
-// Chat message role colors. The first three are theme status tokens, which both apps define and
-// which follow dark mode; the antd scale (`text-blue-6`) exists only in the old app.
+// Chat message role colors - using Ant Design semantic color tokens
+// Maps role names to Tailwind classes based on the design system
 export const ROLE_COLOR_CLASSES: Record<string, string> = {
+    user: "text-blue-6", // colorInfo
+    assistant: "text-green-6", // colorSuccess
+    system: "text-gold-6", // colorWarning
+    function: "text-purple-6", // purple semantic
+    tool: "text-magenta-6", // magenta semantic
+}
+
+// The same roles on the theme status tokens. Opt-in through `RoleColorClassesProvider`: /m has no
+// antd color scale, and the old app keeps the map above.
+export const THEME_ROLE_COLOR_CLASSES: Record<string, string> = {
+    ...ROLE_COLOR_CLASSES,
     user: "text-colorInfo",
     assistant: "text-colorSuccess",
     system: "text-colorWarning",
-    function: "text-purple-6", // purple semantic
-    tool: "text-magenta-6", // magenta semantic
 }
 
 // Default role color class for unknown roles

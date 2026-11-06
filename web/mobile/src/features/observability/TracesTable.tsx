@@ -3,6 +3,7 @@ import type {Key} from "react"
 import {useObservability} from "@agenta/observability"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {EmptyObservability, ObservabilityTracesTable} from "@agenta/observability-ui"
+import {RoleColorClassesProvider, THEME_ROLE_COLOR_CLASSES} from "@agenta/ui/cell-renderers"
 import {useSetAtom} from "jotai"
 
 import {
@@ -39,29 +40,32 @@ export const TracesTable = ({
     }
 
     return (
-        <ObservabilityTracesTable
-            className={`min-h-0 flex-1 ${ROW_LINES}`}
-            loadingState={<ObservabilityListSkeleton />}
-            emptyState={
-                filters.length > 0 ? (
-                    <ObservabilityFiltered onClear={() => setFilters([])} />
-                ) : (
-                    <ObservabilityEmpty />
-                )
-            }
-            rowSelection={{
-                type: "checkbox",
-                selectedRowKeys,
-                onChange: (keys) => onSelectionChange(keys),
-            }}
-            // Tapping a row opens the trace drawer.
-            onRowClick={(record) =>
-                openTraceDrawer({
-                    traceId: record.trace_id || record.key,
-                    activeSpanId: record.span_id ?? null,
-                })
-            }
-        />
+        // The role labels in the message cells take the theme colors; /m has no antd color scale.
+        <RoleColorClassesProvider value={THEME_ROLE_COLOR_CLASSES}>
+            <ObservabilityTracesTable
+                className={`min-h-0 flex-1 ${ROW_LINES}`}
+                loadingState={<ObservabilityListSkeleton />}
+                emptyState={
+                    filters.length > 0 ? (
+                        <ObservabilityFiltered onClear={() => setFilters([])} />
+                    ) : (
+                        <ObservabilityEmpty />
+                    )
+                }
+                rowSelection={{
+                    type: "checkbox",
+                    selectedRowKeys,
+                    onChange: (keys) => onSelectionChange(keys),
+                }}
+                // Tapping a row opens the trace drawer.
+                onRowClick={(record) =>
+                    openTraceDrawer({
+                        traceId: record.trace_id || record.key,
+                        activeSpanId: record.span_id ?? null,
+                    })
+                }
+            />
+        </RoleColorClassesProvider>
     )
 }
 
