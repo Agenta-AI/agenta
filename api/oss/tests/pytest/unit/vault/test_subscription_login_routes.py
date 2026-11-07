@@ -1533,14 +1533,19 @@ class TestClaudeSubscriptionToken:
         assert "sk-ant-api03" not in response.text
         assert harness.anthropic.requests == []
 
-    def test_a_token_broken_by_a_line_wrap_is_refused_unchecked(self, harness):
+    def test_a_token_broken_by_a_line_wrap_is_joined_and_stored(self, harness):
+        """A terminal that wraps the long token adds spaces or line breaks on copy."""
         secret_id = _create_claude(harness.client)
+        broken = (
+            f"{CLAUDE_TOKEN[:20]} \n{CLAUDE_TOKEN[20:30]}\t{CLAUDE_TOKEN[30:]}\u00a0"
+        )
 
-        response = _put_token(harness, secret_id, "sk-ant-oat01-first\nsecond")
+        response = _put_token(harness, secret_id, broken)
 
-        assert response.status_code == 422
-        assert response.json()["detail"]["code"] == "subscription_token_rejected"
-        assert harness.anthropic.requests == []
+        assert response.status_code == 200, response.text
+        [request] = harness.anthropic.requests
+        assert request.headers["authorization"] == f"Bearer {CLAUDE_TOKEN}"
+        assert _stored_login(harness, secret_id)["login"]["access"] == CLAUDE_TOKEN
 
     def test_a_malformed_body_never_echoes_the_token(self, harness):
         secret_id = _create_claude(harness.client)
