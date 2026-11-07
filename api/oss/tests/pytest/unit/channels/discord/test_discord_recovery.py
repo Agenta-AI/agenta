@@ -2,11 +2,16 @@
 history after the snapshot taken when the socket closed, and passes each missed
 message through the shared step. A resume skips it."""
 
+import json
+
+import httpx
 import pytest
 
+from oss.src.core.channels.adapters.discord.adapter import DiscordAdapter
 from oss.src.core.channels.dtos import ChannelEventOrigin
 from oss.src.tasks.asyncio.channels.discord_socket import DiscordSocket
 
+from . import payloads as p
 from .socket_fakes import (
     FakeAdapter,
     FakeChannelsService,
@@ -165,3 +170,67 @@ async def test_quiet_channel_is_skipped_and_pages_go_forward():
     assert [read[0] for read in adapter.history_reads] == ["C", "C", "C"]
     assert [read[1] for read in adapter.history_reads] == ["100", "300", "400"]
     assert service.enqueued == ["100", "200", "300", "400"]
+
+
+# --- with the real adapter --------------------------------------------------- #
+
+
+async def test_recovery_reads_pages_after_the_snapshot_through_the_real_adapter():
+    channel_id = p.CHANNEL_ID
+    stored = p.message("live", message_id="1200000000000000100")
+    missed = [
+        p.message(f"missed {i}", message_id=str(1200000000000000100 + i))["d"]
+        for i in (1, 2)
+    ]
+    reads = []
+
+    def _discord(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith(f"/channels/{channel_id}/messages"):
+            after = int(request.url.params["after"])
+            reads.append(after)
+            newer = [m for m in missed if int(m["id"]) > after]
+            # Discord answers newest first, without guild_id or channel_type.
+            body = [
+                {k: v for k, v in m.items() if k not in ("guild_id", "channel_type")}
+                for m in reversed(newer)
+            ]
+            return httpx.Response(200, json=body)
+        if request.url.path.endswith(f"/channels/{channel_id}"):
+            return httpx.Response(200, json={"id": channel_id, "type": 0})
+        return httpx.Response(404, json={"code": 0})
+
+    adapter = DiscordAdapter(
+        http_client=httpx.AsyncClient(
+            transport=httpx.MockTransport(_discord), base_url="https://discord.test"
+        )
+    )
+    service = FakeChannelsService(adapter)
+    socket = _socket(service)
+    socket.connection = socket.connection.model_copy(
+        update={
+            "data": {
+                "bot_token": p.BOT_TOKEN,
+                "bot_user_id": p.BOT_USER_ID,
+                "bot_username": p.BOT_USERNAME,
+            }
+        }
+    )
+    service.connections[socket.connection.id] = socket.connection
+    socket.receive(json.dumps({"op": 0, **stored}))
+    await until(lambda: not socket.tasks)
+    assert service.enqueued == ["1200000000000000100"]
+
+    socket.disconnected()
+    await _recover(socket)
+
+    assert reads == [1200000000000000100, 1200000000000000102]
+    assert service.enqueued == [
+        "1200000000000000100",
+        "1200000000000000101",
+        "1200000000000000102",
+    ]
+    locator = service.rows[
+        (socket.connection.id, "1200000000000000101")
+    ].data.external_locator
+    assert locator["guild_id"] == p.GUILD_ID
+    assert locator["source_channel_id"] == channel_id

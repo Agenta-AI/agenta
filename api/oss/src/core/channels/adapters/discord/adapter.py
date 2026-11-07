@@ -423,6 +423,25 @@ class DiscordAdapter(ChannelAdapterInterface):
                 events.append(event)
         return events
 
+    async def fetch_messages_after(
+        self, *, connection: ChannelConnection, channel_id: str, after: str
+    ) -> List[Dict[str, Any]]:
+        """One page of the messages after `after` in one channel, oldest first,
+        as raw message objects. The socket loop's recovery pages forward with
+        it and feeds each one to `parse_event`, so it is parsed like a live
+        message."""
+
+        messages = await self._request(
+            _bot_token(connection),
+            "GET",
+            f"/channels/{channel_id}/messages",
+            params={"after": after, "limit": _HISTORY_PAGE_MAX},
+        )
+        if not isinstance(messages, list):
+            return []
+        # Discord answers newest first.
+        return sorted(messages, key=lambda message: int(message["id"]))
+
     # --- internals --- #
 
     async def _request(
