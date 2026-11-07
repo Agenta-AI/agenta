@@ -43,7 +43,12 @@ class FakeDiscord:
         self.flags = flags
         # channel id -> channel object; threads are added when started
         self.channels: Dict[str, Dict[str, Any]] = {
-            p.CHANNEL_ID: {"id": p.CHANNEL_ID, "type": 0, "guild_id": p.GUILD_ID},
+            p.CHANNEL_ID: {
+                "id": p.CHANNEL_ID,
+                "type": 0,
+                "guild_id": p.GUILD_ID,
+                "name": p.CHANNEL_NAME,
+            },
             p.DM_CHANNEL_ID: {"id": p.DM_CHANNEL_ID, "type": 1},
         }
         self.history: Dict[str, List[Dict[str, Any]]] = {}
@@ -55,6 +60,7 @@ class FakeDiscord:
         self.reactions: List[Dict[str, str]] = []
         self.callbacks: List[Dict[str, Any]] = []
         self.channel_reads: List[str] = []
+        self.thread_start_failures: List[int] = []
         self._next_id = 1_500_000_000_000_000_000
         prefix = "/api/v10"
         self.app = Starlette(
@@ -104,6 +110,11 @@ class FakeDiscord:
             "guild_id": p.GUILD_ID,
             "parent_id": parent_id,
         }
+
+    def fail_thread_start(self, status: int = 503) -> None:
+        """The next thread start answers with this HTTP status."""
+
+        self.thread_start_failures.append(status)
 
     def texts_in(self, channel_id: str) -> List[str]:
         return [m["content"] for m in self.sent if m["channel_id"] == channel_id]
@@ -176,6 +187,9 @@ class FakeDiscord:
         message_id = request.path_params["message_id"]
         if channel_id not in self.channels:
             return self._unknown_channel()
+        if self.thread_start_failures:
+            status = self.thread_start_failures.pop(0)
+            return self._error(0, f"{status}: fake failure", status)
         if message_id in self.channels:
             return self._error(
                 160004, "A thread has already been created for this message", 400

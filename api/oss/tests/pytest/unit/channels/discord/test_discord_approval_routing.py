@@ -155,3 +155,30 @@ async def test_a_stale_click_starts_no_turn():
 
     assert resolution is None
     dao.create_thread.assert_not_called()
+
+
+async def test_a_new_channel_space_is_named_after_the_channel():
+    service, dao, adapter, connection, _ = _world(INTERACTION_ID)
+    dao.fetch_space_by_key = AsyncMock(return_value=None)
+    inbound = await adapter.parse_event(
+        body=p.encode(p.mention()), connection=connection
+    )
+    event = ChannelInboxEvent(
+        id=uuid4(),
+        connection_id=connection.id,
+        external_id=inbound.external_id,
+        kind=inbound.kind,
+        origin=ChannelEventOrigin.PUSHED,
+        data=ChannelInboxEventData(
+            external_locator=inbound.external_locator,
+            processed=inbound.processed,
+            space_kind=inbound.space_kind,
+            addressed=inbound.addressed,
+        ),
+    )
+
+    await service.resolve(project_id=uuid4(), connection_id=connection.id, event=event)
+
+    created = dao.get_or_create_space.call_args.kwargs["space"]
+    assert created.name == p.CHANNEL_NAME
+    assert created.kind is ChannelSpaceKind.TOPIC

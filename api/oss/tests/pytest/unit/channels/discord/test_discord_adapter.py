@@ -15,6 +15,7 @@ from oss.src.core.channels.types import (
     ChannelConnectionVerificationFailed,
     ChannelCredentialRevoked,
 )
+from oss.src.core.channels.utils import delivery_outcome_unknown, delivery_refused
 
 from . import payloads as p
 from .fake_discord import BASE_URL, FakeDiscord, answer
@@ -102,7 +103,7 @@ async def test_the_setup_document_is_the_invite_link(adapter):
     )
 
     url = "https://discord.com/oauth2/authorize?client_id=123&scope=bot&permissions=309237763136"
-    assert (document.format, document.content, document.link) == ("url", url, url)
+    assert (document.format, document.content, document.link) == ("text", url, url)
 
 
 async def test_no_setup_document_before_a_connection_exists(adapter):
@@ -126,15 +127,18 @@ async def _parse(adapter, payload, connection=None):
     )
 
 
-async def test_a_mention_parses_without_a_channel_read(adapter, discord):
+async def test_a_mention_carries_the_channel_name(adapter, discord):
     event = await _parse(adapter, p.mention())
 
     assert event.addressed is True
     assert event.external_locator["thread_id"] == p.MESSAGE_ID
-    assert discord.channel_reads == []
+    assert event.external_locator["title"] == p.CHANNEL_NAME
+    assert discord.channel_reads == [p.CHANNEL_ID]
 
 
-async def test_a_thread_message_reads_its_parent_once_per_connection(adapter, discord):
+async def test_a_thread_message_reads_its_channels_once_per_connection(
+    adapter, discord
+):
     discord.add_thread(p.THREAD_ID)
     connection = _connection()
 
@@ -142,19 +146,21 @@ async def test_a_thread_message_reads_its_parent_once_per_connection(adapter, di
     second = await _parse(adapter, p.in_thread("two", message_id="12"), connection)
 
     assert first.external_locator["channel_id"] == p.CHANNEL_ID
+    assert first.external_locator["title"] == p.CHANNEL_NAME
     assert second.external_locator["thread_id"] == p.THREAD_ID
-    assert discord.channel_reads == [p.THREAD_ID]
+    assert discord.channel_reads == [p.THREAD_ID, p.CHANNEL_ID]
 
 
-async def test_a_message_without_a_channel_type_reads_the_channel(adapter, discord):
-    event = await _parse(adapter, p.message("hi", channel_type=None))
+async def test_a_dm_needs_no_channel_read(adapter, discord):
+    event = await _parse(adapter, p.dm())
 
-    assert event.external_locator["channel_id"] == p.CHANNEL_ID
-    assert discord.channel_reads == [p.CHANNEL_ID]
+    assert "title" not in event.external_locator
+    assert discord.channel_reads == []
 
 
-async def test_the_bots_own_answer_is_dropped(adapter, discord):
-    assert await _parse(adapter, p.message("answer", author=p.BOT_AUTHOR)) is None
+async def test_the_bots_own_reply_costs_no_channel_read(adapter, discord):
+    assert await _parse(adapter, p.in_thread("answer", author=p.BOT_AUTHOR)) is None
+    assert discord.channel_reads == []
 
 
 async def test_other_dispatches_are_dropped(adapter):
@@ -189,9 +195,9 @@ def _mention_locator():
     }
 
 
-async def _post(adapter, locator, text="Here it is."):
+async def _post(adapter, locator, text="Here it is.", connection=None):
     return await adapter.post_message(
-        connection=_connection(),
+        connection=connection or _connection(),
         locator=locator,
         content=[{"type": "text", "text": text}],
         idempotency_key=uuid4(),
@@ -209,10 +215,13 @@ async def test_the_first_reply_starts_the_thread_from_the_mention(adapter, disco
         }
     ]
     assert discord.texts_in(p.MESSAGE_ID) == ["Here it is."]
-    assert receipt == {"channel_id": p.MESSAGE_ID, "message_id": discord.sent[0]["id"]}
+    assert receipt == {
+        "source_channel_id": p.MESSAGE_ID,
+        "message_id": discord.sent[0]["id"],
+    }
 
 
-async def test_a_later_reply_goes_into_the_existing_thread(adapter, discord):
+async def test_a_reply_from_another_process_finds_the_existing_thread(adapter, discord):
     await _post(adapter, _mention_locator(), "one")
     await _post(adapter, _mention_locator(), "two")
 
@@ -239,7 +248,7 @@ async def test_a_refused_token_marks_the_credential_revoked(adapter, discord):
 async def test_dismiss_choices_removes_the_buttons(adapter, discord):
     await adapter.dismiss_choices(
         connection=_connection(),
-        external_locator={"channel_id": p.THREAD_ID, "message_id": "77"},
+        external_locator={"source_channel_id": p.THREAD_ID, "message_id": "77"},
     )
 
     assert discord.edits == [
@@ -248,11 +257,58 @@ async def test_dismiss_choices_removes_the_buttons(adapter, discord):
 
 
 async def test_typing_shows_in_the_channel_until_the_thread_exists(adapter, discord):
-    await adapter.signal_activity(connection=_connection(), locator=_mention_locator())
-    await _post(adapter, _mention_locator())
-    await adapter.signal_activity(connection=_connection(), locator=_mention_locator())
+    connection = _connection()
+    await adapter.signal_activity(connection=connection, locator=_mention_locator())
+    await _post(adapter, _mention_locator(), connection=connection)
+    await adapter.signal_activity(connection=connection, locator=_mention_locator())
 
     assert discord.typing == [p.CHANNEL_ID, p.MESSAGE_ID]
+
+
+async def test_a_later_reply_in_the_same_process_starts_no_thread(adapter, discord):
+    connection = _connection()
+    await _post(adapter, _mention_locator(), "one", connection=connection)
+    await _post(adapter, _mention_locator(), "two", connection=connection)
+
+    assert len(discord.threads_started) == 1
+    assert discord.texts_in(p.MESSAGE_ID) == ["one", "two"]
+
+
+async def test_a_failed_thread_start_is_retried_not_marked_uncertain(adapter, discord):
+    connection = _connection()
+    discord.fail_thread_start(503)
+
+    with pytest.raises(Exception) as raised:
+        await _post(adapter, _mention_locator(), connection=connection)
+
+    assert not delivery_outcome_unknown(raised.value)
+    assert not delivery_refused(raised.value)
+    assert discord.sent == []
+
+    await _post(adapter, _mention_locator(), connection=connection)
+
+    assert discord.texts_in(p.MESSAGE_ID) == ["Here it is."]
+
+
+async def test_a_thread_start_timeout_is_retried_not_marked_uncertain(discord):
+    class _TimesOut(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            if request.url.path.endswith("/threads"):
+                raise httpx.ReadTimeout("timed out", request=request)
+            return await httpx.ASGITransport(app=discord.app).handle_async_request(
+                request
+            )
+
+    adapter = DiscordAdapter(
+        http_client=httpx.AsyncClient(transport=_TimesOut(), base_url=BASE_URL)
+    )
+
+    with pytest.raises(Exception) as raised:
+        await _post(adapter, _mention_locator())
+
+    assert not delivery_outcome_unknown(raised.value)
+    assert not delivery_refused(raised.value)
+    assert discord.sent == []
 
 
 async def test_message_status_reacts_on_the_users_message(adapter, discord):
@@ -283,8 +339,20 @@ async def test_fetch_history_reads_the_channel(adapter, discord):
         limit=50,
     )
 
-    assert [e.processed.content[0]["text"] for e in events] == ["newer", "older"]
+    assert [e.processed.content[0]["text"] for e in events] == ["older", "newer"]
     assert all(e.external_locator["channel_id"] == p.CHANNEL_ID for e in events)
+
+
+async def test_an_empty_answer_posts_nothing(adapter, discord):
+    receipt = await adapter.post_message(
+        connection=_connection(),
+        locator=_mention_locator(),
+        content=[{"type": "text", "text": ""}],
+        idempotency_key=uuid4(),
+    )
+
+    assert receipt == {}
+    assert discord.sent == [] and discord.threads_started == []
 
 
 async def test_discover_spaces_returns_nothing(adapter):

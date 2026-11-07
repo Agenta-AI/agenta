@@ -109,7 +109,14 @@ def opens_thread(locator: Dict[str, Any]) -> bool:
 
 
 def reply_channel_id(locator: Dict[str, Any]) -> str:
-    return locator.get("thread_id") or locator["channel_id"]
+    """Where replies go. A receipt names only the channel its message sits
+    in."""
+
+    return (
+        locator.get("thread_id")
+        or locator.get("channel_id")
+        or locator["source_channel_id"]
+    )
 
 
 # --- inbound ------------------------------------------------------------- #
@@ -177,10 +184,12 @@ def parse_message(
     parent_id: Optional[str],
     bot_user_id: Optional[str],
     bot_username: Optional[str],
+    title: Optional[str] = None,
 ) -> Optional[ChannelInboundEvent]:
     """A person's message as an event, or None for the bot's own posts,
     other bots and system notices. `parent_id` is the parent text channel
-    when the message was posted inside a thread."""
+    when the message was posted inside a thread, and `title` that text
+    channel's name."""
 
     message_id = message.get("id")
     source_channel_id = message.get("channel_id")
@@ -203,6 +212,8 @@ def parse_message(
     )
     if opens_thread(locator):
         locator["thread_name"] = _thread_name(text, fallback=handle)
+    if title:
+        locator["title"] = title
 
     return ChannelInboundEvent(
         external_id=str(message_id),
@@ -337,9 +348,11 @@ def build_messages(content: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     on the last message. The agent's words never ping anyone."""
 
     text, components = render_content(content)
-    chunks = split_text(text) if text else [" "]
+    if not text and not components:
+        return []  # Discord refuses a message with nothing in it
     bodies: List[Dict[str, Any]] = [
-        {"content": chunk, "allowed_mentions": {"parse": []}} for chunk in chunks
+        {"content": chunk, "allowed_mentions": {"parse": []}}
+        for chunk in split_text(text)
     ]
     if components:
         bodies[-1]["components"] = components

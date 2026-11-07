@@ -133,11 +133,12 @@ OpenClaw, Hermes Agent and n8n all use a bring-your-own bot.
 
 The locator follows the Slack precedent, where `channel` stays the posted channel and the thread goes in `thread_ts`, with a top-level message keyed by its own ts (`api/oss/src/core/channels/adapters/slack/adapter.py:387-395`):
 
-- `channel_id` is the text channel, which is the space. For a message inside a Discord thread, it is the thread's parent channel, read from the thread's channel object through a small cache per connection.
+- `channel_id` is the text channel, which is the space. For a message inside a Discord thread, it is the thread's parent channel, read from the thread's channel object. The adapter reads the channel object of every server channel it meets once, through a small cache per connection, because `MESSAGE_CREATE` carries neither a thread's parent nor the channel's name. It ignores `channel_type`.
 - `thread_id` is the Discord thread id. For a top-level message in a server channel, it is the message's own id, because Discord gives the thread started from that message the same id. This holds for every top-level message, not only a mention, as Slack keys a top-level message by its own ts: the adapter does not have to decide what is addressed (sigils and commands are decided in core). It is `""` in a DM.
 - `thread_name` is set on a top-level server message only: its first line, at most 100 characters, with the bot's mention shown as its handle. `post_message` uses it to name the thread it starts. It is not an identity key.
 - `source_channel_id` is the channel Discord delivered the message in, never rewritten. It is not an identity key.
 - `message_id` is the Discord message id.
+- `title` is the text channel's name, on server messages only. Core names a new space after it, as for a Telegram group's `title`. A DM has none; the UI already shows a private space as "Direct messages".
 
 The space grain is the text channel, so every mention in a channel, and every thread under it, belongs to one space. A grant on the channel therefore covers every mention in it, because grant matching reads the space id (`api/oss/src/dbs/postgres/channels/dao.py:1215-1231`). Each mention-opened thread is its own thread key, so the first turn and the messages later posted in that thread share one session.
 
@@ -212,6 +213,7 @@ The Message Content intent state is read at setup and is not stored. When neithe
 | `thread_id` | the Discord thread id; the message's own id for a top-level message in a server channel; `""` in a DM (D7) | same rule | routing (thread key) |
 | `source_channel_id` | the channel Discord delivered the message in, never rewritten (D7) | the message's channel | routing (not an identity key) |
 | `thread_name` | top-level server message only: its first line, at most 100 characters (D7) | not set | protocol context, names the thread `post_message` starts |
+| `title` | the text channel's name, server messages only (D7) | not set | metadata, the name of a new space |
 | `message_id` | the message id | the id of the message that holds the button | protocol context, used for the reaction, the thread start and recovery |
 
 `external_id` is the Discord message id for a message and `discord_interaction_id` for a click. `processed.message_ref` is the message id in both cases, so a click points at the message that holds the button.
@@ -251,15 +253,15 @@ It lives in `api/oss/src/core/channels/types.py` with the other channels errors 
 | --- | --- |
 | `fetch_capabilities` | Static declaration above. |
 | `verify_connection` | `GET /applications/@me` with the bot token. Refuse when the token is rejected, or when neither `GATEWAY_MESSAGE_CONTENT` nor `GATEWAY_MESSAGE_CONTENT_LIMITED` is set. Both refusals raise `ChannelConnectionVerificationFailed`. Return `application_id`, `bot_user_id`, `bot_username` and `application_name`. |
-| `build_setup_document` | The invite URL built from the recorded `application_id` and the permission integer `309237763136`. |
+| `build_setup_document` | The invite URL built from the recorded `application_id` and the permission integer `309237763136`, as `format: "text"` with the URL in both `content` and `link`. |
 | `activate_connection` | Not used. The socket loop picks the connection up on its next reload. |
 | `connection_locator` | Returns `None`, as `telegram_hosted` does (`telegram_hosted/adapter.py:85-91`). No HTTP route exists. |
 | `verify_signature` | Raises `NotImplementedError`. Never called, because the socket is authenticated by the bot token. |
 | `parse_event` | `MESSAGE_CREATE` becomes a `MESSAGE` event, and the bot's own messages return `None`. `INTERACTION_CREATE` for a button sends the deferred update, then becomes an `ACTION` event. |
-| `post_message` | `POST /channels/{thread_id or channel_id}/messages`, split at 2000 characters with code blocks kept whole. When the thread does not exist yet, start it from the message in `source_channel_id` first. Buttons go in action rows. |
+| `post_message` | `POST /channels/{thread_id or channel_id}/messages`, split at 2000 characters with code blocks kept whole. When the thread may not exist yet (the locator opens a thread and this process has not seen it start), start it from the message in `source_channel_id` first; Discord's error `160004` (already started) counts as success. A thread start that times out or gets a 5xx raises a retryable error, because nothing was posted. Buttons go in action rows. The receipt is `{source_channel_id, message_id}`: the channel the posted message sits in. An empty answer posts nothing. |
 | `edit_message` | Not offered (`update: false`). |
-| `dismiss_choices` | Edits the message to remove its components. |
-| `signal_activity` | `POST /channels/{thread_id or channel_id}/typing`. |
+| `dismiss_choices` | Edits the message named by the receipt's `source_channel_id` and `message_id` to remove its components. |
+| `signal_activity` | `POST /channels/{thread_id or channel_id}/typing`, or into `source_channel_id` while the thread may not exist yet. |
 | `set_message_status` | Adds a reaction, in `source_channel_id`, to the user's message on `received` and changes it on `completed` or `failed`, as Slack does. |
 | `discover_spaces`, `fetch_history` | `discover_spaces` returns nothing. `fetch_history` reads `GET /channels/{channel_id}/messages`. |
 | `revoke_installation` | Returns `None`. The user removes the bot in Discord. |
@@ -270,7 +272,7 @@ It lives in `api/oss/src/core/channels/types.py` with the other channels errors 
 - **The enqueue retry lives in memory.** A process crash during a queue outage can leave a stored row with no turn. The webhook path has the same limit when the platform stops retrying.
 - **Recovery covers only channels active in the last 24 hours.** A missed message in a channel with no stored message in that window is not recovered.
 - **Typing refresh is slower than Discord's expiry.** The outbox refreshes the native indicator every 20 seconds (`outbox.py:87`), and Discord's typing indicator expires after 10 seconds. The indicator shows for about half of a long turn. Changing the shared interval also changes WhatsApp, so v1 accepts the gaps.
-- **`MESSAGE_CREATE` has no parent channel.** For a message inside a thread, the adapter must read the thread's channel object (Discord's `parent_id` field) to fill `channel_id`. The adapter keeps a small in-memory cache per connection. `discord.py` also caches channels from `GUILD_CREATE`, but `parse_event` receives only the event bytes.
+- **`MESSAGE_CREATE` has no parent channel.** For a message inside a thread, the adapter must read the thread's channel object (Discord's `parent_id` field) to fill `channel_id`, and it reads the text channel for its name. The adapter keeps a small in-memory cache per connection, so each channel costs one read per process. `discord.py` also caches channels from `GUILD_CREATE`, but `parse_event` receives only the event bytes.
 - **The Message Content intent can be turned off after setup.** Discord then closes the socket with `4014`. The loop logs it at error level and retries with backoff.
 - **Discord's docs and the research disagree on the review threshold for the Message Content intent.** The docs say 100 servers (`application.mdx:166`); the research cites a 10,000 user threshold from June 2026. A bring-your-own bot in one server is below both.
 

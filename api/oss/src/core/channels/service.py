@@ -2289,6 +2289,8 @@ class ChannelsService:
                     connection_id=connection_id,
                     kind=event.data.space_kind or ChannelSpaceKind.GROUP,
                     external_key=space_key,
+                    # the platform's own name, when the event carries one
+                    name=(event.data.external_locator or {}).get("title"),
                     data=ChannelSpaceData(external_locator=event.data.external_locator),
                 ),
             )
