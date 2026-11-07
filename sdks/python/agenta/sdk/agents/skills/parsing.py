@@ -16,49 +16,27 @@ from typing import Any, Mapping, Sequence
 
 from pydantic import ValidationError
 
+from agenta.sdk.utils.embeds import OBJECT_KEY, has_embed_markers
+
 from .errors import SkillValidationError
 from .models import SkillTemplate
 
-# Embed markers the server-side resolver inlines before the runner. If one survives to here,
-# resolution was skipped (e.g. `flags.resolve=False`), so we raise a clear, typed error rather
-# than letting the strict model dump a confusing `extra="forbid"` ValidationError.
-_AG_EMBED_MARKER = "@ag.embed"
-_AG_SNIPPET_MARKER = "@{{"
-
 
 def _unresolved_embed_message(value: Any) -> str | None:
-    """Return an error message if ``value`` still contains an unresolved embed, else ``None``.
-
-    Walks nested mappings and sequences so an embed buried in a field (e.g. ``{"body": "@{{...}}"}``
-    or a bundled file's ``content``) is caught here and surfaces the clear, typed error rather than
-    slipping past into a confusing strict-model ``ValidationError``. Strings are checked only for
-    the ``@{{`` snippet token: a structural embed is a mapping keyed ``@ag.embed``, and the literal
-    text "@ag.embed" legitimately appears in skill documentation (e.g. the build-an-agent
-    config-schema reference).
-    """
-    if isinstance(value, Mapping):
-        if _AG_EMBED_MARKER in value:
-            return (
-                "Skill entry is an unresolved @ag.embed reference. Embeds resolve server-side "
-                "before parsing; this usually means resolution was opted out (flags.resolve=False) "
-                "or no resolver ran. Resolve embeds first, or pass an inline skill package."
-            )
-        for nested in value.values():
-            message = _unresolved_embed_message(nested)
-            if message is not None:
-                return message
-    elif isinstance(value, (list, tuple)):
-        for nested in value:
-            message = _unresolved_embed_message(nested)
-            if message is not None:
-                return message
-    elif isinstance(value, str) and _AG_SNIPPET_MARKER in value:
+    """Return an error message if ``value`` still contains an unresolved embed, else ``None``."""
+    if not has_embed_markers(value):
+        return None
+    if isinstance(value, Mapping) and OBJECT_KEY in value:
         return (
-            "Skill entry contains an unresolved embed token. Embeds resolve server-side before "
-            "parsing; this usually means resolution was opted out (flags.resolve=False) or no "
-            "resolver ran. Resolve embeds first, or pass an inline skill package."
+            "Skill entry is an unresolved @ag.embed reference. Embeds resolve server-side "
+            "before parsing; this usually means resolution was opted out (flags.resolve=False) "
+            "or no resolver ran. Resolve embeds first, or pass an inline skill package."
         )
-    return None
+    return (
+        "Skill entry contains an unresolved embed token. Embeds resolve server-side before "
+        "parsing; this usually means resolution was opted out (flags.resolve=False) or no "
+        "resolver ran. Resolve embeds first, or pass an inline skill package."
+    )
 
 
 def parse_skill_template(value: SkillTemplate | Mapping[str, Any]) -> SkillTemplate:
